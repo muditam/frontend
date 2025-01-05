@@ -97,7 +97,7 @@ const LeadTable = () => {
 
     const fetchLeads = async () => {
         try {
-            const response = await axios.get("https://www.60brands.com/api/leads");
+            const response = await axios.get("hhttps://muditamleads-14f32a10d7f7.herokuapp.com/api/leads");
             setLeads(response.data);
         } catch (error) {
             console.error("Failed to fetch leads", error);
@@ -106,7 +106,7 @@ const LeadTable = () => {
 
     const fetchEmployeesByRole = async (role, setState) => {
         try {
-            const response = await axios.get(`https://www.60brands.com/api/employees?role=${encodeURIComponent(role)}`);
+            const response = await axios.get(`https://muditamleads-14f32a10d7f7.herokuapp.com/api/employees?role=${encodeURIComponent(role)}`);
             setState(response.data);
         } catch (error) {
             console.error(`Failed to fetch ${role} employees`, error);
@@ -115,7 +115,7 @@ const LeadTable = () => {
 
     const fetchAgents = async () => {
         try {
-            const response = await axios.get("https://www.60brands.com/api/employees");
+            const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/employees");
             const filteredAgents = response.data.filter((employee) => employee.role.toLowerCase() === "agent");
             setAgents(filteredAgents);
         } catch (error) {
@@ -144,7 +144,7 @@ const LeadTable = () => {
  
 
         try {
-            const response = await axios.post("https://www.60brands.com/api/leads", newLeadData, leadToAdd);
+            const response = await axios.post("https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads", newLeadData, leadToAdd);
             if (response.status === 201) {
                 setLeads([response.data.lead, ...leads]);
                 // fetchLeads();
@@ -187,7 +187,7 @@ const LeadTable = () => {
 
     const handleDeleteLead = async (id) => {
         try {
-            await axios.delete(`https://www.60brands.com/api/leads/${id}`);
+            await axios.delete(`https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/${id}`);
             setLeads(leads.filter((lead) => lead._id !== id));
         } catch (error) {
             console.error('Error deleting lead:', error);
@@ -211,7 +211,7 @@ const LeadTable = () => {
 
             // Check if the number exists in the database
             try {
-                const response = await axios.get(`https://www.60brands.com/api/leads/check-duplicate`, {
+                const response = await axios.get(`https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/check-duplicate`, {
                     params: { contactNumber: enteredNumber },
                 });
 
@@ -238,7 +238,7 @@ const LeadTable = () => {
         // Save the updated field to MongoDB
         const leadId = updatedLeads[index]._id;
         try {
-            await axios.put(`https://www.60brands.com/api/leads/${leadId}`, {
+            await axios.put(`https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/${leadId}`, {
                 [field]: e.target.value,
             });
 
@@ -264,7 +264,7 @@ const LeadTable = () => {
         }
 
         try {
-            const response = await axios.put(`https://www.60brands.com/api/leads/${lead._id}`, lead);
+            const response = await axios.put(`https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/${lead._id}`, lead);
             if (response.status === 200) {
                 console.log("Lead updated successfully");
                 fetchLeads();

@@ -32,7 +32,7 @@ const BulkDataUpload = () => {
 
     try {
       setLoading(true);
-      const response = await axios.post("https://www.60brands.com/api/bulk-upload", formData, {
+      const response = await axios.post("https://muditamleads-14f32a10d7f7.herokuapp.com/api/bulk-upload", formData, {
         headers: { "Content-Type": "multipart/form-data" },
       });
 

@@ -56,7 +56,7 @@ const NewOrders = () => {
 
   const fetchNewOrders = async () => {
     try {
-      const response = await axios.get("https://www.60brands.com/api/leads/new-orders");
+      const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/new-orders");
       setNewOrders(response.data.sort((a, b) => new Date(b.date) - new Date(a.date)));
     } catch (error) {
       console.error("Error fetching new orders:", error);
@@ -65,7 +65,7 @@ const NewOrders = () => {
 
   const fetchRetentionAgents = async () => {
     try {
-      const response = await axios.get("https://www.60brands.com/api/employees?role=Retention%20Agent");
+      const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/employees?role=Retention%20Agent");
       setRetentionAgents(response.data);
     } catch (error) {
       console.error("Error fetching retention agents:", error);
@@ -79,7 +79,7 @@ const NewOrders = () => {
 
     const orderId = updatedOrders[index]._id;
     try {
-      await axios.put(`https://www.60brands.com/api/leads/${orderId}`, {
+      await axios.put(`https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/${orderId}`, {
         healthExpertAssigned: e.target.value,
       });
     } catch (error) {
@@ -94,7 +94,7 @@ const NewOrders = () => {
   
     const orderId = updatedOrders[index]._id;
     try {
-      await axios.put(`https://www.60brands.com/api/leads/${orderId}`, {
+      await axios.put(`https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/${orderId}`, {
         deliveryStatus: e.target.value,
       });
     } catch (error) {

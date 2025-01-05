@@ -56,7 +56,7 @@ const RetentionLeads = () => {
 
   const fetchRetentionLeads = async (user) => {
     try {
-      const response = await axios.get("https://www.60brands.com/api/leads/retentions", {
+      const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/retentions", {
         params: {
           fullName: user.fullName,
           email: user.email,
@@ -90,7 +90,7 @@ const RetentionLeads = () => {
     setLeads(updatedLeads);
 
     try {
-      await axios.put(`https://www.60brands.com/api/leads/${updatedLeads[index]._id}`, {
+      await axios.put(`https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/${updatedLeads[index]._id}`, {
         [field]: e.target.value,
       });
     } catch (error) {

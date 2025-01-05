@@ -53,7 +53,7 @@ const SalesMySales = () => {
 
   const fetchSales = async (agentAssignedName) => {
     try {
-      const response = await axios.get("https://www.60brands.com/api/leads", {
+      const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads", {
         params: { agentAssignedName, salesStatus: "Sales Done" }, 
       });
       setSales(response.data);
@@ -84,7 +84,7 @@ const SalesMySales = () => {
   
       // Update the Dosage Expiring field in the database
       try {
-        await axios.put(`https://www.60brands.com/api/leads/${updatedSales[index]._id}`, {
+        await axios.put(`https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/${updatedSales[index]._id}`, {
           dosageOrdered: e.target.value,
           dosageExpiring: updatedSales[index].dosageExpiring,
         });
@@ -97,7 +97,7 @@ const SalesMySales = () => {
  
     const saleId = updatedSales[index]._id;
     try {
-      await axios.put(`https://www.60brands.com/api/leads/${saleId}`, {
+      await axios.put(`https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/${saleId}`, {
         [field]: e.target.value, 
       });
     } catch (error) {

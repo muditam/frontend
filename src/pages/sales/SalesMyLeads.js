@@ -72,7 +72,7 @@ const SalesMyLeads = () => {
 
   const fetchLeads = async (agentAssigned) => {
     try {
-      const response = await axios.get("https://www.60brands.com/api/leads", {
+      const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads", {
         params: { agentAssignedName: agentAssigned },
       });
       setLeads(response.data);
@@ -91,7 +91,7 @@ const SalesMyLeads = () => {
 
       // Check if the number exists in the database
       try {
-        const response = await axios.get("https://www.60brands.com/api/leads/check-duplicate", {
+        const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/check-duplicate", {
           params: { contactNumber: enteredNumber },
         });
 
@@ -116,7 +116,7 @@ const SalesMyLeads = () => {
 
     const leadId = updatedLeads[index]._id;
     try {
-      await axios.put(`https://www.60brands.com/api/leads/${leadId}`, {
+      await axios.put(`https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/${leadId}`, {
         [field]: e.target.value,
       });
     } catch (error) {
@@ -142,7 +142,7 @@ const SalesMyLeads = () => {
     }    
 
     try {
-      const response = await axios.post("https://www.60brands.com/api/leads", leadToAdd);
+      const response = await axios.post("https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads", leadToAdd);
       if (response.status === 201) {
         setLeads((prevLeads) => [response.data.lead, ...prevLeads]);
         setNewLead({

@@ -70,7 +70,7 @@ const RetentionTable = () => {
 
   const fetchRetentionLeads = async () => {
     try {
-      const response = await axios.get("https://www.60brands.com/api/leads/retention");
+      const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/retention");
       setRetentionLeads(response.data);
     } catch (error) {
       console.error("Error fetching retention leads:", error);

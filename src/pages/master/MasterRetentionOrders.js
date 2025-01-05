@@ -57,7 +57,7 @@ const RetentionOrders = () => {
 
   const fetchRetentionOrders = async () => {
     try {
-      const response = await axios.get("https://www.60brands.com/api/retention-orders");
+      const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/retention-orders");
       setOrders(response.data.sort((a, b) => new Date(b.date) - new Date(a.date)));
     } catch (error) {
       console.error("Error fetching retention orders:", error);
@@ -70,7 +70,7 @@ const RetentionOrders = () => {
     setOrders(updatedOrders);
 
     try {
-      await axios.put(`https://www.60brands.com/api/retention-sales/${updatedOrders[index]._id}`, {
+      await axios.put(`https://muditamleads-14f32a10d7f7.herokuapp.com/api/retention-sales/${updatedOrders[index]._id}`, {
         deliveryStatus: e.target.value,
       });
     } catch (error) {

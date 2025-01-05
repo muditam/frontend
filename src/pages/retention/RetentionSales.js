@@ -76,7 +76,7 @@ const RetentionSales = () => {
 
   const fetchSales = async (orderCreatedBy) => {
     try {
-      const response = await axios.get("https://www.60brands.com/api/retention-sales", {
+      const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/retention-sales", {
         params: { orderCreatedBy },
       });
       setSales(response.data);
@@ -92,7 +92,7 @@ const RetentionSales = () => {
     if (updatedSales[index].isNew) {
         // Make POST request when all required fields are filled
         try {
-            const response = await axios.post("https://www.60brands.com/api/retention-sales", updatedSales[index]);
+            const response = await axios.post("https://muditamleads-14f32a10d7f7.herokuapp.com/api/retention-sales", updatedSales[index]);
             updatedSales[index] = response.data;
         } catch (error) {
             console.error("Error saving new sale:", error);
@@ -102,7 +102,7 @@ const RetentionSales = () => {
     } else {
         // Update backend for existing records
         try {
-            await axios.put(`https://www.60brands.com/api/retention-sales/${updatedSales[index]._id}`, { [field]: e.target.value });
+            await axios.put(`https://muditamleads-14f32a10d7f7.herokuapp.com/api/retention-sales/${updatedSales[index]._id}`, { [field]: e.target.value });
         } catch (error) {
             console.error("Error updating sale:", error);
         }
@@ -124,7 +124,7 @@ const handleAddSale = async () => {
   };
 
   try {
-      const response = await axios.post("https://www.60brands.com/api/retention-sales", newSale);
+      const response = await axios.post("https://muditamleads-14f32a10d7f7.herokuapp.com/api/retention-sales", newSale);
       setSales([response.data, ...sales]); // Add the newly created sale to the state
   } catch (error) {
       console.error("Error adding new sale:", error);
@@ -133,7 +133,7 @@ const handleAddSale = async () => {
 
   const handleDelete = async (id) => {
     try {
-      await axios.delete(`https://www.60brands.com/api/retention-sales/${id}`);
+      await axios.delete(`https://muditamleads-14f32a10d7f7.herokuapp.com/api/retention-sales/${id}`);
       setSales(sales.filter((sale) => sale._id !== id));
     } catch (error) {
       console.error("Error deleting sale:", error);
