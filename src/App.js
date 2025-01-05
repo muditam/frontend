@@ -14,6 +14,7 @@ import RetentionSales from "./pages/retention/RetentionSales";
 import Home from "./pages/Home";
 import Login from "./pages/Login";
 import NavbarWithSearch from "./components/NavBarwithSearch";
+import SalesDashboard from "./components/SalesDashboard";
 
 const App = () => {
    
@@ -24,7 +25,7 @@ const App = () => {
         <NavbarWithSearch />
 
         <Routes>
-          <Route path="/" element={<Home />} />
+          <Route path="/" element={<SalesDashboard />} />
           <Route path="/login" element={<Login />} />
           <Route path="/bulk-data-upload" element={<BulkDataUpload />} />
           <Route path="/add-employee" element={<AddEmployee />} />
