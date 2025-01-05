@@ -97,7 +97,7 @@ const LeadTable = () => {
 
     const fetchLeads = async () => {
         try {
-            const response = await axios.get("hhttps://muditamleads-14f32a10d7f7.herokuapp.com/api/leads");
+            const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads");
             setLeads(response.data);
         } catch (error) {
             console.error("Failed to fetch leads", error);
@@ -411,7 +411,7 @@ const LeadTable = () => {
                                 enquiryFor: "",
                                 orderDate: "",
                             });
-                            fetchLeads(); // Reset to original data
+                            fetchLeads();  
                             setFilterOpen(false);
                         }}
                     >
