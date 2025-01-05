@@ -41,9 +41,16 @@
   }
 
   .css-1qbxq6j{
-    white-space: nowrap;
+    white-space: nowrap !important;
   } 
 
+  .css-12v7z0{
+    white-space: nowrap !important;
+  }
+
+  .css-1plsf6o {
+   padding: 2px 25px !important;
+  }
   .css-1plsf6ot{
     padding: 0px 15px !important;
     text-align: center !important;

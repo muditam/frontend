@@ -22,6 +22,7 @@ import {
     List,
     ListItem,
     Divider,
+    TablePagination,
 } from "@mui/material";
 import { Delete, AddCircle } from "@mui/icons-material";
 import axios from "axios";
@@ -32,8 +33,9 @@ const LeadTable = () => {
     const [salesAgents, setSalesAgents] = useState([]);
     const [retentionAgents, setRetentionAgents] = useState([]);
     const [filterOpen, setFilterOpen] = useState(false);
-    const [currentPage, setCurrentPage] = useState(1);
-    const [validationErrors, setValidationErrors] = useState({});
+    const [currentPage, setCurrentPage] = useState(0);
+    const [validationErrors, setValidationErrors] = useState({}); 
+    const [rowsPerPage, setRowsPerPage] = useState(10);
     const [filters, setFilters] = useState({
         date: "",
         name: "",
@@ -252,10 +254,7 @@ const LeadTable = () => {
         currentDate.setDate(currentDate.getDate() + days);
         return currentDate.toISOString().split("T")[0];
     };
-
-
-
-
+ 
     const handleSaveLead = async (index) => {
         const lead = leads[index];
         if (!lead._id) {
@@ -287,11 +286,9 @@ const LeadTable = () => {
 
     const handleCombinedChange = (event, index, field) => {
         const { value } = event.target;
-
-        // Call the first handler
+ 
         handleSalesStatusChange(event, index);
-
-        // Call the second handler
+ 
         handleInputChange(event, index, field);
     };
 
@@ -311,9 +308,9 @@ const LeadTable = () => {
     const applyFilters = (filters) => {
         const filteredLeads = leads.filter((lead) => {
             return Object.keys(filters).every((key) => {
-                if (!filters[key]) return true; // Ignore empty filters
+                if (!filters[key]) return true;  
                 if (key === "date" || key === "orderDate") {
-                    return lead[key]?.startsWith(filters[key]); // Partial date match
+                    return lead[key]?.startsWith(filters[key]);  
                 }
                 return String(lead[key] || "").toLowerCase().includes(filters[key].toLowerCase());
             });
@@ -321,13 +318,16 @@ const LeadTable = () => {
         setLeads(filteredLeads);
     };
 
+    const handleChangePage = (event, newPage) => {
+        setCurrentPage(newPage);
+    };
 
-    // Sort leads in reverse chronological order based on date and time
-    const sortedLeads = leads.sort((a, b) => {
-        const dateA = new Date(`${a.date} ${a.time}`);
-        const dateB = new Date(`${b.date} ${b.time}`);
-        return dateB - dateA; // Newest first
-    });
+    const handleChangeRowsPerPage = (event) => {
+        setRowsPerPage(parseInt(event.target.value, 10));
+        setCurrentPage(0);  
+    };
+ 
+    const currentLeads = leads.slice(currentPage * rowsPerPage, currentPage * rowsPerPage + rowsPerPage);
 
 
     return (
@@ -459,7 +459,7 @@ const LeadTable = () => {
                         </TableRow>
                     </TableHead>
                     <TableBody>
-                        {leads.map((lead, index) => (
+                        {currentLeads.map((lead, index) => (
                             <TableRow key={lead._id}>
                                 <TableCell>
                                     <TextField
@@ -825,6 +825,15 @@ const LeadTable = () => {
                     </TableBody>
                 </Table>
             </TableContainer>
+            <TablePagination
+                rowsPerPageOptions={[10, 20, 50, 100]}
+                component="div"
+                count={leads.length}
+                rowsPerPage={rowsPerPage}
+                page={currentPage}
+                onPageChange={handleChangePage}
+                onRowsPerPageChange={handleChangeRowsPerPage}
+            />
         </Box>
     );
 
