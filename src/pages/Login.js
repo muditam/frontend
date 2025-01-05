@@ -13,7 +13,7 @@ const Login = () => {
     e.preventDefault();
 
     try {
-      const response = await axios.post("https://www.60brands.com/api/login", {
+      const response = await axios.post("https://muditamleads-14f32a10d7f7.herokuapp.com/api/login", {
         email,
         password,
       });

@@ -44,7 +44,7 @@ const AddEmployee = () => {
 
   const fetchEmployees = async () => {
     try {
-      const response = await axios.get("https://www.60brands.com/api/employees");
+      const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/employees");
       setEmployees(response.data);
     } catch (error) {
       console.error("Failed to fetch employees", error);
@@ -99,14 +99,14 @@ const AddEmployee = () => {
   
     try {
       if (isEditMode) {
-        await axios.put(`https://www.60brands.com/api/employees/${currentEmployeeId}`, employeeData);
+        await axios.put(`https://muditamleads-14f32a10d7f7.herokuapp.com/api/employees/${currentEmployeeId}`, employeeData);
         setEmployees((prev) =>
           prev.map((emp) =>
             emp._id === currentEmployeeId ? { ...emp, ...employeeData } : emp
           )
         );
       } else {
-        const response = await axios.post("https://www.60brands.com/api/employees", employeeData);
+        const response = await axios.post("https://muditamleads-14f32a10d7f7.herokuapp.com/api/employees", employeeData);
         setEmployees((prev) => [response.data.employee, ...prev]);
       }
       fetchEmployees();
@@ -142,7 +142,7 @@ const AddEmployee = () => {
 
   const handleDelete = async (id) => {
     try {
-      await axios.delete(`https://www.60brands.com/api/employees/${id}`);
+      await axios.delete(`https://muditamleads-14f32a10d7f7.herokuapp.com/api/employees/${id}`);
       fetchEmployees();
     } catch (error) {
       console.error("Error deleting employee:", error);
