@@ -1,0 +1,46 @@
+/* .css-1dc80h3-MuiTableCell-root {
+    padding: 0 !important;
+  }
+
+.css-w76bbz-MuiSelect-select-MuiInputBase-input-MuiOutlinedInput-input{
+    padding: 0 !important;
+  }
+
+  .css-16wblaj-MuiInputBase-input-MuiOutlinedInput-input{
+    padding: 0 !important;
+  } */
+
+  .css-16wblaj-MuiInputBase-input-MuiOutlinedInput-input{
+    text-align: center;
+  }
+
+  .css-1tzrrsl-MuiTableCell-root{
+    white-space: nowrap;
+  }
+
+  .css-16wblaj-MuiInputBase-input-MuiOutlinedInput-input{
+    padding: 8px 6px !important;
+  }
+
+  .css-1dc80h3-MuiTableCell-root{
+    padding: 0px 15px !important;
+    text-align: center !important;
+  }
+
+  .css-w76bbz-MuiSelect-select-MuiInputBase-input-MuiOutlinedInput-input{
+    padding: 8px 35px !important;
+  }
+  
+  .css-1orzuox-MuiTableCell-root{
+    background-color: #542087 !important;
+    color: white !important;
+    font-weight: 700 !important;
+    text-align: center !important;
+    line-height: 2.5 !important;
+    padding: 2px 8px !important;
+    white-space:  nowrap !important;
+  }
+
+  .css-1dc80h3-MuiTableCell-root{
+    white-space: nowrap !important;
+  }
