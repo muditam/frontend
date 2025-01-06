@@ -577,7 +577,7 @@ const LeadTable = () => {
                                     <Select
                                         value={lead.leadStatus || ""}
                                         onChange={(e) => handleInputChange(e, index, "leadStatus")}
-                                    >
+                                    > 
                                         {[
                                             "Sales Done",
                                             "CNP - Call Not Picked",

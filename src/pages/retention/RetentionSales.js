@@ -356,7 +356,7 @@ const currentLeads = sales.slice(currentPage * rowsPerPage, currentPage * rowsPe
           fullWidth
         />
       </TableCell>
-      <TableCell>
+      <TableCell style={{ whiteSpace: "nowrap", minWidth: "240px" }}>
         <TextField
           value={editedSales[sale._id]?.name || sale.name || ""}
           onChange={(e) => handleInputChange(e, sale._id, "name")}
@@ -371,7 +371,7 @@ const currentLeads = sales.slice(currentPage * rowsPerPage, currentPage * rowsPe
           fullWidth
         />
       </TableCell>
-      <TableCell>
+      <TableCell style={{ whiteSpace: "nowrap", minWidth: "200px" }}>
         <FormControl fullWidth>
           <Select
             multiple
