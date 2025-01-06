@@ -23,15 +23,14 @@ import {
   TablePagination,
 } from "@mui/material";
 import { Delete, AddCircle } from "@mui/icons-material";
-import axios from "axios";
-
-const ITEMS_PER_PAGE = 50;
+import axios from "axios"; 
 
 const RetentionSales = () => {
   const [sales, setSales] = useState([]);
   const [page, setPage] = useState(1); 
   const [currentPage, setCurrentPage] = useState(0); 
   const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [editedSales, setEditedSales] = useState({});
   const productOptions = [
     "KJF",
     "SDP",
@@ -88,29 +87,40 @@ const RetentionSales = () => {
     }
   };
 
-  const handleInputChange = async (e, index, field) => {
-    const updatedSales = [...sales];
-    updatedSales[index][field] = e.target.value;
+  const handleInputChange = (e, id, field) => {
+    setEditedSales((prev) => ({
+      ...prev,
+      [id]: {
+        ...prev[id],
+        [field]: e.target.value,
+      },
+    }));
+  };
 
-    if (updatedSales[index].isNew) {
-        // Make POST request when all required fields are filled
-        try {
-            const response = await axios.post("https://muditamleads-14f32a10d7f7.herokuapp.com/api/retention-sales", updatedSales[index]);
-            updatedSales[index] = response.data;
-        } catch (error) {
-            console.error("Error saving new sale:", error);
-        } finally {
-            delete updatedSales[index].isNew; // Remove the flag
+  const handleSave = async (id) => {
+    if (editedSales[id]) {
+      const updatedSale = { ...sales.find((sale) => sale._id === id), ...editedSales[id] };
+  
+      try {
+        if (updatedSale.isNew) {
+          const response = await axios.post("https://muditamleads-14f32a10d7f7.herokuapp.com/api/retention-sales", updatedSale);
+          setSales((prev) => [response.data, ...prev.filter((sale) => sale._id !== id)]);
+        } else {
+          await axios.put(`https://muditamleads-14f32a10d7f7.herokuapp.com/api/retention-sales/${id}`, editedSales[id]);
+          setSales((prev) =>
+            prev.map((sale) => (sale._id === id ? { ...sale, ...editedSales[id] } : sale))
+          );
         }
-    } else { 
-        try {
-            await axios.put(`https://muditamleads-14f32a10d7f7.herokuapp.com/api/retention-sales/${updatedSales[index]._id}`, { [field]: e.target.value });
-        } catch (error) {
-            console.error("Error updating sale:", error);
-        }
+        setEditedSales((prev) => {
+          const updated = { ...prev };
+          delete updated[id];
+          return updated;
+        });
+      } catch (error) {
+        console.error("Error saving sale:", error);
+      }
     }
-    setSales(updatedSales);
-};
+  };
 
 const handleAddSale = async () => {
   const newSale = {
@@ -339,95 +349,97 @@ const currentLeads = sales.slice(currentPage * rowsPerPage, currentPage * rowsPe
             {currentLeads.map((sale, index) => (
               <TableRow key={sale._id}>
                 <TableCell>
-                  <TextField
-                    type="date"
-                    value={sale.date || ""}
-                    onChange={(e) => handleInputChange(e, index, "date")}
-                    fullWidth
-                  />
-                </TableCell>
-                <TableCell>
-                  <TextField
-                    value={sale.name || ""}
-                    onChange={(e) => handleInputChange(e, index, "name")}
-                    fullWidth
-                  />
-                </TableCell>
-                <TableCell>
-                  <TextField
-                    type="number"
-                    value={sale.contactNumber || ""}
-                    onChange={(e) => handleInputChange(e, index, "contactNumber")}
-                    fullWidth
-                  />
-                </TableCell>
-                <TableCell>
-                  <FormControl fullWidth>
-                    <Select
-                      multiple
-                      value={sale.productsOrdered || []}
-                      onChange={(e) => handleInputChange(e, index, "productsOrdered")}
-                      renderValue={(selected) => selected.join(", ")}
-                    >
-                      {productOptions.map((product) => (
-                        <MenuItem key={product} value={product}>
-                          <Checkbox checked={sale.productsOrdered?.includes(product)} />
-                          <ListItemText primary={product} />
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
-                </TableCell>
-
-                <TableCell>
-                  <Select
-                    value={sale.dosageOrdered || ""}
-                    onChange={(e) => handleInputChange(e, index, "dosageOrdered")}
-                    fullWidth
-                  >
-                    {dosageOptions.map((option) => (
-                      <MenuItem key={option} value={option}>
-                        {option}
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </TableCell>
-                <TableCell>
-                  <TextField
-                    type="number"
-                    value={sale.amountPaid || ""}
-                    onChange={(e) => handleInputChange(e, index, "amountPaid")}
-                    fullWidth
-                  />
-                </TableCell>
-                <TableCell>
-                  <Select
-                    value={sale.modeOfPayment || ""}
-                    onChange={(e) => handleInputChange(e, index, "modeOfPayment")}
-                    fullWidth
-                  >
-                    {paymentModes.map((mode) => (
-                      <MenuItem key={mode} value={mode}>
-                        {mode}
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </TableCell>
-                <TableCell>
-                  <Select
-                    value={sale.deliveryStatus || ""}
-                    onChange={(e) => handleInputChange(e, index, "deliveryStatus")}
-                    fullWidth
-                  >
-                    {deliveryStatuses.map((status) => (
-                      <MenuItem key={status} value={status}>
-                        {status}
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </TableCell>
+        <TextField
+          type="date"
+          value={editedSales[sale._id]?.date || sale.date || ""}
+          onChange={(e) => handleInputChange(e, sale._id, "date")}
+          fullWidth
+        />
+      </TableCell>
+      <TableCell>
+        <TextField
+          value={editedSales[sale._id]?.name || sale.name || ""}
+          onChange={(e) => handleInputChange(e, sale._id, "name")}
+          fullWidth
+        />
+      </TableCell>
+      <TableCell>
+        <TextField
+          type="number"
+          value={editedSales[sale._id]?.contactNumber || sale.contactNumber || ""}
+          onChange={(e) => handleInputChange(e, sale._id, "contactNumber")}
+          fullWidth
+        />
+      </TableCell>
+      <TableCell>
+        <FormControl fullWidth>
+          <Select
+            multiple
+            value={editedSales[sale._id]?.productsOrdered || sale.productsOrdered || []}
+            onChange={(e) => handleInputChange(e, sale._id, "productsOrdered")}
+            renderValue={(selected) => selected.join(", ")}
+          >
+            {productOptions.map((product) => (
+              <MenuItem key={product} value={product}>
+                <Checkbox checked={(editedSales[sale._id]?.productsOrdered || sale.productsOrdered || []).includes(product)} />
+                <ListItemText primary={product} />
+              </MenuItem>
+            ))}
+          </Select>
+        </FormControl>
+      </TableCell>
+      <TableCell>
+        <Select
+          value={editedSales[sale._id]?.dosageOrdered || sale.dosageOrdered || ""}
+          onChange={(e) => handleInputChange(e, sale._id, "dosageOrdered")}
+          fullWidth
+        >
+          {dosageOptions.map((option) => (
+            <MenuItem key={option} value={option}>
+              {option}
+            </MenuItem>
+          ))}
+        </Select>
+      </TableCell>
+      <TableCell>
+        <TextField
+          type="number"
+          value={editedSales[sale._id]?.amountPaid || sale.amountPaid || ""}
+          onChange={(e) => handleInputChange(e, sale._id, "amountPaid")}
+          fullWidth
+        />
+      </TableCell>
+      <TableCell>
+        <Select
+          value={editedSales[sale._id]?.modeOfPayment || sale.modeOfPayment || ""}
+          onChange={(e) => handleInputChange(e, sale._id, "modeOfPayment")}
+          fullWidth
+        >
+          {paymentModes.map((mode) => (
+            <MenuItem key={mode} value={mode}>
+              {mode}
+            </MenuItem>
+          ))}
+        </Select>
+      </TableCell>
+      <TableCell>
+        <Select
+          value={editedSales[sale._id]?.deliveryStatus || sale.deliveryStatus || ""}
+          onChange={(e) => handleInputChange(e, sale._id, "deliveryStatus")}
+          fullWidth
+        >
+          {deliveryStatuses.map((status) => (
+            <MenuItem key={status} value={status}>
+              {status}
+            </MenuItem>
+          ))}
+        </Select>
+      </TableCell>
                 <TableCell>{sale.orderCreatedBy}</TableCell>
                 <TableCell>
+                <IconButton color="primary" onClick={() => handleSave(sale._id)}>
+          Save
+        </IconButton>
                   <IconButton color="error" onClick={() => handleDelete(sale._id)}>
                     <Delete />
                   </IconButton>

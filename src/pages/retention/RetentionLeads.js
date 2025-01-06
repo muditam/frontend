@@ -29,7 +29,7 @@ const RetentionLeads = () => {
     name: "",
     contactNumber: "",
     salesAgentAssigned: "",
-    productPitched: "",
+    productPitched: "", 
     productsOrdered: "",
     dosageOrdered: "",
     modeOfPayment: "",
