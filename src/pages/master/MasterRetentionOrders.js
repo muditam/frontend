@@ -31,14 +31,13 @@ const dropdownOptions = {
   dosageOrdered: ["10-Days", "20-Days", "30-Days", "60-Days", "90-Days"],
   modeOfPayment: ["Partial Paid", "Razorpay", "COD", "UPI", "Bank Transfer"],
   deliveryStatus: ["Delivered", "RTO", "Undelivered"],
-  orderCreatedBy: ["Agent A", "Agent B", "Agent C"],
 };
 
 const RetentionOrders = () => {
   const [orders, setOrders] = useState([]);
   const [page, setPage] = useState(1);
-  const [currentPage, setCurrentPage] = useState(0); 
-    const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [currentPage, setCurrentPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
   const [filterOpen, setFilterOpen] = useState(false);
   const [filters, setFilters] = useState({
     dateFrom: "",
@@ -54,6 +53,8 @@ const RetentionOrders = () => {
     orderCreatedBy: "",
   });
 
+  const [dynamicOrderCreatedBy, setDynamicOrderCreatedBy] = useState([]);
+
   useEffect(() => {
     fetchRetentionOrders();
   }, []);
@@ -61,7 +62,11 @@ const RetentionOrders = () => {
   const fetchRetentionOrders = async () => {
     try {
       const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/retention-orders");
-      setOrders(response.data.sort((a, b) => new Date(b.date) - new Date(a.date)));
+      const sortedOrders = response.data.sort((a, b) => new Date(b.date) - new Date(a.date));
+      setOrders(sortedOrders);
+
+      const uniqueEmployees = [...new Set(sortedOrders.map((order) => order.orderCreatedBy))];
+      setDynamicOrderCreatedBy(uniqueEmployees);
     } catch (error) {
       console.error("Error fetching retention orders:", error);
     }
@@ -80,26 +85,38 @@ const RetentionOrders = () => {
       console.error("Error updating delivery status:", error);
     }
   };
- 
+
 
   const applyFilters = () => {
     const filteredOrders = orders.filter((order) => {
       return (
         (!filters.dateFrom || new Date(order.date) >= new Date(filters.dateFrom)) &&
         (!filters.dateTo || new Date(order.date) <= new Date(filters.dateTo)) &&
-        (!filters.name || order.name.toLowerCase().includes(filters.name.toLowerCase())) &&
-        (!filters.contactNumber || order.contactNumber.includes(filters.contactNumber)) &&
-        (!filters.productsOrdered.length || filters.productsOrdered.some((item) => order.productsOrdered?.includes(item))) &&
-        (!filters.dosageOrdered || order.dosageOrdered === filters.dosageOrdered) &&
+        (!filters.name || order.name?.toLowerCase().includes(filters.name.toLowerCase())) &&
+        (!filters.contactNumber || order.contactNumber?.includes(filters.contactNumber)) &&
+        (!filters.productsOrdered.length ||
+          filters.productsOrdered.some((item) =>
+            order.productsOrdered?.includes(item)
+          )) &&
+        // Case-insensitive partial matching for text inputs
+        (!filters.dosageOrdered ||
+          order.dosageOrdered?.toLowerCase().includes(filters.dosageOrdered.toLowerCase())) &&
+        (!filters.modeOfPayment ||
+          order.modeOfPayment?.toLowerCase().includes(filters.modeOfPayment.toLowerCase())) &&
+        (!filters.deliveryStatus ||
+          order.deliveryStatus?.toLowerCase().includes(filters.deliveryStatus.toLowerCase())) &&
         (!filters.amountFrom || parseFloat(order.amountPaid) >= parseFloat(filters.amountFrom)) &&
         (!filters.amountTo || parseFloat(order.amountPaid) <= parseFloat(filters.amountTo)) &&
-        (!filters.modeOfPayment || order.modeOfPayment === filters.modeOfPayment) &&
-        (!filters.deliveryStatus || order.deliveryStatus === filters.deliveryStatus) &&
-        (!filters.orderCreatedBy || order.orderCreatedBy === filters.orderCreatedBy)
+        (!filters.orderCreatedBy.length ||
+          filters.orderCreatedBy.some((creator) =>
+            creator.toLowerCase() === order.orderCreatedBy?.toLowerCase()
+          ))
       );
     });
     setOrders(filteredOrders);
   };
+
+
 
   const resetFilters = () => {
     setFilters({
@@ -120,15 +137,15 @@ const RetentionOrders = () => {
 
   const handleChangePage = (event, newPage) => {
     setCurrentPage(newPage);
-};
+  };
 
-const handleChangeRowsPerPage = (event) => {
+  const handleChangeRowsPerPage = (event) => {
     setRowsPerPage(parseInt(event.target.value, 10));
-    setCurrentPage(0);  
-};
+    setCurrentPage(0);
+  };
 
-const currentLeads = orders.slice(currentPage * rowsPerPage, currentPage * rowsPerPage + rowsPerPage);
- 
+  const currentLeads = orders.slice(currentPage * rowsPerPage, currentPage * rowsPerPage + rowsPerPage);
+
   const styles = {
     container: {
       fontFamily: "Inter, sans-serif",
@@ -192,7 +209,21 @@ const currentLeads = orders.slice(currentPage * rowsPerPage, currentPage * rowsP
               fullWidth
               value={filters.dateFrom}
               onChange={(e) => setFilters((prev) => ({ ...prev, dateFrom: e.target.value }))}
-              sx={{ marginBottom: 2 }}
+              sx={{
+                marginBottom: 2,
+                "& .MuiInputBase-input": {
+                  padding: "10px 12px", // Adjust padding for a more "focused" look
+                },
+                "& .MuiOutlinedInput-root": {
+                  borderColor: "#0073e6", // Active border color
+                  "&:hover fieldset": {
+                    borderColor: "#005bb5", // Darker hover effect
+                  },
+                },
+              }}
+              InputLabelProps={{
+                shrink: true, // Always show the label
+              }}
             />
             <TextField
               label="Date To"
@@ -200,47 +231,182 @@ const currentLeads = orders.slice(currentPage * rowsPerPage, currentPage * rowsP
               fullWidth
               value={filters.dateTo}
               onChange={(e) => setFilters((prev) => ({ ...prev, dateTo: e.target.value }))}
-              sx={{ marginBottom: 2 }}
+              sx={{
+                marginBottom: 2,
+                "& .MuiInputBase-input": {
+                  padding: "10px 12px", // Adjust padding for a more "focused" look
+                },
+                "& .MuiOutlinedInput-root": {
+                  borderColor: "#0073e6", // Active border color
+                  "&:hover fieldset": {
+                    borderColor: "#005bb5", // Darker hover effect
+                  },
+                },
+              }}
+              InputLabelProps={{
+                shrink: true, // Always show the label
+              }}
             />
             <TextField
               label="Name"
               fullWidth
               value={filters.name}
               onChange={(e) => setFilters((prev) => ({ ...prev, name: e.target.value }))}
-              sx={{ marginBottom: 2 }}
+              sx={{
+                marginBottom: 2,
+                "& .MuiInputBase-input": {
+                  padding: "10px 12px", // Adjust padding for a more "focused" look
+                },
+                "& .MuiOutlinedInput-root": {
+                  borderColor: "#0073e6", // Active border color
+                  "&:hover fieldset": {
+                    borderColor: "#005bb5", // Darker hover effect
+                  },
+                },
+              }}
+              InputLabelProps={{
+                shrink: true, // Always show the label
+              }}
             />
             <TextField
               label="Contact No"
               fullWidth
               value={filters.contactNumber}
               onChange={(e) => setFilters((prev) => ({ ...prev, contactNumber: e.target.value }))}
-              sx={{ marginBottom: 2 }}
+              sx={{
+                marginBottom: 2,
+                "& .MuiInputBase-input": {
+                  padding: "10px 12px", // Adjust padding for a more "focused" look
+                },
+                "& .MuiOutlinedInput-root": {
+                  borderColor: "#0073e6", // Active border color
+                  "&:hover fieldset": {
+                    borderColor: "#005bb5", // Darker hover effect
+                  },
+                },
+              }}
+              InputLabelProps={{
+                shrink: true, // Always show the label
+              }}
             />
-            {Object.keys(dropdownOptions).map((key) => (
-              <FormControl fullWidth sx={{ marginBottom: 2 }} key={key}>
-                <InputLabel>{key.replace(/([A-Z])/g, " $1")}</InputLabel>
-                <Select
-                  multiple={Array.isArray(dropdownOptions[key])}
-                  value={filters[key] || (Array.isArray(dropdownOptions[key]) ? [] : "")}
-                  onChange={(e) => setFilters((prev) => ({ ...prev, [key]: e.target.value }))}
-                  renderValue={(selected) => (Array.isArray(selected) ? selected.join(", ") : selected)}
-                >
-                  {dropdownOptions[key].map((option) => (
-                    <MenuItem key={option} value={option}>
-                      {Array.isArray(dropdownOptions[key]) && <Checkbox checked={filters[key]?.includes(option)} />}
-                      <ListItemText primary={option} />
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-            ))}
+            <Box sx={{ marginBottom: 2 }}>
+              <TextField
+                label="Dosage Ordered"
+                fullWidth
+                value={filters.dosageOrdered}
+                onChange={(e) =>
+                  setFilters((prev) => ({ ...prev, dosageOrdered: e.target.value }))
+                }
+                sx={{
+                  marginBottom: 2,
+                  "& .MuiInputBase-input": {
+                    padding: "10px 12px",
+                  },
+                  "& .MuiOutlinedInput-root": {
+                    borderColor: "#0073e6",
+                    "&:hover fieldset": {
+                      borderColor: "#005bb5",
+                    },
+                  },
+                }}
+                InputLabelProps={{
+                  shrink: true,
+                }}
+              />
+              <TextField
+                label="Mode of Payment"
+                fullWidth
+                value={filters.modeOfPayment}
+                onChange={(e) =>
+                  setFilters((prev) => ({ ...prev, modeOfPayment: e.target.value }))
+                }
+                sx={{
+                  marginBottom: 2,
+                  "& .MuiInputBase-input": {
+                    padding: "10px 12px",
+                  },
+                  "& .MuiOutlinedInput-root": {
+                    borderColor: "#0073e6",
+                    "&:hover fieldset": {
+                      borderColor: "#005bb5",
+                    },
+                  },
+                }}
+                InputLabelProps={{
+                  shrink: true,
+                }}
+              />
+              <TextField
+                label="Delivery Status"
+                fullWidth
+                value={filters.deliveryStatus}
+                onChange={(e) =>
+                  setFilters((prev) => ({ ...prev, deliveryStatus: e.target.value }))
+                }
+                sx={{
+                  marginBottom: 0,
+                  "& .MuiInputBase-input": {
+                    padding: "10px 12px",
+                  },
+                  "& .MuiOutlinedInput-root": {
+                    borderColor: "#0073e6",
+                    "&:hover fieldset": {
+                      borderColor: "#005bb5",
+                    },
+                  },
+                }}
+                InputLabelProps={{
+                  shrink: true,
+                }}
+              />
+            </Box>
+
+
+            {/* Dynamic Order Created By */}
+            <FormControl fullWidth sx={{ marginBottom: 2 }}>
+              <InputLabel>Order Created By</InputLabel>
+              <Select
+                multiple
+                value={filters.orderCreatedBy || []}
+                onChange={(e) =>
+                  setFilters((prev) => ({
+                    ...prev,
+                    orderCreatedBy: e.target.value,
+                  }))
+                }
+                renderValue={(selected) => selected.join(", ")}
+              >
+                {dynamicOrderCreatedBy.map((employee) => (
+                  <MenuItem key={employee} value={employee}>
+                    <Checkbox
+                      checked={filters.orderCreatedBy?.includes(employee)}
+                    />
+                    <ListItemText primary={employee} />
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
             <TextField
               label="Amount From"
               fullWidth
               type="number"
               value={filters.amountFrom}
               onChange={(e) => setFilters((prev) => ({ ...prev, amountFrom: e.target.value }))}
-              sx={{ marginBottom: 2 }}
+              sx={{
+                marginBottom: 2,
+                "& .MuiInputBase-input": {
+                  padding: "10px 12px", // Adjust padding for a more "focused" look
+                },
+                "& .MuiOutlinedInput-root": {
+                  borderColor: "#0073e6", // Active border color
+                  "&:hover fieldset": {
+                    borderColor: "#005bb5", // Darker hover effect
+                  },
+                },
+              }}
+              InputLabelProps={{
+                shrink: true, // Always show the label
+              }}
             />
             <TextField
               label="Amount To"
@@ -248,7 +414,21 @@ const currentLeads = orders.slice(currentPage * rowsPerPage, currentPage * rowsP
               type="number"
               value={filters.amountTo}
               onChange={(e) => setFilters((prev) => ({ ...prev, amountTo: e.target.value }))}
-              sx={{ marginBottom: 2 }}
+              sx={{
+                marginBottom: 0,
+                "& .MuiInputBase-input": {
+                  padding: "10px 12px", // Adjust padding for a more "focused" look
+                },
+                "& .MuiOutlinedInput-root": {
+                  borderColor: "#0073e6", // Active border color
+                  "&:hover fieldset": {
+                    borderColor: "#005bb5", // Darker hover effect
+                  },
+                },
+              }}
+              InputLabelProps={{
+                shrink: true, // Always show the label
+              }}
             />
           </Box>
           <Divider />
