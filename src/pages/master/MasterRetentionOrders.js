@@ -20,6 +20,7 @@ import {
   Divider,
   Checkbox,
   ListItemText,
+  TablePagination,
 } from "@mui/material";
 import axios from "axios";
 
@@ -36,6 +37,8 @@ const dropdownOptions = {
 const RetentionOrders = () => {
   const [orders, setOrders] = useState([]);
   const [page, setPage] = useState(1);
+  const [currentPage, setCurrentPage] = useState(0); 
+    const [rowsPerPage, setRowsPerPage] = useState(10);
   const [filterOpen, setFilterOpen] = useState(false);
   const [filters, setFilters] = useState({
     dateFrom: "",
@@ -77,10 +80,7 @@ const RetentionOrders = () => {
       console.error("Error updating delivery status:", error);
     }
   };
-
-  const handlePageChange = (event, value) => {
-    setPage(value);
-  };
+ 
 
   const applyFilters = () => {
     const filteredOrders = orders.filter((order) => {
@@ -118,7 +118,16 @@ const RetentionOrders = () => {
     fetchRetentionOrders();
   };
 
-  const paginatedOrders = orders.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE);
+  const handleChangePage = (event, newPage) => {
+    setCurrentPage(newPage);
+};
+
+const handleChangeRowsPerPage = (event) => {
+    setRowsPerPage(parseInt(event.target.value, 10));
+    setCurrentPage(0);  
+};
+
+const currentLeads = orders.slice(currentPage * rowsPerPage, currentPage * rowsPerPage + rowsPerPage);
  
   const styles = {
     container: {
@@ -280,7 +289,7 @@ const RetentionOrders = () => {
             </TableRow>
           </TableHead>
           <TableBody>
-            {paginatedOrders.map((order, index) => (
+            {currentLeads.map((order, index) => (
               <TableRow
                 key={order._id}
                 sx={{
@@ -315,14 +324,15 @@ const RetentionOrders = () => {
           </TableBody>
         </Table>
       </TableContainer>
-      <Box sx={{ marginTop: 2, display: "flex", justifyContent: "center" }}>
-        <Pagination
-          count={Math.ceil(orders.length / ITEMS_PER_PAGE)}
-          page={page}
-          onChange={handlePageChange}
-          color="primary"
-        />
-      </Box>
+      <TablePagination
+        rowsPerPageOptions={[10, 20, 50, 100]}
+        component="div"
+        count={orders.length}
+        rowsPerPage={rowsPerPage}
+        page={currentPage}
+        onPageChange={handleChangePage}
+        onRowsPerPageChange={handleChangeRowsPerPage}
+      />
     </Box>
   );
 };
