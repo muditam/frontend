@@ -118,3 +118,4 @@ const NavbarWithSearch = () => {
 };
 
 export default NavbarWithSearch;
+ 

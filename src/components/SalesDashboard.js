@@ -15,18 +15,34 @@ const SalesDashboard = () => {
     ordersThisMonth: 0,
   });
 
-  useEffect(() => {
-    const fetchDashboardData = async () => {
-      try {
-        const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/sales/dashboard");
-        setDashboardData(response.data);
-      } catch (error) {
-        console.error("Error fetching dashboard data:", error);
-      }
-    };
+  const [userLoggedIn, setUserLoggedIn] = useState(false);
 
-    fetchDashboardData();
+  useEffect(() => {
+    const user = sessionStorage.getItem("user");
+    if (user) {
+      setUserLoggedIn(true);
+      const fetchDashboardData = async () => {
+        try {
+          const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/sales/dashboard");
+          setDashboardData(response.data);
+        } catch (error) {
+          console.error("Error fetching dashboard data:", error);
+        }
+      };
+
+      fetchDashboardData();
+    }
   }, []);
+
+  if (!userLoggedIn) {
+    return (
+      <Box sx={{ padding: 3, textAlign: "center" }}>
+        <Typography variant="h4" gutterBottom>
+          Welcome to Muditam<br></br> Ayurveda Sales Dashboard
+        </Typography>
+      </Box>
+    );
+  }
 
   return (
     <Box sx={{ padding: 3 }}>

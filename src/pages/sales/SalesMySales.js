@@ -18,15 +18,16 @@ import {
   Button,
   Drawer,
   Divider,
-  Pagination,
+  TablePagination,
   InputLabel,
 } from "@mui/material";
 import axios from "axios";
 
 const SalesMySales = () => {
   const [sales, setSales] = useState([]);
-  const [agentAssignedName, setAgentAssignedName] = useState("");
-  const [page, setPage] = useState(1);
+  const [agentAssignedName, setAgentAssignedName] = useState(""); 
+  const [currentPage, setCurrentPage] = useState(0); 
+  const [rowsPerPage, setRowsPerPage] = useState(10);
   const [filters, setFilters] = useState({
     dateFrom: "",
     dateTo: "",
@@ -41,7 +42,6 @@ const SalesMySales = () => {
     deliveryStatus: "",
   });
   const [filterOpen, setFilterOpen] = useState(false);
-  const ITEMS_PER_PAGE = 50;  
 
   useEffect(() => { 
     const user = JSON.parse(sessionStorage.getItem("user"));
@@ -61,12 +61,7 @@ const SalesMySales = () => {
       console.error("Failed to fetch sales", error);
     }
   };
-
-  const handlePageChange = (event, value) => {
-    setPage(value);
-  };
-  
-  const paginatedSales = sales.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE);
+ 
 
   const calculateDosageExpiring = (days) => {
     const currentDate = new Date();
@@ -141,6 +136,17 @@ const SalesMySales = () => {
     fetchSales(agentAssignedName);
   };
 
+  const handleChangePage = (event, newPage) => {
+    setCurrentPage(newPage);
+};
+
+const handleChangeRowsPerPage = (event) => {
+    setRowsPerPage(parseInt(event.target.value, 10));
+    setCurrentPage(0);  
+};
+
+const currentLeads = sales.slice(currentPage * rowsPerPage, currentPage * rowsPerPage + rowsPerPage);
+
   return (
     <Box sx={{ padding: 2 }}>
       <Typography variant="h5" gutterBottom>
@@ -184,7 +190,7 @@ const SalesMySales = () => {
       onChange={(e) => setFilters((prev) => ({ ...prev, name: e.target.value }))}
       sx={{ mb: 2 }}
     />
-    <TextField
+    <TextField 
       label="Contact No"
       fullWidth
       value={filters.contactNumber}
@@ -274,7 +280,7 @@ const SalesMySales = () => {
             </TableRow>
           </TableHead>
           <TableBody>
-            {sales.map((sale, index) => (
+            {currentLeads.map((sale, index) => (
               <TableRow key={sale._id}>
                 <TableCell>
                   <TextField
@@ -391,19 +397,19 @@ const SalesMySales = () => {
                   />
                 </TableCell>
               </TableRow>
-            ))}
+            ))} 
           </TableBody>
         </Table>
       </TableContainer>
-
-<Box sx={{ mt: 2, display: "flex", justifyContent: "center" }}>
-  <Pagination
-    count={Math.ceil(sales.length / ITEMS_PER_PAGE)}
-    page={page}
-    onChange={handlePageChange}
-    color="primary"
-  />
-</Box>
+<TablePagination
+                rowsPerPageOptions={[10, 20, 50, 100]}
+                component="div"
+                count={sales.length}
+                rowsPerPage={rowsPerPage}
+                page={currentPage}
+                onPageChange={handleChangePage}
+                onRowsPerPageChange={handleChangeRowsPerPage}
+            />
     </Box>
   );
 };

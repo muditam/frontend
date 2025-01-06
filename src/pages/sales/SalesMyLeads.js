@@ -18,13 +18,15 @@ import {
   Button,
   Drawer,
   Divider,
-  Pagination,
+  TablePagination,
 } from "@mui/material";
 import axios from "axios";
 
 const SalesMyLeads = () => {
   const [leads, setLeads] = useState([]);
   const [validationErrors, setValidationErrors] = useState({});
+  const [currentPage, setCurrentPage] = useState(0); 
+  const [rowsPerPage, setRowsPerPage] = useState(10);
   const [newLead, setNewLead] = useState({
     date: "",
     time: "",
@@ -59,8 +61,6 @@ const SalesMyLeads = () => {
     followupReminder: "",
   });
   const [filterOpen, setFilterOpen] = useState(false);
-  const [page, setPage] = useState(1);
-  const ITEMS_PER_PAGE = 50;
 
   useEffect(() => {
     const user = JSON.parse(sessionStorage.getItem("user"));
@@ -218,11 +218,16 @@ const SalesMyLeads = () => {
     fetchLeads(agentName);
   };
 
-  const handlePageChange = (event, value) => {
-    setPage(value);
-  };
+  const handleChangePage = (event, newPage) => {
+    setCurrentPage(newPage);
+};
 
-  const paginatedLeads = leads.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE);
+const handleChangeRowsPerPage = (event) => {
+    setRowsPerPage(parseInt(event.target.value, 10));
+    setCurrentPage(0);  
+};
+
+const currentLeads = leads.slice(currentPage * rowsPerPage, currentPage * rowsPerPage + rowsPerPage);
 
   return (
     <Box sx={{ padding: 2 }}>
@@ -358,7 +363,7 @@ const SalesMyLeads = () => {
             </TableRow>
           </TableHead>
           <TableBody>
-            {leads.map((lead, index) => (
+            {currentLeads.map((lead, index) => (
               <TableRow key={lead._id}>
                 <TableCell>
                   <TextField
@@ -551,20 +556,21 @@ const SalesMyLeads = () => {
                     }
                     fullWidth
                   />
-                </TableCell>
+                </TableCell> 
               </TableRow>
             ))}
           </TableBody>
         </Table>
       </TableContainer>
-      <Box sx={{ mt: 2, display: "flex", justifyContent: "center" }}>
-        <Pagination
-          count={Math.ceil(leads.length / ITEMS_PER_PAGE)}
-          page={page}
-          onChange={handlePageChange}
-          color="primary"
-        />
-      </Box>
+      <TablePagination
+                rowsPerPageOptions={[10, 20, 50, 100]}
+                component="div"
+                count={leads.length}
+                rowsPerPage={rowsPerPage}
+                page={currentPage}
+                onPageChange={handleChangePage}
+                onRowsPerPageChange={handleChangeRowsPerPage}
+            />
     </Box>
   );
 };

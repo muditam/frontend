@@ -20,6 +20,7 @@ import {
   ListItemText,
   Drawer,
   Divider,
+  TablePagination,
 } from "@mui/material";
 import { Delete, AddCircle } from "@mui/icons-material";
 import axios from "axios";
@@ -28,7 +29,9 @@ const ITEMS_PER_PAGE = 50;
 
 const RetentionSales = () => {
   const [sales, setSales] = useState([]);
-  const [page, setPage] = useState(1);
+  const [page, setPage] = useState(1); 
+  const [currentPage, setCurrentPage] = useState(0); 
+  const [rowsPerPage, setRowsPerPage] = useState(10);
   const productOptions = [
     "KJF",
     "SDP",
@@ -66,7 +69,7 @@ const RetentionSales = () => {
     deliveryStatus: "",
   });
   const [filterOpen, setFilterOpen] = useState(false); 
-  const ITEMS_PER_PAGE = 50;
+  
   
   useEffect(() => {
     if (loggedInUser) {
@@ -99,8 +102,7 @@ const RetentionSales = () => {
         } finally {
             delete updatedSales[index].isNew; // Remove the flag
         }
-    } else {
-        // Update backend for existing records
+    } else { 
         try {
             await axios.put(`https://muditamleads-14f32a10d7f7.herokuapp.com/api/retention-sales/${updatedSales[index]._id}`, { [field]: e.target.value });
         } catch (error) {
@@ -112,7 +114,7 @@ const RetentionSales = () => {
 
 const handleAddSale = async () => {
   const newSale = {
-      date: new Date().toISOString().split("T")[0], // Default to today's date
+      date: new Date().toISOString().split("T")[0],  
       name: "",
       contactNumber: "",
       productsOrdered: [],
@@ -125,7 +127,7 @@ const handleAddSale = async () => {
 
   try {
       const response = await axios.post("https://muditamleads-14f32a10d7f7.herokuapp.com/api/retention-sales", newSale);
-      setSales([response.data, ...sales]); // Add the newly created sale to the state
+      setSales([response.data, ...sales]);  
   } catch (error) {
       console.error("Error adding new sale:", error);
   }
@@ -139,6 +141,7 @@ const handleAddSale = async () => {
       console.error("Error deleting sale:", error);
     }
   };
+  
 
   const applyFilters = () => {
     const filteredSales = sales.filter((sale) => {
@@ -174,11 +177,16 @@ const handleAddSale = async () => {
     fetchSales(loggedInUser.fullName);
   };
 
-  const handlePageChange = (event, value) => {
-    setPage(value);
-  };
+  const handleChangePage = (event, newPage) => {
+    setCurrentPage(newPage);
+};
 
-  const paginatedSales = sales.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE);
+const handleChangeRowsPerPage = (event) => {
+    setRowsPerPage(parseInt(event.target.value, 10));
+    setCurrentPage(0);  
+};
+
+const currentLeads = sales.slice(currentPage * rowsPerPage, currentPage * rowsPerPage + rowsPerPage);
 
   return (
     <Box sx={{ padding: 2 }}>
@@ -328,7 +336,7 @@ const handleAddSale = async () => {
             </TableRow>
           </TableHead>
           <TableBody>
-            {paginatedSales.map((sale, index) => (
+            {currentLeads.map((sale, index) => (
               <TableRow key={sale._id}>
                 <TableCell>
                   <TextField
@@ -429,14 +437,15 @@ const handleAddSale = async () => {
           </TableBody>
         </Table>
       </TableContainer>
-      <Box sx={{ marginTop: 2, display: "flex", justifyContent: "center" }}>
-        <Pagination
-          count={Math.ceil(sales.length / ITEMS_PER_PAGE)}
-          page={page}
-          onChange={handlePageChange}
-          color="primary"
-        />
-      </Box>
+      <TablePagination
+        rowsPerPageOptions={[10, 20, 50, 100]}
+        component="div"
+        count={sales.length}
+        rowsPerPage={rowsPerPage}
+        page={currentPage}
+        onPageChange={handleChangePage}
+        onRowsPerPageChange={handleChangeRowsPerPage}
+      />
     </Box>
   );
 };
