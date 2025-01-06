@@ -363,7 +363,7 @@ const currentLeads = sales.slice(currentPage * rowsPerPage, currentPage * rowsPe
           fullWidth
         />
       </TableCell>
-      <TableCell>
+      <TableCell style={{ whiteSpace: "nowrap", minWidth: "200px" }}>
         <TextField
           type="number"
           value={editedSales[sale._id]?.contactNumber || sale.contactNumber || ""}
@@ -371,7 +371,7 @@ const currentLeads = sales.slice(currentPage * rowsPerPage, currentPage * rowsPe
           fullWidth
         />
       </TableCell>
-      <TableCell style={{ whiteSpace: "nowrap", minWidth: "200px" }}>
+      <TableCell>
         <FormControl fullWidth>
           <Select
             multiple
