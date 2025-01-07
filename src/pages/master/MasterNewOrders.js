@@ -238,11 +238,11 @@ const NewOrders = () => {
               <TableCell>Agent Name</TableCell>
               <TableCell>Products Ordered</TableCell>
               <TableCell>Dosage Ordered</TableCell>
-              <TableCell>Health Expert Assigned</TableCell>
+              <TableCell>Health Expert Assigned *</TableCell>
               <TableCell>Remark for HE</TableCell>
               <TableCell>Amount Paid</TableCell>
               <TableCell>Mode of Payment</TableCell>
-              <TableCell>Delivery Status</TableCell>
+              <TableCell>Delivery Status *</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>

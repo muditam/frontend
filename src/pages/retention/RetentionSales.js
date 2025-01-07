@@ -334,15 +334,15 @@ const currentLeads = sales.slice(currentPage * rowsPerPage, currentPage * rowsPe
           <TableHead>
             <TableRow>
               <TableCell>Date</TableCell>
-              <TableCell>Name</TableCell>
-              <TableCell>Contact No</TableCell>
-              <TableCell>Products Ordered</TableCell>
-              <TableCell>Dosage Ordered</TableCell>
-              <TableCell>Amount Paid</TableCell>
-              <TableCell>Mode of Payment</TableCell>
-              <TableCell>Delivery Status</TableCell>
-              <TableCell>Order Created By</TableCell>
-              <TableCell>Actions</TableCell>
+              <TableCell>Name *</TableCell>
+              <TableCell>Contact No *</TableCell>
+              <TableCell>Products Ordered *</TableCell>
+              <TableCell>Dosage Ordered *</TableCell>
+              <TableCell>Amount Paid *</TableCell>
+              <TableCell>Mode of Payment *</TableCell>
+              <TableCell>Delivery Status *</TableCell>
+              <TableCell>Order Created By *</TableCell>
+              <TableCell>Actions *</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
@@ -401,7 +401,7 @@ const currentLeads = sales.slice(currentPage * rowsPerPage, currentPage * rowsPe
           ))}
         </Select>
       </TableCell>
-      <TableCell>
+      <TableCell style={{ whiteSpace: "nowrap", minWidth: "180px" }}>
         <TextField
           type="number"
           value={editedSales[sale._id]?.amountPaid || sale.amountPaid || ""}

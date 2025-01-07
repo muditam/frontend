@@ -455,7 +455,7 @@ const RetentionOrders = () => {
 
       <TableContainer component={Paper} style={styles.card}>
         <Table style={styles.table}>
-          <TableHead>
+          <TableHead> 
             <TableRow>
               <TableCell style={styles.tableCell}>Date</TableCell>
               <TableCell style={styles.tableCell}>Name</TableCell>
@@ -464,7 +464,7 @@ const RetentionOrders = () => {
               <TableCell style={styles.tableCell}>Dosage Ordered</TableCell>
               <TableCell style={styles.tableCell}>Amount Paid</TableCell>
               <TableCell style={styles.tableCell}>Mode of Payment</TableCell>
-              <TableCell style={styles.tableCell}>Delivery Status</TableCell>
+              <TableCell style={styles.tableCell}>Delivery Status *</TableCell>
               <TableCell style={styles.tableCell}>Order Created By</TableCell>
             </TableRow>
           </TableHead>

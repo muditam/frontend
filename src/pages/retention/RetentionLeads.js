@@ -243,13 +243,13 @@ const currentLeads = leads.slice(currentPage * rowsPerPage, currentPage * rowsPe
               <TableCell>Delivery Status</TableCell>
               <TableCell>Health Expert Assigned</TableCell>
               <TableCell>Dosage Expiring</TableCell>
-              <TableCell>RT Next Followup Date</TableCell>
+              <TableCell>RT Next Followup Date *</TableCell>
               <TableCell>RT Followup Reminder</TableCell>
-              <TableCell>RT Followup Status</TableCell>
-              <TableCell>Last Order Date</TableCell>
-              <TableCell>Repeat Dosage Ordered</TableCell>
-              <TableCell>Retention Status</TableCell>
-              <TableCell>RT Remark</TableCell>
+              <TableCell>RT Followup Status *</TableCell>
+              <TableCell>Last Order Date *</TableCell>
+              <TableCell>Repeat Dosage Ordered *</TableCell>
+              <TableCell>Retention Status *</TableCell>
+              <TableCell>RT Remark *</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>

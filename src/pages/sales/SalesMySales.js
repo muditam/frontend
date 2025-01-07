@@ -267,16 +267,16 @@ const currentLeads = sales.slice(currentPage * rowsPerPage, currentPage * rowsPe
           <TableHead>
             <TableRow>
               <TableCell>First Order Date</TableCell>
-              <TableCell>Name</TableCell>
-              <TableCell>Contact No</TableCell>
+              <TableCell>Name *</TableCell>
+              <TableCell>Contact No *</TableCell>
               <TableCell>Agent Assigned</TableCell>
-              <TableCell>Products Ordered</TableCell>
-              <TableCell>Dosage Ordered</TableCell>
-              <TableCell>Sales Status</TableCell>
-              <TableCell>Amount Paid</TableCell>
-              <TableCell>Mode of Payment</TableCell>
-              <TableCell>Delivery Status</TableCell>
-              <TableCell>Agents Remarks</TableCell>
+              <TableCell>Products Ordered *</TableCell> 
+              <TableCell>Dosage Ordered *</TableCell>
+              <TableCell>Sales Status *</TableCell>
+              <TableCell>Amount Paid *</TableCell>
+              <TableCell>Mode of Payment *</TableCell>
+              <TableCell>Delivery Status *</TableCell>
+              <TableCell>Agents Remarks *</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>

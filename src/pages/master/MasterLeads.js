@@ -429,12 +429,12 @@ const LeadTable = () => {
                         <TableRow>
                             <TableCell>Date</TableCell>
                             <TableCell>Time</TableCell>
-                            <TableCell>Name</TableCell>
-                            <TableCell>Contact No</TableCell>
-                            <TableCell>Lead Source</TableCell>
-                            <TableCell>Enquiry For</TableCell>
-                            <TableCell>Customer Type</TableCell>
-                            <TableCell>Agent Assigned</TableCell>
+                            <TableCell>Name *</TableCell>
+                            <TableCell>Contact No *</TableCell>
+                            <TableCell>Lead Source *</TableCell>
+                            <TableCell>Enquiry For *</TableCell>
+                            <TableCell>Customer Type *</TableCell>
+                            <TableCell>Agent Assigned *</TableCell>
                             <TableCell>Product Pitched</TableCell>
                             <TableCell>Lead Status</TableCell>
                             <TableCell>Sales Status</TableCell>
@@ -515,11 +515,11 @@ const LeadTable = () => {
                                     </Select>
                                 </TableCell>
                                 <TableCell>
-                                    <Select
+                                    <Select 
                                         value={lead.enquiryFor || ""}
                                         onChange={(e) => handleInputChange(e, index, "enquiryFor")}
                                     >
-                                        {["KJF", "SDP", "VKR", "L-Fx", "S&S", "CPV", "HDP", "PF", "PGut", "Shilajit"].map(
+                                        {["KJF", "SDP", "VKR", "L-Fx", "S&S", "CPV", "HDP", "PF", "PGut", "Shilajit", "Kit"].map(
                                             (item) => (
                                                 <MenuItem key={item} value={item}>
                                                     {item}

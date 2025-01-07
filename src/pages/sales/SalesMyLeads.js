@@ -18,6 +18,7 @@ import {
   Button,
   Drawer,
   Divider,
+  InputLabel,
   TablePagination,
 } from "@mui/material";
 import axios from "axios";
@@ -262,7 +263,21 @@ const currentLeads = leads.slice(currentPage * rowsPerPage, currentPage * rowsPe
             fullWidth
             value={filters.dateFrom}
             onChange={(e) => setFilters((prev) => ({ ...prev, dateFrom: e.target.value }))}
-            sx={{ mb: 2 }}
+            sx={{
+              marginBottom: 2,
+              "& .MuiInputBase-input": {
+                padding: "10px 12px",  
+              },
+              "& .MuiOutlinedInput-root": {
+                borderColor: "#0073e6", 
+                "&:hover fieldset": {
+                  borderColor: "#005bb5",  
+                },
+              },
+            }}
+            InputLabelProps={{
+              shrink: true,  
+            }}
           />
           <TextField
             label="Date To"
@@ -270,7 +285,21 @@ const currentLeads = leads.slice(currentPage * rowsPerPage, currentPage * rowsPe
             fullWidth
             value={filters.dateTo}
             onChange={(e) => setFilters((prev) => ({ ...prev, dateTo: e.target.value }))}
-            sx={{ mb: 2 }}
+            sx={{
+              marginBottom: 2,
+              "& .MuiInputBase-input": {
+                padding: "10px 12px",  
+              },
+              "& .MuiOutlinedInput-root": {
+                borderColor: "#0073e6",  
+                "&:hover fieldset": {
+                  borderColor: "#005bb5",  
+                },
+              },
+            }}
+            InputLabelProps={{
+              shrink: true,  
+            }}
           />
           <TextField
             label="Name"
@@ -295,6 +324,7 @@ const currentLeads = leads.slice(currentPage * rowsPerPage, currentPage * rowsPe
             { key: "salesStatus", label: "Sales Status", options: ["Sales Done", "Lost", "On Follow Up"] },
           ].map(({ key, label, options, multiple }) => (
             <FormControl fullWidth sx={{ mb: 2 }} key={key}>
+              <InputLabel id={`${key}-label`}>{label}</InputLabel>
               <Select
                 multiple={multiple}
                 value={filters[key] || (multiple ? [] : "")}
@@ -316,7 +346,21 @@ const currentLeads = leads.slice(currentPage * rowsPerPage, currentPage * rowsPe
             fullWidth
             value={filters.nextFollowup}
             onChange={(e) => setFilters((prev) => ({ ...prev, nextFollowup: e.target.value }))}
-            sx={{ mb: 2 }}
+            sx={{
+              marginBottom: 2,
+              "& .MuiInputBase-input": {
+                padding: "10px 12px",  
+              },
+              "& .MuiOutlinedInput-root": {
+                borderColor: "#0073e6",  
+                "&:hover fieldset": {
+                  borderColor: "#005bb5",  
+                },
+              },
+            }}
+            InputLabelProps={{
+              shrink: true, 
+            }}
           />
           <FormControl fullWidth sx={{ mb: 2 }}>
             <Select
@@ -348,18 +392,18 @@ const currentLeads = leads.slice(currentPage * rowsPerPage, currentPage * rowsPe
             <TableRow>
               <TableCell>Date</TableCell>
               <TableCell>Time</TableCell>
-              <TableCell>Name</TableCell>
-              <TableCell>Contact No</TableCell>
-              <TableCell>Lead Source</TableCell>
-              <TableCell>Enquiry For</TableCell>
-              <TableCell>Customer Type</TableCell>
+              <TableCell>Name *</TableCell>
+              <TableCell>Contact No *</TableCell>
+              <TableCell>Lead Source *</TableCell>
+              <TableCell>Enquiry For *</TableCell>
+              <TableCell>Customer Type *</TableCell>
               <TableCell>Agent Assigned</TableCell>
-              <TableCell>Product Pitched</TableCell>
-              <TableCell>Lead Status</TableCell>
-              <TableCell>Sales Status</TableCell>
-              <TableCell>Next Followup</TableCell>
+              <TableCell>Product Pitched *</TableCell>
+              <TableCell>Lead Status *</TableCell>
+              <TableCell>Sales Status *</TableCell>
+              <TableCell>Next Followup *</TableCell>
               <TableCell>Followup Reminder</TableCell>
-              <TableCell>Agents Remarks</TableCell>
+              <TableCell>Agents Remarks *</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
@@ -429,7 +473,7 @@ const currentLeads = leads.slice(currentPage * rowsPerPage, currentPage * rowsPe
                     onChange={(e) => handleInputChange(e, index, "enquiryFor")}
                     fullWidth
                   >
-                    {["KJF", "SDP", "VKR", "L-Fx", "S&S", "CPV", "HDP", "PF", "PGut", "Shilajit"].map((item) => (
+                    {["KJF", "SDP", "VKR", "L-Fx", "S&S", "CPV", "HDP", "PF", "PGut", "Shilajit", "kit"].map((item) => (
                       <MenuItem key={item} value={item}>
                         {item}
                       </MenuItem>
@@ -562,7 +606,7 @@ const currentLeads = leads.slice(currentPage * rowsPerPage, currentPage * rowsPe
           </TableBody>
         </Table>
       </TableContainer>
-      <TablePagination
+      <TablePagination 
                 rowsPerPageOptions={[10, 20, 50, 100]}
                 component="div"
                 count={leads.length}
