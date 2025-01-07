@@ -57,7 +57,10 @@ const NewOrders = () => {
   const fetchNewOrders = async () => {
     try {
       const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/new-orders");
-      setNewOrders(response.data.sort((a, b) => new Date(b.date) - new Date(a.date)));
+      const filteredOrders = response.data
+            .filter(order => order.agentAssigned !== 'Admin')   
+            .sort((a, b) => new Date(b.date) - new Date(a.date));   
+        setNewOrders(filteredOrders);
     } catch (error) {
       console.error("Error fetching new orders:", error);
     }
@@ -173,7 +176,7 @@ const NewOrders = () => {
                     <InputLabel>{key.replace(/([A-Z])/g, " $1")}</InputLabel>
                     <Select
                       multiple
-                      value={filters[key] || []} // Ensure the value is an array
+                      value={filters[key] || []}  
                       onChange={(e) =>
                         setFilters((prev) => ({
                           ...prev,
@@ -244,7 +247,7 @@ const NewOrders = () => {
           </TableHead>
           <TableBody>
             {newOrders
-              .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
+              .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage) 
               .map((order, index) => (
                 <TableRow key={order._id}>
                   <TableCell>{order.date || "N/A"}</TableCell>

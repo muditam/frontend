@@ -45,10 +45,10 @@ const MenuBar = ({ toggleDrawer }) => {
                 <ListItemText primary="Leads" inset />
               </ListItem>
               <ListItem button component={Link} to="/master/retention" onClick={toggleDrawer}>
-                <ListItemText primary="Retention" inset />
+                <ListItemText primary="Retention Leads" inset />
               </ListItem>
               <ListItem button component={Link} to="/master/new-orders" onClick={toggleDrawer}>
-                <ListItemText primary="New Orders" inset />
+                <ListItemText primary="Acquisition Orders" inset />
               </ListItem>
               <ListItem button component={Link} to="/master/retention-orders" onClick={toggleDrawer}>
                 <ListItemText primary="Retention Orders" inset />
