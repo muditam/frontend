@@ -14,13 +14,13 @@ import {
   IconButton,
   Typography,
   Button,
-  FormControl,
-  Pagination,
+  FormControl, 
   Checkbox, 
   ListItemText,
   Drawer,
   Divider,
   TablePagination,
+  InputLabel,
 } from "@mui/material";
 import { Delete, AddCircle } from "@mui/icons-material";
 import axios from "axios"; 
@@ -228,7 +228,21 @@ const currentLeads = sales.slice(currentPage * rowsPerPage, currentPage * rowsPe
       fullWidth
       value={filters.dateFrom}
       onChange={(e) => setFilters((prev) => ({ ...prev, dateFrom: e.target.value }))}
-      sx={{ mb: 2 }}
+      sx={{
+        marginBottom: 2,
+        "& .MuiInputBase-input": {
+          padding: "10px 12px",  
+        },
+        "& .MuiOutlinedInput-root": {
+          borderColor: "#0073e6",  
+          "&:hover fieldset": {
+            borderColor: "#005bb5",  
+          },
+        },
+      }}
+      InputLabelProps={{
+        shrink: true,  
+      }}
     />
     <TextField
       label="Date To"
@@ -236,7 +250,21 @@ const currentLeads = sales.slice(currentPage * rowsPerPage, currentPage * rowsPe
       fullWidth
       value={filters.dateTo}
       onChange={(e) => setFilters((prev) => ({ ...prev, dateTo: e.target.value }))}
-      sx={{ mb: 2 }}
+      sx={{
+        marginBottom: 2,
+        "& .MuiInputBase-input": {
+          padding: "10px 12px",  
+        },
+        "& .MuiOutlinedInput-root": {
+          borderColor: "#0073e6",  
+          "&:hover fieldset": {
+            borderColor: "#005bb5",  
+          },
+        },
+      }}
+      InputLabelProps={{
+        shrink: true,  
+      }}
     />
     <TextField
       label="Name"
@@ -253,6 +281,7 @@ const currentLeads = sales.slice(currentPage * rowsPerPage, currentPage * rowsPe
       sx={{ mb: 2 }}
     />
     <FormControl fullWidth sx={{ mb: 2 }}>
+    <InputLabel id="products-ordered-label">Products Ordered</InputLabel>
       <Select
         multiple
         value={filters.productsOrdered || []}
@@ -268,6 +297,7 @@ const currentLeads = sales.slice(currentPage * rowsPerPage, currentPage * rowsPe
       </Select>
     </FormControl>
     <FormControl fullWidth sx={{ mb: 2 }}>
+    <InputLabel id="dosage-ordered-label">Dosage Ordered</InputLabel>
       <Select
         value={filters.dosageOrdered}
         onChange={(e) => setFilters((prev) => ({ ...prev, dosageOrdered: e.target.value }))}
@@ -296,6 +326,7 @@ const currentLeads = sales.slice(currentPage * rowsPerPage, currentPage * rowsPe
       sx={{ mb: 2 }}
     />
     <FormControl fullWidth sx={{ mb: 2 }}>
+    <InputLabel id="mode-of-payment-label">Mode of Payment</InputLabel>
       <Select
         value={filters.modeOfPayment}
         onChange={(e) => setFilters((prev) => ({ ...prev, modeOfPayment: e.target.value }))}
@@ -308,6 +339,7 @@ const currentLeads = sales.slice(currentPage * rowsPerPage, currentPage * rowsPe
       </Select>
     </FormControl>
     <FormControl fullWidth sx={{ mb: 2 }}>
+    <InputLabel id="delivery-status-label">Delivery Status</InputLabel>
       <Select
         value={filters.deliveryStatus}
         onChange={(e) => setFilters((prev) => ({ ...prev, deliveryStatus: e.target.value }))}

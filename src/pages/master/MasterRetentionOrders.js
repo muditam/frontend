@@ -24,8 +24,6 @@ import {
 } from "@mui/material";
 import axios from "axios";
 
-const ITEMS_PER_PAGE = 50;
-
 const dropdownOptions = {
   productsOrdered: ["KJF", "SDP", "VKR", "L-Fx", "S&S", "CPV", "HDP", "PF", "PGut", "Shilajit"],
   dosageOrdered: ["10-Days", "20-Days", "30-Days", "60-Days", "90-Days"],

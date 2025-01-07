@@ -17,6 +17,7 @@ import {
   Drawer,
   Divider,
   TablePagination, 
+  InputLabel,
 } from "@mui/material";
 import axios from "axios";
 
@@ -196,6 +197,7 @@ const currentLeads = leads.slice(currentPage * rowsPerPage, currentPage * rowsPe
           ].map(({ label, key, type, options }) => (
             type === "dropdown" ? (
               <FormControl key={key} fullWidth sx={{ mb: 2 }}>
+                <InputLabel id={`${key}-label`}>{label}</InputLabel>
                 <Select
                   value={filters[key] || ""}
                   onChange={(e) => setFilters((prev) => ({ ...prev, [key]: e.target.value }))}
@@ -215,7 +217,21 @@ const currentLeads = leads.slice(currentPage * rowsPerPage, currentPage * rowsPe
                 fullWidth
                 value={filters[key] || ""}
                 onChange={(e) => setFilters((prev) => ({ ...prev, [key]: e.target.value }))}
-                sx={{ mb: 2 }}
+                sx={{
+                  marginBottom: 2,
+                  "& .MuiInputBase-input": {
+                    padding: "10px 12px",  
+                  },
+                  "& .MuiOutlinedInput-root": {
+                    borderColor: "#0073e6",  
+                    "&:hover fieldset": {
+                      borderColor: "#005bb5",  
+                    },
+                  },
+                }}
+                InputLabelProps={{
+                  shrink: true,  
+                }}
               />
             )
           ))}

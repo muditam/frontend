@@ -19,12 +19,15 @@ import {
   Checkbox,
   ListItemText,
   Divider,
+  TablePagination,
 } from "@mui/material";
 import axios from "axios";
 
 const RetentionTable = () => {
   const [retentionLeads, setRetentionLeads] = useState([]);
   const [filterOpen, setFilterOpen] = useState(false);
+  const [currentPage, setCurrentPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
   const [filters, setFilters] = useState({
     name: "",
     contactNumber: "",
@@ -116,6 +119,17 @@ const RetentionTable = () => {
   useEffect(() => {
     fetchRetentionLeads();
   }, []);
+
+  const handleChangePage = (event, newPage) => {
+    setCurrentPage(newPage);
+  };
+
+  const handleChangeRowsPerPage = (event) => {
+    setRowsPerPage(parseInt(event.target.value, 10));
+    setCurrentPage(0);
+  };
+
+  const currentLeads = retentionLeads.slice(currentPage * rowsPerPage, currentPage * rowsPerPage + rowsPerPage);
 
   const styles = {
     container: {
@@ -252,7 +266,7 @@ const RetentionTable = () => {
             </TableRow>
           </TableHead>
           <TableBody>
-            {retentionLeads.map((lead) => (
+            {currentLeads.map((lead) => (
               <TableRow
                 key={lead._id}
                 sx={{
@@ -280,10 +294,19 @@ const RetentionTable = () => {
                 <TableCell style={styles.tableCell}>{lead.retentionStatus}</TableCell>
                 <TableCell style={styles.tableCell}>{lead.rtRemark}</TableCell>
               </TableRow>
-            ))}
+            ))} 
           </TableBody>
         </Table>
       </TableContainer>
+      <TablePagination 
+                rowsPerPageOptions={[10, 20, 50, 100]}
+                component="div"
+                count={retentionLeads.length}
+                rowsPerPage={rowsPerPage}
+                page={currentPage}
+                onPageChange={handleChangePage}
+                onRowsPerPageChange={handleChangeRowsPerPage}
+            />
     </Box>
   );
 };

@@ -296,7 +296,7 @@ const currentLeads = leads.slice(currentPage * rowsPerPage, currentPage * rowsPe
                   borderColor: "#005bb5",  
                 },
               },
-            }}
+            }} 
             InputLabelProps={{
               shrink: true,  
             }}
