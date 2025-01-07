@@ -62,6 +62,13 @@ const SalesMySales = () => {
     }
   };
  
+  const dropdownOptions = [
+    { key: 'salesStatus', label: 'Sales Status', options: ['Sales Done', 'On Follow Up', 'Lost'] },
+    { key: 'modeOfPayment', label: 'Mode of Payment', options: ['Partial Paid', 'Razorpay', 'COD', 'UPI', 'Bank Transfer'] },
+    { key: 'deliveryStatus', label: 'Delivery Status', options: ['Delivered', 'RTO', 'Undelivered'] },
+    { key: 'dosageOrdered', label: 'Dosage Ordered', options: ['10-Days', '20-Days', '30-Days', '60-Days', '90-Days'] },
+    { key: 'productsOrdered', label: 'Products Ordered', options: ['KJF', 'SDP', 'VKR', 'L-Fx', 'S&S', 'CPV', 'HDP', 'PF', 'PGut', 'Shilajit', 'Kit'], multiple: true },
+  ];
 
   const calculateDosageExpiring = (days) => {
     const currentDate = new Date();
@@ -145,6 +152,10 @@ const handleChangeRowsPerPage = (event) => {
     setCurrentPage(0);  
 };
 
+const renderDropdown = (key, multiple = false) => {
+  return dropdownOptions.find(option => option.key === key);
+};
+
 const currentLeads = sales.slice(currentPage * rowsPerPage, currentPage * rowsPerPage + rowsPerPage);
 
   return (
@@ -173,7 +184,21 @@ const currentLeads = sales.slice(currentPage * rowsPerPage, currentPage * rowsPe
       fullWidth
       value={filters.dateFrom}
       onChange={(e) => setFilters((prev) => ({ ...prev, dateFrom: e.target.value }))}
-      sx={{ mb: 2 }}
+      sx={{
+        marginBottom: 2,
+        "& .MuiInputBase-input": {
+          padding: "10px 12px",  
+        },
+        "& .MuiOutlinedInput-root": {
+          borderColor: "#0073e6",  
+          "&:hover fieldset": {
+            borderColor: "#005bb5",  
+          },
+        },
+      }}
+      InputLabelProps={{
+        shrink: true, 
+      }}
     />
     <TextField
       label="First Order Date To"
@@ -181,7 +206,21 @@ const currentLeads = sales.slice(currentPage * rowsPerPage, currentPage * rowsPe
       fullWidth
       value={filters.dateTo}
       onChange={(e) => setFilters((prev) => ({ ...prev, dateTo: e.target.value }))}
-      sx={{ mb: 2 }}
+      sx={{
+        marginBottom: 2,
+        "& .MuiInputBase-input": {
+          padding: "10px 12px",  
+        },
+        "& .MuiOutlinedInput-root": {
+          borderColor: "#0073e6",  
+          "&:hover fieldset": {
+            borderColor: "#005bb5",  
+          },
+        },
+      }}
+      InputLabelProps={{
+        shrink: true, 
+      }}
     />
     <TextField
       label="Name"
@@ -197,30 +236,28 @@ const currentLeads = sales.slice(currentPage * rowsPerPage, currentPage * rowsPe
       onChange={(e) => setFilters((prev) => ({ ...prev, contactNumber: e.target.value }))}
       sx={{ mb: 2 }}
     />
-    {["productsOrdered", "dosageOrdered", "salesStatus", "modeOfPayment", "deliveryStatus"].map((key) => (
-      <FormControl key={key} fullWidth sx={{ mb: 2 }}>
-        <InputLabel>{key.replace(/([A-Z])/g, " $1").replace(/^./, (str) => str.toUpperCase())}</InputLabel>
-        <Select
-          multiple={key === "productsOrdered"}
-          value={filters[key]}
-          onChange={(e) => setFilters((prev) => ({ ...prev, [key]: e.target.value }))}
-          renderValue={(selected) => (Array.isArray(selected) ? selected.join(", ") : selected)}
-        >
-          {key === "productsOrdered"
-            ? ["KJF", "SDP", "VKR", "L-Fx", "S&S", "CPV", "HDP", "PF", "PGut", "Shilajit"].map((item) => (
-                <MenuItem key={item} value={item}>
-                  <Checkbox checked={filters[key]?.includes(item)} />
-                  <ListItemText primary={item} />
-                </MenuItem>
-              ))
-            : ["10-Days", "20-Days", "30-Days", "60-Days", "90-Days", "Sales Done", "On Follow Up", "Lost", "Partial Paid", "Razorpay", "COD", "UPI", "Bank Transfer", "Delivered", "RTO", "Undelivered"].map((item) => (
-                <MenuItem key={item} value={item}>
-                  {item}
-                </MenuItem>
-              ))}
-        </Select>
-      </FormControl>
-    ))}
+    {dropdownOptions.map(({ key, label, options, multiple }) => (
+  <FormControl fullWidth sx={{ mb: 2 }} key={key}>
+    <InputLabel>{label}</InputLabel>
+    <Select
+      multiple={multiple}
+      value={filters[key] || (multiple ? [] : '')}
+      onChange={(e) => {
+        const value = multiple ? e.target.value : e.target.value;
+        setFilters(prev => ({ ...prev, [key]: value }));
+      }}
+      renderValue={(selected) => multiple ? selected.join(', ') : selected}
+    >
+      {options.map(option => (
+        <MenuItem key={option} value={option}>
+          {multiple && <Checkbox checked={filters[key].includes(option)} />}
+          <ListItemText primary={option} />
+        </MenuItem>
+      ))}
+    </Select>
+  </FormControl>
+))}
+
     <TextField
       label="Amount From"
       type="number"
