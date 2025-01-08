@@ -41,7 +41,7 @@ const NewOrders = () => {
   });
   const [filterOpen, setFilterOpen] = useState(false);
   const [page, setPage] = useState(0);
-  const [rowsPerPage, setRowsPerPage] = useState(50);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
 
   const dropdownOptions = {
     modeOfPayment: ["Partial Paid", "Razorpay", "COD", "UPI", "Bank Transfer"],
@@ -75,12 +75,13 @@ const NewOrders = () => {
     }
   };
 
-  const handleHealthExpertChange = async (e, index) => {
+  const handleHealthExpertChange = async (e, index) => { 
+    const realIndex = page * rowsPerPage + index;
     const updatedOrders = [...newOrders];
-    updatedOrders[index].healthExpertAssigned = e.target.value;
+    updatedOrders[realIndex].healthExpertAssigned = e.target.value;
     setNewOrders(updatedOrders);
 
-    const orderId = updatedOrders[index]._id;
+    const orderId = updatedOrders[realIndex]._id;
     try {
       await axios.put(`https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/${orderId}`, {
         healthExpertAssigned: e.target.value,
@@ -88,14 +89,15 @@ const NewOrders = () => {
     } catch (error) {
       console.error("Error updating health expert assigned:", error);
     }
-  };
+};
 
-  const handleDeliveryStatusChange = async (e, index) => {
+const handleDeliveryStatusChange = async (e, index) => { 
+    const realIndex = page * rowsPerPage + index;
     const updatedOrders = [...newOrders];
-    updatedOrders[index].deliveryStatus = e.target.value;
+    updatedOrders[realIndex].deliveryStatus = e.target.value;
     setNewOrders(updatedOrders);
-  
-    const orderId = updatedOrders[index]._id;
+
+    const orderId = updatedOrders[realIndex]._id;
     try {
       await axios.put(`https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/${orderId}`, {
         deliveryStatus: e.target.value,
@@ -103,7 +105,7 @@ const NewOrders = () => {
     } catch (error) {
       console.error("Error updating delivery status:", error);
     }
-  };  
+};
 
   const applyFilters = () => {
     const filtered = newOrders.filter((order) => {
@@ -292,7 +294,7 @@ const NewOrders = () => {
         </Table>
       </TableContainer>
       <TablePagination
-        rowsPerPageOptions={[10, 25, 50]}
+        rowsPerPageOptions={[10, 20, 50, 100]}
         component="div"
         count={newOrders.length}
         rowsPerPage={rowsPerPage}

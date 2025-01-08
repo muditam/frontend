@@ -57,6 +57,12 @@ const MenuBar = ({ toggleDrawer }) => {
               <ListItem button component={Link} to="/bulk-data-upload" onClick={toggleDrawer}>
                 <ListItemText primary="Bulk Data Upload" />
               </ListItem>
+              <ListItem button component={Link} to="/all-shopify-orders" onClick={toggleDrawer}>
+            <ListItemText primary="All Shopify Orders" />
+          </ListItem>
+          <ListItem button component={Link} to="/online-orders" onClick={toggleDrawer}>
+            <ListItemText primary="Online Orders" />
+          </ListItem>
         </>
       )}
  

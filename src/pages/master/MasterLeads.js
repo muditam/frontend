@@ -35,7 +35,7 @@ const LeadTable = () => {
     const [retentionAgents, setRetentionAgents] = useState([]);
     const [filterOpen, setFilterOpen] = useState(false);
     const [currentPage, setCurrentPage] = useState(0);
-    const [validationErrors, setValidationErrors] = useState({}); 
+    const [validationErrors, setValidationErrors] = useState({});
     const [rowsPerPage, setRowsPerPage] = useState(10);
     const [filters, setFilters] = useState({
         date: "",
@@ -144,7 +144,7 @@ const LeadTable = () => {
             date: new Date().toISOString().split("T")[0],
             time: new Date().toLocaleTimeString(),
         };
- 
+
 
         try {
             const response = await axios.post("https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads", newLeadData, leadToAdd);
@@ -255,7 +255,7 @@ const LeadTable = () => {
         currentDate.setDate(currentDate.getDate() + days);
         return currentDate.toISOString().split("T")[0];
     };
- 
+
     const handleSaveLead = async (index) => {
         const lead = leads[index];
         if (!lead._id) {
@@ -287,9 +287,9 @@ const LeadTable = () => {
 
     const handleCombinedChange = (event, index, field) => {
         const { value } = event.target;
- 
+
         handleSalesStatusChange(event, index);
- 
+
         handleInputChange(event, index, field);
     };
 
@@ -310,24 +310,24 @@ const LeadTable = () => {
         const filteredLeads = leads.filter((lead) => {
             const leadDate = lead.date ? new Date(lead.date) : new Date();
             let isValid = true;
-     
+
             if (filters.startDate) {
                 const startDate = new Date(filters.startDate);
-                startDate.setHours(0, 0, 0, 0); 
+                startDate.setHours(0, 0, 0, 0);
                 if (leadDate < startDate) {
                     isValid = false;
                 }
             }
-    
+
             // Check end date
             if (filters.endDate) {
                 const endDate = new Date(filters.endDate);
-                endDate.setHours(23, 59, 59, 999);  
+                endDate.setHours(23, 59, 59, 999);
                 if (leadDate > endDate) {
                     isValid = false;
                 }
             }
-    
+
             // Check other filters if the date is valid
             if (isValid) {
                 return Object.keys(filters).every((key) => {
@@ -338,13 +338,13 @@ const LeadTable = () => {
                     return lead[key] === filters[key];
                 });
             }
-    
+
             return isValid;
         });
-    
+
         setLeads(filteredLeads);
     };
-    
+
 
     const handleChangePage = (event, newPage) => {
         setCurrentPage(newPage);
@@ -352,9 +352,9 @@ const LeadTable = () => {
 
     const handleChangeRowsPerPage = (event) => {
         setRowsPerPage(parseInt(event.target.value, 10));
-        setCurrentPage(0);  
+        setCurrentPage(0);
     };
- 
+
     const currentLeads = leads.slice(currentPage * rowsPerPage, currentPage * rowsPerPage + rowsPerPage);
 
 
@@ -391,122 +391,122 @@ const LeadTable = () => {
                         Filters
                     </Typography>
                     <Divider />
-                    <List> 
-                    <ListItem>
-                <TextField
-                    fullWidth
-                    type="date"
-                    label="Start Date"
-                    value={filters.startDate}
-                    onChange={(e) => setFilters((prev) => ({ ...prev, startDate: e.target.value }))}
-                    sx={{
-                        marginBottom: 0,
-                        "& .MuiInputBase-input": {
-                          padding: "10px 12px",  
-                        },
-                        "& .MuiOutlinedInput-root": {
-                          borderColor: "#0073e6", 
-                          "&:hover fieldset": {
-                            borderColor: "#005bb5", 
-                          },
-                        },
-                      }}
-                      InputLabelProps={{
-                        shrink: true,  
-                      }}
-                />
-            </ListItem>
-            <ListItem>
-                <TextField
-                    fullWidth
-                    type="date"
-                    label="End Date"
-                    value={filters.endDate}
-                    onChange={(e) => setFilters((prev) => ({ ...prev, endDate: e.target.value }))}
-                    sx={{
-                        marginBottom: 0,
-                        "& .MuiInputBase-input": {
-                          padding: "10px 12px",  
-                        },
-                        "& .MuiOutlinedInput-root": {
-                          borderColor: "#0073e6",  
-                          "&:hover fieldset": {
-                            borderColor: "#005bb5",  
-                          },
-                        },
-                      }}
-                      InputLabelProps={{
-                        shrink: true,  
-                      }}
-                />
-            </ListItem>
-            <ListItem>
-                <TextField
-                    fullWidth
-                    label="Name"
-                    value={filters.name}
-                    onChange={(e) => setFilters((prev) => ({ ...prev, name: e.target.value }))}
-                />
-            </ListItem>
-            <ListItem>
-                <TextField
-                    fullWidth
-                    label="Contact Number"
-                    value={filters.contactNumber}
-                    onChange={(e) => setFilters((prev) => ({ ...prev, contactNumber: e.target.value }))}
-                />
-            </ListItem>
-        <ListItem>
-            <TextField
-                fullWidth
-                type="date"
-                label="Order Date"
-                value={filters.orderDate}
-                onChange={(e) => setFilters((prev) => ({ ...prev, orderDate: e.target.value }))}
-                sx={{
-                    marginBottom: 0,
-                    "& .MuiInputBase-input": {
-                      padding: "10px 12px",  
-                    },
-                    "& .MuiOutlinedInput-root": {
-                      borderColor: "#0073e6", 
-                      "&:hover fieldset": {
-                        borderColor: "#005bb5",  
-                      },
-                    },
-                  }}
-                  InputLabelProps={{
-                    shrink: true,  
-                  }}
-            />
-        </ListItem>
-        {[
-            { key: 'deliveryStatus', options: ['Delivered', 'RTO', 'Undelivered'] },
-            { key: 'customerType', options: ['Fresh', 'Renewal', 'Online Order'] },
-            { key: 'agentAssigned', options: salesAgents.map(agent => agent.fullName) },
-            { key: 'leadStatus', options: ['Sales Done', 'CNP - Call Not Picked', 'Not Interested', 'Product Issue', 'Order from Other Source', 'Upsell', 'Fake Lead', 'Follow Up', 'Call Back'] },
-            { key: 'salesStatus', options: ['Sales Done', 'Lost', 'On Follow Up'] },
-            { key: 'healthExpertAssigned', options: retentionAgents.map(agent => agent.fullName) },
-            { key: 'rtFollowupStatus', options: ['Good Results', 'No Result', 'Sales Done', 'Do Not Want to Continue', 'Call Not Picked', 'Blood Test Suggested', 'Product Issue', 'Order from Other Source', 'Upsell', 'Follow Up Again', 'Call Back', 'Others'] },
-            { key: 'retentionStatus', options: ['Active', 'Lost'] },
-            { key: 'leadSource', options: ['Abandoned Cart', 'BiteSpeed', 'Business on Bot', 'Facebook Lead', 'Google Lead', 'Incoming Call', 'Lead Form', 'Online Store', 'Others', 'Rampwin', 'Reference', 'Whatsapp'] },
-            { key: 'enquiryFor', options: ['KJF', 'SDP', 'VKR', 'L-Fx', 'S&S', 'CPV', 'HDP', 'PF', 'PGut', 'Shilajit', 'Kit'] },
-        ].map(field => (
-            <ListItem key={field.key}>
-                <FormControl fullWidth>
-                    <InputLabel>{field.key}</InputLabel>
-                    <Select
-                        value={filters[field.key]}
-                        onChange={(e) => setFilters((prev) => ({ ...prev, [field.key]: e.target.value }))}
-                        label={field.key}
-                    >
-                        {field.options.map(option => (
-                            <MenuItem key={option} value={option}>{option}</MenuItem>
+                    <List>
+                        <ListItem>
+                            <TextField
+                                fullWidth
+                                type="date"
+                                label="Start Date"
+                                value={filters.startDate}
+                                onChange={(e) => setFilters((prev) => ({ ...prev, startDate: e.target.value }))}
+                                sx={{
+                                    marginBottom: 0,
+                                    "& .MuiInputBase-input": {
+                                        padding: "10px 12px",
+                                    },
+                                    "& .MuiOutlinedInput-root": {
+                                        borderColor: "#0073e6",
+                                        "&:hover fieldset": {
+                                            borderColor: "#005bb5",
+                                        },
+                                    },
+                                }}
+                                InputLabelProps={{
+                                    shrink: true,
+                                }}
+                            />
+                        </ListItem>
+                        <ListItem>
+                            <TextField
+                                fullWidth
+                                type="date"
+                                label="End Date"
+                                value={filters.endDate}
+                                onChange={(e) => setFilters((prev) => ({ ...prev, endDate: e.target.value }))}
+                                sx={{
+                                    marginBottom: 0,
+                                    "& .MuiInputBase-input": {
+                                        padding: "10px 12px",
+                                    },
+                                    "& .MuiOutlinedInput-root": {
+                                        borderColor: "#0073e6",
+                                        "&:hover fieldset": {
+                                            borderColor: "#005bb5",
+                                        },
+                                    },
+                                }}
+                                InputLabelProps={{
+                                    shrink: true,
+                                }}
+                            />
+                        </ListItem>
+                        <ListItem>
+                            <TextField
+                                fullWidth
+                                label="Name"
+                                value={filters.name}
+                                onChange={(e) => setFilters((prev) => ({ ...prev, name: e.target.value }))}
+                            />
+                        </ListItem>
+                        <ListItem>
+                            <TextField
+                                fullWidth
+                                label="Contact Number"
+                                value={filters.contactNumber}
+                                onChange={(e) => setFilters((prev) => ({ ...prev, contactNumber: e.target.value }))}
+                            />
+                        </ListItem>
+                        <ListItem>
+                            <TextField
+                                fullWidth
+                                type="date"
+                                label="Order Date"
+                                value={filters.orderDate}
+                                onChange={(e) => setFilters((prev) => ({ ...prev, orderDate: e.target.value }))}
+                                sx={{
+                                    marginBottom: 0,
+                                    "& .MuiInputBase-input": {
+                                        padding: "10px 12px",
+                                    },
+                                    "& .MuiOutlinedInput-root": {
+                                        borderColor: "#0073e6",
+                                        "&:hover fieldset": {
+                                            borderColor: "#005bb5",
+                                        },
+                                    },
+                                }}
+                                InputLabelProps={{
+                                    shrink: true,
+                                }}
+                            />
+                        </ListItem>
+                        {[
+                            { key: 'deliveryStatus', options: ['Delivered', 'RTO', 'Undelivered'] },
+                            { key: 'customerType', options: ['Fresh', 'Renewal', 'Online Order'] },
+                            { key: 'agentAssigned', options: salesAgents.map(agent => agent.fullName) },
+                            { key: 'leadStatus', options: ['Sales Done', 'CNP - Call Not Picked', 'Not Interested', 'Product Issue', 'Order from Other Source', 'Upsell', 'Fake Lead', 'Follow Up', 'Call Back'] },
+                            { key: 'salesStatus', options: ['Sales Done', 'Lost', 'On Follow Up'] },
+                            { key: 'healthExpertAssigned', options: retentionAgents.map(agent => agent.fullName) },
+                            { key: 'rtFollowupStatus', options: ['Good Results', 'No Result', 'Sales Done', 'Do Not Want to Continue', 'Call Not Picked', 'Blood Test Suggested', 'Product Issue', 'Order from Other Source', 'Upsell', 'Follow Up Again', 'Call Back', 'Others'] },
+                            { key: 'retentionStatus', options: ['Active', 'Lost'] },
+                            { key: 'leadSource', options: ['Abandoned Cart', 'BiteSpeed', 'Business on Bot', 'Facebook Lead', 'Google Lead', 'Incoming Call', 'Lead Form', 'Online Store', 'Others', 'Rampwin', 'Reference', 'Whatsapp'] },
+                            { key: 'enquiryFor', options: ['KJF', 'SDP', 'VKR', 'L-Fx', 'S&S', 'CPV', 'HDP', 'PF', 'PGut', 'Shilajit', 'Kit'] },
+                        ].map(field => (
+                            <ListItem key={field.key}>
+                                <FormControl fullWidth>
+                                    <InputLabel>{field.key}</InputLabel>
+                                    <Select
+                                        value={filters[field.key]}
+                                        onChange={(e) => setFilters((prev) => ({ ...prev, [field.key]: e.target.value }))}
+                                        label={field.key}
+                                    >
+                                        {field.options.map(option => (
+                                            <MenuItem key={option} value={option}>{option}</MenuItem>
+                                        ))}
+                                    </Select>
+                                </FormControl>
+                            </ListItem>
                         ))}
-                    </Select>
-                </FormControl>
-            </ListItem>
-        ))}
                     </List>
                     <Divider />
                     <Button
@@ -544,10 +544,10 @@ const LeadTable = () => {
                                 enquiryFor: "",
                                 orderDate: "",
                             });
-                            fetchLeads();  
+                            fetchLeads();
                             setFilterOpen(false);
                         }}
-                        
+
                     >
                         Reset Filters
                     </Button>
@@ -649,7 +649,7 @@ const LeadTable = () => {
                                     </Select>
                                 </TableCell>
                                 <TableCell>
-                                    <Select 
+                                    <Select
                                         value={lead.enquiryFor || ""}
                                         onChange={(e) => handleInputChange(e, index, "enquiryFor")}
                                     >
@@ -711,7 +711,7 @@ const LeadTable = () => {
                                     <Select
                                         value={lead.leadStatus || ""}
                                         onChange={(e) => handleInputChange(e, index, "leadStatus")}
-                                    > 
+                                    >
                                         {[
                                             "Sales Done",
                                             "CNP - Call Not Picked",
@@ -845,7 +845,7 @@ const LeadTable = () => {
                                         ))}
                                     </Select>
                                 </TableCell>
-                                <TableCell> 
+                                <TableCell>
                                     <Select
                                         value={lead.healthExpertAssigned || ""}
                                         onChange={(e) => handleInputChange(e, index, "healthExpertAssigned")}

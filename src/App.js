@@ -15,6 +15,7 @@ import Home from "./pages/Home";
 import Login from "./pages/Login";
 import NavbarWithSearch from "./components/NavBarwithSearch";
 import SalesDashboard from "./components/SalesDashboard";
+import AllShopifyOrders from "./components/AllShopifyOrders";
 
 const App = () => {
    
@@ -28,6 +29,7 @@ const App = () => {
           <Route path="/" element={<SalesDashboard />} />
           <Route path="/login" element={<Login />} />
           <Route path="/bulk-data-upload" element={<BulkDataUpload />} />
+          <Route path="/all-shopify-orders" element={<AllShopifyOrders />} />
           <Route path="/add-employee" element={<AddEmployee />} />
           <Route path="/master/leads" element={<LeadTable />} />
           <Route path="/master/retention" element={<RetentionTable />} />

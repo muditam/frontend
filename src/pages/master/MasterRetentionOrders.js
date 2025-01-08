@@ -462,7 +462,7 @@ const RetentionOrders = () => {
               <TableCell style={styles.tableCell}>Dosage Ordered</TableCell>
               <TableCell style={styles.tableCell}>Amount Paid</TableCell>
               <TableCell style={styles.tableCell}>Mode of Payment</TableCell>
-              <TableCell style={styles.tableCell}>Delivery Status *</TableCell>
+              <TableCell style={styles.tableCell}>Delivery Status *</TableCell> 
               <TableCell style={styles.tableCell}>Order Created By</TableCell>
             </TableRow>
           </TableHead>
