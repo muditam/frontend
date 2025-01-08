@@ -72,11 +72,12 @@ const RetentionLeads = () => {
   };
 
   const handleInputChange = async (e, index, field) => { 
+    const value = e.target.value;
     const updatedLeads = [...leads];
     updatedLeads[index][field] = e.target.value;
 
     if (field === "rtNextFollowupDate") {
-      const followupDate = new Date(e.target.value);
+      const followupDate = new Date(value);
       const today = new Date();
       const diffInDays = Math.ceil((followupDate - today) / (1000 * 60 * 60 * 24));
 
@@ -314,7 +315,7 @@ const currentLeads = leads.slice(currentPage * rowsPerPage, currentPage * rowsPe
                       </MenuItem>
                     ))}
                   </Select>
-                </TableCell>
+                </TableCell> 
                 <TableCell>
                   <TextField
                     type="date"
