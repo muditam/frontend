@@ -28,8 +28,7 @@ const MenuBar = ({ toggleDrawer }) => {
   };
 
   return (
-    <List>
-      {/* Manager Role */}
+    <List> 
       {role === "Manager" && (
         <>
           <ListItem button component={Link} to="/add-employee" onClick={toggleDrawer}>
@@ -42,7 +41,7 @@ const MenuBar = ({ toggleDrawer }) => {
           <Collapse in={openDropdown.masterData} timeout="auto" unmountOnExit>
             <List disablePadding>
               <ListItem button component={Link} to="/master/leads" onClick={toggleDrawer}>
-                <ListItemText primary="Leads" inset />
+                <ListItemText primary="All Leads" inset />
               </ListItem>
               <ListItem button component={Link} to="/master/retention" onClick={toggleDrawer}>
                 <ListItemText primary="Retention Leads" inset />
@@ -60,8 +59,7 @@ const MenuBar = ({ toggleDrawer }) => {
               </ListItem>
         </>
       )}
-
-      {/* Sales Agent Role */}
+ 
       {role === "Sales Agent" && (
         <>
           <ListItem button onClick={() => handleDropdownClick("salesAgent")}>
@@ -80,8 +78,7 @@ const MenuBar = ({ toggleDrawer }) => {
           </Collapse>
         </>
       )}
-
-      {/* Retention Agent Role */}
+ 
       {role === "Retention Agent" && (
         <>
           <ListItem button onClick={() => handleDropdownClick("retentionAgent")}>

@@ -23,6 +23,7 @@ import {
     ListItem,
     Divider,
     TablePagination,
+    InputLabel,
 } from "@mui/material";
 import { Delete, AddCircle } from "@mui/icons-material";
 import axios from "axios";
@@ -307,16 +308,44 @@ const LeadTable = () => {
 
     const applyFilters = (filters) => {
         const filteredLeads = leads.filter((lead) => {
-            return Object.keys(filters).every((key) => {
-                if (!filters[key]) return true;  
-                if (key === "date" || key === "orderDate") {
-                    return lead[key]?.startsWith(filters[key]);  
+            const leadDate = lead.date ? new Date(lead.date) : new Date();
+            let isValid = true;
+    
+            // Check start date
+            if (filters.startDate) {
+                const startDate = new Date(filters.startDate);
+                startDate.setHours(0, 0, 0, 0);  // Set time to 00:00:00 to ignore time part
+                if (leadDate < startDate) {
+                    isValid = false;
                 }
-                return String(lead[key] || "").toLowerCase().includes(filters[key].toLowerCase());
-            });
+            }
+    
+            // Check end date
+            if (filters.endDate) {
+                const endDate = new Date(filters.endDate);
+                endDate.setHours(23, 59, 59, 999);  // Set time to end of day to include all events on end date
+                if (leadDate > endDate) {
+                    isValid = false;
+                }
+            }
+    
+            // Check other filters if the date is valid
+            if (isValid) {
+                return Object.keys(filters).every((key) => {
+                    if (!filters[key] || key === 'startDate' || key === 'endDate') return true;  // Skip empty and date filters
+                    if (typeof lead[key] === 'string') {
+                        return lead[key].toLowerCase().includes(filters[key].toLowerCase());
+                    }
+                    return lead[key] === filters[key];
+                });
+            }
+    
+            return isValid;
         });
+    
         setLeads(filteredLeads);
     };
+    
 
     const handleChangePage = (event, newPage) => {
         setCurrentPage(newPage);
@@ -363,19 +392,122 @@ const LeadTable = () => {
                         Filters
                     </Typography>
                     <Divider />
-                    <List>
-                        {Object.keys(filters).map((filterKey) => (
-                            <ListItem key={filterKey}>
-                                <TextField
-                                    fullWidth
-                                    label={filterKey.replace(/([A-Z])/g, " $1").replace(/^./, (str) => str.toUpperCase())}
-                                    value={filters[filterKey]}
-                                    onChange={(e) =>
-                                        setFilters((prev) => ({ ...prev, [filterKey]: e.target.value }))
-                                    }
-                                />
-                            </ListItem>
+                    <List> 
+                    <ListItem>
+                <TextField
+                    fullWidth
+                    type="date"
+                    label="Start Date"
+                    value={filters.startDate}
+                    onChange={(e) => setFilters((prev) => ({ ...prev, startDate: e.target.value }))}
+                    sx={{
+                        marginBottom: 0,
+                        "& .MuiInputBase-input": {
+                          padding: "10px 12px",  
+                        },
+                        "& .MuiOutlinedInput-root": {
+                          borderColor: "#0073e6", 
+                          "&:hover fieldset": {
+                            borderColor: "#005bb5", 
+                          },
+                        },
+                      }}
+                      InputLabelProps={{
+                        shrink: true,  
+                      }}
+                />
+            </ListItem>
+            <ListItem>
+                <TextField
+                    fullWidth
+                    type="date"
+                    label="End Date"
+                    value={filters.endDate}
+                    onChange={(e) => setFilters((prev) => ({ ...prev, endDate: e.target.value }))}
+                    sx={{
+                        marginBottom: 0,
+                        "& .MuiInputBase-input": {
+                          padding: "10px 12px",  
+                        },
+                        "& .MuiOutlinedInput-root": {
+                          borderColor: "#0073e6",  
+                          "&:hover fieldset": {
+                            borderColor: "#005bb5",  
+                          },
+                        },
+                      }}
+                      InputLabelProps={{
+                        shrink: true,  
+                      }}
+                />
+            </ListItem>
+            <ListItem>
+                <TextField
+                    fullWidth
+                    label="Name"
+                    value={filters.name}
+                    onChange={(e) => setFilters((prev) => ({ ...prev, name: e.target.value }))}
+                />
+            </ListItem>
+            <ListItem>
+                <TextField
+                    fullWidth
+                    label="Contact Number"
+                    value={filters.contactNumber}
+                    onChange={(e) => setFilters((prev) => ({ ...prev, contactNumber: e.target.value }))}
+                />
+            </ListItem>
+        <ListItem>
+            <TextField
+                fullWidth
+                type="date"
+                label="Order Date"
+                value={filters.orderDate}
+                onChange={(e) => setFilters((prev) => ({ ...prev, orderDate: e.target.value }))}
+                sx={{
+                    marginBottom: 0,
+                    "& .MuiInputBase-input": {
+                      padding: "10px 12px",  
+                    },
+                    "& .MuiOutlinedInput-root": {
+                      borderColor: "#0073e6", 
+                      "&:hover fieldset": {
+                        borderColor: "#005bb5",  
+                      },
+                    },
+                  }}
+                  InputLabelProps={{
+                    shrink: true,  
+                  }}
+            />
+        </ListItem>
+        {[
+            { key: 'deliveryStatus', options: ['Delivered', 'RTO', 'Undelivered'] },
+            { key: 'customerType', options: ['Fresh', 'Renewal', 'Online Order'] },
+            { key: 'agentAssigned', options: salesAgents.map(agent => agent.fullName) },
+            { key: 'leadStatus', options: ['Sales Done', 'CNP - Call Not Picked', 'Not Interested', 'Product Issue', 'Order from Other Source', 'Upsell', 'Fake Lead', 'Follow Up', 'Call Back'] },
+            { key: 'salesStatus', options: ['Sales Done', 'Lost', 'On Follow Up'] },
+            { key: 'healthExpertAssigned', options: retentionAgents.map(agent => agent.fullName) },
+            { key: 'rtFollowupStatus', options: ['Good Results', 'No Result', 'Sales Done', 'Do Not Want to Continue', 'Call Not Picked', 'Blood Test Suggested', 'Product Issue', 'Order from Other Source', 'Upsell', 'Follow Up Again', 'Call Back', 'Others'] },
+            { key: 'retentionStatus', options: ['Active', 'Lost'] },
+            { key: 'leadSource', options: ['Abandoned Cart', 'BiteSpeed', 'Business on Bot', 'Facebook Lead', 'Google Lead', 'Incoming Call', 'Lead Form', 'Online Store', 'Others', 'Rampwin', 'Reference', 'Whatsapp'] },
+            { key: 'enquiryFor', options: ['KJF', 'SDP', 'VKR', 'L-Fx', 'S&S', 'CPV', 'HDP', 'PF', 'PGut', 'Shilajit', 'Kit'] },
+        ].map(field => (
+            <ListItem key={field.key}>
+                <FormControl fullWidth>
+                    <InputLabel>{field.key}</InputLabel>
+                    <Select
+                        value={filters[field.key]}
+                        onChange={(e) => setFilters((prev) => ({ ...prev, [field.key]: e.target.value }))}
+                        label={field.key}
+                    >
+                        {field.options.map(option => (
+                            <MenuItem key={option} value={option}>{option}</MenuItem>
                         ))}
+                    </Select>
+                </FormControl>
+            </ListItem>
+        ))}
                     </List>
                     <Divider />
                     <Button
@@ -385,6 +517,7 @@ const LeadTable = () => {
                             applyFilters(filters);
                             setFilterOpen(false);
                         }}
+                        sx={{ marginBottom: 1, backgroundColor: "#0073e6" }}
                     >
                         Apply Filters
                     </Button>
@@ -393,7 +526,8 @@ const LeadTable = () => {
                         fullWidth
                         onClick={() => {
                             setFilters({
-                                date: "",
+                                startDate: "",
+                                endDate: "",
                                 name: "",
                                 contactNumber: "",
                                 deliveryStatus: "",
@@ -414,6 +548,7 @@ const LeadTable = () => {
                             fetchLeads();  
                             setFilterOpen(false);
                         }}
+                        
                     >
                         Reset Filters
                     </Button>
