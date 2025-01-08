@@ -97,7 +97,7 @@ const NavbarWithSearch = () => {
                     {results.map((item) => (
                       <ListItem key={item._id} button>
                         <ListItemText
-                          primary={`${item.name || "No Name"} (${item.contactNumber})`}
+                          primary={`${item.name || "No Name"} (${item.contactNumber}) (${item.agentAssigned}) [${item.healthExpertAssigned}]`}
                         />
                       </ListItem>
                     ))}

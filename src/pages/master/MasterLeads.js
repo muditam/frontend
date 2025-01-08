@@ -310,11 +310,10 @@ const LeadTable = () => {
         const filteredLeads = leads.filter((lead) => {
             const leadDate = lead.date ? new Date(lead.date) : new Date();
             let isValid = true;
-    
-            // Check start date
+     
             if (filters.startDate) {
                 const startDate = new Date(filters.startDate);
-                startDate.setHours(0, 0, 0, 0);  // Set time to 00:00:00 to ignore time part
+                startDate.setHours(0, 0, 0, 0); 
                 if (leadDate < startDate) {
                     isValid = false;
                 }
@@ -323,7 +322,7 @@ const LeadTable = () => {
             // Check end date
             if (filters.endDate) {
                 const endDate = new Date(filters.endDate);
-                endDate.setHours(23, 59, 59, 999);  // Set time to end of day to include all events on end date
+                endDate.setHours(23, 59, 59, 999);  
                 if (leadDate > endDate) {
                     isValid = false;
                 }
