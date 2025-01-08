@@ -65,7 +65,7 @@ const RetentionLeads = () => {
           email: user.email,
         },
       });
-      setLeads(response.data);
+      setLeads(existingLeads => [...response.data, ...existingLeads]);
     } catch (error) {
       console.error("Failed to fetch retention leads", error);
     }
