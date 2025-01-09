@@ -19,9 +19,10 @@
     padding: 8px 35px !important;
   }
   
-  .css-1orzuox-MuiTableCell-root{
+  .css-1orzuox-MuiTableCell-root, .css-1jxw05q-MuiTableCell-root{
     background-color: #542087 !important;
     color: white !important;
+    font-size: 0.874rem !important;
     font-weight: 700 !important;
     text-align: center !important;
     line-height: 2.5 !important;
@@ -63,6 +64,7 @@
   
   .css-195ypl5, .css-1vfms6x{
     background-color: #542087 !important;
+    font-size: 0.874rem !important;
     color: white !important;
     font-weight: 700 !important;
     text-align: center !important;

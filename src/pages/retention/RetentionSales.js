@@ -29,7 +29,7 @@ const RetentionSales = () => {
   const [sales, setSales] = useState([]);
   const [page, setPage] = useState(1); 
   const [currentPage, setCurrentPage] = useState(0); 
-  const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [rowsPerPage, setRowsPerPage] = useState(50);
   const [editedSales, setEditedSales] = useState({});
   const productOptions = [
     "KJF",
@@ -361,8 +361,8 @@ const currentLeads = sales.slice(currentPage * rowsPerPage, currentPage * rowsPe
   </Box>
 </Drawer>
 
-      <TableContainer component={Paper}>
-        <Table>
+      <TableContainer component={Paper} sx={{ maxHeight: 1000 }}>
+        <Table stickyHeader aria-label="sticky table">
           <TableHead>
             <TableRow>
               <TableCell>Date</TableCell>

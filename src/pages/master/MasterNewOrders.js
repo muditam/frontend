@@ -41,7 +41,7 @@ const NewOrders = () => {
   });
   const [filterOpen, setFilterOpen] = useState(false);
   const [page, setPage] = useState(0);
-  const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [rowsPerPage, setRowsPerPage] = useState(50);
 
   const dropdownOptions = {
     modeOfPayment: ["Partial Paid", "Razorpay", "COD", "UPI", "Bank Transfer"],
@@ -230,8 +230,8 @@ const handleDeliveryStatusChange = async (e, index) => {
         </Box>
       </Drawer>
 
-      <TableContainer component={Paper}>
-        <Table>
+      <TableContainer component={Paper} sx={{ maxHeight: 1000 }}>
+        <Table stickyHeader aria-label="sticky table">
           <TableHead>
             <TableRow>
               <TableCell>Order Date</TableCell>

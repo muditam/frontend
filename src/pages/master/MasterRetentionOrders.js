@@ -35,7 +35,7 @@ const RetentionOrders = () => {
   const [orders, setOrders] = useState([]);
   const [page, setPage] = useState(1);
   const [currentPage, setCurrentPage] = useState(0);
-  const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [rowsPerPage, setRowsPerPage] = useState(50);
   const [filterOpen, setFilterOpen] = useState(false);
   const [filters, setFilters] = useState({
     dateFrom: "",
@@ -451,8 +451,8 @@ const RetentionOrders = () => {
         </Box>
       </Drawer>
 
-      <TableContainer component={Paper} style={styles.card}>
-        <Table style={styles.table}>
+      <TableContainer component={Paper} style={styles.card} sx={{ maxHeight: 1000 }}>
+        <Table style={styles.table} stickyHeader aria-label="sticky table">
           <TableHead> 
             <TableRow>
               <TableCell style={styles.tableCell}>Date</TableCell>

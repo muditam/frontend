@@ -27,7 +27,7 @@ const SalesMyLeads = () => {
   const [leads, setLeads] = useState([]);
   const [validationErrors, setValidationErrors] = useState({});
   const [currentPage, setCurrentPage] = useState(0); 
-  const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [rowsPerPage, setRowsPerPage] = useState(50);
   const [newLead, setNewLead] = useState({
     date: "",
     time: "",
@@ -386,8 +386,8 @@ const currentLeads = leads.slice(currentPage * rowsPerPage, currentPage * rowsPe
         </Box>
       </Drawer>
 
-      <TableContainer component={Paper}>
-        <Table>
+      <TableContainer component={Paper} sx={{ maxHeight: 1000 }}>
+        <Table stickyHeader aria-label="sticky table">
           <TableHead>
             <TableRow>
               <TableCell>Date</TableCell>
@@ -613,7 +613,7 @@ const currentLeads = leads.slice(currentPage * rowsPerPage, currentPage * rowsPe
                 rowsPerPage={rowsPerPage}
                 page={currentPage}
                 onPageChange={handleChangePage}
-                onRowsPerPageChange={handleChangeRowsPerPage}
+                onRowsPerPageChange={handleChangeRowsPerPage} 
             />
     </Box>
   );

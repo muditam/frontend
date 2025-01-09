@@ -27,7 +27,7 @@ const SalesMySales = () => {
   const [sales, setSales] = useState([]);
   const [agentAssignedName, setAgentAssignedName] = useState(""); 
   const [currentPage, setCurrentPage] = useState(0); 
-  const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [rowsPerPage, setRowsPerPage] = useState(50);
   const [filters, setFilters] = useState({
     dateFrom: "",
     dateTo: "",
@@ -299,8 +299,8 @@ const currentLeads = sales.slice(currentPage * rowsPerPage, currentPage * rowsPe
   </Box>
 </Drawer>
 
-      <TableContainer component={Paper}>
-        <Table>
+      <TableContainer component={Paper} sx={{ maxHeight: 1000 }}>
+        <Table stickyHeader aria-label="sticky table">
           <TableHead>
             <TableRow>
               <TableCell>First Order Date *</TableCell>

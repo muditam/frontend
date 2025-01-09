@@ -27,7 +27,7 @@ const RetentionTable = () => {
   const [retentionLeads, setRetentionLeads] = useState([]);
   const [filterOpen, setFilterOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(0);
-  const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [rowsPerPage, setRowsPerPage] = useState(50);
   const [filters, setFilters] = useState({
     name: "",
     contactNumber: "",
@@ -241,8 +241,8 @@ const RetentionTable = () => {
         </Box>
       </Drawer>
 
-      <TableContainer component={Paper} style={styles.card}>
-        <Table style={styles.table}>
+      <TableContainer component={Paper} style={styles.card} sx={{ maxHeight: 1000 }}>
+        <Table style={styles.table} stickyHeader aria-label="sticky table">
           <TableHead>
             <TableRow>
               <TableCell style={styles.tableCell}>Name</TableCell>
