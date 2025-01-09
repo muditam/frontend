@@ -1,108 +1,52 @@
-import React, { useState, useEffect } from "react";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  Paper,
-  TablePagination,
-  CircularProgress,
-  Typography,
-} from "@mui/material";
-import axios from "axios";
+import React, { useEffect, useState } from 'react';
+import axios from 'axios';
+import { Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper } from '@mui/material';
 
-const AllShopifyOrders = () => {
-  const [orders, setOrders] = useState([]);
-  const [sinceId, setSinceId] = useState(null);  
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [rowsPerPage, setRowsPerPage] = useState(10);
+const OrdersTable = () => {
+    const [orders, setOrders] = useState([]);
 
-  const fetchOrders = async () => {
-    setLoading(true);
-    setError("");
-    try {
-      const response = await axios.get("http://localhost:5000/api/shopify/orders", {
-        params: { limit: rowsPerPage, since_id: sinceId },
-      });
-      setOrders(response.data.orders || []);
-      setSinceId(response.data.nextSinceId || null);
-    } catch (err) {
-      console.error("Error fetching orders:", err.message);
-      setError("Failed to load orders.");
-    } finally {
-      setLoading(false);
-    }
-  };
+    useEffect(() => {
+        const fetchShopifyOrders = async () => {
+            try {
+                const response = await axios.get('http://localhost:5000/api/orders');
+                console.log(response.data);  
+                if (response.data && response.data.orders) {
+                    setOrders(response.data.orders);
+                } else {
+                    throw new Error("Invalid response structure");
+                }
+            } catch (error) {
+                console.error('Error fetching orders:', error);
+                setOrders([]);
+            }
+        };
+        fetchShopifyOrders();
+    }, []);
 
-  useEffect(() => {
-    fetchOrders();
-  }, [rowsPerPage]);
-
-  const handleChangeRowsPerPage = (event) => {
-    setRowsPerPage(parseInt(event.target.value, 10));
-  };
-
-  return (
-    <TableContainer component={Paper}>
-      {loading ? (
-        <CircularProgress />
-      ) : error ? (
-        <Typography color="error">{error}</Typography>
-      ) : (
-        <>
-          <Table>
-            <TableHead>
-              <TableRow>
-                <TableCell>Order</TableCell>
-                <TableCell>Date</TableCell>
-                <TableCell>Customer</TableCell>
-                <TableCell>Channel</TableCell>
-                <TableCell>Total</TableCell>
-                <TableCell>Payment Status</TableCell>
-                <TableCell>Destination</TableCell>
-                <TableCell>Fulfillment Status</TableCell>
-                <TableCell>Items</TableCell>
-                <TableCell>Delivery Status</TableCell>
-                <TableCell>Delivery Method</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {orders.map((order) => (
-                <TableRow key={order.id}>
-                  <TableCell>{order.name}</TableCell>
-                  <TableCell>{new Date(order.created_at).toLocaleDateString()}</TableCell>
-                  <TableCell>
-                    {order.customer?.first_name} {order.customer?.last_name}
-                  </TableCell>
-                  <TableCell>{order.source_name}</TableCell>
-                  <TableCell>{order.total_price}</TableCell>
-                  <TableCell>{order.financial_status}</TableCell>
-                  <TableCell>{order.shipping_address?.city}</TableCell>
-                  <TableCell>{order.fulfillment_status || "Pending"}</TableCell>
-                  <TableCell>{order.line_items?.length}</TableCell>
-                  <TableCell>{order.delivery_status || "N/A"}</TableCell>
-                  <TableCell>
-                    {order.shipping_lines?.map((line) => line.title).join(", ") || "N/A"}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-          <TablePagination
-            rowsPerPageOptions={[10, 25, 50]}
-            component="div"
-            count={-1} 
-            rowsPerPage={rowsPerPage}
-            page={sinceId ? 1 : 0}  
-            onRowsPerPageChange={handleChangeRowsPerPage}
-          />
-        </>
-      )}
-    </TableContainer>
-  );
+    return (
+        <TableContainer component={Paper}>
+            <Table sx={{ minWidth: 650 }} aria-label="simple table">
+                <TableHead>
+                    <TableRow>
+                        <TableCell>Order ID</TableCell>
+                        <TableCell>Name</TableCell>
+                        <TableCell>Contact Number</TableCell>
+                        <TableCell>Amount</TableCell>
+                    </TableRow>
+                </TableHead>
+                <TableBody>
+                    {orders ? orders.map((order) => (
+                        <TableRow key={order.id}>
+                            <TableCell component="th" scope="row">{order.id}</TableCell>
+                            <TableCell>{order.customer && order.customer.first_name} {order.customer && order.customer.last_name}</TableCell>
+                            <TableCell>{order.customer && order.customer.phone}</TableCell>
+                            <TableCell>{order.total_price}</TableCell>
+                        </TableRow>
+                    )) : <TableRow><TableCell colSpan={4} align="center">Loading orders...</TableCell></TableRow>}
+                </TableBody>
+            </Table>
+        </TableContainer>
+    );
 };
 
-export default AllShopifyOrders;
+export default OrdersTable;
