@@ -25,7 +25,7 @@ const RetentionLeads = () => {
   const [leads, setLeads] = useState([]);
   const [loggedInUser, setLoggedInUser] = useState({});
   const [currentPage, setCurrentPage] = useState(0); 
-  const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [rowsPerPage, setRowsPerPage] = useState(50);
   const [filters, setFilters] = useState({
     name: "",
     contactNumber: "",
@@ -51,7 +51,7 @@ const RetentionLeads = () => {
 
   useEffect(() => {
     const user = JSON.parse(sessionStorage.getItem("user"));
-    if (user && user.role === "Retention Agent") {
+    if (user && user.role === "Retention Agent") { 
       setLoggedInUser(user);
       fetchRetentionLeads(user);
     }
@@ -246,8 +246,8 @@ const currentLeads = leads.slice(currentPage * rowsPerPage, currentPage * rowsPe
         </Box>
       </Drawer>
 
-      <TableContainer component={Paper}>
-        <Table>
+      <TableContainer component={Paper} sx={{ maxHeight: 1000 }}>
+        <Table stickyHeader aria-label="sticky table">
           <TableHead>
             <TableRow>
               <TableCell>Name</TableCell>
