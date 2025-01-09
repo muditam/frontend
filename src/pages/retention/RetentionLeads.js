@@ -65,7 +65,7 @@ const RetentionLeads = () => {
           email: user.email,
         },
       });
-      setLeads(existingLeads => [...response.data, ...existingLeads]);
+      setLeads(response.data.reverse());
     } catch (error) {
       console.error("Failed to fetch retention leads", error);
     }
@@ -374,4 +374,3 @@ const currentLeads = leads.slice(currentPage * rowsPerPage, currentPage * rowsPe
 };
 
 export default RetentionLeads;
- 
