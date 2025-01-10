@@ -44,9 +44,7 @@ const RetentionLeads = () => {
     lastOrderDateTo: "",
     retentionStatus: "",
   });
-  const [filterOpen, setFilterOpen] = useState(false);
-  const [page, setPage] = useState(1);
-  const ITEMS_PER_PAGE = 10;
+  const [filterOpen, setFilterOpen] = useState(false); 
 
 
   useEffect(() => {
@@ -54,7 +52,7 @@ const RetentionLeads = () => {
     if (user && user.role === "Retention Agent") { 
       setLoggedInUser(user);
       fetchRetentionLeads(user);
-    }
+    } 
   }, []);
 
   const fetchRetentionLeads = async (user) => {
@@ -71,17 +69,18 @@ const RetentionLeads = () => {
     }
   };
 
-  const handleInputChange = async (e, index, field) => { 
+  const handleInputChange = async (e, index, field) => {
+    const globalIndex = currentPage * rowsPerPage + index; // Calculate the global index
     const value = e.target.value;
     const updatedLeads = [...leads];
-    updatedLeads[index][field] = e.target.value;
-
+    updatedLeads[globalIndex][field] = value;
+  
     if (field === "rtNextFollowupDate") {
       const followupDate = new Date(value);
       const today = new Date();
       const diffInDays = Math.ceil((followupDate - today) / (1000 * 60 * 60 * 24));
-
-      updatedLeads[index].rtFollowupReminder =
+  
+      updatedLeads[globalIndex].rtFollowupReminder =
         diffInDays < 0
           ? "Missed"
           : diffInDays === 0
@@ -90,17 +89,18 @@ const RetentionLeads = () => {
               ? "Tomorrow"
               : "Later";
     }
-
+  
     setLeads(updatedLeads);
-
+  
     try {
-      await axios.put(`https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/${updatedLeads[index]._id}`, {
-        [field]: e.target.value,
+      await axios.put(`https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/${updatedLeads[globalIndex]._id}`, {
+        [field]: value,
       });
     } catch (error) {
       console.error("Error updating lead:", error);
     }
   };
+  
 
   const applyFilters = () => {
     const filteredLeads = leads.filter((lead) => {

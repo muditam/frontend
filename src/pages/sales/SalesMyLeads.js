@@ -67,7 +67,7 @@ const SalesMyLeads = () => {
     const user = JSON.parse(sessionStorage.getItem("user"));
     if (user) {
       setAgentName(user.fullName);
-      fetchLeads(user.fullName);
+      fetchLeads(user.fullName); 
     }
   }, []);
 
@@ -76,7 +76,7 @@ const SalesMyLeads = () => {
       const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads", {
         params: { agentAssignedName: agentAssigned },
       });
-      setLeads(response.data);
+      setLeads(response.data.reverse());
     } catch (error) {
       console.error("Failed to fetch leads", error);
     }
