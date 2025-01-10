@@ -55,6 +55,17 @@ const RetentionLeads = () => {
     } 
   }, []);
 
+  const computeReminder = (followupDate) => {
+    const date = new Date(followupDate);
+    const today = new Date();
+    const diffInDays = Math.ceil((date - today) / (1000 * 60 * 60 * 24));
+  
+    if (diffInDays < 0) return "Missed";
+    if (diffInDays === 0) return "Today";
+    if (diffInDays === 1) return "Tomorrow";
+    return "Later";
+  };
+
   const fetchRetentionLeads = async (user) => {
     try {
       const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/retentions", {
@@ -63,14 +74,18 @@ const RetentionLeads = () => {
           email: user.email,
         },
       });
-      setLeads(response.data.reverse());
+      const leadsWithReminders = response.data.map(lead => ({
+      ...lead,
+      rtFollowupReminder: lead.rtNextFollowupDate ? computeReminder(lead.rtNextFollowupDate) : ''
+    }));
+    setLeads(leadsWithReminders.reverse());
     } catch (error) {
       console.error("Failed to fetch retention leads", error);
     }
   };
 
   const handleInputChange = async (e, index, field) => {
-    const globalIndex = currentPage * rowsPerPage + index; // Calculate the global index
+    const globalIndex = currentPage * rowsPerPage + index;  
     const value = e.target.value;
     const updatedLeads = [...leads];
     updatedLeads[globalIndex][field] = value;
