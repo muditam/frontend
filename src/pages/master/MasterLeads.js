@@ -306,45 +306,62 @@ const LeadTable = () => {
         return diffInDays > 1 ? "Later" : "";
     };
 
+    const isValidDate = (dateString) => {
+        const regEx = /^\d{4}-\d{2}-\d{2}$/;
+        if (!dateString.match(regEx)) return false;  // Invalid format
+        const d = new Date(dateString);
+        const dNum = d.getTime();
+        if (!dNum && dNum !== 0) return false; // NaN value, Invalid date
+        return d.toISOString().slice(0,10) === dateString;
+    }
+    
     const applyFilters = (filters) => {
         const filteredLeads = leads.filter((lead) => {
-            const leadDate = lead.date ? new Date(lead.date) : new Date();
+            // Check if the lead date is valid
+            const leadDate = lead.date && isValidDate(lead.date) ? new Date(lead.date) : null;
+    
+            // Exclude leads without valid dates when date filtering is active
+            if ((filters.startDate || filters.endDate) && !leadDate) {
+                return false;
+            }
+    
             let isValid = true;
-
-            if (filters.startDate) {
+    
+            // Check start date filter
+            if (filters.startDate && leadDate) {
                 const startDate = new Date(filters.startDate);
                 startDate.setHours(0, 0, 0, 0);
                 if (leadDate < startDate) {
                     isValid = false;
                 }
             }
-
-            // Check end date
-            if (filters.endDate) {
+    
+            // Check end date filter
+            if (filters.endDate && leadDate) {
                 const endDate = new Date(filters.endDate);
                 endDate.setHours(23, 59, 59, 999);
                 if (leadDate > endDate) {
                     isValid = false;
                 }
             }
-
-            // Check other filters if the date is valid
+    
+            // Apply other filters
             if (isValid) {
                 return Object.keys(filters).every((key) => {
-                    if (!filters[key] || key === 'startDate' || key === 'endDate') return true;  // Skip empty and date filters
+                    if (!filters[key] || key === 'startDate' || key === 'endDate') return true; // Skip empty and date filters
                     if (typeof lead[key] === 'string') {
                         return lead[key].toLowerCase().includes(filters[key].toLowerCase());
                     }
                     return lead[key] === filters[key];
                 });
             }
-
+    
             return isValid;
         });
-
+    
         setLeads(filteredLeads);
     };
-
+    
 
     const handleChangePage = (event, newPage) => {
         setCurrentPage(newPage);

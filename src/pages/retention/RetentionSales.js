@@ -372,7 +372,7 @@ const currentLeads = sales.slice(currentPage * rowsPerPage, currentPage * rowsPe
               <TableCell>Dosage Ordered *</TableCell>
               <TableCell>Amount Paid *</TableCell>
               <TableCell>Mode of Payment *</TableCell>
-              <TableCell>Delivery Status *</TableCell>
+              <TableCell>Delivery Status</TableCell>
               <TableCell>Order Created By *</TableCell>
               <TableCell>Actions *</TableCell>
             </TableRow>
