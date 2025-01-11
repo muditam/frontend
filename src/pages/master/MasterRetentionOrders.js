@@ -25,7 +25,7 @@ import {
 import axios from "axios";
 
 const dropdownOptions = {
-  productsOrdered: ["KJF", "SDP", "VKR", "L-Fx", "S&S", "CPV", "HDP", "PF", "PGut", "Shilajit"],
+  productsOrdered: ["KJF", "SDP", "VKR", "L-Fx", "S&S", "CPV", "HDP", "PF", "PGut", "Shilajit", "Kit", "Blood Test"],
   dosageOrdered: ["10-Days", "20-Days", "30-Days", "60-Days", "90-Days"],
   modeOfPayment: ["Partial Paid", "Razorpay", "COD", "UPI", "Bank Transfer"],
   deliveryStatus: ["Delivered", "RTO", "Undelivered"],

@@ -88,7 +88,7 @@ const LeadTable = () => {
         retentionStatus: "",
         rtRemark: "",
     });
-    const [multiSelectOptions] = useState(["KJF", "SDP", "VKR", "L-Fx", "S&S", "CPV", "HDP", "PF", "PGut", "Shilajit"]);
+    const [multiSelectOptions] = useState(["KJF", "SDP", "VKR", "L-Fx", "S&S", "CPV", "HDP", "PF", "PGut", "Shilajit", "Kit", "Blood Test"]);
 
 
     useEffect(() => {
@@ -308,10 +308,10 @@ const LeadTable = () => {
 
     const isValidDate = (dateString) => {
         const regEx = /^\d{4}-\d{2}-\d{2}$/;
-        if (!dateString.match(regEx)) return false;  // Invalid format
+        if (!dateString.match(regEx)) return false;   
         const d = new Date(dateString);
         const dNum = d.getTime();
-        if (!dNum && dNum !== 0) return false; // NaN value, Invalid date
+        if (!dNum && dNum !== 0) return false; 
         return d.toISOString().slice(0,10) === dateString;
     }
     
@@ -348,7 +348,7 @@ const LeadTable = () => {
             // Apply other filters
             if (isValid) {
                 return Object.keys(filters).every((key) => {
-                    if (!filters[key] || key === 'startDate' || key === 'endDate') return true; // Skip empty and date filters
+                    if (!filters[key] || key === 'startDate' || key === 'endDate') return true;  
                     if (typeof lead[key] === 'string') {
                         return lead[key].toLowerCase().includes(filters[key].toLowerCase());
                     }
@@ -506,8 +506,8 @@ const LeadTable = () => {
                             { key: 'healthExpertAssigned', options: retentionAgents.map(agent => agent.fullName) },
                             { key: 'rtFollowupStatus', options: ['Good Results', 'No Result', 'Sales Done', 'Do Not Want to Continue', 'Call Not Picked', 'Blood Test Suggested', 'Product Issue', 'Order from Other Source', 'Upsell', 'Follow Up Again', 'Call Back', 'Others'] },
                             { key: 'retentionStatus', options: ['Active', 'Lost'] },
-                            { key: 'leadSource', options: ['Abandoned Cart', 'BiteSpeed', 'Business on Bot', 'Facebook Lead', 'Google Lead', 'Incoming Call', 'Lead Form', 'Online Store', 'Others', 'Rampwin', 'Reference', 'Whatsapp'] },
-                            { key: 'enquiryFor', options: ['KJF', 'SDP', 'VKR', 'L-Fx', 'S&S', 'CPV', 'HDP', 'PF', 'PGut', 'Shilajit', 'Kit'] },
+                            { key: 'leadSource', options: ['Abandoned Cart', 'BiteSpeed', 'Business on Bot', 'Facebook Lead', 'Google Lead', 'Incoming Call', 'Lead Form', 'Online Store', 'Others', 'Rampwin', 'Reference', 'Whatsapp', 'Degpeg'] },
+                            { key: 'enquiryFor', options: ['KJF', 'SDP', 'VKR', 'L-Fx', 'S&S', 'CPV', 'HDP', 'PF', 'PGut', 'Shilajit', 'Kit', 'Blood Test'] },
                         ].map(field => (
                             <ListItem key={field.key}>
                                 <FormControl fullWidth>
@@ -657,6 +657,7 @@ const LeadTable = () => {
                                             "Rampwin",
                                             "Reference",
                                             "Whatsapp",
+                                            "Degpeg",
                                         ].map((source) => (
                                             <MenuItem key={source} value={source}>
                                                 {source}
@@ -669,7 +670,7 @@ const LeadTable = () => {
                                         value={lead.enquiryFor || ""}
                                         onChange={(e) => handleInputChange(e, index, "enquiryFor")}
                                     >
-                                        {["KJF", "SDP", "VKR", "L-Fx", "S&S", "CPV", "HDP", "PF", "PGut", "Shilajit", "Kit"].map(
+                                        {["KJF", "SDP", "VKR", "L-Fx", "S&S", "CPV", "HDP", "PF", "PGut", "Shilajit", "Kit", "Blood Test"].map(
                                             (item) => (
                                                 <MenuItem key={item} value={item}>
                                                     {item}
@@ -712,7 +713,7 @@ const LeadTable = () => {
                                             onChange={(e) => handleInputChange(e, index, "productPitched")}
                                             renderValue={(selected) => selected.join(", ")}
                                         >
-                                            {["KJF", "SDP", "VKR", "L-Fx", "S&S", "CPV", "HDP", "PF", "PGut", "Shilajit"].map(
+                                            {["KJF", "SDP", "VKR", "L-Fx", "S&S", "CPV", "HDP", "PF", "PGut", "Shilajit", "Kit", "Blood Test"].map(
                                                 (option) => (
                                                     <MenuItem key={option} value={option}>
                                                         <Checkbox checked={lead.productPitched?.includes(option)} />
@@ -806,7 +807,7 @@ const LeadTable = () => {
                                             onChange={(e) => handleInputChange(e, index, "productsOrdered")}
                                             renderValue={(selected) => selected.join(", ")}
                                         >
-                                            {["KJF", "SDP", "VKR", "L-Fx", "S&S", "CPV", "HDP", "PF", "PGut", "Shilajit"].map(
+                                            {["KJF", "SDP", "VKR", "L-Fx", "S&S", "CPV", "HDP", "PF", "PGut", "Shilajit", "Kit", "Blood Test"].map(
                                                 (option) => (
                                                     <MenuItem key={option} value={option}>
                                                         <Checkbox checked={lead.productsOrdered?.includes(option)} />

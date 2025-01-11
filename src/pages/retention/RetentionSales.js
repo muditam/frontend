@@ -42,6 +42,8 @@ const RetentionSales = () => {
     "PF",
     "PGut",
     "Shilajit",
+    "Kit", 
+    "Blood Test",
   ];
   const dosageOptions = ["10-Days", "20-Days", "30-Days", "60-Days", "90-Days"];
   const paymentModes = [
@@ -288,7 +290,7 @@ const currentLeads = sales.slice(currentPage * rowsPerPage, currentPage * rowsPe
         onChange={(e) => setFilters((prev) => ({ ...prev, productsOrdered: e.target.value }))}
         renderValue={(selected) => selected.join(", ")}
       >
-        {["KJF", "SDP", "VKR", "L-Fx", "S&S", "CPV", "HDP", "PF", "PGut", "Shilajit"].map((product) => (
+        {["KJF", "SDP", "VKR", "L-Fx", "S&S", "CPV", "HDP", "PF", "PGut", "Shilajit", "Kit", "Blood Test"].map((product) => (
           <MenuItem key={product} value={product}>
             <Checkbox checked={filters.productsOrdered.includes(product)} />
             <ListItemText primary={product} />

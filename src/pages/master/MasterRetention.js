@@ -68,7 +68,7 @@ const RetentionTable = () => {
       "Call Back",
       "Others",
     ],
-    productOptions: ["KJF", "SDP", "VKR", "L-Fx", "S&S", "CPV", "HDP", "PF", "PGut", "Shilajit"],
+    productOptions: ["KJF", "SDP", "VKR", "L-Fx", "S&S", "CPV", "HDP", "PF", "PGut", "Shilajit", "Kit", "Blood Test"],
   });
 
   const fetchRetentionLeads = async () => {

@@ -46,7 +46,7 @@ const NewOrders = () => {
   const dropdownOptions = {
     modeOfPayment: ["Partial Paid", "Razorpay", "COD", "UPI", "Bank Transfer"],
     deliveryStatus: ["Delivered", "RTO", "Undelivered"],
-    productsOrdered: ["KJF", "SDP", "VKR", "L-Fx", "S&S", "CPV", "HDP", "PF", "PGut", "Shilajit"],
+    productsOrdered: ["KJF", "SDP", "VKR", "L-Fx", "S&S", "CPV", "HDP", "PF", "PGut", "Shilajit", "Kit", "Blood Test"],
   };
 
   useEffect(() => {

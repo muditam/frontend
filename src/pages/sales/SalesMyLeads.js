@@ -316,10 +316,10 @@ const currentLeads = leads.slice(currentPage * rowsPerPage, currentPage * rowsPe
             sx={{ mb: 2 }}
           />
           {[
-            { key: "leadSource", label: "Lead Source", options: ["Abandoned Cart", "BiteSpeed", "Business on Bot", "Facebook Lead", "Google Lead", "Incoming Call", "Lead Form", "Online Store", "Others", "Rampwin", "Reference", "Whatsapp"] },
-            { key: "enquiryFor", label: "Enquiry For", options: ["KJF", "SDP", "VKR", "L-Fx", "S&S", "CPV", "HDP", "PF", "PGut", "Shilajit"] },
+            { key: "leadSource", label: "Lead Source", options: ["Abandoned Cart", "BiteSpeed", "Business on Bot", "Facebook Lead", "Google Lead", "Incoming Call", "Lead Form", "Online Store", "Others", "Rampwin", "Reference", "Whatsapp", "Degpeg"] },
+            { key: "enquiryFor", label: "Enquiry For", options: ["KJF", "SDP", "VKR", "L-Fx", "S&S", "CPV", "HDP", "PF", "PGut", "Shilajit", "Kit", "Blood Test"] },
             { key: "customerType", label: "Customer Type", options: ["Fresh", "Renewal", "Online Order"] },
-            { key: "productPitched", label: "Product Pitched", options: ["KJF", "SDP", "VKR", "L-Fx", "S&S", "CPV", "HDP", "PF", "PGut", "Shilajit"], multiple: true },
+            { key: "productPitched", label: "Product Pitched", options: ["KJF", "SDP", "VKR", "L-Fx", "S&S", "CPV", "HDP", "PF", "PGut", "Shilajit", "Kit", "Blood Test"], multiple: true },
             { key: "leadStatus", label: "Lead Status", options: ["Sales Done", "CNP - Call Not Picked", "Not Interested", "Product Issue", "Order from Other Source", "Upsell", "Fake Lead", "Follow Up", "Call Back"] },
             { key: "salesStatus", label: "Sales Status", options: ["Sales Done", "Lost", "On Follow Up"] },
           ].map(({ key, label, options, multiple }) => (
@@ -460,6 +460,7 @@ const currentLeads = leads.slice(currentPage * rowsPerPage, currentPage * rowsPe
                       "Rampwin",
                       "Reference",
                       "Whatsapp",
+                      "Degpeg",
                     ].map((source) => (
                       <MenuItem key={source} value={source}>
                         {source}
@@ -473,7 +474,7 @@ const currentLeads = leads.slice(currentPage * rowsPerPage, currentPage * rowsPe
                     onChange={(e) => handleInputChange(e, index, "enquiryFor")}
                     fullWidth
                   >
-                    {["KJF", "SDP", "VKR", "L-Fx", "S&S", "CPV", "HDP", "PF", "PGut", "Shilajit", "kit"].map((item) => (
+                    {["KJF", "SDP", "VKR", "L-Fx", "S&S", "CPV", "HDP", "PF", "PGut", "Shilajit", "Kit", "Blood Test"].map((item) => (
                       <MenuItem key={item} value={item}>
                         {item}
                       </MenuItem>
@@ -510,7 +511,7 @@ const currentLeads = leads.slice(currentPage * rowsPerPage, currentPage * rowsPe
                       }
                       renderValue={(selected) => selected.join(", ")}
                     >
-                      {["KJF", "SDP", "VKR", "L-Fx", "S&S", "CPV", "HDP", "PF", "PGut", "Shilajit"].map(
+                      {["KJF", "SDP", "VKR", "L-Fx", "S&S", "CPV", "HDP", "PF", "PGut", "Shilajit", "Kit", "Blood Test"].map(
                         (option) => (
                           <MenuItem key={option} value={option}>
                             <Checkbox checked={lead.productPitched?.includes(option)} />

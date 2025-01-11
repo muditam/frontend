@@ -67,7 +67,7 @@ const SalesMySales = () => {
     { key: 'modeOfPayment', label: 'Mode of Payment', options: ['Partial Paid', 'Razorpay', 'COD', 'UPI', 'Bank Transfer'] },
     { key: 'deliveryStatus', label: 'Delivery Status', options: ['Delivered', 'RTO', 'Undelivered'] },
     { key: 'dosageOrdered', label: 'Dosage Ordered', options: ['10-Days', '20-Days', '30-Days', '60-Days', '90-Days'] },
-    { key: 'productsOrdered', label: 'Products Ordered', options: ['KJF', 'SDP', 'VKR', 'L-Fx', 'S&S', 'CPV', 'HDP', 'PF', 'PGut', 'Shilajit', 'Kit'], multiple: true },
+    { key: 'productsOrdered', label: 'Products Ordered', options: ['KJF', 'SDP', 'VKR', 'L-Fx', 'S&S', 'CPV', 'HDP', 'PF', 'PGut', 'Shilajit', 'Kit', 'Blood Test'], multiple: true },
   ];
 
   const calculateDosageExpiring = (days) => {
@@ -357,7 +357,7 @@ const currentLeads = sales.slice(currentPage * rowsPerPage, currentPage * rowsPe
                       onChange={(e) => handleInputChange(e, index, "productsOrdered")}
                       renderValue={(selected) => selected.join(", ")}
                     >
-                      {["KJF", "SDP", "VKR", "L-Fx", "S&S", "CPV", "HDP", "PF", "PGut", "Shilajit"].map((product) => (
+                      {["KJF", "SDP", "VKR", "L-Fx", "S&S", "CPV", "HDP", "PF", "PGut", "Shilajit", "Kit", "Blood Test"].map((product) => (
                         <MenuItem key={product} value={product}>
                           <Checkbox checked={sale.productsOrdered?.includes(product)} />
                           <ListItemText primary={product} />
