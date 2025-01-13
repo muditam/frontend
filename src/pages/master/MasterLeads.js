@@ -501,7 +501,7 @@ const LeadTable = () => {
                             { key: 'deliveryStatus', options: ['Delivered', 'RTO', 'Undelivered'] },
                             { key: 'customerType', options: ['Fresh', 'Renewal', 'Online Order'] },
                             { key: 'agentAssigned', options: salesAgents.map(agent => agent.fullName) },
-                            { key: 'leadStatus', options: ['Sales Done', 'CNP - Call Not Picked', 'Not Interested', 'Product Issue', 'Order from Other Source', 'Upsell', 'Fake Lead', 'Follow Up', 'Call Back'] },
+                            { key: 'leadStatus', options: ['Sales Done', 'CNP - Call Not Picked', 'Not Interested', 'Product Issue', 'Order from Other Source', 'Upsell', 'Fake Lead', 'Follow Up', 'Call Back', 'New'] },
                             { key: 'salesStatus', options: ['Sales Done', 'Lost', 'On Follow Up'] },
                             { key: 'healthExpertAssigned', options: retentionAgents.map(agent => agent.fullName) },
                             { key: 'rtFollowupStatus', options: ['Good Results', 'No Result', 'Sales Done', 'Do Not Want to Continue', 'Call Not Picked', 'Blood Test Suggested', 'Product Issue', 'Order from Other Source', 'Upsell', 'Follow Up Again', 'Call Back', 'Others'] },
@@ -739,6 +739,7 @@ const LeadTable = () => {
                                             "Fake Lead",
                                             "Follow Up",
                                             "Call Back",
+                                            "New",
                                         ].map((status) => (
                                             <MenuItem key={status} value={status}>
                                                 {status}

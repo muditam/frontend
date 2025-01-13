@@ -59,7 +59,7 @@ const NewOrders = () => {
       const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/new-orders");
       const filteredOrders = response.data
             .filter(order => order.agentAssigned !== 'Admin')   
-            .sort((a, b) => new Date(b.date) - new Date(a.date));   
+            .reverse()  
         setNewOrders(filteredOrders);
     } catch (error) {
       console.error("Error fetching new orders:", error);

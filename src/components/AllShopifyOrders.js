@@ -10,7 +10,7 @@ const OrdersTable = () => {
     useEffect(() => {
         const fetchShopifyOrders = async () => {
             try {
-                const response = await axios.get('http://localhost:5000/api/orders');
+                const response = await axios.get('http://localhost:5000/api/orders'); 
                 if (response.data && Array.isArray(response.data)) {
                     setOrders(response.data);
                 } else {
@@ -42,7 +42,7 @@ const OrdersTable = () => {
                             <TableCell>Order ID</TableCell>
                             <TableCell>Name</TableCell>
                             <TableCell>Contact Number</TableCell>
-                            <TableCell>Amount</TableCell>
+                            <TableCell>Amount</TableCell> 
                             <TableCell>Mode of Payment</TableCell>
                             <TableCell>Products Ordered</TableCell>
                         </TableRow>
@@ -53,7 +53,7 @@ const OrdersTable = () => {
                                 <TableCell component="th" scope="row">{order.name}</TableCell>
                                 <TableCell>{order.customer && order.customer.first_name} {order.customer && order.customer.last_name}</TableCell>
                                 <TableCell>{order.customer && order.customer.phone}</TableCell>
-                                <TableCell>{order.total_price}</TableCell>
+                                <TableCell>{order.total_price}</TableCell> 
                                 <TableCell>{order.payment_gateway_names}</TableCell>
                                 <TableCell>
                                     {order.line_items && order.line_items.map(item => `${item.title} (Qty: ${item.quantity})`).join(", ")}
