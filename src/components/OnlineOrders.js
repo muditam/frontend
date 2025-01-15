@@ -37,9 +37,9 @@ const OnlineOrders = () => {
     useEffect(() => {
         const fetchData = async () => {
             try {
-                const ordersResponse = await axios.get('http://localhost:5000/api/orders');
-                const leadsResponse = await axios.get('http://localhost:5000/api/leads');
-                const agentsResponse = await axios.get('http://localhost:5000/api/employees?role=Retention%20Agent');
+                const ordersResponse = await axios.get('https://muditamleads-14f32a10d7f7.herokuapp.com/api/orders');
+                const leadsResponse = await axios.get('https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads');
+                const agentsResponse = await axios.get('https://muditamleads-14f32a10d7f7.herokuapp.com/api/employees?role=Retention%20Agent');
 
                 if (ordersResponse.data && Array.isArray(ordersResponse.data)) {
                     const webOrders = ordersResponse.data.filter(order => order.channel_name === "web");
@@ -93,7 +93,7 @@ const OnlineOrders = () => {
             amount: order.total_price,
             modeOfPayment: order.payment_gateway_names.join(", "),
             productsOrdered: order.line_items.map(
-                item => productAbbreviations[item.title] || item.title // Use abbreviation or fallback to title
+                item => productAbbreviations[item.title] || item.title 
             ),
             agentAssigned: 'Online Order',
             healthExpertAssigned: expert.fullName,
@@ -119,7 +119,7 @@ const OnlineOrders = () => {
             }
     
             // Fetch updated orders to reflect changes in UI
-            const updatedOrdersResponse = await axios.get('http://localhost:5000/api/orders');
+            const updatedOrdersResponse = await axios.get('https://muditamleads-14f32a10d7f7.herokuapp.com/api/orders');
             const webOrders = updatedOrdersResponse.data.filter(order => order.channel_name === "web");
             setOrders(webOrders);
     
