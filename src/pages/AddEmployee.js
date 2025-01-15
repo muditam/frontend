@@ -31,7 +31,7 @@ const AddEmployee = () => {
     email: "",
     contactNumber: "",
     role: "",
-    password: "",
+    password: "", 
     confirmPassword: "",
   });
   const [error, setError] = useState("");

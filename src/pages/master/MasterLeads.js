@@ -200,7 +200,8 @@ const LeadTable = () => {
 
     const handleInputChange = async (e, index, field) => {
         const updatedLeads = [...leads];
-        updatedLeads[index][field] = e.target.value;
+        const actualIndex = currentPage * rowsPerPage + index;
+        updatedLeads[actualIndex][field] = e.target.value;
         setLeads(updatedLeads);
 
 
@@ -239,7 +240,7 @@ const LeadTable = () => {
 
 
         // Save the updated field to MongoDB
-        const leadId = updatedLeads[index]._id;
+        const leadId = updatedLeads[actualIndex]._id;
         try {
             await axios.put(`https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/${leadId}`, {
                 [field]: e.target.value,
@@ -511,7 +512,7 @@ const LeadTable = () => {
                         ].map(field => (
                             <ListItem key={field.key}>
                                 <FormControl fullWidth>
-                                    <InputLabel>{field.key}</InputLabel>
+                                    <InputLabel>{field.key}</InputLabel>  
                                     <Select
                                         value={filters[field.key]}
                                         onChange={(e) => setFilters((prev) => ({ ...prev, [field.key]: e.target.value }))}

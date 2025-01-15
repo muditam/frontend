@@ -89,22 +89,19 @@ const SalesMyLeads = () => {
 
     if (field === "contactNumber") {
       const enteredNumber = e.target.value;
-
-      // Check if the number exists in the database
+ 
       try {
         const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/check-duplicate", {
           params: { contactNumber: enteredNumber },
         });
 
-        if (response.data.exists) {
-          // Set validation error if duplicate found
+        if (response.data.exists) { 
           setValidationErrors((prev) => ({
             ...prev,
             [index]: "This number is already registered",
           }));
-          return; // Stop further processing
-        } else {
-          // Clear validation error if no duplicate
+          return;  
+        } else { 
           setValidationErrors((prev) => ({
             ...prev,
             [index]: null,

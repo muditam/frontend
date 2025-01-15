@@ -45,6 +45,7 @@ const OrdersTable = () => {
                             <TableCell>Amount</TableCell> 
                             <TableCell>Mode of Payment</TableCell>
                             <TableCell>Products Ordered</TableCell>
+                            <TableCell>Channel Name</TableCell>
                         </TableRow>
                     </TableHead>
                     <TableBody>
@@ -52,12 +53,13 @@ const OrdersTable = () => {
                             <TableRow key={order.id}>
                                 <TableCell component="th" scope="row">{order.name}</TableCell>
                                 <TableCell>{order.customer && order.customer.first_name} {order.customer && order.customer.last_name}</TableCell>
-                                <TableCell>{order.customer && order.customer.phone}</TableCell>
+                                <TableCell>{order.customer && order.customer.default_address && order.customer.default_address.phone}</TableCell>
                                 <TableCell>{order.total_price}</TableCell> 
                                 <TableCell>{order.payment_gateway_names}</TableCell>
                                 <TableCell>
                                     {order.line_items && order.line_items.map(item => `${item.title} (Qty: ${item.quantity})`).join(", ")}
                                 </TableCell>
+                                <TableCell>{order.channel_name}</TableCell>
                             </TableRow>
                         ))}
                     </TableBody>

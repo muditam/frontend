@@ -50,7 +50,7 @@ const MenuBar = ({ toggleDrawer }) => {
                 <ListItemText primary="Acquisition Orders" inset />
               </ListItem>
               <ListItem button component={Link} to="/master/retention-orders" onClick={toggleDrawer}>
-                <ListItemText primary="Retention Orders" inset />
+                <ListItemText primary="Retention Orders" inset /> 
               </ListItem>
             </List>
           </Collapse>
