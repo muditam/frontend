@@ -10,7 +10,7 @@ const OrdersTable = () => {
     useEffect(() => {
         const fetchShopifyOrders = async () => {
             try {
-                const response = await axios.get('http://localhost:5000/api/orders'); 
+                const response = await axios.get('https://muditamleads-14f32a10d7f7.herokuapp.com/api/orders'); 
                 if (response.data && Array.isArray(response.data)) {
                     setOrders(response.data);
                 } else {
