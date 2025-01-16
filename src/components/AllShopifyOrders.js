@@ -14,10 +14,11 @@ const OrdersTable = () => {
                 if (response.data && Array.isArray(response.data)) {
                     setOrders(response.data);
                 } else {
-                    throw new Error("Invalid response structure");
+                    throw new Error("Invalid response structure: expected an array");
                 }
             } catch (error) {
                 console.error('Error fetching orders:', error);
+                console.error('Detailed error:', error.response || error.message || error);
                 setOrders([]);
             }
         };

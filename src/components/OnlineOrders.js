@@ -35,27 +35,37 @@ const OnlineOrders = () => {
     };
 
     useEffect(() => {
-        const fetchData = async () => {
-            try {
-                const ordersResponse = await axios.get('https://muditamleads-14f32a10d7f7.herokuapp.com/api/orders');
-                const leadsResponse = await axios.get('https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads');
-                const agentsResponse = await axios.get('https://muditamleads-14f32a10d7f7.herokuapp.com/api/employees?role=Retention%20Agent');
-
-                if (ordersResponse.data && Array.isArray(ordersResponse.data)) {
-                    const webOrders = ordersResponse.data.filter(order => order.channel_name === "web");
-                    setOrders(matchLeads(webOrders, leadsResponse.data));
-                }
-
-                if (agentsResponse.data) {
-                    setRetentionAgents(agentsResponse.data);
-                }
-            } catch (error) {
-                console.error('Error fetching data:', error);
-            }
-        };
-
         fetchData();
     }, []);
+
+    const fetchData = async () => {
+        try {
+            const [ordersResponse, leadsResponse, agentsResponse] = await Promise.all([
+                axios.get('https://muditamleads-14f32a10d7f7.herokuapp.com/api/orders'),
+                axios.get('https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads'),
+                axios.get('https://muditamleads-14f32a10d7f7.herokuapp.com/api/employees?role=Retention%20Agent')
+            ]);
+    
+            const webOrders = ordersResponse.data.filter(order => order.channel_name === "web");
+    
+            const ordersWithHealthExperts = webOrders.map(order => {
+                const normalizedOrderPhone = order.customer?.default_address?.phone.replace(/[^\d]/g, '').slice(-10);
+                const matchingLead = leadsResponse.data.find(lead => lead.contactNumber.endsWith(normalizedOrderPhone));
+                return {
+                    ...order,
+                    healthExpertAssigned: matchingLead?.healthExpertAssigned || null,
+                    healthExpertAssignedId: matchingLead?.healthExpertAssignedId || null,
+                    leadExists: !!matchingLead
+                };
+            });
+    
+            setOrders(ordersWithHealthExperts);
+            setRetentionAgents(agentsResponse.data);
+        } catch (error) {
+            console.error('Error fetching data:', error);
+        }
+    };
+    
 
     const matchLeads = (orders, leads) => {
         return orders.map(order => {
@@ -64,13 +74,11 @@ const OnlineOrders = () => {
             return {
                 ...order,
                 healthExpertAssigned: matchingLead ? matchingLead.healthExpertAssigned : null,
+                healthExpertAssignedId: matchingLead ? matchingLead.healthExpertAssignedId : null,
                 leadExists: !!matchingLead
             };
         });
     };
-
-    
-    
 
     const handleChangePage = (event, newPage) => {
         setCurrentPage(newPage);
@@ -83,49 +91,46 @@ const OnlineOrders = () => {
 
     const handleSelectHealthExpert = async (orderIndex, expertId) => {
         const order = orders[orderIndex];
-        const expert = retentionAgents.find(agent => agent._id === expertId);
+        if (order.healthExpertAssignedId === expertId) return; // Avoid unnecessary updates if the same expert is already assigned
     
+        const expert = retentionAgents.find(agent => agent._id === expertId);
+        const updatedOrder = {
+            ...order,
+            healthExpertAssigned: expert.fullName,
+            healthExpertAssignedId: expert._id
+        };
+     
+        setOrders(prevOrders => prevOrders.map((o, idx) => idx === orderIndex ? updatedOrder : o));
+    
+        // Update the database
+        await updateOrCreateLead(order, expert);
+    };
+
+    const updateOrCreateLead = async (order, expert) => {
         const leadData = {
-            orderId: `${order.name}`,  
+            orderId: order.name,  
             name: `${order.customer.first_name} ${order.customer.last_name}`,
             contactNumber: order.customer.default_address.phone,
             date: new Date(order.created_at).toISOString().split('T')[0],
             amount: order.total_price,
             modeOfPayment: order.payment_gateway_names.join(", "),
-            productsOrdered: order.line_items.map(
-                item => productAbbreviations[item.title] || item.title 
-            ),
+            productsOrdered: order.line_items.map(item => productAbbreviations[item.title] || item.title).join(", "),
             agentAssigned: 'Online Order',
             healthExpertAssigned: expert.fullName,
-            leadStatus: 'Sales Done',
+            healthExpertAssignedId: expert._id,
+            leadStatus: 'Sales Done', 
             salesStatus: 'Sales Done',
         };
     
         try {
-            // Check if the lead already exists
-            const existingLeadResponse = await axios.get(
-                `https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/check-duplicate?contactNumber=${leadData.contactNumber}`
-            );
-    
+            const existingLeadResponse = await axios.get(`https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/check-duplicate?contactNumber=${leadData.contactNumber}`);
             if (existingLeadResponse.data.exists) {
-                // Update the existing lead
-                await axios.put(
-                    `https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/${existingLeadResponse.data.leadId}`,
-                    leadData
-                );
+                await axios.put(`https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/${existingLeadResponse.data.leadId}`, leadData);
             } else {
-                // Create a new lead
                 await axios.post("https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads", leadData);
             }
-    
-            // Fetch updated orders to reflect changes in UI
-            const updatedOrdersResponse = await axios.get('https://muditamleads-14f32a10d7f7.herokuapp.com/api/orders');
-            const webOrders = updatedOrdersResponse.data.filter(order => order.channel_name === "web");
-            setOrders(webOrders);
-    
-            console.log(`Health Expert updated successfully for Order ID: ${order.name}`);
         } catch (error) {
-            console.error('Failed to create or update lead:', error);
+            console.error('Failed to update lead:', error);
         }
     };    
 
@@ -166,24 +171,23 @@ const OnlineOrders = () => {
                                 <TableCell>{order.total_price}</TableCell> 
                                 <TableCell>{order.payment_gateway_names}</TableCell>
                                 <TableCell>
-                                    {filterAndAbbreviateItems(order.line_items)}
+                                    {order.line_items.map(item => productAbbreviations[item.title] || item.title).join(", ")}
                                 </TableCell>
                                 <TableCell>Online Order</TableCell>
                                 <TableCell>{order.channel_name}</TableCell>
                                 <TableCell>
-                                    {order.healthExpertAssigned ? (
-                                        <span>{order.healthExpertAssigned}</span>
-                                    ) : (
-                                        <Select
-                                            value={order.healthExpertAssigned || ""}
-                                            onChange={(e) => handleSelectHealthExpert(index, e.target.value)}
-                                            fullWidth
-                                        >
-                                            {retentionAgents.map((agent) => (
-                                                <MenuItem key={agent._id} value={agent.fullName}>{agent.fullName}</MenuItem>
-                                            ))}
-                                        </Select>
-                                    )}
+                                    <Select
+                                        value={order.healthExpertAssignedId || ""}
+                                        onChange={(e) => handleSelectHealthExpert(index, e.target.value)}
+                                        displayEmpty
+                                        fullWidth
+                                    >
+                                        <MenuItem value=""> 
+                                        </MenuItem>
+                                        {retentionAgents.map((agent) => (
+                                            <MenuItem key={agent._id} value={agent._id}>{agent.fullName}</MenuItem>
+                                        ))}
+                                    </Select>
                                 </TableCell>
                                 <TableCell>Sales Done</TableCell>
                                 <TableCell>Sales Done</TableCell>
@@ -206,5 +210,4 @@ const OnlineOrders = () => {
 };
 
 export default OnlineOrders;
-
  
