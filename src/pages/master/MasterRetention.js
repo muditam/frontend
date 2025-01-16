@@ -74,7 +74,11 @@ const RetentionTable = () => {
   const fetchRetentionLeads = async () => {
     try {
       const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/retention");
-      setRetentionLeads(response.data);
+      const leadsWithReminder = response.data.map((lead) => ({
+        ...lead,
+        rtFollowupReminder: calculateReminder(lead.rtNextFollowupDate),
+      }));
+      setRetentionLeads(leadsWithReminder);
     } catch (error) {
       console.error("Error fetching retention leads:", error);
     }
@@ -127,6 +131,18 @@ const RetentionTable = () => {
   const handleChangeRowsPerPage = (event) => {
     setRowsPerPage(parseInt(event.target.value, 10));
     setCurrentPage(0);
+  };
+
+  const calculateReminder = (nextFollowupDate) => {
+    if (!nextFollowupDate) return "";
+    const followupDate = new Date(nextFollowupDate);
+    const today = new Date();
+    const diffInDays = Math.ceil((followupDate - today) / (1000 * 60 * 60 * 24));
+  
+    if (diffInDays < 0) return "Follow-up Missed";
+    if (diffInDays === 0) return "Today";
+    if (diffInDays === 1) return "Tomorrow";
+    return diffInDays > 1 ? "Later" : "";
   };
 
   const currentLeads = retentionLeads.slice(currentPage * rowsPerPage, currentPage * rowsPerPage + rowsPerPage);
