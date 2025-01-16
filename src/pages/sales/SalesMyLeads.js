@@ -83,44 +83,68 @@ const SalesMyLeads = () => {
   };
 
   const handleInputChange = async (e, index, field) => {
+    const globalIndex = currentPage * rowsPerPage + index; // Calculate the global index
+    const value = e.target.value; // Get the input value
     const updatedLeads = [...leads];
-    updatedLeads[index][field] = e.target.value;
-    setLeads(updatedLeads);
-
+    updatedLeads[globalIndex][field] = value; // Update the specific field
+  
+    setLeads(updatedLeads); // Update state with modified leads
+  
+    // Handle duplicate contact number check
     if (field === "contactNumber") {
-      const enteredNumber = e.target.value;
- 
+      const enteredNumber = value;
+  
       try {
-        const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/check-duplicate", {
-          params: { contactNumber: enteredNumber },
-        });
-
-        if (response.data.exists) { 
+        const response = await axios.get(
+          "https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/check-duplicate",
+          {
+            params: { contactNumber: enteredNumber },
+          }
+        );
+  
+        if (response.data.exists) {
+          // If duplicate found, set validation error
           setValidationErrors((prev) => ({
             ...prev,
-            [index]: "This number is already registered",
+            [globalIndex]: "This number is already registered",
           }));
-          return;  
-        } else { 
+          return; // Exit to prevent unnecessary updates
+        } else {
+          // Clear validation error if no duplicate
           setValidationErrors((prev) => ({
             ...prev,
-            [index]: null,
+            [globalIndex]: null,
           }));
         }
       } catch (error) {
         console.error("Error checking duplicate number:", error);
       }
     }
-
-    const leadId = updatedLeads[index]._id;
+  
+    // Update the lead in the database
+    const leadId = updatedLeads[globalIndex]._id;
     try {
-      await axios.put(`https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/${leadId}`, {
-        [field]: e.target.value,
-      });
+      await axios.put(
+        `https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/${leadId}`,
+        {
+          [field]: value,
+        }
+      );
     } catch (error) {
       console.error("Error updating lead:", error);
     }
   };
+  
+
+  //   const leadId = updatedLeads[index]._id;
+  //   try {
+  //     await axios.put(`https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/${leadId}`, {
+  //       [field]: e.target.value,
+  //     });
+  //   } catch (error) {
+  //     console.error("Error updating lead:", error);
+  //   }
+  // };
 
   const handleAddLead = async () => {
     const currentDate = new Date();

@@ -88,7 +88,7 @@ const RetentionLeads = () => {
     const globalIndex = currentPage * rowsPerPage + index;  
     const value = e.target.value;
     const updatedLeads = [...leads];
-    updatedLeads[globalIndex][field] = value;
+    updatedLeads[globalIndex][field] = value; 
   
     if (field === "rtNextFollowupDate") {
       const followupDate = new Date(value);
