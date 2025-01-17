@@ -43,16 +43,16 @@ const LeadTable = () => {
         contactNumber: "",
         deliveryStatus: "",
         customerType: "",
-        agentAssigned: "",
-        leadStatus: "",
-        salesStatus: "",
+        agentAssigned: [],
+        leadStatus: [],
+        salesStatus: [],
         reminder: "",
         healthExpertAssigned: "",
         orderId: "",
         rtFollowupReminder: "",
         rtFollowupStatus: "",
         retentionStatus: "",
-        leadSource: "",
+        leadSource: [],
         enquiryFor: "",
         orderDate: "",
     });
@@ -325,6 +325,7 @@ const LeadTable = () => {
             if ((filters.startDate || filters.endDate) && !leadDate) {
                 return false;
             }
+
     
             let isValid = true;
     
@@ -347,17 +348,24 @@ const LeadTable = () => {
             }
     
             // Apply other filters
-            if (isValid) {
-                return Object.keys(filters).every((key) => {
-                    if (!filters[key] || key === 'startDate' || key === 'endDate') return true;  
-                    if (typeof lead[key] === 'string') {
-                        return lead[key].toLowerCase().includes(filters[key].toLowerCase());
-                    }
-                    return lead[key] === filters[key];
-                });
-            }
+            return Object.keys(filters).every((key) => {
+                const filterValue = filters[key];
+                const leadValue = lead[key];
     
-            return isValid;
+                if (!filterValue || key === 'startDate' || key === 'endDate') return true;
+    
+                if (Array.isArray(filterValue)) {
+                    // For multi-select filters
+                    return filterValue.length === 0 || filterValue.includes(leadValue);
+                }
+    
+                if (typeof filterValue === "string") {
+                    // For string filters
+                    return leadValue?.toLowerCase().includes(filterValue.toLowerCase());
+                }
+    
+                return leadValue === filterValue;
+            });
         });
     
         setLeads(filteredLeads);
@@ -498,16 +506,113 @@ const LeadTable = () => {
                                 }}
                             />
                         </ListItem>
+                        <ListItem>
+        <FormControl fullWidth>
+            <InputLabel>Agent Assigned</InputLabel>
+            <Select
+                multiple
+                value={filters.agentAssigned}
+                onChange={(e) => setFilters((prev) => ({ ...prev, agentAssigned: e.target.value }))}
+                input={<Input />}
+                renderValue={(selected) => selected.join(", ")}
+            >
+                {salesAgents.map((agent) => (
+                    <MenuItem key={agent.fullName} value={agent.fullName}>
+                        <Checkbox checked={filters.agentAssigned.includes(agent.fullName)} />
+                        <ListItemText primary={agent.fullName} />
+                    </MenuItem>
+                ))}
+            </Select>
+        </FormControl>
+    </ListItem>
+    <ListItem>
+        <FormControl fullWidth>
+            <InputLabel>Lead Source</InputLabel>
+            <Select
+                multiple
+                value={filters.leadSource}
+                onChange={(e) => setFilters((prev) => ({ ...prev, leadSource: e.target.value }))}
+                input={<Input />}
+                renderValue={(selected) => selected.join(", ")}
+            >
+                {[
+                    "Abandoned Cart",
+                    "BiteSpeed",
+                    "Business on Bot",
+                    "Facebook Lead",
+                    "Google Lead",
+                    "Incoming Call",
+                    "Lead Form",
+                    "Online Store",
+                    "Others",
+                    "Rampwin",
+                    "Reference",
+                    "Whatsapp",
+                    "Degpeg",
+                ].map((source) => (
+                    <MenuItem key={source} value={source}>
+                        <Checkbox checked={filters.leadSource.includes(source)} />
+                        <ListItemText primary={source} />
+                    </MenuItem>
+                ))}
+            </Select>
+        </FormControl>
+    </ListItem>
+    <ListItem>
+        <FormControl fullWidth>
+            <InputLabel>Lead Status</InputLabel>
+            <Select
+                multiple
+                value={filters.leadStatus}
+                onChange={(e) => setFilters((prev) => ({ ...prev, leadStatus: e.target.value }))}
+                input={<Input />}
+                renderValue={(selected) => selected.join(", ")}
+            >
+                {[
+                    "Sales Done",
+                    "CNP - Call Not Picked",
+                    "Not Interested",
+                    "Product Issue",
+                    "Order from Other Source",
+                    "Upsell",
+                    "Fake Lead",
+                    "Follow Up",
+                    "Call Back",
+                    "New",
+                ].map((status) => (
+                    <MenuItem key={status} value={status}>
+                        <Checkbox checked={filters.leadStatus.includes(status)} />
+                        <ListItemText primary={status} />
+                    </MenuItem>
+                ))}
+            </Select>
+        </FormControl>
+    </ListItem>
+    <ListItem>
+        <FormControl fullWidth>
+            <InputLabel>Sales Status</InputLabel>
+            <Select
+                multiple
+                value={filters.salesStatus}
+                onChange={(e) => setFilters((prev) => ({ ...prev, salesStatus: e.target.value }))}
+                input={<Input />}
+                renderValue={(selected) => selected.join(", ")}
+            >
+                {["Sales Done", "Lost", "On Follow Up"].map((status) => (
+                    <MenuItem key={status} value={status}>
+                        <Checkbox checked={filters.salesStatus.includes(status)} />
+                        <ListItemText primary={status} />
+                    </MenuItem>
+                ))}
+            </Select>
+        </FormControl>
+    </ListItem>
                         {[
                             { key: 'deliveryStatus', options: ['Delivered', 'RTO', 'Undelivered'] },
-                            { key: 'customerType', options: ['Fresh', 'Renewal', 'Online Order'] },
-                            { key: 'agentAssigned', options: salesAgents.map(agent => agent.fullName) },
-                            { key: 'leadStatus', options: ['Sales Done', 'CNP - Call Not Picked', 'Not Interested', 'Product Issue', 'Order from Other Source', 'Upsell', 'Fake Lead', 'Follow Up', 'Call Back', 'New'] },
-                            { key: 'salesStatus', options: ['Sales Done', 'Lost', 'On Follow Up'] },
+                            { key: 'customerType', options: ['Fresh', 'Renewal', 'Online Order'] }, 
                             { key: 'healthExpertAssigned', options: retentionAgents.map(agent => agent.fullName) },
                             { key: 'rtFollowupStatus', options: ['Good Results', 'No Result', 'Sales Done', 'Do Not Want to Continue', 'Call Not Picked', 'Blood Test Suggested', 'Product Issue', 'Order from Other Source', 'Upsell', 'Follow Up Again', 'Call Back', 'Others'] },
-                            { key: 'retentionStatus', options: ['Active', 'Lost'] },
-                            { key: 'leadSource', options: ['Abandoned Cart', 'BiteSpeed', 'Business on Bot', 'Facebook Lead', 'Google Lead', 'Incoming Call', 'Lead Form', 'Online Store', 'Others', 'Rampwin', 'Reference', 'Whatsapp', 'Degpeg'] },
+                            { key: 'retentionStatus', options: ['Active', 'Lost'] }, 
                             { key: 'enquiryFor', options: ['KJF', 'SDP', 'VKR', 'L-Fx', 'S&S', 'CPV', 'HDP', 'PF', 'PGut', 'Shilajit', 'Kit', 'Blood Test'] },
                         ].map(field => (
                             <ListItem key={field.key}>
@@ -535,7 +640,7 @@ const LeadTable = () => {
                             setFilterOpen(false);
                         }}
                         sx={{ marginBottom: 1, backgroundColor: "#0073e6" }}
-                    >
+                    > 
                         Apply Filters
                     </Button>
                     <Button
