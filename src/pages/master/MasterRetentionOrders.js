@@ -63,7 +63,7 @@ const RetentionOrders = () => {
       const sortedOrders = response.data.sort((a, b) => new Date(b.date) - new Date(a.date));
       setOrders(sortedOrders);
 
-      const uniqueEmployees = [...new Set(sortedOrders.map((order) => order.orderCreatedBy))];
+      const uniqueEmployees = [...new Set(sortedOrders.map((order) => order.orderCreatedBy))]; 
       setDynamicOrderCreatedBy(uniqueEmployees);
     } catch (error) {
       console.error("Error fetching retention orders:", error);
