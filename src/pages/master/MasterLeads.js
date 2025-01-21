@@ -313,7 +313,7 @@ const LeadTable = () => {
     };
 
     const calculateReminder = (nextFollowup) => {
-        if (!nextFollowup) return "";
+        if (!nextFollowup) return ""; 
 
         const followupDate = new Date(nextFollowup);
         const today = new Date();

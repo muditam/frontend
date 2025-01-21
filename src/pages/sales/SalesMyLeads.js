@@ -76,8 +76,7 @@ const SalesMyLeads = () => {
       const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads", {
         params: { agentAssignedName: agentAssigned, page: currentPage + 1, limit: rowsPerPage },
       });
-  
-      // Extract the leads array from the response
+   
       const fetchedLeads = response.data.leads || []; 
       setLeads(fetchedLeads);  
     } catch (error) {
@@ -86,16 +85,14 @@ const SalesMyLeads = () => {
     }  
   };
   
-
   const handleInputChange = async (e, index, field) => {
-    const globalIndex = currentPage * rowsPerPage + index; // Calculate the global index
-    const value = e.target.value; // Get the input value
+    const globalIndex = currentPage * rowsPerPage + index;  
+    const value = e.target.value;  
     const updatedLeads = [...leads];
-    updatedLeads[globalIndex][field] = value; // Update the specific field
+    updatedLeads[globalIndex][field] = value;  
   
-    setLeads(updatedLeads); // Update state with modified leads
-  
-    // Handle duplicate contact number check
+    setLeads(updatedLeads);  
+   
     if (field === "contactNumber") {
       const enteredNumber = value;
   
