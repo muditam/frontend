@@ -69,14 +69,14 @@ const SalesMyLeads = () => {
       setAgentName(user.fullName);
       fetchLeads(user.fullName); 
     }
-  }, []); 
+  }, []);
 
   const fetchLeads = async (agentAssigned) => {
     try {
       const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads", {
         params: { agentAssignedName: agentAssigned },
       });
-      setLeads(response.data);
+      setLeads(response.data.reverse());
     } catch (error) {
       console.error("Failed to fetch leads", error);
     }
@@ -434,7 +434,7 @@ const currentLeads = leads.slice(currentPage * rowsPerPage, currentPage * rowsPe
                   <TextField
                     type="date"
                     value={lead.date || ""}
-                    disabled  
+                    disabled // Date is not editable
                     fullWidth
                   />
                 </TableCell>
