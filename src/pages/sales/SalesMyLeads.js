@@ -74,13 +74,18 @@ const SalesMyLeads = () => {
   const fetchLeads = async (agentAssigned) => {
     try {
       const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads", {
-        params: { agentAssignedName: agentAssigned },
+        params: { agentAssignedName: agentAssigned, page: currentPage + 1, limit: rowsPerPage },
       });
-      setLeads(response.data.reverse());
+  
+      // Extract the leads array from the response
+      const fetchedLeads = response.data.leads || []; 
+      setLeads(fetchedLeads);  
     } catch (error) {
       console.error("Failed to fetch leads", error);
-    }
+      setError("Failed to fetch leads");
+    }  
   };
+  
 
   const handleInputChange = async (e, index, field) => {
     const globalIndex = currentPage * rowsPerPage + index; // Calculate the global index
