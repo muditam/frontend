@@ -435,7 +435,7 @@ const currentLeads = sales.slice(currentPage * rowsPerPage, currentPage * rowsPe
           ))}
         </Select>
       </TableCell>
-      <TableCell style={{ whiteSpace: "nowrap", minWidth: "180px" }}>
+      <TableCell style={{ whiteSpace: "nowrap", minWidth: "240px" }}>
         <TextField
           type="number"
           value={editedSales[sale._id]?.amountPaid || sale.amountPaid || ""}

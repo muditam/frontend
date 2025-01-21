@@ -69,7 +69,7 @@ const SalesMyLeads = () => {
       setAgentName(user.fullName);
       fetchLeads(user.fullName); 
     }
-  }, []);
+  }, []); 
 
   const fetchLeads = async (agentAssigned) => {
     try {

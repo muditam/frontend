@@ -24,6 +24,7 @@ import {
     Divider,
     TablePagination,
     InputLabel,
+    CircularProgress,
 } from "@mui/material";
 import { Delete, AddCircle } from "@mui/icons-material";
 import axios from "axios";
@@ -34,9 +35,14 @@ const LeadTable = () => {
     const [salesAgents, setSalesAgents] = useState([]);
     const [retentionAgents, setRetentionAgents] = useState([]);
     const [filterOpen, setFilterOpen] = useState(false);
-    const [currentPage, setCurrentPage] = useState(0);
+    const [currentPage, setCurrentPage] = useState(1);
     const [validationErrors, setValidationErrors] = useState({});
-    const [rowsPerPage, setRowsPerPage] = useState(50);
+    const [rowsPerPage, setRowsPerPage] = useState(30);
+    const [totalPages, setTotalPages] = useState(0);
+    const [totalLeads, setTotalLeads] = useState(0);
+    const [loading, setLoading] = useState(false);
+    const [addingLead, setAddingLead] = useState(false);
+    const [applyingFilters, setApplyingFilters] = useState(false);
     const [filters, setFilters] = useState({
         date: "",
         name: "",
@@ -92,20 +98,32 @@ const LeadTable = () => {
 
 
     useEffect(() => {
-        fetchLeads();
+        fetchLeads(currentPage, rowsPerPage);
         fetchAgents();
         fetchEmployeesByRole("Sales Agent", setSalesAgents);
         fetchEmployeesByRole("Retention Agent", setRetentionAgents);
-    }, []);
+    }, [currentPage, rowsPerPage]);
 
-    const fetchLeads = async () => {
+    const fetchLeads = async (page, limit, activeFilters = filters) => {
+        setLoading(true);
         try {
-            const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads");
-            setLeads(response.data.reverse());
+            const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads", {
+                params: {
+                    page,
+                    limit,
+                    filters: JSON.stringify(activeFilters),
+                },
+            });
+            setLeads(response.data.leads);
+            setTotalPages(response.data.totalPages);
+            setTotalLeads(response.data.totalLeads);
         } catch (error) {
             console.error("Failed to fetch leads", error);
+        } finally {
+            setLoading(false);
         }
     };
+    
 
     const fetchEmployeesByRole = async (role, setState) => {
         try {
@@ -129,6 +147,7 @@ const LeadTable = () => {
 
 
     const handleAddRow = async () => {
+        setAddingLead(true);
         const currentDate = new Date();
         const formattedDate = currentDate.toISOString().split("T")[0];
         const formattedTime = currentDate.toLocaleTimeString("en-IN");
@@ -185,6 +204,8 @@ const LeadTable = () => {
             }
         } catch (error) {
             console.error("Error adding lead:", error);
+        } finally {
+            setAddingLead(false); // Stop spinner for Add Lead button
         }
     };
 
@@ -199,12 +220,13 @@ const LeadTable = () => {
 
 
     const handleInputChange = async (e, index, field) => {
-        const updatedLeads = [...leads];
-        const actualIndex = currentPage * rowsPerPage + index;
-        updatedLeads[actualIndex][field] = e.target.value;
-        setLeads(updatedLeads);
+        const updatedLeads = [...leads]; // Clone the current page's leads array
 
+        // Update the field in the cloned array
+        updatedLeads[index][field] = e.target.value;
+        setLeads(updatedLeads); // Update state
 
+        // Handle specific field logic
         if (field === "dosageOrdered") {
             const days = parseInt(e.target.value.split("-")[0], 10);
             updatedLeads[index].dosageExpiring = calculateDosageExpiring(days);
@@ -238,18 +260,17 @@ const LeadTable = () => {
             }
         }
 
-
         // Save the updated field to MongoDB
-        const leadId = updatedLeads[actualIndex]._id;
+        const leadId = updatedLeads[index]._id;
         try {
             await axios.put(`https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/${leadId}`, {
                 [field]: e.target.value,
             });
-
         } catch (error) {
             console.error("Error updating lead:", error);
         }
     };
+
 
     const calculateDosageExpiring = (days) => {
         const currentDate = new Date();
@@ -309,78 +330,53 @@ const LeadTable = () => {
 
     const isValidDate = (dateString) => {
         const regEx = /^\d{4}-\d{2}-\d{2}$/;
-        if (!dateString.match(regEx)) return false;   
+        if (!dateString.match(regEx)) return false;
         const d = new Date(dateString);
         const dNum = d.getTime();
-        if (!dNum && dNum !== 0) return false; 
-        return d.toISOString().slice(0,10) === dateString;
+        if (!dNum && dNum !== 0) return false;
+        return d.toISOString().slice(0, 10) === dateString;
     }
-    
-    const applyFilters = (filters) => {
-        const filteredLeads = leads.filter((lead) => {
-            // Check if the lead date is valid
-            const leadDate = lead.date && isValidDate(lead.date) ? new Date(lead.date) : null;
-    
-            // Exclude leads without valid dates when date filtering is active
-            if ((filters.startDate || filters.endDate) && !leadDate) {
-                return false;
-            }
 
-    
-            let isValid = true;
-    
-            // Check start date filter
-            if (filters.startDate && leadDate) {
-                const startDate = new Date(filters.startDate);
-                startDate.setHours(0, 0, 0, 0);
-                if (leadDate < startDate) {
-                    isValid = false;
-                }
-            }
-    
-            // Check end date filter
-            if (filters.endDate && leadDate) {
-                const endDate = new Date(filters.endDate);
-                endDate.setHours(23, 59, 59, 999);
-                if (leadDate > endDate) {
-                    isValid = false;
-                }
-            }
-    
-            // Apply other filters
-            return Object.keys(filters).every((key) => {
-                const filterValue = filters[key];
-                const leadValue = lead[key];
-    
-                if (!filterValue || key === 'startDate' || key === 'endDate') return true;
-    
-                if (Array.isArray(filterValue)) {
-                    // For multi-select filters
-                    return filterValue.length === 0 || filterValue.includes(leadValue);
-                }
-    
-                if (typeof filterValue === "string") {
-                    // For string filters
-                    return leadValue?.toLowerCase().includes(filterValue.toLowerCase());
-                }
-    
-                return leadValue === filterValue;
+    const applyFilters = async () => {
+        setApplyingFilters(true); // Start showing CircularProgress
+        setCurrentPage(1); // Reset pagination to the first page
+
+        try {
+            const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads", {
+                params: {
+                    page: 1, // Always fetch page 1 when applying filters
+                    limit: rowsPerPage,
+                    filters: JSON.stringify(filters),
+                },
             });
-        });
-    
-        setLeads(filteredLeads);
+
+            setLeads(response.data.leads);
+            setTotalPages(response.data.totalPages);
+            setTotalLeads(response.data.totalLeads);
+        } catch (error) {
+            console.error("Error applying filters:", error);
+        } finally {
+            setApplyingFilters(false); // Stop showing CircularProgress
+        }
+        await fetchLeads(1, rowsPerPage, filters);
     };
-    
+
+
+
 
     const handleChangePage = (event, newPage) => {
-        setCurrentPage(newPage);
+        setCurrentPage(newPage + 1);
+        fetchLeads(newPage + 1, rowsPerPage, filters); // Fetch data with filters
     };
-
+    
+    
     const handleChangeRowsPerPage = (event) => {
-        setRowsPerPage(parseInt(event.target.value, 10));
-        setCurrentPage(0);
+        const newRowsPerPage = parseInt(event.target.value, 10);
+        setRowsPerPage(newRowsPerPage);
+        setCurrentPage(1); // Reset to the first page
+        fetchLeads(1, newRowsPerPage, filters); // Fetch data with filters
     };
-
+    
     const currentLeads = leads.slice(currentPage * rowsPerPage, currentPage * rowsPerPage + rowsPerPage);
 
 
@@ -392,9 +388,10 @@ const LeadTable = () => {
 
             <Button
                 variant="contained"
-                startIcon={<AddCircle />}
+                startIcon={addingLead ? <CircularProgress size={20} /> : <AddCircle />}
                 onClick={handleAddRow}
                 sx={{ mb: 2 }}
+                disabled={addingLead}
             >
                 Add Lead
             </Button>
@@ -507,117 +504,117 @@ const LeadTable = () => {
                             />
                         </ListItem>
                         <ListItem>
-        <FormControl fullWidth>
-            <InputLabel>Agent Assigned</InputLabel>
-            <Select
-                multiple
-                value={filters.agentAssigned}
-                onChange={(e) => setFilters((prev) => ({ ...prev, agentAssigned: e.target.value }))}
-                input={<Input />}
-                renderValue={(selected) => selected.join(", ")}
-            >
-                {salesAgents.map((agent) => (
-                    <MenuItem key={agent.fullName} value={agent.fullName}>
-                        <Checkbox checked={filters.agentAssigned.includes(agent.fullName)} />
-                        <ListItemText primary={agent.fullName} />
-                    </MenuItem>
-                ))}
-            </Select>
-        </FormControl>
-    </ListItem>
-    <ListItem>
-        <FormControl fullWidth>
-            <InputLabel>Lead Source</InputLabel>
-            <Select
-                multiple
-                value={filters.leadSource}
-                onChange={(e) => setFilters((prev) => ({ ...prev, leadSource: e.target.value }))}
-                input={<Input />}
-                renderValue={(selected) => selected.join(", ")}
-            >
-                {[
-                    "Abandoned Cart",
-                    "BiteSpeed",
-                    "Business on Bot",
-                    "Facebook Lead",
-                    "Google Lead",
-                    "Incoming Call",
-                    "Lead Form",
-                    "Online Store",
-                    "Others",
-                    "Rampwin",
-                    "Reference",
-                    "Whatsapp",
-                    "Degpeg",
-                ].map((source) => (
-                    <MenuItem key={source} value={source}>
-                        <Checkbox checked={filters.leadSource.includes(source)} />
-                        <ListItemText primary={source} />
-                    </MenuItem>
-                ))}
-            </Select>
-        </FormControl>
-    </ListItem>
-    <ListItem>
-        <FormControl fullWidth>
-            <InputLabel>Lead Status</InputLabel>
-            <Select
-                multiple
-                value={filters.leadStatus}
-                onChange={(e) => setFilters((prev) => ({ ...prev, leadStatus: e.target.value }))}
-                input={<Input />}
-                renderValue={(selected) => selected.join(", ")}
-            >
-                {[
-                    "Sales Done",
-                    "CNP - Call Not Picked",
-                    "Not Interested",
-                    "Product Issue",
-                    "Order from Other Source",
-                    "Upsell",
-                    "Fake Lead",
-                    "Follow Up",
-                    "Call Back",
-                    "New",
-                ].map((status) => (
-                    <MenuItem key={status} value={status}>
-                        <Checkbox checked={filters.leadStatus.includes(status)} />
-                        <ListItemText primary={status} />
-                    </MenuItem>
-                ))}
-            </Select>
-        </FormControl>
-    </ListItem>
-    <ListItem>
-        <FormControl fullWidth>
-            <InputLabel>Sales Status</InputLabel>
-            <Select
-                multiple
-                value={filters.salesStatus}
-                onChange={(e) => setFilters((prev) => ({ ...prev, salesStatus: e.target.value }))}
-                input={<Input />}
-                renderValue={(selected) => selected.join(", ")}
-            >
-                {["Sales Done", "Lost", "On Follow Up"].map((status) => (
-                    <MenuItem key={status} value={status}>
-                        <Checkbox checked={filters.salesStatus.includes(status)} />
-                        <ListItemText primary={status} />
-                    </MenuItem>
-                ))}
-            </Select>
-        </FormControl>
-    </ListItem>
+                            <FormControl fullWidth>
+                                <InputLabel>Agent Assigned</InputLabel>
+                                <Select
+                                    multiple
+                                    value={filters.agentAssigned}
+                                    onChange={(e) => setFilters((prev) => ({ ...prev, agentAssigned: e.target.value }))}
+                                    input={<Input />}
+                                    renderValue={(selected) => selected.join(", ")}
+                                >
+                                    {salesAgents.map((agent) => (
+                                        <MenuItem key={agent.fullName} value={agent.fullName}>
+                                            <Checkbox checked={filters.agentAssigned.includes(agent.fullName)} />
+                                            <ListItemText primary={agent.fullName} />
+                                        </MenuItem>
+                                    ))}
+                                </Select>
+                            </FormControl>
+                        </ListItem>
+                        <ListItem>
+                            <FormControl fullWidth>
+                                <InputLabel>Lead Source</InputLabel>
+                                <Select
+                                    multiple
+                                    value={filters.leadSource}
+                                    onChange={(e) => setFilters((prev) => ({ ...prev, leadSource: e.target.value }))}
+                                    input={<Input />}
+                                    renderValue={(selected) => selected.join(", ")}
+                                >
+                                    {[
+                                        "Abandoned Cart",
+                                        "BiteSpeed",
+                                        "Business on Bot",
+                                        "Facebook Lead",
+                                        "Google Lead",
+                                        "Incoming Call",
+                                        "Lead Form",
+                                        "Online Store",
+                                        "Others",
+                                        "Rampwin",
+                                        "Reference",
+                                        "Whatsapp",
+                                        "Degpeg",
+                                    ].map((source) => (
+                                        <MenuItem key={source} value={source}>
+                                            <Checkbox checked={filters.leadSource.includes(source)} />
+                                            <ListItemText primary={source} />
+                                        </MenuItem>
+                                    ))}
+                                </Select>
+                            </FormControl>
+                        </ListItem>
+                        <ListItem>
+                            <FormControl fullWidth>
+                                <InputLabel>Lead Status</InputLabel>
+                                <Select
+                                    multiple
+                                    value={filters.leadStatus}
+                                    onChange={(e) => setFilters((prev) => ({ ...prev, leadStatus: e.target.value }))}
+                                    input={<Input />}
+                                    renderValue={(selected) => selected.join(", ")}
+                                >
+                                    {[
+                                        "Sales Done",
+                                        "CNP - Call Not Picked",
+                                        "Not Interested",
+                                        "Product Issue",
+                                        "Order from Other Source",
+                                        "Upsell",
+                                        "Fake Lead",
+                                        "Follow Up",
+                                        "Call Back",
+                                        "New",
+                                    ].map((status) => (
+                                        <MenuItem key={status} value={status}>
+                                            <Checkbox checked={filters.leadStatus.includes(status)} />
+                                            <ListItemText primary={status} />
+                                        </MenuItem>
+                                    ))}
+                                </Select>
+                            </FormControl>
+                        </ListItem>
+                        <ListItem>
+                            <FormControl fullWidth>
+                                <InputLabel>Sales Status</InputLabel>
+                                <Select
+                                    multiple
+                                    value={filters.salesStatus}
+                                    onChange={(e) => setFilters((prev) => ({ ...prev, salesStatus: e.target.value }))}
+                                    input={<Input />}
+                                    renderValue={(selected) => selected.join(", ")}
+                                >
+                                    {["Sales Done", "Lost", "On Follow Up"].map((status) => (
+                                        <MenuItem key={status} value={status}>
+                                            <Checkbox checked={filters.salesStatus.includes(status)} />
+                                            <ListItemText primary={status} />
+                                        </MenuItem>
+                                    ))}
+                                </Select>
+                            </FormControl>
+                        </ListItem>
                         {[
                             { key: 'deliveryStatus', options: ['Delivered', 'RTO', 'Undelivered'] },
-                            { key: 'customerType', options: ['Fresh', 'Renewal', 'Online Order'] }, 
+                            { key: 'customerType', options: ['Fresh', 'Renewal', 'Online Order'] },
                             { key: 'healthExpertAssigned', options: retentionAgents.map(agent => agent.fullName) },
                             { key: 'rtFollowupStatus', options: ['Good Results', 'No Result', 'Sales Done', 'Do Not Want to Continue', 'Call Not Picked', 'Blood Test Suggested', 'Product Issue', 'Order from Other Source', 'Upsell', 'Follow Up Again', 'Call Back', 'Others'] },
-                            { key: 'retentionStatus', options: ['Active', 'Lost'] }, 
+                            { key: 'retentionStatus', options: ['Active', 'Lost'] },
                             { key: 'enquiryFor', options: ['KJF', 'SDP', 'VKR', 'L-Fx', 'S&S', 'CPV', 'HDP', 'PF', 'PGut', 'Shilajit', 'Kit', 'Blood Test'] },
                         ].map(field => (
                             <ListItem key={field.key}>
                                 <FormControl fullWidth>
-                                    <InputLabel>{field.key}</InputLabel>  
+                                    <InputLabel>{field.key}</InputLabel>
                                     <Select
                                         value={filters[field.key]}
                                         onChange={(e) => setFilters((prev) => ({ ...prev, [field.key]: e.target.value }))}
@@ -635,46 +632,47 @@ const LeadTable = () => {
                     <Button
                         variant="contained"
                         fullWidth
+                        startIcon={applyingFilters ? <CircularProgress size={20} /> : null}
+                        disabled={applyingFilters}  
                         onClick={() => {
-                            applyFilters(filters);
-                            setFilterOpen(false);
+                            applyFilters();
+                            setFilterOpen(false);  
                         }}
                         sx={{ marginBottom: 1, backgroundColor: "#0073e6" }}
-                    > 
+                    >
                         Apply Filters
                     </Button>
+
                     <Button
-                        variant="outlined"
-                        fullWidth
-                        onClick={() => {
-                            setFilters({
-                                startDate: "",
-                                endDate: "",
-                                name: "",
-                                contactNumber: "",
-                                deliveryStatus: "",
-                                customerType: "",
-                                agentAssigned: "",
-                                leadStatus: "",
-                                salesStatus: "",
-                                reminder: "",
-                                healthExpertAssigned: "",
-                                orderId: "",
-                                rtFollowupReminder: "",
-                                rtFollowupStatus: "",
-                                retentionStatus: "",
-                                leadSource: "",
-                                enquiryFor: "",
-                                orderDate: "",
-                            });
-                            fetchLeads();
-                            setFilterOpen(false);
-                        }}
-
-                    >
-                        Reset Filters
-                    </Button>
-
+    variant="outlined"
+    fullWidth
+    onClick={() => {
+        const defaultFilters = {
+            date: "",
+            name: "",
+            contactNumber: "",
+            deliveryStatus: "",
+            customerType: "",
+            agentAssigned: [],
+            leadStatus: [],
+            salesStatus: [],
+            reminder: "",
+            healthExpertAssigned: "",
+            orderId: "",
+            rtFollowupReminder: "",
+            rtFollowupStatus: "",
+            retentionStatus: "",
+            leadSource: [],
+            enquiryFor: "",
+            orderDate: "",
+        };
+        setFilters(defaultFilters);  
+        setCurrentPage(1);  
+        fetchLeads(1, rowsPerPage, defaultFilters);  
+    }}
+>
+    Reset Filters
+</Button>
                 </Box>
             </Drawer>
 
@@ -715,382 +713,390 @@ const LeadTable = () => {
                         </TableRow>
                     </TableHead>
                     <TableBody>
-                        {currentLeads.map((lead, index) => (
-                            <TableRow key={lead._id}>
-                                <TableCell>
-                                    <TextField
-                                        type="date"
-                                        value={lead.date || ""}
-                                        onChange={(e) => handleInputChange(e, index, "date")}
-                                    />
-                                </TableCell>
-                                <TableCell style={{ whiteSpace: "nowrap", minWidth: "150px" }}>
-                                    <TextField
-                                        value={lead.time || new Date().toLocaleTimeString("en-IN")}
-                                        disabled
-                                    />
-                                </TableCell>
-                                <TableCell className="px-6 py-4" style={{ whiteSpace: "nowrap", minWidth: "240px" }}>
-                                    <TextField
-                                        value={lead.name}
-                                        onChange={(e) => handleInputChange(e, index, "name")}
-                                    />
-                                </TableCell>
-                                <TableCell className="px-6 py-4" style={{ whiteSpace: "nowrap", minWidth: "200px" }}>
-                                    <TextField
-                                        type="number"
-                                        value={lead.contactNumber || ""}
-                                        onChange={(e) => handleInputChange(e, index, "contactNumber")}
-                                        error={Boolean(validationErrors[index])}
-                                        helperText={validationErrors[index]}
-                                    />
-                                </TableCell>
-                                <TableCell >
-                                    <Select
-                                        value={lead.leadSource || ""}
-                                        onChange={(e) => handleInputChange(e, index, "leadSource")}
-                                    >
-                                        {[
-                                            "Abandoned Cart",
-                                            "BiteSpeed",
-                                            "Business on Bot",
-                                            "Facebook Lead",
-                                            "Google Lead",
-                                            "Incoming Call",
-                                            "Lead Form",
-                                            "Online Store",
-                                            "Others",
-                                            "Rampwin",
-                                            "Reference",
-                                            "Whatsapp",
-                                            "Degpeg",
-                                        ].map((source) => (
-                                            <MenuItem key={source} value={source}>
-                                                {source}
-                                            </MenuItem>
-                                        ))}
-                                    </Select>
-                                </TableCell>
-                                <TableCell>
-                                    <Select
-                                        value={lead.enquiryFor || ""}
-                                        onChange={(e) => handleInputChange(e, index, "enquiryFor")}
-                                    >
-                                        {["KJF", "SDP", "VKR", "L-Fx", "S&S", "CPV", "HDP", "PF", "PGut", "Shilajit", "Kit", "Blood Test"].map(
-                                            (item) => (
-                                                <MenuItem key={item} value={item}>
-                                                    {item}
-                                                </MenuItem>
-                                            )
-                                        )}
-                                    </Select>
-                                </TableCell>
-                                <TableCell>
-                                    <Select
-                                        value={lead.customerType || ""}
-                                        onChange={(e) => handleInputChange(e, index, "customerType")}
-                                    >
-                                        {["Fresh", "Renewal", "Online Order"].map((type) => (
-                                            <MenuItem key={type} value={type}>
-                                                {type}
-                                            </MenuItem>
-                                        ))}
-                                    </Select>
-                                </TableCell>
-                                <TableCell>
-                                    <Select
-                                        value={lead.agentAssigned || ""}
-                                        onChange={(e) => handleInputChange(e, index, "agentAssigned")}
-                                        fullWidth
-                                    >
-                                        {salesAgents.map((agent) => (
-                                            <MenuItem key={agent._id} value={agent.fullName}>
-                                                {agent.fullName}
-                                            </MenuItem>
-                                        ))}
-                                    </Select>
-                                </TableCell>
-
-                                <TableCell>
-                                    <FormControl>
-                                        <Select
-                                            multiple
-                                            value={lead.productPitched || []}
-                                            onChange={(e) => handleInputChange(e, index, "productPitched")}
-                                            renderValue={(selected) => selected.join(", ")}
-                                        >
-                                            {["KJF", "SDP", "VKR", "L-Fx", "S&S", "CPV", "HDP", "PF", "PGut", "Shilajit", "Kit", "Blood Test"].map(
-                                                (option) => (
-                                                    <MenuItem key={option} value={option}>
-                                                        <Checkbox checked={lead.productPitched?.includes(option)} />
-                                                        <ListItemText primary={option} />
-                                                    </MenuItem>
-                                                )
-                                            )}
-                                        </Select>
-                                    </FormControl>
-                                </TableCell>
-                                <TableCell>
-                                    <Select
-                                        value={lead.leadStatus || ""}
-                                        onChange={(e) => handleInputChange(e, index, "leadStatus")}
-                                    >
-                                        {[
-                                            "Sales Done",
-                                            "CNP - Call Not Picked",
-                                            "Not Interested",
-                                            "Product Issue",
-                                            "Order from Other Source",
-                                            "Upsell",
-                                            "Fake Lead",
-                                            "Follow Up",
-                                            "Call Back",
-                                            "New",
-                                        ].map((status) => (
-                                            <MenuItem key={status} value={status}>
-                                                {status}
-                                            </MenuItem>
-                                        ))}
-                                    </Select>
-                                </TableCell>
-                                <TableCell>
-                                    <Select
-                                        value={lead.salesStatus || ""}
-                                        onChange={(e) => handleCombinedChange(e, index, "salesStatus")}
-                                    >
-                                        {["Sales Done", "Lost", "On Follow Up"].map((status) => (
-                                            <MenuItem key={status} value={status}>
-                                                {status}
-                                            </MenuItem>
-                                        ))}
-                                    </Select>
-                                </TableCell>
-                                <TableCell>
-                                    {lead.salesStatus === "On Follow Up" ? (
-                                        <TextField
-                                            type="date"
-                                            value={lead.nextFollowup || ""}
-                                            onChange={(e) => handleInputChange(e, index, "nextFollowup")}
-                                        />
-                                    ) : (
-                                        <Typography>{lead.nextFollowup || ""}</Typography>
-                                    )}
-                                </TableCell>
-                                <TableCell
-                                    sx={{
-                                        color:
-                                            calculateReminder(lead.nextFollowup) === "Today"
-                                                ? "green"
-                                                : calculateReminder(lead.nextFollowup) === "Tomorrow"
-                                                    ? "yellow"
-                                                    : calculateReminder(lead.nextFollowup) ===
-                                                        "Follow-up Missed"
-                                                        ? "red"
-                                                        : "inherit",
-                                    }}
-                                >
-                                    {lead.salesStatus === "On Follow Up"
-                                        ? calculateReminder(lead.nextFollowup)
-                                        : lead.salesStatus}
-                                </TableCell>
-                                <TableCell style={{ whiteSpace: "nowrap", minWidth: "250px" }}>
-                                    <TextField
-                                        value={lead.agentsRemarks || ""}
-                                        onChange={(e) => handleInputChange(e, index, "agentsRemarks")}
-                                    />
-                                </TableCell>
-                                <TableCell>
-                                    <TextField
-                                        type="date"
-                                        value={lead.lastOrderDate || ""}
-                                        onChange={(e) => handleInputChange(e, index, "lastOrderDate")}
-                                    />
-                                </TableCell>
-                                <TableCell>
-                                    <FormControl>
-                                        <Select
-                                            multiple
-                                            value={lead.productsOrdered || []}
-                                            onChange={(e) => handleInputChange(e, index, "productsOrdered")}
-                                            renderValue={(selected) => selected.join(", ")}
-                                        >
-                                            {["KJF", "SDP", "VKR", "L-Fx", "S&S", "CPV", "HDP", "PF", "PGut", "Shilajit", "Kit", "Blood Test"].map(
-                                                (option) => (
-                                                    <MenuItem key={option} value={option}>
-                                                        <Checkbox checked={lead.productsOrdered?.includes(option)} />
-                                                        <ListItemText primary={option} />
-                                                    </MenuItem>
-
-                                                )
-                                            )}
-                                        </Select>
-                                    </FormControl>
-                                </TableCell>
-                                <TableCell>
-                                    <Select
-                                        value={lead.dosageOrdered || ""}
-                                        onChange={(e) => handleInputChange(e, index, "dosageOrdered")}
-                                    >
-                                        {["10-Days", "20-Days", "30-Days", "60-Days", "90-Days"].map((dosage) => (
-                                            <MenuItem key={dosage} value={dosage}>
-                                                {dosage}
-                                            </MenuItem>
-                                        ))}
-                                    </Select>
-                                </TableCell>
-                                <TableCell style={{ whiteSpace: "nowrap", minWidth: "160px" }}>
-                                    <TextField
-                                        type="number"
-                                        value={lead.amountPaid || ""}
-                                        onChange={(e) => handleInputChange(e, index, "amountPaid")}
-                                    />
-                                </TableCell>
-                                <TableCell>
-                                    <Select
-                                        value={lead.modeOfPayment || ""}
-                                        onChange={(e) => handleInputChange(e, index, "modeOfPayment")}
-                                    >
-                                        {["Partial Paid", "Razorpay", "COD", "UPI", "Bank Transfer"].map((mode) => (
-                                            <MenuItem key={mode} value={mode}>
-                                                {mode}
-                                            </MenuItem>
-                                        ))}
-                                    </Select>
-                                </TableCell>
-                                <TableCell>
-                                    <Select
-                                        value={lead.deliveryStatus || ""}
-                                        onChange={(e) => handleInputChange(e, index, "deliveryStatus")}
-                                    >
-                                        {["Delivered", "RTO", "Undelivered"].map((status) => (
-                                            <MenuItem key={status} value={status}>
-                                                {status}
-                                            </MenuItem>
-                                        ))}
-                                    </Select>
-                                </TableCell>
-                                <TableCell>
-                                    <Select
-                                        value={lead.healthExpertAssigned || ""}
-                                        onChange={(e) => handleInputChange(e, index, "healthExpertAssigned")}
-                                        fullWidth
-                                    >
-                                        {retentionAgents.map((expert) => (
-                                            <MenuItem key={expert._id} value={expert.fullName}>
-                                                {expert.fullName}
-                                            </MenuItem>
-                                        ))}
-                                    </Select>
-                                </TableCell>
-                                <TableCell style={{ whiteSpace: "nowrap", minWidth: "150px" }}>
-                                    <TextField
-                                        value={lead.orderId || ""}
-                                        onChange={(e) => handleInputChange(e, index, "orderId")}
-                                    />
-                                </TableCell>
-                                <TableCell>
-                                    <TextField
-                                        type="date"
-                                        disabled
-                                        value={lead.dosageExpiring || ""}
-                                        onChange={(e) => handleInputChange(e, index, "dosageExpiring")}
-                                    />
-                                </TableCell>
-                                <TableCell>
-                                    <TextField
-                                        type="date"
-                                        value={lead.rtNextFollowupDate || ""}
-                                        onChange={(e) => handleInputChange(e, index, "rtNextFollowupDate")}
-                                    />
-                                </TableCell>
-                                <TableCell
-                                    sx={{
-                                        color:
-                                            lead.rtFollowupReminder === "Today"
-                                                ? "green"
-                                                : lead.rtFollowupReminder === "Tomorrow"
-                                                    ? "yellow"
-                                                    : lead.rtFollowupReminder === "Follow-up Missed"
-                                                        ? "red"
-                                                        : "inherit",
-                                    }}
-                                >
-                                    {lead.rtFollowupReminder || ""}
-                                </TableCell>
-                                <TableCell>
-                                    <Select
-                                        value={lead.rtFollowupStatus || ""}
-                                        onChange={(e) => handleInputChange(e, index, "rtFollowupStatus")}
-                                    >
-                                        {[
-                                            "Good Results",
-                                            "No Result",
-                                            "Sales Done",
-                                            "Do Not Want to Continue",
-                                            "Call Not Picked",
-                                            "Blood Test Suggested",
-                                            "Product Issue",
-                                            "Order from Other Source",
-                                            "Upsell",
-                                            "Follow Up Again",
-                                            "Call Back",
-                                            "Others",
-                                        ].map((status) => (
-                                            <MenuItem key={status} value={status} style={{ whiteSpace: "nowrap", minWidth: "200px" }}>
-                                                {status}
-                                            </MenuItem>
-                                        ))}
-                                    </Select>
-                                </TableCell>
-
-                                <TableCell>
-                                    <Select
-                                        value={lead.repeatDosageOrdered || ""}
-                                        onChange={(e) => handleInputChange(e, index, "repeatDosageOrdered")}
-                                    >
-                                        {["10-Days", "20-Days", "30-Days", "60-Days", "90-Days"].map((dosage) => (
-                                            <MenuItem key={dosage} value={dosage}>
-                                                {dosage}
-                                            </MenuItem>
-                                        ))}
-                                    </Select>
-                                </TableCell>
-                                <TableCell>
-                                    <Select
-                                        value={lead.retentionStatus || ""}
-                                        onChange={(e) => handleInputChange(e, index, "retentionStatus")}
-                                    >
-                                        {["Active", "Lost"].map((status) => (
-                                            <MenuItem key={status} value={status}>
-                                                {status}
-                                            </MenuItem>
-                                        ))}
-                                    </Select>
-                                </TableCell>
-                                <TableCell style={{ whiteSpace: "nowrap", minWidth: "180px" }}>
-                                    <TextField
-                                        value={lead.rtRemark || ""}
-                                        onChange={(e) => handleInputChange(e, index, "rtRemark")}
-                                    />
-                                </TableCell>
-                                <TableCell>
-                                    <IconButton color="error" onClick={() => handleDeleteLead(lead._id)}>
-                                        <Delete />
-                                    </IconButton>
+                        {loading ? (
+                            <TableRow>
+                                <TableCell colSpan={3} align="center">
+                                    <CircularProgress />
                                 </TableCell>
                             </TableRow>
-                        ))}
+                        ) : (
+                            leads.map((lead, index) => (
+                                <TableRow key={lead._id}>
+                                    <TableCell>
+                                        <TextField
+                                            type="date"
+                                            value={lead.date || ""}
+                                            onChange={(e) => handleInputChange(e, index, "date")}
+                                        />
+                                    </TableCell>
+                                    <TableCell style={{ whiteSpace: "nowrap", minWidth: "150px" }}>
+                                        <TextField
+                                            value={lead.time || new Date().toLocaleTimeString("en-IN")}
+                                            disabled
+                                        />
+                                    </TableCell>
+                                    <TableCell className="px-6 py-4" style={{ whiteSpace: "nowrap", minWidth: "240px" }}>
+                                        <TextField
+                                            value={lead.name}
+                                            onChange={(e) => handleInputChange(e, index, "name")}
+                                        />
+                                    </TableCell>
+                                    <TableCell className="px-6 py-4" style={{ whiteSpace: "nowrap", minWidth: "200px" }}>
+                                        <TextField
+                                            type="number"
+                                            value={lead.contactNumber || ""}
+                                            onChange={(e) => handleInputChange(e, index, "contactNumber")}
+                                            error={Boolean(validationErrors[index])}
+                                            helperText={validationErrors[index]}
+                                        />
+                                    </TableCell>
+                                    <TableCell >
+                                        <Select
+                                            value={lead.leadSource || ""}
+                                            onChange={(e) => handleInputChange(e, index, "leadSource")}
+                                        >
+                                            {[
+                                                "Abandoned Cart",
+                                                "BiteSpeed",
+                                                "Business on Bot",
+                                                "Facebook Lead",
+                                                "Google Lead",
+                                                "Incoming Call",
+                                                "Lead Form",
+                                                "Online Store",
+                                                "Others",
+                                                "Rampwin",
+                                                "Reference",
+                                                "Whatsapp",
+                                                "Degpeg",
+                                            ].map((source) => (
+                                                <MenuItem key={source} value={source}>
+                                                    {source}
+                                                </MenuItem>
+                                            ))}
+                                        </Select>
+                                    </TableCell>
+                                    <TableCell>
+                                        <Select
+                                            value={lead.enquiryFor || ""}
+                                            onChange={(e) => handleInputChange(e, index, "enquiryFor")}
+                                        >
+                                            {["KJF", "SDP", "VKR", "L-Fx", "S&S", "CPV", "HDP", "PF", "PGut", "Shilajit", "Kit", "Blood Test"].map(
+                                                (item) => (
+                                                    <MenuItem key={item} value={item}>
+                                                        {item}
+                                                    </MenuItem>
+                                                )
+                                            )}
+                                        </Select>
+                                    </TableCell>
+                                    <TableCell>
+                                        <Select
+                                            value={lead.customerType || ""}
+                                            onChange={(e) => handleInputChange(e, index, "customerType")}
+                                        >
+                                            {["Fresh", "Renewal", "Online Order"].map((type) => (
+                                                <MenuItem key={type} value={type}>
+                                                    {type}
+                                                </MenuItem>
+                                            ))}
+                                        </Select>
+                                    </TableCell>
+                                    <TableCell>
+                                        <Select
+                                            value={lead.agentAssigned || ""}
+                                            onChange={(e) => handleInputChange(e, index, "agentAssigned")}
+                                            fullWidth
+                                        >
+                                            {salesAgents.map((agent) => (
+                                                <MenuItem key={agent._id} value={agent.fullName}>
+                                                    {agent.fullName}
+                                                </MenuItem>
+                                            ))}
+                                        </Select>
+                                    </TableCell>
+
+                                    <TableCell>
+                                        <FormControl>
+                                            <Select
+                                                multiple
+                                                value={lead.productPitched || []}
+                                                onChange={(e) => handleInputChange(e, index, "productPitched")}
+                                                renderValue={(selected) => selected.join(", ")}
+                                            >
+                                                {["KJF", "SDP", "VKR", "L-Fx", "S&S", "CPV", "HDP", "PF", "PGut", "Shilajit", "Kit", "Blood Test"].map(
+                                                    (option) => (
+                                                        <MenuItem key={option} value={option}>
+                                                            <Checkbox checked={lead.productPitched?.includes(option)} />
+                                                            <ListItemText primary={option} />
+                                                        </MenuItem>
+                                                    )
+                                                )}
+                                            </Select>
+                                        </FormControl>
+                                    </TableCell>
+                                    <TableCell>
+                                        <Select
+                                            value={lead.leadStatus || ""}
+                                            onChange={(e) => handleInputChange(e, index, "leadStatus")}
+                                        >
+                                            {[
+                                                "Sales Done",
+                                                "CNP - Call Not Picked",
+                                                "Not Interested",
+                                                "Product Issue",
+                                                "Order from Other Source",
+                                                "Upsell",
+                                                "Fake Lead",
+                                                "Follow Up",
+                                                "Call Back",
+                                                "New",
+                                            ].map((status) => (
+                                                <MenuItem key={status} value={status}>
+                                                    {status}
+                                                </MenuItem>
+                                            ))}
+                                        </Select>
+                                    </TableCell>
+                                    <TableCell>
+                                        <Select
+                                            value={lead.salesStatus || ""}
+                                            onChange={(e) => handleCombinedChange(e, index, "salesStatus")}
+                                        >
+                                            {["Sales Done", "Lost", "On Follow Up"].map((status) => (
+                                                <MenuItem key={status} value={status}>
+                                                    {status}
+                                                </MenuItem>
+                                            ))}
+                                        </Select>
+                                    </TableCell>
+                                    <TableCell>
+                                        {lead.salesStatus === "On Follow Up" ? (
+                                            <TextField
+                                                type="date"
+                                                value={lead.nextFollowup || ""}
+                                                onChange={(e) => handleInputChange(e, index, "nextFollowup")}
+                                            />
+                                        ) : (
+                                            <Typography>{lead.nextFollowup || ""}</Typography>
+                                        )}
+                                    </TableCell>
+                                    <TableCell
+                                        sx={{
+                                            color:
+                                                calculateReminder(lead.nextFollowup) === "Today"
+                                                    ? "green"
+                                                    : calculateReminder(lead.nextFollowup) === "Tomorrow"
+                                                        ? "yellow"
+                                                        : calculateReminder(lead.nextFollowup) ===
+                                                            "Follow-up Missed"
+                                                            ? "red"
+                                                            : "inherit",
+                                        }}
+                                    >
+                                        {lead.salesStatus === "On Follow Up"
+                                            ? calculateReminder(lead.nextFollowup)
+                                            : lead.salesStatus}
+                                    </TableCell>
+                                    <TableCell style={{ whiteSpace: "nowrap", minWidth: "250px" }}>
+                                        <TextField
+                                            value={lead.agentsRemarks || ""}
+                                            onChange={(e) => handleInputChange(e, index, "agentsRemarks")}
+                                        />
+                                    </TableCell>
+                                    <TableCell>
+                                        <TextField
+                                            type="date"
+                                            value={lead.lastOrderDate || ""}
+                                            onChange={(e) => handleInputChange(e, index, "lastOrderDate")}
+                                        />
+                                    </TableCell>
+                                    <TableCell>
+                                        <FormControl>
+                                            <Select
+                                                multiple
+                                                value={lead.productsOrdered || []}
+                                                onChange={(e) => handleInputChange(e, index, "productsOrdered")}
+                                                renderValue={(selected) => selected.join(", ")}
+                                            >
+                                                {["KJF", "SDP", "VKR", "L-Fx", "S&S", "CPV", "HDP", "PF", "PGut", "Shilajit", "Kit", "Blood Test"].map(
+                                                    (option) => (
+                                                        <MenuItem key={option} value={option}>
+                                                            <Checkbox checked={lead.productsOrdered?.includes(option)} />
+                                                            <ListItemText primary={option} />
+                                                        </MenuItem>
+
+                                                    )
+                                                )}
+                                            </Select>
+                                        </FormControl>
+                                    </TableCell>
+                                    <TableCell>
+                                        <Select
+                                            value={lead.dosageOrdered || ""}
+                                            onChange={(e) => handleInputChange(e, index, "dosageOrdered")}
+                                        >
+                                            {["10-Days", "20-Days", "30-Days", "60-Days", "90-Days"].map((dosage) => (
+                                                <MenuItem key={dosage} value={dosage}>
+                                                    {dosage}
+                                                </MenuItem>
+                                            ))}
+                                        </Select>
+                                    </TableCell>
+                                    <TableCell style={{ whiteSpace: "nowrap", minWidth: "160px" }}>
+                                        <TextField
+                                            type="number"
+                                            value={lead.amountPaid || ""}
+                                            onChange={(e) => handleInputChange(e, index, "amountPaid")}
+                                        />
+                                    </TableCell>
+                                    <TableCell>
+                                        <Select
+                                            value={lead.modeOfPayment || ""}
+                                            onChange={(e) => handleInputChange(e, index, "modeOfPayment")}
+                                        >
+                                            {["Partial Paid", "Razorpay", "COD", "UPI", "Bank Transfer"].map((mode) => (
+                                                <MenuItem key={mode} value={mode}>
+                                                    {mode}
+                                                </MenuItem>
+                                            ))}
+                                        </Select>
+                                    </TableCell>
+                                    <TableCell>
+                                        <Select
+                                            value={lead.deliveryStatus || ""}
+                                            onChange={(e) => handleInputChange(e, index, "deliveryStatus")}
+                                        >
+                                            {["Delivered", "RTO", "Undelivered"].map((status) => (
+                                                <MenuItem key={status} value={status}>
+                                                    {status}
+                                                </MenuItem>
+                                            ))}
+                                        </Select>
+                                    </TableCell>
+                                    <TableCell>
+                                        <Select
+                                            value={lead.healthExpertAssigned || ""}
+                                            onChange={(e) => handleInputChange(e, index, "healthExpertAssigned")}
+                                            fullWidth
+                                        >
+                                            {retentionAgents.map((expert) => (
+                                                <MenuItem key={expert._id} value={expert.fullName}>
+                                                    {expert.fullName}
+                                                </MenuItem>
+                                            ))}
+                                        </Select>
+                                    </TableCell>
+                                    <TableCell style={{ whiteSpace: "nowrap", minWidth: "150px" }}>
+                                        <TextField
+                                            value={lead.orderId || ""}
+                                            onChange={(e) => handleInputChange(e, index, "orderId")}
+                                        />
+                                    </TableCell>
+                                    <TableCell>
+                                        <TextField
+                                            type="date"
+                                            disabled
+                                            value={lead.dosageExpiring || ""}
+                                            onChange={(e) => handleInputChange(e, index, "dosageExpiring")}
+                                        />
+                                    </TableCell>
+                                    <TableCell>
+                                        <TextField
+                                            type="date"
+                                            value={lead.rtNextFollowupDate || ""}
+                                            onChange={(e) => handleInputChange(e, index, "rtNextFollowupDate")}
+                                        />
+                                    </TableCell>
+                                    <TableCell
+                                        sx={{
+                                            color:
+                                                lead.rtFollowupReminder === "Today"
+                                                    ? "green"
+                                                    : lead.rtFollowupReminder === "Tomorrow"
+                                                        ? "yellow"
+                                                        : lead.rtFollowupReminder === "Follow-up Missed"
+                                                            ? "red"
+                                                            : "inherit",
+                                        }}
+                                    >
+                                        {lead.rtFollowupReminder || ""}
+                                    </TableCell>
+                                    <TableCell>
+                                        <Select
+                                            value={lead.rtFollowupStatus || ""}
+                                            onChange={(e) => handleInputChange(e, index, "rtFollowupStatus")}
+                                        >
+                                            {[
+                                                "Good Results",
+                                                "No Result",
+                                                "Sales Done",
+                                                "Do Not Want to Continue",
+                                                "Call Not Picked",
+                                                "Blood Test Suggested",
+                                                "Product Issue",
+                                                "Order from Other Source",
+                                                "Upsell",
+                                                "Follow Up Again",
+                                                "Call Back",
+                                                "Others",
+                                            ].map((status) => (
+                                                <MenuItem key={status} value={status} style={{ whiteSpace: "nowrap", minWidth: "200px" }}>
+                                                    {status}
+                                                </MenuItem>
+                                            ))}
+                                        </Select>
+                                    </TableCell>
+
+                                    <TableCell>
+                                        <Select
+                                            value={lead.repeatDosageOrdered || ""}
+                                            onChange={(e) => handleInputChange(e, index, "repeatDosageOrdered")}
+                                        >
+                                            {["10-Days", "20-Days", "30-Days", "60-Days", "90-Days"].map((dosage) => (
+                                                <MenuItem key={dosage} value={dosage}>
+                                                    {dosage}
+                                                </MenuItem>
+                                            ))}
+                                        </Select>
+                                    </TableCell>
+                                    <TableCell>
+                                        <Select
+                                            value={lead.retentionStatus || ""}
+                                            onChange={(e) => handleInputChange(e, index, "retentionStatus")}
+                                        >
+                                            {["Active", "Lost"].map((status) => (
+                                                <MenuItem key={status} value={status}>
+                                                    {status}
+                                                </MenuItem>
+                                            ))}
+                                        </Select>
+                                    </TableCell>
+                                    <TableCell style={{ whiteSpace: "nowrap", minWidth: "180px" }}>
+                                        <TextField
+                                            value={lead.rtRemark || ""}
+                                            onChange={(e) => handleInputChange(e, index, "rtRemark")}
+                                        />
+                                    </TableCell>
+                                    <TableCell>
+                                        <IconButton color="error" onClick={() => handleDeleteLead(lead._id)}>
+                                            <Delete />
+                                        </IconButton>
+                                    </TableCell>
+                                </TableRow>
+                            ))
+                        )}
                     </TableBody>
                 </Table>
             </TableContainer>
             <TablePagination
-                rowsPerPageOptions={[10, 20, 50, 100]}
                 component="div"
-                count={leads.length}
-                rowsPerPage={rowsPerPage}
-                page={currentPage}
+                count={totalLeads}
+                page={currentPage - 1}
                 onPageChange={handleChangePage}
+                rowsPerPage={rowsPerPage}
                 onRowsPerPageChange={handleChangeRowsPerPage}
+                rowsPerPageOptions={[10, 30, 50, 100]}
             />
         </Box>
     );

@@ -93,7 +93,7 @@ const RetentionLeads = () => {
     if (field === "rtNextFollowupDate") {
       const followupDate = new Date(value);
       const today = new Date();
-      const diffInDays = Math.ceil((followupDate - today) / (1000 * 60 * 60 * 24));
+      const diffInDays = Math.ceil((followupDate - today) / (1000 * 60 * 60 * 24)); 
   
       updatedLeads[globalIndex].rtFollowupReminder =
         diffInDays < 0

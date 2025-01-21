@@ -244,7 +244,7 @@ const handleDeliveryStatusChange = async (e, index) => {
               <TableCell>Remark for HE</TableCell>
               <TableCell>Amount Paid</TableCell>
               <TableCell>Mode of Payment</TableCell>
-              <TableCell>Delivery Status *</TableCell>
+              <TableCell>Delivery Status *</TableCell> 
             </TableRow>
           </TableHead>
           <TableBody>
