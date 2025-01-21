@@ -55,8 +55,9 @@ const SalesMySales = () => {
     try {
       const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads", {
         params: { agentAssignedName, salesStatus: "Sales Done" }, 
-      });
-      setSales(response.data);
+      }); 
+      const fetchSales = response.data.leads || []; 
+      setSales(fetchSales); 
     } catch (error) {
       console.error("Failed to fetch sales", error);
     }
@@ -240,7 +241,7 @@ const currentLeads = sales.slice(currentPage * rowsPerPage, currentPage * rowsPe
   <FormControl fullWidth sx={{ mb: 2 }} key={key}>
     <InputLabel>{label}</InputLabel>
     <Select
-      multiple={multiple}
+      multiple={multiple} 
       value={filters[key] || (multiple ? [] : '')}
       onChange={(e) => {
         const value = multiple ? e.target.value : e.target.value;
