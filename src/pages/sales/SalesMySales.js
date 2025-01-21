@@ -56,7 +56,7 @@ const SalesMySales = () => {
       const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads", {
         params: { agentAssignedName, salesStatus: "Sales Done" }, 
       });
-      setSales(response.data.reverse());
+      setSales(response.data);
     } catch (error) {
       console.error("Failed to fetch sales", error);
     }

@@ -76,7 +76,7 @@ const SalesMyLeads = () => {
       const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads", {
         params: { agentAssignedName: agentAssigned },
       });
-      setLeads(response.data.reverse());
+      setLeads(response.data);
     } catch (error) {
       console.error("Failed to fetch leads", error);
     }
@@ -434,7 +434,7 @@ const currentLeads = leads.slice(currentPage * rowsPerPage, currentPage * rowsPe
                   <TextField
                     type="date"
                     value={lead.date || ""}
-                    disabled // Date is not editable
+                    disabled  
                     fullWidth
                   />
                 </TableCell>
