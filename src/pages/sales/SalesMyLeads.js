@@ -47,6 +47,7 @@ const SalesMyLeads = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [agentName, setAgentName] = useState("");
+  const [totalLeads, setTotalLeads] = useState(0);  
   const [filters, setFilters] = useState({
     dateFrom: "",
     dateTo: "",
@@ -65,25 +66,41 @@ const SalesMyLeads = () => {
 
   useEffect(() => {
     const user = JSON.parse(sessionStorage.getItem("user"));
-    if (user) {
+    
+    if (user && !agentName) {
       setAgentName(user.fullName);
-      fetchLeads(user.fullName); 
     }
-  }, []);
+  
+    if (agentName) {
+      fetchLeads(agentName);
+    }
+  }, [agentName, currentPage, rowsPerPage]);
+
 
   const fetchLeads = async (agentAssigned) => {
+    setLoading(true);
     try {
       const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads", {
-        params: { agentAssignedName: agentAssigned, page: currentPage + 1, limit: rowsPerPage },
+        params: {
+          agentAssignedName: agentAssigned,
+          page: currentPage + 1, // Backend expects 1-based indexing
+          limit: rowsPerPage, // Number of rows per page
+        },
       });
-   
-      const fetchedLeads = response.data.leads || []; 
-      setLeads(fetchedLeads);  
+  
+      const { leads, totalLeads } = response.data;
+  
+      setLeads(leads || []); // Update leads state with fetched data
+      setTotalLeads(totalLeads || 0); // Update the total leads count
     } catch (error) {
       console.error("Failed to fetch leads", error);
       setError("Failed to fetch leads");
-    }  
+    } finally {
+      setLoading(false);
+    }
   };
+  
+
   
   const handleInputChange = async (e, index, field) => {
     const globalIndex = currentPage * rowsPerPage + index;  
@@ -244,14 +261,15 @@ const SalesMyLeads = () => {
 
   const handleChangePage = (event, newPage) => {
     setCurrentPage(newPage);
-};
-
-const handleChangeRowsPerPage = (event) => {
-    setRowsPerPage(parseInt(event.target.value, 10));
-    setCurrentPage(0);  
-};
-
-const currentLeads = leads.slice(currentPage * rowsPerPage, currentPage * rowsPerPage + rowsPerPage);
+  };
+  
+  const handleChangeRowsPerPage = (event) => {
+    const newRowsPerPage = parseInt(event.target.value, 10);
+    setRowsPerPage(newRowsPerPage);
+    setCurrentPage(0); // Reset to the first page
+  };
+  
+ 
 
   return (
     <Box sx={{ padding: 2 }}>
@@ -430,7 +448,7 @@ const currentLeads = leads.slice(currentPage * rowsPerPage, currentPage * rowsPe
             </TableRow>
           </TableHead>
           <TableBody>
-            {currentLeads.map((lead, index) => (
+            {leads.map((lead, index) => (
               <TableRow key={lead._id}>
                 <TableCell>
                   <TextField
@@ -634,7 +652,7 @@ const currentLeads = leads.slice(currentPage * rowsPerPage, currentPage * rowsPe
       <TablePagination 
                 rowsPerPageOptions={[10, 20, 50, 100]}
                 component="div"
-                count={leads.length}
+                count={totalLeads}
                 rowsPerPage={rowsPerPage}
                 page={currentPage}
                 onPageChange={handleChangePage}

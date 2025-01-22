@@ -884,7 +884,7 @@ const LeadTable = () => {
                                                 "Fake Lead",
                                                 "Follow Up",
                                                 "Call Back",
-                                                "New",
+                                                "New", 
                                             ].map((status) => (
                                                 <MenuItem key={status} value={status}>
                                                     {status}

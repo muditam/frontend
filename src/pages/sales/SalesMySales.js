@@ -28,6 +28,7 @@ const SalesMySales = () => {
   const [agentAssignedName, setAgentAssignedName] = useState(""); 
   const [currentPage, setCurrentPage] = useState(0); 
   const [rowsPerPage, setRowsPerPage] = useState(50);
+  const [totalSales, setTotalSales] = useState(0);
   const [filters, setFilters] = useState({
     dateFrom: "",
     dateTo: "",
@@ -43,25 +44,43 @@ const SalesMySales = () => {
   });
   const [filterOpen, setFilterOpen] = useState(false);
 
-  useEffect(() => { 
+  useEffect(() => {
     const user = JSON.parse(sessionStorage.getItem("user"));
-    if (user) {
-      setAgentAssignedName(user.fullName);  
-      fetchSales(user.fullName);  
+   
+    if (user && !agentAssignedName) {
+      setAgentAssignedName(user.fullName);
     }
-  }, []);
+   
+    if (agentAssignedName) {
+      fetchSales(agentAssignedName);
+    }
+  }, [currentPage, rowsPerPage, agentAssignedName]);
+  
+  
 
   const fetchSales = async (agentAssignedName) => {
     try {
       const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads", {
-        params: { agentAssignedName, salesStatus: "Sales Done" }, 
-      }); 
-      const fetchSales = response.data.leads || []; 
-      setSales(fetchSales); 
+        params: {
+          agentAssignedName,
+          salesStatus: "Sales Done",
+          page: currentPage + 1, // Backend expects 1-based index
+          limit: rowsPerPage,    // Rows per page
+        },
+      });
+  
+      const { leads, totalLeads } = response.data;
+  
+      setSales(leads || []); // Update sales data for the current page
+      setTotalSales(totalLeads || 0); // Update the total sales count
     } catch (error) {
       console.error("Failed to fetch sales", error);
     }
   };
+  
+
+
+
  
   const dropdownOptions = [
     { key: 'salesStatus', label: 'Sales Status', options: ['Sales Done', 'On Follow Up', 'Lost'] },
@@ -149,15 +168,15 @@ const SalesMySales = () => {
 };
 
 const handleChangeRowsPerPage = (event) => {
-    setRowsPerPage(parseInt(event.target.value, 10));
+    const newRowsPerPage = parseInt(event.target.value, 10);
+    setRowsPerPage(newRowsPerPage);
     setCurrentPage(0);  
 };
 
 const renderDropdown = (key, multiple = false) => {
   return dropdownOptions.find(option => option.key === key);
 };
-
-const currentLeads = sales.slice(currentPage * rowsPerPage, currentPage * rowsPerPage + rowsPerPage);
+ 
 
   return (
     <Box sx={{ padding: 2 }}>
@@ -318,7 +337,7 @@ const currentLeads = sales.slice(currentPage * rowsPerPage, currentPage * rowsPe
             </TableRow>
           </TableHead>
           <TableBody>
-            {currentLeads.map((sale, index) => (
+            {sales.map((sale, index) => (
               <TableRow key={sale._id}>
                 <TableCell>
                   <TextField
@@ -442,7 +461,7 @@ const currentLeads = sales.slice(currentPage * rowsPerPage, currentPage * rowsPe
 <TablePagination
                 rowsPerPageOptions={[10, 20, 50, 100]}
                 component="div"
-                count={sales.length}
+                count={totalSales}
                 rowsPerPage={rowsPerPage}
                 page={currentPage}
                 onPageChange={handleChangePage}
