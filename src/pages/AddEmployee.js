@@ -28,7 +28,7 @@ const AddEmployee = () => {
   const [currentEmployeeId, setCurrentEmployeeId] = useState(null);
   const [employeeData, setEmployeeData] = useState({
     fullName: "",
-    email: "",
+    email: "", 
     contactNumber: "",
     role: "",
     password: "", 

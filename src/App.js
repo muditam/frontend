@@ -19,7 +19,6 @@ import OrdersTable from "./components/AllShopifyOrders";
 import OnlineOrders from "./components/OnlineOrders";
 
 const App = () => {
-   
 
   return (
     <Router>

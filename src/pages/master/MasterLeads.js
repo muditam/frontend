@@ -28,6 +28,8 @@ import {
 } from "@mui/material";
 import { Delete, AddCircle } from "@mui/icons-material";
 import axios from "axios";
+import * as FileSaver from "file-saver";
+import * as XLSX from "xlsx";
 
 const LeadTable = () => {
     const [leads, setLeads] = useState([]);
@@ -334,32 +336,59 @@ const LeadTable = () => {
         return d.toISOString().slice(0, 10) === dateString;
     }
 
-    const applyFilters = async () => {
-        setApplyingFilters(true); // Start showing CircularProgress
-        setCurrentPage(1); // Reset pagination to the first page
-
+    const formatToISODate = (dateString) => {
+        const [day, month, year] = dateString.split("-");
+        return `${year}-${month}-${day}`;
+      };
+      
+      const applyFilters = async () => {
+        setApplyingFilters(true);
+        setCurrentPage(1);
+      
         try {
-            const response = await axios.get("http://localhost:5000/api/leads", {
-                params: {
-                    page: 1, // Always fetch page 1 when applying filters
-                    limit: rowsPerPage,
-                    filters: JSON.stringify(filters),
-                },
-            });
-
-            setLeads(response.data.leads);
-            setTotalPages(response.data.totalPages);
-            setTotalLeads(response.data.totalLeads);
+          const activeFilters = {
+            ...filters,
+            startDate: filters.startDate || "",  
+            endDate: filters.endDate || "",
+          };
+      
+          const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads", {
+            params: {
+              page: 1,
+              limit: rowsPerPage,
+              filters: JSON.stringify(activeFilters),
+            },
+          });
+      
+          setLeads(response.data.leads);
+          setTotalPages(response.data.totalPages);
+          setTotalLeads(response.data.totalLeads);
         } catch (error) {
-            console.error("Error applying filters:", error);
+          console.error("Error applying filters:", error);
         } finally {
-            setApplyingFilters(false); // Stop showing CircularProgress
+          setApplyingFilters(false);
         }
-        await fetchLeads(1, rowsPerPage, filters);
-    };
+      }; 
+      
 
-
-
+      const exportToCSV = async () => {
+        try {
+          const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads", {
+            params: { page: 1, limit: totalLeads }, // Fetch all leads
+          });
+          const allLeads = response.data.leads;
+    
+          const worksheet = XLSX.utils.json_to_sheet(allLeads);
+          const workbook = XLSX.utils.book_new();
+          XLSX.utils.book_append_sheet(workbook, worksheet, "Leads");
+    
+          const excelBuffer = XLSX.write(workbook, { bookType: "csv", type: "array" });
+          const data = new Blob([excelBuffer], { type: "text/csv;charset=utf-8;" });
+          FileSaver.saveAs(data, "leads_data.csv");
+        } catch (error) {
+          console.error("Error exporting data:", error);
+        }
+      };
 
     const handleChangePage = (event, newPage) => {
         setCurrentPage(newPage + 1);
@@ -400,6 +429,14 @@ const LeadTable = () => {
             >
                 Filter
             </Button>
+ 
+            <Button
+          variant="contained"
+          onClick={exportToCSV}
+          sx={{ mb: 2, ml: 2 }}
+        >
+          Export to CSV
+        </Button> 
 
             <Drawer
                 anchor="right"
@@ -884,7 +921,7 @@ const LeadTable = () => {
                                                 calculateReminder(lead.nextFollowup) === "Today"
                                                     ? "green"
                                                     : calculateReminder(lead.nextFollowup) === "Tomorrow"
-                                                        ? "yellow"
+                                                        ? "blue"
                                                         : calculateReminder(lead.nextFollowup) ===
                                                             "Follow-up Missed"
                                                             ? "red"
@@ -1011,7 +1048,7 @@ const LeadTable = () => {
                                                 lead.rtFollowupReminder === "Today"
                                                     ? "green"
                                                     : lead.rtFollowupReminder === "Tomorrow"
-                                                        ? "yellow"
+                                                        ? "blue"
                                                         : lead.rtFollowupReminder === "Follow-up Missed"
                                                             ? "red"
                                                             : "inherit",
