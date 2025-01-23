@@ -9,7 +9,7 @@ import {
     TableRow,
     Paper,
     TablePagination,
-    Select,
+    Select, 
     MenuItem,
     Button
 } from '@mui/material';
@@ -38,42 +38,71 @@ const OnlineOrders = () => {
         fetchData();
     }, []);
 
-    const fetchData = async () => {
+    const fetchAllLeads = async () => {
         try {
-            const [ordersResponse, leadsResponse, agentsResponse] = await Promise.all([
-                axios.get('https://muditamleads-14f32a10d7f7.herokuapp.com/api/orders'),
-                axios.get('https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads'),
-                axios.get('https://muditamleads-14f32a10d7f7.herokuapp.com/api/employees?role=Retention%20Agent'),
-            ]);
-
-            const webOrders = ordersResponse.data.filter(order => order.channel_name === 'web');
-            const leads = leadsResponse.data.leads || leadsResponse.data;
-
-            const ordersWithHealthExperts = webOrders.map(order => {
-                const normalizedOrderPhone = order.customer?.default_address?.phone?.replace(/[^\d]/g, '');
-                const matchingLead = leads.find(lead =>
-                    lead.contactNumber.replace(/[^\d]/g, '') === normalizedOrderPhone
-                );
-
-                return {
-                    ...order,
-                    healthExpertAssigned: matchingLead?.healthExpertAssigned || 'Not Assigned',
-                    leadExists: !!matchingLead,
-                };
-            });
-
-            setOrders(ordersWithHealthExperts);
-            setRetentionAgents(agentsResponse.data);
+            const limit = 100;  
+            let page = 1;
+            let allLeads = [];
+            let totalPages = 1;  
+    
+            do {
+                const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads", {
+                    params: {
+                        page,
+                        limit,
+                        filters: JSON.stringify({}),  
+                    },
+                });
+    
+                allLeads = allLeads.concat(response.data.leads);
+                totalPages = response.data.totalPages;
+                page++;
+            } while (page <= totalPages);
+    
+            return allLeads;
         } catch (error) {
-            console.error('Error fetching data:', error);
+            console.error("Error fetching all leads:", error);
+            return [];
         }
     };
 
-    const handleSaveHealthExpert = async (orderIndex) => {
-        // Calculate the global index
+    
+    const fetchData = async () => {
+        try {
+            const [ordersResponse, agentsResponse] = await Promise.all([
+                axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/orders"),
+                axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/employees?role=Retention%20Agent"),
+            ]);
+    
+            const leads = await fetchAllLeads();  
+    
+            const webOrders = ordersResponse.data.filter(order => order.channel_name === "web");
+    
+            const ordersWithHealthExperts = webOrders.map(order => {
+                const normalizedOrderPhone = order.customer?.default_address?.phone?.replace(/[^\d]/g, "");
+                const matchingLead = leads.find(lead =>
+                    lead.contactNumber.replace(/[^\d]/g, "") === normalizedOrderPhone
+                );
+    
+                return {
+                    ...order,
+                    healthExpertAssigned: matchingLead?.healthExpertAssigned || "Not Assigned",
+                    leadExists: !!matchingLead,
+                };
+            });
+    
+            setOrders(ordersWithHealthExperts);
+            setRetentionAgents(agentsResponse.data);
+        } catch (error) {
+            console.error("Error fetching data:", error);
+        }
+    };
+    
+
+    const handleSaveHealthExpert = async (orderIndex) => { 
         const globalIndex = currentPage * rowsPerPage + orderIndex;
 
-        const order = orders[globalIndex]; // Use the global index
+        const order = orders[globalIndex];  
         if (!order.healthExpertAssigned) return;
 
         const leadData = {

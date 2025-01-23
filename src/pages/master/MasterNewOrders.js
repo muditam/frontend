@@ -122,9 +122,9 @@ const handleDeliveryStatusChange = async (e, index) => {
         }
 
         if (key === "orderDate" && filters.orderDate) {
-          if (!order.date || isNaN(new Date(order.date))) return false; // Skip invalid dates
+          if (!order.date || isNaN(new Date(order.date))) return false; 
           const orderDate = new Date(order.date).toISOString().split("T")[0];
-          return orderDate === filters.orderDate; // Match exact date
+          return orderDate === filters.orderDate; 
         }
 
         if (Array.isArray(filters[key])) {
