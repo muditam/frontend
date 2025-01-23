@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Box, Typography, Grid, Paper, CircularProgress } from "@mui/material";
 import axios from "axios";
-import NavbarWithSearch from "./NavBarwithSearch";
 
 const SalesDashboard = () => {
   const [dashboardData, setDashboardData] = useState({
@@ -25,25 +24,34 @@ const SalesDashboard = () => {
   useEffect(() => {
     if (user) {
       setUserLoggedIn(true);
-      fetchDashboardData();
+      fetchDashboardData(empData);
     }
   }, [user]);
 
-  const fetchDashboardData = async () => {
+  const fetchDashboardData = async (user) => {
     setLoading(true);
 
     const today = new Date().toISOString().split("T")[0];
     const lastDayOfWeek = new Date(new Date().setDate(new Date().getDate() - 6));
     const lastDayOfMonth = new Date(new Date().setDate(new Date().getDate() - 30));
 
-    try { 
+    try {
+      const params = {
+        limit: 0,  
+        ...(user.role === "Sales Agent"
+          ? { agentAssignedName: user.fullName }
+          : user.role === "Retention Agent"
+          ? { healthExpertAssigned: user.fullName } 
+          : {}),
+      };
+ 
       const leadsResponse = await axios.get(
         "https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads",
-        { params: { limit: 0 } }  
+        { params }
       );
 
       const leads = leadsResponse.data.leads;
- 
+
       const totalLeadsAssigned = leads.length;
       const leadsAssignedToday = leads.filter((lead) => lead.date === today).length;
 
@@ -63,10 +71,10 @@ const SalesDashboard = () => {
       const monthlySalesAmount = leads
         .filter((lead) => new Date(lead.date) >= lastDayOfMonth)
         .reduce((sum, lead) => sum + (lead.amountPaid || 0), 0);
-
-      // Fetch orders data
+ 
       const ordersResponse = await axios.get(
-        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/new-orders"
+        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/new-orders",
+        { params }
       );
 
       const orders = ordersResponse.data;
@@ -96,7 +104,7 @@ const SalesDashboard = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }; 
 
   if (!userLoggedIn) {
     return (
@@ -109,92 +117,82 @@ const SalesDashboard = () => {
   }
 
   return (
-    <> 
-      <Box sx={{ padding: 3 }}>
-        <Typography variant="h4" gutterBottom>
-          {`${empData.role}'s Dashboard`}
-        </Typography>
+    <Box sx={{ padding: 3 }}>
+      <Typography variant="h4" gutterBottom>
+        {`${empData.fullName}'s Dashboard`}
+      </Typography>
 
-        {loading ? (
-          <Box sx={{ display: "flex", justifyContent: "center", mt: 5 }}>
-            <CircularProgress />
-          </Box>
-        ) : (
-          <Grid container spacing={3}>
-            <Grid item xs={12} sm={6} md={4}>
-              <Paper sx={{ padding: 2 }}>
-                <Typography variant="h6">Total Leads Assigned</Typography>
-                <Typography variant="h4">
-                  {dashboardData.totalLeadsAssigned}
-                </Typography>
-              </Paper>
-            </Grid>
-            <Grid item xs={12} sm={6} md={4}>
-              <Paper sx={{ padding: 2 }}>
-                <Typography variant="h6">Leads Assigned Today</Typography>
-                <Typography variant="h4">
-                  {dashboardData.leadsAssignedToday}
-                </Typography>
-              </Paper>
-            </Grid>
-            <Grid item xs={12} sm={6} md={4}>
-              <Paper sx={{ padding: 2 }}>
-                <Typography variant="h6">Total Sales (INR)</Typography>
-                <Typography variant="h4">
-                  ₹{dashboardData.totalSalesAmount.toLocaleString()}
-                </Typography>
-              </Paper>
-            </Grid>
-            <Grid item xs={12} sm={6} md={4}>
-              <Paper sx={{ padding: 2 }}>
-                <Typography variant="h6">Sales Today (INR)</Typography>
-                <Typography variant="h4">
-                  ₹{dashboardData.salesTodayAmount.toLocaleString()}
-                </Typography>
-              </Paper>
-            </Grid>
-            <Grid item xs={12} sm={6} md={4}>
-              <Paper sx={{ padding: 2 }}>
-                <Typography variant="h6">Weekly Sales (INR)</Typography>
-                <Typography variant="h4">
-                  ₹{dashboardData.weeklySalesAmount.toLocaleString()}
-                </Typography>
-              </Paper>
-            </Grid>
-            <Grid item xs={12} sm={6} md={4}>
-              <Paper sx={{ padding: 2 }}>
-                <Typography variant="h6">Monthly Sales (INR)</Typography>
-                <Typography variant="h4">
-                  ₹{dashboardData.monthlySalesAmount.toLocaleString()}
-                </Typography>
-              </Paper>
-            </Grid>
-            <Grid item xs={12} sm={6} md={4}>
-              <Paper sx={{ padding: 2 }}>
-                <Typography variant="h6">Orders Created Today</Typography>
-                <Typography variant="h4">{dashboardData.ordersToday}</Typography>
-              </Paper>
-            </Grid>
-            <Grid item xs={12} sm={6} md={4}>
-              <Paper sx={{ padding: 2 }}>
-                <Typography variant="h6">Orders This Week</Typography>
-                <Typography variant="h4">
-                  {dashboardData.ordersThisWeek}
-                </Typography>
-              </Paper>
-            </Grid>
-            <Grid item xs={12} sm={6} md={4}>
-              <Paper sx={{ padding: 2 }}>
-                <Typography variant="h6">Orders This Month</Typography>
-                <Typography variant="h4">
-                  {dashboardData.ordersThisMonth}
-                </Typography>
-              </Paper>
-            </Grid>
+      {loading ? (
+        <Box sx={{ display: "flex", justifyContent: "center", mt: 5 }}>
+          <CircularProgress />
+        </Box>
+      ) : (
+        <Grid container spacing={3}>
+          <Grid item xs={12} sm={6} md={4}>
+            <Paper sx={{ padding: 2 }}>
+              <Typography variant="h6">Total Leads Assigned</Typography>
+              <Typography variant="h4">{dashboardData.totalLeadsAssigned}</Typography>
+            </Paper>
           </Grid>
-        )}
-      </Box>
-    </>
+          <Grid item xs={12} sm={6} md={4}>
+            <Paper sx={{ padding: 2 }}>
+              <Typography variant="h6">Leads Assigned Today</Typography>
+              <Typography variant="h4">{dashboardData.leadsAssignedToday}</Typography>
+            </Paper>
+          </Grid>
+          <Grid item xs={12} sm={6} md={4}>
+            <Paper sx={{ padding: 2 }}>
+              <Typography variant="h6">Total Sales (INR)</Typography>
+              <Typography variant="h4">
+                ₹{dashboardData.totalSalesAmount.toLocaleString()}
+              </Typography>
+            </Paper>
+          </Grid>
+          <Grid item xs={12} sm={6} md={4}>
+            <Paper sx={{ padding: 2 }}>
+              <Typography variant="h6">Sales Today (INR)</Typography>
+              <Typography variant="h4">
+                ₹{dashboardData.salesTodayAmount.toLocaleString()}
+              </Typography>
+            </Paper>
+          </Grid>
+          <Grid item xs={12} sm={6} md={4}>
+            <Paper sx={{ padding: 2 }}>
+              <Typography variant="h6">Weekly Sales (INR)</Typography>
+              <Typography variant="h4">
+                ₹{dashboardData.weeklySalesAmount.toLocaleString()}
+              </Typography>
+            </Paper>
+          </Grid>
+          <Grid item xs={12} sm={6} md={4}>
+            <Paper sx={{ padding: 2 }}>
+              <Typography variant="h6">Monthly Sales (INR)</Typography>
+              <Typography variant="h4">
+                ₹{dashboardData.monthlySalesAmount.toLocaleString()}
+              </Typography>
+            </Paper>
+          </Grid>
+          <Grid item xs={12} sm={6} md={4}>
+            <Paper sx={{ padding: 2 }}>
+              <Typography variant="h6">Orders Created Today</Typography>
+              <Typography variant="h4">{dashboardData.ordersToday}</Typography>
+            </Paper>
+          </Grid>
+          <Grid item xs={12} sm={6} md={4}>
+            <Paper sx={{ padding: 2 }}>
+              <Typography variant="h6">Orders This Week</Typography>
+              <Typography variant="h4">{dashboardData.ordersThisWeek}</Typography>
+            </Paper>
+          </Grid>
+          <Grid item xs={12} sm={6} md={4}>
+            <Paper sx={{ padding: 2 }}>
+              <Typography variant="h6">Orders This Month</Typography>
+              <Typography variant="h4">{dashboardData.ordersThisMonth}</Typography>
+            </Paper>
+          </Grid>
+        </Grid>
+      )}
+    </Box>
   );
 };
 

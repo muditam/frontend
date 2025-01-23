@@ -26,6 +26,7 @@ import axios from "axios";
 const RetentionTable = () => {
   const [retentionLeads, setRetentionLeads] = useState([]);
   const [filterOpen, setFilterOpen] = useState(false);
+  const [retentionAgents, setRetentionAgents] = useState([]);
   const [currentPage, setCurrentPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(50);
   const [filters, setFilters] = useState({
@@ -80,6 +81,17 @@ const RetentionTable = () => {
     }
   };  
 
+  const fetchRetentionAgents = async () => {
+    try {
+      const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/employees", {
+        params: { role: "Retention Agent" },
+      });
+      setRetentionAgents(response.data.map((agent) => agent.fullName));
+    } catch (error) {
+      console.error("Error fetching retention agents:", error);
+    }
+  };
+
   const applyFilters = () => {
     const filteredLeads = retentionLeads.filter((lead) => {
       return Object.keys(filters).every((key) => {
@@ -118,6 +130,7 @@ const RetentionTable = () => {
 
   useEffect(() => {
     fetchRetentionLeads();
+    fetchRetentionAgents();
   }, []);
 
   const handleChangePage = (event, newPage) => {
@@ -158,7 +171,7 @@ const RetentionTable = () => {
     button: {
       borderRadius: "8px",
       textTransform: "none",
-      boxShadow: "0 2px 4px rgba(0, 0, 0, 0.1)",
+      boxShadow: "0 2px 4px rgba(0, 0, 0, 0.1)", 
     },
   };
 
@@ -190,33 +203,45 @@ const RetentionTable = () => {
           <Box sx={{ marginBottom: 2 }}>
             {Object.keys(filters).map((key) => (
               <FormControl key={key} fullWidth sx={{ marginBottom: 2 }}>
-                {Array.isArray(dropdownOptions[key]) ? (
-                  <>
-                    <InputLabel>{key.replace(/([A-Z])/g, " $1")}</InputLabel>
-                    <Select
-                      multiple
-                      value={Array.isArray(filters[key]) ? filters[key] : []}
-                      onChange={(e) => setFilters((prev) => ({ ...prev, [key]: e.target.value }))}
-                      renderValue={(selected) => selected.join(", ")}
-                    >
-                      {dropdownOptions[key].map((option) => (
-                        <MenuItem key={option} value={option}>
-                          <Checkbox checked={filters[key]?.includes(option)} />
-                          <ListItemText primary={option} />
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  </>
-                ) : (
-                  <TextField
-                    label={key.replace(/([A-Z])/g, " $1")}
-                    value={filters[key]}
-                    onChange={(e) =>
-                      setFilters((prev) => ({ ...prev, [key]: e.target.value }))
-                    }
-                  />
-                )}
-              </FormControl>
+              {key === "healthExpertAssigned" ? (
+                <>
+                  <InputLabel>Health Expert Assigned</InputLabel>
+                  <Select
+                    value={filters[key] || ""}
+                    onChange={(e) => setFilters((prev) => ({ ...prev, [key]: e.target.value }))}
+                  >
+                    {retentionAgents.map((agent) => (
+                      <MenuItem key={agent} value={agent}>
+                        {agent}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </>
+              ) : Array.isArray(dropdownOptions[key]) ? (
+                <>
+                  <InputLabel>{key.replace(/([A-Z])/g, " $1")}</InputLabel>
+                  <Select
+                    multiple
+                    value={Array.isArray(filters[key]) ? filters[key] : []}
+                    onChange={(e) => setFilters((prev) => ({ ...prev, [key]: e.target.value }))}
+                    renderValue={(selected) => selected.join(", ")}
+                  >
+                    {dropdownOptions[key].map((option) => (
+                      <MenuItem key={option} value={option}>
+                        <Checkbox checked={filters[key]?.includes(option)} />
+                        <ListItemText primary={option} />
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </>
+              ) : (
+                <TextField
+                  label={key.replace(/([A-Z])/g, " $1")}
+                  value={filters[key]}
+                  onChange={(e) => setFilters((prev) => ({ ...prev, [key]: e.target.value }))}
+                />
+              )}
+            </FormControl>            
             ))}
           </Box>
           <Divider />
@@ -245,6 +270,7 @@ const RetentionTable = () => {
         <Table style={styles.table} stickyHeader aria-label="sticky table">
           <TableHead>
             <TableRow>
+              <TableCell style={styles.tableCell}>Last Order Date</TableCell>
               <TableCell style={styles.tableCell}>Name</TableCell>
               <TableCell style={styles.tableCell}>Contact No</TableCell>
               <TableCell style={styles.tableCell}>Agent Assigned</TableCell>
@@ -259,7 +285,6 @@ const RetentionTable = () => {
               <TableCell style={styles.tableCell}>RT Next Followup Date</TableCell>
               <TableCell style={styles.tableCell}>RT- Followup Reminder</TableCell>
               <TableCell style={styles.tableCell}>RT- Followup Status</TableCell>
-              <TableCell style={styles.tableCell}>Last Order Date</TableCell>
               <TableCell style={styles.tableCell}>Repeat Dosage Ordered</TableCell>
               <TableCell style={styles.tableCell}>Retention Status</TableCell>
               <TableCell style={styles.tableCell}>RT- Remark</TableCell>
@@ -275,6 +300,7 @@ const RetentionTable = () => {
                   },
                 }}
               >
+                <TableCell style={styles.tableCell}>{lead.lastOrderDate}</TableCell>
                 <TableCell style={styles.tableCell}>{lead.name}</TableCell>
                 <TableCell style={styles.tableCell}>{lead.contactNumber}</TableCell>
                 <TableCell style={styles.tableCell}>{lead.agentAssigned}</TableCell>
@@ -289,7 +315,6 @@ const RetentionTable = () => {
                 <TableCell style={styles.tableCell}>{lead.rtNextFollowupDate}</TableCell>
                 <TableCell style={styles.tableCell}>{lead.rtFollowupReminder}</TableCell>
                 <TableCell style={styles.tableCell}>{lead.rtFollowupStatus}</TableCell>
-                <TableCell style={styles.tableCell}>{lead.lastOrderDate}</TableCell>
                 <TableCell style={styles.tableCell}>{lead.repeatDosageOrdered}</TableCell>
                 <TableCell style={styles.tableCell}>{lead.retentionStatus}</TableCell>
                 <TableCell style={styles.tableCell}>{lead.rtRemark}</TableCell>

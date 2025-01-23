@@ -339,7 +339,7 @@ const LeadTable = () => {
     const formatToISODate = (dateString) => {
         const [day, month, year] = dateString.split("-");
         return `${year}-${month}-${day}`;
-      };
+    };    
       
       const applyFilters = async () => {
         setApplyingFilters(true);
@@ -348,8 +348,8 @@ const LeadTable = () => {
         try {
           const activeFilters = {
             ...filters,
-            startDate: filters.startDate || "",  
-            endDate: filters.endDate || "",
+            startDate: filters.startDate ? formatToISODate(filters.startDate) : "",  
+            endDate: filters.endDate ? formatToISODate(filters.endDate) : "", 
           };
       
           const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads", {
@@ -619,6 +619,37 @@ const LeadTable = () => {
                                 </Select>
                             </FormControl>
                         </ListItem>
+                        <ListItem>
+    <FormControl fullWidth>
+        <InputLabel>Reminder</InputLabel>
+        <Select
+            value={filters.reminder || ""}
+            onChange={(e) => setFilters((prev) => ({ ...prev, reminder: e.target.value }))}
+        >
+            {["Follow-up Missed", "Today", "Tomorrow", "Later"].map((option) => (
+                <MenuItem key={option} value={option}>
+                    {option}
+                </MenuItem>
+            ))}
+        </Select>
+    </FormControl>
+</ListItem>
+<ListItem>
+    <FormControl fullWidth>
+        <InputLabel>RT-Followup Reminder</InputLabel>
+        <Select
+            value={filters.rtFollowupReminder || ""}
+            onChange={(e) => setFilters((prev) => ({ ...prev, rtFollowupReminder: e.target.value }))}
+        >
+            {["Follow-up Missed", "Today", "Tomorrow", "Later"].map((option) => (
+                <MenuItem key={option} value={option}>
+                    {option}
+                </MenuItem>
+            ))}
+        </Select>
+    </FormControl>
+</ListItem>
+
                         <ListItem>
                             <FormControl fullWidth>
                                 <InputLabel>Sales Status</InputLabel>

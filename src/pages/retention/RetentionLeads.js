@@ -5,7 +5,7 @@ import {
   TableBody,
   TableCell,
   TableContainer,
-  TableHead, 
+  TableHead,
   TableRow,
   Paper,
   Typography,
@@ -16,7 +16,7 @@ import {
   Button,
   Drawer,
   Divider,
-  TablePagination, 
+  TablePagination,
   InputLabel,
 } from "@mui/material";
 import axios from "axios";
@@ -24,13 +24,13 @@ import axios from "axios";
 const RetentionLeads = () => {
   const [leads, setLeads] = useState([]);
   const [loggedInUser, setLoggedInUser] = useState({});
-  const [currentPage, setCurrentPage] = useState(0); 
+  const [currentPage, setCurrentPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(50);
   const [filters, setFilters] = useState({
     name: "",
     contactNumber: "",
     salesAgentAssigned: "",
-    productPitched: "", 
+    productPitched: "",
     productsOrdered: "",
     dosageOrdered: "",
     modeOfPayment: "",
@@ -44,58 +44,58 @@ const RetentionLeads = () => {
     lastOrderDateTo: "",
     retentionStatus: "",
   });
-  const [filterOpen, setFilterOpen] = useState(false); 
+  const [filterOpen, setFilterOpen] = useState(false);
 
 
   useEffect(() => {
     const user = JSON.parse(sessionStorage.getItem("user"));
-    if (user && user.role === "Retention Agent") { 
+    if (user && user.role === "Retention Agent") {
       setLoggedInUser(user);
       fetchRetentionLeads(user);
-    } 
+    }
   }, []);
 
   const computeReminder = (followupDate) => {
     const date = new Date(followupDate);
     const today = new Date();
     const diffInDays = Math.ceil((date - today) / (1000 * 60 * 60 * 24));
-  
+
     if (diffInDays < 0) return "Follow-up Missed";
     if (diffInDays === 0) return "Today";
     if (diffInDays === 1) return "Tomorrow";
     return "Later";
   };
-  
+
 
   const fetchRetentionLeads = async (user) => {
     try {
       const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/retentions", {
         params: {
           fullName: user.fullName,
-          email: user.email, 
+          email: user.email,
         },
       });
       const leadsWithReminders = response.data.map(lead => ({
-      ...lead,
-      rtFollowupReminder: lead.rtNextFollowupDate ? computeReminder(lead.rtNextFollowupDate) : ''
-    }));
-    setLeads(leadsWithReminders.reverse());
+        ...lead,
+        rtFollowupReminder: lead.rtNextFollowupDate ? computeReminder(lead.rtNextFollowupDate) : ''
+      }));
+      setLeads(leadsWithReminders.reverse());
     } catch (error) {
       console.error("Failed to fetch retention leads", error);
     }
   };
 
   const handleInputChange = async (e, index, field) => {
-    const globalIndex = currentPage * rowsPerPage + index;  
+    const globalIndex = currentPage * rowsPerPage + index;
     const value = e.target.value;
     const updatedLeads = [...leads];
-    updatedLeads[globalIndex][field] = value; 
-  
+    updatedLeads[globalIndex][field] = value;
+
     if (field === "rtNextFollowupDate") {
       const followupDate = new Date(value);
       const today = new Date();
-      const diffInDays = Math.ceil((followupDate - today) / (1000 * 60 * 60 * 24)); 
-  
+      const diffInDays = Math.ceil((followupDate - today) / (1000 * 60 * 60 * 24));
+
       updatedLeads[globalIndex].rtFollowupReminder =
         diffInDays < 0
           ? "Missed"
@@ -105,9 +105,9 @@ const RetentionLeads = () => {
               ? "Tomorrow"
               : "Later";
     }
-  
+
     setLeads(updatedLeads);
-  
+
     try {
       await axios.put(`https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/${updatedLeads[globalIndex]._id}`, {
         [field]: value,
@@ -116,7 +116,7 @@ const RetentionLeads = () => {
       console.error("Error updating lead:", error);
     }
   };
-  
+
 
   const applyFilters = () => {
     const filteredLeads = leads.filter((lead) => {
@@ -164,18 +164,18 @@ const RetentionLeads = () => {
     fetchRetentionLeads(loggedInUser);
   };
 
- 
+
 
   const handleChangePage = (event, newPage) => {
     setCurrentPage(newPage);
-};
+  };
 
-const handleChangeRowsPerPage = (event) => {
+  const handleChangeRowsPerPage = (event) => {
     setRowsPerPage(parseInt(event.target.value, 10));
-    setCurrentPage(0);  
-};
+    setCurrentPage(0);
+  };
 
-const currentLeads = leads.slice(currentPage * rowsPerPage, currentPage * rowsPerPage + rowsPerPage);
+  const currentLeads = leads.slice(currentPage * rowsPerPage, currentPage * rowsPerPage + rowsPerPage);
 
 
   return (
@@ -237,17 +237,17 @@ const currentLeads = leads.slice(currentPage * rowsPerPage, currentPage * rowsPe
                 sx={{
                   marginBottom: 2,
                   "& .MuiInputBase-input": {
-                    padding: "10px 12px",  
+                    padding: "10px 12px",
                   },
                   "& .MuiOutlinedInput-root": {
-                    borderColor: "#0073e6",  
+                    borderColor: "#0073e6",
                     "&:hover fieldset": {
-                      borderColor: "#005bb5",  
+                      borderColor: "#005bb5",
                     },
                   },
                 }}
                 InputLabelProps={{
-                  shrink: true,  
+                  shrink: true,
                 }}
               />
             )
@@ -305,7 +305,21 @@ const currentLeads = leads.slice(currentPage * rowsPerPage, currentPage * rowsPe
                     onChange={(e) => handleInputChange(e, index, "rtNextFollowupDate")}
                   />
                 </TableCell>
-                <TableCell>{lead.rtFollowupReminder}</TableCell>
+                <TableCell
+                  sx={{
+                    color:
+                      lead.rtFollowupReminder === "Today"
+                        ? "green"
+                        : lead.rtFollowupReminder === "Tomorrow"
+                          ? "blue"
+                          : lead.rtFollowupReminder === "Follow-up Missed"
+                            ? "red"
+                            : "inherit",
+                  }}
+                >
+                  {lead.rtFollowupReminder}
+                </TableCell>
+
                 <TableCell>
                   <Select
                     value={lead.rtFollowupStatus || ""}
@@ -331,7 +345,7 @@ const currentLeads = leads.slice(currentPage * rowsPerPage, currentPage * rowsPe
                       </MenuItem>
                     ))}
                   </Select>
-                </TableCell> 
+                </TableCell>
                 <TableCell>
                   <TextField
                     type="date"
@@ -377,14 +391,14 @@ const currentLeads = leads.slice(currentPage * rowsPerPage, currentPage * rowsPe
         </Table>
       </TableContainer>
       <TablePagination
-                rowsPerPageOptions={[10, 20, 50, 100]}
-                component="div"
-                count={leads.length}
-                rowsPerPage={rowsPerPage}
-                page={currentPage}
-                onPageChange={handleChangePage}
-                onRowsPerPageChange={handleChangeRowsPerPage}
-            />
+        rowsPerPageOptions={[10, 20, 50, 100]}
+        component="div"
+        count={leads.length}
+        rowsPerPage={rowsPerPage}
+        page={currentPage}
+        onPageChange={handleChangePage}
+        onRowsPerPageChange={handleChangeRowsPerPage}
+      />
     </Box>
   );
 };

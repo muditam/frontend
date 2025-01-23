@@ -27,6 +27,8 @@ const NewOrders = () => {
   const [newOrders, setNewOrders] = useState([]);
   const [retentionAgents, setRetentionAgents] = useState([]);
   const [filters, setFilters] = useState({
+    startDate: "",  
+    endDate: "",  
     orderDate: "",
     name: "",
     contactNumber: "",
@@ -111,6 +113,20 @@ const handleDeliveryStatusChange = async (e, index) => {
     const filtered = newOrders.filter((order) => {
       return Object.keys(filters).every((key) => {
         if (!filters[key]) return true;
+
+        if (key === "startDate" && filters.startDate) {
+          return new Date(order.date) >= new Date(filters.startDate);
+        }
+        if (key === "endDate" && filters.endDate) {
+          return new Date(order.date) <= new Date(filters.endDate);
+        }
+
+        if (key === "orderDate" && filters.orderDate) {
+          if (!order.date || isNaN(new Date(order.date))) return false; // Skip invalid dates
+          const orderDate = new Date(order.date).toISOString().split("T")[0];
+          return orderDate === filters.orderDate; // Match exact date
+        }
+
         if (Array.isArray(filters[key])) {
           return filters[key].every((item) => order[key]?.includes(item));
         }
@@ -147,8 +163,8 @@ const handleDeliveryStatusChange = async (e, index) => {
   };
 
   return (
-    <Box sx={{ padding: 2 }}>
-      <Typography variant="h5" gutterBottom>
+    <Box sx={{ padding: 2 }}> 
+      <Typography variant="h5" gutterBottom> 
         Master Data - New Orders
       </Typography>
 
@@ -161,74 +177,133 @@ const handleDeliveryStatusChange = async (e, index) => {
       </Button>
 
       <Drawer
-        anchor="right"
-        open={filterOpen}
-        onClose={() => setFilterOpen(false)}
-      >
-        <Box sx={{ width: 300, padding: 2 }}>
-          <Typography variant="h6" gutterBottom>
-            Filters
-          </Typography>
-          <Divider />
-          <Box sx={{ marginBottom: 2 }}>
-            {Object.keys(filters).map((key) => (
-              <FormControl key={key} fullWidth sx={{ marginBottom: 2 }}>
-                {Array.isArray(dropdownOptions[key]) ? (
-                  <>
-                    <InputLabel>{key.replace(/([A-Z])/g, " $1")}</InputLabel>
-                    <Select
-                      multiple
-                      value={filters[key] || []}  
-                      onChange={(e) =>
-                        setFilters((prev) => ({
-                          ...prev,
-                          [key]: e.target.value,
-                        }))
-                      }
-                      renderValue={(selected) => selected.join(", ")}
-                    >
-                      {dropdownOptions[key].map((option) => (
-                        <MenuItem key={option} value={option}>
-                          <Checkbox checked={(filters[key] || []).includes(option)} />
-                          <ListItemText primary={option} />
-                        </MenuItem>
-                      ))}
-                    </Select>
+  anchor="right"
+  open={filterOpen}
+  onClose={() => setFilterOpen(false)}
+>
+  <Box sx={{ width: 300, padding: 2 }}>
+    <Typography variant="h6" gutterBottom>
+      Filters
+    </Typography>
+    <Divider />
+    <Box sx={{ marginBottom: 2 }}>
+  <FormControl fullWidth sx={{ marginBottom: 2 }}>
+    <TextField
+      label="Start Date"
+      type="date"
+      InputLabelProps={{ shrink: true }}
+      value={filters.startDate}
+      onChange={(e) =>
+        setFilters((prev) => ({ ...prev, startDate: e.target.value }))
+      }
+    />
+  </FormControl>
+  <FormControl fullWidth sx={{ marginBottom: 2 }}>
+    <TextField
+      label="End Date"
+      type="date"
+      InputLabelProps={{ shrink: true }}
+      value={filters.endDate}
+      onChange={(e) =>
+        setFilters((prev) => ({ ...prev, endDate: e.target.value }))
+      }
+    />
+  </FormControl>
 
-                  </>
-                ) : (
-                  <TextField
-                    label={key.replace(/([A-Z])/g, " $1")}
-                    value={filters[key]}
-                    onChange={(e) =>
-                      setFilters((prev) => ({ ...prev, [key]: e.target.value }))
-                    }
-                  />
-                )}
-              </FormControl>
+  <FormControl fullWidth sx={{ marginBottom: 2 }}>
+          <TextField
+            label="Order Date"
+            type="date"
+            InputLabelProps={{ shrink: true }}
+            value={filters.orderDate}
+            onChange={(e) =>
+              setFilters((prev) => ({ ...prev, orderDate: e.target.value }))
+            }
+          />
+        </FormControl>
+
+  {Object.keys(filters).map((key) => {
+    if (key === "startDate" || key === "endDate") return null; // Already handled
+
+    if (key === "orderDate") return null;
+
+    if (key === "healthExpertAssigned") {
+      return (
+        <FormControl key={key} fullWidth sx={{ marginBottom: 2 }}>
+          <InputLabel>Health Expert Assigned</InputLabel>
+          <Select
+            value={filters[key] || ""}
+            onChange={(e) =>
+              setFilters((prev) => ({ ...prev, [key]: e.target.value }))
+            }
+          >
+            {retentionAgents.map((agent) => (
+              <MenuItem key={agent._id} value={agent.fullName}>
+                {agent.fullName}
+              </MenuItem>
             ))}
-          </Box>
-          <Divider />
-          <Button
-            variant="contained"
-            fullWidth
-            onClick={() => {
-              applyFilters();
-              setFilterOpen(false);
-            }}
-            sx={{ marginBottom: 1 }}
-          >
-            Apply Filters
-          </Button>
-          <Button
-            variant="outlined"
-            fullWidth
-            onClick={resetFilters}
-          >
-            Reset Filters
-          </Button>
-        </Box>
-      </Drawer>
+          </Select>
+        </FormControl>
+      );
+    }
+
+    return (
+      <FormControl key={key} fullWidth sx={{ marginBottom: 2 }}>
+        {Array.isArray(dropdownOptions[key]) ? (
+          <>
+            <InputLabel>{key.replace(/([A-Z])/g, " $1")}</InputLabel>
+            <Select
+              multiple
+              value={filters[key] || []}
+              onChange={(e) =>
+                setFilters((prev) => ({
+                  ...prev,
+                  [key]: e.target.value,
+                }))
+              }
+              renderValue={(selected) => selected.join(", ")}
+            >
+              {dropdownOptions[key].map((option) => (
+                <MenuItem key={option} value={option}>
+                  <Checkbox
+                    checked={(filters[key] || []).includes(option)}
+                  />
+                  <ListItemText primary={option} />
+                </MenuItem>
+              ))}
+            </Select>
+          </>
+        ) : (
+          <TextField
+            label={key.replace(/([A-Z])/g, " $1")}
+            value={filters[key]}
+            onChange={(e) =>
+              setFilters((prev) => ({ ...prev, [key]: e.target.value }))
+            }
+          />
+        )}
+      </FormControl>
+    );
+  })}
+</Box>
+    <Divider />
+    <Button
+      variant="contained"
+      fullWidth
+      onClick={() => {
+        applyFilters();
+        setFilterOpen(false);
+      }}
+      sx={{ marginBottom: 1 }}
+    >
+      Apply Filters
+    </Button>
+    <Button variant="outlined" fullWidth onClick={resetFilters}>
+      Reset Filters
+    </Button>
+  </Box>
+</Drawer>
+
 
       <TableContainer component={Paper} sx={{ maxHeight: 1000 }}>
         <Table stickyHeader aria-label="sticky table">

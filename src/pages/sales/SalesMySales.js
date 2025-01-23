@@ -187,7 +187,6 @@ const renderDropdown = (key, multiple = false) => {
       <Button variant="contained" sx={{ mb: 2 }} onClick={() => setFilterOpen(true)}>
   Filter
 </Button>
-
       <Drawer
   anchor="right"
   open={filterOpen}
