@@ -103,15 +103,13 @@ const SalesMyLeads = () => {
 
   
   const handleInputChange = async (e, index, field) => {
-    const globalIndex = currentPage * rowsPerPage + index;  
-    const value = e.target.value;  
-    const updatedLeads = [...leads];
-    updatedLeads[globalIndex][field] = value;  
-  
-    setLeads(updatedLeads);  
+    const updatedLeads = [...leads];  
+ 
+        updatedLeads[index][field] = e.target.value;
+        setLeads(updatedLeads); 
    
     if (field === "contactNumber") {
-      const enteredNumber = value;
+      const enteredNumber = e.target.value;
   
       try {
         const response = await axios.get(
@@ -121,32 +119,29 @@ const SalesMyLeads = () => {
           }
         );
   
-        if (response.data.exists) {
-          // If duplicate found, set validation error
+        if (response.data.exists) { 
           setValidationErrors((prev) => ({
             ...prev,
-            [globalIndex]: "This number is already registered",
+            [index]: "This number is already registered",
           }));
-          return; // Exit to prevent unnecessary updates
-        } else {
-          // Clear validation error if no duplicate
+          return;  
+        } else { 
           setValidationErrors((prev) => ({
             ...prev,
-            [globalIndex]: null,
+            [index]: null,
           }));
         }
       } catch (error) {
         console.error("Error checking duplicate number:", error);
       }
     }
-  
-    // Update the lead in the database
-    const leadId = updatedLeads[globalIndex]._id;
+   
+    const leadId = updatedLeads[index]._id;
     try {
       await axios.put(
         `https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/${leadId}`,
         {
-          [field]: value,
+          [field]: e.target.value,
         }
       );
     } catch (error) {

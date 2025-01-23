@@ -190,7 +190,7 @@ const RetentionLeads = () => {
 
       <Drawer anchor="right" open={filterOpen} onClose={() => setFilterOpen(false)}>
         <Box sx={{ width: 300, padding: 2 }}>
-          <Typography variant="h6" gutterBottom>
+          <Typography variant="h6" gutterBottom> 
             Filters
           </Typography>
           <Divider sx={{ mb: 2 }} />
