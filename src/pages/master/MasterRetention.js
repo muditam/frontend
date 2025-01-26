@@ -186,7 +186,7 @@ const RetentionTable = () => {
         onClick={() => setFilterOpen(true)}
         sx={{ mb: 2, backgroundColor: "#0073e6", ...styles.button }}
       >
-        Filter
+        Filter 
       </Button>
 
       <Drawer

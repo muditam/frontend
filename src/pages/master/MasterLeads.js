@@ -113,7 +113,7 @@ const LeadTable = () => {
               page,
               limit,
               filters: JSON.stringify(activeFilters),
-            },
+            }, 
           });
           setLeads(response.data.leads);
           setTotalPages(response.data.totalPages);

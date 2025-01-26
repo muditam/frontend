@@ -16,7 +16,7 @@ import Login from "./pages/Login";
 import NavbarWithSearch from "./components/NavBarwithSearch";
 import SalesDashboard from "./components/SalesDashboard";
 import OrdersTable from "./components/AllShopifyOrders";
-import OnlineOrders from "./components/OnlineOrders";
+import OnlineOrders from "./components/OnlineOrders"; 
 
 const App = () => {
 
@@ -26,7 +26,7 @@ const App = () => {
         <NavbarWithSearch />
 
         <Routes>
-          <Route path="/" element={<SalesDashboard />} />
+          <Route path="/" element={<SalesDashboard />} /> 
           <Route path="/login" element={<Login />} />
           <Route path="/bulk-data-upload" element={<BulkDataUpload />} />
           <Route path="/all-shopify-orders" element={<OrdersTable />} />

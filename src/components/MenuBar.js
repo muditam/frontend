@@ -29,6 +29,9 @@ const MenuBar = ({ toggleDrawer }) => {
 
   return (
     <List> 
+      <ListItem button component={Link} to="/" onClick={toggleDrawer}>
+            <ListItemText primary="Home" />
+          </ListItem>
       {role === "Manager" && (
         <>
           <ListItem button component={Link} to="/add-employee" onClick={toggleDrawer}>
