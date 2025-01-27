@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from "react";
 import AgentDashboard from "../Dashboards/AgentDashboard";
-import RetentionDashboard from "../Dashboards/RetentionDashboard";
-import ManagerSalesDashboard from "../Dashboards/MasterSalesDashboard";
-import MasterRetentionDashboard from "../Dashboards/MasterRetentionDashboard";
+import RetentionAgentDashboard from "../Dashboards/RetentionDashboard";
+import ManagerSalesDashboard from "../Dashboards/MasterSalesDashboard"; 
+import ManagerRetentionDashboard from "../Dashboards/MasterRetentionDashboard"; 
 import { useNavigate } from "react-router-dom";
 
 const SalesDashboard = () => {
@@ -79,12 +79,12 @@ const SalesDashboard = () => {
           {/* Active Tab Content */}
           <div style={{ padding: "20px" }}>
             {activeTab === "Sales" && <ManagerSalesDashboard />}
-            {activeTab === "Retention" && <MasterRetentionDashboard />}
+            {activeTab === "Retention" && <ManagerRetentionDashboard />}
           </div>
         </div>
       )}
       {role === "Sales Agent" && <AgentDashboard />}
-      {role === "Retention Agent" && <RetentionDashboard />}
+      {role === "Retention Agent" && <RetentionAgentDashboard />}
     </div>
   );
 };

@@ -9,23 +9,21 @@ const OrdersTable = () => {
 
     useEffect(() => {
         const fetchShopifyOrders = async () => {
-          try {
-            const response = await axios.get(`https://muditamleads-14f32a10d7f7.herokuapp.com/api/orders?page=${currentPage + 1}&limit=${rowsPerPage}`);
-            if (response.data && Array.isArray(response.data)) {
-              setOrders(response.data);
-            } else {
-              throw new Error("Invalid response structure: expected an array");
+            try {
+                const response = await axios.get('https://muditamleads-14f32a10d7f7.herokuapp.com/api/orders'); 
+                if (response.data && Array.isArray(response.data)) {
+                    setOrders(response.data);
+                } else {
+                    throw new Error("Invalid response structure: expected an array");
+                }
+            } catch (error) {
+                console.error('Error fetching orders:', error);
+                console.error('Detailed error:', error.response || error.message || error);
+                setOrders([]);
             }
-          } catch (error) {
-            console.error('Error fetching orders:', error);
-            setOrders([]);
-          }
-          
         };
-      
         fetchShopifyOrders();
-      }, [currentPage, rowsPerPage]);
-      
+    }, []);
 
     const handleChangePage = (event, newPage) => {
         setCurrentPage(newPage);

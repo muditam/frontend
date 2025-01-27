@@ -619,7 +619,7 @@ const SalesMyLeads = () => {
                       calculateReminder(lead.nextFollowup) === "Today"
                         ? "green"
                         : calculateReminder(lead.nextFollowup) === "Tomorrow"
-                          ? "yellow"
+                          ? "blue"
                           : calculateReminder(lead.nextFollowup) ===
                             "Follow-up Missed"
                             ? "red"

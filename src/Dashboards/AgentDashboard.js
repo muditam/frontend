@@ -6,15 +6,27 @@ import {
   Paper,
   CircularProgress,
   Button,
-    Table,
-    TableBody,
-    TableCell,
-    TableContainer,
-    TableHead,
-    TableRow,
-    TextField,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  TextField,
 } from "@mui/material";
 import axios from "axios";
+import WarningAmberIcon from "@mui/icons-material/WarningAmber";
+import { styled } from "@mui/system";
+
+const BlinkingIcon = styled(WarningAmberIcon)({
+  animation: "blink-animation 1.5s steps(2, start) infinite",
+  "@keyframes blink-animation": {
+    "50%": {
+      opacity: 0,
+    },
+  },
+  color: "red",
+});
 
 const AgentDashboard = () => {
   const [user, setUser] = useState(null);
@@ -23,38 +35,38 @@ const AgentDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [leadSourceData, setLeadSourceData] = useState([]);
   const [deliverySummary, setDeliverySummary] = useState([]);
-const [dateFilter, setDateFilter] = useState({ startDate: "", endDate: "" });
-const [totals, setTotals] = useState({
-  leadsAssigned: 0,
-  leadsConverted: 0,
-  conversionRate: 0,
-  salesAmount: 0,
-});
+  const [dateFilter, setDateFilter] = useState({ startDate: "", endDate: "" });
+  const [totals, setTotals] = useState({
+    leadsAssigned: 0,
+    leadsConverted: 0,
+    conversionRate: 0,
+    salesAmount: 0,
+  });
 
-const [allTimeStats, setAllTimeStats] = useState({
-  totalLeads: 0,
-  salesDone: 0,
-  conversionRate: 0,
-  totalSales: 0,
-  avgOrderValue: 0,
-});
+  const [allTimeStats, setAllTimeStats] = useState({
+    totalLeads: 0,
+    salesDone: 0,
+    conversionRate: 0,
+    totalSales: 0,
+    avgOrderValue: 0,
+  });
 
-const [filters, setFilters] = useState({ startDate: "", endDate: "" });
-const leadSources = [
-  "Abandoned Cart",
-  "BiteSpeed",
-  "Business on Bot",
-  "Facebook Lead",
-  "Google Lead",
-  "Incoming Call",
-  "Lead Form",
-  "Online Store",
-  "Others",
-  "Rampwin",
-  "Reference",
-  "Whatsapp",
-  "Degpeg",
-];
+  const [filters, setFilters] = useState({ startDate: "", endDate: "" });
+  const leadSources = [
+    "Abandoned Cart",
+    "BiteSpeed",
+    "Business on Bot",
+    "Facebook Lead",
+    "Google Lead",
+    "Incoming Call",
+    "Lead Form",
+    "Online Store",
+    "Others",
+    "Rampwin",
+    "Reference",
+    "Whatsapp",
+    "Degpeg",
+  ];
 
   useEffect(() => {
     const loggedInUser = JSON.parse(sessionStorage.getItem("user"));
@@ -64,23 +76,23 @@ const leadSources = [
     }
   }, []);
 
-  
+
 
   const fetchAllTimeData = async (agentName) => {
     try {
       const response = await axios.get(
         "https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads",
-        { params: { agentAssignedName: agentName, limit: 0 } } // Fetch all records
+        { params: { agentAssignedName: agentName, limit: 0 } } 
       );
-      
-  
+
+
       const leads = response.data.leads || [];
       const salesDoneLeads = leads.filter((lead) => lead.salesStatus === "Sales Done");
       const totalSales = salesDoneLeads.reduce(
         (acc, lead) => acc + (lead.amountPaid || 0),
         0
       );
-  
+
       setAllTimeStats({
         totalLeads: leads.length,
         salesDone: salesDoneLeads.length,
@@ -107,10 +119,10 @@ const leadSources = [
         { params: { agentAssignedName: user?.fullName, limit: 0 } } // Fetch all leads
       );
       console.log("API Response:", response.data);
-  
+
       const leads = response.data.leads || [];
       console.log("Total Leads Retrieved:", leads.length);
-  
+
       // Filter leads by date range
       const filteredLeads = leads.filter((lead) => {
         // Validate and normalize lead.date
@@ -118,16 +130,16 @@ const leadSources = [
           console.warn(`Invalid or missing date for lead:`, lead);
           return false; // Skip leads with invalid dates
         }
-  
+
         const leadDate = new Date(lead.date).toISOString().split("T")[0];
-  
+
         return (
           (!dateFilter.startDate || leadDate >= dateFilter.startDate) &&
           (!dateFilter.endDate || leadDate <= dateFilter.endDate)
         );
       });
       console.log("Filtered Leads:", filteredLeads);
-  
+
       const totalOrders = filteredLeads.filter(
         (lead) => lead.salesStatus === "Sales Done"
       );
@@ -146,10 +158,10 @@ const leadSources = [
           lead.deliveryStatus !== "Undelivered" &&
           lead.deliveryStatus !== "RTO"
       );
-  
+
       const calculateTotalAmount = (orders) =>
         orders.reduce((acc, lead) => acc + (lead.amountPaid || 0), 0);
-  
+
       const summary = [
         {
           label: "Total Orders",
@@ -194,15 +206,15 @@ const leadSources = [
               : 0,
         },
       ];
-  
+
       console.log("Delivery Summary:", summary);
       setDeliverySummary(summary);
     } catch (error) {
       console.error("Error fetching delivery summary:", error);
     }
   };
-  
-  
+
+
   const applyLeadSourceFilters = async () => {
     try {
       const response = await axios.get(
@@ -212,12 +224,12 @@ const leadSources = [
             agentAssignedName: user?.fullName,
             startDate: filters.startDate,
             endDate: filters.endDate,
-            limit: 0, 
+            limit: 0,
           },
         }
       );
-      
-  
+
+
       const leads = response.data.leads || [];
       const sourceSummary = leadSources.map((source) => {
         const leadsBySource = leads.filter((lead) => lead.leadSource === source);
@@ -228,7 +240,7 @@ const leadSources = [
           (acc, lead) => acc + (lead.amountPaid || 0),
           0
         );
-  
+
         return {
           leadSource: source,
           leadsAssigned: leadsBySource.length,
@@ -240,7 +252,7 @@ const leadSources = [
           salesAmount,
         };
       });
-  
+
       const totalLeadsAssigned = sourceSummary.reduce(
         (acc, row) => acc + row.leadsAssigned,
         0
@@ -253,7 +265,7 @@ const leadSources = [
         (acc, row) => acc + row.salesAmount,
         0
       );
-  
+
       setLeadSourceData(sourceSummary);
       setTotals({
         leadsAssigned: totalLeadsAssigned,
@@ -274,9 +286,9 @@ const leadSources = [
       setLoading(true);
       const response = await axios.get(
         "https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads",
-        { params: { agentAssignedName: agentName, limit: 0 } }   
+        { params: { agentAssignedName: agentName, limit: 0 } }
       );
-      
+
 
       const leads = response.data.leads || [];
       const todayDate = new Date().toISOString().split("T")[0];
@@ -286,7 +298,7 @@ const leadSources = [
 
       // Calculate "Today" section stats
       const openLeads = leads.filter(
-        (lead) => lead.salesStatus === "On Follow Up"
+        (lead) => lead.salesStatus === "On Follow Up" || lead.salesStatus === ""
       ).length;
       const leadsAssignedToday = leads.filter(
         (lead) => lead.date === todayDate
@@ -405,18 +417,33 @@ const leadSources = [
         </Typography>
         <Grid container spacing={3}>
           {[
-            { label: "No Followup Set", value: followupStats.noFollowupSet },
-            { label: "Followup Missed", value: followupStats.followupMissed },
+            {
+              label: "No Followup Set",
+              value: followupStats.noFollowupSet,
+              showIcon: followupStats.noFollowupSet > 0,
+            },
+            {
+              label: "Followup Missed",
+              value: followupStats.followupMissed,
+              showIcon: followupStats.followupMissed > 0,
+            },
             { label: "Followup Today", value: followupStats.followupToday },
             { label: "Followup Tomorrow", value: followupStats.followupTomorrow },
             { label: "Followup Later", value: followupStats.followupLater },
-          ].map(({ label, value }) => (
+          ].map(({ label, value, showIcon }) => (
             <Grid item xs={12} sm={6} md={4} key={label}>
-              <Paper sx={{ padding: 2, textAlign: "center" }}>
+              <Paper
+                sx={{
+                  padding: 2,
+                  textAlign: "center",
+                  position: "relative",
+                }}
+              >
                 <Typography variant="subtitle1" gutterBottom>
                   {label}
                 </Typography>
                 <Typography variant="h6">{value}</Typography>
+                {showIcon && <BlinkingIcon sx={{ position: "absolute", top: 8, right: 8 }} />}
               </Paper>
             </Grid>
           ))}
@@ -424,209 +451,209 @@ const leadSources = [
       </Paper>
 
       <Paper
-  sx={{
-    padding: 2,
-    marginTop: 3,
-    backgroundColor: "#E5E5E5", // Adjust background color if needed
-  }}
->
-  <Typography variant="h5" gutterBottom>
-    Lead Source Summary
-  </Typography>
+        sx={{
+          padding: 2,
+          marginTop: 3,
+          backgroundColor: "#E5E5E5", // Adjust background color if needed
+        }}
+      >
+        <Typography variant="h5" gutterBottom>
+          Lead Source Summary
+        </Typography>
 
-  <Box sx={{ display: "flex", gap: 2, marginBottom: 2 }}>
-    <TextField
-      label="Start Date"
-      type="date"
-      InputLabelProps={{ shrink: true }}
-      value={filters.startDate || ""}
-      onChange={(e) =>
-        setFilters((prev) => ({ ...prev, startDate: e.target.value }))
-      }
-      fullWidth
-    />
-    <TextField
-      label="End Date"
-      type="date"
-      InputLabelProps={{ shrink: true }}
-      value={filters.endDate || ""}
-      onChange={(e) =>
-        setFilters((prev) => ({ ...prev, endDate: e.target.value }))
-      }
-      fullWidth
-    />
-    <Button
-      variant="contained"
-      onClick={applyLeadSourceFilters}
-      sx={{ alignSelf: "center" }}
-    >
-      Apply Filters
-    </Button>
-  </Box>
+        <Box sx={{ display: "flex", gap: 2, marginBottom: 2 }}>
+          <TextField
+            label="Start Date"
+            type="date"
+            InputLabelProps={{ shrink: true }}
+            value={filters.startDate || ""}
+            onChange={(e) =>
+              setFilters((prev) => ({ ...prev, startDate: e.target.value }))
+            }
+            fullWidth
+          />
+          <TextField
+            label="End Date"
+            type="date"
+            InputLabelProps={{ shrink: true }}
+            value={filters.endDate || ""}
+            onChange={(e) =>
+              setFilters((prev) => ({ ...prev, endDate: e.target.value }))
+            }
+            fullWidth
+          />
+          <Button
+            variant="contained"
+            onClick={applyLeadSourceFilters}
+            sx={{ alignSelf: "center" }}
+          >
+            Apply Filters
+          </Button>
+        </Box>
 
-  <TableContainer component={Paper}>
-    <Table>
-      <TableHead>
-        <TableRow>
-          <TableCell>Lead Source</TableCell>
-          <TableCell>Leads Assigned</TableCell>
-          <TableCell>Leads Converted</TableCell>
-          <TableCell>Conversion Rate</TableCell>
-          <TableCell>Sales Amount</TableCell>
-        </TableRow>
-      </TableHead>
-      <TableBody>
-        {leadSourceData.map((row) => (
-          <TableRow key={row.leadSource}>
-            <TableCell>{row.leadSource}</TableCell>
-            <TableCell>{row.leadsAssigned}</TableCell>
-            <TableCell>{row.leadsConverted}</TableCell>
-            <TableCell>{`${row.conversionRate}%`}</TableCell>
-            <TableCell>{`₹${row.salesAmount}`}</TableCell>
-          </TableRow>
-        ))}
-        <TableRow>
-          <TableCell>
-            <Typography fontWeight="bold">Total</Typography>
-          </TableCell>
-          <TableCell>{totals.leadsAssigned}</TableCell>
-          <TableCell>{totals.leadsConverted}</TableCell>
-          <TableCell>{`${totals.conversionRate}%`}</TableCell>
-          <TableCell>{`₹${totals.salesAmount}`}</TableCell>
-        </TableRow>
-      </TableBody>
-    </Table>
-  </TableContainer>
-</Paper>
+        <TableContainer component={Paper}>
+          <Table>
+            <TableHead>
+              <TableRow>
+                <TableCell>Lead Source</TableCell>
+                <TableCell>Leads Assigned</TableCell>
+                <TableCell>Leads Converted</TableCell>
+                <TableCell>Conversion Rate</TableCell>
+                <TableCell>Sales Amount</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {leadSourceData.map((row) => (
+                <TableRow key={row.leadSource}>
+                  <TableCell>{row.leadSource}</TableCell>
+                  <TableCell>{row.leadsAssigned}</TableCell>
+                  <TableCell>{row.leadsConverted}</TableCell>
+                  <TableCell>{`${row.conversionRate}%`}</TableCell>
+                  <TableCell>{`₹${row.salesAmount}`}</TableCell>
+                </TableRow>
+              ))}
+              <TableRow>
+                <TableCell>
+                  <Typography fontWeight="bold">Total</Typography>
+                </TableCell>
+                <TableCell>{totals.leadsAssigned}</TableCell>
+                <TableCell>{totals.leadsConverted}</TableCell>
+                <TableCell>{`${totals.conversionRate}%`}</TableCell>
+                <TableCell>{`₹${totals.salesAmount}`}</TableCell>
+              </TableRow>
+            </TableBody>
+          </Table>
+        </TableContainer>
+      </Paper>
 
-{/* All Time Summary Section */}
-<Paper
-  sx={{
-    padding: 2,
-    marginTop: 3,
-    backgroundColor: "#FFFFFF",
-  }}
->
-  <Typography variant="h5" gutterBottom>
-    All Time
-  </Typography>
+      {/* All Time Summary Section */}
+      <Paper
+        sx={{
+          padding: 2,
+          marginTop: 3,
+          backgroundColor: "#FFFFFF",
+        }}
+      >
+        <Typography variant="h5" gutterBottom>
+          All Time
+        </Typography>
 
-  <TableContainer component={Paper}>
-    <Table>
-      <TableHead>
-        <TableRow sx={{ backgroundColor: "#F4CCCC" }}>
-          <TableCell>
-            <Typography fontWeight="bold">Label</Typography>
-          </TableCell>
-          <TableCell>
-            <Typography fontWeight="bold">Total Leads</Typography>
-          </TableCell>
-          <TableCell>
-            <Typography fontWeight="bold">Sales Done</Typography>
-          </TableCell>
-          <TableCell>
-            <Typography fontWeight="bold">Conversion Rate</Typography>
-          </TableCell>
-          <TableCell>
-            <Typography fontWeight="bold">Total Sales</Typography>
-          </TableCell>
-          <TableCell>
-            <Typography fontWeight="bold">Average Order Value</Typography>
-          </TableCell>
-        </TableRow>
-      </TableHead>
-      <TableBody>
-        <TableRow>
-          <TableCell>
-            <Typography fontWeight="bold">All Time</Typography>
-          </TableCell>
-          <TableCell>{allTimeStats.totalLeads}</TableCell>
-          <TableCell>{allTimeStats.salesDone}</TableCell>
-          <TableCell>{`${allTimeStats.conversionRate}%`}</TableCell>
-          <TableCell>{`₹${allTimeStats.totalSales}`}</TableCell>
-          <TableCell>{`₹${allTimeStats.avgOrderValue}`}</TableCell>
-        </TableRow>
-      </TableBody>
-    </Table>
-  </TableContainer>
-</Paper>
+        <TableContainer component={Paper}>
+          <Table>
+            <TableHead>
+              <TableRow sx={{ backgroundColor: "#F4CCCC" }}>
+                <TableCell>
+                  <Typography fontWeight="bold">Label</Typography>
+                </TableCell>
+                <TableCell>
+                  <Typography fontWeight="bold">Total Leads</Typography>
+                </TableCell>
+                <TableCell>
+                  <Typography fontWeight="bold">Sales Done</Typography>
+                </TableCell>
+                <TableCell>
+                  <Typography fontWeight="bold">Conversion Rate</Typography>
+                </TableCell>
+                <TableCell>
+                  <Typography fontWeight="bold">Total Sales</Typography>
+                </TableCell>
+                <TableCell>
+                  <Typography fontWeight="bold">Average Order Value</Typography>
+                </TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              <TableRow>
+                <TableCell>
+                  <Typography fontWeight="bold">All Time</Typography>
+                </TableCell>
+                <TableCell>{allTimeStats.totalLeads}</TableCell>
+                <TableCell>{allTimeStats.salesDone}</TableCell>
+                <TableCell>{`${allTimeStats.conversionRate}%`}</TableCell>
+                <TableCell>{`₹${allTimeStats.totalSales}`}</TableCell>
+                <TableCell>{`₹${allTimeStats.avgOrderValue}`}</TableCell>
+              </TableRow>
+            </TableBody>
+          </Table>
+        </TableContainer>
+      </Paper>
 
-{/* Delivery Status Summary Section */}
-<Paper
-  sx={{
-    padding: 2,
-    marginTop: 3,
-    backgroundColor: "#FFFFFF",
-  }}
->
-  <Typography variant="h5" gutterBottom>
-    Delivery Status Summary
-  </Typography>
+      {/* Delivery Status Summary Section */}
+      <Paper
+        sx={{
+          padding: 2,
+          marginTop: 3,
+          backgroundColor: "#FFFFFF",
+        }}
+      >
+        <Typography variant="h5" gutterBottom>
+          Delivery Status Summary
+        </Typography>
 
-  {/* Date Range Filter */}
-  <Box sx={{ display: "flex", gap: 2, marginBottom: 2 }}>
-    <TextField
-      label="Start Date"
-      type="date"
-      value={dateFilter.startDate}
-      onChange={(e) =>
-        setDateFilter((prev) => ({ ...prev, startDate: e.target.value }))
-      }
-      InputLabelProps={{ shrink: true }}
-      fullWidth
-    />
-    <TextField
-      label="End Date"
-      type="date"
-      value={dateFilter.endDate}
-      onChange={(e) =>
-        setDateFilter((prev) => ({ ...prev, endDate: e.target.value }))
-      }
-      InputLabelProps={{ shrink: true }}
-      fullWidth
-    />
-    <Button
-      variant="contained"
-      onClick={fetchDeliverySummary}
-      sx={{ alignSelf: "flex-end" }}
-    >
-      Apply Filters
-    </Button>
-  </Box>
+        {/* Date Range Filter */}
+        <Box sx={{ display: "flex", gap: 2, marginBottom: 2 }}>
+          <TextField
+            label="Start Date"
+            type="date"
+            value={dateFilter.startDate}
+            onChange={(e) =>
+              setDateFilter((prev) => ({ ...prev, startDate: e.target.value }))
+            }
+            InputLabelProps={{ shrink: true }}
+            fullWidth
+          />
+          <TextField
+            label="End Date"
+            type="date"
+            value={dateFilter.endDate}
+            onChange={(e) =>
+              setDateFilter((prev) => ({ ...prev, endDate: e.target.value }))
+            }
+            InputLabelProps={{ shrink: true }}
+            fullWidth
+          />
+          <Button
+            variant="contained"
+            onClick={fetchDeliverySummary}
+            sx={{ alignSelf: "flex-end" }}
+          >
+            Apply Filters
+          </Button>
+        </Box>
 
-  <TableContainer component={Paper}>
-    <Table>
-      <TableHead>
-        <TableRow sx={{ backgroundColor: "#F4CCCC" }}>
-          <TableCell>
-            <Typography fontWeight="bold">Category</Typography>
-          </TableCell>
-          <TableCell>
-            <Typography fontWeight="bold">Total Orders</Typography>
-          </TableCell>
-          <TableCell>
-            <Typography fontWeight="bold">Total Amount</Typography>
-          </TableCell>
-          <TableCell>
-            <Typography fontWeight="bold">Percentage</Typography>
-          </TableCell>
-        </TableRow>
-      </TableHead>
-      <TableBody>
-        {deliverySummary.map((row) => (
-          <TableRow key={row.label}>
-            <TableCell>
-              <Typography fontWeight="bold">{row.label}</Typography>
-            </TableCell>
-            <TableCell>{row.totalOrders}</TableCell>
-            <TableCell>{`₹${row.totalAmount}`}</TableCell>
-            <TableCell>{`${row.percentage}%`}</TableCell>
-          </TableRow>
-        ))}
-      </TableBody>
-    </Table>
-  </TableContainer>
-</Paper>
+        <TableContainer component={Paper}>
+          <Table>
+            <TableHead>
+              <TableRow sx={{ backgroundColor: "#F4CCCC" }}>
+                <TableCell>
+                  <Typography fontWeight="bold">Category</Typography>
+                </TableCell>
+                <TableCell>
+                  <Typography fontWeight="bold">Total Orders</Typography>
+                </TableCell>
+                <TableCell>
+                  <Typography fontWeight="bold">Total Amount</Typography>
+                </TableCell>
+                <TableCell>
+                  <Typography fontWeight="bold">Percentage</Typography>
+                </TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {deliverySummary.map((row) => (
+                <TableRow key={row.label}>
+                  <TableCell>
+                    <Typography fontWeight="bold">{row.label}</Typography>
+                  </TableCell>
+                  <TableCell>{row.totalOrders}</TableCell>
+                  <TableCell>{`₹${row.totalAmount}`}</TableCell>
+                  <TableCell>{`${row.percentage}%`}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      </Paper>
 
     </Box>
   );
