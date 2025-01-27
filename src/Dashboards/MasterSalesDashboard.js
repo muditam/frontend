@@ -29,6 +29,14 @@ const ManagerSalesDashboard = () => {
   const [agents, setAgents] = useState([]);
   const [selectedAgent, setSelectedAgent] = useState("All Agents");
   const [dateFilter, setDateFilter] = useState({ startDate: "", endDate: "" });
+  const [salesSummary, setSalesSummary] = useState({
+    openLeads: 0,
+    leadsAssignedToday: 0,
+    salesDone: 0,
+    conversionRate: 0,
+    totalSales: 0,
+    avgOrderValue: 0,
+  });
 
   const leadSources = [
     "Abandoned Cart",
@@ -212,11 +220,66 @@ const ManagerSalesDashboard = () => {
     }
   };
 
+  const fetchSalesSummary = async () => {
+    try {
+      const response = await axios.get(
+        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads",
+        { params: { limit: 0 } } // Fetch all leads
+      );
+
+      const leads = response.data.leads || [];
+      const todayDate = new Date().toISOString().split("T")[0];
+
+      // Open Leads
+      const openLeads = leads.filter(
+        (lead) => lead.salesStatus === "On Follow Up"
+      ).length;
+
+      // Leads Assigned Today
+      const leadsAssignedToday = leads.filter(
+        (lead) => lead.date === todayDate
+      ).length;
+
+      // Sales Done Today
+      const salesDoneToday = leads.filter(
+        (lead) =>
+          lead.salesStatus === "Sales Done" && lead.date === todayDate
+      );
+
+      const totalSales = salesDoneToday.reduce(
+        (acc, lead) => acc + (lead.amountPaid || 0),
+        0
+      );
+
+      const conversionRate =
+        leadsAssignedToday > 0
+          ? ((salesDoneToday.length / leadsAssignedToday) * 100).toFixed(2)
+          : 0;
+
+      const avgOrderValue =
+        salesDoneToday.length > 0
+          ? (totalSales / salesDoneToday.length).toFixed(2)
+          : 0;
+
+      setSalesSummary({
+        openLeads,
+        leadsAssignedToday,
+        salesDone: salesDoneToday.length,
+        conversionRate,
+        totalSales,
+        avgOrderValue,
+      });
+    } catch (error) {
+      console.error("Error fetching sales summary:", error);
+    }
+  };
+
   useEffect(() => {
     if (agents.length > 0) { 
       const today = new Date().toISOString().split("T")[0];
       setDateFilter({ startDate: today, endDate: today });
       fetchLeadSourceData();
+      fetchSalesSummary();
     }
   }, [agents]);
   
@@ -234,7 +297,56 @@ const ManagerSalesDashboard = () => {
         {user?.fullName} - Sales Team Dashboard
       </Typography>
 
-      {/* Today Section */}
+<Paper
+      sx={{
+        padding: 2,
+        marginTop: 3,
+        backgroundColor: "#E8F5E9",
+      }}
+    >
+      <Typography variant="h5" gutterBottom>
+        Sales Summary - Today
+      </Typography>
+      <Grid container spacing={3}>
+        {[{
+          label: "Open Leads",
+          value: salesSummary.openLeads,
+        },
+        {
+          label: "Leads Assigned Today",
+          value: salesSummary.leadsAssignedToday,
+        },
+        {
+          label: "Sales Done",
+          value: salesSummary.salesDone,
+        },
+        {
+          label: "Conversion Rate",
+          value: `${salesSummary.conversionRate}%`,
+        },
+        {
+          label: "Total Sales",
+          value: `₹${salesSummary.totalSales}`,
+        },
+        {
+          label: "Average Order Value",
+          value: `₹${salesSummary.avgOrderValue}`,
+        }].map(({ label, value }) => (
+          <Grid item xs={12} sm={6} md={4} key={label}>
+            <Paper sx={{ padding: 2, textAlign: "center" }}>
+              <Typography variant="subtitle1" gutterBottom>
+                {label}
+              </Typography>
+              <Typography variant="h6">{value}</Typography>
+            </Paper>
+          </Grid>
+        ))}
+      </Grid>
+    </Paper>
+
+    
+
+      {/* Today Section */} 
       <Paper
         sx={{
           padding: 2,
@@ -274,6 +386,61 @@ const ManagerSalesDashboard = () => {
           </Table>
         </TableContainer>
       </Paper>
+
+      {/* Followup Summary Section */}
+<Paper
+  sx={{
+    padding: 3,
+    marginTop: 3,
+    backgroundColor: "#E0F7FA",
+    borderRadius: 2,
+  }}
+>
+  <Typography variant="h5" gutterBottom>
+    Followup Summary
+  </Typography>
+  <Grid container spacing={3}>
+    {[
+      {
+        label: "No Followup Set",
+        value: followupStats.reduce((sum, stat) => sum + stat.noFollowupSet, 0), 
+      },
+      {
+        label: "Followup Missed",
+        value: followupStats.reduce((sum, stat) => sum + stat.followupMissed, 0), 
+      },
+      {
+        label: "Followup Today",
+        value: followupStats.reduce((sum, stat) => sum + stat.followupToday, 0), 
+      },
+      {
+        label: "Followup Tomorrow",
+        value: followupStats.reduce((sum, stat) => sum + stat.followupTomorrow, 0), 
+      },
+      {
+        label: "Followup Later",
+        value: followupStats.reduce((sum, stat) => sum + stat.followupLater, 0), 
+      },
+    ].map(({ label, value, color }) => (
+      <Grid item xs={12} sm={6} md={4} key={label}>
+        <Paper
+          sx={{
+            padding: 2,
+            textAlign: "center",
+            backgroundColor: color,
+            borderRadius: 2,
+          }}
+          elevation={3}
+        >
+          <Typography variant="subtitle1" sx={{ fontWeight: "bold" }}>
+            {label}
+          </Typography>
+          <Typography variant="h6">{value}</Typography>
+        </Paper>
+      </Grid>
+    ))}
+  </Grid>
+</Paper>
 
       {/* Followup Section */}
       <Paper

@@ -320,117 +320,251 @@ const RetentionAgentDashboard = () => {
       </Typography>
 
       {/* Today Section */}
-      <Typography variant="h5" gutterBottom sx={{ mt: 3 }}>
-        Today
+      {/* Today Section */}
+<Typography
+  variant="h5"
+  gutterBottom
+  sx={{
+    mt: 3,
+    mb: 5,
+    textAlign: "left",
+    fontWeight: "bold",
+    color: "#0288D1",
+  }}
+>
+  Today
+</Typography>
+<Grid
+  container
+  spacing={3}
+  sx={{
+    display: "grid",
+    gridTemplateColumns: "repeat(5, 1fr)", // Ensures 5 columns
+    gap: 3,
+  }}
+>
+  {[
+    { label: "Active Customers", value: todayMetrics.activeCustomers || 0 },
+    {
+      label: "Customers Assigned Today",
+      value: todayMetrics.customersAssignedToday || 0,
+    },
+    { label: "Sales Done", value: todayMetrics.salesDone || 0 },
+    {
+      label: "Total Sales",
+      value: `₹${(todayMetrics.totalSales || 0).toFixed(2)}`,
+    },
+    {
+      label: "Average Order Value",
+      value: `₹${(todayMetrics.avgOrderValue || 0).toFixed(2)}`,
+    },
+  ].map(({ label, value }) => (
+    <Paper
+      key={label}
+      sx={{
+        padding: 3,
+        textAlign: "center",
+        borderRadius: 3,
+        backgroundColor: "#E3F2FD",
+        boxShadow: "0px 4px 10px rgba(0, 0, 0, 0.1)",
+        transition: "transform 0.3s",
+        "&:hover": { transform: "scale(1.05)" },
+      }}
+    >
+      <Typography
+        variant="subtitle1"
+        gutterBottom
+        sx={{ fontWeight: "bold"  }}
+      >
+        {label}
       </Typography>
-      <Grid container spacing={3}>
-        {[
-          { label: "Active Customers", value: todayMetrics.activeCustomers || 0 },
-          {
-            label: "Customers Assigned Today",
-            value: todayMetrics.customersAssignedToday || 0,
-          },
-          { label: "Sales Done", value: todayMetrics.salesDone || 0 },
-          {
-            label: "Total Sales",
-            value: `₹${(todayMetrics.totalSales || 0).toFixed(2)}`,
-          },
-          {
-            label: "Average Order Value",
-            value: `₹${(todayMetrics.avgOrderValue || 0).toFixed(2)}`,
-          },
-        ].map(({ label, value }) => (
-          <Grid item xs={12} sm={6} md={4} key={label}>
-            <Paper sx={{ padding: 2, textAlign: "center" }}>
-              <Typography variant="subtitle1" gutterBottom>
-                {label}
-              </Typography>
-              <Typography variant="h6">{value}</Typography>
-            </Paper>
-          </Grid>
-        ))}
-      </Grid>
+      <Typography
+        variant="h6"
+        sx={{ fontWeight: "bold"  }}
+      >
+        {value}
+      </Typography>
+    </Paper>
+  ))}
+</Grid>
+
 
       {/* Follow-Up Section */}
-      <Typography variant="h5" gutterBottom sx={{ mt: 4 }}>
-        Follow-Up
+<Typography
+  variant="h5"
+  gutterBottom
+  sx={{
+    mt: 4,
+    mb: 4,
+    textAlign: "left",
+    fontWeight: "bold", 
+    color: "#0288D1",
+  }}
+>
+  Follow-Up
+</Typography>
+<Grid
+  container
+  spacing={3}
+  sx={{
+    display: "grid",
+    gridTemplateColumns: "repeat(5, 1fr)",  
+    gap: 3,
+  }}
+>
+  {[
+    {
+      label: "No Followup Set",
+      value: followupMetrics.noFollowupSet,
+      showIcon: followupMetrics.noFollowupSet > 0, 
+      color: "#C8E6C9",
+    },
+    {
+      label: "Followup Missed",
+      value: followupMetrics.followupMissed,
+      showIcon: followupMetrics.followupMissed > 0,
+      color: "#C8E6C9",
+    },
+    {
+      label: "Followup Today",
+      value: followupMetrics.followupToday,
+      color: "#C8E6C9",
+    },
+    {
+      label: "Followup Tomorrow",
+      value: followupMetrics.followupTomorrow,
+      color: "#C8E6C9",
+    },
+    {
+      label: "Followup Later",
+      value: followupMetrics.followupLater,
+      color: "#C8E6C9",
+    },
+  ].map(({ label, value, showIcon, color }) => (
+    <Paper
+      key={label}
+      sx={{
+        padding: 3,
+        textAlign: "center",
+        borderRadius: 3,
+        backgroundColor: color,
+        boxShadow: "0px 4px 10px rgba(0, 0, 0, 0.1)",
+        position: "relative",
+        transition: "transform 0.3s",
+        "&:hover": { transform: "scale(1.05)" },
+      }}
+    >
+      <Typography
+        variant="subtitle1"
+        gutterBottom
+        sx={{ fontWeight: "bold", color: "#37474F" }}
+      >
+        {label}
       </Typography>
-      <Grid container spacing={3}>
-        {[
-          {
-            label: "No Followup Set",
-            value: followupMetrics.noFollowupSet,
-            showIcon: followupMetrics.noFollowupSet > 0,
-          },
-          {
-            label: "Followup Missed",
-            value: followupMetrics.followupMissed,
-            showIcon: followupMetrics.followupMissed > 0,
-          },
-          { label: "Followup Today", value: followupMetrics.followupToday },
-          { label: "Followup Tomorrow", value: followupMetrics.followupTomorrow },
-          { label: "Followup Later", value: followupMetrics.followupLater },
-        ].map(({ label, value, showIcon }) => (
-          <Grid item xs={12} sm={6} md={4} key={label}>
-            <Paper
-              sx={{
-                padding: 2,
-                textAlign: "center",
-                position: "relative",
-              }}
-            >
-              <Typography variant="subtitle1" gutterBottom>
-                {label}
-              </Typography>
-              <Typography variant="h6">{value}</Typography>
-              {showIcon && (
-                <BlinkingIcon sx={{ position: "absolute", top: 8, right: 8 }} />
-              )}
-            </Paper>
-          </Grid>
-        ))}
-      </Grid>
+      <Typography
+        variant="h6"
+        sx={{ fontWeight: "bold", color: "#212121" }}
+      >
+        {value}
+      </Typography>
+      {showIcon && (
+        <BlinkingIcon
+          sx={{
+            position: "absolute",
+            top: 8,
+            right: 8,
+            color: "#FF5722",
+          }}
+        />
+      )}
+    </Paper>
+  ))}
+</Grid>
+
 
       {/* All Time Section */}
-      <Typography variant="h5" gutterBottom sx={{ mt: 4 }}>
-        All Time
+<Typography
+  variant="h5"
+  gutterBottom
+  sx={{
+    mt: 4,
+    mb: 4,
+    textAlign: "left",
+    fontWeight: "bold",
+    color: "#4CAF50",
+  }}
+>
+  All Time
+</Typography>
+<Grid
+  container
+  spacing={3}
+  sx={{
+    display: "grid",
+    gridTemplateColumns: "repeat(4, 1fr)",  
+    gap: 3,
+  }}
+>
+  {[
+    { label: "Total Customers", value: allTimeMetrics.totalCustomers || 0, color: "#FFF59D" },
+    {
+      label: "Customers Retained This Month",
+      value: allTimeMetrics.customersRetainedThisMonth || 0,
+      color: "#FFF59D",
+    },
+    {
+      label: "Retention Rate",
+      value: `${allTimeMetrics.retentionRate || 0}%`,
+      color: "#FFF59D",
+    },
+    {
+      label: "Active Customers",
+      value: allTimeMetrics.activeCustomers || 0,
+      color: "#FFF59D",
+    },
+    { label: "Lost Customers", value: allTimeMetrics.lostCustomers || 0, color: "#FFF59D" },
+    { label: "Sales Done", value: allTimeMetrics.salesDone || 0, color: "#FFF59D" },
+    {
+      label: "Total Sales",
+      value: `₹${(allTimeMetrics.totalSales || 0).toFixed(2)}`,
+      color: "#FFF59D",
+    },
+    {
+      label: "Average Order Value",
+      value: `₹${(allTimeMetrics.avgOrderValue || 0).toFixed(2)}`,
+      color: "#FFF59D",
+    },
+  ].map(({ label, value, color }) => (
+    <Paper
+      key={label}
+      sx={{
+        padding: 3,
+        textAlign: "center",
+        borderRadius: 3,
+        backgroundColor: color,
+        boxShadow: "0px 4px 10px rgba(0, 0, 0, 0.1)",
+        transition: "transform 0.3s",
+        "&:hover": { transform: "scale(1.05)" },
+      }}
+    >
+      <Typography
+        variant="subtitle1"
+        gutterBottom
+        sx={{ fontWeight: "bold", color: "#37474F" }}
+      >
+        {label}
       </Typography>
-      <Grid container spacing={3}>
-        {[
-          { label: "Total Customers", value: allTimeMetrics.totalCustomers || 0 },
-          {
-            label: "Customers Retained This Month",
-            value: allTimeMetrics.customersRetainedThisMonth || 0,
-          },
-          {
-            label: "Retention Rate",
-            value: `${allTimeMetrics.retentionRate || 0}%`,
-          },
-          {
-            label: "Active Customers",
-            value: allTimeMetrics.activeCustomers || 0,
-          },
-          { label: "Lost Customers", value: allTimeMetrics.lostCustomers || 0 },
-          { label: "Sales Done", value: allTimeMetrics.salesDone || 0 },
-          {
-            label: "Total Sales",
-            value: `₹${(allTimeMetrics.totalSales || 0).toFixed(2)}`,
-          },
-          {
-            label: "Average Order Value",
-            value: `₹${(allTimeMetrics.avgOrderValue || 0).toFixed(2)}`,
-          },
-        ].map(({ label, value }) => (
-          <Grid item xs={12} sm={6} md={4} key={label}>
-            <Paper sx={{ padding: 2, textAlign: "center" }}>
-              <Typography variant="subtitle1" gutterBottom>
-                {label}
-              </Typography>
-              <Typography variant="h6">{value}</Typography>
-            </Paper>
-          </Grid>
-        ))}
-      </Grid>
+      <Typography
+        variant="h6"
+        sx={{ fontWeight: "bold", color: "#212121" }}
+      >
+        {value}
+      </Typography>
+    </Paper>
+  ))}
+</Grid>
+
+
       {/* Delivery Status Section */}
       <Typography variant="h5" gutterBottom sx={{ mt: 4 }}>
         Order Delivery Status

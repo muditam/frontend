@@ -85,6 +85,7 @@ const SalesMyLeads = () => {
           agentAssignedName: agentAssigned,
           page: currentPage + 1, // Backend expects 1-based indexing
           limit: rowsPerPage, // Number of rows per page
+          filters: JSON.stringify(filters),
         },
       });
   
@@ -215,28 +216,35 @@ const SalesMyLeads = () => {
     if (diffInDays === 1) return "Tomorrow";
     return diffInDays > 1 ? "Later" : "";
   };
+ 
 
-  const applyFilters = () => {
-    const filteredLeads = leads.filter((lead) => {
-      return (
-        (!filters.dateFrom || new Date(lead.date) >= new Date(filters.dateFrom)) &&
-        (!filters.dateTo || new Date(lead.date) <= new Date(filters.dateTo)) &&
-        (!filters.name || lead.name.toLowerCase().includes(filters.name.toLowerCase())) &&
-        (!filters.contactNumber || lead.contactNumber.includes(filters.contactNumber)) &&
-        (!filters.leadSource || lead.leadSource === filters.leadSource) &&
-        (!filters.enquiryFor || lead.enquiryFor === filters.enquiryFor) &&
-        (!filters.customerType || lead.customerType === filters.customerType) &&
-        (!filters.productPitched.length || filters.productPitched.every((item) => lead.productPitched.includes(item))) &&
-        (!filters.leadStatus || lead.leadStatus === filters.leadStatus) &&
-        (!filters.salesStatus || lead.salesStatus === filters.salesStatus) &&
-        (!filters.nextFollowup || lead.nextFollowup === filters.nextFollowup) &&
-        (!filters.followupReminder || calculateReminder(lead.nextFollowup) === filters.followupReminder)
-      );
-    });
-    setLeads(filteredLeads);
+  const applyFilters = async () => {
+    setLoading(true);  
+    setCurrentPage(0);  
+  
+    try { 
+      const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads", {
+        params: {
+          agentAssignedName: agentName,  
+          page: 1,  
+          limit: rowsPerPage, 
+          filters: JSON.stringify(filters),  
+        },
+      });
+  
+      const { leads, totalLeads } = response.data;
+      setLeads(leads || []);
+      setTotalLeads(totalLeads || 0); 
+    } catch (error) {
+      console.error("Error applying filters:", error);
+      setError("Failed to apply filters");
+    } finally {
+      setLoading(false);  
+    }
   };
 
-  const resetFilters = () => {
+  
+  const resetFilters = async () => {
     setFilters({
       dateFrom: "",
       dateTo: "",
@@ -251,8 +259,10 @@ const SalesMyLeads = () => {
       nextFollowup: "",
       followupReminder: "",
     });
-    fetchLeads(agentName);
+    setCurrentPage(0);
+    await fetchLeads(agentName); // Fetch data with no filters
   };
+  
 
   const handleChangePage = (event, newPage) => {
     setCurrentPage(newPage);
@@ -261,7 +271,7 @@ const SalesMyLeads = () => {
   const handleChangeRowsPerPage = (event) => {
     const newRowsPerPage = parseInt(event.target.value, 10);
     setRowsPerPage(newRowsPerPage);
-    setCurrentPage(0); // Reset to the first page
+    setCurrentPage(0); 
   };
   
  
@@ -398,20 +408,19 @@ const SalesMyLeads = () => {
               shrink: true, 
             }}
           />
-          <FormControl fullWidth sx={{ mb: 2 }}>
-            <Select
-              value={filters.followupReminder}
-              onChange={(e) => setFilters((prev) => ({ ...prev, followupReminder: e.target.value }))}
-              displayEmpty
-            >
-              <MenuItem value="">None</MenuItem>
-              {["Today", "Tomorrow", "Followup Missed", "Later"].map((option) => (
-                <MenuItem key={option} value={option}>
-                  {option}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
+          <FormControl fullWidth>
+                  <InputLabel>Reminder</InputLabel>
+                  <Select
+                      value={filters.reminder || ""}
+                      onChange={(e) => setFilters((prev) => ({ ...prev, reminder: e.target.value }))}
+                  >
+                      {["Follow-up Missed", "Today", "Tomorrow", "Later"].map((option) => (
+                          <MenuItem key={option} value={option}>
+                              {option}
+                          </MenuItem>
+                      ))}
+                  </Select>
+              </FormControl>
           <Divider sx={{ mb: 2 }} />
           <Button variant="contained" fullWidth onClick={() => applyFilters()}>
             Apply Filters
@@ -553,7 +562,7 @@ const SalesMyLeads = () => {
                             <Checkbox checked={lead.productPitched?.includes(option)} />
                             <ListItemText primary={option} />
                           </MenuItem>
-                        )
+                        ) 
                       )}
                     </Select>
                   </FormControl>

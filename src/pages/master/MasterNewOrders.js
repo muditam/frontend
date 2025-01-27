@@ -166,7 +166,7 @@ const handleDeliveryStatusChange = async (e, index) => {
     <Box sx={{ padding: 2 }}> 
       <Typography variant="h5" gutterBottom> 
         Master Data - New Orders
-      </Typography>
+      </Typography> 
 
       <Button
         variant="contained"
@@ -327,7 +327,7 @@ const handleDeliveryStatusChange = async (e, index) => {
               .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage) 
               .map((order, index) => (
                 <TableRow key={order._id}>
-                  <TableCell>{order.date || "N/A"}</TableCell>
+                  <TableCell>{order.lastOrderDate || "N/A"}</TableCell>
                   <TableCell>{order.name || "N/A"}</TableCell>
                   <TableCell>{order.contactNumber || "N/A"}</TableCell>
                   <TableCell>{order.agentAssigned || "N/A"}</TableCell>
