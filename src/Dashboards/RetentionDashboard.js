@@ -519,7 +519,7 @@ const RetentionAgentDashboard = () => {
     },
     {
       label: "Active Customers",
-      value: allTimeMetrics.activeCustomers || 0,
+      value: allTimeMetrics.activeCustomers || 0, 
       color: "#FFF59D",
     },
     { label: "Lost Customers", value: allTimeMetrics.lostCustomers || 0, color: "#FFF59D" },

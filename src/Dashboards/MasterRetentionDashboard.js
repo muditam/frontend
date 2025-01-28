@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Box,
   Typography,
@@ -15,129 +15,111 @@ import {
 import axios from "axios";
 
 const ManagerRetentionDashboard = () => {
+  const [todaySummary, setTodaySummary] = useState({});
+  const [agentMetrics, setAgentMetrics] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [todaySummary, setTodaySummary] = useState({
-    activeCustomers: 0,
-    customersAssignedToday: 0,
-    salesDone: 0,
-    totalSales: 0,
-    targetDeficit: 0,
-    averageOrderValue: 0,
-  });
-  const [agentData, setAgentData] = useState([]);
-
-  useEffect(() => {
-    fetchDashboardData();
-  }, []);
 
   const fetchDashboardData = async () => {
     try {
       setLoading(true);
-
+  
       const todayDate = new Date().toISOString().split("T")[0];
-
-      // Fetch Leads
-      const leadsResponse = await axios.get(
-        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads"
+  
+      // Fetch retention agents
+      const agentsResponse = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/employees", {
+        params: { role: "Retention Agent" },
+      });
+      const retentionAgents = agentsResponse.data;
+  
+      // Early exit if no agents are found
+      if (retentionAgents.length === 0) {
+        setTodaySummary({
+          totalActiveCustomers: 0,
+          totalCustomersAssignedToday: 0,
+          totalSalesDoneToday: 0,
+          totalSalesAmount: 0,
+          avgOrderValue: 0,
+        });
+        setAgentMetrics([]);
+        setLoading(false);
+        return;
+      }
+  
+      let totalActiveCustomers = 0;
+      let totalCustomersAssignedToday = 0;
+      let totalSalesDoneToday = 0;
+      let totalSalesAmount = 0;
+  
+      const agentData = await Promise.all(
+        retentionAgents.map(async (agent) => {
+          // Fetch leads for the agent
+          const leadsResponse = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/retention");
+          const agentLeads = leadsResponse.data.filter(
+            (lead) => lead.healthExpertAssigned === agent.fullName
+          );
+  
+          // Calculate "Customers Assigned Today" directly from leads API
+          const customersAssignedToday = leadsResponse.data.filter(
+            (lead) => lead.date === todayDate && lead.healthExpertAssigned === agent.fullName
+          ).length;
+  
+          // Fetch sales for the agent
+          const salesResponse = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/retention-sales", {
+            params: { orderCreatedBy: agent.fullName },
+          });
+          const sales = salesResponse.data;
+  
+          // Calculate metrics
+          const activeCustomers = agentLeads.filter(
+            (lead) => !lead.retentionStatus || lead.retentionStatus === "Active"
+          ).length;
+  
+          const salesDone = sales.filter((sale) => sale.date === todayDate);
+  
+          const totalSales = salesDone.reduce((acc, sale) => acc + (sale.amountPaid || 0), 0);
+  
+          const avgOrderValue =
+            salesDone.length > 0 ? totalSales / salesDone.length : 0;
+  
+          // Update overall metrics
+          totalActiveCustomers += activeCustomers;
+          totalCustomersAssignedToday += customersAssignedToday;
+          totalSalesDoneToday += salesDone.length;
+          totalSalesAmount += totalSales;
+  
+          return {
+            agentName: agent.fullName,
+            activeCustomers,
+            customersAssignedToday,
+            salesDone: salesDone.length,
+            totalSales,
+            avgOrderValue,
+          };
+        })
       );
-
-      const leads = leadsResponse.data || [];
-
-      // Fetch Retention Sales
-      const salesResponse = await axios.get(
-        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/retention-sales"
-      );
-
-      const retentionSales = salesResponse.data || [];
-
-      // Calculate Today's Summary
-      const activeCustomers = leads.filter(
-        (lead) =>
-          (!lead.retentionStatus || lead.retentionStatus === "Active") &&
-          lead.role === "Retention Agent"
-      ).length;
-
-      const customersAssignedToday = leads.filter(
-        (lead) =>
-          lead.role === "Retention Agent" && lead.date === todayDate
-      ).length;
-
-      const salesDoneToday = retentionSales.filter(
-        (sale) => sale.date === todayDate
-      );
-
-      const totalSales = salesDoneToday.reduce(
-        (acc, sale) => acc + (sale.amountPaid || 0),
-        0
-      );
-
-      const averageOrderValue =
-        salesDoneToday.length > 0
-          ? (totalSales / salesDoneToday.length).toFixed(2)
-          : 0;
-
-      const targetDeficit = 100000 - totalSales; // Example target set to ₹100,000
-
+  
+      const avgOrderValue =
+        totalSalesDoneToday > 0 ? totalSalesAmount / totalSalesDoneToday : 0;
+  
       setTodaySummary({
-        activeCustomers,
-        customersAssignedToday,
-        salesDone: salesDoneToday.length,
-        totalSales,
-        targetDeficit,
-        averageOrderValue,
+        totalActiveCustomers,
+        totalCustomersAssignedToday,
+        totalSalesDoneToday,
+        totalSalesAmount,
+        avgOrderValue,
       });
-
-      // Calculate Agent-Wise Data
-      const agents = Array.from(
-        new Set(leads.map((lead) => lead.healthExpertAssigned))
-      ).filter(Boolean);
-
-      const agentMetrics = agents.map((agentName) => {
-        const agentLeads = leads.filter(
-          (lead) => lead.healthExpertAssigned === agentName
-        );
-
-        const agentActiveCustomers = agentLeads.filter(
-          (lead) =>
-            !lead.retentionStatus || lead.retentionStatus === "Active"
-        ).length;
-
-        const agentCustomersAssignedToday = agentLeads.filter(
-          (lead) => lead.date === todayDate
-        ).length;
-
-        const agentSalesDoneToday = retentionSales.filter(
-          (sale) => sale.orderCreatedBy === agentName && sale.date === todayDate
-        );
-
-        const agentTotalSales = agentSalesDoneToday.reduce(
-          (acc, sale) => acc + (sale.amountPaid || 0),
-          0
-        );
-
-        const agentAverageOrderValue =
-          agentSalesDoneToday.length > 0
-            ? (agentTotalSales / agentSalesDoneToday.length).toFixed(2)
-            : 0;
-
-        return {
-          agentName,
-          activeCustomers: agentActiveCustomers,
-          customersAssignedToday: agentCustomersAssignedToday,
-          salesDone: agentSalesDoneToday.length,
-          totalSales: agentTotalSales,
-          averageOrderValue: agentAverageOrderValue,
-          targetDeficit: 100000 - agentTotalSales, // Example target set to ₹100,000 per agent
-        };
-      });
-
-      setAgentData(agentMetrics);
+  
+      setAgentMetrics(agentData);
     } catch (error) {
       console.error("Error fetching dashboard data:", error);
     } finally {
       setLoading(false);
     }
-  };
+  };  
+
+  useEffect(() => {
+    fetchDashboardData();
+  }, []);
 
   if (loading) {
     return (
@@ -153,44 +135,72 @@ const ManagerRetentionDashboard = () => {
         Manager Retention Dashboard
       </Typography>
 
-      {/* Today's Summary Section */}
-      <Typography variant="h5" gutterBottom sx={{ mt: 3 }}>
+      {/* Today's Summary */}
+      <Typography variant="h5" gutterBottom sx={{ mt: 3, fontWeight: "bold" }}>
         Today's Summary
       </Typography>
-      <Grid container spacing={3}>
+      <Grid
+        container
+        spacing={3}
+        sx={{
+          display: "grid",
+          gridTemplateColumns: "repeat(5, 1fr)",
+          gap: 3,
+        }}
+      >
         {[
-          { label: "Active Customers", value: todaySummary.activeCustomers },
+          {
+            label: "Active Customers",
+            value: todaySummary.totalActiveCustomers,
+          },
           {
             label: "Customers Assigned Today",
-            value: todaySummary.customersAssignedToday,
+            value: todaySummary.totalCustomersAssignedToday,
           },
-          { label: "Sales Done", value: todaySummary.salesDone },
-          { label: "Total Sales", value: `₹${todaySummary.totalSales}` },
+          { label: "Sales Done", value: todaySummary.totalSalesDoneToday },
           {
-            label: "Target Deficit",
-            value: `₹${todaySummary.targetDeficit}`,
+            label: "Total Sales",
+            value: `₹${todaySummary.totalSalesAmount?.toFixed(2)}`,
           },
           {
             label: "Average Order Value",
-            value: `₹${todaySummary.averageOrderValue}`,
+            value: `₹${todaySummary.avgOrderValue?.toFixed(2)}`,
           },
         ].map(({ label, value }) => (
-          <Grid item xs={12} sm={6} md={4} key={label}>
-            <Paper sx={{ padding: 2, textAlign: "center" }}>
-              <Typography variant="subtitle1" gutterBottom>
-                {label}
-              </Typography>
-              <Typography variant="h6">{value}</Typography>
-            </Paper>
-          </Grid>
+          <Paper
+            key={label}
+            sx={{
+              padding: 3,
+              textAlign: "center",
+              borderRadius: 3,
+              backgroundColor: "#E3F2FD",
+              boxShadow: "0px 4px 10px rgba(0, 0, 0, 0.1)",
+              transition: "transform 0.3s",
+              "&:hover": { transform: "scale(1.05)" },
+            }}
+          >
+            <Typography
+              variant="subtitle1"
+              gutterBottom
+              sx={{ fontWeight: "bold" }}
+            >
+              {label}
+            </Typography>
+            <Typography
+              variant="h6"
+              sx={{ fontWeight: "bold" }}
+            >
+              {value}
+            </Typography>
+          </Paper>
         ))}
       </Grid>
 
-      {/* Agent-Wise Table Section */}
-      <Typography variant="h5" gutterBottom sx={{ mt: 4 }}>
-        Agent Performance
+      {/* Agent Metrics */}
+      <Typography variant="h5" gutterBottom sx={{ mt: 5, fontWeight: "bold" }}>
+        Agent Metrics
       </Typography>
-      <TableContainer component={Paper}>
+      <TableContainer component={Paper} sx={{ mt: 3 }}>
         <Table>
           <TableHead>
             <TableRow>
@@ -199,20 +209,18 @@ const ManagerRetentionDashboard = () => {
               <TableCell>Customers Assigned Today</TableCell>
               <TableCell>Sales Done</TableCell>
               <TableCell>Total Sales</TableCell>
-              <TableCell>Target Deficit</TableCell>
               <TableCell>Average Order Value</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
-            {agentData.map((agent) => (
+            {agentMetrics.map((agent) => (
               <TableRow key={agent.agentName}>
                 <TableCell>{agent.agentName}</TableCell>
                 <TableCell>{agent.activeCustomers}</TableCell>
                 <TableCell>{agent.customersAssignedToday}</TableCell>
                 <TableCell>{agent.salesDone}</TableCell>
-                <TableCell>{`₹${agent.totalSales}`}</TableCell>
-                <TableCell>{`₹${agent.targetDeficit}`}</TableCell>
-                <TableCell>{`₹${agent.averageOrderValue}`}</TableCell>
+                <TableCell>₹{agent.totalSales.toFixed(2)}</TableCell>
+                <TableCell>₹{agent.avgOrderValue.toFixed(2)}</TableCell>
               </TableRow>
             ))}
           </TableBody>

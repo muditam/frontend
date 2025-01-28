@@ -42,7 +42,7 @@ const AddEmployee = () => {
     fetchEmployees();
   }, []);
 
-  const fetchEmployees = async () => {
+  const fetchEmployees = async () => { 
     try {
       const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/employees");
       setEmployees(response.data);
