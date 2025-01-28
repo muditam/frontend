@@ -21,7 +21,7 @@ import {
     Drawer,
     List,
     ListItem,
-    Divider, 
+    Divider,
     TablePagination,
     InputLabel,
     CircularProgress,
@@ -108,21 +108,21 @@ const LeadTable = () => {
 
     const fetchLeads = async (page, limit, activeFilters = filters) => {
         try {
-          const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads", {
-            params: {
-              page,
-              limit,
-              filters: JSON.stringify(activeFilters),
-            }, 
-          });
-          setLeads(response.data.leads);
-          setTotalPages(response.data.totalPages);
-          setTotalLeads(response.data.totalLeads);
+            const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads", {
+                params: {
+                    page,
+                    limit,
+                    filters: JSON.stringify(activeFilters),
+                },
+            });
+            setLeads(response.data.leads);
+            setTotalPages(response.data.totalPages);
+            setTotalLeads(response.data.totalLeads);
         } catch (error) {
-          console.error("Failed to fetch leads", error);
+            console.error("Failed to fetch leads", error);
         }
-      };      
-      
+    };
+
 
     const fetchEmployeesByRole = async (role, setState) => {
         try {
@@ -315,7 +315,7 @@ const LeadTable = () => {
     };
 
     const calculateReminder = (nextFollowup) => {
-        if (!nextFollowup) return ""; 
+        if (!nextFollowup) return "";
 
         const followupDate = new Date(nextFollowup);
         const today = new Date();
@@ -339,70 +339,70 @@ const LeadTable = () => {
     const formatToISODate = (dateString) => {
         const [day, month, year] = dateString.split("-");
         return `${year}-${month}-${day}`;
-    };    
-      
-      const applyFilters = async () => {
+    };
+
+    const applyFilters = async () => {
         setApplyingFilters(true);
         setCurrentPage(1);
-      
-        try {
-          const activeFilters = {
-            ...filters,
-            startDate: filters.startDate ? formatToISODate(filters.startDate) : "",  
-            endDate: filters.endDate ? formatToISODate(filters.endDate) : "", 
-          };
-      
-          const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads", {
-            params: {
-              page: 1,
-              limit: rowsPerPage,
-              filters: JSON.stringify(activeFilters),
-            },
-          });
-      
-          setLeads(response.data.leads);
-          setTotalPages(response.data.totalPages);
-          setTotalLeads(response.data.totalLeads);
-        } catch (error) {
-          console.error("Error applying filters:", error);
-        } finally {
-          setApplyingFilters(false);
-        }
-      }; 
-      
 
-      const exportToCSV = async () => {
         try {
-          const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads", {
-            params: { page: 1, limit: totalLeads }, // Fetch all leads
-          });
-          const allLeads = response.data.leads;
-    
-          const worksheet = XLSX.utils.json_to_sheet(allLeads);
-          const workbook = XLSX.utils.book_new();
-          XLSX.utils.book_append_sheet(workbook, worksheet, "Leads");
-    
-          const excelBuffer = XLSX.write(workbook, { bookType: "csv", type: "array" });
-          const data = new Blob([excelBuffer], { type: "text/csv;charset=utf-8;" });
-          FileSaver.saveAs(data, "leads_data.csv");
+            const activeFilters = {
+                ...filters,
+                startDate: filters.startDate ? formatToISODate(filters.startDate) : "",
+                endDate: filters.endDate ? formatToISODate(filters.endDate) : "",
+            };
+
+            const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads", {
+                params: {
+                    page: 1,
+                    limit: rowsPerPage,
+                    filters: JSON.stringify(activeFilters),
+                },
+            });
+
+            setLeads(response.data.leads);
+            setTotalPages(response.data.totalPages);
+            setTotalLeads(response.data.totalLeads);
         } catch (error) {
-          console.error("Error exporting data:", error);
+            console.error("Error applying filters:", error);
+        } finally {
+            setApplyingFilters(false);
         }
-      };
+    };
+
+
+    const exportToCSV = async () => {
+        try {
+            const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads", {
+                params: { page: 1, limit: totalLeads }, // Fetch all leads
+            });
+            const allLeads = response.data.leads;
+
+            const worksheet = XLSX.utils.json_to_sheet(allLeads);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, "Leads");
+
+            const excelBuffer = XLSX.write(workbook, { bookType: "csv", type: "array" });
+            const data = new Blob([excelBuffer], { type: "text/csv;charset=utf-8;" });
+            FileSaver.saveAs(data, "leads_data.csv");
+        } catch (error) {
+            console.error("Error exporting data:", error);
+        }
+    };
 
     const handleChangePage = (event, newPage) => {
         setCurrentPage(newPage + 1);
         fetchLeads(newPage + 1, rowsPerPage, filters); // Fetch data with filters
     };
-    
-    
+
+
     const handleChangeRowsPerPage = (event) => {
         const newRowsPerPage = parseInt(event.target.value, 10);
         setRowsPerPage(newRowsPerPage);
         setCurrentPage(1); // Reset to the first page
         fetchLeads(1, newRowsPerPage, filters); // Fetch data with filters
     };
-    
+
     const currentLeads = leads.slice(currentPage * rowsPerPage, currentPage * rowsPerPage + rowsPerPage);
 
 
@@ -429,14 +429,14 @@ const LeadTable = () => {
             >
                 Filter
             </Button>
- 
+
             <Button
-          variant="contained"
-          onClick={exportToCSV}
-          sx={{ mb: 2, ml: 2 }}
-        >
-          Export to CSV
-        </Button> 
+                variant="contained"
+                onClick={exportToCSV}
+                sx={{ mb: 2, ml: 2 }}
+            >
+                Export to CSV
+            </Button>
 
             <Drawer
                 anchor="right"
@@ -620,35 +620,35 @@ const LeadTable = () => {
                             </FormControl>
                         </ListItem>
                         <ListItem>
-    <FormControl fullWidth>
-        <InputLabel>Reminder</InputLabel>
-        <Select
-            value={filters.reminder || ""}
-            onChange={(e) => setFilters((prev) => ({ ...prev, reminder: e.target.value }))}
-        >
-            {["Follow-up Missed", "Today", "Tomorrow", "Later"].map((option) => (
-                <MenuItem key={option} value={option}>
-                    {option}
-                </MenuItem>
-            ))}
-        </Select>
-    </FormControl>
-</ListItem>
-<ListItem>
-    <FormControl fullWidth>
-        <InputLabel>RT-Followup Reminder</InputLabel>
-        <Select
-            value={filters.rtFollowupReminder || ""}
-            onChange={(e) => setFilters((prev) => ({ ...prev, rtFollowupReminder: e.target.value }))}
-        >
-            {["Follow-up Missed", "Today", "Tomorrow", "Later"].map((option) => (
-                <MenuItem key={option} value={option}>
-                    {option}
-                </MenuItem>
-            ))}
-        </Select>
-    </FormControl>
-</ListItem>
+                            <FormControl fullWidth>
+                                <InputLabel>Reminder</InputLabel>
+                                <Select
+                                    value={filters.reminder || ""}
+                                    onChange={(e) => setFilters((prev) => ({ ...prev, reminder: e.target.value }))}
+                                >
+                                    {["Follow-up Missed", "Today", "Tomorrow", "Later"].map((option) => (
+                                        <MenuItem key={option} value={option}>
+                                            {option}
+                                        </MenuItem>
+                                    ))}
+                                </Select>
+                            </FormControl>
+                        </ListItem>
+                        <ListItem>
+                            <FormControl fullWidth>
+                                <InputLabel>RT-Followup Reminder</InputLabel>
+                                <Select
+                                    value={filters.rtFollowupReminder || ""}
+                                    onChange={(e) => setFilters((prev) => ({ ...prev, rtFollowupReminder: e.target.value }))}
+                                >
+                                    {["Follow-up Missed", "Today", "Tomorrow", "Later"].map((option) => (
+                                        <MenuItem key={option} value={option}>
+                                            {option}
+                                        </MenuItem>
+                                    ))}
+                                </Select>
+                            </FormControl>
+                        </ListItem>
 
                         <ListItem>
                             <FormControl fullWidth>
@@ -698,10 +698,10 @@ const LeadTable = () => {
                         variant="contained"
                         fullWidth
                         startIcon={applyingFilters ? <CircularProgress size={20} /> : null}
-                        disabled={applyingFilters}  
+                        disabled={applyingFilters}
                         onClick={() => {
                             applyFilters();
-                            setFilterOpen(false);  
+                            setFilterOpen(false);
                         }}
                         sx={{ marginBottom: 1, backgroundColor: "#0073e6" }}
                     >
@@ -709,35 +709,35 @@ const LeadTable = () => {
                     </Button>
 
                     <Button
-    variant="outlined"
-    fullWidth
-    onClick={() => {
-        const defaultFilters = {
-            date: "",
-            name: "",
-            contactNumber: "",
-            deliveryStatus: "",
-            customerType: "",
-            agentAssigned: [],
-            leadStatus: [],
-            salesStatus: [],
-            reminder: "",
-            healthExpertAssigned: "",
-            orderId: "",
-            rtFollowupReminder: "",
-            rtFollowupStatus: "",
-            retentionStatus: "",
-            leadSource: [],
-            enquiryFor: "",
-            orderDate: "",
-        };
-        setFilters(defaultFilters);  
-        setCurrentPage(1);  
-        fetchLeads(1, rowsPerPage, defaultFilters);  
-    }}
->
-    Reset Filters
-</Button>
+                        variant="outlined"
+                        fullWidth
+                        onClick={() => {
+                            const defaultFilters = {
+                                date: "",
+                                name: "",
+                                contactNumber: "",
+                                deliveryStatus: "",
+                                customerType: "",
+                                agentAssigned: [],
+                                leadStatus: [],
+                                salesStatus: [],
+                                reminder: "",
+                                healthExpertAssigned: "",
+                                orderId: "",
+                                rtFollowupReminder: "",
+                                rtFollowupStatus: "",
+                                retentionStatus: "",
+                                leadSource: [],
+                                enquiryFor: "",
+                                orderDate: "",
+                            };
+                            setFilters(defaultFilters);
+                            setCurrentPage(1);
+                            fetchLeads(1, rowsPerPage, defaultFilters);
+                        }}
+                    >
+                        Reset Filters
+                    </Button>
                 </Box>
             </Drawer>
 
@@ -746,6 +746,7 @@ const LeadTable = () => {
                 <Table stickyHeader aria-label="sticky table">
                     <TableHead>
                         <TableRow>
+                            <TableCell>Delete</TableCell>
                             <TableCell>Date</TableCell>
                             <TableCell>Time</TableCell>
                             <TableCell>Name *</TableCell>
@@ -787,6 +788,11 @@ const LeadTable = () => {
                         ) : (
                             leads.map((lead, index) => (
                                 <TableRow key={lead._id}>
+                                    <TableCell>
+                                        <IconButton color="error" onClick={() => handleDeleteLead(lead._id)}>
+                                            <Delete />
+                                        </IconButton>
+                                    </TableCell>
                                     <TableCell>
                                         <TextField
                                             type="date"
@@ -915,7 +921,7 @@ const LeadTable = () => {
                                                 "Fake Lead",
                                                 "Follow Up",
                                                 "Call Back",
-                                                "New", 
+                                                "New",
                                             ].map((status) => (
                                                 <MenuItem key={status} value={status}>
                                                     {status}
@@ -1143,11 +1149,7 @@ const LeadTable = () => {
                                             onChange={(e) => handleInputChange(e, index, "rtRemark")}
                                         />
                                     </TableCell>
-                                    <TableCell>
-                                        <IconButton color="error" onClick={() => handleDeleteLead(lead._id)}>
-                                            <Delete />
-                                        </IconButton>
-                                    </TableCell>
+                                    
                                 </TableRow>
                             ))
                         )}
