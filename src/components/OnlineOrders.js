@@ -66,7 +66,6 @@ const OnlineOrders = () => {
         }
     };
 
-    
     const fetchData = async () => {
         try {
             const [ordersResponse, agentsResponse] = await Promise.all([
@@ -76,7 +75,7 @@ const OnlineOrders = () => {
     
             const leads = await fetchAllLeads();  
     
-            const webOrders = ordersResponse.data.filter(order => order.channel_name === "web" || order.channel_name === "208644538369" );
+            const webOrders = ordersResponse.data.filter(order => order.channel_name === "web" || order.channel_name === "208644538369");
     
             const ordersWithHealthExperts = webOrders.map(order => {
                 const normalizedOrderPhone = order.customer?.default_address?.phone?.replace(/[^\d]/g, "");
@@ -88,6 +87,7 @@ const OnlineOrders = () => {
                     ...order,
                     healthExpertAssigned: matchingLead?.healthExpertAssigned || "Not Assigned",
                     leadExists: !!matchingLead,
+                    isSaved: !!matchingLead, // Track if the health expert is already assigned
                 };
             });
     
@@ -97,7 +97,6 @@ const OnlineOrders = () => {
             console.error("Error fetching data:", error);
         }
     };
-    
 
     const handleSaveHealthExpert = async (orderIndex) => { 
         const globalIndex = currentPage * rowsPerPage + orderIndex;
@@ -131,6 +130,10 @@ const OnlineOrders = () => {
             } else {
                 await axios.post("https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads", leadData);
             }
+
+            const updatedOrders = [...orders];
+            updatedOrders[globalIndex].isSaved = true; // Mark the order as saved
+            setOrders(updatedOrders);
         } catch (error) {
             console.error('Failed to update lead:', error);
         }
@@ -141,6 +144,7 @@ const OnlineOrders = () => {
 
         const updatedOrders = [...orders];
         updatedOrders[globalIndex].healthExpertAssigned = expertName;
+        updatedOrders[globalIndex].isSaved = false; // Reset the saved status when changed
         setOrders(updatedOrders);
     };
 
@@ -203,10 +207,14 @@ const OnlineOrders = () => {
                                     <TableCell>
                                         <Button
                                             variant="contained"
-                                            color="primary"
+                                            style={{
+                                                backgroundColor: order.isSaved ? "lightgreen" : "primary",
+                                                color: order.isSaved ? "black" : "white",
+                                            }}
                                             onClick={() => handleSaveHealthExpert(index)}
+                                            disabled={order.isSaved} // Disable the button if already saved
                                         >
-                                            Save
+                                            {order.isSaved ? "Saved" : "Save"}
                                         </Button>
                                     </TableCell>
                                 </TableRow>
