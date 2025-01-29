@@ -3,7 +3,7 @@ import axios from 'axios';
 import { Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, TablePagination } from '@mui/material';
 
 const OrdersTable = () => {
-    const [orders, setOrders] = useState([]);
+    const [orders, setOrders] = useState([]); 
     const [currentPage, setCurrentPage] = useState(0);
     const [rowsPerPage, setRowsPerPage] = useState(50); 
 

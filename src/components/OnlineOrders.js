@@ -16,6 +16,7 @@ import {
 
 const OnlineOrders = () => {
     const [orders, setOrders] = useState([]);
+    const [leads, setLeads] = useState([]);
     const [retentionAgents, setRetentionAgents] = useState([]);
     const [currentPage, setCurrentPage] = useState(0);
     const [rowsPerPage, setRowsPerPage] = useState(50);
@@ -36,32 +37,21 @@ const OnlineOrders = () => {
 
     useEffect(() => {
         fetchData();
-    }, []);
+    }, [currentPage, rowsPerPage]);
 
     const fetchAllLeads = async () => {
         try {
-            const limit = 100;  
-            let page = 1;
-            let allLeads = [];
-            let totalPages = 1;  
-    
-            do {
-                const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads", {
-                    params: {
-                        page,
-                        limit,
-                        filters: JSON.stringify({}),  
-                    },
-                });
-    
-                allLeads = allLeads.concat(response.data.leads);
-                totalPages = response.data.totalPages;
-                page++;
-            } while (page <= totalPages);
-    
-            return allLeads;
+            const limit = rowsPerPage;  
+            const page = currentPage + 1;
+            const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads", {
+                params: {
+                    page,
+                    limit, 
+                },
+            });
+            return response.data.leads;
         } catch (error) {
-            console.error("Error fetching all leads:", error);
+            console.error("Error fetching leads:", error);
             return [];
         }
     };
@@ -69,17 +59,22 @@ const OnlineOrders = () => {
     const fetchData = async () => {
         try {
             const [ordersResponse, agentsResponse] = await Promise.all([
-                axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/orders"),
+                axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/orders", {
+                    params: {
+                        page: currentPage + 1,
+                        limit: rowsPerPage,
+                    },
+                }),
                 axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/employees?role=Retention%20Agent"),
             ]);
     
-            const leads = await fetchAllLeads();  
+            const leadsData = await fetchAllLeads();
     
             const webOrders = ordersResponse.data.filter(order => order.channel_name === "web" || order.channel_name === "208644538369");
     
             const ordersWithHealthExperts = webOrders.map(order => {
                 const normalizedOrderPhone = order.customer?.default_address?.phone?.replace(/[^\d]/g, "");
-                const matchingLead = leads.find(lead =>
+                const matchingLead = leadsData.find(lead =>
                     lead.contactNumber.replace(/[^\d]/g, "") === normalizedOrderPhone
                 );
     
@@ -87,7 +82,7 @@ const OnlineOrders = () => {
                     ...order,
                     healthExpertAssigned: matchingLead?.healthExpertAssigned || "Not Assigned",
                     leadExists: !!matchingLead,
-                    isSaved: !!matchingLead, // Track if the health expert is already assigned
+                    isSaved: !!matchingLead,
                 };
             });
     
@@ -98,7 +93,7 @@ const OnlineOrders = () => {
         }
     };
 
-    const handleSaveHealthExpert = async (orderIndex) => { 
+    const handleSaveHealthExpert = async (orderIndex) => {
         const globalIndex = currentPage * rowsPerPage + orderIndex;
 
         const order = orders[globalIndex];  
@@ -132,7 +127,7 @@ const OnlineOrders = () => {
             }
 
             const updatedOrders = [...orders];
-            updatedOrders[globalIndex].isSaved = true; // Mark the order as saved
+            updatedOrders[globalIndex].isSaved = true; 
             setOrders(updatedOrders);
         } catch (error) {
             console.error('Failed to update lead:', error);
@@ -172,6 +167,7 @@ const OnlineOrders = () => {
                             <TableCell>Products Ordered</TableCell>
                             <TableCell>Agent Assigned</TableCell>
                             <TableCell>Channel Name</TableCell>
+                            <TableCell>Delivery Status</TableCell> 
                             <TableCell>Health Expert Assigned</TableCell>
                             <TableCell>Action</TableCell>
                         </TableRow>
@@ -190,6 +186,7 @@ const OnlineOrders = () => {
                                     <TableCell>{order.line_items.map(item => productAbbreviations[item.title] || item.title).join(", ")}</TableCell>
                                     <TableCell>Online Order</TableCell>
                                     <TableCell>{order.channel_name}</TableCell>
+                                    <TableCell>{order.delivery_status}</TableCell>
                                     <TableCell>
                                         <Select
                                             value={order.healthExpertAssigned || ""}
@@ -197,8 +194,7 @@ const OnlineOrders = () => {
                                             displayEmpty
                                             fullWidth
                                         >
-                                            <MenuItem value="">
-                                            </MenuItem>
+                                            <MenuItem value=""/>
                                             {retentionAgents.map((agent) => (
                                                 <MenuItem key={agent._id} value={agent.fullName}>{agent.fullName}</MenuItem>
                                             ))}
@@ -212,7 +208,7 @@ const OnlineOrders = () => {
                                                 color: order.isSaved ? "black" : "white",
                                             }}
                                             onClick={() => handleSaveHealthExpert(index)}
-                                            disabled={order.isSaved} // Disable the button if already saved
+                                            disabled={order.isSaved} 
                                         >
                                             {order.isSaved ? "Saved" : "Save"}
                                         </Button>

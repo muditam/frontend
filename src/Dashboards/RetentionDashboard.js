@@ -411,7 +411,7 @@ const RetentionAgentDashboard = () => {
     gridTemplateColumns: "repeat(5, 1fr)",  
     gap: 3,
   }}
->
+> 
   {[
     {
       label: "No Followup Set",
