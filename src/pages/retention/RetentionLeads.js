@@ -20,12 +20,16 @@ import {
   InputLabel,
 } from "@mui/material";
 import axios from "axios";
+import { IconButton } from "@mui/material";
+import PhoneIcon from "@mui/icons-material/Phone";
 
 const RetentionLeads = () => {
   const [leads, setLeads] = useState([]);
   const [loggedInUser, setLoggedInUser] = useState({});
   const [currentPage, setCurrentPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(50);
+  const [loading, setLoading] = useState(false);
+  const [callingMessage, setCallingMessage] = useState("");
   const [filters, setFilters] = useState({
     name: "",
     contactNumber: "",
@@ -67,24 +71,130 @@ const RetentionLeads = () => {
   };
 
 
-  const fetchRetentionLeads = async (user) => {
+  const fetchUserDetails = async (user) => {
     try {
+      const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/employees", {
+        params: {
+          fullName: user.fullName,
+          email: user.email,
+        },
+      });
+  
+      console.log("Employee API Response:", response.data); 
+  
+      if (!response.data || response.data.length === 0) {
+        console.error("Error: Employee not found in database.");
+        return { async: 1, agentNumber: "Unknown", callerId: "Unknown" };  
+      }
+  
+      const { async, agentNumber, callerId } = response.data[0];
+  
+      if (!agentNumber || !callerId) {
+        console.error("Error: Missing agentNumber or callerId", { agentNumber, callerId });
+        return { async: 1, agentNumber: "Unknown", callerId: "Unknown" };
+      }
+  
+      return { async, agentNumber, callerId };
+    } catch (error) {
+      console.error("Failed to fetch user details:", error);
+      return { async: 1, agentNumber: "Unknown", callerId: "Unknown" };  
+    }
+  };
+  
+  
+  const fetchRetentionLeads = async (user) => {
+    try { 
       const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/retentions", {
         params: {
           fullName: user.fullName,
           email: user.email,
         },
       });
+   
+      const { async, agentNumber, callerId } = await fetchUserDetails(user);
+   
       const leadsWithReminders = response.data.map(lead => ({
         ...lead,
-        rtFollowupReminder: lead.rtNextFollowupDate ? computeReminder(lead.rtNextFollowupDate) : ''
+        rtFollowupReminder: lead.rtNextFollowupDate ? computeReminder(lead.rtNextFollowupDate) : '',
+        async,          
+        agentNumber,    
+        callerId,        
       }));
-      setLeads(leadsWithReminders.reverse());
+  
+      setLeads(leadsWithReminders.reverse());  
+  
     } catch (error) {
       console.error("Failed to fetch retention leads", error);
     }
   };
 
+  
+  // const fetchRetentionLeads = async (user) => {
+  //   try {
+  //     const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/retentions", {
+  //       params: {
+  //         fullName: user.fullName,
+  //         email: user.email,
+  //       },
+  //     });
+  //     const leadsWithReminders = response.data.map(lead => ({
+  //       ...lead,
+  //       rtFollowupReminder: lead.rtNextFollowupDate ? computeReminder(lead.rtNextFollowupDate) : ''
+  //     }));
+  //     setLeads(leadsWithReminders.reverse());
+  //   } catch (error) {
+  //     console.error("Failed to fetch retention leads", error);
+  //   }
+  // };
+
+  const handleCallIconClick = async (contactNumber) => {
+    setLoading(true);
+    setCallingMessage(`Calling ${contactNumber}...`);
+
+    try {
+        const { async, agentNumber, callerId } = await fetchUserDetails(loggedInUser);
+
+        if (!contactNumber || !agentNumber || !callerId) {
+            setCallingMessage("Error: Missing call parameters");
+            console.error("Missing parameters:", { contactNumber, agentNumber, callerId });
+            setLoading(false);
+            return;
+        }
+
+        const requestBody = {
+            destination_number: contactNumber,
+            async: 1,
+            agent_number: agentNumber.toString().trim(),
+            caller_id: callerId.toString().trim(),
+        };
+
+        console.log("Sending API Request to Backend:", requestBody);
+
+        const response = await axios.post(
+            "https://muditamleads-14f32a10d7f7.herokuapp.com/api/click_to_call",   
+            requestBody
+        );
+
+        console.log("Backend Response:", response.data);
+
+        if (response.data.status === "success") {
+            setCallingMessage(`Successfully called ${contactNumber}`);
+        } else {
+            setCallingMessage("Failed to place the call. Please try again.");
+            console.error("Backend Error Response:", response.data);
+        }
+    } catch (error) {
+        console.error("Error placing the call", error.response?.data || error);
+        setCallingMessage("There was an error placing the call.");
+    } finally {
+        setLoading(false);
+    }
+};
+
+
+  
+
+  
   const handleInputChange = async (e, index, field) => {
     const globalIndex = currentPage * rowsPerPage + index;
     const value = e.target.value;
@@ -289,7 +399,17 @@ const RetentionLeads = () => {
             {currentLeads.map((lead, index) => (
               <TableRow key={lead._id}>
                 <TableCell>{lead.name}</TableCell>
-                <TableCell>{lead.contactNumber}</TableCell>
+                <TableCell>
+  {lead.contactNumber}
+  <IconButton
+    color="primary"
+    onClick={() => handleCallIconClick(lead.contactNumber)}
+    sx={{ marginLeft: 2 }}
+  >
+    <PhoneIcon />
+  </IconButton>
+</TableCell>
+ 
                 <TableCell>{lead.agentAssigned}</TableCell>
                 <TableCell style={{ whiteSpace: "nowrap", minWidth: "150px" }}>{lead.productPitched?.join(", ")}</TableCell>
                 <TableCell style={{ whiteSpace: "nowrap", minWidth: "150px" }}>{lead.productsOrdered?.join(", ")}</TableCell>

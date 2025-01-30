@@ -30,7 +30,7 @@ const App = () => {
           <Route path="/login" element={<Login />} />
           <Route path="/bulk-data-upload" element={<BulkDataUpload />} />
           <Route path="/all-shopify-orders" element={<OrdersTable />} />
-          <Route path="/online-orders" element={<OnlineOrders />} />
+          <Route path="/online-orders" element={<OnlineOrders />} /> 
           <Route path="/add-employee" element={<AddEmployee />} />
           <Route path="/master/leads" element={<LeadTable />} />
           <Route path="/master/retention" element={<RetentionTable />} />

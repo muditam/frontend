@@ -65,7 +65,7 @@ const MenuBar = ({ toggleDrawer }) => {
           </ListItem>
           <ListItem button component={Link} to="/online-orders" onClick={toggleDrawer}>
             <ListItemText primary="Online Orders" />
-          </ListItem>
+          </ListItem> 
         </>
       )}
  
