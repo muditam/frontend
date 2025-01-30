@@ -172,7 +172,7 @@ const AddEmployee = () => {
             role: "",
             password: "",
             confirmPassword: "",
-            async: 1, // Default value for new employees
+            async: 1,  
           });
           setOpen(true);
         }}
