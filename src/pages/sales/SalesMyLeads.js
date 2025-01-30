@@ -20,14 +20,17 @@ import {
   Divider,
   InputLabel,
   TablePagination,
+  IconButton,
 } from "@mui/material";
 import axios from "axios";
+import PhoneIcon from "@mui/icons-material/Phone";
 
 const SalesMyLeads = () => {
   const [leads, setLeads] = useState([]);
   const [validationErrors, setValidationErrors] = useState({});
-  const [currentPage, setCurrentPage] = useState(0); 
-  const [rowsPerPage, setRowsPerPage] = useState(50);
+  const [currentPage, setCurrentPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(50); 
+  const [callingMessage, setCallingMessage] = useState("");
   const [newLead, setNewLead] = useState({
     date: "",
     time: "",
@@ -47,7 +50,7 @@ const SalesMyLeads = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [agentName, setAgentName] = useState("");
-  const [totalLeads, setTotalLeads] = useState(0);  
+  const [totalLeads, setTotalLeads] = useState(0);
   const [filters, setFilters] = useState({
     dateFrom: "",
     dateTo: "",
@@ -66,14 +69,15 @@ const SalesMyLeads = () => {
 
   useEffect(() => {
     const user = JSON.parse(sessionStorage.getItem("user"));
-    
+
     if (user && !agentName) {
       setAgentName(user.fullName);
     }
-  
+
     if (agentName) {
       fetchLeads(agentName);
     }
+ 
   }, [agentName, currentPage, rowsPerPage]);
 
 
@@ -88,9 +92,9 @@ const SalesMyLeads = () => {
           filters: JSON.stringify(filters),
         },
       });
-  
+
       const { leads, totalLeads } = response.data;
-  
+
       setLeads(leads || []); // Update leads state with fetched data
       setTotalLeads(totalLeads || 0); // Update the total leads count
     } catch (error) {
@@ -100,18 +104,18 @@ const SalesMyLeads = () => {
       setLoading(false);
     }
   };
-  
 
-  
+
+
   const handleInputChange = async (e, index, field) => {
-    const updatedLeads = [...leads];  
- 
-        updatedLeads[index][field] = e.target.value;
-        setLeads(updatedLeads); 
-   
+    const updatedLeads = [...leads];
+
+    updatedLeads[index][field] = e.target.value;
+    setLeads(updatedLeads);
+
     if (field === "contactNumber") {
       const enteredNumber = e.target.value;
-  
+
       try {
         const response = await axios.get(
           "https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/check-duplicate",
@@ -119,14 +123,14 @@ const SalesMyLeads = () => {
             params: { contactNumber: enteredNumber },
           }
         );
-  
-        if (response.data.exists) { 
+
+        if (response.data.exists) {
           setValidationErrors((prev) => ({
             ...prev,
             [index]: "This number is already registered",
           }));
-          return;  
-        } else { 
+          return;
+        } else {
           setValidationErrors((prev) => ({
             ...prev,
             [index]: null,
@@ -136,7 +140,7 @@ const SalesMyLeads = () => {
         console.error("Error checking duplicate number:", error);
       }
     }
-   
+
     const leadId = updatedLeads[index]._id;
     try {
       await axios.put(
@@ -149,7 +153,7 @@ const SalesMyLeads = () => {
       console.error("Error updating lead:", error);
     }
   };
-  
+
 
   //   const leadId = updatedLeads[index]._id;
   //   try {
@@ -176,7 +180,7 @@ const SalesMyLeads = () => {
     if (Object.values(validationErrors).some((error) => error)) {
       console.error("Fix validation errors before adding the lead.");
       return;
-    }    
+    }
 
     try {
       const response = await axios.post("https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads", leadToAdd);
@@ -216,34 +220,34 @@ const SalesMyLeads = () => {
     if (diffInDays === 1) return "Tomorrow";
     return diffInDays > 1 ? "Later" : "";
   };
- 
+
 
   const applyFilters = async () => {
-    setLoading(true);  
-    setCurrentPage(0);  
-  
-    try { 
+    setLoading(true);
+    setCurrentPage(0);
+
+    try {
       const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads", {
         params: {
-          agentAssignedName: agentName,  
-          page: 1,  
-          limit: rowsPerPage, 
-          filters: JSON.stringify(filters),  
+          agentAssignedName: agentName,
+          page: 1,
+          limit: rowsPerPage,
+          filters: JSON.stringify(filters),
         },
       });
-  
+
       const { leads, totalLeads } = response.data;
       setLeads(leads || []);
-      setTotalLeads(totalLeads || 0); 
+      setTotalLeads(totalLeads || 0);
     } catch (error) {
       console.error("Error applying filters:", error);
       setError("Failed to apply filters");
     } finally {
-      setLoading(false);  
+      setLoading(false);
     }
   };
 
-  
+
   const resetFilters = async () => {
     setFilters({
       dateFrom: "",
@@ -260,21 +264,90 @@ const SalesMyLeads = () => {
       followupReminder: "",
     });
     setCurrentPage(0);
-    await fetchLeads(agentName); // Fetch data with no filters
+    await fetchLeads(agentName);  
   };
-  
+
 
   const handleChangePage = (event, newPage) => {
     setCurrentPage(newPage);
   };
-  
+
+  const fetchUserDetails = async (user) => {
+    try {
+        const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/employees", {
+            params: { fullName: user.fullName, email: user.email }
+        });
+
+        if (response.data.length > 0) {
+            return response.data[0]; // Returns { async, agentNumber, callerId }
+        } else {
+            console.error("User details not found");
+            return {};
+        }
+    } catch (error) {
+        console.error("Error fetching user details:", error);
+        return {};
+    }
+};
+
   const handleChangeRowsPerPage = (event) => {
     const newRowsPerPage = parseInt(event.target.value, 10);
     setRowsPerPage(newRowsPerPage);
-    setCurrentPage(0); 
+    setCurrentPage(0);
   };
-  
- 
+
+  const handleCallIconClick = async (contactNumber) => {
+    setLoading(true);
+    setCallingMessage(`Calling ${contactNumber}...`);
+
+    try {
+        const loggedInUser = JSON.parse(sessionStorage.getItem("user"));  
+        if (!loggedInUser) {
+            setCallingMessage("Error: User not logged in.");
+            setLoading(false);
+            return;
+        }
+
+        const { async, agentNumber, callerId } = await fetchUserDetails(loggedInUser);
+
+        if (!contactNumber || !agentNumber || !callerId) {
+            setCallingMessage("Error: Missing call parameters");
+            console.error("Missing parameters:", { contactNumber, agentNumber, callerId });
+            setLoading(false);
+            return;
+        }
+
+        const requestBody = {
+            destination_number: contactNumber,
+            async: 1,
+            agent_number: agentNumber.toString().trim(),
+            caller_id: callerId.toString().trim(),
+        };
+
+        console.log("Sending API Request to Backend:", requestBody);
+
+        const response = await axios.post(
+            "https://muditamleads-14f32a10d7f7.herokuapp.com/api/click_to_call",
+            requestBody
+        );
+
+        console.log("Backend Response:", response.data);
+
+        if (response.data.status === "success") {
+            setCallingMessage(`Successfully called ${contactNumber}`);
+        } else {
+            setCallingMessage("Failed to place the call. Please try again.");
+            console.error("Backend Error Response:", response.data);
+        }
+    } catch (error) {
+        console.error("Error placing the call", error.response?.data || error);
+        setCallingMessage("There was an error placing the call.");
+    } finally {
+        setLoading(false);
+    }
+};
+
+
 
   return (
     <Box sx={{ padding: 2 }}>
@@ -289,7 +362,7 @@ const SalesMyLeads = () => {
         Add Lead
       </Button>
 
-      <Button variant="contained" sx={{ mb: 2 }} onClick={() => setFilterOpen(true)}>
+      <Button variant="contained" sx={{ mb: 2, ml: 2 }} onClick={() => setFilterOpen(true)}>
         Filter
       </Button>
 
@@ -312,17 +385,17 @@ const SalesMyLeads = () => {
             sx={{
               marginBottom: 2,
               "& .MuiInputBase-input": {
-                padding: "10px 12px",  
+                padding: "10px 12px",
               },
               "& .MuiOutlinedInput-root": {
-                borderColor: "#0073e6", 
+                borderColor: "#0073e6",
                 "&:hover fieldset": {
-                  borderColor: "#005bb5",  
+                  borderColor: "#005bb5",
                 },
               },
             }}
             InputLabelProps={{
-              shrink: true,  
+              shrink: true,
             }}
           />
           <TextField
@@ -334,17 +407,17 @@ const SalesMyLeads = () => {
             sx={{
               marginBottom: 2,
               "& .MuiInputBase-input": {
-                padding: "10px 12px",  
+                padding: "10px 12px",
               },
               "& .MuiOutlinedInput-root": {
-                borderColor: "#0073e6",  
+                borderColor: "#0073e6",
                 "&:hover fieldset": {
-                  borderColor: "#005bb5",  
+                  borderColor: "#005bb5",
                 },
               },
-            }} 
+            }}
             InputLabelProps={{
-              shrink: true,  
+              shrink: true,
             }}
           />
           <TextField
@@ -395,32 +468,32 @@ const SalesMyLeads = () => {
             sx={{
               marginBottom: 2,
               "& .MuiInputBase-input": {
-                padding: "10px 12px",  
+                padding: "10px 12px",
               },
               "& .MuiOutlinedInput-root": {
-                borderColor: "#0073e6",  
+                borderColor: "#0073e6",
                 "&:hover fieldset": {
-                  borderColor: "#005bb5",  
+                  borderColor: "#005bb5",
                 },
               },
             }}
             InputLabelProps={{
-              shrink: true, 
+              shrink: true,
             }}
           />
           <FormControl fullWidth>
-                  <InputLabel>Reminder</InputLabel>
-                  <Select
-                      value={filters.reminder || ""}
-                      onChange={(e) => setFilters((prev) => ({ ...prev, reminder: e.target.value }))}
-                  >
-                      {["Follow-up Missed", "Today", "Tomorrow", "Later"].map((option) => (
-                          <MenuItem key={option} value={option}>
-                              {option}
-                          </MenuItem>
-                      ))}
-                  </Select>
-              </FormControl>
+            <InputLabel>Reminder</InputLabel>
+            <Select
+              value={filters.reminder || ""}
+              onChange={(e) => setFilters((prev) => ({ ...prev, reminder: e.target.value }))}
+            >
+              {["Follow-up Missed", "Today", "Tomorrow", "Later"].map((option) => (
+                <MenuItem key={option} value={option}>
+                  {option}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
           <Divider sx={{ mb: 2 }} />
           <Button variant="contained" fullWidth onClick={() => applyFilters()}>
             Apply Filters
@@ -476,7 +549,7 @@ const SalesMyLeads = () => {
                     fullWidth
                   />
                 </TableCell>
-                <TableCell style={{ whiteSpace: "nowrap", minWidth: "200px" }}>
+                <TableCell style={{ whiteSpace: "nowrap", minWidth: "240px", display: "flex", alignItems: "center" }}>
                   <TextField
                     type="number"
                     value={lead.contactNumber || ""}
@@ -484,7 +557,24 @@ const SalesMyLeads = () => {
                     error={Boolean(validationErrors[index])}
                     helperText={validationErrors[index]}
                     fullWidth
+                    sx={{
+                      flexGrow: 1,
+                      '& input[type=number]': {
+                        MozAppearance: 'textfield',  
+                      },
+                      '& input[type=number]::-webkit-outer-spin-button, & input[type=number]::-webkit-inner-spin-button': {
+                        WebkitAppearance: 'none', 
+                        margin: 0,
+                      },
+                    }}
                   />
+                  <IconButton
+                    color="primary"
+                    onClick={() => handleCallIconClick(lead.contactNumber)}
+                    sx={{ marginLeft: 2 }}
+                  >
+                    <PhoneIcon />
+                  </IconButton>
                 </TableCell>
                 <TableCell>
                   <Select
@@ -562,7 +652,7 @@ const SalesMyLeads = () => {
                             <Checkbox checked={lead.productPitched?.includes(option)} />
                             <ListItemText primary={option} />
                           </MenuItem>
-                        ) 
+                        )
                       )}
                     </Select>
                   </FormControl>
@@ -647,21 +737,21 @@ const SalesMyLeads = () => {
                     }
                     fullWidth
                   />
-                </TableCell> 
+                </TableCell>
               </TableRow>
             ))}
           </TableBody>
         </Table>
       </TableContainer>
-      <TablePagination 
-                rowsPerPageOptions={[10, 20, 50, 100]}
-                component="div"
-                count={totalLeads}
-                rowsPerPage={rowsPerPage}
-                page={currentPage}
-                onPageChange={handleChangePage}
-                onRowsPerPageChange={handleChangeRowsPerPage} 
-            />
+      <TablePagination
+        rowsPerPageOptions={[10, 20, 50, 100]}
+        component="div"
+        count={totalLeads}
+        rowsPerPage={rowsPerPage}
+        page={currentPage}
+        onPageChange={handleChangePage}
+        onRowsPerPageChange={handleChangeRowsPerPage}
+      />
     </Box>
   );
 };
