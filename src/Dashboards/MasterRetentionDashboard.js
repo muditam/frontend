@@ -136,7 +136,7 @@ const ManagerRetentionDashboard = () => {
       </Typography>
 
       {/* Today's Summary */}
-      <Typography variant="h5" gutterBottom sx={{ mt: 3, fontWeight: "bold" }}>
+      <Typography variant="h5" gutterBottom sx={{ mt: 3, mb: 7, fontWeight: "bold" }}>
         Today's Summary
       </Typography>
       <Grid
@@ -191,7 +191,7 @@ const ManagerRetentionDashboard = () => {
               sx={{ fontWeight: "bold" }}
             >
               {value}
-            </Typography>
+            </Typography> 
           </Paper>
         ))}
       </Grid>

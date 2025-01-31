@@ -180,10 +180,9 @@ const ManagerSalesDashboard = () => {
         selectedAgent === "All Agents"
           ? leads
           : leads.filter((lead) => lead.agentAssigned === selectedAgent);
-  
-      // Apply date filter
+   
       const filteredByDate = filteredLeads.filter((lead) => {
-        const leadDate = lead.date; // already in yyyy-mm-dd format
+        const leadDate = lead.date;  
         return (
           (!dateFilter.startDate || leadDate >= dateFilter.startDate) &&
           (!dateFilter.endDate || leadDate <= dateFilter.endDate)
@@ -224,23 +223,20 @@ const ManagerSalesDashboard = () => {
     try {
       const response = await axios.get(
         "https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads",
-        { params: { limit: 0 } } // Fetch all leads
+        { params: { limit: 0 } }  
       );
 
       const leads = response.data.leads || [];
       const todayDate = new Date().toISOString().split("T")[0];
-
-      // Open Leads
+ 
       const openLeads = leads.filter(
         (lead) => lead.salesStatus === "On Follow Up"
       ).length;
-
-      // Leads Assigned Today
+ 
       const leadsAssignedToday = leads.filter(
         (lead) => lead.date === todayDate
       ).length;
-
-      // Sales Done Today
+ 
       const salesDoneToday = leads.filter(
         (lead) =>
           lead.salesStatus === "Sales Done" && lead.date === todayDate

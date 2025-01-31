@@ -116,7 +116,7 @@ const AgentDashboard = () => {
     try {
       const response = await axios.get(
         "https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads",
-        { params: { agentAssignedName: user?.fullName, limit: 0 } } // Fetch all leads
+        { params: { agentAssignedName: user?.fullName, limit: 0 } } 
       );
       console.log("API Response:", response.data);
 

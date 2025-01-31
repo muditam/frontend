@@ -28,6 +28,7 @@ const RetentionLeads = () => {
   const [loggedInUser, setLoggedInUser] = useState({});
   const [currentPage, setCurrentPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(50);
+  const [allLeads, setAllLeads] = useState([]);
   const [loading, setLoading] = useState(false);
   const [callingMessage, setCallingMessage] = useState("");
   const [filters, setFilters] = useState({
@@ -52,7 +53,7 @@ const RetentionLeads = () => {
 
 
   useEffect(() => {
-    const user = JSON.parse(sessionStorage.getItem("user"));
+    const user = JSON.parse(sessionStorage.getItem("user")); 
     if (user && user.role === "Retention Agent") {
       setLoggedInUser(user);
       fetchRetentionLeads(user);
@@ -121,6 +122,7 @@ const RetentionLeads = () => {
         callerId,        
       }));
   
+      setAllLeads(leadsWithReminders.reverse());
       setLeads(leadsWithReminders.reverse());  
   
     } catch (error) {
@@ -250,6 +252,7 @@ const RetentionLeads = () => {
       );
     });
     setLeads(filteredLeads);
+    setCurrentPage(0);
   };
 
   const resetFilters = () => {
@@ -271,7 +274,8 @@ const RetentionLeads = () => {
       lastOrderDateTo: "",
       retentionStatus: "",
     });
-    fetchRetentionLeads(loggedInUser);
+    setLeads(allLeads);  
+    setCurrentPage(0);
   };
 
 
