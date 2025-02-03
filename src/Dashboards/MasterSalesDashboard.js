@@ -151,7 +151,7 @@ const ManagerSalesDashboard = () => {
         ).length;
 
         return {
-          agentName: agent,
+          agentName: agent, 
           noFollowupSet,
           followupMissed,
           followupToday,
@@ -488,8 +488,8 @@ const ManagerSalesDashboard = () => {
             Lead Source Summary
           </Typography>
           <Box sx={{ display: "flex", gap: 2, marginBottom: 2 }}>
-            <FormControl fullWidth>
-              <InputLabel>Agent Filter</InputLabel>
+            <FormControl sx={{ width: "30%" }}>
+              <InputLabel shrink>Agent Filter</InputLabel>
               <Select
                 value={selectedAgent}
                 onChange={(e) => setSelectedAgent(e.target.value)}

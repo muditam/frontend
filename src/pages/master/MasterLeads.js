@@ -819,6 +819,16 @@ const LeadTable = () => {
                                             onChange={(e) => handleInputChange(e, index, "contactNumber")}
                                             error={Boolean(validationErrors[index])}
                                             helperText={validationErrors[index]}
+                                            sx={{
+                                                flexGrow: 1,
+                                                '& input[type=number]': {
+                                                  MozAppearance: 'textfield',  
+                                                },
+                                                '& input[type=number]::-webkit-outer-spin-button, & input[type=number]::-webkit-inner-spin-button': {
+                                                  WebkitAppearance: 'none', 
+                                                  margin: 0,
+                                                },
+                                              }}
                                         />
                                     </TableCell>
                                     <TableCell >

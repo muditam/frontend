@@ -26,18 +26,17 @@ import axios from "axios";
 const NewOrders = () => {
   const [newOrders, setNewOrders] = useState([]);
   const [retentionAgents, setRetentionAgents] = useState([]);
+  const [uniqueAgents, setUniqueAgents] = useState([]);
+  const [allOrders, setAllOrders] = useState([]);  
   const [filters, setFilters] = useState({
     startDate: "",  
     endDate: "",  
     orderDate: "",
     name: "",
     contactNumber: "",
-    agentName: "",
-    productsOrdered: [],
-    dosageOrdered: "",
-    healthExpertAssigned: "",
-    remarkForHE: "",
-    amountPaid: "",
+    agentName: [],
+    productsOrdered: [], 
+    healthExpertAssigned: "", 
     modeOfPayment: [],
     deliveryStatus: [],
   });
@@ -60,9 +59,13 @@ const NewOrders = () => {
     try {
       const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/new-orders");
       const filteredOrders = response.data
-            .filter(order => order.agentAssigned !== 'Admin')   
+            .filter(order => order.agentAssigned !== 'Admin' && order.agentAssigned !== 'Online Order')    
             .reverse()  
         setNewOrders(filteredOrders);
+        setAllOrders(filteredOrders);
+
+        const uniqueAgentNames = [...new Set(filteredOrders.map(order => order.agentAssigned).filter(Boolean))];
+        setUniqueAgents(uniqueAgentNames);
     } catch (error) {
       console.error("Error fetching new orders:", error);
     }
@@ -109,49 +112,62 @@ const handleDeliveryStatusChange = async (e, index) => {
     }
 };
 
-  const applyFilters = () => {
-    const filtered = newOrders.filter((order) => {
-      return Object.keys(filters).every((key) => {
-        if (!filters[key]) return true;
+const applyFilters = () => {
+  const filtered = allOrders.filter((order) => { // Use allOrders instead of newOrders
+    return Object.keys(filters).every((key) => {
+      if (!filters[key] || filters[key].length === 0) return true;
 
-        if (key === "startDate" && filters.startDate) {
-          return new Date(order.date) >= new Date(filters.startDate);
-        }
-        if (key === "endDate" && filters.endDate) {
-          return new Date(order.date) <= new Date(filters.endDate);
-        }
-
-        if (key === "orderDate" && filters.orderDate) {
-          if (!order.date || isNaN(new Date(order.date))) return false; 
-          const orderDate = new Date(order.date).toISOString().split("T")[0];
-          return orderDate === filters.orderDate; 
-        }
-
-        if (Array.isArray(filters[key])) {
-          return filters[key].every((item) => order[key]?.includes(item));
-        }
-        return String(order[key] || "").toLowerCase().includes(filters[key].toLowerCase());
-      });
+      if (key === "startDate" && filters.startDate) {
+        return new Date(order.date) >= new Date(filters.startDate);
+      }
+      if (key === "endDate" && filters.endDate) {
+        return new Date(order.date) <= new Date(filters.endDate);
+      }
+      if (key === "orderDate" && filters.orderDate) {
+        if (!order.date || isNaN(new Date(order.date))) return false; 
+        const orderDate = new Date(order.date).toISOString().split("T")[0];
+        return orderDate === filters.orderDate; 
+      }
+      if (key === "name") {
+        return order.name?.toLowerCase().includes(filters.name.toLowerCase());
+      }
+      if (key === "contactNumber") {
+        return order.contactNumber?.toString().includes(filters.contactNumber);
+      }
+      if (key === "agentName") {
+        return filters.agentName.includes(order.agentAssigned);
+      }
+      if (Array.isArray(filters[key])) {
+        return filters[key].some((item) => order[key]?.includes(item));
+      }
+      return String(order[key] || "").toLowerCase().includes(filters[key].toLowerCase());
     });
-    setNewOrders(filtered);
-  };
+  });
 
-  const resetFilters = () => {
-    setFilters({
-      orderDate: "",
-      name: "",
-      contactNumber: "",
-      agentName: "",
-      productsOrdered: [],
-      dosageOrdered: "",
-      healthExpertAssigned: "",
-      remarkForHE: "",
-      amountPaid: "",
-      modeOfPayment: [],
-      deliveryStatus: [],
-    });
-    fetchNewOrders();
-  };
+  setNewOrders(filtered);  
+  setPage(0);  
+};
+
+
+
+const resetFilters = () => {
+  setFilters({
+    startDate: "",
+    endDate: "",
+    orderDate: "",
+    name: "",
+    contactNumber: "",
+    agentName: [],
+    productsOrdered: [],
+    healthExpertAssigned: "",
+    modeOfPayment: [],
+    deliveryStatus: [],
+  });
+
+  setNewOrders(allOrders);  
+  setPage(0);  
+};
+
 
   const handleChangePage = (event, newPage) => {
     setPage(newPage);
@@ -168,7 +184,7 @@ const handleDeliveryStatusChange = async (e, index) => {
         Master Data - New Orders
       </Typography> 
 
-      <Button
+      <Button 
         variant="contained"
         onClick={() => setFilterOpen(true)}
         sx={{ mb: 2 }}
@@ -223,9 +239,33 @@ const handleDeliveryStatusChange = async (e, index) => {
         </FormControl>
 
   {Object.keys(filters).map((key) => {
-    if (key === "startDate" || key === "endDate") return null; // Already handled
+    if (key === "startDate" || key === "endDate") return null; 
 
     if (key === "orderDate") return null;
+ 
+    if (key === "agentName") {
+      return (
+        <FormControl fullWidth sx={{ marginBottom: 2 }}>
+    <InputLabel>Agent Name</InputLabel>
+    <Select
+        multiple
+        value={filters.agentName}
+        onChange={(e) =>
+            setFilters((prev) => ({ ...prev, agentName: e.target.value }))
+        }
+        renderValue={(selected) => selected.join(", ")}
+    >
+        {uniqueAgents.map((agent) => (
+            <MenuItem key={agent} value={agent}>
+                <Checkbox checked={filters.agentName.includes(agent)} />
+                <ListItemText primary={agent} />
+            </MenuItem>
+        ))}
+    </Select>
+</FormControl>
+
+      );
+    }
 
     if (key === "healthExpertAssigned") {
       return (

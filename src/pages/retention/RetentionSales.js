@@ -134,7 +134,7 @@ const handleAddSale = async () => {
       amountPaid: 0,
       modeOfPayment: "",
       deliveryStatus: "",
-      orderCreatedBy: loggedInUser.fullName,
+      orderCreatedBy: loggedInUser.fullName, 
   };
 
   try {
@@ -403,6 +403,16 @@ const currentLeads = sales.slice(currentPage * rowsPerPage, currentPage * rowsPe
           value={editedSales[sale._id]?.contactNumber || sale.contactNumber || ""}
           onChange={(e) => handleInputChange(e, sale._id, "contactNumber")}
           fullWidth
+          sx={{
+            flexGrow: 1,
+            '& input[type=number]': {
+              MozAppearance: 'textfield',  
+            },
+            '& input[type=number]::-webkit-outer-spin-button, & input[type=number]::-webkit-inner-spin-button': {
+              WebkitAppearance: 'none', 
+              margin: 0,
+            },
+          }}
         />
       </TableCell>
       <TableCell>
