@@ -512,7 +512,7 @@ const RetentionLeads = () => {
               </TableRow>
             ))}
           </TableBody>
-        </Table>
+        </Table> 
       </TableContainer>
       <TablePagination
         rowsPerPageOptions={[10, 20, 50, 100]}

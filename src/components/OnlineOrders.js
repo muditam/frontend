@@ -75,21 +75,27 @@ const OnlineOrders = () => {
     
             const leads = await fetchAllLeads();  
     
-            const webOrders = ordersResponse.data.filter(order => order.channel_name === "web" || order.channel_name === "208644538369");
+            // Filter orders by channel
+            const webOrders = ordersResponse.data.filter(order =>
+                order.channel_name === "web" || order.channel_name === "208644538369"
+            );
     
-            const ordersWithHealthExperts = webOrders.map(order => {
-                const normalizedOrderPhone = order.customer?.default_address?.phone?.replace(/[^\d]/g, "");
-                const matchingLead = leads.find(lead =>
-                    lead.contactNumber.replace(/[^\d]/g, "") === normalizedOrderPhone
-                );
-    
-                return {
+            // Only include orders where no matching lead exists (i.e. Health Expert is blank)
+            const ordersWithHealthExperts = webOrders
+                .filter(order => {
+                    const normalizedOrderPhone = order.customer?.default_address?.phone?.replace(/[^\d]/g, "");
+                    const matchingLead = leads.find(lead =>
+                        lead.contactNumber.replace(/[^\d]/g, "") === normalizedOrderPhone
+                    );
+                    return !matchingLead;
+                })
+                .map(order => ({
                     ...order,
-                    healthExpertAssigned: matchingLead?.healthExpertAssigned || "Not Assigned",
-                    leadExists: !!matchingLead,
-                    isSaved: !!matchingLead, 
-                };
-            });
+                    // Set field to blank to indicate no expert is assigned
+                    healthExpertAssigned: "",
+                    leadExists: false,
+                    isSaved: false,
+                }));
     
             setOrders(ordersWithHealthExperts);
             setRetentionAgents(agentsResponse.data);
@@ -100,7 +106,6 @@ const OnlineOrders = () => {
 
     const handleSaveHealthExpert = async (orderIndex) => { 
         const globalIndex = currentPage * rowsPerPage + orderIndex;
-
         const order = orders[globalIndex];  
         if (!order.healthExpertAssigned) return;
 
@@ -141,7 +146,6 @@ const OnlineOrders = () => {
 
     const handleChangeHealthExpert = (orderIndex, expertName) => {
         const globalIndex = currentPage * rowsPerPage + orderIndex;
-
         const updatedOrders = [...orders];
         updatedOrders[globalIndex].healthExpertAssigned = expertName;
         updatedOrders[globalIndex].isSaved = false;  
@@ -198,6 +202,7 @@ const OnlineOrders = () => {
                                             fullWidth
                                         >
                                             <MenuItem value="">
+                                                {/* Placeholder */}
                                             </MenuItem>
                                             {retentionAgents.map((agent) => (
                                                 <MenuItem key={agent._id} value={agent.fullName}>{agent.fullName}</MenuItem>
@@ -236,4 +241,3 @@ const OnlineOrders = () => {
 };
 
 export default OnlineOrders;
- 

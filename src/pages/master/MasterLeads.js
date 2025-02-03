@@ -400,7 +400,7 @@ const LeadTable = () => {
         const newRowsPerPage = parseInt(event.target.value, 10);
         setRowsPerPage(newRowsPerPage);
         setCurrentPage(1); // Reset to the first page
-        fetchLeads(1, newRowsPerPage, filters); // Fetch data with filters
+        fetchLeads(1, newRowsPerPage, filters); 
     };
 
     const currentLeads = leads.slice(currentPage * rowsPerPage, currentPage * rowsPerPage + rowsPerPage);
@@ -1158,8 +1158,7 @@ const LeadTable = () => {
                                             value={lead.rtRemark || ""}
                                             onChange={(e) => handleInputChange(e, index, "rtRemark")}
                                         />
-                                    </TableCell>
-                                    
+                                    </TableCell>  
                                 </TableRow>
                             ))
                         )}
