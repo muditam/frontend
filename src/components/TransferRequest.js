@@ -1,4 +1,3 @@
-// TransferRequests.js
 import React, { useState, useEffect } from "react";
 import {
   Box,
@@ -23,7 +22,7 @@ const TransferRequests = () => {
 
   const fetchRequests = async () => {
     try {
-      const response = await axios.get("http://localhost:5000/api/leads/transfer-requests");
+      const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/transfer-requests");
       // Sort requests descending by createdAt so that new requests appear on top
       const sortedRequests = response.data.sort(
         (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
@@ -42,18 +41,17 @@ const TransferRequests = () => {
 
   const handleApprove = async (requestId) => {
     try {
-      await axios.post("http://localhost:5000/api/leads/transfer-approve", { requestId });
-      fetchRequests(); // refresh the list after approval
+      await axios.post("https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/transfer-approve", { requestId });
+      fetchRequests(); 
     } catch (error) {
       console.error("Error approving transfer request:", error);
     }
   };
 
   const handleReject = async (requestId) => {
-    try {
-      // Assuming you have an endpoint to reject transfer requests.
-      await axios.post("http://localhost:5000/api/leads/transfer-reject", { requestId });
-      fetchRequests(); // refresh the list after rejection
+    try { 
+      await axios.post("https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/transfer-reject", { requestId });
+      fetchRequests();  
     } catch (error) {
       console.error("Error rejecting transfer request:", error);
     }
