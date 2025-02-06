@@ -339,12 +339,12 @@ const RetentionLeads = () => {
         minHeight: "100vh",
       }}
     >
-      <Typography variant="h5" gutterBottom sx={{ fontWeight: 600, mb: 2, textAlign: "center" }}>
+      <Typography variant="h5" gutterBottom sx={{ fontWeight: 600, mb: 2, textAlign: "left" }}>
         Retention Leads
       </Typography>
       <Button
         variant="contained"
-        sx={{ mb: 2, textTransform: "none", boxShadow: 2, display: "block", mx: "auto" }}
+        sx={{ mb: 2, textTransform: "none", boxShadow: 2, display: "block"  }}
         onClick={() => setFilterOpen(true)}
       >
         Filter

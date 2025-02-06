@@ -17,6 +17,9 @@ import NavbarWithSearch from "./components/NavBarwithSearch";
 import SalesDashboard from "./components/SalesDashboard";
 import OrdersTable from "./components/AllShopifyOrders";
 import OnlineOrders from "./components/OnlineOrders"; 
+import TransferRequests from "./components/TransferRequest"; 
+import LeadDetail from "./components/LeadDeails"; 
+import RetentionData from "./pages/filtered/Retention";
 
 const App = () => {
 
@@ -27,7 +30,9 @@ const App = () => {
 
         <Routes>
           <Route path="/" element={<SalesDashboard />} /> 
+          <Route path="/lead/:id" element={<LeadDetail />} />
           <Route path="/login" element={<Login />} />
+          <Route path="/transfer-requests" element={<TransferRequests />} />
           <Route path="/bulk-data-upload" element={<BulkDataUpload />} />
           <Route path="/all-shopify-orders" element={<OrdersTable />} />
           <Route path="/online-orders" element={<OnlineOrders />} /> 
@@ -40,6 +45,7 @@ const App = () => {
           <Route path="/sales/my-sales" element={<SalesMySales />} />
           <Route path="/retention/leads" element={<RetentionLeads />} />
           <Route path="/retention/sales" element={<RetentionSales />} />
+          <Route path="/retention/:filterType" element={<RetentionData />} />
         </Routes>
       </div>
     </Router>

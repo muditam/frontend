@@ -15,12 +15,16 @@ import {
 import MenuIcon from "@mui/icons-material/Menu";
 import axios from "axios";
 import MenuBar from "./MenuBar";
+import { useNavigate } from "react-router-dom";
 
 const NavbarWithSearch = () => {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState([]);
   const [showResults, setShowResults] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false); // State for the sidebar
+
+  // useNavigate hook for programmatic navigation
+  const navigate = useNavigate();
 
   const handleSearch = async (e) => {
     const value = e.target.value;
@@ -51,7 +55,7 @@ const NavbarWithSearch = () => {
     setMenuOpen(open);
   };
 
-  return ( 
+  return (
     <>
       <AppBar position="static">
         <Toolbar>
@@ -63,7 +67,6 @@ const NavbarWithSearch = () => {
           <Typography variant="h6" sx={{ flexGrow: 1 }}>
             Muditam
           </Typography>
-
           <Box sx={{ position: "relative", width: 300 }}>
             <ClickAwayListener onClickAway={handleClickAway}>
               <div>
@@ -72,10 +75,10 @@ const NavbarWithSearch = () => {
                   variant="outlined"
                   placeholder="Search by Name or Number"
                   value={query}
-                  onChange={handleSearch} 
+                  onChange={handleSearch}
                   sx={{
                     "& .MuiInputBase-input": {
-                      textAlign: "left",  
+                      textAlign: "left",
                     },
                   }}
                 />
@@ -95,7 +98,15 @@ const NavbarWithSearch = () => {
                     }}
                   >
                     {results.map((item) => (
-                      <ListItem key={item._id} button>
+                      <ListItem
+                        key={item._id}
+                        button
+                        onClick={() => {
+                          // Navigate to the lead details page
+                          navigate(`/lead/${item._id}`);
+                          handleClickAway();
+                        }}
+                      >
                         <ListItemText
                           primary={`${item.name || "No Name"} (${item.contactNumber}) (${item.agentAssigned}) [${item.healthExpertAssigned}]`}
                         />
@@ -118,4 +129,3 @@ const NavbarWithSearch = () => {
 };
 
 export default NavbarWithSearch;
- 
