@@ -25,9 +25,10 @@ import axios from "axios";
 
 const RetentionTable = () => {
   const [retentionLeads, setRetentionLeads] = useState([]);
+  const [totalLeads, setTotalLeads] = useState(0);
   const [filterOpen, setFilterOpen] = useState(false);
   const [retentionAgents, setRetentionAgents] = useState([]);
-  const [currentPage, setCurrentPage] = useState(0);
+  const [currentPage, setCurrentPage] = useState(0); // Material-UI TablePagination uses 0-indexed pages
   const [rowsPerPage, setRowsPerPage] = useState(50);
   const [filters, setFilters] = useState({
     name: "",
@@ -64,7 +65,7 @@ const RetentionTable = () => {
       "Blood Test Suggested",
       "Product Issue",
       "Order from Other Source",
-      "Upsell", 
+      "Upsell",
       "Follow Up Again",
       "Call Back",
       "Others",
@@ -72,14 +73,21 @@ const RetentionTable = () => {
     productOptions: ["KJF", "SDP", "VKR", "L-Fx", "S&S", "CPV", "HDP", "PF", "PGut", "Shilajit", "Kit", "Blood Test"],
   });
 
+  // Fetch retention leads with pagination (server-side)
   const fetchRetentionLeads = async () => {
     try {
-      const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/retention");
-      setRetentionLeads(response.data.reverse());
+      const response = await axios.get(
+        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/retention",
+        {
+          params: { page: currentPage + 1, limit: rowsPerPage },
+        }
+      );
+      setRetentionLeads(response.data.leads);
+      setTotalLeads(response.data.totalLeads);
     } catch (error) {
       console.error("Error fetching retention leads:", error);
     }
-  };  
+  };
 
   const fetchRetentionAgents = async () => {
     try {
@@ -92,7 +100,18 @@ const RetentionTable = () => {
     }
   };
 
+  // Fetch data when the component mounts and whenever the current page or rows per page changes
+  useEffect(() => {
+    fetchRetentionLeads();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPage, rowsPerPage]);
+
+  useEffect(() => {
+    fetchRetentionAgents();
+  }, []);
+
   const applyFilters = () => {
+    // (Filter logic remains the same – you might need to integrate these filters on the server too)
     const filteredLeads = retentionLeads.filter((lead) => {
       return Object.keys(filters).every((key) => {
         if (!filters[key]) return true;
@@ -128,11 +147,6 @@ const RetentionTable = () => {
     fetchRetentionLeads();
   };
 
-  useEffect(() => {
-    fetchRetentionLeads();
-    fetchRetentionAgents();
-  }, []);
-
   const handleChangePage = (event, newPage) => {
     setCurrentPage(newPage);
   };
@@ -141,8 +155,6 @@ const RetentionTable = () => {
     setRowsPerPage(parseInt(event.target.value, 10));
     setCurrentPage(0);
   };
- 
-  const currentLeads = retentionLeads.slice(currentPage * rowsPerPage, currentPage * rowsPerPage + rowsPerPage);
 
   const styles = {
     container: {
@@ -167,11 +179,11 @@ const RetentionTable = () => {
     card: {
       borderRadius: "8px",
       boxShadow: "0 4px 6px rgba(0, 0, 0, 0.1)",
-    }, 
+    },
     button: {
       borderRadius: "8px",
       textTransform: "none",
-      boxShadow: "0 2px 4px rgba(0, 0, 0, 0.1)", 
+      boxShadow: "0 2px 4px rgba(0, 0, 0, 0.1)",
     },
   };
 
@@ -195,7 +207,7 @@ const RetentionTable = () => {
         onClose={() => setFilterOpen(false)}
         sx={{ ...styles.card }}
       >
-        <Box sx={{ width: 300, padding: 2 }}> 
+        <Box sx={{ width: 300, padding: 2 }}>
           <Typography variant="h6" gutterBottom>
             Filters
           </Typography>
@@ -203,45 +215,45 @@ const RetentionTable = () => {
           <Box sx={{ marginBottom: 2 }}>
             {Object.keys(filters).map((key) => (
               <FormControl key={key} fullWidth sx={{ marginBottom: 2 }}>
-              {key === "healthExpertAssigned" ? (
-                <>
-                  <InputLabel>Health Expert Assigned</InputLabel>
-                  <Select
-                    value={filters[key] || ""}
+                {key === "healthExpertAssigned" ? (
+                  <>
+                    <InputLabel>Health Expert Assigned</InputLabel>
+                    <Select
+                      value={filters[key] || ""}
+                      onChange={(e) => setFilters((prev) => ({ ...prev, [key]: e.target.value }))}
+                    >
+                      {retentionAgents.map((agent) => (
+                        <MenuItem key={agent} value={agent}>
+                          {agent}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </>
+                ) : Array.isArray(dropdownOptions[key]) ? (
+                  <>
+                    <InputLabel>{key.replace(/([A-Z])/g, " $1")}</InputLabel>
+                    <Select
+                      multiple
+                      value={Array.isArray(filters[key]) ? filters[key] : []}
+                      onChange={(e) => setFilters((prev) => ({ ...prev, [key]: e.target.value }))}
+                      renderValue={(selected) => selected.join(", ")}
+                    >
+                      {dropdownOptions[key].map((option) => (
+                        <MenuItem key={option} value={option}>
+                          <Checkbox checked={filters[key]?.includes(option)} />
+                          <ListItemText primary={option} />
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </>
+                ) : (
+                  <TextField
+                    label={key.replace(/([A-Z])/g, " $1")}
+                    value={filters[key]}
                     onChange={(e) => setFilters((prev) => ({ ...prev, [key]: e.target.value }))}
-                  >
-                    {retentionAgents.map((agent) => (
-                      <MenuItem key={agent} value={agent}>
-                        {agent}
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </>
-              ) : Array.isArray(dropdownOptions[key]) ? (
-                <>
-                  <InputLabel>{key.replace(/([A-Z])/g, " $1")}</InputLabel>
-                  <Select
-                    multiple
-                    value={Array.isArray(filters[key]) ? filters[key] : []}
-                    onChange={(e) => setFilters((prev) => ({ ...prev, [key]: e.target.value }))}
-                    renderValue={(selected) => selected.join(", ")}
-                  >
-                    {dropdownOptions[key].map((option) => (
-                      <MenuItem key={option} value={option}>
-                        <Checkbox checked={filters[key]?.includes(option)} />
-                        <ListItemText primary={option} />
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </>
-              ) : (
-                <TextField
-                  label={key.replace(/([A-Z])/g, " $1")}
-                  value={filters[key]}
-                  onChange={(e) => setFilters((prev) => ({ ...prev, [key]: e.target.value }))}
-                />
-              )}
-            </FormControl>            
+                  />
+                )}
+              </FormControl>
             ))}
           </Box>
           <Divider />
@@ -256,11 +268,7 @@ const RetentionTable = () => {
           >
             Apply Filters
           </Button>
-          <Button
-            variant="outlined"
-            fullWidth
-            onClick={resetFilters}
-          >
+          <Button variant="outlined" fullWidth onClick={resetFilters}>
             Reset Filters
           </Button>
         </Box>
@@ -291,12 +299,12 @@ const RetentionTable = () => {
             </TableRow>
           </TableHead>
           <TableBody>
-            {currentLeads.map((lead) => (
+            {retentionLeads.map((lead) => (
               <TableRow
                 key={lead._id}
                 sx={{
-                  '&:hover': {
-                    backgroundColor: '#f2f2f2',
+                  "&:hover": {
+                    backgroundColor: "#f2f2f2",
                   },
                 }}
               >
@@ -319,21 +327,21 @@ const RetentionTable = () => {
                 <TableCell style={styles.tableCell}>{lead.retentionStatus}</TableCell>
                 <TableCell style={styles.tableCell}>{lead.rtRemark}</TableCell>
               </TableRow>
-            ))} 
+            ))}
           </TableBody>
         </Table>
       </TableContainer>
-      <TablePagination 
-                rowsPerPageOptions={[10, 20, 50, 100]}
-                component="div"
-                count={retentionLeads.length}
-                rowsPerPage={rowsPerPage}
-                page={currentPage}
-                onPageChange={handleChangePage}
-                onRowsPerPageChange={handleChangeRowsPerPage}
-            />
+      <TablePagination
+        rowsPerPageOptions={[10, 20, 50, 100]}
+        component="div"
+        count={totalLeads}
+        rowsPerPage={rowsPerPage}
+        page={currentPage}
+        onPageChange={handleChangePage}
+        onRowsPerPageChange={handleChangeRowsPerPage}
+      />
     </Box>
   );
 };
- 
+
 export default RetentionTable;

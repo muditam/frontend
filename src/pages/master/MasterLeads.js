@@ -219,11 +219,11 @@ const LeadTable = () => {
 
 
     const handleInputChange = async (e, index, field) => {
-        const updatedLeads = [...leads]; // Clone the current page's leads array
+        const updatedLeads = [...leads];  
 
         // Update the field in the cloned array
         updatedLeads[index][field] = e.target.value;
-        setLeads(updatedLeads); // Update state
+        setLeads(updatedLeads); 
 
         // Handle specific field logic
         if (field === "dosageOrdered") {
@@ -369,8 +369,7 @@ const LeadTable = () => {
             setApplyingFilters(false);
         }
     };
-
-
+ 
     const exportToCSV = async () => {
         try {
             const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads", {

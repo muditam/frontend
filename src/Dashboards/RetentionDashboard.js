@@ -69,7 +69,7 @@ const RetentionAgentDashboard = () => {
       setLoading(true);
       // Fetch all leads assigned to the logged-in retention agent
       const retentionLeadsResponse = await axios.get(
-        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/retention",
+        "http://localhost:5000/api/leads/retention",
         {
           params: {
             fullName: retentionAgentName,
@@ -111,7 +111,7 @@ const RetentionAgentDashboard = () => {
 
       // Fetch retention sales for the logged-in agent
       const retentionSalesResponse = await axios.get(
-        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/retention-sales",
+        "http://localhost:5000/api/retention-sales",
         { params: { orderCreatedBy: retentionAgentName } }
       );
 
@@ -257,7 +257,7 @@ const RetentionAgentDashboard = () => {
     try {
       setApplyingFilter(true); // Show spinner only for applying filter
       const response = await axios.get(
-        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/retention-sales",
+        "http://localhost:5000/api/retention-sales",
         { params: { orderCreatedBy: retentionAgentName } }
       );
 
@@ -372,7 +372,6 @@ const RetentionAgentDashboard = () => {
     );
   }
 
-
   return (
     <Box
       sx={{
@@ -471,8 +470,8 @@ const RetentionAgentDashboard = () => {
               <Paper
                 sx={{
                   width: "100%",
-                  maxWidth: "250px", // Increased width for a rectangular look
-                  height: "90px", // Reduced height slightly
+                  maxWidth: "250px",  
+                  height: "90px",  
                   padding: 2,
                   textAlign: "center",
                   borderRadius: "2px",
@@ -638,7 +637,7 @@ const RetentionAgentDashboard = () => {
         sx={{
           padding: 3,
           marginTop: 3,
-          borderRadius: "8px",
+          borderRadius: "8px", 
           boxShadow: "0px 4px 12px rgba(0, 0, 0, 0.1)",
         }}
       >
