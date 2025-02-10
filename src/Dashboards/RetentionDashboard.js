@@ -31,8 +31,8 @@ const BlinkingIcon = styled(WarningAmberIcon)({
 
 
 const RetentionAgentDashboard = () => {
-  const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [leads, setLeads] = useState([]);
   const [todayMetrics, setTodayMetrics] = useState({});
   const [followupMetrics, setFollowupMetrics] = useState({});
   const [applyingFilter, setApplyingFilter] = useState(false);
@@ -41,11 +41,32 @@ const RetentionAgentDashboard = () => {
   const [dateFilter, setDateFilter] = useState({ startDate: "", endDate: "" });
 
 
-  const fetchDashboardData = async (retentionAgentName, retentionAgentEmail) => {
+  const user = JSON.parse(sessionStorage.getItem("user"));
+
+
+  const handleBoxClick = (filterType) => {
+    const clickableBoxes = [
+      "Active Customers",
+      "Lost Customers",
+      "Sales Done",
+      "Followup Today",
+      "No Followup Set",
+      "Followup Tomorrow",
+      "Followup Later",
+      "Followup Missed",
+    ];
+    if (clickableBoxes.includes(filterType)) {
+      window.open(`/retention/${filterType}`, "_blank");
+    }
+  };
+
+
+  const fetchDashboardData = async (
+    retentionAgentName,
+    retentionAgentEmail
+  ) => {
     try {
       setLoading(true);
-
-
       // Fetch all leads assigned to the logged-in retention agent
       const retentionLeadsResponse = await axios.get(
         "https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/retention",
@@ -59,6 +80,14 @@ const RetentionAgentDashboard = () => {
 
 
       const retentionLeads = retentionLeadsResponse.data || [];
+
+
+      const filteredLeads = retentionLeads.filter(
+        (lead) => lead.healthExpertAssigned === retentionAgentName
+      );
+      setLeads(filteredLeads);
+
+
       const todayDate = new Date().toISOString().split("T")[0];
       const tomorrowDate = new Date(Date.now() + 24 * 60 * 60 * 1000)
         .toISOString()
@@ -100,9 +129,7 @@ const RetentionAgentDashboard = () => {
 
 
       const avgOrderValue =
-        salesDoneToday.length > 0
-          ? totalSales / salesDoneToday.length
-          : 0;
+        salesDoneToday.length > 0 ? totalSales / salesDoneToday.length : 0;
 
 
       setTodayMetrics({
@@ -162,8 +189,7 @@ const RetentionAgentDashboard = () => {
 
       // All Time Section
       const totalCustomers = retentionLeads.filter(
-        (lead) =>
-          lead.healthExpertAssigned === retentionAgentName
+        (lead) => lead.healthExpertAssigned === retentionAgentName
       ).length;
 
 
@@ -324,13 +350,11 @@ const RetentionAgentDashboard = () => {
 
 
   useEffect(() => {
-    const loggedInUser = JSON.parse(sessionStorage.getItem("user"));
-    if (loggedInUser?.role === "Retention Agent") {
-      setUser(loggedInUser);
-      fetchDashboardData(loggedInUser.fullName, loggedInUser.email);
-      fetchDeliverySummary(loggedInUser.fullName);
+    if (user.fullName && user.email) {
+      fetchDashboardData(user.fullName, user.email);
+      fetchDeliverySummary(user.fullName);
     }
-  }, []);
+  }, [user.fullName, user.email]);
 
 
   const handleApplyFilters = () => {
@@ -350,330 +374,498 @@ const RetentionAgentDashboard = () => {
 
 
   return (
-    <Box sx={{ padding: 3 }}>
-      <Typography variant="h4" gutterBottom>
+    <Box
+      sx={{
+        padding: { xs: 2, sm: 3, md: 4 },
+        // marginTop: 2,
+        width: { xs: "90%", sm: "85%", md: "85%", lg: "90%" },
+        marginLeft: "auto",
+        marginRight: "auto",
+      }}
+    >
+      <Typography
+        variant="h4"
+        gutterBottom
+        sx={{
+          fontWeight: "bold",
+          color: "#388E3C",
+          textAlign: "center",
+          marginBottom: 3,
+          letterSpacing: 1.5,
+          fontSize: { xs: "1.8rem", sm: "2rem", md: "2.2rem" },
+          borderRadius: "0 0 5px 5px",
+          position: "sticky",
+          top: 66.5,
+          zIndex: 1000,
+          backgroundColor: "#ffffff",
+          padding: "1px 0",
+          boxShadow: "0px 4px 10px rgba(0, 0, 0, 0.1)",
+        }}
+      >
         {user?.fullName} - Retention Agent Dashboard
       </Typography>
 
 
       {/* Today Section */}
-      {/* Today Section */}
-<Typography
-  variant="h5"
-  gutterBottom
-  sx={{
-    mt: 3,
-    mb: 5,
-    textAlign: "left",
-    fontWeight: "bold",
-    color: "#0288D1",
-  }}
->
-  Today
-</Typography>
-<Grid
-  container
-  spacing={3}
-  sx={{
-    display: "grid",
-    gridTemplateColumns: "repeat(5, 1fr)", // Ensures 5 columns
-    gap: 3,
-  }}
->
-  {[
-    { label: "Active Customers", value: todayMetrics.activeCustomers || 0 },
-    {
-      label: "Customers Assigned Today",
-      value: todayMetrics.customersAssignedToday || 0,
-    },
-    { label: "Sales Done", value: todayMetrics.salesDone || 0 },
-    {
-      label: "Total Sales",
-      value: `₹${(todayMetrics.totalSales || 0).toFixed(2)}`,
-    },
-    {
-      label: "Average Order Value",
-      value: `₹${(todayMetrics.avgOrderValue || 0).toFixed(2)}`,
-    },
-  ].map(({ label, value }) => (
-    <Paper
-      key={label}
-      sx={{
-        padding: 3,
-        textAlign: "center",
-        borderRadius: 3,
-        backgroundColor: "#E3F2FD",
-        boxShadow: "0px 4px 10px rgba(0, 0, 0, 0.1)",
-        transition: "transform 0.3s",
-        "&:hover": { transform: "scale(1.05)" },
-      }}
-    >
-      <Typography
-        variant="subtitle1"
-        gutterBottom
-        sx={{ fontWeight: "bold"  }}
+      <Paper
+        sx={{
+          padding: 3,
+          marginBottom: 3,
+          borderRadius: "8px",
+          boxShadow: "0px 4px 12px rgba(0, 0, 0, 0.1)",
+        }}
       >
-        {label}
-      </Typography>
-      <Typography
-        variant="h6"
-        sx={{ fontWeight: "bold"  }}
-      >
-        {value}
-      </Typography>
-    </Paper>
-  ))}
-</Grid>
-
-
+        <Typography
+          variant="h5"
+          gutterBottom
+          sx={{
+            fontWeight: "bold",
+            textAlign: "center",
+            color: "#1565C0",
+            marginBottom: 2,
+          }}
+        >
+          Today
+        </Typography>
+        <Grid
+          container
+          spacing={2}
+          sx={{
+            justifyContent: { xs: "center", md: "flex-start" },
+          }}
+        >
+          {[
+            {
+              label: "Active Customers",
+              value: todayMetrics.activeCustomers || 0,
+            },
+            {
+              label: "Customers Assigned",
+              value: todayMetrics.customersAssignedToday || 0,
+            },
+            {
+              label: "Sales Done Today",
+              value: todayMetrics.salesDone || 0,
+            },
+            {
+              label: "Total Sales",
+              value: `₹${(todayMetrics.totalSales || 0).toFixed(2)}`,
+            },
+            {
+              label: "Average Order Value",
+              value: `₹${(todayMetrics.avgOrderValue || 0).toFixed(2)}`,
+            },
+          ].map(({ label, value }) => (
+            <Grid
+              item
+              xs={12}
+              sm={6}
+              md={4}
+              lg={2.4}
+              key={label}
+              sx={{
+                display: "flex",
+                justifyContent: "center",
+              }}
+            >
+              <Paper
+                sx={{
+                  width: "100%",
+                  maxWidth: "250px", // Increased width for a rectangular look
+                  height: "90px", // Reduced height slightly
+                  padding: 2,
+                  textAlign: "center",
+                  borderRadius: "2px",
+                  border: "1px solid #1565C0",
+                  backgroundColor: "#E1F5FE",
+                  boxShadow: "0px 2px 8px rgba(0, 0, 0, 0.08)",
+                  display: "flex",
+                  flexDirection: "column",
+                  justifyContent: "center",
+                  transition: "transform 0.2s",
+                  "&:hover": {
+                    transform: "scale(1.05)",
+                    boxShadow: "0px 4px 16px rgba(0, 0, 0, 0.15)",
+                  },
+                }}
+                onClick={() => handleBoxClick(label)}
+              >
+                <Typography
+                  variant="subtitle1"
+                  gutterBottom
+                  sx={{
+                    fontWeight: "500",
+                    color: "#0288D1",
+                  }}
+                >
+                  {label}
+                </Typography>
+                <Typography
+                  variant="h6"
+                  sx={{
+                    fontWeight: "bold",
+                    color: "#01579B",
+                  }}
+                >
+                  {value}
+                </Typography>
+              </Paper>
+            </Grid>
+          ))}
+        </Grid>
+      </Paper>
 
 
       {/* Follow-Up Section */}
-<Typography
-  variant="h5"
-  gutterBottom
-  sx={{
-    mt: 4,
-    mb: 4,
-    textAlign: "left",
-    fontWeight: "bold",
-    color: "#0288D1",
-  }}
->
-  Follow-Up
-</Typography>
-<Grid
-  container
-  spacing={3}
-  sx={{
-    display: "grid",
-    gridTemplateColumns: "repeat(5, 1fr)",  
-    gap: 3,
-  }}
->
-  {[
-    {
-      label: "No Followup Set",
-      value: followupMetrics.noFollowupSet,
-      showIcon: followupMetrics.noFollowupSet > 0,
-      color: "#C8E6C9",
-    },
-    {
-      label: "Followup Missed",
-      value: followupMetrics.followupMissed,
-      showIcon: followupMetrics.followupMissed > 0,
-      color: "#C8E6C9",
-    },
-    {
-      label: "Followup Today",
-      value: followupMetrics.followupToday,
-      color: "#C8E6C9",
-    },
-    {
-      label: "Followup Tomorrow",
-      value: followupMetrics.followupTomorrow,
-      color: "#C8E6C9",
-    },
-    {
-      label: "Followup Later",
-      value: followupMetrics.followupLater,
-      color: "#C8E6C9",
-    },
-  ].map(({ label, value, showIcon, color }) => (
-    <Paper
-      key={label}
-      sx={{
-        padding: 3,
-        textAlign: "center",
-        borderRadius: 3,
-        backgroundColor: color,
-        boxShadow: "0px 4px 10px rgba(0, 0, 0, 0.1)",
-        position: "relative",
-        transition: "transform 0.3s",
-        "&:hover": { transform: "scale(1.05)" },
-      }}
-    >
-      <Typography
-        variant="subtitle1"
-        gutterBottom
-        sx={{ fontWeight: "bold", color: "#37474F" }}
+      <Paper
+        sx={{
+          padding: 3,
+          borderRadius: "8px",
+          boxShadow: "0px 4px 12px rgba(0, 0, 0, 0.1)",
+          marginBottom: 3,
+        }}
       >
-        {label}
-      </Typography>
-      <Typography
-        variant="h6"
-        sx={{ fontWeight: "bold", color: "#212121" }}
-      >
-        {value}
-      </Typography>
-      {showIcon && (
-        <BlinkingIcon
+        <Typography
+          variant="h5"
+          gutterBottom
           sx={{
-            position: "absolute",
-            top: 8,
-            right: 8,
-            color: "#FF5722",
+            fontWeight: "bold",
+            textAlign: "center",
+            color: "#00695C", // Deep Teal heading color
+            marginBottom: 2,
           }}
-        />
-      )}
-    </Paper>
-  ))}
-</Grid>
-
-
+        >
+          Follow-Up
+        </Typography>
+        <Grid
+          container
+          spacing={2}
+          sx={{
+            justifyContent: { xs: "center", md: "flex-start" },
+          }}
+        >
+          {[
+            {
+              label: "No Followup Set",
+              value: followupMetrics.noFollowupSet,
+              showIcon: followupMetrics.noFollowupSet > 0,
+            },
+            {
+              label: "Followup Missed",
+              value: followupMetrics.followupMissed,
+              showIcon: followupMetrics.followupMissed > 0,
+            },
+            { label: "Followup Today", value: followupMetrics.followupToday },
+            {
+              label: "Followup Tomorrow",
+              value: followupMetrics.followupTomorrow,
+            },
+            { label: "Followup Later", value: followupMetrics.followupLater },
+          ].map(({ label, value, showIcon }) => (
+            <Grid
+              item
+              xs={12}
+              sm={6}
+              md={4}
+              lg={2.4}
+              key={label}
+              sx={{
+                display: "flex",
+                justifyContent: "center",
+              }}
+            >
+              <Paper
+                sx={{
+                  width: "100%",
+                  maxWidth: "250px",
+                  height: "90px",
+                  padding: 3,
+                  textAlign: "center",
+                  borderRadius: "2px",
+                  border: "1px solid #00695C", // Deep Teal border
+                  backgroundColor: "#E0F2F1", // Light Teal background
+                  boxShadow: "0px 2px 8px rgba(0, 0, 0, 0.08)",
+                  position: "relative",
+                  display: "flex",
+                  flexDirection: "column",
+                  justifyContent: "center",
+                  transition: "transform 0.2s",
+                  "&:hover": {
+                    transform: "scale(1.05)",
+                    boxShadow: "0px 4px 16px rgba(0, 0, 0, 0.15)",
+                  },
+                }}
+                onClick={() => handleBoxClick(label)}
+              >
+                <Typography
+                  variant="subtitle1"
+                  gutterBottom
+                  sx={{
+                    fontWeight: "500",
+                    color: "#00897B", // Muted Teal label color
+                  }}
+                >
+                  {label}
+                </Typography>
+                <Typography
+                  variant="h6"
+                  sx={{
+                    fontWeight: "bold",
+                    color: "#004D40", // Dark Teal value color
+                  }}
+                >
+                  {value}
+                </Typography>
+                {showIcon && (
+                  <BlinkingIcon
+                    sx={{
+                      position: "absolute",
+                      top: 8,
+                      right: 8,
+                      color: "#00BFA5", // Bright Cyan for blinking icon
+                    }}
+                  />
+                )}
+              </Paper>
+            </Grid>
+          ))}
+        </Grid>
+      </Paper>
 
 
       {/* All Time Section */}
-<Typography
-  variant="h5"
-  gutterBottom
-  sx={{
-    mt: 4,
-    mb: 4,
-    textAlign: "left",
-    fontWeight: "bold",
-    color: "#4CAF50",
-  }}
->
-  All Time
-</Typography>
-<Grid
-  container
-  spacing={3}
-  sx={{
-    display: "grid",
-    gridTemplateColumns: "repeat(4, 1fr)",  
-    gap: 3,
-  }}
->
-  {[
-    { label: "Total Customers", value: allTimeMetrics.totalCustomers || 0, color: "#FFF59D" },
-    {
-      label: "Customers Retained This Month",
-      value: allTimeMetrics.customersRetainedThisMonth || 0,
-      color: "#FFF59D",
-    },
-    {
-      label: "Retention Rate",
-      value: `${allTimeMetrics.retentionRate || 0}%`,
-      color: "#FFF59D",
-    },
-    {
-      label: "Active Customers",
-      value: allTimeMetrics.activeCustomers || 0,
-      color: "#FFF59D",
-    },
-    { label: "Lost Customers", value: allTimeMetrics.lostCustomers || 0, color: "#FFF59D" },
-    { label: "Sales Done", value: allTimeMetrics.salesDone || 0, color: "#FFF59D" },
-    {
-      label: "Total Sales",
-      value: `₹${(allTimeMetrics.totalSales || 0).toFixed(2)}`,
-      color: "#FFF59D",
-    },
-    {
-      label: "Average Order Value",
-      value: `₹${(allTimeMetrics.avgOrderValue || 0).toFixed(2)}`,
-      color: "#FFF59D",
-    },
-  ].map(({ label, value, color }) => (
-    <Paper
-      key={label}
-      sx={{
-        padding: 3,
-        textAlign: "center",
-        borderRadius: 3,
-        backgroundColor: color,
-        boxShadow: "0px 4px 10px rgba(0, 0, 0, 0.1)",
-        transition: "transform 0.3s",
-        "&:hover": { transform: "scale(1.05)" },
-      }}
-    >
-      <Typography
-        variant="subtitle1"
-        gutterBottom
-        sx={{ fontWeight: "bold", color: "#37474F" }}
+      <Paper
+        sx={{
+          padding: 3,
+          marginTop: 3,
+          borderRadius: "8px",
+          boxShadow: "0px 4px 12px rgba(0, 0, 0, 0.1)",
+        }}
       >
-        {label}
-      </Typography>
-      <Typography
-        variant="h6"
-        sx={{ fontWeight: "bold", color: "#212121" }}
-      >
-        {value}
-      </Typography>
-    </Paper>
-  ))}
-</Grid>
+        <Typography
+          variant="h5"
+          gutterBottom
+          sx={{
+            fontWeight: "bold",
+            textAlign: "center",
+            color: "#388E3C", // Green accent color for heading
+            marginBottom: 2,
+          }}
+        >
+          All Time
+        </Typography>
 
 
+        <Grid
+          container
+          spacing={2} // Reduce spacing for large and extra-large screens
+          sx={{
+            justifyContent: { xs: "center", md: "flex-start" },
+          }}
+        >
+          {[
+            {
+              label: "Total Customers",
+              value: allTimeMetrics.totalCustomers || 0,
+            },
+            {
+              label: "Customers Retained This Month",
+              value: allTimeMetrics.customersRetainedThisMonth || 0,
+            },
+            {
+              label: "Retention Rate",
+              value: `${allTimeMetrics.retentionRate || 0}%`,
+            },
+            {
+              label: "Active Customers",
+              value: allTimeMetrics.activeCustomers || 0,
+            },
+            {
+              label: "Lost Customers",
+              value: allTimeMetrics.lostCustomers || 0,
+            },
+            { label: "Sales Done", value: allTimeMetrics.salesDone || 0 },
+            {
+              label: "Total Sales",
+              value: `₹${(allTimeMetrics.totalSales || 0).toFixed(2)}`,
+            },
+            {
+              label: "Average Order Value",
+              value: `₹${(allTimeMetrics.avgOrderValue || 0).toFixed(2)}`,
+            },
+          ].map(({ label, value }) => (
+            <Grid
+              item
+              xs={12}
+              sm={6}
+              md={4}
+              lg={3} // Four tiles in a row for large screens
+              key={label}
+              sx={{
+                display: "flex",
+                justifyContent: "center", // Center tiles horizontally
+              }}
+            >
+              <Paper
+                sx={{
+                  width: "100%", // Full width of the grid item
+                  maxWidth: "350px", // Restrict max width for uniformity
+                  height: "90px", // Ensure equal height for all tiles
+                  padding: 3,
+                  textAlign: "center",
+                  borderRadius: "2px",
+                  border: "1px solid #388E3C", // Green border
+                  backgroundColor: "#F1F8E9", // Light pistachio green
+                  boxShadow: "0px 2px 8px rgba(0, 0, 0, 0.08)",
+                  display: "flex",
+                  flexDirection: "column",
+                  justifyContent: "center", // Center content vertically
+                  transition: "transform 0.2s",
+                  "&:hover": {
+                    transform: "scale(1.05)",
+                    boxShadow: "0px 4px 16px rgba(0, 0, 0, 0.15)",
+                  },
+                }}
+                onClick={() => handleBoxClick(label)}
+              >
+                <Typography
+                  variant="subtitle1"
+                  gutterBottom
+                  sx={{ fontWeight: "500", color: "#2E7D32" }}
+                >
+                  {label}
+                </Typography>
+                <Typography
+                  variant="h6"
+                  sx={{ fontWeight: "bold", color: "#388E3C" }}
+                >
+                  {value}
+                </Typography>
+              </Paper>
+            </Grid>
+          ))}
+        </Grid>
+      </Paper>
 
 
       {/* Delivery Status Section */}
-      <Typography variant="h5" gutterBottom sx={{ mt: 4 }}>
-        Order Delivery Status
-      </Typography>
-      <Box sx={{ display: "flex", gap: 2, marginBottom: 2 }}>
-        <TextField
-          label="Start Date"
-          type="date"
-          InputLabelProps={{ shrink: true }}
-          value={dateFilter.startDate}
-          onChange={(e) =>
-            setDateFilter((prev) => ({ ...prev, startDate: e.target.value }))
-          }
-        />
-        <TextField
-          label="End Date"
-          type="date"
-          InputLabelProps={{ shrink: true }}
-          value={dateFilter.endDate}
-          onChange={(e) =>
-            setDateFilter((prev) => ({ ...prev, endDate: e.target.value }))
-          }
-        />
-        <Button
-          variant="contained"
-          onClick={() => fetchDeliverySummary(user?.fullName)}
+      <Paper
+        sx={{
+          padding: { xs: 2, sm: 3, md: 4 }, // Adjust padding for different screen sizes
+          marginTop: 3,
+          borderRadius: "8px",
+          boxShadow: "0px 4px 12px rgba(0, 0, 0, 0.1)",
+          width: "100%", // Set width to 100% to allow responsiveness
+          maxWidth: "1200px", // Optional max-width for larger screens
+          marginLeft: "auto", // Center horizontally
+          marginRight: "auto",
+        }}
+      >
+        <Typography
+          variant="h5"
+          gutterBottom
+          sx={{
+            fontWeight: "bold",
+            textAlign: "center",
+            color: "#4F4F4F", // Dark gray accent color for heading
+            marginBottom: 2,
+          }}
         >
-          Apply Filters
-        </Button>
-      </Box>
-      {applyingFilter ? (
-        <Box sx={{ display: "flex", justifyContent: "center", mt: 4 }}>
-          <CircularProgress />
+          Order Delivery Status
+        </Typography>
+
+
+        {/* Date Range Filter */}
+          
+        <Box sx={{ display: "flex", gap: 2, marginBottom: 2 }}>
+          <TextField
+            label="Start Date"
+            type="date"
+            InputLabelProps={{ shrink: true }}
+            value={dateFilter.startDate}
+            onChange={(e) =>
+              setDateFilter((prev) => ({ ...prev, startDate: e.target.value }))
+            }
+          />
+          <TextField
+            label="End Date"
+            type="date"
+            InputLabelProps={{ shrink: true }}
+            value={dateFilter.endDate}
+            onChange={(e) =>
+              setDateFilter((prev) => ({ ...prev, endDate: e.target.value }))
+            }
+          />
+
+
+          <Button
+            variant="contained"
+            onClick={() => fetchDeliverySummary(user?.fullName)}
+            sx={{ backgroundColor: "#6D6D6D" }}
+          >
+            Apply Filters
+          </Button>
         </Box>
-      ) : (
-        <TableContainer component={Paper}>
-          <Table>
-            <TableHead>
-              <TableRow sx={{ backgroundColor: "#F4CCCC" }}>
-                <TableCell>
-                  <Typography fontWeight="bold">Category</Typography>
-                </TableCell>
-                <TableCell>
-                  <Typography fontWeight="bold">Count</Typography>
-                </TableCell>
-                <TableCell>
-                  <Typography fontWeight="bold">Amount</Typography>
-                </TableCell>
-                <TableCell>
-                  <Typography fontWeight="bold">Percentage</Typography>
-                </TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {deliverySummary.map((row) => (
-                <TableRow key={row.label}>
-                  <TableCell>{row.label}</TableCell>
-                  <TableCell>{row.count}</TableCell>
-                  <TableCell>{`₹${row.amount.toFixed(2)}`}</TableCell>
-                  <TableCell>{`${row.percentage}%`}</TableCell>
+
+
+        {/* Loading Indicator */}
+        {applyingFilter ? (
+          <Box sx={{ display: "flex", justifyContent: "center", mt: 4 }}>
+            <CircularProgress />
+          </Box>
+        ) : (
+          <TableContainer component={Paper} sx={{ borderRadius: "10px" }}>
+            <Table>
+              <TableHead>
+                <TableRow sx={{ backgroundColor: "#6D6D6D" }}>
+                  {["Category", "Count", "Amount", "Percentage"].map(
+                    (header) => (
+                      <TableCell
+                        key={header}
+                        sx={{
+                          backgroundColor: "#6D6D6D",
+                          textAlign: "center",
+                        }}
+                      >
+                        <Typography
+                          fontWeight="bold"
+                          sx={{ color: "#e8e8e8" }} // Light gray text
+                        >
+                          {header}
+                        </Typography>
+                      </TableCell>
+                    )
+                  )}
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </TableContainer>
-      )}
+              </TableHead>
+              <TableBody>
+                {deliverySummary.map((row) => (
+                  <TableRow
+                    key={row.label}
+                    sx={{
+                      "&:nth-of-type(odd)": { backgroundColor: "#F5F5F5" }, // Subtle alternate row shading
+                      "&:nth-of-type(even)": { backgroundColor: "#FFFFFF" },
+                    }}
+                  >
+                    <TableCell sx={{ textAlign: "center" }}>
+                      <Typography fontWeight="bold">{row.label}</Typography>
+                    </TableCell>
+                    <TableCell sx={{ textAlign: "center" }}>
+                      {row.count}
+                    </TableCell>
+                    <TableCell sx={{ textAlign: "center" }}>
+                      {`₹${row.amount.toFixed(2)}`}
+                    </TableCell>
+                    <TableCell sx={{ textAlign: "center" }}>
+                      {`${row.percentage}%`}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        )}
+      </Paper>
     </Box>
   );
 };
