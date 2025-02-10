@@ -69,7 +69,7 @@ const RetentionAgentDashboard = () => {
       setLoading(true);
       // Fetch all leads assigned to the logged-in retention agent
       const retentionLeadsResponse = await axios.get(
-        "http://localhost:5000/api/leads/retention",
+        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/retention",
         {
           params: {
             fullName: retentionAgentName,
@@ -78,9 +78,7 @@ const RetentionAgentDashboard = () => {
         }
       );
 
-
-      const retentionLeads = retentionLeadsResponse.data || [];
-
+      const retentionLeads = (retentionLeadsResponse.data && retentionLeadsResponse.data.leads) || [];
 
       const filteredLeads = retentionLeads.filter(
         (lead) => lead.healthExpertAssigned === retentionAgentName
@@ -111,7 +109,7 @@ const RetentionAgentDashboard = () => {
 
       // Fetch retention sales for the logged-in agent
       const retentionSalesResponse = await axios.get(
-        "http://localhost:5000/api/retention-sales",
+        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/retention-sales",
         { params: { orderCreatedBy: retentionAgentName } }
       );
 
@@ -257,7 +255,7 @@ const RetentionAgentDashboard = () => {
     try {
       setApplyingFilter(true); // Show spinner only for applying filter
       const response = await axios.get(
-        "http://localhost:5000/api/retention-sales",
+        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/retention-sales",
         { params: { orderCreatedBy: retentionAgentName } }
       );
 
@@ -372,6 +370,7 @@ const RetentionAgentDashboard = () => {
     );
   }
 
+
   return (
     <Box
       sx={{
@@ -470,8 +469,8 @@ const RetentionAgentDashboard = () => {
               <Paper
                 sx={{
                   width: "100%",
-                  maxWidth: "250px",  
-                  height: "90px",  
+                  maxWidth: "250px", // Increased width for a rectangular look
+                  height: "90px", // Reduced height slightly
                   padding: 2,
                   textAlign: "center",
                   borderRadius: "2px",
