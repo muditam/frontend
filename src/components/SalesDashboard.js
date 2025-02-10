@@ -17,7 +17,7 @@ const SalesDashboard = () => {
     } else {
       navigate("/login");
     }
-  }, [navigate]);
+  }, [navigate]); 
 
   if (!role) {
     return <div>Loading...</div>;

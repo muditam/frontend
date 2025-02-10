@@ -18,8 +18,7 @@ import SalesDashboard from "./components/SalesDashboard";
 import OrdersTable from "./components/AllShopifyOrders";
 import OnlineOrders from "./components/OnlineOrders"; 
 import TransferRequests from "./components/TransferRequest"; 
-import LeadDetail from "./components/LeadDeails"; 
-import RetentionData from "./pages/filtered/Retention";
+import LeadDetail from "./components/LeadDeails";  
 
 const App = () => {
 
@@ -44,8 +43,7 @@ const App = () => {
           <Route path="/sales/my-leads" element={<SalesMyLeads />} />
           <Route path="/sales/my-sales" element={<SalesMySales />} />
           <Route path="/retention/leads" element={<RetentionLeads />} />
-          <Route path="/retention/sales" element={<RetentionSales />} />
-          <Route path="/retention/:filterType" element={<RetentionData />} />
+          <Route path="/retention/sales" element={<RetentionSales />} /> 
         </Routes>
       </div>
     </Router>

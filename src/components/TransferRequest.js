@@ -22,8 +22,7 @@ const TransferRequests = () => {
 
   const fetchRequests = async () => {
     try {
-      const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/transfer-requests");
-      // Sort requests descending by createdAt so that new requests appear on top
+      const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/transfer-requests"); 
       const sortedRequests = response.data.sort(
         (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
       );
