@@ -358,7 +358,7 @@ const LeadTable = () => {
                     limit: rowsPerPage,
                     filters: JSON.stringify(activeFilters),
                 },
-            });
+            }); 
 
             setLeads(response.data.leads);
             setTotalPages(response.data.totalPages);
@@ -373,7 +373,7 @@ const LeadTable = () => {
     const exportToCSV = async () => {
         try {
             const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads", {
-                params: { page: 1, limit: totalLeads }, // Fetch all leads
+                params: { page: 1, limit: totalLeads },  
             });
             const allLeads = response.data.leads;
 
@@ -391,7 +391,7 @@ const LeadTable = () => {
 
     const handleChangePage = (event, newPage) => {
         setCurrentPage(newPage + 1);
-        fetchLeads(newPage + 1, rowsPerPage, filters); // Fetch data with filters
+        fetchLeads(newPage + 1, rowsPerPage, filters);  
     };
 
 

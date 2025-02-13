@@ -56,7 +56,7 @@ const OnlineOrders = () => {
     
                 allLeads = allLeads.concat(response.data.leads);
                 totalPages = response.data.totalPages;
-                page++;
+                page++; 
             } while (page <= totalPages);
     
             return allLeads;
@@ -75,21 +75,45 @@ const OnlineOrders = () => {
     
             const leads = await fetchAllLeads();  
     
-            const webOrders = ordersResponse.data.filter(order => order.channel_name === "web" || order.channel_name === "208644538369");
+            const webOrders = ordersResponse.data.filter(order =>
+                order.channel_name === "web" || order.channel_name === "208644538369"
+            );
     
-            const ordersWithHealthExperts = webOrders.map(order => {
-                const normalizedOrderPhone = order.customer?.default_address?.phone?.replace(/[^\d]/g, "");
-                const matchingLead = leads.find(lead =>
-                    lead.contactNumber.replace(/[^\d]/g, "") === normalizedOrderPhone
-                );
+            // Map orders to include agentAssigned, healthExpertAssigned, leadExists and isSaved.
+            // Then filter out orders that already have a health expert assigned.
+            const ordersWithHealthExperts = webOrders
+                .map(order => {
+                    const normalizedOrderPhone = order.customer?.default_address?.phone?.replace(/[^\d]/g, "");
+                    const matchingLead = leads.find(lead =>
+                        lead.contactNumber.replace(/[^\d]/g, "") === normalizedOrderPhone
+                    );
+                    let healthExpertAssigned = "Not Assigned";
+                    let leadExists = false;
+                    let isSaved = false;
+                    // Get the agentAssigned from the matching lead if available; otherwise, default to "Online Order"
+                    let agentAssigned = "Online Order";
     
-                return {
-                    ...order,
-                    healthExpertAssigned: matchingLead?.healthExpertAssigned || "Not Assigned",
-                    leadExists: !!matchingLead,
-                    isSaved: !!matchingLead, 
-                };
-            });
+                    if (matchingLead) {
+                        leadExists = true;
+                        healthExpertAssigned = matchingLead.healthExpertAssigned || "Not Assigned";
+                        agentAssigned = matchingLead.agentAssigned || "Online Order";
+                        // If the agentAssigned is "Online Order", consider the lead as saved.
+                        if (agentAssigned === "Online Order") {
+                            isSaved = true;
+                        } else {
+                            isSaved = false;
+                        }
+                    }
+    
+                    return {
+                        ...order,
+                        healthExpertAssigned,
+                        leadExists,
+                        isSaved,
+                        agentAssigned,
+                    };
+                })
+                .filter(order => order.healthExpertAssigned === "Not Assigned");
     
             setOrders(ordersWithHealthExperts);
             setRetentionAgents(agentsResponse.data);
@@ -100,10 +124,9 @@ const OnlineOrders = () => {
 
     const handleSaveHealthExpert = async (orderIndex) => { 
         const globalIndex = currentPage * rowsPerPage + orderIndex;
-
         const order = orders[globalIndex];  
         if (!order.healthExpertAssigned) return;
-
+    
         const leadData = {
             orderId: order.name,
             name: `${order.customer.first_name} ${order.customer.last_name}`,
@@ -111,13 +134,15 @@ const OnlineOrders = () => {
             date: new Date(order.created_at).toISOString().split('T')[0],
             amount: order.total_price,
             modeOfPayment: order.payment_gateway_names.join(", "),
-            productsOrdered: order.line_items.map(item => productAbbreviations[item.title] || item.title).join(", "),
-            agentAssigned: 'Online Order',
+            productsOrdered: order.line_items
+                .map(item => productAbbreviations[item.title] || item.title)
+                .join(", "),
+            agentAssigned: order.agentAssigned, // from the lead if it exists; otherwise "Online Order"
             healthExpertAssigned: order.healthExpertAssigned,
             leadStatus: 'Sales Done',
             salesStatus: 'Sales Done',
         };
-
+    
         try {
             const existingLeadResponse = await axios.get(
                 `https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/check-duplicate?contactNumber=${leadData.contactNumber}`
@@ -130,33 +155,34 @@ const OnlineOrders = () => {
             } else {
                 await axios.post("https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads", leadData);
             }
-
-            const updatedOrders = [...orders];
-            updatedOrders[globalIndex].isSaved = true; 
+    
+            // After saving, remove the order from the table.
+            const updatedOrders = orders.filter((_, index) => index !== globalIndex);
             setOrders(updatedOrders);
         } catch (error) {
             console.error('Failed to update lead:', error);
         }
     };
-
+    
     const handleChangeHealthExpert = (orderIndex, expertName) => {
         const globalIndex = currentPage * rowsPerPage + orderIndex;
-
+    
         const updatedOrders = [...orders];
         updatedOrders[globalIndex].healthExpertAssigned = expertName;
+        // Always mark as unsaved so that the Save button shows "Save"
         updatedOrders[globalIndex].isSaved = false;  
         setOrders(updatedOrders);
     };
-
+    
     const handleChangePage = (event, newPage) => {
         setCurrentPage(newPage);
     };
-
+    
     const handleChangeRowsPerPage = (event) => {
         setRowsPerPage(parseInt(event.target.value, 10));
         setCurrentPage(0);
     };
-
+    
     return (
         <>
             <TableContainer component={Paper} sx={{ minWidth: 650 }}>
@@ -187,8 +213,12 @@ const OnlineOrders = () => {
                                     <TableCell>{new Date(order.created_at).toLocaleDateString()}</TableCell>
                                     <TableCell>{order.total_price}</TableCell>
                                     <TableCell>{order.payment_gateway_names}</TableCell>
-                                    <TableCell>{order.line_items.map(item => productAbbreviations[item.title] || item.title).join(", ")}</TableCell>
-                                    <TableCell>Online Order</TableCell>
+                                    <TableCell>
+                                        {order.line_items
+                                            .map(item => productAbbreviations[item.title] || item.title)
+                                            .join(", ")}
+                                    </TableCell>
+                                    <TableCell>{order.agentAssigned}</TableCell>
                                     <TableCell>{order.channel_name}</TableCell>
                                     <TableCell>
                                         <Select
@@ -198,9 +228,12 @@ const OnlineOrders = () => {
                                             fullWidth
                                         >
                                             <MenuItem value="">
+                                                {/* Empty item */}
                                             </MenuItem>
                                             {retentionAgents.map((agent) => (
-                                                <MenuItem key={agent._id} value={agent.fullName}>{agent.fullName}</MenuItem>
+                                                <MenuItem key={agent._id} value={agent.fullName}>
+                                                    {agent.fullName}
+                                                </MenuItem>
                                             ))}
                                         </Select>
                                     </TableCell>
@@ -212,7 +245,7 @@ const OnlineOrders = () => {
                                                 color: order.isSaved ? "black" : "white",
                                             }}
                                             onClick={() => handleSaveHealthExpert(index)}
-                                            disabled={order.isSaved} 
+                                            disabled={order.isSaved}
                                         >
                                             {order.isSaved ? "Saved" : "Save"}
                                         </Button>
@@ -236,4 +269,3 @@ const OnlineOrders = () => {
 };
 
 export default OnlineOrders;
- 

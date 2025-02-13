@@ -20,6 +20,10 @@ import OnlineOrders from "./components/OnlineOrders";
 import TransferRequests from "./components/TransferRequest"; 
 import LeadDetail from "./components/LeadDeails";  
 import RetentionData from "./pages/filtered/Retention";
+import NotificationListener from "./components/NotificationListener";
+
+import { ToastContainer } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
 
 const App = () => {
 
@@ -27,6 +31,9 @@ const App = () => {
     <Router>
       <div>  
         <NavbarWithSearch />
+
+        <NotificationListener />
+        <ToastContainer position="bottom-right" autoClose={5000} closeButton />
 
         <Routes>
           <Route path="/" element={<SalesDashboard />} /> 

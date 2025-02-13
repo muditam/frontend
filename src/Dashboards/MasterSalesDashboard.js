@@ -128,7 +128,7 @@ const ManagerSalesDashboard = () => {
           avgOrderValue,
         };
       });
-
+ 
       setTodayStats(todayData);
 
       // "Followup" Section Data

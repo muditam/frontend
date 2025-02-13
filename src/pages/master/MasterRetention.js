@@ -28,7 +28,7 @@ const RetentionTable = () => {
   const [totalLeads, setTotalLeads] = useState(0);
   const [filterOpen, setFilterOpen] = useState(false);
   const [retentionAgents, setRetentionAgents] = useState([]);
-  const [currentPage, setCurrentPage] = useState(0); // Material-UI TablePagination uses 0-indexed pages
+  const [currentPage, setCurrentPage] = useState(0); 
   const [rowsPerPage, setRowsPerPage] = useState(50);
   const [filters, setFilters] = useState({
     name: "",
