@@ -143,14 +143,18 @@ const RetentionLeads = () => {
         }
       );
       const { async, agentNumber, callerId } = await fetchUserDetails(user);
-      const leadsWithReminders = response.data.map((lead) => ({
-        ...lead,
-        rtFollowupReminder: lead.rtNextFollowupDate ? computeReminder(lead.rtNextFollowupDate) : "",
-        async,
-        agentNumber,
-        callerId,
-        rtSubcells: lead.rtSubcells || [],
-      }));
+      // Map the leads to include computed reminder and other user details
+      const leadsWithReminders = response.data
+        .map((lead) => ({
+          ...lead,
+          rtFollowupReminder: lead.rtNextFollowupDate ? computeReminder(lead.rtNextFollowupDate) : "",
+          async,
+          agentNumber,
+          callerId,
+          rtSubcells: lead.rtSubcells || [],
+        }))
+        // Filter to include only leads whose retentionStatus is "Active"
+        .filter((lead) => lead.retentionStatus === "Active");
       // Reverse the array to show latest leads on top
       setAllLeads(leadsWithReminders.reverse());
       setLeads(leadsWithReminders.reverse());
@@ -484,7 +488,7 @@ const RetentionLeads = () => {
         <TableContainer sx={{ animation: `${fadeIn} 0.5s ease-in` }}>
           <Table stickyHeader aria-label="retention leads table">
             <TableHead>
-              <TableRow>
+              <TableRow>           
                 <HeaderTableCell>Name</HeaderTableCell>
                 <HeaderTableCell>Contact No</HeaderTableCell>
                 {/* Increased width for RT Remark column */}

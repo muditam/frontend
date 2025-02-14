@@ -94,7 +94,6 @@ const SalesMyLeads = () => {
       });
 
       const { leads, totalLeads } = response.data;
-
       setLeads(leads || []); // Update leads state with fetched data
       setTotalLeads(totalLeads || 0); // Update the total leads count
     } catch (error) {
@@ -525,13 +524,13 @@ const SalesMyLeads = () => {
             </TableRow>
           </TableHead>
           <TableBody>
-            {leads.map((lead, index) => (
+            {leads.filter(lead => lead.salesStatus !== "Lost").map((lead, index) => (
               <TableRow key={lead._id}>
-                <TableCell>
+                <TableCell> 
                   <TextField
                     type="date"
                     value={lead.date || ""}
-                    disabled // Date is not editable
+                    disabled  
                     fullWidth
                   />
                 </TableCell>
@@ -565,7 +564,7 @@ const SalesMyLeads = () => {
                       '& input[type=number]::-webkit-outer-spin-button, & input[type=number]::-webkit-inner-spin-button': {
                         WebkitAppearance: 'none', 
                         margin: 0,
-                      },
+                      }, 
                     }}
                   />
                   <IconButton

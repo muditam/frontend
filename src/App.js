@@ -21,7 +21,9 @@ import TransferRequests from "./components/TransferRequest";
 import LeadDetail from "./components/LeadDeails";  
 import RetentionData from "./pages/filtered/Retention";
 import NotificationListener from "./components/NotificationListener";
-
+import AcquisitionLost from "./Lostdata/AcquisitionLost";
+import RetentionLost from "./Lostdata/RetentionLost";
+ 
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 
@@ -53,6 +55,8 @@ const App = () => {
           <Route path="/retention/leads" element={<RetentionLeads />} />
           <Route path="/retention/sales" element={<RetentionSales />} /> 
           <Route path="/retention/:filterType" element={<RetentionData />} />
+          <Route path="/lost/acquisition" element={<AcquisitionLost />} /> 
+          <Route path="/lost/retention" element={<RetentionLost />} /> 
         </Routes>
       </div>
     </Router>

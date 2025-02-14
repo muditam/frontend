@@ -8,7 +8,6 @@ import {
   TextField,
   CircularProgress,
   Paper,
-  MenuItem,
 } from "@mui/material";
 import axios from "axios";
 
@@ -26,7 +25,9 @@ const LeadDetail = () => {
   useEffect(() => {
     const fetchLead = async () => {
       try {
-        const response = await axios.get(`https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/${id}`);
+        const response = await axios.get(
+          `https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/${id}`
+        );
         setLead(response.data);
         setFormData(response.data);
         setLoading(false);
@@ -37,16 +38,19 @@ const LeadDetail = () => {
     };
     fetchLead();
   }, [id]);
- 
+
+  // Fetch transfer request status
   useEffect(() => {
     const fetchTransferRequest = async () => {
       try {
-        const response = await axios.get(`https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/transfer-requests`); 
+        const response = await axios.get(
+          `https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/transfer-requests`
+        );
         const req = response.data.find(
           (r) =>
             r.leadId === id ||
             (typeof r.leadId === "object" && r.leadId.toString() === id)
-        ); 
+        );
         if (req && req.requestedBy === loggedInUser.fullName) {
           setTransferRequest(req);
         }
@@ -59,14 +63,17 @@ const LeadDetail = () => {
   }, [id, loggedInUser.fullName]);
 
   const handleInputChange = (e) => {
-    const { name, value } = e.target; 
+    const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
   const handleSave = async () => {
     try {
-      const response = await axios.put(`https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/${id}`, formData);
-      // Assuming your backend responds with updated lead in response.data.lead
+      const response = await axios.put(
+        `https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/${id}`,
+        formData
+      );
+      // Assuming your backend responds with the updated lead in response.data.lead
       setLead(response.data.lead);
       setEditMode(false);
     } catch (error) {
@@ -78,11 +85,14 @@ const LeadDetail = () => {
     // Prevent duplicate transfer request
     if (transferRequest) return;
     try {
-      const response = await axios.post(`https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/transfer-request`, {
-        leadId: id,
-        requestedBy: loggedInUser.fullName,
-        role: loggedInUser.role,
-      });
+      const response = await axios.post(
+        `https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/transfer-request`,
+        {
+          leadId: id,
+          requestedBy: loggedInUser.fullName,
+          role: loggedInUser.role,
+        }
+      );
       setTransferRequest(response.data.request);
       setTransferRequestStatus("Transfer request sent for approval");
     } catch (error) {
@@ -105,14 +115,20 @@ const LeadDetail = () => {
 
   // Determine if the logged-in agent is assigned to the lead
   let isAssigned = false;
-  if (loggedInUser.role === "Sales Agent" && lead.agentAssigned === loggedInUser.fullName) {
+  if (
+    loggedInUser.role === "Sales Agent" &&
+    lead.agentAssigned === loggedInUser.fullName
+  ) {
     isAssigned = true;
-  } else if (loggedInUser.role === "Retention Agent" && lead.healthExpertAssigned === loggedInUser.fullName) {
+  } else if (
+    loggedInUser.role === "Retention Agent" &&
+    lead.healthExpertAssigned === loggedInUser.fullName
+  ) {
     isAssigned = true;
   }
 
-  // Define the fields that can be edited based on user role
-  const salesEditableFields = (
+  // Common fields that are always editable
+  const commonEditableFields = (
     <>
       <TextField
         label="Name"
@@ -130,6 +146,12 @@ const LeadDetail = () => {
         fullWidth
         sx={{ mb: 2 }}
       />
+    </>
+  );
+
+  // Fields specific for Sales Agents (excluding common fields)
+  const salesEditableFields = (
+    <>
       <TextField
         label="Lead Source"
         name="leadSource"
@@ -200,6 +222,7 @@ const LeadDetail = () => {
     </>
   );
 
+  // Fields specific for Retention Agents (excluding common fields)
   const retentionEditableFields = (
     <>
       <TextField
@@ -255,17 +278,29 @@ const LeadDetail = () => {
         sx={{ mb: 2 }}
         InputLabelProps={{ shrink: true }}
       />
-      {/* Add additional retention-specific fields as needed */}
     </>
   );
 
   return (
     <Box sx={{ padding: 3, backgroundColor: "#f5f5f5", minHeight: "100vh" }}>
-      <Paper sx={{ padding: 3, maxWidth: 800, margin: "auto", borderRadius: 2, boxShadow: 3 }}>
-        <Typography variant="h4" gutterBottom sx={{ mb: 3, textAlign: "center" }}>
+      <Paper
+        sx={{
+          padding: 3,
+          maxWidth: 800,
+          margin: "auto",
+          borderRadius: 2,
+          boxShadow: 3,
+        }}
+      >
+        <Typography
+          variant="h4"
+          gutterBottom
+          sx={{ mb: 3, textAlign: "center" }}
+        >
           Lead Details
         </Typography>
-        {/* Read-only view with all available data */}
+
+        {/* Read-only view */}
         {!editMode && (
           <Box sx={{ mb: 3 }}>
             <Typography variant="subtitle1">
@@ -328,7 +363,10 @@ const LeadDetail = () => {
         {/* Edit Mode */}
         {editMode && (
           <Box component="form" noValidate sx={{ mb: 3 }}>
-            {loggedInUser.role === "Sales Agent" ? salesEditableFields : retentionEditableFields}
+            {commonEditableFields}
+            {loggedInUser.role === "Sales Agent"
+              ? salesEditableFields
+              : retentionEditableFields}
             <Box sx={{ display: "flex", justifyContent: "flex-end", mt: 2 }}>
               <Button variant="contained" onClick={handleSave} sx={{ mr: 2 }}>
                 Save
@@ -343,12 +381,10 @@ const LeadDetail = () => {
         {/* Action Buttons */}
         <Box sx={{ display: "flex", justifyContent: "space-between", mt: 3 }}>
           {isAssigned ? (
-            // Only assigned agent sees the Edit button
             <Button variant="contained" onClick={() => setEditMode(true)}>
               Edit Lead
             </Button>
           ) : (
-            // If a transfer request exists, show a disabled button.
             <>
               {transferRequest ? (
                 <Button

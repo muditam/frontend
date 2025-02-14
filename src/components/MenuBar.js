@@ -33,7 +33,7 @@ const MenuBar = ({ toggleDrawer }) => {
 
   const handleLogout = () => {
     sessionStorage.removeItem("user");
-    setUser(null);  
+    setUser(null);
     navigate("/login");
   };
 
@@ -115,7 +115,10 @@ const MenuBar = ({ toggleDrawer }) => {
                   onClick={toggleDrawer}
                 >
                   <PersonAddIcon sx={{ marginRight: "10px" }} />
-                  <ListItemText primary="Add Employee" sx={styles.listItemText} />
+                  <ListItemText
+                    primary="Add Employee"
+                    sx={styles.listItemText}
+                  />
                 </ListItem>
 
                 <ListItem
@@ -123,33 +126,118 @@ const MenuBar = ({ toggleDrawer }) => {
                   sx={styles.listItem}
                   onClick={() => handleDropdownClick("masterData")}
                 >
-                  <ListItemText primary="Master Data" sx={styles.listItemText} />
-                  {openDropdown.masterData ? <ExpandLess sx={styles.icon} /> : <ExpandMore sx={styles.icon} />}
+                  <ListItemText
+                    primary="Master Data"
+                    sx={styles.listItemText}
+                  />
+                  {openDropdown.masterData ? (
+                    <ExpandLess sx={styles.icon} />
+                  ) : (
+                    <ExpandMore sx={styles.icon} />
+                  )}
                 </ListItem>
                 <Collapse in={openDropdown.masterData} timeout="auto" unmountOnExit>
                   <List disablePadding>
-                    <ListItem button sx={styles.listItem} component={Link} to="/master/leads" onClick={toggleDrawer}>
+                    <ListItem
+                      button
+                      sx={styles.listItem}
+                      component={Link}
+                      to="/master/leads"
+                      onClick={toggleDrawer}
+                    >
                       <ListItemText primary="All Leads" />
                     </ListItem>
-                    <ListItem button sx={styles.listItem} component={Link} to="/master/retention" onClick={toggleDrawer}>
+                    <ListItem
+                      button
+                      sx={styles.listItem}
+                      component={Link}
+                      to="/master/retention"
+                      onClick={toggleDrawer}
+                    >
                       <ListItemText primary="Retention Leads" />
                     </ListItem>
-                    <ListItem button sx={styles.listItem} component={Link} to="/master/retention-orders" onClick={toggleDrawer}>
+                    <ListItem
+                      button
+                      sx={styles.listItem}
+                      component={Link}
+                      to="/master/retention-orders"
+                      onClick={toggleDrawer}
+                    >
                       <ListItemText primary="Retention Orders" />
                     </ListItem>
-                    <ListItem button sx={styles.listItem} component={Link} to="/master/new-orders" onClick={toggleDrawer}>
+                    <ListItem
+                      button
+                      sx={styles.listItem}
+                      component={Link}
+                      to="/master/new-orders"
+                      onClick={toggleDrawer}
+                    >
                       <ListItemText primary="Acquisition Orders" />
                     </ListItem>
                   </List>
                 </Collapse>
 
-                <ListItem button sx={styles.listItem} component={Link} to="/bulk-data-upload" onClick={toggleDrawer}>
+                {/* New Lost Data Dropdown */}
+                <ListItem
+                  button
+                  sx={styles.listItem}
+                  onClick={() => handleDropdownClick("lostData")}
+                >
+                  <ListItemText primary="Lost Data" sx={styles.listItemText} />
+                  {openDropdown.lostData ? (
+                    <ExpandLess sx={styles.icon} />
+                  ) : (
+                    <ExpandMore sx={styles.icon} />
+                  )}
+                </ListItem>
+                <Collapse in={openDropdown.lostData} timeout="auto" unmountOnExit>
+                  <List disablePadding>
+                    <ListItem
+                      button
+                      sx={styles.listItem}
+                      component={Link}
+                      to="/lost/acquisition"
+                      onClick={toggleDrawer}
+                    >
+                      <ListItemText primary="Acquisition Lost" />
+                    </ListItem>
+                    <ListItem
+                      button
+                      sx={styles.listItem}
+                      component={Link}
+                      to="/lost/retention"
+                      onClick={toggleDrawer}
+                    >
+                      <ListItemText primary="Retention Lost" />
+                    </ListItem>
+                  </List>
+                </Collapse>
+
+                <ListItem
+                  button
+                  sx={styles.listItem}
+                  component={Link}
+                  to="/bulk-data-upload"
+                  onClick={toggleDrawer}
+                >
                   <ListItemText primary="Bulk Data Upload" sx={styles.listItemText} />
                 </ListItem>
-                <ListItem button sx={styles.listItem} component={Link} to="/all-shopify-orders" onClick={toggleDrawer}>
+                <ListItem
+                  button
+                  sx={styles.listItem}
+                  component={Link}
+                  to="/all-shopify-orders"
+                  onClick={toggleDrawer}
+                >
                   <ListItemText primary="All Shopify Orders" />
                 </ListItem>
-                <ListItem button sx={styles.listItem} component={Link} to="/online-orders" onClick={toggleDrawer}>
+                <ListItem
+                  button
+                  sx={styles.listItem}
+                  component={Link}
+                  to="/online-orders"
+                  onClick={toggleDrawer}
+                >
                   <ListItemText primary="Online Orders" />
                 </ListItem>
                 {/* New Menu Item for Transfer Requests */}
@@ -160,23 +248,47 @@ const MenuBar = ({ toggleDrawer }) => {
                   to="/transfer-requests"
                   onClick={toggleDrawer}
                 >
-                  <ListItemText primary="Transfer Requests" sx={styles.listItemText} />
+                  <ListItemText
+                    primary="Transfer Requests"
+                    sx={styles.listItemText}
+                  />
                 </ListItem>
               </>
             )}
 
             {role === "Sales Agent" && (
               <>
-                <ListItem button sx={styles.listItem} onClick={() => handleDropdownClick("salesAgent")} component={Link}>
+                <ListItem
+                  button
+                  sx={styles.listItem}
+                  onClick={() => handleDropdownClick("salesAgent")}
+                  component={Link}
+                >
                   <ListItemText primary="Sales Agent" sx={styles.listItemText} />
-                  {openDropdown.salesAgent ? <ExpandLess sx={styles.icon} /> : <ExpandMore sx={styles.icon} />}
+                  {openDropdown.salesAgent ? (
+                    <ExpandLess sx={styles.icon} />
+                  ) : (
+                    <ExpandMore sx={styles.icon} />
+                  )}
                 </ListItem>
                 <Collapse in={openDropdown.salesAgent} timeout="auto" unmountOnExit>
                   <List disablePadding>
-                    <ListItem button sx={styles.listItem} component={Link} to="/sales/my-leads" onClick={toggleDrawer}>
+                    <ListItem
+                      button
+                      sx={styles.listItem}
+                      component={Link}
+                      to="/sales/my-leads"
+                      onClick={toggleDrawer}
+                    >
                       <ListItemText primary="My Leads" />
                     </ListItem>
-                    <ListItem button sx={styles.listItem} component={Link} to="/sales/my-sales" onClick={toggleDrawer}>
+                    <ListItem
+                      button
+                      sx={styles.listItem}
+                      component={Link}
+                      to="/sales/my-sales"
+                      onClick={toggleDrawer}
+                    >
                       <ListItemText primary="My Sales" />
                     </ListItem>
                   </List>
@@ -186,16 +298,33 @@ const MenuBar = ({ toggleDrawer }) => {
 
             {role === "Retention Agent" && (
               <>
-                <ListItem button sx={styles.listItem} onClick={() => handleDropdownClick("retentionAgent")} component={Link}>
+                <ListItem
+                  button
+                  sx={styles.listItem}
+                  onClick={() => handleDropdownClick("retentionAgent")}
+                  component={Link}
+                >
                   <ListItemText primary="Retention Agent" sx={styles.listItemText} />
                   {openDropdown.retentionAgent ? <ExpandLess /> : <ExpandMore />}
                 </ListItem>
                 <Collapse in={openDropdown.retentionAgent} timeout="auto" unmountOnExit>
                   <List disablePadding>
-                    <ListItem button sx={styles.listItem} component={Link} to="/retention/leads" onClick={toggleDrawer}>
+                    <ListItem
+                      button
+                      sx={styles.listItem}
+                      component={Link}
+                      to="/retention/leads"
+                      onClick={toggleDrawer}
+                    >
                       <ListItemText primary="Retention Leads" />
                     </ListItem>
-                    <ListItem button sx={styles.listItem} component={Link} to="/retention/sales" onClick={toggleDrawer}>
+                    <ListItem
+                      button
+                      sx={styles.listItem}
+                      component={Link}
+                      to="/retention/sales"
+                      onClick={toggleDrawer}
+                    >
                       <ListItemText primary="Retention Sales" />
                     </ListItem>
                   </List>
@@ -205,7 +334,12 @@ const MenuBar = ({ toggleDrawer }) => {
 
             <Divider sx={styles.divider} />
 
-            <ListItem button sx={styles.listItem} onClick={handleLogout} style={{ cursor: "pointer" }}>
+            <ListItem
+              button
+              sx={styles.listItem}
+              onClick={handleLogout}
+              style={{ cursor: "pointer" }}
+            >
               <LogoutIcon sx={{ marginRight: "10px" }} />
               <ListItemText primary="Logout" sx={styles.listItemText} />
             </ListItem>
