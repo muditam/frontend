@@ -143,18 +143,14 @@ const RetentionLeads = () => {
         }
       );
       const { async, agentNumber, callerId } = await fetchUserDetails(user);
-      // Map the leads to include computed reminder and other user details
-      const leadsWithReminders = response.data
-        .map((lead) => ({
-          ...lead,
-          rtFollowupReminder: lead.rtNextFollowupDate ? computeReminder(lead.rtNextFollowupDate) : "",
-          async,
-          agentNumber,
-          callerId,
-          rtSubcells: lead.rtSubcells || [],
-        }))
-        // Filter to include only leads whose retentionStatus is "Active"
-        .filter((lead) => lead.retentionStatus === "Active");
+      const leadsWithReminders = response.data.map((lead) => ({
+        ...lead,
+        rtFollowupReminder: lead.rtNextFollowupDate ? computeReminder(lead.rtNextFollowupDate) : "",
+        async,
+        agentNumber,
+        callerId,
+        rtSubcells: lead.rtSubcells || [],
+      }));
       // Reverse the array to show latest leads on top
       setAllLeads(leadsWithReminders.reverse());
       setLeads(leadsWithReminders.reverse());
