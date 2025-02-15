@@ -524,7 +524,7 @@ const SalesMyLeads = () => {
             </TableRow>
           </TableHead>
           <TableBody>
-            {leads.filter(lead => lead.salesStatus !== "Lost").map((lead, index) => (
+            {leads.map((lead, index) => (
               <TableRow key={lead._id}>
                 <TableCell> 
                   <TextField
