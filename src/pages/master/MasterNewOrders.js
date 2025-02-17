@@ -113,7 +113,7 @@ const handleDeliveryStatusChange = async (e, index) => {
 };
 
 const applyFilters = () => {
-  const filtered = allOrders.filter((order) => { // Use allOrders instead of newOrders
+  const filtered = allOrders.filter((order) => {   
     return Object.keys(filters).every((key) => {
       if (!filters[key] || filters[key].length === 0) return true;
 
@@ -136,6 +136,14 @@ const applyFilters = () => {
       }
       if (key === "agentName") {
         return filters.agentName.includes(order.agentAssigned);
+      }
+      if (key === "healthExpertAssigned") {
+        if (filters.healthExpertAssigned === "blank") {
+          return !order.healthExpertAssigned || order.healthExpertAssigned.trim() === "";
+        }
+        return String(order.healthExpertAssigned || "")
+          .toLowerCase()
+          .includes(filters.healthExpertAssigned.toLowerCase());
       }
       if (Array.isArray(filters[key])) {
         return filters[key].some((item) => order[key]?.includes(item));
@@ -182,7 +190,7 @@ const resetFilters = () => {
     <Box sx={{ padding: 2 }}> 
       <Typography variant="h5" gutterBottom> 
         Master Data - New Orders
-      </Typography> 
+      </Typography>  
 
       <Button 
         variant="contained"
@@ -277,6 +285,9 @@ const resetFilters = () => {
               setFilters((prev) => ({ ...prev, [key]: e.target.value }))
             }
           >
+            <MenuItem value="blank">
+          <em>Blank</em>
+        </MenuItem>
             {retentionAgents.map((agent) => (
               <MenuItem key={agent._id} value={agent.fullName}>
                 {agent.fullName}

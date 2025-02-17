@@ -77,7 +77,7 @@ const OnlineOrders = () => {
     
             const webOrders = ordersResponse.data.filter(order =>
                 order.channel_name === "web" || order.channel_name === "208644538369"
-            );
+            ); 
     
             // Map orders to include agentAssigned, healthExpertAssigned, leadExists and isSaved.
             // Then filter out orders that already have a health expert assigned.
@@ -209,7 +209,7 @@ const OnlineOrders = () => {
                                 <TableRow key={order.id}>
                                     <TableCell component="th" scope="row">{order.name}</TableCell>
                                     <TableCell>{order.customer?.first_name} {order.customer?.last_name}</TableCell>
-                                    <TableCell>{order.customer?.default_address?.phone}</TableCell>
+                                    <TableCell>{order.customer?.default_address?.phone?.replace(/^\+91\s?/, '')}</TableCell>
                                     <TableCell>{new Date(order.created_at).toLocaleDateString()}</TableCell>
                                     <TableCell>{order.total_price}</TableCell>
                                     <TableCell>{order.payment_gateway_names}</TableCell>
