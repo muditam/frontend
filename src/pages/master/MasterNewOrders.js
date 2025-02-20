@@ -43,7 +43,7 @@ const NewOrders = () => {
   });
   const [filterOpen, setFilterOpen] = useState(false);
   const [page, setPage] = useState(0);
-  const [rowsPerPage, setRowsPerPage] = useState(50);
+  const [rowsPerPage, setRowsPerPage] = useState(30);
 
   const dropdownOptions = {
     modeOfPayment: ["Partial Paid", "Razorpay", "COD", "UPI", "Bank Transfer"],
@@ -63,7 +63,7 @@ const NewOrders = () => {
         params: {
           page: page + 1, // convert to 1-indexed for backend
           limit: rowsPerPage,
-          // ...spread any additional filters if needed, e.g., ...filters
+         ...filters
         },
       });
   
