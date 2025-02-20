@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React from "react";
 import "./global.css";
 import { BrowserRouter as Router, Route, Routes } from "react-router-dom";
 import BulkDataUpload from "./components/BulkDataUpload";
@@ -23,40 +23,166 @@ import RetentionData from "./pages/filtered/Retention";
 import NotificationListener from "./components/NotificationListener";
 import AcquisitionLost from "./Lostdata/AcquisitionLost";
 import RetentionLost from "./Lostdata/RetentionLost";
- 
+import PrivateRoute from "./components/PrivateRoute"; 
+
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 
 const App = () => {
-
   return (
     <Router>
-      <div>  
+      <div>
         <NavbarWithSearch />
-
         <NotificationListener />
         <ToastContainer position="bottom-right" autoClose={5000} closeButton />
 
         <Routes>
-          <Route path="/" element={<SalesDashboard />} /> 
-          <Route path="/lead/:id" element={<LeadDetail />} />
           <Route path="/login" element={<Login />} />
-          <Route path="/transfer-requests" element={<TransferRequests />} />
-          <Route path="/bulk-data-upload" element={<BulkDataUpload />} />
-          <Route path="/all-shopify-orders" element={<OrdersTable />} />
-          <Route path="/online-orders" element={<OnlineOrders />} /> 
-          <Route path="/add-employee" element={<AddEmployee />} />
-          <Route path="/master/leads" element={<LeadTable />} />
-          <Route path="/master/retention" element={<RetentionTable />} />
-          <Route path="/master/new-orders" element={<NewOrders />} />
-          <Route path="/master/retention-orders" element={<RetentionOrders />} />
-          <Route path="/sales/my-leads" element={<SalesMyLeads />} />
-          <Route path="/sales/my-sales" element={<SalesMySales />} />
-          <Route path="/retention/leads" element={<RetentionLeads />} />
-          <Route path="/retention/sales" element={<RetentionSales />} /> 
-          <Route path="/retention/:filterType" element={<RetentionData />} />
-          <Route path="/lost/acquisition" element={<AcquisitionLost />} /> 
-          <Route path="/lost/retention" element={<RetentionLost />} /> 
+          {/* Protected Routes */}
+          <Route 
+            path="/" 
+            element={
+              <PrivateRoute>
+                <SalesDashboard />
+              </PrivateRoute>
+            } 
+          />
+          <Route 
+            path="/lead/:id" 
+            element={
+              <PrivateRoute>
+                <LeadDetail />
+              </PrivateRoute>
+            } 
+          />
+          <Route 
+            path="/transfer-requests" 
+            element={
+              <PrivateRoute>
+                <TransferRequests />
+              </PrivateRoute>
+            } 
+          />
+          <Route 
+            path="/bulk-data-upload" 
+            element={
+              <PrivateRoute>
+                <BulkDataUpload />
+              </PrivateRoute>
+            } 
+          />
+          <Route 
+            path="/all-shopify-orders" 
+            element={
+              <PrivateRoute>
+                <OrdersTable />
+              </PrivateRoute>
+            } 
+          />
+          <Route 
+            path="/online-orders" 
+            element={
+              <PrivateRoute>
+                <OnlineOrders />
+              </PrivateRoute>
+            } 
+          />
+          <Route 
+            path="/add-employee" 
+            element={
+              <PrivateRoute>
+                <AddEmployee />
+              </PrivateRoute>
+            } 
+          />
+          <Route 
+            path="/master/leads" 
+            element={
+              <PrivateRoute>
+                <LeadTable />
+              </PrivateRoute>
+            } 
+          />
+          <Route 
+            path="/master/retention" 
+            element={
+              <PrivateRoute>
+                <RetentionTable />
+              </PrivateRoute>
+            } 
+          />
+          <Route 
+            path="/master/new-orders" 
+            element={
+              <PrivateRoute>
+                <NewOrders />
+              </PrivateRoute>
+            } 
+          />
+          <Route 
+            path="/master/retention-orders" 
+            element={
+              <PrivateRoute>
+                <RetentionOrders />
+              </PrivateRoute>
+            } 
+          />
+          <Route 
+            path="/sales/my-leads" 
+            element={
+              <PrivateRoute>
+                <SalesMyLeads />
+              </PrivateRoute>
+            } 
+          />
+          <Route 
+            path="/sales/my-sales" 
+            element={
+              <PrivateRoute>
+                <SalesMySales />
+              </PrivateRoute>
+            } 
+          />
+          <Route 
+            path="/retention/leads" 
+            element={
+              <PrivateRoute>
+                <RetentionLeads />
+              </PrivateRoute>
+            } 
+          />
+          <Route 
+            path="/retention/sales" 
+            element={
+              <PrivateRoute>
+                <RetentionSales />
+              </PrivateRoute>
+            } 
+          />
+          <Route 
+            path="/retention/:filterType" 
+            element={
+              <PrivateRoute>
+                <RetentionData />
+              </PrivateRoute>
+            } 
+          />
+          <Route 
+            path="/lost/acquisition" 
+            element={
+              <PrivateRoute>
+                <AcquisitionLost />
+              </PrivateRoute>
+            } 
+          />
+          <Route 
+            path="/lost/retention" 
+            element={
+              <PrivateRoute>
+                <RetentionLost />
+              </PrivateRoute>
+            } 
+          />
         </Routes>
       </div>
     </Router>

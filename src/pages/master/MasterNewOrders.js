@@ -28,6 +28,7 @@ const NewOrders = () => {
   const [retentionAgents, setRetentionAgents] = useState([]);
   const [uniqueAgents, setUniqueAgents] = useState([]);
   const [allOrders, setAllOrders] = useState([]);  
+  const [totalOrders, setTotalOrders] = useState(0);
   const [filters, setFilters] = useState({
     startDate: "",  
     endDate: "",  
@@ -53,23 +54,33 @@ const NewOrders = () => {
   useEffect(() => {
     fetchNewOrders();
     fetchRetentionAgents();
-  }, []);
+  }, [page, rowsPerPage, filters]);
+ 
 
   const fetchNewOrders = async () => {
     try {
-      const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/new-orders");
-      const filteredOrders = response.data
-            .filter(order => order.agentAssigned !== 'Admin' && order.agentAssigned !== 'Online Order')    
-            .reverse()  
-        setNewOrders(filteredOrders);
-        setAllOrders(filteredOrders);
-
-        const uniqueAgentNames = [...new Set(filteredOrders.map(order => order.agentAssigned).filter(Boolean))];
-        setUniqueAgents(uniqueAgentNames);
+      const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/new-orders", {
+        params: {
+          page: page + 1, // convert to 1-indexed for backend
+          limit: rowsPerPage,
+          // ...spread any additional filters if needed, e.g., ...filters
+        },
+      });
+  
+      // The API now returns an object like { leads, total, page, limit, totalPages }
+      const orders = response.data.leads;
+      setTotalOrders(response.data.total);
+      setNewOrders(orders);
+      setAllOrders(orders);
+  
+      // If you need unique agent names from the returned orders:
+      const uniqueAgentNames = [...new Set(orders.map(order => order.agentAssigned).filter(Boolean))];
+      setUniqueAgents(uniqueAgentNames);
     } catch (error) {
       console.error("Error fetching new orders:", error);
     }
   };
+  
 
   const fetchRetentionAgents = async () => {
     try {
@@ -81,12 +92,12 @@ const NewOrders = () => {
   };
 
   const handleHealthExpertChange = async (e, index) => { 
-    const realIndex = page * rowsPerPage + index;
+    // Use index directly because newOrders already contains the current page's orders
     const updatedOrders = [...newOrders];
-    updatedOrders[realIndex].healthExpertAssigned = e.target.value;
+    updatedOrders[index].healthExpertAssigned = e.target.value;
     setNewOrders(updatedOrders);
-
-    const orderId = updatedOrders[realIndex]._id;
+  
+    const orderId = updatedOrders[index]._id;
     try {
       await axios.put(`https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/${orderId}`, {
         healthExpertAssigned: e.target.value,
@@ -94,15 +105,15 @@ const NewOrders = () => {
     } catch (error) {
       console.error("Error updating health expert assigned:", error);
     }
-};
-
-const handleDeliveryStatusChange = async (e, index) => { 
-    const realIndex = page * rowsPerPage + index;
+  };
+  
+  const handleDeliveryStatusChange = async (e, index) => { 
+    // Use index directly here as well
     const updatedOrders = [...newOrders];
-    updatedOrders[realIndex].deliveryStatus = e.target.value;
+    updatedOrders[index].deliveryStatus = e.target.value;
     setNewOrders(updatedOrders);
-
-    const orderId = updatedOrders[realIndex]._id;
+  
+    const orderId = updatedOrders[index]._id;
     try {
       await axios.put(`https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/${orderId}`, {
         deliveryStatus: e.target.value,
@@ -110,52 +121,57 @@ const handleDeliveryStatusChange = async (e, index) => {
     } catch (error) {
       console.error("Error updating delivery status:", error);
     }
-};
+  };
+  
+
+// const applyFilters = () => {
+//   const filtered = allOrders.filter((order) => {   
+//     return Object.keys(filters).every((key) => {
+//       if (!filters[key] || filters[key].length === 0) return true;
+
+//       if (key === "startDate" && filters.startDate) {
+//         return new Date(order.date) >= new Date(filters.startDate);
+//       }
+//       if (key === "endDate" && filters.endDate) {
+//         return new Date(order.date) <= new Date(filters.endDate);
+//       }
+//       if (key === "orderDate" && filters.orderDate) {
+//         if (!order.date || isNaN(new Date(order.date))) return false; 
+//         const orderDate = new Date(order.date).toISOString().split("T")[0];
+//         return orderDate === filters.orderDate; 
+//       }
+//       if (key === "name") {
+//         return order.name?.toLowerCase().includes(filters.name.toLowerCase());
+//       }
+//       if (key === "contactNumber") {
+//         return order.contactNumber?.toString().includes(filters.contactNumber);
+//       }
+//       if (key === "agentName") {
+//         return filters.agentName.includes(order.agentAssigned);
+//       }
+//       if (key === "healthExpertAssigned") {
+//         if (filters.healthExpertAssigned === "blank") {
+//           return !order.healthExpertAssigned || order.healthExpertAssigned.trim() === "";
+//         }
+//         return String(order.healthExpertAssigned || "")
+//           .toLowerCase()
+//           .includes(filters.healthExpertAssigned.toLowerCase());
+//       }
+//       if (Array.isArray(filters[key])) {
+//         return filters[key].some((item) => order[key]?.includes(item));
+//       }
+//       return String(order[key] || "").toLowerCase().includes(filters[key].toLowerCase());
+//     });
+//   });
+
+//   setNewOrders(filtered);  
+//   setPage(0);  
+// };
 
 const applyFilters = () => {
-  const filtered = allOrders.filter((order) => {   
-    return Object.keys(filters).every((key) => {
-      if (!filters[key] || filters[key].length === 0) return true;
-
-      if (key === "startDate" && filters.startDate) {
-        return new Date(order.date) >= new Date(filters.startDate);
-      }
-      if (key === "endDate" && filters.endDate) {
-        return new Date(order.date) <= new Date(filters.endDate);
-      }
-      if (key === "orderDate" && filters.orderDate) {
-        if (!order.date || isNaN(new Date(order.date))) return false; 
-        const orderDate = new Date(order.date).toISOString().split("T")[0];
-        return orderDate === filters.orderDate; 
-      }
-      if (key === "name") {
-        return order.name?.toLowerCase().includes(filters.name.toLowerCase());
-      }
-      if (key === "contactNumber") {
-        return order.contactNumber?.toString().includes(filters.contactNumber);
-      }
-      if (key === "agentName") {
-        return filters.agentName.includes(order.agentAssigned);
-      }
-      if (key === "healthExpertAssigned") {
-        if (filters.healthExpertAssigned === "blank") {
-          return !order.healthExpertAssigned || order.healthExpertAssigned.trim() === "";
-        }
-        return String(order.healthExpertAssigned || "")
-          .toLowerCase()
-          .includes(filters.healthExpertAssigned.toLowerCase());
-      }
-      if (Array.isArray(filters[key])) {
-        return filters[key].some((item) => order[key]?.includes(item));
-      }
-      return String(order[key] || "").toLowerCase().includes(filters[key].toLowerCase());
-    });
-  });
-
-  setNewOrders(filtered);  
-  setPage(0);  
+  setPage(0);
+  fetchNewOrders();
 };
-
 
 
 const resetFilters = () => {
@@ -171,9 +187,8 @@ const resetFilters = () => {
     modeOfPayment: [],
     deliveryStatus: [],
   });
-
-  setNewOrders(allOrders);  
-  setPage(0);  
+  setPage(0);
+  fetchNewOrders();
 };
 
 
@@ -374,9 +389,7 @@ const resetFilters = () => {
             </TableRow>
           </TableHead>
           <TableBody>
-            {newOrders
-              .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage) 
-              .map((order, index) => (
+            {newOrders.map((order, index) => (
                 <TableRow key={order._id}>
                   <TableCell>{order.lastOrderDate || "N/A"}</TableCell>
                   <TableCell>{order.name || "N/A"}</TableCell>
@@ -420,14 +433,14 @@ const resetFilters = () => {
         </Table>
       </TableContainer>
       <TablePagination
-        rowsPerPageOptions={[10, 20, 50, 100]}
-        component="div"
-        count={newOrders.length}
-        rowsPerPage={rowsPerPage}
-        page={page}
-        onPageChange={handleChangePage}
-        onRowsPerPageChange={handleChangeRowsPerPage}
-      />
+  rowsPerPageOptions={[10, 20, 50, 100]}
+  component="div"
+  count={totalOrders}
+  rowsPerPage={rowsPerPage}
+  page={page}
+  onPageChange={handleChangePage}
+  onRowsPerPageChange={handleChangeRowsPerPage}
+/>
     </Box>
   );
 };
