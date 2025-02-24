@@ -368,7 +368,7 @@ const LeadTable = () => {
         } finally {
             setApplyingFilters(false);
         }
-    };
+    }; 
  
     const exportToCSV = async () => {
         try {

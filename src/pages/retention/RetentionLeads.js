@@ -24,12 +24,14 @@ import {
   DialogContent,
   DialogActions,
   Tooltip,
+  Menu,
 } from "@mui/material";
 import { styled, keyframes } from "@mui/material/styles";
 import axios from "axios";
 import PhoneIcon from "@mui/icons-material/Phone";
 import AccessTimeIcon from "@mui/icons-material/AccessTime";
 import AddIcon from "@mui/icons-material/Add";
+import FormatColorFillIcon from "@mui/icons-material/FormatColorFill";
 
 // Animation keyframes for a subtle fade-in effect
 const fadeIn = keyframes`
@@ -90,6 +92,12 @@ const RetentionLeads = () => {
   });
   const [filterOpen, setFilterOpen] = useState(false);
   const [subcellsPopup, setSubcellsPopup] = useState({ open: false, subcells: [] });
+  // New state for row color selection
+  const [colorAnchorEl, setColorAnchorEl] = useState(null);
+  const [currentColorRowIndex, setCurrentColorRowIndex] = useState(null);
+  // New state for filter by colour
+  const [colorFilter, setColorFilter] = useState("");
+  const [colorFilterAnchorEl, setColorFilterAnchorEl] = useState(null);
 
   useEffect(() => {
     const user = JSON.parse(sessionStorage.getItem("user"));
@@ -293,6 +301,16 @@ const RetentionLeads = () => {
     setCurrentPage(0);
   };
 
+  const applyColorFilter = (color) => {
+    setColorFilter(color);
+    if (color) {
+      setLeads(allLeads.filter((lead) => lead.rowColor === color));
+    } else {
+      setLeads(allLeads);
+    }
+    setCurrentPage(0);
+  };
+
   const resetFilters = () => {
     setFilters({
       name: "",
@@ -312,6 +330,7 @@ const RetentionLeads = () => {
       lastOrderDateTo: "",
       retentionStatus: "",
     });
+    setColorFilter("");
     setLeads(allLeads);
     setCurrentPage(0);
   };
@@ -324,6 +343,36 @@ const RetentionLeads = () => {
     setRowsPerPage(parseInt(event.target.value, 10));
     setCurrentPage(0);
   };
+
+  // Handlers for row color selection
+  const handleRowColorClick = (globalIndex, event) => {
+    setCurrentColorRowIndex(globalIndex);
+    setColorAnchorEl(event.currentTarget);
+  };
+
+  const handleColorSelect = async (color) => {
+    if (currentColorRowIndex !== null) {
+      const updatedLeads = [...leads];
+      updatedLeads[currentColorRowIndex].rowColor = color;
+      setLeads(updatedLeads);
+      const updatedLead = updatedLeads[currentColorRowIndex];
+      try {
+        await axios.put(
+          `https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/${updatedLead._id}`,
+          { rowColor: color }
+        );
+      } catch (err) {
+        console.error("Error updating row color:", err);
+      }
+      const updatedAllLeads = allLeads.map((lead, idx) =>
+        idx === currentColorRowIndex ? { ...lead, rowColor: color } : lead
+      );
+      setAllLeads(updatedAllLeads);
+    }
+    setColorAnchorEl(null);
+    setCurrentColorRowIndex(null);
+  };
+  
 
   const currentLeads = leads.slice(
     currentPage * rowsPerPage,
@@ -342,13 +391,22 @@ const RetentionLeads = () => {
       <Typography variant="h5" gutterBottom sx={{ fontWeight: 600, mb: 2, textAlign: "left" }}>
         Retention Leads
       </Typography>
-      <Button
-        variant="contained"
-        sx={{ mb: 2, textTransform: "none", boxShadow: 2, display: "block"  }}
-        onClick={() => setFilterOpen(true)}
-      >
-        Filter
-      </Button>
+      <Box sx={{ display: "flex", alignItems: "center", mb: 2 }}>
+        <Button
+          variant="contained"
+          sx={{ textTransform: "none", boxShadow: 2 }}
+          onClick={() => setFilterOpen(true)}
+        >
+          Filter
+        </Button>
+        <Button
+          variant="contained"
+          sx={{ textTransform: "none", boxShadow: 2, ml: 2 }}
+          onClick={(e) => setColorFilterAnchorEl(e.currentTarget)}
+        >
+          Filter by Colour
+        </Button>
+      </Box>
       <Drawer
         anchor="right"
         open={filterOpen}
@@ -484,7 +542,11 @@ const RetentionLeads = () => {
         <TableContainer sx={{ animation: `${fadeIn} 0.5s ease-in` }}>
           <Table stickyHeader aria-label="retention leads table">
             <TableHead>
-              <TableRow>           
+              <TableRow>
+                {/* New header cell for row color */}
+                <HeaderTableCell>
+                   
+                </HeaderTableCell>
                 <HeaderTableCell>Name</HeaderTableCell>
                 <HeaderTableCell>Contact No</HeaderTableCell>
                 {/* Increased width for RT Remark column */}
@@ -515,7 +577,18 @@ const RetentionLeads = () => {
                     ? lead.rtSubcells[lead.rtSubcells.length - 1].value
                     : lead.rtRemark || "";
                 return (
-                  <StyledTableRow key={lead._id}>
+                  <StyledTableRow
+                    key={lead._id}
+                    style={{ backgroundColor: lead.rowColor || "inherit" }}
+                  >
+                    {/* New cell for row color selection */}
+                    <BodyTableCell>
+                      <Tooltip title="Set Row Color">
+                        <IconButton onClick={(e) => handleRowColorClick(globalIndex, e)}>
+                          <FormatColorFillIcon />
+                        </IconButton>
+                      </Tooltip>
+                    </BodyTableCell>
                     <BodyTableCell>{lead.name}</BodyTableCell>
                     <BodyTableCell>
                       <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -720,6 +793,62 @@ const RetentionLeads = () => {
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* Menu for selecting row color */}
+      <Menu
+        anchorEl={colorAnchorEl}
+        open={Boolean(colorAnchorEl)}
+        onClose={() => {
+          setColorAnchorEl(null);
+          setCurrentColorRowIndex(null);
+        }}
+      >
+        <MenuItem onClick={() => handleColorSelect("#ffdbbb")}>Good</MenuItem>
+        <MenuItem onClick={() => handleColorSelect("#baddff")}>Very Good</MenuItem>
+        <MenuItem onClick={() => handleColorSelect("#bafff5")}>Excellent</MenuItem>
+        <MenuItem onClick={() => handleColorSelect("")}>Remove Color</MenuItem>
+      </Menu>
+
+      {/* Menu for filtering by colour */}
+      <Menu
+        anchorEl={colorFilterAnchorEl}
+        open={Boolean(colorFilterAnchorEl)}
+        onClose={() => setColorFilterAnchorEl(null)}
+      >
+        <MenuItem
+          onClick={() => {
+            applyColorFilter("");
+            setColorFilterAnchorEl(null);
+          }}
+        >
+          Clear Filter
+        </MenuItem>
+        <MenuItem
+          onClick={() => {
+            applyColorFilter("#ffdbbb");
+            setColorFilterAnchorEl(null);
+          }}
+        >
+          Good
+        </MenuItem>
+        <MenuItem
+          onClick={() => {
+            applyColorFilter("#baddff");
+            setColorFilterAnchorEl(null);
+          }}
+        >
+          Very Good
+        </MenuItem>
+        <MenuItem
+          onClick={() => {
+            applyColorFilter("#bafff5");
+            setColorFilterAnchorEl(null);
+          }}
+        >
+          Excellent
+        </MenuItem>
+        
+      </Menu>
     </Box>
   );
 };

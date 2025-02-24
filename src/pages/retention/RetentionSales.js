@@ -14,8 +14,8 @@ import {
   IconButton,
   Typography,
   Button,
-  FormControl, 
-  Checkbox, 
+  FormControl,
+  Checkbox,
   ListItemText,
   Drawer,
   Divider,
@@ -23,12 +23,12 @@ import {
   InputLabel,
 } from "@mui/material";
 import { Delete, AddCircle } from "@mui/icons-material";
-import axios from "axios"; 
+import axios from "axios";
 
 const RetentionSales = () => {
   const [sales, setSales] = useState([]);
-  const [page, setPage] = useState(1); 
-  const [currentPage, setCurrentPage] = useState(0); 
+  const [page, setPage] = useState(1);
+  const [currentPage, setCurrentPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(50);
   const [editedSales, setEditedSales] = useState({});
   const productOptions = [
@@ -42,7 +42,7 @@ const RetentionSales = () => {
     "PF",
     "PGut",
     "Shilajit",
-    "Kit", 
+    "Kit",
     "Blood Test",
   ];
   const dosageOptions = ["10-Days", "20-Days", "30-Days", "60-Days", "90-Days"];
@@ -69,9 +69,9 @@ const RetentionSales = () => {
     modeOfPayment: "",
     deliveryStatus: "",
   });
-  const [filterOpen, setFilterOpen] = useState(false); 
-  
-  
+  const [filterOpen, setFilterOpen] = useState(false);
+
+
   useEffect(() => {
     if (loggedInUser) {
       fetchSales(loggedInUser.fullName);
@@ -102,7 +102,7 @@ const RetentionSales = () => {
   const handleSave = async (id) => {
     if (editedSales[id]) {
       const updatedSale = { ...sales.find((sale) => sale._id === id), ...editedSales[id] };
-  
+
       try {
         if (updatedSale.isNew) {
           const response = await axios.post("https://muditamleads-14f32a10d7f7.herokuapp.com/api/retention-sales", updatedSale);
@@ -124,9 +124,9 @@ const RetentionSales = () => {
     }
   };
 
-const handleAddSale = async () => {
-  const newSale = {
-      date: new Date().toISOString().split("T")[0],  
+  const handleAddSale = async () => {
+    const newSale = {
+      date: new Date().toISOString().split("T")[0],
       name: "",
       contactNumber: "",
       productsOrdered: [],
@@ -134,16 +134,16 @@ const handleAddSale = async () => {
       amountPaid: 0,
       modeOfPayment: "",
       deliveryStatus: "",
-      orderCreatedBy: loggedInUser.fullName, 
-  };
+      orderCreatedBy: loggedInUser.fullName,
+    };
 
-  try {
+    try {
       const response = await axios.post("https://muditamleads-14f32a10d7f7.herokuapp.com/api/retention-sales", newSale);
-      setSales([response.data, ...sales]);  
-  } catch (error) {
+      setSales([response.data, ...sales]);
+    } catch (error) {
       console.error("Error adding new sale:", error);
-  }
-};
+    }
+  };
 
   const handleDelete = async (id) => {
     try {
@@ -153,7 +153,7 @@ const handleAddSale = async () => {
       console.error("Error deleting sale:", error);
     }
   };
-  
+
 
   const applyFilters = () => {
     const filteredSales = sales.filter((sale) => {
@@ -172,7 +172,7 @@ const handleAddSale = async () => {
     });
     setSales(filteredSales);
   };
-  
+
   const resetFilters = () => {
     setFilters({
       dateFrom: "",
@@ -191,14 +191,14 @@ const handleAddSale = async () => {
 
   const handleChangePage = (event, newPage) => {
     setCurrentPage(newPage);
-};
+  };
 
-const handleChangeRowsPerPage = (event) => {
+  const handleChangeRowsPerPage = (event) => {
     setRowsPerPage(parseInt(event.target.value, 10));
-    setCurrentPage(0);  
-};
+    setCurrentPage(0);
+  };
 
-const currentLeads = sales.slice(currentPage * rowsPerPage, currentPage * rowsPerPage + rowsPerPage);
+  const currentLeads = sales.slice(currentPage * rowsPerPage, currentPage * rowsPerPage + rowsPerPage);
 
   return (
     <Box sx={{ padding: 2 }}>
@@ -215,153 +215,153 @@ const currentLeads = sales.slice(currentPage * rowsPerPage, currentPage * rowsPe
       </Button>
 
       <Button variant="contained" sx={{ mb: 2 }} onClick={() => setFilterOpen(true)}>
-  Filter
-</Button>
+        Filter
+      </Button>
 
-<Drawer anchor="right" open={filterOpen} onClose={() => setFilterOpen(false)}>
-  <Box sx={{ width: 300, padding: 2 }}>
-    <Typography variant="h6" gutterBottom>
-      Filters
-    </Typography>
-    <Divider sx={{ mb: 2 }} />
-    <TextField
-      label="Date From"
-      type="date"
-      fullWidth
-      value={filters.dateFrom}
-      onChange={(e) => setFilters((prev) => ({ ...prev, dateFrom: e.target.value }))}
-      sx={{
-        marginBottom: 2,
-        "& .MuiInputBase-input": {
-          padding: "10px 12px",  
-        },
-        "& .MuiOutlinedInput-root": {
-          borderColor: "#0073e6",  
-          "&:hover fieldset": {
-            borderColor: "#005bb5",  
-          },
-        },
-      }}
-      InputLabelProps={{
-        shrink: true,  
-      }}
-    />
-    <TextField
-      label="Date To"
-      type="date"
-      fullWidth
-      value={filters.dateTo}
-      onChange={(e) => setFilters((prev) => ({ ...prev, dateTo: e.target.value }))}
-      sx={{
-        marginBottom: 2,
-        "& .MuiInputBase-input": {
-          padding: "10px 12px",  
-        },
-        "& .MuiOutlinedInput-root": {
-          borderColor: "#0073e6",  
-          "&:hover fieldset": {
-            borderColor: "#005bb5",  
-          },
-        },
-      }}
-      InputLabelProps={{
-        shrink: true,  
-      }}
-    />
-    <TextField
-      label="Name"
-      fullWidth
-      value={filters.name}
-      onChange={(e) => setFilters((prev) => ({ ...prev, name: e.target.value }))}
-      sx={{ mb: 2 }}
-    />
-    <TextField
-      label="Contact No"
-      fullWidth
-      value={filters.contactNumber}
-      onChange={(e) => setFilters((prev) => ({ ...prev, contactNumber: e.target.value }))}
-      sx={{ mb: 2 }}
-    />
-    <FormControl fullWidth sx={{ mb: 2 }}>
-    <InputLabel id="products-ordered-label">Products Ordered</InputLabel>
-      <Select
-        multiple
-        value={filters.productsOrdered || []}
-        onChange={(e) => setFilters((prev) => ({ ...prev, productsOrdered: e.target.value }))}
-        renderValue={(selected) => selected.join(", ")}
-      >
-        {["KJF", "SDP", "VKR", "L-Fx", "S&S", "CPV", "HDP", "PF", "PGut", "Shilajit", "Kit", "Blood Test"].map((product) => (
-          <MenuItem key={product} value={product}>
-            <Checkbox checked={filters.productsOrdered.includes(product)} />
-            <ListItemText primary={product} />
-          </MenuItem>
-        ))}
-      </Select>
-    </FormControl>
-    <FormControl fullWidth sx={{ mb: 2 }}>
-    <InputLabel id="dosage-ordered-label">Dosage Ordered</InputLabel>
-      <Select
-        value={filters.dosageOrdered}
-        onChange={(e) => setFilters((prev) => ({ ...prev, dosageOrdered: e.target.value }))}
-      >
-        {["10-Days", "20-Days", "30-Days", "60-Days", "90-Days"].map((dosage) => (
-          <MenuItem key={dosage} value={dosage}>
-            {dosage}
-          </MenuItem>
-        ))}
-      </Select>
-    </FormControl>
-    <TextField
-      label="Amount Paid From"
-      type="number"
-      fullWidth
-      value={filters.amountPaidFrom}
-      onChange={(e) => setFilters((prev) => ({ ...prev, amountPaidFrom: e.target.value }))}
-      sx={{ mb: 2 }}
-    />
-    <TextField
-      label="Amount Paid To"
-      type="number"
-      fullWidth
-      value={filters.amountPaidTo}
-      onChange={(e) => setFilters((prev) => ({ ...prev, amountPaidTo: e.target.value }))}
-      sx={{ mb: 2 }}
-    />
-    <FormControl fullWidth sx={{ mb: 2 }}>
-    <InputLabel id="mode-of-payment-label">Mode of Payment</InputLabel>
-      <Select
-        value={filters.modeOfPayment}
-        onChange={(e) => setFilters((prev) => ({ ...prev, modeOfPayment: e.target.value }))}
-      >
-        {["Partial Paid", "Razorpay", "COD", "UPI", "Bank Transfer"].map((mode) => (
-          <MenuItem key={mode} value={mode}>
-            {mode}
-          </MenuItem>
-        ))}
-      </Select>
-    </FormControl>
-    <FormControl fullWidth sx={{ mb: 2 }}>
-    <InputLabel id="delivery-status-label">Delivery Status</InputLabel>
-      <Select
-        value={filters.deliveryStatus}
-        onChange={(e) => setFilters((prev) => ({ ...prev, deliveryStatus: e.target.value }))}
-      >
-        {["Delivered", "RTO", "Undelivered"].map((status) => (
-          <MenuItem key={status} value={status}>
-            {status}
-          </MenuItem>
-        ))}
-      </Select>
-    </FormControl>
-    <Divider sx={{ mb: 2 }} />
-    <Button variant="contained" fullWidth onClick={() => applyFilters()}>
-      Apply Filters
-    </Button>
-    <Button variant="outlined" fullWidth onClick={() => resetFilters()}>
-      Reset Filters
-    </Button>
-  </Box>
-</Drawer>
+      <Drawer anchor="right" open={filterOpen} onClose={() => setFilterOpen(false)}>
+        <Box sx={{ width: 300, padding: 2 }}>
+          <Typography variant="h6" gutterBottom>
+            Filters
+          </Typography>
+          <Divider sx={{ mb: 2 }} />
+          <TextField
+            label="Date From"
+            type="date"
+            fullWidth
+            value={filters.dateFrom}
+            onChange={(e) => setFilters((prev) => ({ ...prev, dateFrom: e.target.value }))}
+            sx={{
+              marginBottom: 2,
+              "& .MuiInputBase-input": {
+                padding: "10px 12px",
+              },
+              "& .MuiOutlinedInput-root": {
+                borderColor: "#0073e6",
+                "&:hover fieldset": {
+                  borderColor: "#005bb5",
+                },
+              },
+            }}
+            InputLabelProps={{
+              shrink: true,
+            }}
+          />
+          <TextField
+            label="Date To"
+            type="date"
+            fullWidth
+            value={filters.dateTo}
+            onChange={(e) => setFilters((prev) => ({ ...prev, dateTo: e.target.value }))}
+            sx={{
+              marginBottom: 2,
+              "& .MuiInputBase-input": {
+                padding: "10px 12px",
+              },
+              "& .MuiOutlinedInput-root": {
+                borderColor: "#0073e6",
+                "&:hover fieldset": {
+                  borderColor: "#005bb5",
+                },
+              },
+            }}
+            InputLabelProps={{
+              shrink: true,
+            }}
+          />
+          <TextField
+            label="Name"
+            fullWidth
+            value={filters.name}
+            onChange={(e) => setFilters((prev) => ({ ...prev, name: e.target.value }))}
+            sx={{ mb: 2 }}
+          />
+          <TextField
+            label="Contact No"
+            fullWidth
+            value={filters.contactNumber}
+            onChange={(e) => setFilters((prev) => ({ ...prev, contactNumber: e.target.value }))}
+            sx={{ mb: 2 }}
+          />
+          <FormControl fullWidth sx={{ mb: 2 }}>
+            <InputLabel id="products-ordered-label">Products Ordered</InputLabel>
+            <Select
+              multiple
+              value={filters.productsOrdered || []}
+              onChange={(e) => setFilters((prev) => ({ ...prev, productsOrdered: e.target.value }))}
+              renderValue={(selected) => selected.join(", ")}
+            >
+              {["KJF", "SDP", "VKR", "L-Fx", "S&S", "CPV", "HDP", "PF", "PGut", "Shilajit", "Kit", "Blood Test"].map((product) => (
+                <MenuItem key={product} value={product}>
+                  <Checkbox checked={filters.productsOrdered.includes(product)} />
+                  <ListItemText primary={product} />
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+          <FormControl fullWidth sx={{ mb: 2 }}>
+            <InputLabel id="dosage-ordered-label">Dosage Ordered</InputLabel>
+            <Select
+              value={filters.dosageOrdered}
+              onChange={(e) => setFilters((prev) => ({ ...prev, dosageOrdered: e.target.value }))}
+            >
+              {["10-Days", "20-Days", "30-Days", "60-Days", "90-Days"].map((dosage) => (
+                <MenuItem key={dosage} value={dosage}>
+                  {dosage}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+          <TextField
+            label="Amount Paid From"
+            type="number"
+            fullWidth
+            value={filters.amountPaidFrom}
+            onChange={(e) => setFilters((prev) => ({ ...prev, amountPaidFrom: e.target.value }))}
+            sx={{ mb: 2 }}
+          />
+          <TextField
+            label="Amount Paid To"
+            type="number"
+            fullWidth
+            value={filters.amountPaidTo}
+            onChange={(e) => setFilters((prev) => ({ ...prev, amountPaidTo: e.target.value }))}
+            sx={{ mb: 2 }}
+          />
+          <FormControl fullWidth sx={{ mb: 2 }}>
+            <InputLabel id="mode-of-payment-label">Mode of Payment</InputLabel>
+            <Select
+              value={filters.modeOfPayment}
+              onChange={(e) => setFilters((prev) => ({ ...prev, modeOfPayment: e.target.value }))}
+            >
+              {["Partial Paid", "Razorpay", "COD", "UPI", "Bank Transfer"].map((mode) => (
+                <MenuItem key={mode} value={mode}>
+                  {mode}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+          <FormControl fullWidth sx={{ mb: 2 }}>
+            <InputLabel id="delivery-status-label">Delivery Status</InputLabel>
+            <Select
+              value={filters.deliveryStatus}
+              onChange={(e) => setFilters((prev) => ({ ...prev, deliveryStatus: e.target.value }))}
+            >
+              {["Delivered", "RTO", "Undelivered"].map((status) => (
+                <MenuItem key={status} value={status}>
+                  {status}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+          <Divider sx={{ mb: 2 }} />
+          <Button variant="contained" fullWidth onClick={() => applyFilters()}>
+            Apply Filters
+          </Button>
+          <Button variant="outlined" fullWidth onClick={() => resetFilters()}>
+            Reset Filters
+          </Button>
+        </Box>
+      </Drawer>
 
       <TableContainer component={Paper} sx={{ maxHeight: 1000 }}>
         <Table stickyHeader aria-label="sticky table">
@@ -376,6 +376,7 @@ const currentLeads = sales.slice(currentPage * rowsPerPage, currentPage * rowsPe
               <TableCell>Mode of Payment *</TableCell>
               <TableCell>Delivery Status</TableCell>
               <TableCell>Order Created By *</TableCell>
+              <TableCell>Remarks</TableCell>
               <TableCell>Actions *</TableCell>
             </TableRow>
           </TableHead>
@@ -383,107 +384,114 @@ const currentLeads = sales.slice(currentPage * rowsPerPage, currentPage * rowsPe
             {currentLeads.map((sale, index) => (
               <TableRow key={sale._id}>
                 <TableCell>
-        <TextField
-          type="date"
-          value={editedSales[sale._id]?.date || sale.date || ""}
-          onChange={(e) => handleInputChange(e, sale._id, "date")}
-          fullWidth
-        />
-      </TableCell>
-      <TableCell style={{ whiteSpace: "nowrap", minWidth: "240px" }}>
-        <TextField
-          value={editedSales[sale._id]?.name || sale.name || ""}
-          onChange={(e) => handleInputChange(e, sale._id, "name")}
-          fullWidth
-        />
-      </TableCell>
-      <TableCell style={{ whiteSpace: "nowrap", minWidth: "200px" }}>
-        <TextField
-          type="number"
-          value={editedSales[sale._id]?.contactNumber || sale.contactNumber || ""}
-          onChange={(e) => handleInputChange(e, sale._id, "contactNumber")}
-          fullWidth
-          sx={{
-            flexGrow: 1,
-            '& input[type=number]': {
-              MozAppearance: 'textfield',  
-            },
-            '& input[type=number]::-webkit-outer-spin-button, & input[type=number]::-webkit-inner-spin-button': {
-              WebkitAppearance: 'none', 
-              margin: 0,
-            },
-          }}
-        />
-      </TableCell>
-      <TableCell>
-        <FormControl fullWidth>
-          <Select
-            multiple
-            value={editedSales[sale._id]?.productsOrdered || sale.productsOrdered || []}
-            onChange={(e) => handleInputChange(e, sale._id, "productsOrdered")}
-            renderValue={(selected) => selected.join(", ")}
-          >
-            {productOptions.map((product) => (
-              <MenuItem key={product} value={product}>
-                <Checkbox checked={(editedSales[sale._id]?.productsOrdered || sale.productsOrdered || []).includes(product)} />
-                <ListItemText primary={product} />
-              </MenuItem>
-            ))}
-          </Select>
-        </FormControl>
-      </TableCell>
-      <TableCell>
-        <Select
-          value={editedSales[sale._id]?.dosageOrdered || sale.dosageOrdered || ""}
-          onChange={(e) => handleInputChange(e, sale._id, "dosageOrdered")}
-          fullWidth
-        >
-          {dosageOptions.map((option) => (
-            <MenuItem key={option} value={option}>
-              {option}
-            </MenuItem>
-          ))}
-        </Select>
-      </TableCell>
-      <TableCell style={{ whiteSpace: "nowrap", minWidth: "240px" }}>
-        <TextField
-          type="number"
-          value={editedSales[sale._id]?.amountPaid || sale.amountPaid || ""}
-          onChange={(e) => handleInputChange(e, sale._id, "amountPaid")}
-          fullWidth
-        />
-      </TableCell>
-      <TableCell>
-        <Select
-          value={editedSales[sale._id]?.modeOfPayment || sale.modeOfPayment || ""}
-          onChange={(e) => handleInputChange(e, sale._id, "modeOfPayment")}
-          fullWidth
-        >
-          {paymentModes.map((mode) => (
-            <MenuItem key={mode} value={mode}>
-              {mode}
-            </MenuItem>
-          ))}
-        </Select>
-      </TableCell>
-      <TableCell>
-        <Select
-          value={editedSales[sale._id]?.deliveryStatus || sale.deliveryStatus || ""}
-          onChange={(e) => handleInputChange(e, sale._id, "deliveryStatus")}
-          fullWidth
-        >
-          {deliveryStatuses.map((status) => (
-            <MenuItem key={status} value={status}>
-              {status}
-            </MenuItem>
-          ))}
-        </Select>
-      </TableCell>
-                <TableCell>{sale.orderCreatedBy}</TableCell>
+                  <TextField
+                    type="date"
+                    value={editedSales[sale._id]?.date || sale.date || ""}
+                    onChange={(e) => handleInputChange(e, sale._id, "date")}
+                    fullWidth
+                  />
+                </TableCell>
+                <TableCell style={{ whiteSpace: "nowrap", minWidth: "240px" }}>
+                  <TextField
+                    value={editedSales[sale._id]?.name || sale.name || ""}
+                    onChange={(e) => handleInputChange(e, sale._id, "name")}
+                    fullWidth
+                  />
+                </TableCell>
+                <TableCell style={{ whiteSpace: "nowrap", minWidth: "200px" }}>
+                  <TextField
+                    type="number"
+                    value={editedSales[sale._id]?.contactNumber || sale.contactNumber || ""}
+                    onChange={(e) => handleInputChange(e, sale._id, "contactNumber")}
+                    fullWidth
+                    sx={{
+                      flexGrow: 1,
+                      '& input[type=number]': {
+                        MozAppearance: 'textfield',
+                      },
+                      '& input[type=number]::-webkit-outer-spin-button, & input[type=number]::-webkit-inner-spin-button': {
+                        WebkitAppearance: 'none',
+                        margin: 0,
+                      },
+                    }}
+                  />
+                </TableCell>
                 <TableCell>
-                <IconButton color="primary" onClick={() => handleSave(sale._id)}>
-          Save
-        </IconButton>
+                  <FormControl fullWidth>
+                    <Select
+                      multiple
+                      value={editedSales[sale._id]?.productsOrdered || sale.productsOrdered || []}
+                      onChange={(e) => handleInputChange(e, sale._id, "productsOrdered")}
+                      renderValue={(selected) => selected.join(", ")}
+                    >
+                      {productOptions.map((product) => (
+                        <MenuItem key={product} value={product}>
+                          <Checkbox checked={(editedSales[sale._id]?.productsOrdered || sale.productsOrdered || []).includes(product)} />
+                          <ListItemText primary={product} />
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                </TableCell>
+                <TableCell>
+                  <Select
+                    value={editedSales[sale._id]?.dosageOrdered || sale.dosageOrdered || ""}
+                    onChange={(e) => handleInputChange(e, sale._id, "dosageOrdered")}
+                    fullWidth
+                  >
+                    {dosageOptions.map((option) => (
+                      <MenuItem key={option} value={option}>
+                        {option}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </TableCell>
+                <TableCell style={{ whiteSpace: "nowrap", minWidth: "240px" }}>
+                  <TextField
+                    type="number"
+                    value={editedSales[sale._id]?.amountPaid || sale.amountPaid || ""}
+                    onChange={(e) => handleInputChange(e, sale._id, "amountPaid")}
+                    fullWidth
+                  />
+                </TableCell>
+                <TableCell>
+                  <Select
+                    value={editedSales[sale._id]?.modeOfPayment || sale.modeOfPayment || ""}
+                    onChange={(e) => handleInputChange(e, sale._id, "modeOfPayment")}
+                    fullWidth
+                  >
+                    {paymentModes.map((mode) => (
+                      <MenuItem key={mode} value={mode}>
+                        {mode}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </TableCell>
+                <TableCell>
+                  <Select
+                    value={editedSales[sale._id]?.deliveryStatus || sale.deliveryStatus || ""}
+                    onChange={(e) => handleInputChange(e, sale._id, "deliveryStatus")}
+                    fullWidth
+                  >
+                    {deliveryStatuses.map((status) => (
+                      <MenuItem key={status} value={status}>
+                        {status}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </TableCell>
+                <TableCell>{sale.orderCreatedBy}</TableCell>
+                <TableCell style={{ whiteSpace: "nowrap", minWidth: "240px" }}>
+                  <TextField
+                    value={editedSales[sale._id]?.remarks || sale.remarks || ""}
+                    onChange={(e) => handleInputChange(e, sale._id, "remarks")}
+                    fullWidth
+                  />
+                </TableCell>
+                <TableCell>
+                  <IconButton color="primary" onClick={() => handleSave(sale._id)}>
+                    Save
+                  </IconButton>
                   <IconButton color="error" onClick={() => handleDelete(sale._id)}>
                     <Delete />
                   </IconButton>
