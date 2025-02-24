@@ -74,6 +74,7 @@ const RetentionAgentDashboard = () => {
           params: {
             fullName: retentionAgentName,
             email: retentionAgentEmail,
+            all: true,
           },
         }
       );
@@ -253,7 +254,7 @@ const RetentionAgentDashboard = () => {
 
   const fetchDeliverySummary = async (retentionAgentName) => {
     try {
-      setApplyingFilter(true); // Show spinner only for applying filter
+      setApplyingFilter(true);
       const response = await axios.get(
         "https://muditamleads-14f32a10d7f7.herokuapp.com/api/retention-sales",
         { params: { orderCreatedBy: retentionAgentName } }
@@ -391,8 +392,8 @@ const RetentionAgentDashboard = () => {
           marginBottom: 3,
           letterSpacing: 1.5,
           fontSize: { xs: "1.8rem", sm: "2rem", md: "2.2rem" },
-          borderRadius: "0 0 5px 5px", 
-          top: 66.5, 
+          borderRadius: "0 0 5px 5px",
+          top: 66.5,
           backgroundColor: "#ffffff",
           padding: "1px 0",
           boxShadow: "0px 4px 10px rgba(0, 0, 0, 0.1)",
@@ -467,8 +468,8 @@ const RetentionAgentDashboard = () => {
               <Paper
                 sx={{
                   width: "100%",
-                  maxWidth: "250px", // Increased width for a rectangular look
-                  height: "90px", // Reduced height slightly
+                  maxWidth: "250px",
+                  height: "90px",
                   padding: 2,
                   textAlign: "center",
                   borderRadius: "2px",
@@ -527,7 +528,7 @@ const RetentionAgentDashboard = () => {
           sx={{
             fontWeight: "bold",
             textAlign: "center",
-            color: "#00695C", // Deep Teal heading color
+            color: "#00695C",
             marginBottom: 2,
           }}
         >
@@ -578,8 +579,8 @@ const RetentionAgentDashboard = () => {
                   padding: 3,
                   textAlign: "center",
                   borderRadius: "2px",
-                  border: "1px solid #00695C", // Deep Teal border
-                  backgroundColor: "#E0F2F1", // Light Teal background
+                  border: "1px solid #00695C",
+                  backgroundColor: "#E0F2F1",
                   boxShadow: "0px 2px 8px rgba(0, 0, 0, 0.08)",
                   position: "relative",
                   display: "flex",
@@ -598,7 +599,7 @@ const RetentionAgentDashboard = () => {
                   gutterBottom
                   sx={{
                     fontWeight: "500",
-                    color: "#00897B", // Muted Teal label color
+                    color: "#00897B",
                   }}
                 >
                   {label}
@@ -607,7 +608,7 @@ const RetentionAgentDashboard = () => {
                   variant="h6"
                   sx={{
                     fontWeight: "bold",
-                    color: "#004D40", // Dark Teal value color
+                    color: "#004D40",
                   }}
                 >
                   {value}
@@ -618,7 +619,7 @@ const RetentionAgentDashboard = () => {
                       position: "absolute",
                       top: 8,
                       right: 8,
-                      color: "#00BFA5", // Bright Cyan for blinking icon
+                      color: "#00BFA5",
                     }}
                   />
                 )}
@@ -634,7 +635,7 @@ const RetentionAgentDashboard = () => {
         sx={{
           padding: 3,
           marginTop: 3,
-          borderRadius: "8px", 
+          borderRadius: "8px",
           boxShadow: "0px 4px 12px rgba(0, 0, 0, 0.1)",
         }}
       >
@@ -644,7 +645,7 @@ const RetentionAgentDashboard = () => {
           sx={{
             fontWeight: "bold",
             textAlign: "center",
-            color: "#388E3C", // Green accent color for heading
+            color: "#388E3C",
             marginBottom: 2,
           }}
         >
@@ -654,7 +655,7 @@ const RetentionAgentDashboard = () => {
 
         <Grid
           container
-          spacing={2} // Reduce spacing for large and extra-large screens
+          spacing={2}
           sx={{
             justifyContent: { xs: "center", md: "flex-start" },
           }}
@@ -695,27 +696,27 @@ const RetentionAgentDashboard = () => {
               xs={12}
               sm={6}
               md={4}
-              lg={3} // Four tiles in a row for large screens
+              lg={3}
               key={label}
               sx={{
                 display: "flex",
-                justifyContent: "center", // Center tiles horizontally
+                justifyContent: "center",
               }}
             >
               <Paper
                 sx={{
-                  width: "100%", // Full width of the grid item
-                  maxWidth: "350px", // Restrict max width for uniformity
-                  height: "90px", // Ensure equal height for all tiles
+                  width: "100%",
+                  maxWidth: "350px",
+                  height: "90px",
                   padding: 3,
                   textAlign: "center",
                   borderRadius: "2px",
-                  border: "1px solid #388E3C", // Green border
-                  backgroundColor: "#F1F8E9", // Light pistachio green
+                  border: "1px solid #388E3C",
+                  backgroundColor: "#F1F8E9",
                   boxShadow: "0px 2px 8px rgba(0, 0, 0, 0.08)",
                   display: "flex",
                   flexDirection: "column",
-                  justifyContent: "center", // Center content vertically
+                  justifyContent: "center",
                   transition: "transform 0.2s",
                   "&:hover": {
                     transform: "scale(1.05)",
@@ -747,13 +748,13 @@ const RetentionAgentDashboard = () => {
       {/* Delivery Status Section */}
       <Paper
         sx={{
-          padding: { xs: 2, sm: 3, md: 4 }, // Adjust padding for different screen sizes
+          padding: { xs: 2, sm: 3, md: 4 },
           marginTop: 3,
           borderRadius: "8px",
           boxShadow: "0px 4px 12px rgba(0, 0, 0, 0.1)",
-          width: "100%", // Set width to 100% to allow responsiveness
-          maxWidth: "1200px", // Optional max-width for larger screens
-          marginLeft: "auto", // Center horizontally
+          width: "100%",
+          maxWidth: "1200px",
+          marginLeft: "auto",
           marginRight: "auto",
         }}
       >
@@ -763,7 +764,7 @@ const RetentionAgentDashboard = () => {
           sx={{
             fontWeight: "bold",
             textAlign: "center",
-            color: "#4F4F4F", // Dark gray accent color for heading
+            color: "#4F4F4F",
             marginBottom: 2,
           }}
         >
@@ -772,7 +773,7 @@ const RetentionAgentDashboard = () => {
 
 
         {/* Date Range Filter */}
-          
+
         <Box sx={{ display: "flex", gap: 2, marginBottom: 2 }}>
           <TextField
             label="Start Date"
@@ -825,7 +826,7 @@ const RetentionAgentDashboard = () => {
                       >
                         <Typography
                           fontWeight="bold"
-                          sx={{ color: "#e8e8e8" }} // Light gray text
+                          sx={{ color: "#e8e8e8" }}
                         >
                           {header}
                         </Typography>
@@ -839,7 +840,7 @@ const RetentionAgentDashboard = () => {
                   <TableRow
                     key={row.label}
                     sx={{
-                      "&:nth-of-type(odd)": { backgroundColor: "#F5F5F5" }, // Subtle alternate row shading
+                      "&:nth-of-type(odd)": { backgroundColor: "#F5F5F5" },
                       "&:nth-of-type(even)": { backgroundColor: "#FFFFFF" },
                     }}
                   >
@@ -868,6 +869,3 @@ const RetentionAgentDashboard = () => {
 
 
 export default RetentionAgentDashboard;
-
-
-
