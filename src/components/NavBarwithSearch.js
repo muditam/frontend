@@ -1,4 +1,3 @@
-// NavbarWithSearch.jsx
 import React, { useState } from "react";
 import {
   AppBar,
@@ -20,7 +19,6 @@ import { useNavigate } from "react-router-dom";
 import Notifications from "./Notifications";
 import StickyNote2Icon from "@mui/icons-material/StickyNote2";
 
-
 const NavbarWithSearch = () => {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState([]);
@@ -28,6 +26,9 @@ const NavbarWithSearch = () => {
   const [menuOpen, setMenuOpen] = useState(false);
 
   const navigate = useNavigate();
+  
+  // Retrieve user from sessionStorage
+  const user = JSON.parse(sessionStorage.getItem("user"));
 
   const handleSearch = async (e) => {
     const value = e.target.value;
@@ -79,10 +80,11 @@ const NavbarWithSearch = () => {
 
           {/* Container for Notifications and Search Bar */}
           <Box sx={{ display: "flex", alignItems: "center" }}>
-
-            <IconButton onClick={() => navigate("/my-templates")} sx={{ mr: 1 }}>
-            <StickyNote2Icon sx={{ color: "white" }} />
-            </IconButton>
+            {user && (
+              <IconButton onClick={() => navigate("/my-templates")} sx={{ mr: 1 }}>
+                <StickyNote2Icon sx={{ color: "white" }} />
+              </IconButton>
+            )}
 
             {/* Notifications placed to the left of the search bar */}
             <Notifications />
