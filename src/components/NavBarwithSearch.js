@@ -17,13 +17,15 @@ import MenuIcon from "@mui/icons-material/Menu";
 import axios from "axios";
 import MenuBar from "./MenuBar";
 import { useNavigate } from "react-router-dom";
-import Notifications from "./Notifications";  
+import Notifications from "./Notifications";
+import StickyNote2Icon from "@mui/icons-material/StickyNote2";
+
 
 const NavbarWithSearch = () => {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState([]);
   const [showResults, setShowResults] = useState(false);
-  const [menuOpen, setMenuOpen] = useState(false);  
+  const [menuOpen, setMenuOpen] = useState(false);
 
   const navigate = useNavigate();
 
@@ -77,6 +79,11 @@ const NavbarWithSearch = () => {
 
           {/* Container for Notifications and Search Bar */}
           <Box sx={{ display: "flex", alignItems: "center" }}>
+
+            <IconButton onClick={() => navigate("/my-templates")} sx={{ mr: 1 }}>
+            <StickyNote2Icon sx={{ color: "white" }} />
+            </IconButton>
+
             {/* Notifications placed to the left of the search bar */}
             <Notifications />
 

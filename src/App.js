@@ -16,14 +16,15 @@ import Login from "./pages/Login";
 import NavbarWithSearch from "./components/NavBarwithSearch";
 import SalesDashboard from "./components/SalesDashboard";
 import OrdersTable from "./components/AllShopifyOrders";
-import OnlineOrders from "./components/OnlineOrders"; 
-import TransferRequests from "./components/TransferRequest"; 
-import LeadDetail from "./components/LeadDeails";  
+import OnlineOrders from "./components/OnlineOrders";
+import TransferRequests from "./components/TransferRequest";
+import LeadDetail from "./components/LeadDeails";
 import RetentionData from "./pages/filtered/Retention";
 import NotificationListener from "./components/NotificationListener";
 import AcquisitionLost from "./Lostdata/AcquisitionLost";
 import RetentionLost from "./Lostdata/RetentionLost";
-import PrivateRoute from "./components/PrivateRoute"; 
+import PrivateRoute from "./components/PrivateRoute";
+import MyTemplates from "./components/MyTemplates";
 
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
@@ -39,149 +40,157 @@ const App = () => {
         <Routes>
           <Route path="/login" element={<Login />} />
           {/* Protected Routes */}
-          <Route 
-            path="/" 
+          <Route
+            path="/"
             element={
               <PrivateRoute>
                 <SalesDashboard />
               </PrivateRoute>
-            } 
+            }
           />
-          <Route 
-            path="/lead/:id" 
+          <Route
+            path="/lead/:id"
             element={
               <PrivateRoute>
                 <LeadDetail />
               </PrivateRoute>
-            } 
+            }
           />
-          <Route 
-            path="/transfer-requests" 
+          <Route
+            path="/transfer-requests"
             element={
               <PrivateRoute>
                 <TransferRequests />
               </PrivateRoute>
-            } 
+            }
           />
-          <Route 
-            path="/bulk-data-upload" 
+          <Route
+            path="/bulk-data-upload"
             element={
               <PrivateRoute>
                 <BulkDataUpload />
               </PrivateRoute>
-            } 
+            }
           />
-          <Route 
-            path="/all-shopify-orders" 
+          <Route
+            path="/all-shopify-orders"
             element={
               <PrivateRoute>
                 <OrdersTable />
               </PrivateRoute>
-            } 
+            }
           />
-          <Route 
-            path="/online-orders" 
+          <Route
+            path="/online-orders"
             element={
               <PrivateRoute>
                 <OnlineOrders />
               </PrivateRoute>
-            } 
+            }
           />
-          <Route 
-            path="/add-employee" 
+          <Route
+            path="/add-employee"
             element={
               <PrivateRoute>
                 <AddEmployee />
               </PrivateRoute>
-            } 
+            }
           />
-          <Route 
-            path="/master/leads" 
+          <Route
+            path="/master/leads"
             element={
               <PrivateRoute>
                 <LeadTable />
               </PrivateRoute>
-            } 
+            }
           />
-          <Route 
-            path="/master/retention" 
+          <Route
+            path="/master/retention"
             element={
               <PrivateRoute>
                 <RetentionTable />
               </PrivateRoute>
-            } 
+            }
           />
-          <Route 
-            path="/master/new-orders" 
+          <Route
+            path="/master/new-orders"
             element={
               <PrivateRoute>
                 <NewOrders />
               </PrivateRoute>
-            } 
+            }
           />
-          <Route 
-            path="/master/retention-orders" 
+          <Route
+            path="/master/retention-orders"
             element={
               <PrivateRoute>
                 <RetentionOrders />
               </PrivateRoute>
-            } 
+            }
           />
-          <Route 
-            path="/sales/my-leads" 
+          <Route
+            path="/sales/my-leads"
             element={
               <PrivateRoute>
                 <SalesMyLeads />
               </PrivateRoute>
-            } 
+            }
           />
-          <Route 
-            path="/sales/my-sales" 
+          <Route
+            path="/sales/my-sales"
             element={
               <PrivateRoute>
                 <SalesMySales />
               </PrivateRoute>
-            } 
+            }
           />
-          <Route 
-            path="/retention/leads" 
+          <Route
+            path="/retention/leads"
             element={
               <PrivateRoute>
                 <RetentionLeads />
               </PrivateRoute>
-            } 
+            }
           />
-          <Route 
-            path="/retention/sales" 
+          <Route
+            path="/retention/sales"
             element={
               <PrivateRoute>
                 <RetentionSales />
               </PrivateRoute>
-            } 
+            }
           />
-          <Route 
-            path="/retention/:filterType" 
+          <Route
+            path="/retention/:filterType"
             element={
               <PrivateRoute>
                 <RetentionData />
               </PrivateRoute>
-            } 
+            }
           />
-          <Route 
-            path="/lost/acquisition" 
+          <Route
+            path="/lost/acquisition"
             element={
               <PrivateRoute>
                 <AcquisitionLost />
               </PrivateRoute>
-            } 
+            }
           />
-          <Route 
-            path="/lost/retention" 
+          <Route
+            path="/lost/retention"
             element={
               <PrivateRoute>
                 <RetentionLost />
               </PrivateRoute>
-            } 
+            }
+          />
+          <Route
+            path="/my-templates"
+            element={
+              <PrivateRoute>
+                <MyTemplates />
+              </PrivateRoute>
+            }
           />
         </Routes>
       </div>

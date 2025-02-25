@@ -83,6 +83,7 @@ const MenuBar = ({ toggleDrawer }) => {
       margin: "15px 0",
     },
   };
+  
 
   return (
     <Box sx={styles.drawer}>
@@ -96,6 +97,10 @@ const MenuBar = ({ toggleDrawer }) => {
         >
           <DashboardIcon sx={{ marginRight: "10px" }} />
           <ListItemText primary="Home" sx={styles.listItemText} />
+        </ListItem>
+
+        <ListItem button sx={styles.listItem} component={Link} to="/my-templates" onClick={toggleDrawer}>
+          <ListItemText primary="My Templates" sx={styles.listItemText} />
         </ListItem>
 
         {user ? (
