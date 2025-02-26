@@ -253,7 +253,16 @@ const renderDropdown = (key, multiple = false) => {
       fullWidth
       value={filters.contactNumber}
       onChange={(e) => setFilters((prev) => ({ ...prev, contactNumber: e.target.value }))}
-      sx={{ mb: 2 }}
+      sx={{
+        flexGrow: 1,
+        '& input[type=number]': {
+          MozAppearance: 'textfield',
+        },
+        '& input[type=number]::-webkit-outer-spin-button, & input[type=number]::-webkit-inner-spin-button': {
+          WebkitAppearance: 'none',
+          margin: 0,
+        },
+      }}
     />
     {dropdownOptions.map(({ key, label, options, multiple }) => (
   <FormControl fullWidth sx={{ mb: 2 }} key={key}>
