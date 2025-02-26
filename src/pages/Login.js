@@ -148,7 +148,7 @@ const LoginPage = () => {
       <Dialog open={forgotOpen} onClose={() => setForgotOpen(false)}>
         <DialogTitle>Forgot Password</DialogTitle>
         <DialogContent>
-          <Typography>Contact Tech Muditam</Typography>
+          <Typography>Contact Tech Team</Typography>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setForgotOpen(false)}>Close</Button>

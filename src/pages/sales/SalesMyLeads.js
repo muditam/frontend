@@ -438,7 +438,7 @@ const SalesMyLeads = () => {
             { key: "enquiryFor", label: "Enquiry For", options: ["KJF", "SDP", "VKR", "L-Fx", "S&S", "CPV", "HDP", "PF", "PGut", "Shilajit", "Kit", "Blood Test"] },
             { key: "customerType", label: "Customer Type", options: ["Fresh", "Renewal", "Online Order"] },
             { key: "productPitched", label: "Product Pitched", options: ["KJF", "SDP", "VKR", "L-Fx", "S&S", "CPV", "HDP", "PF", "PGut", "Shilajit", "Kit", "Blood Test"], multiple: true },
-            { key: "leadStatus", label: "Lead Status", options: ["Sales Done", "CNP - Call Not Picked", "Not Interested", "Product Issue", "Order from Other Source", "Upsell", "Fake Lead", "Follow Up", "Call Back", "New"] },
+            { key: "leadStatus", label: "Lead Status", options: ["Sales Done", "CNP - Call Not Picked", "Not Interested", "Product Issue", "Order from Other Source", "Upsell", "Fake Lead", "Follow Up", "Call Back", "New", "General Query"] },
             { key: "salesStatus", label: "Sales Status", options: ["Sales Done", "Lost", "On Follow Up"] },
           ].map(({ key, label, options, multiple }) => (
             <FormControl fullWidth sx={{ mb: 2 }} key={key}>
@@ -673,6 +673,7 @@ const SalesMyLeads = () => {
                       "Follow Up",
                       "Call Back",
                       "New",
+                      "General Query",
                     ].map((status) => (
                       <MenuItem key={status} value={status}>
                         {status}

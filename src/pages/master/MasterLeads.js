@@ -609,6 +609,7 @@ const LeadTable = () => {
                                         "Follow Up",
                                         "Call Back",
                                         "New",
+                                        "General Query",
                                     ].map((status) => (
                                         <MenuItem key={status} value={status}>
                                             <Checkbox checked={filters.leadStatus.includes(status)} />
@@ -931,6 +932,7 @@ const LeadTable = () => {
                                                 "Follow Up",
                                                 "Call Back",
                                                 "New",
+                                                "General Query",
                                             ].map((status) => (
                                                 <MenuItem key={status} value={status}>
                                                     {status}
