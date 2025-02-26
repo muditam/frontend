@@ -8,7 +8,10 @@ import {
   TextField,
   CircularProgress,
   Paper,
+  MenuItem,
+  IconButton,
 } from "@mui/material";
+import { Edit as EditIcon, Check as CheckIcon, Close as CloseIcon } from "@mui/icons-material";
 import axios from "axios";
 
 const LeadDetail = () => {
@@ -19,7 +22,26 @@ const LeadDetail = () => {
   const [formData, setFormData] = useState({});
   const [transferRequestStatus, setTransferRequestStatus] = useState("");
   const [transferRequest, setTransferRequest] = useState(null);
+  const [isEditingLeadStatus, setIsEditingLeadStatus] = useState(false);
+  const [isEditingSalesStatus, setIsEditingSalesStatus] = useState(false);
   const loggedInUser = JSON.parse(sessionStorage.getItem("user"));
+
+  // Dropdown options for Sales Agent
+  const leadStatusOptions = [
+    "Sales Done",
+    "CNP - Call Not Picked",
+    "Not Interested",
+    "Product Issue",
+    "Order from Other Source",
+    "Upsell",
+    "Fake Lead",
+    "Follow Up",
+    "Call Back",
+    "New",
+    "General Query",
+  ];
+
+  const salesStatusOptions = ["Sales Done", "Lost", "On Follow Up"];
 
   // Fetch lead details
   useEffect(() => {
@@ -73,7 +95,6 @@ const LeadDetail = () => {
         `https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/${id}`,
         formData
       );
-      // Assuming your backend responds with the updated lead in response.data.lead
       setLead(response.data.lead);
       setEditMode(false);
     } catch (error) {
@@ -82,7 +103,6 @@ const LeadDetail = () => {
   };
 
   const handleTransfer = async () => {
-    // Prevent duplicate transfer request
     if (transferRequest) return;
     try {
       const response = await axios.post(
@@ -98,6 +118,32 @@ const LeadDetail = () => {
     } catch (error) {
       console.error("Error sending transfer request:", error);
       setTransferRequestStatus("Failed to send transfer request");
+    }
+  };
+
+  const handleInlineSaveLeadStatus = async () => {
+    try {
+      const response = await axios.put(
+        `https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/${id}`,
+        { ...formData, leadStatus: formData.leadStatus }
+      );
+      setLead(response.data.lead);
+      setIsEditingLeadStatus(false);
+    } catch (error) {
+      console.error("Error saving inline lead status:", error);
+    }
+  };
+
+  const handleInlineSaveSalesStatus = async () => {
+    try {
+      const response = await axios.put(
+        `https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/${id}`,
+        { ...formData, salesStatus: formData.salesStatus }
+      );
+      setLead(response.data.lead);
+      setIsEditingSalesStatus(false);
+    } catch (error) {
+      console.error("Error saving inline sales status:", error);
     }
   };
 
@@ -127,7 +173,17 @@ const LeadDetail = () => {
     isAssigned = true;
   }
 
-  // Common fields that are always editable
+  // Styles for the fancy container
+  const fancyContainerSx = {
+    border: "1px solid #e0e0e0",
+    borderRadius: 3,
+    p: 3,
+    background: "linear-gradient(180deg, #ffffff, #fafafa)",
+    boxShadow: "0px 4px 12px rgba(0, 0, 0, 0.08)",
+    mb: 3,
+  };
+
+  // Common fields for full edit mode
   const commonEditableFields = (
     <>
       <TextField
@@ -149,7 +205,7 @@ const LeadDetail = () => {
     </>
   );
 
-  // Fields specific for Sales Agents (excluding common fields)
+  // Fields for Sales Agents in full edit mode
   const salesEditableFields = (
     <>
       <TextField
@@ -185,21 +241,35 @@ const LeadDetail = () => {
         sx={{ mb: 2 }}
       />
       <TextField
+        select
         label="Lead Status"
         name="leadStatus"
         value={formData.leadStatus || ""}
         onChange={handleInputChange}
         fullWidth
         sx={{ mb: 2 }}
-      />
+      >
+        {leadStatusOptions.map((option) => (
+          <MenuItem key={option} value={option}>
+            {option}
+          </MenuItem>
+        ))}
+      </TextField>
       <TextField
+        select
         label="Sales Status"
         name="salesStatus"
         value={formData.salesStatus || ""}
         onChange={handleInputChange}
         fullWidth
         sx={{ mb: 2 }}
-      />
+      >
+        {salesStatusOptions.map((option) => (
+          <MenuItem key={option} value={option}>
+            {option}
+          </MenuItem>
+        ))}
+      </TextField>
       <TextField
         label="Next Follow-up"
         name="nextFollowup"
@@ -222,7 +292,7 @@ const LeadDetail = () => {
     </>
   );
 
-  // Fields specific for Retention Agents (excluding common fields)
+  // Fields for Retention Agents in full edit mode
   const retentionEditableFields = (
     <>
       <TextField
@@ -282,87 +352,205 @@ const LeadDetail = () => {
   );
 
   return (
-    <Box sx={{ padding: 3, backgroundColor: "#f5f5f5", minHeight: "100vh" }}>
+    <Box sx={{ p: 4, background: "#eceff1", minHeight: "100vh" }}>
       <Paper
         sx={{
-          padding: 3,
+          p: 4,
           maxWidth: 800,
-          margin: "auto",
-          borderRadius: 2,
-          boxShadow: 3,
+          mx: "auto",
+          borderRadius: 3,
+          boxShadow: "0px 6px 20px rgba(0, 0, 0, 0.12)",
+          background: "linear-gradient(180deg, #ffffff, #f7f7f7)",
         }}
       >
         <Typography
           variant="h4"
           gutterBottom
-          sx={{ mb: 3, textAlign: "center" }}
+          sx={{
+            mb: 3,
+            textAlign: "center",
+            fontWeight: "bold",
+            color: "#37474f",
+            borderBottom: "2px solid #90a4ae",
+            pb: 1,
+          }}
         >
           Lead Details
         </Typography>
 
-        {/* Read-only view */}
+        {/* Read-only view with fancy inline-edit for Lead & Sales Status */}
         {!editMode && (
           <Box sx={{ mb: 3 }}>
-            <Typography variant="subtitle1">
+            <Typography variant="subtitle1" sx={{ color: "#455a64" }}>
               <strong>Name:</strong> {lead.name}
             </Typography>
-            <Typography variant="subtitle1">
+            <Typography variant="subtitle1" sx={{ color: "#455a64" }}>
               <strong>Contact Number:</strong> {lead.contactNumber}
             </Typography>
-            <Typography variant="subtitle1">
+            <Typography variant="subtitle1" sx={{ color: "#455a64" }}>
               <strong>Lead Source:</strong> {lead.leadSource}
             </Typography>
-            <Typography variant="subtitle1">
+            <Typography variant="subtitle1" sx={{ color: "#455a64" }}>
               <strong>Enquiry For:</strong> {lead.enquiryFor}
             </Typography>
-            <Typography variant="subtitle1">
+            <Typography variant="subtitle1" sx={{ color: "#455a64" }}>
               <strong>Customer Type:</strong> {lead.customerType}
             </Typography>
-            <Typography variant="subtitle1">
+            <Typography variant="subtitle1" sx={{ color: "#455a64" }}>
               <strong>Product Pitched:</strong> {lead.productPitched}
             </Typography>
-            <Typography variant="subtitle1">
-              <strong>Lead Status:</strong> {lead.leadStatus}
-            </Typography>
-            <Typography variant="subtitle1">
-              <strong>Sales Status:</strong> {lead.salesStatus}
-            </Typography>
-            <Typography variant="subtitle1">
+
+            <Box sx={fancyContainerSx}>
+              <Box
+                sx={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  mb: 2,
+                }}
+              >
+                <Typography variant="subtitle1" sx={{ fontWeight: "bold" }}>
+                  Lead Status:
+                </Typography>
+                {isEditingLeadStatus ? (
+                  <>
+                    <TextField
+                      select
+                      value={formData.leadStatus || ""}
+                      onChange={(e) =>
+                        setFormData((prev) => ({
+                          ...prev,
+                          leadStatus: e.target.value,
+                        }))
+                      }
+                      sx={{ minWidth: 220, mr: 1 }}
+                    >
+                      {leadStatusOptions.map((option) => (
+                        <MenuItem key={option} value={option}>
+                          {option}
+                        </MenuItem>
+                      ))}
+                    </TextField>
+                    <IconButton onClick={handleInlineSaveLeadStatus} color="success">
+                      <CheckIcon />
+                    </IconButton>
+                    <IconButton
+                      onClick={() => {
+                        setFormData((prev) => ({ ...prev, leadStatus: lead.leadStatus }));
+                        setIsEditingLeadStatus(false);
+                      }}
+                      color="error"
+                    >
+                      <CloseIcon />
+                    </IconButton>
+                  </>
+                ) : (
+                  <Box sx={{ display: "flex", alignItems: "center" }}>
+                    <Typography variant="subtitle1" sx={{ mr: 1 }}>
+                      {lead.leadStatus}
+                    </Typography>
+                    <IconButton onClick={() => setIsEditingLeadStatus(true)}>
+                      <EditIcon />
+                    </IconButton>
+                  </Box>
+                )}
+              </Box>
+              <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <Typography variant="subtitle1" sx={{ fontWeight: "bold" }}>
+                  Sales Status:
+                </Typography>
+                {isEditingSalesStatus ? (
+                  <>
+                    <TextField
+                      select
+                      value={formData.salesStatus || ""}
+                      onChange={(e) =>
+                        setFormData((prev) => ({
+                          ...prev,
+                          salesStatus: e.target.value,
+                        }))
+                      }
+                      sx={{ minWidth: 220, mr: 1 }}
+                    >
+                      {salesStatusOptions.map((option) => (
+                        <MenuItem key={option} value={option}>
+                          {option}
+                        </MenuItem>
+                      ))}
+                    </TextField>
+                    <IconButton onClick={handleInlineSaveSalesStatus} color="success">
+                      <CheckIcon />
+                    </IconButton>
+                    <IconButton
+                      onClick={() => {
+                        setFormData((prev) => ({ ...prev, salesStatus: lead.salesStatus }));
+                        setIsEditingSalesStatus(false);
+                      }}
+                      color="error"
+                    >
+                      <CloseIcon />
+                    </IconButton>
+                  </>
+                ) : (
+                  <Box sx={{ display: "flex", alignItems: "center" }}>
+                    <Typography variant="subtitle1" sx={{ mr: 1 }}>
+                      {lead.salesStatus}
+                    </Typography>
+                    <IconButton onClick={() => setIsEditingSalesStatus(true)}>
+                      <EditIcon />
+                    </IconButton>
+                  </Box>
+                )}
+              </Box>
+            </Box>
+
+            <Typography variant="subtitle1" sx={{ color: "#455a64" }}>
               <strong>Next Follow-up:</strong> {lead.nextFollowup}
             </Typography>
-            <Typography variant="subtitle1">
+            <Typography variant="subtitle1" sx={{ color: "#455a64" }}>
               <strong>Agent's Remarks:</strong> {lead.agentsRemarks}
             </Typography>
-            <Typography variant="subtitle1">
+            <Typography variant="subtitle1" sx={{ color: "#455a64" }}>
               <strong>RT Follow-up Status:</strong> {lead.rtFollowupStatus}
             </Typography>
-            <Typography variant="subtitle1">
+            <Typography variant="subtitle1" sx={{ color: "#455a64" }}>
               <strong>Last Order Date:</strong> {lead.lastOrderDate}
             </Typography>
-            <Typography variant="subtitle1">
+            <Typography variant="subtitle1" sx={{ color: "#455a64" }}>
               <strong>Repeat Dosage Ordered:</strong> {lead.repeatDosageOrdered}
             </Typography>
-            <Typography variant="subtitle1">
+            <Typography variant="subtitle1" sx={{ color: "#455a64" }}>
               <strong>Retention Status:</strong> {lead.retentionStatus}
             </Typography>
-            <Typography variant="subtitle1">
+            <Typography variant="subtitle1" sx={{ color: "#455a64" }}>
               <strong>RT Remark:</strong> {lead.rtRemark}
             </Typography>
-            <Typography variant="subtitle1">
+            <Typography variant="subtitle1" sx={{ color: "#455a64" }}>
               <strong>RT Next Follow-up Date:</strong> {lead.rtNextFollowupDate}
             </Typography>
-            <Typography variant="subtitle1">
+            <Typography variant="subtitle1" sx={{ color: "#455a64" }}>
               <strong>Agent Assigned:</strong> {lead.agentAssigned}
             </Typography>
-            <Typography variant="subtitle1">
+            <Typography variant="subtitle1" sx={{ color: "#455a64" }}>
               <strong>Health Expert Assigned:</strong> {lead.healthExpertAssigned}
             </Typography>
           </Box>
         )}
 
-        {/* Edit Mode */}
+        {/* Full Edit Mode */}
         {editMode && (
-          <Box component="form" noValidate sx={{ mb: 3 }}>
+          <Box
+            component="form"
+            noValidate
+            sx={{
+              p: 3,
+              border: "1px solid #e0e0e0",
+              borderRadius: 3,
+              backgroundColor: "#ffffff",
+              boxShadow: "0px 4px 12px rgba(0,0,0,0.1)",
+              mb: 3,
+            }}
+          >
             {commonEditableFields}
             {loggedInUser.role === "Sales Agent"
               ? salesEditableFields
@@ -391,8 +579,7 @@ const LeadDetail = () => {
                   variant="contained"
                   disabled
                   sx={{
-                    backgroundColor:
-                      transferRequest.status === "approved" ? "#a5d6a7" : "#ccc",
+                    backgroundColor: transferRequest.status === "approved" ? "#a5d6a7" : "#ccc",
                   }}
                 >
                   {transferRequest.status === "approved"
@@ -400,11 +587,7 @@ const LeadDetail = () => {
                     : "Transfer Requested"}
                 </Button>
               ) : (
-                <Button
-                  variant="contained"
-                  color="secondary"
-                  onClick={handleTransfer}
-                >
+                <Button variant="contained" color="secondary" onClick={handleTransfer}>
                   Lead Transfer
                 </Button>
               )}
