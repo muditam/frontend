@@ -62,7 +62,7 @@ const LeadTable = () => {
         retentionStatus: "",
         leadSource: [],
         enquiryFor: "",
-        orderDate: "",
+        lastOrderDate: "",
     });
 
     const [newLead, setNewLead] = useState({
@@ -219,11 +219,11 @@ const LeadTable = () => {
 
 
     const handleInputChange = async (e, index, field) => {
-        const updatedLeads = [...leads];  
+        const updatedLeads = [...leads];
 
         // Update the field in the cloned array
         updatedLeads[index][field] = e.target.value;
-        setLeads(updatedLeads); 
+        setLeads(updatedLeads);
 
         // Handle specific field logic
         if (field === "dosageOrdered") {
@@ -346,11 +346,12 @@ const LeadTable = () => {
         setCurrentPage(1);
 
         try {
-            const activeFilters = {
-                ...filters,
-                startDate: filters.startDate ? formatToISODate(filters.startDate) : "",
-                endDate: filters.endDate ? formatToISODate(filters.endDate) : "",
-            };
+            const activeFilters = { ...filters };
+
+            // Convert empty string values to undefined to prevent invalid API requests
+            if (!activeFilters.startDate) delete activeFilters.startDate;
+            if (!activeFilters.endDate) delete activeFilters.endDate;
+            if (!activeFilters.lastOrderDate) delete activeFilters.lastOrderDate;
 
             const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads", {
                 params: {
@@ -358,7 +359,7 @@ const LeadTable = () => {
                     limit: rowsPerPage,
                     filters: JSON.stringify(activeFilters),
                 },
-            }); 
+            });
 
             setLeads(response.data.leads);
             setTotalPages(response.data.totalPages);
@@ -368,12 +369,13 @@ const LeadTable = () => {
         } finally {
             setApplyingFilters(false);
         }
-    }; 
- 
+    };
+
+
     const exportToCSV = async () => {
         try {
             const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads", {
-                params: { page: 1, limit: totalLeads },  
+                params: { page: 1, limit: totalLeads },
             });
             const allLeads = response.data.leads;
 
@@ -391,7 +393,7 @@ const LeadTable = () => {
 
     const handleChangePage = (event, newPage) => {
         setCurrentPage(newPage + 1);
-        fetchLeads(newPage + 1, rowsPerPage, filters);  
+        fetchLeads(newPage + 1, rowsPerPage, filters);
     };
 
 
@@ -399,7 +401,7 @@ const LeadTable = () => {
         const newRowsPerPage = parseInt(event.target.value, 10);
         setRowsPerPage(newRowsPerPage);
         setCurrentPage(1); // Reset to the first page
-        fetchLeads(1, newRowsPerPage, filters); 
+        fetchLeads(1, newRowsPerPage, filters);
     };
 
     const currentLeads = leads.slice(currentPage * rowsPerPage, currentPage * rowsPerPage + rowsPerPage);
@@ -454,22 +456,13 @@ const LeadTable = () => {
                                 type="date"
                                 label="Start Date"
                                 value={filters.startDate}
-                                onChange={(e) => setFilters((prev) => ({ ...prev, startDate: e.target.value }))}
-                                sx={{
-                                    marginBottom: 0,
-                                    "& .MuiInputBase-input": {
-                                        padding: "10px 12px",
-                                    },
-                                    "& .MuiOutlinedInput-root": {
-                                        borderColor: "#0073e6",
-                                        "&:hover fieldset": {
-                                            borderColor: "#005bb5",
-                                        },
-                                    },
-                                }}
-                                InputLabelProps={{
-                                    shrink: true,
-                                }}
+                                onChange={(e) =>
+                                    setFilters((prev) => ({
+                                        ...prev,
+                                        startDate: e.target.value ? new Date(e.target.value).toISOString().split("T")[0] : "",
+                                    }))
+                                }
+                                InputLabelProps={{ shrink: true }}
                             />
                         </ListItem>
                         <ListItem>
@@ -478,22 +471,13 @@ const LeadTable = () => {
                                 type="date"
                                 label="End Date"
                                 value={filters.endDate}
-                                onChange={(e) => setFilters((prev) => ({ ...prev, endDate: e.target.value }))}
-                                sx={{
-                                    marginBottom: 0,
-                                    "& .MuiInputBase-input": {
-                                        padding: "10px 12px",
-                                    },
-                                    "& .MuiOutlinedInput-root": {
-                                        borderColor: "#0073e6",
-                                        "&:hover fieldset": {
-                                            borderColor: "#005bb5",
-                                        },
-                                    },
-                                }}
-                                InputLabelProps={{
-                                    shrink: true,
-                                }}
+                                onChange={(e) =>
+                                    setFilters((prev) => ({
+                                        ...prev,
+                                        endDate: e.target.value ? new Date(e.target.value).toISOString().split("T")[0] : "",
+                                    }))
+                                }
+                                InputLabelProps={{ shrink: true }}
                             />
                         </ListItem>
                         <ListItem>
@@ -517,23 +501,14 @@ const LeadTable = () => {
                                 fullWidth
                                 type="date"
                                 label="Order Date"
-                                value={filters.orderDate}
-                                onChange={(e) => setFilters((prev) => ({ ...prev, orderDate: e.target.value }))}
-                                sx={{
-                                    marginBottom: 0,
-                                    "& .MuiInputBase-input": {
-                                        padding: "10px 12px",
-                                    },
-                                    "& .MuiOutlinedInput-root": {
-                                        borderColor: "#0073e6",
-                                        "&:hover fieldset": {
-                                            borderColor: "#005bb5",
-                                        },
-                                    },
-                                }}
-                                InputLabelProps={{
-                                    shrink: true,
-                                }}
+                                value={filters.lastOrderDate}
+                                onChange={(e) =>
+                                    setFilters((prev) => ({
+                                        ...prev,
+                                        lastOrderDate: e.target.value ? new Date(e.target.value).toISOString().split("T")[0] : "",
+                                    }))
+                                }
+                                InputLabelProps={{ shrink: true }}
                             />
                         </ListItem>
                         <ListItem>
@@ -729,7 +704,7 @@ const LeadTable = () => {
                                 retentionStatus: "",
                                 leadSource: [],
                                 enquiryFor: "",
-                                orderDate: "",
+                                lastOrderDate: "",
                             };
                             setFilters(defaultFilters);
                             setCurrentPage(1);
@@ -744,7 +719,7 @@ const LeadTable = () => {
 
             <TableContainer component={Paper} sx={{ maxHeight: 1000 }}>
                 <Table stickyHeader aria-label="sticky table">
-                    <TableHead> 
+                    <TableHead>
                         <TableRow>
                             <TableCell>Delete</TableCell>
                             <TableCell>Date</TableCell>
@@ -822,13 +797,13 @@ const LeadTable = () => {
                                             sx={{
                                                 flexGrow: 1,
                                                 '& input[type=number]': {
-                                                  MozAppearance: 'textfield',  
+                                                    MozAppearance: 'textfield',
                                                 },
                                                 '& input[type=number]::-webkit-outer-spin-button, & input[type=number]::-webkit-inner-spin-button': {
-                                                  WebkitAppearance: 'none', 
-                                                  margin: 0,
+                                                    WebkitAppearance: 'none',
+                                                    margin: 0,
                                                 },
-                                              }}
+                                            }}
                                         />
                                     </TableCell>
                                     <TableCell >
@@ -1159,7 +1134,7 @@ const LeadTable = () => {
                                             value={lead.rtRemark || ""}
                                             onChange={(e) => handleInputChange(e, index, "rtRemark")}
                                         />
-                                    </TableCell>  
+                                    </TableCell>
                                 </TableRow>
                             ))
                         )}

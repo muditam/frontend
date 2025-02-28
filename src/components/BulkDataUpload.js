@@ -81,6 +81,6 @@ const BulkDataUpload = () => {
       />
     </Box>
   );
-};
+}; 
 
 export default BulkDataUpload;
