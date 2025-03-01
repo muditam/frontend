@@ -736,7 +736,7 @@ const LeadTable = () => {
                             <TableCell>Next Followup</TableCell>
                             <TableCell>Reminder</TableCell>
                             <TableCell>Agent's Remarks</TableCell>
-                            <TableCell>First Order Date</TableCell>
+                            <TableCell>Order Date</TableCell>
                             <TableCell>Products Ordered</TableCell>
                             <TableCell>Dosage Ordered</TableCell>
                             <TableCell>Amount Paid</TableCell>
