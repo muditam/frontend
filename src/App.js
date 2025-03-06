@@ -24,8 +24,7 @@ import NotificationListener from "./components/NotificationListener";
 import AcquisitionLost from "./Lostdata/AcquisitionLost";
 import RetentionLost from "./Lostdata/RetentionLost";
 import PrivateRoute from "./components/PrivateRoute";
-import MyTemplates from "./components/MyTemplates";
-import OrderForm from "./components/OrderCreate"; 
+import MyTemplates from "./components/MyTemplates"; 
 
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
@@ -39,8 +38,7 @@ const App = () => {
         <ToastContainer position="bottom-right" autoClose={5000} closeButton />
 
         <Routes>
-          <Route path="/login" element={<Login />} />
-          <Route path="/shopify/orders" element={<OrderForm />}/>
+          <Route path="/login" element={<Login />} /> 
           <Route path="/pages/Home" element={<ShipwayOrders />}/> 
           {/* Protected Routes */}
           <Route
