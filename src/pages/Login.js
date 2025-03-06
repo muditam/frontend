@@ -39,7 +39,7 @@ const LoginPage = () => {
   };
 
   return (
-    <Grid container sx={{ minHeight: "100vh" }}>
+    <Grid container sx={{ minHeight: "90vh" }}>
       {/* Left Section: Logo + Tagline */}
       <Grid
         item
@@ -76,6 +76,7 @@ const LoginPage = () => {
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
+          minHeight: "100vh",
         }}
       >
         <Box
@@ -108,7 +109,14 @@ const LoginPage = () => {
             label="User ID"
             variant="outlined"
             fullWidth
-            sx={{ mb: 2 }}
+            sx={{
+              mb: 2,
+              "& .MuiOutlinedInput-root": {
+                "& input": {
+                  padding: "13px",
+                },
+              },
+            }} 
             value={userId}
             onChange={(e) => setUserId(e.target.value)}
           />
@@ -118,7 +126,14 @@ const LoginPage = () => {
             variant="outlined"
             type="password"
             fullWidth
-            sx={{ mb: 2 }}
+            sx={{
+              mb: 2,
+              "& .MuiOutlinedInput-root": {
+                "& input": {
+                  padding: "15px",
+                },
+              },
+            }}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
           />

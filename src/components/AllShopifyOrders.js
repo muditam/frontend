@@ -100,6 +100,7 @@ const OrdersTable = () => {
               <TableCell>Products Ordered</TableCell>
               <TableCell>Channel Name</TableCell>
               <TableCell>Delivery Status</TableCell>
+              <TableCell>Shipway Status</TableCell> {/* New Column */}
             </TableRow>
           </TableHead>
           <TableBody>
@@ -121,6 +122,7 @@ const OrdersTable = () => {
                 </TableCell>
                 <TableCell>{order.channel_name}</TableCell>
                 <TableCell>{order.delivery_status}</TableCell>
+                <TableCell>{order.shipway_status}</TableCell> {/* Display Shipway status */}
               </TableRow>
             ))}
           </TableBody>

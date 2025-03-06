@@ -71,7 +71,6 @@ const RetentionSales = () => {
   });
   const [filterOpen, setFilterOpen] = useState(false);
 
-
   useEffect(() => {
     if (loggedInUser) {
       fetchSales(loggedInUser.fullName);
@@ -154,7 +153,6 @@ const RetentionSales = () => {
     }
   };
 
-
   const applyFilters = () => {
     const filteredSales = sales.filter((sale) => {
       return (
@@ -224,27 +222,15 @@ const RetentionSales = () => {
             Filters
           </Typography>
           <Divider sx={{ mb: 2 }} />
+          {/* Filter controls here */}
           <TextField
             label="Date From"
             type="date"
             fullWidth
             value={filters.dateFrom}
             onChange={(e) => setFilters((prev) => ({ ...prev, dateFrom: e.target.value }))}
-            sx={{
-              marginBottom: 2,
-              "& .MuiInputBase-input": {
-                padding: "10px 12px",
-              },
-              "& .MuiOutlinedInput-root": {
-                borderColor: "#0073e6",
-                "&:hover fieldset": {
-                  borderColor: "#005bb5",
-                },
-              },
-            }}
-            InputLabelProps={{
-              shrink: true,
-            }}
+            InputLabelProps={{ shrink: true }}
+            sx={{ mb: 2 }}
           />
           <TextField
             label="Date To"
@@ -252,21 +238,8 @@ const RetentionSales = () => {
             fullWidth
             value={filters.dateTo}
             onChange={(e) => setFilters((prev) => ({ ...prev, dateTo: e.target.value }))}
-            sx={{
-              marginBottom: 2,
-              "& .MuiInputBase-input": {
-                padding: "10px 12px",
-              },
-              "& .MuiOutlinedInput-root": {
-                borderColor: "#0073e6",
-                "&:hover fieldset": {
-                  borderColor: "#005bb5",
-                },
-              },
-            }}
-            InputLabelProps={{
-              shrink: true,
-            }}
+            InputLabelProps={{ shrink: true }}
+            sx={{ mb: 2 }}
           />
           <TextField
             label="Name"
@@ -290,7 +263,7 @@ const RetentionSales = () => {
               onChange={(e) => setFilters((prev) => ({ ...prev, productsOrdered: e.target.value }))}
               renderValue={(selected) => selected.join(", ")}
             >
-              {["KJF", "SDP", "VKR", "L-Fx", "S&S", "CPV", "HDP", "PF", "PGut", "Shilajit", "Kit", "Blood Test"].map((product) => (
+              {productOptions.map((product) => (
                 <MenuItem key={product} value={product}>
                   <Checkbox checked={filters.productsOrdered.includes(product)} />
                   <ListItemText primary={product} />
@@ -304,7 +277,7 @@ const RetentionSales = () => {
               value={filters.dosageOrdered}
               onChange={(e) => setFilters((prev) => ({ ...prev, dosageOrdered: e.target.value }))}
             >
-              {["10-Days", "20-Days", "30-Days", "60-Days", "90-Days"].map((dosage) => (
+              {dosageOptions.map((dosage) => (
                 <MenuItem key={dosage} value={dosage}>
                   {dosage}
                 </MenuItem>
@@ -333,7 +306,7 @@ const RetentionSales = () => {
               value={filters.modeOfPayment}
               onChange={(e) => setFilters((prev) => ({ ...prev, modeOfPayment: e.target.value }))}
             >
-              {["Partial Paid", "Razorpay", "COD", "UPI", "Bank Transfer"].map((mode) => (
+              {paymentModes.map((mode) => (
                 <MenuItem key={mode} value={mode}>
                   {mode}
                 </MenuItem>
@@ -346,7 +319,7 @@ const RetentionSales = () => {
               value={filters.deliveryStatus}
               onChange={(e) => setFilters((prev) => ({ ...prev, deliveryStatus: e.target.value }))}
             >
-              {["Delivered", "RTO", "Undelivered"].map((status) => (
+              {deliveryStatuses.map((status) => (
                 <MenuItem key={status} value={status}>
                   {status}
                 </MenuItem>
@@ -354,10 +327,10 @@ const RetentionSales = () => {
             </Select>
           </FormControl>
           <Divider sx={{ mb: 2 }} />
-          <Button variant="contained" fullWidth onClick={() => applyFilters()}>
+          <Button variant="contained" fullWidth onClick={applyFilters}>
             Apply Filters
           </Button>
-          <Button variant="outlined" fullWidth onClick={() => resetFilters()}>
+          <Button variant="outlined" fullWidth onClick={resetFilters}>
             Reset Filters
           </Button>
         </Box>
@@ -374,14 +347,16 @@ const RetentionSales = () => {
               <TableCell>Dosage Ordered *</TableCell>
               <TableCell>Amount Paid *</TableCell>
               <TableCell>Mode of Payment *</TableCell>
-              <TableCell>Delivery Status</TableCell>
+              <TableCell>Shopify Amount</TableCell>
+              <TableCell>Order ID</TableCell> {/* New Column */}
+              <TableCell>Shipment Status</TableCell> 
               <TableCell>Order Created By *</TableCell>
               <TableCell>Remarks</TableCell>
               <TableCell>Actions *</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
-            {currentLeads.map((sale, index) => (
+            {currentLeads.map((sale) => (
               <TableRow key={sale._id}>
                 <TableCell>
                   <TextField
@@ -406,9 +381,7 @@ const RetentionSales = () => {
                     fullWidth
                     sx={{
                       flexGrow: 1,
-                      '& input[type=number]': {
-                        MozAppearance: 'textfield',
-                      },
+                      '& input[type=number]': { MozAppearance: 'textfield' },
                       '& input[type=number]::-webkit-outer-spin-button, & input[type=number]::-webkit-inner-spin-button': {
                         WebkitAppearance: 'none',
                         margin: 0,
@@ -467,19 +440,11 @@ const RetentionSales = () => {
                     ))}
                   </Select>
                 </TableCell>
+                <TableCell>{sale.shopify_amount}</TableCell>
                 <TableCell>
-                  <Select
-                    value={editedSales[sale._id]?.deliveryStatus || sale.deliveryStatus || ""}
-                    onChange={(e) => handleInputChange(e, sale._id, "deliveryStatus")}
-                    fullWidth
-                  >
-                    {deliveryStatuses.map((status) => (
-                      <MenuItem key={status} value={status}>
-                        {status}
-                      </MenuItem>
-                    ))}
-                  </Select>
+                  {sale.orderId || ""}
                 </TableCell>
+                <TableCell>{sale.shipway_status}</TableCell>
                 <TableCell>{sale.orderCreatedBy}</TableCell>
                 <TableCell style={{ whiteSpace: "nowrap", minWidth: "240px" }}>
                   <TextField

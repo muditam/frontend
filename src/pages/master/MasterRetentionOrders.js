@@ -47,7 +47,7 @@ const RetentionOrders = () => {
     amountFrom: "",
     amountTo: "",
     modeOfPayment: "",
-    deliveryStatus: "",
+    deliveryStatus: "", // This filter can be removed if not used.
     orderCreatedBy: "",
   });
 
@@ -57,33 +57,19 @@ const RetentionOrders = () => {
     fetchRetentionOrders();
   }, []);
 
+  // Updated endpoint to fetch computed fields (orderId, shopify_amount, shipway_status)
   const fetchRetentionOrders = async () => {
     try {
-      const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/retention-orders");
+      const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/retention-sales");
       const sortedOrders = response.data.sort((a, b) => new Date(b.date) - new Date(a.date));
       setOrders(sortedOrders);
 
-      const uniqueEmployees = [...new Set(sortedOrders.map((order) => order.orderCreatedBy))]; 
+      const uniqueEmployees = [...new Set(sortedOrders.map((order) => order.orderCreatedBy))];
       setDynamicOrderCreatedBy(uniqueEmployees);
     } catch (error) {
       console.error("Error fetching retention orders:", error);
     }
   };
-
-  const handleDeliveryStatusChange = async (e, index) => {
-    const updatedOrders = [...orders];
-    updatedOrders[index].deliveryStatus = e.target.value;
-    setOrders(updatedOrders);
-
-    try {
-      await axios.put(`https://muditamleads-14f32a10d7f7.herokuapp.com/api/retention-sales/${updatedOrders[index]._id}`, {
-        deliveryStatus: e.target.value,
-      });
-    } catch (error) {
-      console.error("Error updating delivery status:", error);
-    }
-  };
-
 
   const applyFilters = () => {
     const filteredOrders = orders.filter((order) => {
@@ -96,13 +82,10 @@ const RetentionOrders = () => {
           filters.productsOrdered.some((item) =>
             order.productsOrdered?.includes(item)
           )) &&
-        // Case-insensitive partial matching for text inputs
         (!filters.dosageOrdered ||
           order.dosageOrdered?.toLowerCase().includes(filters.dosageOrdered.toLowerCase())) &&
         (!filters.modeOfPayment ||
           order.modeOfPayment?.toLowerCase().includes(filters.modeOfPayment.toLowerCase())) &&
-        (!filters.deliveryStatus ||
-          order.deliveryStatus?.toLowerCase().includes(filters.deliveryStatus.toLowerCase())) &&
         (!filters.amountFrom || parseFloat(order.amountPaid) >= parseFloat(filters.amountFrom)) &&
         (!filters.amountTo || parseFloat(order.amountPaid) <= parseFloat(filters.amountTo)) &&
         (!filters.orderCreatedBy.length ||
@@ -113,8 +96,6 @@ const RetentionOrders = () => {
     });
     setOrders(filteredOrders);
   };
-
-
 
   const resetFilters = () => {
     setFilters({
@@ -144,6 +125,45 @@ const RetentionOrders = () => {
 
   const currentLeads = orders.slice(currentPage * rowsPerPage, currentPage * rowsPerPage + rowsPerPage);
 
+  // Function to export the orders data to CSV and trigger a download
+  const exportToCSV = () => {
+    if (orders.length === 0) return;
+    // Define headers
+    const headers = ["Date", "Name", "Contact No", "Products Ordered", "Dosage Ordered", "Amount Paid", "Mode of Payment", "Shopify Amount", "Order ID", "Shipment Status", "Order Created By"];
+    // Map orders to CSV rows
+    const csvRows = [
+      headers.join(","), // header row
+      ...orders.map(order => {
+        const row = [
+          order.date || "",
+          order.name || "",
+          order.contactNumber || "",
+          order.productsOrdered ? order.productsOrdered.join(" | ") : "",
+          order.dosageOrdered || "",
+          order.amountPaid || "",
+          order.modeOfPayment || "",
+          order.shopify_amount || "",
+          order.orderId || "",
+          order.shipway_status || "",
+          order.orderCreatedBy || ""
+        ];
+        // Escape any commas in values by wrapping the field in double quotes
+        return row.map(field => `"${field}"`).join(",");
+      })
+    ];
+    const csvString = csvRows.join("\n");
+    const blob = new Blob([csvString], { type: "text/csv" });
+    const url = window.URL.createObjectURL(blob);
+    
+    // Create a temporary link to trigger download
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "retention_orders.csv";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  };
+
   const styles = {
     container: {
       fontFamily: "Inter, sans-serif",
@@ -170,7 +190,7 @@ const RetentionOrders = () => {
       boxShadow: "0 4px 6px rgba(0, 0, 0, 0.1)",
     },
     button: {
-      borderRadius: "8px",
+      borderRadius: "8px", 
       textTransform: "none",
       boxShadow: "0 2px 4px rgba(0, 0, 0, 0.1)",
     }, 
@@ -181,13 +201,22 @@ const RetentionOrders = () => {
       <Typography variant="h5" gutterBottom style={styles.header}>
         Master Data - Retention Orders
       </Typography>
-      <Button
-        variant="contained"
-        onClick={() => setFilterOpen(true)}
-        sx={{ mb: 2, backgroundColor: "#0073e6", ...styles.button }}
-      >
-        Filter
-      </Button>
+      <Box sx={{ display: "flex", justifyContent: "space-between", mb: 2 }}>
+        <Button
+          variant="contained"
+          onClick={() => setFilterOpen(true)}
+          sx={{ backgroundColor: "#0073e6", ...styles.button }}
+        >
+          Filter
+        </Button>
+        <Button
+          variant="contained"
+          onClick={exportToCSV}
+          sx={{ backgroundColor: "#0073e6", ...styles.button }}
+        >
+          Export to CSV
+        </Button>
+      </Box>
 
       <Drawer
         anchor="right"
@@ -210,17 +239,17 @@ const RetentionOrders = () => {
               sx={{
                 marginBottom: 2,
                 "& .MuiInputBase-input": {
-                  padding: "10px 12px", // Adjust padding for a more "focused" look
+                  padding: "10px 12px",
                 },
                 "& .MuiOutlinedInput-root": {
-                  borderColor: "#0073e6", // Active border color
+                  borderColor: "#0073e6",
                   "&:hover fieldset": {
-                    borderColor: "#005bb5", // Darker hover effect
+                    borderColor: "#005bb5",
                   },
                 },
               }}
               InputLabelProps={{
-                shrink: true, // Always show the label
+                shrink: true,
               }}
             />
             <TextField
@@ -232,17 +261,17 @@ const RetentionOrders = () => {
               sx={{
                 marginBottom: 2,
                 "& .MuiInputBase-input": {
-                  padding: "10px 12px", // Adjust padding for a more "focused" look
+                  padding: "10px 12px",
                 },
                 "& .MuiOutlinedInput-root": {
-                  borderColor: "#0073e6", // Active border color
+                  borderColor: "#0073e6",
                   "&:hover fieldset": {
-                    borderColor: "#005bb5", // Darker hover effect
+                    borderColor: "#005bb5",
                   },
                 },
               }}
               InputLabelProps={{
-                shrink: true, // Always show the label
+                shrink: true,
               }}
             />
             <TextField
@@ -253,17 +282,17 @@ const RetentionOrders = () => {
               sx={{
                 marginBottom: 2,
                 "& .MuiInputBase-input": {
-                  padding: "10px 12px", // Adjust padding for a more "focused" look
+                  padding: "10px 12px",
                 },
                 "& .MuiOutlinedInput-root": {
-                  borderColor: "#0073e6", // Active border color
+                  borderColor: "#0073e6",
                   "&:hover fieldset": {
-                    borderColor: "#005bb5", // Darker hover effect
+                    borderColor: "#005bb5",
                   },
                 },
               }}
               InputLabelProps={{
-                shrink: true, // Always show the label
+                shrink: true,
               }}
             />
             <TextField
@@ -274,17 +303,17 @@ const RetentionOrders = () => {
               sx={{
                 marginBottom: 2,
                 "& .MuiInputBase-input": {
-                  padding: "10px 12px", // Adjust padding for a more "focused" look
+                  padding: "10px 12px",
                 },
                 "& .MuiOutlinedInput-root": {
-                  borderColor: "#0073e6", // Active border color
+                  borderColor: "#0073e6",
                   "&:hover fieldset": {
-                    borderColor: "#005bb5", // Darker hover effect
+                    borderColor: "#005bb5",
                   },
                 },
               }}
               InputLabelProps={{
-                shrink: true, // Always show the label
+                shrink: true,
               }}
             />
             <Box sx={{ marginBottom: 2 }}>
@@ -334,31 +363,8 @@ const RetentionOrders = () => {
                   shrink: true,
                 }}
               />
-              <TextField
-                label="Delivery Status"
-                fullWidth
-                value={filters.deliveryStatus}
-                onChange={(e) =>
-                  setFilters((prev) => ({ ...prev, deliveryStatus: e.target.value }))
-                }
-                sx={{
-                  marginBottom: 0,
-                  "& .MuiInputBase-input": {
-                    padding: "10px 12px",
-                  },
-                  "& .MuiOutlinedInput-root": {
-                    borderColor: "#0073e6",
-                    "&:hover fieldset": {
-                      borderColor: "#005bb5",
-                    },
-                  },
-                }}
-                InputLabelProps={{
-                  shrink: true,
-                }}
-              />
+              {/* Delivery Status filter removed */}
             </Box>
-
 
             {/* Dynamic Order Created By */}
             <FormControl fullWidth sx={{ marginBottom: 2 }}>
@@ -376,9 +382,7 @@ const RetentionOrders = () => {
               >
                 {dynamicOrderCreatedBy.map((employee) => (
                   <MenuItem key={employee} value={employee}>
-                    <Checkbox
-                      checked={filters.orderCreatedBy?.includes(employee)}
-                    />
+                    <Checkbox checked={filters.orderCreatedBy?.includes(employee)} />
                     <ListItemText primary={employee} />
                   </MenuItem>
                 ))}
@@ -393,17 +397,17 @@ const RetentionOrders = () => {
               sx={{
                 marginBottom: 2,
                 "& .MuiInputBase-input": {
-                  padding: "10px 12px", // Adjust padding for a more "focused" look
+                  padding: "10px 12px",
                 },
                 "& .MuiOutlinedInput-root": {
-                  borderColor: "#0073e6", // Active border color
+                  borderColor: "#0073e6",
                   "&:hover fieldset": {
-                    borderColor: "#005bb5", // Darker hover effect
+                    borderColor: "#005bb5",
                   },
                 },
               }}
               InputLabelProps={{
-                shrink: true, // Always show the label
+                shrink: true,
               }}
             />
             <TextField
@@ -415,17 +419,17 @@ const RetentionOrders = () => {
               sx={{
                 marginBottom: 0,
                 "& .MuiInputBase-input": {
-                  padding: "10px 12px", // Adjust padding for a more "focused" look
+                  padding: "10px 12px",
                 },
                 "& .MuiOutlinedInput-root": {
-                  borderColor: "#0073e6", // Active border color
+                  borderColor: "#0073e6",
                   "&:hover fieldset": {
-                    borderColor: "#005bb5", // Darker hover effect
+                    borderColor: "#005bb5",
                   },
                 },
               }}
               InputLabelProps={{
-                shrink: true, // Always show the label
+                shrink: true,
               }}
             />
           </Box>
@@ -441,11 +445,7 @@ const RetentionOrders = () => {
           >
             Apply Filters
           </Button>
-          <Button
-            variant="outlined"
-            fullWidth
-            onClick={resetFilters}
-          >
+          <Button variant="outlined" fullWidth onClick={resetFilters}>
             Reset Filters
           </Button>
         </Box>
@@ -462,12 +462,14 @@ const RetentionOrders = () => {
               <TableCell style={styles.tableCell}>Dosage Ordered</TableCell>
               <TableCell style={styles.tableCell}>Amount Paid</TableCell>
               <TableCell style={styles.tableCell}>Mode of Payment</TableCell>
-              <TableCell style={styles.tableCell}>Delivery Status *</TableCell> 
+              <TableCell style={styles.tableCell}>Shopify Amount</TableCell>
+              <TableCell style={styles.tableCell}>Order ID</TableCell>
+              <TableCell style={styles.tableCell}>Shipment Status</TableCell>
               <TableCell style={styles.tableCell}>Order Created By</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
-            {currentLeads.map((order, index) => (
+            {currentLeads.map((order) => (
               <TableRow
                 key={order._id}
                 sx={{
@@ -483,19 +485,9 @@ const RetentionOrders = () => {
                 <TableCell style={styles.tableCell}>{order.dosageOrdered || "N/A"}</TableCell>
                 <TableCell style={styles.tableCell}>{order.amountPaid || "N/A"}</TableCell>
                 <TableCell style={styles.tableCell}>{order.modeOfPayment || "N/A"}</TableCell>
-                <TableCell style={styles.tableCell}>
-                  <Select
-                    value={order.deliveryStatus || ""}
-                    onChange={(e) => handleDeliveryStatusChange(e, index)}
-                    fullWidth
-                  >
-                    {dropdownOptions.deliveryStatus.map((status) => (
-                      <MenuItem key={status} value={status}>
-                        {status}
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </TableCell>
+                <TableCell style={styles.tableCell}>{order.shopify_amount || "N/A"}</TableCell>
+                <TableCell style={styles.tableCell}>{order.orderId || "N/A"}</TableCell>
+                <TableCell style={styles.tableCell}>{order.shipway_status || "N/A"}</TableCell>
                 <TableCell style={styles.tableCell}>{order.orderCreatedBy || "N/A"}</TableCell>
               </TableRow>
             ))}

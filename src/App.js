@@ -11,7 +11,7 @@ import SalesMyLeads from "./pages/sales/SalesMyLeads";
 import SalesMySales from "./pages/sales/SalesMySales";
 import RetentionLeads from "./pages/retention/RetentionLeads";
 import RetentionSales from "./pages/retention/RetentionSales";
-import Home from "./pages/Home";
+import ShipwayOrders from "./pages/Home";
 import Login from "./pages/Login";
 import NavbarWithSearch from "./components/NavBarwithSearch";
 import SalesDashboard from "./components/SalesDashboard";
@@ -25,6 +25,7 @@ import AcquisitionLost from "./Lostdata/AcquisitionLost";
 import RetentionLost from "./Lostdata/RetentionLost";
 import PrivateRoute from "./components/PrivateRoute";
 import MyTemplates from "./components/MyTemplates";
+import OrderForm from "./components/OrderCreate"; 
 
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
@@ -39,6 +40,8 @@ const App = () => {
 
         <Routes>
           <Route path="/login" element={<Login />} />
+          <Route path="/shopify/orders" element={<OrderForm />}/>
+          <Route path="/pages/Home" element={<ShipwayOrders />}/> 
           {/* Protected Routes */}
           <Route
             path="/"

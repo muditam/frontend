@@ -13,20 +13,24 @@ import {
   IconButton,
 } from "@mui/material";
 import MenuIcon from "@mui/icons-material/Menu";
+import ShoppingCartIcon from "@mui/icons-material/ShoppingCart";
 import axios from "axios";
 import MenuBar from "./MenuBar";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import Notifications from "./Notifications";
 import StickyNote2Icon from "@mui/icons-material/StickyNote2";
+import CartDrawer from "./CartDrawer";
 
 const NavbarWithSearch = () => {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState([]);
   const [showResults, setShowResults] = useState(false);
+  const [cartDrawerOpen, setCartDrawerOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
 
   const navigate = useNavigate();
-  
+  const location = useLocation();
+
   // Retrieve user from sessionStorage
   const user = JSON.parse(sessionStorage.getItem("user"));
 
@@ -62,6 +66,8 @@ const NavbarWithSearch = () => {
     setMenuOpen(open);
   };
 
+  const toggleCartDrawer = (open) => () => setCartDrawerOpen(open);
+
   return (
     <>
       <AppBar position="static">
@@ -78,7 +84,6 @@ const NavbarWithSearch = () => {
 
           <Box sx={{ flexGrow: 1 }} />
 
-          {/* Container for Notifications and Search Bar */}
           <Box sx={{ display: "flex", alignItems: "center" }}>
             {user && (
               <IconButton onClick={() => navigate("/my-templates")} sx={{ mr: 1 }}>
@@ -86,8 +91,14 @@ const NavbarWithSearch = () => {
               </IconButton>
             )}
 
-            {/* Notifications placed to the left of the search bar */}
             <Notifications />
+
+            {/* Conditionally render Shopping Cart Icon */}
+            {user && location.pathname !== "/login" && (
+              <IconButton color="inherit" onClick={toggleCartDrawer(true)}>
+                <ShoppingCartIcon />
+              </IconButton>
+            )}
 
             {/* Search Bar */}
             <Box sx={{ position: "relative", width: 300, ml: 2 }}>
@@ -146,6 +157,10 @@ const NavbarWithSearch = () => {
       {/* Sidebar Drawer */}
       <Drawer anchor="left" open={menuOpen} onClose={toggleMenu(false)}>
         <MenuBar toggleDrawer={toggleMenu(false)} />
+      </Drawer>
+
+      <Drawer anchor="right" open={cartDrawerOpen} onClose={toggleCartDrawer(false)}>
+        <CartDrawer closeDrawer={toggleCartDrawer(false)} />
       </Drawer>
     </>
   );
