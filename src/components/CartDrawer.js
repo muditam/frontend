@@ -357,7 +357,7 @@ const CartDrawer = ({ closeDrawer }) => {
     };
 
     try {
-      await axios.post("http://localhost:5000/api/shopify/create-order", orderData);
+      await axios.post("https://muditamleads-14f32a10d7f7.herokuapp.com/api/shopify/create-order", orderData);
       alert("Order placed successfully!");
     } catch (error) {
       console.error("Error placing order:", error);

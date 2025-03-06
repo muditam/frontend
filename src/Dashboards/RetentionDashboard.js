@@ -18,7 +18,7 @@ import axios from "axios";
 import WarningAmberIcon from "@mui/icons-material/WarningAmber";
 import { styled } from "@mui/system";
 
-
+// Define the blinking icon style.
 const BlinkingIcon = styled(WarningAmberIcon)({
   animation: "blink-animation 1.5s steps(2, start) infinite",
   "@keyframes blink-animation": {
@@ -29,20 +29,37 @@ const BlinkingIcon = styled(WarningAmberIcon)({
   color: "red",
 });
 
+// Compute default date filter for the current month.
+const getCurrentMonthDateFilter = () => {
+  const currentDate = new Date();
+  const firstDay = new Date(
+    currentDate.getFullYear(),
+    currentDate.getMonth(),
+    1
+  )
+    .toISOString()
+    .split("T")[0];
+  const lastDay = new Date(
+    currentDate.getFullYear(),
+    currentDate.getMonth() + 1,
+    0
+  )
+    .toISOString()
+    .split("T")[0];
+  return { startDate: firstDay, endDate: lastDay };
+};
 
 const RetentionAgentDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [leads, setLeads] = useState([]);
   const [todayMetrics, setTodayMetrics] = useState({});
   const [followupMetrics, setFollowupMetrics] = useState({});
-  const [applyingFilter, setApplyingFilter] = useState(false);
   const [allTimeMetrics, setAllTimeMetrics] = useState({});
-  const [deliverySummary, setDeliverySummary] = useState([]);
-  const [dateFilter, setDateFilter] = useState({ startDate: "", endDate: "" });
-
+  const [shipmentSummary, setShipmentSummary] = useState([]);
+  const [applyingShipment, setApplyingShipment] = useState(false);
+  const [dateFilter, setDateFilter] = useState(getCurrentMonthDateFilter());
 
   const user = JSON.parse(sessionStorage.getItem("user"));
-
 
   const handleBoxClick = (filterType) => {
     const clickableBoxes = [
@@ -60,14 +77,10 @@ const RetentionAgentDashboard = () => {
     }
   };
 
-
-  const fetchDashboardData = async (
-    retentionAgentName,
-    retentionAgentEmail
-  ) => {
+  const fetchDashboardData = async (retentionAgentName, retentionAgentEmail) => {
     try {
       setLoading(true);
-      // Fetch all leads assigned to the logged-in retention agent
+      // Fetch all leads assigned to the logged-in retention agent.
       const retentionLeadsResponse = await axios.get(
         "https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/retention",
         {
@@ -78,58 +91,46 @@ const RetentionAgentDashboard = () => {
           },
         }
       );
-
-      const retentionLeads = (retentionLeadsResponse.data && retentionLeadsResponse.data.leads) || [];
+      const retentionLeads =
+        (retentionLeadsResponse.data && retentionLeadsResponse.data.leads) || [];
 
       const filteredLeads = retentionLeads.filter(
         (lead) => lead.healthExpertAssigned === retentionAgentName
       );
       setLeads(filteredLeads);
 
-
       const todayDate = new Date().toISOString().split("T")[0];
       const tomorrowDate = new Date(Date.now() + 24 * 60 * 60 * 1000)
         .toISOString()
         .split("T")[0];
 
-
-      // Today Section
+      // Today Section metrics.
       const activeCustomers = retentionLeads.filter(
         (lead) =>
           lead.healthExpertAssigned === retentionAgentName &&
           (!lead.retentionStatus || lead.retentionStatus === "Active")
       ).length;
-
-
       const customersAssignedToday = retentionLeads.filter(
         (lead) =>
           lead.healthExpertAssigned === retentionAgentName &&
           lead.date === todayDate
       ).length;
 
-
-      // Fetch retention sales for the logged-in agent
+      // Fetch retention sales for the logged-in agent.
       const retentionSalesResponse = await axios.get(
         "https://muditamleads-14f32a10d7f7.herokuapp.com/api/retention-sales",
         { params: { orderCreatedBy: retentionAgentName } }
       );
-
-
       const retentionSales = retentionSalesResponse.data || [];
       const salesDoneToday = retentionSales.filter(
         (sale) => sale.date === todayDate
       );
-
-
       const totalSales = salesDoneToday.reduce(
         (acc, sale) => acc + (sale.amountPaid || 0),
         0
       );
-
-
       const avgOrderValue =
         salesDoneToday.length > 0 ? totalSales / salesDoneToday.length : 0;
-
 
       setTodayMetrics({
         activeCustomers,
@@ -139,44 +140,33 @@ const RetentionAgentDashboard = () => {
         avgOrderValue,
       });
 
-
-      // Follow-Up Section
+      // Follow-Up Section metrics.
       const noFollowupSet = retentionLeads.filter(
         (lead) =>
           lead.healthExpertAssigned === retentionAgentName &&
           !lead.rtNextFollowupDate
       ).length;
-
-
       const followupMissed = retentionLeads.filter(
         (lead) =>
           lead.healthExpertAssigned === retentionAgentName &&
           lead.rtNextFollowupDate &&
           lead.rtNextFollowupDate < todayDate
       ).length;
-
-
       const followupToday = retentionLeads.filter(
         (lead) =>
           lead.healthExpertAssigned === retentionAgentName &&
           lead.rtNextFollowupDate === todayDate
       ).length;
-
-
       const followupTomorrow = retentionLeads.filter(
         (lead) =>
           lead.healthExpertAssigned === retentionAgentName &&
           lead.rtNextFollowupDate === tomorrowDate
       ).length;
-
-
       const followupLater = retentionLeads.filter(
         (lead) =>
           lead.healthExpertAssigned === retentionAgentName &&
           lead.rtNextFollowupDate > tomorrowDate
       ).length;
-
-
       setFollowupMetrics({
         noFollowupSet,
         followupMissed,
@@ -185,27 +175,20 @@ const RetentionAgentDashboard = () => {
         followupLater,
       });
 
-
-      // All Time Section
+      // All Time Section metrics.
       const totalCustomers = retentionLeads.filter(
         (lead) => lead.healthExpertAssigned === retentionAgentName
       ).length;
-
-
       const activeCustomersAllTime = retentionLeads.filter(
         (lead) =>
           lead.healthExpertAssigned === retentionAgentName &&
           (!lead.retentionStatus || lead.retentionStatus === "Active")
       ).length;
-
-
       const lostCustomers = retentionLeads.filter(
         (lead) =>
           lead.healthExpertAssigned === retentionAgentName &&
           lead.retentionStatus === "Lost"
       ).length;
-
-
       const customersRetainedThisMonth = retentionSales.filter((sale) => {
         const saleDate = new Date(sale.date);
         const now = new Date();
@@ -214,26 +197,18 @@ const RetentionAgentDashboard = () => {
           saleDate.getFullYear() === now.getFullYear()
         );
       }).length;
-
-
       const retentionRate =
         totalCustomers > 0
           ? ((customersRetainedThisMonth / totalCustomers) * 100).toFixed(2)
           : 0;
-
-
       const totalSalesAllTime = retentionSales.reduce(
         (acc, sale) => acc + (sale.amountPaid || 0),
         0
       );
-
-
       const avgOrderValueAllTime =
         retentionSales.length > 0
           ? totalSalesAllTime / retentionSales.length
           : 0;
-
-
       setAllTimeMetrics({
         totalCustomers,
         activeCustomers: activeCustomersAllTime,
@@ -251,17 +226,16 @@ const RetentionAgentDashboard = () => {
     }
   };
 
-
-  const fetchDeliverySummary = async (retentionAgentName) => {
+  // Fetch Shipment Status summary with date filter.
+  const fetchShipmentStatusSummary = async (retentionAgentName) => {
     try {
-      setApplyingFilter(true);
+      setApplyingShipment(true);
       const response = await axios.get(
         "https://muditamleads-14f32a10d7f7.herokuapp.com/api/retention-sales",
         { params: { orderCreatedBy: retentionAgentName } }
       );
-
-
       const orders = response.data || [];
+      // Apply the date filter.
       const filteredOrders = orders.filter((order) => {
         const orderDate = new Date(order.date).toISOString().split("T")[0];
         return (
@@ -269,114 +243,62 @@ const RetentionAgentDashboard = () => {
           (!dateFilter.endDate || orderDate <= dateFilter.endDate)
         );
       });
-
-
       const totalOrders = filteredOrders.length;
-      const deliveredOrders = filteredOrders.filter(
-        (order) => order.deliveryStatus === "Delivered"
+      const totalAmount = filteredOrders.reduce(
+        (acc, order) => acc + (order.amountPaid || 0),
+        0
       );
-      const inTransitOrders = filteredOrders.filter(
-        (order) => order.deliveryStatus === "Undelivered"
-      );
-      const rtoOrders = filteredOrders.filter(
-        (order) => order.deliveryStatus === "RTO"
-      );
-      const othersOrders = filteredOrders.filter(
-        (order) =>
-          order.deliveryStatus !== "Delivered" &&
-          order.deliveryStatus !== "Undelivered" &&
-          order.deliveryStatus !== "RTO"
-      );
-
-
-      const calculateTotalAmount = (orders) =>
-        orders.reduce((acc, order) => acc + (order.amountPaid || 0), 0);
-
-
+      // Group orders by shipment status.
+      const statusMap = {};
+      filteredOrders.forEach((order) => {
+        const status = order.shipway_status || "Unknown";
+        if (!statusMap[status]) {
+          statusMap[status] = { count: 0, amount: 0 };
+        }
+        statusMap[status].count += 1;
+        statusMap[status].amount += order.amountPaid || 0;
+      });
       const summary = [
         {
           label: "Total Orders",
           count: totalOrders,
-          amount: calculateTotalAmount(filteredOrders),
+          amount: totalAmount,
           percentage: 100,
         },
-        {
-          label: "Delivered Orders",
-          count: deliveredOrders.length,
-          amount: calculateTotalAmount(deliveredOrders),
-          percentage:
-            totalOrders > 0
-              ? ((deliveredOrders.length / totalOrders) * 100).toFixed(2)
-              : 0,
-        },
-        {
-          label: "In Transit",
-          count: inTransitOrders.length,
-          amount: calculateTotalAmount(inTransitOrders),
-          percentage:
-            totalOrders > 0
-              ? ((inTransitOrders.length / totalOrders) * 100).toFixed(2)
-              : 0,
-        },
-        {
-          label: "RTO",
-          count: rtoOrders.length,
-          amount: calculateTotalAmount(rtoOrders),
-          percentage:
-            totalOrders > 0
-              ? ((rtoOrders.length / totalOrders) * 100).toFixed(2)
-              : 0,
-        },
-        {
-          label: "Others",
-          count: othersOrders.length,
-          amount: calculateTotalAmount(othersOrders),
-          percentage:
-            totalOrders > 0
-              ? ((othersOrders.length / totalOrders) * 100).toFixed(2)
-              : 0,
-        },
       ];
-
-
-      setDeliverySummary(summary);
+      Object.entries(statusMap).forEach(([status, data]) => {
+        summary.push({
+          label: status,
+          count: data.count,
+          amount: data.amount,
+          percentage:
+            totalOrders > 0
+              ? ((data.count / totalOrders) * 100).toFixed(2)
+              : 0,
+        });
+      });
+      setShipmentSummary(summary);
     } catch (error) {
-      console.error("Error fetching delivery summary:", error);
+      console.error("Error fetching shipment status summary:", error);
     } finally {
-      setApplyingFilter(false);
+      setApplyingShipment(false);
     }
   };
 
-
+  // On mount, fetch dashboard data and shipment summary.
   useEffect(() => {
     if (user.fullName && user.email) {
       fetchDashboardData(user.fullName, user.email);
-      fetchDeliverySummary(user.fullName);
+      fetchShipmentStatusSummary(user.fullName);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user.fullName, user.email]);
 
-
-  const handleApplyFilters = () => {
-    if (user) {
-      fetchDeliverySummary(user.fullName);
-    }
-  };
-
-
-  if (loading) {
-    return (
-      <Box sx={{ display: "flex", justifyContent: "center", mt: 4 }}>
-        <CircularProgress />
-      </Box>
-    );
-  }
-
-
+  // The page renders immediately while data is being fetched.
   return (
     <Box
       sx={{
         padding: { xs: 2, sm: 3, md: 4 },
-        // marginTop: 2,
         width: { xs: "90%", sm: "85%", md: "85%", lg: "90%" },
         marginLeft: "auto",
         marginRight: "auto",
@@ -401,7 +323,6 @@ const RetentionAgentDashboard = () => {
       >
         {user?.fullName} - Retention Agent Dashboard
       </Typography>
-
 
       {/* Today Section */}
       <Paper
@@ -512,7 +433,6 @@ const RetentionAgentDashboard = () => {
         </Grid>
       </Paper>
 
-
       {/* Follow-Up Section */}
       <Paper
         sx={{
@@ -619,7 +539,7 @@ const RetentionAgentDashboard = () => {
                       position: "absolute",
                       top: 8,
                       right: 8,
-                      color: "#00BFA5",
+                      color: "red",
                     }}
                   />
                 )}
@@ -628,7 +548,6 @@ const RetentionAgentDashboard = () => {
           ))}
         </Grid>
       </Paper>
-
 
       {/* All Time Section */}
       <Paper
@@ -651,8 +570,6 @@ const RetentionAgentDashboard = () => {
         >
           All Time
         </Typography>
-
-
         <Grid
           container
           spacing={2}
@@ -744,8 +661,7 @@ const RetentionAgentDashboard = () => {
         </Grid>
       </Paper>
 
-
-      {/* Delivery Status Section */}
+      {/* Shipment Status Section with Date Filter */}
       <Paper
         sx={{
           padding: { xs: 2, sm: 3, md: 4 },
@@ -768,12 +684,9 @@ const RetentionAgentDashboard = () => {
             marginBottom: 2,
           }}
         >
-          Order Delivery Status
+          Shipment Status
         </Typography>
-
-
-        {/* Date Range Filter */}
-
+        {/* Date Filter Controls */}
         <Box sx={{ display: "flex", gap: 2, marginBottom: 2 }}>
           <TextField
             label="Start Date"
@@ -781,7 +694,10 @@ const RetentionAgentDashboard = () => {
             InputLabelProps={{ shrink: true }}
             value={dateFilter.startDate}
             onChange={(e) =>
-              setDateFilter((prev) => ({ ...prev, startDate: e.target.value }))
+              setDateFilter((prev) => ({
+                ...prev,
+                startDate: e.target.value,
+              }))
             }
           />
           <TextField
@@ -790,23 +706,23 @@ const RetentionAgentDashboard = () => {
             InputLabelProps={{ shrink: true }}
             value={dateFilter.endDate}
             onChange={(e) =>
-              setDateFilter((prev) => ({ ...prev, endDate: e.target.value }))
+              setDateFilter((prev) => ({
+                ...prev,
+                endDate: e.target.value,
+              }))
             }
           />
-
-
           <Button
             variant="contained"
-            onClick={() => fetchDeliverySummary(user?.fullName)}
+            onClick={() => fetchShipmentStatusSummary(user?.fullName)}
             sx={{ backgroundColor: "#6D6D6D" }}
           >
             Apply Filters
           </Button>
         </Box>
 
-
-        {/* Loading Indicator */}
-        {applyingFilter ? (
+        {/* Shipment Status Table */}
+        {applyingShipment ? (
           <Box sx={{ display: "flex", justifyContent: "center", mt: 4 }}>
             <CircularProgress />
           </Box>
@@ -824,10 +740,7 @@ const RetentionAgentDashboard = () => {
                           textAlign: "center",
                         }}
                       >
-                        <Typography
-                          fontWeight="bold"
-                          sx={{ color: "#e8e8e8" }}
-                        >
+                        <Typography fontWeight="bold" sx={{ color: "#e8e8e8" }}>
                           {header}
                         </Typography>
                       </TableCell>
@@ -836,7 +749,7 @@ const RetentionAgentDashboard = () => {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {deliverySummary.map((row) => (
+                {shipmentSummary.map((row) => (
                   <TableRow
                     key={row.label}
                     sx={{
@@ -845,7 +758,9 @@ const RetentionAgentDashboard = () => {
                     }}
                   >
                     <TableCell sx={{ textAlign: "center" }}>
-                      <Typography fontWeight="bold">{row.label}</Typography>
+                      <Typography fontWeight="bold">
+                        {row.label}
+                      </Typography>
                     </TableCell>
                     <TableCell sx={{ textAlign: "center" }}>
                       {row.count}
@@ -866,6 +781,5 @@ const RetentionAgentDashboard = () => {
     </Box>
   );
 };
-
 
 export default RetentionAgentDashboard;
