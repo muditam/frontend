@@ -139,9 +139,9 @@ const CartDrawer = ({ closeDrawer }) => {
   const [products, setProducts] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [filteredProducts, setFilteredProducts] = useState([]);
-
-  // For the order success popup & confetti
   const [showOrderSuccess, setShowOrderSuccess] = useState(false);
+  const [orderId, setOrderId] = useState(null);
+  const [orderNotes, setOrderNotes] = useState("");
 
   // Keep track of window size for react-confetti
   const [confettiSize, setConfettiSize] = useState({
@@ -274,9 +274,8 @@ const CartDrawer = ({ closeDrawer }) => {
     }
   };
 
-  // Reset all cart-related states
   const handleResetAll = () => {
-    // Clear selection
+    // 1. Clear Redux states
     dispatch(setSelection({}));
     // Remove all items from cart
     for (let i = cart.length - 1; i >= 0; i--) {
@@ -287,13 +286,13 @@ const CartDrawer = ({ closeDrawer }) => {
     dispatch(setPhoneNumber(""));
     dispatch(setCustomerId(""));
     dispatch(setCustomerName(""));
-    // Clear address confirmations
+    dispatch(setNewAddress({}));
     dispatch(setConfirmedAddress(null));
     dispatch(setAddressConfirmed(false));
     // Clear payment link & transaction
     dispatch(setRazorpayLink(""));
     dispatch(setTransactionId(""));
-    // Default payment method
+    // Reset payment method
     dispatch(setPaymentMethod("Prepaid"));
     // Clear shipping
     dispatch(setShippingInput(""));
@@ -302,6 +301,19 @@ const CartDrawer = ({ closeDrawer }) => {
     dispatch(setDiscountValue(""));
     dispatch(setAppliedDiscount(0));
     dispatch(setDiscountType("percentage"));
+
+    // 2. Clear local states
+    setNewCustomerFirstName("");
+    setNewCustomerLastName("");
+    setSearchQuery("");
+    setFilteredProducts(products); // Reset to the full product list
+    setShowOrderSuccess(false);
+    setOrderId(null);
+    setOrderNotes("");
+    setActiveSection("ordering"); // Go back to first tab if you like
+
+    // 3. Finally, close the drawer
+    closeDrawer();
   };
 
   const handleNext = () => {
@@ -440,7 +452,7 @@ const CartDrawer = ({ closeDrawer }) => {
     } else {
       addressString = `${newAddress.fullName}, ${newAddress.address1}, ${newAddress.address2}, ${newAddress.city}, ${newAddress.state}, ${newAddress.country}, ${newAddress.pincode}`;
     }
-    navigator.clipboard.writeText(addressString); 
+    navigator.clipboard.writeText(addressString);
   };
 
   // Check if user has selected or filled an address
@@ -495,6 +507,7 @@ const CartDrawer = ({ closeDrawer }) => {
     }
   };
 
+  // Updated create order to capture order id and show success popup without auto-closing
   const handleCreateOrder = async () => {
     const shippingAddress = {
       firstName: confirmedAddress?.fullName?.split(" ")[0] || "",
@@ -510,14 +523,14 @@ const CartDrawer = ({ closeDrawer }) => {
     const billingAddress = billingSameAsShipping
       ? { ...shippingAddress }
       : {
-          firstName: confirmedAddress?.fullName?.split(" ")[0] || "",
-          lastName: confirmedAddress?.fullName?.split(" ")[1] || "",
-          address1: confirmedAddress?.address1 || "",
-          city: confirmedAddress?.city || "",
-          province: confirmedAddress?.state || "",
-          country: confirmedAddress?.country || "India",
-          zip: confirmedAddress?.pincode || "",
-        };
+        firstName: confirmedAddress?.fullName?.split(" ")[0] || "",
+        lastName: confirmedAddress?.fullName?.split(" ")[1] || "",
+        address1: confirmedAddress?.address1 || "",
+        city: confirmedAddress?.city || "",
+        province: confirmedAddress?.state || "",
+        country: confirmedAddress?.country || "India",
+        zip: confirmedAddress?.pincode || "",
+      };
 
     const paymentStatus = paymentMethod === "Prepaid" ? "paid" : "COD";
     const orderData = {
@@ -535,19 +548,44 @@ const CartDrawer = ({ closeDrawer }) => {
     };
 
     try {
-      await axios.post(
+      const response = await axios.post(
         "https://muditamleads-14f32a10d7f7.herokuapp.com/api/shopify/create-order",
         orderData
       );
-
-      // On success, show the success popup with confetti
+      // Capture order id from Shopify response
+      const createdOrder = response.data.order;
+      setOrderId(createdOrder.id);
+      // Show the success popup (manual close via cross icon)
       setShowOrderSuccess(true);
-      // Auto-close after 5 seconds
-      setTimeout(() => {
-        setShowOrderSuccess(false);
-      }, 5000); 
     } catch (error) {
       console.error("Error placing order:", error);
+    }
+  };
+
+  // New function to post order notes using the fetched order id
+  const handleAddNotes = async () => {
+    if (!orderId) {
+      alert("Order id is missing.");
+      return;
+    }
+    if (!orderNotes.trim()) {
+      alert("Please enter a note.");
+      return;
+    }
+    try {
+      await axios.post(
+        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/shopify/update-order-note",
+        {
+          orderId,
+          note: orderNotes,
+        }
+      );
+      alert("Notes added successfully.");
+      // Optionally, clear the note input field after success
+      setOrderNotes("");
+    } catch (error) {
+      console.error("Error adding notes:", error);
+      alert("Error adding notes.");
     }
   };
 
@@ -574,6 +612,11 @@ const CartDrawer = ({ closeDrawer }) => {
         })
       );
     }
+  };
+
+  // Function to close the order success popup manually
+  const handleCloseOrderPopup = () => {
+    setShowOrderSuccess(false);
   };
 
   return (
@@ -610,7 +653,12 @@ const CartDrawer = ({ closeDrawer }) => {
           </Box>
 
           {/* Delete icon that resets all states */}
-          <IconButton size="small" color="error" onClick={handleResetAll} sx={{ ml: 1 }}>
+          <IconButton
+            size="small"
+            color="error"
+            onClick={handleResetAll}
+            sx={{ ml: 1 }}
+          >
             <DeleteIcon />
           </IconButton>
         </Box>
@@ -689,20 +737,33 @@ const CartDrawer = ({ closeDrawer }) => {
                           alt={product.title}
                         />
                         <CardContent sx={{ p: 1, flex: 1 }}>
-                          <Typography variant="h6" sx={{ fontSize: "0.9rem" }}>
+                          <Typography
+                            variant="h6"
+                            sx={{ fontSize: "0.9rem" }}
+                          >
                             {product.title}
                           </Typography>
                           <Box
-                            sx={{ display: "flex", alignItems: "center", mt: 1 }}
+                            sx={{
+                              display: "flex",
+                              alignItems: "center",
+                              mt: 1,
+                            }}
                           >
-                            <Typography variant="subtitle2" sx={{ mr: 1 }}>
+                            <Typography
+                              variant="subtitle2"
+                              sx={{ mr: 1 }}
+                            >
                               Size:
                             </Typography>
                             <Select
                               size="small"
                               value={currentVariantId}
                               onChange={(e) =>
-                                handleVariantChange(product.id, e.target.value)
+                                handleVariantChange(
+                                  product.id,
+                                  e.target.value
+                                )
                               }
                               sx={{ minWidth: 100 }}
                             >
@@ -717,7 +778,11 @@ const CartDrawer = ({ closeDrawer }) => {
                             ₹{selectedVariant.price}
                           </Typography>
                           <Box
-                            sx={{ display: "flex", alignItems: "center", mt: 1 }}
+                            sx={{
+                              display: "flex",
+                              alignItems: "center",
+                              mt: 1,
+                            }}
                           >
                             <Typography sx={{ mr: 1 }}>Qty:</Typography>
                             <Select
@@ -779,7 +844,10 @@ const CartDrawer = ({ closeDrawer }) => {
                               Add
                             </Button>
                           )}
-                          <IconButton color="primary" onClick={handleNext}>
+                          <IconButton
+                            color="primary"
+                            onClick={handleNext}
+                          >
                             <ArrowForwardIosIcon />
                           </IconButton>
                         </Box>
@@ -832,7 +900,10 @@ const CartDrawer = ({ closeDrawer }) => {
 
                   {/* Title, variant, quantity controls */}
                   <Box sx={{ flex: 1 }}>
-                    <Typography variant="body1" sx={{ fontWeight: 500 }}>
+                    <Typography
+                      variant="body1"
+                      sx={{ fontWeight: 500 }}
+                    >
                       {item.product.title}
                     </Typography>
                     <Typography variant="caption">
@@ -848,14 +919,18 @@ const CartDrawer = ({ closeDrawer }) => {
                     >
                       <IconButton
                         size="small"
-                        onClick={() => handleDecreaseQuantity(idx)}
+                        onClick={() =>
+                          handleDecreaseQuantity(idx)
+                        }
                       >
                         <RemoveIcon />
                       </IconButton>
                       <Typography>{item.quantity}</Typography>
                       <IconButton
                         size="small"
-                        onClick={() => handleIncreaseQuantity(idx)}
+                        onClick={() =>
+                          handleIncreaseQuantity(idx)
+                        }
                       >
                         <AddIcon />
                       </IconButton>
@@ -871,7 +946,8 @@ const CartDrawer = ({ closeDrawer }) => {
                     }}
                   >
                     <Typography>
-                      ₹{(item.variant.price * item.quantity).toFixed(2)}
+                      ₹
+                      {(item.variant.price * item.quantity).toFixed(2)}
                     </Typography>
                     <IconButton
                       size="small"
@@ -893,7 +969,7 @@ const CartDrawer = ({ closeDrawer }) => {
                 Apply Discount
               </Button>
 
-              {/* Discount Popup (within cart drawer, same width) */}
+              {/* Discount Popup */}
               {discountModalOpen && (
                 <Box
                   sx={{
@@ -916,10 +992,16 @@ const CartDrawer = ({ closeDrawer }) => {
                       mb: 2,
                     }}
                   >
-                    <Typography variant="h6" sx={{ fontSize: "1rem" }}>
+                    <Typography
+                      variant="h6"
+                      sx={{ fontSize: "1rem" }}
+                    >
                       Add Discount
                     </Typography>
-                    <IconButton size="small" onClick={handleCloseDiscountModal}>
+                    <IconButton
+                      size="small"
+                      onClick={handleCloseDiscountModal}
+                    >
                       <CloseIcon />
                     </IconButton>
                   </Box>
@@ -934,11 +1016,16 @@ const CartDrawer = ({ closeDrawer }) => {
                       fullWidth
                       size="small"
                       value={discountType}
-                      onChange={(e) => dispatch(setDiscountType(e.target.value))}
+                      onChange={(e) =>
+                        dispatch(
+                          setDiscountType(e.target.value)
+                        )
+                      }
                     >
-                      {/* No "Select discount type" option; default is "percentage" */}
                       <MenuItem value="amount">Amount</MenuItem>
-                      <MenuItem value="percentage">Percentage</MenuItem>
+                      <MenuItem value="percentage">
+                        Percentage
+                      </MenuItem>
                     </Select>
 
                     <TextField
@@ -947,7 +1034,9 @@ const CartDrawer = ({ closeDrawer }) => {
                       type="number"
                       value={discountValue}
                       onChange={(e) =>
-                        dispatch(setDiscountValue(e.target.value))
+                        dispatch(
+                          setDiscountValue(e.target.value)
+                        )
                       }
                       placeholder={
                         discountType === "amount"
@@ -957,7 +1046,11 @@ const CartDrawer = ({ closeDrawer }) => {
                     />
                   </Box>
                   <Box
-                    sx={{ display: "flex", justifyContent: "flex-end", gap: 2 }}
+                    sx={{
+                      display: "flex",
+                      justifyContent: "flex-end",
+                      gap: 2,
+                    }}
                   >
                     <Button
                       variant="text"
@@ -978,13 +1071,24 @@ const CartDrawer = ({ closeDrawer }) => {
               )}
 
               {/* Shipping Charges */}
-              <Typography>Shipping Charges (₹0 - ₹4000)</Typography>
-              <Box display="flex" alignItems="center" mt={1} mb={2}>
+              <Typography>
+                Shipping Charges (₹0 - ₹4000)
+              </Typography>
+              <Box
+                display="flex"
+                alignItems="center"
+                mt={1}
+                mb={2}
+              >
                 <TextField
                   label="Shipping"
                   type="number"
                   value={shippingInput}
-                  onChange={(e) => dispatch(setShippingInput(e.target.value))}
+                  onChange={(e) =>
+                    dispatch(
+                      setShippingInput(e.target.value)
+                    )
+                  }
                   sx={{ mr: 1 }}
                   size="small"
                 />
@@ -998,22 +1102,33 @@ const CartDrawer = ({ closeDrawer }) => {
               </Box>
 
               {/* Cart Summary */}
-              <Typography>Sub-Total: ₹{subTotal.toFixed(2)}</Typography>
+              <Typography>
+                Sub-Total: ₹{subTotal.toFixed(2)}
+              </Typography>
               <Typography>Tax: ₹0.00</Typography>
               <Typography>
                 Discount: -₹
-                {appliedDiscount > 0 ? appliedDiscount.toFixed(2) : 0}
+                {appliedDiscount > 0
+                  ? appliedDiscount.toFixed(2)
+                  : 0}
               </Typography>
-              <Typography>Shipping: ₹{shippingCost.toFixed(2)}</Typography>
+              <Typography>
+                Shipping: ₹{shippingCost.toFixed(2)}
+              </Typography>
               <Typography variant="h6" sx={{ mt: 1 }}>
-                Total: ₹{finalTotal < 0 ? 0 : finalTotal.toFixed(2)}
+                Total: ₹
+                {finalTotal < 0
+                  ? 0
+                  : finalTotal.toFixed(2)}
               </Typography>
 
               <Button
                 variant="contained"
                 color="primary"
                 sx={{ ...buttonStyle, mt: 2 }}
-                onClick={() => setActiveSection("payment")}
+                onClick={() =>
+                  setActiveSection("payment")
+                }
               >
                 Next
               </Button>
@@ -1038,7 +1153,11 @@ const CartDrawer = ({ closeDrawer }) => {
                   label="Enter Mobile Number"
                   variant="outlined"
                   value={phoneNumber}
-                  onChange={(e) => dispatch(setPhoneNumber(e.target.value))}
+                  onChange={(e) =>
+                    dispatch(
+                      setPhoneNumber(e.target.value)
+                    )
+                  }
                   sx={{ mr: 1 }}
                   size="small"
                 />
@@ -1060,7 +1179,9 @@ const CartDrawer = ({ closeDrawer }) => {
                     size="small"
                     margin="dense"
                     value={newCustomerFirstName}
-                    onChange={(e) => setNewCustomerFirstName(e.target.value)}
+                    onChange={(e) =>
+                      setNewCustomerFirstName(e.target.value)
+                    }
                   />
                   <TextField
                     label="Last Name"
@@ -1068,7 +1189,9 @@ const CartDrawer = ({ closeDrawer }) => {
                     size="small"
                     margin="dense"
                     value={newCustomerLastName}
-                    onChange={(e) => setNewCustomerLastName(e.target.value)}
+                    onChange={(e) =>
+                      setNewCustomerLastName(e.target.value)
+                    }
                   />
                   <Button
                     variant="contained"
@@ -1109,39 +1232,55 @@ const CartDrawer = ({ closeDrawer }) => {
                   <Checkbox
                     checked={billingSameAsShipping}
                     onChange={(e) =>
-                      dispatch(setBillingSameAsShipping(e.target.checked))
+                      dispatch(
+                        setBillingSameAsShipping(
+                          e.target.checked
+                        )
+                      )
                     }
                   />
                 }
-                label="Billing address is same as shipping address"
+                label="Billing & shipping address is same"
               />
 
               {addresses.length > 0 ? (
-                !addressConfirmed && addressCategory === "existing" ? (
+                !addressConfirmed &&
+                  addressCategory === "existing" ? (
                   <Box sx={{ mb: 2 }}>
-                    <Typography variant="subtitle2" sx={{ mb: 1 }}>
+                    <Typography
+                      variant="subtitle2"
+                      sx={{ mb: 1 }}
+                    >
                       Select address category *
                     </Typography>
                     <Select
                       value={addressCategory}
                       onChange={(e) =>
-                        dispatch(setAddressCategory(e.target.value))
+                        dispatch(
+                          setAddressCategory(
+                            e.target.value
+                          )
+                        )
                       }
                       fullWidth
                       size="small"
                     >
-                      <MenuItem value="existing">Existing address</MenuItem>
-                      <MenuItem value="new">Add new address</MenuItem>
+                      <MenuItem value="existing">
+                        Existing address
+                      </MenuItem>
+                      <MenuItem value="new">
+                        Add new address
+                      </MenuItem>
                     </Select>
                   </Box>
                 ) : null
               ) : (
                 <Typography sx={{ mb: 1 }}>
-                  No previous orders found. Please add a new address.
+                  No orders yet. Add an address to continue.
                 </Typography>
               )}
 
-              {/* If using existing addresses & not yet confirmed, show them */}
+              {/* Existing addresses */}
               {addressCategory === "existing" &&
                 addresses.length > 0 &&
                 !addressConfirmed && (
@@ -1149,13 +1288,24 @@ const CartDrawer = ({ closeDrawer }) => {
                     {addresses.map((addr, index) => (
                       <Box
                         key={index}
-                        sx={{ border: "1px solid #ccc", p: 1, mb: 1 }}
+                        sx={{
+                          border: "1px solid #ccc",
+                          p: 1,
+                          mb: 1,
+                        }}
                       >
                         <FormControlLabel
                           control={
                             <Checkbox
-                              checked={selectedAddressIndex === index}
-                              onChange={() => handleSelectAddress(index)}
+                              checked={
+                                selectedAddressIndex ===
+                                index
+                              }
+                              onChange={() =>
+                                handleSelectAddress(
+                                  index
+                                )
+                              }
                             />
                           }
                           label={`${addr.fullName} (${addr.phone})\n${addr.address1}, ${addr.address2}, ${addr.city}, ${addr.state}, ${addr.country}, ${addr.pincode}`}
@@ -1165,30 +1315,53 @@ const CartDrawer = ({ closeDrawer }) => {
                   </Box>
                 )}
 
-              {/* If address is confirmed & category is existing, show only the selected address */}
+              {/* Confirmed existing address */}
               {addressCategory === "existing" &&
                 addresses.length > 0 &&
                 addressConfirmed &&
                 selectedAddressIndex !== null && (
                   <Box sx={{ mb: 2 }}>
-                    <Box sx={{ border: "1px solid #ccc", p: 1, mb: 1 }}>
+                    <Box
+                      sx={{
+                        border: "1px solid #ccc",
+                        p: 1,
+                        mb: 1,
+                      }}
+                    >
                       <Typography variant="body2">
-                        {addresses[selectedAddressIndex].fullName} (
-                        {addresses[selectedAddressIndex].phone})
+                        {addresses[
+                          selectedAddressIndex
+                        ].fullName} (
+                        {addresses[
+                          selectedAddressIndex
+                        ].phone}
+                        )
                       </Typography>
                       <Typography variant="caption">
-                        {addresses[selectedAddressIndex].address1},{" "}
-                        {addresses[selectedAddressIndex].address2},{" "}
-                        {addresses[selectedAddressIndex].city},{" "}
-                        {addresses[selectedAddressIndex].state},{" "}
-                        {addresses[selectedAddressIndex].country},{" "}
-                        {addresses[selectedAddressIndex].pincode}
+                        {addresses[
+                          selectedAddressIndex
+                        ].address1},{" "}
+                        {addresses[
+                          selectedAddressIndex
+                        ].address2},{" "}
+                        {addresses[
+                          selectedAddressIndex
+                        ].city},{" "}
+                        {addresses[
+                          selectedAddressIndex
+                        ].state},{" "}
+                        {addresses[
+                          selectedAddressIndex
+                        ].country},{" "}
+                        {addresses[
+                          selectedAddressIndex
+                        ].pincode}
                       </Typography>
                     </Box>
                   </Box>
                 )}
 
-              {/* If new address */}
+              {/* New address */}
               {addressCategory === "new" && (
                 <Box sx={{ mb: 2 }}>
                   <TextField
@@ -1198,7 +1371,10 @@ const CartDrawer = ({ closeDrawer }) => {
                     margin="dense"
                     value={newAddress.fullName || ""}
                     onChange={(e) =>
-                      handleNewAddressChange("fullName", e.target.value)
+                      handleNewAddressChange(
+                        "fullName",
+                        e.target.value
+                      )
                     }
                   />
                   <TextField
@@ -1208,7 +1384,10 @@ const CartDrawer = ({ closeDrawer }) => {
                     margin="dense"
                     value={newAddress.phone || ""}
                     onChange={(e) =>
-                      handleNewAddressChange("phone", e.target.value)
+                      handleNewAddressChange(
+                        "phone",
+                        e.target.value
+                      )
                     }
                   />
                   <TextField
@@ -1218,7 +1397,10 @@ const CartDrawer = ({ closeDrawer }) => {
                     margin="dense"
                     value={newAddress.email || ""}
                     onChange={(e) =>
-                      handleNewAddressChange("email", e.target.value)
+                      handleNewAddressChange(
+                        "email",
+                        e.target.value
+                      )
                     }
                   />
                   <TextField
@@ -1228,7 +1410,10 @@ const CartDrawer = ({ closeDrawer }) => {
                     margin="dense"
                     value={newAddress.address1 || ""}
                     onChange={(e) =>
-                      handleNewAddressChange("address1", e.target.value)
+                      handleNewAddressChange(
+                        "address1",
+                        e.target.value
+                      )
                     }
                   />
                   <TextField
@@ -1238,7 +1423,10 @@ const CartDrawer = ({ closeDrawer }) => {
                     margin="dense"
                     value={newAddress.address2 || ""}
                     onChange={(e) =>
-                      handleNewAddressChange("address2", e.target.value)
+                      handleNewAddressChange(
+                        "address2",
+                        e.target.value
+                      )
                     }
                   />
                   <TextField
@@ -1248,7 +1436,10 @@ const CartDrawer = ({ closeDrawer }) => {
                     margin="dense"
                     value={newAddress.city || ""}
                     onChange={(e) =>
-                      handleNewAddressChange("city", e.target.value)
+                      handleNewAddressChange(
+                        "city",
+                        e.target.value
+                      )
                     }
                   />
                   <Select
@@ -1257,11 +1448,16 @@ const CartDrawer = ({ closeDrawer }) => {
                     margin="dense"
                     value={newAddress.state || ""}
                     onChange={(e) =>
-                      handleNewAddressChange("state", e.target.value)
+                      handleNewAddressChange(
+                        "state",
+                        e.target.value
+                      )
                     }
                     sx={{ mb: 1 }}
                   >
-                    <MenuItem value="">Select State/UT</MenuItem>
+                    <MenuItem value="">
+                      Select State/UT
+                    </MenuItem>
                     {INDIAN_STATES.map((st) => (
                       <MenuItem key={st} value={st}>
                         {st}
@@ -1275,7 +1471,10 @@ const CartDrawer = ({ closeDrawer }) => {
                     margin="dense"
                     value={newAddress.pincode || ""}
                     onChange={(e) =>
-                      handleNewAddressChange("pincode", e.target.value)
+                      handleNewAddressChange(
+                        "pincode",
+                        e.target.value
+                      )
                     }
                   />
                   <TextField
@@ -1285,7 +1484,10 @@ const CartDrawer = ({ closeDrawer }) => {
                     margin="dense"
                     value={newAddress.country || ""}
                     onChange={(e) =>
-                      handleNewAddressChange("country", e.target.value)
+                      handleNewAddressChange(
+                        "country",
+                        e.target.value
+                      )
                     }
                   />
                 </Box>
@@ -1311,15 +1513,19 @@ const CartDrawer = ({ closeDrawer }) => {
                 <Button
                   variant="contained"
                   onClick={handleConfirmAddress}
-                  // disable if no address is selected/filled or if already confirmed
-                  disabled={addressConfirmed || !isAddressSelectedOrFilled()}
+                  disabled={
+                    addressConfirmed ||
+                    !isAddressSelectedOrFilled()
+                  }
                   sx={buttonStyle}
                 >
-                  {addressConfirmed ? "Confirmed" : "Confirm Address"}
+                  {addressConfirmed
+                    ? "Confirmed"
+                    : "Confirm Address"}
                 </Button>
               </Box>
 
-              {/* Payment Method (only show once address is confirmed) */}
+              {/* Payment Method */}
               {addressConfirmed && (
                 <Box
                   sx={{
@@ -1329,17 +1535,26 @@ const CartDrawer = ({ closeDrawer }) => {
                     mb: 2,
                   }}
                 >
-                  <Typography variant="subtitle1" sx={{ mb: 1 }}>
+                  <Typography
+                    variant="subtitle1"
+                    sx={{ mb: 1 }}
+                  >
                     Select Payment Method
                   </Typography>
                   <Select
                     value={paymentMethod || "Prepaid"}
-                    onChange={(e) => dispatch(setPaymentMethod(e.target.value))}
+                    onChange={(e) =>
+                      dispatch(
+                        setPaymentMethod(e.target.value)
+                      )
+                    }
                     fullWidth
                     sx={{ mb: 2 }}
                     size="small"
                   >
-                    <MenuItem value="Prepaid">Prepaid</MenuItem>
+                    <MenuItem value="Prepaid">
+                      Prepaid
+                    </MenuItem>
                     <MenuItem value="COD">COD</MenuItem>
                   </Select>
 
@@ -1351,17 +1566,24 @@ const CartDrawer = ({ closeDrawer }) => {
                         sx={{ ...buttonStyle, mb: 2 }}
                         disabled={Boolean(razorpayLink)}
                       >
-                        {razorpayLink ? "Link Generated" : "Generate Payment Link"}
+                        {razorpayLink
+                          ? "Link Generated"
+                          : "Generate Payment Link"}
                       </Button>
                       {razorpayLink && (
                         <Box sx={{ mb: 2 }}>
-                          <Typography variant="body2" sx={{ mb: 1 }}>
+                          <Typography
+                            variant="body2"
+                            sx={{ mb: 1 }}
+                          >
                             Payment Link:
                           </Typography>
                           <Button
                             variant="outlined"
                             onClick={() =>
-                              navigator.clipboard.writeText(razorpayLink)
+                              navigator.clipboard.writeText(
+                                razorpayLink
+                              )
                             }
                             sx={buttonStyle}
                           >
@@ -1375,7 +1597,11 @@ const CartDrawer = ({ closeDrawer }) => {
                         fullWidth
                         value={transactionId}
                         onChange={(e) =>
-                          dispatch(setTransactionId(e.target.value))
+                          dispatch(
+                            setTransactionId(
+                              e.target.value
+                            )
+                          )
                         }
                         sx={{ mb: 2 }}
                         size="small"
@@ -1388,7 +1614,8 @@ const CartDrawer = ({ closeDrawer }) => {
                       color="success"
                       onClick={handleCreateOrder}
                       disabled={
-                        (paymentMethod || "Prepaid") === "Prepaid" &&
+                        (paymentMethod || "Prepaid") ===
+                        "Prepaid" &&
                         transactionId.trim() === ""
                       }
                       sx={buttonStyle}
@@ -1402,7 +1629,12 @@ const CartDrawer = ({ closeDrawer }) => {
           </motion.div>
         )}
 
-        <Button variant="text" fullWidth onClick={closeDrawer} sx={{ mt: 2 }}>
+        <Button
+          variant="text"
+          fullWidth
+          onClick={closeDrawer}
+          sx={{ mt: 2 }}
+        >
           Close
         </Button>
 
@@ -1421,8 +1653,22 @@ const CartDrawer = ({ closeDrawer }) => {
               alignItems: "center",
               justifyContent: "center",
               flexDirection: "column",
+              position: "fixed",
             }}
           >
+            {/* Cross icon to close the popup */}
+            <IconButton
+              onClick={handleCloseOrderPopup}
+              sx={{
+                position: "absolute",
+                top: 150,
+                right: 400,
+                color: "#fff",
+                zIndex: 10000,
+              }}
+            >
+              <CloseIcon />
+            </IconButton>
             <ReactConfetti
               width={confettiSize.width}
               height={confettiSize.height}
@@ -1436,12 +1682,44 @@ const CartDrawer = ({ closeDrawer }) => {
                 display: "flex",
                 flexDirection: "column",
                 alignItems: "center",
+                minWidth: 300,
               }}
             >
-              <CheckCircleOutlineIcon color="success" sx={{ fontSize: 80 }} />
-              <Typography variant="h5" sx={{ mt: 2, textAlign: "center" }}>
+              <img
+                src="https://cdn.shopify.com/s/files/1/0734/7155/7942/files/website_right_tick_animation.gif?v=1741346413"
+                alt="Success Animation"
+                style={{ width: "80px", height: "80px" }}
+              />
+
+              <Typography
+                variant="h5"
+                sx={{ mt: 2, textAlign: "center" }}
+              >
                 Your order has been successfully created! 🎉
               </Typography>
+              {orderId && (
+                <Typography sx={{ mt: 1 }}>
+                  Order id is: {orderId}
+                </Typography>
+              )}
+              {/* Notes field and button */}
+              <TextField
+                label="Add Order Notes"
+                variant="outlined"
+                fullWidth
+                value={orderNotes}
+                onChange={(e) =>
+                  setOrderNotes(e.target.value)
+                }
+                sx={{ mt: 2, mb: 1 }}
+              />
+              <Button
+                variant="contained"
+                onClick={handleAddNotes}
+                sx={buttonStyle}
+              >
+                Add Notes
+              </Button>
             </Box>
           </Box>
         )}
