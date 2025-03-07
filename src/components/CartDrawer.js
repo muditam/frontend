@@ -149,6 +149,10 @@ const CartDrawer = ({ closeDrawer }) => {
     height: window.innerHeight,
   });
 
+  // Local state for new customer details
+  const [newCustomerFirstName, setNewCustomerFirstName] = useState("");
+  const [newCustomerLastName, setNewCustomerLastName] = useState("");
+
   // Pulling data from Redux store
   const {
     cart,
@@ -384,6 +388,40 @@ const CartDrawer = ({ closeDrawer }) => {
     }
   };
 
+  // New function to create a customer on Shopify
+  const handleCreateCustomer = async () => {
+    if (!phoneNumber) {
+      alert("Please enter phone number");
+      return;
+    }
+    if (!newCustomerFirstName || !newCustomerLastName) {
+      alert("Please enter both first name and last name");
+      return;
+    }
+    try {
+      const response = await axios.post(
+        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/shopify/create-customer",
+        {
+          phone: phoneNumber,
+          first_name: newCustomerFirstName,
+          last_name: newCustomerLastName,
+        }
+      );
+      const customerData = response.data.customer;
+      if (customerData && customerData.id) {
+        dispatch(setCustomerId(customerData.id));
+        dispatch(
+          setCustomerName(
+            `${customerData.first_name} ${customerData.last_name}`.trim()
+          )
+        );
+      }
+    } catch (error) {
+      console.error("Error creating customer:", error);
+      alert("Error creating customer");
+    }
+  };
+
   const handleSelectAddress = (index) => {
     dispatch(setSelectedAddressIndex(index));
   };
@@ -402,8 +440,7 @@ const CartDrawer = ({ closeDrawer }) => {
     } else {
       addressString = `${newAddress.fullName}, ${newAddress.address1}, ${newAddress.address2}, ${newAddress.city}, ${newAddress.state}, ${newAddress.country}, ${newAddress.pincode}`;
     }
-    navigator.clipboard.writeText(addressString);
-    alert("Address copied to clipboard!");
+    navigator.clipboard.writeText(addressString); 
   };
 
   // Check if user has selected or filled an address
@@ -467,6 +504,7 @@ const CartDrawer = ({ closeDrawer }) => {
       province: confirmedAddress?.state || "",
       country: confirmedAddress?.country || "India",
       zip: confirmedAddress?.pincode || "",
+      phone: phoneNumber || "",
     };
 
     const billingAddress = billingSameAsShipping
@@ -504,7 +542,7 @@ const CartDrawer = ({ closeDrawer }) => {
 
       // On success, show the success popup with confetti
       setShowOrderSuccess(true);
-      // Auto-close after 10 seconds
+      // Auto-close after 5 seconds
       setTimeout(() => {
         setShowOrderSuccess(false);
       }, 5000); 
@@ -1013,6 +1051,35 @@ const CartDrawer = ({ closeDrawer }) => {
                 </Button>
               </Box>
 
+              {/* If no customer exists, show input fields for creating customer */}
+              {!customerId && phoneNumber && (
+                <Box sx={{ mb: 2 }}>
+                  <TextField
+                    label="First Name"
+                    fullWidth
+                    size="small"
+                    margin="dense"
+                    value={newCustomerFirstName}
+                    onChange={(e) => setNewCustomerFirstName(e.target.value)}
+                  />
+                  <TextField
+                    label="Last Name"
+                    fullWidth
+                    size="small"
+                    margin="dense"
+                    value={newCustomerLastName}
+                    onChange={(e) => setNewCustomerLastName(e.target.value)}
+                  />
+                  <Button
+                    variant="contained"
+                    onClick={handleCreateCustomer}
+                    sx={buttonStyle}
+                  >
+                    Create Customer
+                  </Button>
+                </Box>
+              )}
+
               {customerId && customerName && (
                 <Box sx={{ mb: 2 }}>
                   <TextField
@@ -1272,12 +1339,11 @@ const CartDrawer = ({ closeDrawer }) => {
                     sx={{ mb: 2 }}
                     size="small"
                   >
-                    {/* Remove "choose method", default to Prepaid */}
                     <MenuItem value="Prepaid">Prepaid</MenuItem>
                     <MenuItem value="COD">COD</MenuItem>
                   </Select>
 
-                  {paymentMethod === "Prepaid" && (
+                  {(paymentMethod || "Prepaid") === "Prepaid" && (
                     <>
                       <Button
                         variant="contained"
@@ -1322,7 +1388,8 @@ const CartDrawer = ({ closeDrawer }) => {
                       color="success"
                       onClick={handleCreateOrder}
                       disabled={
-                        paymentMethod === "Prepaid" && transactionId.trim() === ""
+                        (paymentMethod || "Prepaid") === "Prepaid" &&
+                        transactionId.trim() === ""
                       }
                       sx={buttonStyle}
                     >
