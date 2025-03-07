@@ -12,10 +12,6 @@ import {
   CardContent,
   CardMedia,
   IconButton,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
   Checkbox,
   FormControlLabel,
   createTheme,
@@ -27,6 +23,13 @@ import { motion } from "framer-motion";
 import AddShoppingCartIcon from "@mui/icons-material/AddShoppingCart";
 import ArrowForwardIosIcon from "@mui/icons-material/ArrowForwardIos";
 import SearchIcon from "@mui/icons-material/Search";
+import DeleteIcon from "@mui/icons-material/Delete";
+import AddIcon from "@mui/icons-material/Add";
+import RemoveIcon from "@mui/icons-material/Remove";
+import CloseIcon from "@mui/icons-material/Close";
+import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
+
+import ReactConfetti from "react-confetti";
 import axios from "axios";
 
 import {
@@ -56,11 +59,37 @@ import {
 
 // List of Indian states/UTs for the dropdown
 const INDIAN_STATES = [
-  "Andhra Pradesh", "Arunachal Pradesh", "Assam", "Bihar", "Chhattisgarh", "Delhi",
-  "Goa", "Gujarat", "Haryana", "Himachal Pradesh", "Jammu & Kashmir", "Jharkhand",
-  "Karnataka", "Kerala", "Ladakh", "Madhya Pradesh", "Maharashtra", "Manipur",
-  "Meghalaya", "Mizoram", "Nagaland", "Odisha", "Puducherry", "Punjab", "Rajasthan",
-  "Sikkim", "Tamil Nadu", "Telangana", "Tripura", "Uttar Pradesh", "Uttarakhand",
+  "Andhra Pradesh",
+  "Arunachal Pradesh",
+  "Assam",
+  "Bihar",
+  "Chhattisgarh",
+  "Delhi",
+  "Goa",
+  "Gujarat",
+  "Haryana",
+  "Himachal Pradesh",
+  "Jammu & Kashmir",
+  "Jharkhand",
+  "Karnataka",
+  "Kerala",
+  "Ladakh",
+  "Madhya Pradesh",
+  "Maharashtra",
+  "Manipur",
+  "Meghalaya",
+  "Mizoram",
+  "Nagaland",
+  "Odisha",
+  "Puducherry",
+  "Punjab",
+  "Rajasthan",
+  "Sikkim",
+  "Tamil Nadu",
+  "Telangana",
+  "Tripura",
+  "Uttar Pradesh",
+  "Uttarakhand",
   "West Bengal",
 ];
 
@@ -80,10 +109,10 @@ const theme = createTheme({
   },
   typography: {
     fontFamily: "'Roboto', sans-serif",
-    fontSize: 14, // Suitable for a 14-inch laptop
+    fontSize: 14,
     h6: {
       fontWeight: 600,
-      fontSize: "1rem", // slightly smaller for ordering section items
+      fontSize: "1rem",
     },
     subtitle2: {
       fontWeight: 500,
@@ -97,6 +126,13 @@ const fadeUpVariants = {
   visible: { opacity: 1, y: 0 },
 };
 
+// Consistent style for buttons
+const buttonStyle = {
+  textTransform: "none",
+  borderRadius: "20px",
+  padding: "6px 16px",
+};
+
 const CartDrawer = ({ closeDrawer }) => {
   const dispatch = useDispatch();
   const [activeSection, setActiveSection] = useState("ordering");
@@ -104,6 +140,16 @@ const CartDrawer = ({ closeDrawer }) => {
   const [searchQuery, setSearchQuery] = useState("");
   const [filteredProducts, setFilteredProducts] = useState([]);
 
+  // For the order success popup & confetti
+  const [showOrderSuccess, setShowOrderSuccess] = useState(false);
+
+  // Keep track of window size for react-confetti
+  const [confettiSize, setConfettiSize] = useState({
+    width: window.innerWidth,
+    height: window.innerHeight,
+  });
+
+  // Pulling data from Redux store
   const {
     cart,
     selection,
@@ -133,9 +179,11 @@ const CartDrawer = ({ closeDrawer }) => {
 
   // Fetch products on mount
   useEffect(() => {
-    async function fetchProducts() { 
+    async function fetchProducts() {
       try {
-        const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/shopify/products");
+        const response = await axios.get(
+          "https://muditamleads-14f32a10d7f7.herokuapp.com/api/shopify/products"
+        );
         setProducts(response.data);
         setFilteredProducts(response.data);
       } catch (error) {
@@ -158,19 +206,51 @@ const CartDrawer = ({ closeDrawer }) => {
     }
   }, [searchQuery, products]);
 
-  // ORDERING SECTION HANDLERS
+  // Handle window resize for confetti
+  useEffect(() => {
+    function handleResize() {
+      setConfettiSize({
+        width: window.innerWidth,
+        height: window.innerHeight,
+      });
+    }
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
+  // Check if item (productId + variantId) is in cart
+  const isItemInCart = (productId, variantId) => {
+    return cart.some(
+      (item) => item.product.id === productId && item.variant.id === variantId
+    );
+  };
+
+  // ----- ORDERING SECTION -----
   const handleVariantChange = (productId, variantId) => {
-    dispatch(setSelection({ [productId]: { ...(selection[productId] || {}), variantId } }));
+    dispatch(
+      setSelection({
+        [productId]: {
+          ...(selection[productId] || {}),
+          variantId,
+        },
+      })
+    );
   };
 
   const handleQuantityChange = (productId, quantity) => {
-    dispatch(setSelection({ [productId]: { ...(selection[productId] || {}), quantity } }));
+    dispatch(
+      setSelection({
+        [productId]: {
+          ...(selection[productId] || {}),
+          quantity,
+        },
+      })
+    );
   };
 
   const handleAddToCart = (product) => {
     const { variantId, quantity } = selection[product.id] || {};
-    // Use 0 as default if not selected
-    const qty = (quantity !== undefined ? quantity : 0);
+    const qty = quantity !== undefined ? quantity : 1;
     if (qty === 0) {
       alert("Please select a quantity greater than 0.");
       return;
@@ -180,23 +260,64 @@ const CartDrawer = ({ closeDrawer }) => {
     dispatch(addToCart({ product, variant: selectedVariant, quantity: qty }));
   };
 
+  // Remove from cart specifically in ordering section
+  const handleRemoveFromCartInOrdering = (productId, variantId) => {
+    const index = cart.findIndex(
+      (item) => item.product.id === productId && item.variant.id === variantId
+    );
+    if (index !== -1) {
+      dispatch(removeFromCart(index));
+    }
+  };
+
+  // Reset all cart-related states
+  const handleResetAll = () => {
+    // Clear selection
+    dispatch(setSelection({}));
+    // Remove all items from cart
+    for (let i = cart.length - 1; i >= 0; i--) {
+      dispatch(removeFromCart(i));
+    }
+    // Clear addresses & phone
+    dispatch(setAddresses([]));
+    dispatch(setPhoneNumber(""));
+    dispatch(setCustomerId(""));
+    dispatch(setCustomerName(""));
+    // Clear address confirmations
+    dispatch(setConfirmedAddress(null));
+    dispatch(setAddressConfirmed(false));
+    // Clear payment link & transaction
+    dispatch(setRazorpayLink(""));
+    dispatch(setTransactionId(""));
+    // Default payment method
+    dispatch(setPaymentMethod("Prepaid"));
+    // Clear shipping
+    dispatch(setShippingInput(""));
+    dispatch(setShippingCost(0));
+    // Clear discount
+    dispatch(setDiscountValue(""));
+    dispatch(setAppliedDiscount(0));
+    dispatch(setDiscountType("percentage"));
+  };
+
   const handleNext = () => {
     setActiveSection("cart");
   };
 
-  // CART CALCULATIONS
+  // ----- CART CALCULATIONS -----
   const calculateSubTotal = () =>
     cart.reduce((total, item) => total + item.variant.price * item.quantity, 0);
 
   const subTotal = calculateSubTotal();
   const finalTotal = subTotal + shippingCost - appliedDiscount;
 
-  // DISCOUNT LOGIC
-  const handleOpenDiscountModal = () => dispatch(setDiscountModalOpen(true));
+  // ----- DISCOUNT LOGIC -----
+  const handleOpenDiscountModal = () => {
+    dispatch(setDiscountModalOpen(true));
+  };
+
   const handleCloseDiscountModal = () => {
     dispatch(setDiscountModalOpen(false));
-    dispatch(setDiscountType(""));
-    dispatch(setDiscountValue(""));
   };
 
   const handleApplyDiscount = () => {
@@ -215,7 +336,7 @@ const CartDrawer = ({ closeDrawer }) => {
     dispatch(setDiscountModalOpen(false));
   };
 
-  // SHIPPING LOGIC
+  // ----- SHIPPING LOGIC -----
   const handleApplyShipping = () => {
     const numericValue = parseFloat(shippingInput);
     if (isNaN(numericValue) || numericValue < 0) {
@@ -225,7 +346,7 @@ const CartDrawer = ({ closeDrawer }) => {
     dispatch(setShippingCost(numericValue));
   };
 
-  // PHONE CHECK & ADDRESSES (PAYMENT SECTION)
+  // ----- PHONE CHECK & ADDRESSES -----
   const handleCheckPhone = async () => {
     try {
       // Fetch previous orders (addresses)
@@ -234,12 +355,14 @@ const CartDrawer = ({ closeDrawer }) => {
       );
       const fetchedAddresses = ordersRes.data.addresses || [];
       dispatch(setAddresses(fetchedAddresses));
+
       if (fetchedAddresses.length === 0) {
         dispatch(setAddressCategory("new"));
       } else {
         dispatch(setAddressCategory("existing"));
         dispatch(setSelectedAddressIndex(0));
       }
+
       // Check for existing customer by phone
       const customerRes = await axios.get(
         `https://muditamleads-14f32a10d7f7.herokuapp.com/api/shopify/customer?phone=${phoneNumber}`
@@ -283,8 +406,26 @@ const CartDrawer = ({ closeDrawer }) => {
     alert("Address copied to clipboard!");
   };
 
+  // Check if user has selected or filled an address
+  const isAddressSelectedOrFilled = () => {
+    if (addressCategory === "existing") {
+      return selectedAddressIndex !== null && selectedAddressIndex !== undefined;
+    } else if (addressCategory === "new") {
+      // Minimal check: fullName, address1, city, pincode not empty
+      return (
+        newAddress.fullName &&
+        newAddress.address1 &&
+        newAddress.city &&
+        newAddress.pincode
+      );
+    }
+    return false;
+  };
+
   // Confirm address => store it + show Payment Method
   const handleConfirmAddress = () => {
+    if (!isAddressSelectedOrFilled()) return; // safety check
+
     let finalAddr = null;
     if (addressCategory === "existing" && selectedAddressIndex !== null) {
       finalAddr = addresses[selectedAddressIndex];
@@ -295,7 +436,7 @@ const CartDrawer = ({ closeDrawer }) => {
     dispatch(setAddressConfirmed(true));
   };
 
-  // Payment Method & Order Creation
+  // ----- PAYMENT & ORDER CREATION -----
   const handleGeneratePaymentLink = async () => {
     try {
       const amountToCharge = parseFloat(finalTotal.toFixed(2));
@@ -318,13 +459,12 @@ const CartDrawer = ({ closeDrawer }) => {
   };
 
   const handleCreateOrder = async () => {
-    // Create shipping and billing address objects including province field
     const shippingAddress = {
       firstName: confirmedAddress?.fullName?.split(" ")[0] || "",
       lastName: confirmedAddress?.fullName?.split(" ")[1] || "",
       address1: confirmedAddress?.address1 || "",
       city: confirmedAddress?.city || "",
-      province: confirmedAddress?.state || "", // new field: province
+      province: confirmedAddress?.state || "",
       country: confirmedAddress?.country || "India",
       zip: confirmedAddress?.pincode || "",
     };
@@ -336,7 +476,7 @@ const CartDrawer = ({ closeDrawer }) => {
           lastName: confirmedAddress?.fullName?.split(" ")[1] || "",
           address1: confirmedAddress?.address1 || "",
           city: confirmedAddress?.city || "",
-          province: confirmedAddress?.state || "", // new field: province
+          province: confirmedAddress?.state || "",
           country: confirmedAddress?.country || "India",
           zip: confirmedAddress?.pincode || "",
         };
@@ -357,32 +497,89 @@ const CartDrawer = ({ closeDrawer }) => {
     };
 
     try {
-      await axios.post("https://muditamleads-14f32a10d7f7.herokuapp.com/api/shopify/create-order", orderData);
-      alert("Order placed successfully!");
+      await axios.post(
+        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/shopify/create-order",
+        orderData
+      );
+
+      // On success, show the success popup with confetti
+      setShowOrderSuccess(true);
+      // Auto-close after 10 seconds
+      setTimeout(() => {
+        setShowOrderSuccess(false);
+      }, 5000); 
     } catch (error) {
       console.error("Error placing order:", error);
     }
   };
 
+  // Increase/Decrease quantity in the Cart
+  const handleIncreaseQuantity = (index) => {
+    const item = cart[index];
+    dispatch(
+      addToCart({
+        product: item.product,
+        variant: item.variant,
+        quantity: item.quantity + 1,
+      })
+    );
+  };
+
+  const handleDecreaseQuantity = (index) => {
+    const item = cart[index];
+    if (item.quantity > 1) {
+      dispatch(
+        addToCart({
+          product: item.product,
+          variant: item.variant,
+          quantity: item.quantity - 1,
+        })
+      );
+    }
+  };
+
   return (
     <ThemeProvider theme={theme}>
-      <Box sx={{ width: isMobile ? "100%" : 350, p: 2, backgroundColor: "background.paper" }}>
-        {/* Section Tabs with active state highlighting */}
-        <Box sx={{ display: "flex", justifyContent: "space-between", mb: 2 }}>
-          {["ordering", "cart", "payment"].map((section) => (
-            <Button
-              key={section}
-              variant={activeSection === section ? "contained" : "text"}
-              color="primary"
-              onClick={() => setActiveSection(section)}
-              sx={{ textTransform: "capitalize", flex: 1, mx: 0.5 }}
-            >
-              {section}
-            </Button>
-          ))}
+      <Box
+        sx={{
+          width: isMobile ? "100%" : 350,
+          p: 2,
+          backgroundColor: "background.paper",
+          position: "relative",
+        }}
+      >
+        {/* Section Tabs + always-visible Delete icon */}
+        <Box
+          sx={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            mb: 2,
+          }}
+        >
+          <Box sx={{ display: "flex", flex: 1 }}>
+            {["ordering", "cart", "payment"].map((section) => (
+              <Button
+                key={section}
+                variant={activeSection === section ? "contained" : "text"}
+                color="primary"
+                onClick={() => setActiveSection(section)}
+                sx={{ ...buttonStyle, flex: 1, mx: 0.5 }}
+              >
+                {section.charAt(0).toUpperCase() + section.slice(1)}
+              </Button>
+            ))}
+          </Box>
+
+          {/* Delete icon that resets all states */}
+          <IconButton size="small" color="error" onClick={handleResetAll} sx={{ ml: 1 }}>
+            <DeleteIcon />
+          </IconButton>
         </Box>
+
         <Divider sx={{ my: 2 }} />
- 
+
+        {/* ORDERING SECTION */}
         {activeSection === "ordering" && (
           <motion.div
             variants={fadeUpVariants}
@@ -409,18 +606,22 @@ const CartDrawer = ({ closeDrawer }) => {
                     borderRadius: 2,
                     "& .MuiOutlinedInput-root": { paddingRight: 0 },
                   }}
+                  size="small"
                 />
               </Box>
               {filteredProducts.map((product) => {
                 const defaultVariantId = product.variants[0]?.id || "";
                 const currentSelection = selection[product.id] || {};
-                const currentVariantId = currentSelection.variantId || defaultVariantId;
-                // Set default quantity to 0 if not defined
+                const currentVariantId =
+                  currentSelection.variantId || defaultVariantId;
                 const currentQuantity =
-                  currentSelection.quantity !== undefined ? currentSelection.quantity : 0;
+                  currentSelection.quantity !== undefined
+                    ? currentSelection.quantity
+                    : 1;
                 const selectedVariant =
                   product.variants.find((v) => v.id === currentVariantId) ||
                   product.variants[0];
+
                 return (
                   <motion.div
                     key={product.id}
@@ -440,7 +641,12 @@ const CartDrawer = ({ closeDrawer }) => {
                       <Box sx={{ display: "flex", alignItems: "center" }}>
                         <CardMedia
                           component="img"
-                          sx={{ width: 80, height: 80, objectFit: "contain", m: 1 }}
+                          sx={{
+                            width: 80,
+                            height: 80,
+                            objectFit: "contain",
+                            m: 1,
+                          }}
                           image={product.image?.src}
                           alt={product.title}
                         />
@@ -448,14 +654,18 @@ const CartDrawer = ({ closeDrawer }) => {
                           <Typography variant="h6" sx={{ fontSize: "0.9rem" }}>
                             {product.title}
                           </Typography>
-                          <Box sx={{ display: "flex", alignItems: "center", mt: 1 }}>
+                          <Box
+                            sx={{ display: "flex", alignItems: "center", mt: 1 }}
+                          >
                             <Typography variant="subtitle2" sx={{ mr: 1 }}>
                               Size:
                             </Typography>
                             <Select
                               size="small"
                               value={currentVariantId}
-                              onChange={(e) => handleVariantChange(product.id, e.target.value)}
+                              onChange={(e) =>
+                                handleVariantChange(product.id, e.target.value)
+                              }
                               sx={{ minWidth: 100 }}
                             >
                               {product.variants.map((variant) => (
@@ -468,18 +678,27 @@ const CartDrawer = ({ closeDrawer }) => {
                           <Typography variant="h6" sx={{ mt: 1 }}>
                             ₹{selectedVariant.price}
                           </Typography>
-                          <Box sx={{ display: "flex", alignItems: "center", mt: 1 }}>
+                          <Box
+                            sx={{ display: "flex", alignItems: "center", mt: 1 }}
+                          >
                             <Typography sx={{ mr: 1 }}>Qty:</Typography>
                             <Select
                               size="small"
                               value={currentQuantity}
-                              onChange={(e) => handleQuantityChange(product.id, e.target.value)}
+                              onChange={(e) =>
+                                handleQuantityChange(
+                                  product.id,
+                                  parseInt(e.target.value)
+                                )
+                              }
                             >
-                              {Array.from({ length: 11 }, (_, i) => i).map((num) => (
-                                <MenuItem key={num} value={num}>
-                                  {num}
-                                </MenuItem>
-                              ))}
+                              {Array.from({ length: 5 }, (_, i) => i + 1).map(
+                                (num) => (
+                                  <MenuItem key={num} value={num}>
+                                    {num}
+                                  </MenuItem>
+                                )
+                              )}
                             </Select>
                           </Box>
                         </CardContent>
@@ -497,15 +716,31 @@ const CartDrawer = ({ closeDrawer }) => {
                           {currentQuantity} item selected
                         </Typography>
                         <Box>
-                          <Button
-                            variant="contained"
-                            color="primary"
-                            startIcon={<AddShoppingCartIcon />}
-                            onClick={() => handleAddToCart(product)}
-                            sx={{ mr: 1 }}
-                          >
-                            Add
-                          </Button>
+                          {isItemInCart(product.id, currentVariantId) ? (
+                            <Button
+                              variant="contained"
+                              color="error"
+                              sx={{ ...buttonStyle, mr: 1 }}
+                              onClick={() =>
+                                handleRemoveFromCartInOrdering(
+                                  product.id,
+                                  currentVariantId
+                                )
+                              }
+                            >
+                              Delete
+                            </Button>
+                          ) : (
+                            <Button
+                              variant="contained"
+                              color="primary"
+                              startIcon={<AddShoppingCartIcon />}
+                              sx={{ ...buttonStyle, mr: 1 }}
+                              onClick={() => handleAddToCart(product)}
+                            >
+                              Add
+                            </Button>
+                          )}
                           <IconButton color="primary" onClick={handleNext}>
                             <ArrowForwardIosIcon />
                           </IconButton>
@@ -531,60 +766,180 @@ const CartDrawer = ({ closeDrawer }) => {
               <Typography variant="h6" sx={{ mb: 2 }}>
                 Your Cart
               </Typography>
+
+              {/* Cart Items with images, quantity +/- and delete icon */}
               {cart.map((item, idx) => (
-                <Box key={idx} sx={{ my: 1, borderBottom: "1px solid #ccc" }}>
-                  <Typography>{item.product.title}</Typography>
-                  <Typography variant="caption">
-                    {item.variant.title} - ₹{item.variant.price} x {item.quantity}
-                  </Typography>
-                  <Button
-                    size="small"
-                    onClick={() => dispatch(removeFromCart(idx))}
+                <Box
+                  key={idx}
+                  sx={{
+                    display: "flex",
+                    alignItems: "center",
+                    mb: 2,
+                    borderBottom: "1px solid #ccc",
+                    pb: 1,
+                  }}
+                >
+                  {/* Product Image */}
+                  <Box sx={{ width: 60, height: 60, mr: 1 }}>
+                    <img
+                      src={item.product.image?.src}
+                      alt={item.product.title}
+                      style={{
+                        width: "100%",
+                        height: "100%",
+                        objectFit: "contain",
+                      }}
+                    />
+                  </Box>
+
+                  {/* Title, variant, quantity controls */}
+                  <Box sx={{ flex: 1 }}>
+                    <Typography variant="body1" sx={{ fontWeight: 500 }}>
+                      {item.product.title}
+                    </Typography>
+                    <Typography variant="caption">
+                      {item.variant.title}
+                    </Typography>
+                    <Box
+                      sx={{
+                        display: "flex",
+                        alignItems: "center",
+                        mt: 1,
+                        gap: 1,
+                      }}
+                    >
+                      <IconButton
+                        size="small"
+                        onClick={() => handleDecreaseQuantity(idx)}
+                      >
+                        <RemoveIcon />
+                      </IconButton>
+                      <Typography>{item.quantity}</Typography>
+                      <IconButton
+                        size="small"
+                        onClick={() => handleIncreaseQuantity(idx)}
+                      >
+                        <AddIcon />
+                      </IconButton>
+                    </Box>
+                  </Box>
+
+                  {/* Price and Delete */}
+                  <Box
+                    sx={{
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "flex-end",
+                    }}
                   >
-                    Remove
-                  </Button>
+                    <Typography>
+                      ₹{(item.variant.price * item.quantity).toFixed(2)}
+                    </Typography>
+                    <IconButton
+                      size="small"
+                      onClick={() => dispatch(removeFromCart(idx))}
+                    >
+                      <DeleteIcon />
+                    </IconButton>
+                  </Box>
                 </Box>
               ))}
+
+              {/* Apply Discount Button */}
               <Divider sx={{ my: 2 }} />
               <Button
                 variant="contained"
                 onClick={handleOpenDiscountModal}
-                sx={{ mb: 2 }}
+                sx={{ ...buttonStyle, mb: 2 }}
               >
                 Apply Discount
               </Button>
-              <Dialog open={discountModalOpen} onClose={handleCloseDiscountModal}>
-                <DialogTitle>Add Discount</DialogTitle>
-                <DialogContent>
-                  <Box mb={2}>
-                    <Typography variant="subtitle2">Discount Type</Typography>
+
+              {/* Discount Popup (within cart drawer, same width) */}
+              {discountModalOpen && (
+                <Box
+                  sx={{
+                    position: "absolute",
+                    top: isMobile ? 120 : 120,
+                    left: 0,
+                    width: isMobile ? "100%" : 350,
+                    backgroundColor: "#fff",
+                    border: "1px solid #ccc",
+                    borderRadius: 1,
+                    p: 2,
+                    zIndex: 9999,
+                  }}
+                >
+                  <Box
+                    sx={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      mb: 2,
+                    }}
+                  >
+                    <Typography variant="h6" sx={{ fontSize: "1rem" }}>
+                      Add Discount
+                    </Typography>
+                    <IconButton size="small" onClick={handleCloseDiscountModal}>
+                      <CloseIcon />
+                    </IconButton>
+                  </Box>
+                  <Box
+                    sx={{
+                      display: "flex",
+                      gap: 1,
+                      mb: 2,
+                    }}
+                  >
                     <Select
+                      fullWidth
+                      size="small"
                       value={discountType}
                       onChange={(e) => dispatch(setDiscountType(e.target.value))}
-                      fullWidth
                     >
-                      <MenuItem value="">Select Discount Type</MenuItem>
+                      {/* No "Select discount type" option; default is "percentage" */}
                       <MenuItem value="amount">Amount</MenuItem>
                       <MenuItem value="percentage">Percentage</MenuItem>
                     </Select>
-                  </Box>
-                  {discountType && (
+
                     <TextField
-                      label={discountType === "amount" ? "Discount Value" : "Discount Percentage"}
-                      type="number"
+                      size="small"
                       fullWidth
+                      type="number"
                       value={discountValue}
-                      onChange={(e) => dispatch(setDiscountValue(e.target.value))}
+                      onChange={(e) =>
+                        dispatch(setDiscountValue(e.target.value))
+                      }
+                      placeholder={
+                        discountType === "amount"
+                          ? "Discount (₹)"
+                          : "Discount (%)"
+                      }
                     />
-                  )}
-                </DialogContent>
-                <DialogActions>
-                  <Button onClick={handleCloseDiscountModal}>Cancel</Button>
-                  <Button variant="contained" onClick={handleApplyDiscount}>
-                    Apply
-                  </Button>
-                </DialogActions>
-              </Dialog>
+                  </Box>
+                  <Box
+                    sx={{ display: "flex", justifyContent: "flex-end", gap: 2 }}
+                  >
+                    <Button
+                      variant="text"
+                      onClick={handleCloseDiscountModal}
+                      sx={buttonStyle}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      variant="contained"
+                      onClick={handleApplyDiscount}
+                      sx={buttonStyle}
+                    >
+                      Apply
+                    </Button>
+                  </Box>
+                </Box>
+              )}
+
+              {/* Shipping Charges */}
               <Typography>Shipping Charges (₹0 - ₹4000)</Typography>
               <Box display="flex" alignItems="center" mt={1} mb={2}>
                 <TextField
@@ -593,24 +948,33 @@ const CartDrawer = ({ closeDrawer }) => {
                   value={shippingInput}
                   onChange={(e) => dispatch(setShippingInput(e.target.value))}
                   sx={{ mr: 1 }}
+                  size="small"
                 />
-                <Button variant="contained" onClick={handleApplyShipping}>
+                <Button
+                  variant="contained"
+                  onClick={handleApplyShipping}
+                  sx={buttonStyle}
+                >
                   Apply
                 </Button>
               </Box>
+
+              {/* Cart Summary */}
               <Typography>Sub-Total: ₹{subTotal.toFixed(2)}</Typography>
               <Typography>Tax: ₹0.00</Typography>
               <Typography>
-                Discount: -₹{appliedDiscount > 0 ? appliedDiscount.toFixed(2) : 0}
+                Discount: -₹
+                {appliedDiscount > 0 ? appliedDiscount.toFixed(2) : 0}
               </Typography>
               <Typography>Shipping: ₹{shippingCost.toFixed(2)}</Typography>
               <Typography variant="h6" sx={{ mt: 1 }}>
                 Total: ₹{finalTotal < 0 ? 0 : finalTotal.toFixed(2)}
               </Typography>
+
               <Button
                 variant="contained"
                 color="primary"
-                sx={{ mt: 2 }}
+                sx={{ ...buttonStyle, mt: 2 }}
                 onClick={() => setActiveSection("payment")}
               >
                 Next
@@ -618,7 +982,8 @@ const CartDrawer = ({ closeDrawer }) => {
             </Box>
           </motion.div>
         )}
- 
+
+        {/* PAYMENT SECTION */}
         {activeSection === "payment" && (
           <motion.div
             variants={fadeUpVariants}
@@ -637,11 +1002,17 @@ const CartDrawer = ({ closeDrawer }) => {
                   value={phoneNumber}
                   onChange={(e) => dispatch(setPhoneNumber(e.target.value))}
                   sx={{ mr: 1 }}
+                  size="small"
                 />
-                <Button variant="contained" onClick={handleCheckPhone}>
+                <Button
+                  variant="contained"
+                  onClick={handleCheckPhone}
+                  sx={buttonStyle}
+                >
                   Check
                 </Button>
               </Box>
+
               {customerId && customerName && (
                 <Box sx={{ mb: 2 }}>
                   <TextField
@@ -652,6 +1023,7 @@ const CartDrawer = ({ closeDrawer }) => {
                       readOnly: true,
                     }}
                     sx={{ mb: 1 }}
+                    size="small"
                   />
                   <TextField
                     label="Customer ID"
@@ -660,9 +1032,11 @@ const CartDrawer = ({ closeDrawer }) => {
                     InputProps={{
                       readOnly: true,
                     }}
+                    size="small"
                   />
                 </Box>
               )}
+
               <FormControlLabel
                 control={
                   <Checkbox
@@ -674,52 +1048,88 @@ const CartDrawer = ({ closeDrawer }) => {
                 }
                 label="Billing address is same as shipping address"
               />
+
               {addresses.length > 0 ? (
-                <Box sx={{ mb: 2 }}>
-                  <Typography variant="subtitle2">
-                    Select address category *
-                  </Typography>
-                  <Select
-                    value={addressCategory}
-                    onChange={(e) =>
-                      dispatch(setAddressCategory(e.target.value))
-                    }
-                    fullWidth
-                  >
-                    <MenuItem value="existing">Existing address</MenuItem>
-                    <MenuItem value="new">Add new address</MenuItem>
-                  </Select>
-                </Box>
+                !addressConfirmed && addressCategory === "existing" ? (
+                  <Box sx={{ mb: 2 }}>
+                    <Typography variant="subtitle2" sx={{ mb: 1 }}>
+                      Select address category *
+                    </Typography>
+                    <Select
+                      value={addressCategory}
+                      onChange={(e) =>
+                        dispatch(setAddressCategory(e.target.value))
+                      }
+                      fullWidth
+                      size="small"
+                    >
+                      <MenuItem value="existing">Existing address</MenuItem>
+                      <MenuItem value="new">Add new address</MenuItem>
+                    </Select>
+                  </Box>
+                ) : null
               ) : (
                 <Typography sx={{ mb: 1 }}>
                   No previous orders found. Please add a new address.
                 </Typography>
               )}
-              {addressCategory === "existing" && addresses.length > 0 && (
-                <Box sx={{ mb: 2 }}>
-                  {addresses.map((addr, index) => (
-                    <Box key={index} sx={{ border: "1px solid #ccc", p: 1, mb: 1 }}>
-                      <FormControlLabel
-                        control={
-                          <Checkbox
-                            checked={selectedAddressIndex === index}
-                            onChange={() => handleSelectAddress(index)}
-                          />
-                        }
-                        label={`${addr.fullName} (${addr.phone})\n${addr.address1}, ${addr.address2}, ${addr.city}, ${addr.state}, ${addr.country}, ${addr.pincode}`}
-                      />
+
+              {/* If using existing addresses & not yet confirmed, show them */}
+              {addressCategory === "existing" &&
+                addresses.length > 0 &&
+                !addressConfirmed && (
+                  <Box sx={{ mb: 2 }}>
+                    {addresses.map((addr, index) => (
+                      <Box
+                        key={index}
+                        sx={{ border: "1px solid #ccc", p: 1, mb: 1 }}
+                      >
+                        <FormControlLabel
+                          control={
+                            <Checkbox
+                              checked={selectedAddressIndex === index}
+                              onChange={() => handleSelectAddress(index)}
+                            />
+                          }
+                          label={`${addr.fullName} (${addr.phone})\n${addr.address1}, ${addr.address2}, ${addr.city}, ${addr.state}, ${addr.country}, ${addr.pincode}`}
+                        />
+                      </Box>
+                    ))}
+                  </Box>
+                )}
+
+              {/* If address is confirmed & category is existing, show only the selected address */}
+              {addressCategory === "existing" &&
+                addresses.length > 0 &&
+                addressConfirmed &&
+                selectedAddressIndex !== null && (
+                  <Box sx={{ mb: 2 }}>
+                    <Box sx={{ border: "1px solid #ccc", p: 1, mb: 1 }}>
+                      <Typography variant="body2">
+                        {addresses[selectedAddressIndex].fullName} (
+                        {addresses[selectedAddressIndex].phone})
+                      </Typography>
+                      <Typography variant="caption">
+                        {addresses[selectedAddressIndex].address1},{" "}
+                        {addresses[selectedAddressIndex].address2},{" "}
+                        {addresses[selectedAddressIndex].city},{" "}
+                        {addresses[selectedAddressIndex].state},{" "}
+                        {addresses[selectedAddressIndex].country},{" "}
+                        {addresses[selectedAddressIndex].pincode}
+                      </Typography>
                     </Box>
-                  ))}
-                </Box>
-              )}
+                  </Box>
+                )}
+
+              {/* If new address */}
               {addressCategory === "new" && (
                 <Box sx={{ mb: 2 }}>
                   <TextField
                     label="Full Name"
                     fullWidth
                     size="small"
-                    sx={{ mb: 1 }}
-                    value={newAddress.fullName}
+                    margin="dense"
+                    value={newAddress.fullName || ""}
                     onChange={(e) =>
                       handleNewAddressChange("fullName", e.target.value)
                     }
@@ -728,8 +1138,8 @@ const CartDrawer = ({ closeDrawer }) => {
                     label="Phone"
                     fullWidth
                     size="small"
-                    sx={{ mb: 1 }}
-                    value={newAddress.phone}
+                    margin="dense"
+                    value={newAddress.phone || ""}
                     onChange={(e) =>
                       handleNewAddressChange("phone", e.target.value)
                     }
@@ -738,8 +1148,8 @@ const CartDrawer = ({ closeDrawer }) => {
                     label="Email"
                     fullWidth
                     size="small"
-                    sx={{ mb: 1 }}
-                    value={newAddress.email}
+                    margin="dense"
+                    value={newAddress.email || ""}
                     onChange={(e) =>
                       handleNewAddressChange("email", e.target.value)
                     }
@@ -748,8 +1158,8 @@ const CartDrawer = ({ closeDrawer }) => {
                     label="Address 1"
                     fullWidth
                     size="small"
-                    sx={{ mb: 1 }}
-                    value={newAddress.address1}
+                    margin="dense"
+                    value={newAddress.address1 || ""}
                     onChange={(e) =>
                       handleNewAddressChange("address1", e.target.value)
                     }
@@ -758,8 +1168,8 @@ const CartDrawer = ({ closeDrawer }) => {
                     label="Address 2"
                     fullWidth
                     size="small"
-                    sx={{ mb: 1 }}
-                    value={newAddress.address2}
+                    margin="dense"
+                    value={newAddress.address2 || ""}
                     onChange={(e) =>
                       handleNewAddressChange("address2", e.target.value)
                     }
@@ -768,8 +1178,8 @@ const CartDrawer = ({ closeDrawer }) => {
                     label="City"
                     fullWidth
                     size="small"
-                    sx={{ mb: 1 }}
-                    value={newAddress.city}
+                    margin="dense"
+                    value={newAddress.city || ""}
                     onChange={(e) =>
                       handleNewAddressChange("city", e.target.value)
                     }
@@ -777,11 +1187,12 @@ const CartDrawer = ({ closeDrawer }) => {
                   <Select
                     fullWidth
                     size="small"
-                    sx={{ mb: 1 }}
-                    value={newAddress.state}
+                    margin="dense"
+                    value={newAddress.state || ""}
                     onChange={(e) =>
                       handleNewAddressChange("state", e.target.value)
                     }
+                    sx={{ mb: 1 }}
                   >
                     <MenuItem value="">Select State/UT</MenuItem>
                     {INDIAN_STATES.map((st) => (
@@ -794,8 +1205,8 @@ const CartDrawer = ({ closeDrawer }) => {
                     label="Pincode"
                     fullWidth
                     size="small"
-                    sx={{ mb: 1 }}
-                    value={newAddress.pincode}
+                    margin="dense"
+                    value={newAddress.pincode || ""}
                     onChange={(e) =>
                       handleNewAddressChange("pincode", e.target.value)
                     }
@@ -804,26 +1215,44 @@ const CartDrawer = ({ closeDrawer }) => {
                     label="Country"
                     fullWidth
                     size="small"
-                    sx={{ mb: 1 }}
-                    value={newAddress.country}
+                    margin="dense"
+                    value={newAddress.country || ""}
                     onChange={(e) =>
                       handleNewAddressChange("country", e.target.value)
                     }
                   />
                 </Box>
               )}
-              <Box sx={{ display: "flex", gap: 2, mb: 2 }}>
-                <Button variant="outlined" onClick={handleCopyAddress}>
+
+              {/* Copy & Confirm in one line */}
+              <Box
+                sx={{
+                  display: "flex",
+                  flexWrap: "nowrap",
+                  gap: 2,
+                  mb: 2,
+                  overflowX: "auto",
+                }}
+              >
+                <Button
+                  variant="outlined"
+                  onClick={handleCopyAddress}
+                  sx={buttonStyle}
+                >
                   Copy Address
                 </Button>
                 <Button
                   variant="contained"
                   onClick={handleConfirmAddress}
-                  disabled={addressConfirmed}
+                  // disable if no address is selected/filled or if already confirmed
+                  disabled={addressConfirmed || !isAddressSelectedOrFilled()}
+                  sx={buttonStyle}
                 >
                   {addressConfirmed ? "Confirmed" : "Confirm Address"}
                 </Button>
               </Box>
+
+              {/* Payment Method (only show once address is confirmed) */}
               {addressConfirmed && (
                 <Box
                   sx={{
@@ -837,27 +1266,30 @@ const CartDrawer = ({ closeDrawer }) => {
                     Select Payment Method
                   </Typography>
                   <Select
-                    value={paymentMethod}
+                    value={paymentMethod || "Prepaid"}
                     onChange={(e) => dispatch(setPaymentMethod(e.target.value))}
                     fullWidth
                     sx={{ mb: 2 }}
+                    size="small"
                   >
-                    <MenuItem value="">Choose Method</MenuItem>
-                    <MenuItem value="COD">COD</MenuItem>
+                    {/* Remove "choose method", default to Prepaid */}
                     <MenuItem value="Prepaid">Prepaid</MenuItem>
+                    <MenuItem value="COD">COD</MenuItem>
                   </Select>
+
                   {paymentMethod === "Prepaid" && (
                     <>
                       <Button
                         variant="contained"
                         onClick={handleGeneratePaymentLink}
-                        sx={{ mb: 2 }}
+                        sx={{ ...buttonStyle, mb: 2 }}
+                        disabled={Boolean(razorpayLink)}
                       >
-                        Generate Payment Link
+                        {razorpayLink ? "Link Generated" : "Generate Payment Link"}
                       </Button>
                       {razorpayLink && (
                         <Box sx={{ mb: 2 }}>
-                          <Typography variant="body2">
+                          <Typography variant="body2" sx={{ mb: 1 }}>
                             Payment Link:
                           </Typography>
                           <Button
@@ -865,6 +1297,7 @@ const CartDrawer = ({ closeDrawer }) => {
                             onClick={() =>
                               navigator.clipboard.writeText(razorpayLink)
                             }
+                            sx={buttonStyle}
                           >
                             Copy Link
                           </Button>
@@ -879,6 +1312,7 @@ const CartDrawer = ({ closeDrawer }) => {
                           dispatch(setTransactionId(e.target.value))
                         }
                         sx={{ mb: 2 }}
+                        size="small"
                       />
                     </>
                   )}
@@ -887,7 +1321,10 @@ const CartDrawer = ({ closeDrawer }) => {
                       variant="contained"
                       color="success"
                       onClick={handleCreateOrder}
-                      disabled={paymentMethod === "Prepaid" && transactionId.trim() === ""}
+                      disabled={
+                        paymentMethod === "Prepaid" && transactionId.trim() === ""
+                      }
+                      sx={buttonStyle}
                     >
                       Create Order
                     </Button>
@@ -901,6 +1338,46 @@ const CartDrawer = ({ closeDrawer }) => {
         <Button variant="text" fullWidth onClick={closeDrawer} sx={{ mt: 2 }}>
           Close
         </Button>
+
+        {/* ORDER SUCCESS POPUP & CONFETTI */}
+        {showOrderSuccess && (
+          <Box
+            sx={{
+              position: "fixed",
+              top: 0,
+              left: 0,
+              width: "100vw",
+              height: "100vh",
+              backgroundColor: "rgba(0, 0, 0, 0.5)",
+              zIndex: 9999,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              flexDirection: "column",
+            }}
+          >
+            <ReactConfetti
+              width={confettiSize.width}
+              height={confettiSize.height}
+              recycle={false}
+            />
+            <Box
+              sx={{
+                backgroundColor: "#fff",
+                borderRadius: 2,
+                p: 4,
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+              }}
+            >
+              <CheckCircleOutlineIcon color="success" sx={{ fontSize: 80 }} />
+              <Typography variant="h5" sx={{ mt: 2, textAlign: "center" }}>
+                Your order has been successfully created! 🎉
+              </Typography>
+            </Box>
+          </Box>
+        )}
       </Box>
     </ThemeProvider>
   );
