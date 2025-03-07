@@ -373,7 +373,7 @@ const LeadTable = () => {
 
     const exportToCSV = async () => {
         try {
-            const response = await axios.get("http://localhost:5000/api/leads", {
+            const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads", {
                 params: { page: 1, limit: totalLeads },
             });
             const allLeads = response.data.leads;

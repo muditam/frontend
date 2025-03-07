@@ -33,7 +33,7 @@ const NavbarWithSearch = () => {
   const [results, setResults] = useState([]);
   const [showResults, setShowResults] = useState(false);
 
-  // --- NEW: Shopify customer/order search states & handlers ---
+  // --- NEW: Shopify Customer/Order Search states & handlers ---
   const [shopifyQuery, setShopifyQuery] = useState("");
   // This will hold the customer details and orders data from the backend.
   const [customerData, setCustomerData] = useState(null);
@@ -98,9 +98,12 @@ const NavbarWithSearch = () => {
 
     try {
       // Call the new endpoint to get customer details
-      const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/shopify/customerDetails", {
-        params: { phone: shopifyQuery },
-      });
+      const response = await axios.get(
+        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/shopify/customerDetails",
+        {
+          params: { phone: shopifyQuery },
+        }
+      );
       setCustomerData(response.data.customer);
       setShowCustomerDetails(true);
       // Reset orders dropdown
@@ -152,7 +155,7 @@ const NavbarWithSearch = () => {
                   <TextField
                     fullWidth
                     variant="outlined"
-                    placeholder="Search by Phone"
+                    placeholder="Search On Shopify"
                     value={shopifyQuery}
                     onChange={handleShopifyInputChange}
                     sx={{
@@ -198,7 +201,7 @@ const NavbarWithSearch = () => {
                               secondary={
                                 <>
                                   <span>
-                                    Total Orders: {customerData.totalOrders} | Total Spent: ${customerData.totalSpent}
+                                    Total Orders: {customerData.totalOrders} | Total Spent: ₹{customerData.totalSpent}
                                   </span>
                                   <br />
                                   <span>
@@ -209,7 +212,11 @@ const NavbarWithSearch = () => {
                               primaryTypographyProps={{ style: smallFont }}
                               secondaryTypographyProps={{ style: smallFont }}
                             />
-                            {showOrders ? <ExpandLessIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
+                            {showOrders ? (
+                              <ExpandLessIcon fontSize="small" />
+                            ) : (
+                              <ExpandMoreIcon fontSize="small" />
+                            )}
                           </ListItem>
                           <Collapse in={showOrders} timeout="auto" unmountOnExit>
                             <List component="div" disablePadding>
@@ -227,7 +234,7 @@ const NavbarWithSearch = () => {
                                             <br />
                                             {order.lineItems.map((item, idx) => (
                                               <span key={idx}>
-                                                {item.title} - {item.variant} (${item.amountPaid}){" "}
+                                                {item.title} - {item.variant} (₹{item.amountPaid}){" "}
                                               </span>
                                             ))}
                                           </>
@@ -261,7 +268,7 @@ const NavbarWithSearch = () => {
                                               <br />
                                               {order.lineItems.map((item, idx) => (
                                                 <span key={idx}>
-                                                  {item.title} - {item.variant} (${item.amountPaid}){" "}
+                                                  {item.title} - {item.variant} (₹{item.amountPaid}){" "}
                                                 </span>
                                               ))}
                                             </>
@@ -375,4 +382,3 @@ const NavbarWithSearch = () => {
 };
 
 export default NavbarWithSearch;
- 

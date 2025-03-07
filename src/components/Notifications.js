@@ -84,7 +84,7 @@ const Notifications = () => {
       if (loggedInUser.role === "Manager") {
         // Manager sees new transfer requests (status: 'pending')
         axios
-          .get("http://localhost:5000/api/leads/transfer-requests")
+          .get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/transfer-requests")
           .then((response) => {
             const fetched = response.data || [];
             // Filter out anything older than lastReadTime
@@ -109,17 +109,17 @@ const Notifications = () => {
         let endpoint = "";
         let params = {};
         if (loggedInUser.role === "Retention Agent") {
-          endpoint = "http://localhost:5000/api/leads/retentions";
+          endpoint = "https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/retentions";
           params = { fullName: loggedInUser.fullName, email: loggedInUser.email };
         } else {
-          endpoint = "http://localhost:5000/api/leads/assigned";
+          endpoint = "https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/assigned";
           params = { agentAssigned: loggedInUser.fullName };
         }
         const fetchAssignedLeads = axios.get(endpoint, { params });
 
         // 2) Transfer requests (approved/rejected)
         const fetchTransferRequests = axios
-          .get("http://localhost:5000/api/leads/transfer-requests/all")
+          .get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/transfer-requests/all")
           .then((res) => {
             const allReqs = res.data || [];
             return allReqs.filter(
