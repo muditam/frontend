@@ -53,9 +53,10 @@ const NavbarWithSearch = () => {
   // Retrieve user from sessionStorage
   const user = JSON.parse(sessionStorage.getItem("user"));
 
-  // -------------------------------------------
-  // Existing code for "LMS Search" (leads)
-  // -------------------------------------------
+  if (location.pathname === "/login") {
+    return null;
+  }
+ 
   const handleSearch = async (e) => {
     const value = e.target.value;
     setQuery(value);
@@ -82,9 +83,6 @@ const NavbarWithSearch = () => {
     setShowResults(false);
   };
 
-  // -------------------------------------------
-  // NEW: Shopify Customer/Order Search logic
-  // -------------------------------------------
   const handleShopifyInputChange = (e) => {
     setShopifyQuery(e.target.value);
   };

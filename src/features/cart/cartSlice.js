@@ -1,7 +1,6 @@
 import { createSlice } from '@reduxjs/toolkit';
 
-const initialState = {
-  // Global order/cart data
+const initialState = { 
   cart: [],
   selection: {},
   discountModalOpen: false,
@@ -45,6 +44,14 @@ const cartSlice = createSlice({
     },
     removeFromCart: (state, action) => {
       state.cart.splice(action.payload, 1);
+    },
+    // New: update the quantity of a cart item at a given index.
+    updateCartItemQuantity: (state, action) => {
+      const { index, quantity } = action.payload;
+      // Only update if the index is valid and quantity is at least 1
+      if (index >= 0 && index < state.cart.length && quantity >= 1) {
+        state.cart[index].quantity = quantity;
+      }
     },
     setSelection: (state, action) => {
       state.selection = { ...state.selection, ...action.payload };
@@ -116,6 +123,7 @@ const cartSlice = createSlice({
 export const {
   addToCart,
   removeFromCart,
+  updateCartItemQuantity,
   setSelection,
   setDiscountModalOpen,
   setDiscountType,

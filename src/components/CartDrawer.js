@@ -55,6 +55,7 @@ import {
   setCustomerName,
   setCustomerId,
   setBillingSameAsShipping,
+  updateCartItemQuantity,
 } from "../features/cart/cartSlice";
 
 // List of Indian states/UTs for the dropdown
@@ -593,21 +594,19 @@ const CartDrawer = ({ closeDrawer }) => {
   const handleIncreaseQuantity = (index) => {
     const item = cart[index];
     dispatch(
-      addToCart({
-        product: item.product,
-        variant: item.variant,
+      updateCartItemQuantity({
+        index,
         quantity: item.quantity + 1,
       })
     );
   };
 
   const handleDecreaseQuantity = (index) => {
-    const item = cart[index];
+    const item = cart[index]; 
     if (item.quantity > 1) {
       dispatch(
-        addToCart({
-          product: item.product,
-          variant: item.variant,
+        updateCartItemQuantity({
+          index,
           quantity: item.quantity - 1,
         })
       );
@@ -900,15 +899,12 @@ const CartDrawer = ({ closeDrawer }) => {
 
                   {/* Title, variant, quantity controls */}
                   <Box sx={{ flex: 1 }}>
-                    <Typography
-                      variant="body1"
-                      sx={{ fontWeight: 500 }}
-                    >
-                      {item.product.title}
+                    {/* Show the product title and "x{quantity}" */}
+                    <Typography variant="body1" sx={{ fontWeight: 500 }}>
+                      {item.product.title} x{item.quantity}
                     </Typography>
-                    <Typography variant="caption">
-                      {item.variant.title}
-                    </Typography>
+                    <Typography variant="caption">{item.variant.title}</Typography>
+
                     <Box
                       sx={{
                         display: "flex",
@@ -917,21 +913,11 @@ const CartDrawer = ({ closeDrawer }) => {
                         gap: 1,
                       }}
                     >
-                      <IconButton
-                        size="small"
-                        onClick={() =>
-                          handleDecreaseQuantity(idx)
-                        }
-                      >
+                      <IconButton size="small" onClick={() => handleDecreaseQuantity(idx)}>
                         <RemoveIcon />
                       </IconButton>
                       <Typography>{item.quantity}</Typography>
-                      <IconButton
-                        size="small"
-                        onClick={() =>
-                          handleIncreaseQuantity(idx)
-                        }
-                      >
+                      <IconButton size="small" onClick={() => handleIncreaseQuantity(idx)}>
                         <AddIcon />
                       </IconButton>
                     </Box>
@@ -945,19 +931,14 @@ const CartDrawer = ({ closeDrawer }) => {
                       alignItems: "flex-end",
                     }}
                   >
-                    <Typography>
-                      ₹
-                      {(item.variant.price * item.quantity).toFixed(2)}
-                    </Typography>
-                    <IconButton
-                      size="small"
-                      onClick={() => dispatch(removeFromCart(idx))}
-                    >
+                    <Typography>₹{(item.variant.price * item.quantity).toFixed(2)}</Typography>
+                    <IconButton size="small" onClick={() => dispatch(removeFromCart(idx))}>
                       <DeleteIcon />
                     </IconButton>
                   </Box>
                 </Box>
               ))}
+
 
               {/* Apply Discount Button */}
               <Divider sx={{ my: 2 }} />
@@ -1542,19 +1523,17 @@ const CartDrawer = ({ closeDrawer }) => {
                     Select Payment Method
                   </Typography>
                   <Select
-                    value={paymentMethod || "Prepaid"}
-                    onChange={(e) =>
-                      dispatch(
-                        setPaymentMethod(e.target.value)
-                      )
-                    }
+                    displayEmpty
+                    value={paymentMethod || ""}
+                    onChange={(e) => dispatch(setPaymentMethod(e.target.value))}
                     fullWidth
                     sx={{ mb: 2 }}
                     size="small"
+                    renderValue={(selected) =>
+                      selected === "" ? <em>Select Payment Method</em> : selected
+                    }
                   >
-                    <MenuItem value="Prepaid">
-                      Prepaid
-                    </MenuItem>
+                    <MenuItem value="Prepaid">Prepaid</MenuItem>
                     <MenuItem value="COD">COD</MenuItem>
                   </Select>
 

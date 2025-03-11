@@ -143,7 +143,7 @@ const SalesMyLeads = () => {
     const leadId = updatedLeads[index]._id;
     try {
       await axios.put(
-        `https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/${leadId}`,
+        `https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/${leadId}`, 
         {
           [field]: e.target.value,
         }
@@ -153,16 +153,6 @@ const SalesMyLeads = () => {
     }
   };
 
-
-  //   const leadId = updatedLeads[index]._id;
-  //   try {
-  //     await axios.put(`https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/${leadId}`, {
-  //       [field]: e.target.value,
-  //     });
-  //   } catch (error) {
-  //     console.error("Error updating lead:", error);
-  //   }
-  // };
 
   const handleAddLead = async () => {
     const currentDate = new Date();
