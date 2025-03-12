@@ -35,19 +35,27 @@ const AddEmployee = () => {
     password: "",
     confirmPassword: "",
     async: 1, // Default value set to 1
+    status: "active", // Default status is active
   });
   const [error, setError] = useState("");
+  const [viewInactive, setViewInactive] = useState(false); // Toggle for viewing inactive employees
 
   const roles = ["Manager", "Sales Agent", "Retention Agent"];
+  const statusOptions = ["active", "inactive"];
 
   useEffect(() => {
     fetchEmployees();
-  }, []);
+  }, [viewInactive]);
 
   const fetchEmployees = async () => {
     try {
       const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/employees");
-      setEmployees(response.data);
+      // When viewInactive is true, show only inactive employees;
+      // when false, show only active employees.
+      const fetchedEmployees = response.data.filter(emp =>
+        viewInactive ? emp.status === "inactive" : emp.status === "active"
+      );
+      setEmployees(fetchedEmployees);
     } catch (error) {
       console.error("Failed to fetch employees", error);
     }
@@ -102,14 +110,8 @@ const AddEmployee = () => {
     try {
       if (isEditMode) {
         await axios.put(`https://muditamleads-14f32a10d7f7.herokuapp.com/api/employees/${currentEmployeeId}`, employeeData);
-        setEmployees((prev) =>
-          prev.map((emp) =>
-            emp._id === currentEmployeeId ? { ...emp, ...employeeData } : emp
-          )
-        );
       } else {
-        const response = await axios.post("https://muditamleads-14f32a10d7f7.herokuapp.com/api/employees", employeeData);
-        setEmployees((prev) => [response.data.employee, ...prev]);
+        await axios.post("https://muditamleads-14f32a10d7f7.herokuapp.com/api/employees", employeeData);
       }
       fetchEmployees();
       setOpen(false);
@@ -121,7 +123,8 @@ const AddEmployee = () => {
         role: "",
         password: "",
         confirmPassword: "",
-        async: 1, // Ensure async is always set to 1
+        async: 1,
+        status: "active",
       });
     } catch (error) {
       console.error("Error submitting employee data:", error);
@@ -138,7 +141,8 @@ const AddEmployee = () => {
       role: employee.role,
       password: "",
       confirmPassword: "",
-      async: 1, // Keep async as 1 for edit
+      async: 1,
+      status: employee.status,
     });
     setCurrentEmployeeId(employee._id);
     setIsEditMode(true);
@@ -154,31 +158,41 @@ const AddEmployee = () => {
     }
   };
 
+  const handleToggleViewInactive = () => {
+    setViewInactive(!viewInactive);
+  };
+
   return (
     <Box sx={{ maxWidth: 800, margin: "auto", mt: 5, padding: 3 }}>
       <Typography variant="h5" gutterBottom>
         Employee Management
       </Typography>
-      <Button
-        variant="contained"
-        color="primary"
-        onClick={() => {
-          setIsEditMode(false);
-          setEmployeeData({
-            fullName: "",
-            email: "",
-            callerId: "",
-            agentNumber: "",
-            role: "",
-            password: "",
-            confirmPassword: "",
-            async: 1,  
-          });
-          setOpen(true);
-        }}
-      >
-        Add Employee
-      </Button>
+      <Box sx={{ display: "flex", justifyContent: "space-between", mb: 2 }}>
+        <Button
+          variant="contained"
+          color="primary"
+          onClick={() => {
+            setIsEditMode(false);
+            setEmployeeData({
+              fullName: "",
+              email: "",
+              callerId: "",
+              agentNumber: "",
+              role: "",
+              password: "",
+              confirmPassword: "",
+              async: 1,
+              status: "active",
+            });
+            setOpen(true);
+          }}
+        >
+          Add Employee
+        </Button>
+        <Button variant="outlined" onClick={handleToggleViewInactive}>
+          {viewInactive ? "Hide Inactive Employees" : "View Inactive Employees"}
+        </Button>
+      </Box>
 
       <TableContainer component={Paper} sx={{ mt: 3 }}>
         <Table>
@@ -189,7 +203,8 @@ const AddEmployee = () => {
               <TableCell>Caller ID (IVR)</TableCell>
               <TableCell>Agent Number (IVR)</TableCell>
               <TableCell>Role</TableCell>
-              <TableCell>Async</TableCell> {/* New column added */}
+              <TableCell>Status</TableCell>
+              <TableCell>Async</TableCell>
               <TableCell>Actions</TableCell>
             </TableRow>
           </TableHead>
@@ -201,7 +216,8 @@ const AddEmployee = () => {
                 <TableCell>{employee.callerId}</TableCell>
                 <TableCell>{employee.agentNumber}</TableCell>
                 <TableCell>{employee.role}</TableCell>
-                <TableCell>{employee.async}</TableCell> {/* Display async */}
+                <TableCell>{employee.status}</TableCell>
+                <TableCell>{employee.async}</TableCell>
                 <TableCell>
                   <IconButton color="primary" onClick={() => handleEdit(employee)}>
                     <Edit />
@@ -264,6 +280,21 @@ const AddEmployee = () => {
             {roles.map((role) => (
               <MenuItem key={role} value={role}>
                 {role}
+              </MenuItem>
+            ))}
+          </TextField>
+          <TextField
+            select
+            fullWidth
+            label="Status"
+            name="status"
+            value={employeeData.status}
+            onChange={handleChange}
+            margin="normal"
+          >
+            {statusOptions.map((status) => (
+              <MenuItem key={status} value={status}>
+                {status.charAt(0).toUpperCase() + status.slice(1)}
               </MenuItem>
             ))}
           </TextField>

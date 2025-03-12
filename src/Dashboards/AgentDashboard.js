@@ -32,7 +32,6 @@ const AgentDashboard = () => {
   const [user, setUser] = useState(null);
   const [todayStats, setTodayStats] = useState({});
   const [followupStats, setFollowupStats] = useState({});
-  const [loading, setLoading] = useState(true);
   const [leadSourceData, setLeadSourceData] = useState([]);
   const [deliverySummary, setDeliverySummary] = useState([]);
   const [dateFilter, setDateFilter] = useState({ startDate: "", endDate: "" });
@@ -42,7 +41,6 @@ const AgentDashboard = () => {
     conversionRate: 0,
     salesAmount: 0,
   });
-
   const [allTimeStats, setAllTimeStats] = useState({
     totalLeads: 0,
     salesDone: 0,
@@ -50,7 +48,6 @@ const AgentDashboard = () => {
     totalSales: 0,
     avgOrderValue: 0,
   });
-
   const [filters, setFilters] = useState({ startDate: "", endDate: "" });
   const leadSources = [
     "Abandoned Cart",
@@ -76,18 +73,17 @@ const AgentDashboard = () => {
     }
   }, []);
 
-
-
   const fetchAllTimeData = async (agentName) => {
     try {
       const response = await axios.get(
         "https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads",
-        { params: { agentAssignedName: agentName, limit: 0 } } 
+        { params: { agentAssignedName: agentName, limit: 0 } }
       );
 
-
       const leads = response.data.leads || [];
-      const salesDoneLeads = leads.filter((lead) => lead.salesStatus === "Sales Done");
+      const salesDoneLeads = leads.filter(
+        (lead) => lead.salesStatus === "Sales Done"
+      );
       const totalSales = salesDoneLeads.reduce(
         (acc, lead) => acc + (lead.amountPaid || 0),
         0
@@ -116,29 +112,22 @@ const AgentDashboard = () => {
     try {
       const response = await axios.get(
         "https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads",
-        { params: { agentAssignedName: user?.fullName, limit: 0 } } 
+        { params: { agentAssignedName: user?.fullName, limit: 0 } }
       );
-      console.log("API Response:", response.data);
-
       const leads = response.data.leads || [];
-      console.log("Total Leads Retrieved:", leads.length);
 
       // Filter leads by date range
       const filteredLeads = leads.filter((lead) => {
-        // Validate and normalize lead.date
         if (!lead.date || isNaN(new Date(lead.date))) {
           console.warn(`Invalid or missing date for lead:`, lead);
-          return false; // Skip leads with invalid dates
+          return false;
         }
-
         const leadDate = new Date(lead.date).toISOString().split("T")[0];
-
         return (
           (!dateFilter.startDate || leadDate >= dateFilter.startDate) &&
           (!dateFilter.endDate || leadDate <= dateFilter.endDate)
         );
       });
-      console.log("Filtered Leads:", filteredLeads);
 
       const totalOrders = filteredLeads.filter(
         (lead) => lead.salesStatus === "Sales Done"
@@ -207,13 +196,11 @@ const AgentDashboard = () => {
         },
       ];
 
-      console.log("Delivery Summary:", summary);
       setDeliverySummary(summary);
     } catch (error) {
       console.error("Error fetching delivery summary:", error);
     }
   };
-
 
   const applyLeadSourceFilters = async () => {
     try {
@@ -228,7 +215,6 @@ const AgentDashboard = () => {
           },
         }
       );
-
 
       const leads = response.data.leads || [];
       const sourceSummary = leadSources.map((source) => {
@@ -283,12 +269,11 @@ const AgentDashboard = () => {
 
   const fetchDashboardData = async (agentName) => {
     try {
-      setLoading(true);
+      // Initiate the backend fetch without blocking the initial render
       const response = await axios.get(
         "https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads",
         { params: { agentAssignedName: agentName, limit: 0 } }
       );
-
 
       const leads = response.data.leads || [];
       const todayDate = new Date().toISOString().split("T")[0];
@@ -351,47 +336,56 @@ const AgentDashboard = () => {
         followupTomorrow,
         followupLater,
       });
+
       await fetchAllTimeData(agentName);
     } catch (error) {
       console.error("Error fetching dashboard data:", error);
-    } finally {
-      setLoading(false);
     }
   };
-
-  if (loading) {
-    return (
-      <Box sx={{ display: "flex", justifyContent: "center", mt: 4 }}>
-        <CircularProgress />
-      </Box>
-    );
-  }
 
   return (
     <Box sx={{ padding: 3 }}>
       <Typography variant="h4" gutterBottom>
-        {user?.fullName} - Sales Dashboard
+        {user?.fullName ? `${user.fullName} - Sales Dashboard` : "Sales Dashboard"}
       </Typography>
 
       {/* Today Section */}
-      <Paper
-        sx={{
-          padding: 2,
-          marginBottom: 3,
-          backgroundColor: "#FFF2CC",
-        }}
-      >
+      <Paper sx={{ padding: 2, marginBottom: 3, backgroundColor: "#FFF2CC" }}>
         <Typography variant="h5" gutterBottom>
           Today
         </Typography>
         <Grid container spacing={3}>
           {[
-            { label: "Open Leads", value: todayStats.openLeads },
-            { label: "Leads Assigned Today", value: todayStats.leadsAssignedToday },
-            { label: "Sales Done", value: todayStats.salesDone },
-            { label: "Conversion Rate", value: `${todayStats.conversionRate}%` },
-            { label: "Total Sales", value: `₹${todayStats.totalSales}` },
-            { label: "Average Order Value", value: `₹${todayStats.avgOrderValue}` },
+            {
+              label: "Open Leads",
+              value:
+                todayStats.openLeads !== undefined ? todayStats.openLeads : <CircularProgress size={20} />,
+            },
+            {
+              label: "Leads Assigned Today",
+              value:
+                todayStats.leadsAssignedToday !== undefined ? todayStats.leadsAssignedToday : <CircularProgress size={20} />,
+            },
+            {
+              label: "Sales Done",
+              value:
+                todayStats.salesDone !== undefined ? todayStats.salesDone : <CircularProgress size={20} />,
+            },
+            {
+              label: "Conversion Rate",
+              value:
+                todayStats.conversionRate !== undefined ? `${todayStats.conversionRate}%` : <CircularProgress size={20} />,
+            },
+            {
+              label: "Total Sales",
+              value:
+                todayStats.totalSales !== undefined ? `₹${todayStats.totalSales}` : <CircularProgress size={20} />,
+            },
+            {
+              label: "Average Order Value",
+              value:
+                todayStats.avgOrderValue !== undefined ? `₹${todayStats.avgOrderValue}` : <CircularProgress size={20} />,
+            },
           ].map(({ label, value }) => (
             <Grid item xs={12} sm={6} md={4} key={label}>
               <Paper sx={{ padding: 2, textAlign: "center" }}>
@@ -406,12 +400,7 @@ const AgentDashboard = () => {
       </Paper>
 
       {/* Followup Section */}
-      <Paper
-        sx={{
-          padding: 2,
-          backgroundColor: "#F4CCCC",
-        }}
-      >
+      <Paper sx={{ padding: 2, backgroundColor: "#F4CCCC" }}>
         <Typography variant="h5" gutterBottom>
           Followup
         </Typography>
@@ -419,26 +408,34 @@ const AgentDashboard = () => {
           {[
             {
               label: "No Followup Set",
-              value: followupStats.noFollowupSet,
+              value:
+                followupStats.noFollowupSet !== undefined ? followupStats.noFollowupSet : <CircularProgress size={20} />,
               showIcon: followupStats.noFollowupSet > 0,
             },
             {
               label: "Followup Missed",
-              value: followupStats.followupMissed,
+              value:
+                followupStats.followupMissed !== undefined ? followupStats.followupMissed : <CircularProgress size={20} />,
               showIcon: followupStats.followupMissed > 0,
             },
-            { label: "Followup Today", value: followupStats.followupToday },
-            { label: "Followup Tomorrow", value: followupStats.followupTomorrow },
-            { label: "Followup Later", value: followupStats.followupLater },
+            {
+              label: "Followup Today",
+              value:
+                followupStats.followupToday !== undefined ? followupStats.followupToday : <CircularProgress size={20} />,
+            },
+            {
+              label: "Followup Tomorrow",
+              value:
+                followupStats.followupTomorrow !== undefined ? followupStats.followupTomorrow : <CircularProgress size={20} />,
+            },
+            {
+              label: "Followup Later",
+              value:
+                followupStats.followupLater !== undefined ? followupStats.followupLater : <CircularProgress size={20} />,
+            },
           ].map(({ label, value, showIcon }) => (
             <Grid item xs={12} sm={6} md={4} key={label}>
-              <Paper
-                sx={{
-                  padding: 2,
-                  textAlign: "center",
-                  position: "relative",
-                }}
-              >
+              <Paper sx={{ padding: 2, textAlign: "center", position: "relative" }}>
                 <Typography variant="subtitle1" gutterBottom>
                   {label}
                 </Typography>
@@ -450,17 +447,11 @@ const AgentDashboard = () => {
         </Grid>
       </Paper>
 
-      <Paper
-        sx={{
-          padding: 2,
-          marginTop: 3,
-          backgroundColor: "#E5E5E5", // Adjust background color if needed
-        }}
-      >
+      {/* Lead Source Summary Section */}
+      <Paper sx={{ padding: 2, marginTop: 3, backgroundColor: "#E5E5E5" }}>
         <Typography variant="h5" gutterBottom>
           Lead Source Summary
         </Typography>
-
         <Box sx={{ display: "flex", gap: 2, marginBottom: 2 }}>
           <TextField
             label="Start Date"
@@ -490,7 +481,6 @@ const AgentDashboard = () => {
             Apply Filters
           </Button>
         </Box>
-
         <TableContainer component={Paper}>
           <Table>
             <TableHead>
@@ -503,23 +493,39 @@ const AgentDashboard = () => {
               </TableRow>
             </TableHead>
             <TableBody>
-              {leadSourceData.map((row) => (
-                <TableRow key={row.leadSource}>
-                  <TableCell>{row.leadSource}</TableCell>
-                  <TableCell>{row.leadsAssigned}</TableCell>
-                  <TableCell>{row.leadsConverted}</TableCell>
-                  <TableCell>{`${row.conversionRate}%`}</TableCell>
-                  <TableCell>{`₹${row.salesAmount}`}</TableCell>
+              {leadSourceData && leadSourceData.length > 0 ? (
+                leadSourceData.map((row) => (
+                  <TableRow key={row.leadSource}>
+                    <TableCell>{row.leadSource}</TableCell>
+                    <TableCell>{row.leadsAssigned}</TableCell>
+                    <TableCell>{row.leadsConverted}</TableCell>
+                    <TableCell>{`${row.conversionRate}%`}</TableCell>
+                    <TableCell>{`₹${row.salesAmount}`}</TableCell>
+                  </TableRow>
+                ))
+              ) : (
+                <TableRow>
+                  <TableCell colSpan={5} align="center">
+                    <CircularProgress size={24} />
+                  </TableCell>
                 </TableRow>
-              ))}
+              )}
               <TableRow>
                 <TableCell>
                   <Typography fontWeight="bold">Total</Typography>
                 </TableCell>
-                <TableCell>{totals.leadsAssigned}</TableCell>
-                <TableCell>{totals.leadsConverted}</TableCell>
-                <TableCell>{`${totals.conversionRate}%`}</TableCell>
-                <TableCell>{`₹${totals.salesAmount}`}</TableCell>
+                <TableCell>
+                  {totals.leadsAssigned !== undefined ? totals.leadsAssigned : <CircularProgress size={20} />}
+                </TableCell>
+                <TableCell>
+                  {totals.leadsConverted !== undefined ? totals.leadsConverted : <CircularProgress size={20} />}
+                </TableCell>
+                <TableCell>
+                  {totals.conversionRate !== undefined ? `${totals.conversionRate}%` : <CircularProgress size={20} />}
+                </TableCell>
+                <TableCell>
+                  {totals.salesAmount !== undefined ? `₹${totals.salesAmount}` : <CircularProgress size={20} />}
+                </TableCell>
               </TableRow>
             </TableBody>
           </Table>
@@ -527,17 +533,10 @@ const AgentDashboard = () => {
       </Paper>
 
       {/* All Time Summary Section */}
-      <Paper
-        sx={{
-          padding: 2,
-          marginTop: 3,
-          backgroundColor: "#FFFFFF",
-        }}
-      >
+      <Paper sx={{ padding: 2, marginTop: 3, backgroundColor: "#FFFFFF" }}>
         <Typography variant="h5" gutterBottom>
           All Time
         </Typography>
-
         <TableContainer component={Paper}>
           <Table>
             <TableHead>
@@ -567,11 +566,21 @@ const AgentDashboard = () => {
                 <TableCell>
                   <Typography fontWeight="bold">All Time</Typography>
                 </TableCell>
-                <TableCell>{allTimeStats.totalLeads}</TableCell>
-                <TableCell>{allTimeStats.salesDone}</TableCell>
-                <TableCell>{`${allTimeStats.conversionRate}%`}</TableCell>
-                <TableCell>{`₹${allTimeStats.totalSales}`}</TableCell>
-                <TableCell>{`₹${allTimeStats.avgOrderValue}`}</TableCell>
+                <TableCell>
+                  {allTimeStats.totalLeads !== undefined ? allTimeStats.totalLeads : <CircularProgress size={20} />}
+                </TableCell>
+                <TableCell>
+                  {allTimeStats.salesDone !== undefined ? allTimeStats.salesDone : <CircularProgress size={20} />}
+                </TableCell>
+                <TableCell>
+                  {allTimeStats.conversionRate !== undefined ? `${allTimeStats.conversionRate}%` : <CircularProgress size={20} />}
+                </TableCell>
+                <TableCell>
+                  {allTimeStats.totalSales !== undefined ? `₹${allTimeStats.totalSales}` : <CircularProgress size={20} />}
+                </TableCell>
+                <TableCell>
+                  {allTimeStats.avgOrderValue !== undefined ? `₹${allTimeStats.avgOrderValue}` : <CircularProgress size={20} />}
+                </TableCell>
               </TableRow>
             </TableBody>
           </Table>
@@ -579,18 +588,10 @@ const AgentDashboard = () => {
       </Paper>
 
       {/* Delivery Status Summary Section */}
-      <Paper
-        sx={{
-          padding: 2,
-          marginTop: 3,
-          backgroundColor: "#FFFFFF",
-        }}
-      >
+      <Paper sx={{ padding: 2, marginTop: 3, backgroundColor: "#FFFFFF" }}>
         <Typography variant="h5" gutterBottom>
           Delivery Status Summary
         </Typography>
-
-        {/* Date Range Filter */}
         <Box sx={{ display: "flex", gap: 2, marginBottom: 2 }}>
           <TextField
             label="Start Date"
@@ -612,15 +613,10 @@ const AgentDashboard = () => {
             InputLabelProps={{ shrink: true }}
             fullWidth
           />
-          <Button
-            variant="contained"
-            onClick={fetchDeliverySummary}
-            sx={{ alignSelf: "flex-end" }}
-          >
+          <Button variant="contained" onClick={fetchDeliverySummary} sx={{ alignSelf: "flex-end" }}>
             Apply Filters
           </Button>
         </Box>
-
         <TableContainer component={Paper}>
           <Table>
             <TableHead>
@@ -640,21 +636,28 @@ const AgentDashboard = () => {
               </TableRow>
             </TableHead>
             <TableBody>
-              {deliverySummary.map((row) => (
-                <TableRow key={row.label}>
-                  <TableCell>
-                    <Typography fontWeight="bold">{row.label}</Typography>
+              {deliverySummary && deliverySummary.length > 0 ? (
+                deliverySummary.map((row) => (
+                  <TableRow key={row.label}>
+                    <TableCell>
+                      <Typography fontWeight="bold">{row.label}</Typography>
+                    </TableCell>
+                    <TableCell>{row.totalOrders}</TableCell>
+                    <TableCell>{`₹${row.totalAmount}`}</TableCell>
+                    <TableCell>{`${row.percentage}%`}</TableCell>
+                  </TableRow>
+                ))
+              ) : (
+                <TableRow>
+                  <TableCell colSpan={4} align="center">
+                    <CircularProgress size={24} />
                   </TableCell>
-                  <TableCell>{row.totalOrders}</TableCell>
-                  <TableCell>{`₹${row.totalAmount}`}</TableCell>
-                  <TableCell>{`${row.percentage}%`}</TableCell>
                 </TableRow>
-              ))}
+              )}
             </TableBody>
           </Table>
         </TableContainer>
       </Paper>
-
     </Box>
   );
 };

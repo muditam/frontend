@@ -266,7 +266,7 @@ const NavbarWithSearch = () => {
                                               <br />
                                               {order.lineItems.map((item, idx) => (
                                                 <span key={idx}>
-                                                  {item.title} - {item.variant} (₹{item.amountPaid}){" "}
+                                                  {item.title} - {item.variant} ({item.amountPaid}){" "}
                                                 </span>
                                               ))}
                                             </>
