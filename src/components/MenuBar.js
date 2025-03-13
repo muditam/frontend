@@ -88,6 +88,11 @@ const MenuBar = ({ toggleDrawer }) => {
   return (
     <Box sx={styles.drawer}>
       <List>
+      <Typography variant="h6" sx={styles.header}>
+              {`Welcome, ${user.fullName}`}
+            </Typography>
+            <Divider sx={styles.divider} />
+            
         <ListItem
           button
           sx={styles.listItem}
@@ -105,10 +110,6 @@ const MenuBar = ({ toggleDrawer }) => {
 
         {user ? (
           <>
-            <Typography variant="h6" sx={styles.header}>
-              {`Welcome, ${user.fullName}`}
-            </Typography>
-            <Divider sx={styles.divider} />
 
             {role === "Manager" && (
               <>

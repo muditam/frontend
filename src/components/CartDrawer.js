@@ -18,6 +18,7 @@ import {
   ThemeProvider,
   useMediaQuery,
   InputAdornment,
+  CircularProgress,
 } from "@mui/material";
 import { motion } from "framer-motion";
 import AddShoppingCartIcon from "@mui/icons-material/AddShoppingCart";
@@ -153,6 +154,8 @@ const CartDrawer = ({ closeDrawer }) => {
   // Local state for new customer details
   const [newCustomerFirstName, setNewCustomerFirstName] = useState("");
   const [newCustomerLastName, setNewCustomerLastName] = useState("");
+
+  const [isOrderLoading, setIsOrderLoading] = useState(false);
 
   // Pulling data from Redux store
   const {
@@ -510,6 +513,8 @@ const CartDrawer = ({ closeDrawer }) => {
 
   // Updated create order to capture order id and show success popup without auto-closing
   const handleCreateOrder = async () => {
+    setIsOrderLoading(true);
+
     const shippingAddress = {
       firstName: confirmedAddress?.fullName?.split(" ")[0] || "",
       lastName: confirmedAddress?.fullName?.split(" ")[1] || "",
@@ -560,6 +565,8 @@ const CartDrawer = ({ closeDrawer }) => {
       setShowOrderSuccess(true);
     } catch (error) {
       console.error("Error placing order:", error);
+    } finally {
+      setIsOrderLoading(false);
     }
   };
 
@@ -602,7 +609,7 @@ const CartDrawer = ({ closeDrawer }) => {
   };
 
   const handleDecreaseQuantity = (index) => {
-    const item = cart[index]; 
+    const item = cart[index];
     if (item.quantity > 1) {
       dispatch(
         updateCartItemQuantity({
@@ -1593,15 +1600,20 @@ const CartDrawer = ({ closeDrawer }) => {
                       color="success"
                       onClick={handleCreateOrder}
                       disabled={
-                        (paymentMethod || "Prepaid") ===
-                        "Prepaid" &&
-                        transactionId.trim() === ""
+                        ((paymentMethod || "Prepaid") === "Prepaid" &&
+                          transactionId.trim() === "") ||
+                        isOrderLoading
                       }
                       sx={buttonStyle}
                     >
-                      Create Order
+                      {isOrderLoading ? (
+                        <CircularProgress size={20} sx={{ color: "lightgreen" }} />
+                      ) : (
+                        "Create Order"
+                      )}
                     </Button>
                   )}
+
                 </Box>
               )}
             </Box>
