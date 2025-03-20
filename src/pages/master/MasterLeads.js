@@ -371,24 +371,30 @@ const LeadTable = () => {
         }
     };
 
-    const exportToCSV = async () => {
-        try {
-            const response = await axios.get("http://localhost:5000/api/leads", {
-                params: { page: 1, limit: totalLeads },
-            });
-            const allLeads = response.data.leads;
+    // const exportToCSV = async () => {
+    //     try {
+    //         const response = await axios.get("http://localhost:5000/api/leads", {
+    //             params: { page: 1, limit: totalLeads },
+    //         });
+    //         const allLeads = response.data.leads;
 
-            const worksheet = XLSX.utils.json_to_sheet(allLeads);
-            const workbook = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(workbook, worksheet, "Leads");
+    //         const worksheet = XLSX.utils.json_to_sheet(allLeads);
+    //         const workbook = XLSX.utils.book_new();
+    //         XLSX.utils.book_append_sheet(workbook, worksheet, "Leads");
 
-            const excelBuffer = XLSX.write(workbook, { bookType: "csv", type: "array" });
-            const data = new Blob([excelBuffer], { type: "text/csv;charset=utf-8;" });
-            FileSaver.saveAs(data, "leads_data.csv");
-        } catch (error) {
-            console.error("Error exporting data:", error);
-        }
-    };
+    //         const excelBuffer = XLSX.write(workbook, { bookType: "csv", type: "array" });
+    //         const data = new Blob([excelBuffer], { type: "text/csv;charset=utf-8;" });
+    //         FileSaver.saveAs(data, "leads_data.csv");
+    //     } catch (error) {
+    //         console.error("Error exporting data:", error);
+    //     }
+    // };
+
+    const exportToCSV = () => {
+        // Redirect the browser to the backend CSV export endpoint.
+        window.location.href = "https://muditamleads-14f32a10d7f7.herokuapp.com/export-leads";
+      };
+      
 
     const handleChangePage = (event, newPage) => {
         setCurrentPage(newPage + 1);
