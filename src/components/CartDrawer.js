@@ -1602,7 +1602,9 @@ const CartDrawer = ({ closeDrawer }) => {
                       disabled={
                         ((paymentMethod || "Prepaid") === "Prepaid" &&
                           transactionId.trim() === "") ||
-                        isOrderLoading
+                        isOrderLoading ||
+                        !confirmedAddress ||  
+                        !confirmedAddress.valid
                       }
                       sx={buttonStyle}
                     >
