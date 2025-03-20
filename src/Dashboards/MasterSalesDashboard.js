@@ -582,13 +582,13 @@ const ManagerSalesDashboard = () => {
               )}
             </TableBody>
           </Table>
-        </TableContainer>
+        </TableContainer> 
       </Paper>
 
-      {/* Section 4: Agent Performance Summary */}
+      {/* Agent Performance Summary */}
       <Paper sx={{ padding: 2, marginTop: 3, backgroundColor: "#FFE5E5" }}>
         <Typography variant="h5" gutterBottom>
-          Section 4: Agent Performance Summary
+          Agent Performance Summary
         </Typography>
         <Typography variant="subtitle1" gutterBottom>
           All time

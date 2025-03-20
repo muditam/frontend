@@ -51,7 +51,7 @@ const NewOrders = () => {
     productsOrdered: ["KJF", "SDP", "VKR", "L-Fx", "S&S", "CPV", "HDP", "PF", "PGut", "Shilajit", "Kit", "Blood Test"],
   };
 
-  useEffect(() => {
+  useEffect(() => { 
     fetchNewOrders();
     fetchRetentionAgents();
   }, [page, rowsPerPage, filters]);

@@ -145,7 +145,7 @@ const RetentionLeads = () => {
   const fetchRetentionLeads = async (user) => {
     try {
       const response = await axios.get(
-        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/retentions", 
+        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/retentions",
         {
           params: { fullName: user.fullName, email: user.email },
         }
@@ -159,13 +159,20 @@ const RetentionLeads = () => {
         callerId,
         rtSubcells: lead.rtSubcells || [],
       }));
-      // Reverse the array to show latest leads on top
-      setAllLeads(leadsWithReminders.reverse());
-      setLeads(leadsWithReminders.reverse());
+      // Filter out leads where retentionStatus is "Lost"
+      const filteredLeads = leadsWithReminders.filter((lead) => {
+        return !lead.retentionStatus || lead.retentionStatus.toLowerCase() !== "lost";
+      });
+      
+      // Reverse the filtered array to show the latest leads on top
+      const reversedLeads = [...filteredLeads].reverse();
+      setAllLeads(reversedLeads);
+      setLeads(reversedLeads);
     } catch (error) {
       console.error("Failed to fetch retention leads", error);
     }
   };
+  
 
   const handleCallIconClick = async (contactNumber) => {
     setLoading(true);
@@ -290,7 +297,9 @@ const RetentionLeads = () => {
         (!filters.dosageExpiringFrom || new Date(lead.dosageExpiring) >= new Date(filters.dosageExpiringFrom)) &&
         (!filters.dosageExpiringTo || new Date(lead.dosageExpiring) <= new Date(filters.dosageExpiringTo)) &&
         (!filters.rtNextFollowupDate || lead.rtNextFollowupDate === filters.rtNextFollowupDate) &&
-        (!filters.rtFollowupReminder || lead.rtFollowupReminder === filters.rtFollowupReminder) &&
+        (filters.rtFollowupReminder === "No follow-Up Set"
+          ? !lead.rtFollowupReminder
+          : (!filters.rtFollowupReminder || lead.rtFollowupReminder === filters.rtFollowupReminder)) &&
         (!filters.rtFollowupStatus || lead.rtFollowupStatus === filters.rtFollowupStatus) &&
         (!filters.lastOrderDateFrom || new Date(lead.lastOrderDate) >= new Date(filters.lastOrderDateFrom)) &&
         (!filters.lastOrderDateTo || new Date(lead.lastOrderDate) <= new Date(filters.lastOrderDateTo)) &&
@@ -332,7 +341,7 @@ const RetentionLeads = () => {
     });
     setColorFilter("");
     setLeads(allLeads);
-    setCurrentPage(0);
+    setCurrentPage(0); 
   };
 
   const handleChangePage = (event, newPage) => {
@@ -450,7 +459,7 @@ const RetentionLeads = () => {
             label: "RT Followup Reminder",
             key: "rtFollowupReminder",
             type: "dropdown",
-            options: ["Today", "Tomorrow", "Follow-up Missed", "Later"],
+            options: ["Today", "Tomorrow", "Follow-up Missed", "Later", "No follow-Up Set"],
           },
           {
             label: "RT Followup Status",

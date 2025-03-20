@@ -83,16 +83,16 @@ const MenuBar = ({ toggleDrawer }) => {
       margin: "15px 0",
     },
   };
-  
+
 
   return (
     <Box sx={styles.drawer}>
       <List>
-      <Typography variant="h6" sx={styles.header}>
-              {`Welcome, ${user.fullName}`}
-            </Typography>
-            <Divider sx={styles.divider} />
-            
+        <Typography variant="h6" sx={styles.header}>
+          {user ? `Welcome, ${user.fullName}` : "Welcome"}
+        </Typography>
+        <Divider sx={styles.divider} />
+
         <ListItem
           button
           sx={styles.listItem}

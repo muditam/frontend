@@ -33,25 +33,21 @@ const OnlineOrders = () => {
     'Shilajit with Gold': 'Shilajit',
     'Diabetes Management Kit': 'Kit'
   };
-
-  // Retrieve persisted dates from localStorage or use defaults.
+ 
   const storedStartDate = localStorage.getItem('startDate');
-  const storedEndDate = localStorage.getItem('endDate');
-  // Default start date: 2025-02-01; default end: today's date.
+  const storedEndDate = localStorage.getItem('endDate'); 
   const defaultStart = storedStartDate || "2025-02-01";
   const today = new Date().toISOString().split("T")[0];
   const defaultEnd = storedEndDate || today;
 
   const [startDate, setStartDate] = useState(defaultStart);
   const [endDate, setEndDate] = useState(defaultEnd);
-
-  // Persist date changes to localStorage.
+ 
   useEffect(() => {
     localStorage.setItem('startDate', startDate);
     localStorage.setItem('endDate', endDate);
   }, [startDate, endDate]);
-
-  // Function to fetch all leads.
+ 
   const fetchAllLeads = async () => {
     try {
       const limit = 100;  
@@ -78,8 +74,7 @@ const OnlineOrders = () => {
       return [];
     }
   };
-
-  // Fetch orders and agents from the server using the selected date range.
+ 
   const fetchData = async () => {
     try {
       const [ordersResponse, agentsResponse] = await Promise.all([
@@ -95,11 +90,9 @@ const OnlineOrders = () => {
       const webOrders = ordersResponse.data.filter(order =>
         order.channel_name === "web" || order.channel_name === "208644538369"
       ); 
-
-      // Map orders to add properties from matching leads.
+ 
       const ordersWithHealthExperts = webOrders
-        .map(order => {
-          // Use order.contact_number (which is already stripped of +91)
+        .map(order => { 
           const normalizedOrderPhone = order.contact_number.replace(/[^\d]/g, "");
           const matchingLead = leads.find(lead =>
             lead.contactNumber.replace(/[^\d]/g, "") === normalizedOrderPhone
@@ -132,8 +125,7 @@ const OnlineOrders = () => {
       console.error("Error fetching data:", error);
     }
   };
-
-  // Refetch data whenever the selected startDate or endDate changes.
+ 
   useEffect(() => {
     fetchData();
   }, [startDate, endDate]);
@@ -173,8 +165,7 @@ const OnlineOrders = () => {
       } else {
         await axios.post("https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads", leadData);
       }
-
-      // After saving, remove the order from the table.
+ 
       const updatedOrders = orders.filter((_, index) => index !== globalIndex);
       setOrders(updatedOrders);
     } catch (error) {
