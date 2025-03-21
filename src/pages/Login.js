@@ -8,7 +8,8 @@ import {
   Dialog,
   DialogTitle,
   DialogContent,
-  DialogActions
+  DialogActions,
+  CircularProgress
 } from "@mui/material";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
@@ -18,11 +19,14 @@ const LoginPage = () => {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [forgotOpen, setForgotOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const navigate = useNavigate();
 
   const handleLogin = async (e) => {
     e.preventDefault();
+    if (isSubmitting) return; // Prevent duplicate requests
+    setIsSubmitting(true);
     try {
       // Using userId as email for login
       const response = await axios.post(
@@ -35,6 +39,8 @@ const LoginPage = () => {
       }
     } catch (err) {
       setError(err.response?.data?.message || "Login failed. Please try again.");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -60,7 +66,7 @@ const LoginPage = () => {
           src="https://cdn.shopify.com/s/files/1/0734/7155/7942/files/new_logo_orange_leaf_1_4e0e0f89-08a5-4264-9d2b-0cfe9535d553.png?v=1727508866"
           alt="Muditam Ayurveda Logo"
           sx={{ width: 200, mb: 3 }}
-        /> 
+        />
         <Typography variant="subtitle1" sx={{ textAlign: "center" }}>
           "Focus on solving the customer's problems,<br /> and sales will follow automatically."
         </Typography>
@@ -116,7 +122,7 @@ const LoginPage = () => {
                   padding: "13px",
                 },
               },
-            }} 
+            }}
             value={userId}
             onChange={(e) => setUserId(e.target.value)}
           />
@@ -144,8 +150,9 @@ const LoginPage = () => {
             fullWidth
             sx={{ mb: 2 }}
             onClick={handleLogin}
+            disabled={isSubmitting}
           >
-            SIGN IN
+            {isSubmitting ? <CircularProgress size={24} /> : "SIGN IN"}
           </Button>
 
           <Button
@@ -174,4 +181,3 @@ const LoginPage = () => {
 };
 
 export default LoginPage;
- 
