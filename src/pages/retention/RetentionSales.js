@@ -11,26 +11,26 @@ import {
   TextField,
   Select,
   MenuItem,
-  IconButton,
-  Typography,
   Button,
+  Typography,
   FormControl,
   Checkbox,
   ListItemText,
   Drawer,
   Divider,
   TablePagination,
-  InputLabel, 
+  InputLabel,
+  IconButton,
 } from "@mui/material";
 import { Delete, AddCircle } from "@mui/icons-material";
 import axios from "axios";
 
 const RetentionSales = () => {
   const [sales, setSales] = useState([]);
-  const [page, setPage] = useState(1);
   const [currentPage, setCurrentPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(50);
   const [editedSales, setEditedSales] = useState({});
+  const [savingStatus, setSavingStatus] = useState({});
   const productOptions = [
     "KJF",
     "SDP",
@@ -100,25 +100,29 @@ const RetentionSales = () => {
 
   const handleSave = async (id) => {
     if (editedSales[id]) {
-      const updatedSale = { ...sales.find((sale) => sale._id === id), ...editedSales[id] };
-
+      setSavingStatus((prev) => ({ ...prev, [id]: "Saving..." }));
       try {
-        if (updatedSale.isNew) {
-          const response = await axios.post("https://muditamleads-14f32a10d7f7.herokuapp.com/api/retention-sales", updatedSale);
-          setSales((prev) => [response.data, ...prev.filter((sale) => sale._id !== id)]);
-        } else {
-          await axios.put(`https://muditamleads-14f32a10d7f7.herokuapp.com/api/retention-sales/${id}`, editedSales[id]);
-          setSales((prev) =>
-            prev.map((sale) => (sale._id === id ? { ...sale, ...editedSales[id] } : sale))
-          );
-        }
+        // Save the changes
+        await axios.put(`https://muditamleads-14f32a10d7f7.herokuapp.com/api/retention-sales/${id}`, editedSales[id]);
+        setSales((prev) =>
+          prev.map((sale) => (sale._id === id ? { ...sale, ...editedSales[id] } : sale))
+        );
+        // Trigger heavy matching logic immediately after saving
+        await axios.post("https://muditamleads-14f32a10d7f7.herokuapp.com/api/retention-sales/update-matching");
+        // Update button text to "Saved"
+        setSavingStatus((prev) => ({ ...prev, [id]: "Saved" }));
         setEditedSales((prev) => {
           const updated = { ...prev };
           delete updated[id];
           return updated;
         });
+        // Optionally, clear the status after 3 seconds
+        setTimeout(() => {
+          setSavingStatus((prev) => ({ ...prev, [id]: undefined }));
+        }, 3000);
       } catch (error) {
         console.error("Error saving sale:", error);
+        setSavingStatus((prev) => ({ ...prev, [id]: "Error" }));
       }
     }
   };
@@ -132,7 +136,6 @@ const RetentionSales = () => {
       dosageOrdered: "",
       amountPaid: 0,
       modeOfPayment: "",
-      deliveryStatus: "",
       orderCreatedBy: loggedInUser.fullName,
     };
 
@@ -160,7 +163,8 @@ const RetentionSales = () => {
         (!filters.dateTo || new Date(sale.date) <= new Date(filters.dateTo)) &&
         (!filters.name || sale.name.toLowerCase().includes(filters.name.toLowerCase())) &&
         (!filters.contactNumber || sale.contactNumber.includes(filters.contactNumber)) &&
-        (!filters.productsOrdered.length || filters.productsOrdered.every((p) => sale.productsOrdered.includes(p))) &&
+        (!filters.productsOrdered.length ||
+          filters.productsOrdered.every((p) => sale.productsOrdered.includes(p))) &&
         (!filters.dosageOrdered || sale.dosageOrdered === filters.dosageOrdered) &&
         (!filters.amountPaidFrom || sale.amountPaid >= filters.amountPaidFrom) &&
         (!filters.amountPaidTo || sale.amountPaid <= filters.amountPaidTo) &&
@@ -211,8 +215,7 @@ const RetentionSales = () => {
       >
         Add New Sale
       </Button>
-
-      <Button variant="contained" sx={{ mb: 2 }} onClick={() => setFilterOpen(true)}>
+      <Button variant="contained" sx={{ mb: 2, ml: 2 }} onClick={() => setFilterOpen(true)}>
         Filter
       </Button>
 
@@ -222,7 +225,6 @@ const RetentionSales = () => {
             Filters
           </Typography>
           <Divider sx={{ mb: 2 }} />
-          {/* Filter controls here */}
           <TextField
             label="Date From"
             type="date"
@@ -348,8 +350,8 @@ const RetentionSales = () => {
               <TableCell>Amount Paid *</TableCell>
               <TableCell>Mode of Payment *</TableCell>
               <TableCell>Shopify Amount</TableCell>
-              <TableCell>Order ID</TableCell> {/* New Column */}
-              <TableCell>Shipment Status</TableCell> 
+              <TableCell>Order ID</TableCell>
+              <TableCell>Shipment Status</TableCell>
               <TableCell>Order Created By *</TableCell>
               <TableCell>Remarks</TableCell>
               <TableCell>Actions *</TableCell>
@@ -381,9 +383,9 @@ const RetentionSales = () => {
                     fullWidth
                     sx={{
                       flexGrow: 1,
-                      '& input[type=number]': { MozAppearance: 'textfield' },
-                      '& input[type=number]::-webkit-outer-spin-button, & input[type=number]::-webkit-inner-spin-button': {
-                        WebkitAppearance: 'none',
+                      "& input[type=number]": { MozAppearance: "textfield" },
+                      "& input[type=number]::-webkit-outer-spin-button, & input[type=number]::-webkit-inner-spin-button": {
+                        WebkitAppearance: "none",
                         margin: 0,
                       },
                     }}
@@ -441,9 +443,7 @@ const RetentionSales = () => {
                   </Select>
                 </TableCell>
                 <TableCell>{sale.shopify_amount}</TableCell>
-                <TableCell>
-                  {sale.orderId || ""}
-                </TableCell>
+                <TableCell>{sale.orderId || ""}</TableCell>
                 <TableCell>{sale.shipway_status}</TableCell>
                 <TableCell>{sale.orderCreatedBy}</TableCell>
                 <TableCell style={{ whiteSpace: "nowrap", minWidth: "240px" }}>
@@ -454,12 +454,13 @@ const RetentionSales = () => {
                   />
                 </TableCell>
                 <TableCell>
-                  <IconButton color="primary" onClick={() => handleSave(sale._id)}>
-                    Save
-                  </IconButton>
+                  <Button variant="contained" color="primary" onClick={() => handleSave(sale._id)}>
+                    {savingStatus[sale._id] ? savingStatus[sale._id] : "Save"}
+                  </Button>
                   <IconButton color="error" onClick={() => handleDelete(sale._id)}>
                     <Delete />
                   </IconButton>
+
                 </TableCell>
               </TableRow>
             ))}
