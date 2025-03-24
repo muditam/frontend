@@ -481,11 +481,10 @@ const CartDrawer = ({ closeDrawer }) => {
 
     let finalAddr = null;
     if (addressCategory === "existing" && selectedAddressIndex !== null) {
-      finalAddr = addresses[selectedAddressIndex];
+      finalAddr = { ...addresses[selectedAddressIndex], valid: true };
     } else {
-      finalAddr = { ...newAddress };
-    }
-    finalAddr.valid = true;
+      finalAddr = { ...newAddress, valid: true };
+    } 
     dispatch(setConfirmedAddress(finalAddr));
     dispatch(setAddressConfirmed(true));
   };
