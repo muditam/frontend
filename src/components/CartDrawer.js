@@ -477,7 +477,7 @@ const CartDrawer = ({ closeDrawer }) => {
 
   // Confirm address => store it + show Payment Method
   const handleConfirmAddress = () => {
-    if (!isAddressSelectedOrFilled()) return; // safety check
+    if (!isAddressSelectedOrFilled()) return;  
 
     let finalAddr = null;
     if (addressCategory === "existing" && selectedAddressIndex !== null) {
@@ -485,6 +485,7 @@ const CartDrawer = ({ closeDrawer }) => {
     } else {
       finalAddr = { ...newAddress };
     }
+    finalAddr.valid = true;
     dispatch(setConfirmedAddress(finalAddr));
     dispatch(setAddressConfirmed(true));
   };
@@ -1603,8 +1604,7 @@ const CartDrawer = ({ closeDrawer }) => {
                         ((paymentMethod || "Prepaid") === "Prepaid" &&
                           transactionId.trim() === "") ||
                         isOrderLoading ||
-                        !confirmedAddress ||  
-                        !confirmedAddress.valid
+                        !confirmedAddress  
                       }
                       sx={buttonStyle}
                     >
