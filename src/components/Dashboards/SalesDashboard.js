@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from "react";
-import AgentDashboard from "../Dashboards/AgentDashboard";
-import RetentionAgentDashboard from "../Dashboards/RetentionDashboard";
-import ManagerSalesDashboard from "../Dashboards/MasterSalesDashboard"; 
-import ManagerRetentionDashboard from "../Dashboards/MasterRetentionDashboard"; 
+import AgentDashboard from "../../Dashboards/AgentDashboard";
+import RetentionAgentDashboard from "../../Dashboards/RetentionDashboard";
+import ManagerSalesDashboard from "../../Dashboards/MasterSalesDashboard"; 
+import ManagerRetentionDashboard from "../../Dashboards/MasterRetentionDashboard"; 
 import { useNavigate } from "react-router-dom";
 
 const SalesDashboard = () => {

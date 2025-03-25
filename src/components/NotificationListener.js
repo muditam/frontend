@@ -5,8 +5,6 @@ import { toast } from "react-toastify";
 
 const POLL_INTERVAL = 5000; // Poll interval if continuous polling is desired
 
-// Custom close button that, when clicked, marks the notification (by requestId)
-// as dismissed (stored in localStorage) and then closes the toast.
 const CustomCloseButton = ({ closeToast, requestId, onDismiss }) => {
   const handleClick = () => {
     onDismiss(requestId);

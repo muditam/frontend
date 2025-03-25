@@ -21,9 +21,9 @@ import SearchIcon from "@mui/icons-material/Search";
 import axios from "axios";
 import MenuBar from "./MenuBar";
 import { useNavigate, useLocation } from "react-router-dom";
-import Notifications from "./Notifications";
+import Notifications from "../Notifications";
 import StickyNote2Icon from "@mui/icons-material/StickyNote2";
-import CartDrawer from "./CartDrawer";
+import CartDrawer from "../../ShopifyOrders/CartDrawer";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import ExpandLessIcon from "@mui/icons-material/ExpandLess";
 

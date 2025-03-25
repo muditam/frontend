@@ -462,14 +462,18 @@ const CartDrawer = ({ closeDrawer }) => {
   // Check if user has selected or filled an address
   const isAddressSelectedOrFilled = () => {
     if (addressCategory === "existing") {
-      return selectedAddressIndex !== null && selectedAddressIndex !== undefined;
+      return( selectedAddressIndex !== null && 
+      selectedAddressIndex !== undefined && 
+      addresses[selectedAddressIndex] &&
+      addresses[selectedAddressIndex].address1?.trim() !== ""
+      );
     } else if (addressCategory === "new") {
       // Minimal check: fullName, address1, city, pincode not empty
       return (
-        newAddress.fullName &&
-        newAddress.address1 &&
-        newAddress.city &&
-        newAddress.pincode
+        newAddress.fullName.trim() !== "" &&
+        newAddress.address1.trim() !== "" &&
+        newAddress.city.trim() !== "" &&
+        newAddress.pincode.trim() !== ""
       );
     }
     return false;
@@ -1600,8 +1604,7 @@ const CartDrawer = ({ closeDrawer }) => {
                       color="success"
                       onClick={handleCreateOrder}
                       disabled={
-                        ((paymentMethod || "Prepaid") === "Prepaid" &&
-                          transactionId.trim() === "") ||
+                        (paymentMethod === "Prepaid" && transactionId.trim() === "") ||
                         isOrderLoading ||
                         !confirmedAddress  
                       }

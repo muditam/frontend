@@ -124,8 +124,7 @@ const RetentionLeads = () => {
         {
           params: { fullName: user.fullName, email: user.email },
         }
-      );
-      console.log("Employee API Response:", response.data);
+      ); 
       if (!response.data || response.data.length === 0) {
         console.error("Error: Employee not found in database.");
         return { async: 1, agentNumber: "Unknown", callerId: "Unknown" };

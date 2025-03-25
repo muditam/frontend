@@ -357,3 +357,4 @@ const MenuBar = ({ toggleDrawer }) => {
 };
 
 export default MenuBar;
+
