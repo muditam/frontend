@@ -2,18 +2,31 @@ import React, { useState, useEffect } from "react";
 import {
   List,
   ListItem,
-  ListItemText,
   Collapse,
-  Divider,
   Typography,
   Box,
+  Drawer,
+  Avatar,
+  IconButton,
 } from "@mui/material";
 import ExpandLess from "@mui/icons-material/ExpandLess";
 import ExpandMore from "@mui/icons-material/ExpandMore";
 import LogoutIcon from "@mui/icons-material/Logout";
+import UnfoldMoreIcon from "@mui/icons-material/UnfoldMore";
+import HomeIcon from "@mui/icons-material/Home";
+import  AssignmentIcon  from "@mui/icons-material/Assessment";
+import DescriptionIcon from "@mui/icons-material/Description";
+import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
+import KeyboardArrowRightIcon from "@mui/icons-material/KeyboardArrowRight";
 import PersonAddIcon from "@mui/icons-material/PersonAdd";
-import DashboardIcon from "@mui/icons-material/Dashboard";
+import FolderIcon from "@mui/icons-material/Folder";
+import PersonIcon from "@mui/icons-material/Person";
+import UploadFileIcon from "@mui/icons-material/UploadFile";
+import ShoppingCartIcon from "@mui/icons-material/ShoppingCart";
+import DeleteIcon from "@mui/icons-material/Delete";
+import CompareArrowsIcon from "@mui/icons-material/CompareArrows";
 import { Link, useNavigate } from "react-router-dom";
+
 
 const MenuBar = ({ toggleDrawer }) => {
   const [openDropdown, setOpenDropdown] = useState({});
@@ -21,15 +34,20 @@ const MenuBar = ({ toggleDrawer }) => {
   const navigate = useNavigate();
   const [user, setUser] = useState(JSON.parse(sessionStorage.getItem("user")));
 
+
   useEffect(() => {
     if (user && user.role) {
       setRole(user.role);
     }
   }, [user]);
 
+
+
+
   const handleDropdownClick = (menu) => {
     setOpenDropdown((prev) => ({ ...prev, [menu]: !prev[menu] }));
   };
+
 
   const handleLogout = () => {
     sessionStorage.removeItem("user");
@@ -37,324 +55,623 @@ const MenuBar = ({ toggleDrawer }) => {
     navigate("/login");
   };
 
-  const styles = {
-    drawer: {
-      background: "linear-gradient(145deg, #ffffff, #f5f5f5)",
-      color: "#333",
-      width: "250px",
-      height: "100vh",
-      padding: "15px",
-    },
-    header: {
-      textAlign: "center",
-      fontWeight: "bold",
-      color: "#007aff",
-      margin: "15px 0",
-      fontSize: "1rem",
-      whiteSpace: "nowrap",
-    },
-    listItem: {
-      color: "#333",
-      padding: "12px 20px",
-      margin: "8px 0",
-      borderRadius: "10px",
-      transition: "background-color 0.3s, transform 0.2s",
-      "&:hover": {
-        backgroundColor: "#e0f7fa",
-        color: "#007aff",
-        transform: "scale(1.05)",
-      },
-    },
-    listItemText: {
-      whiteSpace: "nowrap",
-      fontSize: "1rem",
-      fontWeight: 500,
-    },
-    icon: {
-      marginLeft: "auto",
-      color: "#888",
-      transition: "color 0.3s",
-      "&:hover": {
-        color: "#007aff",
-      },
-    },
-    divider: {
-      backgroundColor: "#e0e0e0",
-      margin: "15px 0",
-    },
-  };
-
 
   return (
-    <Box sx={styles.drawer}>
-      <List>
-        <Typography variant="h6" sx={styles.header}>
-          {user ? `Welcome, ${user.fullName}` : "Welcome"}
-        </Typography>
-        <Divider sx={styles.divider} />
+    <Drawer
+      sx={{
+        "& .MuiDrawer-paper": {
+          width: 310,
+          mt: "64px",
+          height: "calc(100vh - 64px)",
+          boxSizing: "border-box",
+        },
+      }}
+      variant="permanent"
+      anchor="left"
+    >
+      <List sx={{ paddingBottom: "80px" }}>
+        <ListItem
+          sx={{
+            display: "flex",
+            alignItems: "center",  
+            padding: "16px 20px",
+            borderBottom: "1px solid #ddd",
+            justifyContent: "space-between",  
+          }}
+        >
+          <Box sx={{ display: "flex", alignItems: "center" }}>
+            <AssignmentIcon sx={{ width: 35, height: 35, marginRight: 1 }} />
+            {/* Icon on the left */}
+            <Box sx={{ display: "flex", flexDirection: "column" }}>
+              <Typography
+                variant="h6"
+                sx={{
+                  fontSize: "16px",
+                  fontWeight: "bold",
+                  letterSpacing: "1px",
+                }}
+              >
+                Muditam
+              </Typography>
+              <Typography
+                variant="body2"
+                sx={{
+                  fontSize: "12px",
+                  color: "gray",
+                  letterSpacing: "1px",
+                }}
+              >
+                Lead Management
+              </Typography>
+            </Box>
+          </Box>
+          {/* Add any additional icons/buttons here */}
+          <UnfoldMoreIcon />
+        </ListItem>
+
 
         <ListItem
           button
-          sx={styles.listItem}
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            padding: "10px 20px",
+            borderRadius: "4px",
+            margin: "4px 0",
+            transition: "background-color 0.3s, transform 0.2s",
+            "&:hover": {
+              backgroundColor: "#e0f7fa",
+              color: "#007aff",
+              transform: "scale(1.02)", // Very subtle scaling
+            },
+          }}
           component={Link}
           to="/"
           onClick={toggleDrawer}
         >
-          <DashboardIcon sx={{ marginRight: "10px" }} />
-          <ListItemText primary="Home" sx={styles.listItemText} />
+          <HomeIcon sx={{ marginRight: "12px" }} />
+          <Typography variant="body1" style={{ fontSize: "14px" }}>
+            Home
+          </Typography>
         </ListItem>
 
-        <ListItem button sx={styles.listItem} component={Link} to="/my-templates" onClick={toggleDrawer}>
-          <ListItemText primary="My Templates" sx={styles.listItemText} />
+
+        <ListItem
+          button
+          component={Link}
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            padding: "10px 20px",
+            borderRadius: "4px",
+            margin: "4px 0",
+            transition: "background-color 0.3s, transform 0.2s",
+            "&:hover": {
+              backgroundColor: "#e0f7fa",
+              color: "#007aff",
+              transform: "scale(1.02)", // Very subtle scaling
+            },
+          }}
+          to="/my-templates"
+          onClick={toggleDrawer}
+        >
+          <DescriptionIcon sx={{ marginRight: "12px" }} />
+          <Typography variant="body1" style={{ fontSize: "14px" }}>
+            My Templates
+          </Typography>
         </ListItem>
+
 
         {user ? (
           <>
-
             {role === "Manager" && (
               <>
                 <ListItem
                   button
-                  sx={styles.listItem}
                   component={Link}
                   to="/add-employee"
+                  sx={{
+                    display: "flex",
+                    alignItems: "center",
+                    padding: "10px 20px",
+                    borderRadius: "4px",
+                    margin: "4px 0",
+                    transition: "background-color 0.3s, transform 0.2s",
+                    "&:hover": {
+                      backgroundColor: "#e0f7fa",
+                      color: "#007aff",
+                    },
+                  }}
                   onClick={toggleDrawer}
                 >
-                  <PersonAddIcon sx={{ marginRight: "10px" }} />
-                  <ListItemText
-                    primary="Add Employee"
-                    sx={styles.listItemText}
-                  />
+                  <PersonAddIcon sx={{ fontSize: 18, marginRight: "8px" }} />
+                  <Typography variant="body1" sx={{ fontSize: "14px" }}>
+                    Add Employee
+                  </Typography>
                 </ListItem>
+
 
                 <ListItem
                   button
-                  sx={styles.listItem}
                   onClick={() => handleDropdownClick("masterData")}
+                  sx={{
+                    display: "flex",
+                    alignItems: "center",
+                    padding: "10px 20px",
+                    justifyContent: "space-between",
+                    borderRadius: "4px",
+                    margin: "4px 0",
+                    transition: "background-color 0.3s, transform 0.2s",
+                    "&:hover": {
+                      backgroundColor: "#e0f7fa",
+                      color: "#007aff",
+                      transform: "scale(1.02)", // Very subtle scaling
+                    },
+                  }}
                 >
-                  <ListItemText
-                    primary="Master Data"
-                    sx={styles.listItemText}
-                  />
+                  <Box sx={{ display: "flex", alignItems: "center" }}>
+                    <FolderIcon sx={{ fontSize: 18, marginRight: "8px" }} />
+                    <Typography variant="body1" sx={{ fontSize: "14px" }}>
+                      Master Data
+                    </Typography>
+                  </Box>
                   {openDropdown.masterData ? (
-                    <ExpandLess sx={styles.icon} />
+                    <KeyboardArrowDownIcon />
                   ) : (
-                    <ExpandMore sx={styles.icon} />
+                    <KeyboardArrowRightIcon />
                   )}
                 </ListItem>
-                <Collapse in={openDropdown.masterData} timeout="auto" unmountOnExit>
-                  <List disablePadding>
+                <Collapse
+                  in={openDropdown.masterData}
+                  timeout="auto"
+                  unmountOnExit
+                >
+                  <List
+                    sx={{
+                      borderLeft: "2px solid #007aff", // Vertical line for sublist
+                      marginLeft: "24px", // Indent sublist
+                      paddingLeft: "4px", // Space from vertical line
+                    }}
+                  >
                     <ListItem
                       button
-                      sx={styles.listItem}
                       component={Link}
                       to="/master/leads"
                       onClick={toggleDrawer}
                     >
-                      <ListItemText primary="All Leads" />
+                      <Typography
+                        variant="body2"
+                        sx={{ fontSize: "13px" }}
+                        onClick={toggleDrawer}
+                      >
+                        All Leads
+                      </Typography>
                     </ListItem>
                     <ListItem
                       button
-                      sx={styles.listItem}
                       component={Link}
                       to="/master/retention"
                       onClick={toggleDrawer}
                     >
-                      <ListItemText primary="Retention Leads" />
+                      <Typography
+                        variant="body2"
+                        sx={{ fontSize: "13px" }}
+                        onClick={toggleDrawer}
+                      >
+                        Retention Leads
+                      </Typography>
                     </ListItem>
                     <ListItem
                       button
-                      sx={styles.listItem}
                       component={Link}
                       to="/master/retention-orders"
                       onClick={toggleDrawer}
                     >
-                      <ListItemText primary="Retention Orders" />
+                      <Typography
+                        variant="body2"
+                        sx={{ fontSize: "13px" }}
+                        onClick={toggleDrawer}
+                      >
+                        Retention Orders
+                      </Typography>
                     </ListItem>
                     <ListItem
                       button
-                      sx={styles.listItem}
                       component={Link}
                       to="/master/new-orders"
                       onClick={toggleDrawer}
                     >
-                      <ListItemText primary="Acquisition Orders" />
+                      <Typography
+                        variant="body2"
+                        sx={{ fontSize: "13px" }}
+                        onClick={toggleDrawer}
+                      >
+                        Acquisition Orders
+                      </Typography>
                     </ListItem>
                   </List>
                 </Collapse>
 
-                {/* New Lost Data Dropdown */}
+
                 <ListItem
                   button
-                  sx={styles.listItem}
-                  onClick={() => handleDropdownClick("lostData")}
+                  component={Link}
+                  to="/bulk-data-upload"
+                  sx={{
+                    display: "flex",
+                    alignItems: "center",
+                    padding: "10px 20px",
+                    borderRadius: "4px",
+                    margin: "4px 0",
+                    transition: "background-color 0.3s, transform 0.2s",
+                    "&:hover": {
+                      backgroundColor: "#e0f7fa",
+                      color: "#007aff",
+                      transform: "scale(1.02)", // Very subtle scaling
+                    },
+                  }}
+                  onClick={toggleDrawer}
                 >
-                  <ListItemText primary="Lost Data" sx={styles.listItemText} />
+                  <UploadFileIcon sx={{ fontSize: 18, marginRight: "8px" }} />
+                  <Typography variant="body1" sx={{ fontSize: "14px" }}>
+                    Bulk Data Upload
+                  </Typography>
+                </ListItem>
+
+
+                <ListItem
+                  button
+                  component={Link}
+                  to="/all-shopify-orders"
+                  sx={{
+                    display: "flex",
+                    alignItems: "center",
+                    padding: "10px 20px",
+                    borderRadius: "4px",
+                    margin: "4px 0",
+                    transition: "background-color 0.3s, transform 0.2s",
+                    "&:hover": {
+                      backgroundColor: "#e0f7fa",
+                      color: "#007aff",
+                      transform: "scale(1.02)", // Very subtle scaling
+                    },
+                  }}
+                  onClick={toggleDrawer}
+                >
+                  <ShoppingCartIcon sx={{ fontSize: 18, marginRight: "8px" }} />
+                  <Typography variant="body1" sx={{ fontSize: "14px" }}>
+                    All Shopify Orders
+                  </Typography>
+                </ListItem>
+
+
+                <ListItem
+                  button
+                  onClick={() => handleDropdownClick("lostData")}
+                  sx={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    padding: "10px 20px",
+                    borderRadius: "4px",
+                    margin: "4px 0",
+                    transition: "background-color 0.3s, transform 0.2s",
+                    "&:hover": {
+                      backgroundColor: "#e0f7fa",
+                      color: "#007aff",
+                      transform: "scale(1.02)", // Very subtle scaling
+                    },
+                  }}
+                >
+                  <Box sx={{ display: "flex", alignItems: "center" }}>
+                    <DeleteIcon sx={{ fontSize: 18, marginRight: "8px" }} />
+                    <Typography variant="body1" sx={{ fontSize: "14px" }}>
+                      Lost Data
+                    </Typography>
+                  </Box>
                   {openDropdown.lostData ? (
-                    <ExpandLess sx={styles.icon} />
+                    <KeyboardArrowDownIcon />
                   ) : (
-                    <ExpandMore sx={styles.icon} />
+                    <KeyboardArrowRightIcon />
                   )}
                 </ListItem>
-                <Collapse in={openDropdown.lostData} timeout="auto" unmountOnExit>
-                  <List disablePadding>
+
+
+                <Collapse
+                  in={openDropdown.lostData}
+                  timeout="auto"
+                  unmountOnExit
+                >
+                  <List
+                    sx={{
+                      borderLeft: "2px solid #007aff", // Vertical line for sublist
+                      marginLeft: "24px", // Indent sublist
+                      paddingLeft: "4px", // Space from vertical line
+                    }}
+                  >
+                    {/* Sub-items under Lost Data */}
                     <ListItem
                       button
-                      sx={styles.listItem}
                       component={Link}
                       to="/lost/acquisition"
                       onClick={toggleDrawer}
                     >
-                      <ListItemText primary="Acquisition Lost" />
+                      <Typography variant="body2" sx={{ fontSize: "13px" }}>
+                        Acquisition Lost
+                      </Typography>
                     </ListItem>
                     <ListItem
                       button
-                      sx={styles.listItem}
                       component={Link}
                       to="/lost/retention"
                       onClick={toggleDrawer}
                     >
-                      <ListItemText primary="Retention Lost" />
+                      <Typography variant="body2" sx={{ fontSize: "13px" }}>
+                        Retention Lost
+                      </Typography>
                     </ListItem>
                   </List>
                 </Collapse>
 
+
                 <ListItem
                   button
-                  sx={styles.listItem}
-                  component={Link}
-                  to="/bulk-data-upload"
-                  onClick={toggleDrawer}
-                >
-                  <ListItemText primary="Bulk Data Upload" sx={styles.listItemText} />
-                </ListItem>
-                <ListItem
-                  button
-                  sx={styles.listItem}
-                  component={Link}
-                  to="/all-shopify-orders"
-                  onClick={toggleDrawer}
-                >
-                  <ListItemText primary="All Shopify Orders" />
-                </ListItem>
-                <ListItem
-                  button
-                  sx={styles.listItem}
                   component={Link}
                   to="/online-orders"
+                  sx={{
+                    display: "flex",
+                    alignItems: "center", // Align items to center
+                    padding: "10px 20px", // Consistent padding
+                    borderRadius: "4px",
+                    margin: "4px 0", // Consistent margin
+                    transition: "background-color 0.3s, transform 0.2s",
+                    "&:hover": {
+                      backgroundColor: "#e0f7fa", // Hover background color
+                      color: "#007aff", // Hover text color
+                      transform: "scale(1.02)", // Very subtle scaling
+                    },
+                  }}
                   onClick={toggleDrawer}
                 >
-                  <ListItemText primary="Online Orders" />
+                  <ShoppingCartIcon sx={{ fontSize: 18, marginRight: "8px" }} />
+                  <Typography variant="body1" sx={{ fontSize: "14px" }}>
+                    Online Orders
+                  </Typography>
                 </ListItem>
-                {/* New Menu Item for Transfer Requests */}
+
+
                 <ListItem
                   button
-                  sx={styles.listItem}
                   component={Link}
                   to="/transfer-requests"
+                  sx={{
+                    display: "flex",
+                    alignItems: "center", // Align items to center
+                    padding: "10px 20px", // Consistent padding
+                    borderRadius: "4px",
+                    margin: "4px 0", // Consistent margin
+                    transition: "background-color 0.3s, transform 0.2s",
+                    "&:hover": {
+                      backgroundColor: "#e0f7fa", // Hover background color
+                      color: "#007aff", // Hover text color
+                      transform: "scale(1.02)", // Very subtle scaling
+                    },
+                  }}
                   onClick={toggleDrawer}
                 >
-                  <ListItemText
-                    primary="Transfer Requests"
-                    sx={styles.listItemText}
+                  <CompareArrowsIcon
+                    sx={{ fontSize: 18, marginRight: "8px" }}
                   />
+                  <Typography variant="body1" sx={{ fontSize: "14px" }}>
+                    Transfer Requests
+                  </Typography>
                 </ListItem>
               </>
             )}
+
 
             {role === "Sales Agent" && (
               <>
                 <ListItem
                   button
-                  sx={styles.listItem}
                   onClick={() => handleDropdownClick("salesAgent")}
-                  component={Link}
+                  sx={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    padding: "10px 20px",
+                    borderRadius: "4px",
+                    margin: "4px 0",
+                    transition: "background-color 0.3s, transform 0.2s",
+                    "&:hover": {
+                      backgroundColor: "#e0f7fa",
+                      color: "#007aff",
+                      transform: "scale(1.02)", // Very subtle scaling
+                    },
+                  }}
                 >
-                  <ListItemText primary="Sales Agent" sx={styles.listItemText} />
-                  {openDropdown.salesAgent ? (
-                    <ExpandLess sx={styles.icon} />
-                  ) : (
-                    <ExpandMore sx={styles.icon} />
-                  )}
+                  <Box sx={{ display: "flex", alignItems: "center" }}>
+                    <PersonIcon sx={{ fontSize: 18, marginRight: "10px" }} />
+                    <Typography variant="body1" sx={{ fontSize: "14px" }}>
+                      Sales Agent
+                    </Typography>
+                  </Box>
+                  {openDropdown.salesAgent ? <ExpandLess /> : <ExpandMore />}
                 </ListItem>
-                <Collapse in={openDropdown.salesAgent} timeout="auto" unmountOnExit>
-                  <List disablePadding>
+
+
+                <Collapse
+                  in={openDropdown.salesAgent}
+                  timeout="auto"
+                  unmountOnExit
+                >
+                  <List
+                    sx={{
+                      borderLeft: "2px solid #007aff", // Vertical line for sublist
+                      marginLeft: "24px", // Indent sublist
+                      paddingLeft: "4px", // Space from vertical line
+                    }}
+                  >
+                    {/* My Leads */}
                     <ListItem
                       button
-                      sx={styles.listItem}
                       component={Link}
                       to="/sales/my-leads"
                       onClick={toggleDrawer}
                     >
-                      <ListItemText primary="My Leads" />
+                      <Typography variant="body2" sx={{ fontSize: "13px" }}>
+                        My Leads
+                      </Typography>
                     </ListItem>
+
+
+                    {/* My Sales */}
                     <ListItem
                       button
-                      sx={styles.listItem}
                       component={Link}
                       to="/sales/my-sales"
                       onClick={toggleDrawer}
                     >
-                      <ListItemText primary="My Sales" />
+                      <Typography variant="body2" sx={{ fontSize: "13px" }}>
+                        My Sales
+                      </Typography>
                     </ListItem>
                   </List>
                 </Collapse>
               </>
             )}
+
 
             {role === "Retention Agent" && (
               <>
                 <ListItem
                   button
-                  sx={styles.listItem}
                   onClick={() => handleDropdownClick("retentionAgent")}
-                  component={Link}
+                  sx={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    padding: "10px 20px",
+                    borderRadius: "4px",
+                    margin: "4px 0",
+                    transition: "background-color 0.3s, transform 0.2s",
+                    "&:hover": {
+                      backgroundColor: "#e0f7fa",
+                      color: "#007aff",
+                      transform: "scale(1.02)", // Very subtle scaling
+                    },
+                  }}
                 >
-                  <ListItemText primary="Retention Agent" sx={styles.listItemText} />
-                  {openDropdown.retentionAgent ? <ExpandLess /> : <ExpandMore />}
+                  <Box sx={{ display: "flex", alignItems: "center" }}>
+                    <PersonIcon sx={{ fontSize: 18, marginRight: "10px" }} />
+                    <Typography variant="body1" sx={{ fontSize: "14px" }}>
+                      Retention Agent
+                    </Typography>
+                  </Box>
+                  <Box
+                    sx={{
+                      width: "24px",
+                      display: "flex",
+                      justifyContent: "center",
+                    }}
+                  >
+                    {openDropdown.retentionAgent ? (
+                      <ExpandLess />
+                    ) : (
+                      <ExpandMore />
+                    )}
+                  </Box>
                 </ListItem>
-                <Collapse in={openDropdown.retentionAgent} timeout="auto" unmountOnExit>
-                  <List disablePadding>
+
+
+                <Collapse
+                  in={openDropdown.retentionAgent}
+                  timeout="auto"
+                  unmountOnExit
+                >
+                  <List
+                    sx={{
+                      borderLeft: "2px solid #007aff", // Vertical line for sublist
+                      marginLeft: "24px", // Indent sublist
+                      paddingLeft: "4px", // Space from vertical line
+                    }}
+                  >
+                    {/* Retention Leads */}
                     <ListItem
                       button
-                      sx={styles.listItem}
                       component={Link}
                       to="/retention/leads"
                       onClick={toggleDrawer}
                     >
-                      <ListItemText primary="Retention Leads" />
+                      <Typography variant="body2" sx={{ fontSize: "13px" }}>
+                        Retention Leads
+                      </Typography>
                     </ListItem>
+
+
+                    {/* Retention Sales */}
                     <ListItem
                       button
-                      sx={styles.listItem}
                       component={Link}
                       to="/retention/sales"
                       onClick={toggleDrawer}
                     >
-                      <ListItemText primary="Retention Sales" />
+                      <Typography variant="body2" sx={{ fontSize: "13px" }}>
+                        Retention Sales
+                      </Typography>
                     </ListItem>
                   </List>
                 </Collapse>
               </>
             )}
-
-            <Divider sx={styles.divider} />
-
-            <ListItem
-              button
-              sx={styles.listItem}
-              onClick={handleLogout}
-              style={{ cursor: "pointer" }}
+            <Box
+              sx={{
+                display: "flex",
+                alignItems: "center",
+                padding: "16px",
+                justifyContent: "space-between",
+                borderTop: "1px solid #ddd",
+                position: "fixed",
+                backgroundColor: "#fff",
+                bottom: 0,
+                width: "300px",
+              }}
             >
-              <LogoutIcon sx={{ marginRight: "10px" }} />
-              <ListItemText primary="Logout" sx={styles.listItemText} />
-            </ListItem>
+              {/* User Avatar & Details */}
+              <Box sx={{ display: "flex", alignItems: "center" }}>
+                <Avatar
+                  sx={{ width: 30, height: 30, marginRight: 1 }}
+                  alt={user.fullName}
+                  src={user.avatarUrl}
+                />
+                <Box sx={{ display: "flex", flexDirection: "column" }}>
+                  <Typography
+                    variant="body1"
+                    sx={{ fontSize: "14px", fontWeight: "bold" }}
+                  >
+                    {user.fullName}
+                  </Typography>
+                  <Typography
+                    variant="body2"
+                    sx={{ fontSize: "12px", color: "gray" }}
+                  >
+                    {user.email}
+                  </Typography>
+                </Box>
+              </Box>
+
+
+              {/* Logout Icon */}
+              <IconButton onClick={handleLogout} sx={{ color: "gray" }}>
+                <LogoutIcon />
+              </IconButton>
+            </Box>
           </>
         ) : null}
       </List>
-    </Box>
+    </Drawer>
   );
 };
 
-export default MenuBar;
 
+export default MenuBar;

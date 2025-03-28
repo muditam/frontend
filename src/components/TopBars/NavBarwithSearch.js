@@ -13,7 +13,6 @@ import {
   IconButton,
   Collapse,
   InputAdornment,
-  Button,
 } from "@mui/material";
 import MenuIcon from "@mui/icons-material/Menu";
 import ShoppingCartIcon from "@mui/icons-material/ShoppingCart";
@@ -27,45 +26,42 @@ import CartDrawer from "../../ShopifyOrders/CartDrawer";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import ExpandLessIcon from "@mui/icons-material/ExpandLess";
 
+
 const NavbarWithSearch = () => {
-  // --- Existing "LMS Search" states & handlers ---
   const [query, setQuery] = useState("");
   const [results, setResults] = useState([]);
   const [showResults, setShowResults] = useState(false);
-
-  // --- NEW: Shopify Customer/Order Search states & handlers ---
   const [shopifyQuery, setShopifyQuery] = useState("");
-  // This will hold the customer details and orders data from the backend.
   const [customerData, setCustomerData] = useState(null);
-  // Control the visibility of the customer result dropdown.
   const [showCustomerDetails, setShowCustomerDetails] = useState(false);
-  // Control the orders dropdown expansion.
   const [showOrders, setShowOrders] = useState(false);
-  // If there are more than 4 orders, toggle display of remaining orders.
   const [showAllOrders, setShowAllOrders] = useState(false);
-
   const [cartDrawerOpen, setCartDrawerOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+
 
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Retrieve user from sessionStorage
+
   const user = JSON.parse(sessionStorage.getItem("user"));
+
 
   if (location.pathname === "/login") {
     return null;
   }
- 
+
   const handleSearch = async (e) => {
     const value = e.target.value;
     setQuery(value);
+
 
     if (value.trim() === "") {
       setResults([]);
       setShowResults(false);
       return;
     }
+
 
     try {
       const response = await axios.get(
@@ -79,13 +75,16 @@ const NavbarWithSearch = () => {
     }
   };
 
+
   const handleClickAway = () => {
     setShowResults(false);
   };
 
+
   const handleShopifyInputChange = (e) => {
     setShopifyQuery(e.target.value);
   };
+
 
   const executeShopifySearch = async () => {
     if (!shopifyQuery.trim()) {
@@ -93,6 +92,7 @@ const NavbarWithSearch = () => {
       setShowCustomerDetails(false);
       return;
     }
+
 
     try {
       // Call the new endpoint to get customer details
@@ -112,38 +112,61 @@ const NavbarWithSearch = () => {
     }
   };
 
+
   const handleShopifyClickAway = () => {
     setShowCustomerDetails(false);
   };
+
 
   const toggleOrders = () => {
     setShowOrders((prev) => !prev);
   };
 
+
   const toggleShowAllOrders = () => {
     setShowAllOrders((prev) => !prev);
   };
+
 
   const toggleMenu = (open) => () => {
     setMenuOpen(open);
   };
 
+
   const toggleCartDrawer = (open) => () => setCartDrawerOpen(open);
+
 
   // Styling for small font and neat spacing
   const smallFont = { fontSize: "0.8rem" };
 
+
   return (
     <>
-      <AppBar position="static" sx={{ backgroundColor: "#202223" }}>
-        <Toolbar>
+      <AppBar
+        position="static"
+        sx={{
+          backgroundColor: "#000000", // Dark Blue
+        }}
+      >
+        <Toolbar sx={{ display: "flex", justifyContent: "space-between" }}>
           {/* Left side: Menu Icon and Title */}
-          <IconButton edge="start" color="inherit" onClick={toggleMenu(true)}>
-            <MenuIcon />
-          </IconButton>
-          <Typography variant="h6" sx={{ ml: 2 }}>
-            Muditam
-          </Typography>
+          <Box sx={{ display: "flex", alignItems: "center" }}>
+            <IconButton
+              edge="start"
+              color="inherit"
+              onClick={toggleMenu(true)}
+              sx={{ mr: 2 }}
+            >
+              <MenuIcon sx={{ fontSize: "2.3rem" }} />
+            </IconButton>
+            <Box
+              component="img"
+              src="https://cdn.shopify.com/s/files/1/0734/7155/7942/files/new_logo_orange_leaf_1_4e0e0f89-08a5-4264-9d2b-0cfe9535d553.png?v=1727508866"
+              alt="Muditam Logo"
+              sx={{ height: 40, ml: 1 }}
+            />
+          </Box>
+
 
           {/* Center: Shopify Customer Search Bar */}
           <Box sx={{ flex: 1, display: "flex", justifyContent: "center" }}>
@@ -159,16 +182,22 @@ const NavbarWithSearch = () => {
                     sx={{
                       backgroundColor: "#fff",
                       borderRadius: 2,
+                      "& .MuiInputBase-input": {
+                        padding: "8px 12px",
+                        ...smallFont,
+                      },
                     }}
                     InputProps={{
                       endAdornment: (
                         <InputAdornment position="end">
-                          <IconButton onClick={executeShopifySearch}>
-                            <SearchIcon />
+                          <IconButton
+                            onClick={executeShopifySearch}
+                            sx={{ color: "#1976d2" }}
+                          >
+                            <SearchIcon sx={{ color: "gray" }} />
                           </IconButton>
                         </InputAdornment>
                       ),
-                      style: smallFont,
                     }}
                   />
                   {showCustomerDetails && (
@@ -199,11 +228,20 @@ const NavbarWithSearch = () => {
                               secondary={
                                 <>
                                   <span>
-                                    Total Orders: {customerData.totalOrders} | Total Spent: ₹{customerData.totalSpent}
+                                    Total Orders: {customerData.totalOrders} |
+                                    Total Spent: ₹{customerData.totalSpent}
                                   </span>
                                   <br />
                                   <span>
-                                    Last Order: {customerData.lastOrderDate ? new Date(customerData.lastOrderDate).toLocaleString() : "N/A"} | Payment Status: {customerData.lastOrderPaymentStatus || "N/A"}
+                                    Last Order:{" "}
+                                    {customerData.lastOrderDate
+                                      ? new Date(
+                                        customerData.lastOrderDate
+                                      ).toLocaleString()
+                                      : "N/A"}{" "}
+                                    | Payment Status:{" "}
+                                    {customerData.lastOrderPaymentStatus ||
+                                      "N/A"}
                                   </span>
                                 </>
                               }
@@ -216,66 +254,110 @@ const NavbarWithSearch = () => {
                               <ExpandMoreIcon fontSize="small" />
                             )}
                           </ListItem>
-                          <Collapse in={showOrders} timeout="auto" unmountOnExit>
+                          <Collapse
+                            in={showOrders}
+                            timeout="auto"
+                            unmountOnExit
+                          >
                             <List component="div" disablePadding>
-                              {customerData.orders && customerData.orders.length > 0 ? (
+                              {customerData.orders &&
+                                customerData.orders.length > 0 ? (
                                 <>
-                                  {customerData.orders.slice(0, 4).map((order) => (
-                                    <ListItem key={order.id} sx={{ pl: 3, py: 0.5, ...smallFont }}>
-                                      <ListItemText
-                                        primary={`Order ${order.id}`}
-                                        secondary={
-                                          <>
-                                            <span>
-                                              {new Date(order.created_at).toLocaleString()} | Items: {order.itemCount} | {order.deliveryStatus}
-                                            </span>
-                                            <br />
-                                            {order.lineItems.map((item, idx) => (
-                                              <span key={idx}>
-                                                {item.title} - {item.variant} (₹{item.amountPaid}){" "}
-                                              </span>
-                                            ))}
-                                          </>
-                                        }
-                                        primaryTypographyProps={{ style: smallFont }}
-                                        secondaryTypographyProps={{ style: smallFont }}
-                                      />
-                                    </ListItem>
-                                  ))}
-                                  {customerData.orders.length > 4 && (
-                                    <ListItem button onClick={toggleShowAllOrders} sx={{ pl: 3, ...smallFont }}>
-                                      <ListItemText
-                                        primary={
-                                          showAllOrders
-                                            ? "Show less orders"
-                                            : `${customerData.orders.length - 4} more orders`
-                                        }
-                                      />
-                                    </ListItem>
-                                  )}
-                                  {showAllOrders &&
-                                    customerData.orders.slice(4).map((order) => (
-                                      <ListItem key={order.id} sx={{ pl: 3, py: 0.5, ...smallFont }}>
+                                  {customerData.orders
+                                    .slice(0, 4)
+                                    .map((order) => (
+                                      <ListItem
+                                        key={order.id}
+                                        sx={{ pl: 3, py: 0.5, ...smallFont }}
+                                      >
                                         <ListItemText
                                           primary={`Order ${order.id}`}
                                           secondary={
                                             <>
                                               <span>
-                                                {new Date(order.created_at).toLocaleString()} | Items: {order.itemCount} | {order.deliveryStatus}
+                                                {new Date(
+                                                  order.created_at
+                                                ).toLocaleString()}{" "}
+                                                | Items: {order.itemCount} |{" "}
+                                                {order.deliveryStatus}
                                               </span>
                                               <br />
-                                              {order.lineItems.map((item, idx) => (
-                                                <span key={idx}>
-                                                  {item.title} - {item.variant} ({item.amountPaid}){" "}
-                                                </span>
-                                              ))}
+                                              {order.lineItems.map(
+                                                (item, idx) => (
+                                                  <span key={idx}>
+                                                    {item.title} -{" "}
+                                                    {item.variant} (₹
+                                                    {item.amountPaid}){" "}
+                                                  </span>
+                                                )
+                                              )}
                                             </>
                                           }
-                                          primaryTypographyProps={{ style: smallFont }}
-                                          secondaryTypographyProps={{ style: smallFont }}
+                                          primaryTypographyProps={{
+                                            style: smallFont,
+                                          }}
+                                          secondaryTypographyProps={{
+                                            style: smallFont,
+                                          }}
                                         />
                                       </ListItem>
                                     ))}
+                                  {customerData.orders.length > 4 && (
+                                    <ListItem
+                                      button
+                                      onClick={toggleShowAllOrders}
+                                      sx={{ pl: 3, ...smallFont }}
+                                    >
+                                      <ListItemText
+                                        primary={
+                                          showAllOrders
+                                            ? "Show less orders"
+                                            : `${customerData.orders.length - 4
+                                            } more orders`
+                                        }
+                                      />
+                                    </ListItem>
+                                  )}
+                                  {showAllOrders &&
+                                    customerData.orders
+                                      .slice(4)
+                                      .map((order) => (
+                                        <ListItem
+                                          key={order.id}
+                                          sx={{ pl: 3, py: 0.5, ...smallFont }}
+                                        >
+                                          <ListItemText
+                                            primary={`Order ${order.id}`}
+                                            secondary={
+                                              <>
+                                                <span>
+                                                  {new Date(
+                                                    order.created_at
+                                                  ).toLocaleString()}{" "}
+                                                  | Items: {order.itemCount} |{" "}
+                                                  {order.deliveryStatus}
+                                                </span>
+                                                <br />
+                                                {order.lineItems.map(
+                                                  (item, idx) => (
+                                                    <span key={idx}>
+                                                      {item.title} -{" "}
+                                                      {item.variant} (
+                                                      {item.amountPaid}){" "}
+                                                    </span>
+                                                  )
+                                                )}
+                                              </>
+                                            }
+                                            primaryTypographyProps={{
+                                              style: smallFont,
+                                            }}
+                                            secondaryTypographyProps={{
+                                              style: smallFont,
+                                            }}
+                                          />
+                                        </ListItem>
+                                      ))}
                                 </>
                               ) : (
                                 <ListItem sx={{ pl: 3, py: 1, ...smallFont }}>
@@ -287,7 +369,10 @@ const NavbarWithSearch = () => {
                         </React.Fragment>
                       ) : (
                         <ListItem>
-                          <ListItemText primary="Customer does not exist." sx={smallFont} />
+                          <ListItemText
+                            primary="Customer does not exist."
+                            sx={smallFont}
+                          />
                         </ListItem>
                       )}
                     </List>
@@ -297,16 +382,24 @@ const NavbarWithSearch = () => {
             </Box>
           </Box>
 
+
           {/* Right side: Icons and LMS Search */}
           <Box sx={{ display: "flex", alignItems: "center" }}>
             {user && (
-              <IconButton onClick={() => navigate("/my-templates")} sx={{ mr: 1 }}>
+              <IconButton
+                onClick={() => navigate("/my-templates")}
+                sx={{ mr: 1, "&:hover": { backgroundColor: "#e0e0e0" } }}
+              >
                 <StickyNote2Icon sx={{ color: "white" }} />
               </IconButton>
             )}
             <Notifications />
             {user && location.pathname !== "/login" && (
-              <IconButton color="inherit" onClick={toggleCartDrawer(true)}>
+              <IconButton
+                color="inherit"
+                onClick={toggleCartDrawer(true)}
+                sx={{ "&:hover": { backgroundColor: "#e0e0e0" } }}
+              >
                 <ShoppingCartIcon />
               </IconButton>
             )}
@@ -322,7 +415,10 @@ const NavbarWithSearch = () => {
                     sx={{
                       backgroundColor: "#fff",
                       borderRadius: 2,
-                      "& .MuiInputBase-input": { textAlign: "left", ...smallFont },
+                      "& .MuiInputBase-input": {
+                        textAlign: "left",
+                        ...smallFont,
+                      },
                     }}
                   />
                   {showResults && results.length > 0 && (
@@ -352,7 +448,9 @@ const NavbarWithSearch = () => {
                           sx={smallFont}
                         >
                           <ListItemText
-                            primary={`${item.name || "No Name"} (${item.contactNumber}) (${item.agentAssigned}) [${item.healthExpertAssigned}]`}
+                            primary={`${item.name || "No Name"} (${item.contactNumber
+                              }) (${item.agentAssigned}) [${item.healthExpertAssigned
+                              }]`}
                             primaryTypographyProps={{ style: smallFont }}
                           />
                         </ListItem>
@@ -366,17 +464,38 @@ const NavbarWithSearch = () => {
         </Toolbar>
       </AppBar>
 
+
       {/* Sidebar Drawer */}
-      <Drawer anchor="left" open={menuOpen} onClose={toggleMenu(false)}>
+      <Drawer
+        anchor="left"
+        position="absolute"
+        open={menuOpen}
+        onClose={toggleMenu(false)}
+        PaperProps={{
+          sx: {
+            mt: "64px",
+          },
+        }}
+      >
         <MenuBar toggleDrawer={toggleMenu(false)} />
       </Drawer>
 
+
       {/* Cart Drawer */}
-      <Drawer anchor="right" open={cartDrawerOpen} onClose={toggleCartDrawer(false)}>
+      <Drawer
+        anchor="right"
+        open={cartDrawerOpen}
+        onClose={toggleCartDrawer(false)}
+      >
         <CartDrawer closeDrawer={toggleCartDrawer(false)} />
       </Drawer>
     </>
   );
+
+
+
 };
 
+
 export default NavbarWithSearch;
+

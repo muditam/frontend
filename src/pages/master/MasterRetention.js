@@ -28,8 +28,10 @@ const RetentionTable = () => {
   const [totalLeads, setTotalLeads] = useState(0);
   const [filterOpen, setFilterOpen] = useState(false);
   const [retentionAgents, setRetentionAgents] = useState([]);
-  const [currentPage, setCurrentPage] = useState(0); 
+  const [currentPage, setCurrentPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(50);
+  
+  // filters for editing and activeFilters for applied filter values
   const [filters, setFilters] = useState({
     name: "",
     contactNumber: "",
@@ -49,6 +51,7 @@ const RetentionTable = () => {
     repeatDosageOrdered: "",
     retentionStatus: "",
   });
+  const [activeFilters, setActiveFilters] = useState({});
 
   const [dropdownOptions] = useState({
     dosageOrdered: ["10-Days", "20-Days", "30-Days", "60-Days", "90-Days"],
@@ -73,13 +76,13 @@ const RetentionTable = () => {
     productOptions: ["KJF", "SDP", "VKR", "L-Fx", "S&S", "CPV", "HDP", "PF", "PGut", "Shilajit", "Kit", "Blood Test"],
   });
 
-  // Fetch retention leads with pagination (server-side)
+  // Fetch retention leads with pagination and filters applied
   const fetchRetentionLeads = async () => {
     try {
       const response = await axios.get(
         "https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/retention",
         {
-          params: { page: currentPage + 1, limit: rowsPerPage },
+          params: { page: currentPage + 1, limit: rowsPerPage, ...activeFilters },
         }
       );
       setRetentionLeads(response.data.leads);
@@ -91,41 +94,34 @@ const RetentionTable = () => {
 
   const fetchRetentionAgents = async () => {
     try {
-      const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/employees", {
-        params: { role: "Retention Agent" },
-      });
+      const response = await axios.get(
+        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/employees",
+        { params: { role: "Retention Agent" } }
+      );
       setRetentionAgents(response.data.map((agent) => agent.fullName));
     } catch (error) {
       console.error("Error fetching retention agents:", error);
     }
   };
 
-  // Fetch data when the component mounts and whenever the current page or rows per page changes
   useEffect(() => {
     fetchRetentionLeads();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentPage, rowsPerPage]);
+  }, [currentPage, rowsPerPage, activeFilters]);
 
   useEffect(() => {
     fetchRetentionAgents();
   }, []);
 
-  const applyFilters = () => {
-    // (Filter logic remains the same – you might need to integrate these filters on the server too)
-    const filteredLeads = retentionLeads.filter((lead) => {
-      return Object.keys(filters).every((key) => {
-        if (!filters[key]) return true;
-        if (Array.isArray(filters[key])) {
-          return filters[key].every((item) => lead[key]?.includes(item));
-        }
-        return String(lead[key] || "").toLowerCase().includes(filters[key].toLowerCase());
-      });
-    });
-    setRetentionLeads(filteredLeads);
+  const handleApplyFilters = () => {
+    // When applying filters, reset to the first page and update active filters
+    setActiveFilters(filters);
+    setCurrentPage(0);
+    setFilterOpen(false);
   };
 
   const resetFilters = () => {
-    setFilters({
+    const reset = {
       name: "",
       contactNumber: "",
       agentAssigned: "",
@@ -143,7 +139,10 @@ const RetentionTable = () => {
       lastOrderDate: "",
       repeatDosageOrdered: "",
       retentionStatus: "",
-    });
+    };
+    setFilters(reset);
+    setActiveFilters({});
+    setCurrentPage(0);
     fetchRetentionLeads();
   };
 
@@ -198,7 +197,7 @@ const RetentionTable = () => {
         onClick={() => setFilterOpen(true)}
         sx={{ mb: 2, backgroundColor: "#0073e6", ...styles.button }}
       >
-        Filter 
+        Filter
       </Button>
 
       <Drawer
@@ -220,7 +219,9 @@ const RetentionTable = () => {
                     <InputLabel>Health Expert Assigned</InputLabel>
                     <Select
                       value={filters[key] || ""}
-                      onChange={(e) => setFilters((prev) => ({ ...prev, [key]: e.target.value }))}
+                      onChange={(e) =>
+                        setFilters((prev) => ({ ...prev, [key]: e.target.value }))
+                      }
                     >
                       {retentionAgents.map((agent) => (
                         <MenuItem key={agent} value={agent}>
@@ -231,16 +232,22 @@ const RetentionTable = () => {
                   </>
                 ) : Array.isArray(dropdownOptions[key]) ? (
                   <>
-                    <InputLabel>{key.replace(/([A-Z])/g, " $1")}</InputLabel>
+                    <InputLabel>
+                      {key.replace(/([A-Z])/g, " $1")}
+                    </InputLabel>
                     <Select
                       multiple
                       value={Array.isArray(filters[key]) ? filters[key] : []}
-                      onChange={(e) => setFilters((prev) => ({ ...prev, [key]: e.target.value }))}
+                      onChange={(e) =>
+                        setFilters((prev) => ({ ...prev, [key]: e.target.value }))
+                      }
                       renderValue={(selected) => selected.join(", ")}
                     >
                       {dropdownOptions[key].map((option) => (
                         <MenuItem key={option} value={option}>
-                          <Checkbox checked={filters[key]?.includes(option)} />
+                          <Checkbox
+                            checked={filters[key]?.includes(option) || false}
+                          />
                           <ListItemText primary={option} />
                         </MenuItem>
                       ))}
@@ -250,7 +257,9 @@ const RetentionTable = () => {
                   <TextField
                     label={key.replace(/([A-Z])/g, " $1")}
                     value={filters[key]}
-                    onChange={(e) => setFilters((prev) => ({ ...prev, [key]: e.target.value }))}
+                    onChange={(e) =>
+                      setFilters((prev) => ({ ...prev, [key]: e.target.value }))
+                    }
                   />
                 )}
               </FormControl>
@@ -260,10 +269,7 @@ const RetentionTable = () => {
           <Button
             variant="contained"
             fullWidth
-            onClick={() => {
-              applyFilters();
-              setFilterOpen(false);
-            }}
+            onClick={handleApplyFilters}
             sx={{ marginBottom: 1, backgroundColor: "#0073e6", ...styles.button }}
           >
             Apply Filters
