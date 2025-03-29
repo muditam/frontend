@@ -152,7 +152,7 @@ const AgentDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [leadSourceData, setLeadSourceData] = useState([]);
   const [deliverySummary, setDeliverySummary] = useState([]);
-  const [selectedSummary, setSelectedSummary] = useState("Today & Followup Summary");
+  const [selectedSummary, setSelectedSummary] = useState("Sales & Followup Summary");
   const [selectedRange, setSelectedRange] = useState("Today");
   // For custom range when selected
   const [customStart, setCustomStart] = useState("");
@@ -342,7 +342,7 @@ const AgentDashboard = () => {
     }
     if (!user?.fullName) return;
 
-    if (newSummary === "Today & Followup Summary") {
+    if (newSummary === "Sales & Followup Summary") {
       await fetchTodaySummaryData(user.fullName, dates.startDate, dates.endDate);
       await fetchFollowupStatsData(user.fullName, dates.startDate, dates.endDate);
     } else if (newSummary === "Lead-Source & Delivery Summary") {
@@ -360,7 +360,7 @@ const AgentDashboard = () => {
     if (newRange !== "Custom range") {
       const { startDate, endDate } = getDateRange(newRange);
       if (!user?.fullName) return;
-      if (selectedSummary === "Today & Followup Summary") {
+      if (selectedSummary === "Sales & Followup Summary") {
         await fetchTodaySummaryData(user.fullName, startDate, endDate);
         await fetchFollowupStatsData(user.fullName, startDate, endDate);
       } else if (selectedSummary === "Lead-Source & Delivery Summary") {
@@ -373,7 +373,7 @@ const AgentDashboard = () => {
   // Called when user clicks Apply for custom range
   const applyCustomRange = async () => {
     if (!customStart || !customEnd || !user?.fullName) return;
-    if (selectedSummary === "Today & Followup Summary") {
+    if (selectedSummary === "Sales & Followup Summary") {
       await fetchTodaySummaryData(user.fullName, customStart, customEnd);
       await fetchFollowupStatsData(user.fullName, customStart, customEnd);
     } else if (selectedSummary === "Lead-Source & Delivery Summary") {
@@ -520,7 +520,7 @@ const AgentDashboard = () => {
         variant="h4"
         gutterBottom
         fontWeight={600}
-        color="primary.main"
+        color="#000000"
         textAlign="center"
       >
         {user?.fullName
@@ -555,8 +555,8 @@ const AgentDashboard = () => {
               "&:hover .MuiOutlinedInput-notchedOutline": { borderColor: "#888" },
             }}
           >
-            <MenuItem value="Today & Followup Summary">
-              <Typography variant="body2">Today & Followup Summary</Typography>
+            <MenuItem value="Sales & Followup Summary">
+              <Typography variant="body2">Sales & Followup Summary</Typography>
             </MenuItem>
             <MenuItem value="Lead-Source & Delivery Summary">
               <Typography variant="body2">
@@ -632,7 +632,7 @@ const AgentDashboard = () => {
             variant="contained"
             onClick={applyCustomRange}
             sx={{
-              bgcolor: "primary.main",
+              bgcolor: "#000000",
               color: "white",
               "&:hover": { bgcolor: "primary.dark" },
             }}
@@ -642,7 +642,7 @@ const AgentDashboard = () => {
         </Box>
       )}
 
-      {selectedSummary === "Today & Followup Summary" && (
+      {selectedSummary === "Sales & Followup Summary" && (
         <>
           {/* Today Summary */}
           <Box
@@ -663,10 +663,10 @@ const AgentDashboard = () => {
               variant="h5"
               fontWeight={600}
               gutterBottom
-              color="primary.main"
+              color="#000000"
               textAlign="center"
             >
-              Today Summary
+              Sales Summary
             </Typography>
             <Grid container spacing={2} sx={{ width: "100%" }}>
               {stats1.map(({ label, icon, value }) => (
@@ -723,7 +723,7 @@ const AgentDashboard = () => {
               variant="h5"
               fontWeight={600}
               gutterBottom
-              color="primary.main"
+              color="#000000"
               textAlign="center"
             >
               Followup Summary

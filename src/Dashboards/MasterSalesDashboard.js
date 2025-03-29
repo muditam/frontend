@@ -181,12 +181,13 @@ const ManagerSalesDashboard = () => {
       const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/employees", {
         params: { role: "Sales Agent" },
       });
-      const agentList = response.data.map((agent) => agent.fullName);
-      setAgents(["All Agents", ...agentList]);
+      // Filter only active employees:
+      const activeAgents = response.data.filter((agent) => agent.status === "active").map((agent) => agent.fullName);
+      setAgents(["All Agents", ...activeAgents]);
     } catch (error) {
       console.error("Error fetching agents:", error);
     }
-  }, []);
+  }, []);  
 
   // ---------------------------
   // 1) Sales Summary
@@ -232,18 +233,17 @@ const ManagerSalesDashboard = () => {
       setLoading(false);
     }
   }, []);
+ 
 
-  // ---------------------------
-  // 3) Lead Source Summary
-  // ---------------------------
   const fetchLeadSourceData = useCallback(async (startDate, endDate) => {
     setLoading(true);
     try {
-      // If you want to filter by agent on the server, pass it too:
-      // e.g. { params: { startDate, endDate, agent: selectedAgent } }
-      const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/lead-source-summary", {
-        params: { startDate, endDate },
-      });
+      // Build params dynamically:
+      const params = { startDate, endDate };
+      if (selectedAgent && selectedAgent !== "All Agents") {
+        params.agentAssignedName = selectedAgent;
+      }
+      const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/lead-source-summary", { params });
       const { leadSourceSummary = [] } = response.data;
       setLeadSourceData(leadSourceSummary);
     } catch (error) {
@@ -251,11 +251,9 @@ const ManagerSalesDashboard = () => {
     } finally {
       setLoading(false);
     }
-  }, []);
-
-  // ---------------------------
-  // Master fetch function
-  // ---------------------------
+  }, [selectedAgent]);
+  
+ 
   const fetchTableData = useCallback(
     async (summary, startDate, endDate) => {
       setTableLoading(true);
@@ -314,7 +312,6 @@ const ManagerSalesDashboard = () => {
     }
   }, [selectedSummary, range, customStart, customEnd, fetchTableData]);
 
-  // If agent changes in "Lead Source Summary", re-fetch if that summary is active
   useEffect(() => {
     if (selectedSummary === "Lead Source Summary") {
       if (range === "Custom range" && customStart && customEnd) {
@@ -324,7 +321,7 @@ const ManagerSalesDashboard = () => {
         fetchLeadSourceData(startDate, endDate);
       }
     }
-  }, [selectedAgent, selectedSummary, range, customStart, customEnd, fetchLeadSourceData]);
+  }, [selectedAgent, selectedSummary, range, customStart, customEnd, fetchLeadSourceData]);  
 
   // --------------- Metrics for Sales Summary ---------------
   const metrics1 = [
@@ -441,7 +438,8 @@ const ManagerSalesDashboard = () => {
           display: "flex", 
           gap: 3,
           alignItems: "center",
-          ml: 30,
+          justifyContent: "center",
+          ml: 25,
           width: "70%",
           mb: 2,
           mt: 4,
