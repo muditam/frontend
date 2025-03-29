@@ -131,7 +131,7 @@ const getDateRange = (rangeValue) => {
       break;
   }
   return { startDate: toISODate(start), endDate: toISODate(end) };
-};
+}; 
 
 const ManagerSalesDashboard = () => {
   // Basic states

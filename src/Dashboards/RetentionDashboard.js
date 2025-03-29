@@ -5,26 +5,44 @@ import {
   Grid,
   Paper,
   CircularProgress,
+  LinearProgress,
   Table,
   TableBody,
   TableCell,
   TableContainer,
   TableHead,
   TableRow,
+  Select,
+  MenuItem,
+  FormControl,
   TextField,
   Button,
 } from "@mui/material";
 import axios from "axios";
 import WarningAmberIcon from "@mui/icons-material/WarningAmber";
+import {
+  PersonOutline,
+  LocalMall,
+  CurrencyRupee,
+  CurrencyRupeeOutlined,
+  ExpandMore,
+  EventBusy,
+  Today,
+  EventAvailable,
+  Schedule,
+  MoreTime,
+  PeopleAlt,
+  PersonAdd,
+  BarChart,
+  Cancel,
+} from "@mui/icons-material";
 import { styled } from "@mui/system";
 
-// Define the blinking icon style.
+// Define a blinking icon style (if needed elsewhere)
 const BlinkingIcon = styled(WarningAmberIcon)({
   animation: "blink-animation 1.5s steps(2, start) infinite",
   "@keyframes blink-animation": {
-    "50%": {
-      opacity: 0,
-    },
+    "50%": { opacity: 0 },
   },
   color: "red",
 });
@@ -51,13 +69,13 @@ const getCurrentMonthDateFilter = () => {
 
 const RetentionAgentDashboard = () => {
   const [loading, setLoading] = useState(true);
-  const [leads, setLeads] = useState([]);
   const [todayMetrics, setTodayMetrics] = useState({});
   const [followupMetrics, setFollowupMetrics] = useState({});
   const [allTimeMetrics, setAllTimeMetrics] = useState({});
   const [shipmentSummary, setShipmentSummary] = useState([]);
   const [applyingShipment, setApplyingShipment] = useState(false);
   const [dateFilter, setDateFilter] = useState(getCurrentMonthDateFilter());
+  const [selectedSummary, setSelectedSummary] = useState("Today-Followup Summary");
 
   const user = JSON.parse(sessionStorage.getItem("user"));
 
@@ -65,7 +83,7 @@ const RetentionAgentDashboard = () => {
     const clickableBoxes = [
       "Active Customers",
       "Lost Customers",
-      "Sales Done",
+      "Sales Done Today",
       "Followup Today",
       "No Followup Set",
       "Followup Tomorrow",
@@ -77,148 +95,33 @@ const RetentionAgentDashboard = () => {
     }
   };
 
+  // Updated fetch function:
+  // - Gets Today Summary from its dedicated endpoint.
+  // - Gets Followup Summary from its dedicated endpoint.
+  // - Gets All Time Summary from its dedicated endpoint.
   const fetchDashboardData = async (retentionAgentName, retentionAgentEmail) => {
     try {
       setLoading(true);
-      // Fetch all leads assigned to the logged-in retention agent.
-      const retentionLeadsResponse = await axios.get(
-        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/retention",
-        {
-          params: {
-            fullName: retentionAgentName,
-            email: retentionAgentEmail,
-            all: true,
-          },
-        }
+      // 1. Get Today Summary.
+      const todaySummaryResponse = await axios.get(
+        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/today-summary",
+        { params: { agentName: retentionAgentName } }
       );
-      const retentionLeads =
-        (retentionLeadsResponse.data && retentionLeadsResponse.data.leads) || [];
+      setTodayMetrics(todaySummaryResponse.data);
 
-      const filteredLeads = retentionLeads.filter(
-        (lead) => lead.healthExpertAssigned === retentionAgentName
+      // 2. Get Followup Summary.
+      const followupSummaryResponse = await axios.get(
+        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/followup-summary",
+        { params: { agentName: retentionAgentName } }
       );
-      setLeads(filteredLeads);
+      setFollowupMetrics(followupSummaryResponse.data);
 
-      const todayDate = new Date().toISOString().split("T")[0];
-      const tomorrowDate = new Date(Date.now() + 24 * 60 * 60 * 1000)
-        .toISOString()
-        .split("T")[0];
-
-      // Today Section metrics.
-      const activeCustomers = retentionLeads.filter(
-        (lead) =>
-          lead.healthExpertAssigned === retentionAgentName &&
-          (!lead.retentionStatus || lead.retentionStatus === "Active")
-      ).length;
-      const customersAssignedToday = retentionLeads.filter(
-        (lead) =>
-          lead.healthExpertAssigned === retentionAgentName &&
-          lead.date === todayDate
-      ).length;
-
-      // Fetch retention sales for the logged-in agent.
-      const retentionSalesResponse = await axios.get(
-        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/retention-sales", 
-        { params: { orderCreatedBy: retentionAgentName } }
+      // 3. Get All Time Summary.
+      const allTimeSummaryResponse = await axios.get(
+        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/all-time-summary",
+        { params: { agentName: retentionAgentName } }
       );
-      const retentionSales = retentionSalesResponse.data || [];
-      const salesDoneToday = retentionSales.filter(
-        (sale) => sale.date === todayDate
-      );
-      const totalSales = salesDoneToday.reduce(
-        (acc, sale) => acc + (sale.amountPaid || 0),
-        0
-      );
-      const avgOrderValue =
-        salesDoneToday.length > 0 ? totalSales / salesDoneToday.length : 0;
-
-      setTodayMetrics({
-        activeCustomers,
-        customersAssignedToday,
-        salesDone: salesDoneToday.length,
-        totalSales: totalSales || 0,
-        avgOrderValue,
-      });
-
-      // Follow-Up Section metrics.
-      const noFollowupSet = retentionLeads.filter(
-        (lead) =>
-          lead.healthExpertAssigned === retentionAgentName &&
-          !lead.rtNextFollowupDate
-      ).length;
-      const followupMissed = retentionLeads.filter(
-        (lead) =>
-          lead.healthExpertAssigned === retentionAgentName &&
-          lead.rtNextFollowupDate &&
-          lead.rtNextFollowupDate < todayDate
-      ).length;
-      const followupToday = retentionLeads.filter(
-        (lead) =>
-          lead.healthExpertAssigned === retentionAgentName &&
-          lead.rtNextFollowupDate === todayDate
-      ).length;
-      const followupTomorrow = retentionLeads.filter(
-        (lead) =>
-          lead.healthExpertAssigned === retentionAgentName &&
-          lead.rtNextFollowupDate === tomorrowDate
-      ).length;
-      const followupLater = retentionLeads.filter(
-        (lead) =>
-          lead.healthExpertAssigned === retentionAgentName &&
-          lead.rtNextFollowupDate > tomorrowDate
-      ).length;
-      setFollowupMetrics({
-        noFollowupSet,
-        followupMissed,
-        followupToday,
-        followupTomorrow,
-        followupLater,
-      });
-
-      // All Time Section metrics.
-      const totalCustomers = retentionLeads.filter(
-        (lead) => lead.healthExpertAssigned === retentionAgentName
-      ).length;
-      const activeCustomersAllTime = retentionLeads.filter(
-        (lead) =>
-          lead.healthExpertAssigned === retentionAgentName &&
-          (!lead.retentionStatus || lead.retentionStatus === "Active")
-      ).length;
-      const lostCustomers = retentionLeads.filter(
-        (lead) =>
-          lead.healthExpertAssigned === retentionAgentName &&
-          lead.retentionStatus === "Lost"
-      ).length;
-      const customersRetainedThisMonth = retentionSales.filter((sale) => {
-        const saleDate = new Date(sale.date);
-        const now = new Date();
-        return (
-          saleDate.getMonth() === now.getMonth() &&
-          saleDate.getFullYear() === now.getFullYear()
-        );
-      }).length;
-      const retentionRate =
-        totalCustomers > 0
-          ? ((customersRetainedThisMonth / totalCustomers) * 100).toFixed(2)
-          : 0;
-      const totalSalesAllTime = retentionSales.reduce(
-        (acc, sale) => acc + (sale.amountPaid || 0),
-        0
-      );
-      const avgOrderValueAllTime =
-        retentionSales.length > 0
-          ? totalSalesAllTime / retentionSales.length
-          : 0;
-      setAllTimeMetrics({
-        totalCustomers,
-        activeCustomers: activeCustomersAllTime,
-        lostCustomers,
-        customersRetainedThisMonth,
-        retentionRate,
-        salesDone: retentionSales.length,
-        totalSales: totalSalesAllTime,
-        avgOrderValue: avgOrderValueAllTime,
-      });
+      setAllTimeMetrics(allTimeSummaryResponse.data);
     } catch (error) {
       console.error("Error fetching dashboard data:", error);
     } finally {
@@ -226,58 +129,18 @@ const RetentionAgentDashboard = () => {
     }
   };
 
-  // Fetch Shipment Status summary with date filter.
+  // New Shipment Summary fetch function using a dedicated endpoint.
   const fetchShipmentStatusSummary = async (retentionAgentName) => {
     try {
       setApplyingShipment(true);
-      const response = await axios.get(
-        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/retention-sales",
-        { params: { orderCreatedBy: retentionAgentName } }
-      );
-      const orders = response.data || [];
-      // Apply the date filter.
-      const filteredOrders = orders.filter((order) => {
-        const orderDate = new Date(order.date).toISOString().split("T")[0];
-        return (
-          (!dateFilter.startDate || orderDate >= dateFilter.startDate) &&
-          (!dateFilter.endDate || orderDate <= dateFilter.endDate)
-        );
-      });
-      const totalOrders = filteredOrders.length;
-      const totalAmount = filteredOrders.reduce(
-        (acc, order) => acc + (order.amountPaid || 0),
-        0
-      );
-      // Group orders by shipment status.
-      const statusMap = {};
-      filteredOrders.forEach((order) => {
-        const status = order.shipway_status || "Unknown";
-        if (!statusMap[status]) {
-          statusMap[status] = { count: 0, amount: 0 };
-        }
-        statusMap[status].count += 1;
-        statusMap[status].amount += order.amountPaid || 0;
-      });
-      const summary = [
-        {
-          label: "Total Orders",
-          count: totalOrders,
-          amount: totalAmount,
-          percentage: 100,
+      const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/shipment-summary", {
+        params: {
+          agentName: retentionAgentName,
+          startDate: dateFilter.startDate,
+          endDate: dateFilter.endDate,
         },
-      ];
-      Object.entries(statusMap).forEach(([status, data]) => {
-        summary.push({
-          label: status,
-          count: data.count,
-          amount: data.amount,
-          percentage:
-            totalOrders > 0
-              ? ((data.count / totalOrders) * 100).toFixed(2)
-              : 0,
-        });
       });
-      setShipmentSummary(summary);
+      setShipmentSummary(response.data);
     } catch (error) {
       console.error("Error fetching shipment status summary:", error);
     } finally {
@@ -285,16 +148,13 @@ const RetentionAgentDashboard = () => {
     }
   };
 
-  // On mount, fetch dashboard data and shipment summary.
   useEffect(() => {
     if (user.fullName && user.email) {
       fetchDashboardData(user.fullName, user.email);
       fetchShipmentStatusSummary(user.fullName);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user.fullName, user.email]);
 
-  // The page renders immediately while data is being fetched.
   return (
     <Box
       sx={{
@@ -304,480 +164,419 @@ const RetentionAgentDashboard = () => {
         marginRight: "auto",
       }}
     >
-      <Typography
-        variant="h4"
-        gutterBottom
-        sx={{
-          fontWeight: "bold",
-          color: "#388E3C",
-          textAlign: "center",
-          marginBottom: 3,
-          letterSpacing: 1.5,
-          fontSize: { xs: "1.8rem", sm: "2rem", md: "2.2rem" },
-          borderRadius: "0 0 5px 5px",
-          top: 66.5,
-          backgroundColor: "#ffffff",
-          padding: "1px 0",
-          boxShadow: "0px 4px 10px rgba(0, 0, 0, 0.1)",
-        }}
-      >
+      <Typography variant="h4" gutterBottom fontWeight={600} color="#000000" textAlign="center">
         {user?.fullName} - Retention Agent Dashboard
       </Typography>
 
-      {/* Today Section */}
-      <Paper
-        sx={{
-          padding: 3,
-          marginBottom: 3,
-          borderRadius: "8px",
-          boxShadow: "0px 4px 12px rgba(0, 0, 0, 0.1)",
-        }}
-      >
-        <Typography
-          variant="h5"
-          gutterBottom
-          sx={{
-            fontWeight: "bold",
-            textAlign: "center",
-            color: "#1565C0",
-            marginBottom: 2,
-          }}
-        >
-          Today
-        </Typography>
-        <Grid
-          container
-          spacing={2}
-          sx={{
-            justifyContent: { xs: "center", md: "flex-start" },
-          }}
-        >
-          {[
-            {
-              label: "Active Customers",
-              value: todayMetrics.activeCustomers || 0,
-            },
-            {
-              label: "Customers Assigned",
-              value: todayMetrics.customersAssignedToday || 0,
-            },
-            {
-              label: "Sales Done Today",
-              value: todayMetrics.salesDone || 0,
-            },
-            {
-              label: "Total Sales",
-              value: `₹${(todayMetrics.totalSales || 0).toFixed(2)}`,
-            },
-            {
-              label: "Average Order Value",
-              value: `₹${(todayMetrics.avgOrderValue || 0).toFixed(2)}`,
-            },
-          ].map(({ label, value }) => (
-            <Grid
-              item
-              xs={12}
-              sm={6}
-              md={4}
-              lg={2.4}
-              key={label}
-              sx={{
-                display: "flex",
-                justifyContent: "center",
-              }}
-            >
-              <Paper
-                sx={{
-                  width: "100%",
-                  maxWidth: "250px",
-                  height: "90px",
-                  padding: 2,
-                  textAlign: "center",
-                  borderRadius: "2px",
-                  border: "1px solid #1565C0",
-                  backgroundColor: "#E1F5FE",
-                  boxShadow: "0px 2px 8px rgba(0, 0, 0, 0.08)",
-                  display: "flex",
-                  flexDirection: "column",
-                  justifyContent: "center",
-                  transition: "transform 0.2s",
-                  "&:hover": {
-                    transform: "scale(1.05)",
-                    boxShadow: "0px 4px 16px rgba(0, 0, 0, 0.15)",
-                  },
-                }}
-                onClick={() => handleBoxClick(label)}
-              >
-                <Typography
-                  variant="subtitle1"
-                  gutterBottom
-                  sx={{
-                    fontWeight: "500",
-                    color: "#0288D1",
-                  }}
-                >
-                  {label}
-                </Typography>
-                <Typography
-                  variant="h6"
-                  sx={{
-                    fontWeight: "bold",
-                    color: "#01579B",
-                  }}
-                >
-                  {value}
-                </Typography>
-              </Paper>
-            </Grid>
-          ))}
-        </Grid>
-      </Paper>
-
-      {/* Follow-Up Section */}
-      <Paper
-        sx={{
-          padding: 3,
-          borderRadius: "8px",
-          boxShadow: "0px 4px 12px rgba(0, 0, 0, 0.1)",
-          marginBottom: 3,
-        }}
-      >
-        <Typography
-          variant="h5"
-          gutterBottom
-          sx={{
-            fontWeight: "bold",
-            textAlign: "center",
-            color: "#00695C",
-            marginBottom: 2,
-          }}
-        >
-          Follow-Up
-        </Typography>
-        <Grid
-          container
-          spacing={2}
-          sx={{
-            justifyContent: { xs: "center", md: "flex-start" },
-          }}
-        >
-          {[
-            {
-              label: "No Followup Set",
-              value: followupMetrics.noFollowupSet,
-              showIcon: followupMetrics.noFollowupSet > 0,
-            },
-            {
-              label: "Followup Missed",
-              value: followupMetrics.followupMissed,
-              showIcon: followupMetrics.followupMissed > 0,
-            },
-            { label: "Followup Today", value: followupMetrics.followupToday },
-            {
-              label: "Followup Tomorrow",
-              value: followupMetrics.followupTomorrow,
-            },
-            { label: "Followup Later", value: followupMetrics.followupLater },
-          ].map(({ label, value, showIcon }) => (
-            <Grid
-              item
-              xs={12}
-              sm={6}
-              md={4}
-              lg={2.4}
-              key={label}
-              sx={{
-                display: "flex",
-                justifyContent: "center",
-              }}
-            >
-              <Paper
-                sx={{
-                  width: "100%",
-                  maxWidth: "250px",
-                  height: "90px",
-                  padding: 3,
-                  textAlign: "center",
-                  borderRadius: "2px",
-                  border: "1px solid #00695C",
-                  backgroundColor: "#E0F2F1",
-                  boxShadow: "0px 2px 8px rgba(0, 0, 0, 0.08)",
-                  position: "relative",
-                  display: "flex",
-                  flexDirection: "column",
-                  justifyContent: "center",
-                  transition: "transform 0.2s",
-                  "&:hover": {
-                    transform: "scale(1.05)",
-                    boxShadow: "0px 4px 16px rgba(0, 0, 0, 0.15)",
-                  },
-                }}
-                onClick={() => handleBoxClick(label)}
-              >
-                <Typography
-                  variant="subtitle1"
-                  gutterBottom
-                  sx={{
-                    fontWeight: "500",
-                    color: "#00897B",
-                  }}
-                >
-                  {label}
-                </Typography>
-                <Typography
-                  variant="h6"
-                  sx={{
-                    fontWeight: "bold",
-                    color: "#004D40",
-                  }}
-                >
-                  {value}
-                </Typography>
-                {showIcon && (
-                  <BlinkingIcon
-                    sx={{
-                      position: "absolute",
-                      top: 8,
-                      right: 8,
-                      color: "red",
-                    }}
-                  />
-                )}
-              </Paper>
-            </Grid>
-          ))}
-        </Grid>
-      </Paper>
-
-      {/* All Time Section */}
-      <Paper
-        sx={{
-          padding: 3,
-          marginTop: 3,
-          borderRadius: "8px",
-          boxShadow: "0px 4px 12px rgba(0, 0, 0, 0.1)",
-        }}
-      >
-        <Typography
-          variant="h5"
-          gutterBottom
-          sx={{
-            fontWeight: "bold",
-            textAlign: "center",
-            color: "#388E3C",
-            marginBottom: 2,
-          }}
-        >
-          All Time
-        </Typography>
-        <Grid
-          container
-          spacing={2}
-          sx={{
-            justifyContent: { xs: "center", md: "flex-start" },
-          }}
-        >
-          {[
-            {
-              label: "Total Customers",
-              value: allTimeMetrics.totalCustomers || 0,
-            },
-            {
-              label: "Customers Retained This Month",
-              value: allTimeMetrics.customersRetainedThisMonth || 0,
-            },
-            {
-              label: "Retention Rate",
-              value: `${allTimeMetrics.retentionRate || 0}%`,
-            },
-            {
-              label: "Active Customers",
-              value: allTimeMetrics.activeCustomers || 0,
-            },
-            {
-              label: "Lost Customers",
-              value: allTimeMetrics.lostCustomers || 0,
-            },
-            { label: "Sales Done", value: allTimeMetrics.salesDone || 0 },
-            {
-              label: "Total Sales",
-              value: `₹${(allTimeMetrics.totalSales || 0).toFixed(2)}`,
-            },
-            {
-              label: "Average Order Value",
-              value: `₹${(allTimeMetrics.avgOrderValue || 0).toFixed(2)}`,
-            },
-          ].map(({ label, value }) => (
-            <Grid
-              item
-              xs={12}
-              sm={6}
-              md={4}
-              lg={3}
-              key={label}
-              sx={{
-                display: "flex",
-                justifyContent: "center",
-              }}
-            >
-              <Paper
-                sx={{
-                  width: "100%",
-                  maxWidth: "350px",
-                  height: "90px",
-                  padding: 3,
-                  textAlign: "center",
-                  borderRadius: "2px",
-                  border: "1px solid #388E3C",
-                  backgroundColor: "#F1F8E9",
-                  boxShadow: "0px 2px 8px rgba(0, 0, 0, 0.08)",
-                  display: "flex",
-                  flexDirection: "column",
-                  justifyContent: "center",
-                  transition: "transform 0.2s",
-                  "&:hover": {
-                    transform: "scale(1.05)",
-                    boxShadow: "0px 4px 16px rgba(0, 0, 0, 0.15)",
-                  },
-                }}
-                onClick={() => handleBoxClick(label)}
-              >
-                <Typography
-                  variant="subtitle1"
-                  gutterBottom
-                  sx={{ fontWeight: "500", color: "#2E7D32" }}
-                >
-                  {label}
-                </Typography>
-                <Typography
-                  variant="h6"
-                  sx={{ fontWeight: "bold", color: "#388E3C" }}
-                >
-                  {value}
-                </Typography>
-              </Paper>
-            </Grid>
-          ))}
-        </Grid>
-      </Paper>
-
-      {/* Shipment Status Section with Date Filter */}
-      <Paper
-        sx={{
-          padding: { xs: 2, sm: 3, md: 4 },
-          marginTop: 3,
-          borderRadius: "8px",
-          boxShadow: "0px 4px 12px rgba(0, 0, 0, 0.1)",
-          width: "100%",
-          maxWidth: "1200px",
-          marginLeft: "auto",
-          marginRight: "auto",
-        }}
-      >
-        <Typography
-          variant="h5"
-          gutterBottom
-          sx={{
-            fontWeight: "bold",
-            textAlign: "center",
-            color: "#4F4F4F",
-            marginBottom: 2,
-          }}
-        >
-          Shipment Status
-        </Typography>
-        {/* Date Filter Controls */}
-        <Box sx={{ display: "flex", gap: 2, marginBottom: 2 }}>
-          <TextField
-            label="Start Date"
-            type="date"
-            InputLabelProps={{ shrink: true }}
-            value={dateFilter.startDate}
-            onChange={(e) =>
-              setDateFilter((prev) => ({
-                ...prev,
-                startDate: e.target.value,
-              }))
-            }
-          />
-          <TextField
-            label="End Date"
-            type="date"
-            InputLabelProps={{ shrink: true }}
-            value={dateFilter.endDate}
-            onChange={(e) =>
-              setDateFilter((prev) => ({
-                ...prev,
-                endDate: e.target.value,
-              }))
-            }
-          />
-          <Button
-            variant="contained"
-            onClick={() => fetchShipmentStatusSummary(user?.fullName)}
-            sx={{ backgroundColor: "#6D6D6D" }}
+      {/* Summary Toggle */}
+      <Box sx={{ display: "flex", justifyContent: "center", width: "100%", mb: 2, mt: 2 }}>
+        <FormControl fullWidth variant="outlined" sx={{ width: 300 }}>
+          <Select
+            value={selectedSummary}
+            onChange={(e) => setSelectedSummary(e.target.value)}
+            displayEmpty
+            IconComponent={ExpandMore}
+            renderValue={(selected) => (selected ? `${selected}` : "Summary:")}
+            sx={{
+              backgroundColor: "#fff",
+              color: "#333",
+              borderRadius: 2,
+              border: "1px solid #ccc",
+              "& .MuiOutlinedInput-notchedOutline": { borderColor: "#ccc" },
+              "&:hover .MuiOutlinedInput-notchedOutline": { borderColor: "#888" },
+            }}
           >
-            Apply Filters
-          </Button>
-        </Box>
+            <MenuItem value="Today-Followup Summary">
+              <Typography variant="body2">Today & Followup Summary</Typography>
+            </MenuItem>
+            <MenuItem value="All Time Summary">
+              <Typography variant="body2">All Time Summary</Typography>
+            </MenuItem>
+            <MenuItem value="Shipment Summary">
+              <Typography variant="body2">Shipment Summary</Typography>
+            </MenuItem>
+          </Select>
+        </FormControl>
+      </Box>
 
-        {/* Shipment Status Table */}
-        {applyingShipment ? (
-          <Box sx={{ display: "flex", justifyContent: "center", mt: 4 }}>
-            <CircularProgress />
+      {selectedSummary === "Today-Followup Summary" && (
+        <>
+          {/* Today Summary Section */}
+          <Box
+            sx={{
+              padding: 2,
+              marginTop: 3,
+              borderRadius: 2,
+              backgroundColor: "#FFFFFF",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              maxWidth: "1000px",
+              margin: "0 auto",
+              boxShadow: "0px 5px 15px rgba(0, 0, 0, 0.05)",
+            }}
+          >
+            <Typography variant="h5" fontWeight={600} gutterBottom color="#000000" textAlign="center">
+              Today Summary
+            </Typography>
+            <Grid container spacing={2} sx={{ width: "100%" }}>
+              {[
+                {
+                  label: "Active Customers",
+                  value: todayMetrics.activeCustomers || 0,
+                  icon: <PersonOutline fontSize="medium" sx={{ color: "#1976D2" }} />,
+                },
+                {
+                  label: "Sales Done Today",
+                  value: todayMetrics.salesDone || 0,
+                  icon: <LocalMall fontSize="medium" sx={{ color: "#f57c00" }} />,
+                },
+                {
+                  label: "Total Sales",
+                  value: `₹${(todayMetrics.totalSales || 0).toFixed(2)}`,
+                  icon: <CurrencyRupee fontSize="medium" sx={{ color: "#9c27b0" }} />,
+                },
+                {
+                  label: "Average Order Value",
+                  value: `₹${(todayMetrics.avgOrderValue || 0).toFixed(2)}`,
+                  icon: <CurrencyRupeeOutlined fontSize="medium" sx={{ color: "#d32f2f" }} />,
+                },
+              ].map(({ label, value, icon }) => (
+                <Grid item xs={12} sm={6} md={3} key={label}>
+                  <Box
+                    sx={{
+                      p: 2,
+                      display: "flex",
+                      alignItems: "center",
+                      borderRadius: 2,
+                      backgroundColor: "#F9FAFB",
+                      boxShadow: "0px 3px 10px rgba(0, 0, 0, 0.05)",
+                      transition: "0.3s",
+                      width: "90%",
+                      minHeight: "130px",
+                      margin: "0 auto",
+                      "&:hover": {
+                        transform: "translateY(-3px)",
+                        boxShadow: "0px 5px 15px rgba(0, 0, 0, 0.1)",
+                      },
+                    }}
+                    onClick={() => handleBoxClick(label)}
+                  >
+                    <Box sx={{ fontSize: 28, mr: 2 }}>{icon}</Box>
+                    <Box>
+                      <Typography variant="subtitle2" sx={{ color: "#555" }}>
+                        {label}
+                      </Typography>
+                      <Typography variant="h6" fontWeight="bold" sx={{ color: "#333" }}>
+                        {value !== undefined ? value : <CircularProgress size={18} />}
+                      </Typography>
+                    </Box>
+                  </Box>
+                </Grid>
+              ))}
+            </Grid>
           </Box>
-        ) : (
+
+          {/* Followup Summary Section */}
+          <Box
+            sx={{
+              padding: 2,
+              marginTop: 3,
+              borderRadius: 2,
+              backgroundColor: "#FFFFFF",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              maxWidth: "1000px",
+              margin: "0 auto",
+              boxShadow: "0px 5px 15px rgba(0, 0, 0, 0.05)",
+            }}
+          >
+            <Typography variant="h5" fontWeight={600} gutterBottom color="#000000" textAlign="center">
+              Followup Summary
+            </Typography>
+            <Grid container spacing={2} sx={{ width: "100%" }}>
+              {[
+                {
+                  label: "No Followup Set",
+                  key: "noFollowupSet",
+                  icon: <Schedule sx={{ color: "#546E7A" }} />,
+                  value:
+                    followupMetrics.noFollowupSet !== undefined ? followupMetrics.noFollowupSet : <CircularProgress size={20} />,
+                },
+                {
+                  label: "Followup Missed",
+                  key: "followupMissed",
+                  icon: <EventBusy sx={{ color: "#D32F2F" }} />,
+                  value:
+                    followupMetrics.followupMissed !== undefined ? followupMetrics.followupMissed : <CircularProgress size={20} />,
+                },
+                {
+                  label: "Followup Today",
+                  key: "followupToday",
+                  icon: <Today sx={{ color: "#388E3C" }} />,
+                  value:
+                    followupMetrics.followupToday !== undefined ? followupMetrics.followupToday : <CircularProgress size={20} />,
+                },
+                {
+                  label: "Followup Tomorrow",
+                  key: "followupTomorrow",
+                  icon: <EventAvailable sx={{ color: "#FFA000" }} />,
+                  value:
+                    followupMetrics.followupTomorrow !== undefined ? followupMetrics.followupTomorrow : <CircularProgress size={20} />,
+                },
+                {
+                  label: "Followup Later",
+                  key: "followupLater",
+                  icon: <MoreTime sx={{ color: "#0288D1" }} />,
+                  value:
+                    followupMetrics.followupLater !== undefined ? followupMetrics.followupLater : <CircularProgress size={20} />,
+                },
+              ].map(({ label, value, icon }) => (
+                <Grid item xs={12} sm={6} md={4} key={label}>
+                  <Box
+                    sx={{
+                      p: 2,
+                      display: "flex",
+                      alignItems: "center",
+                      borderRadius: 2,
+                      backgroundColor: "#F9FAFB",
+                      boxShadow: "0px 3px 10px rgba(0, 0, 0, 0.05)",
+                      transition: "0.3s",
+                      minHeight: "130px",
+                      width: "90%",
+                      margin: "0 auto",
+                      "&:hover": {
+                        transform: "translateY(-3px)",
+                        boxShadow: "0px 5px 15px rgba(0, 0, 0, 0.1)",
+                      },
+                    }}
+                    onClick={() => handleBoxClick(label)}
+                  >
+                    <Box sx={{ fontSize: 28, mr: 2 }}>{icon}</Box>
+                    <Box>
+                      <Typography variant="subtitle2" sx={{ color: "#555" }}>
+                        {label}
+                      </Typography>
+                      <Typography variant="h6" fontWeight="bold" sx={{ color: "#333" }}>
+                        {value !== undefined ? value : <CircularProgress size={18} />}
+                      </Typography>
+                    </Box>
+                  </Box>
+                </Grid>
+              ))}
+            </Grid>
+          </Box>
+        </>
+      )}
+
+      {selectedSummary === "All Time Summary" && (
+        <Box
+          sx={{
+            padding: 2,
+            marginTop: 3,
+            borderRadius: 2,
+            backgroundColor: "#FFFFFF",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            maxWidth: "1000px",
+            margin: "0 auto",
+            boxShadow: "0px 5px 15px rgba(0, 0, 0, 0.05)",
+          }}
+        >
+          <Typography variant="h5" fontWeight={600} gutterBottom color="#000000" textAlign="center">
+            All Time
+          </Typography>
+          <Grid container spacing={2} sx={{ width: "100%" }}>
+            {[
+              {
+                label: "Total Customers",
+                value: allTimeMetrics.totalCustomers || 0,
+                icon: <PeopleAlt sx={{ color: "#0288D1" }} />,
+              },
+              {
+                label: "Customers Retained This Month",
+                value: allTimeMetrics.customersRetainedThisMonth || 0,
+                icon: <PersonAdd sx={{ color: "#388E3C" }} />,
+              },
+              {
+                label: "Retention Rate",
+                value: `${allTimeMetrics.retentionRate || 0}%`,
+                icon: <BarChart sx={{ color: "#FF5722" }} />,
+              },
+              {
+                label: "Active Customers",
+                value: allTimeMetrics.activeCustomers || 0,
+                icon: <PersonOutline sx={{ color: "#4CAF50" }} />,
+              },
+              {
+                label: "Lost Customers",
+                value: allTimeMetrics.lostCustomers || 0,
+                icon: <Cancel sx={{ color: "#D32F2F" }} />,
+              },
+              {
+                label: "Sales Done",
+                value: allTimeMetrics.salesDone || 0,
+                icon: <LocalMall sx={{ color: "#9C27B0" }} />,
+              },
+              {
+                label: "Total Sales",
+                value: `₹${(allTimeMetrics.totalSales || 0).toFixed(2)}`,
+                icon: <CurrencyRupee sx={{ color: "#1976D2" }} />,
+              },
+              {
+                label: "Average Order Value",
+                value: `₹${(allTimeMetrics.avgOrderValue || 0).toFixed(2)}`,
+                icon: <CurrencyRupeeOutlined sx={{ color: "#FF9800" }} />,
+              },
+            ].map(({ label, value, icon }) => (
+              <Grid item xs={12} sm={6} md={4} key={label}>
+                <Box
+                  sx={{
+                    p: 2,
+                    display: "flex",
+                    alignItems: "center",
+                    borderRadius: 2,
+                    backgroundColor: "#F9FAFB",
+                    boxShadow: "0px 3px 10px rgba(0, 0, 0, 0.05)",
+                    transition: "0.3s",
+                    minHeight: "130px",
+                    width: "90%",
+                    margin: "0 auto",
+                    "&:hover": {
+                      transform: "translateY(-3px)",
+                      boxShadow: "0px 5px 15px rgba(0, 0, 0, 0.1)",
+                    },
+                  }}
+                  onClick={() => handleBoxClick(label)}
+                >
+                  <Box sx={{ fontSize: 28, mr: 2 }}>{icon}</Box>
+                  <Box>
+                    <Typography variant="subtitle2" sx={{ color: "#555" }}>
+                      {label}
+                    </Typography>
+                    <Typography variant="h6" fontWeight="bold" sx={{ color: "#333" }}>
+                      {value}
+                    </Typography>
+                  </Box>
+                </Box>
+              </Grid>
+            ))}
+          </Grid>
+        </Box>
+      )}
+
+      {selectedSummary === "Shipment Summary" && (
+        <Paper
+          sx={{
+            padding: { xs: 2, sm: 3, md: 4 },
+            marginTop: 3,
+            borderRadius: "8px",
+            boxShadow: "0px 4px 12px rgba(0, 0, 0, 0.1)",
+            width: "100%",
+            maxWidth: "1200px",
+            marginLeft: "auto",
+            marginRight: "auto",
+          }}
+        >
+          <Typography
+            variant="h5"
+            gutterBottom
+            sx={{
+              fontWeight: "bold",
+              textAlign: "center",
+              color: "#4F4F4F",
+              marginBottom: 2,
+            }}
+          >
+            Shipment Status
+          </Typography>
+          {/* Date Filter Controls */}
+          <Box sx={{ display: "flex", gap: 2, marginBottom: 2 }}>
+            <TextField
+              label="Start Date"
+              type="date"
+              InputLabelProps={{ shrink: true }}
+              value={dateFilter.startDate}
+              onChange={(e) =>
+                setDateFilter((prev) => ({ ...prev, startDate: e.target.value }))
+              }
+            />
+            <TextField
+              label="End Date"
+              type="date"
+              InputLabelProps={{ shrink: true }}
+              value={dateFilter.endDate}
+              onChange={(e) =>
+                setDateFilter((prev) => ({ ...prev, endDate: e.target.value }))
+              }
+            />
+            <Button
+              variant="contained"
+              onClick={() => fetchShipmentStatusSummary(user?.fullName)}
+              sx={{ backgroundColor: "#6D6D6D" }}
+            >
+              Apply Filters
+            </Button>
+          </Box>
           <TableContainer component={Paper} sx={{ borderRadius: "10px" }}>
             <Table>
               <TableHead>
                 <TableRow sx={{ backgroundColor: "#6D6D6D" }}>
-                  {["Category", "Count", "Amount", "Percentage"].map(
-                    (header) => (
-                      <TableCell
-                        key={header}
-                        sx={{
-                          backgroundColor: "#6D6D6D",
-                          textAlign: "center",
-                        }}
-                      >
-                        <Typography fontWeight="bold" sx={{ color: "#e8e8e8" }}>
-                          {header}
-                        </Typography>
-                      </TableCell>
-                    )
-                  )}
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {shipmentSummary.map((row) => (
-                  <TableRow
-                    key={row.label}
-                    sx={{
-                      "&:nth-of-type(odd)": { backgroundColor: "#F5F5F5" },
-                      "&:nth-of-type(even)": { backgroundColor: "#FFFFFF" },
-                    }}
-                  >
-                    <TableCell sx={{ textAlign: "center" }}>
-                      <Typography fontWeight="bold">
-                        {row.label}
+                  {["Category", "Count", "Amount", "Percentage"].map((header) => (
+                    <TableCell
+                      key={header}
+                      sx={{ backgroundColor: "#6D6D6D", textAlign: "center" }}
+                    >
+                      <Typography fontWeight="bold" sx={{ color: "#e8e8e8" }}>
+                        {header}
                       </Typography>
                     </TableCell>
-                    <TableCell sx={{ textAlign: "center" }}>
-                      {row.count}
-                    </TableCell>
-                    <TableCell sx={{ textAlign: "center" }}>
-                      {`₹${row.amount.toFixed(2)}`}
-                    </TableCell>
-                    <TableCell sx={{ textAlign: "center" }}>
-                      {`${row.percentage}%`}
+                  ))}
+                </TableRow>
+              </TableHead>
+              {applyingShipment && (
+                <TableBody>
+                  <TableRow>
+                    <TableCell colSpan={4} sx={{ padding: 0 }}>
+                      <LinearProgress variant="indeterminate" sx={{ width: "100%", height: "3px" }} />
                     </TableCell>
                   </TableRow>
-                ))}
-              </TableBody>
+                </TableBody>
+              )}
+              {!applyingShipment && (
+                <TableBody>
+                  {shipmentSummary.length > 0 ? (
+                    shipmentSummary.map((row) => (
+                      <TableRow
+                        key={row.label}
+                        sx={{
+                          "&:nth-of-type(odd)": { backgroundColor: "#F5F5F5" },
+                          "&:nth-of-type(even)": { backgroundColor: "#FFFFFF" },
+                        }}
+                      >
+                        <TableCell sx={{ textAlign: "center" }}>
+                          <Typography fontWeight="bold">{row.label}</Typography>
+                        </TableCell>
+                        <TableCell sx={{ textAlign: "center" }}>{row.count}</TableCell>
+                        <TableCell sx={{ textAlign: "center" }}>{`₹${row.amount.toFixed(2)}`}</TableCell>
+                        <TableCell sx={{ textAlign: "center" }}>{`${row.percentage}%`}</TableCell>
+                      </TableRow>
+                    ))
+                  ) : (
+                    <TableRow>
+                      <TableCell colSpan={4} align="center" sx={{ padding: "12px", color: "#888", fontStyle: "italic" }}>
+                        No data found.
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              )}
             </Table>
           </TableContainer>
-        )}
-      </Paper>
+        </Paper>
+      )}
     </Box>
   );
 };

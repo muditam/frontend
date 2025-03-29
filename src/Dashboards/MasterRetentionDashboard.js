@@ -120,54 +120,15 @@ const getDateRange = (rangeValue) => {
 };
 
 // ---------------------------------------------
-// 4) Helper: Summarize sales by shipway_status
-// ---------------------------------------------
-const computeShipmentSummary = (salesData) => {
-  if (!salesData || salesData.length === 0) return [];
-  const totalCount = salesData.length;
-  let totalAmount = 0;
-  const grouped = {};
-
-  for (const sale of salesData) {
-    const category = sale.shipway_status || "Not available";
-    if (!grouped[category]) {
-      grouped[category] = { count: 0, amount: 0 };
-    }
-    grouped[category].count += 1;
-    grouped[category].amount += sale.amountPaid || 0;
-    totalAmount += sale.amountPaid || 0;
-  }
-
-  const summaryArr = Object.entries(grouped).map(([category, val]) => {
-    const percentage = ((val.count / totalCount) * 100).toFixed(2);
-    return {
-      category,
-      count: val.count,
-      amount: val.amount,
-      percentage,
-    };
-  });
-
-  summaryArr.unshift({
-    category: "Total Orders",
-    count: totalCount,
-    amount: totalAmount,
-    percentage: "100",
-  });
-
-  return summaryArr;
-};
-
-// ---------------------------------------------
-// Main Component
+// ManagerRetentionDashboard Component
 // ---------------------------------------------
 const ManagerRetentionDashboard = () => {
-  // (A) Dashboard Range (Agent's Summary)
+  // (A) Dashboard Range
   const [dashboardRange, setDashboardRange] = useState("Today");
   const [customDashboardStart, setCustomDashboardStart] = useState("");
   const [customDashboardEnd, setCustomDashboardEnd] = useState("");
 
-  // (B) Shipment Range (Shipment Summary)
+  // (B) Shipment Range
   const [shipmentRange, setShipmentRange] = useState("Today");
   const [customShipmentStart, setCustomShipmentStart] = useState("");
   const [customShipmentEnd, setCustomShipmentEnd] = useState("");
@@ -176,19 +137,24 @@ const ManagerRetentionDashboard = () => {
   const [selectedSummary, setSelectedSummary] = useState("Agent's Summary");
 
   // Data for Agent's Summary
-  const [todaySummary, setTodaySummary] = useState({});
+  const [todaySummary, setTodaySummary] = useState({
+    totalActiveCustomers: 0,
+    totalSalesDoneToday: 0,
+    totalSalesAmount: 0,
+    avgOrderValue: 0,
+  });
   const [agentMetrics, setAgentMetrics] = useState([]);
-  const [loading, setLoading] = useState(true);
 
   // Data for Shipment Summary
-  const [retentionSales, setRetentionSales] = useState([]);
   const [shipmentSummary, setShipmentSummary] = useState([]);
   const [retentionAgents, setRetentionAgents] = useState([]);
   const [selectedAgent, setSelectedAgent] = useState("");
   const [agentShipmentSummary, setAgentShipmentSummary] = useState([]);
 
+  const [loading, setLoading] = useState(true);
+
   // ---------------------------------------------
-  // 1) FETCH Active Customers (Aggregation)
+  // 4) Fetch active customer counts (unchanged)
   // ---------------------------------------------
   const fetchActiveCustomerCounts = async () => {
     try {
@@ -203,81 +169,72 @@ const ManagerRetentionDashboard = () => {
   };
 
   // ---------------------------------------------
-  // 2) FETCH & Combine Agent Data
+  // 5) Fetch aggregated sales data per agent from new endpoint
+  // ---------------------------------------------
+  const fetchAggregatedSalesData = async (startDate, endDate) => {
+    try {
+      const res = await axios.get(
+        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/retention-sales/aggregated",
+        { params: { startDate, endDate } }
+      );
+      return res.data;
+    } catch (err) {
+      console.error("Error fetching aggregated sales data:", err);
+      return [];
+    }
+  };
+
+  // ---------------------------------------------
+  // 6) Fetch dashboard data for Agent's Summary
   // ---------------------------------------------
   const fetchDashboardDataRange = async (startDate, endDate) => {
     setLoading(true);
     try {
-      // (A) Get all active agents
+      // (A) Get all active retention agents
       const agentsResponse = await axios.get(
         "https://muditamleads-14f32a10d7f7.herokuapp.com/api/employees",
-        {
-          params: { role: "Retention Agent" },
-        }
+        { params: { role: "Retention Agent" } }
       );
       const activeAgents = agentsResponse.data.filter(
         (agent) => agent.status === "active"
       );
-      if (activeAgents.length === 0) {
-        setTodaySummary({
-          totalActiveCustomers: 0,
-          totalSalesDoneToday: 0,
-          totalSalesAmount: 0,
-          avgOrderValue: 0,
-        });
-        setAgentMetrics([]);
-        setLoading(false);
-        return;
-      }
 
-      // (B) Fetch active-customer counts (without date range)
+      // (B) Get active customer counts
       const activeCountsArr = await fetchActiveCustomerCounts();
 
-      // (C) For each agent, fetch that agent's sales data
+      // (C) Get aggregated sales data from new endpoint
+      const aggregatedSales = await fetchAggregatedSalesData(startDate, endDate);
+
+      // (D) Combine data for each agent
       let totalActiveCustomers = 0;
       let totalSalesDoneInRange = 0;
       let totalSalesAmountInRange = 0;
 
-      const agentData = await Promise.all(
-        activeAgents.map(async (agent) => {
-          // active-customer count
-          const match = activeCountsArr.find(
-            (item) => item._id === agent.fullName
-          );
-          const activeCustomers = match ? match.activeCount : 0;
+      const agentData = activeAgents.map((agent) => {
+        const activeCountMatch = activeCountsArr.find(
+          (item) => item._id === agent.fullName
+        );
+        const activeCustomers = activeCountMatch ? activeCountMatch.activeCount : 0;
 
-          // fetch sales for this agent
-          const salesRes = await axios.get(
-            "https://muditamleads-14f32a10d7f7.herokuapp.com/api/retention-sales",
-            {
-              params: { orderCreatedBy: agent.fullName },
-            }
-          );
-          const allSales = salesRes.data || [];
-          const filteredSales = allSales.filter(
-            (sale) => sale.date >= startDate && sale.date <= endDate
-          );
+        const salesData = aggregatedSales.find(
+          (item) => item.agentName === agent.fullName
+        );
+        const salesDone = salesData ? salesData.salesDone : 0;
+        const totalSales = salesData ? salesData.totalSales : 0;
+        const avgOrderValue = salesData ? salesData.avgOrderValue : 0;
 
-          const totalSales = filteredSales.reduce(
-            (acc, sale) => acc + (sale.amountPaid || 0),
-            0
-          );
-          const salesDone = filteredSales.length;
-          const avgOrderValue = salesDone > 0 ? totalSales / salesDone : 0;
+        totalActiveCustomers += activeCustomers;
+        totalSalesDoneInRange += salesDone;
+        totalSalesAmountInRange += totalSales;
 
-          totalActiveCustomers += activeCustomers;
-          totalSalesDoneInRange += salesDone;
-          totalSalesAmountInRange += totalSales;
-
-          return {
-            agentName: agent.fullName,
-            activeCustomers,
-            salesDone,
-            totalSales,
-            avgOrderValue,
-          };
-        })
-      );
+        return {
+          agentName: agent.fullName,
+          activeCustomers,
+          salesDone,
+          totalSales,
+          avgOrderValue,
+        };
+      });
 
       const overallAvgOrderValue =
         totalSalesDoneInRange > 0
@@ -299,29 +256,22 @@ const ManagerRetentionDashboard = () => {
   };
 
   // ---------------------------------------------
-  // 3) FETCH Shipment Data
+  // 7) Fetch overall shipment summary from new endpoint
   // ---------------------------------------------
   const fetchShipmentData = async (startDate, endDate) => {
     setLoading(true);
     try {
-      const salesRes = await axios.get(
-        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/retention-sales"
+      const shipmentRes = await axios.get(
+        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/retention-sales/shipment-summary",
+        { params: { startDate, endDate } }
       );
-      const allSales = salesRes.data || [];
-      const filteredSales = allSales.filter(
-        (sale) => sale.date >= startDate && sale.date <= endDate
-      );
-      setRetentionSales(filteredSales);
+      setShipmentSummary(shipmentRes.data);
 
-      const employeesRes = await axios.get(
+      const agentsRes = await axios.get(
         "https://muditamleads-14f32a10d7f7.herokuapp.com/api/employees",
-        {
-          params: { role: "Retention Agent" },
-        }
+        { params: { role: "Retention Agent" } }
       );
-      const activeAgents = employeesRes.data.filter(
-        (emp) => emp.status === "active"
-      );
+      const activeAgents = agentsRes.data.filter((emp) => emp.status === "active");
       setRetentionAgents(activeAgents);
     } catch (err) {
       console.error("Error fetching shipment data:", err);
@@ -331,7 +281,27 @@ const ManagerRetentionDashboard = () => {
   };
 
   // ---------------------------------------------
-  // 4) Handle Range Changes
+  // 8) Fetch agent-wise shipment summary from new endpoint
+  // ---------------------------------------------
+  const fetchAgentShipmentSummary = async (agentName, startDate, endDate) => {
+    if (!agentName) {
+      setAgentShipmentSummary([]);
+      return;
+    }
+    try {
+      const res = await axios.get(
+        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/retention-sales/shipment-summary/agent",
+        { params: { agentName, startDate, endDate } }
+      );
+      setAgentShipmentSummary(res.data);
+    } catch (err) {
+      console.error("Error fetching agent shipment summary:", err);
+      setAgentShipmentSummary([]);
+    }
+  };
+
+  // ---------------------------------------------
+  // 9) Handlers for Range Changes
   // ---------------------------------------------
   const handleDashboardRangeChange = async (e) => {
     const newRange = e.target.value;
@@ -345,10 +315,8 @@ const ManagerRetentionDashboard = () => {
   };
 
   const applyCustomDashboardRange = async () => {
-    setLoading(true);
     if (!customDashboardStart || !customDashboardEnd) return;
     await fetchDashboardDataRange(customDashboardStart, customDashboardEnd);
-    setLoading(false);
   };
 
   const handleShipmentRangeChange = async (e) => {
@@ -363,29 +331,25 @@ const ManagerRetentionDashboard = () => {
   };
 
   const applyCustomShipmentRange = async () => {
-    setLoading(true);
     if (!customShipmentStart || !customShipmentEnd) return;
     await fetchShipmentData(customShipmentStart, customShipmentEnd);
-    setLoading(false);
   };
 
   // ---------------------------------------------
-  // 5) Compute Summaries after fetching
+  // 10) Update agent-wise shipment summary when agent changes
   // ---------------------------------------------
   useEffect(() => {
-    setShipmentSummary(computeShipmentSummary(retentionSales));
-    if (!selectedAgent) {
-      setAgentShipmentSummary([]);
-    } else {
-      const filtered = retentionSales.filter(
-        (sale) => sale.orderCreatedBy === selectedAgent
-      );
-      setAgentShipmentSummary(computeShipmentSummary(filtered));
+    const { startDate, endDate } =
+      shipmentRange !== "Custom range"
+        ? getDateRange(shipmentRange)
+        : { startDate: customShipmentStart, endDate: customShipmentEnd };
+    if (selectedAgent && startDate && endDate) {
+      fetchAgentShipmentSummary(selectedAgent, startDate, endDate);
     }
-  }, [retentionSales, selectedAgent]);
+  }, [selectedAgent, shipmentRange, customShipmentStart, customShipmentEnd]);
 
   // ---------------------------------------------
-  // 6) On mount, fetch "Today" data for both sections
+  // 11) On mount, fetch "Today" data for both sections
   // ---------------------------------------------
   useEffect(() => {
     const { startDate, endDate } = getDateRange("Today");
@@ -412,7 +376,7 @@ const ManagerRetentionDashboard = () => {
           alignItems: "center",
           justifyContent: "center",
           gap: 1.5,
-          background: "linear-gradient(90deg,rgb(0, 0, 0),rgb(0, 0, 0))",
+          background: "linear-gradient(90deg, rgb(0, 0, 0), rgb(0, 0, 0))",
           WebkitBackgroundClip: "text",
           WebkitTextFillColor: "transparent",
           fontSize: { xs: "1.8rem", md: "2.2rem" },
@@ -421,29 +385,28 @@ const ManagerRetentionDashboard = () => {
         Manager Retention Dashboard
       </Typography>
 
-      {/* 
-         Combined summary dropdown + range selection 
-         in a single row 
-      */}
+      {/* Combined Summary Dropdown & Range Selection */}
       <Box
         sx={{
           display: "flex",
+          justifyContent: "center",
           gap: 3,
           width: "90%",
           alignItems: "center",
           mb: 3,
           mt: 2,
-          ml: 20,
+          ml: 2,
         }}
       >
-        {/* Summary Toggle */}
         <FormControl fullWidth variant="outlined" sx={{ width: 300 }}>
           <Select
             value={selectedSummary}
             onChange={(e) => setSelectedSummary(e.target.value)}
             displayEmpty
             IconComponent={ExpandMoreIcon}
-            renderValue={(selected) => (selected ? `Summary: ${selected}` : "Summary:")}
+            renderValue={(selected) =>
+              selected ? `Summary: ${selected}` : "Summary:"
+            }
             sx={{
               backgroundColor: "#fff",
               color: "#333",
@@ -462,7 +425,6 @@ const ManagerRetentionDashboard = () => {
           </Select>
         </FormControl>
 
-        {/* If Agent's Summary => show agent range */}
         {selectedSummary === "Agent's Summary" && (
           <>
             <TextField
@@ -533,7 +495,6 @@ const ManagerRetentionDashboard = () => {
           </>
         )}
 
-        {/* If Shipment Summary => show shipment range */}
         {selectedSummary === "Shipment Summary" && (
           <>
             <TextField
@@ -588,13 +549,13 @@ const ManagerRetentionDashboard = () => {
                 />
                 <Button
                   variant="contained"
+                  onClick={applyCustomShipmentRange}
                   sx={{
                     backgroundColor: "#1976D2",
                     color: "#fff",
                     boxShadow: "0px 3px 10px rgba(0, 0, 0, 0.1)",
                     "&:hover": { backgroundColor: "#1565C0" },
                   }}
-                  onClick={applyCustomShipmentRange}
                 >
                   Apply
                 </Button>
@@ -622,11 +583,7 @@ const ManagerRetentionDashboard = () => {
             <Typography
               variant="h6"
               fontWeight="bold"
-              sx={{
-                textAlign: "center",
-                color: "#000",
-                marginBottom: 2,
-              }}
+              sx={{ textAlign: "center", color: "#000", marginBottom: 2 }}
             >
               Agent's Summary
             </Typography>
@@ -661,8 +618,7 @@ const ManagerRetentionDashboard = () => {
                       ? `₹${todaySummary.totalSalesAmount.toLocaleString("en-IN")}`
                       : undefined,
                   icon: <CurrencyRupee sx={{ fontSize: 20, color: "#fff" }} />,
-                  gradient:
-                    "linear-gradient(135deg, #EF9A9A 30%, #E57373 100%)",
+                  gradient: "linear-gradient(135deg, #EF9A9A 30%, #E57373 100%)",
                 },
                 {
                   label: "Average Order Value",
@@ -671,8 +627,7 @@ const ManagerRetentionDashboard = () => {
                       ? `₹${todaySummary.avgOrderValue.toLocaleString("en-IN")}`
                       : undefined,
                   icon: <CurrencyRupee sx={{ fontSize: 20, color: "#fff" }} />,
-                  gradient:
-                    "linear-gradient(135deg, #CE93D8 30%, #BA68C8 100%)",
+                  gradient: "linear-gradient(135deg, #CE93D8 30%, #BA68C8 100%)",
                 },
               ].map(({ label, value, icon, gradient }) => (
                 <Box
@@ -687,9 +642,7 @@ const ManagerRetentionDashboard = () => {
                     transition: "all 0.3s ease",
                     minWidth: 200,
                     height: 120,
-                    "&:hover": {
-                      transform: "translateY(2px)",
-                    },
+                    "&:hover": { transform: "translateY(2px)" },
                   }}
                 >
                   <Box
@@ -707,22 +660,11 @@ const ManagerRetentionDashboard = () => {
                   >
                     {icon}
                   </Box>
-                  <Typography
-                    variant="body2"
-                    sx={{ fontWeight: 500, mb: 0.5 }}
-                  >
+                  <Typography variant="body2" sx={{ fontWeight: 500, mb: 0.5 }}>
                     {label}
                   </Typography>
-                  <Typography
-                    variant="subtitle1"
-                    fontWeight="600"
-                    sx={{ color: "#fff" }}
-                  >
-                    {loading ? (
-                      <CircularProgress size={16} sx={{ color: "#fff" }} />
-                    ) : (
-                      value
-                    )}
+                  <Typography variant="subtitle1" fontWeight="600" sx={{ color: "#fff" }}>
+                    {loading ? <CircularProgress size={16} sx={{ color: "#fff" }} /> : value}
                   </Typography>
                 </Box>
               ))}
@@ -744,30 +686,17 @@ const ManagerRetentionDashboard = () => {
             <Typography
               variant="h6"
               fontWeight="bold"
-              sx={{
-                textAlign: "center",
-                color: "#000",
-                marginBottom: 2,
-              }}
+              sx={{ textAlign: "center", color: "#000", marginBottom: 2 }}
             >
               Agent Metrics
             </Typography>
             <TableContainer
-              sx={{
-                borderRadius: 2,
-                boxShadow: "0px 2px 8px rgba(0, 0, 0, 0.08)",
-                overflowX: "auto",
-              }}
+              sx={{ borderRadius: 2, boxShadow: "0px 2px 8px rgba(0, 0, 0, 0.08)", overflowX: "auto" }}
               component={Paper}
             >
               <Table>
                 <TableHead>
-                  <TableRow
-                    sx={{
-                      background:
-                        "linear-gradient(135deg, #64B5F6 30%, #42A5F5 100%)",
-                    }}
-                  >
+                  <TableRow sx={{ background: "linear-gradient(135deg, #64B5F6 30%, #42A5F5 100%)" }}>
                     {[
                       "Agent Name",
                       "Active Customers",
@@ -794,36 +723,22 @@ const ManagerRetentionDashboard = () => {
                   <TableBody>
                     <TableRow>
                       <TableCell colSpan={5} sx={{ padding: 0 }}>
-                        <LinearProgress
-                          variant="indeterminate"
-                          sx={{ width: "100%", height: "3px" }}
-                        />
+                        <LinearProgress variant="indeterminate" sx={{ width: "100%", height: "3px" }} />
                       </TableCell>
                     </TableRow>
                   </TableBody>
                 )}
                 <TableBody>
-                  {!loading &&
-                    agentMetrics.length > 0 &&
+                  {!loading && agentMetrics.length > 0 ? (
                     agentMetrics.map((agent, index) => (
                       <TableRow
                         key={agent.agentName}
                         sx={{
-                          backgroundColor:
-                            index % 2 === 0 ? "#F9FAFB" : "#FFFFFF",
-                          "&:hover": {
-                            backgroundColor: "#E3F2FD",
-                            transition: "0.3s",
-                          },
+                          backgroundColor: index % 2 === 0 ? "#F9FAFB" : "#FFFFFF",
+                          "&:hover": { backgroundColor: "#E3F2FD", transition: "0.3s" },
                         }}
                       >
-                        <TableCell
-                          sx={{
-                            padding: "12px",
-                            textAlign: "center",
-                            fontWeight: 500,
-                          }}
-                        >
+                        <TableCell sx={{ padding: "12px", textAlign: "center", fontWeight: 500 }}>
                           {agent.agentName}
                         </TableCell>
                         <TableCell sx={{ padding: "12px", textAlign: "center" }}>
@@ -839,21 +754,19 @@ const ManagerRetentionDashboard = () => {
                           ₹{agent.avgOrderValue.toFixed(2)}
                         </TableCell>
                       </TableRow>
-                    ))}
-                  {!loading && agentMetrics.length === 0 && (
-                    <TableRow>
-                      <TableCell
-                        colSpan={5}
-                        align="center"
-                        sx={{
-                          padding: "12px",
-                          color: "#888",
-                          fontStyle: "italic",
-                        }}
-                      >
-                        No data found.
-                      </TableCell>
-                    </TableRow>
+                    ))
+                  ) : (
+                    !loading && (
+                      <TableRow>
+                        <TableCell
+                          colSpan={5}
+                          align="center"
+                          sx={{ padding: "12px", color: "#888", fontStyle: "italic" }}
+                        >
+                          No data found.
+                        </TableCell>
+                      </TableRow>
+                    )
                   )}
                 </TableBody>
               </Table>
@@ -880,7 +793,7 @@ const ManagerRetentionDashboard = () => {
             Shipment Status Summary
           </Typography>
 
-          {/* Shipment Summary Table */}
+          {/* Overall Shipment Summary Table */}
           <Box
             sx={{
               padding: 2,
@@ -893,84 +806,61 @@ const ManagerRetentionDashboard = () => {
             }}
           >
             <TableContainer
-              sx={{
-                borderRadius: 2,
-                boxShadow: "0px 2px 8px rgba(0, 0, 0, 0.08)",
-                overflowX: "auto",
-              }}
+              sx={{ borderRadius: 2, boxShadow: "0px 2px 8px rgba(0, 0, 0, 0.08)", overflowX: "auto" }}
               component={Paper}
             >
               <Table>
                 <TableHead>
-                  <TableRow
-                    sx={{
-                      background: "linear-gradient(135deg, #64B5F6 30%, #42A5F5 100%)",
-                    }}
-                  >
-                    {["Category", "Count", "Amount", "Percentage"].map(
-                      (header) => (
-                        <TableCell
-                          key={header}
-                          sx={{
-                            fontWeight: "bold",
-                            textAlign: "center",
-                            color: "#fff",
-                            fontSize: "14px",
-                            padding: "10px",
-                          }}
-                        >
-                          {header}
-                        </TableCell>
-                      )
-                    )}
+                  <TableRow sx={{ background: "linear-gradient(135deg, #64B5F6 30%, #42A5F5 100%)" }}>
+                    {["Category", "Count", "Amount", "Percentage"].map((header) => (
+                      <TableCell
+                        key={header}
+                        sx={{ fontWeight: "bold", textAlign: "center", color: "#fff", fontSize: "14px", padding: "10px" }}
+                      >
+                        {header}
+                      </TableCell>
+                    ))}
                   </TableRow>
                 </TableHead>
                 {loading && (
                   <TableBody>
                     <TableRow>
                       <TableCell colSpan={4} sx={{ padding: 0 }}>
-                        <LinearProgress
-                          variant="indeterminate"
-                          sx={{ width: "100%", height: "3px" }}
-                        />
+                        <LinearProgress variant="indeterminate" sx={{ width: "100%", height: "3px" }} />
                       </TableCell>
                     </TableRow>
                   </TableBody>
                 )}
                 <TableBody>
-                  {!loading &&
-                    shipmentSummary.length > 0 &&
+                  {!loading && shipmentSummary.length > 0 ? (
                     shipmentSummary.map((row, idx) => (
                       <TableRow
                         key={idx}
                         sx={{
-                          backgroundColor:
-                            idx % 2 === 0 ? "#F9FAFB" : "#FFFFFF",
+                          backgroundColor: idx % 2 === 0 ? "#F9FAFB" : "#FFFFFF",
                           "&:hover": { backgroundColor: "#E3F2FD", transition: "0.3s" },
                         }}
                       >
-                        <TableCell
-                          sx={{ textAlign: "center", fontWeight: 500 }}
-                        >
+                        <TableCell sx={{ textAlign: "center", fontWeight: 500 }}>
                           {row.category}
                         </TableCell>
+                        <TableCell sx={{ textAlign: "center" }}>{row.count}</TableCell>
                         <TableCell sx={{ textAlign: "center" }}>
-                          {row.count}
-                        </TableCell>
-                        <TableCell sx={{ textAlign: "center" }}>
-                          ₹{row.amount.toFixed(2)}
+                          ₹{parseFloat(row.totalAmount).toFixed(2)}
                         </TableCell>
                         <TableCell sx={{ textAlign: "center" }}>
                           {row.percentage}%
                         </TableCell>
                       </TableRow>
-                    ))}
-                  {!loading && shipmentSummary.length === 0 && (
-                    <TableRow>
-                      <TableCell colSpan={4} align="center" sx={{ color: "#888" }}>
-                        No shipment data found.
-                      </TableCell>
-                    </TableRow>
+                    ))
+                  ) : (
+                    !loading && (
+                      <TableRow>
+                        <TableCell colSpan={4} align="center" sx={{ color: "#888" }}>
+                          No shipment data found.
+                        </TableCell>
+                      </TableRow>
+                    )
                   )}
                 </TableBody>
               </Table>
@@ -1039,90 +929,65 @@ const ManagerRetentionDashboard = () => {
             }}
           >
             <TableContainer
-              sx={{
-                borderRadius: 2,
-                boxShadow: "0px 2px 8px rgba(0, 0, 0, 0.08)",
-                overflowX: "auto",
-              }}
+              sx={{ borderRadius: 2, boxShadow: "0px 2px 8px rgba(0, 0, 0, 0.08)", overflowX: "auto" }}
               component={Paper}
             >
               <Table>
                 <TableHead>
-                  <TableRow
-                    sx={{
-                      background: "linear-gradient(135deg, #64B5F6 30%, #42A5F5 100%)",
-                    }}
-                  >
-                    {["Category", "Count", "Amount", "Percentage"].map(
-                      (header) => (
-                        <TableCell
-                          key={header}
-                          sx={{
-                            fontWeight: "bold",
-                            textAlign: "center",
-                            color: "#fff",
-                            fontSize: "14px",
-                            padding: "10px",
-                          }}
-                        >
-                          {header}
-                        </TableCell>
-                      )
-                    )}
+                  <TableRow sx={{ background: "linear-gradient(135deg, #64B5F6 30%, #42A5F5 100%)" }}>
+                    {["Category", "Count", "Amount", "Percentage"].map((header) => (
+                      <TableCell
+                        key={header}
+                        sx={{ fontWeight: "bold", textAlign: "center", color: "#fff", fontSize: "14px", padding: "10px" }}
+                      >
+                        {header}
+                      </TableCell>
+                    ))}
                   </TableRow>
                 </TableHead>
                 {loading && (
                   <TableBody>
                     <TableRow>
                       <TableCell colSpan={4} sx={{ padding: 0 }}>
-                        <LinearProgress
-                          variant="indeterminate"
-                          sx={{ width: "100%", height: "3px" }}
-                        />
+                        <LinearProgress variant="indeterminate" sx={{ width: "100%", height: "3px" }} />
                       </TableCell>
                     </TableRow>
                   </TableBody>
                 )}
                 <TableBody>
-                  {!loading &&
-                    agentShipmentSummary.length > 0 &&
+                  {!loading && agentShipmentSummary.length > 0 ? (
                     agentShipmentSummary.map((row, idx) => (
                       <TableRow
                         key={idx}
                         sx={{
-                          backgroundColor:
-                            idx % 2 === 0 ? "#F9FAFB" : "#FFFFFF",
+                          backgroundColor: idx % 2 === 0 ? "#F9FAFB" : "#FFFFFF",
                           "&:hover": { backgroundColor: "#E3F2FD", transition: "0.3s" },
                         }}
                       >
-                        <TableCell
-                          sx={{ padding: "12px", textAlign: "center", fontWeight: 500 }}
-                        >
+                        <TableCell sx={{ padding: "12px", textAlign: "center", fontWeight: 500 }}>
                           {row.category}
                         </TableCell>
+                        <TableCell sx={{ padding: "12px", textAlign: "center" }}>{row.count}</TableCell>
                         <TableCell sx={{ padding: "12px", textAlign: "center" }}>
-                          {row.count}
-                        </TableCell>
-                        <TableCell sx={{ padding: "12px", textAlign: "center" }}>
-                          ₹{row.amount.toFixed(2)}
+                          ₹{parseFloat(row.totalAmount).toFixed(2)}
                         </TableCell>
                         <TableCell sx={{ padding: "12px", textAlign: "center" }}>
                           {row.percentage}%
                         </TableCell>
                       </TableRow>
-                    ))}
-                  {!loading && agentShipmentSummary.length === 0 && (
-                    <TableRow>
-                      <TableCell
-                        colSpan={4}
-                        align="center"
-                        sx={{ padding: "12px", color: "#888", fontStyle: "italic" }}
-                      >
-                        {selectedAgent
-                          ? "No shipment data found for this agent."
-                          : "Please select an agent."}
-                      </TableCell>
-                    </TableRow>
+                    ))
+                  ) : (
+                    !loading && (
+                      <TableRow>
+                        <TableCell
+                          colSpan={4}
+                          align="center"
+                          sx={{ padding: "12px", color: "#888", fontStyle: "italic" }}
+                        >
+                          {selectedAgent ? "No shipment data found for this agent." : "Please select an agent."}
+                        </TableCell>
+                      </TableRow>
+                    )
                   )}
                 </TableBody>
               </Table>

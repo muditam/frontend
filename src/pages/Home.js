@@ -21,7 +21,7 @@ const ShipwayOrders = () => {
         startDate,
         endDate 
       };
-      const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/shipway/orders", { params });
+      const response = await axios.get("http://localhost:5000/api/shipway/orders", { params });
       const data = response.data;
       let ordersArray = [];
       if (data && Array.isArray(data.message)) {
@@ -50,7 +50,7 @@ const ShipwayOrders = () => {
     }
     setPage(0);
     try { 
-      await axios.post("https://muditamleads-14f32a10d7f7.herokuapp.com/api/shipway/fetch-orders", { startDate, endDate }); 
+      await axios.post("http://localhost:5000/api/shipway/fetch-orders", { startDate, endDate }); 
       fetchOrdersFromDB(0);
     } catch (err) {
       setError(err);
