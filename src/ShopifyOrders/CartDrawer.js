@@ -30,6 +30,9 @@ import RemoveIcon from "@mui/icons-material/Remove";
 import CloseIcon from "@mui/icons-material/Close";
 import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
 
+
+import OrderDetailsPopup from "./OrderDetailsPopup";
+
 import ReactConfetti from "react-confetti";
 import axios from "axios";
 
@@ -99,7 +102,7 @@ const INDIAN_STATES = [
 const theme = createTheme({
   palette: {
     primary: {
-      main: "#1976d2", // Modern blue
+      main: "#000000",
     },
     secondary: {
       main: "#f50057",
@@ -143,7 +146,10 @@ const CartDrawer = ({ closeDrawer }) => {
   const [filteredProducts, setFilteredProducts] = useState([]);
   const [showOrderSuccess, setShowOrderSuccess] = useState(false);
   const [orderId, setOrderId] = useState(null);
+  const [showOrderDetailsPopup, setShowOrderDetailsPopup] = useState(false);
   const [orderNotes, setOrderNotes] = useState("");
+  const [notesMessage, setNotesMessage] = useState("");
+  const [shakeCart, setShakeCart] = useState(false);
 
   // Keep track of window size for react-confetti
   const [confettiSize, setConfettiSize] = useState({
@@ -156,6 +162,10 @@ const CartDrawer = ({ closeDrawer }) => {
   const [newCustomerLastName, setNewCustomerLastName] = useState("");
 
   const [isOrderLoading, setIsOrderLoading] = useState(false);
+
+  const storedUser = sessionStorage.getItem("user");
+  const loggedInUser = storedUser ? JSON.parse(storedUser) : {};
+  const loggedInAgentName = loggedInUser.fullName || "Default Agent";
 
   // Pulling data from Redux store
   const {
@@ -181,6 +191,11 @@ const CartDrawer = ({ closeDrawer }) => {
     customerId,
     billingSameAsShipping,
   } = useSelector((state) => state.cart);
+
+  const [copyNamePhoneChecked, setCopyNamePhoneChecked] = useState(false);
+
+  // Compute total items in the cart (sum of quantities)
+  const totalItems = cart.reduce((acc, item) => acc + item.quantity, 0);
 
   // Responsive design hook
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
@@ -316,8 +331,7 @@ const CartDrawer = ({ closeDrawer }) => {
     setOrderNotes("");
     setActiveSection("ordering"); // Go back to first tab if you like
 
-    // 3. Finally, close the drawer
-    closeDrawer();
+    
   };
 
   const handleNext = () => {
@@ -366,12 +380,28 @@ const CartDrawer = ({ closeDrawer }) => {
     dispatch(setShippingCost(numericValue));
   };
 
+  // Add this helper function at the top of your file
+  function standardizePhoneNumber(rawPhone) {
+    let digits = rawPhone.replace(/\D/g, "");
+    // If the number has 11 digits starting with '0', remove the leading '0'
+    if (digits.length === 11 && digits.startsWith("0")) {
+      digits = digits.slice(1);
+    }
+    return digits;
+  }
+
+
   // ----- PHONE CHECK & ADDRESSES -----
   const handleCheckPhone = async () => {
     try {
+      // Standardize the phone number before use
+      const standardizedPhone = standardizePhoneNumber(phoneNumber);
+      // (Optional) Update state with standardized value
+      dispatch(setPhoneNumber(standardizedPhone));
+
       // Fetch previous orders (addresses)
       const ordersRes = await axios.get(
-        `https://muditamleads-14f32a10d7f7.herokuapp.com/api/shopify/customer-orders?phone=${phoneNumber}`
+        `https://muditamleads-14f32a10d7f7.herokuapp.com/api/shopify/customer-orders?phone=${standardizedPhone}`
       );
       const fetchedAddresses = ordersRes.data.addresses || [];
       dispatch(setAddresses(fetchedAddresses));
@@ -385,7 +415,7 @@ const CartDrawer = ({ closeDrawer }) => {
 
       // Check for existing customer by phone
       const customerRes = await axios.get(
-        `https://muditamleads-14f32a10d7f7.herokuapp.com/api/shopify/customer?phone=${phoneNumber}`
+        `https://muditamleads-14f32a10d7f7.herokuapp.com/api/shopify/customer?phone=${standardizedPhone}`
       );
       const customerData = customerRes.data;
       if (customerData && customerData.id && customerData.first_name) {
@@ -403,6 +433,7 @@ const CartDrawer = ({ closeDrawer }) => {
       console.error("Error checking phone:", err);
     }
   };
+
 
   // New function to create a customer on Shopify
   const handleCreateCustomer = async () => {
@@ -462,13 +493,13 @@ const CartDrawer = ({ closeDrawer }) => {
   // Check if user has selected or filled an address
   const isAddressSelectedOrFilled = () => {
     if (addressCategory === "existing") {
-      return( selectedAddressIndex !== null && 
-      selectedAddressIndex !== undefined && 
-      addresses[selectedAddressIndex] &&
-      addresses[selectedAddressIndex].address1?.trim() !== ""
+      return (selectedAddressIndex !== null &&
+        selectedAddressIndex !== undefined &&
+        addresses[selectedAddressIndex] &&
+        addresses[selectedAddressIndex].address1?.trim() !== "" &&
+        addresses[selectedAddressIndex].address2?.trim() !== ""
       );
     } else if (addressCategory === "new") {
-      // Minimal check: fullName, address1, city, pincode not empty
       return (
         newAddress.fullName.trim() !== "" &&
         newAddress.address1.trim() !== "" &&
@@ -479,16 +510,15 @@ const CartDrawer = ({ closeDrawer }) => {
     return false;
   };
 
-  // Confirm address => store it + show Payment Method
   const handleConfirmAddress = () => {
-    if (!isAddressSelectedOrFilled()) return;  
+    if (!isAddressSelectedOrFilled()) return;
 
     let finalAddr = null;
     if (addressCategory === "existing" && selectedAddressIndex !== null) {
       finalAddr = { ...addresses[selectedAddressIndex], valid: true };
     } else {
       finalAddr = { ...newAddress, valid: true };
-    } 
+    }
     dispatch(setConfirmedAddress(finalAddr));
     dispatch(setAddressConfirmed(true));
   };
@@ -515,7 +545,7 @@ const CartDrawer = ({ closeDrawer }) => {
     }
   };
 
-  // Updated create order to capture order id and show success popup without auto-closing
+
   const handleCreateOrder = async () => {
     setIsOrderLoading(true);
 
@@ -523,6 +553,7 @@ const CartDrawer = ({ closeDrawer }) => {
       firstName: confirmedAddress?.fullName?.split(" ")[0] || "",
       lastName: confirmedAddress?.fullName?.split(" ")[1] || "",
       address1: confirmedAddress?.address1 || "",
+      address2: confirmedAddress?.address2 || "",
       city: confirmedAddress?.city || "",
       province: confirmedAddress?.state || "",
       country: confirmedAddress?.country || "India",
@@ -536,6 +567,7 @@ const CartDrawer = ({ closeDrawer }) => {
         firstName: confirmedAddress?.fullName?.split(" ")[0] || "",
         lastName: confirmedAddress?.fullName?.split(" ")[1] || "",
         address1: confirmedAddress?.address1 || "",
+        address2: confirmedAddress?.address2 || "",
         city: confirmedAddress?.city || "",
         province: confirmedAddress?.state || "",
         country: confirmedAddress?.country || "India",
@@ -574,8 +606,8 @@ const CartDrawer = ({ closeDrawer }) => {
     }
   };
 
-  // New function to post order notes using the fetched order id
-  const handleAddNotes = async () => {
+
+  const handleAddNotesClick = async () => {
     if (!orderId) {
       alert("Order id is missing.");
       return;
@@ -592,14 +624,20 @@ const CartDrawer = ({ closeDrawer }) => {
           note: orderNotes,
         }
       );
-      alert("Notes added successfully.");
-      // Optionally, clear the note input field after success
+      setNotesMessage("Notes added.");
       setOrderNotes("");
+      // Close the order success popup first:
+      setShowOrderSuccess(false);
+      // Then trigger the Order Details popup after a short delay:
+      setTimeout(() => {
+        setShowOrderDetailsPopup(true);
+      }, 500);
     } catch (error) {
       console.error("Error adding notes:", error);
       alert("Error adding notes.");
     }
   };
+
 
   // Increase/Decrease quantity in the Cart
   const handleIncreaseQuantity = (index) => {
@@ -623,6 +661,18 @@ const CartDrawer = ({ closeDrawer }) => {
       );
     }
   };
+
+  useEffect(() => {
+    if (copyNamePhoneChecked) {
+      // Copy from phoneNumber & customerName to newAddress
+      dispatch(
+        setNewAddress({
+          fullName: customerName || "",
+          phone: phoneNumber || "",
+        })
+      );
+    }
+  }, [copyNamePhoneChecked, dispatch, phoneNumber, customerName]);
 
   // Function to close the order success popup manually
   const handleCloseOrderPopup = () => {
@@ -649,18 +699,43 @@ const CartDrawer = ({ closeDrawer }) => {
           }}
         >
           <Box sx={{ display: "flex", flex: 1 }}>
-            {["ordering", "cart", "payment"].map((section) => (
+          {["ordering", "cart", "payment"].map((section) => {
+            let label = section.charAt(0).toUpperCase() + section.slice(1);
+            if (section === "cart") {
+              label += ` (${totalItems})`;
+            }
+            const button = (
               <Button
                 key={section}
                 variant={activeSection === section ? "contained" : "text"}
                 color="primary"
-                onClick={() => setActiveSection(section)}
+                onClick={() => {
+                  if (section === "payment" && totalItems === 0) {
+                    setShakeCart(true);
+                    setTimeout(() => setShakeCart(false), 500);
+                  } else {
+                    setActiveSection(section);
+                  }
+                }}
                 sx={{ ...buttonStyle, flex: 1, mx: 0.5 }}
               >
-                {section.charAt(0).toUpperCase() + section.slice(1)}
+                {label}
               </Button>
-            ))}
-          </Box>
+            );
+            if (section === "cart") {
+              return (
+                <motion.div
+                  key={section}
+                  animate={shakeCart ? { x: [0, -10, 10, -10, 10, 0] } : {}}
+                  transition={{ duration: 0.5 }}
+                >
+                  {button}
+                </motion.div>
+              );
+            }
+            return button;
+          })}
+        </Box>
 
           {/* Delete icon that resets all states */}
           <IconButton
@@ -880,7 +955,7 @@ const CartDrawer = ({ closeDrawer }) => {
           >
             <Box>
               <Typography variant="h6" sx={{ mb: 2 }}>
-                Your Cart
+                Your Cart 
               </Typography>
 
               {/* Cart Items with images, quantity +/- and delete icon */}
@@ -1064,7 +1139,7 @@ const CartDrawer = ({ closeDrawer }) => {
 
               {/* Shipping Charges */}
               <Typography>
-                Shipping Charges (₹0 - ₹4000)
+                Shipping Charges 
               </Typography>
               <Box
                 display="flex"
@@ -1118,9 +1193,14 @@ const CartDrawer = ({ closeDrawer }) => {
                 variant="contained"
                 color="primary"
                 sx={{ ...buttonStyle, mt: 2 }}
-                onClick={() =>
-                  setActiveSection("payment")
-                }
+                onClick={() => {
+                  if (cart.length === 0) { 
+                    setShakeCart(true);
+                    setTimeout(() => setShakeCart(false), 500);
+                  } else {
+                    setActiveSection("payment");
+                  }
+                }}
               >
                 Next
               </Button>
@@ -1356,18 +1436,22 @@ const CartDrawer = ({ closeDrawer }) => {
               {/* New address */}
               {addressCategory === "new" && (
                 <Box sx={{ mb: 2 }}>
+                  <FormControlLabel
+                    control={
+                      <Checkbox
+                        checked={copyNamePhoneChecked}
+                        onChange={(e) => setCopyNamePhoneChecked(e.target.checked)}
+                      />
+                    }
+                    label="Use Name & Phone from above"
+                  />
                   <TextField
                     label="Full Name"
                     fullWidth
                     size="small"
                     margin="dense"
                     value={newAddress.fullName || ""}
-                    onChange={(e) =>
-                      handleNewAddressChange(
-                        "fullName",
-                        e.target.value
-                      )
-                    }
+                    onChange={(e) => handleNewAddressChange("fullName", e.target.value)}
                   />
                   <TextField
                     label="Phone"
@@ -1375,12 +1459,7 @@ const CartDrawer = ({ closeDrawer }) => {
                     size="small"
                     margin="dense"
                     value={newAddress.phone || ""}
-                    onChange={(e) =>
-                      handleNewAddressChange(
-                        "phone",
-                        e.target.value
-                      )
-                    }
+                    onChange={(e) => handleNewAddressChange("phone", e.target.value)}
                   />
                   <TextField
                     label="Email"
@@ -1606,7 +1685,7 @@ const CartDrawer = ({ closeDrawer }) => {
                       disabled={
                         (paymentMethod === "Prepaid" && transactionId.trim() === "") ||
                         isOrderLoading ||
-                        !confirmedAddress  
+                        !confirmedAddress
                       }
                       sx={buttonStyle}
                     >
@@ -1652,23 +1731,7 @@ const CartDrawer = ({ closeDrawer }) => {
             }}
           >
             {/* Cross icon to close the popup */}
-            <IconButton
-              onClick={handleCloseOrderPopup}
-              sx={{
-                position: "absolute",
-                top: 150,
-                right: 400,
-                color: "#fff",
-                zIndex: 10000,
-              }}
-            >
-              <CloseIcon />
-            </IconButton>
-            <ReactConfetti
-              width={confettiSize.width}
-              height={confettiSize.height}
-              recycle={false}
-            />
+
             <Box
               sx={{
                 backgroundColor: "#fff",
@@ -1710,13 +1773,34 @@ const CartDrawer = ({ closeDrawer }) => {
               />
               <Button
                 variant="contained"
-                onClick={handleAddNotes}
+                onClick={handleAddNotesClick}
                 sx={buttonStyle}
               >
                 Add Notes
               </Button>
             </Box>
+
+            <IconButton
+              onClick={handleCloseOrderPopup}
+              sx={{
+                position: "absolute",
+                top: 150,
+                right: 400,
+                color: "#fff",
+                zIndex: 10000,
+              }}
+            >
+              <CloseIcon />
+            </IconButton>
+            <ReactConfetti width={confettiSize.width} height={confettiSize.height} recycle={false} />
           </Box>
+        )}
+        {showOrderDetailsPopup && orderId && (
+          <OrderDetailsPopup
+            orderId={orderId}
+            agentName={loggedInAgentName}
+            onClose={() => setShowOrderDetailsPopup(false)}
+          />
         )}
       </Box>
     </ThemeProvider>

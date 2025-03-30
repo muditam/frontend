@@ -210,7 +210,7 @@ const AddEmployee = () => {
       <Typography
         variant="h5"
         gutterBottom
-        sx={{ textAlign: "center", color: "#1976d2", fontWeight:"bold" }}
+        sx={{ textAlign: "center", color: "#000000", fontWeight:"bold" }}
       >
         Employee Management
       </Typography>

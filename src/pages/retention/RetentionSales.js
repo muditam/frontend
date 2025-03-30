@@ -1,6 +1,16 @@
 import React, { useState, useEffect } from "react";
 import {
   Box,
+  Button,
+  Divider,
+  TextField,
+  Typography,
+  MenuItem,
+  Select,
+  FormControl,
+  Checkbox,
+  ListItemText,
+  Drawer,
   Table,
   TableBody,
   TableCell,
@@ -8,16 +18,6 @@ import {
   TableHead,
   TableRow,
   Paper,
-  TextField,
-  Select,
-  MenuItem,
-  Button,
-  Typography,
-  FormControl,
-  Checkbox,
-  ListItemText,
-  Drawer,
-  Divider,
   TablePagination,
   InputLabel,
   IconButton,
@@ -25,38 +25,53 @@ import {
 import { Delete, AddCircle } from "@mui/icons-material";
 import axios from "axios";
 
+const productOptions = [
+  "KJF",
+  "SDP",
+  "VKR",
+  "L-Fx",
+  "S&S",
+  "CPV",
+  "HDP",
+  "PF",
+  "PGut",
+  "Shilajit",
+  "Kit",
+  "Blood Test",
+];
+
+const productNameMap = {
+  'KJF': 'Karela Jamun Fizz',
+  'SDP': 'Sugar Defend Pro',
+  'VKR': 'Vasant Kusmakar Ras',
+  'L-Fx': 'Liver Fix',
+  'S&S': 'Stress & Sleep',
+  'CPV': 'Chandraprabha Vati',
+  'HDP': 'Heart Defend Pro',
+  'PF': 'Performance Forever',
+  'PGut': 'Power Gut',
+  'Shilajit': 'Shilajit with Gold',
+  'Kit': 'Diabetes Management Kit',
+  'Blood Test': 'Blood Test'
+};
+
+const dosageOptions = ["10-Days", "20-Days", "30-Days", "60-Days", "90-Days"];
+const paymentModes = [
+  "Partial Paid",
+  "Razorpay",
+  "COD",
+  "UPI",
+  "Bank Transfer",
+];
+const deliveryStatuses = ["Delivered", "RTO", "Undelivered"];
+
 const RetentionSales = () => {
   const [sales, setSales] = useState([]);
   const [currentPage, setCurrentPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(50);
   const [editedSales, setEditedSales] = useState({});
   const [savingStatus, setSavingStatus] = useState({});
-  const productOptions = [
-    "KJF",
-    "SDP",
-    "VKR",
-    "L-Fx",
-    "S&S",
-    "CPV",
-    "HDP",
-    "PF",
-    "PGut",
-    "Shilajit",
-    "Kit",
-    "Blood Test",
-  ];
-  const dosageOptions = ["10-Days", "20-Days", "30-Days", "60-Days", "90-Days"];
-  const paymentModes = [
-    "Partial Paid",
-    "Razorpay",
-    "COD",
-    "UPI",
-    "Bank Transfer",
-  ];
-  const deliveryStatuses = ["Delivered", "RTO", "Undelivered"];
-
-  const loggedInUser = JSON.parse(sessionStorage.getItem("user"));
-
+  const [filterOpen, setFilterOpen] = useState(false);
   const [filters, setFilters] = useState({
     dateFrom: "",
     dateTo: "",
@@ -69,24 +84,28 @@ const RetentionSales = () => {
     modeOfPayment: "",
     deliveryStatus: "",
   });
-  const [filterOpen, setFilterOpen] = useState(false);
 
-  useEffect(() => {
-    if (loggedInUser) {
-      fetchSales(loggedInUser.fullName);
-    }
-  }, [loggedInUser]);
+  const loggedInUser = JSON.parse(sessionStorage.getItem("user"));
 
-  const fetchSales = async (orderCreatedBy) => {
+  // Updated fetchSales: If user role is "Retention Agent", pass orderCreatedBy parameter
+  const fetchSales = async () => {
     try {
-      const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/retention-sales", {
-        params: { orderCreatedBy },
-      });
+      let params = {};
+      if (loggedInUser.role === "Retention Agent") {
+        params.orderCreatedBy = loggedInUser.fullName;
+      }
+      const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/retention-sales/all", { params });
       setSales(response.data);
     } catch (error) {
       console.error("Error fetching retention sales:", error);
     }
   };
+
+  useEffect(() => {
+    if (loggedInUser) {
+      fetchSales();
+    }
+  }, [loggedInUser]);
 
   const handleInputChange = (e, id, field) => {
     setEditedSales((prev) => ({
@@ -102,21 +121,17 @@ const RetentionSales = () => {
     if (editedSales[id]) {
       setSavingStatus((prev) => ({ ...prev, [id]: "Saving..." }));
       try {
-        // Save the changes
         await axios.put(`https://muditamleads-14f32a10d7f7.herokuapp.com/api/retention-sales/${id}`, editedSales[id]);
         setSales((prev) =>
           prev.map((sale) => (sale._id === id ? { ...sale, ...editedSales[id] } : sale))
         );
-        // Trigger heavy matching logic immediately after saving
         await axios.post("https://muditamleads-14f32a10d7f7.herokuapp.com/api/retention-sales/update-matching");
-        // Update button text to "Saved"
         setSavingStatus((prev) => ({ ...prev, [id]: "Saved" }));
         setEditedSales((prev) => {
           const updated = { ...prev };
           delete updated[id];
           return updated;
         });
-        // Optionally, clear the status after 3 seconds
         setTimeout(() => {
           setSavingStatus((prev) => ({ ...prev, [id]: undefined }));
         }, 3000);
@@ -137,6 +152,8 @@ const RetentionSales = () => {
       amountPaid: 0,
       modeOfPayment: "",
       orderCreatedBy: loggedInUser.fullName,
+      upsellAmount: 0, // New field
+      partialPayment: 0, // New field
     };
 
     try {
@@ -188,7 +205,7 @@ const RetentionSales = () => {
       modeOfPayment: "",
       deliveryStatus: "",
     });
-    fetchSales(loggedInUser.fullName);
+    fetchSales();
   };
 
   const handleChangePage = (event, newPage) => {
@@ -200,7 +217,7 @@ const RetentionSales = () => {
     setCurrentPage(0);
   };
 
-  const currentLeads = sales.slice(currentPage * rowsPerPage, currentPage * rowsPerPage + rowsPerPage);
+  const currentSales = sales.slice(currentPage * rowsPerPage, currentPage * rowsPerPage + rowsPerPage);
 
   return (
     <Box sx={{ padding: 2 }}>
@@ -339,17 +356,16 @@ const RetentionSales = () => {
       </Drawer>
 
       <TableContainer component={Paper} sx={{ maxHeight: 1000 }}>
-        <Table stickyHeader aria-label="sticky table">
+        <Table stickyHeader aria-label="retention sales table">
           <TableHead>
             <TableRow>
               <TableCell>Date</TableCell>
               <TableCell>Name *</TableCell>
               <TableCell>Contact No *</TableCell>
               <TableCell>Products Ordered *</TableCell>
-              <TableCell>Dosage Ordered *</TableCell>
+              <TableCell>Dosage Ordered *</TableCell> 
               <TableCell>Amount Paid *</TableCell>
-              <TableCell>Mode of Payment *</TableCell>
-              <TableCell>Shopify Amount</TableCell>
+              <TableCell>Mode of Payment *</TableCell> 
               <TableCell>Order ID</TableCell>
               <TableCell>Shipment Status</TableCell>
               <TableCell>Order Created By *</TableCell>
@@ -358,7 +374,7 @@ const RetentionSales = () => {
             </TableRow>
           </TableHead>
           <TableBody>
-            {currentLeads.map((sale) => (
+            {currentSales.map((sale) => (
               <TableRow key={sale._id}>
                 <TableCell>
                   <TextField
@@ -366,90 +382,56 @@ const RetentionSales = () => {
                     value={editedSales[sale._id]?.date || sale.date || ""}
                     onChange={(e) => handleInputChange(e, sale._id, "date")}
                     fullWidth
+                    InputLabelProps={{ shrink: true }}
                   />
                 </TableCell>
-                <TableCell style={{ whiteSpace: "nowrap", minWidth: "240px" }}>
+                <TableCell style={{ whiteSpace: "nowrap", minWidth: "250px" }}>
                   <TextField
                     value={editedSales[sale._id]?.name || sale.name || ""}
                     onChange={(e) => handleInputChange(e, sale._id, "name")}
                     fullWidth
                   />
                 </TableCell>
-                <TableCell style={{ whiteSpace: "nowrap", minWidth: "200px" }}>
+                <TableCell style={{ whiteSpace: "nowrap", minWidth: "160px" }}>
                   <TextField
                     type="number"
                     value={editedSales[sale._id]?.contactNumber || sale.contactNumber || ""}
                     onChange={(e) => handleInputChange(e, sale._id, "contactNumber")}
                     fullWidth
-                    sx={{
-                      flexGrow: 1,
-                      "& input[type=number]": { MozAppearance: "textfield" },
-                      "& input[type=number]::-webkit-outer-spin-button, & input[type=number]::-webkit-inner-spin-button": {
-                        WebkitAppearance: "none",
-                        margin: 0,
-                      },
-                    }}
+                  />
+                </TableCell>
+                <TableCell style={{ whiteSpace: "nowrap", minWidth: "170px" }}>
+                  <TextField
+                    value={editedSales[sale._id]?.productsOrdered || sale.productsOrdered || ""}
+                    fullWidth
                   />
                 </TableCell>
                 <TableCell>
-                  <FormControl fullWidth>
-                    <Select
-                      multiple
-                      value={editedSales[sale._id]?.productsOrdered || sale.productsOrdered || []}
-                      onChange={(e) => handleInputChange(e, sale._id, "productsOrdered")}
-                      renderValue={(selected) => selected.join(", ")}
-                    >
-                      {productOptions.map((product) => (
-                        <MenuItem key={product} value={product}>
-                          <Checkbox checked={(editedSales[sale._id]?.productsOrdered || sale.productsOrdered || []).includes(product)} />
-                          <ListItemText primary={product} />
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
-                </TableCell>
-                <TableCell>
-                  <Select
+                  <TextField
                     value={editedSales[sale._id]?.dosageOrdered || sale.dosageOrdered || ""}
-                    onChange={(e) => handleInputChange(e, sale._id, "dosageOrdered")}
                     fullWidth
-                  >
-                    {dosageOptions.map((option) => (
-                      <MenuItem key={option} value={option}>
-                        {option}
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </TableCell>
-                <TableCell style={{ whiteSpace: "nowrap", minWidth: "240px" }}>
+                  />
+                </TableCell> 
+                <TableCell>
                   <TextField
                     type="number"
-                    value={editedSales[sale._id]?.amountPaid || sale.amountPaid || ""}
+                    value={editedSales[sale._id]?.amountPaid || sale.amountPaid || 0}
                     onChange={(e) => handleInputChange(e, sale._id, "amountPaid")}
                     fullWidth
                   />
                 </TableCell>
                 <TableCell>
-                  <Select
+                  <TextField
                     value={editedSales[sale._id]?.modeOfPayment || sale.modeOfPayment || ""}
-                    onChange={(e) => handleInputChange(e, sale._id, "modeOfPayment")}
                     fullWidth
-                  >
-                    {paymentModes.map((mode) => (
-                      <MenuItem key={mode} value={mode}>
-                        {mode}
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </TableCell>
-                <TableCell>{sale.shopify_amount}</TableCell>
-                <TableCell>{sale.orderId || ""}</TableCell>
+                  />
+                </TableCell> 
+                <TableCell>{sale.orderId}</TableCell>
                 <TableCell>{sale.shipway_status}</TableCell>
                 <TableCell>{sale.orderCreatedBy}</TableCell>
-                <TableCell style={{ whiteSpace: "nowrap", minWidth: "240px" }}>
+                <TableCell style={{ whiteSpace: "nowrap", minWidth: "180px" }}>
                   <TextField
                     value={editedSales[sale._id]?.remarks || sale.remarks || ""}
-                    onChange={(e) => handleInputChange(e, sale._id, "remarks")}
                     fullWidth
                   />
                 </TableCell>
@@ -460,7 +442,6 @@ const RetentionSales = () => {
                   <IconButton color="error" onClick={() => handleDelete(sale._id)}>
                     <Delete />
                   </IconButton>
-
                 </TableCell>
               </TableRow>
             ))}
