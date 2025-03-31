@@ -40,20 +40,6 @@ const productOptions = [
   "Blood Test",
 ];
 
-const productNameMap = {
-  'KJF': 'Karela Jamun Fizz',
-  'SDP': 'Sugar Defend Pro',
-  'VKR': 'Vasant Kusmakar Ras',
-  'L-Fx': 'Liver Fix',
-  'S&S': 'Stress & Sleep',
-  'CPV': 'Chandraprabha Vati',
-  'HDP': 'Heart Defend Pro',
-  'PF': 'Performance Forever',
-  'PGut': 'Power Gut',
-  'Shilajit': 'Shilajit with Gold',
-  'Kit': 'Diabetes Management Kit',
-  'Blood Test': 'Blood Test'
-};
 
 const dosageOptions = ["10-Days", "20-Days", "30-Days", "60-Days", "90-Days"];
 const paymentModes = [

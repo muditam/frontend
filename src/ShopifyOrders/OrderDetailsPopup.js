@@ -117,6 +117,26 @@ Dosage Ordered: ${dosageOrdered}`;
     setDetailsConfirmed(true);
   };
 
+  // Define mapping object for product abbreviations
+const productAbbreviations = {
+  "Karela Jamun Fizz": "KJF",
+  "Sugar Defend Pro": "SDP",
+  "Vasant Kusmakar Ras": "VKR",
+  "Liver Fix": "L-Fx",
+  "Stress & Sleep": "S&S",
+  "Chandraprabha Vati": "CPV",
+  "Heart Defend Pro": "HDP",
+  "Performance Forever": "PF",
+  "Power Gut": "PGut",
+  "Shilajit with Gold": "Shilajit",
+  "Diabetes Management Kit": "Kit",
+};
+
+const mappedProductOrdered = orderDetails
+  ? (productAbbreviations[orderDetails.productOrdered] || orderDetails.productOrdered)
+  : "N/A";
+
+
   const handleAddToMyOrders = async () => {
     if (!orderDetails) return;
     try {
@@ -125,7 +145,7 @@ Dosage Ordered: ${dosageOrdered}`;
         phone: orderDetails.phone,
         shippingAddress: orderDetails.shippingAddress,
         paymentStatus: orderDetails.paymentStatus,
-        productOrdered: orderDetails.productOrdered,
+        productOrdered: mappedProductOrdered,
         orderDate: orderDetails.orderDate,
         orderId: orderDetails.orderId,
         totalPrice: orderDetails.totalPrice,

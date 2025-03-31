@@ -30,6 +30,7 @@ import RemoveIcon from "@mui/icons-material/Remove";
 import CloseIcon from "@mui/icons-material/Close";
 import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
 
+import EditIcon from "@mui/icons-material/Edit";
 
 import OrderDetailsPopup from "./OrderDetailsPopup";
 
@@ -151,6 +152,11 @@ const CartDrawer = ({ closeDrawer }) => {
   const [orderNotes, setOrderNotes] = useState("");
   const [notesMessage, setNotesMessage] = useState("");
   const [shakeCart, setShakeCart] = useState(false);
+
+  // At the top of your component (inside CartDrawer)
+  const [editingAddressIndex, setEditingAddressIndex] = useState(null);
+  const [editAddressData, setEditAddressData] = useState({});
+
 
   // Keep track of window size for react-confetti
   const [confettiSize, setConfettiSize] = useState({
@@ -332,7 +338,7 @@ const CartDrawer = ({ closeDrawer }) => {
     setOrderNotes("");
     setActiveSection("ordering"); // Go back to first tab if you like
 
-    
+
   };
 
   const handleNext = () => {
@@ -416,7 +422,7 @@ const CartDrawer = ({ closeDrawer }) => {
 
       // Check for existing customer by phone
       const customerRes = await axios.get(
-        `https://muditamleads-14f32a10d7f7.herokuapp.com/api/shopify/customer?phone=${standardizedPhone}`
+        `v/api/shopify/customer?phone=${standardizedPhone}`
       );
       const customerData = customerRes.data;
       if (customerData && customerData.id && customerData.first_name) {
@@ -524,6 +530,63 @@ const CartDrawer = ({ closeDrawer }) => {
     dispatch(setAddressConfirmed(true));
   };
 
+  const handleEditAddress = (index) => {
+    // Only allow edit if that address is selected
+    setEditingAddressIndex(index);
+    setEditAddressData({ ...addresses[index] });
+  };
+
+  const handleChangeEditAddress = (field, value) => {
+    setEditAddressData((prev) => ({ ...prev, [field]: value }));
+  };
+  
+  const handleSaveEditedAddress = async (index) => {
+    try {
+      if (!customerId) {
+        alert("Please check phone or create a customer first.");
+        return;
+      }
+      const addressToUpdate = addresses[index];
+      if (!addressToUpdate?.id) {
+        alert("This address does not have a Shopify ID.");
+        return;
+      }
+      
+      // Parse first and last name from fullName (for Shopify)
+      const fullNameParts = editAddressData.fullName.trim().split(" ");
+      const first_name = fullNameParts.shift() || "";
+      const last_name = fullNameParts.join(" ");
+  
+      await axios.put("https://muditamleads-14f32a10d7f7.herokuapp.com/api/shopify/customer-address", {
+        customerId: customerId,
+        addressId: addressToUpdate.id,   
+        first_name,
+        last_name,
+        phone: editAddressData.phone || phoneNumber,
+        address1: editAddressData.address1,
+        address2: editAddressData.address2,
+        city: editAddressData.city,
+        province: editAddressData.state,
+        country: editAddressData.country,
+        zip: editAddressData.pincode,
+      });
+  
+      // Update the Redux addresses state locally:
+      const updatedAddresses = [...addresses];
+      updatedAddresses[index] = { ...editAddressData };
+      dispatch(setAddresses(updatedAddresses));
+  
+      // Clear editing state
+      setEditingAddressIndex(null);
+      setEditAddressData({});
+      alert("Address updated successfully!");
+    } catch (err) {
+      console.error("Error updating address:", err);
+      alert("Error updating address on Shopify.");
+    }
+  };
+
+  
   // ----- PAYMENT & ORDER CREATION -----
   const handleGeneratePaymentLink = async () => {
     try {
@@ -700,43 +763,43 @@ const CartDrawer = ({ closeDrawer }) => {
           }}
         >
           <Box sx={{ display: "flex", flex: 1 }}>
-          {["ordering", "cart", "payment"].map((section) => {
-            let label = section.charAt(0).toUpperCase() + section.slice(1);
-            if (section === "cart") {
-              label += ` (${totalItems})`;
-            }
-            const button = (
-              <Button
-                key={section}
-                variant={activeSection === section ? "contained" : "text"}
-                color="primary"
-                onClick={() => {
-                  if (section === "payment" && totalItems === 0) {
-                    setShakeCart(true);
-                    setTimeout(() => setShakeCart(false), 500);
-                  } else {
-                    setActiveSection(section);
-                  }
-                }}
-                sx={{ ...buttonStyle, flex: 1, mx: 0.5 }}
-              >
-                {label}
-              </Button>
-            );
-            if (section === "cart") {
-              return (
-                <motion.div
+            {["ordering", "cart", "payment"].map((section) => {
+              let label = section.charAt(0).toUpperCase() + section.slice(1);
+              if (section === "cart") {
+                label += ` (${totalItems})`;
+              }
+              const button = (
+                <Button
                   key={section}
-                  animate={shakeCart ? { x: [0, -10, 10, -10, 10, 0] } : {}}
-                  transition={{ duration: 0.5 }}
+                  variant={activeSection === section ? "contained" : "text"}
+                  color="primary"
+                  onClick={() => {
+                    if (section === "payment" && totalItems === 0) {
+                      setShakeCart(true);
+                      setTimeout(() => setShakeCart(false), 500);
+                    } else {
+                      setActiveSection(section);
+                    }
+                  }}
+                  sx={{ ...buttonStyle, flex: 1, mx: 0.5 }}
                 >
-                  {button}
-                </motion.div>
+                  {label}
+                </Button>
               );
-            }
-            return button;
-          })}
-        </Box>
+              if (section === "cart") {
+                return (
+                  <motion.div
+                    key={section}
+                    animate={shakeCart ? { x: [0, -10, 10, -10, 10, 0] } : {}}
+                    transition={{ duration: 0.5 }}
+                  >
+                    {button}
+                  </motion.div>
+                );
+              }
+              return button;
+            })}
+          </Box>
 
           {/* Delete icon that resets all states */}
           <IconButton
@@ -956,7 +1019,7 @@ const CartDrawer = ({ closeDrawer }) => {
           >
             <Box>
               <Typography variant="h6" sx={{ mb: 2 }}>
-                Your Cart 
+                Your Cart
               </Typography>
 
               {/* Cart Items with images, quantity +/- and delete icon */}
@@ -1140,7 +1203,7 @@ const CartDrawer = ({ closeDrawer }) => {
 
               {/* Shipping Charges */}
               <Typography>
-                Shipping Charges 
+                Shipping Charges
               </Typography>
               <Box
                 display="flex"
@@ -1195,7 +1258,7 @@ const CartDrawer = ({ closeDrawer }) => {
                 color="primary"
                 sx={{ ...buttonStyle, mt: 2 }}
                 onClick={() => {
-                  if (cart.length === 0) { 
+                  if (cart.length === 0) {
                     setShakeCart(true);
                     setTimeout(() => setShakeCart(false), 500);
                   } else {
@@ -1354,39 +1417,126 @@ const CartDrawer = ({ closeDrawer }) => {
               )}
 
               {/* Existing addresses */}
-              {addressCategory === "existing" &&
-                addresses.length > 0 &&
-                !addressConfirmed && (
-                  <Box sx={{ mb: 2 }}>
-                    {addresses.map((addr, index) => (
-                      <Box
-                        key={index}
-                        sx={{
-                          border: "1px solid #ccc",
-                          p: 1,
-                          mb: 1,
-                        }}
-                      >
+              {/* Existing addresses */}
+              {addressCategory === "existing" && addresses.length > 0 && !addressConfirmed && (
+                <Box sx={{ mb: 2 }}>
+                  {addresses.map((addr, index) => (
+                    <Box key={index} sx={{ border: "1px solid #ccc", p: 1, mb: 1 }}>
+                      <Box sx={{ display: "flex", alignItems: "center" }}>
                         <FormControlLabel
                           control={
                             <Checkbox
-                              checked={
-                                selectedAddressIndex ===
-                                index
-                              }
-                              onChange={() =>
-                                handleSelectAddress(
-                                  index
-                                )
-                              }
+                              checked={selectedAddressIndex === index}
+                              onChange={() => handleSelectAddress(index)}
                             />
                           }
                           label={`${addr.fullName} (${addr.phone})\n${addr.address1}, ${addr.address2}, ${addr.city}, ${addr.state}, ${addr.country}, ${addr.pincode}`}
                         />
+                        {/* Show Edit icon only if this address is selected */}
+                        {selectedAddressIndex === index && (
+                          <IconButton
+                            size="small"
+                            onClick={() => handleEditAddress(index)}
+                            sx={{ ml: 1 }}
+                          >
+                            <EditIcon />
+                          </IconButton>
+                        )}
                       </Box>
-                    ))}
-                  </Box>
-                )}
+
+                      {/* If editing this address, show an editable form */}
+                      {editingAddressIndex === index && (
+                        <Box sx={{ mt: 2, border: "1px solid #ddd", p: 1 }}>
+                          <TextField
+                            label="Full Name"
+                            fullWidth
+                            size="small"
+                            margin="dense"
+                            value={editAddressData.fullName || ""}
+                            onChange={(e) => handleChangeEditAddress("fullName", e.target.value)}
+                          />
+                          <TextField
+                            label="Phone"
+                            fullWidth
+                            size="small"
+                            margin="dense"
+                            value={editAddressData.phone || ""}
+                            onChange={(e) => handleChangeEditAddress("phone", e.target.value)}
+                          />
+                          <TextField
+                            label="Address 1"
+                            fullWidth
+                            size="small"
+                            margin="dense"
+                            value={editAddressData.address1 || ""}
+                            onChange={(e) => handleChangeEditAddress("address1", e.target.value)}
+                          />
+                          <TextField
+                            label="Address 2"
+                            fullWidth
+                            size="small"
+                            margin="dense"
+                            value={editAddressData.address2 || ""}
+                            onChange={(e) => handleChangeEditAddress("address2", e.target.value)}
+                          />
+                          <TextField
+                            label="City"
+                            fullWidth
+                            size="small"
+                            margin="dense"
+                            value={editAddressData.city || ""}
+                            onChange={(e) => handleChangeEditAddress("city", e.target.value)}
+                          />
+                          <Select
+                            fullWidth
+                            size="small"
+                            margin="dense"
+                            value={editAddressData.state || ""}
+                            onChange={(e) =>
+                              handleChangeEditAddress("state", e.target.value)
+                            }
+                            sx={{ mb: 1 }}
+                          >
+                            <MenuItem value="">Select State/UT</MenuItem>
+                            {INDIAN_STATES.map((st) => (
+                              <MenuItem key={st} value={st}>
+                                {st}
+                              </MenuItem>
+                            ))}
+                          </Select>
+                          <TextField
+                            label="Pincode"
+                            fullWidth
+                            size="small"
+                            margin="dense"
+                            value={editAddressData.pincode || ""}
+                            onChange={(e) =>
+                              handleChangeEditAddress("pincode", e.target.value)
+                            }
+                          />
+                          <TextField
+                            label="Country"
+                            fullWidth
+                            size="small"
+                            margin="dense"
+                            value={editAddressData.country || ""}
+                            onChange={(e) =>
+                              handleChangeEditAddress("country", e.target.value)
+                            }
+                          />
+                          <Button
+                            variant="contained"
+                            sx={{ mt: 1 }}
+                            onClick={() => handleSaveEditedAddress(index)}
+                          >
+                            Save
+                          </Button>
+                        </Box>
+                      )}
+                    </Box>
+                  ))}
+                </Box>
+              )}
 
               {/* Confirmed existing address */}
               {addressCategory === "existing" &&
