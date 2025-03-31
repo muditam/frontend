@@ -422,7 +422,7 @@ const CartDrawer = ({ closeDrawer }) => {
 
       // Check for existing customer by phone
       const customerRes = await axios.get(
-        `v/api/shopify/customer?phone=${standardizedPhone}`
+        `https://muditamleads-14f32a10d7f7.herokuapp.com/api/shopify/customer?phone=${standardizedPhone}`
       );
       const customerData = customerRes.data;
       if (customerData && customerData.id && customerData.first_name) {
@@ -578,8 +578,7 @@ const CartDrawer = ({ closeDrawer }) => {
   
       // Clear editing state
       setEditingAddressIndex(null);
-      setEditAddressData({});
-      alert("Address updated successfully!");
+      setEditAddressData({}); 
     } catch (err) {
       console.error("Error updating address:", err);
       alert("Error updating address on Shopify.");
