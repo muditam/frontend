@@ -64,24 +64,20 @@ const SalesMySales = () => {
         params: {
           agentAssignedName,
           salesStatus: "Sales Done",
-          page: currentPage + 1, // Backend expects 1-based index
-          limit: rowsPerPage,    // Rows per page
+          page: currentPage + 1,  
+          limit: rowsPerPage,    
         },
       });
   
       const { leads, totalLeads } = response.data;
   
-      setSales(leads || []); // Update sales data for the current page
-      setTotalSales(totalLeads || 0); // Update the total sales count
+      setSales(leads || []);  
+      setTotalSales(totalLeads || 0);  
     } catch (error) {
       console.error("Failed to fetch sales", error);
     }
   };
   
-
-
-
- 
   const dropdownOptions = [
     { key: 'salesStatus', label: 'Sales Status', options: ['Sales Done', 'On Follow Up', 'Lost'] },
     { key: 'modeOfPayment', label: 'Mode of Payment', options: ['Partial Paid', 'Razorpay', 'COD', 'UPI', 'Bank Transfer'] },

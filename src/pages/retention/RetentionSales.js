@@ -363,9 +363,10 @@ const RetentionSales = () => {
               <TableCell>Name *</TableCell>
               <TableCell>Contact No *</TableCell>
               <TableCell>Products Ordered *</TableCell>
-              <TableCell>Dosage Ordered *</TableCell> 
+              <TableCell>Dosage Ordered *</TableCell>
               <TableCell>Amount Paid *</TableCell>
-              <TableCell>Mode of Payment *</TableCell> 
+              <TableCell>Partial Payment</TableCell>
+              <TableCell>Mode of Payment *</TableCell>
               <TableCell>Order ID</TableCell>
               <TableCell>Shipment Status</TableCell>
               <TableCell>Order Created By *</TableCell>
@@ -392,7 +393,7 @@ const RetentionSales = () => {
                     fullWidth
                   />
                 </TableCell>
-                <TableCell style={{ whiteSpace: "nowrap", minWidth: "160px" }}>
+                <TableCell style={{ whiteSpace: "nowrap", minWidth: "180px" }}>
                   <TextField
                     type="number"
                     value={editedSales[sale._id]?.contactNumber || sale.contactNumber || ""}
@@ -403,15 +404,17 @@ const RetentionSales = () => {
                 <TableCell style={{ whiteSpace: "nowrap", minWidth: "170px" }}>
                   <TextField
                     value={editedSales[sale._id]?.productsOrdered || sale.productsOrdered || ""}
+                    onChange={(e) => handleInputChange(e, sale._id, "productsOrdered")}
                     fullWidth
                   />
                 </TableCell>
                 <TableCell>
                   <TextField
                     value={editedSales[sale._id]?.dosageOrdered || sale.dosageOrdered || ""}
+                    onChange={(e) => handleInputChange(e, sale._id, "dosageOrdered")}
                     fullWidth
                   />
-                </TableCell> 
+                </TableCell>
                 <TableCell>
                   <TextField
                     type="number"
@@ -422,16 +425,26 @@ const RetentionSales = () => {
                 </TableCell>
                 <TableCell>
                   <TextField
-                    value={editedSales[sale._id]?.modeOfPayment || sale.modeOfPayment || ""}
+                    type="number"
+                    value={editedSales[sale._id]?.partialPayment ?? sale.partialPayment ?? ""}
+                    onChange={(e) => handleInputChange(e, sale._id, "partialPayment")}
                     fullWidth
                   />
-                </TableCell> 
+                </TableCell>
+                <TableCell>
+                  <TextField
+                    value={editedSales[sale._id]?.modeOfPayment || sale.modeOfPayment || ""}
+                    onChange={(e) => handleInputChange(e, sale._id, "modeOfPayment")}
+                    fullWidth
+                  />
+                </TableCell>
                 <TableCell>{sale.orderId}</TableCell>
                 <TableCell>{sale.shipway_status}</TableCell>
                 <TableCell>{sale.orderCreatedBy}</TableCell>
                 <TableCell style={{ whiteSpace: "nowrap", minWidth: "180px" }}>
                   <TextField
                     value={editedSales[sale._id]?.remarks || sale.remarks || ""}
+                    onChange={(e) => handleInputChange(e, sale._id, "remarks")}
                     fullWidth
                   />
                 </TableCell>

@@ -13,16 +13,33 @@ import {
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 
+
 const LoginPage = () => {
   const [userId, setUserId] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [forgotOpen, setForgotOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+
 
   const navigate = useNavigate();
+ 
+  const spinnerStyles = {
+  width: '26px',
+  height: '26px',
+  borderRadius: '50%',
+  display: 'inline-block',
+  borderTop: '3px solid #fff',
+  borderRight: '3px solid transparent',
+  boxSizing: 'border-box',
+  animation: 'rotation 1s linear infinite',
+};
+
 
   const handleLogin = async (e) => {
+   
     e.preventDefault();
+     setLoading(true);
     try {
       // Using userId as email for login
       const response = await axios.post(
@@ -34,9 +51,16 @@ const LoginPage = () => {
         navigate("/");
       }
     } catch (err) {
-      setError(err.response?.data?.message || "Login failed. Please try again.");
+      setError(
+        err.response?.data?.message || "Login failed. Please try again."
+      );
+    } finally {
+      setLoading(false); // Set loading state to false once the request is done
     }
   };
+
+
+
 
   return (
     <Grid container sx={{ minHeight: "90vh" }}>
@@ -60,11 +84,13 @@ const LoginPage = () => {
           src="https://cdn.shopify.com/s/files/1/0734/7155/7942/files/new_logo_orange_leaf_1_4e0e0f89-08a5-4264-9d2b-0cfe9535d553.png?v=1727508866"
           alt="Muditam Ayurveda Logo"
           sx={{ width: 200, mb: 3 }}
-        /> 
+        />
         <Typography variant="subtitle1" sx={{ textAlign: "center" }}>
-          "Focus on solving the customer's problems,<br /> and sales will follow automatically."
+          "Focus on solving the customer's problems,
+          <br /> and sales will follow automatically."
         </Typography>
       </Grid>
+
 
       {/* Right Section: Login Form */}
       <Grid
@@ -72,32 +98,46 @@ const LoginPage = () => {
         xs={12}
         md={6}
         sx={{
-          backgroundColor: "#fff",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
           minHeight: "100vh",
+          backgroundColor: "#f7f7f7", // Light background for contrast
         }}
       >
         <Box
           sx={{
             width: "80%",
-            maxWidth: 360,
+            maxWidth: 380,
             p: 4,
-            boxShadow: 2,
-            borderRadius: 2,
+            borderRadius: 3,
+            backgroundColor: "#fff",
+            boxShadow: "0px 4px 12px rgba(0,0,0,0.1)", // Soft shadow
           }}
         >
           <Typography
             variant="h5"
             sx={{
-              mb: 2,
+              mb: 1,
               fontWeight: "bold",
               textAlign: "center",
+              color: "#333",
             }}
           >
-            <span style={{ color: "#6A1B9A", fontSize: "1.5rem" }}>🔒</span> Login
+            Sign In
           </Typography>
+
+
+          <Box
+            sx={{
+              height: "2px",
+              backgroundColor: "#FFC107",
+              width: "100%",
+              borderRadius: "2px",
+              mb: 4,
+            }}
+          />
+
 
           {error && (
             <Typography color="error" sx={{ mb: 2, textAlign: "center" }}>
@@ -105,21 +145,29 @@ const LoginPage = () => {
             </Typography>
           )}
 
+
           <TextField
             label="User ID"
             variant="outlined"
+            type="email"
             fullWidth
             sx={{
               mb: 2,
+              "& .MuiInputLabel-root.Mui-focused": {
+                color: "black", // Label color when focused
+              },
               "& .MuiOutlinedInput-root": {
                 "& input": {
-                  padding: "13px",
+                  padding: "16px !important",
                 },
+                "&.Mui-focused fieldset": { borderColor: "black" },
+                "&:hover fieldset": { borderColor: "black" },
               },
-            }} 
+            }}
             value={userId}
             onChange={(e) => setUserId(e.target.value)}
           />
+
 
           <TextField
             label="Password"
@@ -128,9 +176,18 @@ const LoginPage = () => {
             fullWidth
             sx={{
               mb: 2,
+
+
+              "& .MuiInputLabel-root.Mui-focused": {
+                color: "black", // Label color when focused
+              },
               "& .MuiOutlinedInput-root": {
                 "& input": {
-                  padding: "15px",
+                  padding: "16px !important",
+                },
+                "&.Mui-focused fieldset": { borderColor: "black" },
+                "&:hover fieldset": {
+                  borderColor: "black",
                 },
               },
             }}
@@ -138,26 +195,47 @@ const LoginPage = () => {
             onChange={(e) => setPassword(e.target.value)}
           />
 
+
           <Button
             variant="contained"
-            color="primary"
             fullWidth
-            sx={{ mb: 2 }}
+            sx={{
+              mb: 2,
+              bgcolor: "#333",
+              color: "white",
+              borderRadius: 2,
+              textTransform: "none",
+              fontSize: "1rem",
+              "&:hover": { bgcolor: "#222" },
+            }}
             onClick={handleLogin}
           >
-            SIGN IN
+            {loading ? <span style={spinnerStyles}></span> : "Sign In"}
           </Button>
+         
+
 
           <Button
             variant="outlined"
-            color="secondary"
             fullWidth
+            sx={{
+              color: "#333",
+              borderColor: "#333",
+              borderRadius: 2,
+              textTransform: "none",
+              fontSize: "1rem",
+              "&:hover": {
+                borderColor: "#222",
+                backgroundColor: "#f9f9f9",
+              },
+            }}
             onClick={() => setForgotOpen(true)}
           >
-            FORGOT PASSWORD
+            Forgot Password
           </Button>
         </Box>
       </Grid>
+
 
       {/* Forgot Password Dialog */}
       <Dialog open={forgotOpen} onClose={() => setForgotOpen(false)}>
@@ -173,5 +251,7 @@ const LoginPage = () => {
   );
 };
 
+
 export default LoginPage;
  
+

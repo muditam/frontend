@@ -61,7 +61,9 @@ const OrderDetailsPopup = ({ orderId, agentName, onClose }) => {
   // Employee search: fetch all employees and filter client-side
   const searchEmployees = async (query) => {
     try {
-      const response = await axios.get(`https://muditamleads-14f32a10d7f7.herokuapp.com/api/employees`);
+      const response = await axios.get(
+        `https://muditamleads-14f32a10d7f7.herokuapp.com/api/employees`
+      );
       const filtered = response.data.filter((emp) =>
         emp.fullName.toLowerCase().includes(query.toLowerCase())
       );
@@ -104,6 +106,11 @@ Dosage Ordered: ${dosageOrdered}`;
     if (orderDetails.paymentStatus === "pending") {
       detailsText += `\nPartial Payment: ${partialPayment}`;
     }
+    if (paymentMethod === "Partial Paid") {
+      detailsText += `\nAmount Pending: ${Number(orderDetails.totalPrice) - Number(partialPayment)}`;
+    } else if (paymentMethod === "COD") {
+      detailsText += `\nAmount Pending: ${orderDetails.totalPrice}`;
+    }
     // Do not include upsell amount in the copied text
     navigator.clipboard.writeText(detailsText);
     setMessage("Data copied to clipboard. Details confirmed.");
@@ -124,10 +131,10 @@ Dosage Ordered: ${dosageOrdered}`;
         totalPrice: orderDetails.totalPrice,
         agentName: selectedAgent,
         partialPayment: partialPayment,
-        dosageOrdered, 
-        selfRemark,    
-        paymentMethod,  
-        upsellAmount: upsellChecked ? upsellAmount : 0,  
+        dosageOrdered,
+        selfRemark,
+        paymentMethod,
+        upsellAmount: upsellChecked ? upsellAmount : 0,
       };
       await axios.post("https://muditamleads-14f32a10d7f7.herokuapp.com/api/my-orders", payload);
       setMessage("Order added successfully to My Sales.");
@@ -169,18 +176,20 @@ Dosage Ordered: ${dosageOrdered}`;
         }}
         onClick={(e) => e.stopPropagation()} // Prevent inner box click propagation.
       >
-        {/* Close Icon */}
-        <IconButton
-          onClick={onClose}
-          sx={{
-            position: "absolute",
-            top: 4,
-            right: 4,
-            color: "#000",
-          }}
-        >
-          <CloseIcon />
-        </IconButton>
+        {/* Render the Close IconButton only if the order has been added */}
+        {orderAdded && (
+          <IconButton
+            onClick={onClose}
+            sx={{
+              position: "absolute",
+              top: 4,
+              right: 4,
+              color: "#000",
+            }}
+          >
+            <CloseIcon />
+          </IconButton>
+        )}
 
         <Box sx={{ pt: 2 }}>
           {orderDetails ? (
@@ -217,13 +226,38 @@ Dosage Ordered: ${dosageOrdered}`;
                 </Typography>
               </Grid>
               <Grid item xs={7}>
-                <Typography
-                  variant="body2"
-                  sx={{ whiteSpace: "pre-wrap" }}
-                >
+                <Typography variant="body2" sx={{ whiteSpace: "pre-wrap" }}>
                   {orderDetails.shippingAddress}
                 </Typography>
               </Grid>
+              {/* New: Total Price row */}
+              <Grid item xs={5}>
+                <Typography variant="caption" color="textSecondary">
+                  Total Price:
+                </Typography>
+              </Grid>
+              <Grid item xs={7}>
+                <Typography variant="body2">
+                  {orderDetails.totalPrice}
+                </Typography>
+              </Grid>
+              {/* New: Amount Pending row */}
+              {(paymentMethod === "Partial Paid" || paymentMethod === "COD") && (
+                <>
+                  <Grid item xs={5}>
+                    <Typography variant="caption" color="textSecondary">
+                      Amount Pending:
+                    </Typography>
+                  </Grid>
+                  <Grid item xs={7}>
+                    <Typography variant="body2">
+                      {paymentMethod === "Partial Paid"
+                        ? Number(orderDetails.totalPrice) - Number(partialPayment)
+                        : orderDetails.totalPrice}
+                    </Typography>
+                  </Grid>
+                </>
+              )}
               <Grid item xs={5}>
                 <Typography variant="caption" color="textSecondary">
                   Payment:
@@ -258,9 +292,7 @@ Dosage Ordered: ${dosageOrdered}`;
                       size="small"
                       type="number"
                       value={partialPayment}
-                      onChange={(e) =>
-                        setPartialPayment(e.target.value)
-                      }
+                      onChange={(e) => setPartialPayment(e.target.value)}
                       sx={{ p: 0 }}
                     />
                   </Grid>
@@ -290,22 +322,6 @@ Dosage Ordered: ${dosageOrdered}`;
                   />
                 </Grid>
               )}
-              {/* 
-              <Grid item xs={5}>
-                <Typography variant="caption" color="textSecondary">
-                  Partial Payment:
-                </Typography>
-              </Grid>
-              <Grid item xs={7}>
-                <TextField
-                  variant="outlined"
-                  size="small"
-                  type="number"
-                  value={partialPayment}
-                  onChange={(e) => setPartialPayment(e.target.value)}
-                  sx={{ p: 0 }}
-                />
-              </Grid> */}
               {/* NEW: Dosage Ordered Dropdown */}
               <Grid item xs={5}>
                 <Typography variant="caption" color="textSecondary">
@@ -422,9 +438,12 @@ Dosage Ordered: ${dosageOrdered}`;
             </Typography>
           )}
 
-          <Button variant="text" size="small" fullWidth onClick={onClose} sx={{ mt: 1, color: "#000" }}>
-            Close
-          </Button>
+          {/* Render the Close Button only if the order has been added */}
+          {orderAdded && (
+            <Button variant="text" size="small" fullWidth onClick={onClose} sx={{ mt: 1, color: "#000" }}>
+              Close
+            </Button>
+          )}
         </Box>
       </Box>
     </motion.div>
