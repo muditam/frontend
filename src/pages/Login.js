@@ -59,9 +59,7 @@ const LoginPage = () => {
     }
   };
 
-
-
-
+ 
   return (
     <Grid container sx={{ minHeight: "90vh" }}>
       {/* Left Section: Logo + Tagline */}
@@ -70,7 +68,7 @@ const LoginPage = () => {
         xs={12}
         md={6}
         sx={{
-          backgroundColor: "#0F427C",
+          backgroundColor: "#000000",
           display: "flex",
           flexDirection: "column",
           alignItems: "center",

@@ -222,7 +222,7 @@ const ManagerSalesDashboard = () => {
   const fetchFollowupData = useCallback(async (startDate, endDate) => {
     setLoading(true);
     try {
-      const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/followup-summary", {
+      const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/followup-summarys", {
         params: { startDate, endDate },
       });
       const { followup = [] } = response.data;
