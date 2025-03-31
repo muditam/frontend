@@ -96,6 +96,7 @@ const INDIAN_STATES = [
   "Uttar Pradesh",
   "Uttarakhand",
   "West Bengal",
+  "Andaman and Nicobar",
 ];
 
 // Custom theme with a consistent color palette and typography

@@ -99,7 +99,7 @@ Payment Status: ${orderDetails.paymentStatus}
 Product Ordered: ${orderDetails.productOrdered}
 Order Date: ${orderDetails.orderDate}
 Total Price: ${orderDetails.totalPrice}
-Agent Name: ${selectedAgent}
+Health Expert: ${selectedAgent}
 Dosage Ordered: ${dosageOrdered}`;
     if (orderDetails.paymentStatus === "pending") {
       detailsText += `\nPartial Payment: ${partialPayment}`;
