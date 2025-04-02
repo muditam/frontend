@@ -1,15 +1,9 @@
-import React, { useState } from "react";
-import {
-  Grid,
-  Box,
-  Typography,
-  TextField,
-  Button,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions
-} from "@mui/material";
+import React, { useState, useEffect } from "react";
+import { Grid, Box, Typography, TextField, Button } from "@mui/material";
+import { Typewriter } from "react-simple-typewriter";
+import ErrorOutlineIcon from "@mui/icons-material/ErrorOutline";
+
+
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 
@@ -20,26 +14,27 @@ const LoginPage = () => {
   const [error, setError] = useState("");
   const [forgotOpen, setForgotOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [forgotPassMessage, setForgotPassMessage] = useState(false);
 
 
   const navigate = useNavigate();
- 
+
+
   const spinnerStyles = {
-  width: '26px',
-  height: '26px',
-  borderRadius: '50%',
-  display: 'inline-block',
-  borderTop: '3px solid #fff',
-  borderRight: '3px solid transparent',
-  boxSizing: 'border-box',
-  animation: 'rotation 1s linear infinite',
-};
+    width: "26px",
+    height: "26px",
+    borderRadius: "50%",
+    display: "inline-block",
+    borderTop: "3px solid #fff",
+    borderRight: "3px solid transparent",
+    boxSizing: "border-box",
+    animation: "rotation 1s linear infinite",
+  };
 
 
   const handleLogin = async (e) => {
-   
     e.preventDefault();
-     setLoading(true);
+    setLoading(true);
     try {
       // Using userId as email for login
       const response = await axios.post(
@@ -59,7 +54,7 @@ const LoginPage = () => {
     }
   };
 
- 
+
   return (
     <Grid container sx={{ minHeight: "90vh" }}>
       {/* Left Section: Logo + Tagline */}
@@ -68,7 +63,7 @@ const LoginPage = () => {
         xs={12}
         md={6}
         sx={{
-          backgroundColor: "#000000",
+          backgroundColor: "black",
           display: "flex",
           flexDirection: "column",
           alignItems: "center",
@@ -83,10 +78,29 @@ const LoginPage = () => {
           alt="Muditam Ayurveda Logo"
           sx={{ width: 200, mb: 3 }}
         />
-        <Typography variant="subtitle1" sx={{ textAlign: "center" }}>
-          "Focus on solving the customer's problems,
-          <br /> and sales will follow automatically."
-        </Typography>
+
+
+        <div
+          style={{
+            color: "#fff",
+            background: "#000",
+            padding: "10px",
+            whiteSpace: "pre-line",
+            minHeight: "70px",
+          }}
+        >
+          <Typewriter
+            words={[
+              `“Focus on solving the customer's problems,\nand sales will follow automatically.”`,
+            ]}
+            loop={false}
+            cursor
+            cursorStyle="|"
+            typeSpeed={70}
+            deleteSpeed={50}
+            delaySpeed={1000}
+          />
+        </div>
       </Grid>
 
 
@@ -151,12 +165,26 @@ const LoginPage = () => {
             fullWidth
             sx={{
               mb: 2,
-              "& .MuiInputLabel-root.Mui-focused": {
-                color: "black", // Label color when focused
+
+
+              "& .MuiInputLabel-root": {
+                top: "50%",
+                transform: "translateY(-50%)",
+                transition: "all 0.2s ease-in-out",
+                fontSize: "1rem",
+                paddingLeft: "16px",
               },
+              "& .MuiInputLabel-root.Mui-focused, & .MuiInputLabel-root.MuiFormLabel-filled":
+                {
+                  top: 0,
+                  color: "black",
+                  transform: "translateY(-50%) translateX(8px)",
+                  paddingLeft: "8px",
+                  fontSize: "0.75rem",
+                },
               "& .MuiOutlinedInput-root": {
                 "& input": {
-                  padding: "16px !important",
+                  padding: "8px !important",
                 },
                 "&.Mui-focused fieldset": { borderColor: "black" },
                 "&:hover fieldset": { borderColor: "black" },
@@ -176,12 +204,24 @@ const LoginPage = () => {
               mb: 2,
 
 
-              "& .MuiInputLabel-root.Mui-focused": {
-                color: "black", // Label color when focused
+              "& .MuiInputLabel-root": {
+                top: "50%",
+                transform: "translateY(-50%)",
+                transition: "all 0.2s ease-in-out",
+                fontSize: "1rem",
+                paddingLeft: "16px",
               },
+              "& .MuiInputLabel-root.Mui-focused, & .MuiInputLabel-root.MuiFormLabel-filled":
+                {
+                  top: 0,
+                  color: "black",
+                  transform: "translateY(-50%) translateX(8px)",
+                  paddingLeft: "8px",
+                  fontSize: "0.75rem",
+                },
               "& .MuiOutlinedInput-root": {
                 "& input": {
-                  padding: "16px !important",
+                  padding: "8px !important",
                 },
                 "&.Mui-focused fieldset": { borderColor: "black" },
                 "&:hover fieldset": {
@@ -210,7 +250,6 @@ const LoginPage = () => {
           >
             {loading ? <span style={spinnerStyles}></span> : "Sign In"}
           </Button>
-         
 
 
           <Button
@@ -227,29 +266,37 @@ const LoginPage = () => {
                 backgroundColor: "#f9f9f9",
               },
             }}
-            onClick={() => setForgotOpen(true)}
+            onClick={() => setForgotPassMessage(true)}
           >
             Forgot Password
           </Button>
+
+
+          {forgotPassMessage && (
+            <Typography
+              sx={{
+                color: "red",
+                fontSize: "0.9rem",
+                marginTop: "6px",
+                textAlign: "center",
+              }}
+            >
+              <ErrorOutlineIcon
+                sx={{ color: "red", fontSize: "1rem", paddingRight: "2px" }}
+              />
+              Please contact the Tech Team!.
+            </Typography>
+          )}
         </Box>
       </Grid>
-
-
-      {/* Forgot Password Dialog */}
-      <Dialog open={forgotOpen} onClose={() => setForgotOpen(false)}>
-        <DialogTitle>Forgot Password</DialogTitle>
-        <DialogContent>
-          <Typography>Contact Tech Team</Typography>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setForgotOpen(false)}>Close</Button>
-        </DialogActions>
-      </Dialog>
     </Grid>
   );
 };
 
 
 export default LoginPage;
- 
+
+
+
+
 

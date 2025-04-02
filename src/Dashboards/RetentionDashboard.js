@@ -77,40 +77,31 @@ const getDateRange = (rangeValue) => {
   switch (rangeValue) {
     case "Today":
       break;
-
     case "Yesterday":
       start.setDate(now.getDate() - 1);
       end = new Date(start);
       break;
-
     case "Last 7 days":
       start.setDate(now.getDate() - 6);
       break;
-
     case "Last 30 days":
       start.setDate(now.getDate() - 29);
       break;
-
     case "Week to date":
       start = getWeekStart(new Date());
       break;
-
     case "Month to date":
       start = new Date(now.getFullYear(), now.getMonth(), 1);
       break;
-
     case "Year to date":
       start = new Date(now.getFullYear(), 0, 1);
       break;
-
     case "Last 90 days":
       start.setDate(now.getDate() - 89);
       break;
-
     case "Last 365 days":
       start.setDate(now.getDate() - 364);
       break;
-
     case "Last month": {
       const year = now.getFullYear();
       const month = now.getMonth();
@@ -120,32 +111,26 @@ const getDateRange = (rangeValue) => {
       end = new Date(prevYear, prevMonth + 1, 0);
       return { startDate: toISODate(start), endDate: toISODate(end) };
     }
-
     case "Last 12 months":
       start.setFullYear(now.getFullYear() - 1);
       break;
-
     case "Last year": {
       const y = now.getFullYear() - 1;
       start = new Date(y, 0, 1);
       end = new Date(y, 11, 31);
       return { startDate: toISODate(start), endDate: toISODate(end) };
     }
-
     case "Quarter to date": {
       const currentMonth = now.getMonth();
       const quarterStartMonth = currentMonth - (currentMonth % 3);
       start = new Date(now.getFullYear(), quarterStartMonth, 1);
       break;
     }
-
     case "Custom range":
       return { startDate: "", endDate: "" };
-
     default:
       break;
   }
-
   return { startDate: toISODate(start), endDate: toISODate(end) };
 };
 
@@ -181,7 +166,6 @@ const RetentionAgentDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [todayMetrics, setTodayMetrics] = useState({});
   const [followupMetrics, setFollowupMetrics] = useState({});
-  const [allTimeMetrics, setAllTimeMetrics] = useState({});
   const [shipmentSummary, setShipmentSummary] = useState([]);
   const [applyingShipment, setApplyingShipment] = useState(false);
 
@@ -219,8 +203,7 @@ const RetentionAgentDashboard = () => {
   const fetchTodayFollowupData = async (agentName, startDate, endDate) => {
     try {
       setLoading(true);
-
-      // 1) "Today" summary endpoint, but we allow startDate/endDate
+      // "Today" summary endpoint
       const todaySummaryResponse = await axios.get(
         "https://muditamleads-14f32a10d7f7.herokuapp.com/api/today-summary",
         {
@@ -229,7 +212,7 @@ const RetentionAgentDashboard = () => {
       );
       setTodayMetrics(todaySummaryResponse.data);
 
-      // 2) "Followup" summary endpoint, also with startDate/endDate
+      // "Followup" summary endpoint (now including lost customers)
       const followupSummaryResponse = await axios.get(
         "https://muditamleads-14f32a10d7f7.herokuapp.com/api/followup-summary",
         {
@@ -244,25 +227,7 @@ const RetentionAgentDashboard = () => {
     }
   };
 
-  // 2) fetchAllTimeData => calls /api/all-time-summary
-  const fetchAllTimeData = async (agentName) => {
-    try {
-      setLoading(true);
-      const allTimeSummaryResponse = await axios.get(
-        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/all-time-summary",
-        {
-          params: { agentName },
-        }
-      );
-      setAllTimeMetrics(allTimeSummaryResponse.data);
-    } catch (error) {
-      console.error("Error fetching all time summary:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // 3) fetchShipmentStatusSummary => calls /api/shipment-summary
+  // 2) fetchShipmentStatusSummary => calls /api/shipment-summary
   const fetchShipmentStatusSummary = async (retentionAgentName) => {
     try {
       setApplyingShipment(true);
@@ -287,19 +252,13 @@ const RetentionAgentDashboard = () => {
   // On mount, default to "Today-Followup Summary" => use "Today" range
   useEffect(() => {
     if (user?.fullName) {
-      // For "Today-Followup" => default "Today" range
       const { startDate, endDate } = getDateRange("Today");
       fetchTodayFollowupData(user.fullName, startDate, endDate);
-
-      // For All Time
-      fetchAllTimeData(user.fullName);
-
-      // For Shipment
       fetchShipmentStatusSummary(user.fullName);
     }
   }, [user?.fullName]);
 
-  // Handle main summary toggle
+  // Handle main summary toggle (now only two options)
   const handleSummaryChange = (e) => {
     setSelectedSummary(e.target.value);
   };
@@ -308,11 +267,8 @@ const RetentionAgentDashboard = () => {
   const handleTimeRangeChangeTF = async (e) => {
     const newRange = e.target.value;
     setSelectedRangeTF(newRange);
-
     if (!user?.fullName) return;
-
     if (newRange !== "Custom range") {
-      // compute the range
       const { startDate, endDate } = getDateRange(newRange);
       await fetchTodayFollowupData(user.fullName, startDate, endDate);
     }
@@ -329,6 +285,7 @@ const RetentionAgentDashboard = () => {
       sx={{
         padding: { xs: 2, sm: 3, md: 4 },
         width: { xs: "90%", sm: "85%", md: "85%", lg: "90%" },
+        paddingBottom: "10px",
         marginLeft: "auto",
         marginRight: "auto",
       }}
@@ -339,6 +296,7 @@ const RetentionAgentDashboard = () => {
         fontWeight={600}
         color="#000000"
         textAlign="center"
+        marginTop={-2}
       >
         {user?.fullName} - Retention Agent Dashboard
       </Typography>
@@ -355,7 +313,7 @@ const RetentionAgentDashboard = () => {
           mt: 2,
         }}
       >
-        {/* Summary Toggle */}
+        {/* Summary Toggle (only two options now) */}
         <FormControl variant="outlined" sx={{ width: 300 }}>
           <Select
             value={selectedSummary}
@@ -378,9 +336,6 @@ const RetentionAgentDashboard = () => {
               <Typography variant="body2">
                 Today & Followup Summary
               </Typography>
-            </MenuItem>
-            <MenuItem value="All Time Summary">
-              <Typography variant="body2">All Time Summary</Typography>
             </MenuItem>
             <MenuItem value="Shipment Summary">
               <Typography variant="body2">Shipment Summary</Typography>
@@ -474,7 +429,7 @@ const RetentionAgentDashboard = () => {
           <Box
             sx={{
               padding: 2,
-              marginTop: 3,
+              marginTop: 1,
               borderRadius: 2,
               backgroundColor: "#FFFFFF",
               display: "flex",
@@ -491,6 +446,7 @@ const RetentionAgentDashboard = () => {
               gutterBottom
               color="#000000"
               textAlign="center"
+              marginTop={-2}
             >
               Today Summary
             </Typography>
@@ -500,10 +456,7 @@ const RetentionAgentDashboard = () => {
                   label: "Active Customers",
                   value: todayMetrics.activeCustomers || 0,
                   icon: (
-                    <PersonOutline
-                      fontSize="medium"
-                      sx={{ color: "#1976D2" }}
-                    />
+                    <PersonOutline fontSize="medium" sx={{ color: "#1976D2" }} />
                   ),
                 },
                 {
@@ -524,10 +477,7 @@ const RetentionAgentDashboard = () => {
                   label: "Average Order Value",
                   value: `₹${(todayMetrics.avgOrderValue || 0).toFixed(2)}`,
                   icon: (
-                    <CurrencyRupeeOutlined
-                      fontSize="medium"
-                      sx={{ color: "#d32f2f" }}
-                    />
+                    <CurrencyRupeeOutlined fontSize="medium" sx={{ color: "#d32f2f" }} />
                   ),
                 },
               ].map(({ label, value, icon }) => (
@@ -556,11 +506,7 @@ const RetentionAgentDashboard = () => {
                       <Typography variant="subtitle2" sx={{ color: "#555" }}>
                         {label}
                       </Typography>
-                      <Typography
-                        variant="h6"
-                        fontWeight="bold"
-                        sx={{ color: "#333" }}
-                      >
+                      <Typography variant="h6" fontWeight="bold" sx={{ color: "#333" }}>
                         {value !== undefined ? value : <CircularProgress size={18} />}
                       </Typography>
                     </Box>
@@ -591,6 +537,7 @@ const RetentionAgentDashboard = () => {
               gutterBottom
               color="#000000"
               textAlign="center"
+              marginTop={-3}
             >
               Followup Summary
             </Typography>
@@ -599,42 +546,44 @@ const RetentionAgentDashboard = () => {
                 {
                   label: "No Followup Set",
                   icon: <Schedule sx={{ color: "#546E7A" }} />,
-                  value:
-                    followupMetrics.noFollowupSet !== undefined
-                      ? followupMetrics.noFollowupSet
-                      : <CircularProgress size={20} />,
+                  value: followupMetrics.noFollowupSet !== undefined
+                    ? followupMetrics.noFollowupSet
+                    : <CircularProgress size={20} />,
                 },
                 {
                   label: "Followup Missed",
                   icon: <EventBusy sx={{ color: "#D32F2F" }} />,
-                  value:
-                    followupMetrics.followupMissed !== undefined
-                      ? followupMetrics.followupMissed
-                      : <CircularProgress size={20} />,
+                  value: followupMetrics.followupMissed !== undefined
+                    ? followupMetrics.followupMissed
+                    : <CircularProgress size={20} />,
                 },
                 {
                   label: "Followup Today",
                   icon: <Today sx={{ color: "#388E3C" }} />,
-                  value:
-                    followupMetrics.followupToday !== undefined
-                      ? followupMetrics.followupToday
-                      : <CircularProgress size={20} />,
+                  value: followupMetrics.followupToday !== undefined
+                    ? followupMetrics.followupToday
+                    : <CircularProgress size={20} />,
                 },
                 {
                   label: "Followup Tomorrow",
                   icon: <EventAvailable sx={{ color: "#FFA000" }} />,
-                  value:
-                    followupMetrics.followupTomorrow !== undefined
-                      ? followupMetrics.followupTomorrow
-                      : <CircularProgress size={20} />,
+                  value: followupMetrics.followupTomorrow !== undefined
+                    ? followupMetrics.followupTomorrow
+                    : <CircularProgress size={20} />,
                 },
                 {
                   label: "Followup Later",
                   icon: <MoreTime sx={{ color: "#0288D1" }} />,
-                  value:
-                    followupMetrics.followupLater !== undefined
-                      ? followupMetrics.followupLater
-                      : <CircularProgress size={20} />,
+                  value: followupMetrics.followupLater !== undefined
+                    ? followupMetrics.followupLater
+                    : <CircularProgress size={20} />,
+                },
+                {
+                  label: "Lost Customers",
+                  icon: <Cancel sx={{ color: "#D32F2F" }} />,
+                  value: followupMetrics.lostCustomers !== undefined
+                    ? followupMetrics.lostCustomers
+                    : <CircularProgress size={20} />,
                 },
               ].map(({ label, value, icon }) => (
                 <Grid item xs={12} sm={6} md={4} key={label}>
@@ -662,11 +611,7 @@ const RetentionAgentDashboard = () => {
                       <Typography variant="subtitle2" sx={{ color: "#555" }}>
                         {label}
                       </Typography>
-                      <Typography
-                        variant="h6"
-                        fontWeight="bold"
-                        sx={{ color: "#333" }}
-                      >
+                      <Typography variant="h6" fontWeight="bold" sx={{ color: "#333" }}>
                         {value !== undefined ? value : <CircularProgress size={18} />}
                       </Typography>
                     </Box>
@@ -676,110 +621,6 @@ const RetentionAgentDashboard = () => {
             </Grid>
           </Box>
         </>
-      )}
-
-      {/* 2) ALL TIME SUMMARY */}
-      {selectedSummary === "All Time Summary" && (
-        <Box
-          sx={{
-            padding: 2,
-            marginTop: 3,
-            borderRadius: 2,
-            backgroundColor: "#FFFFFF",
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            maxWidth: "1000px",
-            margin: "0 auto",
-            boxShadow: "0px 5px 15px rgba(0, 0, 0, 0.05)",
-          }}
-        >
-          <Typography
-            variant="h5"
-            fontWeight={600}
-            gutterBottom
-            color="#000000"
-            textAlign="center"
-          >
-            All Time
-          </Typography>
-          <Grid container spacing={2} sx={{ width: "100%" }}>
-            {[
-              {
-                label: "Total Customers",
-                value: allTimeMetrics.totalCustomers || 0,
-                icon: <PeopleAlt sx={{ color: "#0288D1" }} />,
-              },
-              {
-                label: "Customers Retained This Month",
-                value: allTimeMetrics.customersRetainedThisMonth || 0,
-                icon: <PersonAdd sx={{ color: "#388E3C" }} />,
-              },
-              {
-                label: "Retention Rate",
-                value: `${allTimeMetrics.retentionRate || 0}%`,
-                icon: <BarChart sx={{ color: "#FF5722" }} />,
-              },
-              {
-                label: "Active Customers",
-                value: allTimeMetrics.activeCustomers || 0,
-                icon: <PersonOutline sx={{ color: "#4CAF50" }} />,
-              },
-              {
-                label: "Lost Customers",
-                value: allTimeMetrics.lostCustomers || 0,
-                icon: <Cancel sx={{ color: "#D32F2F" }} />,
-              },
-              {
-                label: "Sales Done",
-                value: allTimeMetrics.salesDone || 0,
-                icon: <LocalMall sx={{ color: "#9C27B0" }} />,
-              },
-              {
-                label: "Total Sales",
-                value: `₹${(allTimeMetrics.totalSales || 0).toFixed(2)}`,
-                icon: <CurrencyRupee sx={{ color: "#1976D2" }} />,
-              },
-              {
-                label: "Average Order Value",
-                value: `₹${(allTimeMetrics.avgOrderValue || 0).toFixed(2)}`,
-                icon: <CurrencyRupeeOutlined sx={{ color: "#FF9800" }} />,
-              },
-            ].map(({ label, value, icon }) => (
-              <Grid item xs={12} sm={6} md={4} key={label}>
-                <Box
-                  sx={{
-                    p: 2,
-                    display: "flex",
-                    alignItems: "center",
-                    borderRadius: 2,
-                    backgroundColor: "#F9FAFB",
-                    boxShadow: "0px 3px 10px rgba(0, 0, 0, 0.05)",
-                    transition: "0.3s",
-                    minHeight: "130px",
-                    width: "90%",
-                    margin: "0 auto",
-                    "&:hover": {
-                      transform: "translateY(-3px)",
-                      boxShadow: "0px 5px 15px rgba(0, 0, 0, 0.1)",
-                    },
-                  }}
-                  onClick={() => handleBoxClick(label)}
-                >
-                  <Box sx={{ fontSize: 28, mr: 2 }}>{icon}</Box>
-                  <Box>
-                    <Typography variant="subtitle2" sx={{ color: "#555" }}>
-                      {label}
-                    </Typography>
-                    <Typography variant="h6" fontWeight="bold" sx={{ color: "#333" }}>
-                      {value}
-                    </Typography>
-                  </Box>
-                </Box>
-              </Grid>
-            ))}
-          </Grid>
-        </Box>
       )}
 
       {/* 3) SHIPMENT SUMMARY */}
@@ -804,6 +645,7 @@ const RetentionAgentDashboard = () => {
               textAlign: "center",
               color: "#4F4F4F",
               marginBottom: 2,
+              marginTop: -2,
             }}
           >
             Shipment Status
@@ -856,10 +698,7 @@ const RetentionAgentDashboard = () => {
                 <TableBody>
                   <TableRow>
                     <TableCell colSpan={4} sx={{ padding: 0 }}>
-                      <LinearProgress
-                        variant="indeterminate"
-                        sx={{ width: "100%", height: "3px" }}
-                      />
+                      <LinearProgress variant="indeterminate" sx={{ width: "100%", height: "3px" }} />
                     </TableCell>
                   </TableRow>
                 </TableBody>
@@ -878,24 +717,14 @@ const RetentionAgentDashboard = () => {
                         <TableCell sx={{ textAlign: "center" }}>
                           <Typography fontWeight="bold">{row.label}</Typography>
                         </TableCell>
-                        <TableCell sx={{ textAlign: "center" }}>
-                          {row.count}
-                        </TableCell>
-                        <TableCell sx={{ textAlign: "center" }}>
-                          {`₹${row.amount.toFixed(2)}`}
-                        </TableCell>
-                        <TableCell sx={{ textAlign: "center" }}>
-                          {`${row.percentage}%`}
-                        </TableCell>
+                        <TableCell sx={{ textAlign: "center" }}>{row.count}</TableCell>
+                        <TableCell sx={{ textAlign: "center" }}>{`₹${row.amount.toFixed(2)}`}</TableCell>
+                        <TableCell sx={{ textAlign: "center" }}>{`${row.percentage}%`}</TableCell>
                       </TableRow>
                     ))
                   ) : (
                     <TableRow>
-                      <TableCell
-                        colSpan={4}
-                        align="center"
-                        sx={{ padding: "12px", color: "#888", fontStyle: "italic" }}
-                      >
+                      <TableCell colSpan={4} align="center" sx={{ padding: "12px", color: "#888", fontStyle: "italic" }}>
                         No data found.
                       </TableCell>
                     </TableRow>

@@ -17,6 +17,10 @@ import {
   FormControl,
   TextField,
   Button,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
 } from "@mui/material";
 import axios from "axios";
 
@@ -71,7 +75,6 @@ const getDateRange = (rangeValue) => {
 
   switch (rangeValue) {
     case "Today":
-      // no changes needed
       break;
     case "Yesterday":
       start.setDate(now.getDate() - 1);
@@ -84,7 +87,6 @@ const getDateRange = (rangeValue) => {
       start.setDate(now.getDate() - 29);
       break;
     case "Week to date": {
-      // Monday-based
       const day = now.getDay();
       const diff = day === 0 ? 6 : day - 1;
       start.setDate(now.getDate() - diff);
@@ -127,11 +129,10 @@ const getDateRange = (rangeValue) => {
       break;
     }
     default:
-      // "Custom range" => we'll rely on user inputs
       break;
   }
   return { startDate: toISODate(start), endDate: toISODate(end) };
-}; 
+};
 
 const ManagerSalesDashboard = () => {
   // Basic states
@@ -156,15 +157,19 @@ const ManagerSalesDashboard = () => {
   const [customStart, setCustomStart] = useState("");
   const [customEnd, setCustomEnd] = useState("");
 
-  // Sales summary metrics
+  // Sales summary metrics from backend
   const [salesSummary, setSalesSummary] = useState({
     openLeads: undefined,
-    leadsAssignedToday: undefined,
+    leadsAssigned: undefined, 
     salesDone: undefined,
     conversionRate: undefined,
     totalSales: undefined,
     avgOrderValue: undefined,
   });
+
+  // State for Sales Done Order IDs popup
+  const [orderIdsPopupOpen, setOrderIdsPopupOpen] = useState(false);
+  const [orderIds, setOrderIds] = useState("");
 
   // On mount, fetch user & agents
   useEffect(() => {
@@ -181,8 +186,9 @@ const ManagerSalesDashboard = () => {
       const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/employees", {
         params: { role: "Sales Agent" },
       });
-      // Filter only active employees:
-      const activeAgents = response.data.filter((agent) => agent.status === "active").map((agent) => agent.fullName);
+      const activeAgents = response.data
+        .filter((agent) => agent.status === "active")
+        .map((agent) => agent.fullName);
       setAgents(["All Agents", ...activeAgents]);
     } catch (error) {
       console.error("Error fetching agents:", error);
@@ -203,7 +209,7 @@ const ManagerSalesDashboard = () => {
       setTodayStats(perAgent);
       setSalesSummary({
         openLeads: overall.openLeads,
-        leadsAssignedToday: overall.leadsAssignedToday,
+        leadsAssigned: overall.leadsAssigned,
         salesDone: overall.salesDone,
         conversionRate: overall.conversionRate,
         totalSales: overall.totalSales,
@@ -234,11 +240,9 @@ const ManagerSalesDashboard = () => {
     }
   }, []);
  
-
   const fetchLeadSourceData = useCallback(async (startDate, endDate) => {
     setLoading(true);
     try {
-      // Build params dynamically:
       const params = { startDate, endDate };
       if (selectedAgent && selectedAgent !== "All Agents") {
         params.agentAssignedName = selectedAgent;
@@ -253,7 +257,6 @@ const ManagerSalesDashboard = () => {
     }
   }, [selectedAgent]);
   
- 
   const fetchTableData = useCallback(
     async (summary, startDate, endDate) => {
       setTableLoading(true);
@@ -285,7 +288,6 @@ const ManagerSalesDashboard = () => {
     const newRange = e.target.value;
     setRange(newRange);
     if (newRange !== "Custom range") {
-      // Compute start/end and fetch
       const { startDate, endDate } = getDateRange(newRange);
       setCustomStart("");
       setCustomEnd("");
@@ -300,7 +302,7 @@ const ManagerSalesDashboard = () => {
     }
   };
 
-  // If the user changes summary, we re-fetch for the current range
+  // Re-fetch when summary or range changes
   useEffect(() => {
     if (selectedSummary) {
       if (range === "Custom range" && customStart && customEnd) {
@@ -323,6 +325,24 @@ const ManagerSalesDashboard = () => {
     }
   }, [selectedAgent, selectedSummary, range, customStart, customEnd, fetchLeadSourceData]);  
 
+  // Handler for Sales Done card click to open popup
+  const handleSalesDoneClick = async () => {
+    // Simulate a fetch call to get order IDs (replace this with your API call as needed)
+    try {
+      const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/sales-order-ids", {
+        params: { /* pass any parameters if needed */ },
+      });
+      // Assume response.data.orderIds is an array of order IDs
+      const ids = response.data.orderIds.join(", ");
+      setOrderIds(ids);
+    } catch (error) {
+      console.error("Error fetching order IDs:", error);
+      // Fallback dummy data
+      setOrderIds("Order123, Order456, Order789");
+    }
+    setOrderIdsPopupOpen(true);
+  };
+
   // --------------- Metrics for Sales Summary ---------------
   const metrics1 = [
     {
@@ -331,14 +351,19 @@ const ManagerSalesDashboard = () => {
       icon: <TrendingUp sx={{ color: "#1976D2" }} />,
     },
     {
-      label: "Leads Assigned Today",
-      value: salesSummary.leadsAssignedToday,
+      label: "Leads Assigned",
+      value: salesSummary.leadsAssigned,
       icon: <Assignment sx={{ color: "#FF9800" }} />,
     },
     {
       label: "Sales Done",
       value: salesSummary.salesDone,
-      icon: <ShoppingCart sx={{ color: "#4CAF50" }} />,
+      icon: (
+        <ShoppingCart
+          sx={{ color: "#4CAF50", cursor: "pointer" }}
+          onClick={handleSalesDoneClick}
+        />
+      ),
     },
     {
       label: "Conversion Rate",
@@ -371,35 +396,45 @@ const ManagerSalesDashboard = () => {
     {
       label: "No Followup Set",
       key: "noFollowupSet",
-      value: followupStats.reduce((sum, stat) => sum + stat.noFollowupSet, 0),
+      value: followupStats.length
+        ? followupStats.reduce((sum, stat) => sum + (stat.noFollowupSet || 0), 0)
+        : 0,
       icon: <Schedule sx={{ color: "#546E7A" }} />,
       bgColor: "#ECEFF1",
     },
     {
       label: "Followup Missed",
       key: "followupMissed",
-      value: followupStats.reduce((sum, stat) => sum + stat.followupMissed, 0),
+      value: followupStats.length
+        ? followupStats.reduce((sum, stat) => sum + (stat.followupMissed || 0), 0)
+        : 0,
       icon: <EventBusy sx={{ color: "#D32F2F" }} />,
       bgColor: "#FFEBEE",
     },
     {
       label: "Followup Today",
       key: "followupToday",
-      value: followupStats.reduce((sum, stat) => sum + stat.followupToday, 0),
+      value: followupStats.length
+        ? followupStats.reduce((sum, stat) => sum + (stat.followupToday || 0), 0)
+        : 0,
       icon: <Today sx={{ color: "#388E3C" }} />,
       bgColor: "#E8F5E9",
     },
     {
       label: "Followup Tomorrow",
       key: "followupTomorrow",
-      value: followupStats.reduce((sum, stat) => sum + stat.followupTomorrow, 0),
+      value: followupStats.length
+        ? followupStats.reduce((sum, stat) => sum + (stat.followupTomorrow || 0), 0)
+        : 0,
       icon: <EventAvailable sx={{ color: "#FFA000" }} />,
       bgColor: "#FFF8E1",
     },
     {
       label: "Followup Later",
       key: "followupLater",
-      value: followupStats.reduce((sum, stat) => sum + stat.followupLater, 0),
+      value: followupStats.length
+        ? followupStats.reduce((sum, stat) => sum + (stat.followupLater || 0), 0)
+        : 0,
       icon: <MoreTime sx={{ color: "#0288D1" }} />,
       bgColor: "#E3F2FD",
     },
@@ -421,7 +456,7 @@ const ManagerSalesDashboard = () => {
           alignItems: "center",
           justifyContent: "center",
           gap: 1.5,
-          background: "linear-gradient(90deg,rgb(0, 0, 0),rgb(0, 0, 0))",
+          background: "linear-gradient(90deg, rgb(0, 0, 0), rgb(0, 0, 0))",
           WebkitBackgroundClip: "text",
           WebkitTextFillColor: "transparent",
           fontSize: { xs: "1.8rem", md: "2.2rem" },
@@ -432,10 +467,10 @@ const ManagerSalesDashboard = () => {
           : "Sales Team Dashboard"}
       </Typography>
 
-      {/* Summary Dropdown */}
+      {/* Summary & Time Range Dropdowns */}
       <Box
         sx={{
-          display: "flex", 
+          display: "flex",
           gap: 3,
           alignItems: "center",
           justifyContent: "center",
@@ -452,7 +487,9 @@ const ManagerSalesDashboard = () => {
             key={selectedSummary}
             displayEmpty
             IconComponent={ExpandMoreIcon}
-            renderValue={(selected) => (selected ? `${selected}` : "Summary:")}
+            renderValue={(selected) =>
+              selected ? `${selected}` : "Summary:"
+            }
             sx={{
               backgroundColor: "#fff",
               color: "#333",
@@ -472,70 +509,69 @@ const ManagerSalesDashboard = () => {
               <Typography variant="body2">Lead Source Summary</Typography>
             </MenuItem>
           </Select>
-        </FormControl> 
-        
-      {/* Time Range Filter (common to all 3 summaries) */}
-      {(selectedSummary === "Sales Summary" ||
-        selectedSummary === "Followup Summary" ||
-        selectedSummary === "Lead Source Summary") && (
-        <>
-          <TextField
-            select
-            label="Select Range"
-            value={range}
-            onChange={handleRangeChange}
-            sx={{
-              width: 220,
-              backgroundColor: "#F9F9F9",
-              borderRadius: 2,
-            }}
-          >
-            {timeRangeOptions.map((option) => (
-              <MenuItem key={option} value={option}>
-                {option}
-              </MenuItem>
-            ))}
-          </TextField>
-          {range === "Custom range" && (
-            <>
-              <TextField
-                label="Start Date"
-                type="date"
-                value={customStart}
-                onChange={(e) => setCustomStart(e.target.value)}
-                InputLabelProps={{ shrink: true }}
-                sx={{
-                  width: 160,
-                  backgroundColor: "#F9F9F9",
-                  borderRadius: 2,
-                }}
-              />
-              <TextField
-                label="End Date"
-                type="date"
-                value={customEnd}
-                onChange={(e) => setCustomEnd(e.target.value)}
-                InputLabelProps={{ shrink: true }}
-                sx={{
-                  width: 160,
-                  backgroundColor: "#F9F9F9",
-                  borderRadius: 2,
-                }}
-              />
-              <Button
-                variant="contained"
-                onClick={applyCustomRange}
-                sx={{
-                  backgroundColor: "#1976D2",
-                  "&:hover": { backgroundColor: "#1565C0" },
-                }}
-              >
-                Apply
-              </Button>
-            </>
-          )}
-        </>
-      )}
+        </FormControl>
+
+        {["Sales Summary", "Followup Summary", "Lead Source Summary"].includes(
+          selectedSummary
+        ) && (
+          <>
+            <TextField
+              select
+              label="Select Range"
+              value={range}
+              onChange={handleRangeChange}
+              sx={{
+                width: 220,
+                backgroundColor: "#F9F9F9",
+                borderRadius: 2,
+              }}
+            >
+              {timeRangeOptions.map((option) => (
+                <MenuItem key={option} value={option}>
+                  {option}
+                </MenuItem>
+              ))}
+            </TextField>
+            {range === "Custom range" && (
+              <>
+                <TextField
+                  label="Start Date"
+                  type="date"
+                  value={customStart}
+                  onChange={(e) => setCustomStart(e.target.value)}
+                  InputLabelProps={{ shrink: true }}
+                  sx={{
+                    width: 160,
+                    backgroundColor: "#F9F9F9",
+                    borderRadius: 2,
+                  }}
+                />
+                <TextField
+                  label="End Date"
+                  type="date"
+                  value={customEnd}
+                  onChange={(e) => setCustomEnd(e.target.value)}
+                  InputLabelProps={{ shrink: true }}
+                  sx={{
+                    width: 160,
+                    backgroundColor: "#F9F9F9",
+                    borderRadius: 2,
+                  }}
+                />
+                <Button
+                  variant="contained"
+                  onClick={applyCustomRange}
+                  sx={{
+                    backgroundColor: "#1976D2",
+                    "&:hover": { backgroundColor: "#1565C0" },
+                  }}
+                >
+                  Apply
+                </Button>
+              </>
+            )}
+          </>
+        )}
       </Box>
 
       {/* -------------------- SALES SUMMARY -------------------- */}
@@ -568,7 +604,7 @@ const ManagerSalesDashboard = () => {
                 alignItems: "center",
                 gap: 1,
                 fontFamily: "'Poppins', sans-serif",
-                background: "linear-gradient(45deg,rgb(0, 0, 0),rgb(0, 0, 0))",
+                background: "linear-gradient(45deg, rgb(0, 0, 0), rgb(0, 0, 0))",
                 WebkitBackgroundClip: "text",
                 WebkitTextFillColor: "transparent",
               }}
@@ -576,47 +612,7 @@ const ManagerSalesDashboard = () => {
               Sales Summary
             </Typography>
             <Grid container spacing={2} sx={{ width: "100%" }}>
-              {[
-                {
-                  label: "Open Leads",
-                  value: salesSummary.openLeads,
-                  icon: <TrendingUp sx={{ color: "#1976D2" }} />,
-                },
-                {
-                  label: "Leads Assigned Today",
-                  value: salesSummary.leadsAssignedToday,
-                  icon: <Assignment sx={{ color: "#FF9800" }} />,
-                },
-                {
-                  label: "Sales Done",
-                  value: salesSummary.salesDone,
-                  icon: <ShoppingCart sx={{ color: "#4CAF50" }} />,
-                },
-                {
-                  label: "Conversion Rate",
-                  value:
-                    salesSummary.conversionRate !== undefined
-                      ? `${salesSummary.conversionRate}%`
-                      : undefined,
-                  icon: <BarChart sx={{ color: "#9C27B0" }} />,
-                },
-                {
-                  label: "Total Sales",
-                  value:
-                    salesSummary.totalSales !== undefined
-                      ? `₹${salesSummary.totalSales}`
-                      : undefined,
-                  icon: <CurrencyRupee sx={{ color: "#F44336" }} />,
-                },
-                {
-                  label: "Average Order Value",
-                  value:
-                    salesSummary.avgOrderValue !== undefined
-                      ? `₹${salesSummary.avgOrderValue}`
-                      : undefined,
-                  icon: <CurrencyRupeeOutlined sx={{ color: "#3F51B5" }} />,
-                },
-              ].map(({ label, value, icon }) => (
+              {metrics1.map(({ label, value, icon }) => (
                 <Grid item xs={12} sm={6} md={4} key={label}>
                   <Box
                     sx={{
@@ -641,11 +637,7 @@ const ManagerSalesDashboard = () => {
                         {label}
                       </Typography>
                       <Typography variant="h6" fontWeight="bold" sx={{ color: "#333" }}>
-                        {value !== undefined ? (
-                          value
-                        ) : (
-                          <CircularProgress size={18} />
-                        )}
+                        {value !== undefined ? value : <CircularProgress size={18} />}
                       </Typography>
                     </Box>
                   </Box>
@@ -757,7 +749,7 @@ const ManagerSalesDashboard = () => {
                           {row.openLeads || 0}
                         </TableCell>
                         <TableCell align="center" sx={{ padding: "8px" }}>
-                          {row.leadsAssignedToday || 0}
+                          {row.leadsAssigned || 0}
                         </TableCell>
                         <TableCell align="center" sx={{ padding: "8px" }}>
                           {row.salesDone || 0}
@@ -816,7 +808,7 @@ const ManagerSalesDashboard = () => {
                 alignItems: "center",
                 gap: 1,
                 fontFamily: "'Poppins', sans-serif",
-                background: "linear-gradient(45deg,rgb(0, 0, 0),rgb(0, 0, 0))",
+                background: "linear-gradient(45deg, rgb(0, 0, 0), rgb(0, 0, 0))",
                 WebkitBackgroundClip: "text",
                 WebkitTextFillColor: "transparent",
               }}
@@ -1146,6 +1138,22 @@ const ManagerSalesDashboard = () => {
           </TableContainer>
         </Box>
       )}
+
+      {/* Sales Done Order IDs Popup Dialog */}
+      <Dialog
+        open={orderIdsPopupOpen}
+        onClose={() => setOrderIdsPopupOpen(false)}
+      >
+        <DialogTitle>Sales Done Order IDs</DialogTitle>
+        <DialogContent>
+          <Typography>{orderIds || "No order IDs available"}</Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setOrderIdsPopupOpen(false)} variant="outlined">
+            Close
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };

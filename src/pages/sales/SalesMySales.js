@@ -40,7 +40,6 @@ const SalesMySales = () => {
     amountFrom: "",
     amountTo: "",
     modeOfPayment: "",
-    deliveryStatus: "",
   });
   const [filterOpen, setFilterOpen] = useState(false);
 
@@ -52,9 +51,10 @@ const SalesMySales = () => {
     if (agentAssignedName) {
       fetchSales(agentAssignedName);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentPage, rowsPerPage, agentAssignedName]);
 
-  // Existing leads fetching remains; now we also fetch MyOrders and merge data
+  // Fetch leads and MyOrders, merge them, and then update shipment status using orderId.
   const fetchSales = async (agentAssignedName) => {
     try {
       const leadsResponse = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads", {
@@ -69,36 +69,69 @@ const SalesMySales = () => {
       let { leads, totalLeads } = leadsResponse.data;
       leads = leads || [];
 
-      // Fetch MyOrders data (assumed GET endpoint)
+      // Fetch MyOrders data
       const myOrdersResponse = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/my-orders");
-      const myOrders = myOrdersResponse.data || [];
+      const allMyOrders = myOrdersResponse.data || [];
+      // Filter MyOrders so that only orders where agentName matches the logged‑in user's name are used.
+      const myOrders = allMyOrders.filter(
+        (order) => order.agentName === agentAssignedName
+      );
 
-      // Create a map keyed by phone
+      // Create a map keyed by phone from filtered MyOrders.
       const myOrdersMap = {};
       myOrders.forEach((order) => {
         myOrdersMap[order.phone] = order;
       });
 
-      // Merge MyOrders data into leads if a matching contact is found
+      // Merge MyOrders data into leads if a matching contact is found.
+      // Include the orderId from MyOrders.
       const mergedSales = leads.map((sale) => {
         const matchingOrder = myOrdersMap[sale.contactNumber];
         if (matchingOrder) {
           return {
             ...sale,
             myOrderData: {
-              orderDate: matchingOrder.orderDate, // New: Use orderDate from MyOrders
+              orderDate: matchingOrder.orderDate,
               productOrdered: matchingOrder.productOrdered,
               dosageOrdered: matchingOrder.dosageOrdered,
               totalPrice: matchingOrder.totalPrice,
               paymentMethod: matchingOrder.paymentMethod,
               selfRemark: matchingOrder.selfRemark,
+              orderId: matchingOrder.orderId, // Order ID from MyOrders.
+              shipmentStatus: "", // To be updated below.
             },
           };
         }
         return sale;
       });
 
-      setSales(mergedSales);
+      // For every sale with myOrderData.orderId, fetch shipment status.
+      const updatedSales = await Promise.all(
+        mergedSales.map(async (sale) => {
+          if (sale.myOrderData && sale.myOrderData.orderId) {
+            // Normalize orderId: remove leading '#' if present.
+            const normalizedOrderId = sale.myOrderData.orderId.startsWith("#")
+              ? sale.myOrderData.orderId.slice(1)
+              : sale.myOrderData.orderId;
+            try {
+              const orderRes = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/order-by-id", {
+                params: { orderId: normalizedOrderId },
+              });
+              if (orderRes.data && orderRes.data.shipment_status) {
+                sale.myOrderData.shipmentStatus = orderRes.data.shipment_status;
+              } else {
+                sale.myOrderData.shipmentStatus = "Not available";
+              }
+            } catch (err) {
+              console.error("Error fetching shipment status for order", normalizedOrderId, err);
+              sale.myOrderData.shipmentStatus = "Not available";
+            }
+          }
+          return sale;
+        })
+      );
+
+      setSales(updatedSales);
       setTotalSales(totalLeads || 0);
     } catch (error) {
       console.error("Failed to fetch sales", error);
@@ -117,16 +150,10 @@ const SalesMySales = () => {
       options: ["Partial Paid", "Razorpay", "COD", "UPI", "Bank Transfer"],
     },
     {
-      key: "deliveryStatus",
-      label: "Delivery Status",
-      options: ["Delivered", "RTO", "Undelivered"],
-    },
-    {
       key: "dosageOrdered",
       label: "Dosage Ordered",
       options: ["10-Days", "20-Days", "30-Days", "60-Days", "90-Days"],
     },
-    // Note: The Products Ordered dropdown is not used when MyOrders data is available.
     {
       key: "productsOrdered",
       label: "Products Ordered",
@@ -158,11 +185,10 @@ const SalesMySales = () => {
     const updatedSales = [...sales];
     updatedSales[index][field] = e.target.value;
 
-    // Only update dosageOrdered (and its derived dosageExpiring) if not coming from MyOrders
+    // Only update dosageOrdered (and its derived dosageExpiring) if not coming from MyOrders.
     if (field === "dosageOrdered" && !updatedSales[index].myOrderData) {
       const days = parseInt(e.target.value.split("-")[0], 10);
       updatedSales[index].dosageExpiring = calculateDosageExpiring(days);
-
       try {
         await axios.put(
           `https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/${updatedSales[index]._id}`,
@@ -177,7 +203,6 @@ const SalesMySales = () => {
     }
 
     setSales(updatedSales);
-
     const saleId = updatedSales[index]._id;
     try {
       await axios.put(
@@ -194,18 +219,24 @@ const SalesMySales = () => {
   const applyFilters = () => {
     const filteredSales = sales.filter((sale) => {
       return (
-        (!filters.dateFrom || new Date(sale.lastOrderDate) >= new Date(filters.dateFrom)) &&
+        (!filters.dateFrom ||
+          new Date(sale.lastOrderDate) >= new Date(filters.dateFrom)) &&
         (!filters.dateTo || new Date(sale.lastOrderDate) <= new Date(filters.dateTo)) &&
-        (!filters.name || sale.name.toLowerCase().includes(filters.name.toLowerCase())) &&
-        (!filters.contactNumber || sale.contactNumber.includes(filters.contactNumber)) &&
+        (!filters.name ||
+          sale.name.toLowerCase().includes(filters.name.toLowerCase())) &&
+        (!filters.contactNumber ||
+          sale.contactNumber.includes(filters.contactNumber)) &&
         (!filters.productsOrdered.length ||
-          filters.productsOrdered.every((item) => sale.productsOrdered.includes(item))) &&
+          filters.productsOrdered.every((item) =>
+            sale.productsOrdered.includes(item)
+          )) &&
         (!filters.dosageOrdered || sale.dosageOrdered === filters.dosageOrdered) &&
         (!filters.salesStatus || sale.salesStatus === filters.salesStatus) &&
-        (!filters.amountFrom || parseFloat(sale.amountPaid) >= parseFloat(filters.amountFrom)) &&
-        (!filters.amountTo || parseFloat(sale.amountPaid) <= parseFloat(filters.amountTo)) &&
-        (!filters.modeOfPayment || sale.modeOfPayment === filters.modeOfPayment) &&
-        (!filters.deliveryStatus || sale.deliveryStatus === filters.deliveryStatus)
+        (!filters.amountFrom ||
+          parseFloat(sale.amountPaid) >= parseFloat(filters.amountFrom)) &&
+        (!filters.amountTo ||
+          parseFloat(sale.amountPaid) <= parseFloat(filters.amountTo)) &&
+        (!filters.modeOfPayment || sale.modeOfPayment === filters.modeOfPayment)
       );
     });
     setSales(filteredSales);
@@ -223,7 +254,6 @@ const SalesMySales = () => {
       amountFrom: "",
       amountTo: "",
       modeOfPayment: "",
-      deliveryStatus: "",
     });
     fetchSales(agentAssignedName);
   };
@@ -306,32 +336,27 @@ const SalesMySales = () => {
               },
             }}
           />
-          {dropdownOptions.map(({ key, label, options, multiple }) =>
-            key !== "salesStatus" &&
-            key !== "productsOrdered" &&
-            key !== "dosageOrdered" &&
-            key !== "modeOfPayment" ? (
-              <FormControl fullWidth sx={{ mb: 2 }} key={key}>
-                <InputLabel>{label}</InputLabel>
-                <Select
-                  multiple={multiple}
-                  value={filters[key] || (multiple ? [] : "")}
-                  onChange={(e) => {
-                    const value = multiple ? e.target.value : e.target.value;
-                    setFilters((prev) => ({ ...prev, [key]: value }));
-                  }}
-                  renderValue={(selected) => (multiple ? selected.join(", ") : selected)}
-                >
-                  {options.map((option) => (
-                    <MenuItem key={option} value={option}>
-                      {multiple && <Checkbox checked={filters[key].includes(option)} />}
-                      <ListItemText primary={option} />
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-            ) : null
-          )}
+          {dropdownOptions.map(({ key, label, options, multiple }) => (
+            <FormControl fullWidth sx={{ mb: 2 }} key={key}>
+              <InputLabel>{label}</InputLabel>
+              <Select
+                multiple={multiple}
+                value={filters[key] || (multiple ? [] : "")}
+                onChange={(e) => {
+                  const value = multiple ? e.target.value : e.target.value;
+                  setFilters((prev) => ({ ...prev, [key]: value }));
+                }}
+                renderValue={(selected) => (multiple ? selected.join(", ") : selected)}
+              >
+                {options.map((option) => (
+                  <MenuItem key={option} value={option}>
+                    {multiple && <Checkbox checked={filters[key].includes(option)} />}
+                    <ListItemText primary={option} />
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          ))}
           <TextField
             label="Amount From"
             type="number"
@@ -379,14 +404,13 @@ const SalesMySales = () => {
             <TableRow>
               <TableCell>First Order Date *</TableCell>
               <TableCell>Name</TableCell>
-              <TableCell>Contact No</TableCell>
-              <TableCell>Agent Assigned</TableCell>
+              <TableCell>Contact No</TableCell> 
               <TableCell>Products Ordered *</TableCell>
-              <TableCell>Dosage Ordered *</TableCell>
-              <TableCell>Sales Status</TableCell>
+              <TableCell>Dosage Ordered *</TableCell> 
               <TableCell>Amount Paid *</TableCell>
               <TableCell>Mode of Payment *</TableCell>
-              <TableCell>Delivery Status</TableCell>
+              <TableCell>Order Id</TableCell>
+              <TableCell>Shipment Status</TableCell>
               <TableCell>Agents Remarks *</TableCell>
             </TableRow>
           </TableHead>
@@ -399,7 +423,9 @@ const SalesMySales = () => {
                       type="date"
                       value={
                         sale.myOrderData.orderDate
-                          ? new Date(sale.myOrderData.orderDate).toISOString().split("T")[0]
+                          ? new Date(sale.myOrderData.orderDate)
+                              .toISOString()
+                              .split("T")[0]
                           : ""
                       }
                       InputProps={{ readOnly: true }}
@@ -409,7 +435,9 @@ const SalesMySales = () => {
                     <TextField
                       type="date"
                       value={sale.lastOrderDate || ""}
-                      onChange={(e) => handleInputChange(e, index, "lastOrderDate")}
+                      onChange={(e) =>
+                        handleInputChange(e, index, "lastOrderDate")
+                      }
                       fullWidth
                     />
                   )}
@@ -425,13 +453,12 @@ const SalesMySales = () => {
                   <TextField
                     type="number"
                     value={sale.contactNumber || ""}
-                    onChange={(e) => handleInputChange(e, index, "contactNumber")}
+                    onChange={(e) =>
+                      handleInputChange(e, index, "contactNumber")
+                    }
                     fullWidth
                   />
-                </TableCell>
-                <TableCell style={{ whiteSpace: "nowrap", minWidth: "140px" }}>
-                  <TextField value={sale.agentAssigned || ""} disabled fullWidth />
-                </TableCell>
+                </TableCell> 
                 <TableCell>
                   {sale.myOrderData ? (
                     <TextField
@@ -444,7 +471,9 @@ const SalesMySales = () => {
                       <Select
                         multiple
                         value={sale.productsOrdered || []}
-                        onChange={(e) => handleInputChange(e, index, "productsOrdered")}
+                        onChange={(e) =>
+                          handleInputChange(e, index, "productsOrdered")
+                        }
                         renderValue={(selected) => selected.join(", ")}
                       >
                         {[
@@ -462,7 +491,9 @@ const SalesMySales = () => {
                           "Blood Test",
                         ].map((product) => (
                           <MenuItem key={product} value={product}>
-                            <Checkbox checked={sale.productsOrdered?.includes(product)} />
+                            <Checkbox
+                              checked={sale.productsOrdered?.includes(product)}
+                            />
                             <ListItemText primary={product} />
                           </MenuItem>
                         ))}
@@ -480,20 +511,21 @@ const SalesMySales = () => {
                   ) : (
                     <Select
                       value={sale.dosageOrdered || ""}
-                      onChange={(e) => handleInputChange(e, index, "dosageOrdered")}
+                      onChange={(e) =>
+                        handleInputChange(e, index, "dosageOrdered")
+                      }
                       fullWidth
                     >
-                      {["10-Days", "20-Days", "30-Days", "60-Days", "90-Days"].map((dosage) => (
-                        <MenuItem key={dosage} value={dosage}>
-                          {dosage}
-                        </MenuItem>
-                      ))}
+                      {["10-Days", "20-Days", "30-Days", "60-Days", "90-Days"].map(
+                        (dosage) => (
+                          <MenuItem key={dosage} value={dosage}>
+                            {dosage}
+                          </MenuItem>
+                        )
+                      )}
                     </Select>
                   )}
-                </TableCell>
-                <TableCell>
-                  <TextField value="Sales Done" InputProps={{ readOnly: true }} fullWidth />
-                </TableCell>
+                </TableCell> 
                 <TableCell style={{ whiteSpace: "nowrap", minWidth: "150px" }}>
                   {sale.myOrderData ? (
                     <TextField
@@ -524,26 +556,44 @@ const SalesMySales = () => {
                       onChange={(e) => handleInputChange(e, index, "modeOfPayment")}
                       fullWidth
                     >
-                      {["Partial Paid", "Razorpay", "COD", "UPI", "Bank Transfer"].map((mode) => (
-                        <MenuItem key={mode} value={mode}>
-                          {mode}
-                        </MenuItem>
-                      ))}
+                      {["Partial Paid", "Razorpay", "COD", "UPI", "Bank Transfer"].map(
+                        (mode) => (
+                          <MenuItem key={mode} value={mode}>
+                            {mode}
+                          </MenuItem>
+                        )
+                      )}
                     </Select>
                   )}
+                </TableCell> 
+                <TableCell style={{ whiteSpace: "nowrap", minWidth: "150px" }}>
+                  {sale.myOrderData ? (
+                    <TextField
+                      value={sale.myOrderData.orderId || ""}
+                      InputProps={{ readOnly: true }}
+                      fullWidth
+                    />
+                  ) : (
+                    <TextField value="-" disabled fullWidth />
+                  )}
                 </TableCell>
-                <TableCell>
-                  <Select
-                    value={sale.deliveryStatus || ""}
-                    onChange={(e) => handleInputChange(e, index, "deliveryStatus")}
-                    fullWidth
-                  >
-                    {["Delivered", "RTO", "Undelivered"].map((status) => (
-                      <MenuItem key={status} value={status}>
-                        {status}
-                      </MenuItem>
-                    ))}
-                  </Select>
+                {/* Shipment Status column */}
+                <TableCell style={{ whiteSpace: "nowrap", minWidth: "200px" }}>
+                  {sale.myOrderData ? (
+                    <TextField
+                      value={sale.myOrderData.shipmentStatus || ""}
+                      InputProps={{ readOnly: true }}
+                      fullWidth
+                    />
+                  ) : (
+                    <TextField
+                      value={sale.shipmentStatus || ""}
+                      onChange={(e) =>
+                        handleInputChange(e, index, "shipmentStatus")
+                      }
+                      fullWidth
+                    />
+                  )}
                 </TableCell>
                 <TableCell style={{ whiteSpace: "nowrap", minWidth: "250px" }}>
                   {sale.myOrderData ? (
@@ -555,7 +605,9 @@ const SalesMySales = () => {
                   ) : (
                     <TextField
                       value={sale.agentsRemarks || ""}
-                      onChange={(e) => handleInputChange(e, index, "agentsRemarks")}
+                      onChange={(e) =>
+                        handleInputChange(e, index, "agentsRemarks")
+                      }
                       fullWidth
                     />
                   )}

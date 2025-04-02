@@ -24,7 +24,8 @@ import NotificationListener from "./components/NotificationListener";
 import AcquisitionLost from "./Lostdata/AcquisitionLost";
 import RetentionLost from "./Lostdata/RetentionLost";
 import PrivateRoute from "./components/PrivateRoute";
-import MyTemplates from "./components/MyTemplates"; 
+import MyTemplates from "./components/MyTemplates";  
+import FacebookLeads from './components/FacebookLeads';
 
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
@@ -38,8 +39,11 @@ const App = () => {
         <ToastContainer position="bottom-right" autoClose={5000} closeButton />
 
         <Routes>
+  
+ 
           <Route path="/login" element={<Login />} /> 
           <Route path="/pages/Home" element={<ShipwayOrders />}/> 
+          <Route path="/facebook-leads" element={<FacebookLeads />} />
           {/* Protected Routes */}
           <Route
             path="/"
