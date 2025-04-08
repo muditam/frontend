@@ -40,7 +40,6 @@ const productOptions = [
   "Blood Test",
 ];
 
-
 const dosageOptions = ["10-Days", "20-Days", "30-Days", "60-Days", "90-Days"];
 const paymentModes = [
   "Partial Paid",
@@ -49,10 +48,23 @@ const paymentModes = [
   "UPI",
   "Bank Transfer",
 ];
-const deliveryStatuses = ["Delivered", "RTO", "Undelivered"];
+const shipmentStatusOptions = [
+  "Delivered",
+  "In Transit",
+  "Out for delivery",
+  "RTO",
+  "RTO Delivered",
+  "Shipment Booked",
+  "OFP",
+  "Undelivered",
+  "Others",
+];
 
 const RetentionSales = () => {
-  const [sales, setSales] = useState([]);
+  // full list from API
+  const [allSales, setAllSales] = useState([]);
+  // list to be displayed (may be filtered)
+  const [displayedSales, setDisplayedSales] = useState([]);
   const [currentPage, setCurrentPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(50);
   const [editedSales, setEditedSales] = useState({});
@@ -65,23 +77,25 @@ const RetentionSales = () => {
     contactNumber: "",
     productsOrdered: "",
     dosageOrdered: "",
-    amountPaidFrom: "",
-    amountPaidTo: "",
     modeOfPayment: "",
-    deliveryStatus: "",
+    shipmentStatus: "",
   });
 
   const loggedInUser = JSON.parse(sessionStorage.getItem("user"));
 
-  // Updated fetchSales: If user role is "Retention Agent", pass orderCreatedBy parameter
+  // Fetch sales and update both states
   const fetchSales = async () => {
     try {
       let params = {};
       if (loggedInUser.role === "Retention Agent") {
         params.orderCreatedBy = loggedInUser.fullName;
       }
-      const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/retention-sales/all", { params });
-      setSales(response.data);
+      const response = await axios.get(
+        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/retention-sales/all",
+        { params }
+      );
+      setAllSales(response.data);
+      setDisplayedSales(response.data);
     } catch (error) {
       console.error("Error fetching retention sales:", error);
     }
@@ -107,11 +121,19 @@ const RetentionSales = () => {
     if (editedSales[id]) {
       setSavingStatus((prev) => ({ ...prev, [id]: "Saving..." }));
       try {
-        await axios.put(`https://muditamleads-14f32a10d7f7.herokuapp.com/api/retention-sales/${id}`, editedSales[id]);
-        setSales((prev) =>
-          prev.map((sale) => (sale._id === id ? { ...sale, ...editedSales[id] } : sale))
+        await axios.put(
+          `https://muditamleads-14f32a10d7f7.herokuapp.com/api/retention-sales/${id}`,
+          editedSales[id]
         );
-        await axios.post("https://muditamleads-14f32a10d7f7.herokuapp.com/api/retention-sales/update-matching");
+        // update both allSales and displayedSales
+        const updatedSales = allSales.map((sale) =>
+          sale._id === id ? { ...sale, ...editedSales[id] } : sale
+        );
+        setAllSales(updatedSales);
+        setDisplayedSales(updatedSales);
+        await axios.post(
+          "https://muditamleads-14f32a10d7f7.herokuapp.com/api/retention-sales/update-matching"
+        );
         setSavingStatus((prev) => ({ ...prev, [id]: "Saved" }));
         setEditedSales((prev) => {
           const updated = { ...prev };
@@ -138,13 +160,27 @@ const RetentionSales = () => {
       amountPaid: 0,
       modeOfPayment: "",
       orderCreatedBy: loggedInUser.fullName,
-      upsellAmount: 0, // New field
-      partialPayment: 0, // New field
+      upsellAmount: 0, // new field
+      partialPayment: 0, // new field
     };
 
     try {
-      const response = await axios.post("https://muditamleads-14f32a10d7f7.herokuapp.com/api/retention-sales", newSale);
-      setSales([response.data, ...sales]);
+      const response = await axios.post(
+        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/retention-sales",
+        newSale
+      );
+      const newAllSales = [response.data, ...allSales];
+      setAllSales(newAllSales);
+      // Reapply filters if any; if filters are blank, display all
+      if (
+        Object.values(filters).some(
+          (value) => value !== "" && (!Array.isArray(value) || value.length > 0)
+        )
+      ) {
+        applyFilters(newAllSales);
+      } else {
+        setDisplayedSales(newAllSales);
+      }
     } catch (error) {
       console.error("Error adding new sale:", error);
     }
@@ -153,29 +189,44 @@ const RetentionSales = () => {
   const handleDelete = async (id) => {
     try {
       await axios.delete(`https://muditamleads-14f32a10d7f7.herokuapp.com/api/retention-sales/${id}`);
-      setSales(sales.filter((sale) => sale._id !== id));
+      const updatedAllSales = allSales.filter((sale) => sale._id !== id);
+      setAllSales(updatedAllSales);
+      setDisplayedSales(updatedAllSales);
     } catch (error) {
       console.error("Error deleting sale:", error);
     }
   };
 
-  const applyFilters = () => {
-    const filteredSales = sales.filter((sale) => {
+  // Apply filters to the full dataset
+  const applyFilters = (salesData = allSales) => {
+    const filteredSales = salesData.filter((sale) => {
       return (
         (!filters.dateFrom || new Date(sale.date) >= new Date(filters.dateFrom)) &&
         (!filters.dateTo || new Date(sale.date) <= new Date(filters.dateTo)) &&
-        (!filters.name || sale.name.toLowerCase().includes(filters.name.toLowerCase())) &&
-        (!filters.contactNumber || sale.contactNumber.includes(filters.contactNumber)) &&
+        (!filters.name ||
+          sale.name.toLowerCase().includes(filters.name.toLowerCase())) &&
+        (!filters.contactNumber ||
+          sale.contactNumber.includes(filters.contactNumber)) &&
         (!filters.productsOrdered.length ||
-          filters.productsOrdered.every((p) => sale.productsOrdered.includes(p))) &&
+          filters.productsOrdered.every((p) =>
+            sale.productsOrdered.includes(p)
+          )) &&
         (!filters.dosageOrdered || sale.dosageOrdered === filters.dosageOrdered) &&
-        (!filters.amountPaidFrom || sale.amountPaid >= filters.amountPaidFrom) &&
-        (!filters.amountPaidTo || sale.amountPaid <= filters.amountPaidTo) &&
         (!filters.modeOfPayment || sale.modeOfPayment === filters.modeOfPayment) &&
-        (!filters.deliveryStatus || sale.deliveryStatus === filters.deliveryStatus)
+        (!filters.shipmentStatus ||
+          (filters.shipmentStatus === "Others"
+            ? ![
+                "Delivered",
+                "In Transit",
+                "Out for delivery",
+                "RTO",
+                "RTO Delivered",
+                "Undelivered",
+              ].includes(sale.shipway_status)
+            : sale.shipway_status === filters.shipmentStatus))
       );
     });
-    setSales(filteredSales);
+    setDisplayedSales(filteredSales);
   };
 
   const resetFilters = () => {
@@ -186,12 +237,10 @@ const RetentionSales = () => {
       contactNumber: "",
       productsOrdered: "",
       dosageOrdered: "",
-      amountPaidFrom: "",
-      amountPaidTo: "",
       modeOfPayment: "",
-      deliveryStatus: "",
+      shipmentStatus: "",
     });
-    fetchSales();
+    setDisplayedSales(allSales);
   };
 
   const handleChangePage = (event, newPage) => {
@@ -203,7 +252,10 @@ const RetentionSales = () => {
     setCurrentPage(0);
   };
 
-  const currentSales = sales.slice(currentPage * rowsPerPage, currentPage * rowsPerPage + rowsPerPage);
+  const currentSales = displayedSales.slice(
+    currentPage * rowsPerPage,
+    currentPage * rowsPerPage + rowsPerPage
+  );
 
   return (
     <Box sx={{ padding: 2 }}>
@@ -218,11 +270,19 @@ const RetentionSales = () => {
       >
         Add New Sale
       </Button>
-      <Button variant="contained" sx={{ mb: 2, ml: 2 }} onClick={() => setFilterOpen(true)}>
+      <Button
+        variant="contained"
+        sx={{ mb: 2, ml: 2 }}
+        onClick={() => setFilterOpen(true)}
+      >
         Filter
       </Button>
 
-      <Drawer anchor="right" open={filterOpen} onClose={() => setFilterOpen(false)}>
+      <Drawer
+        anchor="right"
+        open={filterOpen}
+        onClose={() => setFilterOpen(false)}
+      >
         <Box sx={{ width: 300, padding: 2 }}>
           <Typography variant="h6" gutterBottom>
             Filters
@@ -233,7 +293,9 @@ const RetentionSales = () => {
             type="date"
             fullWidth
             value={filters.dateFrom}
-            onChange={(e) => setFilters((prev) => ({ ...prev, dateFrom: e.target.value }))}
+            onChange={(e) =>
+              setFilters((prev) => ({ ...prev, dateFrom: e.target.value }))
+            }
             InputLabelProps={{ shrink: true }}
             sx={{ mb: 2 }}
           />
@@ -242,7 +304,9 @@ const RetentionSales = () => {
             type="date"
             fullWidth
             value={filters.dateTo}
-            onChange={(e) => setFilters((prev) => ({ ...prev, dateTo: e.target.value }))}
+            onChange={(e) =>
+              setFilters((prev) => ({ ...prev, dateTo: e.target.value }))
+            }
             InputLabelProps={{ shrink: true }}
             sx={{ mb: 2 }}
           />
@@ -250,37 +314,57 @@ const RetentionSales = () => {
             label="Name"
             fullWidth
             value={filters.name}
-            onChange={(e) => setFilters((prev) => ({ ...prev, name: e.target.value }))}
+            onChange={(e) =>
+              setFilters((prev) => ({ ...prev, name: e.target.value }))
+            }
             sx={{ mb: 2 }}
           />
           <TextField
             label="Contact No"
             fullWidth
             value={filters.contactNumber}
-            onChange={(e) => setFilters((prev) => ({ ...prev, contactNumber: e.target.value }))}
+            onChange={(e) =>
+              setFilters((prev) => ({ ...prev, contactNumber: e.target.value }))
+            }
             sx={{ mb: 2 }}
           />
           <FormControl fullWidth sx={{ mb: 2 }}>
-            <InputLabel id="products-ordered-label">Products Ordered</InputLabel>
+            <InputLabel id="products-ordered-label">
+              Products Ordered
+            </InputLabel>
             <Select
               multiple
               value={filters.productsOrdered || []}
-              onChange={(e) => setFilters((prev) => ({ ...prev, productsOrdered: e.target.value }))}
+              onChange={(e) =>
+                setFilters((prev) => ({
+                  ...prev,
+                  productsOrdered: e.target.value,
+                }))
+              }
               renderValue={(selected) => selected.join(", ")}
             >
               {productOptions.map((product) => (
                 <MenuItem key={product} value={product}>
-                  <Checkbox checked={filters.productsOrdered.includes(product)} />
+                  <Checkbox
+                    checked={filters.productsOrdered.includes(product)}
+                  />
                   <ListItemText primary={product} />
                 </MenuItem>
               ))}
             </Select>
           </FormControl>
           <FormControl fullWidth sx={{ mb: 2 }}>
-            <InputLabel id="dosage-ordered-label">Dosage Ordered</InputLabel>
+            <InputLabel id="dosage-ordered-label">
+              Dosage Ordered
+            </InputLabel>
             <Select
               value={filters.dosageOrdered}
-              onChange={(e) => setFilters((prev) => ({ ...prev, dosageOrdered: e.target.value }))}
+              onChange={(e) =>
+                setFilters((prev) => ({
+                  ...prev,
+                  dosageOrdered: e.target.value,
+                }))
+              }
             >
               {dosageOptions.map((dosage) => (
                 <MenuItem key={dosage} value={dosage}>
@@ -289,27 +373,18 @@ const RetentionSales = () => {
               ))}
             </Select>
           </FormControl>
-          <TextField
-            label="Amount Paid From"
-            type="number"
-            fullWidth
-            value={filters.amountPaidFrom}
-            onChange={(e) => setFilters((prev) => ({ ...prev, amountPaidFrom: e.target.value }))}
-            sx={{ mb: 2 }}
-          />
-          <TextField
-            label="Amount Paid To"
-            type="number"
-            fullWidth
-            value={filters.amountPaidTo}
-            onChange={(e) => setFilters((prev) => ({ ...prev, amountPaidTo: e.target.value }))}
-            sx={{ mb: 2 }}
-          />
           <FormControl fullWidth sx={{ mb: 2 }}>
-            <InputLabel id="mode-of-payment-label">Mode of Payment</InputLabel>
+            <InputLabel id="mode-of-payment-label">
+              Mode of Payment
+            </InputLabel>
             <Select
               value={filters.modeOfPayment}
-              onChange={(e) => setFilters((prev) => ({ ...prev, modeOfPayment: e.target.value }))}
+              onChange={(e) =>
+                setFilters((prev) => ({
+                  ...prev,
+                  modeOfPayment: e.target.value,
+                }))
+              }
             >
               {paymentModes.map((mode) => (
                 <MenuItem key={mode} value={mode}>
@@ -319,12 +394,20 @@ const RetentionSales = () => {
             </Select>
           </FormControl>
           <FormControl fullWidth sx={{ mb: 2 }}>
-            <InputLabel id="delivery-status-label">Delivery Status</InputLabel>
+            <InputLabel id="shipment-status-label">
+              Shipment Status
+            </InputLabel>
             <Select
-              value={filters.deliveryStatus}
-              onChange={(e) => setFilters((prev) => ({ ...prev, deliveryStatus: e.target.value }))}
+              value={filters.shipmentStatus}
+              onChange={(e) =>
+                setFilters((prev) => ({
+                  ...prev,
+                  shipmentStatus: e.target.value,
+                }))
+              }
+              label="Shipment Status"
             >
-              {deliveryStatuses.map((status) => (
+              {shipmentStatusOptions.map((status) => (
                 <MenuItem key={status} value={status}>
                   {status}
                 </MenuItem>
@@ -332,7 +415,14 @@ const RetentionSales = () => {
             </Select>
           </FormControl>
           <Divider sx={{ mb: 2 }} />
-          <Button variant="contained" fullWidth onClick={applyFilters}>
+          <Button
+            variant="contained"
+            fullWidth
+            onClick={() => {
+              applyFilters();
+              setFilterOpen(false);
+            }}
+          >
             Apply Filters
           </Button>
           <Button variant="outlined" fullWidth onClick={resetFilters}>
@@ -382,45 +472,81 @@ const RetentionSales = () => {
                 <TableCell style={{ whiteSpace: "nowrap", minWidth: "180px" }}>
                   <TextField
                     type="number"
-                    value={editedSales[sale._id]?.contactNumber || sale.contactNumber || ""}
-                    onChange={(e) => handleInputChange(e, sale._id, "contactNumber")}
+                    value={
+                      editedSales[sale._id]?.contactNumber ||
+                      sale.contactNumber ||
+                      ""
+                    }
+                    onChange={(e) =>
+                      handleInputChange(e, sale._id, "contactNumber")
+                    }
                     fullWidth
                   />
                 </TableCell>
                 <TableCell style={{ whiteSpace: "nowrap", minWidth: "170px" }}>
                   <TextField
-                    value={editedSales[sale._id]?.productsOrdered || sale.productsOrdered || ""}
-                    onChange={(e) => handleInputChange(e, sale._id, "productsOrdered")}
+                    value={
+                      editedSales[sale._id]?.productsOrdered ||
+                      sale.productsOrdered ||
+                      ""
+                    }
+                    onChange={(e) =>
+                      handleInputChange(e, sale._id, "productsOrdered")
+                    }
                     fullWidth
                   />
                 </TableCell>
                 <TableCell>
                   <TextField
-                    value={editedSales[sale._id]?.dosageOrdered || sale.dosageOrdered || ""}
-                    onChange={(e) => handleInputChange(e, sale._id, "dosageOrdered")}
+                    value={
+                      editedSales[sale._id]?.dosageOrdered ||
+                      sale.dosageOrdered ||
+                      ""
+                    }
+                    onChange={(e) =>
+                      handleInputChange(e, sale._id, "dosageOrdered")
+                    }
                     fullWidth
                   />
                 </TableCell>
                 <TableCell>
                   <TextField
                     type="number"
-                    value={editedSales[sale._id]?.amountPaid || sale.amountPaid || 0}
-                    onChange={(e) => handleInputChange(e, sale._id, "amountPaid")}
+                    value={
+                      editedSales[sale._id]?.amountPaid ||
+                      sale.amountPaid ||
+                      0
+                    }
+                    onChange={(e) =>
+                      handleInputChange(e, sale._id, "amountPaid")
+                    }
                     fullWidth
                   />
                 </TableCell>
                 <TableCell>
                   <TextField
                     type="number"
-                    value={editedSales[sale._id]?.partialPayment ?? sale.partialPayment ?? ""}
-                    onChange={(e) => handleInputChange(e, sale._id, "partialPayment")}
+                    value={
+                      editedSales[sale._id]?.partialPayment ??
+                      sale.partialPayment ??
+                      ""
+                    }
+                    onChange={(e) =>
+                      handleInputChange(e, sale._id, "partialPayment")
+                    }
                     fullWidth
                   />
                 </TableCell>
                 <TableCell>
                   <TextField
-                    value={editedSales[sale._id]?.modeOfPayment || sale.modeOfPayment || ""}
-                    onChange={(e) => handleInputChange(e, sale._id, "modeOfPayment")}
+                    value={
+                      editedSales[sale._id]?.modeOfPayment ||
+                      sale.modeOfPayment ||
+                      ""
+                    }
+                    onChange={(e) =>
+                      handleInputChange(e, sale._id, "modeOfPayment")
+                    }
                     fullWidth
                   />
                 </TableCell>
@@ -435,10 +561,19 @@ const RetentionSales = () => {
                   />
                 </TableCell>
                 <TableCell>
-                  <Button variant="contained" color="primary" onClick={() => handleSave(sale._id)}>
-                    {savingStatus[sale._id] ? savingStatus[sale._id] : "Save"}
+                  <Button
+                    variant="contained"
+                    color="primary"
+                    onClick={() => handleSave(sale._id)}
+                  >
+                    {savingStatus[sale._id]
+                      ? savingStatus[sale._id]
+                      : "Save"}
                   </Button>
-                  <IconButton color="error" onClick={() => handleDelete(sale._id)}>
+                  <IconButton
+                    color="error"
+                    onClick={() => handleDelete(sale._id)}
+                  >
                     <Delete />
                   </IconButton>
                 </TableCell>
@@ -450,7 +585,7 @@ const RetentionSales = () => {
       <TablePagination
         rowsPerPageOptions={[10, 20, 50, 100]}
         component="div"
-        count={sales.length}
+        count={displayedSales.length}
         rowsPerPage={rowsPerPage}
         page={currentPage}
         onPageChange={handleChangePage}
@@ -461,3 +596,4 @@ const RetentionSales = () => {
 };
 
 export default RetentionSales;
+ 

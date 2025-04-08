@@ -492,7 +492,7 @@ const ManagerRetentionDashboard = () => {
                 </Button>
               </>
             )}
-          </>
+          </> 
         )}
 
         {selectedSummary === "Shipment Summary" && (

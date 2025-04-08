@@ -147,7 +147,7 @@ const mappedProductOrdered = orderDetails
         paymentStatus: orderDetails.paymentStatus,
         productOrdered: mappedProductOrdered,
         orderDate: orderDetails.orderDate,
-        orderId: orderDetails.orderId,
+        orderId: orderDetails.orderId, 
         totalPrice: orderDetails.totalPrice,
         agentName: selectedAgent,
         partialPayment: partialPayment,

@@ -40,9 +40,9 @@ import {
 
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 
-/* -------------------------------------------
-   1) Time-range dropdown options
-------------------------------------------- */
+// -------------------------------------------
+// 1) Time-range dropdown options
+// -------------------------------------------
 const timeRangeOptions = [
   "Custom range",
   "Today",
@@ -60,14 +60,14 @@ const timeRangeOptions = [
   "Quarter to date",
 ];
 
-/* -------------------------------------------
-   2) Convert date => 'YYYY-MM-DD'
-------------------------------------------- */
+// -------------------------------------------
+// 2) Convert date => 'YYYY-MM-DD'
+// -------------------------------------------
 const toISODate = (d) => d.toISOString().split("T")[0];
 
-/* -------------------------------------------
-   3) Compute start/end date from a range
-------------------------------------------- */
+// -------------------------------------------
+// 3) Compute start/end date from a range
+// -------------------------------------------
 const getDateRange = (rangeValue) => {
   const now = new Date();
   let start = new Date(now);
@@ -145,11 +145,15 @@ const ManagerSalesDashboard = () => {
   const [followupStats, setFollowupStats] = useState([]);
   const [leadSourceData, setLeadSourceData] = useState([]);
 
-  // Agents (for lead source summary)
+  // Agents (for lead source summary and shipment summary)
   const [agents, setAgents] = useState([]);
   const [selectedAgent, setSelectedAgent] = useState("All Agents");
 
-  // The selected summary: "Sales Summary", "Followup Summary", "Lead Source Summary"
+  // The selected summary: 
+  //   "Sales Summary", 
+  //   "Followup Summary", 
+  //   "Lead Source Summary", 
+  //   "Shipment Summary"  <-- newly added
   const [selectedSummary, setSelectedSummary] = useState("Sales Summary");
 
   // Time range
@@ -157,15 +161,18 @@ const ManagerSalesDashboard = () => {
   const [customStart, setCustomStart] = useState("");
   const [customEnd, setCustomEnd] = useState("");
 
-  // Sales summary metrics from backend
+  // Sales summary metrics
   const [salesSummary, setSalesSummary] = useState({
     openLeads: undefined,
-    leadsAssigned: undefined, 
+    leadsAssigned: undefined,
     salesDone: undefined,
     conversionRate: undefined,
     totalSales: undefined,
     avgOrderValue: undefined,
   });
+
+  // For "Shipment Summary" table
+  const [shipmentData, setShipmentData] = useState([]);
 
   // State for Sales Done Order IDs popup
   const [orderIdsPopupOpen, setOrderIdsPopupOpen] = useState(false);
@@ -183,6 +190,7 @@ const ManagerSalesDashboard = () => {
   // Fetch agents
   const fetchAgents = useCallback(async () => {
     try {
+      // Only active sales agents
       const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/employees", {
         params: { role: "Sales Agent" },
       });
@@ -193,28 +201,44 @@ const ManagerSalesDashboard = () => {
     } catch (error) {
       console.error("Error fetching agents:", error);
     }
-  }, []);  
+  }, []);
 
-  // ---------------------------
+  // ------------------------------------------------------
   // 1) Sales Summary
-  // ---------------------------
+  // ------------------------------------------------------
   const fetchSalesSummaryData = useCallback(async (startDate, endDate) => {
     setLoading(true);
     try {
-      const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/sales-summary", {
-        params: { startDate, endDate },
-      });
-      const { perAgent = [], overall = {} } = response.data;
+      // 1) MyOrder metrics from /sales-metrics
+      const metricsRes = await axios.get(
+        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/orders/combined/sales-metrics",
+        { params: { startDate, endDate } }
+      );
+      const { salesDone, totalSales, avgOrderValue } = metricsRes.data;
 
-      setTodayStats(perAgent);
+      // 2) Overall leads from /sales-summary
+      const overallRes = await axios.get(
+        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/sales-summary",
+        { params: { startDate, endDate } }
+      );
+      const overall = overallRes.data.overall || {};
+      const leadsAssigned = overall.leadsAssigned || 0;
+
+      // Conversion rate
+      const conversionRate =
+        leadsAssigned > 0 ? ((salesDone / leadsAssigned) * 100).toFixed(2) : 0;
+
       setSalesSummary({
         openLeads: overall.openLeads,
         leadsAssigned: overall.leadsAssigned,
-        salesDone: overall.salesDone,
-        conversionRate: overall.conversionRate,
-        totalSales: overall.totalSales,
-        avgOrderValue: overall.avgOrderValue,
+        salesDone,
+        conversionRate,
+        totalSales,
+        avgOrderValue,
       });
+
+      // Agent-level performance
+      setTodayStats(overallRes.data.perAgent || []);
     } catch (error) {
       console.error("Error fetching sales summary data:", error);
     } finally {
@@ -222,9 +246,9 @@ const ManagerSalesDashboard = () => {
     }
   }, []);
 
-  // ---------------------------
+  // ------------------------------------------------------
   // 2) Followup Summary
-  // ---------------------------
+  // ------------------------------------------------------
   const fetchFollowupData = useCallback(async (startDate, endDate) => {
     setLoading(true);
     try {
@@ -239,24 +263,58 @@ const ManagerSalesDashboard = () => {
       setLoading(false);
     }
   }, []);
- 
-  const fetchLeadSourceData = useCallback(async (startDate, endDate) => {
-    setLoading(true);
-    try {
-      const params = { startDate, endDate };
-      if (selectedAgent && selectedAgent !== "All Agents") {
-        params.agentAssignedName = selectedAgent;
+
+  // ------------------------------------------------------
+  // 3) Lead Source Summary
+  // ------------------------------------------------------
+  const fetchLeadSourceData = useCallback(
+    async (startDate, endDate) => {
+      setLoading(true);
+      try {
+        const params = { startDate, endDate };
+        if (selectedAgent && selectedAgent !== "All Agents") {
+          params.agentAssignedName = selectedAgent;
+        }
+        const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/lead-source-summary", {
+          params,
+        });
+        const { leadSourceSummary = [] } = response.data;
+        setLeadSourceData(leadSourceSummary);
+      } catch (error) {
+        console.error("Error fetching lead source summary data:", error);
+      } finally {
+        setLoading(false);
       }
-      const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/lead-source-summary", { params });
-      const { leadSourceSummary = [] } = response.data;
-      setLeadSourceData(leadSourceSummary);
-    } catch (error) {
-      console.error("Error fetching lead source summary data:", error);
-    } finally {
-      setLoading(false);
-    }
-  }, [selectedAgent]);
+    },
+    [selectedAgent]
+  );
+
+  // ------------------------------------------------------
+  // 4) Shipment Summary
+  // ------------------------------------------------------
+  const [shipmentAgent, setShipmentAgent] = useState("All Agents");
+  // In your ManagerSalesDashboard.js (Shipment Summary section)
+  const fetchShipmentData = useCallback(
+    async (startDate, endDate) => {
+      setLoading(true);
+      try {
+        const params = { startDate, endDate };
+        // Remove or ignore the agent filter since it's not applicable for the Order schema.
+        const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/all-shipment-summary", { params });
+        setShipmentData(response.data || []);
+      } catch (error) {
+        console.error("Error fetching shipment data:", error);
+        setShipmentData([]);
+      } finally {
+        setLoading(false);
+      }
+    },
+    []
+  );
   
+
+
+  // Combined table fetch
   const fetchTableData = useCallback(
     async (summary, startDate, endDate) => {
       setTableLoading(true);
@@ -271,6 +329,9 @@ const ManagerSalesDashboard = () => {
           case "Lead Source Summary":
             await fetchLeadSourceData(startDate, endDate);
             break;
+          case "Shipment Summary":
+            await fetchShipmentData(startDate, endDate);
+            break;
           default:
             console.warn("Unknown table selected");
         }
@@ -280,7 +341,12 @@ const ManagerSalesDashboard = () => {
         setTableLoading(false);
       }
     },
-    [fetchSalesSummaryData, fetchFollowupData, fetchLeadSourceData]
+    [
+      fetchSalesSummaryData,
+      fetchFollowupData,
+      fetchLeadSourceData,
+      fetchShipmentData,
+    ]
   );
 
   // Handle range changes
@@ -304,16 +370,16 @@ const ManagerSalesDashboard = () => {
 
   // Re-fetch when summary or range changes
   useEffect(() => {
-    if (selectedSummary) {
-      if (range === "Custom range" && customStart && customEnd) {
-        fetchTableData(selectedSummary, customStart, customEnd);
-      } else {
-        const { startDate, endDate } = getDateRange(range);
-        fetchTableData(selectedSummary, startDate, endDate);
-      }
+    if (!selectedSummary) return;
+    if (range === "Custom range" && customStart && customEnd) {
+      fetchTableData(selectedSummary, customStart, customEnd);
+    } else {
+      const { startDate, endDate } = getDateRange(range);
+      fetchTableData(selectedSummary, startDate, endDate);
     }
   }, [selectedSummary, range, customStart, customEnd, fetchTableData]);
 
+  // Re-fetch lead source or shipment if agent changes
   useEffect(() => {
     if (selectedSummary === "Lead Source Summary") {
       if (range === "Custom range" && customStart && customEnd) {
@@ -322,22 +388,35 @@ const ManagerSalesDashboard = () => {
         const { startDate, endDate } = getDateRange(range);
         fetchLeadSourceData(startDate, endDate);
       }
+    } else if (selectedSummary === "Shipment Summary") {
+      if (range === "Custom range" && customStart && customEnd) {
+        fetchShipmentData(customStart, customEnd);
+      } else {
+        const { startDate, endDate } = getDateRange(range);
+        fetchShipmentData(startDate, endDate);
+      }
     }
-  }, [selectedAgent, selectedSummary, range, customStart, customEnd, fetchLeadSourceData]);  
+  }, [
+    selectedAgent,
+    shipmentAgent,
+    selectedSummary,
+    range,
+    customStart,
+    customEnd,
+    fetchLeadSourceData,
+    fetchShipmentData,
+  ]);
 
   // Handler for Sales Done card click to open popup
   const handleSalesDoneClick = async () => {
-    // Simulate a fetch call to get order IDs (replace this with your API call as needed)
     try {
       const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/sales-order-ids", {
-        params: { /* pass any parameters if needed */ },
+        params: {},
       });
-      // Assume response.data.orderIds is an array of order IDs
       const ids = response.data.orderIds.join(", ");
       setOrderIds(ids);
     } catch (error) {
       console.error("Error fetching order IDs:", error);
-      // Fallback dummy data
       setOrderIds("Order123, Order456, Order789");
     }
     setOrderIdsPopupOpen(true);
@@ -440,6 +519,11 @@ const ManagerSalesDashboard = () => {
     },
   ];
 
+  // --------------- Shipment Summary Table columns ---------------
+  // Example columns: "Category", "Count", "Amount", "Percentage"
+  // We'll display data from shipmentData
+  const shipmentColumns = ["Category", "Count", "Amount", "Percentage"];
+
   return (
     <Box sx={{ padding: 3 }}>
       {/* Dashboard Title */}
@@ -508,70 +592,75 @@ const ManagerSalesDashboard = () => {
             <MenuItem value="Lead Source Summary">
               <Typography variant="body2">Lead Source Summary</Typography>
             </MenuItem>
+            {/* NEW SHIPMENT SUMMARY OPTION */}
+            <MenuItem value="Shipment Summary">
+              <Typography variant="body2">All Shipment Summary</Typography>
+            </MenuItem>
           </Select>
         </FormControl>
 
-        {["Sales Summary", "Followup Summary", "Lead Source Summary"].includes(
+        {/* Time range dropdown (shared by all summaries) */}
+        {["Sales Summary", "Followup Summary", "Lead Source Summary", "Shipment Summary"].includes(
           selectedSummary
         ) && (
-          <>
-            <TextField
-              select
-              label="Select Range"
-              value={range}
-              onChange={handleRangeChange}
-              sx={{
-                width: 220,
-                backgroundColor: "#F9F9F9",
-                borderRadius: 2,
-              }}
-            >
-              {timeRangeOptions.map((option) => (
-                <MenuItem key={option} value={option}>
-                  {option}
-                </MenuItem>
-              ))}
-            </TextField>
-            {range === "Custom range" && (
-              <>
-                <TextField
-                  label="Start Date"
-                  type="date"
-                  value={customStart}
-                  onChange={(e) => setCustomStart(e.target.value)}
-                  InputLabelProps={{ shrink: true }}
-                  sx={{
-                    width: 160,
-                    backgroundColor: "#F9F9F9",
-                    borderRadius: 2,
-                  }}
-                />
-                <TextField
-                  label="End Date"
-                  type="date"
-                  value={customEnd}
-                  onChange={(e) => setCustomEnd(e.target.value)}
-                  InputLabelProps={{ shrink: true }}
-                  sx={{
-                    width: 160,
-                    backgroundColor: "#F9F9F9",
-                    borderRadius: 2,
-                  }}
-                />
-                <Button
-                  variant="contained"
-                  onClick={applyCustomRange}
-                  sx={{
-                    backgroundColor: "#1976D2",
-                    "&:hover": { backgroundColor: "#1565C0" },
-                  }}
-                >
-                  Apply
-                </Button>
-              </>
-            )}
-          </>
-        )}
+            <>
+              <TextField
+                select
+                label="Select Range"
+                value={range}
+                onChange={handleRangeChange}
+                sx={{
+                  width: 220,
+                  backgroundColor: "#F9F9F9",
+                  borderRadius: 2,
+                }}
+              >
+                {timeRangeOptions.map((option) => (
+                  <MenuItem key={option} value={option}>
+                    {option}
+                  </MenuItem>
+                ))}
+              </TextField>
+              {range === "Custom range" && (
+                <>
+                  <TextField
+                    label="Start Date"
+                    type="date"
+                    value={customStart}
+                    onChange={(e) => setCustomStart(e.target.value)}
+                    InputLabelProps={{ shrink: true }}
+                    sx={{
+                      width: 160,
+                      backgroundColor: "#F9F9F9",
+                      borderRadius: 2,
+                    }}
+                  />
+                  <TextField
+                    label="End Date"
+                    type="date"
+                    value={customEnd}
+                    onChange={(e) => setCustomEnd(e.target.value)}
+                    InputLabelProps={{ shrink: true }}
+                    sx={{
+                      width: 160,
+                      backgroundColor: "#F9F9F9",
+                      borderRadius: 2,
+                    }}
+                  />
+                  <Button
+                    variant="contained"
+                    onClick={applyCustomRange}
+                    sx={{
+                      backgroundColor: "#1976D2",
+                      "&:hover": { backgroundColor: "#1565C0" },
+                    }}
+                  >
+                    Apply
+                  </Button>
+                </>
+              )}
+            </>
+          )}
       </Box>
 
       {/* -------------------- SALES SUMMARY -------------------- */}
@@ -612,7 +701,52 @@ const ManagerSalesDashboard = () => {
               Sales Summary
             </Typography>
             <Grid container spacing={2} sx={{ width: "100%" }}>
-              {metrics1.map(({ label, value, icon }) => (
+              {[
+                {
+                  label: "Open Leads",
+                  value: salesSummary.openLeads,
+                  icon: <TrendingUp sx={{ color: "#1976D2" }} />,
+                },
+                {
+                  label: "Leads Assigned",
+                  value: salesSummary.leadsAssigned,
+                  icon: <Assignment sx={{ color: "#FF9800" }} />,
+                },
+                {
+                  label: "Sales Done",
+                  value: salesSummary.salesDone,
+                  icon: (
+                    <ShoppingCart
+                      sx={{ color: "#4CAF50", cursor: "pointer" }}
+                      onClick={handleSalesDoneClick}
+                    />
+                  ),
+                },
+                {
+                  label: "Conversion Rate",
+                  value:
+                    salesSummary.conversionRate !== undefined
+                      ? `${salesSummary.conversionRate}%`
+                      : undefined,
+                  icon: <BarChart sx={{ color: "#9C27B0" }} />,
+                },
+                {
+                  label: "Total Sales",
+                  value:
+                    salesSummary.totalSales !== undefined
+                      ? `₹${salesSummary.totalSales}`
+                      : undefined,
+                  icon: <CurrencyRupee sx={{ color: "#F44336" }} />,
+                },
+                {
+                  label: "Average Order Value",
+                  value:
+                    salesSummary.avgOrderValue !== undefined
+                      ? `₹${salesSummary.avgOrderValue}`
+                      : undefined,
+                  icon: <CurrencyRupeeOutlined sx={{ color: "#3F51B5" }} />,
+                },
+              ].map(({ label, value, icon }) => (
                 <Grid item xs={12} sm={6} md={4} key={label}>
                   <Box
                     sx={{
@@ -727,8 +861,7 @@ const ManagerSalesDashboard = () => {
                       <TableRow
                         key={row.agentName}
                         sx={{
-                          backgroundColor:
-                            index % 2 === 0 ? "#FFFFFF" : "#F9F9F9",
+                          backgroundColor: index % 2 === 0 ? "#FFFFFF" : "#F9F9F9",
                           "&:hover": {
                             backgroundColor: "#F1F3F5",
                             transition: "0.3s",
@@ -904,10 +1037,7 @@ const ManagerSalesDashboard = () => {
             >
               Detailed Followup Summary
             </Typography>
-            <TableContainer
-              component={Paper}
-              sx={{ borderRadius: 2, boxShadow: "none" }}
-            >
+            <TableContainer component={Paper} sx={{ borderRadius: 2, boxShadow: "none" }}>
               <Table size="small">
                 <TableHead>
                   <TableRow sx={{ backgroundColor: "#424242" }}>
@@ -945,21 +1075,14 @@ const ManagerSalesDashboard = () => {
                       <TableRow
                         key={row.agentName}
                         sx={{
-                          backgroundColor:
-                            index % 2 === 0 ? "#F5F5F5" : "#FFFFFF",
+                          backgroundColor: index % 2 === 0 ? "#F5F5F5" : "#FFFFFF",
                           "&:hover": {
                             backgroundColor: "#E0E0E0",
                             transition: "0.3s",
                           },
                         }}
                       >
-                        <TableCell
-                          sx={{
-                            textAlign: "center",
-                            fontWeight: 500,
-                            padding: "8px",
-                          }}
-                        >
+                        <TableCell sx={{ textAlign: "center", fontWeight: 500, padding: "8px" }}>
                           {row.agentName}
                         </TableCell>
                         <TableCell sx={{ textAlign: "center", padding: "8px" }}>
@@ -984,11 +1107,7 @@ const ManagerSalesDashboard = () => {
                       <TableCell
                         colSpan={6}
                         align="center"
-                        sx={{
-                          padding: "10px",
-                          color: "#888",
-                          fontStyle: "italic",
-                        }}
+                        sx={{ padding: "10px", color: "#888", fontStyle: "italic" }}
                       >
                         No data available
                       </TableCell>
@@ -1047,11 +1166,7 @@ const ManagerSalesDashboard = () => {
           </Box>
 
           <TableContainer
-            sx={{
-              borderRadius: 2,
-              boxShadow: 1,
-              overflowX: "auto",
-            }}
+            sx={{ borderRadius: 2, boxShadow: 1, overflowX: "auto" }}
             component={Paper}
           >
             <Table>
@@ -1094,45 +1209,165 @@ const ManagerSalesDashboard = () => {
                 )}
                 {!tableLoading && leadSourceData.length > 0
                   ? leadSourceData.map((row, index) => (
-                      <TableRow
-                        key={row.leadSource}
-                        sx={{
-                          backgroundColor:
-                            index % 2 === 0 ? "#FFFFFF" : "#F9F9F9",
-                          "&:hover": {
-                            backgroundColor: "#F1F3F5",
-                            transition: "0.3s",
-                          },
-                        }}
-                      >
-                        <TableCell sx={{ padding: "8px" }}>
-                          {row.leadSource}
-                        </TableCell>
-                        <TableCell align="center" sx={{ padding: "8px" }}>
-                          {row.leadsAssigned}
-                        </TableCell>
-                        <TableCell align="center" sx={{ padding: "8px" }}>
-                          {row.leadsConverted}
-                        </TableCell>
-                        <TableCell align="center" sx={{ padding: "8px" }}>
-                          {`${row.conversionRate}%`}
-                        </TableCell>
-                        <TableCell align="center" sx={{ padding: "8px" }}>
-                          ₹{row.salesAmount}
-                        </TableCell>
-                      </TableRow>
-                    ))
+                    <TableRow
+                      key={row.leadSource}
+                      sx={{
+                        backgroundColor:
+                          index % 2 === 0 ? "#FFFFFF" : "#F9F9F9",
+                        "&:hover": {
+                          backgroundColor: "#F1F3F5",
+                          transition: "0.3s",
+                        },
+                      }}
+                    >
+                      <TableCell sx={{ padding: "8px" }}>
+                        {row.leadSource}
+                      </TableCell>
+                      <TableCell align="center" sx={{ padding: "8px" }}>
+                        {row.leadsAssigned}
+                      </TableCell>
+                      <TableCell align="center" sx={{ padding: "8px" }}>
+                        {row.leadsConverted}
+                      </TableCell>
+                      <TableCell align="center" sx={{ padding: "8px" }}>
+                        {`${row.conversionRate}%`}
+                      </TableCell>
+                      <TableCell align="center" sx={{ padding: "8px" }}>
+                        ₹{row.salesAmount}
+                      </TableCell>
+                    </TableRow>
+                  ))
                   : !tableLoading && (
-                      <TableRow>
-                        <TableCell
-                          colSpan={5}
-                          align="center"
-                          sx={{ padding: "8px" }}
-                        >
-                          No data available
-                        </TableCell>
-                      </TableRow>
-                    )}
+                    <TableRow>
+                      <TableCell colSpan={5} align="center" sx={{ padding: "8px" }}>
+                        No data available
+                      </TableCell>
+                    </TableRow>
+                  )}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </Box>
+      )}
+
+      {/* -------------------- SHIPMENT SUMMARY -------------------- */}
+      {selectedSummary === "Shipment Summary" && (
+        <Box
+          sx={{
+            padding: 2,
+            marginTop: 3,
+            backgroundColor: "#FFFFFF",
+            borderRadius: 2,
+            boxShadow: "0px 4px 12px rgba(0, 0, 0, 0.1)",
+            maxWidth: "900px",
+            margin: "0 auto",
+          }}
+        >
+          <Typography
+            variant="h5"
+            fontWeight="bold"
+            sx={{ textAlign: "center", color: "#333", marginBottom: 3 }}
+          >
+            Shipment Status Summary
+          </Typography>
+
+          {/* Agent Filter for Shipment Summary */}
+          <Box
+            sx={{
+              display: "flex",
+              gap: 2,
+              marginBottom: 2,
+              justifyContent: "center",
+            }}
+          >
+            <FormControl sx={{ width: "30%" }}>
+              <Select
+                value={selectedAgent}
+                onChange={(e) => setSelectedAgent(e.target.value)}
+                defaultValue="All Agents"
+                sx={{ backgroundColor: "#F9F9F9", borderRadius: 1 }}
+              >
+                {agents.map((agent) => (
+                  <MenuItem key={agent} value={agent}>
+                    {agent}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          </Box>
+
+          <TableContainer
+            sx={{ borderRadius: 2, boxShadow: 1, overflowX: "auto" }}
+            component={Paper}
+          >
+            <Table>
+              <TableHead>
+                <TableRow
+                  sx={{
+                    backgroundColor: "#E3F2FD",
+                    borderBottom: "1px solid #E0E0E0",
+                  }}
+                >
+                  {["Category", "Count", "Amount", "Percentage"].map((head) => (
+                    <TableCell
+                      key={head}
+                      sx={{
+                        fontWeight: "bold",
+                        textAlign: "center",
+                        color: "#333",
+                        fontSize: "14px",
+                        padding: "8px",
+                      }}
+                    >
+                      {head}
+                    </TableCell>
+                  ))}
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {tableLoading && (
+                  <TableRow>
+                    <TableCell colSpan={4} sx={{ padding: 0 }}>
+                      <LinearProgress sx={{ width: "100%", height: "1px" }} />
+                    </TableCell>
+                  </TableRow>
+                )}
+                {!tableLoading && shipmentData.length > 0 ? (
+                  shipmentData.map((row, index) => (
+                    <TableRow
+                      key={index}
+                      sx={{
+                        backgroundColor:
+                          index % 2 === 0 ? "#FFFFFF" : "#F9F9F9",
+                        "&:hover": {
+                          backgroundColor: "#F1F3F5",
+                          transition: "0.3s",
+                        },
+                      }}
+                    >
+                      <TableCell sx={{ padding: "8px" }}>
+                        {row.category}
+                      </TableCell>
+                      <TableCell align="center" sx={{ padding: "8px" }}>
+                        {row.count}
+                      </TableCell>
+                      <TableCell align="center" sx={{ padding: "8px" }}>
+                        ₹{row.amount?.toFixed?.(2) ?? row.amount}
+                      </TableCell>
+                      <TableCell align="center" sx={{ padding: "8px" }}>
+                        {row.percentage}%
+                      </TableCell>
+                    </TableRow>
+                  ))
+                ) : (
+                  !tableLoading && (
+                    <TableRow>
+                      <TableCell colSpan={4} align="center" sx={{ padding: "8px" }}>
+                        No data available
+                      </TableCell>
+                    </TableRow>
+                  )
+                )}
               </TableBody>
             </Table>
           </TableContainer>

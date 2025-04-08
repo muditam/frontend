@@ -32,15 +32,14 @@ import {
   EventAvailable,
   Schedule,
   MoreTime,
-  PeopleAlt,
-  PersonAdd,
-  BarChart,
   Cancel,
 } from "@mui/icons-material";
 import { styled } from "@mui/system";
 
-// 1) Range dropdown options for "Today-Followup Summary" (including "Custom range")
-const timeRangeOptionsTF = [
+// ----------------------
+// 1) Range dropdown options (shared for both Today-Followup & Shipment)
+// ----------------------
+const timeRangeOptions = [
   "Today",
   "Yesterday",
   "Last 7 days",
@@ -142,26 +141,6 @@ const BlinkingIcon = styled(WarningAmberIcon)({
   color: "red",
 });
 
-// Default date filter for the current month (used in shipment)
-const getCurrentMonthDateFilter = () => {
-  const currentDate = new Date();
-  const firstDay = new Date(
-    currentDate.getFullYear(),
-    currentDate.getMonth(),
-    1
-  )
-    .toISOString()
-    .split("T")[0];
-  const lastDay = new Date(
-    currentDate.getFullYear(),
-    currentDate.getMonth() + 1,
-    0
-  )
-    .toISOString()
-    .split("T")[0];
-  return { startDate: firstDay, endDate: lastDay };
-};
-
 const RetentionAgentDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [todayMetrics, setTodayMetrics] = useState({});
@@ -169,20 +148,75 @@ const RetentionAgentDashboard = () => {
   const [shipmentSummary, setShipmentSummary] = useState([]);
   const [applyingShipment, setApplyingShipment] = useState(false);
 
-  // For Shipment Summary date filter
-  const [dateFilter, setDateFilter] = useState(getCurrentMonthDateFilter());
-
   // Which summary is selected in the main toggle?
   const [selectedSummary, setSelectedSummary] = useState("Today-Followup Summary");
 
-  // For the "Today-Followup" range dropdown
+  // ---------------------
+  // Today-Followup states
+  // ---------------------
   const [selectedRangeTF, setSelectedRangeTF] = useState("Today");
-  // For "Custom range" in the Today-Followup summary
   const [customStartTF, setCustomStartTF] = useState("");
   const [customEndTF, setCustomEndTF] = useState("");
 
+  // ---------------------
+  // Shipment Summary states
+  // ---------------------
+  // Default to "Month to date" for the shipment summary
+  const [selectedRangeShipment, setSelectedRangeShipment] = useState("Month to date");
+  const [customStartShipment, setCustomStartShipment] = useState("");
+  const [customEndShipment, setCustomEndShipment] = useState("");
+
   const user = JSON.parse(sessionStorage.getItem("user"));
 
+  // ---------------------------------------------------------
+  // 1) fetchTodayFollowupData => calls /api/today-summary and /api/followup-summary
+  // ---------------------------------------------------------
+  const fetchTodayFollowupData = async (agentName, startDate, endDate) => {
+    try {
+      setLoading(true);
+      // "Today" summary endpoint
+      const todaySummaryResponse = await axios.get(
+        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/today-summary",
+        { params: { agentName, startDate, endDate } }
+      );
+      setTodayMetrics(todaySummaryResponse.data);
+
+      // "Followup" summary endpoint (includes lost customers)
+      const followupSummaryResponse = await axios.get(
+        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/followup-summary",
+        { params: { agentName, startDate, endDate } }
+      );
+      setFollowupMetrics(followupSummaryResponse.data);
+    } catch (error) {
+      console.error("Error fetching Today-Followup data:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ---------------------------------------------------------
+  // 2) fetchShipmentStatusSummary => calls /api/shipment-summary
+  // ---------------------------------------------------------
+  const fetchShipmentStatusSummary = async (retentionAgentName, startDate, endDate) => {
+    try {
+      setApplyingShipment(true);
+      const response = await axios.get(
+        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/shipment-summary",
+        {
+          params: { agentName: retentionAgentName, startDate, endDate },
+        }
+      );
+      setShipmentSummary(response.data);
+    } catch (error) {
+      console.error("Error fetching shipment status summary:", error);
+    } finally {
+      setApplyingShipment(false);
+    }
+  };
+
+  // ---------------------------------------------------------
+  // Handle box click for filtering (open new tab, optional)
+  // ---------------------------------------------------------
   const handleBoxClick = (filterType) => {
     const clickableBoxes = [
       "Active Customers",
@@ -199,71 +233,33 @@ const RetentionAgentDashboard = () => {
     }
   };
 
-  // 1) fetchTodayFollowupData => calls /api/today-summary and /api/followup-summary with a date range
-  const fetchTodayFollowupData = async (agentName, startDate, endDate) => {
-    try {
-      setLoading(true);
-      // "Today" summary endpoint
-      const todaySummaryResponse = await axios.get(
-        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/today-summary",
-        {
-          params: { agentName, startDate, endDate },
-        }
-      );
-      setTodayMetrics(todaySummaryResponse.data);
-
-      // "Followup" summary endpoint (now including lost customers)
-      const followupSummaryResponse = await axios.get(
-        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/followup-summary",
-        {
-          params: { agentName, startDate, endDate },
-        }
-      );
-      setFollowupMetrics(followupSummaryResponse.data);
-    } catch (error) {
-      console.error("Error fetching Today-Followup data:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // 2) fetchShipmentStatusSummary => calls /api/shipment-summary
-  const fetchShipmentStatusSummary = async (retentionAgentName) => {
-    try {
-      setApplyingShipment(true);
-      const response = await axios.get(
-        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/shipment-summary",
-        {
-          params: {
-            agentName: retentionAgentName,
-            startDate: dateFilter.startDate,
-            endDate: dateFilter.endDate,
-          },
-        }
-      );
-      setShipmentSummary(response.data);
-    } catch (error) {
-      console.error("Error fetching shipment status summary:", error);
-    } finally {
-      setApplyingShipment(false);
-    }
-  };
-
-  // On mount, default to "Today-Followup Summary" => use "Today" range
+  // ---------------------------------------------------------
+  // On mount, default:
+  //  - "Today-Followup" => "Today" range
+  //  - "Shipment Summary" => "Month to date" range
+  // ---------------------------------------------------------
   useEffect(() => {
     if (user?.fullName) {
+      // 1) Today-Followup defaults to "Today"
       const { startDate, endDate } = getDateRange("Today");
       fetchTodayFollowupData(user.fullName, startDate, endDate);
-      fetchShipmentStatusSummary(user.fullName);
+
+      // 2) Shipment Summary defaults to "Month to date"
+      const { startDate: sShipment, endDate: eShipment } = getDateRange("Month to date");
+      fetchShipmentStatusSummary(user.fullName, sShipment, eShipment);
     }
   }, [user?.fullName]);
 
-  // Handle main summary toggle (now only two options)
+  // ---------------------------------------------------------
+  // Handle main summary toggle (two options)
+  // ---------------------------------------------------------
   const handleSummaryChange = (e) => {
     setSelectedSummary(e.target.value);
   };
 
-  // 4) handleTimeRangeChange for Today-Followup
+  // ---------------------------------------------------------
+  // 4) handleTimeRangeChange for "Today-Followup Summary"
+  // ---------------------------------------------------------
   const handleTimeRangeChangeTF = async (e) => {
     const newRange = e.target.value;
     setSelectedRangeTF(newRange);
@@ -278,6 +274,25 @@ const RetentionAgentDashboard = () => {
   const applyCustomRangeTF = async () => {
     if (!customStartTF || !customEndTF || !user?.fullName) return;
     await fetchTodayFollowupData(user.fullName, customStartTF, customEndTF);
+  };
+
+  // ---------------------------------------------------------
+  // 6) handleTimeRangeChange for "Shipment Summary"
+  // ---------------------------------------------------------
+  const handleTimeRangeChangeShipment = async (e) => {
+    const newRange = e.target.value;
+    setSelectedRangeShipment(newRange);
+    if (!user?.fullName) return;
+    if (newRange !== "Custom range") {
+      const { startDate, endDate } = getDateRange(newRange);
+      await fetchShipmentStatusSummary(user.fullName, startDate, endDate);
+    }
+  };
+
+  // applyCustomRangeShipment
+  const applyCustomRangeShipment = async () => {
+    if (!customStartShipment || !customEndShipment || !user?.fullName) return;
+    await fetchShipmentStatusSummary(user.fullName, customStartShipment, customEndShipment);
   };
 
   return (
@@ -313,7 +328,7 @@ const RetentionAgentDashboard = () => {
           mt: 2,
         }}
       >
-        {/* Summary Toggle (only two options now) */}
+        {/* Summary Toggle (Today-Followup vs Shipment) */}
         <FormControl variant="outlined" sx={{ width: 300 }}>
           <Select
             value={selectedSummary}
@@ -333,9 +348,7 @@ const RetentionAgentDashboard = () => {
             }}
           >
             <MenuItem value="Today-Followup Summary">
-              <Typography variant="body2">
-                Today & Followup Summary
-              </Typography>
+              <Typography variant="body2">Today & Followup Summary</Typography>
             </MenuItem>
             <MenuItem value="Shipment Summary">
               <Typography variant="body2">Shipment Summary</Typography>
@@ -343,7 +356,7 @@ const RetentionAgentDashboard = () => {
           </Select>
         </FormControl>
 
-        {/* Time Range Dropdown (only for Today-Followup Summary) */}
+        {/* Time Range Dropdown for Today-Followup */}
         {selectedSummary === "Today-Followup Summary" && (
           <FormControl variant="outlined" sx={{ width: 300 }}>
             <Select
@@ -361,7 +374,34 @@ const RetentionAgentDashboard = () => {
                 "&:hover .MuiOutlinedInput-notchedOutline": { borderColor: "#888" },
               }}
             >
-              {timeRangeOptionsTF.map((option) => (
+              {timeRangeOptions.map((option) => (
+                <MenuItem key={option} value={option}>
+                  <Typography variant="body2">{option}</Typography>
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+        )}
+
+        {/* Time Range Dropdown for Shipment Summary */}
+        {selectedSummary === "Shipment Summary" && (
+          <FormControl variant="outlined" sx={{ width: 300 }}>
+            <Select
+              value={selectedRangeShipment}
+              onChange={handleTimeRangeChangeShipment}
+              displayEmpty
+              IconComponent={ExpandMore}
+              renderValue={(val) => (val ? val : "Time Range")}
+              sx={{
+                backgroundColor: "#fff",
+                color: "#333",
+                borderRadius: 2,
+                border: "1px solid #ccc",
+                "& .MuiOutlinedInput-notchedOutline": { borderColor: "#ccc" },
+                "&:hover .MuiOutlinedInput-notchedOutline": { borderColor: "#888" },
+              }}
+            >
+              {timeRangeOptions.map((option) => (
                 <MenuItem key={option} value={option}>
                   <Typography variant="body2">{option}</Typography>
                 </MenuItem>
@@ -371,7 +411,7 @@ const RetentionAgentDashboard = () => {
         )}
       </Box>
 
-      {/* If "Custom range" is selected, show date pickers and Apply button */}
+      {/* If "Custom range" is selected for Today-Followup, show date pickers and Apply button */}
       {selectedSummary === "Today-Followup Summary" && selectedRangeTF === "Custom range" && (
         <Box
           sx={{
@@ -411,6 +451,57 @@ const RetentionAgentDashboard = () => {
           <Button
             variant="contained"
             onClick={applyCustomRangeTF}
+            sx={{
+              bgcolor: "primary.main",
+              color: "white",
+              "&:hover": { bgcolor: "primary.dark" },
+            }}
+          >
+            Apply
+          </Button>
+        </Box>
+      )}
+
+      {/* If "Custom range" is selected for Shipment Summary, show date pickers and Apply button */}
+      {selectedSummary === "Shipment Summary" && selectedRangeShipment === "Custom range" && (
+        <Box
+          sx={{
+            display: "flex",
+            justifyContent: "center",
+            gap: 2,
+            flexWrap: "wrap",
+            mb: 2,
+          }}
+        >
+          <TextField
+            label="Start Date"
+            type="date"
+            value={customStartShipment}
+            onChange={(e) => setCustomStartShipment(e.target.value)}
+            InputLabelProps={{ shrink: true }}
+            sx={{
+              width: 180,
+              "& .MuiInputBase-root": {
+                backgroundColor: "background.default",
+              },
+            }}
+          />
+          <TextField
+            label="End Date"
+            type="date"
+            value={customEndShipment}
+            onChange={(e) => setCustomEndShipment(e.target.value)}
+            InputLabelProps={{ shrink: true }}
+            sx={{
+              width: 180,
+              "& .MuiInputBase-root": {
+                backgroundColor: "background.default",
+              },
+            }}
+          />
+          <Button
+            variant="contained"
+            onClick={applyCustomRangeShipment}
             sx={{
               bgcolor: "primary.main",
               color: "white",
@@ -546,44 +637,50 @@ const RetentionAgentDashboard = () => {
                 {
                   label: "No Followup Set",
                   icon: <Schedule sx={{ color: "#546E7A" }} />,
-                  value: followupMetrics.noFollowupSet !== undefined
-                    ? followupMetrics.noFollowupSet
-                    : <CircularProgress size={20} />,
+                  value:
+                    followupMetrics.noFollowupSet !== undefined
+                      ? followupMetrics.noFollowupSet
+                      : <CircularProgress size={20} />,
                 },
                 {
                   label: "Followup Missed",
                   icon: <EventBusy sx={{ color: "#D32F2F" }} />,
-                  value: followupMetrics.followupMissed !== undefined
-                    ? followupMetrics.followupMissed
-                    : <CircularProgress size={20} />,
+                  value:
+                    followupMetrics.followupMissed !== undefined
+                      ? followupMetrics.followupMissed
+                      : <CircularProgress size={20} />,
                 },
                 {
                   label: "Followup Today",
                   icon: <Today sx={{ color: "#388E3C" }} />,
-                  value: followupMetrics.followupToday !== undefined
-                    ? followupMetrics.followupToday
-                    : <CircularProgress size={20} />,
+                  value:
+                    followupMetrics.followupToday !== undefined
+                      ? followupMetrics.followupToday
+                      : <CircularProgress size={20} />,
                 },
                 {
                   label: "Followup Tomorrow",
                   icon: <EventAvailable sx={{ color: "#FFA000" }} />,
-                  value: followupMetrics.followupTomorrow !== undefined
-                    ? followupMetrics.followupTomorrow
-                    : <CircularProgress size={20} />,
+                  value:
+                    followupMetrics.followupTomorrow !== undefined
+                      ? followupMetrics.followupTomorrow
+                      : <CircularProgress size={20} />,
                 },
                 {
                   label: "Followup Later",
                   icon: <MoreTime sx={{ color: "#0288D1" }} />,
-                  value: followupMetrics.followupLater !== undefined
-                    ? followupMetrics.followupLater
-                    : <CircularProgress size={20} />,
+                  value:
+                    followupMetrics.followupLater !== undefined
+                      ? followupMetrics.followupLater
+                      : <CircularProgress size={20} />,
                 },
                 {
                   label: "Lost Customers",
                   icon: <Cancel sx={{ color: "#D32F2F" }} />,
-                  value: followupMetrics.lostCustomers !== undefined
-                    ? followupMetrics.lostCustomers
-                    : <CircularProgress size={20} />,
+                  value:
+                    followupMetrics.lostCustomers !== undefined
+                      ? followupMetrics.lostCustomers
+                      : <CircularProgress size={20} />,
                 },
               ].map(({ label, value, icon }) => (
                 <Grid item xs={12} sm={6} md={4} key={label}>
@@ -623,7 +720,7 @@ const RetentionAgentDashboard = () => {
         </>
       )}
 
-      {/* 3) SHIPMENT SUMMARY */}
+      {/* 2) SHIPMENT SUMMARY */}
       {selectedSummary === "Shipment Summary" && (
         <Paper
           sx={{
@@ -650,34 +747,7 @@ const RetentionAgentDashboard = () => {
           >
             Shipment Status
           </Typography>
-          {/* Date Filter Controls for Shipment Summary */}
-          <Box sx={{ display: "flex", gap: 2, marginBottom: 2 }}>
-            <TextField
-              label="Start Date"
-              type="date"
-              InputLabelProps={{ shrink: true }}
-              value={dateFilter.startDate}
-              onChange={(e) =>
-                setDateFilter((prev) => ({ ...prev, startDate: e.target.value }))
-              }
-            />
-            <TextField
-              label="End Date"
-              type="date"
-              InputLabelProps={{ shrink: true }}
-              value={dateFilter.endDate}
-              onChange={(e) =>
-                setDateFilter((prev) => ({ ...prev, endDate: e.target.value }))
-              }
-            />
-            <Button
-              variant="contained"
-              onClick={() => fetchShipmentStatusSummary(user?.fullName)}
-              sx={{ backgroundColor: "#6D6D6D" }}
-            >
-              Apply Filters
-            </Button>
-          </Box>
+
           <TableContainer component={Paper} sx={{ borderRadius: "10px" }}>
             <Table>
               <TableHead>
@@ -698,7 +768,10 @@ const RetentionAgentDashboard = () => {
                 <TableBody>
                   <TableRow>
                     <TableCell colSpan={4} sx={{ padding: 0 }}>
-                      <LinearProgress variant="indeterminate" sx={{ width: "100%", height: "3px" }} />
+                      <LinearProgress
+                        variant="indeterminate"
+                        sx={{ width: "100%", height: "3px" }}
+                      />
                     </TableCell>
                   </TableRow>
                 </TableBody>
@@ -717,14 +790,24 @@ const RetentionAgentDashboard = () => {
                         <TableCell sx={{ textAlign: "center" }}>
                           <Typography fontWeight="bold">{row.label}</Typography>
                         </TableCell>
-                        <TableCell sx={{ textAlign: "center" }}>{row.count}</TableCell>
-                        <TableCell sx={{ textAlign: "center" }}>{`₹${row.amount.toFixed(2)}`}</TableCell>
-                        <TableCell sx={{ textAlign: "center" }}>{`${row.percentage}%`}</TableCell>
+                        <TableCell sx={{ textAlign: "center" }}>
+                          {row.count}
+                        </TableCell>
+                        <TableCell sx={{ textAlign: "center" }}>
+                          {`₹${row.amount.toFixed(2)}`}
+                        </TableCell>
+                        <TableCell sx={{ textAlign: "center" }}>
+                          {`${row.percentage}%`}
+                        </TableCell>
                       </TableRow>
                     ))
                   ) : (
                     <TableRow>
-                      <TableCell colSpan={4} align="center" sx={{ padding: "12px", color: "#888", fontStyle: "italic" }}>
+                      <TableCell
+                        colSpan={4}
+                        align="center"
+                        sx={{ padding: "12px", color: "#888", fontStyle: "italic" }}
+                      >
                         No data found.
                       </TableCell>
                     </TableRow>

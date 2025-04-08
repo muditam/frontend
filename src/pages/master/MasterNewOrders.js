@@ -27,19 +27,18 @@ const NewOrders = () => {
   const [newOrders, setNewOrders] = useState([]);
   const [retentionAgents, setRetentionAgents] = useState([]);
   const [uniqueAgents, setUniqueAgents] = useState([]);
-  const [allOrders, setAllOrders] = useState([]);  
+  const [allOrders, setAllOrders] = useState([]);
   const [totalOrders, setTotalOrders] = useState(0);
   const [filters, setFilters] = useState({
-    startDate: "",  
-    endDate: "",  
+    startDate: "",
+    endDate: "",
     orderDate: "",
     name: "",
     contactNumber: "",
     agentName: [],
-    productsOrdered: [], 
-    healthExpertAssigned: "", 
+    productsOrdered: [],
+    healthExpertAssigned: "",
     modeOfPayment: [],
-    deliveryStatus: [],
   });
   const [filterOpen, setFilterOpen] = useState(false);
   const [page, setPage] = useState(0);
@@ -47,39 +46,42 @@ const NewOrders = () => {
 
   const dropdownOptions = {
     modeOfPayment: ["Partial Paid", "Razorpay", "COD", "UPI", "Bank Transfer"],
-    deliveryStatus: ["Delivered", "RTO", "Undelivered"],
-    productsOrdered: ["KJF", "SDP", "VKR", "L-Fx", "S&S", "CPV", "HDP", "PF", "PGut", "Shilajit", "Kit", "Blood Test"],
+    productsOrdered: [
+      "KJF", "SDP", "VKR", "L-Fx", "S&S", "CPV",
+      "HDP", "PF", "PGut", "Shilajit", "Kit", "Blood Test"
+    ],
   };
 
-  useEffect(() => { 
+  useEffect(() => {
     fetchNewOrders();
     fetchRetentionAgents();
   }, [page, rowsPerPage, filters]);
- 
+
+  // Fetch combined orders from the new combined orders endpoint
   const fetchNewOrders = async () => {
     try {
-      const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/new-orders", {
+      const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/orders/combined", {
         params: {
-          page: page + 1, // convert to 1-indexed for backend
+          page: page + 1, // converting to 1-indexed for backend
           limit: rowsPerPage,
-          ...filters
+          ...filters,
         },
       });
-  
-      // The API now returns an object like { leads, total, page, limit, totalPages }
-      const orders = response.data.leads;
+      const orders = response.data.orders;
       setTotalOrders(response.data.total);
       setNewOrders(orders);
       setAllOrders(orders);
-  
-      // If you need unique agent names from the returned orders:
-      const uniqueAgentNames = [...new Set(orders.map(order => order.agentAssigned).filter(Boolean))];
+
+      // Get unique agent names from combined data for filtering
+      const uniqueAgentNames = [
+        ...new Set(orders.map(order => order.agentName).filter(Boolean))
+      ];
       setUniqueAgents(uniqueAgentNames);
     } catch (error) {
-      console.error("Error fetching new orders:", error);
+      console.error("Error fetching combined orders:", error);
     }
   };
-  
+
   const fetchRetentionAgents = async () => {
     try {
       const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/employees?role=Retention%20Agent");
@@ -89,35 +91,23 @@ const NewOrders = () => {
     }
   };
 
-  const handleHealthExpertChange = async (e, index) => { 
-    // Use index directly because newOrders already contains the current page's orders
+  // Updated Health Expert change handler:
+  // Now it uses the updated endpoint URL so that it doesn't conflict with /api/leads/:id
+  const handleHealthExpertChange = async (e, index) => {
     const updatedOrders = [...newOrders];
-    updatedOrders[index].healthExpertAssigned = e.target.value;
+    const selectedAgent = e.target.value;
+    updatedOrders[index].healthExpertAssigned = selectedAgent;
     setNewOrders(updatedOrders);
-  
-    const orderId = updatedOrders[index]._id;
+
+    const contactNumber = updatedOrders[index].contactNumber;
     try {
-      await axios.put(`https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/${orderId}`, {
-        healthExpertAssigned: e.target.value,
+      // Use the endpoint mounted at /api/orders/combined/update-by-contact
+      await axios.put("https://muditamleads-14f32a10d7f7.herokuapp.com/api/orders/combined/update-by-contact", {
+        contactNumber,
+        healthExpertAssigned: selectedAgent,
       });
     } catch (error) {
       console.error("Error updating health expert assigned:", error);
-    }
-  };
-  
-  const handleDeliveryStatusChange = async (e, index) => { 
-    // Use index directly here as well
-    const updatedOrders = [...newOrders];
-    updatedOrders[index].deliveryStatus = e.target.value;
-    setNewOrders(updatedOrders);
-  
-    const orderId = updatedOrders[index]._id;
-    try {
-      await axios.put(`https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/${orderId}`, {
-        deliveryStatus: e.target.value,
-      });
-    } catch (error) {
-      console.error("Error updating delivery status:", error);
     }
   };
 
@@ -137,28 +127,23 @@ const NewOrders = () => {
       productsOrdered: [],
       healthExpertAssigned: "",
       modeOfPayment: [],
-      deliveryStatus: [],
     });
     setPage(0);
     fetchNewOrders();
   };
 
-  // This function fetches all orders (ignoring pagination) with the current filters,
-  // converts the data into CSV format, and triggers a download.
+  // Export only the required fields to CSV
   const exportToCSV = async () => {
     try {
-      // Fetch all orders using a high limit to bypass pagination
-      const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/new-orders", {
+      const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/orders/combined", {
         params: {
           page: 1,
-          limit: totalOrders || 10000, // Use totalOrders if available, else fallback to a high number
+          limit: totalOrders || 10000,
           ...filters,
         },
       });
-      const orders = response.data.leads;
+      const orders = response.data.orders;
 
-      // Convert orders data to CSV format.
-      // Create header row
       const headers = [
         "Order Date",
         "Name",
@@ -169,39 +154,35 @@ const NewOrders = () => {
         "Health Expert Assigned",
         "Remark for HE",
         "Amount Paid",
-        "Mode of Payment",
-        "Delivery Status"
+        "Mode of Payment"
       ];
-      
-      // Map order values (ensure arrays are joined as a string)
+
       const rows = orders.map(order => [
-        order.lastOrderDate || "N/A",
+        order.orderDate ? new Date(order.orderDate).toLocaleDateString() : "N/A",
         order.name || "N/A",
         order.contactNumber || "N/A",
-        order.agentAssigned || "N/A",
-        order.productsOrdered ? order.productsOrdered.join(" | ") : "N/A",
+        order.agentName || "N/A",
+        Array.isArray(order.productsOrdered)
+          ? order.productsOrdered.join(" | ")
+          : order.productsOrdered || "N/A",
         order.dosageOrdered || "N/A",
         order.healthExpertAssigned || "N/A",
-        order.agentsRemarks || "N/A",
+        order.remarkForHE || "N/A",
         order.amountPaid || "N/A",
-        order.modeOfPayment || "N/A",
-        order.deliveryStatus || "N/A"
+        order.modeOfPayment || "N/A"
       ]);
 
-      // Build CSV string
       let csvContent = "";
       csvContent += headers.join(",") + "\n";
       rows.forEach(row => {
-        // Ensure each cell is wrapped in quotes to handle commas
         csvContent += row.map(cell => `"${cell}"`).join(",") + "\n";
       });
 
-      // Create a Blob from the CSV data and trigger a download.
       const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.setAttribute("href", url);
-      link.setAttribute("download", "new_orders.csv");
+      link.setAttribute("download", "combined_orders.csv");
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -220,33 +201,20 @@ const NewOrders = () => {
   };
 
   return (
-    <Box sx={{ padding: 2 }}> 
+    <Box sx={{ padding: 2 }}>
       <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2 }}>
-        <Typography variant="h5"> 
-          Master Data - New Orders
-        </Typography>
+        <Typography variant="h5">Master Data - Combined Orders</Typography>
         <Box>
-          <Button 
-            variant="contained"
-            onClick={() => setFilterOpen(true)}
-            sx={{ mr: 1 }}
-          >
+          <Button variant="contained" onClick={() => setFilterOpen(true)} sx={{ mr: 1 }}>
             Filter
           </Button>
-          <Button 
-            variant="contained"
-            onClick={exportToCSV}
-          >
+          <Button variant="contained" onClick={exportToCSV}>
             Export to CSV
           </Button>
         </Box>
       </Box>
 
-      <Drawer
-        anchor="right"
-        open={filterOpen}
-        onClose={() => setFilterOpen(false)}
-      >
+      <Drawer anchor="right" open={filterOpen} onClose={() => setFilterOpen(false)}>
         <Box sx={{ width: 300, padding: 2 }}>
           <Typography variant="h6" gutterBottom>
             Filters
@@ -259,9 +227,7 @@ const NewOrders = () => {
                 type="date"
                 InputLabelProps={{ shrink: true }}
                 value={filters.startDate}
-                onChange={(e) =>
-                  setFilters((prev) => ({ ...prev, startDate: e.target.value }))
-                }
+                onChange={(e) => setFilters(prev => ({ ...prev, startDate: e.target.value }))}
               />
             </FormControl>
             <FormControl fullWidth sx={{ marginBottom: 2 }}>
@@ -270,28 +236,20 @@ const NewOrders = () => {
                 type="date"
                 InputLabelProps={{ shrink: true }}
                 value={filters.endDate}
-                onChange={(e) =>
-                  setFilters((prev) => ({ ...prev, endDate: e.target.value }))
-                }
+                onChange={(e) => setFilters(prev => ({ ...prev, endDate: e.target.value }))}
               />
             </FormControl>
-
             <FormControl fullWidth sx={{ marginBottom: 2 }}>
               <TextField
                 label="Order Date"
                 type="date"
                 InputLabelProps={{ shrink: true }}
                 value={filters.orderDate}
-                onChange={(e) =>
-                  setFilters((prev) => ({ ...prev, orderDate: e.target.value }))
-                }
+                onChange={(e) => setFilters(prev => ({ ...prev, orderDate: e.target.value }))}
               />
             </FormControl>
-
             {Object.keys(filters).map((key) => {
-              if (key === "startDate" || key === "endDate") return null; 
-              if (key === "orderDate") return null;
-           
+              if (["startDate", "endDate", "orderDate"].includes(key)) return null;
               if (key === "agentName") {
                 return (
                   <FormControl key={key} fullWidth sx={{ marginBottom: 2 }}>
@@ -299,9 +257,7 @@ const NewOrders = () => {
                     <Select
                       multiple
                       value={filters.agentName}
-                      onChange={(e) =>
-                        setFilters((prev) => ({ ...prev, agentName: e.target.value }))
-                      }
+                      onChange={(e) => setFilters(prev => ({ ...prev, agentName: e.target.value }))}
                       renderValue={(selected) => selected.join(", ")}
                     >
                       {uniqueAgents.map((agent) => (
@@ -314,16 +270,13 @@ const NewOrders = () => {
                   </FormControl>
                 );
               }
-
               if (key === "healthExpertAssigned") {
                 return (
                   <FormControl key={key} fullWidth sx={{ marginBottom: 2 }}>
                     <InputLabel>Health Expert Assigned</InputLabel>
                     <Select
                       value={filters[key] || ""}
-                      onChange={(e) =>
-                        setFilters((prev) => ({ ...prev, [key]: e.target.value }))
-                      }
+                      onChange={(e) => setFilters(prev => ({ ...prev, [key]: e.target.value }))}
                     >
                       <MenuItem value="blank">
                         <em>Blank</em>
@@ -337,7 +290,6 @@ const NewOrders = () => {
                   </FormControl>
                 );
               }
-
               return (
                 <FormControl key={key} fullWidth sx={{ marginBottom: 2 }}>
                   {Array.isArray(dropdownOptions[key]) ? (
@@ -347,7 +299,7 @@ const NewOrders = () => {
                         multiple
                         value={filters[key] || []}
                         onChange={(e) =>
-                          setFilters((prev) => ({
+                          setFilters(prev => ({
                             ...prev,
                             [key]: e.target.value,
                           }))
@@ -356,9 +308,7 @@ const NewOrders = () => {
                       >
                         {dropdownOptions[key].map((option) => (
                           <MenuItem key={option} value={option}>
-                            <Checkbox
-                              checked={(filters[key] || []).includes(option)}
-                            />
+                            <Checkbox checked={(filters[key] || []).includes(option)} />
                             <ListItemText primary={option} />
                           </MenuItem>
                         ))}
@@ -368,9 +318,7 @@ const NewOrders = () => {
                     <TextField
                       label={key.replace(/([A-Z])/g, " $1")}
                       value={filters[key]}
-                      onChange={(e) =>
-                        setFilters((prev) => ({ ...prev, [key]: e.target.value }))
-                      }
+                      onChange={(e) => setFilters(prev => ({ ...prev, [key]: e.target.value }))}
                     />
                   )}
                 </FormControl>
@@ -396,7 +344,7 @@ const NewOrders = () => {
       </Drawer>
 
       <TableContainer component={Paper} sx={{ maxHeight: 1000 }}>
-        <Table stickyHeader aria-label="sticky table">
+        <Table stickyHeader aria-label="combined orders table">
           <TableHead>
             <TableRow>
               <TableCell>Order Date</TableCell>
@@ -409,17 +357,22 @@ const NewOrders = () => {
               <TableCell>Remark for HE</TableCell>
               <TableCell>Amount Paid</TableCell>
               <TableCell>Mode of Payment</TableCell>
-              <TableCell>Delivery Status *</TableCell> 
             </TableRow>
           </TableHead>
           <TableBody>
             {newOrders.map((order, index) => (
-              <TableRow key={order._id}>
-                <TableCell>{order.lastOrderDate || "N/A"}</TableCell>
+              <TableRow key={order._id || index}>
+                <TableCell>
+                  {order.orderDate ? new Date(order.orderDate).toLocaleDateString() : "N/A"}
+                </TableCell>
                 <TableCell>{order.name || "N/A"}</TableCell>
                 <TableCell>{order.contactNumber || "N/A"}</TableCell>
-                <TableCell>{order.agentAssigned || "N/A"}</TableCell>
-                <TableCell>{order.productsOrdered?.join(", ") || "N/A"}</TableCell>
+                <TableCell>{order.agentName || "N/A"}</TableCell>
+                <TableCell>
+                  {Array.isArray(order.productsOrdered)
+                    ? order.productsOrdered.join(", ")
+                    : order.productsOrdered || "N/A"}
+                </TableCell>
                 <TableCell>{order.dosageOrdered || "N/A"}</TableCell>
                 <TableCell>
                   <Select
@@ -434,22 +387,9 @@ const NewOrders = () => {
                     ))}
                   </Select>
                 </TableCell>
-                <TableCell>{order.agentsRemarks || "N/A"}</TableCell>
+                <TableCell>{order.remarkForHE || "N/A"}</TableCell>
                 <TableCell>{order.amountPaid || "N/A"}</TableCell>
                 <TableCell>{order.modeOfPayment || "N/A"}</TableCell>
-                <TableCell>
-                  <Select
-                    value={order.deliveryStatus || ""}
-                    onChange={(e) => handleDeliveryStatusChange(e, index)}
-                    fullWidth
-                  >
-                    {["Delivered", "RTO", "Undelivered"].map((status) => (
-                      <MenuItem key={status} value={status}>
-                        {status}
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </TableCell>
               </TableRow>
             ))}
           </TableBody>
