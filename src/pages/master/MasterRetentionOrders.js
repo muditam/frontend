@@ -8,10 +8,9 @@ import {
   TableContainer,
   TableHead,
   TableRow,
-  Paper,
+  Paper, 
   Select,
   MenuItem,
-  Pagination,
   Button,
   Drawer,
   TextField,
@@ -25,7 +24,10 @@ import {
 import axios from "axios";
 
 const dropdownOptions = {
-  productsOrdered: ["KJF", "SDP", "VKR", "L-Fx", "S&S", "CPV", "HDP", "PF", "PGut", "Shilajit", "Kit", "Blood Test"],
+  productsOrdered: [
+    "KJF", "SDP", "VKR", "L-Fx", "S&S", 
+    "CPV", "HDP", "PF", "PGut", "Shilajit", "Kit", "Blood Test"
+  ],
   dosageOrdered: ["10-Days", "20-Days", "30-Days", "60-Days", "90-Days"],
   modeOfPayment: ["Partial Paid", "Razorpay", "COD", "UPI", "Bank Transfer"],
   deliveryStatus: ["Delivered", "RTO", "Undelivered"],
@@ -33,7 +35,6 @@ const dropdownOptions = {
 
 const RetentionOrders = () => {
   const [orders, setOrders] = useState([]);
-  const [page, setPage] = useState(1);
   const [currentPage, setCurrentPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(50);
   const [filterOpen, setFilterOpen] = useState(false);
@@ -47,25 +48,50 @@ const RetentionOrders = () => {
     amountFrom: "",
     amountTo: "",
     modeOfPayment: "",
-    deliveryStatus: "", // This filter can be removed if not used.
+    deliveryStatus: "",
     orderCreatedBy: "",
   });
+  // This state will contain the full names of active retention agents fetched from the employees endpoint.
+  const [retentionAgents, setRetentionAgents] = useState([]);
 
-  const [dynamicOrderCreatedBy, setDynamicOrderCreatedBy] = useState([]);
-
+  // On mount, fetch the list of retention employees
   useEffect(() => {
-    fetchRetentionOrders();
+    fetchRetentionEmployees();
   }, []);
 
-  // Updated endpoint to fetch computed fields (orderId, shopify_amount, shipway_status)
+  // When the retention agent list is fetched, then fetch the retention orders data.
+  useEffect(() => {
+    if (retentionAgents.length > 0) {
+      fetchRetentionOrders();
+    }
+  }, [retentionAgents]);
+
+  // Fetch active retention agents from employees endpoint
+  const fetchRetentionEmployees = async () => {
+    try {
+      const res = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/employees", {
+        params: { role: "Retention Agent" }
+      });
+      // Filter for active employees and extract their full names.
+      const activeAgents = res.data
+        .filter((emp) => emp.status === "active")
+        .map((emp) => emp.fullName);
+      setRetentionAgents(activeAgents);
+    } catch (error) {
+      console.error("Error fetching retention employees:", error);
+    }
+  };
+
+  // Fetch combined data using the orderCreatedBy query parameter.
   const fetchRetentionOrders = async () => {
     try {
-      const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/retention-sales");
+      const response = await axios.get(
+        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/retention-sales/all",
+        { params: { orderCreatedBy: retentionAgents } } // Pass array of retention agent names
+      );
+      // Sort orders by descending date.
       const sortedOrders = response.data.sort((a, b) => new Date(b.date) - new Date(a.date));
       setOrders(sortedOrders);
-
-      const uniqueEmployees = [...new Set(sortedOrders.map((order) => order.orderCreatedBy))];
-      setDynamicOrderCreatedBy(uniqueEmployees);
     } catch (error) {
       console.error("Error fetching retention orders:", error);
     }
@@ -80,7 +106,11 @@ const RetentionOrders = () => {
         (!filters.contactNumber || order.contactNumber?.includes(filters.contactNumber)) &&
         (!filters.productsOrdered.length ||
           filters.productsOrdered.some((item) =>
-            order.productsOrdered?.includes(item)
+            Array.isArray(order.productsOrdered)
+              ? order.productsOrdered.includes(item)
+              : typeof order.productsOrdered === "string"
+              ? order.productsOrdered.toLowerCase().includes(item.toLowerCase())
+              : false
           )) &&
         (!filters.dosageOrdered ||
           order.dosageOrdered?.toLowerCase().includes(filters.dosageOrdered.toLowerCase())) &&
@@ -123,39 +153,50 @@ const RetentionOrders = () => {
     setCurrentPage(0);
   };
 
-  const currentLeads = orders.slice(currentPage * rowsPerPage, currentPage * rowsPerPage + rowsPerPage);
+  const currentLeads = orders.slice(
+    currentPage * rowsPerPage,
+    currentPage * rowsPerPage + rowsPerPage
+  );
 
-  // Function to export the orders data to CSV and trigger a download
+  // Export to CSV without "Shopify Amount"
   const exportToCSV = () => {
     if (orders.length === 0) return;
-    // Define headers
-    const headers = ["Date", "Name", "Contact No", "Products Ordered", "Dosage Ordered", "Amount Paid", "Mode of Payment", "Shopify Amount", "Order ID", "Shipment Status", "Order Created By"];
-    // Map orders to CSV rows
+    const headers = [
+      "Date",
+      "Name",
+      "Contact No",
+      "Products Ordered",
+      "Dosage Ordered",
+      "Amount Paid",
+      "Mode of Payment",
+      "Order ID",
+      "Shipment Status",
+      "Order Created By",
+    ];
     const csvRows = [
-      headers.join(","), // header row
-      ...orders.map(order => {
+      headers.join(","),
+      ...orders.map((order) => {
         const row = [
           order.date || "",
           order.name || "",
           order.contactNumber || "",
-          order.productsOrdered ? order.productsOrdered.join(" | ") : "",
+          Array.isArray(order.productsOrdered)
+            ? order.productsOrdered.join(" | ")
+            : order.productsOrdered || "",
           order.dosageOrdered || "",
           order.amountPaid || "",
           order.modeOfPayment || "",
-          order.shopify_amount || "",
           order.orderId || "",
           order.shipway_status || "",
-          order.orderCreatedBy || ""
+          order.orderCreatedBy || "",
         ];
-        // Escape any commas in values by wrapping the field in double quotes
-        return row.map(field => `"${field}"`).join(",");
-      })
+        return row.map((field) => `"${field}"`).join(",");
+      }),
     ];
     const csvString = csvRows.join("\n");
     const blob = new Blob([csvString], { type: "text/csv" });
     const url = window.URL.createObjectURL(blob);
-    
-    // Create a temporary link to trigger download
+
     const a = document.createElement("a");
     a.href = url;
     a.download = "retention_orders.csv";
@@ -190,10 +231,10 @@ const RetentionOrders = () => {
       boxShadow: "0 4px 6px rgba(0, 0, 0, 0.1)",
     },
     button: {
-      borderRadius: "8px", 
+      borderRadius: "8px",
       textTransform: "none",
       boxShadow: "0 2px 4px rgba(0, 0, 0, 0.1)",
-    }, 
+    },
   };
 
   return (
@@ -235,86 +276,70 @@ const RetentionOrders = () => {
               type="date"
               fullWidth
               value={filters.dateFrom}
-              onChange={(e) => setFilters((prev) => ({ ...prev, dateFrom: e.target.value }))}
+              onChange={(e) =>
+                setFilters((prev) => ({ ...prev, dateFrom: e.target.value }))
+              }
               sx={{
                 marginBottom: 2,
-                "& .MuiInputBase-input": {
-                  padding: "10px 12px",
-                },
+                "& .MuiInputBase-input": { padding: "10px 12px" },
                 "& .MuiOutlinedInput-root": {
                   borderColor: "#0073e6",
-                  "&:hover fieldset": {
-                    borderColor: "#005bb5",
-                  },
+                  "&:hover fieldset": { borderColor: "#005bb5" },
                 },
               }}
-              InputLabelProps={{
-                shrink: true,
-              }}
+              InputLabelProps={{ shrink: true }}
             />
             <TextField
               label="Date To"
               type="date"
               fullWidth
               value={filters.dateTo}
-              onChange={(e) => setFilters((prev) => ({ ...prev, dateTo: e.target.value }))}
+              onChange={(e) =>
+                setFilters((prev) => ({ ...prev, dateTo: e.target.value }))
+              }
               sx={{
                 marginBottom: 2,
-                "& .MuiInputBase-input": {
-                  padding: "10px 12px",
-                },
+                "& .MuiInputBase-input": { padding: "10px 12px" },
                 "& .MuiOutlinedInput-root": {
                   borderColor: "#0073e6",
-                  "&:hover fieldset": {
-                    borderColor: "#005bb5",
-                  },
+                  "&:hover fieldset": { borderColor: "#005bb5" },
                 },
               }}
-              InputLabelProps={{
-                shrink: true,
-              }}
+              InputLabelProps={{ shrink: true }}
             />
             <TextField
               label="Name"
               fullWidth
               value={filters.name}
-              onChange={(e) => setFilters((prev) => ({ ...prev, name: e.target.value }))}
+              onChange={(e) =>
+                setFilters((prev) => ({ ...prev, name: e.target.value }))
+              }
               sx={{
                 marginBottom: 2,
-                "& .MuiInputBase-input": {
-                  padding: "10px 12px",
-                },
+                "& .MuiInputBase-input": { padding: "10px 12px" },
                 "& .MuiOutlinedInput-root": {
                   borderColor: "#0073e6",
-                  "&:hover fieldset": {
-                    borderColor: "#005bb5",
-                  },
+                  "&:hover fieldset": { borderColor: "#005bb5" },
                 },
               }}
-              InputLabelProps={{
-                shrink: true,
-              }}
+              InputLabelProps={{ shrink: true }}
             />
             <TextField
               label="Contact No"
               fullWidth
               value={filters.contactNumber}
-              onChange={(e) => setFilters((prev) => ({ ...prev, contactNumber: e.target.value }))}
+              onChange={(e) =>
+                setFilters((prev) => ({ ...prev, contactNumber: e.target.value }))
+              }
               sx={{
                 marginBottom: 2,
-                "& .MuiInputBase-input": {
-                  padding: "10px 12px",
-                },
+                "& .MuiInputBase-input": { padding: "10px 12px" },
                 "& .MuiOutlinedInput-root": {
                   borderColor: "#0073e6",
-                  "&:hover fieldset": {
-                    borderColor: "#005bb5",
-                  },
+                  "&:hover fieldset": { borderColor: "#005bb5" },
                 },
               }}
-              InputLabelProps={{
-                shrink: true,
-              }}
+              InputLabelProps={{ shrink: true }}
             />
             <Box sx={{ marginBottom: 2 }}>
               <TextField
@@ -326,19 +351,13 @@ const RetentionOrders = () => {
                 }
                 sx={{
                   marginBottom: 2,
-                  "& .MuiInputBase-input": {
-                    padding: "10px 12px",
-                  },
+                  "& .MuiInputBase-input": { padding: "10px 12px" },
                   "& .MuiOutlinedInput-root": {
                     borderColor: "#0073e6",
-                    "&:hover fieldset": {
-                      borderColor: "#005bb5",
-                    },
+                    "&:hover fieldset": { borderColor: "#005bb5" },
                   },
                 }}
-                InputLabelProps={{
-                  shrink: true,
-                }}
+                InputLabelProps={{ shrink: true }}
               />
               <TextField
                 label="Mode of Payment"
@@ -349,38 +368,26 @@ const RetentionOrders = () => {
                 }
                 sx={{
                   marginBottom: 2,
-                  "& .MuiInputBase-input": {
-                    padding: "10px 12px",
-                  },
+                  "& .MuiInputBase-input": { padding: "10px 12px" },
                   "& .MuiOutlinedInput-root": {
                     borderColor: "#0073e6",
-                    "&:hover fieldset": {
-                      borderColor: "#005bb5",
-                    },
+                    "&:hover fieldset": { borderColor: "#005bb5" },
                   },
                 }}
-                InputLabelProps={{
-                  shrink: true,
-                }}
+                InputLabelProps={{ shrink: true }}
               />
-              {/* Delivery Status filter removed */}
             </Box>
-
-            {/* Dynamic Order Created By */}
             <FormControl fullWidth sx={{ marginBottom: 2 }}>
               <InputLabel>Order Created By</InputLabel>
               <Select
                 multiple
                 value={filters.orderCreatedBy || []}
                 onChange={(e) =>
-                  setFilters((prev) => ({
-                    ...prev,
-                    orderCreatedBy: e.target.value,
-                  }))
+                  setFilters((prev) => ({ ...prev, orderCreatedBy: e.target.value }))
                 }
                 renderValue={(selected) => selected.join(", ")}
               >
-                {dynamicOrderCreatedBy.map((employee) => (
+                {retentionAgents.map((employee) => (
                   <MenuItem key={employee} value={employee}>
                     <Checkbox checked={filters.orderCreatedBy?.includes(employee)} />
                     <ListItemText primary={employee} />
@@ -396,19 +403,13 @@ const RetentionOrders = () => {
               onChange={(e) => setFilters((prev) => ({ ...prev, amountFrom: e.target.value }))}
               sx={{
                 marginBottom: 2,
-                "& .MuiInputBase-input": {
-                  padding: "10px 12px",
-                },
+                "& .MuiInputBase-input": { padding: "10px 12px" },
                 "& .MuiOutlinedInput-root": {
                   borderColor: "#0073e6",
-                  "&:hover fieldset": {
-                    borderColor: "#005bb5",
-                  },
+                  "&:hover fieldset": { borderColor: "#005bb5" },
                 },
               }}
-              InputLabelProps={{
-                shrink: true,
-              }}
+              InputLabelProps={{ shrink: true }}
             />
             <TextField
               label="Amount To"
@@ -418,19 +419,13 @@ const RetentionOrders = () => {
               onChange={(e) => setFilters((prev) => ({ ...prev, amountTo: e.target.value }))}
               sx={{
                 marginBottom: 0,
-                "& .MuiInputBase-input": {
-                  padding: "10px 12px",
-                },
+                "& .MuiInputBase-input": { padding: "10px 12px" },
                 "& .MuiOutlinedInput-root": {
                   borderColor: "#0073e6",
-                  "&:hover fieldset": {
-                    borderColor: "#005bb5",
-                  },
+                  "&:hover fieldset": { borderColor: "#005bb5" },
                 },
               }}
-              InputLabelProps={{
-                shrink: true,
-              }}
+              InputLabelProps={{ shrink: true }}
             />
           </Box>
           <Divider />
@@ -453,7 +448,7 @@ const RetentionOrders = () => {
 
       <TableContainer component={Paper} style={styles.card} sx={{ maxHeight: 1000 }}>
         <Table style={styles.table} stickyHeader aria-label="sticky table">
-          <TableHead> 
+          <TableHead>
             <TableRow>
               <TableCell style={styles.tableCell}>Date</TableCell>
               <TableCell style={styles.tableCell}>Name</TableCell>
@@ -462,7 +457,6 @@ const RetentionOrders = () => {
               <TableCell style={styles.tableCell}>Dosage Ordered</TableCell>
               <TableCell style={styles.tableCell}>Amount Paid</TableCell>
               <TableCell style={styles.tableCell}>Mode of Payment</TableCell>
-              <TableCell style={styles.tableCell}>Shopify Amount</TableCell>
               <TableCell style={styles.tableCell}>Order ID</TableCell>
               <TableCell style={styles.tableCell}>Shipment Status</TableCell>
               <TableCell style={styles.tableCell}>Order Created By</TableCell>
@@ -472,20 +466,19 @@ const RetentionOrders = () => {
             {currentLeads.map((order) => (
               <TableRow
                 key={order._id}
-                sx={{
-                  '&:hover': {
-                    backgroundColor: '#f2f2f2',
-                  },
-                }}
+                sx={{ "&:hover": { backgroundColor: "#f2f2f2" } }}
               >
                 <TableCell style={styles.tableCell}>{order.date || "N/A"}</TableCell>
                 <TableCell style={styles.tableCell}>{order.name || "N/A"}</TableCell>
                 <TableCell style={styles.tableCell}>{order.contactNumber || "N/A"}</TableCell>
-                <TableCell style={styles.tableCell}>{order.productsOrdered?.join(", ") || "N/A"}</TableCell>
+                <TableCell style={styles.tableCell}>
+                  {Array.isArray(order.productsOrdered)
+                    ? order.productsOrdered.join(", ")
+                    : order.productsOrdered || "N/A"}
+                </TableCell>
                 <TableCell style={styles.tableCell}>{order.dosageOrdered || "N/A"}</TableCell>
                 <TableCell style={styles.tableCell}>{order.amountPaid || "N/A"}</TableCell>
                 <TableCell style={styles.tableCell}>{order.modeOfPayment || "N/A"}</TableCell>
-                <TableCell style={styles.tableCell}>{order.shopify_amount || "N/A"}</TableCell>
                 <TableCell style={styles.tableCell}>{order.orderId || "N/A"}</TableCell>
                 <TableCell style={styles.tableCell}>{order.shipway_status || "N/A"}</TableCell>
                 <TableCell style={styles.tableCell}>{order.orderCreatedBy || "N/A"}</TableCell>

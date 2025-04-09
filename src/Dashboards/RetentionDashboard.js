@@ -174,14 +174,32 @@ const RetentionAgentDashboard = () => {
   const fetchTodayFollowupData = async (agentName, startDate, endDate) => {
     try {
       setLoading(true);
-      // "Today" summary endpoint
+      
+      // 1. Fetch active customers from the /active-counts endpoint.
+      // This endpoint returns an array with objects like { _id: "<agentName>", activeCount: <number> }
+      const activeCountsResponse = await axios.get(
+        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/retention/active-counts"
+      );
+      const activeCountsData = activeCountsResponse.data;
+      const activeCountForAgent = activeCountsData.find(
+        (item) => item._id === agentName
+      );
+      const activeCount = activeCountForAgent ? activeCountForAgent.activeCount : 0;
+      
+      // 2. Fetch today's summary data from /api/today-summary
       const todaySummaryResponse = await axios.get(
         "https://muditamleads-14f32a10d7f7.herokuapp.com/api/today-summary",
         { params: { agentName, startDate, endDate } }
       );
-      setTodayMetrics(todaySummaryResponse.data);
-
-      // "Followup" summary endpoint (includes lost customers)
+      
+      // Merge the returned data from todaySummary with the active count value.
+      const updatedTodayMetrics = {
+        ...todaySummaryResponse.data,
+        activeCustomers: activeCount,
+      };
+      setTodayMetrics(updatedTodayMetrics);
+  
+      // 3. Fetch followup summary data as before.
       const followupSummaryResponse = await axios.get(
         "https://muditamleads-14f32a10d7f7.herokuapp.com/api/followup-summary",
         { params: { agentName, startDate, endDate } }
@@ -193,6 +211,7 @@ const RetentionAgentDashboard = () => {
       setLoading(false);
     }
   };
+  
 
   // ---------------------------------------------------------
   // 2) fetchShipmentStatusSummary => calls /api/shipment-summary
