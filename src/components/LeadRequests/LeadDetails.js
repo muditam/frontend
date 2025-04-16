@@ -14,6 +14,7 @@ import {
 import { Edit as EditIcon, Check as CheckIcon, Close as CloseIcon } from "@mui/icons-material";
 import axios from "axios";
 
+
 const LeadDetail = () => {
   const { id } = useParams();
   const [lead, setLead] = useState(null);
@@ -24,7 +25,9 @@ const LeadDetail = () => {
   const [transferRequest, setTransferRequest] = useState(null);
   const [isEditingLeadStatus, setIsEditingLeadStatus] = useState(false);
   const [isEditingSalesStatus, setIsEditingSalesStatus] = useState(false);
+  const [isEditingRTRemark, setIsEditingRTRemark] = useState(false);
   const loggedInUser = JSON.parse(sessionStorage.getItem("user"));
+
 
   // Dropdown options for Sales Agent
   const leadStatusOptions = [
@@ -41,7 +44,9 @@ const LeadDetail = () => {
     "General Query",
   ];
 
+
   const salesStatusOptions = ["Sales Done", "Lost", "On Follow Up"];
+
 
   // Fetch lead details
   useEffect(() => {
@@ -60,6 +65,7 @@ const LeadDetail = () => {
     };
     fetchLead();
   }, [id]);
+
 
   // Fetch transfer request status
   useEffect(() => {
@@ -81,13 +87,16 @@ const LeadDetail = () => {
       }
     };
 
+
     fetchTransferRequest();
   }, [id, loggedInUser.fullName]);
+
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
+
 
   const handleSave = async () => {
     try {
@@ -101,6 +110,7 @@ const LeadDetail = () => {
       console.error("Error saving lead:", error);
     }
   };
+
 
   const handleTransfer = async () => {
     if (transferRequest) return;
@@ -121,6 +131,7 @@ const LeadDetail = () => {
     }
   };
 
+
   const handleInlineSaveLeadStatus = async () => {
     try {
       const response = await axios.put(
@@ -133,6 +144,7 @@ const LeadDetail = () => {
       console.error("Error saving inline lead status:", error);
     }
   };
+
 
   const handleInlineSaveSalesStatus = async () => {
     try {
@@ -147,6 +159,22 @@ const LeadDetail = () => {
     }
   };
 
+
+  // Handler to update the RT Remark field
+  const handleInlineSaveRTRemark = async () => {
+    try {
+      const response = await axios.put(
+        `https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/${id}`,
+        { ...formData, rtRemark: formData.rtRemark }
+      );
+      setLead(response.data.lead);
+      setIsEditingRTRemark(false);
+    } catch (error) {
+      console.error("Error saving inline RT Remark:", error);
+    }
+  };
+
+
   if (loading) {
     return (
       <Box sx={{ display: "flex", justifyContent: "center", mt: 4 }}>
@@ -155,9 +183,11 @@ const LeadDetail = () => {
     );
   }
 
+
   if (!lead) {
     return <Typography variant="h6">Lead not found</Typography>;
   }
+
 
   // Determine if the logged-in agent is assigned to the lead
   let isAssigned = false;
@@ -173,6 +203,7 @@ const LeadDetail = () => {
     isAssigned = true;
   }
 
+
   // Styles for the fancy container
   const fancyContainerSx = {
     border: "1px solid #e0e0e0",
@@ -182,6 +213,7 @@ const LeadDetail = () => {
     boxShadow: "0px 4px 12px rgba(0, 0, 0, 0.08)",
     mb: 3,
   };
+
 
   // Common fields for full edit mode
   const commonEditableFields = (
@@ -204,6 +236,7 @@ const LeadDetail = () => {
       />
     </>
   );
+
 
   // Fields for Sales Agents in full edit mode
   const salesEditableFields = (
@@ -292,6 +325,7 @@ const LeadDetail = () => {
     </>
   );
 
+
   // Fields for Retention Agents in full edit mode
   const retentionEditableFields = (
     <>
@@ -351,6 +385,7 @@ const LeadDetail = () => {
     </>
   );
 
+
   return (
     <Box sx={{ p: 4, background: "#eceff1", minHeight: "100vh" }}>
       <Paper
@@ -378,7 +413,8 @@ const LeadDetail = () => {
           Lead Details
         </Typography>
 
-        {/* Read-only view with fancy inline-edit for Lead & Sales Status */}
+
+        {/* Read-only view with fancy inline-edit for Lead Status, Sales Status, and RT Remark */}
         {!editMode && (
           <Box sx={{ mb: 3 }}>
             <Typography variant="subtitle1" sx={{ color: "#455a64" }}>
@@ -400,7 +436,9 @@ const LeadDetail = () => {
               <strong>Product Pitched:</strong> {lead.productPitched}
             </Typography>
 
+
             <Box sx={fancyContainerSx}>
+              {/* Inline edit for Lead Status */}
               <Box
                 sx={{
                   display: "flex",
@@ -455,6 +493,7 @@ const LeadDetail = () => {
                   </Box>
                 )}
               </Box>
+              {/* Inline edit for Sales Status */}
               <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                 <Typography variant="subtitle1" sx={{ fontWeight: "bold" }}>
                   Sales Status:
@@ -502,7 +541,55 @@ const LeadDetail = () => {
                   </Box>
                 )}
               </Box>
+
+
+                          {/* Inline edit for RT Remark */}
+            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", my: 2 }}>
+              <Typography variant="subtitle1" sx={{ fontWeight: "bold" }}>
+                RT Remark:
+              </Typography>
+              {isEditingRTRemark ? (
+                <>
+                  <TextField
+                    value={formData.rtRemark || ""}
+                    onChange={(e) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        rtRemark: e.target.value,
+                      }))
+                    }
+                    sx={{ minWidth: 220, mr: 1 }}
+                  />
+                  <IconButton onClick={handleInlineSaveRTRemark} color="success">
+                    <CheckIcon />
+                  </IconButton>
+                  <IconButton
+                    onClick={() => {
+                      setFormData((prev) => ({ ...prev, rtRemark: lead.rtRemark }));
+                      setIsEditingRTRemark(false);
+                    }}
+                    color="error"
+                  >
+                    <CloseIcon />
+                  </IconButton>
+                </>
+              ) : (
+                <Box sx={{ display: "flex", alignItems: "center" }}>
+                  <Typography variant="subtitle1" sx={{ mr: 1 }}>
+                    {lead.rtRemark}
+                  </Typography>
+                  <IconButton onClick={() => setIsEditingRTRemark(true)}>
+                    <EditIcon />
+                  </IconButton>
+                </Box>
+              )}
             </Box>
+            </Box>
+
+
+
+
+
 
             <Typography variant="subtitle1" sx={{ color: "#455a64" }}>
               <strong>Next Follow-up:</strong> {lead.nextFollowup}
@@ -523,9 +610,6 @@ const LeadDetail = () => {
               <strong>Retention Status:</strong> {lead.retentionStatus}
             </Typography>
             <Typography variant="subtitle1" sx={{ color: "#455a64" }}>
-              <strong>RT Remark:</strong> {lead.rtRemark}
-            </Typography>
-            <Typography variant="subtitle1" sx={{ color: "#455a64" }}>
               <strong>RT Next Follow-up Date:</strong> {lead.rtNextFollowupDate}
             </Typography>
             <Typography variant="subtitle1" sx={{ color: "#455a64" }}>
@@ -536,6 +620,7 @@ const LeadDetail = () => {
             </Typography>
           </Box>
         )}
+
 
         {/* Full Edit Mode */}
         {editMode && (
@@ -565,6 +650,7 @@ const LeadDetail = () => {
             </Box>
           </Box>
         )}
+
 
         {/* Action Buttons */}
         <Box sx={{ display: "flex", justifyContent: "space-between", mt: 3 }}>
@@ -604,4 +690,8 @@ const LeadDetail = () => {
   );
 };
 
+
 export default LeadDetail;
+
+
+

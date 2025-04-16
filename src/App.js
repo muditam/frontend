@@ -19,7 +19,7 @@ import SalesDashboard from "./components/Dashboards/SalesDashboard";
 import OrdersTable from "./ShopifyOrders/AllShopifyOrders";
 import OnlineOrders from "./ShopifyOrders/OnlineOrders";
 import TransferRequests from "./components/LeadRequests/TransferRequest";
-import LeadDetail from "./components/LeadRequests/LeadDeails";
+import LeadDetail from "./components/LeadRequests/LeadDetails";
 import RetentionData from "./pages/filtered/Retention";
 import NotificationListener from "./components/NotificationListener";
 import AcquisitionLost from "./Lostdata/AcquisitionLost";
