@@ -93,13 +93,15 @@ const RetentionSales = () => {
       const response = await axios.get(
         "https://muditamleads-14f32a10d7f7.herokuapp.com/api/retention-sales/all",
         { params }
-      );
+      ); 
       setAllSales(response.data);
       setDisplayedSales(response.data);
     } catch (error) {
-      console.error("Error fetching retention sales:", error);
+      console.error("Error fetching retention sales:", error.response || error);
+      alert("Failed to load sales data. Please try again.");
     }
   };
+  
 
   useEffect(() => {
     if (loggedInUser) {
@@ -120,20 +122,28 @@ const RetentionSales = () => {
   const handleSave = async (id) => {
     if (editedSales[id]) {
       setSavingStatus((prev) => ({ ...prev, [id]: "Saving..." }));
+      
+      // Find the sale in the current state to check which collection it comes from.
+      const sale = allSales.find((s) => s._id === id);
+      // Create the update payload from edited data.
+      const updatePayload = { ...editedSales[id] };
+      
+      // If this is a MyOrder record, ensure you include the source.
+      if (sale && sale.source === "MyOrder") {
+        updatePayload.source = "MyOrder";
+      }
+      
       try {
-        await axios.put(
-          `https://muditamleads-14f32a10d7f7.herokuapp.com/api/retention-sales/${id}`,
-          editedSales[id]
+        const response = await axios.put(
+          `https://muditamleads-14f32a10d7f7.herokuapp.com/api/retention-sales/all/${id}`,
+          updatePayload
         );
-        // update both allSales and displayedSales
-        const updatedSales = allSales.map((sale) =>
-          sale._id === id ? { ...sale, ...editedSales[id] } : sale
+        
+        const updatedSales = allSales.map((s) =>
+          s._id === id ? { ...s, ...response.data } : s
         );
         setAllSales(updatedSales);
         setDisplayedSales(updatedSales);
-        await axios.post(
-          "https://muditamleads-14f32a10d7f7.herokuapp.com/api/retention-sales/update-matching"
-        );
         setSavingStatus((prev) => ({ ...prev, [id]: "Saved" }));
         setEditedSales((prev) => {
           const updated = { ...prev };
@@ -148,7 +158,7 @@ const RetentionSales = () => {
         setSavingStatus((prev) => ({ ...prev, [id]: "Error" }));
       }
     }
-  };
+  };  
 
   const handleAddSale = async () => {
     const newSale = {
@@ -509,7 +519,7 @@ const RetentionSales = () => {
                     fullWidth
                   />
                 </TableCell>
-                <TableCell>
+                <TableCell style={{ whiteSpace: "nowrap", minWidth: "170px" }}>
                   <TextField
                     type="number"
                     value={

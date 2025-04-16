@@ -232,7 +232,7 @@ const LeadTable = () => {
         }
 
         if (field === "contactNumber") {
-            const enteredNumber = e.target.value;
+            const enteredNumber = e.target.value; 
 
             // Check if the number exists in the database
             try {

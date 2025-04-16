@@ -162,7 +162,7 @@ const RetentionAgentDashboard = () => {
   // Shipment Summary states
   // ---------------------
   // Default to "Month to date" for the shipment summary
-  const [selectedRangeShipment, setSelectedRangeShipment] = useState("Month to date");
+  const [selectedRangeShipment, setSelectedRangeShipment] = useState("Today");
   const [customStartShipment, setCustomStartShipment] = useState("");
   const [customEndShipment, setCustomEndShipment] = useState("");
 
@@ -264,7 +264,7 @@ const RetentionAgentDashboard = () => {
       fetchTodayFollowupData(user.fullName, startDate, endDate);
 
       // 2) Shipment Summary defaults to "Month to date"
-      const { startDate: sShipment, endDate: eShipment } = getDateRange("Month to date");
+      const { startDate: sShipment, endDate: eShipment } = getDateRange("Today");
       fetchShipmentStatusSummary(user.fullName, sShipment, eShipment);
     }
   }, [user?.fullName]);

@@ -7,6 +7,7 @@ import LeadTable from "./pages/master/MasterLeads";
 import RetentionTable from "./pages/master/MasterRetention";
 import NewOrders from "./pages/master/MasterNewOrders";
 import RetentionOrders from "./pages/master/MasterRetentionOrders";
+import DuplicateNumbers from "./pages/master/DuplicateNumbers";
 import SalesMyLeads from "./pages/sales/SalesMyLeads";
 import SalesMySales from "./pages/sales/SalesMySales";
 import RetentionLeads from "./pages/retention/RetentionLeads";
@@ -26,6 +27,7 @@ import RetentionLost from "./Lostdata/RetentionLost";
 import PrivateRoute from "./components/PrivateRoute";
 import MyTemplates from "./components/MyTemplates";  
 import FacebookLeads from './components/FacebookLeads';
+import LeadManagement from './LeadConsultation/LeadManagement';
 
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
@@ -39,15 +41,16 @@ const App = () => {
         <ToastContainer position="bottom-right" autoClose={5000} closeButton />
 
         <Routes>
-  
  
           <Route path="/login" element={<Login />} /> 
           <Route path="/pages/Home" element={<ShipwayOrders />}/> 
           <Route path="/facebook-leads" element={<FacebookLeads />} />
+
+          
           {/* Protected Routes */}
           <Route
             path="/"
-            element={
+            element={ 
               <PrivateRoute>
                 <SalesDashboard />
               </PrivateRoute>
@@ -66,6 +69,14 @@ const App = () => {
             element={
               <PrivateRoute>
                 <TransferRequests />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/leadmanagement"
+            element={
+              <PrivateRoute>
+                <LeadManagement />
               </PrivateRoute>
             }
           />
@@ -130,6 +141,14 @@ const App = () => {
             element={
               <PrivateRoute>
                 <RetentionOrders />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/master/Duplicates"
+            element={
+              <PrivateRoute>
+                <DuplicateNumbers />
               </PrivateRoute>
             }
           />

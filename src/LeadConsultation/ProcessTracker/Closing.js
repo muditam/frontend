@@ -1,0 +1,537 @@
+import React, { useState, useEffect } from "react";
+import {
+  Box,
+  Grid,
+  TextField,
+  MenuItem,
+  Button,
+  FormControl,
+  InputLabel,
+  Select,
+  Typography,
+  IconButton,
+} from "@mui/material";
+import ContentCopyIcon from "@mui/icons-material/ContentCopy";
+import axios from "axios";
+import pincodeData from "./pincodeData"; // import the pin code information
+
+ 
+
+const expectedResultsOptions = [
+  { id: 1, label: "Only Supplements (Drop of 0.8%)", improvement: "0.8" },
+  { id: 2, label: "Diet + Supplements (Drop of 1.5%)", improvement: "1.5" },
+  { id: 3, label: "Lifestyle + Diet + Supp. (Drop 2.5%)", improvement: "2.5" },
+];
+
+// Options for Preferred Diet
+const preferredDietOptions = ["Vegetarian", "Non vegetarian", "Eggetarian", "Vegan"];
+
+// Options for Preferred Course Duration
+const courseDurationOptions = ["1 month", "2 months", "3 months", "4 months"];
+
+// Options for Freebies (now multi-select)
+const freebiesOptions = ["Dumbbells", "Glucometer +10 strips", "Diet Plan", "Glucometer +25 strips"];
+
+// Options for Blood Test Recommended
+const bloodTestOptions = ["Full Body", "Hba1c", "Others"];
+
+const Closing = ({ presalesHba1c = "8", customerId }) => { 
+  const [expectedResult, setExpectedResult] = useState("");
+  const [preferredDiet, setPreferredDiet] = useState("");
+  const [courseDuration, setCourseDuration] = useState("");
+  const [freebies, setFreebies] = useState([]);
+  const [bloodTest, setBloodTest] = useState("");
+  const [pinCode, setPinCode] = useState("");
+  const [availabilityResult, setAvailabilityResult] = useState("");
+  const [bloodTestDetails, setBloodTestDetails] = useState({
+    address: "",
+    preferredTimeSlot: "",
+    preferredDate1: "",
+    preferredDate2: "",
+  });
+  const [selectedProducts, setSelectedProducts] = useState([]);
+  const [currentHba1c, setCurrentHba1c] = useState(presalesHba1c);
+  const [generatedLink, setGeneratedLink] = useState("");
+
+  // Styling for sections
+  const sectionStyle = { mb: 3, p: 1, borderBottom: "1px solid #ccc" };
+
+  // Handler functions
+  const handleExpectedResultSelect = (option) => {
+    setExpectedResult(option.id);
+  };
+
+  const handlePreferredDietSelect = (option) => {
+    setPreferredDiet(option);
+  };
+
+  const handleCourseDurationSelect = (option) => {
+    setCourseDuration(option);
+  };
+
+  // Toggle selection for Freebies
+  const handleFreebieSelect = (option) => {
+    setFreebies((prev) => {
+      if (prev.includes(option)) {
+        return prev.filter((item) => item !== option);
+      } else {
+        return [...prev, option];
+      }
+    });
+  };
+
+  const handleBloodTestSelect = (e) => {
+    setBloodTest(e.target.value);
+  };
+
+  const handleServiceCheck = () => {
+    const availableLabs = [];
+    if (pincodeData.Redcliff.includes(pinCode)) {
+      availableLabs.push("Redcliff");
+    }
+    if (pincodeData.Lalpathlab.includes(pinCode)) {
+      availableLabs.push("Lalpathlab");
+    }
+    if (pincodeData.PathKind.includes(pinCode)) {
+      availableLabs.push("PathKind");
+    }
+    if (pincodeData.Tataonemg.includes(pinCode)) {
+      availableLabs.push("TATA 1 MG");
+    }
+    if (pincodeData.Healthians.includes(pinCode)) {
+      availableLabs.push("Healthians");
+    }
+    if (availableLabs.length > 0) {
+      setAvailabilityResult(`Available on: ${availableLabs.join(" ")}`);
+    } else {
+      setAvailabilityResult("Not available on any location.");
+    }
+  };
+
+  const handleBloodTestDetailsChange = (e) => {
+    const { name, value } = e.target;
+    setBloodTestDetails((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleCreatePlanLink = () => {
+    const baseUrl = "https://muditam.myshopify.com/apps/consultation";
+    const planLink = `${baseUrl}/${customerId}`;
+    setGeneratedLink(planLink);
+  };
+
+  const handleGetPaymentLink = () => {
+    alert("Payment link generated!");
+  };
+
+  const handleCopyLink = () => {
+    if (generatedLink) {
+      navigator.clipboard.writeText(generatedLink);
+    }
+  };
+
+  useEffect(() => {
+    if (customerId) {
+      axios
+        .get(`https://muditamleads-14f32a10d7f7.herokuapp.com/api/consultation-details?customerId=${customerId}`)
+        .then((response) => {
+          if (response.data && response.data.length > 0) {
+            const savedClosing = response.data[0].closing;
+            const savedConsultation = response.data[0].consultation;
+            const savedPresales = response.data[0].presales;
+            if (savedPresales && savedPresales.hba1c) {
+              setCurrentHba1c(savedPresales.hba1c);
+            } 
+            if (savedClosing) {
+              if (savedClosing.expectedResult) {
+                setExpectedResult(savedClosing.expectedResult);
+              }
+              if (savedClosing.preferredDiet) {
+                setPreferredDiet(savedClosing.preferredDiet);
+              }
+              if (savedClosing.courseDuration) {
+                setCourseDuration(savedClosing.courseDuration);
+              }
+              if (savedClosing.freebie) {
+                setFreebies(
+                  Array.isArray(savedClosing.freebie)
+                    ? savedClosing.freebie
+                    : [savedClosing.freebie]
+                );
+              }
+              if (savedClosing.bloodTest) {
+                setBloodTest(savedClosing.bloodTest);
+              }
+              if (savedClosing.bloodTestDetails) {
+                setBloodTestDetails(savedClosing.bloodTestDetails);
+              }
+            }
+            if (savedConsultation && savedConsultation.selectedProducts) {
+              setSelectedProducts(savedConsultation.selectedProducts);
+            }
+          }
+        })
+        .catch((error) =>
+          console.error("Error fetching closing details:", error)
+        );
+    }
+  }, [customerId]);
+
+  const handleSubmit = () => {
+    if (!customerId) {
+      alert("No customer selected. Please select a customer first.");
+      return;
+    }
+
+    const payload = {
+      customerId,
+      closing: {
+        expectedResult,
+        preferredDiet,
+        courseDuration,
+        freebie: freebies,
+        bloodTest,
+        bloodTestDetails,
+      },
+       
+    };
+
+    axios
+      .post("https://muditamleads-14f32a10d7f7.herokuapp.com/api/consultation-details", payload)
+      .then((response) => {
+        axios
+          .get(`https://muditamleads-14f32a10d7f7.herokuapp.com/api/consultation-details?customerId=${customerId}`)
+          .then((res) => {
+            if (res.data && res.data.length > 0) {
+              const savedClosing = res.data[0].closing;
+              const savedPresales = res.data[0].presales;
+              if (savedClosing) {
+                if (savedClosing.expectedResult) {
+                  setExpectedResult(savedClosing.expectedResult);
+                }
+                if (savedClosing.preferredDiet) {
+                  setPreferredDiet(savedClosing.preferredDiet);
+                }
+                if (savedClosing.courseDuration) {
+                  setCourseDuration(savedClosing.courseDuration);
+                }
+                if (savedClosing.freebie) {
+                  setFreebies(
+                    Array.isArray(savedClosing.freebie)
+                      ? savedClosing.freebie
+                      : [savedClosing.freebie]
+                  );
+                }
+                if (savedClosing.bloodTest) {
+                  setBloodTest(savedClosing.bloodTest);
+                }
+                if (savedClosing.bloodTestDetails) {
+                  setBloodTestDetails(savedClosing.bloodTestDetails);
+                }
+              }
+            }
+          })
+          .catch((err) =>
+            console.error("Error refreshing closing details:", err)
+          );
+      })
+      .catch((error) => {
+        console.error("Error saving closing data:", error);
+      });
+  };
+
+  const calculateAchievableHba1c = (improvement) => {
+    const current = parseFloat(currentHba1c);
+    const drop = parseFloat(improvement);
+    if (isNaN(current) || isNaN(drop)) return "-";
+    return (current - drop).toFixed(1);
+  };
+
+  return (
+    <Box sx={{ p: 2 }}>
+      
+      {/* Combined Options Section: Expected Results, Preferred Diet, Course Duration, Freebies */}
+      <Box sx={sectionStyle}>
+        <Grid container spacing={2}>
+          {/* Expected Results */}
+          <Grid item xs={3}>
+            <Typography variant="h6" sx={{ mb: 1, fontWeight: "bold", color: "black" }}>
+              Expected Results (HbA1c: {currentHba1c})
+            </Typography>
+            <Grid container spacing={1}>
+              {expectedResultsOptions.map((opt) => (
+                <Grid item xs={12} key={opt.id}>
+                  <Button
+                    variant={expectedResult === opt.id ? "contained" : "outlined"}
+                    fullWidth
+                    onClick={() => handleExpectedResultSelect(opt)}
+                    sx={{
+                      backgroundColor: expectedResult === opt.id ? "black" : "inherit",
+                      color: expectedResult === opt.id ? "white" : "black",
+                      fontSize: "0.8rem",
+                    }}
+                  >
+                    {opt.label}
+                  </Button>
+                  <Typography variant="caption" display="block" align="center">
+                    Can Achieve: {calculateAchievableHba1c(opt.improvement)}
+                  </Typography>
+                </Grid>
+              ))}
+            </Grid>
+          </Grid>
+
+          {/* Preferred Diet */}
+          <Grid item xs={3}>
+            <Typography variant="h6" sx={{ mb: 1, fontWeight: "bold", color: "black", textAlign: "center" }}>
+              Preferred Diet
+            </Typography>
+            <Grid container spacing={1}>
+              {preferredDietOptions.map((diet) => (
+                <Grid item xs={12} key={diet}>
+                  <Button
+                    variant={preferredDiet === diet ? "contained" : "outlined"}
+                    fullWidth
+                    onClick={() => handlePreferredDietSelect(diet)}
+                    sx={{
+                      backgroundColor: preferredDiet === diet ? "black" : "inherit",
+                      color: preferredDiet === diet ? "white" : "black",
+                      fontSize: "0.8rem",
+                    }}
+                  >
+                    {diet}
+                  </Button>
+                </Grid>
+              ))}
+            </Grid>
+          </Grid>
+
+          {/* Preferred Course Duration */}
+          <Grid item xs={3}>
+            <Typography variant="h6" sx={{ mb: 1, fontWeight: "bold", color: "black", textAlign: "center" }}>
+              Preferred Course Duration
+            </Typography>
+            <Grid container spacing={1}>
+              {courseDurationOptions.map((duration) => (
+                <Grid item xs={12} key={duration}>
+                  <Button
+                    variant={courseDuration === duration ? "contained" : "outlined"}
+                    fullWidth
+                    onClick={() => handleCourseDurationSelect(duration)}
+                    sx={{
+                      backgroundColor: courseDuration === duration ? "black" : "inherit",
+                      color: courseDuration === duration ? "white" : "black",
+                      fontSize: "0.8rem",
+                    }}
+                  >
+                    {duration}
+                  </Button>
+                </Grid>
+              ))}
+            </Grid>
+          </Grid>
+
+          {/* Freebies */}
+          <Grid item xs={3}>
+            <Typography variant="h6" sx={{ mb: 1, fontWeight: "bold", color: "black", textAlign: "center" }}>
+              Freebies
+            </Typography>
+            <Grid container spacing={1}>
+              {freebiesOptions.map((freebieOption) => (
+                <Grid item xs={12} key={freebieOption}>
+                  <Button
+                    variant={freebies.includes(freebieOption) ? "contained" : "outlined"}
+                    fullWidth
+                    onClick={() => handleFreebieSelect(freebieOption)}
+                    sx={{
+                      backgroundColor: freebies.includes(freebieOption) ? "black" : "inherit",
+                      color: freebies.includes(freebieOption) ? "white" : "black",
+                      fontSize: "0.8rem",
+                    }}
+                  >
+                    {freebieOption}
+                  </Button>
+                </Grid>
+              ))}
+            </Grid>
+          </Grid>
+        </Grid>
+      </Box>
+
+      {/* Combined Consultation Details Section: Products Recommended, Blood Test Recommended, Details for Blood Test */}
+      <Box sx={sectionStyle}>
+        <Grid container spacing={2}>
+          {/* Products Recommended */}
+          <Grid item xs={4}>
+            <Typography variant="h6" sx={{ mb: 1, fontWeight: "bold", color: "black" }}>
+              Products Recommended
+            </Typography>
+            {selectedProducts && selectedProducts.length > 0 ? (
+              <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
+                {selectedProducts.map((prod) => (
+                  <Box
+                    key={prod}
+                    sx={{
+                      px: 1.5,
+                      py: 0.5,
+                      bgcolor: "black",
+                      color: "white",
+                      borderRadius: 1,
+                      fontSize: "0.8rem",
+                    }}
+                  >
+                    {prod}
+                  </Box>
+                ))}
+              </Box>
+            ) : (
+              <Typography variant="body2" sx={{ fontSize: "0.8rem" }}>
+                No products selected.
+              </Typography>
+            )}
+          </Grid>
+
+          {/* Blood Test Recommended */}
+          <Grid item xs={4}>
+            <Typography variant="h6" sx={{ mb: 1, fontWeight: "bold", color: "black" }}>
+              Blood Test Recommended
+            </Typography>
+            <FormControl fullWidth size="small" sx={{ mb: 2 }}>
+              <InputLabel>Choose an Option</InputLabel>
+              <Select name="bloodTest" value={bloodTest} label="Choose an Option" onChange={handleBloodTestSelect}>
+                {bloodTestOptions.map((opt) => (
+                  <MenuItem key={opt} value={opt}>
+                    {opt}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1 }}>
+              <TextField
+                label="Enter Pin Code"
+                size="small"
+                value={pinCode}
+                onChange={(e) => setPinCode(e.target.value)}
+              />
+              <Button
+                variant="contained"
+                size="small"
+                onClick={handleServiceCheck}
+                sx={{ background: "black" }}
+              >
+                Check
+              </Button>
+            </Box>
+            {availabilityResult && (
+              <Box sx={{ border: "1px solid", borderColor: "black", p: 1, borderRadius: 1 }}>
+                <Typography variant="caption" display="block" align="center">
+                  {availabilityResult}
+                </Typography>
+              </Box>
+            )}
+          </Grid>
+
+          {/* Details for Blood Test */}
+          <Grid item xs={4}>
+            <Typography variant="h6" sx={{ mb: 1, fontWeight: "bold", color: "black" }}>
+              Details for Blood Test
+            </Typography>
+            <Grid container spacing={2}>
+              <Grid item xs={12}>
+                <TextField
+                  label="Address"
+                  name="address"
+                  value={bloodTestDetails.address || ""}
+                  onChange={handleBloodTestDetailsChange}
+                  fullWidth
+                  size="small"
+                />
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  label="Preferred Time Slot"
+                  name="preferredTimeSlot"
+                  value={bloodTestDetails.preferredTimeSlot || ""}
+                  onChange={handleBloodTestDetailsChange}
+                  fullWidth
+                  size="small"
+                />
+              </Grid>
+              <Grid item xs={6}>
+                <TextField
+                  label="Preferred Date 1"
+                  name="preferredDate1"
+                  type="date"
+                  value={bloodTestDetails.preferredDate1 || ""}
+                  onChange={handleBloodTestDetailsChange}
+                  fullWidth
+                  size="small"
+                  InputLabelProps={{ shrink: true }}
+                />
+              </Grid>
+              <Grid item xs={6}>
+                <TextField
+                  label="Preferred Date 2"
+                  name="preferredDate2"
+                  type="date"
+                  value={bloodTestDetails.preferredDate2 || ""}
+                  onChange={handleBloodTestDetailsChange}
+                  fullWidth
+                  size="small"
+                  InputLabelProps={{ shrink: true }}
+                />
+              </Grid>
+            </Grid>
+          </Grid>
+        </Grid>
+      </Box>
+
+      {/* Price Breakup & Link Generation */}
+      <Box sx={sectionStyle}>
+        <Typography variant="h6" sx={{ mb: 2, fontWeight: "bold", color: "black" }}>
+          Price Breakup
+        </Typography>
+        <Grid container spacing={2}>
+          <Grid item xs={6}>
+            <Button
+              variant="contained"
+              fullWidth
+              size="small"
+              sx={{ background: "black", color: "white", fontSize: "0.8rem" }}
+              onClick={handleCreatePlanLink}
+            >
+              Create Plan Link
+            </Button>
+          </Grid>
+          <Grid item xs={6}>
+            <Button
+              variant="contained"
+              fullWidth
+              size="small"
+              sx={{ background: "black", color: "white", fontSize: "0.8rem" }}
+              onClick={handleGetPaymentLink}
+            >
+              Get Payment Link
+            </Button>
+          </Grid>
+        </Grid>
+        {generatedLink && (
+          <Box sx={{ mt: 2, display: "flex", alignItems: "center", gap: 1 }}>
+            <TextField fullWidth value={generatedLink} size="small" InputProps={{ readOnly: true }} />
+            <IconButton onClick={handleCopyLink}>
+              <ContentCopyIcon />
+            </IconButton>
+          </Box>
+        )}
+      </Box>
+
+      {/* Save Button */}
+      <Box sx={{ mt: 2, display: "flex", justifyContent: "flex-end" }}>
+        <Button variant="contained" size="small" sx={{ background: "black", color: "white" }} onClick={handleSubmit}>
+          Save
+        </Button>
+      </Box>
+    </Box>
+  );
+};
+
+export default Closing;

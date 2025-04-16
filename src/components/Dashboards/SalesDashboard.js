@@ -51,7 +51,7 @@ const SalesDashboard = () => {
                 color: activeTab === "Sales" ? "#fff" : "#333",
                 backgroundColor: activeTab === "Sales" ? "#000000" : "#e9ecef",
                 border: "none",
-                borderRadius: "20px",
+                borderRadius: "5px",
                 boxShadow: activeTab === "Sales" ? "0 2px 4px rgba(0, 0, 0, 0.2)" : "none",
                 transition: "all 0.3s ease",
               }}
@@ -68,7 +68,7 @@ const SalesDashboard = () => {
                 color: activeTab === "Retention" ? "#fff" : "#333",
                 backgroundColor: activeTab === "Retention" ? "#000000" : "#e9ecef",
                 border: "none",
-                borderRadius: "20px",
+                borderRadius: "5px",
                 boxShadow: activeTab === "Retention" ? "0 2px 4px rgba(0, 0, 0, 0.2)" : "none",
                 transition: "all 0.3s ease",
               }}

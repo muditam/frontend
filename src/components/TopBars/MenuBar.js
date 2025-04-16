@@ -25,6 +25,7 @@ import UploadFileIcon from "@mui/icons-material/UploadFile";
 import ShoppingCartIcon from "@mui/icons-material/ShoppingCart";
 import DeleteIcon from "@mui/icons-material/Delete";
 import CompareArrowsIcon from "@mui/icons-material/CompareArrows";
+import ChatBubbleIcon from "@mui/icons-material/ChatBubble";
 import { Link, useNavigate } from "react-router-dom";
 
 
@@ -161,6 +162,30 @@ const MenuBar = ({ toggleDrawer }) => {
           </Typography>
         </ListItem>
 
+        <ListItem
+          button
+          component={Link}
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            padding: "10px 20px",
+            borderRadius: "4px",
+            margin: "4px 0",
+            transition: "background-color 0.3s, transform 0.2s",
+            "&:hover": {
+              backgroundColor: "#e0f7fa",
+              color: "#007aff",
+              transform: "scale(1.02)",
+            },
+          }}
+          to="/leadmanagement"
+          onClick={toggleDrawer}
+        >
+          <ChatBubbleIcon sx={{ marginRight: "12px" }} />
+          <Typography variant="body1" style={{ fontSize: "14px" }}>
+            Consultation
+          </Typography>
+        </ListItem>
 
         {user ? (
           <>
@@ -287,6 +312,20 @@ const MenuBar = ({ toggleDrawer }) => {
                         onClick={toggleDrawer}
                       >
                         Acquisition Orders
+                      </Typography>
+                    </ListItem>
+                    <ListItem
+                      button
+                      component={Link}
+                      to="/master/Duplicates"
+                      onClick={toggleDrawer}
+                    >
+                      <Typography
+                        variant="body2"
+                        sx={{ fontSize: "13px" }}
+                        onClick={toggleDrawer}
+                      >
+                        Duplicate Data
                       </Typography>
                     </ListItem>
                   </List>

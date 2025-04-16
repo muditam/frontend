@@ -137,7 +137,7 @@ const RetentionLeads = () => {
       return { async, agentNumber, callerId };
     } catch (error) {
       console.error("Failed to fetch user details:", error);
-      return { async: 1, agentNumber: "Unknown", callerId: "Unknown" };
+      return { async: 1, agentNumber: "Unknown", callerId: "Unknown" }; 
     }
   };
 
