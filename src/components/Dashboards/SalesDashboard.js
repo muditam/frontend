@@ -1,87 +1,125 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import AgentDashboard from "../../Dashboards/AgentDashboard";
 import RetentionAgentDashboard from "../../Dashboards/RetentionDashboard";
-import ManagerSalesDashboard from "../../Dashboards/MasterSalesDashboard"; 
-import ManagerRetentionDashboard from "../../Dashboards/MasterRetentionDashboard"; 
-import { useNavigate } from "react-router-dom";
+import ManagerSalesDashboard from "../../Dashboards/MasterSalesDashboard";
+import ManagerRetentionDashboard from "../../Dashboards/MasterRetentionDashboard";
+import { Box } from "@mui/material";
+
 
 const SalesDashboard = () => {
   const [role, setRole] = useState(null);
   const [activeTab, setActiveTab] = useState("Sales");
+
   const navigate = useNavigate();
 
+  // On mount: get user role and restore last‐selected tab
   useEffect(() => {
     const user = JSON.parse(sessionStorage.getItem("user"));
-    if (user && user.role) {
-      setRole(user.role);
-    } else {
+    if (!user || !user.role) {
       navigate("/login");
+      return;
     }
-  }, [navigate]); 
+    setRole(user.role);
 
-  if (!role) {
-    return <div>Loading...</div>;
-  }
+    const storedTab = sessionStorage.getItem("activeTab");
+    if (storedTab === "Retention") {
+      setActiveTab("Retention");
+    }
+    // otherwise defaults to "Sales"
+  }, [navigate]);
+
+
+  // Handler that updates both state and sessionStorage
+  const switchTab = (tabName) => {
+    setActiveTab(tabName);
+    sessionStorage.setItem("activeTab", tabName);
+  };
+
+  if (!role) return <div>Loading...</div>;
 
   return (
     <div>
       {role === "Manager" && (
-        <div>
+        <>
           {/* Tabs Section */}
           <div
             style={{
               display: "flex",
               justifyContent: "center",
               alignItems: "center",
-              gap: "20px",
+              gap: "25px",
               padding: "15px",
-              backgroundColor: "#f8f9fa",
-              boxShadow: "0 4px 8px rgba(0, 0, 0, 0.1)",
-              borderRadius: "8px",
               marginBottom: "20px",
             }}
           >
-            <button
-              onClick={() => setActiveTab("Sales")}
-              style={{
-                padding: "12px 30px",
-                cursor: "pointer",
-                fontSize: "16px",
-                fontWeight: activeTab === "Sales" ? "bold" : "normal",
-                color: activeTab === "Sales" ? "#fff" : "#333",
-                backgroundColor: activeTab === "Sales" ? "#000000" : "#e9ecef",
-                border: "none",
-                borderRadius: "5px",
-                boxShadow: activeTab === "Sales" ? "0 2px 4px rgba(0, 0, 0, 0.2)" : "none",
-                transition: "all 0.3s ease",
-              }}
-            >
-              Sales Dashboard
-            </button>
-            <button
-              onClick={() => setActiveTab("Retention")}
-              style={{
-                padding: "12px 30px",
-                cursor: "pointer",
-                fontSize: "16px",
-                fontWeight: activeTab === "Retention" ? "bold" : "normal",
-                color: activeTab === "Retention" ? "#fff" : "#333",
-                backgroundColor: activeTab === "Retention" ? "#000000" : "#e9ecef",
-                border: "none",
-                borderRadius: "5px",
-                boxShadow: activeTab === "Retention" ? "0 2px 4px rgba(0, 0, 0, 0.2)" : "none",
-                transition: "all 0.3s ease",
-              }}
-            > 
-              Retention Dashboard
-            </button>
+
+            {/* Sales Button */}
+            <div style={{ display: "flex", gap: "10px" }}>
+              {/* Sales Button */}
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+                <button
+                  onClick={() => switchTab("Sales")}
+                  style={{
+                    padding: "12px 30px",
+                    cursor: "pointer",
+                    fontSize: "16px",
+                    color: activeTab === "Sales" ? "#fff" : "#333",
+                    backgroundColor: activeTab === "Sales" ? "#000" : "#e9ecef",
+                    border: "none",
+                    borderRadius: "5px",
+                    boxShadow: activeTab === "Sales" ? "0 2px 4px rgba(0,0,0,0.2)" : "none",
+                    transition: "all 0.5s ease",
+                  }}
+                >
+                  Sales Dashboard
+                </button>
+                <Box
+                  sx={{
+                    height: "2px",
+                    backgroundColor: activeTab === "Sales" ? "#FFC107" : "transparent",
+                    width: "100%",
+                    borderRadius: "2px",
+                    mt: "4px",
+                  }}
+                />
+              </div>
+
+              {/* Retention Button */}
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+                <button
+                  onClick={() => switchTab("Retention")}
+                  style={{
+                    padding: "12px 30px",
+                    cursor: "pointer",
+                    fontSize: "16px",
+                    color: activeTab === "Retention" ? "#fff" : "#333",
+                    backgroundColor: activeTab === "Retention" ? "#000" : "#e9ecef",
+                    border: "none",
+                    borderRadius: "5px",
+                    boxShadow: activeTab === "Retention" ? "0 2px 4px rgba(0,0,0,0.2)" : "none",
+                    transition: "all 0.5s ease",
+                  }}
+                >
+                  Retention Dashboard
+                </button>
+                <Box
+                  sx={{
+                    height: "2px",
+                    backgroundColor: activeTab === "Retention" ? "#FFC107" : "transparent",
+                    width: "100%",
+                    borderRadius: "2px",
+                    mt: "4px",
+                  }}
+                />
+              </div>
+            </div>
           </div>
           {/* Active Tab Content */}
           <div style={{ padding: "20px" }}>
-            {activeTab === "Sales" && <ManagerSalesDashboard />}
-            {activeTab === "Retention" && <ManagerRetentionDashboard />}
+            {activeTab === "Sales" ? <ManagerSalesDashboard /> : <ManagerRetentionDashboard />}
           </div>
-        </div>
+        </>
       )}
       {role === "Sales Agent" && <AgentDashboard />}
       {role === "Retention Agent" && <RetentionAgentDashboard />}

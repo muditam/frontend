@@ -24,6 +24,7 @@ import {
 } from "@mui/material";
 import axios from "axios";
 
+
 import {
   Assignment,
   BarChart,
@@ -38,7 +39,9 @@ import {
   TrendingUp,
 } from "@mui/icons-material";
 
+
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
+
 
 // -------------------------------------------
 // 1) Time-range dropdown options
@@ -60,10 +63,12 @@ const timeRangeOptions = [
   "Quarter to date",
 ];
 
+
 // -------------------------------------------
 // 2) Convert date => 'YYYY-MM-DD'
 // -------------------------------------------
 const toISODate = (d) => d.toISOString().split("T")[0];
+
 
 // -------------------------------------------
 // 3) Compute start/end date from a range
@@ -72,6 +77,7 @@ const getDateRange = (rangeValue) => {
   const now = new Date();
   let start = new Date(now);
   let end = new Date(now);
+
 
   switch (rangeValue) {
     case "Today":
@@ -134,32 +140,38 @@ const getDateRange = (rangeValue) => {
   return { startDate: toISODate(start), endDate: toISODate(end) };
 };
 
+
 const ManagerSalesDashboard = () => {
   // Basic states
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [tableLoading, setTableLoading] = useState(false);
 
+
   // Summaries
   const [todayStats, setTodayStats] = useState([]);
   const [followupStats, setFollowupStats] = useState([]);
   const [leadSourceData, setLeadSourceData] = useState([]);
 
+
   // Agents (for lead source summary and shipment summary)
   const [agents, setAgents] = useState([]);
   const [selectedAgent, setSelectedAgent] = useState("All Agents");
 
-  // The selected summary: 
-  //   "Sales Summary", 
-  //   "Followup Summary", 
-  //   "Lead Source Summary", 
+
+  // The selected summary:
+  //   "Sales Summary",
+  //   "Followup Summary",
+  //   "Lead Source Summary",
   //   "Shipment Summary"  <-- newly added
   const [selectedSummary, setSelectedSummary] = useState("Sales Summary");
+
 
   // Time range
   const [range, setRange] = useState("Today");
   const [customStart, setCustomStart] = useState("");
   const [customEnd, setCustomEnd] = useState("");
+
 
   // Sales summary metrics
   const [salesSummary, setSalesSummary] = useState({
@@ -171,12 +183,15 @@ const ManagerSalesDashboard = () => {
     avgOrderValue: undefined,
   });
 
+
   // For "Shipment Summary" table
   const [shipmentData, setShipmentData] = useState([]);
+
 
   // State for Sales Done Order IDs popup
   const [orderIdsPopupOpen, setOrderIdsPopupOpen] = useState(false);
   const [orderIds, setOrderIds] = useState("");
+
 
   // On mount, fetch user & agents
   useEffect(() => {
@@ -186,6 +201,7 @@ const ManagerSalesDashboard = () => {
       fetchAgents();
     }
   }, []);
+
 
   // Fetch agents
   const fetchAgents = useCallback(async () => {
@@ -197,11 +213,12 @@ const ManagerSalesDashboard = () => {
       const activeAgents = response.data
         .filter((agent) => agent.status === "active")
         .map((agent) => agent.fullName);
-      setAgents(["All Agents", ...activeAgents]);
+      setAgents(["All Agents", ...activeAgents]);  
     } catch (error) {
       console.error("Error fetching agents:", error);
     }
   }, []);
+
 
   // ------------------------------------------------------
   // 1) Sales Summary
@@ -216,6 +233,7 @@ const ManagerSalesDashboard = () => {
       );
       const { salesDone, totalSales, avgOrderValue } = metricsRes.data;
 
+
       // 2) Overall leads from /sales-summary
       const overallRes = await axios.get(
         "https://muditamleads-14f32a10d7f7.herokuapp.com/api/sales-summary",
@@ -224,9 +242,11 @@ const ManagerSalesDashboard = () => {
       const overall = overallRes.data.overall || {};
       const leadsAssigned = overall.leadsAssigned || 0;
 
+
       // Conversion rate
       const conversionRate =
         leadsAssigned > 0 ? ((salesDone / leadsAssigned) * 100).toFixed(2) : 0;
+
 
       setSalesSummary({
         openLeads: overall.openLeads,
@@ -237,6 +257,7 @@ const ManagerSalesDashboard = () => {
         avgOrderValue,
       });
 
+
       // Agent-level performance
       setTodayStats(overallRes.data.perAgent || []);
     } catch (error) {
@@ -245,6 +266,7 @@ const ManagerSalesDashboard = () => {
       setLoading(false);
     }
   }, []);
+
 
   // ------------------------------------------------------
   // 2) Followup Summary
@@ -263,6 +285,7 @@ const ManagerSalesDashboard = () => {
       setLoading(false);
     }
   }, []);
+
 
   // ------------------------------------------------------
   // 3) Lead Source Summary
@@ -289,6 +312,7 @@ const ManagerSalesDashboard = () => {
     [selectedAgent]
   );
 
+
   // ------------------------------------------------------
   // 4) Shipment Summary
   // ------------------------------------------------------
@@ -299,9 +323,14 @@ const ManagerSalesDashboard = () => {
       setLoading(true);
       try {
         const params = { startDate, endDate };
+        if (selectedAgent && selectedAgent !== "All Agents") {
+                   params.agentName = selectedAgent;
+                 }
         // Remove or ignore the agent filter since it's not applicable for the Order schema.
         const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/all-shipment-summary", { params });
         setShipmentData(response.data || []);
+
+
       } catch (error) {
         console.error("Error fetching shipment data:", error);
         setShipmentData([]);
@@ -309,9 +338,11 @@ const ManagerSalesDashboard = () => {
         setLoading(false);
       }
     },
-    []
+    [selectedAgent]
   );
-  
+ 
+
+
 
 
   // Combined table fetch
@@ -349,6 +380,7 @@ const ManagerSalesDashboard = () => {
     ]
   );
 
+
   // Handle range changes
   const handleRangeChange = async (e) => {
     const newRange = e.target.value;
@@ -361,12 +393,14 @@ const ManagerSalesDashboard = () => {
     }
   };
 
+
   // Handle custom range "Apply"
   const applyCustomRange = async () => {
     if (customStart && customEnd) {
       await fetchTableData(selectedSummary, customStart, customEnd);
     }
   };
+
 
   // Re-fetch when summary or range changes
   useEffect(() => {
@@ -379,6 +413,7 @@ const ManagerSalesDashboard = () => {
     }
   }, [selectedSummary, range, customStart, customEnd, fetchTableData]);
 
+
   // Re-fetch lead source or shipment if agent changes
   useEffect(() => {
     if (selectedSummary === "Lead Source Summary") {
@@ -389,13 +424,14 @@ const ManagerSalesDashboard = () => {
         fetchLeadSourceData(startDate, endDate);
       }
     } else if (selectedSummary === "Shipment Summary") {
-      if (range === "Custom range" && customStart && customEnd) {
-        fetchShipmentData(customStart, customEnd);
-      } else {
-        const { startDate, endDate } = getDateRange(range);
-        fetchShipmentData(startDate, endDate);
-      }
-    }
+            const [startDate, endDate] =
+              range === "Custom range" && customStart && customEnd
+                ? [customStart, customEnd]
+                : Object.values(getDateRange(range));
+     
+            fetchShipmentData(startDate, endDate);
+          }
+   
   }, [
     selectedAgent,
     shipmentAgent,
@@ -406,6 +442,7 @@ const ManagerSalesDashboard = () => {
     fetchLeadSourceData,
     fetchShipmentData,
   ]);
+
 
   // Handler for Sales Done card click to open popup
   const handleSalesDoneClick = async () => {
@@ -421,6 +458,7 @@ const ManagerSalesDashboard = () => {
     }
     setOrderIdsPopupOpen(true);
   };
+
 
   // --------------- Metrics for Sales Summary ---------------
   const metrics1 = [
@@ -469,6 +507,7 @@ const ManagerSalesDashboard = () => {
       icon: <CurrencyRupeeOutlined sx={{ color: "#3F51B5" }} />,
     },
   ];
+
 
   // --------------- Metrics for Followup Summary ---------------
   const metrics2 = [
@@ -519,10 +558,12 @@ const ManagerSalesDashboard = () => {
     },
   ];
 
+
   // --------------- Shipment Summary Table columns ---------------
   // Example columns: "Category", "Count", "Amount", "Percentage"
   // We'll display data from shipmentData
   const shipmentColumns = ["Category", "Count", "Amount", "Percentage"];
+
 
   return (
     <Box sx={{ padding: 3 }}>
@@ -550,6 +591,7 @@ const ManagerSalesDashboard = () => {
           ? `${user.fullName} - Sales Team Dashboard`
           : "Sales Team Dashboard"}
       </Typography>
+
 
       {/* Summary & Time Range Dropdowns */}
       <Box
@@ -598,6 +640,7 @@ const ManagerSalesDashboard = () => {
             </MenuItem>
           </Select>
         </FormControl>
+
 
         {/* Time range dropdown (shared by all summaries) */}
         {["Sales Summary", "Followup Summary", "Lead Source Summary", "Shipment Summary"].includes(
@@ -662,6 +705,7 @@ const ManagerSalesDashboard = () => {
             </>
           )}
       </Box>
+
 
       {/* -------------------- SALES SUMMARY -------------------- */}
       {selectedSummary === "Sales Summary" && (
@@ -779,6 +823,7 @@ const ManagerSalesDashboard = () => {
               ))}
             </Grid>
           </Box>
+
 
           {/* Table for agent-level performance */}
           <Box
@@ -912,6 +957,7 @@ const ManagerSalesDashboard = () => {
         </>
       )}
 
+
       {/* -------------------- FOLLOWUP SUMMARY -------------------- */}
       {selectedSummary === "Followup Summary" && (
         <>
@@ -1019,6 +1065,7 @@ const ManagerSalesDashboard = () => {
             </Grid>
           </Box>
 
+
           <Paper
             sx={{
               padding: 1.5,
@@ -1120,6 +1167,7 @@ const ManagerSalesDashboard = () => {
         </>
       )}
 
+
       {/* -------------------- LEAD SOURCE SUMMARY -------------------- */}
       {selectedSummary === "Lead Source Summary" && (
         <Box
@@ -1164,6 +1212,7 @@ const ManagerSalesDashboard = () => {
               </Select>
             </FormControl>
           </Box>
+
 
           <TableContainer
             sx={{ borderRadius: 2, boxShadow: 1, overflowX: "auto" }}
@@ -1250,6 +1299,7 @@ const ManagerSalesDashboard = () => {
         </Box>
       )}
 
+
       {/* -------------------- SHIPMENT SUMMARY -------------------- */}
       {selectedSummary === "Shipment Summary" && (
         <Box
@@ -1270,6 +1320,7 @@ const ManagerSalesDashboard = () => {
           >
             Shipment Status Summary
           </Typography>
+
 
           {/* Agent Filter for Shipment Summary */}
           <Box
@@ -1295,6 +1346,7 @@ const ManagerSalesDashboard = () => {
               </Select>
             </FormControl>
           </Box>
+
 
           <TableContainer
             sx={{ borderRadius: 2, boxShadow: 1, overflowX: "auto" }}
@@ -1374,6 +1426,7 @@ const ManagerSalesDashboard = () => {
         </Box>
       )}
 
+
       {/* Sales Done Order IDs Popup Dialog */}
       <Dialog
         open={orderIdsPopupOpen}
@@ -1393,4 +1446,6 @@ const ManagerSalesDashboard = () => {
   );
 };
 
+
 export default ManagerSalesDashboard;
+

@@ -24,12 +24,16 @@ import {
 } from "@mui/material";
 import axios from "axios";
 import PhoneIcon from "@mui/icons-material/Phone";
+import TuneIcon from "@mui/icons-material/Tune";
+
+
+
 
 const SalesMyLeads = () => {
   const [leads, setLeads] = useState([]);
   const [validationErrors, setValidationErrors] = useState({});
   const [currentPage, setCurrentPage] = useState(0);
-  const [rowsPerPage, setRowsPerPage] = useState(50); 
+  const [rowsPerPage, setRowsPerPage] = useState(50);
   const [callingMessage, setCallingMessage] = useState("");
   const [newLead, setNewLead] = useState({
     date: "",
@@ -67,18 +71,24 @@ const SalesMyLeads = () => {
   });
   const [filterOpen, setFilterOpen] = useState(false);
 
+
   useEffect(() => {
     const user = JSON.parse(sessionStorage.getItem("user"));
+
 
     if (user && !agentName) {
       setAgentName(user.fullName);
     }
 
+
     if (agentName) {
       fetchLeads(agentName);
     }
- 
+
+
   }, [agentName, currentPage, rowsPerPage]);
+
+
 
 
   const fetchLeads = async (agentAssigned) => {
@@ -93,6 +103,7 @@ const SalesMyLeads = () => {
         },
       });
 
+
       const { leads, totalLeads } = response.data;
       setLeads(leads || []); // Update leads state with fetched data
       setTotalLeads(totalLeads || 0); // Update the total leads count
@@ -105,15 +116,50 @@ const SalesMyLeads = () => {
   };
 
 
+  const styles = {
+    tableCell: {
+      backgroundColor: "white",
+      padding: "1px 25px",
+      paddingBottom: "1px",
+      whiteSpace: "nowrap",
+      textOverflow: "ellipsis",
+      overflow: "hidden",
+      maxWidth: "150px",
+      fontSize: "0.65rem",
+      textAlign: "center",
+      borderBottom: "1px solid gray",
+      height: "45px",
+    },
+    tableHead: {
+      backgroundColor: "black",
+      color: "white",
+      whiteSpace: "nowrap",
+      textOverflow: "ellipsis",
+      textAlign: "center",
+      lineHeight: "10px",
+      minHeight: "45px",
+    },
+    tableRow: {
+      backgroundColor: "#1a1a1a",
+      height: "10px",
+      "&:hover": {
+        backgroundColor: "#2a2a2a",
+      },
+    },
+  };
+
 
   const handleInputChange = async (e, index, field) => {
     const updatedLeads = [...leads];
 
+
     updatedLeads[index][field] = e.target.value;
     setLeads(updatedLeads);
 
+
     if (field === "contactNumber") {
       const enteredNumber = e.target.value;
+
 
       try {
         const response = await axios.get(
@@ -122,6 +168,7 @@ const SalesMyLeads = () => {
             params: { contactNumber: enteredNumber },
           }
         );
+
 
         if (response.data.exists) {
           setValidationErrors((prev) => ({
@@ -140,10 +187,11 @@ const SalesMyLeads = () => {
       }
     }
 
+
     const leadId = updatedLeads[index]._id;
     try {
       await axios.put(
-        `https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/${leadId}`, 
+        `https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/${leadId}`,
         {
           [field]: e.target.value,
         }
@@ -154,10 +202,13 @@ const SalesMyLeads = () => {
   };
 
 
+
+
   const handleAddLead = async () => {
     const currentDate = new Date();
     const formattedDate = currentDate.toISOString().split("T")[0];
     const formattedTime = currentDate.toLocaleTimeString();
+
 
     const leadToAdd = {
       ...newLead,
@@ -166,10 +217,12 @@ const SalesMyLeads = () => {
       agentAssigned: agentName,
     };
 
+
     if (Object.values(validationErrors).some((error) => error)) {
       console.error("Fix validation errors before adding the lead.");
       return;
     }
+
 
     try {
       const response = await axios.post("https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads", leadToAdd);
@@ -197,12 +250,15 @@ const SalesMyLeads = () => {
     }
   };
 
+
   const calculateReminder = (nextFollowup) => {
     if (!nextFollowup) return "";
+
 
     const followupDate = new Date(nextFollowup);
     const today = new Date();
     const diffInDays = Math.ceil((followupDate - today) / (1000 * 60 * 60 * 24));
+
 
     if (diffInDays < 0) return "Follow-up Missed";
     if (diffInDays === 0) return "Today";
@@ -211,9 +267,12 @@ const SalesMyLeads = () => {
   };
 
 
+
+
   const applyFilters = async () => {
     setLoading(true);
     setCurrentPage(0);
+
 
     try {
       const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads", {
@@ -225,6 +284,7 @@ const SalesMyLeads = () => {
         },
       });
 
+
       const { leads, totalLeads } = response.data;
       setLeads(leads || []);
       setTotalLeads(totalLeads || 0);
@@ -235,6 +295,8 @@ const SalesMyLeads = () => {
       setLoading(false);
     }
   };
+
+
 
 
   const resetFilters = async () => {
@@ -253,31 +315,36 @@ const SalesMyLeads = () => {
       followupReminder: "",
     });
     setCurrentPage(0);
-    await fetchLeads(agentName);  
+    await fetchLeads(agentName);
   };
+
+
 
 
   const handleChangePage = (event, newPage) => {
     setCurrentPage(newPage);
   };
 
+
   const fetchUserDetails = async (user) => {
     try {
-        const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/employees", {
-            params: { fullName: user.fullName, email: user.email }
-        });
+      const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/employees", {
+        params: { fullName: user.fullName, email: user.email }
+      });
 
-        if (response.data.length > 0) {
-            return response.data[0]; // Returns { async, agentNumber, callerId }
-        } else {
-            console.error("User details not found");
-            return {};
-        }
-    } catch (error) {
-        console.error("Error fetching user details:", error);
+
+      if (response.data.length > 0) {
+        return response.data[0]; // Returns { async, agentNumber, callerId }
+      } else {
+        console.error("User details not found");
         return {};
+      }
+    } catch (error) {
+      console.error("Error fetching user details:", error);
+      return {};
     }
-};
+  };
+
 
   const handleChangeRowsPerPage = (event) => {
     const newRowsPerPage = parseInt(event.target.value, 10);
@@ -285,86 +352,189 @@ const SalesMyLeads = () => {
     setCurrentPage(0);
   };
 
+
   const handleCallIconClick = async (contactNumber) => {
     setLoading(true);
     setCallingMessage(`Calling ${contactNumber}...`);
 
+
     try {
-        const loggedInUser = JSON.parse(sessionStorage.getItem("user"));  
-        if (!loggedInUser) {
-            setCallingMessage("Error: User not logged in.");
-            setLoading(false);
-            return;
-        }
-
-        const { async, agentNumber, callerId } = await fetchUserDetails(loggedInUser);
-
-        if (!contactNumber || !agentNumber || !callerId) {
-            setCallingMessage("Error: Missing call parameters");
-            console.error("Missing parameters:", { contactNumber, agentNumber, callerId });
-            setLoading(false);
-            return;
-        }
-
-        const requestBody = {
-            destination_number: contactNumber,
-            async: 1,
-            agent_number: agentNumber.toString().trim(),
-            caller_id: callerId.toString().trim(),
-        };
-
-        console.log("Sending API Request to Backend:", requestBody);
-
-        const response = await axios.post(
-            "https://muditamleads-14f32a10d7f7.herokuapp.com/api/click_to_call",
-            requestBody
-        );
-
-        console.log("Backend Response:", response.data);
-
-        if (response.data.status === "success") {
-            setCallingMessage(`Successfully called ${contactNumber}`);
-        } else {
-            setCallingMessage("Failed to place the call. Please try again.");
-            console.error("Backend Error Response:", response.data);
-        }
-    } catch (error) {
-        console.error("Error placing the call", error.response?.data || error);
-        setCallingMessage("There was an error placing the call.");
-    } finally {
+      const loggedInUser = JSON.parse(sessionStorage.getItem("user"));
+      if (!loggedInUser) {
+        setCallingMessage("Error: User not logged in.");
         setLoading(false);
-    }
-};
+        return;
+      }
 
+
+      const { async, agentNumber, callerId } = await fetchUserDetails(loggedInUser);
+
+
+      if (!contactNumber || !agentNumber || !callerId) {
+        setCallingMessage("Error: Missing call parameters");
+        console.error("Missing parameters:", { contactNumber, agentNumber, callerId });
+        setLoading(false);
+        return;
+      }
+
+
+      const requestBody = {
+        destination_number: contactNumber,
+        async: 1,
+        agent_number: agentNumber.toString().trim(),
+        caller_id: callerId.toString().trim(),
+      };
+
+
+      console.log("Sending API Request to Backend:", requestBody);
+
+
+      const response = await axios.post(
+        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/click_to_call",
+        requestBody
+      );
+
+
+      console.log("Backend Response:", response.data);
+
+
+      if (response.data.status === "success") {
+        setCallingMessage(`Successfully called ${contactNumber}`);
+      } else {
+        setCallingMessage("Failed to place the call. Please try again.");
+        console.error("Backend Error Response:", response.data);
+      }
+    } catch (error) {
+      console.error("Error placing the call", error.response?.data || error);
+      setCallingMessage("There was an error placing the call.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+
+  const textFieldSx = {
+    mb: 2,
+    "& .MuiInputLabel-root": {
+      top: "50%",
+      transform: "translateY(-50%)",
+      transition: "all 0.2s ease-in-out",
+      fontSize: "0.85rem",
+      paddingLeft: "8px",
+    },
+    "& .MuiInputLabel-root.Mui-focused, & .MuiInputLabel-root.MuiFormLabel-filled":
+    {
+      top: 0,
+      color: "gray",
+      transform: "translateY(-50%) translateX(8px)",
+      paddingLeft: "8px",
+      fontSize: "0.65rem",
+    },
+    "& .MuiOutlinedInput-root": {
+      "& input": {
+        padding: "4px !important",
+      },
+      "&.Mui-focused fieldset": { borderColor: "black" },
+      "&:hover fieldset": { borderColor: "black" },
+    },
+
+
+  };
+
+
+  const formControlSx = {
+    mb: 2,
+    "& .MuiInputLabel-root": {
+      fontSize: "0.85rem",
+      paddingLeft: "8px",
+      top: "50%",
+      transition: "all 0.2s ease-in-out",
+      transform: "translateY(-50%)",
+    },
+    "& .MuiInputLabel-root.Mui-focused, & .MuiInputLabel-root.MuiFormLabel-filled": {
+      top: 0,
+      transform: "translateY(-50%) translateX(8px)",
+      fontSize: "0.75rem",
+      color: "gray",
+    },
+    "& .MuiOutlinedInput-root": {
+      "& input": { padding: "4px !important" },
+      "& .MuiSelect-select": { padding: "4px" },
+      "&.Mui-focused fieldset": { borderColor: "black" },
+      "&:hover fieldset": { borderColor: "black" },
+    },
+  };
 
 
   return (
     <Box sx={{ padding: 2 }}>
-      <Typography variant="h5" gutterBottom>
+      <Typography gutterBottom
+        variant="h4"
+        sx={{
+          fontWeight: "bold",
+          textAlign: "center",
+          letterSpacing: "1px",
+          color: "black",
+          marginBottom: 2,
+        }}>
         My Leads
       </Typography>
       <Button
         variant="contained"
-        sx={{ mb: 2 }}
+        sx={{ mb: 2, backgroundColor: "black" }}
         onClick={handleAddLead}
       >
         Add Lead
       </Button>
 
-      <Button variant="contained" sx={{ mb: 2, ml: 2 }} onClick={() => setFilterOpen(true)}>
+
+      <Button variant="contained"
+        sx={{ mb: 2, ml: 2, backgroundColor: "black" }}
+        startIcon={<TuneIcon />} onClick={() => setFilterOpen(true)}>
         Filter
       </Button>
 
+
       <Drawer
         anchor="right"
+        sx={{
+          transition: "all 0.5s ease-in-out",
+          "& .MuiDrawer-paper": {
+            boxShadow: "0px 4px 10px rgba(0, 0, 0, 0.2)",
+            borderRadius: "10px 0 0 10px",
+          },
+        }}
         open={filterOpen}
         onClose={() => setFilterOpen(false)}
       >
-        <Box sx={{ width: 300, padding: 2 }}>
-          <Typography variant="h6" gutterBottom>
+        <Box sx={{ width: 250, padding: 2 }}>
+          <Typography
+            variant="h6"
+            gutterBottom
+            sx={{
+              mb: 1,
+              position: "sticky",
+              top: 0,
+              fontWeight: "bold",
+              textAlign: "center",
+              color: "#333",
+              background: "white",
+              zIndex: 10,
+            }}
+          >
             Filters
           </Typography>
-          <Divider sx={{ mb: 2 }} />
+          <Box
+            sx={{
+              height: "2px",
+              backgroundColor: "#FFC107",
+              width: "100%",
+              borderRadius: "2px",
+              mb: 2,
+            }}
+          />
+
+
           <TextField
             label="Date From"
             type="date"
@@ -376,11 +546,24 @@ const SalesMyLeads = () => {
               "& .MuiInputBase-input": {
                 padding: "10px 12px",
               },
+
+
+
+
+              "& .MuiInputLabel-root.Mui-focused, & .MuiInputLabel-root.MuiFormLabel-filled":
+              {
+                top: 0,
+                color: "gray",
+                transform: "translateY(-50%) translateX(8px)",
+                paddingLeft: "8px",
+                fontSize: "0.65rem",
+              },
               "& .MuiOutlinedInput-root": {
-                borderColor: "#0073e6",
-                "&:hover fieldset": {
-                  borderColor: "#005bb5",
+                "& input": {
+                  padding: "8px !important",
                 },
+                "&.Mui-focused fieldset": { borderColor: "black" },
+                "&:hover fieldset": { borderColor: "black" },
               },
             }}
             InputLabelProps={{
@@ -398,11 +581,24 @@ const SalesMyLeads = () => {
               "& .MuiInputBase-input": {
                 padding: "10px 12px",
               },
+
+
+
+
+              "& .MuiInputLabel-root.Mui-focused, & .MuiInputLabel-root.MuiFormLabel-filled":
+              {
+                top: 0,
+                color: "gray",
+                transform: "translateY(-50%) translateX(8px)",
+                paddingLeft: "8px",
+                fontSize: "0.65rem",
+              },
               "& .MuiOutlinedInput-root": {
-                borderColor: "#0073e6",
-                "&:hover fieldset": {
-                  borderColor: "#005bb5",
+                "& input": {
+                  padding: "8px !important",
                 },
+                "&.Mui-focused fieldset": { borderColor: "black" },
+                "&:hover fieldset": { borderColor: "black" },
               },
             }}
             InputLabelProps={{
@@ -414,15 +610,17 @@ const SalesMyLeads = () => {
             fullWidth
             value={filters.name}
             onChange={(e) => setFilters((prev) => ({ ...prev, name: e.target.value }))}
-            sx={{ mb: 2 }}
+            sx={textFieldSx}
           />
           <TextField
             label="Contact No"
             fullWidth
             value={filters.contactNumber}
             onChange={(e) => setFilters((prev) => ({ ...prev, contactNumber: e.target.value }))}
-            sx={{ mb: 2 }}
+            sx={textFieldSx}
           />
+
+
           {[
             { key: "leadSource", label: "Lead Source", options: ["Abandoned Cart", "BiteSpeed", "Business on Bot", "Facebook Lead", "Google Lead", "Incoming Call", "Lead Form", "Online Store", "Others", "Rampwin", "Reference", "Whatsapp", "Degpeg"] },
             { key: "enquiryFor", label: "Enquiry For", options: ["KJF", "SDP", "VKR", "L-Fx", "S&S", "CPV", "HDP", "PF", "PGut", "Shilajit", "Kit", "Blood Test"] },
@@ -431,17 +629,35 @@ const SalesMyLeads = () => {
             { key: "leadStatus", label: "Lead Status", options: ["Sales Done", "CNP - Call Not Picked", "Not Interested", "Product Issue", "Order from Other Source", "Upsell", "Fake Lead", "Follow Up", "Call Back", "New", "General Query", "Invalid Number"] },
             { key: "salesStatus", label: "Sales Status", options: ["Sales Done", "Lost", "On Follow Up"] },
           ].map(({ key, label, options, multiple }) => (
-            <FormControl fullWidth sx={{ mb: 2 }} key={key}>
-              <InputLabel id={`${key}-label`}>{label}</InputLabel>
+            <FormControl fullWidth key={key} variant="outlined" sx={formControlSx}>
+              <InputLabel
+                id={`${key}-label`}
+              >
+                {label}
+              </InputLabel>
               <Select
+                labelId={`${key}-label`}
                 multiple={multiple}
                 value={filters[key] || (multiple ? [] : "")}
-                onChange={(e) => setFilters((prev) => ({ ...prev, [key]: e.target.value }))}
-                renderValue={(selected) => (Array.isArray(selected) ? selected.join(", ") : selected)}
+                onChange={(e) =>
+                  setFilters((prev) => ({
+                    ...prev,
+                    [key]: e.target.value,
+                  }))
+                }
+                label={label}
+                renderValue={(selected) =>
+                  Array.isArray(selected) ? selected.join(", ") : selected
+                }
               >
                 {options.map((option) => (
                   <MenuItem key={option} value={option}>
-                    {multiple && <Checkbox checked={filters[key]?.includes(option)} />}
+                    {multiple && (
+                      <Checkbox
+                        checked={filters[key]?.includes(option)}
+                        sx={{ mr: 1, p: 0.5 }}
+                      />
+                    )}
                     <ListItemText primary={option} />
                   </MenuItem>
                 ))}
@@ -459,20 +675,32 @@ const SalesMyLeads = () => {
               "& .MuiInputBase-input": {
                 padding: "10px 12px",
               },
+              "& .MuiInputLabel-root.Mui-focused, & .MuiInputLabel-root.MuiFormLabel-filled":
+              {
+                top: 0,
+                color: "gray",
+                transform: "translateY(-50%) translateX(8px)",
+                paddingLeft: "8px",
+                fontSize: "0.65rem",
+              },
               "& .MuiOutlinedInput-root": {
-                borderColor: "#0073e6",
-                "&:hover fieldset": {
-                  borderColor: "#005bb5",
+                "& input": {
+                  padding: "8px !important",
                 },
+                "&.Mui-focused fieldset": { borderColor: "black" },
+                "&:hover fieldset": { borderColor: "black" },
               },
             }}
             InputLabelProps={{
               shrink: true,
             }}
           />
-          <FormControl fullWidth>
+          <FormControl fullWidth variant="outlined"
+            sx={formControlSx}
+          >
             <InputLabel>Reminder</InputLabel>
             <Select
+              label="Reminder"
               value={filters.reminder || ""}
               onChange={(e) => setFilters((prev) => ({ ...prev, reminder: e.target.value }))}
             >
@@ -483,62 +711,126 @@ const SalesMyLeads = () => {
               ))}
             </Select>
           </FormControl>
-          <Divider sx={{ mb: 2 }} />
-          <Button variant="contained" fullWidth onClick={() => applyFilters()}>
+          <Button
+            variant="contained"
+            fullWidth
+            onClick={() => applyFilters()}
+            sx={{
+              marginBottom: 1,
+              backgroundColor: "black",
+              transition: "background-color 0.2s ease-in-out",
+              "&:hover": {
+                backgroundColor: "#333",
+              },
+            }}
+          >
             Apply Filters
           </Button>
-          <Button variant="outlined" fullWidth onClick={() => resetFilters()}>
+          <Button
+            variant="outlined"
+            fullWidth
+            onClick={() => resetFilters()}
+            sx={{
+              marginBottom: 1,
+              color: "black",
+              borderColor: "black",
+              transition: "all 0.2s ease-in-out",
+              "&:hover": {
+                borderColor: "#333",
+                color: "#333",
+              },
+            }}
+          >
             Reset Filters
           </Button>
         </Box>
       </Drawer>
 
-      <TableContainer component={Paper} sx={{ maxHeight: 1000 }}>
+
+      <TableContainer component={Paper} sx={{ maxHeight: 1200 }}>
         <Table stickyHeader aria-label="sticky table">
           <TableHead>
             <TableRow>
-              <TableCell>Date</TableCell>
-              <TableCell>Time</TableCell>
-              <TableCell>Name *</TableCell>
-              <TableCell>Contact No *</TableCell>
-              <TableCell>Lead Source *</TableCell>
-              <TableCell>Enquiry For *</TableCell>
-              <TableCell>Customer Type *</TableCell>
-              <TableCell>Agent Assigned</TableCell>
-              <TableCell>Product Pitched *</TableCell>
-              <TableCell>Lead Status *</TableCell>
-              <TableCell>Sales Status *</TableCell>
-              <TableCell>Next Followup *</TableCell>
-              <TableCell>Followup Reminder</TableCell>
-              <TableCell>Agents Remarks *</TableCell>
+              {[
+                "Date",
+                "Time",
+                "Name",
+                "Contact No",
+                "Lead Source",
+                "Enquiry For",
+                "Customer Type",
+                "Agent Assigned",
+                "Product Pitched",
+                "Lead Status",
+                "Sales Status",
+                "Next Followup",
+                "Followup Reminder",
+                "Agents Remarks",
+              ].map((heading) => (
+                <TableCell key={heading} sx={styles.tableHead}>
+                  {heading}
+                </TableCell>
+              ))}
             </TableRow>
           </TableHead>
           <TableBody>
             {leads.map((lead, index) => (
-              <TableRow key={lead._id}>
-                <TableCell> 
+              <TableRow key={lead._id} sx={styles.tableRow}>
+                <TableCell sx={styles.tableCell}>
                   <TextField
                     type="date"
                     value={lead.date || ""}
-                    disabled  
+                    disabled
                     fullWidth
+                    sx={{
+                      height: "45px",
+                      "& .MuiInputBase-input": { color: "#000", },
+                      "& .MuiOutlinedInput-notchedOutline": { borderColor: "#ccc" },
+                    }}
                   />
                 </TableCell>
-                <TableCell style={{ whiteSpace: "nowrap", minWidth: "150px" }}>
+
+
+                <TableCell sx={{ ...styles.tableCell, whiteSpace: "nowrap", minWidth: 150 }}>
                   <TextField
                     value={lead.time || ""}
                     disabled
                     fullWidth
+                    sx={{
+                      height: "45px",
+                      "& .MuiInputBase-input": { color: "#000", },
+                      "& .MuiOutlinedInput-notchedOutline": { borderColor: "#ccc" },
+                    }}
                   />
                 </TableCell>
-                <TableCell style={{ whiteSpace: "nowrap", minWidth: "240px" }}>
+
+
+                <TableCell sx={{ ...styles.tableCell, whiteSpace: "nowrap", minWidth: 240 }}>
                   <TextField
                     value={lead.name || ""}
                     onChange={(e) => handleInputChange(e, index, "name")}
                     fullWidth
+                    sx={{
+                      height: "45px",
+                      "& .MuiInputBase-input": { color: "#000", },
+                      "& .MuiOutlinedInput-notchedOutline": { borderColor: "#ccc" },
+                    }}
                   />
                 </TableCell>
-                <TableCell style={{ whiteSpace: "nowrap", minWidth: "240px", display: "flex", alignItems: "center" }}>
+
+
+                <TableCell
+                  sx={{
+                    // ...styles.tableCell,
+                    whiteSpace: "nowrap",
+                    minWidth: 240,
+                    background: "white",
+                    borderBottom: "1px solid gray",
+                    display: "flex",
+                    alignItems: "center",
+                    height: "48px"
+                  }}
+                >
                   <TextField
                     type="number"
                     value={lead.contactNumber || ""}
@@ -548,144 +840,201 @@ const SalesMyLeads = () => {
                     fullWidth
                     sx={{
                       flexGrow: 1,
-                      '& input[type=number]': {
-                        MozAppearance: 'textfield',  
-                      },
-                      '& input[type=number]::-webkit-outer-spin-button, & input[type=number]::-webkit-inner-spin-button': {
-                        WebkitAppearance: 'none', 
-                        margin: 0,
-                      }, 
+                      height: "45px",
+                      "& .MuiInputBase-input": { color: "#000", },
+                      "& .MuiOutlinedInput-notchedOutline": { borderColor: "#ccc" },
                     }}
                   />
                   <IconButton
                     color="primary"
                     onClick={() => handleCallIconClick(lead.contactNumber)}
-                    sx={{ marginLeft: 2 }}
+                    sx={{ ml: 1 }}
                   >
                     <PhoneIcon />
                   </IconButton>
                 </TableCell>
-                <TableCell>
-                  <Select
-                    value={lead.leadSource || ""}
-                    onChange={(e) => handleInputChange(e, index, "leadSource")}
-                    fullWidth
-                  >
-                    {[
-                      "Abandoned Cart",
-                      "BiteSpeed",
-                      "Business on Bot",
-                      "Facebook Lead",
-                      "Google Lead",
-                      "Incoming Call",
-                      "Lead Form",
-                      "Online Store",
-                      "Others",
-                      "Rampwin",
-                      "Reference",
-                      "Whatsapp",
-                      "Degpeg",
-                    ].map((source) => (
-                      <MenuItem key={source} value={source}>
-                        {source}
-                      </MenuItem>
-                    ))}
-                  </Select>
+
+
+                <TableCell sx={styles.tableCell}>
+                  <FormControl fullWidth variant="standard">
+                    <Select
+                      value={lead.leadSource || ""}
+                      onChange={(e) => handleInputChange(e, index, "leadSource")}
+                    >
+                      {[
+                        "Abandoned Cart",
+                        "BiteSpeed",
+                        "Business on Bot",
+                        "Facebook Lead",
+                        "Google Lead",
+                        "Incoming Call",
+                        "Lead Form",
+                        "Online Store",
+                        "Others",
+                        "Rampwin",
+                        "Reference",
+                        "Whatsapp",
+                        "Degpeg",
+                      ].map((src) => (
+                        <MenuItem key={src} value={src}>
+                          {src}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
                 </TableCell>
-                <TableCell>
-                  <Select
-                    value={lead.enquiryFor || ""}
-                    onChange={(e) => handleInputChange(e, index, "enquiryFor")}
-                    fullWidth
-                  >
-                    {["KJF", "SDP", "VKR", "L-Fx", "S&S", "CPV", "HDP", "PF", "PGut", "Shilajit", "Kit", "Blood Test"].map((item) => (
-                      <MenuItem key={item} value={item}>
-                        {item}
-                      </MenuItem>
-                    ))}
-                  </Select>
+
+
+                {/* Repeat same pattern for the remaining cells: */}
+                <TableCell sx={styles.tableCell}>
+                  <FormControl fullWidth variant="standard">
+                    <Select
+                      value={lead.enquiryFor || ""}
+                      onChange={(e) => handleInputChange(e, index, "enquiryFor")}
+                    >
+                      {[
+                        "KJF",
+                        "SDP",
+                        "VKR",
+                        "L-Fx",
+                        "S&S",
+                        "CPV",
+                        "HDP",
+                        "PF",
+                        "PGut",
+                        "Shilajit",
+                        "Kit",
+                        "Blood Test",
+                      ].map((item) => (
+                        <MenuItem key={item} value={item}>
+                          {item}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
                 </TableCell>
-                <TableCell>
-                  <Select
-                    value={lead.customerType || ""}
-                    onChange={(e) => handleInputChange(e, index, "customerType")}
-                    fullWidth
-                  >
-                    {["Fresh", "Renewal", "Online Order"].map((type) => (
-                      <MenuItem key={type} value={type}>
-                        {type}
-                      </MenuItem>
-                    ))}
-                  </Select>
+
+
+                <TableCell sx={styles.tableCell}>
+                  <FormControl fullWidth variant="standard">
+                    <Select
+                      value={lead.customerType || ""}
+                      onChange={(e) =>
+                        handleInputChange(e, index, "customerType")
+                      }
+                    >
+                      {["Fresh", "Renewal", "Online Order"].map((type) => (
+                        <MenuItem key={type} value={type}>
+                          {type}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
                 </TableCell>
-                <TableCell style={{ whiteSpace: "nowrap", minWidth: "140px" }}>
+
+
+                <TableCell sx={{ ...styles.tableCell, whiteSpace: "nowrap", minWidth: 140 }}>
                   <TextField
                     value={lead.agentAssigned || ""}
                     disabled
                     fullWidth
+                    sx={{
+                      height: "45px",
+                      "& .MuiInputBase-input": { color: "#000", },
+                      "& .MuiOutlinedInput-notchedOutline": { borderColor: "#ccc" },
+                    }}
                   />
                 </TableCell>
-                <TableCell>
-                  <FormControl fullWidth>
+
+
+                <TableCell sx={styles.tableCell}>
+                  <FormControl fullWidth variant="standard">
                     <Select
                       multiple
                       value={lead.productPitched || []}
                       onChange={(e) =>
                         handleInputChange(e, index, "productPitched")
                       }
-                      renderValue={(selected) => selected.join(", ")}
+                      renderValue={(selected) =>
+                        selected.join(", ")
+                      }
                     >
-                      {["KJF", "SDP", "VKR", "L-Fx", "S&S", "CPV", "HDP", "PF", "PGut", "Shilajit", "Kit", "Blood Test"].map(
-                        (option) => (
-                          <MenuItem key={option} value={option}>
-                            <Checkbox checked={lead.productPitched?.includes(option)} />
-                            <ListItemText primary={option} />
-                          </MenuItem>
-                        )
-                      )}
+                      {[
+                        "KJF",
+                        "SDP",
+                        "VKR",
+                        "L-Fx",
+                        "S&S",
+                        "CPV",
+                        "HDP",
+                        "PF",
+                        "PGut",
+                        "Shilajit",
+                        "Kit",
+                        "Blood Test",
+                      ].map((opt) => (
+                        <MenuItem key={opt} value={opt}>
+                          <Checkbox
+                            checked={lead.productPitched?.includes(opt)}
+                          />
+                          <ListItemText primary={opt} />
+                        </MenuItem>
+                      ))}
                     </Select>
                   </FormControl>
                 </TableCell>
-                <TableCell>
-                  <Select
-                    value={lead.leadStatus || ""}
-                    onChange={(e) => handleInputChange(e, index, "leadStatus")}
-                    fullWidth
-                  >
-                    {[
-                      "Sales Done",
-                      "CNP - Call Not Picked",
-                      "Not Interested",
-                      "Product Issue",
-                      "Order from Other Source",
-                      "Upsell",
-                      "Fake Lead",
-                      "Follow Up",
-                      "Call Back",
-                      "New",
-                      "General Query",
-                      "Invalid Number",
-                    ].map((status) => (
-                      <MenuItem key={status} value={status}>
-                        {status}
-                      </MenuItem>
-                    ))}
-                  </Select>
+
+
+                <TableCell sx={styles.tableCell}>
+                  <FormControl fullWidth variant="standard">
+                    <Select
+                      value={lead.leadStatus || ""}
+                      onChange={(e) =>
+                        handleInputChange(e, index, "leadStatus")
+                      }
+                    >
+                      {[
+                        "Sales Done",
+                        "CNP - Call Not Picked",
+                        "Not Interested",
+                        "Product Issue",
+                        "Order from Other Source",
+                        "Upsell",
+                        "Fake Lead",
+                        "Follow Up",
+                        "Call Back",
+                        "New",
+                        "General Query",
+                        "Invalid Number",
+                      ].map((st) => (
+                        <MenuItem key={st} value={st}>
+                          {st}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
                 </TableCell>
-                <TableCell>
-                  <Select
-                    value={lead.salesStatus || ""}
-                    onChange={(e) => handleInputChange(e, index, "salesStatus")}
-                    fullWidth
-                  >
-                    {["Sales Done", "On Follow Up", "Lost"].map((status) => (
-                      <MenuItem key={status} value={status}>
-                        {status}
-                      </MenuItem>
-                    ))}
-                  </Select>
+
+
+                <TableCell sx={styles.tableCell}>
+                  <FormControl fullWidth variant="standard">
+                    <Select
+                      value={lead.salesStatus || ""}
+                      onChange={(e) =>
+                        handleInputChange(e, index, "salesStatus")
+                      }
+                    >
+                      {["Sales Done", "On Follow Up", "Lost"].map((st) => (
+                        <MenuItem key={st} value={st}>
+                          {st}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
                 </TableCell>
-                <TableCell>
+
+
+                <TableCell sx={styles.tableCell}>
                   {lead.salesStatus === "On Follow Up" ? (
                     <TextField
                       type="date"
@@ -694,17 +1043,35 @@ const SalesMyLeads = () => {
                         handleInputChange(e, index, "nextFollowup")
                       }
                       fullWidth
+                      sx={{
+                        "& .MuiInputBase-input": { color: "#000", },
+                        "& .MuiOutlinedInput-notchedOutline": {
+                          borderColor: "#ccc",
+                        },
+                      }}
                     />
                   ) : (
                     <TextField
                       value={lead.salesStatus}
                       disabled
                       fullWidth
+                      sx={{
+                        "& .MuiInputBase-input": { color: "#000", },
+                        "& .MuiOutlinedInput-notchedOutline": {
+                          borderColor: "#ccc",
+                        },
+                      }}
                     />
                   )}
                 </TableCell>
+
+
                 <TableCell
                   sx={{
+                    ...styles.tableCell,
+                    fontSize: "0.85rem",
+
+
                     color:
                       calculateReminder(lead.nextFollowup) === "Today"
                         ? "green"
@@ -720,13 +1087,21 @@ const SalesMyLeads = () => {
                     ? calculateReminder(lead.nextFollowup)
                     : lead.salesStatus}
                 </TableCell>
-                <TableCell style={{ whiteSpace: "nowrap", minWidth: "240px" }}>
+
+
+                <TableCell sx={styles.tableCell} style={{ whiteSpace: "nowrap", minWidth: "250px" }}>
                   <TextField
                     value={lead.agentsRemarks || ""}
                     onChange={(e) =>
                       handleInputChange(e, index, "agentsRemarks")
                     }
                     fullWidth
+                    sx={{
+                      "& .MuiInputBase-input": { color: "#000", },
+                      "& .MuiOutlinedInput-notchedOutline": {
+                        borderColor: "#ccc",
+                      },
+                    }}
                   />
                 </TableCell>
               </TableRow>
@@ -747,4 +1122,6 @@ const SalesMyLeads = () => {
   );
 };
 
+
 export default SalesMyLeads;
+

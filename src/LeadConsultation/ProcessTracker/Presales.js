@@ -642,7 +642,9 @@ const Presales = ({ customerId }) => {
                   name={item.name}
                   checked={checklist[item.name] || false}
                   onChange={handleCheckboxChange}
-                  sx={{ "& .MuiTypography-root": { fontSize: "0.7rem" } }}
+                  sx={{ "& .MuiTypography-root": { fontSize: "0.7rem" },
+                  p: "6px",
+                }}
                 />
               }
               label={item.label}
@@ -651,6 +653,7 @@ const Presales = ({ customerId }) => {
                   fontSize: "0.7rem",
                   color: "black",
                 },
+                margin: "1px 0",
               }}
             />
           </Tooltip>

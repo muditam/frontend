@@ -273,7 +273,7 @@ const Consultation = ({ customerId }) => {
     <Box sx={{ display: "flex", height: "100%" }}>
       {/* Left Section (80%) – Consultation Form */}
       <Box sx={{ width: "80%", p: 2 }}>
-        <Grid container spacing={4}>
+        <Grid container spacing={2}>
           {/* Row 1: Current Medications (Multi-select) */}
           <Grid item xs={4}>
             <Autocomplete

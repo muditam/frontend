@@ -23,6 +23,7 @@ import {
 } from "@mui/material";
 import axios from "axios";
 
+
 const NewOrders = () => {
   const [newOrders, setNewOrders] = useState([]);
   const [retentionAgents, setRetentionAgents] = useState([]);
@@ -44,6 +45,7 @@ const NewOrders = () => {
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(30);
 
+
   const dropdownOptions = {
     modeOfPayment: ["Partial Paid", "Razorpay", "COD", "UPI", "Bank Transfer"],
     productsOrdered: [
@@ -52,10 +54,12 @@ const NewOrders = () => {
     ],
   };
 
+
   useEffect(() => {
     fetchNewOrders();
     fetchRetentionAgents();
   }, [page, rowsPerPage, filters]);
+
 
   // Fetch combined orders from the new combined orders endpoint
   const fetchNewOrders = async () => {
@@ -72,6 +76,7 @@ const NewOrders = () => {
       setNewOrders(orders);
       setAllOrders(orders);
 
+
       // Get unique agent names from combined data for filtering
       const uniqueAgentNames = [
         ...new Set(orders.map(order => order.agentName).filter(Boolean))
@@ -81,16 +86,17 @@ const NewOrders = () => {
       console.error("Error fetching combined orders:", error);
     }
   };
-
+ 
   const fetchRetentionAgents = async () => {
     try {
       const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/employees?role=Retention%20Agent");
       setRetentionAgents(response.data);
+      // console.log(response.data);
     } catch (error) {
       console.error("Error fetching retention agents:", error);
     }
   };
-
+ 
   // Updated Health Expert change handler:
   // Now it uses the updated endpoint URL so that it doesn't conflict with /api/leads/:id
   const handleHealthExpertChange = async (e, index) => {
@@ -98,6 +104,7 @@ const NewOrders = () => {
     const selectedAgent = e.target.value;
     updatedOrders[index].healthExpertAssigned = selectedAgent;
     setNewOrders(updatedOrders);
+
 
     const contactNumber = updatedOrders[index].contactNumber;
     try {
@@ -111,10 +118,12 @@ const NewOrders = () => {
     }
   };
 
+
   const applyFilters = () => {
     setPage(0);
     fetchNewOrders();
   };
+
 
   const resetFilters = () => {
     setFilters({
@@ -132,6 +141,7 @@ const NewOrders = () => {
     fetchNewOrders();
   };
 
+
   // Export only the required fields to CSV
   const exportToCSV = async () => {
     try {
@@ -143,6 +153,7 @@ const NewOrders = () => {
         },
       });
       const orders = response.data.orders;
+
 
       const headers = [
         "Order Date",
@@ -156,6 +167,7 @@ const NewOrders = () => {
         "Amount Paid",
         "Mode of Payment"
       ];
+
 
       const rows = orders.map(order => [
         order.orderDate ? new Date(order.orderDate).toLocaleDateString() : "N/A",
@@ -172,11 +184,13 @@ const NewOrders = () => {
         order.modeOfPayment || "N/A"
       ]);
 
+
       let csvContent = "";
       csvContent += headers.join(",") + "\n";
       rows.forEach(row => {
         csvContent += row.map(cell => `"${cell}"`).join(",") + "\n";
       });
+
 
       const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
       const url = URL.createObjectURL(blob);
@@ -191,14 +205,17 @@ const NewOrders = () => {
     }
   };
 
+
   const handleChangePage = (event, newPage) => {
     setPage(newPage);
   };
+
 
   const handleChangeRowsPerPage = (event) => {
     setRowsPerPage(parseInt(event.target.value, 10));
     setPage(0);
   };
+
 
   return (
     <Box sx={{ padding: 2 }}>
@@ -213,6 +230,7 @@ const NewOrders = () => {
           </Button>
         </Box>
       </Box>
+
 
       <Drawer anchor="right" open={filterOpen} onClose={() => setFilterOpen(false)}>
         <Box sx={{ width: 300, padding: 2 }}>
@@ -343,6 +361,7 @@ const NewOrders = () => {
         </Box>
       </Drawer>
 
+
       <TableContainer component={Paper} sx={{ maxHeight: 1000 }}>
         <Table stickyHeader aria-label="combined orders table">
           <TableHead>
@@ -408,4 +427,8 @@ const NewOrders = () => {
   );
 };
 
+
 export default NewOrders;
+
+
+
