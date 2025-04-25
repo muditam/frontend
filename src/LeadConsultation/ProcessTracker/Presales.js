@@ -18,7 +18,7 @@ import axios from "axios";
 // Fixed cell width style for form fields
 const cellStyle = { minWidth: "220px", maxWidth: "220px" };
 
-const Presales = ({ customerId }) => {
+const Presales = ({ customerId, parentLeadStatus  }) => {
   // State for presales fields; note that "notes" will be saved manually.
   const [formData, setFormData] = useState({
     leadStatus: "New Lead",
@@ -178,6 +178,13 @@ const Presales = ({ customerId }) => {
       .catch((error) => console.error("Error fetching employees:", error));
   }, [customerId]);
 
+  useEffect(() => { 
+     setFormData(prev => ({
+       ...prev,
+        leadStatus: parentLeadStatus
+     }));
+    }, [parentLeadStatus]);
+
   // Updated auto-save function that converts fields as needed.
   const autoSavePresales = (updatedFormData, updatedChecklist) => {
     if (!customerId) return;
@@ -278,7 +285,7 @@ const Presales = ({ customerId }) => {
 
   // Determine if "Assign Expert" should be editable.
   const isAssignExpertEditable =
-    formData.leadStatus === "CONS Scheduled" || formData.leadStatus === "CONS Done";
+  parentLeadStatus  === "CONS Scheduled" || formData.leadStatus === "CONS Done";
 
   return (
     <Box sx={{ display: "flex", height: "100%" }}>
@@ -287,7 +294,7 @@ const Presales = ({ customerId }) => {
         <form>
           <Grid container spacing={2}>
             {/* Lead Status dropdown */}
-            <Grid item xs={6} sx={cellStyle}>
+            {/* <Grid item xs={6} sx={cellStyle}>
               <FormControl fullWidth size="small">
                 <InputLabel>Lead Status</InputLabel>
                 <Select
@@ -303,7 +310,7 @@ const Presales = ({ customerId }) => {
                   ))}
                 </Select>
               </FormControl>
-            </Grid>
+            </Grid> */}
 
             {/* Assign Expert dropdown – wrapped in Tooltip if disabled */}
             <Grid item xs={6} sx={cellStyle}>

@@ -17,6 +17,12 @@ import {
   InputLabel,
   Select,
   MenuItem,
+  IconButton,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  Grid,
+  Typography,
 } from "@mui/material";
 import { styled } from "@mui/material/styles";
 import axios from "axios";
@@ -27,6 +33,7 @@ import ConsultationFollowup from "./FollowUpConsultation/ConsultationFollowup";
 import ConsultationHistory from "./FollowUpConsultation/ConsultationHistory";
 
 // All icon imports are now at the top
+import EditIcon from '@mui/icons-material/Edit';
 import ShoppingCartIcon from "@mui/icons-material/ShoppingCart";
 import ChatIcon from "@mui/icons-material/Chat";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
@@ -39,6 +46,22 @@ const stepIconsOriginal = {
   2: ChatIcon,
   3: CheckCircleIcon,
 };
+
+const leadSourceOptions = [
+  "Abandoned Cart",
+  "BiteSpeed",
+  "Business on Bot",
+  "Facebook Lead",
+  "Google Lead",
+  "Incoming Call",
+  "Lead Form",
+  "Online Store",
+  "Others",
+  "Rampwin",
+  "Reference",
+  "Whatsapp",
+  "Degpeg",
+];
 
 const CustomStepIconOriginal = (props) => {
   const { active, completed, icon, className } = props;
@@ -111,6 +134,21 @@ const ConsultationDetails = ({ customerId }) => {
   // Local state for presales.leadStatus (used by dropdown and to decide stepper type)
   const [leadStatus, setLeadStatus] = useState("New Lead");
 
+  const [editOpen, setEditOpen] = useState(false);
+  const [editData, setEditData] = useState({});
+
+  const [employees, setEmployees] = useState([]);
+
+  // Fetch employees for Assigned To dropdown
+  useEffect(() => {
+    axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/employees")
+      .then(res => {
+        const salesAgents = res.data.filter(emp => emp.role === "Sales Agent" && emp.status === "active");
+        setEmployees(salesAgents);
+      })
+      .catch(err => console.error("Error fetching employees:", err));
+  }, []);
+
   // Reset activeStep when customerId changes
   useEffect(() => {
     setActiveStep(0);
@@ -171,6 +209,37 @@ const ConsultationDetails = ({ customerId }) => {
       });
   };
 
+  const handleOpenEdit = () => {
+    setEditData({
+      name: customer.name,
+      phone: customer.phone,
+      age: customer.age,
+      location: customer.location,
+      lookingFor: customer.lookingFor,
+      assignedTo: customer.assignedTo,
+      leadSource: customer.leadSource,
+      followUpDate,
+    });
+    setEditOpen(true);
+  };
+
+  const handleEditChange = (e) => {
+    const { name, value } = e.target;
+    setEditData(prev => ({ ...prev, [name]: value }));
+  };
+
+  // Save edits
+  const handleSaveEdit = () => {
+    axios.put(
+      `https://muditamleads-14f32a10d7f7.herokuapp.com/api/customers/${customerId}`,
+      editData
+    ).then(({ data }) => {
+      setCustomer(data.customer);
+      setFollowUpDate(editData.followUpDate);
+      setEditOpen(false);
+    });
+  };
+
   // Update active step when a step is clicked
   const handleStepClick = (stepIndex) => {
     setActiveStep(stepIndex);
@@ -208,6 +277,52 @@ const ConsultationDetails = ({ customerId }) => {
 
   return (
     <Box sx={{ p: 2 }}>
+
+<Dialog open={editOpen} onClose={() => setEditOpen(false)} fullWidth maxWidth="sm">
+        <DialogContent>
+          <Typography variant="h6" sx={{ mb: 2 }}>Edit Customer</Typography>
+          <Grid container spacing={1}>
+            <Grid item xs={6}><TextField label="Name" name="name" value={editData.name} onChange={handleEditChange} fullWidth size="small" /></Grid>
+            <Grid item xs={6}><TextField label="Phone" name="phone" value={editData.phone} onChange={handleEditChange} fullWidth size="small" /></Grid>
+            <Grid item xs={4}><TextField label="Age" name="age" type="number" value={editData.age} onChange={handleEditChange} fullWidth size="small" /></Grid>
+            <Grid item xs={8}><TextField label="Location" name="location" value={editData.location} onChange={handleEditChange} fullWidth size="small" /></Grid>
+            <Grid item xs={6}>
+              <FormControl fullWidth size="small">
+                <InputLabel>Looking For</InputLabel>
+                <Select name="lookingFor" value={editData.lookingFor} onChange={handleEditChange} label="Looking For">
+                  <MenuItem value="Diabetes">Diabetes</MenuItem>
+                  <MenuItem value="Fatty Liver">Fatty Liver</MenuItem>
+                  <MenuItem value="Cholesterol">Cholesterol</MenuItem>
+                  <MenuItem value="Others">Others</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
+            <Grid item xs={6}>
+              <FormControl fullWidth size="small">
+                <InputLabel>Assigned To</InputLabel>
+                <Select name="assignedTo" value={editData.assignedTo} onChange={handleEditChange} label="Assigned To">
+                  <MenuItem value="">Unassigned</MenuItem>
+                  {employees.map(emp => <MenuItem key={emp._id} value={emp.fullName}>{emp.fullName}</MenuItem>)}
+                </Select>
+              </FormControl>
+            </Grid>
+            <Grid item xs={6}>
+              <FormControl fullWidth size="small">
+                <InputLabel>Lead Source</InputLabel>
+                <Select name="leadSource" value={editData.leadSource} onChange={handleEditChange} label="Lead Source">
+                  {leadSourceOptions.map(src => <MenuItem key={src} value={src}>{src}</MenuItem>)}
+                </Select>
+              </FormControl>
+            </Grid>
+            <Grid item xs={6}><TextField label="Follow-up Date" name="followUpDate" type="date" value={editData.followUpDate} onChange={handleEditChange} fullWidth size="small" /></Grid>
+          </Grid>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setEditOpen(false)}>Cancel</Button>
+          <Button variant="contained" onClick={handleSaveEdit}>Save</Button>
+        </DialogActions>
+      </Dialog>
+
       {/* Customer details table */}
       <Table sx={{ mb: 2 }}>
         <TableHead sx={{ backgroundColor: "black" }}>
@@ -219,6 +334,7 @@ const ConsultationDetails = ({ customerId }) => {
             <TableCell sx={{ color: "white", fontWeight: "bold" }}>Looking For</TableCell>
             <TableCell sx={{ color: "white", fontWeight: "bold" }}>Assigned To</TableCell>
             <TableCell sx={{ color: "white", fontWeight: "bold" }}>Created At</TableCell>
+            <TableCell sx={{ color: "white", fontWeight: "bold" }}>Lead Source</TableCell>
             <TableCell sx={{ color: "white", fontWeight: "bold" }}>Follow-up Date</TableCell>
             <TableCell sx={{ color: "white", fontWeight: "bold" }}>Action</TableCell>
           </TableRow>
@@ -232,6 +348,7 @@ const ConsultationDetails = ({ customerId }) => {
             <TableCell>{customer.lookingFor}</TableCell>
             <TableCell>{customer.assignedTo}</TableCell>
             <TableCell>{getCreatedAtLabel(customer.createdAt)}</TableCell>
+            <TableCell>{customer.leadSource}</TableCell>
             <TableCell>
               <TextField
                 value={followUpDate}
@@ -240,20 +357,7 @@ const ConsultationDetails = ({ customerId }) => {
                 size="small"
               />
             </TableCell>
-            <TableCell>
-              <Button
-                variant="contained"
-                onClick={handleSaveFollowUp}
-                size="small"
-                sx={{
-                  backgroundColor: "black",
-                  color: "white",
-                  "&:hover": { backgroundColor: "#333" },
-                }}
-              >
-                Save
-              </Button>
-            </TableCell>
+            <TableCell><IconButton size="small" onClick={handleOpenEdit}><EditIcon/></IconButton> <Button size="small" variant="contained" onClick={handleSaveFollowUp} sx={{ ml:1, backgroundColor:'black', color:'white', '&:hover':{backgroundColor:'#333'} }}>Save</Button></TableCell>
           </TableRow>
         </TableBody>
       </Table>
@@ -359,7 +463,7 @@ const ConsultationDetails = ({ customerId }) => {
           )
         ) : (
           <>
-            {activeStep === 0 && <Presales key={`presales-${customerId}`} customerId={customerId} />}
+            {activeStep === 0 && <Presales key={`presales-${customerId}`} customerId={customerId} parentLeadStatus={leadStatus} />}
             {activeStep === 1 && <Consultation key={`consultation-${customerId}`} customerId={customerId} />}
             {activeStep === 2 && <Closing key={`closing-${customerId}`} customerId={customerId} />}
           </>

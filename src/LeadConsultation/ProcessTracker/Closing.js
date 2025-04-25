@@ -6,8 +6,11 @@ import {
   MenuItem,
   Button,
   FormControl,
+  FormGroup, 
+  FormControlLabel, 
   InputLabel,
   Select,
+  Checkbox,
   Typography,
   IconButton,
 } from "@mui/material";
@@ -15,7 +18,6 @@ import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import axios from "axios";
 import pincodeData from "./pincodeData"; // import the pin code information
 
- 
 
 const expectedResultsOptions = [
   { id: 1, label: "Only Supplements (Drop of 0.8%)", improvement: "0.8" },
@@ -35,7 +37,13 @@ const freebiesOptions = ["Dumbbells", "Glucometer +10 strips", "Diet Plan", "Glu
 // Options for Blood Test Recommended
 const bloodTestOptions = ["Full Body", "Hba1c", "Others"];
 
-const Closing = ({ presalesHba1c = "8", customerId }) => { 
+const discountOptions = [
+  { label: "₹100 off", code: "LMS100" },
+  { label: "₹500 off", code: "LMS500" },
+  { label: "₹1000 off", code: "LMS1000" },
+];
+
+const Closing = ({ presalesHba1c = "8", customerId }) => {
   const [expectedResult, setExpectedResult] = useState("");
   const [preferredDiet, setPreferredDiet] = useState("");
   const [courseDuration, setCourseDuration] = useState("");
@@ -52,37 +60,81 @@ const Closing = ({ presalesHba1c = "8", customerId }) => {
   const [selectedProducts, setSelectedProducts] = useState([]);
   const [currentHba1c, setCurrentHba1c] = useState(presalesHba1c);
   const [generatedLink, setGeneratedLink] = useState("");
+  const [discountCodes, setDiscountCodes] = useState([]); 
 
   // Styling for sections
   const sectionStyle = { mb: 3, p: 1, borderBottom: "1px solid #ccc" };
 
   // Handler functions
   const handleExpectedResultSelect = (option) => {
-    setExpectedResult(option.id);
-  };
+       setExpectedResult(option.id);
+       autoSaveClosing({
+         expectedResult: option.id,
+         preferredDiet,
+         courseDuration,
+         freebie: freebies,
+         bloodTest,
+         bloodTestDetails,
+         discountCodes,
+       });
+     }
 
-  const handlePreferredDietSelect = (option) => {
-    setPreferredDiet(option);
-  };
+     const handlePreferredDietSelect = (option) => {
+         setPreferredDiet(option);
+         autoSaveClosing({
+           expectedResult,
+           preferredDiet: option,
+           courseDuration,
+           freebie: freebies,
+           bloodTest,
+           bloodTestDetails,
+           discountCodes,
+         });
+       }
 
-  const handleCourseDurationSelect = (option) => {
-    setCourseDuration(option);
-  };
+       const handleCourseDurationSelect = (option) => {
+           setCourseDuration(option);
+           autoSaveClosing({
+             expectedResult,
+             preferredDiet,
+             courseDuration: option,
+             freebie: freebies,
+             bloodTest,
+             bloodTestDetails,
+             discountCodes,
+           });
+         };
 
   // Toggle selection for Freebies
   const handleFreebieSelect = (option) => {
-    setFreebies((prev) => {
-      if (prev.includes(option)) {
-        return prev.filter((item) => item !== option);
-      } else {
-        return [...prev, option];
-      }
-    });
-  };
+       const updated = freebies.includes(option)
+         ? freebies.filter((f) => f !== option)
+         : [...freebies, option];
+       setFreebies(updated);
+       autoSaveClosing({
+         expectedResult,
+         preferredDiet,
+         courseDuration,
+         freebie: updated,
+         bloodTest,
+         bloodTestDetails,
+         discountCodes,
+       });
+     }
 
-  const handleBloodTestSelect = (e) => {
-    setBloodTest(e.target.value);
-  };
+     const handleBloodTestSelect = (e) => {
+         const val = e.target.value;
+         setBloodTest(val);
+         autoSaveClosing({
+           expectedResult,
+           preferredDiet,
+           courseDuration,
+           freebie: freebies,
+           bloodTest: val,
+           bloodTestDetails,
+           discountCodes,
+         });
+       }
 
   const handleServiceCheck = () => {
     const availableLabs = [];
@@ -109,9 +161,19 @@ const Closing = ({ presalesHba1c = "8", customerId }) => {
   };
 
   const handleBloodTestDetailsChange = (e) => {
-    const { name, value } = e.target;
-    setBloodTestDetails((prev) => ({ ...prev, [name]: value }));
-  };
+       const { name, value } = e.target;
+       const updated = { ...bloodTestDetails, [name]: value };
+       setBloodTestDetails(updated);
+       autoSaveClosing({
+         expectedResult,
+         preferredDiet,
+         courseDuration,
+         freebie: freebies,
+         bloodTest,
+         bloodTestDetails: updated,
+         discountCodes,
+       });
+     }
 
   const handleCreatePlanLink = () => {
     const baseUrl = "https://muditam.myshopify.com/apps/consultation";
@@ -129,6 +191,22 @@ const Closing = ({ presalesHba1c = "8", customerId }) => {
     }
   };
 
+  const handleDiscountToggle = (code) => {
+       const updated = discountCodes.includes(code)
+         ? discountCodes.filter((c) => c !== code)
+         : [...discountCodes, code];
+       setDiscountCodes(updated);
+       autoSaveClosing({
+         expectedResult,
+         preferredDiet,
+         courseDuration,
+         freebie: freebies,
+         bloodTest,
+         bloodTestDetails,
+         discountCodes: updated,
+       });
+     }
+
   useEffect(() => {
     if (customerId) {
       axios
@@ -140,7 +218,7 @@ const Closing = ({ presalesHba1c = "8", customerId }) => {
             const savedPresales = response.data[0].presales;
             if (savedPresales && savedPresales.hba1c) {
               setCurrentHba1c(savedPresales.hba1c);
-            } 
+            }
             if (savedClosing) {
               if (savedClosing.expectedResult) {
                 setExpectedResult(savedClosing.expectedResult);
@@ -164,6 +242,9 @@ const Closing = ({ presalesHba1c = "8", customerId }) => {
               if (savedClosing.bloodTestDetails) {
                 setBloodTestDetails(savedClosing.bloodTestDetails);
               }
+              if (savedClosing.discountCodes) {
+                setDiscountCodes(savedClosing.discountCodes);
+              }
             }
             if (savedConsultation && savedConsultation.selectedProducts) {
               setSelectedProducts(savedConsultation.selectedProducts);
@@ -176,67 +257,16 @@ const Closing = ({ presalesHba1c = "8", customerId }) => {
     }
   }, [customerId]);
 
-  const handleSubmit = () => {
-    if (!customerId) {
-      alert("No customer selected. Please select a customer first.");
-      return;
-    }
-
-    const payload = {
-      customerId,
-      closing: {
-        expectedResult,
-        preferredDiet,
-        courseDuration,
-        freebie: freebies,
-        bloodTest,
-        bloodTestDetails,
-      },
-       
-    };
-
+  const autoSaveClosing = (updatedFields) => {
+    if (!customerId) return;
     axios
-      .post("https://muditamleads-14f32a10d7f7.herokuapp.com/api/consultation-details", payload)
-      .then((response) => {
-        axios
-          .get(`https://muditamleads-14f32a10d7f7.herokuapp.com/api/consultation-details?customerId=${customerId}`)
-          .then((res) => {
-            if (res.data && res.data.length > 0) {
-              const savedClosing = res.data[0].closing;
-              const savedPresales = res.data[0].presales;
-              if (savedClosing) {
-                if (savedClosing.expectedResult) {
-                  setExpectedResult(savedClosing.expectedResult);
-                }
-                if (savedClosing.preferredDiet) {
-                  setPreferredDiet(savedClosing.preferredDiet);
-                }
-                if (savedClosing.courseDuration) {
-                  setCourseDuration(savedClosing.courseDuration);
-                }
-                if (savedClosing.freebie) {
-                  setFreebies(
-                    Array.isArray(savedClosing.freebie)
-                      ? savedClosing.freebie
-                      : [savedClosing.freebie]
-                  );
-                }
-                if (savedClosing.bloodTest) {
-                  setBloodTest(savedClosing.bloodTest);
-                }
-                if (savedClosing.bloodTestDetails) {
-                  setBloodTestDetails(savedClosing.bloodTestDetails);
-                }
-              }
-            }
-          })
-          .catch((err) =>
-            console.error("Error refreshing closing details:", err)
-          );
-      })
-      .catch((error) => {
-        console.error("Error saving closing data:", error);
-      });
+      .post(
+        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/consultation-details",
+        { customerId, closing: updatedFields }
+      )
+      .catch((err) =>
+        console.error("Error auto-saving closing details:", err)
+      );
   };
 
   const calculateAchievableHba1c = (improvement) => {
@@ -248,7 +278,7 @@ const Closing = ({ presalesHba1c = "8", customerId }) => {
 
   return (
     <Box sx={{ p: 2 }}>
-      
+
       {/* Combined Options Section: Expected Results, Preferred Diet, Course Duration, Freebies */}
       <Box sx={sectionStyle}>
         <Grid container spacing={2}>
@@ -524,12 +554,28 @@ const Closing = ({ presalesHba1c = "8", customerId }) => {
         )}
       </Box>
 
-      {/* Save Button */}
-      <Box sx={{ mt: 2, display: "flex", justifyContent: "flex-end" }}>
-        <Button variant="contained" size="small" sx={{ background: "black", color: "white" }} onClick={handleSubmit}>
-          Save
-        </Button>
+
+      <Box sx={sectionStyle}>
+        <Typography variant="h6" sx={{ mb: 1, fontWeight: "bold" }}>
+          Discount Codes
+        </Typography>
+        <FormGroup row>
+          {discountOptions.map(({ label, code }) => (
+            <FormControlLabel
+              key={code}
+              control={
+                <Checkbox
+                  checked={discountCodes.includes(code)}
+                  onChange={() => handleDiscountToggle(code)}
+                />
+              }
+              label={label}
+            />
+          ))}
+        </FormGroup>
       </Box>
+ 
+      
     </Box>
   );
 };

@@ -137,8 +137,7 @@ const Consultation = ({ customerId }) => {
     gutIssues: "",
     energyLevels: "",
     sleepQuality: "",
-    sugarCravings: "",
-    durationOfDiabetes: "",
+    sugarCravings: "", 
   });
 
   // Call Checklist state
@@ -156,29 +155,35 @@ const Consultation = ({ customerId }) => {
 
   // Handler for text/select fields
   const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
-  };
+       const { name, value } = e.target;
+       const updated = { ...formData, [name]: value };
+       setFormData(updated);
+       autoSaveConsultation(updated, callChecklist, selectedProducts);
+     };
 
   // Handler for multi-select fields
   const handleMultiSelectChange = (field, newValue) => {
-    setFormData((prev) => ({ ...prev, [field]: newValue }));
-  };
+       const updated = { ...formData, [field]: newValue };
+       setFormData(updated);
+       autoSaveConsultation(updated, callChecklist, selectedProducts);
+     }
 
   // Handler for checklist changes
   const handleCheckboxChange = (e) => {
-    const { name, checked } = e.target;
-    setCallChecklist((prev) => ({ ...prev, [name]: checked }));
-  };
+       const { name, checked } = e.target;
+       const updatedChecklist = { ...callChecklist, [name]: checked };
+       setCallChecklist(updatedChecklist);
+       autoSaveConsultation(formData, updatedChecklist, selectedProducts);
+     };
 
   // Handler for product selection toggling
   const handleProductClick = (product) => {
-    setSelectedProducts((prev) =>
-      prev.includes(product)
-        ? prev.filter((p) => p !== product)
-        : [...prev, product]
-    );
-  };
+       const updatedProducts = selectedProducts.includes(product)
+         ? selectedProducts.filter((p) => p !== product)
+         : [...selectedProducts, product];
+       setSelectedProducts(updatedProducts);
+       autoSaveConsultation(formData, callChecklist, updatedProducts);
+     };
 
   // On mount, fetch existing consultation data (if available) for the specific customerId
   useEffect(() => {
@@ -208,48 +213,22 @@ const Consultation = ({ customerId }) => {
     }
   }, [customerId]);
 
-  // Save handler: builds payload with the consultation section and posts to backend
-  const handleSubmit = () => {
-    if (!customerId) {
-      alert("No customer selected. Please select a customer first.");
-      return;
-    }
+  const autoSaveConsultation = (updatedData, updatedChecklist, updatedProducts) => {
+    if (!customerId) return;
     const payload = {
       customerId,
       consultation: {
-        ...formData,
-        checklist: callChecklist,
-        selectedProducts: selectedProducts,
+        ...updatedData,
+        checklist: updatedChecklist,
+        selectedProducts: updatedProducts,
       },
     };
-
     axios
-      .post("https://muditamleads-14f32a10d7f7.herokuapp.com/api/consultation-details", payload)
-      .then((response) => { 
-        // Refresh consultation data from the backend
-        axios
-          .get(`https://muditamleads-14f32a10d7f7.herokuapp.com/api/consultation-details?customerId=${customerId}`)
-          .then((res) => {
-            if (res.data && res.data.length > 0) {
-              const savedConsultation = res.data[0].consultation;
-              if (savedConsultation) {
-                setFormData((prev) => ({ ...prev, ...savedConsultation }));
-                if (savedConsultation.checklist) {
-                  setCallChecklist(savedConsultation.checklist);
-                }
-                if (savedConsultation.selectedProducts) {
-                  setSelectedProducts(savedConsultation.selectedProducts);
-                }
-              }
-            }
-          })
-          .catch((err) =>
-            console.error("Error refreshing consultation details:", err)
-          );
-      })
-      .catch((error) => {
-        console.error("Error saving consultation data:", error);
-      });
+      .post(
+        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/consultation-details",
+        payload
+      )
+      .catch((err) => console.error("Error auto-saving consultation:", err));
   };
 
   const products = [
@@ -289,23 +268,7 @@ const Consultation = ({ customerId }) => {
               )}
             />
           </Grid>
-          <Grid item xs={4}>
-            <FormControl fullWidth size="small">
-              <InputLabel>Duration of Diabetes</InputLabel>
-              <Select
-                name="durationOfDiabetes"
-                value={formData.durationOfDiabetes}
-                label="Duration of Diabetes"
-                onChange={handleChange}
-              >
-                {durationOfDiabetesOptions.map((opt) => (
-                  <MenuItem key={opt} value={opt}>
-                    {opt}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-          </Grid>
+          
           {/* Row 2: Side Effects, Sudden Sugar Fluctuations, Family History */}
           <Grid item xs={4}>
             <FormControl fullWidth size="small">
@@ -542,19 +505,7 @@ const Consultation = ({ customerId }) => {
             </Grid>
           </Grid>
 
-          {/* Save Button */}
-          <Grid item xs={12}>
-            <Box sx={{ display: "flex", justifyContent: "flex-end", mt: 2 }}>
-              <Button
-                variant="contained"
-                size="small"
-                sx={{ background: "black", color: "#fff" }}
-                onClick={handleSubmit}
-              >
-                Save
-              </Button>
-            </Box>
-          </Grid>
+           
         </Grid>
       </Box>
 

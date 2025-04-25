@@ -82,6 +82,22 @@ const getInitials = (name) => {
   return parts[0].charAt(0).toUpperCase() + parts[parts.length - 1].charAt(0).toUpperCase();
 };
 
+const leadSourceOptions = [
+  "Abandoned Cart",
+  "BiteSpeed",
+  "Business on Bot",
+  "Facebook Lead",
+  "Google Lead",
+  "Incoming Call",
+  "Lead Form",
+  "Online Store",
+  "Others",
+  "Rampwin",
+  "Reference",
+  "Whatsapp",
+  "Degpeg",
+];
+
 const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId }) => {
   const [leadData, setLeadData] = useState({
     name: "",
@@ -91,6 +107,7 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
     lookingFor: "",
     assignedTo: "",
     followUpDate: new Date().toISOString().split("T")[0],
+    leadSource: "",
   });
   const [open, setOpen] = useState(false);
   const [error, setError] = useState("");
@@ -136,7 +153,7 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      if (!leadData.name || !leadData.phone || !leadData.age) {
+      if (!leadData.name || !leadData.phone || !leadData.age || !leadData.leadSource) {
         setError("All fields are required.");
         return;
       }
@@ -527,7 +544,7 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
                 )}
               />
             </Grid>
-            <Grid item xs={12}>
+            <Grid item xs={6}>
               <FormControl fullWidth required size="small">
                 <InputLabel>Assigned To</InputLabel>
                 <Select name="assignedTo" value={leadData.assignedTo} onChange={handleChange} label="Assigned To">
@@ -546,6 +563,23 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
                       </MenuItem>
                     );
                   })}
+                </Select>
+              </FormControl>
+            </Grid>
+            <Grid item xs={6}>
+              <FormControl fullWidth required size="small">
+                <InputLabel>Lead Source</InputLabel>
+                <Select
+                  name="leadSource"
+                  value={leadData.leadSource}
+                  onChange={handleChange}
+                  label="Lead Source"
+                >
+                  {leadSourceOptions.map((source) => (
+                    <MenuItem key={source} value={source}>
+                      {source}
+                    </MenuItem>
+                  ))}
                 </Select>
               </FormControl>
             </Grid>
@@ -581,3 +615,4 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
 };
 
 export default LeadList;
+ 

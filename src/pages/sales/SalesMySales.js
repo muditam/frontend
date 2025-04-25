@@ -71,8 +71,7 @@ const SalesMySales = () => {
 
       // Fetch MyOrders data
       const myOrdersResponse = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/my-orders");
-      const allMyOrders = myOrdersResponse.data || [];
-      // Filter MyOrders so that only orders where agentName matches the logged‑in user's name are used.
+      const allMyOrders = myOrdersResponse.data || []; 
       const myOrders = allMyOrders.filter(
         (order) => order.agentName === agentAssignedName
       );

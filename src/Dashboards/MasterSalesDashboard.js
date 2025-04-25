@@ -340,10 +340,6 @@ const ManagerSalesDashboard = () => {
     },
     [selectedAgent]
   );
- 
-
-
-
 
   // Combined table fetch
   const fetchTableData = useCallback(
