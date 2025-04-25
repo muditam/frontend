@@ -253,7 +253,7 @@ const RetentionTable = () => {
           color: "black",
           marginBottom: 2,
         }}
-      >
+      > 
         Master Data - Retention
       </Typography>
 
@@ -692,8 +692,3 @@ const RetentionTable = () => {
 
 
 export default RetentionTable;
-
-
-
-
-
