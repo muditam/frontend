@@ -163,10 +163,15 @@ const RetentionLeads = () => {
         return !lead.retentionStatus || lead.retentionStatus.toLowerCase() !== "lost";
       });
       
-      // Reverse the filtered array to show the latest leads on top
-      const reversedLeads = [...filteredLeads].reverse();
-      setAllLeads(reversedLeads);
-      setLeads(reversedLeads);
+      // Reverse the filtered array to show the latest leads on top 
+      const sortedLeads = filteredLeads.sort((a, b) => {
+        if (!a.lastOrderDate) return 1;
+        if (!b.lastOrderDate) return -1;
+        return new Date(b.lastOrderDate) - new Date(a.lastOrderDate);
+      });
+ 
+      setAllLeads(sortedLeads);
+      setLeads(sortedLeads);
     } catch (error) {
       console.error("Failed to fetch retention leads", error);
     }

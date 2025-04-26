@@ -29,16 +29,12 @@ import MyTemplates from "./components/MyTemplates";
 import FacebookLeads from './components/FacebookLeads';
 import LeadManagement from './LeadConsultation/LeadManagement';
 
-import { ToastContainer } from "react-toastify";
-import "react-toastify/dist/ReactToastify.css";
-
 const App = () => {
   return (
     <Router>
       <div>
         <NavbarWithSearch />
-        <NotificationListener />
-        <ToastContainer position="bottom-right" autoClose={5000} closeButton />
+        <NotificationListener /> 
 
         <Routes>
  
