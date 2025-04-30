@@ -1362,8 +1362,6 @@ const CartDrawer = ({ closeDrawer }) => {
                 </Box>
               )}
 
-              {customerId && customerName && (
-              <>
               <FormControlLabel
                 control={
                   <Checkbox
@@ -1848,9 +1846,8 @@ const CartDrawer = ({ closeDrawer }) => {
                       )}
                     </Button>
                   )}
+
                 </Box>
-              )}
-              </>
               )}
             </Box>
           </motion.div>
