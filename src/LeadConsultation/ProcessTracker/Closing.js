@@ -38,9 +38,12 @@ const freebiesOptions = ["Dumbbells", "Glucometer +10 strips", "Diet Plan", "Glu
 const bloodTestOptions = ["Full Body", "Hba1c", "Others"];
 
 const discountOptions = [
-  { label: "₹100 off", code: "LMS100" },
-  { label: "₹500 off", code: "LMS500" },
-  { label: "₹1000 off", code: "LMS1000" },
+  { label: "₹100 off", code: "DOCTORSPECIAL100" },
+  { label: "₹500 off", code: "DOCTORSPECIAL500" },
+  { label: "₹1000 off", code: "DOCTORSPECIAL1000" },
+  { label: "5% off", code: "DOCTORSPECIAL5" },
+  { label: "10% off", code: "DOCTORSPECIAL10" },
+  { label: "12% off", code: "DOCTORSPECIAL12" },
 ];
 
 const Closing = ({ presalesHba1c = "8", customerId }) => {
