@@ -441,7 +441,7 @@ const ConsultationDetails = ({ customerId }) => {
               "General Query",
               "Fake Lead",
               "Invalid Number",
-              "Not Interested",
+              "Not Interested", 
               "Ordered from Other Sources",
               "Budget issue",
             ].map((status) => (

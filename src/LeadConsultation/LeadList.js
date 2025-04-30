@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import {
   Box,
   Button,
@@ -23,6 +23,9 @@ import PersonAddIcon from "@mui/icons-material/PersonAdd";
 import FolderOpenIcon from "@mui/icons-material/FolderOpen";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import CancelIcon from "@mui/icons-material/Cancel";
+import Menu from "@mui/material/Menu";
+import Checkbox from "@mui/material/Checkbox";
+import { CircularProgress } from "@mui/material";
 import axios from "axios";
 
 /**
@@ -121,6 +124,36 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const limit = 20; // Number of leads per page
+
+  const [filterMenuAnchorEl, setFilterMenuAnchorEl] = useState(null);
+  const [selectedFilters, setSelectedFilters] = useState([]);
+  const filterOptions = [
+    "Missed",
+    "Today",
+    "Tomorrow",
+    "CONS Scheduled",
+    "CONS Done",
+  ];
+
+  const handleFilterClick = (e) => setFilterMenuAnchorEl(e.currentTarget);
+  const handleFilterClose = () => setFilterMenuAnchorEl(null);
+  const handleFilterToggle = (opt) => {
+    setSelectedFilters((prev) =>
+      prev.includes(opt) ? prev.filter((f) => f !== opt) : [...prev, opt]
+    );
+  };
+
+  const [sortMenuAnchorEl, setSortMenuAnchorEl] = useState(null);
+  const [sortOrder, setSortOrder] = useState(null); // 'asc' | 'desc'
+  const handleSortClick = (e) => setSortMenuAnchorEl(e.currentTarget);
+    const handleSortClose = () => setSortMenuAnchorEl(null);
+    const handleSortSelect = (order) => {
+      setSortOrder(order);
+      setSortMenuAnchorEl(null);
+    };
+
+  const [loadingMore, setLoadingMore] = useState(false);
+  const listRef = useRef(null);
 
   // Memoize loggedInUser to prevent re-renders from recreating the object
   const loggedInUser = useMemo(() => {
@@ -237,6 +270,18 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
     );
   });
 
+  const handleScroll = () => {
+    const container = listRef.current;
+    if (!container) return;
+    const { scrollTop, scrollHeight, clientHeight } = container;
+    if (scrollTop + clientHeight >= scrollHeight - 50 && !loadingMore && currentPage < totalPages) {
+      setLoadingMore(true);
+      fetchCustomers(currentPage + 1, false, searchQuery)
+        .finally(() => setLoadingMore(false));
+    }
+  };
+  
+
   // Define filter arrays based on the lead status dropdown value in presales
   const openStatuses = [
     "New Lead",
@@ -258,6 +303,14 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
 
   // Apply additional filtering based on the selected filterStatus
   let filteredCustomersFinal = baseFilteredCustomers;
+  if (selectedFilters.length > 0) {
+    filteredCustomersFinal = filteredCustomersFinal.filter((customer) => {
+      const tag = getFollowUpTag(customer.followUpDate);            
+      const status = customer.presales?.leadStatus;                 
+      return selectedFilters.includes(tag) || selectedFilters.includes(status);
+    });
+  }
+
   if (filterStatus) {
     if (filterStatus === "Open") {
       filteredCustomersFinal = filteredCustomersFinal.filter(
@@ -279,8 +332,35 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
     }
   }
 
-  // Default sort by createdAt (new customers on top)
-  filteredCustomersFinal.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  // apply the chosen sort order
+if (sortOrder === "asc") {
+  // name A→Z
+  filteredCustomersFinal.sort((a, b) =>
+    a.name.localeCompare(b.name)
+  );
+} else if (sortOrder === "desc") {
+  // name Z→A
+  filteredCustomersFinal.sort((a, b) =>
+    b.name.localeCompare(a.name)
+  );
+} else if (sortOrder === "newest") {
+  // createdAt: newest first
+  filteredCustomersFinal.sort(
+    (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
+  );
+} else if (sortOrder === "oldest") {
+  // createdAt: oldest first
+  filteredCustomersFinal.sort(
+    (a, b) => new Date(a.createdAt) - new Date(b.createdAt)
+  );
+} else {
+  // default if nothing chosen: newest first
+  filteredCustomersFinal.sort(
+    (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
+  );
+}
+
+  
 
   // Function to load more leads (next page)
   const loadMore = () => {
@@ -381,17 +461,59 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
           sx={{ fontSize: "0.8rem" }}
         />
         <Box sx={{ display: "flex", ml: 1 }}>
-          <IconButton size="small" sx={{ color: "black" }}>
+          <IconButton
+            size="small"
+            sx={{ color: "black" }}
+            onClick={handleFilterClick}
+          >
             <FilterList fontSize="small" />
           </IconButton>
-          <IconButton size="small" sx={{ color: "black" }}>
+          <Menu
+            anchorEl={filterMenuAnchorEl}
+            open={Boolean(filterMenuAnchorEl)}
+            onClose={handleFilterClose}
+          >
+            {filterOptions.map((opt) => (
+              <MenuItem key={opt} onClick={() => handleFilterToggle(opt)}>
+                <Checkbox checked={selectedFilters.includes(opt)} />
+                {opt}
+              </MenuItem>
+            ))}
+          </Menu>
+
+          <IconButton
+            size="small"
+            sx={{ color: "black" }}
+            onClick={handleSortClick}
+          >
             <Sort fontSize="small" />
           </IconButton>
+          <Menu
+            anchorEl={sortMenuAnchorEl}
+            open={Boolean(sortMenuAnchorEl)}
+            onClose={handleSortClose}
+          >
+            <MenuItem onClick={() => handleSortSelect("asc")}>
+              Sort A to Z
+            </MenuItem>
+            <MenuItem onClick={() => handleSortSelect("desc")}>
+              Sort Z to A
+            </MenuItem>
+            <MenuItem onClick={() => handleSortSelect("newest")}>
+              Newest First
+            </MenuItem>
+            <MenuItem onClick={() => handleSortSelect("oldest")}>
+              Oldest First
+            </MenuItem>
+          </Menu>
         </Box>
       </Box>
 
       {/* Lead List Section */}
-      <Box sx={{ flex: 1, overflowY: "auto" }}>
+      <Box 
+      ref={listRef}
+       onScroll={handleScroll}
+      sx={{ flex: 1, overflowY: "auto" }}>
         {filteredCustomersFinal.map((customer) => (
           <Box
             key={customer._id}
@@ -451,32 +573,55 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
                   }}
                 />
               </Box>
-              <Typography variant="body2" sx={{ color: "gray", fontSize: "0.7rem", mt: 0.5 }}>
-                {customer.location ? customer.location : "Unknown"}
-              </Typography>
+              <Box
+                sx={{
+                  display: "flex",
+                  alignItems: "center",
+                  mt: 0.5,     
+                }}
+              >
+                <Typography
+                  variant="body2"
+                  sx={{ color: "gray", fontSize: "0.7rem" }}
+                >
+                  {customer.location || "Unknown"}
+                </Typography>
+
+                {/* Scheduled / Done chips, with a left margin */}
+                {customer.presales?.leadStatus === "CONS Scheduled" && (
+                  <Chip
+                    label="Scheduled"
+                    size="small"
+                    sx={{
+                      ml: 1,
+                      fontSize: "0.7rem",
+                      backgroundColor: "#64b5f6",
+                      color: "white",
+                    }}
+                  />
+                )}
+                {customer.presales?.leadStatus === "CONS Done" && (
+                  <Chip
+                    label="Done"
+                    size="small"
+                    sx={{
+                      ml: 1,
+                      fontSize: "0.7rem",
+                      backgroundColor: "#81c784",
+                      color: "white",
+                    }}
+                  />
+                )}
+              </Box>
             </Box>
           </Box>
         ))}
+        {loadingMore && (
+          <Box sx={{ textAlign: 'center', py: 1 }}>
+            <CircularProgress size={24} />
+          </Box>
+        )}
       </Box>
-
-      {/* Load More Button */}
-      {currentPage < totalPages && (
-        <Box sx={{ p: 1, textAlign: "center" }}>
-          <Button
-            onClick={loadMore}
-            variant="contained"
-            size="small"
-            sx={{
-              backgroundColor: "white",
-              border: "1px solid black",
-              color: "black",
-              textTransform: "none",
-            }}
-          >
-            Load More
-          </Button>
-        </Box>
-      )}
 
       {/* Dialog for Adding a New Lead */}
       <Dialog open={open} onClose={() => setOpen(false)} fullWidth maxWidth="sm">

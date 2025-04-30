@@ -100,7 +100,9 @@ Address: ${orderDetails.shippingAddress}
 Payment Status: ${orderDetails.paymentStatus}
 Product Ordered: ${orderDetails.productOrdered}
 Order Date: ${orderDetails.orderDate}
-Total Price: ${orderDetails.totalPrice}
+Total Price: ${upsellChecked 
+  ? upsellAmount 
+  : orderDetails.totalPrice}
 Health Expert: ${selectedAgent}
 Dosage Ordered: ${dosageOrdered}`;
     if (orderDetails.paymentStatus === "pending") {
@@ -118,23 +120,23 @@ Dosage Ordered: ${dosageOrdered}`;
   };
 
   // Define mapping object for product abbreviations
-const productAbbreviations = {
-  "Karela Jamun Fizz": "KJF",
-  "Sugar Defend Pro": "SDP",
-  "Vasant Kusmakar Ras": "VKR",
-  "Liver Fix": "L-Fx",
-  "Stress & Sleep": "S&S",
-  "Chandraprabha Vati": "CPV",
-  "Heart Defend Pro": "HDP",
-  "Performance Forever": "PF",
-  "Power Gut": "PGut",
-  "Shilajit with Gold": "Shilajit",
-  "Diabetes Management Kit": "Kit",
-};
+  const productAbbreviations = {
+    "Karela Jamun Fizz": "KJF",
+    "Sugar Defend Pro": "SDP",
+    "Vasant Kusmakar Ras": "VKR",
+    "Liver Fix": "L-Fx",
+    "Stress & Sleep": "S&S",
+    "Chandraprabha Vati": "CPV",
+    "Heart Defend Pro": "HDP",
+    "Performance Forever": "PF",
+    "Power Gut": "PGut",
+    "Shilajit with Gold": "Shilajit",
+    "Diabetes Management Kit": "Kit",
+  };
 
-const mappedProductOrdered = orderDetails
-  ? (productAbbreviations[orderDetails.productOrdered] || orderDetails.productOrdered)
-  : "N/A";
+  const mappedProductOrdered = orderDetails
+    ? (productAbbreviations[orderDetails.productOrdered] || orderDetails.productOrdered)
+    : "N/A";
 
 
   const handleAddToMyOrders = async () => {
@@ -147,14 +149,14 @@ const mappedProductOrdered = orderDetails
         paymentStatus: orderDetails.paymentStatus,
         productOrdered: mappedProductOrdered,
         orderDate: orderDetails.orderDate,
-        orderId: orderDetails.orderId, 
-        totalPrice: orderDetails.totalPrice,
+        orderId: orderDetails.orderId,
+        totalPrice: upsellChecked ? Number(upsellAmount) : Number(orderDetails.totalPrice),
         agentName: selectedAgent,
         partialPayment: partialPayment,
         dosageOrdered,
         selfRemark,
         paymentMethod,
-        upsellAmount: upsellChecked ? upsellAmount : 0,
+        upsellAmount: upsellChecked ? Number(upsellAmount) : 0,
       };
       await axios.post("https://muditamleads-14f32a10d7f7.herokuapp.com/api/my-orders", payload);
       setMessage("Order added successfully to My Sales.");
@@ -258,7 +260,9 @@ const mappedProductOrdered = orderDetails
               </Grid>
               <Grid item xs={7}>
                 <Typography variant="body2">
-                  {orderDetails.totalPrice}
+                  {upsellChecked
+                    ? Number(upsellAmount).toLocaleString()
+                    : Number(orderDetails.totalPrice).toLocaleString()}
                 </Typography>
               </Grid>
               {/* New: Amount Pending row */}

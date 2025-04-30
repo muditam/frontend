@@ -520,18 +520,19 @@ const RetentionSales = () => {
                   />
                 </TableCell>
                 <TableCell style={{ whiteSpace: "nowrap", minWidth: "170px" }}>
-                  <TextField
-                    type="number"
-                    value={
-                      editedSales[sale._id]?.amountPaid ||
-                      sale.amountPaid ||
-                      0
-                    }
-                    onChange={(e) =>
-                      handleInputChange(e, sale._id, "amountPaid")
-                    }
-                    fullWidth
-                  />
+                <TextField
+                  type="number"
+                  value={(
+                    editedSales[sale._id]?.amountPaid ??
+                      (sale.upsellAmount > 0
+                        ? sale.upsellAmount
+                        : sale.amountPaid)
+                  ) || 0}
+                  onChange={(e) =>
+                    handleInputChange(e, sale._id, "amountPaid")
+                  }
+                  fullWidth
+                />
                 </TableCell>
                 <TableCell>
                   <TextField

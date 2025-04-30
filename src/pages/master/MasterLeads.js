@@ -702,7 +702,7 @@ const LeadTable = () => {
             </Drawer>
 
 
-            <TableContainer component={Paper} sx={{ maxHeight: 1000 }}>
+            <TableContainer component={Paper} sx={{ maxHeight: 1000 }}> 
                 <Table stickyHeader aria-label="sticky table">
                     <TableHead>
                         <TableRow>
