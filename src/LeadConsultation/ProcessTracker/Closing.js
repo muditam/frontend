@@ -35,7 +35,7 @@ const courseDurationOptions = ["1 month", "2 months", "3 months", "4 months"];
 const freebiesOptions = ["Dumbbells", "Glucometer +10 strips", "Diet Plan", "Glucometer +25 strips"];
 
 // Options for Blood Test Recommended
-const bloodTestOptions = ["Full Body", "Hba1c", "Others"];
+const bloodTestOptions = ["Full Body", "Hba1c", "Lipid + HbA1c + Liver Panel"];
 
 const discountOptions = [
   { label: "₹100 off", code: "DOCTORSPECIAL100" },
@@ -179,7 +179,7 @@ const Closing = ({ presalesHba1c = "8", customerId }) => {
      }
 
   const handleCreatePlanLink = () => {
-    const baseUrl = "https://muditam.myshopify.com/apps/consultation";
+    const baseUrl = "https://muditam.com/apps/consultation";
     const planLink = `${baseUrl}/${customerId}`;
     setGeneratedLink(planLink);
   };

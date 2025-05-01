@@ -243,9 +243,11 @@ const Consultation = ({ customerId }) => {
     "Power Gut",
     "Shilajit with Gold",
     "Nerve Fix",
-    "Blood Test",
     "Glucometer",
     "Dumbbells",
+    "HbA1c - Blood Test",
+    "Full Body Checkup - Blood Test",
+    "Lipid + HbA1c + Liver - Blood Test",
   ];
 
   return (
