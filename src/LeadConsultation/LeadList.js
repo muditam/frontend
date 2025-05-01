@@ -133,6 +133,7 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
     "Tomorrow",
     "CONS Scheduled",
     "CONS Done",
+    "Sales Done",
   ];
 
   const handleFilterClick = (e) => setFilterMenuAnchorEl(e.currentTarget);
@@ -211,43 +212,79 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
   // Fetch customers based on role, page, and search value
   const fetchCustomers = async (page = 1, reset = false, searchValue = "") => {
     try {
+      // 1. Build your text filters
+      const filters = searchValue
+        ? JSON.stringify({ name: searchValue })
+        : "{}";
+  
+      // 2. Common params for ALL requests
+      const commonParams = {
+        page,
+        limit,
+        filters,
+        status: filterStatus,                   
+        tags: JSON.stringify(selectedFilters),     
+        sortBy: sortOrder                          
+      };
+  
       let response;
-      const filters = searchValue ? JSON.stringify({ name: searchValue }) : "{}";
-      if (loggedInUser && loggedInUser.role === "Sales Agent") {
+  
+      // 3a. If Sales Agent, include assignedTo
+      if (loggedInUser?.role === "Sales Agent") {
         response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/customers", {
-          params: { page, limit, filters, assignedTo: loggedInUser.fullName },
+          params: {
+            ...commonParams,
+            assignedTo: loggedInUser.fullName
+          }
         });
-      } else if (loggedInUser && loggedInUser.role === "Retention Agent") {
-        const consultationRes = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/consultation-details");
-        const filteredConsultations = consultationRes.data.filter(
-          (consultation) =>
-            consultation.presales &&
-            consultation.presales.assignExpert &&
-            consultation.presales.assignExpert.toString() === loggedInUser.id
+  
+      // 3b. If Retention Agent, pull all then client-filter by IDs
+      } else if (loggedInUser?.role === "Retention Agent") {
+        // fetch all their consultation assignments
+        const consRes = await axios.get(
+          "https://muditamleads-14f32a10d7f7.herokuapp.com/api/consultation-details"
         );
-        const customerIds = filteredConsultations.map((c) => c.customerId.toString());
-        response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/customers", { params: { page, limit: 1000, filters } });
-        const filteredCustomers = response.data.customers.filter(
-          (customer) => customer._id && customerIds.includes(customer._id)
+        const myIds = consRes.data
+          .filter(c =>
+            c.presales?.assignExpert?.toString() === loggedInUser.id
+          )
+          .map(c => c.customerId.toString());
+  
+        // fetch up to 1000, with the same common params
+        response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/customers", {
+          params: {
+            ...commonParams,
+            limit: 1000
+          }
+        });
+  
+        // client-side reduce to only my IDs
+        response.data.customers = response.data.customers.filter(c =>
+          myIds.includes(c._id)
         );
-        // For simplicity, treat all filtered customers as one page of data
-        response.data.customers = filteredCustomers;
+  
+      // 3c. Everyone else
       } else {
-        response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/customers", { params: { page, limit, filters } });
+        response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/customers", {
+          params: commonParams
+        });
       }
-      
-      // If reset flag is true, replace customers; otherwise append new customers
+  
+      // 4. Merge or reset
       if (page === 1 || reset) {
         setCustomers(response.data.customers);
       } else {
-        setCustomers((prev) => [...prev, ...response.data.customers]);
+        setCustomers(prev => [...prev, ...response.data.customers]);
       }
+  
       setTotalPages(response.data.totalPages);
       setCurrentPage(response.data.currentPage);
+  
     } catch (err) {
       console.error("Error fetching customers:", err);
     }
   };
+  
 
   // Load first page on component mount or when loggedInUser changes
   useEffect(() => {
@@ -258,17 +295,17 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
   // When searchQuery changes, reset pagination and fetch matching customers
   useEffect(() => {
     fetchCustomers(1, true, searchQuery);
-  }, [searchQuery]);
+  }, [searchQuery, filterStatus, selectedFilters, sortOrder]);  
 
   // First apply client-side filtering (for additional criteria like filterStatus)
-  const baseFilteredCustomers = customers.filter((customer) => {
-    // Client-side search can be used as additional filter if needed.
-    // Since search is now done server side, this could be used for phone filtering or extra criteria.
-    return (
-      (customer.name && customer.name.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      (customer.phone && customer.phone.includes(searchQuery))
-    );
-  });
+  // const baseFilteredCustomers = customers.filter((customer) => {
+  //   // Client-side search can be used as additional filter if needed.
+  //   // Since search is now done server side, this could be used for phone filtering or extra criteria.
+  //   return (
+  //     (customer.name && customer.name.toLowerCase().includes(searchQuery.toLowerCase())) ||
+  //     (customer.phone && customer.phone.includes(searchQuery))
+  //   );
+  // });
 
   const handleScroll = () => {
     const container = listRef.current;
@@ -302,72 +339,8 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
   ];
 
   // Apply additional filtering based on the selected filterStatus
-  let filteredCustomersFinal = baseFilteredCustomers;
-  if (selectedFilters.length > 0) {
-    filteredCustomersFinal = filteredCustomersFinal.filter((customer) => {
-      const tag = getFollowUpTag(customer.followUpDate);            
-      const status = customer.presales?.leadStatus;                 
-      return selectedFilters.includes(tag) || selectedFilters.includes(status);
-    });
-  }
-
-  if (filterStatus) {
-    if (filterStatus === "Open") {
-      filteredCustomersFinal = filteredCustomersFinal.filter(
-        (customer) =>
-          customer.presales &&
-          openStatuses.includes(customer.presales.leadStatus)
-      );
-    } else if (filterStatus === "Lost") {
-      filteredCustomersFinal = filteredCustomersFinal.filter(
-        (customer) =>
-          customer.presales &&
-          lostStatuses.includes(customer.presales.leadStatus)
-      );
-    } else if (filterStatus === "Won") {
-      filteredCustomersFinal = filteredCustomersFinal.filter(
-        (customer) =>
-          customer.presales && customer.presales.leadStatus === "Sales Done"
-      );
-    }
-  }
-
-  // apply the chosen sort order
-if (sortOrder === "asc") {
-  // name A→Z
-  filteredCustomersFinal.sort((a, b) =>
-    a.name.localeCompare(b.name)
-  );
-} else if (sortOrder === "desc") {
-  // name Z→A
-  filteredCustomersFinal.sort((a, b) =>
-    b.name.localeCompare(a.name)
-  );
-} else if (sortOrder === "newest") {
-  // createdAt: newest first
-  filteredCustomersFinal.sort(
-    (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
-  );
-} else if (sortOrder === "oldest") {
-  // createdAt: oldest first
-  filteredCustomersFinal.sort(
-    (a, b) => new Date(a.createdAt) - new Date(b.createdAt)
-  );
-} else {
-  // default if nothing chosen: newest first
-  filteredCustomersFinal.sort(
-    (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
-  );
-}
-
   
-
-  // Function to load more leads (next page)
-  const loadMore = () => {
-    if (currentPage < totalPages) {
-      fetchCustomers(currentPage + 1, false, searchQuery);
-    }
-  };
+ 
 
   return (
     <Box sx={{ width: "100%", height: "100%", display: "flex", flexDirection: "column" }}>
@@ -514,7 +487,7 @@ if (sortOrder === "asc") {
       ref={listRef}
        onScroll={handleScroll}
       sx={{ flex: 1, overflowY: "auto" }}>
-        {filteredCustomersFinal.map((customer) => (
+        {customers.map((customer) => (
           <Box
             key={customer._id}
             onClick={() => onSelectCustomer(customer._id)}
@@ -608,6 +581,18 @@ if (sortOrder === "asc") {
                       ml: 1,
                       fontSize: "0.7rem",
                       backgroundColor: "#81c784",
+                      color: "white",
+                    }}
+                  />
+                )}
+                {customer.presales?.leadStatus === "Sales Done" && (
+                  <Chip
+                    label="WON"
+                    size="small"
+                    sx={{
+                      ml: 1,
+                      fontSize: "0.7rem",
+                      backgroundColor: "#d3ac2f",
                       color: "white",
                     }}
                   />

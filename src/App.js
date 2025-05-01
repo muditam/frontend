@@ -26,7 +26,6 @@ import AcquisitionLost from "./Lostdata/AcquisitionLost";
 import RetentionLost from "./Lostdata/RetentionLost";
 import PrivateRoute from "./components/PrivateRoute";
 import MyTemplates from "./components/MyTemplates";  
-import FacebookLeads from './components/FacebookLeads';
 import LeadManagement from './LeadConsultation/LeadManagement';
 
 const App = () => {
@@ -40,8 +39,6 @@ const App = () => {
  
           <Route path="/login" element={<Login />} /> 
           <Route path="/pages/Home" element={<ShipwayOrders />}/> 
-          <Route path="/facebook-leads" element={<FacebookLeads />} />
-
           
           {/* Protected Routes */}
           <Route

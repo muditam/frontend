@@ -27,6 +27,8 @@ import axios from "axios";
 import TuneIcon from "@mui/icons-material/Tune";
 
 
+
+
 const RetentionTable = () => {
   const [retentionLeads, setRetentionLeads] = useState([]);
   const [totalLeads, setTotalLeads] = useState(0);
@@ -37,8 +39,6 @@ const RetentionTable = () => {
   const [agents, setAgents] = useState([]);
   const [salesAgents, setSalesAgents] = useState([]);
 
-
-  // filters for editing and activeFilters for applied filter values
   const [filters, setFilters] = useState({
     name: "",
     contactNumber: "",
@@ -52,9 +52,10 @@ const RetentionTable = () => {
     rtFollowupStatus: "",
     lastOrderDate: "",
     retentionStatus: "",
+    lastOrderDateFrom: "",
+    lastOrderDateTo: "",
   });
   const [activeFilters, setActiveFilters] = useState({});
-
 
   const [dropdownOptions] = useState({
     dosageOrdered: ["10-Days", "20-Days", "30-Days", "60-Days", "90-Days"],
@@ -92,7 +93,6 @@ const RetentionTable = () => {
     ],
   });
 
-
   // Fetch retention leads with pagination and filters applied
   const fetchRetentionLeads = async () => {
     try {
@@ -100,9 +100,9 @@ const RetentionTable = () => {
         "https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/retention",
         {
           params: {
+            ...activeFilters,
             page: currentPage + 1,
             limit: rowsPerPage,
-            ...activeFilters,
           },
         }
       );
@@ -112,7 +112,6 @@ const RetentionTable = () => {
       console.error("Error fetching retention leads:", error);
     }
   };
-
 
   const fetchRetentionAgents = async () => {
     try {
@@ -137,59 +136,68 @@ const RetentionTable = () => {
     }
   };
 
-
   useEffect(() => {
-    fetchRetentionLeads();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    fetchRetentionLeads(); 
   }, [currentPage, rowsPerPage, activeFilters]);
-
 
   useEffect(() => {
     fetchRetentionAgents();
     fetchSalesAgents();
   }, []);
 
-
   const handleApplyFilters = () => {
-    // When applying filters, reset to the first page and update active filters
-    setActiveFilters(filters);
-    setCurrentPage(0);
+    const payload = { ...filters };
+    if (payload.lastOrderDateFrom) {
+      const from = new Date(payload.lastOrderDateFrom);
+      from.setHours(0, 0, 0, 0);
+      payload.lastOrderDateFrom = from.toISOString();
+    }
+    if (payload.lastOrderDateTo) {
+      const to = new Date(payload.lastOrderDateTo);
+      to.setHours(23, 59, 59, 999);
+      payload.lastOrderDateTo = to.toISOString();
+    }
+    Object.keys(payload).forEach((k) => {
+      const v = payload[k];
+      if (v === "" || (Array.isArray(v) && v.length === 0)) {
+        delete payload[k];
+      }
+    });
+    setActiveFilters(payload);
     setFilterOpen(false);
+    setCurrentPage(0)
   };
 
-
   const resetFilters = () => {
-    const reset = {
+    setFilters({
       name: "",
       contactNumber: "",
-      agentAssigned: "",
+      agentAssigned: [],
       productPitched: [],
       productsOrdered: [],
       dosageOrdered: "",
       modeOfPayment: "",
       healthExpertAssigned: "",
       rtFollowupReminder: "",
-      rtFollowupStatus: "",
       lastOrderDate: "",
+      rtFollowupStatus: "",
+      lastOrderDateFrom: "",
+      lastOrderDateTo: "",
       retentionStatus: "",
-    };
-    setFilters(reset);
-    setActiveFilters({});
+    });
     setCurrentPage(0);
-    fetchRetentionLeads();
+    setActiveFilters({});
+    setFilterOpen(false);
   };
-
 
   const handleChangePage = (event, newPage) => {
     setCurrentPage(newPage);
   };
 
-
   const handleChangeRowsPerPage = (event) => {
     setRowsPerPage(parseInt(event.target.value, 10));
     setCurrentPage(0);
   };
-
 
   const styles = {
     container: {
@@ -214,7 +222,7 @@ const RetentionTable = () => {
       overflow: "hidden",
       maxWidth: "200px",
       fontSize: "0.875rem",
-      textAlign:"center",
+      textAlign: "center",
       borderBottom: "1px solid #333",
     },
     card: {
@@ -228,7 +236,7 @@ const RetentionTable = () => {
       overflow: "hidden",
       textOverflow: "ellipsis",
       // padding: "10px",
-      textAlign:"center",
+      textAlign: "center",
     },
     button: {
       borderRadius: "8px",
@@ -236,7 +244,6 @@ const RetentionTable = () => {
       boxShadow: "0 2px 4px rgba(0, 0, 0, 0.1)",
     },
   };
-
 
   return (
     <Box
@@ -253,9 +260,11 @@ const RetentionTable = () => {
           color: "black",
           marginBottom: 2,
         }}
-      > 
+      >
         Master Data - Retention
       </Typography>
+
+
 
 
       <Button
@@ -266,6 +275,8 @@ const RetentionTable = () => {
       >
         Filter
       </Button>
+
+
 
 
       <Drawer
@@ -322,12 +333,12 @@ const RetentionTable = () => {
                     transform: "translateY(-50%)",
                   },
                   "& .MuiInputLabel-root.Mui-focused, & .MuiInputLabel-root.MuiFormLabel-filled":
-                    {
-                      top: 0,
-                      transform: "translateY(-50%) translateX(8px)",
-                      fontSize: "0.75rem",
-                      color: "gray",
-                    },
+                  {
+                    top: 0,
+                    transform: "translateY(-50%) translateX(8px)",
+                    fontSize: "0.75rem",
+                    color: "gray",
+                  },
                   "& .MuiOutlinedInput-root": {
                     "& input": {
                       padding: "4px !important",
@@ -452,6 +463,60 @@ const RetentionTable = () => {
                           [key]: e.target.value,
                         }))
                       }
+                      sx={{
+                        minWidth: 180,
+                        "& .MuiInputBase-root": {
+                          backgroundColor: "background.default",
+                        },
+                        "& .MuiInputLabel-root": {
+                          top: -1,
+                          transform: "translate(10px, -6px) scale(0.85)",
+                          transition: "all 0.4s ease-in-out",
+                          color: "#777",
+                        },
+                      }}
+                    />
+                  </>
+                ) : key === "lastOrderDateFrom" ? (
+                  <>
+                    <TextField
+                      label="Last Order Date From"
+                      type="date"
+                      fullWidth
+                      InputLabelProps={{ shrink: true }}
+                      value={filters[key]}
+                      onChange={(e) =>
+                        setFilters((prev) => ({
+                          ...prev,
+                          [key]: e.target.value,
+                        }))}
+                      sx={{
+                        minWidth: 180,
+                        "& .MuiInputBase-root": {
+                          backgroundColor: "background.default",
+                        },
+                        "& .MuiInputLabel-root": {
+                          top: -1,
+                          transform: "translate(10px, -6px) scale(0.85)",
+                          transition: "all 0.4s ease-in-out",
+                          color: "#777",
+                        },
+                      }}
+                    />
+                  </>
+                ) : key === "lastOrderDateTo" ? (
+                  <>
+                    <TextField
+                      label="Last Order Date To"
+                      type="date"
+                      fullWidth
+                      InputLabelProps={{ shrink: true }}
+                      value={filters[key]}
+                      onChange={(e) =>
+                        setFilters((prev) => ({
+                          ...prev,
+                          [key]: e.target.value,
+                        }))}
                       sx={{
                         minWidth: 180,
                         "& .MuiInputBase-root": {
@@ -600,6 +665,8 @@ const RetentionTable = () => {
                     fontSize: "0.875rem",
                     whiteSpace: "nowrap",
                     textAlign: "center",
+                    paddingTop: "5px",
+                    paddingBottom: "5px"
                   }}
                 >
                   {heading}
@@ -607,8 +674,6 @@ const RetentionTable = () => {
               ))}
             </TableRow>
           </TableHead>
-
-
           <TableBody>
             {retentionLeads.map((lead) => (
               <TableRow
@@ -675,8 +740,6 @@ const RetentionTable = () => {
           </TableBody>
         </Table>
       </TableContainer>
-
-
       <TablePagination
         rowsPerPageOptions={[10, 20, 50, 100]}
         component="div"
@@ -689,6 +752,5 @@ const RetentionTable = () => {
     </Box>
   );
 };
-
 
 export default RetentionTable;
