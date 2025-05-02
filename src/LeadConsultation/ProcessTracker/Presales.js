@@ -36,6 +36,7 @@ const Presales = ({ customerId, parentLeadStatus  }) => {
     timeOfSleep: "",
     notes: "",
     assignExpert: "",
+    doctorCons: "",
     file: null,
   });
 
@@ -293,24 +294,16 @@ const Presales = ({ customerId, parentLeadStatus  }) => {
       <Box sx={{ width: "80%", p: 2 }}>
         <form>
           <Grid container spacing={2}>
-            {/* Lead Status dropdown */}
-            {/* <Grid item xs={6} sx={cellStyle}>
-              <FormControl fullWidth size="small">
-                <InputLabel>Lead Status</InputLabel>
-                <Select
-                  name="leadStatus"
-                  value={formData.leadStatus}
-                  label="Lead Status"
-                  onChange={handleChange}
-                >
-                  {leadStatusOptions.map((status) => (
-                    <MenuItem key={status} value={status}>
-                      {status}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-            </Grid> */}
+          <Grid item xs={6} sx={cellStyle}>
+            <TextField
+            name="doctorCons"
+            label="Doctor Consultation By"
+            size="small"
+            fullWidth
+            value={formData.doctorCons}
+            onChange={handleChange}
+            />
+          </Grid>
 
             {/* Assign Expert dropdown – wrapped in Tooltip if disabled */}
             <Grid item xs={6} sx={cellStyle}>
@@ -324,7 +317,7 @@ const Presales = ({ customerId, parentLeadStatus  }) => {
                     size="small"
                     disabled={!isAssignExpertEditable}
                   >
-                    <InputLabel>Assign Expert</InputLabel>
+                    <InputLabel>Retention Agent</InputLabel>
                     <Select
                       name="assignExpert"
                       value={formData.assignExpert || ""}

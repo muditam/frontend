@@ -313,7 +313,7 @@ const AddEmployee = () => {
                   >
                     {employee.status}
                   </Box>
-                </TableCell>
+                </TableCell> 
                 <TableCell align="center" sx={{ padding: "8px 16px" }}>
                   {employee.async}
                 </TableCell>

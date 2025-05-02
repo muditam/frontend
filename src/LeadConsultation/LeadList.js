@@ -17,6 +17,7 @@ import {
   Chip,
   Grid,
   Autocomplete,
+  FormControlLabel,
 } from "@mui/material";
 import { Search as SearchIcon, FilterList, Sort } from "@mui/icons-material";
 import PersonAddIcon from "@mui/icons-material/PersonAdd";
@@ -120,6 +121,10 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
   // Filter status: "", "Open", "Won", or "Lost"
   const [filterStatus, setFilterStatus] = useState("");
 
+  // in LeadList:
+  const [yesterdayChecked, setYesterdayChecked] = useState(false);
+  const [dayBeforeChecked, setDayBeforeChecked] = useState(false);
+
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -199,7 +204,18 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
         setError("Phone number already exists.");
         return;
       }
-      await axios.post("https://muditamleads-14f32a10d7f7.herokuapp.com/api/customers", leadData);
+      let ld = new Date();
+      if (yesterdayChecked) {
+        ld.setDate(ld.getDate() - 1);
+      } else if (dayBeforeChecked) {
+        ld.setDate(ld.getDate() - 2);
+      }
+      const payload = {
+        ...leadData,
+        leadDate: ld.toISOString(),
+      };
+
+      await axios.post("https://muditamleads-14f32a10d7f7.herokuapp.com/api/customers", payload);
       setError("");
       setOpen(false);
       // Reload the first page after a new lead is added (with search filter if any)
@@ -713,6 +729,32 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
                 </Select>
               </FormControl>
             </Grid>
+            <Grid item xs={12} sx={{ display: "flex", gap: 2, alignItems: "center" }}>
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={yesterdayChecked}
+                  onChange={(e) => {
+                    setYesterdayChecked(e.target.checked);
+                    if (e.target.checked) setDayBeforeChecked(false);
+                  }}
+                />
+              }
+              label="Yesterday"
+            />
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={dayBeforeChecked}
+                  onChange={(e) => {
+                    setDayBeforeChecked(e.target.checked);
+                    if (e.target.checked) setYesterdayChecked(false);
+                  }}
+                />
+              }
+              label="Day Before Yesterday"
+            />
+          </Grid>
           </Grid>
           {error && (
             <Typography color="error" sx={{ mt: 1, fontSize: "0.7rem" }}>

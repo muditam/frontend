@@ -46,6 +46,87 @@ const discountOptions = [
   { label: "12% off", code: "DOCTORSPECIAL12" },
 ];
 
+const priceMap = {
+  "Karela Jamun Fizz": {
+    "1 month": 1350,
+    "2 months": 2650,
+    "3 months": 3800,
+    "4 months": 4500,
+  },
+  "Sugar Defend Pro": {
+    "1 month": 1495,
+    "2 months": 2700,
+    "3 months": 3500,
+    "4 months": 4200,
+  },
+  "Vasant Kusmakar Ras": {
+    "1 month": 2995,
+    "2 months": 2995,
+    "3 months": 5800,
+    "4 months": 5800,
+  },
+  "Liver Fix": {
+    "1 month": 1550,
+    "2 months": 2900,
+    "3 months": 3600,
+    "4 months": 6400,
+  },
+  "Stress & Sleep": {
+    "1 month": 799,
+    "2 months": 1395,
+    "3 months": 2200,
+    "4 months": 2750,
+  },
+  "Chandraprabha Vati": {
+    "1 month": 525,
+    "2 months": 999,
+    "3 months": 1350,
+    "4 months": 1600,
+  },
+  "Power Gut": {
+    "1 month": 1515,
+    "2 months": 2695,
+    "3 months": 3595,
+    "4 months": 4200,
+  },
+  "Heart Defend Pro": {
+    "1 month": 1950,
+    "2 months": 3600,
+    "3 months": 4500,
+    "4 months": 5400,
+  },
+  "Performance Forever": {
+    "1 month": 999,
+    "2 months": 1799,
+    "3 months": 2499,
+    "4 months": 3199,
+  },
+  "Shilajit with Gold": {
+    "1 month": 1295,
+    "2 months": 2495,
+    "3 months": 3495,
+    "4 months": 4495,
+  },
+  "HbA1c - Blood Test": {
+    "1 month": 300,
+    "2 months": 300,
+    "3 months": 300,
+    "4 months": 300,
+  },
+  "Full Body Checkup - Blood Test": {
+    "1 month": 900,
+    "2 months": 900,
+    "3 months": 900,
+    "4 months": 900,
+  },
+  "Lipid + HbA1c + Liver - Blood Test": {
+    "1 month": 650,
+    "2 months": 650,
+    "3 months": 650,
+    "4 months": 650,
+  },
+};
+
 const Closing = ({ presalesHba1c = "8", customerId }) => {
   const [expectedResult, setExpectedResult] = useState("");
   const [preferredDiet, setPreferredDiet] = useState("");
@@ -67,6 +148,27 @@ const Closing = ({ presalesHba1c = "8", customerId }) => {
 
   // Styling for sections
   const sectionStyle = { mb: 3, p: 1, borderBottom: "1px solid #ccc" };
+
+  const totalPrice = selectedProducts.reduce((sum, prod) => {
+    const price = priceMap[prod]?.[courseDuration] ?? 0;
+    return sum + price;
+  }, 0);
+  
+  // Apply each coupon in order: flat ₹ off or % off
+  const discountedPrice = discountCodes.reduce((current, code) => {
+    const opt = discountOptions.find((d) => d.code === code);
+    if (!opt) return current;
+    if (opt.label.includes("%")) {
+      const pct = parseFloat(opt.label);
+      return current - (current * pct) / 100;
+    } else {
+      const amt = parseInt(opt.label.replace(/[^\d]/g, ""), 10);
+      return current - amt;
+    }
+  }, totalPrice);
+  
+  // Never go below zero, round to integer
+  const finalDiscounted = Math.max(0, Math.round(discountedPrice));
 
   // Handler functions
   const handleExpectedResultSelect = (option) => {
@@ -278,7 +380,7 @@ const Closing = ({ presalesHba1c = "8", customerId }) => {
     if (isNaN(current) || isNaN(drop)) return "-";
     return (current - drop).toFixed(1);
   };
-
+  
   return (
     <Box sx={{ p: 2 }}>
 
@@ -523,6 +625,37 @@ const Closing = ({ presalesHba1c = "8", customerId }) => {
         <Typography variant="h6" sx={{ mb: 2, fontWeight: "bold", color: "black" }}>
           Price Breakup
         </Typography>
+
+        {selectedProducts.length > 0 && courseDuration ? (
+          <Grid container spacing={1}>
+            {selectedProducts.map((prod) => (
+              <Grid item xs={12} sm={6} key={prod}>
+                <Typography variant="body2">
+                  {prod}: ₹
+                  {priceMap[prod] && priceMap[prod][courseDuration]
+                    ? priceMap[prod][courseDuration]
+                    : "—"}
+                </Typography>
+              </Grid>
+            ))}
+          </Grid>
+        ) : (
+          <Typography variant="body2" sx={{ fontStyle: "italic" }}>
+            {selectedProducts.length === 0
+              ? "No products selected."
+              : "Select a course duration to see prices."}
+          </Typography>
+        )}
+
+      <Box sx={{ ...sectionStyle, pt: 0 }}>
+              <Typography variant="subtitle1" sx={{ fontWeight: "bold", color: "black" }}>
+                Total Price: ₹{totalPrice}
+              </Typography>
+              <Typography variant="subtitle1" sx={{ fontWeight: "bold", color: "black" }}>
+                Discounted Price: ₹{finalDiscounted}
+              </Typography>
+            </Box>
+
         <Grid container spacing={2}>
           <Grid item xs={6}>
             <Button

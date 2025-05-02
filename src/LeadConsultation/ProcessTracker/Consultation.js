@@ -138,6 +138,7 @@ const Consultation = ({ customerId }) => {
     energyLevels: "",
     sleepQuality: "",
     sugarCravings: "", 
+    notesCons: "", 
   });
 
   // Call Checklist state
@@ -342,6 +343,24 @@ const Consultation = ({ customerId }) => {
             </FormControl>
           </Grid>
 
+          <Grid item xs={4}>
+            <FormControl fullWidth size="small">
+              <InputLabel>Sugar Cravings</InputLabel>
+              <Select
+                name="sugarCravings"
+                value={formData.sugarCravings}
+                label="Sugar Cravings"
+                onChange={handleChange}
+              >
+                {sugarCravingsOptions.map((opt) => (
+                  <MenuItem key={opt} value={opt}>
+                    {opt}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          </Grid>
+
           {/* Row 3: Symptoms (Multi-select) */}
           <Grid item xs={6}>
             <Autocomplete
@@ -459,22 +478,18 @@ const Consultation = ({ customerId }) => {
               </Select>
             </FormControl>
           </Grid>
+          
           <Grid item xs={4}>
-            <FormControl fullWidth size="small">
-              <InputLabel>Sugar Cravings</InputLabel>
-              <Select
-                name="sugarCravings"
-                value={formData.sugarCravings}
-                label="Sugar Cravings"
-                onChange={handleChange}
-              >
-                {sugarCravingsOptions.map((opt) => (
-                  <MenuItem key={opt} value={opt}>
-                    {opt}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
+            <TextField 
+              name="notesCons" 
+              label="Notes (cons)" 
+              value={formData.notesCons} 
+              onChange={handleChange} 
+              fullWidth 
+              size="small" 
+              multiline 
+              rows={2} 
+            /> 
           </Grid>
 
           {/* Products Recommended */}
