@@ -7,6 +7,7 @@ const LeadManagement = () => {
   const [employees, setEmployees] = useState([]);
   const [location, setLocation] = useState("");
   const [selectedCustomerId, setSelectedCustomerId] = useState(null);
+  
 
   // Fetch all employees but filter only Sales Agents who are active
   useEffect(() => {
@@ -14,7 +15,9 @@ const LeadManagement = () => {
       .get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/employees")
       .then((response) => {
         const filteredEmployees = response.data.filter(
-          (emp) => emp.role === "Sales Agent" && emp.status === "active"
+          (emp) =>
+            (emp.role === "Sales Agent" || emp.role === "Retention Agent") &&
+            emp.status === "active"
         );
         setEmployees(filteredEmployees);
       })

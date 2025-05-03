@@ -118,6 +118,7 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
   const [customers, setCustomers] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [locations, setLocations] = useState([]);
+  
   // Filter status: "", "Open", "Won", or "Lost"
   const [filterStatus, setFilterStatus] = useState("");
 
@@ -246,7 +247,10 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
       let response;
   
       // 3a. If Sales Agent, include assignedTo
-      if (loggedInUser?.role === "Sales Agent") {
+      if (
+                loggedInUser?.role === "Sales Agent" ||
+                loggedInUser?.role === "Retention Agent"
+              ) {
         response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/customers", {
           params: {
             ...commonParams,
@@ -312,16 +316,6 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
   useEffect(() => {
     fetchCustomers(1, true, searchQuery);
   }, [searchQuery, filterStatus, selectedFilters, sortOrder]);  
-
-  // First apply client-side filtering (for additional criteria like filterStatus)
-  // const baseFilteredCustomers = customers.filter((customer) => {
-  //   // Client-side search can be used as additional filter if needed.
-  //   // Since search is now done server side, this could be used for phone filtering or extra criteria.
-  //   return (
-  //     (customer.name && customer.name.toLowerCase().includes(searchQuery.toLowerCase())) ||
-  //     (customer.phone && customer.phone.includes(searchQuery))
-  //   );
-  // });
 
   const handleScroll = () => {
     const container = listRef.current;

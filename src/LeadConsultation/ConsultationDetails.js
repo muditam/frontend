@@ -143,8 +143,10 @@ const ConsultationDetails = ({ customerId }) => {
   useEffect(() => {
     axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/employees")
       .then(res => {
-        const salesAgents = res.data.filter(emp => emp.role === "Sales Agent" && emp.status === "active");
-        setEmployees(salesAgents);
+        const filtered = res.data.filter(emp =>
+          (emp.role === "Sales Agent" || emp.role === "Retention Agent") && emp.status === "active"
+        );
+        setEmployees(filtered);
       })
       .catch(err => console.error("Error fetching employees:", err));
   }, []);
