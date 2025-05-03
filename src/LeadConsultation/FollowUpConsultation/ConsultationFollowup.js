@@ -25,6 +25,10 @@ const defaultFollowup = {
 const ConsultationFollowup = ({ customerId }) => {
   const [followups, setFollowups] = useState([{ ...defaultFollowup }]);
   const [loading, setLoading] = useState(true);
+  const [consultInfo, setConsultInfo] = useState({
+    assignExpertName: "",
+    doctorCons: "",
+  });
 
   // Load existing followups from the backend
   useEffect(() => {
@@ -42,6 +46,23 @@ const ConsultationFollowup = ({ customerId }) => {
           setLoading(false);
         });
     }
+  }, [customerId]);
+
+  useEffect(() => {
+    if (!customerId) return;
+
+    axios
+      .get(`https://muditamleads-14f32a10d7f7.herokuapp.com/api/consultation-full-history?customerId=${customerId}`)
+      .then((response) => {
+        const presales = response.data.presales || {};
+        setConsultInfo({
+          assignExpertName: presales.assignExpert?.fullName || "",
+          doctorCons: presales.doctorCons || "",
+        });
+      })
+      .catch((error) => {
+        console.error("Error fetching consultation info:", error);
+      });
   }, [customerId]);
 
   const handleChange = (index, field, value) => {
@@ -85,6 +106,20 @@ const ConsultationFollowup = ({ customerId }) => {
 
   return (
     <Box sx={{ p: 3, backgroundColor: "#f7f7f7", borderRadius: 2 }}>
+      {consultInfo.assignExpertName  && (
+        <Typography>
+        Assigned Expert: {consultInfo.assignExpertName}
+      </Typography>
+      )}
+      {consultInfo.doctorCons && (
+        <Typography
+          variant="subtitle1"
+          sx={{ mb: 2, fontWeight: "medium", color: "black" }}
+        >
+          Doctor Consultation: {consultInfo.doctorCons}
+        </Typography>
+      )}
+
       <Typography 
         variant="h5" 
         sx={{ mb: 3, fontWeight: "bold", color: "black", textAlign: "center" }}
