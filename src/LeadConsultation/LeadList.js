@@ -215,7 +215,7 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
         leadDate: ld.toISOString(),
       };
 
-      await axios.post("http://localhost:5000/api/customers", payload);
+      await axios.post("https://muditamleads-14f32a10d7f7.herokuapp.com/api/customers", payload);
       setError("");
       setOpen(false);
       // Reload the first page after a new lead is added (with search filter if any)
@@ -247,7 +247,7 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
   
       // 3a. If Sales Agent, include assignedTo
       if (loggedInUser?.role === "Sales Agent") {
-        response = await axios.get("http://localhost:5000/api/customers", {
+        response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/customers", {
           params: {
             ...commonParams,
             assignedTo: loggedInUser.fullName
@@ -258,7 +258,7 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
       } else if (loggedInUser?.role === "Retention Agent") {
         // fetch all their consultation assignments
         const consRes = await axios.get(
-          "http://localhost:5000/api/consultation-details"
+          "https://muditamleads-14f32a10d7f7.herokuapp.com/api/consultation-details"
         );
         const myIds = consRes.data
           .filter(c =>
@@ -267,7 +267,7 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
           .map(c => c.customerId.toString());
   
         // fetch up to 1000, with the same common params
-        response = await axios.get("http://localhost:5000/api/customers", {
+        response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/customers", {
           params: {
             ...commonParams,
             limit: 1000
@@ -281,7 +281,7 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
   
       // 3c. Everyone else
       } else {
-        response = await axios.get("http://localhost:5000/api/customers", {
+        response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/customers", {
           params: commonParams
         });
       }
