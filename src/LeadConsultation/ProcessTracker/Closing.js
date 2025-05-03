@@ -113,13 +113,13 @@ const priceMap = {
     "3 months": 300,
     "4 months": 300,
   },
-  "Full Body Checkup - Blood Test": {
+  "Full Body Checkup": {
     "1 month": 900,
     "2 months": 900,
     "3 months": 900,
     "4 months": 900,
   },
-  "Lipid + HbA1c + Liver - Blood Test": {
+  "Lipid + HbA1c + Liver": {
     "1 month": 650,
     "2 months": 650,
     "3 months": 650,

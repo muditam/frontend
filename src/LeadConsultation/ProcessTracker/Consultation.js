@@ -247,8 +247,8 @@ const Consultation = ({ customerId }) => {
     "Glucometer",
     "Dumbbells",
     "HbA1c - Blood Test",
-    "Full Body Checkup - Blood Test",
-    "Lipid + HbA1c + Liver - Blood Test",
+    "Full Body Checkup",
+    "Lipid + HbA1c + Liver",
   ];
 
   return (

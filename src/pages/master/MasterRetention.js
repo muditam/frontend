@@ -190,6 +190,76 @@ const RetentionTable = () => {
     setFilterOpen(false);
   };
 
+   // Download full dataset as CSV
+   const handleDownload = async () => {
+    try {
+      // Fetch all leads without pagination
+      const response = await axios.get(
+        "http://localhost:5000/api/leads/retention",
+        { params: { ...activeFilters, page: 1, limit: totalLeads } }
+      );
+      const data = response.data.leads;
+      // Define CSV headers
+      const headers = [
+        "Last Order Date",
+        "Name",
+        "Contact No",
+        "Agent Assigned",
+        "Product Pitched",
+        "Remark for HE",
+        "Products Ordered",
+        "Dosage Ordered",
+        "Mode Of Payment",
+        "Delivery Status",
+        "Health Expert Assigned",
+        "Dosage Expiring",
+        "RT Next Followup Date",
+        "RT- Followup Reminder",
+        "RT- Followup Status",
+        "Repeat Dosage Ordered",
+        "Retention Status",
+        "RT- Remark",
+      ];
+      // Map rows
+      const rows = data.map((lead) => [
+        lead.lastOrderDate,
+        lead.name,
+        lead.contactNumber,
+        Array.isArray(lead.agentAssigned) ? lead.agentAssigned.join("; ") : lead.agentAssigned,
+        lead.productPitched?.join("; "),
+        lead.agentsRemarks,
+        lead.productsOrdered?.join("; "),
+        lead.dosageOrdered,
+        lead.modeOfPayment,
+        lead.deliveryStatus,
+        lead.healthExpertAssigned,
+        lead.dosageExpiring,
+        lead.rtNextFollowupDate,
+        lead.rtFollowupReminder,
+        lead.rtFollowupStatus,
+        lead.repeatDosageOrdered,
+        lead.retentionStatus,
+        lead.rtRemark,
+      ]);
+      // Build CSV string
+      let csvContent = headers.join(",") + "\n";
+      rows.forEach((r) => {
+        csvContent += r.map((cell) => `"${cell ?? ""}"`).join(",") + "\n";
+      });
+      // Create blob and trigger download
+      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.setAttribute("download", "retention_leads.csv");
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (error) {
+      console.error("Download failed:", error);
+    }
+  };
+  
   const handleChangePage = (event, newPage) => {
     setCurrentPage(newPage);
   };
@@ -264,8 +334,15 @@ const RetentionTable = () => {
         Master Data - Retention
       </Typography>
 
-
-
+      <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 2 }}>
+        <Button
+          variant="contained"
+          onClick={handleDownload}
+          sx={{ backgroundColor: "black", ...styles.button }}
+        >
+          Download
+        </Button>
+      </Box>
 
       <Button
         variant="contained"
