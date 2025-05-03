@@ -247,10 +247,7 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
       let response;
   
       // 3a. If Sales Agent, include assignedTo
-      if (
-                loggedInUser?.role === "Sales Agent" ||
-                loggedInUser?.role === "Retention Agent"
-              ) {
+      if (loggedInUser?.role === "Sales Agent") {
         response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/customers", {
           params: {
             ...commonParams,
@@ -280,8 +277,9 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
   
         // client-side reduce to only my IDs
         response.data.customers = response.data.customers.filter(c =>
+          c.assignedTo === loggedInUser.fullName ||
           myIds.includes(c._id)
-        );
+      );
   
       // 3c. Everyone else
       } else {
