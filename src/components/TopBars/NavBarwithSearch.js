@@ -38,7 +38,7 @@ const NavbarWithSearch = () => {
   const [showAllOrders, setShowAllOrders] = useState(false);
   const [cartDrawerOpen, setCartDrawerOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
-
+  const [expandedOrderIds, setExpandedOrderIds] = useState([]);
 
   const navigate = useNavigate();
   const location = useLocation();
@@ -91,7 +91,7 @@ const NavbarWithSearch = () => {
       setCustomerData(null);
       setShowCustomerDetails(false);
       return;
-    }
+    } 
 
 
     try {
@@ -132,6 +132,14 @@ const NavbarWithSearch = () => {
     setMenuOpen(open);
   };
 
+  const toggleAddress = (orderId) => {
+    setExpandedOrderIds((prev) =>
+      prev.includes(orderId)
+        ? prev.filter((id) => id !== orderId)
+        : [...prev, orderId]
+    );
+  };
+  
 
   const toggleCartDrawer = (open) => () => setCartDrawerOpen(open);
 
@@ -271,26 +279,44 @@ const NavbarWithSearch = () => {
                                         sx={{ pl: 3, py: 0.5, ...smallFont }}
                                       >
                                         <ListItemText
-                                          primary={`Order ${order.id}`}
+                                          primary={`Order ${order.id} | Total Amount: ₹${order.totalAmount || 0}`}
                                           secondary={
                                             <>
                                               <span>
-                                                {new Date(
-                                                  order.created_at
-                                                ).toLocaleString()}{" "}
-                                                | Items: {order.itemCount} |{" "}
-                                                {order.deliveryStatus}
+                                                {new Date(order.created_at).toLocaleString()} | Items: {order.itemCount} | {order.deliveryStatus}
                                               </span>
                                               <br />
-                                              {order.lineItems.map(
-                                                (item, idx) => (
-                                                  <span key={idx}>
-                                                    {item.title} -{" "}
-                                                    {item.variant} (₹
-                                                    {item.amountPaid}){" "}
-                                                  </span>
-                                                )
-                                              )}
+                                              {order.lineItems.map((item, idx) => (
+                                                <span key={idx}>
+                                                  {item.title} - {item.variant} (₹{item.amountPaid}){" "}
+                                                </span>
+                                              ))}
+                                              <br />
+                                              <Box
+                                                onClick={() => toggleAddress(order.id)}
+                                                sx={{
+                                                  cursor: "pointer",
+                                                  color: "#1976d2",
+                                                  mt: 1,
+                                                  display: "flex",
+                                                  alignItems: "center",
+                                                }}
+                                              >
+                                                {expandedOrderIds.includes(order.id) ? (
+                                                  <>
+                                                    Show Less Address <ExpandLessIcon fontSize="small" sx={{ ml: 0.5 }} />
+                                                  </>
+                                                ) : (
+                                                  <>
+                                                    Show Address <ExpandMoreIcon fontSize="small" sx={{ ml: 0.5 }} />
+                                                  </>
+                                                )}
+                                              </Box>
+                                              <Collapse in={expandedOrderIds.includes(order.id)} timeout="auto" unmountOnExit>
+                                                <Typography sx={{ mt: 1, ...smallFont }}>
+                                                  {order.shippingAddress || "No shipping address found"}
+                                                </Typography>
+                                              </Collapse>
                                             </>
                                           }
                                           primaryTypographyProps={{
