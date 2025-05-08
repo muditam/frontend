@@ -329,7 +329,7 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
   // When searchQuery changes, reset pagination and fetch matching customers
   useEffect(() => {
     fetchCustomers(1, true, searchQuery);
-  }, [searchQuery, filterStatus, selectedFilters, sortOrder]);  
+  }, [searchQuery, filterStatus, selectedFilters, sortOrder, filterDate, filterAgent]);  
 
   const handleScroll = () => {
     const container = listRef.current;
