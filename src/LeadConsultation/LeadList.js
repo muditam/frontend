@@ -26,6 +26,8 @@ import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import CancelIcon from "@mui/icons-material/Cancel";
 import Menu from "@mui/material/Menu";
 import Checkbox from "@mui/material/Checkbox";
+import DownloadIcon from "@mui/icons-material/Download";
+import MoreVertIcon from "@mui/icons-material/MoreVert";
 import { CircularProgress } from "@mui/material";
 import axios from "axios";
 
@@ -162,6 +164,12 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
   const [loadingMore, setLoadingMore] = useState(false);
   const listRef = useRef(null);
 
+  const [moreAnchorEl, setMoreAnchorEl] = useState(null);
+  const isMoreMenuOpen = Boolean(moreAnchorEl); 
+
+  const [filterAgent, setFilterAgent] = useState([]);
+  const [filterDate, setFilterDate] = useState("");
+
   // Memoize loggedInUser to prevent re-renders from recreating the object
   const loggedInUser = useMemo(() => {
     return JSON.parse(sessionStorage.getItem("user"));
@@ -243,7 +251,15 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
         tags: JSON.stringify(selectedFilters),     
         sortBy: sortOrder                          
       };
-  
+
+      if (filterAgent.length > 0) {
+        commonParams.assignedTo = filterAgent.join(",");
+      }
+
+      if (filterDate) {
+        commonParams.createdAt = filterDate;
+      }
+
       let response;
   
       // 3a. If Sales Agent, include assignedTo
@@ -326,6 +342,96 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
     }
   };
   
+  const handleDownloadCSV = async () => {
+    try {
+      const filters = searchQuery
+        ? JSON.stringify({ search: searchQuery })
+        : "{}";
+
+
+      const params = {
+        page: 1,
+        limit: 100000,
+        filters,
+        status: filterStatus,
+        tags: JSON.stringify(selectedFilters),
+        sortBy: sortOrder,
+      };
+
+
+      // Add multi-agent filter if applied
+      if (filterAgent?.length > 0) {
+        params.assignedTo = filterAgent.join(","); // comma-separated list
+      }
+
+
+      // Add createdAt (date) filter if applied
+      if (filterDate) {
+        params.createdAt = filterDate;
+      }
+
+
+      const res = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/customers", {
+        params,
+      });
+      const customers = res.data.customers;
+
+
+      if (!customers.length) return alert("No leads found to export.");
+
+
+      const headers = [
+        "Name",
+        "Phone",
+        "Age",
+        "Location",
+        "Looking For",
+        "Assigned To",
+        "Follow Up Date",
+        "Lead Source",
+        "Created At",
+        "Lead Status",
+      ];
+
+
+      const rows = customers.map((cust) => [
+        cust.name || "",
+        cust.phone || "",
+        cust.age || "",
+        cust.location || "",
+        cust.lookingFor || "",
+        cust.assignedTo || "",
+        cust.followUpDate
+          ? new Date(cust.followUpDate).toLocaleDateString()
+          : "",
+        cust.leadSource || "",
+        cust.createdAt ? new Date(cust.createdAt).toLocaleDateString() : "",
+        cust.presales?.leadStatus || "",
+      ]);
+
+
+      const csvContent =
+        "data:text/csv;charset=utf-8," +
+        [headers, ...rows]
+          .map((e) => e.map((v) => `"${v}"`).join(","))
+          .join("\n");
+
+
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement("a");
+      link.setAttribute("href", encodedUri);
+      link.setAttribute(
+        "download",
+        `leads_${new Date().toISOString().split("T")[0]}.csv`
+      );
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (error) {
+      console.error("Error exporting CSV:", error);
+      alert("Error exporting leads to CSV. Try again.");
+    }
+  };
 
   // Define filter arrays based on the lead status dropdown value in presales
   const openStatuses = [
@@ -345,9 +451,17 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
     "Ordered from Other Sources",
     "Budget issue",
   ];
-
-  // Apply additional filtering based on the selected filterStatus
+ 
   
+  const handleMoreClick = (event) => {
+    setMoreAnchorEl(event.currentTarget);
+  };
+
+
+  const handleMoreClose = () => {
+    setMoreAnchorEl(null);
+  };
+
  
 
   return (
@@ -487,6 +601,118 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
               Oldest First
             </MenuItem>
           </Menu>
+
+          {loggedInUser.role === "Manager" && (
+            <IconButton
+              size="small"
+              sx={{ color: "black", ml: 1 }}
+              onClick={handleMoreClick}
+              title="More Options"
+            >
+              <MoreVertIcon fontSize="small" />
+            </IconButton>
+          )}
+          <Menu
+            anchorEl={moreAnchorEl}
+            open={isMoreMenuOpen}
+            onClose={handleMoreClose}
+            PaperProps={{
+              sx: {
+                bgcolor: "white",
+                boxShadow: 5,
+                color: "black",
+                minWidth: 180,
+                padding: "5px",
+                borderRadius: 1,
+                "& .MuiMenuItem-root": {
+                  fontSize: "0.8rem",
+                  "&:hover": {
+                    bgcolor: "white",
+                  },
+                },
+                "& .MuiInputLabel-root": {
+                  color: "black",
+                },
+                "& .MuiOutlinedInput-root": {
+                  color: "black",
+                  "& fieldset": {
+                    borderColor: "black",
+                  },
+                  "&:hover fieldset": {
+                    borderColor: "#ccc",
+                  },
+                  "&.Mui-focused fieldset": {
+                    borderColor: "#ccc",
+                  },
+                },
+                "& .MuiSvgIcon-root": {
+                  color: "black",
+                },
+                "& .MuiCheckbox-root": {
+                  color: "black",
+                },
+              },
+            }}
+          >
+            <MenuItem
+              onClick={() => {
+                handleMoreClose();
+                handleDownloadCSV();
+              }}
+            >
+              Download CSV
+              <DownloadIcon fontSize="small" style={{ marginLeft: 8 }} />
+            </MenuItem>
+
+
+            <MenuItem disableGutters>
+              <Box width={180}>
+                {" "}
+                {/* Apply same width here */}
+                <FormControl size="small" fullWidth>
+                  <InputLabel>Agents</InputLabel>
+                  <Select
+                    label="Agents"
+                    multiple
+                    value={filterAgent}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      setFilterAgent(
+                        typeof value === "string" ? value.split(",") : value
+                      );
+                    }}
+                    renderValue={(selected) => selected.join(", ")}
+                  >
+                    {employees.map((emp) => (
+                      <MenuItem key={emp._id} value={emp.fullName}>
+                        <Checkbox
+                          checked={filterAgent.includes(emp.fullName)}
+                        />
+                        {emp.fullName}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Box>
+            </MenuItem>
+
+
+            <MenuItem disableGutters>
+              <Box width={180}>
+                {" "} 
+                <TextField
+                  type="date"
+                  size="small"
+                  fullWidth
+                  value={filterDate}
+                  onChange={(e) => {
+                    setFilterDate(e.target.value);
+                  }}
+                />
+              </Box>
+            </MenuItem>
+          </Menu>
+
         </Box>
       </Box>
 

@@ -24,6 +24,10 @@ import {
 } from "@mui/material";
 import { Delete, AddCircle } from "@mui/icons-material";
 import axios from "axios";
+import TuneIcon from "@mui/icons-material/Tune";
+
+
+
 
 const productOptions = [
   "KJF",
@@ -39,6 +43,7 @@ const productOptions = [
   "Kit",
   "Blood Test",
 ];
+
 
 const dosageOptions = ["10-Days", "20-Days", "30-Days", "60-Days", "90-Days"];
 const paymentModes = [
@@ -59,6 +64,7 @@ const shipmentStatusOptions = [
   "Undelivered",
   "Others",
 ];
+
 
 const RetentionSales = () => {
   // full list from API
@@ -81,7 +87,9 @@ const RetentionSales = () => {
     shipmentStatus: "",
   });
 
+
   const loggedInUser = JSON.parse(sessionStorage.getItem("user"));
+
 
   // Fetch sales and update both states
   const fetchSales = async () => {
@@ -93,7 +101,7 @@ const RetentionSales = () => {
       const response = await axios.get(
         "https://muditamleads-14f32a10d7f7.herokuapp.com/api/retention-sales/all",
         { params }
-      ); 
+      );
       setAllSales(response.data);
       setDisplayedSales(response.data);
     } catch (error) {
@@ -101,14 +109,15 @@ const RetentionSales = () => {
       alert("Failed to load sales data. Please try again.");
     }
   };
-  
+ 
+
 
   useEffect(() => {
     if (loggedInUser) {
       fetchSales();
     }
-  }, [loggedInUser]);
-
+  }, []);
+ 
   const handleInputChange = (e, id, field) => {
     setEditedSales((prev) => ({
       ...prev,
@@ -119,26 +128,27 @@ const RetentionSales = () => {
     }));
   };
 
+
   const handleSave = async (id) => {
     if (editedSales[id]) {
       setSavingStatus((prev) => ({ ...prev, [id]: "Saving..." }));
-      
+     
       // Find the sale in the current state to check which collection it comes from.
       const sale = allSales.find((s) => s._id === id);
       // Create the update payload from edited data.
       const updatePayload = { ...editedSales[id] };
-      
+     
       // If this is a MyOrder record, ensure you include the source.
       if (sale && sale.source === "MyOrder") {
         updatePayload.source = "MyOrder";
       }
-      
+     
       try {
         const response = await axios.put(
           `https://muditamleads-14f32a10d7f7.herokuapp.com/api/retention-sales/all/${id}`,
           updatePayload
         );
-        
+       
         const updatedSales = allSales.map((s) =>
           s._id === id ? { ...s, ...response.data } : s
         );
@@ -160,6 +170,7 @@ const RetentionSales = () => {
     }
   };  
 
+
   const handleAddSale = async () => {
     const newSale = {
       date: new Date().toISOString().split("T")[0],
@@ -173,6 +184,7 @@ const RetentionSales = () => {
       upsellAmount: 0, // new field
       partialPayment: 0, // new field
     };
+
 
     try {
       const response = await axios.post(
@@ -196,6 +208,7 @@ const RetentionSales = () => {
     }
   };
 
+
   const handleDelete = async (id) => {
     try {
       await axios.delete(`https://muditamleads-14f32a10d7f7.herokuapp.com/api/retention-sales/${id}`);
@@ -206,6 +219,7 @@ const RetentionSales = () => {
       console.error("Error deleting sale:", error);
     }
   };
+
 
   // Apply filters to the full dataset
   const applyFilters = (salesData = allSales) => {
@@ -236,8 +250,10 @@ const RetentionSales = () => {
             : sale.shipway_status === filters.shipmentStatus))
       );
     });
+    setCurrentPage(0);
     setDisplayedSales(filteredSales);
   };
+
 
   const resetFilters = () => {
     setFilters({
@@ -251,53 +267,195 @@ const RetentionSales = () => {
       shipmentStatus: "",
     });
     setDisplayedSales(allSales);
+    setFilterOpen(false)
   };
+
 
   const handleChangePage = (event, newPage) => {
     setCurrentPage(newPage);
   };
+
 
   const handleChangeRowsPerPage = (event) => {
     setRowsPerPage(parseInt(event.target.value, 10));
     setCurrentPage(0);
   };
 
+
   const currentSales = displayedSales.slice(
     currentPage * rowsPerPage,
     currentPage * rowsPerPage + rowsPerPage
   );
 
+
+  const textFieldSx = {
+    mb: 2,
+    "& .MuiInputLabel-root": {
+      top: "50%",
+      transform: "translateY(-50%)",
+      transition: "all 0.2s ease-in-out",
+      fontSize: "0.85rem",
+      paddingLeft: "8px",
+    },
+    "& .MuiInputLabel-root.Mui-focused, & .MuiInputLabel-root.MuiFormLabel-filled":
+    {
+      top: 0,
+      color: "gray",
+      transform: "translateY(-50%) translateX(8px)",
+      paddingLeft: "8px",
+      fontSize: "0.65rem",
+    },
+    "& .MuiOutlinedInput-root": {
+      "& input": {
+        padding: "4px !important",
+      },
+      "&.Mui-focused fieldset": { borderColor: "black" },
+      "&:hover fieldset": { borderColor: "black" },
+    },
+
+
+
+
+  };
+  const dateFieldSx = {
+    marginBottom: 2,
+    "& .MuiInputBase-input": { padding: "10px 12px" },
+    "& .MuiInputLabel-root.Mui-focused, & .MuiInputLabel-root.MuiFormLabel-filled": {
+      top: 0,
+      color: "gray",
+      transform: "translateY(-50%) translateX(8px)",
+      paddingLeft: "8px",
+      fontSize: "0.75rem",
+    },
+    "& .MuiOutlinedInput-root": {
+      "& input": { padding: "8px !important" },
+      "&.Mui-focused fieldset": { borderColor: "black" },
+      "&:hover fieldset": { borderColor: "black" },
+    },
+
+
+  }
+  const formControlSx = {
+    mb: 2,
+    "& .MuiInputLabel-root": {
+      fontSize: "0.85rem",
+      paddingLeft: "8px",
+      top: "50%",
+      transition: "all 0.2s ease-in-out",
+      transform: "translateY(-50%)",
+    },
+    "& .MuiInputLabel-root.Mui-focused, & .MuiInputLabel-root.MuiFormLabel-filled": {
+      top: 0,
+      transform: "translateY(-50%) translateX(8px)",
+      fontSize: "0.75rem",
+      color: "gray",
+    },
+    "& .MuiOutlinedInput-root": {
+      "& input": { padding: "4px !important" },
+      "& .MuiSelect-select": { padding: "4px" },
+      "&.Mui-focused fieldset": { borderColor: "black" },
+      "&:hover fieldset": { borderColor: "black" },
+    },
+  };
+  const styles = {
+    tableCell: {
+      backgroundColor: "white",
+      padding: "1px 25px",
+      paddingBottom: "1px",
+      whiteSpace: "nowrap",
+      textOverflow: "ellipsis",
+      overflow: "hidden",
+      maxWidth: "150px",
+      fontSize: "0.65rem",
+      textAlign: "center",
+      borderBottom: "1px solid gray",
+      height: "45px",
+    },
+    tableHead: {
+      backgroundColor: "black",
+      color: "white",
+      whiteSpace: "nowrap",
+      textOverflow: "ellipsis",
+      textAlign: "center",
+      lineHeight: "10px",
+      minHeight: "25px",
+      height: "25px",
+    },
+    tableRow: {
+      backgroundColor: "#1a1a1a",
+      height: "10px",
+      "&:hover": {
+        backgroundColor: "#2a2a2a",
+      },
+    },
+  };
+
+
   return (
     <Box sx={{ padding: 2 }}>
-      <Typography variant="h5" gutterBottom>
+      <Typography variant="h5" gutterBottom sx={{
+        fontWeight: "bold",
+        textAlign: "center",
+        letterSpacing: "1px",
+        color: "black",
+        marginBottom: 2,
+      }}>
         Retention Sales
       </Typography>
       <Button
         variant="contained"
         startIcon={<AddCircle />}
-        sx={{ marginBottom: 2 }}
+        sx={{ mb: 2, backgroundColor: "black" }}
         onClick={handleAddSale}
       >
         Add New Sale
       </Button>
       <Button
         variant="contained"
-        sx={{ mb: 2, ml: 2 }}
+         sx={{ mb: 2,ml:2, backgroundColor: "black" }}
+                  startIcon={<TuneIcon />}
         onClick={() => setFilterOpen(true)}
       >
         Filter
       </Button>
 
+
       <Drawer
         anchor="right"
         open={filterOpen}
         onClose={() => setFilterOpen(false)}
+        sx={{
+          transition: "all 0.5s ease-in-out",
+          "& .MuiDrawer-paper": {
+            boxShadow: "0px 4px 10px rgba(0, 0, 0, 0.2)",
+            borderRadius: "10px 0 0 10px",
+          },
+        }}
       >
-        <Box sx={{ width: 300, padding: 2 }}>
-          <Typography variant="h6" gutterBottom>
+        <Box sx={{ width: 250, padding: 2 }}>
+          <Typography variant="h6" gutterBottom
+          sx={{
+            mb: 1,
+            position: "sticky",
+            top: 0,
+            fontWeight: "bold",
+            textAlign: "center",
+            color: "#333",
+            background: "white",
+            zIndex: 10,
+          }}>
             Filters
           </Typography>
-          <Divider sx={{ mb: 2 }} />
+           <Box
+                      sx={{
+                        height: "2px",
+                        backgroundColor: "#FFC107",
+                        mb: 2,
+                        borderRadius: "2px",
+                      }}
+                    />
+                              <Box sx={{ mb: 1 }}>
+                   
           <TextField
             label="Date From"
             type="date"
@@ -307,7 +465,7 @@ const RetentionSales = () => {
               setFilters((prev) => ({ ...prev, dateFrom: e.target.value }))
             }
             InputLabelProps={{ shrink: true }}
-            sx={{ mb: 2 }}
+            sx={dateFieldSx}
           />
           <TextField
             label="Date To"
@@ -318,7 +476,7 @@ const RetentionSales = () => {
               setFilters((prev) => ({ ...prev, dateTo: e.target.value }))
             }
             InputLabelProps={{ shrink: true }}
-            sx={{ mb: 2 }}
+            sx={dateFieldSx}
           />
           <TextField
             label="Name"
@@ -327,7 +485,7 @@ const RetentionSales = () => {
             onChange={(e) =>
               setFilters((prev) => ({ ...prev, name: e.target.value }))
             }
-            sx={{ mb: 2 }}
+            sx={textFieldSx}
           />
           <TextField
             label="Contact No"
@@ -336,13 +494,14 @@ const RetentionSales = () => {
             onChange={(e) =>
               setFilters((prev) => ({ ...prev, contactNumber: e.target.value }))
             }
-            sx={{ mb: 2 }}
+            sx={textFieldSx}
           />
-          <FormControl fullWidth sx={{ mb: 2 }}>
+          <FormControl fullWidth sx={formControlSx}>
             <InputLabel id="products-ordered-label">
               Products Ordered
             </InputLabel>
             <Select
+            label="Products Ordered"
               multiple
               value={filters.productsOrdered || []}
               onChange={(e) =>
@@ -363,11 +522,12 @@ const RetentionSales = () => {
               ))}
             </Select>
           </FormControl>
-          <FormControl fullWidth sx={{ mb: 2 }}>
+          <FormControl fullWidth sx={formControlSx}>
             <InputLabel id="dosage-ordered-label">
               Dosage Ordered
             </InputLabel>
             <Select
+            label="Dosage Ordered"
               value={filters.dosageOrdered}
               onChange={(e) =>
                 setFilters((prev) => ({
@@ -383,11 +543,12 @@ const RetentionSales = () => {
               ))}
             </Select>
           </FormControl>
-          <FormControl fullWidth sx={{ mb: 2 }}>
+          <FormControl fullWidth sx={formControlSx}>
             <InputLabel id="mode-of-payment-label">
               Mode of Payment
             </InputLabel>
             <Select
+            label="Mode of Payment"
               value={filters.modeOfPayment}
               onChange={(e) =>
                 setFilters((prev) => ({
@@ -403,7 +564,7 @@ const RetentionSales = () => {
               ))}
             </Select>
           </FormControl>
-          <FormControl fullWidth sx={{ mb: 2 }}>
+          <FormControl fullWidth sx={formControlSx}>
             <InputLabel id="shipment-status-label">
               Shipment Status
             </InputLabel>
@@ -424,7 +585,7 @@ const RetentionSales = () => {
               ))}
             </Select>
           </FormControl>
-          <Divider sx={{ mb: 2 }} />
+          </Box>
           <Button
             variant="contained"
             fullWidth
@@ -432,32 +593,50 @@ const RetentionSales = () => {
               applyFilters();
               setFilterOpen(false);
             }}
+            sx={{
+              marginBottom: 1,
+              backgroundColor: "black",
+              transition: "background-color 0.2s ease-in-out",
+              "&:hover": {
+                backgroundColor: "#333",
+              },
+            }}
           >
             Apply Filters
           </Button>
-          <Button variant="outlined" fullWidth onClick={resetFilters}>
+          <Button variant="outlined" fullWidth onClick={resetFilters}  sx={{
+              marginBottom: 1,
+              color: "black",
+              borderColor: "black",
+              transition: "all 0.2s ease-in-out",
+              "&:hover": {
+                borderColor: "#333",
+                color: "#333",
+              },
+            }}>
             Reset Filters
           </Button>
         </Box>
       </Drawer>
 
+
       <TableContainer component={Paper} sx={{ maxHeight: 1000 }}>
         <Table stickyHeader aria-label="retention sales table">
-          <TableHead>
+          <TableHead sx={styles.tableHead}>
             <TableRow>
-              <TableCell>Date</TableCell>
-              <TableCell>Name *</TableCell>
-              <TableCell>Contact No *</TableCell>
-              <TableCell>Products Ordered *</TableCell>
-              <TableCell>Dosage Ordered *</TableCell>
-              <TableCell>Amount Paid *</TableCell>
-              <TableCell>Partial Payment</TableCell>
-              <TableCell>Mode of Payment *</TableCell>
-              <TableCell>Order ID</TableCell>
-              <TableCell>Shipment Status</TableCell>
-              <TableCell>Order Created By *</TableCell>
-              <TableCell>Remarks</TableCell>
-              <TableCell>Actions *</TableCell>
+              <TableCell sx={styles.tableHead}>Date</TableCell>
+              <TableCell sx={styles.tableHead}>Name *</TableCell>
+              <TableCell sx={styles.tableHead}>Contact No *</TableCell>
+              <TableCell sx={styles.tableHead}>Products Ordered *</TableCell>
+              <TableCell sx={styles.tableHead}>Dosage Ordered *</TableCell>
+              <TableCell sx={styles.tableHead}>Amount Paid *</TableCell>
+              <TableCell sx={styles.tableHead}>Partial Payment</TableCell>
+              <TableCell sx={styles.tableHead}>Mode of Payment *</TableCell>
+              <TableCell sx={styles.tableHead}>Order ID</TableCell>
+              <TableCell sx={styles.tableHead}>Shipment Status</TableCell>
+              <TableCell sx={styles.tableHead}>Order Created By *</TableCell>
+              <TableCell sx={styles.tableHead}>Remarks</TableCell>
+              <TableCell sx={styles.tableHead}>Actions *</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
@@ -481,7 +660,6 @@ const RetentionSales = () => {
                 </TableCell>
                 <TableCell style={{ whiteSpace: "nowrap", minWidth: "180px" }}>
                   <TextField
-                    type="number"
                     value={
                       editedSales[sale._id]?.contactNumber ||
                       sale.contactNumber ||
@@ -521,7 +699,6 @@ const RetentionSales = () => {
                 </TableCell>
                 <TableCell style={{ whiteSpace: "nowrap", minWidth: "170px" }}>
                 <TextField
-                  type="number"
                   value={(
                     editedSales[sale._id]?.amountPaid ??
                       (sale.upsellAmount > 0
@@ -536,7 +713,6 @@ const RetentionSales = () => {
                 </TableCell>
                 <TableCell>
                   <TextField
-                    type="number"
                     value={
                       editedSales[sale._id]?.partialPayment ??
                       sale.partialPayment ??
@@ -574,7 +750,7 @@ const RetentionSales = () => {
                 <TableCell>
                   <Button
                     variant="contained"
-                    color="primary"
+                    sx={{backgroundColor:"black", color:"white"}}
                     onClick={() => handleSave(sale._id)}
                   >
                     {savingStatus[sale._id]
@@ -606,5 +782,5 @@ const RetentionSales = () => {
   );
 };
 
+
 export default RetentionSales;
- 
