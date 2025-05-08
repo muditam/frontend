@@ -370,15 +370,24 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
         params.createdAt = filterDate;
       }
 
-
+      if (searchQuery) {
+        params.filters = JSON.stringify({ search: searchQuery });
+      }
+ 
+      if (filterStatus) {
+        params.status = filterStatus;
+      }
+ 
+      if (selectedFilters?.length > 0) {
+        params.tags = JSON.stringify(selectedFilters);
+      }
+ 
       const res = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/customers", {
         params,
       });
       const customers = res.data.customers;
 
-
       if (!customers.length) return alert("No leads found to export.");
-
 
       const headers = [
         "Name",
@@ -409,21 +418,18 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
         cust.presales?.leadStatus || "",
       ]);
 
+      let csvContent = "";
+      csvContent += headers.join(",") + "\n";
+      rows.forEach((row) => {
+        csvContent += row.map((cell) => `"${cell}"`).join(",") + "\n";
+      });
 
-      const csvContent =
-        "data:text/csv;charset=utf-8," +
-        [headers, ...rows]
-          .map((e) => e.map((v) => `"${v}"`).join(","))
-          .join("\n");
 
-
-      const encodedUri = encodeURI(csvContent);
+      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
-      link.setAttribute("href", encodedUri);
-      link.setAttribute(
-        "download",
-        `leads_${new Date().toISOString().split("T")[0]}.csv`
-      );
+      link.setAttribute("href", url);
+      link.setAttribute("download", "customers.csv");
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
