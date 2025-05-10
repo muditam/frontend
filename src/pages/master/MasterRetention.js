@@ -26,9 +26,6 @@ import {
 import axios from "axios";
 import TuneIcon from "@mui/icons-material/Tune";
 
-
-
-
 const RetentionTable = () => {
   const [retentionLeads, setRetentionLeads] = useState([]);
   const [totalLeads, setTotalLeads] = useState(0);
@@ -48,7 +45,7 @@ const RetentionTable = () => {
     dosageOrdered: "",
     modeOfPayment: "",
     healthExpertAssigned: "",
-    rtFollowupReminder: "",
+    rtFollowupReminder: [],
     rtFollowupStatus: "",
     lastOrderDate: "",
     retentionStatus: "",
@@ -62,7 +59,7 @@ const RetentionTable = () => {
     modeOfPayment: ["Partial Paid", "Razorpay", "COD", "UPI", "Bank Transfer"],
     deliveryStatus: ["Delivered", "RTO", "Undelivered"],
     retentionStatus: ["Active", "Lost"],
-    rtFollowupReminder: ["Today", "Tomorrow", "Follow-up Missed"],
+    rtFollowupReminder: ["Today", "Tomorrow", "Follow-up Missed", "Later"],
     rtFollowupStatus: [
       "Good Results",
       "No Result",
@@ -97,7 +94,7 @@ const RetentionTable = () => {
   const fetchRetentionLeads = async () => {
     try {
       const response = await axios.get(
-        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/retention",
+        "http://localhost:5000/api/leads/retention",
         {
           params: {
             ...activeFilters,
@@ -178,7 +175,7 @@ const RetentionTable = () => {
       dosageOrdered: "",
       modeOfPayment: "",
       healthExpertAssigned: "",
-      rtFollowupReminder: "",
+      rtFollowupReminder: [],
       lastOrderDate: "",
       rtFollowupStatus: "",
       lastOrderDateFrom: "",
@@ -334,27 +331,25 @@ const RetentionTable = () => {
         Master Data - Retention
       </Typography>
 
-      <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 2 }}>
-        <Button
-          variant="contained"
-          onClick={handleDownload}
-          sx={{ backgroundColor: "black", ...styles.button }}
-        >
-          Download
-        </Button>
-      </Box>
-
+      <Box sx={{ display: 'flex', justifyContent: 'flex-start', mb: 2 }}>
       <Button
         variant="contained"
         onClick={() => setFilterOpen(true)}
-        sx={{ mb: 2, backgroundColor: "black", ...styles.button }}
+        sx={{ backgroundColor: "black", ...styles.button }}
         startIcon={<TuneIcon />}
       >
         Filter
       </Button>
+      
+        <Button
+          variant="contained"
+          onClick={handleDownload}
+          sx={{  ml: 2, backgroundColor: "black", ...styles.button }}
+        >
+          Download
+        </Button>
 
-
-
+      </Box>
 
       <Drawer
         anchor="right"

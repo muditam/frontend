@@ -142,6 +142,8 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
     "CONS Scheduled",
     "CONS Done",
     "Sales Done",
+    "CNP",
+    "On Follow Up",
   ];
 
   const handleFilterClick = (e) => setFilterMenuAnchorEl(e.currentTarget);
@@ -224,7 +226,7 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
         leadDate: ld.toISOString(),
       };
 
-      await axios.post("https://muditamleads-14f32a10d7f7.herokuapp.com/api/customers", payload);
+      await axios.post("http://localhost:5000/api/customers", payload);
       setError("");
       setOpen(false);
       // Reload the first page after a new lead is added (with search filter if any)
@@ -264,7 +266,7 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
   
       // 3a. If Sales Agent, include assignedTo
       if (loggedInUser?.role === "Sales Agent") {
-        response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/customers", {
+        response = await axios.get("http://localhost:5000/api/customers", {
           params: {
             ...commonParams,
             assignedTo: loggedInUser.fullName
@@ -275,7 +277,7 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
       } else if (loggedInUser?.role === "Retention Agent") {
         // fetch all their consultation assignments
         const consRes = await axios.get(
-          "https://muditamleads-14f32a10d7f7.herokuapp.com/api/consultation-details"
+          "http://localhost:5000/api/consultation-details"
         );
         const myIds = consRes.data
           .filter(c =>
@@ -284,7 +286,7 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
           .map(c => c.customerId.toString());
   
         // fetch up to 1000, with the same common params
-        response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/customers", {
+        response = await axios.get("http://localhost:5000/api/customers", {
           params: {
             ...commonParams,
             limit: 1000
@@ -299,7 +301,7 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
   
       // 3c. Everyone else
       } else {
-        response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/customers", {
+        response = await axios.get("http://localhost:5000/api/customers", {
           params: commonParams
         });
       }
@@ -769,22 +771,24 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
                 <Typography variant="body2" sx={{ fontSize: "0.7rem", color: "gray" }}>
                   {customer.lookingFor ? customer.lookingFor : "No Condition"} • {customer.assignedTo ? customer.assignedTo : "Unassigned"}
                 </Typography>
-                <Chip
-                  label={getFollowUpTag(customer.followUpDate)}
-                  size="small"
-                  sx={{
-                    fontSize: "0.7rem",
-                    backgroundColor:
-                      getFollowUpTag(customer.followUpDate) === "Missed"
-                        ? "#e57373"
-                        : getFollowUpTag(customer.followUpDate) === "Today"
-                        ? "#81c784"
-                        : getFollowUpTag(customer.followUpDate) === "Tomorrow"
-                        ? "#64b5f6"
-                        : "#ffb74d",
-                    color: "white",
-                  }}
-                />
+                {!["Switch Off", "General Query", "Fake Lead", "Invalid Number", "Not Interested"].includes(customer.presales?.leadStatus) && (
+                  <Chip
+                    label={getFollowUpTag(customer.followUpDate)}
+                    size="small"
+                    sx={{
+                      fontSize: "0.7rem",
+                      backgroundColor:
+                        getFollowUpTag(customer.followUpDate) === "Missed"
+                          ? "#e57373"
+                          : getFollowUpTag(customer.followUpDate) === "Today"
+                          ? "#81c784"
+                          : getFollowUpTag(customer.followUpDate) === "Tomorrow"
+                          ? "#64b5f6"
+                          : "#ffb74d",
+                      color: "white",
+                    }}
+                  />
+                )}
               </Box>
               <Box
                 sx={{

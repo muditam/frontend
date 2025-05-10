@@ -9,9 +9,15 @@ import {
   CircularProgress,
   Paper,
   MenuItem,
+  Grid,
   IconButton,
 } from "@mui/material";
-import { Edit as EditIcon, Check as CheckIcon, Close as CloseIcon } from "@mui/icons-material";
+import {
+  Edit as EditIcon,
+  Check as CheckIcon,
+  Close as CloseIcon,
+  LoginRounded,
+} from "@mui/icons-material";
 import axios from "axios";
 
 
@@ -212,28 +218,62 @@ const LeadDetail = () => {
     background: "linear-gradient(180deg, #ffffff, #fafafa)",
     boxShadow: "0px 4px 12px rgba(0, 0, 0, 0.08)",
     mb: 3,
+    mt:3
+  };
+
+
+  const textFieldSx = {
+    mb: 0,
+    "& .MuiInputLabel-root": {
+      top: "50%",
+      transform: "translateY(-50%)",
+      transition: "all 0.2s ease-in-out",
+      fontSize: "0.85rem",
+      paddingLeft: "8px",
+    },
+    "& .MuiInputLabel-root.Mui-focused, & .MuiInputLabel-root.MuiFormLabel-filled":
+      {
+        top: 0,
+        color: "gray",
+        transform: "translateY(-50%) translateX(8px)",
+        paddingLeft: "8px",
+        fontSize: "0.75rem",
+      },
+    "& .MuiOutlinedInput-root": {
+      "& input": {
+        padding: "10px !important",
+      },
+      "&.Mui-focused fieldset": { borderColor: "black" },
+      "&:hover fieldset": { borderColor: "black" },
+    },
   };
 
 
   // Common fields for full edit mode
   const commonEditableFields = (
     <>
-      <TextField
-        label="Name"
-        name="name"
-        value={formData.name || ""}
-        onChange={handleInputChange}
-        fullWidth
-        sx={{ mb: 2 }}
-      />
-      <TextField
-        label="Contact Number"
-        name="contactNumber"
-        value={formData.contactNumber || ""}
-        onChange={handleInputChange}
-        fullWidth
-        sx={{ mb: 2 }}
-      />
+      <Grid container spacing={2}>
+        <Grid item xs={12} sm={6}>
+          <TextField
+            label="Name"
+            name="name"
+            value={formData.name || ""}
+            onChange={handleInputChange}
+            fullWidth
+            sx={textFieldSx}
+          />
+        </Grid>
+        <Grid item xs={12} sm={6}>
+          <TextField
+            label="Contact Number"
+            name="contactNumber"
+            value={formData.contactNumber || ""}
+            onChange={handleInputChange}
+            fullWidth
+            sx={textFieldSx}
+          />
+        </Grid>
+      </Grid>
     </>
   );
 
@@ -241,87 +281,127 @@ const LeadDetail = () => {
   // Fields for Sales Agents in full edit mode
   const salesEditableFields = (
     <>
-      <TextField
-        label="Lead Source"
-        name="leadSource"
-        value={formData.leadSource || ""}
-        onChange={handleInputChange}
-        fullWidth
-        sx={{ mb: 2 }}
-      />
-      <TextField
-        label="Enquiry For"
-        name="enquiryFor"
-        value={formData.enquiryFor || ""}
-        onChange={handleInputChange}
-        fullWidth
-        sx={{ mb: 2 }}
-      />
-      <TextField
-        label="Customer Type"
-        name="customerType"
-        value={formData.customerType || ""}
-        onChange={handleInputChange}
-        fullWidth
-        sx={{ mb: 2 }}
-      />
-      <TextField
-        label="Product Pitched (comma separated)"
-        name="productPitched"
-        value={formData.productPitched || ""}
-        onChange={handleInputChange}
-        fullWidth
-        sx={{ mb: 2 }}
-      />
-      <TextField
-        select
-        label="Lead Status"
-        name="leadStatus"
-        value={formData.leadStatus || ""}
-        onChange={handleInputChange}
-        fullWidth
-        sx={{ mb: 2 }}
-      >
-        {leadStatusOptions.map((option) => (
-          <MenuItem key={option} value={option}>
-            {option}
-          </MenuItem>
-        ))}
-      </TextField>
-      <TextField
-        select
-        label="Sales Status"
-        name="salesStatus"
-        value={formData.salesStatus || ""}
-        onChange={handleInputChange}
-        fullWidth
-        sx={{ mb: 2 }}
-      >
-        {salesStatusOptions.map((option) => (
-          <MenuItem key={option} value={option}>
-            {option}
-          </MenuItem>
-        ))}
-      </TextField>
-      <TextField
-        label="Next Follow-up"
-        name="nextFollowup"
-        type="date"
-        value={formData.nextFollowup || ""}
-        onChange={handleInputChange}
-        fullWidth
-        sx={{ mb: 2 }}
-        InputLabelProps={{ shrink: true }}
-      />
-      <TextField
-        label="Agent's Remarks"
-        name="agentsRemarks"
-        value={formData.agentsRemarks || ""}
-        onChange={handleInputChange}
-        fullWidth
-        sx={{ mb: 2 }}
-        multiline
-      />
+      <Grid container spacing={2}>
+        <Grid item xs={12} sm={6}>
+          <TextField
+            label="Lead Source"
+            name="leadSource"
+            value={formData.leadSource || ""}
+            onChange={handleInputChange}
+            fullWidth
+            sx={textFieldSx}
+          />
+        </Grid>
+        <Grid item xs={12} sm={6}>
+          <TextField
+            label="Enquiry For"
+            name="enquiryFor"
+            value={formData.enquiryFor || ""}
+            onChange={handleInputChange}
+            fullWidth
+            sx={textFieldSx}
+          />
+        </Grid>
+        <Grid item xs={12} sm={6}>
+          <TextField
+            label="Customer Type"
+            name="customerType"
+            value={formData.customerType || ""}
+            onChange={handleInputChange}
+            fullWidth
+            sx={textFieldSx}
+          />
+        </Grid>
+        <Grid item xs={12} sm={6}>
+          <TextField
+            label="Product Pitched (comma separated)"
+            name="productPitched"
+            value={formData.productPitched || ""}
+            onChange={handleInputChange}
+            fullWidth
+            sx={textFieldSx}
+          />
+        </Grid>
+        <Grid item xs={12} sm={6}>
+          <TextField
+            select
+            label="Lead Status"
+            name="leadStatus"
+            value={formData.leadStatus || ""}
+            onChange={handleInputChange}
+            fullWidth
+            sx={textFieldSx}
+          >
+            {leadStatusOptions.map((option) => (
+              <MenuItem key={option} value={option}>
+                {option}
+              </MenuItem>
+            ))}
+          </TextField>
+        </Grid>
+        <Grid item xs={12} sm={6}>
+          <TextField
+            select
+            label="Sales Status"
+            name="salesStatus"
+            value={formData.salesStatus || ""}
+            onChange={handleInputChange}
+            fullWidth
+            sx={textFieldSx}
+          >
+            {salesStatusOptions.map((option) => (
+              <MenuItem key={option} value={option}>
+                {option}
+              </MenuItem>
+            ))}
+          </TextField>
+        </Grid>
+        <Grid item xs={12} sm={6}>
+          <TextField
+            label="Next Follow-up"
+            name="nextFollowup"
+            type="date"
+            value={formData.nextFollowup || ""}
+            onChange={handleInputChange}
+            fullWidth
+            sx={{
+              marginBottom: 0,
+              "& .MuiInputBase-input": {
+                padding: "10px 12px",
+              },
+              "& .MuiInputLabel-root.Mui-focused, & .MuiInputLabel-root.MuiFormLabel-filled":
+              {
+                top: 0,
+                color: "gray",
+                transform: "translateY(-50%) translateX(8px)",
+                paddingLeft: "8px",
+                fontSize: "0.75rem",
+              },
+              "& .MuiOutlinedInput-root": {
+                "& input": {
+                  padding: "8px !important",
+                },
+                "&.Mui-focused fieldset": { borderColor: "black" },
+                "&:hover fieldset": { borderColor: "black" },
+              },
+            }}
+           InputLabelProps={{
+              shrink: true,
+            }}
+          />
+        </Grid>
+        <Grid item xs={12} sm={6}>
+          <TextField
+            label="Agent's Remarks"
+            name="agentsRemarks"
+            value={formData.agentsRemarks || ""}
+            onChange={handleInputChange}
+            fullWidth
+            sx={textFieldSx}
+           
+          />
+        </Grid>
+      </Grid>
     </>
   );
 
@@ -329,59 +409,117 @@ const LeadDetail = () => {
   // Fields for Retention Agents in full edit mode
   const retentionEditableFields = (
     <>
-      <TextField
-        label="RT Follow-up Status"
-        name="rtFollowupStatus"
-        value={formData.rtFollowupStatus || ""}
-        onChange={handleInputChange}
-        fullWidth
-        sx={{ mb: 2 }}
-      />
-      <TextField
-        label="Last Order Date"
-        name="lastOrderDate"
-        type="date"
-        value={formData.lastOrderDate || ""}
-        onChange={handleInputChange}
-        fullWidth
-        sx={{ mb: 2 }}
-        InputLabelProps={{ shrink: true }}
-      />
-      <TextField
-        label="Repeat Dosage Ordered"
-        name="repeatDosageOrdered"
-        value={formData.repeatDosageOrdered || ""}
-        onChange={handleInputChange}
-        fullWidth
-        sx={{ mb: 2 }}
-      />
-      <TextField
-        label="Retention Status"
-        name="retentionStatus"
-        value={formData.retentionStatus || ""}
-        onChange={handleInputChange}
-        fullWidth
-        sx={{ mb: 2 }}
-      />
-      <TextField
-        label="RT Remark"
-        name="rtRemark"
-        value={formData.rtRemark || ""}
-        onChange={handleInputChange}
-        fullWidth
-        sx={{ mb: 2 }}
-        multiline
-      />
-      <TextField
-        label="RT Next Follow-up Date"
-        name="rtNextFollowupDate"
-        type="date"
-        value={formData.rtNextFollowupDate || ""}
-        onChange={handleInputChange}
-        fullWidth
-        sx={{ mb: 2 }}
-        InputLabelProps={{ shrink: true }}
-      />
+      <Grid container spacing={2}>
+        <Grid item xs={12} sm={6}>
+          <TextField
+            label="RT Follow-up Status"
+            name="rtFollowupStatus"
+            value={formData.rtFollowupStatus || ""}
+            onChange={handleInputChange}
+            fullWidth
+            sx={textFieldSx}
+          />
+        </Grid>
+        <Grid item xs={12} sm={6}>
+          <TextField
+            label="Last Order Date"
+            name="lastOrderDate"
+            type="date"
+            value={formData.lastOrderDate || ""}
+            onChange={handleInputChange}
+            fullWidth
+            sx={{
+              marginBottom: 0,
+              "& .MuiInputBase-input": {
+                padding: "10px 12px",
+              },
+              "& .MuiInputLabel-root.Mui-focused, & .MuiInputLabel-root.MuiFormLabel-filled":
+              {
+                top: 0,
+                color: "gray",
+                transform: "translateY(-50%) translateX(8px)",
+                paddingLeft: "8px",
+                fontSize: "0.75rem",
+              },
+              "& .MuiOutlinedInput-root": {
+                "& input": {
+                  padding: "8px !important",
+                },
+                "&.Mui-focused fieldset": { borderColor: "black" },
+                "&:hover fieldset": { borderColor: "black" },
+              },
+            }}
+           InputLabelProps={{
+              shrink: true,
+            }}
+          />
+        </Grid>
+        <Grid item xs={12} sm={6}>
+          <TextField
+            label="Repeat Dosage Ordered"
+            name="repeatDosageOrdered"
+            value={formData.repeatDosageOrdered || ""}
+            onChange={handleInputChange}
+            fullWidth
+            sx={textFieldSx}
+          />
+        </Grid>
+        <Grid item xs={12} sm={6}>
+          <TextField
+            label="Retention Status"
+            name="retentionStatus"
+            value={formData.retentionStatus || ""}
+            onChange={handleInputChange}
+            fullWidth
+            sx={textFieldSx}
+           
+          />
+        </Grid>
+        <Grid item xs={12} sm={6}>
+          <TextField
+            label="RT Remark"
+            name="rtRemark"
+            value={formData.rtRemark || ""}
+            onChange={handleInputChange}
+            fullWidth
+            sx={textFieldSx}
+          />
+        </Grid>
+        <Grid item xs={12} sm={6}>
+          <TextField
+            label="RT Next Follow-up Date"
+            name="rtNextFollowupDate"
+            type="date"
+            value={formData.rtNextFollowupDate || ""}
+            onChange={handleInputChange}
+            fullWidth
+            sx={{
+              marginBottom: 0,
+              "& .MuiInputBase-input": {
+                padding: "10px 12px",
+              },
+              "& .MuiInputLabel-root.Mui-focused, & .MuiInputLabel-root.MuiFormLabel-filled":
+              {
+                top: 0,
+                color: "gray",
+                transform: "translateY(-50%) translateX(8px)",
+                paddingLeft: "8px",
+                fontSize: "0.75rem",
+              },
+              "& .MuiOutlinedInput-root": {
+                "& input": {
+                  padding: "8px !important",
+                },
+                "&.Mui-focused fieldset": { borderColor: "black" },
+                "&:hover fieldset": { borderColor: "black" },
+              },
+            }}
+           InputLabelProps={{
+              shrink: true,
+            }}
+          />
+        </Grid>
+      </Grid>
     </>
   );
 
@@ -390,8 +528,8 @@ const LeadDetail = () => {
     <Box sx={{ p: 4, background: "#eceff1", minHeight: "100vh" }}>
       <Paper
         sx={{
-          p: 4,
-          maxWidth: 800,
+          p: 5,
+          maxWidth: 700,
           mx: "auto",
           borderRadius: 3,
           boxShadow: "0px 6px 20px rgba(0, 0, 0, 0.12)",
@@ -469,12 +607,18 @@ const LeadDetail = () => {
                         </MenuItem>
                       ))}
                     </TextField>
-                    <IconButton onClick={handleInlineSaveLeadStatus} color="success">
+                    <IconButton
+                      onClick={handleInlineSaveLeadStatus}
+                      color="success"
+                    >
                       <CheckIcon />
                     </IconButton>
                     <IconButton
                       onClick={() => {
-                        setFormData((prev) => ({ ...prev, leadStatus: lead.leadStatus }));
+                        setFormData((prev) => ({
+                          ...prev,
+                          leadStatus: lead.leadStatus,
+                        }));
                         setIsEditingLeadStatus(false);
                       }}
                       color="error"
@@ -494,7 +638,13 @@ const LeadDetail = () => {
                 )}
               </Box>
               {/* Inline edit for Sales Status */}
-              <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <Box
+                sx={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                }}
+              >
                 <Typography variant="subtitle1" sx={{ fontWeight: "bold" }}>
                   Sales Status:
                 </Typography>
@@ -517,12 +667,18 @@ const LeadDetail = () => {
                         </MenuItem>
                       ))}
                     </TextField>
-                    <IconButton onClick={handleInlineSaveSalesStatus} color="success">
+                    <IconButton
+                      onClick={handleInlineSaveSalesStatus}
+                      color="success"
+                    >
                       <CheckIcon />
                     </IconButton>
                     <IconButton
                       onClick={() => {
-                        setFormData((prev) => ({ ...prev, salesStatus: lead.salesStatus }));
+                        setFormData((prev) => ({
+                          ...prev,
+                          salesStatus: lead.salesStatus,
+                        }));
                         setIsEditingSalesStatus(false);
                       }}
                       color="error"
@@ -543,52 +699,61 @@ const LeadDetail = () => {
               </Box>
 
 
-                          {/* Inline edit for RT Remark */}
-            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", my: 2 }}>
-              <Typography variant="subtitle1" sx={{ fontWeight: "bold" }}>
-                RT Remark:
-              </Typography>
-              {isEditingRTRemark ? (
-                <>
-                  <TextField
-                    value={formData.rtRemark || ""}
-                    onChange={(e) =>
-                      setFormData((prev) => ({
-                        ...prev,
-                        rtRemark: e.target.value,
-                      }))
-                    }
-                    sx={{ minWidth: 220, mr: 1 }}
-                  />
-                  <IconButton onClick={handleInlineSaveRTRemark} color="success">
-                    <CheckIcon />
-                  </IconButton>
-                  <IconButton
-                    onClick={() => {
-                      setFormData((prev) => ({ ...prev, rtRemark: lead.rtRemark }));
-                      setIsEditingRTRemark(false);
-                    }}
-                    color="error"
-                  >
-                    <CloseIcon />
-                  </IconButton>
-                </>
-              ) : (
-                <Box sx={{ display: "flex", alignItems: "center" }}>
-                  <Typography variant="subtitle1" sx={{ mr: 1 }}>
-                    {lead.rtRemark}
-                  </Typography>
-                  <IconButton onClick={() => setIsEditingRTRemark(true)}>
-                    <EditIcon />
-                  </IconButton>
-                </Box>
-              )}
+              {/* Inline edit for RT Remark */}
+              <Box
+                sx={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  my: 2,
+                }}
+              >
+                <Typography variant="subtitle1" sx={{ fontWeight: "bold" }}>
+                  RT Remark:
+                </Typography>
+                {isEditingRTRemark ? (
+                  <>
+                    <TextField
+                      value={formData.rtRemark || ""}
+                      onChange={(e) =>
+                        setFormData((prev) => ({
+                          ...prev,
+                          rtRemark: e.target.value,
+                        }))
+                      }
+                      sx={{ minWidth: 220, mr: 1 }}
+                    />
+                    <IconButton
+                      onClick={handleInlineSaveRTRemark}
+                      color="success"
+                    >
+                      <CheckIcon />
+                    </IconButton>
+                    <IconButton
+                      onClick={() => {
+                        setFormData((prev) => ({
+                          ...prev,
+                          rtRemark: lead.rtRemark,
+                        }));
+                        setIsEditingRTRemark(false);
+                      }}
+                      color="error"
+                    >
+                      <CloseIcon />
+                    </IconButton>
+                  </>
+                ) : (
+                  <Box sx={{ display: "flex", alignItems: "center" }}>
+                    <Typography variant="subtitle1" sx={{ mr: 1 }}>
+                      {lead.rtRemark}
+                    </Typography>
+                    <IconButton onClick={() => setIsEditingRTRemark(true)}>
+                      <EditIcon />
+                    </IconButton>
+                  </Box>
+                )}
+              </Box>
             </Box>
-            </Box>
-
-
-
-
 
 
             <Typography variant="subtitle1" sx={{ color: "#455a64" }}>
@@ -616,7 +781,8 @@ const LeadDetail = () => {
               <strong>Agent Assigned:</strong> {lead.agentAssigned}
             </Typography>
             <Typography variant="subtitle1" sx={{ color: "#455a64" }}>
-              <strong>Health Expert Assigned:</strong> {lead.healthExpertAssigned}
+              <strong>Health Expert Assigned:</strong>{" "}
+              {lead.healthExpertAssigned}
             </Typography>
           </Box>
         )}
@@ -627,24 +793,17 @@ const LeadDetail = () => {
           <Box
             component="form"
             noValidate
-            sx={{
-              p: 3,
-              border: "1px solid #e0e0e0",
-              borderRadius: 3,
-              backgroundColor: "#ffffff",
-              boxShadow: "0px 4px 12px rgba(0,0,0,0.1)",
-              mb: 3,
-            }}
+           sx={{ display: "flex", flexDirection: "column", gap: 2 }}
           >
             {commonEditableFields}
             {loggedInUser.role === "Sales Agent"
               ? salesEditableFields
               : retentionEditableFields}
-            <Box sx={{ display: "flex", justifyContent: "flex-end", mt: 2 }}>
-              <Button variant="contained" onClick={handleSave} sx={{ mr: 2 }}>
+            <Box sx={{ display: "flex", justifyContent: "space-between", mt: 2 }}>
+              <Button variant="contained" onClick={handleSave} sx={{ color:"white", backgroundColor:"black" }} >
                 Save
               </Button>
-              <Button variant="outlined" onClick={() => setEditMode(false)}>
+              <Button variant="outlined" onClick={() => setEditMode(false)} sx={{color:"white", backgroundColor:"black"}}>
                 Cancel
               </Button>
             </Box>
@@ -652,10 +811,14 @@ const LeadDetail = () => {
         )}
 
 
-        {/* Action Buttons */}
         <Box sx={{ display: "flex", justifyContent: "space-between", mt: 3 }}>
-          {isAssigned ? (
-            <Button variant="contained" onClick={() => setEditMode(true)}>
+          {!editMode && loggedInUser.role === "Manager" && (
+            <Button variant="contained" onClick={() => setEditMode(true)} sx={{color:"white", backgroundColor:"black"}}>
+              Edit Lead
+            </Button>
+          )}
+          {!editMode && isAssigned ? (
+            <Button variant="contained" onClick={() => setEditMode(true)} sx={{color:"white", backgroundColor:"black"}}>
               Edit Lead
             </Button>
           ) : (
@@ -665,7 +828,10 @@ const LeadDetail = () => {
                   variant="contained"
                   disabled
                   sx={{
-                    backgroundColor: transferRequest.status === "approved" ? "#a5d6a7" : "#ccc",
+                    backgroundColor:
+                      transferRequest.status === "approved"
+                        ? "#a5d6a7"
+                        : "#ccc",
                   }}
                 >
                   {transferRequest.status === "approved"
@@ -673,13 +839,23 @@ const LeadDetail = () => {
                     : "Transfer Requested"}
                 </Button>
               ) : (
-                <Button variant="contained" color="secondary" onClick={handleTransfer}>
-                  Lead Transfer
-                </Button>
+                loggedInUser.role === "Retention Agent" ||
+                (loggedInUser.role === "Sales Agent" && (
+                  <Button
+                    variant="contained"
+                    color="secondary"
+                    onClick={handleTransfer}
+                    sx={{color:"white", backgroundColor:"black"}}
+                  >
+                    Lead Transfer
+                  </Button>
+                ))
               )}
             </>
           )}
         </Box>
+
+
         {transferRequestStatus && !transferRequest && (
           <Typography variant="body2" sx={{ mt: 2, color: "red" }}>
             {transferRequestStatus}
@@ -692,6 +868,3 @@ const LeadDetail = () => {
 
 
 export default LeadDetail;
-
-
-

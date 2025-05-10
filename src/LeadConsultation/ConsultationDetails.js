@@ -139,6 +139,8 @@ const ConsultationDetails = ({ customerId }) => {
 
   const [employees, setEmployees] = useState([]);
 
+  const [subLeadStatus, setSubLeadStatus] = useState("");
+
   // Fetch employees for Assigned To dropdown
   useEffect(() => {
     axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/employees")
@@ -210,6 +212,18 @@ const ConsultationDetails = ({ customerId }) => {
         console.error("Error updating follow-up date:", error);
       });
   };
+
+  const handleSubLeadStatusChange = async (newSubStatus) => {
+    setSubLeadStatus(newSubStatus);
+    try {
+      await axios.post("https://muditamleads-14f32a10d7f7.herokuapp.com/api/consultation-details", {
+        customerId,
+        presales: { subLeadStatus: newSubStatus },
+      });
+    } catch (error) {
+      console.error("Error updating subLeadStatus:", error);
+    }
+  };  
 
   const handleOpenEdit = () => {
     setEditData({
@@ -438,7 +452,7 @@ const ConsultationDetails = ({ customerId }) => {
               "Sales Done",
               "Call Back Later",
               "On Follow Up",
-              "CNP",
+              "CNP", 
               "Switch Off",
               "General Query",
               "Fake Lead",
@@ -453,6 +467,21 @@ const ConsultationDetails = ({ customerId }) => {
             ))}
           </Select>
         </FormControl>
+
+        {leadStatus === "CONS Done" && (
+          <FormControl size="small" sx={{ minWidth: 200, ml: 2 }}>
+            <InputLabel>CONS Status</InputLabel>
+            <Select
+              value={subLeadStatus}
+              label="Sub-Status"
+              onChange={(e) => handleSubLeadStatusChange(e.target.value)}
+            >
+              {["Budget issue", "On Follow Up", "CNP", "Call Back Later"].map((opt) => (
+                <MenuItem key={opt} value={opt}>{opt}</MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+        )}
       </Box>
 
       {/* Render child component based on the current step */}
