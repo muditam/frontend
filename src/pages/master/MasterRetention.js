@@ -94,7 +94,7 @@ const RetentionTable = () => {
   const fetchRetentionLeads = async () => {
     try {
       const response = await axios.get(
-        "http://localhost:5000/api/leads/retention",
+        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/retention",
         {
           params: {
             ...activeFilters,
