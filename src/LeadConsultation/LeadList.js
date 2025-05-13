@@ -131,7 +131,7 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
-  const limit = 20; // Number of leads per page
+  const limit = 20; // Number of leads per page 
 
   const [filterMenuAnchorEl, setFilterMenuAnchorEl] = useState(null);
   const [selectedFilters, setSelectedFilters] = useState([]);
@@ -144,6 +144,7 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
     "Sales Done",
     "CNP",
     "On Follow Up",
+    "New Lead",
   ];
 
   const handleFilterClick = (e) => setFilterMenuAnchorEl(e.currentTarget);
