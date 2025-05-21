@@ -1126,7 +1126,7 @@ const CartDrawer = ({ closeDrawer }) => {
                       variant="h6"
                       sx={{ fontSize: "1rem" }}
                     >
-                      Add Discount
+                      Add Discount + Partial Payment
                     </Typography>
                     <IconButton
                       size="small"

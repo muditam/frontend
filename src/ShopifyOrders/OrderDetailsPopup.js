@@ -41,6 +41,8 @@ const OrderDetailsPopup = ({ orderId, agentName, onClose }) => {
   const [upsellChecked, setUpsellChecked] = useState(false);
   const [upsellAmount, setUpsellAmount] = useState("");
 
+  const [discount, setDiscount] = useState("");
+
   useEffect(() => {
     // Fetch order details from Shopify when component mounts.
     const fetchOrderDetails = async () => {
@@ -93,23 +95,25 @@ const OrderDetailsPopup = ({ orderId, agentName, onClose }) => {
   const handleConfirmAndCopy = () => {
     if (!orderDetails) return;
     let detailsText = `Order Created
-Order ID: ${orderDetails.orderId}
-Customer Name: ${orderDetails.customerName}
-Phone: ${orderDetails.phone}
-Address: ${orderDetails.shippingAddress}
-Payment Status: ${orderDetails.paymentStatus}
-Product Ordered: ${orderDetails.productOrdered}
-Order Date: ${orderDetails.orderDate}
-Total Price: ${upsellChecked 
-  ? upsellAmount 
-  : orderDetails.totalPrice}
-Health Expert: ${selectedAgent}
-Dosage Ordered: ${dosageOrdered}`;
+    Order ID: ${orderDetails.orderId}
+    Customer Name: ${orderDetails.customerName}
+    Phone: ${orderDetails.phone}
+    Address: ${orderDetails.shippingAddress}
+    Payment Status: ${orderDetails.paymentStatus}
+    Product Ordered: ${orderDetails.productOrdered}
+    Order Date: ${orderDetails.orderDate}
+    Total Price: ${upsellChecked
+        ? upsellAmount
+        : orderDetails.totalPrice}
+    Health Expert: ${selectedAgent}
+    Discount: ${discount}
+    Dosage Ordered: ${dosageOrdered}`;
+
     if (orderDetails.paymentStatus === "pending") {
       detailsText += `\nPartial Payment: ${partialPayment}`;
     }
     if (paymentMethod === "Partial Paid") {
-      detailsText += `\nAmount Pending: ${Number(orderDetails.totalPrice) - Number(partialPayment)}`;
+      detailsText += `\nAmount Pending: ${Number(orderDetails.totalPrice)}`;
     } else if (paymentMethod === "COD") {
       detailsText += `\nAmount Pending: ${orderDetails.totalPrice}`;
     }
@@ -260,7 +264,9 @@ Dosage Ordered: ${dosageOrdered}`;
               </Grid>
               <Grid item xs={7}>
                 <Typography variant="body2">
-                  {upsellChecked
+                  {paymentMethod === "Partial Paid"
+                    ? (Number(orderDetails.totalPrice) + Number(partialPayment || 0)).toLocaleString()
+                    : upsellChecked
                     ? Number(upsellAmount).toLocaleString()
                     : Number(orderDetails.totalPrice).toLocaleString()}
                 </Typography>
@@ -276,12 +282,27 @@ Dosage Ordered: ${dosageOrdered}`;
                   <Grid item xs={7}>
                     <Typography variant="body2">
                       {paymentMethod === "Partial Paid"
-                        ? Number(orderDetails.totalPrice) - Number(partialPayment)
+                        ? Number(orderDetails.totalPrice)
                         : orderDetails.totalPrice}
                     </Typography>
                   </Grid>
                 </>
               )}
+              <Grid item xs={5}>
+                <Typography variant="caption" color="textSecondary">
+                  Discount:
+                </Typography>
+              </Grid>
+              <Grid item xs={7}>
+                <TextField
+                  variant="outlined"
+                  size="small"
+                  type="number"
+                  value={discount}
+                  onChange={(e) => setDiscount(e.target.value)}
+                  sx={{ p: 0 }}
+                />
+              </Grid>
               <Grid item xs={5}>
                 <Typography variant="caption" color="textSecondary">
                   Payment:
