@@ -171,11 +171,11 @@ const handleChange = (e) => {
             backgroundColor: '#fff',
         }}
         >
-        <Box sx={{ width: '100%', textAlign: 'center', mt: 2 }}>
+        <Box sx={{ width: '100%', textAlign: 'center', }}>
             <Typography
             variant="subtitle2"
             color="black"
-            sx={{ fontSize: '2rem', fontWeight: 600 }}
+            sx={{ fontSize: '1.5rem', fontWeight: 600 }}
             >
             History
             </Typography>

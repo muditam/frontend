@@ -36,6 +36,8 @@ import DialogTitle from "@mui/material/DialogTitle";
 import DialogContent from "@mui/material/DialogContent";
 import DialogActions from "@mui/material/DialogActions";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
+import FormatColorFillIcon from "@mui/icons-material/FormatColorFill";
+import { Menu as MuiMenu } from "@mui/material";
 
 import PhoneIcon from "@mui/icons-material/Phone";
 import FilterListIcon from "@mui/icons-material/FilterList";
@@ -127,7 +129,7 @@ const RetentionLeads = () => {
   const [logsModalOpen, setLogsModalOpen] = useState(false);
   const [logsData, setLogsData] = useState([]);
 
-
+  const [sortMenuAnchorEl, setSortMenuAnchorEl] = useState(null);
 
   const [tagDialogOpen, setTagDialogOpen] = useState(false);
   const [tagDialogImageIndex, setTagDialogImageIndex] = useState(null);
@@ -165,6 +167,9 @@ const RetentionLeads = () => {
   const [uploadedImages, setUploadedImages] = useState([]);
 
   const [showOrders, setShowOrders] = useState(false);
+
+  const [anchorElColor, setAnchorElColor] = useState(null);
+  const [colorMenuIdx, setColorMenuIdx] = useState(null);
 
   const handleCopy = (text) => {
     navigator.clipboard.writeText(text);
@@ -318,7 +323,7 @@ const RetentionLeads = () => {
     const lead = leads[selectedLeadIndex];
     if (lead && lead.images && Array.isArray(lead.images)) {
       const imgs = lead.images.map((img, idx) => ({
-        preview: img.url || img.preview, // img.url for server images, img.preview for newly added local images
+        preview: img.url || img.preview,  
         date: img.date ? new Date(img.date) : new Date(),
         tag: img.tag || "",
         index: idx,
@@ -409,6 +414,23 @@ const RetentionLeads = () => {
     );
   };
 
+  const handleColorSelect = async (color, index) => {
+    const updatedLeads = [...leads];
+    updatedLeads[index].rowColor = color;
+    setLeads(updatedLeads);
+    setAnchorElColor(null);
+    setColorMenuIdx(null);
+
+    try {
+      await axios.put(
+        `https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/${updatedLeads[index]._id}`,
+        { rowColor: color }
+      );
+    } catch (error) {
+      console.error("Error updating row color:", error);
+    }
+  };
+
 
   useEffect(() => {
     const container = containerRef.current;
@@ -484,53 +506,7 @@ const RetentionLeads = () => {
     }
   };
 
-  const handleImageChange = async (event) => {
-    const files = Array.from(event.target.files);
-
-    if (selectedLeadIndex === null) {
-      alert("Select a lead first!");
-      return;
-    }
-
-    try {
-      const formData = new FormData();
-      files.forEach((file) => {
-        formData.append("images", file);
-      });
-
-      const uploadResponse = await axios.post(
-        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/upload-to-shopify",
-        formData,
-        { headers: { "Content-Type": "multipart/form-data" } }
-      );
-
-      const uploadedImagesFromServer = uploadResponse.data.map((img, idx) => ({
-        url: img.url,
-        date: img.date ? new Date(img.date) : new Date(),
-        tag: "",
-        index: idx,
-        preview: img.url,
-      }));
-
-      setUploadedImages((prev) => [...prev, ...uploadedImagesFromServer]);
-
-      setLeads((prevLeads) => {
-        const newLeads = [...prevLeads];
-        const lead = { ...newLeads[selectedLeadIndex] };
-        lead.images = lead.images
-          ? [...lead.images, ...uploadedImagesFromServer]
-          : [...uploadedImagesFromServer];
-        newLeads[selectedLeadIndex] = lead;
-
-        updateLeadImagesOnServer(lead._id, lead.images);
-
-        return newLeads;
-      });
-    } catch (error) {
-      console.error("Image upload failed:", error);
-      alert("Image upload failed. Please try again.");
-    }
-  };
+   
 
   const filteredLeadsByFilters = (inputLeads) => {
     let filtered = inputLeads;
@@ -815,7 +791,7 @@ const RetentionLeads = () => {
             </IconButton>
           </Tooltip>
           <Tooltip title="Sort">
-            <IconButton size="small" onClick={() => alert("Sort clicked")}>
+            <IconButton size="small" onClick={(e) => setSortMenuAnchorEl(e.currentTarget)}>
               <SortIcon />
             </IconButton>
           </Tooltip>
@@ -891,8 +867,48 @@ const RetentionLeads = () => {
           </Box>
         </Menu>
 
+        <MuiMenu
+          anchorEl={sortMenuAnchorEl}
+          open={Boolean(sortMenuAnchorEl)}
+          onClose={() => setSortMenuAnchorEl(null)}
+        >
+          {[
+            { label: "Good", color: "#ffdbbb" },
+            { label: "Very Good", color: "#baddff" },
+            { label: "Excellent", color: "#bafff5" },
+            { label: "No Color", color: "" },
+          ].map(({ label, color }) => (
+            <MenuItem
+              key={label}
+              onClick={() => {
+                setSortMenuAnchorEl(null);
 
+                // Filter leads by color
+                const filtered = allLeads.filter((lead) => {
+                  const leadColor = lead.rowColor || "";
+                  return leadColor === color;
+                });
 
+                setFilteredAllLeads(filtered);
+                setLeads(filtered.slice(0, leadsPerPage));
+                setHasMore(filtered.length > leadsPerPage);
+                setSelectedLeadIndex(null);
+              }}
+            >
+              <Box
+                sx={{
+                  backgroundColor: color || "#f0f0f0",
+                  width: 16,
+                  height: 16,
+                  borderRadius: 0.5,
+                  border: "1px solid #ccc",
+                  mr: 1,
+                }}
+              />
+              {label}
+            </MenuItem>
+          ))}
+        </MuiMenu>
 
         {/* Leads List */}
         <List disablePadding>
@@ -916,9 +932,12 @@ const RetentionLeads = () => {
                 sx={{
                   mb: 0.5,
                   borderRadius: 1,
-                  backgroundColor: isSelected
-                    ? "rgba(25, 118, 210, 0.15)"
-                    : lead.rowColor || "inherit",
+                  backgroundColor: lead.rowColor
+                    ? lead.rowColor
+                    : isSelected
+                      ? "rgba(25, 118, 210, 0.15)"
+                      : "inherit",
+
                 }}
                 onClick={() => {
                   setLeadLoading(true);
@@ -926,10 +945,30 @@ const RetentionLeads = () => {
                   setTimeout(() => setLeadLoading(false), 500);
                 }}
               >
-                <ListItemAvatar>
+                <ListItemAvatar sx={{ position: "relative" }}>
                   <Avatar sx={{ bgcolor: "black", fontSize: "0.8rem" }}>
                     {initials}
                   </Avatar>
+                  <IconButton
+                    size="small"
+                    sx={{
+                      position: "absolute",
+                      top: -6,
+                      left: -6,
+                      bgcolor: "white",
+                      width: 20,
+                      height: 20,
+                      p: 0.3,
+                      boxShadow: 1,
+                    }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setColorMenuIdx(idx);
+                      setAnchorElColor(e.currentTarget);
+                    }}
+                  >
+                    <FormatColorFillIcon fontSize="inherit" style={{ fontSize: "0.75rem" }} />
+                  </IconButton>
                 </ListItemAvatar>
 
                 <ListItemText
@@ -950,12 +989,41 @@ const RetentionLeads = () => {
                         {lead.name}
                       </Typography>
 
-                      <Chip
-                        label={tagInfo.label}
-                        color={tagInfo.color}
-                        size="small"
-                        sx={{ fontWeight: "bold" }}
-                      />
+                      <Box
+                        sx={{
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                        }}
+                      >
+                        <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+
+
+                          <Menu
+                            anchorEl={anchorElColor}
+                            open={colorMenuIdx === idx}
+                            onClose={() => {
+                              setAnchorElColor(null);
+                              setColorMenuIdx(null);
+                            }}
+                          >
+                            <MenuItem onClick={() => handleColorSelect("#ffdbbb", idx)}>Good</MenuItem>
+                            <MenuItem onClick={() => handleColorSelect("#baddff", idx)}>Very Good</MenuItem>
+                            <MenuItem onClick={() => handleColorSelect("#bafff5", idx)}>Excellent</MenuItem>
+                            <MenuItem onClick={() => handleColorSelect("", idx)}>Remove Color</MenuItem>
+                          </Menu>
+
+
+                          <Chip
+                            label={tagInfo.label}
+                            color={tagInfo.color}
+                            size="small"
+                            sx={{ fontWeight: "bold" }}
+                          />
+                        </Box>
+
+                      </Box>
+
                     </Box>
                   }
                   secondary={
@@ -1057,8 +1125,7 @@ const RetentionLeads = () => {
                   p: 2,
                   boxShadow: 2,
                   borderRadius: 2,
-                  backgroundColor:
-                    leads[selectedLeadIndex]?.rowColor || "background.paper",
+                  backgroundColor: "background.paper",
                   fontSize: "0.85rem",
                 }}
                 elevation={3}
@@ -1279,7 +1346,7 @@ const RetentionLeads = () => {
 
                   <Box sx={{ minWidth: 160 }}>
                     <Typography variant="subtitle2" color="text.secondary" mb={0.5}>
-                    Preferred Method
+                      Preferred Method
                     </Typography>
                     <Select
                       value={leads[selectedLeadIndex].communicationMethod || ""}
@@ -1312,42 +1379,6 @@ const RetentionLeads = () => {
                       ))}
                     </Select>
                   </Box>
-
-                  <Box sx={{ minWidth: 150 }}>
-                    <Typography variant="subtitle2" color="text.secondary" mb={0.5}>
-                      First Order Date
-                    </Typography>
-                    <Typography variant="body2">
-                      {shopifyDatesMap[leads[selectedLeadIndex].contactNumber]?.firstOrderDate
-                        ? new Date(shopifyDatesMap[leads[selectedLeadIndex].contactNumber].firstOrderDate).toLocaleDateString()
-                        : "N/A"}
-                    </Typography>
-                  </Box>
-
-                  {/* Shopify Last Order Date */}
-                  <Box sx={{ minWidth: 150 }}>
-                    <Typography variant="subtitle2" color="text.secondary" mb={0.5}>
-                      Last Order Date
-                    </Typography>
-                    <Typography
-                      variant="body2"
-                      color="text.secondary"
-                      sx={{ fontWeight: "normal", whiteSpace: "nowrap" }}
-                    >
-                      {leads[selectedLeadIndex]?.lastOrderDate
-                        ? new Date(leads[selectedLeadIndex].lastOrderDate).toLocaleDateString()
-                        : "N/A"}
-                    </Typography>
-                  </Box>
-
-                  <Box sx={{ minWidth: 150 }}>
-                    <Typography variant="subtitle2" color="text.secondary" mb={0.5}>
-                      Total Spend
-                    </Typography>
-                    <Typography variant="body2">
-                      ₹{shopifyDatesMap[leads[selectedLeadIndex]?.contactNumber]?.totalSpend?.toFixed(2) || "0.00"}
-                    </Typography>
-                  </Box>
                 </Stack>
 
                 <Box sx={{ mt: 2 }}>
@@ -1371,13 +1402,50 @@ const RetentionLeads = () => {
                         Total Orders: {shopifyDatesMap[leads[selectedLeadIndex].contactNumber]?.orders?.length || 0}
                       </Typography>
 
+                      <Box sx={{ display: 'flex', gap: 3, flexWrap: 'wrap', mt: 2 }}>
+                        <Box sx={{ minWidth: 150 }}>
+                          <Typography variant="subtitle2" color="text.secondary" mb={0.5}>
+                            First Order Date
+                          </Typography>
+                          <Typography variant="body2">
+                            {shopifyDatesMap[leads[selectedLeadIndex].contactNumber]?.firstOrderDate
+                              ? new Date(shopifyDatesMap[leads[selectedLeadIndex].contactNumber].firstOrderDate).toLocaleDateString()
+                              : "N/A"}
+                          </Typography>
+                        </Box>
+
+                        {/* Shopify Last Order Date */}
+                        <Box sx={{ minWidth: 150 }}>
+                          <Typography variant="subtitle2" color="text.secondary" mb={0.5}>
+                            Last Order Date
+                          </Typography>
+                          <Typography
+                            variant="body2"
+                            color="text.secondary"
+                            sx={{ fontWeight: "normal", whiteSpace: "nowrap" }}
+                          >
+                            {leads[selectedLeadIndex]?.lastOrderDate
+                              ? new Date(leads[selectedLeadIndex].lastOrderDate).toLocaleDateString()
+                              : "N/A"}
+                          </Typography>
+                        </Box>
+
+                        <Box sx={{ minWidth: 150 }}>
+                          <Typography variant="subtitle2" color="text.secondary" mb={0.5}>
+                            Total Spend
+                          </Typography>
+                          <Typography variant="body2">
+                            ₹{shopifyDatesMap[leads[selectedLeadIndex]?.contactNumber]?.totalSpend?.toFixed(2) || "0.00"}
+                          </Typography>
+                        </Box>
+                      </Box>
                       {/* Orders List */}
                       {(shopifyDatesMap[leads[selectedLeadIndex].contactNumber]?.orders || []).map((order, i) => (
                         <Box
                           key={order.id}
                           sx={{ border: "1px solid #ccc", borderRadius: 1, p: 1, mb: 1, fontSize: "0.75rem" }}
                         >
-                          <Typography><b>Order ID:</b> {order.id}</Typography>
+                          <Typography><b>Order ID:</b> {order.name}</Typography>
                           <Typography><b>Total Amount:</b> ₹{order.total_price}</Typography>
                           <Typography><b>Date:</b> {new Date(order.created_at).toLocaleString()}</Typography>
                           <Typography><b>Fulfillment Status:</b> {order.fulfillment_status || "Unfulfilled"}</Typography>
@@ -1434,8 +1502,7 @@ const RetentionLeads = () => {
                 backgroundColor: "background.paper",
                 fontSize: "0.85rem",
                 display: "flex",
-                flexDirection: "column",
-                maxHeight: "80vh",
+                flexDirection: "column", 
                 overflowY: "auto",
               }}
               elevation={3}
@@ -1445,15 +1512,60 @@ const RetentionLeads = () => {
               </Typography>
 
               <Button variant="outlined" component="label" sx={{ mb: 2 }}>
-                Select Images
-                <input
-                  type="file"
-                  hidden
-                  accept="image/*"
-                  multiple
-                  onChange={handleImageChange}
-                />
-              </Button>
+  Select Images
+  <input
+    type="file"
+    hidden
+    accept="image/*"
+    multiple
+    onChange={async (e) => {
+      const files = Array.from(e.target.files);
+      if (!files.length || selectedLeadIndex === null) return;
+
+      const formData = new FormData();
+      files.forEach((file) => formData.append("images", file));
+
+      try {
+        const res = await axios.post(
+          "https://muditamleads-14f32a10d7f7.herokuapp.com/api/upload-to-wasabi",
+          formData
+        );
+
+        const uploaded = res.data.uploadedFiles.map((img) => ({
+          url: img.url,
+          date: new Date(),
+          tag: "",
+        }));
+
+        const updatedImages = [...(leads[selectedLeadIndex].images || []), ...uploaded];
+
+        // Save to backend
+        await axios.patch(
+          `https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/${leads[selectedLeadIndex]._id}/images`,
+          { images: updatedImages }
+        );
+
+        // Update frontend state
+        const newLeads = [...leads];
+        newLeads[selectedLeadIndex].images = updatedImages;
+        setLeads(newLeads);
+
+        // Update image preview state
+        const imgsForDisplay = uploaded.map((img, i) => ({
+          preview: img.url,
+          date: new Date(),
+          tag: "",
+          index: uploadedImages.length + i,
+        }));
+        setUploadedImages((prev) => [...prev, ...imgsForDisplay]);
+      } catch (err) {
+        console.error("Failed to upload image:", err);
+        alert("Upload failed.");
+      }
+    }}
+  />
+</Button>
+
 
               {/* Render grouped images */}
               {Object.keys(groupedImages).sort((a, b) => b - a).map((year) => (
