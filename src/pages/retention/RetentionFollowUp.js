@@ -186,7 +186,7 @@ const RetentionFollowUp = ({ contactNumber }) => {
                 <TextField
                   variant="outlined"
                   select
-                  label="Sending Glucometer photos"
+                  label="Glucometer photos"
                   fullWidth
                   value={fup.sendingGlucometerPhotos}
                   onChange={(e) =>

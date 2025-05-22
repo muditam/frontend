@@ -7,6 +7,8 @@ import {
     Select,
     MenuItem,
     Autocomplete,
+    Typography,
+    Box,
 } from "@mui/material";
 import axios from "axios";
 
@@ -159,7 +161,25 @@ const handleChange = (e) => {
     const sleepQualityOptions = ["Poor", "Average", "Good"];
 
     return (
-        <>
+        <Box
+        sx={{
+            mt: 2,
+            p: 2,
+            borderRadius: 2,
+            border: '1px solid #ddd',
+            boxShadow: 2,
+            backgroundColor: '#fff',
+        }}
+        >
+        <Box sx={{ width: '100%', textAlign: 'center', mt: 2 }}>
+            <Typography
+            variant="subtitle2"
+            color="black"
+            sx={{ fontSize: '2rem', fontWeight: 600 }}
+            >
+            History
+            </Typography>
+        </Box>
             <Grid container spacing={2}>
                 {/* Row 1 */}
                 <Grid item xs={2} sx={cellStyle}>
@@ -175,11 +195,11 @@ const handleChange = (e) => {
                 </Grid>
                 <Grid item xs={2} sx={cellStyle}>
                     <FormControl fullWidth size="small">
-                        <InputLabel>Last Test Done</InputLabel>
+                        <InputLabel>Last Test</InputLabel>
                         <Select
                             name="lastTestDone"
                             value={formData.lastTestDone}
-                            label="Last Test Done"
+                            label="Last Test"
                             onChange={handleChange}
                         >
                             {[
@@ -257,7 +277,7 @@ const handleChange = (e) => {
                         <Select
                             name="durationOfDiabetes"
                             value={formData.durationOfDiabetes}
-                            label="Duration of Diabetes"
+                            label="Duration"
                             onChange={handleChange}
                         >
                             {[
@@ -647,7 +667,7 @@ const handleChange = (e) => {
                     />
                 </Grid>
             </Grid>
-        </>
+        </Box>
     );
 };
 

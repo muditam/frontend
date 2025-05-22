@@ -633,7 +633,7 @@ const LeadTable = () => {
                             { key: 'deliveryStatus', options: ['Delivered', 'RTO', 'Undelivered'] },
                             { key: 'customerType', options: ['Fresh', 'Renewal', 'Online Order'] },
                             { key: 'healthExpertAssigned', options: retentionAgents.map(agent => agent.fullName) },
-                            { key: 'rtFollowupStatus', options: ['Good Results', 'No Result', 'Sales Done', 'Do Not Want to Continue', 'Call Not Picked', 'Blood Test Suggested', 'Product Issue', 'Order from Other Source', 'Upsell', 'Follow Up Again', 'Call Back', 'Others'] },
+                            { key: 'rtFollowupStatus', options: ['Good Results', 'No Result', 'Sales Done', 'Do Not Want to Continue', 'Order Confirm', 'Call Not Picked', 'Blood Test Suggested', 'Product Issue', 'Order from Other Source', 'Upsell', 'Follow Up Again', 'Call Back', 'Others'] },
                             { key: 'retentionStatus', options: ['Active', 'Lost'] },
                             { key: 'enquiryFor', options: ['KJF', 'SDP', 'VKR', 'L-Fx', 'S&S', 'CPV', 'HDP', 'PF', 'PGut', 'Shilajit', 'Kit', 'Blood Test'] },
                         ].map(field => (
@@ -1074,6 +1074,7 @@ const LeadTable = () => {
                                                 "Good Results",
                                                 "No Result",
                                                 "Sales Done",
+                                                "Order Confirm",
                                                 "Do Not Want to Continue",
                                                 "Call Not Picked",
                                                 "Blood Test Suggested",

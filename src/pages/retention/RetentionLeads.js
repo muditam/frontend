@@ -24,6 +24,7 @@ import {
   TableCell,
   CircularProgress,
   Button,
+  Snackbar,
 } from "@mui/material";
 import { keyframes, styled } from "@mui/material/styles";
 import axios from "axios";
@@ -34,12 +35,23 @@ import Dialog from "@mui/material/Dialog";
 import DialogTitle from "@mui/material/DialogTitle";
 import DialogContent from "@mui/material/DialogContent";
 import DialogActions from "@mui/material/DialogActions";
+import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 
 import PhoneIcon from "@mui/icons-material/Phone";
 import FilterListIcon from "@mui/icons-material/FilterList";
 import SortIcon from "@mui/icons-material/Sort";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
 import SearchIcon from "@mui/icons-material/Search";
+
+import AddIcon from "@mui/icons-material/Add";
+import HistoryIcon from "@mui/icons-material/History";
+import Radio from "@mui/material/Radio";
+import RadioGroup from "@mui/material/RadioGroup";
+import FormControlLabel from "@mui/material/FormControlLabel";
+import Badge from "@mui/material/Badge";
+
+import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
+import KeyboardArrowUpIcon from "@mui/icons-material/KeyboardArrowUp";
 
 const fadeIn = keyframes`
   from { opacity: 0; transform: translateY(-10px); }
@@ -108,11 +120,21 @@ const RetentionLeads = () => {
   const [orderPlacedFilter, setOrderPlacedFilter] = useState("Order Placed"); // or "Order Not Placed"
   const [dateRangeFilter, setDateRangeFilter] = useState("");
 
+  const [logPopupAnchor, setLogPopupAnchor] = useState(null);
+  const [reachoutMethod, setReachoutMethod] = useState("");
+  const [reachoutStatus, setReachoutStatus] = useState("");
+  const [reachoutTimestamp, setReachoutTimestamp] = useState(null);
+  const [logsModalOpen, setLogsModalOpen] = useState(false);
+  const [logsData, setLogsData] = useState([]);
+
+
 
   const [tagDialogOpen, setTagDialogOpen] = useState(false);
   const [tagDialogImageIndex, setTagDialogImageIndex] = useState(null);
   // const [subcellsPopup, setSubcellsPopup] = useState({ open: false, subcells: [] });
   const [tagDialogValue, setTagDialogValue] = useState("");
+
+  const [copySuccess, setCopySuccess] = useState(false);
 
   const [filters, setFilters] = useState({
     name: "",
@@ -126,14 +148,14 @@ const RetentionLeads = () => {
     dosageExpiringFrom: "",
     dosageExpiringTo: "",
     rtNextFollowupDate: "",
-    rtFollowupReminder: "",
+    rtFollowupReminder: null,
     rtFollowupStatus: "",
     lastOrderDateFrom: "",
     lastOrderDateTo: "",
     retentionStatus: "",
   });
 
-  const leadsPerPage = 50; // Number of leads to load per batch
+  const leadsPerPage = 50;
 
   const containerRef = useRef(null);
 
@@ -141,6 +163,13 @@ const RetentionLeads = () => {
 
   // Image upload state
   const [uploadedImages, setUploadedImages] = useState([]);
+
+  const [showOrders, setShowOrders] = useState(false);
+
+  const handleCopy = (text) => {
+    navigator.clipboard.writeText(text);
+    setCopySuccess(true);
+  };
 
   // Fetch user details helper
   const fetchUserDetails = async (user) => {
@@ -228,6 +257,7 @@ const RetentionLeads = () => {
           firstOrderDate: res.data.firstOrderDate,
           lastOrderDate: res.data.lastOrderDate,
           totalSpend: res.data.totalSpend || 0,
+          orders: res.data.orders || [],
         },
       }));
     } catch (err) {
@@ -243,6 +273,14 @@ const RetentionLeads = () => {
     }
   };
 
+  const fetchLogs = async (leadId) => {
+    try {
+      const res = await axios.get(`https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/${leadId}/reachout-logs`);
+      setLogsData(res.data);
+    } catch (err) {
+      console.error("Failed to fetch logs", err);
+    }
+  };
 
   const handleLeadSelect = (idx) => {
     setSelectedLeadIndex(idx);
@@ -388,9 +426,9 @@ const RetentionLeads = () => {
     setLeads(filtered.slice(0, leadsPerPage));
     setHasMore(filtered.length > leadsPerPage);
     setSelectedLeadIndex(null);
-    setUploadedImages([]);  
+    setUploadedImages([]);
   }, [filters, allLeads, orderPlacedFilter, dateRangeFilter]);
-    
+
 
   useEffect(() => {
     const user = JSON.parse(sessionStorage.getItem("user"));
@@ -570,6 +608,13 @@ const RetentionLeads = () => {
       });
     }
 
+    if (filters.rtFollowupReminder !== null) {
+      filtered = filtered.filter(
+        (lead) => lead.rtFollowupReminder === filters.rtFollowupReminder
+      );
+    }
+
+
     return filtered;
   };
 
@@ -641,34 +686,107 @@ const RetentionLeads = () => {
                 (lead) => lead.retentionStatus?.toLowerCase() === "lost"
               ).length,
             },
-          ].map(({ label, value, count }) => (
-            <Button
-              key={label}
-              variant={
-                (filters.retentionStatus === value ||
-                  (label === "Active" && filters.retentionStatus === "")) &&
-                  value !== "All"
-                  ? "contained"
-                  : filters.retentionStatus === value
-                    ? "contained"
-                    : "outlined"
-              }
-              onClick={() =>
-                setFilters((prev) => ({
-                  ...prev,
-                  retentionStatus: value,
-                }))
-              }
-            >
-              <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-                {label}
-                <Typography variant="caption" sx={{ fontSize: "0.7rem", opacity: 0.8 }}>
-                  ({count})
-                </Typography>
-              </Box>
-            </Button>
-          ))}
+          ].map(({ label, value, count }) => {
+            const isSelected = filters.retentionStatus === value ||
+              (label === "Active" && filters.retentionStatus === "" && value !== "All");
+
+            return (
+              <Button
+                key={label}
+                variant={isSelected ? "contained" : "outlined"}
+                onClick={() =>
+                  setFilters((prev) => ({
+                    ...prev,
+                    retentionStatus: value,
+                  }))
+                }
+                size="small"
+                sx={{
+                  textTransform: "none",
+                  borderRadius: "4px",
+                  fontSize: "0.75rem",
+                  fontWeight: 500,
+                  color: isSelected ? "#fff" : "black",
+                  borderColor: "black",
+                  backgroundColor: isSelected ? "black" : "transparent",
+                  "&:hover": {
+                    backgroundColor: isSelected ? "#222" : "#f5f5f5",
+                  },
+                }}
+              >
+                <Box sx={{ display: "flex", alignItems: "center" }}>
+                  <Typography>{label} </Typography>
+                  <Typography
+                    variant="caption"
+                    sx={{ fontSize: "0.65rem", opacity: 0.7 }}
+                  >
+                    ({count})
+                  </Typography>
+                </Box>
+              </Button>
+            );
+          })}
         </Stack>
+
+        <Stack direction="row" spacing={1} mt={1}>
+          {[
+            { label: "Today", value: "Today" },
+            { label: "Tomorrow", value: "Tomorrow" },
+            { label: "Missed", value: "Follow-up Missed" },
+            { label: "Later", value: "Later" },
+            { label: "Not Set", value: "" }, // This is correct
+          ].map(({ label, value }) => {
+            const count = allLeads.filter((lead) => lead.rtFollowupReminder === value).length;
+            const isSelected = filters.rtFollowupReminder === value;
+
+            return (
+              <Button
+                key={label}
+                variant={isSelected ? "contained" : "outlined"}
+                onClick={() =>
+                  setFilters((prev) => ({
+                    ...prev,
+                    rtFollowupReminder: isSelected ? null : value, // Use null to indicate "no filter"
+                  }))
+                }
+                size="small"
+                sx={{
+                  textTransform: "none",
+                  borderRadius: "4px",
+                  minWidth: "auto",
+                  px: 0.5,
+                  py: 0.2,
+                  fontSize: "0.65rem",
+                  fontWeight: 400,
+                  color: isSelected ? "#fff" : "black",
+                  borderColor: "black",
+                  backgroundColor: isSelected ? "black" : "transparent",
+                  "&:hover": {
+                    backgroundColor: isSelected ? "#222" : "#f5f5f5",
+                  },
+                }}
+              >
+                <Box
+                  sx={{
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    lineHeight: 1.2,
+                  }}
+                >
+                  <Typography sx={{ fontSize: "0.65rem", fontWeight: 500 }}>
+                    {label}
+                  </Typography>
+                  <Typography variant="caption" sx={{ fontSize: "0.6rem", opacity: 0.7 }}>
+                    ({count})
+                  </Typography>
+                </Box>
+              </Button>
+            );
+          })}
+        </Stack>
+
+
 
         <Box sx={{ display: "flex", alignItems: "center", mb: 1, gap: 1, mt: 1, }}>
           <TextField
@@ -709,69 +827,69 @@ const RetentionLeads = () => {
         </Box>
 
         <Menu
-  anchorEl={filterAnchorEl}
-  open={Boolean(filterAnchorEl)}
-  onClose={() => setFilterAnchorEl(null)}
-  anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
-  transformOrigin={{ vertical: 'top', horizontal: 'left' }}
->
-  <Box sx={{ display: 'flex', alignItems: 'flex-start' }}>
-    {/* Left column - Order Type */}
-    <Box>
-      <Typography
-        sx={{ fontSize: "0.75rem", fontWeight: "bold", px: 2, pt: 1, pb: 0.5, color: "text.disabled" }}
-      >
-        Order Type
-      </Typography>
-      {["Order Placed", "Order Not Placed"].map((type) => (
-        <MenuItem
-          key={type}
-          selected={orderPlacedFilter === type}
-          onClick={() => {
-            setOrderPlacedFilter(type);
-            setDateRangeFilter("");
-          }}
+          anchorEl={filterAnchorEl}
+          open={Boolean(filterAnchorEl)}
+          onClose={() => setFilterAnchorEl(null)}
+          anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+          transformOrigin={{ vertical: 'top', horizontal: 'left' }}
         >
-          {type}
-        </MenuItem>
-      ))}
-    </Box>
+          <Box sx={{ display: 'flex', alignItems: 'flex-start' }}>
+            {/* Left column - Order Type */}
+            <Box>
+              <Typography
+                sx={{ fontSize: "0.75rem", fontWeight: "bold", px: 2, pt: 1, pb: 0.5, color: "text.disabled" }}
+              >
+                Order Type
+              </Typography>
+              {["Order Placed", "Order Not Placed"].map((type) => (
+                <MenuItem
+                  key={type}
+                  selected={orderPlacedFilter === type}
+                  onClick={() => {
+                    setOrderPlacedFilter(type);
+                    setDateRangeFilter("");
+                  }}
+                >
+                  {type}
+                </MenuItem>
+              ))}
+            </Box>
 
-    {/* Right column - Date Range (only if OrderType selected) */}
-    {orderPlacedFilter && (
-      <Box sx={{ pl: 3 }}>
-        <Typography
-          sx={{ fontSize: "0.75rem", fontWeight: "bold", px: 2, pt: 1, pb: 0.5, color: "text.disabled" }}
-        >
-          Date Range
-        </Typography>
-        {[
-          "Today",
-          "Yesterday",
-          "Last 7 Days",
-          "Last 10 Days",
-          "10–20 Days Ago",
-          "21–30 Days Ago",
-          "This Month (Month to Date)",
-          "Last Month",
-          "Last 30 Days",
-          "Last 90 Days",
-        ].map((label) => (
-          <MenuItem
-            key={label}
-            selected={dateRangeFilter === label}
-            onClick={() => {
-              setDateRangeFilter(label);
-              setFilterAnchorEl(null);
-            }}
-          >
-            {label}
-          </MenuItem>
-        ))}
-      </Box>
-    )}
-  </Box>
-</Menu>
+            {/* Right column - Date Range (only if OrderType selected) */}
+            {orderPlacedFilter && (
+              <Box sx={{ pl: 3 }}>
+                <Typography
+                  sx={{ fontSize: "0.75rem", fontWeight: "bold", px: 2, pt: 1, pb: 0.5, color: "text.disabled" }}
+                >
+                  Date Range
+                </Typography>
+                {[
+                  "Today",
+                  "Yesterday",
+                  "Last 7 Days",
+                  "Last 10 Days",
+                  "10–20 Days Ago",
+                  "21–30 Days Ago",
+                  "This Month (Month to Date)",
+                  "Last Month",
+                  "Last 30 Days",
+                  "Last 90 Days",
+                ].map((label) => (
+                  <MenuItem
+                    key={label}
+                    selected={dateRangeFilter === label}
+                    onClick={() => {
+                      setDateRangeFilter(label);
+                      setFilterAnchorEl(null);
+                    }}
+                  >
+                    {label}
+                  </MenuItem>
+                ))}
+              </Box>
+            )}
+          </Box>
+        </Menu>
 
 
 
@@ -809,7 +927,7 @@ const RetentionLeads = () => {
                 }}
               >
                 <ListItemAvatar>
-                  <Avatar sx={{ bgcolor: "primary.main", fontSize: "0.8rem" }}>
+                  <Avatar sx={{ bgcolor: "black", fontSize: "0.8rem" }}>
                     {initials}
                   </Avatar>
                 </ListItemAvatar>
@@ -964,10 +1082,134 @@ const RetentionLeads = () => {
                           <PhoneIcon fontSize="small" />
                         </IconButton>
                       </Tooltip>
+                      <Tooltip title="Copy Number">
+                        <IconButton
+                          color="primary"
+                          onClick={() => handleCopy(leads[selectedLeadIndex].contactNumber)}
+                        >
+                          <ContentCopyIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+
+                      <Tooltip title="Log Reachout">
+                        <IconButton onClick={(e) => {
+                          setReachoutTimestamp(new Date());
+                          setLogPopupAnchor(e.currentTarget);
+                        }}>
+                          <AddIcon />
+                        </IconButton>
+                      </Tooltip>
+
+                      <Tooltip title="View Logs">
+                        <IconButton onClick={() => {
+                          fetchLogs(leads[selectedLeadIndex]._id);
+                          setLogsModalOpen(true);
+                        }}>
+                          <Badge badgeContent={leads[selectedLeadIndex]?.reachoutLogs?.length || 0} color="primary">
+                            <HistoryIcon />
+                          </Badge>
+                        </IconButton>
+                      </Tooltip>
+                      {logPopupAnchor && (
+                        <Menu
+                          anchorEl={logPopupAnchor}
+                          open={Boolean(logPopupAnchor)}
+                          onClose={() => setLogPopupAnchor(null)}
+                        >
+                          <Box sx={{ px: 2, py: 1 }}>
+                            <Typography variant="body2">Reachout Method</Typography>
+                            <RadioGroup
+                              value={reachoutMethod}
+                              onChange={async (e) => {
+                                const method = e.target.value;
+                                setReachoutMethod(method);
+                                await axios.post(`https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/${leads[selectedLeadIndex]._id}/reachout-log`, {
+                                  timestamp: reachoutTimestamp,
+                                  method,
+                                });
+                              }}
+                            >
+                              {["WhatsApp", "Call", "Both"].map((opt) => (
+                                <FormControlLabel key={opt} value={opt} control={<Radio />} label={opt} />
+                              ))}
+                            </RadioGroup>
+
+                            {reachoutMethod && (
+                              <>
+                                <Typography variant="body2" mt={2}>Disposition</Typography>
+                                <Select
+                                  size="small"
+                                  fullWidth
+                                  value={reachoutStatus}
+                                  onChange={async (e) => {
+                                    const status = e.target.value;
+                                    setReachoutStatus(status);
+                                    await axios.post(`https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/${leads[selectedLeadIndex]._id}/reachout-log`, {
+                                      timestamp: reachoutTimestamp,
+                                      method: reachoutMethod,
+                                      status,
+                                    });
+                                    setLogPopupAnchor(null);
+                                  }}
+                                >
+                                  {["CNP", "Followup Done", "Order Placed", "Call Back Later", "Busy", "Switch Off"].map(status => (
+                                    <MenuItem key={status} value={status}>{status}</MenuItem>
+                                  ))}
+                                </Select>
+                              </>
+                            )}
+                          </Box>
+                        </Menu>
+                      )}
+
+                      {/* Logs Modal */}
+                      <Dialog open={logsModalOpen} onClose={() => setLogsModalOpen(false)} maxWidth="sm" fullWidth>
+                        <DialogTitle>Reachout Logs</DialogTitle>
+                        <DialogContent>
+                          <Table size="small">
+                            <TableHead>
+                              <TableRow>
+                                {["Date", "Time", "Method", "Disposition"].map((head) => (
+                                  <TableCell key={head}>{head}</TableCell>
+                                ))}
+                              </TableRow>
+                            </TableHead>
+                            <TableBody>
+                              {logsData.map((log, idx) => {
+                                const date = new Date(log.timestamp);
+                                return (
+                                  <TableRow key={idx}>
+                                    <TableCell>{date.toLocaleDateString()}</TableCell>
+                                    <TableCell>{date.toLocaleTimeString()}</TableCell>
+                                    <TableCell>{log.method}</TableCell>
+                                    <TableCell>{log.status}</TableCell>
+                                  </TableRow>
+                                );
+                              })}
+                            </TableBody>
+                          </Table>
+                        </DialogContent>
+                      </Dialog>
                     </Box>
                   </Box>
 
+                  <Box sx={{ minWidth: 180 }}>
+                    <Typography variant="subtitle2" color="text.secondary" mb={0.5}>
+                      Customer Name
+                    </Typography>
+                    <Typography variant="body2">
+                      {leads[selectedLeadIndex].name || "N/A"}
+                    </Typography>
+                  </Box>
 
+                  <Box sx={{ minWidth: 180 }}>
+                    <Typography variant="subtitle2" color="text.secondary" mb={0.5}>
+                      Agent Assigned
+                    </Typography>
+                    <Typography variant="body2">
+                      {leads[selectedLeadIndex].agentAssigned || "N/A"}
+                    </Typography>
+                  </Box>
 
                   <Box sx={{ minWidth: 180 }}>
                     <Typography variant="subtitle2" color="text.secondary" mb={0.5}>
@@ -997,6 +1239,7 @@ const RetentionLeads = () => {
                         "Good Results",
                         "No Result",
                         "Sales Done",
+                        "Order Confirm",
                         "Do Not Want to Continue",
                         "Call Not Picked",
                         "Blood Test Suggested",
@@ -1014,25 +1257,7 @@ const RetentionLeads = () => {
                     </Select>
                   </Box>
 
-                  <Box sx={{ minWidth: 130 }}>
-                    <Typography variant="subtitle2" color="text.secondary" mb={0.5}>
-                      Repeat Dosage Ordered
-                    </Typography>
-                    <Select
-                      value={leads[selectedLeadIndex].repeatDosageOrdered || ""}
-                      onChange={(e) => handleInputChange(e, selectedLeadIndex, "repeatDosageOrdered")}
-                      size="small"
-                      fullWidth
-                    >
-                      {["10-Days", "20-Days", "30-Days", "60-Days", "90-Days"].map(
-                        (dosage) => (
-                          <MenuItem key={dosage} value={dosage}>
-                            {dosage}
-                          </MenuItem>
-                        )
-                      )}
-                    </Select>
-                  </Box>
+
 
                   <Box sx={{ minWidth: 130 }}>
                     <Typography variant="subtitle2" color="text.secondary" mb={0.5}>
@@ -1054,7 +1279,7 @@ const RetentionLeads = () => {
 
                   <Box sx={{ minWidth: 160 }}>
                     <Typography variant="subtitle2" color="text.secondary" mb={0.5}>
-                      Communication Method
+                    Preferred Method
                     </Typography>
                     <Select
                       value={leads[selectedLeadIndex].communicationMethod || ""}
@@ -1125,6 +1350,73 @@ const RetentionLeads = () => {
                   </Box>
                 </Stack>
 
+                <Box sx={{ mt: 2 }}>
+                  <Button
+                    onClick={() => setShowOrders((prev) => !prev)}
+                    endIcon={showOrders ? <KeyboardArrowUpIcon /> : <KeyboardArrowDownIcon />}
+                    sx={{
+                      fontSize: "0.75rem",
+                      textTransform: "none",
+                      backgroundColor: "white",
+                      color: "black",
+                    }}
+                  >
+                    See More
+                  </Button>
+
+                  {showOrders && (
+                    <Box sx={{ mt: 2 }}>
+                      {/* Total Orders Count */}
+                      <Typography variant="subtitle2" sx={{ mb: 1 }}>
+                        Total Orders: {shopifyDatesMap[leads[selectedLeadIndex].contactNumber]?.orders?.length || 0}
+                      </Typography>
+
+                      {/* Orders List */}
+                      {(shopifyDatesMap[leads[selectedLeadIndex].contactNumber]?.orders || []).map((order, i) => (
+                        <Box
+                          key={order.id}
+                          sx={{ border: "1px solid #ccc", borderRadius: 1, p: 1, mb: 1, fontSize: "0.75rem" }}
+                        >
+                          <Typography><b>Order ID:</b> {order.id}</Typography>
+                          <Typography><b>Total Amount:</b> ₹{order.total_price}</Typography>
+                          <Typography><b>Date:</b> {new Date(order.created_at).toLocaleString()}</Typography>
+                          <Typography><b>Fulfillment Status:</b> {order.fulfillment_status || "Unfulfilled"}</Typography>
+                          <Typography><b>Items:</b> {order.line_items.map(item => `${item.quantity} x ${item.name}`).join(", ")}</Typography>
+
+                          <Box>
+                            <Button
+                              size="small"
+                              sx={{
+                                mt: 1,
+                                backgroundColor: "white",
+                                color: "black",
+                                fontSize: "0.7rem",
+                              }}
+                              onClick={() => {
+                                const updated = [...(shopifyDatesMap[leads[selectedLeadIndex].contactNumber].orders || [])];
+                                updated[i].showAddress = !updated[i].showAddress;
+                                setShopifyDatesMap(prev => ({
+                                  ...prev,
+                                  [leads[selectedLeadIndex].contactNumber]: {
+                                    ...prev[leads[selectedLeadIndex].contactNumber],
+                                    orders: updated,
+                                  },
+                                }));
+                              }}
+                            >
+                              {order.showAddress ? "Hide Address" : "Show Address"}
+                            </Button>
+                            {order.showAddress && (
+                              <Typography variant="body2" sx={{ mt: 1 }}>
+                                {order.shipping_address?.address1 || ""}, {order.shipping_address?.city || ""}, {order.shipping_address?.zip || ""}
+                              </Typography>
+                            )}
+                          </Box>
+                        </Box>
+                      ))}
+                    </Box>
+                  )}
+                </Box>
               </Paper>
               <Details contactNumber={leads[selectedLeadIndex]?.contactNumber} />
 
