@@ -154,6 +154,7 @@ const RetentionAgentDashboard = () => {
   const [reachoutLogsWhatsApp, setReachoutLogsWhatsApp] = useState(0);
   const [reachoutLogsCall, setReachoutLogsCall] = useState(0);
   const [reachoutLogsBoth, setReachoutLogsBoth] = useState(0);
+  const [dispositionCounts, setDispositionCounts] = useState({});
 
   // Which summary is selected in the main toggle?
   const [selectedSummary, setSelectedSummary] = useState("Today-Followup Summary");
@@ -264,8 +265,46 @@ const RetentionAgentDashboard = () => {
     }
   };
 
+  const fetchDispositionCounts = async () => {
+    let startDate = "";
+    let endDate = "";
+
+    if (selectedSummary === "Today-Followup Summary") {
+      if (selectedRangeTF === "Custom range" && customStartTF && customEndTF) {
+        startDate = customStartTF;
+        endDate = customEndTF;
+      } else {
+        const range = getDateRange(selectedRangeTF);
+        startDate = range.startDate;
+        endDate = range.endDate;
+      }
+    } else if (selectedSummary === "Shipment Summary") {
+      if (selectedRangeShipment === "Custom range" && customStartShipment && customEndShipment) {
+        startDate = customStartShipment;
+        endDate = customEndShipment;
+      } else {
+        const range = getDateRange(selectedRangeShipment);
+        startDate = range.startDate;
+        endDate = range.endDate;
+      }
+    }
+
+    try {
+      const res = await axios.get(`https://muditamleads-14f32a10d7f7.herokuapp.com/api/reachout-logs/disposition-count`, {
+        params: { startDate, endDate, healthExpertAssigned: user?.fullName },
+      });
+
+      setDispositionCounts(res.data || {});
+    } catch (err) {
+      console.error("Failed to fetch disposition counts", err);
+      setDispositionCounts({});
+    }
+  };
+
+
   useEffect(() => {
     fetchReachoutLogsCount();
+    fetchDispositionCounts();
   }, [
     selectedSummary,
     selectedRangeTF,
@@ -506,7 +545,6 @@ const RetentionAgentDashboard = () => {
             borderRadius: 2,
             boxShadow: "0 0 15px rgba(0,0,0,0.2)",
             padding: 2,
-            zIndex: 1300,
             userSelect: "none",
           }}
         >
@@ -532,7 +570,44 @@ const RetentionAgentDashboard = () => {
           </Box>
         </Box>
 
+        <Box
+          sx={{
+            position: "fixed",
+            top: 280,
+            right: 16,
+            width: 220,
+            backgroundColor: "white",
+            borderRadius: 2,
+            boxShadow: "0 0 15px rgba(0,0,0,0.2)",
+            padding: 2,
+            userSelect: "none",
+          }}
+        >
+          <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
+            Disposition Summary
+          </Typography>
 
+          {[
+            "OC",
+            "CNP",
+            "Followup Done",
+            "Order Placed",
+            "Call Back Later",
+            "Busy",
+            "Switch Off",
+            "Drop On Intro",
+          ].map((status) => (
+            <Box
+              key={status}
+              sx={{ display: "flex", justifyContent: "space-between", mb: 1 }}
+            >
+              <Typography>{status}:</Typography>
+              <Typography fontWeight="bold">
+                {dispositionCounts?.[status] ?? 0}
+              </Typography>
+            </Box>
+          ))}
+        </Box>
       </Box>
 
       {/* If "Custom range" is selected for Today-Followup, show date pickers and Apply button */}

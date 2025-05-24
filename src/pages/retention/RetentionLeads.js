@@ -1341,7 +1341,7 @@ const RetentionLeads = () => {
                                     setLogPopupAnchor(null);
                                   }}
                                 >
-                                  {["OC", "CNP", "Followup Done", "Order Placed", "Call Back Later", "Busy", "Switch Off"].map(status => (
+                                  {["OC", "CNP", "Followup Done", "Order Placed", "Call Back Later", "Busy", "Switch Off", "Drop On Intro"].map(status => (
                                     <MenuItem key={status} value={status}>{status}</MenuItem>
                                   ))}
                                 </Select>
