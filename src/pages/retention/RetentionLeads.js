@@ -138,6 +138,9 @@ const RetentionLeads = () => {
 
   const [copySuccess, setCopySuccess] = useState(false);
 
+  const [sortSubMenuAnchorEl, setSortSubMenuAnchorEl] = useState(null);
+  const [activeSortType, setActiveSortType] = useState(null);
+
   const [filters, setFilters] = useState({
     name: "",
     contactNumber: "",
@@ -278,6 +281,17 @@ const RetentionLeads = () => {
     }
   };
 
+  const getReachoutTimestamp = (lead, mode = "latest") => {
+    if (!lead.reachoutLogs || lead.reachoutLogs.length === 0) return null;
+    const timestamps = lead.reachoutLogs
+      .map((log) => new Date(log.timestamp).getTime())
+      .filter(Boolean);
+    if (timestamps.length === 0) return null;
+    return mode === "latest"
+      ? Math.max(...timestamps)
+      : Math.min(...timestamps);
+  };
+
   const fetchLogs = async (leadId) => {
     try {
       const res = await axios.get(`https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/${leadId}/reachout-logs`);
@@ -323,7 +337,7 @@ const RetentionLeads = () => {
     const lead = leads[selectedLeadIndex];
     if (lead && lead.images && Array.isArray(lead.images)) {
       const imgs = lead.images.map((img, idx) => ({
-        preview: img.url || img.preview,  
+        preview: img.url || img.preview,
         date: img.date ? new Date(img.date) : new Date(),
         tag: img.tag || "",
         index: idx,
@@ -500,13 +514,13 @@ const RetentionLeads = () => {
 
   const updateLeadImagesOnServer = async (leadId, images) => {
     try {
-      await axios.patch(`https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/${leadId}/images`, { images });
+      await axios.patch(`http://lcalhost:5000/api/leads/${leadId}/images`, { images });
     } catch (err) {
       console.error("Failed to update images on server", err);
     }
   };
 
-   
+
 
   const filteredLeadsByFilters = (inputLeads) => {
     let filtered = inputLeads;
@@ -521,25 +535,30 @@ const RetentionLeads = () => {
       });
     }
 
+    // Retention Status filter
     if (filters.retentionStatus === "Active") {
       filtered = filtered.filter(
         (lead) =>
-          !lead.retentionStatus || lead.retentionStatus.toLowerCase() !== "lost"
-      );
+          !lead.retentionStatus || lead.retentionStatus.toLowerCase() === "active"
+      );    
     } else if (filters.retentionStatus === "Lost") {
       filtered = filtered.filter(
-        (lead) => lead.retentionStatus?.toLowerCase() === "lost"
+        (lead) =>
+          lead.retentionStatus &&
+          lead.retentionStatus.toLowerCase() === "lost"
       );
     } else if (filters.retentionStatus === "All") {
       // No filtering, show all
     }
 
+    // Order Placed filter
     if (orderPlacedFilter === "Order Placed") {
       filtered = filtered.filter((lead) => !!lead.lastOrderDate);
     } else if (orderPlacedFilter === "Order Not Placed") {
       filtered = filtered.filter((lead) => !lead.lastOrderDate);
     }
 
+    // Date range filter
     if (dateRangeFilter) {
       const now = new Date();
       const isSameMonth = (d1, d2) =>
@@ -584,17 +603,66 @@ const RetentionLeads = () => {
       });
     }
 
+    // Follow-up Reminder filter
     if (filters.rtFollowupReminder !== null) {
       filtered = filtered.filter(
-        (lead) => lead.rtFollowupReminder === filters.rtFollowupReminder
+        (lead) => (lead.rtFollowupReminder || "") === filters.rtFollowupReminder
       );
     }
-
 
     return filtered;
   };
 
 
+  const handleSortMenuClick = (event, type) => {
+    setActiveSortType(type);
+    setSortSubMenuAnchorEl(event.currentTarget);
+  };
+
+  // Handle sort by color option click
+  const handleSortByColor = (color) => {
+    // Filter leads by color or clear filter
+    const filtered = color
+      ? allLeads.filter((lead) => (lead.rowColor || "") === color)
+      : allLeads;
+
+    setFilteredAllLeads(filtered);
+    setLeads(filtered.slice(0, leadsPerPage));
+    setHasMore(filtered.length > leadsPerPage);
+    setSelectedLeadIndex(null);
+
+    setSortMenuAnchorEl(null);
+    setSortSubMenuAnchorEl(null);
+    setActiveSortType(null);
+  };
+
+  // Handle sort by reachout date
+  const handleSortByReachoutDate = (option) => {
+    let sorted = [...allLeads];
+
+    if (option === "Recently Contacted") {
+      sorted.sort((a, b) => {
+        const aLatest = getReachoutTimestamp(a, "latest") || 0;
+        const bLatest = getReachoutTimestamp(b, "latest") || 0;
+        return bLatest - aLatest; // Descending - recent first
+      });
+    } else if (option === "Long Ago") {
+      sorted.sort((a, b) => {
+        const aOldest = getReachoutTimestamp(a, "oldest") || 0;
+        const bOldest = getReachoutTimestamp(b, "oldest") || 0;
+        return aOldest - bOldest; // Ascending - oldest first
+      });
+    }
+
+    setFilteredAllLeads(sorted);
+    setLeads(sorted.slice(0, leadsPerPage));
+    setHasMore(sorted.length > leadsPerPage);
+    setSelectedLeadIndex(null);
+
+    setSortMenuAnchorEl(null);
+    setSortSubMenuAnchorEl(null);
+    setActiveSortType(null);
+  };
 
   const handleRemoveImage = async (index) => {
     setUploadedImages((prev) => {
@@ -647,24 +715,30 @@ const RetentionLeads = () => {
         {/* Search + Filter + Sort + More icons */}
         <Stack direction="row" spacing={2}>
           {[
-            { label: "All", value: "All", count: allLeads.length },
+            {
+              label: "All",
+              value: "All",
+              count: allLeads.length,
+            },
             {
               label: "Active",
               value: "Active",
               count: allLeads.filter(
-                (lead) => !lead.retentionStatus || lead.retentionStatus.toLowerCase() !== "lost"
-              ).length,
+                (lead) =>
+                  !lead.retentionStatus || lead.retentionStatus.toLowerCase() === "active"
+              ).length,              
             },
             {
               label: "Lost",
               value: "Lost",
               count: allLeads.filter(
-                (lead) => lead.retentionStatus?.toLowerCase() === "lost"
+                (lead) =>
+                  lead.retentionStatus &&
+                  lead.retentionStatus.toLowerCase() === "lost"
               ).length,
             },
           ].map(({ label, value, count }) => {
-            const isSelected = filters.retentionStatus === value ||
-              (label === "Active" && filters.retentionStatus === "" && value !== "All");
+            const isSelected = filters.retentionStatus === value;
 
             return (
               <Button
@@ -691,7 +765,7 @@ const RetentionLeads = () => {
                 }}
               >
                 <Box sx={{ display: "flex", alignItems: "center" }}>
-                  <Typography>{label} </Typography>
+                  <Typography>{label}</Typography>
                   <Typography
                     variant="caption"
                     sx={{ fontSize: "0.65rem", opacity: 0.7 }}
@@ -710,9 +784,21 @@ const RetentionLeads = () => {
             { label: "Tomorrow", value: "Tomorrow" },
             { label: "Missed", value: "Follow-up Missed" },
             { label: "Later", value: "Later" },
-            { label: "Not Set", value: "" }, // This is correct
+            { label: "Not Set", value: "" },
           ].map(({ label, value }) => {
-            const count = allLeads.filter((lead) => lead.rtFollowupReminder === value).length;
+            const filteredLeads = allLeads.filter((lead) => {
+              const retentionOk =
+                filters.retentionStatus === "All"
+                  ? true
+                  : filters.retentionStatus === "Active"
+                    ? !lead.retentionStatus || lead.retentionStatus?.toLowerCase() === "active"
+                    : filters.retentionStatus === "Lost"
+                      ? lead.retentionStatus?.toLowerCase() === "lost"
+                      : true;
+              return retentionOk && (lead.rtFollowupReminder || "") === value;
+            });
+
+            const count = filteredLeads.length;
             const isSelected = filters.rtFollowupReminder === value;
 
             return (
@@ -722,7 +808,7 @@ const RetentionLeads = () => {
                 onClick={() =>
                   setFilters((prev) => ({
                     ...prev,
-                    rtFollowupReminder: isSelected ? null : value, // Use null to indicate "no filter"
+                    rtFollowupReminder: isSelected ? null : value,
                   }))
                 }
                 size="small"
@@ -753,7 +839,10 @@ const RetentionLeads = () => {
                   <Typography sx={{ fontSize: "0.65rem", fontWeight: 500 }}>
                     {label}
                   </Typography>
-                  <Typography variant="caption" sx={{ fontSize: "0.6rem", opacity: 0.7 }}>
+                  <Typography
+                    variant="caption"
+                    sx={{ fontSize: "0.6rem", opacity: 0.7 }}
+                  >
                     ({count})
                   </Typography>
                 </Box>
@@ -867,48 +956,81 @@ const RetentionLeads = () => {
           </Box>
         </Menu>
 
-        <MuiMenu
+        <Menu
           anchorEl={sortMenuAnchorEl}
           open={Boolean(sortMenuAnchorEl)}
-          onClose={() => setSortMenuAnchorEl(null)}
+          onClose={() => {
+            setSortMenuAnchorEl(null);
+            setSortSubMenuAnchorEl(null);
+            setActiveSortType(null);
+          }}
         >
-          {[
-            { label: "Good", color: "#ffdbbb" },
-            { label: "Very Good", color: "#baddff" },
-            { label: "Excellent", color: "#bafff5" },
-            { label: "No Color", color: "" },
-          ].map(({ label, color }) => (
-            <MenuItem
-              key={label}
-              onClick={() => {
-                setSortMenuAnchorEl(null);
+          <MenuItem
+            onClick={(e) => handleSortMenuClick(e, "color")}
+            aria-haspopup="true"
+            aria-controls="color-submenu"
+          >
+            Sort By Color
+          </MenuItem>
 
-                // Filter leads by color
-                const filtered = allLeads.filter((lead) => {
-                  const leadColor = lead.rowColor || "";
-                  return leadColor === color;
-                });
+          <MenuItem
+            onClick={(e) => handleSortMenuClick(e, "reachout")}
+            aria-haspopup="true"
+            aria-controls="reachout-submenu"
+          >
+            Sort By Reached Out Date
+          </MenuItem>
+        </Menu>
 
-                setFilteredAllLeads(filtered);
-                setLeads(filtered.slice(0, leadsPerPage));
-                setHasMore(filtered.length > leadsPerPage);
-                setSelectedLeadIndex(null);
-              }}
-            >
-              <Box
-                sx={{
-                  backgroundColor: color || "#f0f0f0",
-                  width: 16,
-                  height: 16,
-                  borderRadius: 0.5,
-                  border: "1px solid #ccc",
-                  mr: 1,
-                }}
-              />
-              {label}
-            </MenuItem>
-          ))}
-        </MuiMenu>
+        {/* Submenu - shows options based on activeSortType */}
+        <Menu
+          id={activeSortType === "color" ? "color-submenu" : "reachout-submenu"}
+          anchorEl={sortSubMenuAnchorEl}
+          open={Boolean(sortSubMenuAnchorEl)}
+          onClose={() => {
+            setSortSubMenuAnchorEl(null);
+            setActiveSortType(null);
+            setSortMenuAnchorEl(null);
+          }}
+          anchorOrigin={{ vertical: "top", horizontal: "right" }}
+          transformOrigin={{ vertical: "top", horizontal: "left" }}
+          MenuListProps={{ dense: true }}
+        >
+          {activeSortType === "color" &&
+            [
+              { label: "Good", color: "#ffdbbb" },
+              { label: "Very Good", color: "#baddff" },
+              { label: "Excellent", color: "#bafff5" },
+              { label: "No Color", color: "" },
+            ].map(({ label, color }) => (
+              <MenuItem
+                key={label}
+                onClick={() => handleSortByColor(color)}
+              >
+                <Box
+                  sx={{
+                    backgroundColor: color || "#f0f0f0",
+                    width: 16,
+                    height: 16,
+                    borderRadius: 0.5,
+                    border: "1px solid #ccc",
+                    mr: 1,
+                  }}
+                />
+                {label}
+              </MenuItem>
+            ))}
+
+          {activeSortType === "reachout" &&
+            ["Recently Contacted", "Long Ago"].map((option) => (
+              <MenuItem
+                key={option}
+                onClick={() => handleSortByReachoutDate(option)}
+              >
+                {option}
+              </MenuItem>
+            ))}
+        </Menu>
 
         {/* Leads List */}
         <List disablePadding>
@@ -1344,7 +1466,7 @@ const RetentionLeads = () => {
                     </Select>
                   </Box>
 
-                  <Box sx={{ minWidth: 160 }}>
+                  <Box sx={{ minWidth: 150 }}>
                     <Typography variant="subtitle2" color="text.secondary" mb={0.5}>
                       Preferred Method
                     </Typography>
@@ -1362,7 +1484,7 @@ const RetentionLeads = () => {
                     </Select>
                   </Box>
 
-                  <Box sx={{ minWidth: 160 }}>
+                  <Box sx={{ minWidth: 150 }}>
                     <Typography variant="subtitle2" color="text.secondary" mb={0.5}>
                       Preferred Language
                     </Typography>
@@ -1379,6 +1501,21 @@ const RetentionLeads = () => {
                       ))}
                     </Select>
                   </Box>
+
+                  <Box sx={{ minWidth: 150 }}>
+                    <Typography variant="subtitle2" color="text.secondary" mb={0.5}>
+                      Remark
+                    </Typography>
+                    <TextField
+                      value={leads[selectedLeadIndex]?.rtRemark || ""}
+                      onChange={(e) => handleInputChange(e, selectedLeadIndex, "rtRemark")}
+                      size="small"
+                      fullWidth
+                      placeholder="Enter remark"
+                      variant="outlined"
+                    />
+                  </Box>
+
                 </Stack>
 
                 <Box sx={{ mt: 2 }}>
@@ -1502,7 +1639,7 @@ const RetentionLeads = () => {
                 backgroundColor: "background.paper",
                 fontSize: "0.85rem",
                 display: "flex",
-                flexDirection: "column", 
+                flexDirection: "column",
                 overflowY: "auto",
               }}
               elevation={3}
@@ -1512,59 +1649,59 @@ const RetentionLeads = () => {
               </Typography>
 
               <Button variant="outlined" component="label" sx={{ mb: 2 }}>
-  Select Images
-  <input
-    type="file"
-    hidden
-    accept="image/*"
-    multiple
-    onChange={async (e) => {
-      const files = Array.from(e.target.files);
-      if (!files.length || selectedLeadIndex === null) return;
+                Select Images
+                <input
+                  type="file"
+                  hidden
+                  accept="image/*"
+                  multiple
+                  onChange={async (e) => {
+                    const files = Array.from(e.target.files);
+                    if (!files.length || selectedLeadIndex === null) return;
 
-      const formData = new FormData();
-      files.forEach((file) => formData.append("images", file));
+                    const formData = new FormData();
+                    files.forEach((file) => formData.append("images", file));
 
-      try {
-        const res = await axios.post(
-          "https://muditamleads-14f32a10d7f7.herokuapp.com/api/upload-to-wasabi",
-          formData
-        );
+                    try {
+                      const res = await axios.post(
+                        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/upload-to-wasabi",
+                        formData
+                      );
 
-        const uploaded = res.data.uploadedFiles.map((img) => ({
-          url: img.url,
-          date: new Date(),
-          tag: "",
-        }));
+                      const uploaded = res.data.uploadedFiles.map((img) => ({
+                        url: img.url,
+                        date: new Date(),
+                        tag: "",
+                      }));
 
-        const updatedImages = [...(leads[selectedLeadIndex].images || []), ...uploaded];
+                      const updatedImages = [...(leads[selectedLeadIndex].images || []), ...uploaded];
 
-        // Save to backend
-        await axios.patch(
-          `https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/${leads[selectedLeadIndex]._id}/images`,
-          { images: updatedImages }
-        );
+                      // Save to backend
+                      await axios.patch(
+                        `https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/${leads[selectedLeadIndex]._id}/images`,
+                        { images: updatedImages }
+                      );
 
-        // Update frontend state
-        const newLeads = [...leads];
-        newLeads[selectedLeadIndex].images = updatedImages;
-        setLeads(newLeads);
+                      // Update frontend state
+                      const newLeads = [...leads];
+                      newLeads[selectedLeadIndex].images = updatedImages;
+                      setLeads(newLeads);
 
-        // Update image preview state
-        const imgsForDisplay = uploaded.map((img, i) => ({
-          preview: img.url,
-          date: new Date(),
-          tag: "",
-          index: uploadedImages.length + i,
-        }));
-        setUploadedImages((prev) => [...prev, ...imgsForDisplay]);
-      } catch (err) {
-        console.error("Failed to upload image:", err);
-        alert("Upload failed.");
-      }
-    }}
-  />
-</Button>
+                      // Update image preview state
+                      const imgsForDisplay = uploaded.map((img, i) => ({
+                        preview: img.url,
+                        date: new Date(),
+                        tag: "",
+                        index: uploadedImages.length + i,
+                      }));
+                      setUploadedImages((prev) => [...prev, ...imgsForDisplay]);
+                    } catch (err) {
+                      console.error("Failed to upload image:", err);
+                      alert("Upload failed.");
+                    }
+                  }}
+                />
+              </Button>
 
 
               {/* Render grouped images */}

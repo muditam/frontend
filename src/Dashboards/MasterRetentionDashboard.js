@@ -136,6 +136,10 @@ const ManagerRetentionDashboard = () => {
   // Which summary is selected
   const [selectedSummary, setSelectedSummary] = useState("Agent's Summary");
 
+  const [reachoutAgents, setReachoutAgents] = useState([]);  
+  const [reachoutLogsData, setReachoutLogsData] = useState({});
+  
+
   // Data for Agent's Summary
   const [todaySummary, setTodaySummary] = useState({
     totalActiveCustomers: 0,
@@ -255,6 +259,59 @@ const ManagerRetentionDashboard = () => {
     }
   };
 
+  const fetchActiveRetentionAgents = async () => {
+    try {
+      const res = await axios.get(
+        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/employees",
+        { params: { role: "Retention Agent" } }
+      );
+      return res.data.filter((agent) => agent.status === "active");
+    } catch (err) {
+      console.error("Error fetching retention agents:", err);
+      return [];
+    }
+  };
+
+  // ---------------------------------------------
+  // Fetch Reachout Logs count per agent for given date range
+  // ---------------------------------------------
+  const fetchReachoutLogsCounts = async (startDate, endDate) => {
+    setLoading(true);
+    try {
+      // First get active agents
+      const activeAgents = await fetchActiveRetentionAgents();
+      setReachoutAgents(activeAgents);
+
+      // For each agent fetch reachout logs count aggregated by method
+      const logsData = {};
+
+      // Use Promise.all to parallel fetch for all agents
+      await Promise.all(
+        activeAgents.map(async (agent) => {
+          const res = await axios.get(
+            "https://muditamleads-14f32a10d7f7.herokuapp.com/api/reachout-logs/count",
+            {
+              params: {
+                startDate,
+                endDate,
+                healthExpertAssigned: agent.fullName,
+              },
+            }
+          );
+          logsData[agent.fullName] = res.data;  
+        })
+      );
+
+      setReachoutLogsData(logsData);
+    } catch (err) {
+      console.error("Error fetching reachout logs count:", err);
+      setReachoutAgents([]);
+      setReachoutLogsData({});
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // ---------------------------------------------
   // 7) Fetch overall shipment summary from new endpoint
   // ---------------------------------------------
@@ -308,7 +365,13 @@ const ManagerRetentionDashboard = () => {
     setDashboardRange(newRange);
     if (newRange !== "Custom range") {
       const { startDate, endDate } = getDateRange(newRange);
-      await fetchDashboardDataRange(startDate, endDate);
+
+      if (selectedSummary === "Agent's Summary") {
+        await fetchDashboardDataRange(startDate, endDate);
+      } else if (selectedSummary === "Reached Out Log Summary") {
+        await fetchReachoutLogsCounts(startDate, endDate);
+      }
+
       setCustomDashboardStart("");
       setCustomDashboardEnd("");
     }
@@ -316,7 +379,12 @@ const ManagerRetentionDashboard = () => {
 
   const applyCustomDashboardRange = async () => {
     if (!customDashboardStart || !customDashboardEnd) return;
-    await fetchDashboardDataRange(customDashboardStart, customDashboardEnd);
+
+    if (selectedSummary === "Agent's Summary") {
+      await fetchDashboardDataRange(customDashboardStart, customDashboardEnd);
+    } else if (selectedSummary === "Reached Out Log Summary") {
+      await fetchReachoutLogsCounts(customDashboardStart, customDashboardEnd);
+    }
   };
 
   const handleShipmentRangeChange = async (e) => {
@@ -334,6 +402,34 @@ const ManagerRetentionDashboard = () => {
     if (!customShipmentStart || !customShipmentEnd) return;
     await fetchShipmentData(customShipmentStart, customShipmentEnd);
   };
+
+  useEffect(() => {
+    // On summary change, reload data for selected date range
+    const loadData = async () => {
+      if (selectedSummary === "Agent's Summary") {
+        const { startDate, endDate } =
+          dashboardRange !== "Custom range"
+            ? getDateRange(dashboardRange)
+            : { startDate: customDashboardStart, endDate: customDashboardEnd };
+        await fetchDashboardDataRange(startDate, endDate);
+      } else if (selectedSummary === "Shipment Summary") {
+        const { startDate, endDate } =
+          shipmentRange !== "Custom range"
+            ? getDateRange(shipmentRange)
+            : { startDate: customShipmentStart, endDate: customShipmentEnd };
+        await fetchShipmentData(startDate, endDate);
+      } else if (selectedSummary === "Reached Out Log Summary") {
+        const { startDate, endDate } =
+          dashboardRange !== "Custom range"
+            ? getDateRange(dashboardRange)
+            : { startDate: customDashboardStart, endDate: customDashboardEnd };
+        await fetchReachoutLogsCounts(startDate, endDate);
+      }
+    };
+
+    loadData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedSummary]);
 
   // ---------------------------------------------
   // 10) Update agent-wise shipment summary when agent changes
@@ -422,10 +518,14 @@ const ManagerRetentionDashboard = () => {
             <MenuItem value="Shipment Summary">
               <Typography variant="body2">Shipment Summary</Typography>
             </MenuItem>
+            <MenuItem value="Reached Out Log Summary">
+              <Typography variant="body2">Reached Out Log Summary</Typography>
+            </MenuItem>
           </Select>
         </FormControl>
 
-        {selectedSummary === "Agent's Summary" && (
+        {(selectedSummary === "Agent's Summary" ||
+          selectedSummary === "Reached Out Log Summary") && (
           <>
             <TextField
               select
@@ -561,6 +661,8 @@ const ManagerRetentionDashboard = () => {
                 </Button>
               </>
             )}
+
+            
           </>
         )}
       </Box>
@@ -989,10 +1091,130 @@ const ManagerRetentionDashboard = () => {
                       </TableRow>
                     )
                   )}
+                  
                 </TableBody>
               </Table>
             </TableContainer>
           </Box>
+        </>
+      )}
+
+{selectedSummary === "Reached Out Log Summary" && (
+        <>
+          <Typography
+            variant="h6"
+            fontWeight="bold"
+            sx={{ textAlign: "center", color: "#000", marginBottom: 2 }}
+          >
+            Reached Out Logs Summary
+          </Typography>
+
+          <TableContainer
+            sx={{
+              borderRadius: 2,
+              boxShadow: "0px 2px 8px rgba(0, 0, 0, 0.08)",
+              overflowX: "auto",
+              maxWidth: "1000px",
+              margin: "0 auto",
+            }}
+            component={Paper}
+          >
+            <Table>
+              <TableHead>
+                <TableRow
+                  sx={{
+                    background: "linear-gradient(135deg, #64B5F6 30%, #42A5F5 100%)",
+                  }}
+                >
+                  {[
+                    "Health Expert Assigned",
+                    "Total Reachouts",
+                    "WhatsApp",
+                    "Call",
+                    "Both",
+                  ].map((header) => (
+                    <TableCell
+                      key={header}
+                      sx={{
+                        fontWeight: "bold",
+                        textAlign: "center",
+                        color: "#fff",
+                        fontSize: "14px",
+                        padding: "10px",
+                      }}
+                    >
+                      {header}
+                    </TableCell>
+                  ))}
+                </TableRow>
+              </TableHead>
+
+              {loading && (
+                <TableBody>
+                  <TableRow>
+                    <TableCell colSpan={5} sx={{ padding: 0 }}>
+                      <LinearProgress
+                        variant="indeterminate"
+                        sx={{ width: "100%", height: "3px" }}
+                      />
+                    </TableCell>
+                  </TableRow>
+                </TableBody>
+              )}
+
+              <TableBody>
+                {!loading && reachoutAgents.length > 0 ? (
+                  reachoutAgents.map((agent, idx) => {
+                    const log = reachoutLogsData[agent.fullName] || {
+                      totalCount: 0,
+                      WhatsApp: 0,
+                      Call: 0,
+                      Both: 0,
+                    };
+                    return (
+                      <TableRow
+                        key={agent._id}
+                        sx={{
+                          backgroundColor: idx % 2 === 0 ? "#F9FAFB" : "#FFFFFF",
+                          "&:hover": { backgroundColor: "#E3F2FD", transition: "0.3s" },
+                        }}
+                      >
+                        <TableCell
+                          sx={{ padding: "12px", textAlign: "center", fontWeight: 500 }}
+                        >
+                          {agent.fullName}
+                        </TableCell>
+                        <TableCell sx={{ padding: "12px", textAlign: "center" }}>
+                          {log.totalCount}
+                        </TableCell>
+                        <TableCell sx={{ padding: "12px", textAlign: "center" }}>
+                          {log.WhatsApp}
+                        </TableCell>
+                        <TableCell sx={{ padding: "12px", textAlign: "center" }}>
+                          {log.Call}
+                        </TableCell>
+                        <TableCell sx={{ padding: "12px", textAlign: "center" }}>
+                          {log.Both}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })
+                ) : (
+                  !loading && (
+                    <TableRow>
+                      <TableCell
+                        colSpan={5}
+                        align="center"
+                        sx={{ padding: "12px", color: "#888", fontStyle: "italic" }}
+                      >
+                        No data found.
+                      </TableCell>
+                    </TableRow>
+                  )
+                )}
+              </TableBody>
+            </Table>
+          </TableContainer>
         </>
       )}
     </Box>

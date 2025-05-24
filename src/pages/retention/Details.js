@@ -14,6 +14,7 @@ import axios from "axios";
 
 const Details = ({ contactNumber }) => {
     const [formData, setFormData] = useState({
+        age: "",
         hba1c: "",
         lastTestDone: "",
         fastingSugar: "",
@@ -64,6 +65,7 @@ const Details = ({ contactNumber }) => {
     }, [contactNumber]);
 
     const initialFormState = {
+        age: "", 
         hba1c: "",
         lastTestDone: "",
         fastingSugar: "",
@@ -180,8 +182,36 @@ const handleChange = (e) => {
             History
             </Typography>
         </Box>
-            <Grid container spacing={2}>
+            <Grid container spacing={1}>
                 {/* Row 1 */}
+                <Grid item xs={1} sx={cellStyle}>
+                    <TextField
+                        name="age"
+                        label="Age"
+                        type="number"
+                        size="small"
+                        fullWidth
+                        value={formData.age}
+                        onChange={handleChange}
+                        InputProps={{
+                        inputProps: {
+                            min: 0,
+                            max: 120,
+                            inputMode: "numeric",
+                            pattern: "[0-9]*",
+                        },
+                        sx: {
+                            '& input::-webkit-outer-spin-button, & input::-webkit-inner-spin-button': {
+                            WebkitAppearance: 'none',
+                            margin: 0,
+                            },
+                            '& input[type=number]': {
+                            MozAppearance: 'textfield',
+                            },
+                        },
+                        }}
+                    />
+                    </Grid>
                 <Grid item xs={2} sx={cellStyle}>
                     <TextField
                         name="hba1c"
@@ -191,6 +221,23 @@ const handleChange = (e) => {
                         fullWidth
                         value={formData.hba1c}
                         onChange={handleChange}
+                        InputProps={{
+                            inputProps: {
+                                min: 0,
+                                max: 120,
+                                inputMode: "numeric",
+                                pattern: "[0-9]*",
+                            },
+                            sx: {
+                                '& input::-webkit-outer-spin-button, & input::-webkit-inner-spin-button': {
+                                WebkitAppearance: 'none',
+                                margin: 0,
+                                },
+                                '& input[type=number]': {
+                                MozAppearance: 'textfield',
+                                },
+                            },
+                            }}
                     />
                 </Grid>
                 <Grid item xs={2} sx={cellStyle}>
@@ -311,23 +358,6 @@ const handleChange = (e) => {
                         </Select>
                     </FormControl>
                 </Grid>
-                <Grid item xs={2} sx={cellStyle}>
-                    <FormControl fullWidth size="small">
-                        <InputLabel>Diet Type</InputLabel>
-                        <Select
-                            name="dietType"
-                            value={formData.dietType}
-                            label="Diet Type"
-                            onChange={handleChange}
-                        >
-                            {["Vegetarian", "Non-vegetarian", "Vegan"].map((option) => (
-                                <MenuItem key={option} value={option}>
-                                    {option}
-                                </MenuItem>
-                            ))}
-                        </Select>
-                    </FormControl>
-                </Grid>
                 <Grid item xs={1} sx={cellStyle}>
                     <TextField
                         name="weight"
@@ -354,6 +384,24 @@ const handleChange = (e) => {
                         }}
                     />
                 </Grid>
+                <Grid item xs={2} sx={cellStyle}>
+                    <FormControl fullWidth size="small">
+                        <InputLabel>Diet Type</InputLabel>
+                        <Select
+                            name="dietType"
+                            value={formData.dietType}
+                            label="Diet Type"
+                            onChange={handleChange}
+                        >
+                            {["Vegetarian", "Non-vegetarian", "Vegan"].map((option) => (
+                                <MenuItem key={option} value={option}>
+                                    {option}
+                                </MenuItem>
+                            ))}
+                        </Select>
+                    </FormControl>
+                </Grid>
+                
 
                 {/* Row 3 */}
                 <Grid item xs={2} sx={cellStyle}>

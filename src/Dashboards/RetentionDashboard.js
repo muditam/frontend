@@ -36,6 +36,9 @@ import {
 } from "@mui/icons-material";
 import { styled } from "@mui/system";
 
+import Badge from "@mui/material/Badge";
+import CircleIcon from '@mui/icons-material/Circle';
+
 // ----------------------
 // 1) Range dropdown options (shared for both Today-Followup & Shipment)
 // ----------------------
@@ -147,6 +150,10 @@ const RetentionAgentDashboard = () => {
   const [followupMetrics, setFollowupMetrics] = useState({});
   const [shipmentSummary, setShipmentSummary] = useState([]);
   const [applyingShipment, setApplyingShipment] = useState(false);
+  const [reachoutLogsCount, setReachoutLogsCount] = useState(0);
+  const [reachoutLogsWhatsApp, setReachoutLogsWhatsApp] = useState(0);
+  const [reachoutLogsCall, setReachoutLogsCall] = useState(0);
+  const [reachoutLogsBoth, setReachoutLogsBoth] = useState(0);
 
   // Which summary is selected in the main toggle?
   const [selectedSummary, setSelectedSummary] = useState("Today-Followup Summary");
@@ -174,7 +181,7 @@ const RetentionAgentDashboard = () => {
   const fetchTodayFollowupData = async (agentName, startDate, endDate) => {
     try {
       setLoading(true);
-      
+
       // 1. Fetch active customers from the /active-counts endpoint.
       // This endpoint returns an array with objects like { _id: "<agentName>", activeCount: <number> }
       const activeCountsResponse = await axios.get(
@@ -185,20 +192,20 @@ const RetentionAgentDashboard = () => {
         (item) => item._id === agentName
       );
       const activeCount = activeCountForAgent ? activeCountForAgent.activeCount : 0;
-      
+
       // 2. Fetch today's summary data from /api/today-summary
       const todaySummaryResponse = await axios.get(
         "https://muditamleads-14f32a10d7f7.herokuapp.com/api/today-summary",
         { params: { agentName, startDate, endDate } }
       );
-      
+
       // Merge the returned data from todaySummary with the active count value.
       const updatedTodayMetrics = {
         ...todaySummaryResponse.data,
         activeCustomers: activeCount,
       };
       setTodayMetrics(updatedTodayMetrics);
-  
+
       // 3. Fetch followup summary data as before.
       const followupSummaryResponse = await axios.get(
         "https://muditamleads-14f32a10d7f7.herokuapp.com/api/followup-summary",
@@ -211,7 +218,65 @@ const RetentionAgentDashboard = () => {
       setLoading(false);
     }
   };
-  
+
+
+  const fetchReachoutLogsCount = async () => {
+    // Decide the date range based on selected summary and selected time range
+    let startDate = "";
+    let endDate = "";
+
+    if (selectedSummary === "Today-Followup Summary") {
+      if (selectedRangeTF === "Custom range" && customStartTF && customEndTF) {
+        startDate = customStartTF;
+        endDate = customEndTF;
+      } else {
+        const range = getDateRange(selectedRangeTF);
+        startDate = range.startDate;
+        endDate = range.endDate;
+      }
+    } else if (selectedSummary === "Shipment Summary") {
+      if (selectedRangeShipment === "Custom range" && customStartShipment && customEndShipment) {
+        startDate = customStartShipment;
+        endDate = customEndShipment;
+      } else {
+        const range = getDateRange(selectedRangeShipment);
+        startDate = range.startDate;
+        endDate = range.endDate;
+      }
+    }
+
+    try {
+      // Call new API endpoint without user ID
+      const res = await axios.get(`https://muditamleads-14f32a10d7f7.herokuapp.com/api/reachout-logs/count`, {
+        params: { startDate, endDate, healthExpertAssigned: user?.fullName },
+      });
+
+      setReachoutLogsCount(res.data.totalCount || 0);
+      setReachoutLogsWhatsApp(res.data.WhatsApp || 0);
+      setReachoutLogsCall(res.data.Call || 0);
+      setReachoutLogsBoth(res.data.Both || 0);
+    } catch (err) {
+      console.error("Failed to fetch reachout logs count", err);
+      setReachoutLogsCount(0);
+      setReachoutLogsWhatsApp(0);
+      setReachoutLogsCall(0);
+      setReachoutLogsBoth(0);
+    }
+  };
+
+  useEffect(() => {
+    fetchReachoutLogsCount();
+  }, [
+    selectedSummary,
+    selectedRangeTF,
+    selectedRangeShipment,
+    customStartTF,
+    customEndTF,
+    customStartShipment,
+    customEndShipment,
+  ]);
+
+
 
   // ---------------------------------------------------------
   // 2) fetchShipmentStatusSummary => calls /api/shipment-summary
@@ -428,6 +493,46 @@ const RetentionAgentDashboard = () => {
             </Select>
           </FormControl>
         )}
+
+
+        {/* Reachout Logs Circle Badge */}
+        <Box
+          sx={{
+            position: "fixed",
+            top: 80,
+            right: 16,
+            width: 220,
+            backgroundColor: "white",
+            borderRadius: 2,
+            boxShadow: "0 0 15px rgba(0,0,0,0.2)",
+            padding: 2,
+            zIndex: 1300,
+            userSelect: "none",
+          }}
+        >
+          <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
+            Reachout Logs Summary
+          </Typography>
+
+          <Box sx={{ display: "flex", justifyContent: "space-between", mb: 1 }}>
+            <Typography>Total:</Typography>
+            <Typography fontWeight="bold">{reachoutLogsCount}</Typography>
+          </Box>
+          <Box sx={{ display: "flex", justifyContent: "space-between", mb: 1 }}>
+            <Typography>WhatsApp:</Typography>
+            <Typography fontWeight="bold">{reachoutLogsWhatsApp || 0}</Typography>
+          </Box>
+          <Box sx={{ display: "flex", justifyContent: "space-between", mb: 1 }}>
+            <Typography>Call:</Typography>
+            <Typography fontWeight="bold">{reachoutLogsCall || 0}</Typography>
+          </Box>
+          <Box sx={{ display: "flex", justifyContent: "space-between" }}>
+            <Typography>Both:</Typography>
+            <Typography fontWeight="bold">{reachoutLogsBoth || 0}</Typography>
+          </Box>
+        </Box>
+
+
       </Box>
 
       {/* If "Custom range" is selected for Today-Followup, show date pickers and Apply button */}

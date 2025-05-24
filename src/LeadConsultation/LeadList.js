@@ -120,7 +120,7 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
   const [customers, setCustomers] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [locations, setLocations] = useState([]);
-  
+
   // Filter status: "", "Open", "Won", or "Lost"
   const [filterStatus, setFilterStatus] = useState("");
 
@@ -158,20 +158,25 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
   const [sortMenuAnchorEl, setSortMenuAnchorEl] = useState(null);
   const [sortOrder, setSortOrder] = useState(null); // 'asc' | 'desc'
   const handleSortClick = (e) => setSortMenuAnchorEl(e.currentTarget);
-    const handleSortClose = () => setSortMenuAnchorEl(null);
-    const handleSortSelect = (order) => {
-      setSortOrder(order);
-      setSortMenuAnchorEl(null);
-    };
+  const handleSortClose = () => setSortMenuAnchorEl(null);
+  const handleSortSelect = (order) => {
+    setSortOrder(order);
+    setSortMenuAnchorEl(null);
+  };
 
   const [loadingMore, setLoadingMore] = useState(false);
   const listRef = useRef(null);
 
   const [moreAnchorEl, setMoreAnchorEl] = useState(null);
-  const isMoreMenuOpen = Boolean(moreAnchorEl); 
+  const isMoreMenuOpen = Boolean(moreAnchorEl);
 
   const [filterAgent, setFilterAgent] = useState([]);
   const [filterDate, setFilterDate] = useState("");
+
+  const [openCount, setOpenCount] = useState(0);
+  const [wonCount, setWonCount] = useState(0);
+  const [lostCount, setLostCount] = useState(0);
+
 
   // Memoize loggedInUser to prevent re-renders from recreating the object
   const loggedInUser = useMemo(() => {
@@ -199,6 +204,32 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
     const { name, value } = e.target;
     setLeadData({ ...leadData, [name]: value });
   };
+
+  const fetchCounts = async () => {
+    try {
+      if (!loggedInUser) return;
+  
+      const params = {
+        role: loggedInUser.role,
+      };
+  
+      if (loggedInUser.role === "Sales Agent") {
+        params.userName = loggedInUser.fullName;
+      } else if (loggedInUser.role === "Retention Agent") {
+        params.userId = loggedInUser.id || loggedInUser._id;
+        params.userName = loggedInUser.fullName;
+      }
+  
+      const res = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/customers/counts", { params });
+      setOpenCount(res.data.openCount || 0);
+      setWonCount(res.data.wonCount || 0);
+      setLostCount(res.data.lostCount || 0);
+    } catch (error) {
+      console.error("Error fetching lead counts:", error);
+    }
+  };
+  
+  
 
   // When adding a new lead, check for duplicate phone then post the data.
   const handleSubmit = async (e) => {
@@ -244,15 +275,15 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
       const filters = searchValue
         ? JSON.stringify({ search: searchValue })
         : "{}";
-  
+
       // 2. Common params for ALL requests
       const commonParams = {
         page,
         limit,
         filters,
-        status: filterStatus,                   
-        tags: JSON.stringify(selectedFilters),     
-        sortBy: sortOrder                          
+        status: filterStatus,
+        tags: JSON.stringify(selectedFilters),
+        sortBy: sortOrder
       };
 
       if (filterAgent.length > 0) {
@@ -264,7 +295,7 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
       }
 
       let response;
-  
+
       // 3a. If Sales Agent, include assignedTo
       if (loggedInUser?.role === "Sales Agent") {
         response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/customers", {
@@ -273,8 +304,8 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
             assignedTo: loggedInUser.fullName
           }
         });
-  
-      // 3b. If Retention Agent, pull all then client-filter by IDs
+
+        // 3b. If Retention Agent, pull all then client-filter by IDs
       } else if (loggedInUser?.role === "Retention Agent") {
         // fetch all their consultation assignments
         const consRes = await axios.get(
@@ -285,7 +316,7 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
             c.presales?.assignExpert?.toString() === loggedInUser.id
           )
           .map(c => c.customerId.toString());
-  
+
         // fetch up to 1000, with the same common params
         response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/customers", {
           params: {
@@ -293,35 +324,35 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
             limit: 1000
           }
         });
-  
+
         // client-side reduce to only my IDs
         response.data.customers = response.data.customers.filter(c =>
           c.assignedTo === loggedInUser.fullName ||
           myIds.includes(c._id)
-      );
-  
-      // 3c. Everyone else
+        );
+
+        // 3c. Everyone else
       } else {
         response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/customers", {
           params: commonParams
         });
       }
-  
+
       // 4. Merge or reset
       if (page === 1 || reset) {
         setCustomers(response.data.customers);
       } else {
         setCustomers(prev => [...prev, ...response.data.customers]);
       }
-  
+
       setTotalPages(response.data.totalPages);
       setCurrentPage(response.data.currentPage);
-  
+
     } catch (err) {
       console.error("Error fetching customers:", err);
     }
   };
-  
+
 
   // Load first page on component mount or when loggedInUser changes
   useEffect(() => {
@@ -332,7 +363,8 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
   // When searchQuery changes, reset pagination and fetch matching customers
   useEffect(() => {
     fetchCustomers(1, true, searchQuery);
-  }, [searchQuery, filterStatus, selectedFilters, sortOrder, filterDate, filterAgent]);  
+    fetchCounts();
+  }, [searchQuery, filterStatus, selectedFilters, sortOrder, filterDate, filterAgent]);
 
   const handleScroll = () => {
     const container = listRef.current;
@@ -344,7 +376,7 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
         .finally(() => setLoadingMore(false));
     }
   };
-  
+
   const handleDownloadCSV = async () => {
     try {
       const filters = searchQuery
@@ -376,15 +408,15 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
       if (searchQuery) {
         params.filters = JSON.stringify({ search: searchQuery });
       }
- 
+
       if (filterStatus) {
         params.status = filterStatus;
       }
- 
+
       if (selectedFilters?.length > 0) {
         params.tags = JSON.stringify(selectedFilters);
       }
- 
+
       const res = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/customers", {
         params,
       });
@@ -460,8 +492,8 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
     "Ordered from Other Sources",
     "Budget issue",
   ];
- 
-  
+
+
   const handleMoreClick = (event) => {
     setMoreAnchorEl(event.currentTarget);
   };
@@ -471,7 +503,7 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
     setMoreAnchorEl(null);
   };
 
- 
+
 
   return (
     <Box sx={{ width: "100%", height: "100%", display: "flex", flexDirection: "column" }}>
@@ -512,7 +544,7 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
           }}
           onClick={() => setFilterStatus(filterStatus === "Open" ? "" : "Open")}
         >
-          Open
+          Open ({openCount})
         </Button>
         <Button
           startIcon={<CheckCircleIcon />}
@@ -527,7 +559,7 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
           }}
           onClick={() => setFilterStatus(filterStatus === "Won" ? "" : "Won")}
         >
-          Won
+          Won ({wonCount})
         </Button>
         <Button
           startIcon={<CancelIcon />}
@@ -542,8 +574,9 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
           }}
           onClick={() => setFilterStatus(filterStatus === "Lost" ? "" : "Lost")}
         >
-          Lost
+          Lost ({lostCount})
         </Button>
+
       </Box>
 
       {/* Search Bar */}
@@ -708,7 +741,7 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
 
             <MenuItem disableGutters>
               <Box width={180}>
-                {" "} 
+                {" "}
                 <TextField
                   type="date"
                   size="small"
@@ -726,10 +759,10 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
       </Box>
 
       {/* Lead List Section */}
-      <Box 
-      ref={listRef}
-       onScroll={handleScroll}
-      sx={{ flex: 1, overflowY: "auto" }}>
+      <Box
+        ref={listRef}
+        onScroll={handleScroll}
+        sx={{ flex: 1, overflowY: "auto" }}>
         {customers.map((customer) => (
           <Box
             key={customer._id}
@@ -782,10 +815,10 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
                         getFollowUpTag(customer.followUpDate) === "Missed"
                           ? "#e57373"
                           : getFollowUpTag(customer.followUpDate) === "Today"
-                          ? "#81c784"
-                          : getFollowUpTag(customer.followUpDate) === "Tomorrow"
-                          ? "#64b5f6"
-                          : "#ffb74d",
+                            ? "#81c784"
+                            : getFollowUpTag(customer.followUpDate) === "Tomorrow"
+                              ? "#64b5f6"
+                              : "#ffb74d",
                       color: "white",
                     }}
                   />
@@ -795,7 +828,7 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
                 sx={{
                   display: "flex",
                   alignItems: "center",
-                  mt: 0.5,     
+                  mt: 0.5,
                 }}
               >
                 <Typography
@@ -959,31 +992,31 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
               </FormControl>
             </Grid>
             <Grid item xs={12} sx={{ display: "flex", gap: 2, alignItems: "center" }}>
-            <FormControlLabel
-              control={
-                <Checkbox
-                  checked={yesterdayChecked}
-                  onChange={(e) => {
-                    setYesterdayChecked(e.target.checked);
-                    if (e.target.checked) setDayBeforeChecked(false);
-                  }}
-                />
-              }
-              label="Yesterday"
-            />
-            <FormControlLabel
-              control={
-                <Checkbox
-                  checked={dayBeforeChecked}
-                  onChange={(e) => {
-                    setDayBeforeChecked(e.target.checked);
-                    if (e.target.checked) setYesterdayChecked(false);
-                  }}
-                />
-              }
-              label="Day Before Yesterday"
-            />
-          </Grid>
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    checked={yesterdayChecked}
+                    onChange={(e) => {
+                      setYesterdayChecked(e.target.checked);
+                      if (e.target.checked) setDayBeforeChecked(false);
+                    }}
+                  />
+                }
+                label="Yesterday"
+              />
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    checked={dayBeforeChecked}
+                    onChange={(e) => {
+                      setDayBeforeChecked(e.target.checked);
+                      if (e.target.checked) setYesterdayChecked(false);
+                    }}
+                  />
+                }
+                label="Day Before Yesterday"
+              />
+            </Grid>
           </Grid>
           {error && (
             <Typography color="error" sx={{ mt: 1, fontSize: "0.7rem" }}>
@@ -1016,4 +1049,3 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
 };
 
 export default LeadList;
- 

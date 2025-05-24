@@ -37,7 +37,7 @@ import EditIcon from '@mui/icons-material/Edit';
 import ShoppingCartIcon from "@mui/icons-material/ShoppingCart";
 import ChatIcon from "@mui/icons-material/Chat";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
-import ScheduleIcon from "@mui/icons-material/Schedule";
+import ScheduleIcon from "@mui/icons-material/Schedule"; 
 import HistoryIcon from "@mui/icons-material/History";
 
 // Original stepper icons for Presales, Consultation & Closing
@@ -160,6 +160,7 @@ const ConsultationDetails = ({ customerId }) => {
 
   // Fetch customer data and consultation details on mount or when customerId changes
   useEffect(() => {
+    setLeadStatus("New Lead");
     if (customerId) {
       setLoading(true);
       // Fetch customer info
@@ -450,7 +451,7 @@ const ConsultationDetails = ({ customerId }) => {
               "CONS Scheduled",
               "CONS Done",
               "Sales Done",
-              "Call Back Later",
+              "Call Back Later", 
               "On Follow Up",
               "CNP", 
               "Switch Off",

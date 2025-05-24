@@ -104,8 +104,10 @@ const LeadTable = () => {
         fetchAgents();
         fetchEmployeesByRole("Sales Agent", setSalesAgents);
         fetchEmployeesByRole("Retention Agent", setRetentionAgents);
+ 
     }, [currentPage, rowsPerPage]);
 
+      
     const fetchLeads = async (page, limit, activeFilters = filters) => {
         try {
             const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads", {
@@ -114,7 +116,7 @@ const LeadTable = () => {
                     limit,
                     filters: JSON.stringify(activeFilters),
                 },
-            });
+            }); 
             setLeads(response.data.leads);
             setTotalPages(response.data.totalPages);
             setTotalLeads(response.data.totalLeads);

@@ -20,6 +20,7 @@ const defaultFollowup = {
   hba1cTestDone: "",
   hba1cValue: "",
   drop: "",
+  rtNotes: "",
 };
 
 const ConsultationFollowup = ({ customerId }) => {
@@ -160,7 +161,7 @@ const ConsultationFollowup = ({ customerId }) => {
             )}
           </Box>
           <Grid container spacing={2}>
-            <Grid item xs={12} sm={6}>
+            <Grid item xs={12} sm={3}>
               <TextField
                 variant="outlined"
                 label="Date"
@@ -180,7 +181,7 @@ const ConsultationFollowup = ({ customerId }) => {
                 }}
               />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid item xs={12} sm={3}>
               <TextField
                 variant="outlined"
                 select
@@ -204,7 +205,7 @@ const ConsultationFollowup = ({ customerId }) => {
                 <MenuItem value="No">No</MenuItem>
               </TextField>
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid item xs={12} sm={3}>
               <TextField
                 variant="outlined"
                 select
@@ -228,7 +229,7 @@ const ConsultationFollowup = ({ customerId }) => {
                 <MenuItem value="No">No</MenuItem>
               </TextField>
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid item xs={12} sm={3}>
               <Box sx={{ display: "flex", gap: 1 }}>
                 <TextField
                   variant="outlined"
@@ -268,7 +269,7 @@ const ConsultationFollowup = ({ customerId }) => {
                 />
               </Box>
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid item xs={12} sm={2}>
               <TextField
                 variant="outlined"
                 select
@@ -293,7 +294,7 @@ const ConsultationFollowup = ({ customerId }) => {
               </TextField>
             </Grid>
             {fup.hba1cTestDone === "Yes" && (
-              <Grid item xs={12} sm={6}>
+              <Grid item xs={12} sm={2}>
                 <TextField
                   variant="outlined"
                   label="Hba1c Value"
@@ -314,7 +315,7 @@ const ConsultationFollowup = ({ customerId }) => {
                 />
               </Grid>
             )}
-            <Grid item xs={12} sm={6}>
+            <Grid item xs={12} sm={2}>
               <TextField
                 variant="outlined"
                 select
@@ -338,7 +339,29 @@ const ConsultationFollowup = ({ customerId }) => {
                 <MenuItem value="No">No</MenuItem>
               </TextField>
             </Grid>
+          <Grid item xs={12} sm={4}>
+          <TextField
+            variant="outlined" 
+            label="Follow up Notes"
+            fullWidth
+            multiline 
+            value={fup.rtNotes}
+            onChange={(e) =>
+              handleChange(index, "rtNotes", e.target.value)
+            }
+            InputLabelProps={{
+              sx: { "&.Mui-focused": { color: "black" } },
+            }}
+            sx={{
+              "& .MuiOutlinedInput-root": {
+                "&.Mui-focused fieldset": { borderColor: "black" },
+              },
+              "& .MuiInputBase-input": { color: "black" }
+            }}
+          />
+        </Grid>
           </Grid>
+
         </Paper>
       ))}
       <Button 
