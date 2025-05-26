@@ -140,6 +140,7 @@ const OnlineOrders = () => {
       name: order.name,
       contactNumber: order.contact_number,
       date: new Date(order.created_at).toISOString().split('T')[0],
+      lastOrderDate: new Date(order.created_at).toISOString().split('T')[0], 
       amount: order.total_price,
       modeOfPayment: Array.isArray(order.payment_gateway_names)
         ? order.payment_gateway_names.join(", ")
@@ -181,7 +182,7 @@ const OnlineOrders = () => {
     setOrders(updatedOrders);
   };
 
-  const handleChangePage = (event, newPage) => {
+  const handleChangePage = (event, newPage) => { 
     setCurrentPage(newPage);
   };
 

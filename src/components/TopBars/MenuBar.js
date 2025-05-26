@@ -14,7 +14,7 @@ import ExpandMore from "@mui/icons-material/ExpandMore";
 import LogoutIcon from "@mui/icons-material/Logout";
 import UnfoldMoreIcon from "@mui/icons-material/UnfoldMore";
 import HomeIcon from "@mui/icons-material/Home";
-import  AssignmentIcon  from "@mui/icons-material/Assessment";
+import AssignmentIcon from "@mui/icons-material/Assessment";
 import DescriptionIcon from "@mui/icons-material/Description";
 import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
 import KeyboardArrowRightIcon from "@mui/icons-material/KeyboardArrowRight";
@@ -74,10 +74,10 @@ const MenuBar = ({ toggleDrawer }) => {
         <ListItem
           sx={{
             display: "flex",
-            alignItems: "center",  
+            alignItems: "center",
             padding: "16px 20px",
             borderBottom: "1px solid #ddd",
-            justifyContent: "space-between",  
+            justifyContent: "space-between",
           }}
         >
           <Box sx={{ display: "flex", alignItems: "center" }}>
@@ -184,6 +184,31 @@ const MenuBar = ({ toggleDrawer }) => {
           <ChatBubbleIcon sx={{ marginRight: "12px" }} />
           <Typography variant="body1" style={{ fontSize: "14px" }}>
             Consultation
+          </Typography>
+        </ListItem>
+
+        <ListItem
+          button
+          component={Link}
+          to="/escalations"
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            padding: "10px 20px",
+            borderRadius: "4px",
+            margin: "4px 0",
+            transition: "background-color 0.3s, transform 0.2s",
+            "&:hover": {
+              backgroundColor: "#e0f7fa",
+              color: "#007aff",
+              transform: "scale(1.02)",
+            },
+          }}
+          onClick={toggleDrawer}
+        >
+          <AssignmentIcon sx={{ fontSize: 18, marginRight: "8px" }} />
+          <Typography variant="body1" sx={{ fontSize: "14px" }}>
+            Escalations
           </Typography>
         </ListItem>
 
@@ -331,7 +356,6 @@ const MenuBar = ({ toggleDrawer }) => {
                   </List>
                 </Collapse>
 
-
                 <ListItem
                   button
                   component={Link}
@@ -477,6 +501,8 @@ const MenuBar = ({ toggleDrawer }) => {
                     Online Orders
                   </Typography>
                 </ListItem>
+
+
 
 
                 <ListItem

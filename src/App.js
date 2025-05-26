@@ -27,6 +27,7 @@ import RetentionLost from "./Lostdata/RetentionLost";
 import PrivateRoute from "./components/PrivateRoute";
 import MyTemplates from "./components/MyTemplates";  
 import LeadManagement from './LeadConsultation/LeadManagement';
+import EscalationsPage from './components/EscalationsPage';
 
 const App = () => {
   return (
@@ -39,6 +40,7 @@ const App = () => {
  
           <Route path="/login" element={<Login />} /> 
           <Route path="/pages/Home" element={<ShipwayOrders />}/> 
+          <Route path="/escalations" element={<EscalationsPage />}/> 
           
           {/* Protected Routes */}
           <Route
