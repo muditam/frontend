@@ -136,9 +136,9 @@ const ManagerRetentionDashboard = () => {
   // Which summary is selected
   const [selectedSummary, setSelectedSummary] = useState("Agent's Summary");
 
-  const [reachoutAgents, setReachoutAgents] = useState([]);  
+  const [reachoutAgents, setReachoutAgents] = useState([]);
   const [reachoutLogsData, setReachoutLogsData] = useState({});
-  
+
 
   // Data for Agent's Summary
   const [todaySummary, setTodaySummary] = useState({
@@ -298,7 +298,7 @@ const ManagerRetentionDashboard = () => {
               },
             }
           );
-          logsData[agent.fullName] = res.data;  
+          logsData[agent.fullName] = res.data;
         })
       );
 
@@ -526,74 +526,74 @@ const ManagerRetentionDashboard = () => {
 
         {(selectedSummary === "Agent's Summary" ||
           selectedSummary === "Reached Out Log Summary") && (
-          <>
-            <TextField
-              select
-              label="Select Range"
-              value={dashboardRange}
-              onChange={handleDashboardRangeChange}
-              sx={{
-                width: 250,
-                backgroundColor: "#F9FAFB",
-                borderRadius: 2,
-                "& fieldset": { border: "none" },
-                boxShadow: "0px 3px 10px rgba(0, 0, 0, 0.05)",
-              }}
-            >
-              {timeRangeOptions.map((option) => (
-                <MenuItem key={option} value={option}>
-                  {option}
-                </MenuItem>
-              ))}
-            </TextField>
+            <>
+              <TextField
+                select
+                label="Select Range"
+                value={dashboardRange}
+                onChange={handleDashboardRangeChange}
+                sx={{
+                  width: 250,
+                  backgroundColor: "#F9FAFB",
+                  borderRadius: 2,
+                  "& fieldset": { border: "none" },
+                  boxShadow: "0px 3px 10px rgba(0, 0, 0, 0.05)",
+                }}
+              >
+                {timeRangeOptions.map((option) => (
+                  <MenuItem key={option} value={option}>
+                    {option}
+                  </MenuItem>
+                ))}
+              </TextField>
 
-            {dashboardRange === "Custom range" && (
-              <>
-                <TextField
-                  label="Start Date"
-                  type="date"
-                  value={customDashboardStart}
-                  onChange={(e) => setCustomDashboardStart(e.target.value)}
-                  InputLabelProps={{ shrink: true }}
-                  sx={{
-                    width: 180,
-                    backgroundColor: "#F9FAFB",
-                    borderRadius: 2,
-                    "& fieldset": { border: "none" },
-                    boxShadow: "0px 3px 10px rgba(0, 0, 0, 0.05)",
-                  }}
-                />
-                <TextField
-                  label="End Date"
-                  type="date"
-                  value={customDashboardEnd}
-                  onChange={(e) => setCustomDashboardEnd(e.target.value)}
-                  InputLabelProps={{ shrink: true }}
-                  sx={{
-                    width: 180,
-                    backgroundColor: "#F9FAFB",
-                    borderRadius: 2,
-                    "& fieldset": { border: "none" },
-                    boxShadow: "0px 3px 10px rgba(0, 0, 0, 0.05)",
-                  }}
-                />
-                <Button
-                  variant="contained"
-                  onClick={applyCustomDashboardRange}
-                  sx={{
-                    backgroundColor: "#1976D2",
-                    color: "#fff",
-                    borderRadius: 2,
-                    boxShadow: "0px 3px 10px rgba(0, 0, 0, 0.1)",
-                    "&:hover": { backgroundColor: "#1565C0" },
-                  }}
-                >
-                  Apply
-                </Button>
-              </>
-            )}
-          </> 
-        )}
+              {dashboardRange === "Custom range" && (
+                <>
+                  <TextField
+                    label="Start Date"
+                    type="date"
+                    value={customDashboardStart}
+                    onChange={(e) => setCustomDashboardStart(e.target.value)}
+                    InputLabelProps={{ shrink: true }}
+                    sx={{
+                      width: 180,
+                      backgroundColor: "#F9FAFB",
+                      borderRadius: 2,
+                      "& fieldset": { border: "none" },
+                      boxShadow: "0px 3px 10px rgba(0, 0, 0, 0.05)",
+                    }}
+                  />
+                  <TextField
+                    label="End Date"
+                    type="date"
+                    value={customDashboardEnd}
+                    onChange={(e) => setCustomDashboardEnd(e.target.value)}
+                    InputLabelProps={{ shrink: true }}
+                    sx={{
+                      width: 180,
+                      backgroundColor: "#F9FAFB",
+                      borderRadius: 2,
+                      "& fieldset": { border: "none" },
+                      boxShadow: "0px 3px 10px rgba(0, 0, 0, 0.05)",
+                    }}
+                  />
+                  <Button
+                    variant="contained"
+                    onClick={applyCustomDashboardRange}
+                    sx={{
+                      backgroundColor: "#1976D2",
+                      color: "#fff",
+                      borderRadius: 2,
+                      boxShadow: "0px 3px 10px rgba(0, 0, 0, 0.1)",
+                      "&:hover": { backgroundColor: "#1565C0" },
+                    }}
+                  >
+                    Apply
+                  </Button>
+                </>
+              )}
+            </>
+          )}
 
         {selectedSummary === "Shipment Summary" && (
           <>
@@ -662,7 +662,7 @@ const ManagerRetentionDashboard = () => {
               </>
             )}
 
-            
+
           </>
         )}
       </Box>
@@ -1091,7 +1091,7 @@ const ManagerRetentionDashboard = () => {
                       </TableRow>
                     )
                   )}
-                  
+
                 </TableBody>
               </Table>
             </TableContainer>
@@ -1099,7 +1099,7 @@ const ManagerRetentionDashboard = () => {
         </>
       )}
 
-{selectedSummary === "Reached Out Log Summary" && (
+      {selectedSummary === "Reached Out Log Summary" && (
         <>
           <Typography
             variant="h6"

@@ -52,6 +52,11 @@ import RadioGroup from "@mui/material/RadioGroup";
 import FormControlLabel from "@mui/material/FormControlLabel";
 import Badge from "@mui/material/Badge";
 
+import Accordion from "@mui/material/Accordion";
+import AccordionSummary from "@mui/material/AccordionSummary";
+import AccordionDetails from "@mui/material/AccordionDetails";
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+
 import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
 import KeyboardArrowUpIcon from "@mui/icons-material/KeyboardArrowUp";
 
@@ -130,6 +135,10 @@ const RetentionLeads = () => {
   const [logsData, setLogsData] = useState([]);
 
   const [sortMenuAnchorEl, setSortMenuAnchorEl] = useState(null);
+
+  const [noteInputs, setNoteInputs] = useState({});
+  const [savingNotes, setSavingNotes] = useState({});
+
 
   const [tagDialogOpen, setTagDialogOpen] = useState(false);
   const [tagDialogImageIndex, setTagDialogImageIndex] = useState(null);
@@ -292,6 +301,31 @@ const RetentionLeads = () => {
       : Math.min(...timestamps);
   };
 
+  const groupLogsByDate = (logs) => {
+    const grouped = {};
+
+    logs.forEach((log) => {
+      const dateStr = new Date(log.timestamp).toLocaleDateString(); // e.g. '26/05/2025'
+      if (!grouped[dateStr]) grouped[dateStr] = [];
+      grouped[dateStr].push(log);
+    });
+
+    return grouped;
+  };
+
+  const groupedLogs = groupLogsByDate(logsData);
+
+  // Get all dates sorted descending so last date is first
+  const sortedDates = Object.keys(groupedLogs).sort(
+    (a, b) => new Date(b) - new Date(a)
+  );
+
+  const [expandedDate, setExpandedDate] = React.useState(sortedDates[0] || null);
+
+  const handleAccordionChange = (date) => (event, isExpanded) => {
+    setExpandedDate(isExpanded ? date : null);
+  };
+
   const fetchLogs = async (leadId) => {
     try {
       const res = await axios.get(`https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/${leadId}/reachout-logs`);
@@ -348,6 +382,16 @@ const RetentionLeads = () => {
     }
   }, [selectedLeadIndex, leads]);
 
+  const getDetailsCompletionPercent = (details) => {
+    if (!details) return 0;
+    const totalFields = Object.keys(details).length;
+    if (totalFields === 0) return 0;
+    const filledFields = Object.values(details).filter(val => {
+      if (Array.isArray(val)) return val.length > 0;
+      return val !== null && val !== undefined && val !== "";
+    }).length;
+    return Math.round((filledFields / totalFields) * 100);
+  };
 
 
   // Load more leads on scroll near bottom
@@ -474,6 +518,13 @@ const RetentionLeads = () => {
     }
   }, []);
 
+  useEffect(() => {
+    setReachoutMethod("");
+    setReachoutStatus("");
+    setLogPopupAnchor(null);
+    setReachoutTimestamp(null);
+  }, [selectedLeadIndex]);
+
   const handleCallIconClick = async (contactNumber) => {
     setLoading(true);
     setCallingMessage(`Calling ${contactNumber}...`);
@@ -520,7 +571,13 @@ const RetentionLeads = () => {
     }
   };
 
-
+  const updateLeadDetails = (contactNumber, newDetails) => {
+    setLeads((prevLeads) => {
+      return prevLeads.map((lead) =>
+        lead.contactNumber === contactNumber ? { ...lead, details: newDetails } : lead
+      );
+    });
+  };
 
   const filteredLeadsByFilters = (inputLeads) => {
     let filtered = inputLeads;
@@ -540,7 +597,7 @@ const RetentionLeads = () => {
       filtered = filtered.filter(
         (lead) =>
           !lead.retentionStatus || lead.retentionStatus.toLowerCase() === "active"
-      );    
+      );
     } else if (filters.retentionStatus === "Lost") {
       filtered = filtered.filter(
         (lead) =>
@@ -726,7 +783,7 @@ const RetentionLeads = () => {
               count: allLeads.filter(
                 (lead) =>
                   !lead.retentionStatus || lead.retentionStatus.toLowerCase() === "active"
-              ).length,              
+              ).length,
             },
             {
               label: "Lost",
@@ -1059,7 +1116,7 @@ const RetentionLeads = () => {
                     : isSelected
                       ? "rgba(25, 118, 210, 0.15)"
                       : "inherit",
-
+                      position: "relative",
                 }}
                 onClick={() => {
                   setLeadLoading(true);
@@ -1143,7 +1200,6 @@ const RetentionLeads = () => {
                             sx={{ fontWeight: "bold" }}
                           />
                         </Box>
-
                       </Box>
 
                     </Box>
@@ -1184,6 +1240,22 @@ const RetentionLeads = () => {
                     </Box>
                   }
                 />
+                <Typography
+    variant="caption"
+    sx={{
+      position: "absolute",
+      right: 5,
+      top: "15%",
+      transform: "translateY(-50%)",
+      fontWeight: "bold",
+      fontSize: "0.7rem",
+      color: "text.secondary",
+      whiteSpace: "nowrap",
+    }}
+    title="Details completion %"
+  >
+    {getDetailsCompletionPercent(lead.details)}%
+  </Typography>
               </ListItemButton>
             );
           })}
@@ -1263,7 +1335,8 @@ const RetentionLeads = () => {
                       </Typography>
                       <Tooltip title="Call">
                         <IconButton
-                          color="primary"
+                          color="default"
+                          sx={{ color: "black" }}
                           onClick={() =>
                             handleCallIconClick(leads[selectedLeadIndex].contactNumber)
                           }
@@ -1273,7 +1346,8 @@ const RetentionLeads = () => {
                       </Tooltip>
                       <Tooltip title="Copy Number">
                         <IconButton
-                          color="primary"
+                          color="default"
+                          sx={{ color: "black" }}
                           onClick={() => handleCopy(leads[selectedLeadIndex].contactNumber)}
                         >
                           <ContentCopyIcon fontSize="small" />
@@ -1281,22 +1355,43 @@ const RetentionLeads = () => {
                       </Tooltip>
 
                       <Tooltip title="Log Reachout">
-                        <IconButton onClick={(e) => {
-                          setReachoutTimestamp(new Date());
-                          setLogPopupAnchor(e.currentTarget);
-                        }}>
+                        <IconButton
+                          sx={{ color: "black" }}
+                          onClick={(e) => {
+                            setReachoutTimestamp(new Date());
+                            setReachoutMethod("");
+                            setReachoutStatus("");
+                            setLogPopupAnchor(e.currentTarget);
+                          }}
+                        >
                           <AddIcon />
                         </IconButton>
                       </Tooltip>
 
+
                       <Tooltip title="View Logs">
-                        <IconButton onClick={() => {
-                          fetchLogs(leads[selectedLeadIndex]._id);
-                          setLogsModalOpen(true);
-                        }}>
-                          <Badge badgeContent={leads[selectedLeadIndex]?.reachoutLogs?.length || 0} color="primary">
+                        <IconButton
+                          sx={{ color: "black" }}
+                          onClick={() => {
+                            fetchLogs(leads[selectedLeadIndex]._id);
+                            setLogsModalOpen(true);
+                          }}
+                        >
+                          <Badge
+                            badgeContent={Object.keys(
+                              groupLogsByDate(leads[selectedLeadIndex]?.reachoutLogs || [])
+                            ).length}
+                            sx={{
+                              "& .MuiBadge-badge": {
+                                backgroundColor: "black",
+                                color: "white",
+                                boxShadow: '0 0 0 2px white',
+                              },
+                            }}
+                          >
                             <HistoryIcon />
                           </Badge>
+
                         </IconButton>
                       </Tooltip>
                       {logPopupAnchor && (
@@ -1355,30 +1450,51 @@ const RetentionLeads = () => {
                       <Dialog open={logsModalOpen} onClose={() => setLogsModalOpen(false)} maxWidth="sm" fullWidth>
                         <DialogTitle>Reachout Logs</DialogTitle>
                         <DialogContent>
-                          <Table size="small">
-                            <TableHead>
-                              <TableRow>
-                                {["Date", "Time", "Method", "Disposition"].map((head) => (
-                                  <TableCell key={head}>{head}</TableCell>
-                                ))}
-                              </TableRow>
-                            </TableHead>
-                            <TableBody>
-                              {logsData.map((log, idx) => {
-                                const date = new Date(log.timestamp);
-                                return (
-                                  <TableRow key={idx}>
-                                    <TableCell>{date.toLocaleDateString()}</TableCell>
-                                    <TableCell>{date.toLocaleTimeString()}</TableCell>
-                                    <TableCell>{log.method}</TableCell>
-                                    <TableCell>{log.status}</TableCell>
-                                  </TableRow>
-                                );
-                              })}
-                            </TableBody>
-                          </Table>
+                          {sortedDates.map((date) => (
+                            <Accordion
+                              key={date}
+                              expanded={expandedDate === date}
+                              onChange={handleAccordionChange(date)}
+                            >
+                              <AccordionSummary
+                                expandIcon={<ExpandMoreIcon />}
+                                sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}
+                              >
+                                <Typography sx={{ fontWeight: "bold" }}>{date}</Typography>
+                                <Box sx={{ minWidth: 120, textAlign: "right" }}>
+                                  <Typography sx={{ fontSize: "1rem", color: "text.secondary", whiteSpace: "nowrap", fontWeight: "bold" }}>
+                                    {groupedLogs[date]?.length > 0
+                                      ? groupedLogs[date][groupedLogs[date].length - 1].status
+                                      : ""}
+                                  </Typography>
+                                </Box>
+                              </AccordionSummary>
+                              <AccordionDetails>
+                                {groupedLogs[date].map((log, idx) => {
+                                  const time = new Date(log.timestamp).toLocaleTimeString();
+                                  return (
+                                    <Box
+                                      key={idx}
+                                      sx={{
+                                        display: "flex",
+                                        gap: 2,
+                                        fontSize: "0.85rem",
+                                        px: 1,
+                                        mb: 0.3,
+                                      }}
+                                    >
+                                      <Box sx={{ width: 100 }}>{time}</Box>
+                                      <Box sx={{ width: 100 }}>{log.method}</Box>
+                                      <Box sx={{ flexGrow: 1 }}>{log.status}</Box>
+                                    </Box>
+                                  );
+                                })}
+                              </AccordionDetails>
+                            </Accordion>
+                          ))}
                         </DialogContent>
                       </Dialog>
+
                     </Box>
                   </Box>
 
@@ -1529,7 +1645,7 @@ const RetentionLeads = () => {
                       color: "black",
                     }}
                   >
-                    See More
+                    See Order History
                   </Button>
 
                   {showOrders && (
@@ -1577,53 +1693,151 @@ const RetentionLeads = () => {
                         </Box>
                       </Box>
                       {/* Orders List */}
-                      {(shopifyDatesMap[leads[selectedLeadIndex].contactNumber]?.orders || []).map((order, i) => (
-                        <Box
-                          key={order.id}
-                          sx={{ border: "1px solid #ccc", borderRadius: 1, p: 1, mb: 1, fontSize: "0.75rem" }}
-                        >
-                          <Typography><b>Order ID:</b> {order.name}</Typography>
-                          <Typography><b>Total Amount:</b> ₹{order.total_price}</Typography>
-                          <Typography><b>Date:</b> {new Date(order.created_at).toLocaleString()}</Typography>
-                          <Typography><b>Fulfillment Status:</b> {order.fulfillment_status || "Unfulfilled"}</Typography>
-                          <Typography><b>Items:</b> {order.line_items.map(item => `${item.quantity} x ${item.name}`).join(", ")}</Typography>
+                      {(shopifyDatesMap[leads[selectedLeadIndex].contactNumber]?.orders || []).map((order, i) => {
+                        const noteInput = noteInputs[order.id] || "";
+                        const savingNote = savingNotes[order.id] || false;
 
-                          <Box>
-                            <Button
-                              size="small"
+                        const handleNoteChange = (val) => {
+                          setNoteInputs((prev) => ({ ...prev, [order.id]: val }));
+                        };
+
+                        const handleSaveNote = async () => {
+                          if (!noteInput.trim()) {
+                            alert("Note cannot be empty");
+                            return;
+                          }
+                          setSavingNotes((prev) => ({ ...prev, [order.id]: true }));
+                          try {
+                            await axios.put(
+                              `https://muditamleads-14f32a10d7f7.herokuapp.com/api/shopify/orders/${order.id}/note`,
+                              { note: noteInput }
+                            );
+                            setShopifyDatesMap((prev) => {
+                              const updatedOrders = prev[leads[selectedLeadIndex].contactNumber].orders.map((o) =>
+                                o.id === order.id ? { ...o, note: noteInput } : o
+                              );
+                              return {
+                                ...prev,
+                                [leads[selectedLeadIndex].contactNumber]: {
+                                  ...prev[leads[selectedLeadIndex].contactNumber],
+                                  orders: updatedOrders,
+                                },
+                              };
+                            });
+                            setNoteInputs((prev) => ({ ...prev, [order.id]: "" }));
+                          } catch (error) {
+                            console.error("Failed to save note", error.response?.data || error.message);
+                            alert("Failed to save note");
+                          } finally {
+                            setSavingNotes((prev) => ({ ...prev, [order.id]: false }));
+                          }
+                        };
+
+                        return (
+                          <Box
+                            key={order.id}
+                            sx={{ border: "1px solid #ccc", borderRadius: 1, p: 1, mb: 1, fontSize: "0.75rem" }}
+                          >
+                            {/* First line: Order ID, Total Amount, Date, Fulfillment Status */}
+                            <Box
                               sx={{
-                                mt: 1,
-                                backgroundColor: "white",
-                                color: "black",
-                                fontSize: "0.7rem",
-                              }}
-                              onClick={() => {
-                                const updated = [...(shopifyDatesMap[leads[selectedLeadIndex].contactNumber].orders || [])];
-                                updated[i].showAddress = !updated[i].showAddress;
-                                setShopifyDatesMap(prev => ({
-                                  ...prev,
-                                  [leads[selectedLeadIndex].contactNumber]: {
-                                    ...prev[leads[selectedLeadIndex].contactNumber],
-                                    orders: updated,
-                                  },
-                                }));
+                                display: "flex",
+                                flexWrap: "wrap",
+                                gap: 2,
+                                mb: 1,
+                                fontWeight: "bold",
+                                fontSize: "0.8rem",
                               }}
                             >
-                              {order.showAddress ? "Hide Address" : "Show Address"}
-                            </Button>
-                            {order.showAddress && (
-                              <Typography variant="body2" sx={{ mt: 1 }}>
-                                {order.shipping_address?.address1 || ""}, {order.shipping_address?.city || ""}, {order.shipping_address?.zip || ""}
-                              </Typography>
-                            )}
+                              <Box>Order ID: {order.name}</Box>
+                              <Box>Total Amount: ₹{order.total_price}</Box>
+                              <Box>Date: {new Date(order.created_at).toLocaleString()}</Box>
+                              <Box>Fulfillment Status: {order.fulfillment_status || "Unfulfilled"}</Box>
+                            </Box>
+
+                            {/* Second line: Items on left, Notes on right */}
+                            <Box
+                              sx={{
+                                display: "flex",
+                                justifyContent: "space-between",
+                                alignItems: "flex-start",
+                                gap: 2,
+                                mb: 1,
+                              }}
+                            >
+                              {/* Items */}
+                              <Box sx={{ flex: 1, minWidth: 0, fontSize: "0.75rem" }}>
+                                <b>Items:</b> {order.line_items.map(item => `${item.quantity} x ${item.name}`).join(", ")}
+                              </Box>
+
+                              {/* Notes */}
+                              <Box sx={{ minWidth: 200, maxWidth: 300 }}>
+                                {order.note ? (
+                                  <Typography sx={{ fontSize: "0.75rem", fontStyle: "italic", whiteSpace: "pre-wrap" }}>
+                                    <b>Note:</b> {order.note}
+                                  </Typography>
+                                ) : (
+                                  <Box sx={{ display: "flex", gap: 1 }}>
+                                    <TextField
+                                      size="small"
+                                      variant="outlined"
+                                      placeholder="Add note"
+                                      value={noteInput}
+                                      onChange={(e) => handleNoteChange(e.target.value)}
+                                      disabled={savingNote}
+                                      fullWidth
+                                    />
+                                    <Button
+                                      variant="contained"
+                                      size="small"
+                                      onClick={handleSaveNote}
+                                      disabled={savingNote}
+                                    >
+                                      {savingNote ? "Saving..." : "Save"}
+                                    </Button>
+                                  </Box>
+                                )}
+                              </Box>
+                            </Box>
+
+                            {/* Address toggle button and address */}
+                            <Box>
+                              <Button
+                                size="small"
+                                sx={{
+                                  mt: 1,
+                                  backgroundColor: "white",
+                                  color: "black",
+                                  fontSize: "0.7rem",
+                                }}
+                                onClick={() => {
+                                  const updated = [...(shopifyDatesMap[leads[selectedLeadIndex].contactNumber].orders || [])];
+                                  updated[i].showAddress = !updated[i].showAddress;
+                                  setShopifyDatesMap(prev => ({
+                                    ...prev,
+                                    [leads[selectedLeadIndex].contactNumber]: {
+                                      ...prev[leads[selectedLeadIndex].contactNumber],
+                                      orders: updated,
+                                    },
+                                  }));
+                                }}
+                              >
+                                {order.showAddress ? "Hide Address" : "Show Address"}
+                              </Button>
+                              {order.showAddress && (
+                                <Typography variant="body2" sx={{ mt: 1, fontSize: "0.75rem" }}>
+                                  {order.shipping_address?.address1 || ""}, {order.shipping_address?.city || ""}, {order.shipping_address?.zip || ""}
+                                </Typography>
+                              )}
+                            </Box>
                           </Box>
-                        </Box>
-                      ))}
+                        );
+                      })}
                     </Box>
                   )}
                 </Box>
               </Paper>
-              <Details contactNumber={leads[selectedLeadIndex]?.contactNumber} />
+              <Details contactNumber={leads[selectedLeadIndex]?.contactNumber} onDetailsUpdate={updateLeadDetails} />
 
               <RetentionFollowUp contactNumber={leads[selectedLeadIndex]?.contactNumber} />
 

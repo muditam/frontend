@@ -12,7 +12,7 @@ import {
 } from "@mui/material";
 import axios from "axios";
 
-const Details = ({ contactNumber }) => {
+const Details = ({ contactNumber, onDetailsUpdate  }) => {
     const [formData, setFormData] = useState({
         age: "",
         hba1c: "",
@@ -43,8 +43,13 @@ const Details = ({ contactNumber }) => {
     });
 
     useEffect(() => {
-        if (!contactNumber) return;
+        if (!contactNumber){ 
+            setFormData(initialFormState);
+            return;
+        }
     
+        setFormData(initialFormState);
+
         const fetchDetails = async () => {
             try {
                 const { data } = await axios.get(
@@ -94,16 +99,22 @@ const Details = ({ contactNumber }) => {
     };
 
     const autoSave = async (updatedData) => {
-    try {
-        await axios.post("https://muditamleads-14f32a10d7f7.herokuapp.com/api/details/save-details", {
-            contactNumber,
-            details: updatedData,
-        });
-        console.log("Details saved successfully!");
-    } catch (error) {
-        console.error("Auto-save failed:", error);
+  try {
+    await axios.post("https://muditamleads-14f32a10d7f7.herokuapp.com/api/details/save-details", {
+      contactNumber,
+      details: updatedData,
+    });
+    console.log("Details saved successfully!");
+
+    // Notify parent of new details to update UI in real time
+    if (typeof onDetailsUpdate === "function") {
+      onDetailsUpdate(contactNumber, updatedData);
     }
+  } catch (error) {
+    console.error("Auto-save failed:", error);
+  }
 };
+ 
 
 const handleChange = (e) => {
     const { name, value } = e.target;
