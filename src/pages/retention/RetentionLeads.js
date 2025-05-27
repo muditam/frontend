@@ -581,8 +581,8 @@ const RetentionLeads = () => {
 
   const filteredLeadsByFilters = (inputLeads) => {
     let filtered = inputLeads;
-
-    // Apply search filter
+  
+    // Search filter (name/contact)
     const search = filters.name.trim().toLowerCase();
     if (search) {
       filtered = filtered.filter((lead) => {
@@ -591,42 +591,55 @@ const RetentionLeads = () => {
         return nameMatch || numberMatch;
       });
     }
-
+  
     // Retention Status filter
-    if (filters.retentionStatus === "Active") {
-      filtered = filtered.filter(
-        (lead) =>
-          !lead.retentionStatus || lead.retentionStatus.toLowerCase() === "active"
-      );
-    } else if (filters.retentionStatus === "Lost") {
-      filtered = filtered.filter(
-        (lead) =>
-          lead.retentionStatus &&
-          lead.retentionStatus.toLowerCase() === "lost"
-      );
-    } else if (filters.retentionStatus === "All") {
-      // No filtering, show all
+    if (filters.retentionStatus && filters.retentionStatus !== "All") {
+      // Normalize retentionStatus value to lowercase for comparison
+      const statusFilter = filters.retentionStatus.toLowerCase();
+  
+      filtered = filtered.filter((lead) => {
+        const leadStatus = (lead.retentionStatus || "").toLowerCase();
+        if (statusFilter === "active") {
+          // Consider empty or "active" as active leads
+          return leadStatus === "active" || leadStatus === "";
+        } else if (statusFilter === "lost") {
+          return leadStatus === "lost";
+        }
+        return true; // fallback no filtering
+      });
     }
-
+  
+    // Follow-up Reminder filter: normalize all values
+    if (filters.rtFollowupReminder !== null && filters.rtFollowupReminder !== "") {
+      // Map UI values to lead field values if needed
+      let reminderFilter = filters.rtFollowupReminder;
+      // Your followupTagMap uses 'Follow-up Missed' (not 'Missed') and '' for Not Set
+      // Make sure your filters use these exact strings
+  
+      filtered = filtered.filter((lead) => {
+        const reminder = lead.rtFollowupReminder || "";
+        return reminder === reminderFilter;
+      });
+    }
+  
     // Order Placed filter
     if (orderPlacedFilter === "Order Placed") {
       filtered = filtered.filter((lead) => !!lead.lastOrderDate);
     } else if (orderPlacedFilter === "Order Not Placed") {
       filtered = filtered.filter((lead) => !lead.lastOrderDate);
     }
-
+  
     // Date range filter
     if (dateRangeFilter) {
       const now = new Date();
       const isSameMonth = (d1, d2) =>
         d1.getMonth() === d2.getMonth() && d1.getFullYear() === d2.getFullYear();
-
+  
       filtered = filtered.filter((lead) => {
-        const date = lead.lastOrderDate ? new Date(lead.lastOrderDate) : null;
-        if (!date) return false;
-
+        if (!lead.lastOrderDate) return false;
+        const date = new Date(lead.lastOrderDate);
         const diffDays = Math.floor((now - date) / (1000 * 60 * 60 * 24));
-
+  
         switch (dateRangeFilter) {
           case "Today":
             return diffDays === 0;
@@ -659,16 +672,18 @@ const RetentionLeads = () => {
         }
       });
     }
-
-    // Follow-up Reminder filter
-    if (filters.rtFollowupReminder !== null) {
-      filtered = filtered.filter(
-        (lead) => (lead.rtFollowupReminder || "") === filters.rtFollowupReminder
-      );
-    }
-
+  
+    // Sort leads with lastOrderDate first descending, then without
+    filtered.sort((a, b) => {
+      if (!a.lastOrderDate && !b.lastOrderDate) return 0;
+      if (!a.lastOrderDate) return 1;
+      if (!b.lastOrderDate) return -1;
+      return new Date(b.lastOrderDate) - new Date(a.lastOrderDate);
+    });
+  
     return filtered;
   };
+  
 
 
   const handleSortMenuClick = (event, type) => {
@@ -843,31 +858,18 @@ const RetentionLeads = () => {
             { label: "Later", value: "Later" },
             { label: "Not Set", value: "" },
           ].map(({ label, value }) => {
-            const filteredLeads = allLeads.filter((lead) => {
-              const retentionOk =
-                filters.retentionStatus === "All"
-                  ? true
-                  : filters.retentionStatus === "Active"
-                    ? !lead.retentionStatus || lead.retentionStatus?.toLowerCase() === "active"
-                    : filters.retentionStatus === "Lost"
-                      ? lead.retentionStatus?.toLowerCase() === "lost"
-                      : true;
-              return retentionOk && (lead.rtFollowupReminder || "") === value;
-            });
-
-            const count = filteredLeads.length;
             const isSelected = filters.rtFollowupReminder === value;
-
             return (
               <Button
                 key={label}
                 variant={isSelected ? "contained" : "outlined"}
-                onClick={() =>
+                onClick={() => {
                   setFilters((prev) => ({
                     ...prev,
                     rtFollowupReminder: isSelected ? null : value,
-                  }))
-                }
+                    // Do NOT reset retentionStatus here; keep it as-is to combine filters
+                  }));
+                }}
                 size="small"
                 sx={{
                   textTransform: "none",
@@ -900,15 +902,25 @@ const RetentionLeads = () => {
                     variant="caption"
                     sx={{ fontSize: "0.6rem", opacity: 0.7 }}
                   >
-                    ({count})
+                    {
+                      allLeads.filter((lead) => {
+                        const retentionOk =
+                          filters.retentionStatus === "All"
+                            ? true
+                            : filters.retentionStatus === "Active"
+                              ? !lead.retentionStatus || lead.retentionStatus?.toLowerCase() === "active"
+                              : filters.retentionStatus === "Lost"
+                                ? lead.retentionStatus?.toLowerCase() === "lost"
+                                : true;
+                        return retentionOk && (lead.rtFollowupReminder || "") === value;
+                      }).length
+                    }
                   </Typography>
                 </Box>
               </Button>
             );
           })}
         </Stack>
-
-
 
         <Box sx={{ display: "flex", alignItems: "center", mb: 1, gap: 1, mt: 1, }}>
           <TextField
@@ -1116,7 +1128,7 @@ const RetentionLeads = () => {
                     : isSelected
                       ? "rgba(25, 118, 210, 0.15)"
                       : "inherit",
-                      position: "relative",
+                  position: "relative",
                 }}
                 onClick={() => {
                   setLeadLoading(true);
@@ -1241,21 +1253,21 @@ const RetentionLeads = () => {
                   }
                 />
                 <Typography
-    variant="caption"
-    sx={{
-      position: "absolute",
-      right: 5,
-      top: "15%",
-      transform: "translateY(-50%)",
-      fontWeight: "bold",
-      fontSize: "0.7rem",
-      color: "text.secondary",
-      whiteSpace: "nowrap",
-    }}
-    title="Details completion %"
-  >
-    {getDetailsCompletionPercent(lead.details)}%
-  </Typography>
+                  variant="caption"
+                  sx={{
+                    position: "absolute",
+                    right: 5,
+                    top: "15%",
+                    transform: "translateY(-50%)",
+                    fontWeight: "bold",
+                    fontSize: "0.7rem",
+                    color: "text.secondary",
+                    whiteSpace: "nowrap",
+                  }}
+                  title="Details completion %"
+                >
+                  {getDetailsCompletionPercent(lead.details)}%
+                </Typography>
               </ListItemButton>
             );
           })}

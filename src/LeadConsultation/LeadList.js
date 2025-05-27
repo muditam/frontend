@@ -205,6 +205,52 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
     setLeadData({ ...leadData, [name]: value });
   };
 
+   // 1. Add this utility function INSIDE LeadList component (or import if you prefer)
+const calculateCompletionPercent = (customer) => {
+  // Define required fields from each section for completeness check
+  const presalesFields = [
+    "leadStatus", "hba1c", "lastTestDone", "fastingSugar", "ppSugar",
+    "durationOfDiabetes", "gender", "dietType", "weight", "sittingTime",
+    "exerciseRoutine", "outsideMeals", "timeOfSleep", "assignExpert", "doctorCons",
+  ];
+  const consultationFields = [
+    "currentMedications", "sideEffects", "suddenSugarFluctuations", "symptoms",
+    "familyHistory", "otherConditions", "stressLevel", "monitorBloodSugar",
+    "painInLiver", "gutIssues", "energyLevels", "sleepQuality", "sugarCravings",
+  ];
+  const closingFields = [
+    "expectedResult", "preferredDiet", "courseDuration", "freebie", "bloodTest"
+  ];
+
+  // Helper: count how many fields are filled (non-empty, non-null)
+  const countFilledFields = (obj, fields) => {
+    if (!obj) return 0;
+    let filled = 0;
+    fields.forEach((field) => {
+      const val = obj[field];
+      if (Array.isArray(val)) {
+        if (val.length > 0) filled++;
+      } else if (val !== null && val !== undefined && val !== "") {
+        filled++;
+      }
+    });
+    return filled;
+  };
+
+  const presales = customer.presales || {};
+  const consultation = customer.consultation || {};
+  const closing = customer.closing || {};
+
+  const presalesFilled = countFilledFields(presales, presalesFields);
+  const consultationFilled = countFilledFields(consultation, consultationFields);
+  const closingFilled = countFilledFields(closing, closingFields);
+
+  const totalFields = presalesFields.length + consultationFields.length + closingFields.length;
+  const filledFields = presalesFilled + consultationFilled + closingFilled;
+
+  return Math.round((filledFields / totalFields) * 100);
+};
+
   const fetchCounts = async () => {
     try {
       if (!loggedInUser) return;
@@ -228,7 +274,6 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
       console.error("Error fetching lead counts:", error);
     }
   };
-  
   
 
   // When adding a new lead, check for duplicate phone then post the data.
@@ -377,102 +422,32 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
     }
   };
 
-  const handleDownloadCSV = async () => {
+  const handleDownloadCSV = () => {
     try {
-      const filters = searchQuery
-        ? JSON.stringify({ search: searchQuery })
-        : "{}";
-
-
-      const params = {
-        page: 1,
-        limit: 100000,
-        filters,
-        status: filterStatus,
-        tags: JSON.stringify(selectedFilters),
-        sortBy: sortOrder,
-      };
-
-
-      // Add multi-agent filter if applied
-      if (filterAgent?.length > 0) {
-        params.assignedTo = filterAgent.join(","); // comma-separated list
-      }
-
-
-      // Add createdAt (date) filter if applied
-      if (filterDate) {
-        params.createdAt = filterDate;
-      }
-
-      if (searchQuery) {
-        params.filters = JSON.stringify({ search: searchQuery });
-      }
-
-      if (filterStatus) {
-        params.status = filterStatus;
-      }
-
-      if (selectedFilters?.length > 0) {
-        params.tags = JSON.stringify(selectedFilters);
-      }
-
-      const res = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/customers", {
-        params,
-      });
-      const customers = res.data.customers;
-
-      if (!customers.length) return alert("No leads found to export.");
-
-      const headers = [
-        "Name",
-        "Phone",
-        "Age",
-        "Location",
-        "Looking For",
-        "Assigned To",
-        "Follow Up Date",
-        "Lead Source",
-        "Created At",
-        "Lead Status",
-      ];
-
-
-      const rows = customers.map((cust) => [
-        cust.name || "",
-        cust.phone || "",
-        cust.age || "",
-        cust.location || "",
-        cust.lookingFor || "",
-        cust.assignedTo || "",
-        cust.followUpDate
-          ? new Date(cust.followUpDate).toLocaleDateString()
-          : "",
-        cust.leadSource || "",
-        cust.createdAt ? new Date(cust.createdAt).toLocaleDateString() : "",
-        cust.presales?.leadStatus || "",
-      ]);
-
-      let csvContent = "";
-      csvContent += headers.join(",") + "\n";
-      rows.forEach((row) => {
-        csvContent += row.map((cell) => `"${cell}"`).join(",") + "\n";
-      });
-
-
-      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-      const url = URL.createObjectURL(blob);
+      // Build query params matching your current filters
+      const params = new URLSearchParams();
+  
+      if (searchQuery) params.append("filters", JSON.stringify({ search: searchQuery }));
+      if (filterStatus) params.append("status", filterStatus);
+      if (selectedFilters.length > 0) params.append("tags", JSON.stringify(selectedFilters));
+      if (filterAgent.length > 0) params.append("assignedTo", filterAgent.join(","));
+      if (filterDate) params.append("createdAt", filterDate);
+  
+      const url = `https://muditamleads-14f32a10d7f7.herokuapp.com/api/customers/export-csv?${params.toString()}`;
+  
+      // Create hidden link and trigger click to download
       const link = document.createElement("a");
-      link.setAttribute("href", url);
+      link.href = url;
       link.setAttribute("download", "customers.csv");
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
     } catch (error) {
-      console.error("Error exporting CSV:", error);
-      alert("Error exporting leads to CSV. Try again.");
+      console.error("Error triggering CSV download:", error);
+      alert("Failed to download CSV.");
     }
   };
+  
 
   // Define filter arrays based on the lead status dropdown value in presales
   const openStatuses = [
@@ -768,6 +743,7 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
             key={customer._id}
             onClick={() => onSelectCustomer(customer._id)}
             sx={{
+              position: "relative",
               display: "flex",
               alignItems: "center",
               px: 1,
@@ -877,6 +853,23 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
                 )}
               </Box>
             </Box>
+            <Box
+  sx={{
+    position: "absolute",
+    bottom: 4,
+    right: 8,
+    bgcolor: "#1976d2",
+    color: "white",
+    px: 0.7,
+    py: 0.3,
+    borderRadius: "4px",
+    fontSize: "0.65rem",
+    fontWeight: "bold",
+    userSelect: "none",
+  }}
+>
+  {calculateCompletionPercent(customer)}%
+</Box>
           </Box>
         ))}
         {loadingMore && (

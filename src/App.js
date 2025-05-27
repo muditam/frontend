@@ -39,8 +39,7 @@ const App = () => {
         <Routes>
  
           <Route path="/login" element={<Login />} /> 
-          <Route path="/pages/Home" element={<ShipwayOrders />}/> 
-          <Route path="/escalations" element={<EscalationsPage />}/> 
+          <Route path="/pages/Home" element={<ShipwayOrders />}/>  
           
           {/* Protected Routes */}
           <Route
@@ -51,6 +50,7 @@ const App = () => {
               </PrivateRoute>
             }
           />
+          
           <Route
             path="/lead/:id"
             element={
@@ -192,6 +192,14 @@ const App = () => {
             element={
               <PrivateRoute>
                 <AcquisitionLost />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/escalations"
+            element={ 
+              <PrivateRoute>
+                <EscalationsPage />
               </PrivateRoute>
             }
           />
