@@ -88,6 +88,7 @@ const ShipwayOrders = () => {
               <tr style={{ background: "#f0f0f0", borderBottom: "2px solid #ccc" }}>
                 <th style={{ padding: "8px", textAlign: "left" }}>S.No</th>
                 <th style={{ padding: "8px", textAlign: "left" }}>Order ID</th>
+                <th style={{ padding: "8px", textAlign: "left" }}>Contact Number</th>
                 <th style={{ padding: "8px", textAlign: "left" }}>Shipment Status</th>
               </tr>
             </thead>
@@ -96,6 +97,7 @@ const ShipwayOrders = () => {
                 <tr key={order.order_id} style={{ borderBottom: "1px solid #eee" }}>
                   <td style={{ padding: "8px" }}>{page * rowsPerPage + index + 1}</td>
                   <td style={{ padding: "8px" }}>{order.order_id || "N/A"}</td>
+                  <td style={{ padding: "8px" }}>{order.contact_number || "N/A"}</td>
                   <td style={{ padding: "8px" }}>{order.shipment_status || "N/A"}</td>
                 </tr>
               ))}

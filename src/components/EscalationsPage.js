@@ -22,8 +22,13 @@ import {
 } from "@mui/material";
 import { Close, Delete as DeleteIcon } from "@mui/icons-material";
 import axios from "axios";
+import { WarningAmber } from "@mui/icons-material";
+
+
+
 
 const statusOptions = ["Open", "In Progress", "Closed"];
+
 
 const EscalationsPage = () => {
   const [openForm, setOpenForm] = useState(false);
@@ -35,7 +40,9 @@ const EscalationsPage = () => {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleteEscalationId, setDeleteEscalationId] = useState(null);
 
+
   const user = JSON.parse(sessionStorage.getItem("user")); // logged-in user
+
 
   const [formData, setFormData] = useState({
     date: "",
@@ -51,22 +58,28 @@ const EscalationsPage = () => {
     resolvedDate: "",
   });
 
+
   const BACKEND_URL = "https://muditamleads-14f32a10d7f7.herokuapp.com/api";
+
 
   useEffect(() => {
     fetchEmployees();
     fetchEscalations();
   }, []);
 
+
   const fetchEmployees = async () => {
     try {
       const response = await axios.get(`${BACKEND_URL}/employees`);
-      const activeEmployees = response.data.filter((emp) => emp.status === "active");
+      const activeEmployees = response.data.filter(
+        (emp) => emp.status === "active"
+      );
       setEmployees(activeEmployees);
     } catch (error) {
       console.error("Failed to fetch employees", error);
     }
   };
+
 
   const fetchEscalations = async () => {
     try {
@@ -76,6 +89,7 @@ const EscalationsPage = () => {
       console.error("Failed to fetch escalations", error);
     }
   };
+
 
   const handleConfirmDelete = async () => {
     try {
@@ -87,17 +101,19 @@ const EscalationsPage = () => {
     setDeleteDialogOpen(false);
     setDeleteEscalationId(null);
   };
-  
+
+
   const handleCancelDelete = () => {
     setDeleteDialogOpen(false);
     setDeleteEscalationId(null);
   };
-  
+
 
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData((fd) => ({ ...fd, [name]: value }));
   };
+
 
   const handleFileChange = (e) => {
     const files = Array.from(e.target.files);
@@ -108,6 +124,7 @@ const EscalationsPage = () => {
     e.target.value = null;
   };
 
+
   const handleRemoveFile = (index) => {
     setFormData((fd) => {
       const newFiles = [...fd.attachedFiles];
@@ -115,6 +132,7 @@ const EscalationsPage = () => {
       return { ...fd, attachedFiles: newFiles };
     });
   };
+
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -131,12 +149,15 @@ const EscalationsPage = () => {
         form.append("attachedFiles", file);
       });
 
+
       await axios.post(`${BACKEND_URL}/escalations`, form, {
         headers: { "Content-Type": "multipart/form-data" },
       });
 
+
       setOpenForm(false);
       fetchEscalations();
+
 
       setFormData({
         date: "",
@@ -157,6 +178,7 @@ const EscalationsPage = () => {
     setLoading(false);
   };
 
+
   const handleEditCell = async (index, field, value) => {
     const updatedEscalation = { ...escalations[index], [field]: value };
     try {
@@ -166,6 +188,7 @@ const EscalationsPage = () => {
         remark: updatedEscalation.remark,
         resolvedDate: updatedEscalation.resolvedDate,
       });
+
 
       setEscalations((prev) => {
         const newArr = [...prev];
@@ -177,83 +200,142 @@ const EscalationsPage = () => {
     }
   };
 
-  
 
   const handleOpenFile = (fileUrl) => {
     setFileToView(fileUrl);
     setOpenFileDialog(true);
   };
 
+
   const filteredEscalations =
     user?.role === "Manager"
       ? escalations
       : escalations.filter((e) => e.agentName === user?.fullName);
 
+
   return (
     <Box sx={{ padding: 3, bgcolor: "#fff", borderRadius: 2 }}>
-      <Typography variant="h4" sx={{ mb: 3, fontWeight: "bold", color: "black" }}>
+      <Typography
+        variant="h4"
+        sx={{
+          fontWeight: "bold",
+          textAlign: "center",
+          color: "black",
+          marginBottom: 2,
+        }}
+      >
         Escalations
       </Typography>
+
 
       <Button
         variant="contained"
         onClick={() => setOpenForm(true)}
-        sx={{ mb: 3, bgcolor: "black", ":hover": { bgcolor: "#333" }, fontWeight: "bold" }}
+        sx={{ mb: 2, backgroundColor: "black" }}
       >
         Add Escalation
       </Button>
 
+
       {/* Add New Escalation Form Dialog */}
-      <Dialog open={openForm} onClose={() => setOpenForm(false)} maxWidth="sm" fullWidth>
-        <DialogTitle sx={{ fontWeight: "bold", color: "black" }}>Add New Escalation</DialogTitle>
-        <DialogContent>
+      <Dialog
+        open={openForm}
+        onClose={() => setOpenForm(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle
+          sx={{
+            backgroundColor: "transparent",
+            color: "black",
+            fontWeight: "bold",
+            textAlign: "center",
+            fontSize: "1.5rem",
+            pb: 1,
+          }}
+        >
+          Add New Escalation
+        </DialogTitle>
+        <Box
+          sx={{
+            height: "4px",
+            backgroundColor: "#FFD700",
+            width: "100%",
+            mt: 1,
+            borderRadius: "2px",
+          }}
+        />
+        <DialogContent sx={{ p: 4, backgroundColor: "#f9f9f9" }}>
           <Box
             component="form"
-            sx={{
-              display: "flex",
-              flexDirection: "column",
-              gap: 2,
-              mt: 1,
-              p: 2,
-              bgcolor: "#f5f5f5",
-              borderRadius: 1,
-            }}
+            sx={{ display: "flex", flexDirection: "column", gap: 2 }}
             onSubmit={handleSubmit}
           >
-            <TextField
-              label="Date"
-              type="date"
-              name="date"
-              value={formData.date}
-              onChange={handleChange}
-              InputLabelProps={{ shrink: true }}
-              required
-              fullWidth
-            />
-            <TextField
-              label="Order ID"
-              name="orderId"
-              value={formData.orderId}
-              onChange={handleChange}
-              required
-              fullWidth
-            />
-            <TextField
-              label="Name"
-              name="name"
-              value={formData.name}
-              onChange={handleChange}
-              required
-              fullWidth
-            />
-            <TextField
-              label="Contact Number"
-              name="contactNumber"
-              value={formData.contactNumber}
-              onChange={handleChange}
-              required
-              fullWidth
-            />
+            <Box sx={{ display: 'flex', gap: 2 }}>
+              <TextField
+                label="Date"
+                type="date"
+                name="date"
+                value={formData.date}
+                onChange={handleChange}
+                required
+                fullWidth
+                variant="filled"
+                InputProps={{
+                  disableUnderline: true,
+                  sx: { backgroundColor: "#fff", borderRadius: 1, px: 1 },
+                }}
+                InputLabelProps={{
+                  sx: {
+                    color: "rgba(0,0,0,0.6)",
+                    "&.Mui-focused": { color: "gray" },
+                    "&.MuiInputLabel-shrink": { color: "gray" },
+                  },
+                  shrink: true,
+                }}
+              />
+              <TextField
+                label="Order ID"
+                name="orderId"
+                value={formData.orderId}
+                onChange={handleChange}
+                required
+                fullWidth
+                variant="filled"
+                InputProps={{
+                  disableUnderline: true,
+                  sx: { backgroundColor: "#fff", borderRadius: 1, px: 1 },
+                }}
+                InputLabelProps={{
+                  sx: {
+                    color: "rgba(0,0,0,0.6)",
+                    "&.Mui-focused": { color: "gray" },
+                    "&.MuiInputLabel-shrink": { color: "gray" },
+                  },
+                }}
+              />
+              <TextField
+                label="Name"
+                name="name"
+                value={formData.name}
+                onChange={handleChange}
+                required
+                fullWidth
+                variant="filled"
+                InputProps={{
+                  disableUnderline: true,
+                  sx: { backgroundColor: "#fff", borderRadius: 1, px: 1 },
+                }}
+                InputLabelProps={{
+                  sx: {
+                    color: "rgba(0,0,0,0.6)",
+                    "&.Mui-focused": { color: "gray" },
+                    "&.MuiInputLabel-shrink": { color: "gray" },
+                  },
+                }}
+              />
+            </Box>
+
             <TextField
               select
               label="Agent Name"
@@ -262,6 +344,22 @@ const EscalationsPage = () => {
               onChange={handleChange}
               required
               fullWidth
+              variant="filled"
+              InputProps={{
+                disableUnderline: true,
+                sx: { backgroundColor: "#fff", borderRadius: 1, px: 1 },
+              }}
+              InputLabelProps={{
+                sx: {
+                  color: "rgba(0,0,0,0.6)", // default label color
+                  "&.Mui-focused": {
+                    color: "gray", // label color when focused
+                  },
+                  "&.MuiInputLabel-shrink": {
+                    color: "gray", // label color when shrunk (input filled)
+                  },
+                },
+              }}
             >
               {employees.map((emp) => (
                 <MenuItem key={emp._id} value={emp.fullName}>
@@ -278,22 +376,43 @@ const EscalationsPage = () => {
               rows={3}
               required
               fullWidth
+              variant="filled"
+              InputProps={{
+                disableUnderline: true,
+                sx: { backgroundColor: "#fff", borderRadius: 1, px: 1 },
+              }}
+              InputLabelProps={{
+                sx: {
+                  color: "rgba(0,0,0,0.6)", // default label color
+                  "&.Mui-focused": {
+                    color: "gray", // label color when focused
+                  },
+                  "&.MuiInputLabel-shrink": {
+                    color: "gray", // label color when shrunk (input filled)
+                  },
+                },
+              }}
             />
 
-            <Button
-              variant="outlined"
-              component="label"
-              sx={{ alignSelf: "start", color: "black", borderColor: "black", fontWeight: "bold" }}
-            >
-              Attach Files
-              <input
-                type="file"
-                hidden
-                onChange={handleFileChange}
-                accept="image/*,.pdf,.doc,.docx"
-                multiple
-              />
-            </Button>
+
+            <Box sx={{ display: "flex", justifyContent: "center" }}>
+              <Button
+                variant="outlined"
+                component="label"
+                color="black"
+                sx={{ borderRadius: 1, px: 2, width: 200 }}
+              >
+                Attach Files
+                <input
+                  type="file"
+                  hidden
+                  onChange={handleFileChange}
+                  accept="image/*,.pdf,.doc,.docx"
+                  multiple
+                />
+              </Button>
+            </Box>
+
 
             {formData.attachedFiles.length > 0 && (
               <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
@@ -316,16 +435,29 @@ const EscalationsPage = () => {
               </Box>
             )}
 
-            <DialogActions sx={{ px: 0 }}>
-              <Button onClick={() => setOpenForm(false)} disabled={loading} sx={{ color: "black" }}>
+
+            <DialogActions
+              sx={{ px: 0, display: "flex", justifyContent: "space-between" }}
+            >
+              <Button
+                onClick={() => setOpenForm(false)}
+                disabled={loading}
+                variant="outlined"
+                color="black"
+                sx={{ borderRadius: 1, px: 2 }}
+              >
                 Cancel
               </Button>
               <Button
                 type="submit"
-                variant="contained"
                 disabled={loading}
-                startIcon={loading ? <CircularProgress size={20} color="inherit" /> : null}
-                sx={{ bgcolor: "black", ":hover": { bgcolor: "#333" }, fontWeight: "bold" }}
+                startIcon={
+                  loading ? (
+                    <CircularProgress size={20} color="inherit" />
+                  ) : null
+                }
+                variant="contained"
+                sx={{ borderRadius: 1, px: 2, background: "black" }}
               >
                 Submit
               </Button>
@@ -333,6 +465,7 @@ const EscalationsPage = () => {
           </Box>
         </DialogContent>
       </Dialog>
+
 
       {/* Escalations Table */}
       <TableContainer
@@ -363,7 +496,13 @@ const EscalationsPage = () => {
               ].map((head) => (
                 <TableCell
                   key={head}
-                  sx={{ fontWeight: "bold", color: "white", textAlign: "center", backgroundColor: "black", whiteSpace: "nowrap", }}
+                  sx={{
+                    fontWeight: "bold",
+                    color: "white",
+                    textAlign: "center",
+                    backgroundColor: "black",
+                    whiteSpace: "nowrap",
+                  }}
                 >
                   {head}
                 </TableCell>
@@ -386,7 +525,9 @@ const EscalationsPage = () => {
                 <TableCell align="center">{esc.name}</TableCell>
                 <TableCell align="center">{esc.contactNumber}</TableCell>
                 <TableCell align="center">{esc.agentName}</TableCell>
-                <TableCell sx={{ whiteSpace: "nowrap", maxWidth: 220 }}>{esc.query}</TableCell>
+                <TableCell sx={{ whiteSpace: "nowrap", maxWidth: 220 }}>
+                  {esc.query}
+                </TableCell>
                 <TableCell align="center" sx={{ whiteSpace: "nowrap" }}>
                   {esc.attachedFileUrls && esc.attachedFileUrls.length > 0 ? (
                     esc.attachedFileUrls.map((url, idx) => (
@@ -417,14 +558,17 @@ const EscalationsPage = () => {
                   )}
                 </TableCell>
 
+
                 {/* Editable only for Manager */}
-                <TableCell align="center" >
+                <TableCell align="center">
                   {user?.role === "Manager" ? (
                     <TextField
                       select
                       size="small"
                       value={esc.status}
-                      onChange={(e) => handleEditCell(i, "status", e.target.value)}
+                      onChange={(e) =>
+                        handleEditCell(i, "status", e.target.value)
+                      }
                       sx={{ minWidth: 100 }}
                     >
                       {statusOptions.map((opt) => (
@@ -437,13 +581,15 @@ const EscalationsPage = () => {
                     esc.status
                   )}
                 </TableCell>
-                <TableCell align="center"  >
+                <TableCell align="center">
                   {user?.role === "Manager" ? (
                     <TextField
                       select
                       size="small"
                       value={esc.assignedTo}
-                      onChange={(e) => handleEditCell(i, "assignedTo", e.target.value)}
+                      onChange={(e) =>
+                        handleEditCell(i, "assignedTo", e.target.value)
+                      }
                       sx={{ minWidth: 130 }}
                     >
                       {employees.map((emp) => (
@@ -456,25 +602,29 @@ const EscalationsPage = () => {
                     esc.assignedTo
                   )}
                 </TableCell>
-                <TableCell  >
+                <TableCell>
                   {user?.role === "Manager" ? (
                     <TextField
                       size="small"
                       value={esc.remark}
-                      onChange={(e) => handleEditCell(i, "remark", e.target.value)}
+                      onChange={(e) =>
+                        handleEditCell(i, "remark", e.target.value)
+                      }
                       fullWidth
                     />
                   ) : (
                     esc.remark
                   )}
                 </TableCell>
-                <TableCell align="center"  >
+                <TableCell align="center">
                   {user?.role === "Manager" ? (
                     <TextField
                       type="date"
                       size="small"
                       value={esc.resolvedDate || ""}
-                      onChange={(e) => handleEditCell(i, "resolvedDate", e.target.value)}
+                      onChange={(e) =>
+                        handleEditCell(i, "resolvedDate", e.target.value)
+                      }
                       InputLabelProps={{ shrink: true }}
                       sx={{ minWidth: 120 }}
                     />
@@ -485,15 +635,15 @@ const EscalationsPage = () => {
                 <TableCell align="right">
                   {user?.role === "Manager" ? (
                     <IconButton
-                    color="error"
-                    onClick={() => {
-                      setDeleteEscalationId(esc._id);
-                      setDeleteDialogOpen(true);
-                    }}
-                    size="small"
-                  >
-                    <DeleteIcon />
-                  </IconButton>                  
+                      color="error"
+                      onClick={() => {
+                        setDeleteEscalationId(esc._id);
+                        setDeleteDialogOpen(true);
+                      }}
+                      size="small"
+                    >
+                      <DeleteIcon />
+                    </IconButton>
                   ) : (
                     "-"
                   )}
@@ -504,29 +654,44 @@ const EscalationsPage = () => {
         </Table>
       </TableContainer>
 
+
       <Dialog
-  open={deleteDialogOpen}
-  onClose={handleCancelDelete}
-  maxWidth="xs"
-  fullWidth
->
-  <DialogTitle>Confirm Delete</DialogTitle>
-  <DialogContent>
-    <Typography>Are you sure you want to delete this escalation?</Typography>
-  </DialogContent>
-  <DialogActions>
-    <Button onClick={handleCancelDelete} color="primary">
-      Cancel
-    </Button>
-    <Button onClick={handleConfirmDelete} color="error" variant="contained">
-      Delete
-    </Button>
-  </DialogActions>
-</Dialog>
+        open={deleteDialogOpen}
+        onClose={handleCancelDelete}
+        maxWidth="xs"
+        fullWidth
+      >
+        <DialogTitle><Box display="flex" alignItems="center" gap={1} color="error.main">
+          <WarningAmber fontSize="medium" />
+          Confirm Deletion
+        </Box></DialogTitle>
+        <DialogContent>
+          <Typography>
+            Are you sure you want to delete this escalation?
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ justifyContent: "space-between", px: 2, pb: 1 }}>
+          <Button onClick={handleCancelDelete} color="black">
+            Cancel
+          </Button>
+          <Button
+            onClick={handleConfirmDelete}
+            color="error"
+            variant="contained"
+          >
+            Delete
+          </Button>
+        </DialogActions>
+      </Dialog>
 
 
       {/* File Preview Dialog */}
-      <Dialog open={openFileDialog} onClose={() => setOpenFileDialog(false)} maxWidth="md" fullWidth>
+      <Dialog
+        open={openFileDialog}
+        onClose={() => setOpenFileDialog(false)}
+        maxWidth="md"
+        fullWidth
+      >
         <DialogTitle sx={{ fontWeight: "bold", color: "black" }}>
           File Preview
           <IconButton
@@ -561,4 +726,8 @@ const EscalationsPage = () => {
   );
 };
 
+
 export default EscalationsPage;
+
+
+

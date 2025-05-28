@@ -424,7 +424,6 @@ const calculateCompletionPercent = (customer) => {
 
   const handleDownloadCSV = () => {
     try {
-      // Build query params matching your current filters
       const params = new URLSearchParams();
   
       if (searchQuery) params.append("filters", JSON.stringify({ search: searchQuery }));
@@ -435,7 +434,6 @@ const calculateCompletionPercent = (customer) => {
   
       const url = `https://muditamleads-14f32a10d7f7.herokuapp.com/api/customers/export-csv?${params.toString()}`;
   
-      // Create hidden link and trigger click to download
       const link = document.createElement("a");
       link.href = url;
       link.setAttribute("download", "customers.csv");
@@ -446,7 +444,7 @@ const calculateCompletionPercent = (customer) => {
       console.error("Error triggering CSV download:", error);
       alert("Failed to download CSV.");
     }
-  };
+  };  
   
 
   // Define filter arrays based on the lead status dropdown value in presales

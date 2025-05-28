@@ -460,6 +460,7 @@ const ConsultationDetails = ({ customerId }) => {
               "Invalid Number",
               "Not Interested", 
               "Ordered from Other Sources",
+              "language barrier",
               "Budget issue",
             ].map((status) => (
               <MenuItem key={status} value={status}>

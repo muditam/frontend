@@ -44,6 +44,7 @@ import FilterListIcon from "@mui/icons-material/FilterList";
 import SortIcon from "@mui/icons-material/Sort";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
 import SearchIcon from "@mui/icons-material/Search";
+import DeleteIcon from '@mui/icons-material/Delete';
 
 import AddIcon from "@mui/icons-material/Add";
 import HistoryIcon from "@mui/icons-material/History";
@@ -133,6 +134,9 @@ const RetentionLeads = () => {
   const [reachoutTimestamp, setReachoutTimestamp] = useState(null);
   const [logsModalOpen, setLogsModalOpen] = useState(false);
   const [logsData, setLogsData] = useState([]);
+  const [moreOptionsAnchorEl, setMoreOptionsAnchorEl] = useState(null);
+  const [shipmentStatusFilter, setShipmentStatusFilter] = useState(null);
+
 
   const [sortMenuAnchorEl, setSortMenuAnchorEl] = useState(null);
 
@@ -563,6 +567,37 @@ const RetentionLeads = () => {
   };
 
 
+  const filterLeadsByShipmentStatus = async (status) => {
+    try {
+      setLoading(true);
+      setShipmentStatusFilter(status);
+  
+      const res = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/orders/by-shipment-status", {
+        params: { shipment_status: status },
+      });
+  
+      const orders = res.data;
+  
+      const contactNumbersWithStatus = new Set(
+        orders.map(order => order.contact_number)
+      );
+  
+      const filteredLeads = allLeads.filter(lead =>
+        contactNumbersWithStatus.has(lead.contactNumber)
+      );
+  
+      setFilteredAllLeads(filteredLeads);
+      setLeads(filteredLeads.slice(0, leadsPerPage));
+      setHasMore(filteredLeads.length > leadsPerPage);
+      setSelectedLeadIndex(null);
+    } catch (error) {
+      console.error("Error filtering by shipment status:", error);
+    } finally {
+      setLoading(false);
+    }
+  };  
+  
+
   const updateLeadImagesOnServer = async (leadId, images) => {
     try {
       await axios.patch(`http://lcalhost:5000/api/leads/${leadId}/images`, { images });
@@ -581,7 +616,7 @@ const RetentionLeads = () => {
 
   const filteredLeadsByFilters = (inputLeads) => {
     let filtered = inputLeads;
-  
+
     // Search filter (name/contact)
     const search = filters.name.trim().toLowerCase();
     if (search) {
@@ -591,12 +626,12 @@ const RetentionLeads = () => {
         return nameMatch || numberMatch;
       });
     }
-  
+
     // Retention Status filter
     if (filters.retentionStatus && filters.retentionStatus !== "All") {
       // Normalize retentionStatus value to lowercase for comparison
       const statusFilter = filters.retentionStatus.toLowerCase();
-  
+
       filtered = filtered.filter((lead) => {
         const leadStatus = (lead.retentionStatus || "").toLowerCase();
         if (statusFilter === "active") {
@@ -608,38 +643,38 @@ const RetentionLeads = () => {
         return true; // fallback no filtering
       });
     }
-  
+
     // Follow-up Reminder filter: normalize all values
     if (filters.rtFollowupReminder !== null && filters.rtFollowupReminder !== "") {
       // Map UI values to lead field values if needed
       let reminderFilter = filters.rtFollowupReminder;
       // Your followupTagMap uses 'Follow-up Missed' (not 'Missed') and '' for Not Set
       // Make sure your filters use these exact strings
-  
+
       filtered = filtered.filter((lead) => {
         const reminder = lead.rtFollowupReminder || "";
         return reminder === reminderFilter;
       });
     }
-  
+
     // Order Placed filter
     if (orderPlacedFilter === "Order Placed") {
       filtered = filtered.filter((lead) => !!lead.lastOrderDate);
     } else if (orderPlacedFilter === "Order Not Placed") {
       filtered = filtered.filter((lead) => !lead.lastOrderDate);
     }
-  
+
     // Date range filter
     if (dateRangeFilter) {
       const now = new Date();
       const isSameMonth = (d1, d2) =>
         d1.getMonth() === d2.getMonth() && d1.getFullYear() === d2.getFullYear();
-  
+
       filtered = filtered.filter((lead) => {
         if (!lead.lastOrderDate) return false;
         const date = new Date(lead.lastOrderDate);
         const diffDays = Math.floor((now - date) / (1000 * 60 * 60 * 24));
-  
+
         switch (dateRangeFilter) {
           case "Today":
             return diffDays === 0;
@@ -672,7 +707,7 @@ const RetentionLeads = () => {
         }
       });
     }
-  
+
     // Sort leads with lastOrderDate first descending, then without
     filtered.sort((a, b) => {
       if (!a.lastOrderDate && !b.lastOrderDate) return 0;
@@ -680,10 +715,10 @@ const RetentionLeads = () => {
       if (!b.lastOrderDate) return -1;
       return new Date(b.lastOrderDate) - new Date(a.lastOrderDate);
     });
-  
+
     return filtered;
   };
-  
+
 
 
   const handleSortMenuClick = (event, type) => {
@@ -954,11 +989,36 @@ const RetentionLeads = () => {
             </IconButton>
           </Tooltip>
           <Tooltip title="More options">
-            <IconButton size="small" onClick={() => alert("More options clicked")}>
+            <IconButton
+              size="small"
+              onClick={(e) => setMoreOptionsAnchorEl(e.currentTarget)}
+            >
               <MoreVertIcon />
             </IconButton>
           </Tooltip>
         </Box>
+
+        <Menu
+  anchorEl={moreOptionsAnchorEl}
+  open={Boolean(moreOptionsAnchorEl)}
+  onClose={() => setMoreOptionsAnchorEl(null)}
+  anchorOrigin={{ vertical: "bottom", horizontal: "left" }}
+  transformOrigin={{ vertical: "top", horizontal: "left" }}
+>
+  {["Delivered", "Undelivered"].map((status) => (
+    <MenuItem
+      key={status}
+      onClick={async () => {
+        setMoreOptionsAnchorEl(null);
+        await filterLeadsByShipmentStatus(status);
+      }}
+    >
+      {status}
+    </MenuItem>
+  ))}
+</Menu>
+
+
 
         <Menu
           anchorEl={filterAnchorEl}
@@ -1867,14 +1927,19 @@ const RetentionLeads = () => {
                 display: "flex",
                 flexDirection: "column",
                 overflowY: "auto",
+                color: "black", // Primary text color black
               }}
               elevation={3}
             >
-              <Typography variant="h6" gutterBottom>
+              <Typography variant="h6" gutterBottom sx={{ color: "black" }}>
                 Upload Images
               </Typography>
 
-              <Button variant="outlined" component="label" sx={{ mb: 2 }}>
+              <Button
+                variant="outlined"
+                component="label"
+                sx={{ mb: 2, color: "black", borderColor: "black", "&:hover": { borderColor: "black" } }}
+              >
                 Select Images
                 <input
                   type="file"
@@ -1902,18 +1967,15 @@ const RetentionLeads = () => {
 
                       const updatedImages = [...(leads[selectedLeadIndex].images || []), ...uploaded];
 
-                      // Save to backend
                       await axios.patch(
                         `https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/${leads[selectedLeadIndex]._id}/images`,
                         { images: updatedImages }
                       );
 
-                      // Update frontend state
                       const newLeads = [...leads];
                       newLeads[selectedLeadIndex].images = updatedImages;
                       setLeads(newLeads);
 
-                      // Update image preview state
                       const imgsForDisplay = uploaded.map((img, i) => ({
                         preview: img.url,
                         date: new Date(),
@@ -1929,129 +1991,192 @@ const RetentionLeads = () => {
                 />
               </Button>
 
-
               {/* Render grouped images */}
-              {Object.keys(groupedImages).sort((a, b) => b - a).map((year) => (
-                <Box key={year} sx={{ mb: 2 }}>
-                  <Typography variant="subtitle1" fontWeight="bold" sx={{ mb: 1 }}>
-                    {year}
-                  </Typography>
+              {Object.keys(groupedImages)
+                .sort((a, b) => b - a)
+                .map((year) => (
+                  <Box key={year} sx={{ mb: 2 }}>
+                    <Typography variant="subtitle1" fontWeight="bold" sx={{ mb: 1, color: "black" }}>
+                      {year}
+                    </Typography>
 
-                  {Object.keys(groupedImages[year]).map((month) => (
-                    <Box key={month} sx={{ mb: 1 }}>
-                      <Typography variant="subtitle2" sx={{ mb: 1 }}>
-                        {month}
-                      </Typography>
+                    {Object.keys(groupedImages[year]).map((month) => (
+                      <Box key={month} sx={{ mb: 1 }}>
+                        <Typography variant="subtitle2" sx={{ mb: 1, color: "black" }}>
+                          {month}
+                        </Typography>
 
-                      {Object.keys(groupedImages[year][month])
-                        .sort((a, b) => b - a)
-                        .map((day) => {
-                          const imagesOnDate = groupedImages[year][month][day];
-                          return (
-                            <Box key={day} sx={{ mb: 2 }}>
-                              <Typography
-                                variant="caption"
-                                sx={{
-                                  display: "inline-block",
-                                  backgroundColor: "grey.300",
-                                  px: 1,
-                                  py: 0.3,
-                                  borderRadius: 1,
-                                  mb: 1,
-                                  fontWeight: "bold",
-                                }}
-                              >
-                                {`${day} ${month} ${year}`}
-                              </Typography>
+                        {Object.keys(groupedImages[year][month])
+                          .sort((a, b) => b - a)
+                          .map((day) => {
+                            const imagesOnDate = groupedImages[year][month][day];
+                            return (
+                              <Box key={day} sx={{ mb: 2 }}>
+                                <Typography
+                                  variant="caption"
+                                  sx={{
+                                    display: "inline-block",
+                                    backgroundColor: "grey.300",
+                                    px: 1,
+                                    py: 0.3,
+                                    borderRadius: 1,
+                                    mb: 1,
+                                    fontWeight: "bold",
+                                    color: "black",
+                                  }}
+                                >
+                                  {`${day} ${month} ${year}`}
+                                </Typography>
 
-                              <Box
-                                sx={{
-                                  display: "flex",
-                                  flexDirection: "column",
-                                  gap: 1,
-                                }}
-                              >
-                                {imagesOnDate.map(({ preview, index, tag }, i) => (
-                                  <Box
-                                    key={index}
-                                    sx={{
-                                      position: "relative",
-                                      cursor: "pointer",
-                                      borderRadius: 1,
-                                      border: "1px solid #ccc",
-                                      overflow: "hidden",
-                                      height: 100,
-                                    }}
-                                  >
-                                    <img
-                                      src={preview}
-                                      alt={`img-${index}`}
-                                      style={{
-                                        width: "100%",
-                                        height: "100%",
-                                        objectFit: "cover",
-                                      }}
-                                      onClick={() => openModal(imagesOnDate, i)}
-                                    />
+                                <Box
+                                  sx={{
+                                    display: "flex",
+                                    flexDirection: "row",
+                                    gap: 1,
+                                    overflowX: "hidden", // Hide horizontal scroll
+                                    pb: 1,
+                                  }}
+                                >
+                                  {imagesOnDate.map(({ preview, index, tag, date }, i) => {
+                                    const timeStr = new Date(date).toLocaleTimeString([], {
+                                      hour: "2-digit",
+                                      minute: "2-digit",
+                                    });
 
-                                    {/* Delete icon */}
-                                    <IconButton
-                                      size="small"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        handleRemoveImage(index);
-                                      }}
-                                      sx={{
-                                        position: "absolute",
-                                        top: 2,
-                                        right: 2,
-                                        bgcolor: "rgba(255,255,255,0.7)",
-                                      }}
-                                    >
-                                      ×
-                                    </IconButton>
+                                    return (
+                                      <Box
+                                        key={index}
+                                        sx={{
+                                          position: "relative",
+                                          cursor: "pointer",
+                                          borderRadius: 1,
+                                          border: "1px solid #ccc",
+                                          overflow: "hidden",
+                                          width: i === 0 || i === imagesOnDate.length - 1 ? 80 : 100, // smaller width on left and right edges
+                                          height: 100,
+                                          flex: "0 0 auto",
+                                          boxShadow: 1,
+                                          transition: "transform 0.2s",
+                                          "&:hover": {
+                                            transform: "scale(1.1)",
+                                            zIndex: 5,
+                                          },
+                                        }}
+                                        onClick={() => openModal(imagesOnDate, i)}
+                                      >
+                                        <img
+                                          src={preview}
+                                          alt={`img-${index}`}
+                                          style={{
+                                            width: "100%",
+                                            height: "100%",
+                                            objectFit: "cover",
+                                          }}
+                                        />
 
-                                    {/* Add tag button */}
-                                    <Button
-                                      size="small"
-                                      variant="outlined"
-                                      sx={{
-                                        position: "absolute",
-                                        bottom: 2,
-                                        left: "50%",
-                                        transform: "translateX(-50%)",
-                                        bgcolor: "rgba(255,255,255,0.8)",
-                                        fontSize: "0.7rem",
-                                      }}
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        setTagDialogImageIndex(index);
-                                        setTagDialogValue(tag || "");
-                                        setTagDialogOpen(true);
-                                      }}
-                                    >
-                                      {tag || "Add Tag"}
-                                    </Button>
-                                  </Box>
-                                ))}
+                                        {/* Tag badge if exists */}
+                                        {tag && (
+                                          <Box
+                                            sx={{
+                                              position: "absolute",
+                                              top: 4,
+                                              left: 4,
+                                              backgroundColor: "black",
+                                              color: "white",
+                                              fontSize: "0.6rem",
+                                              px: 0.5,
+                                              py: 0.2,
+                                              borderRadius: 0.5,
+                                              zIndex: 2,
+                                            }}
+                                          >
+                                            {tag}
+                                          </Box>
+                                        )}
+
+                                        {/* Delete icon (dustbin) */}
+                                        <IconButton
+                                          size="small"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleRemoveImage(index);
+                                          }}
+                                          sx={{
+                                            position: "absolute",
+                                            top: 2,
+                                            right: 2,
+                                            backgroundColor: "rgba(255,255,255,0.8)",
+                                            zIndex: 2,
+                                          }}
+                                        >
+                                          <DeleteIcon sx={{ fontSize: "1rem", color: "black" }} />
+                                        </IconButton>
+
+                                        {/* Add Tag button if no tag */}
+                                        {!tag && (
+                                          <Button
+                                            size="small"
+                                            variant="outlined"
+                                            sx={{
+                                              position: "absolute",
+                                              top: 4,
+                                              left: 4,
+                                              backgroundColor: "rgba(0,0,0,0.7)",
+                                              color: "white",
+                                              fontSize: "0.6rem",
+                                              px: 0.5,
+                                              py: 0.2,
+                                              zIndex: 2,
+                                            }}
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              setTagDialogImageIndex(index);
+                                              setTagDialogValue("");
+                                              setTagDialogOpen(true);
+                                            }}
+                                          >
+                                            Add Tag
+                                          </Button>
+                                        )}
+
+                                        {/* Time at bottom */}
+                                        <Box
+                                          sx={{
+                                            position: "absolute",
+                                            bottom: 2,
+                                            left: "50%",
+                                            transform: "translateX(-50%)",
+                                            backgroundColor: "rgba(0,0,0,0.7)",
+                                            color: "white",
+                                            fontSize: "0.6rem",
+                                            px: 1,
+                                            py: 0.2,
+                                            borderRadius: 1,
+                                            zIndex: 2,
+                                          }}
+                                        >
+                                          {timeStr}
+                                        </Box>
+                                      </Box>
+                                    );
+                                  })}
+                                </Box>
                               </Box>
-                            </Box>
-                          );
-                        })}
-                    </Box>
-                  ))}
-                </Box>
-              ))}
-
+                            );
+                          })}
+                      </Box>
+                    ))}
+                  </Box>
+                ))}
               <Dialog open={tagDialogOpen} onClose={() => setTagDialogOpen(false)}>
-                <DialogTitle>Select Tag</DialogTitle>
+                <DialogTitle sx={{ color: "black" }}>Select Tag</DialogTitle>
                 <DialogContent>
                   <Select
                     fullWidth
                     value={tagDialogValue}
                     onChange={(e) => setTagDialogValue(e.target.value)}
                     size="small"
-                    sx={{ minWidth: 200 }}
+                    sx={{ minWidth: 200, color: "black" }}
                   >
                     <MenuItem value="Pre Meal">Pre Meal</MenuItem>
                     <MenuItem value="Post Meal">Post Meal</MenuItem>
@@ -2066,13 +2191,15 @@ const RetentionLeads = () => {
                       setTagDialogOpen(false);
                     }}
                     variant="contained"
+                    sx={{ backgroundColor: "black", "&:hover": { backgroundColor: "#222" } }}
                   >
                     Save
                   </Button>
-                  <Button onClick={() => setTagDialogOpen(false)}>Cancel</Button>
+                  <Button onClick={() => setTagDialogOpen(false)} sx={{ color: "black" }}>
+                    Cancel
+                  </Button>
                 </DialogActions>
               </Dialog>
-
 
               {/* Modal */}
               {modalOpen && (
@@ -2118,20 +2245,16 @@ const RetentionLeads = () => {
                     />
 
                     <Box sx={{ display: "flex", gap: 2, alignItems: "center" }}>
-                      <Button variant="outlined" onClick={prevImage}>
+                      <Button variant="outlined" onClick={prevImage} sx={{ color: "black", borderColor: "black" }}>
                         Prev
                       </Button>
-                      <Button variant="outlined" onClick={nextImage}>
+                      <Button variant="outlined" onClick={nextImage} sx={{ color: "black", borderColor: "black" }}>
                         Next
                       </Button>
-                      <Button
-                        variant="outlined"
-                        color="error"
-                        onClick={deleteModalImage}
-                      >
+                      <Button variant="outlined" color="error" onClick={deleteModalImage}>
                         Delete
                       </Button>
-                      <Button variant="text" onClick={closeModal}>
+                      <Button variant="text" onClick={closeModal} sx={{ color: "black" }}>
                         Close
                       </Button>
                     </Box>
@@ -2139,6 +2262,8 @@ const RetentionLeads = () => {
                 </Box>
               )}
             </Paper>
+
+
           </>
         )}
       </Box>

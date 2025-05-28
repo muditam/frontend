@@ -54,6 +54,7 @@ const Presales = ({ customerId, parentLeadStatus  }) => {
     "Invalid Number",
     "Not Interested",
     "Ordered from Other Sources",
+    "language barrier",
     "Budget issue",
   ];
 
