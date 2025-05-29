@@ -573,7 +573,7 @@ const RetentionAgentDashboard = () => {
         <Box
           sx={{
             position: "fixed",
-            top: 280,
+            top: 300,
             right: 16,
             width: 220,
             backgroundColor: "white",

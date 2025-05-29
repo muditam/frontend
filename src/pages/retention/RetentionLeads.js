@@ -11,7 +11,7 @@ import {
   Avatar,
   InputAdornment,
   List,
-  ListItemAvatar,
+  ListItemAvatar, 
   ListItemText,
   ListItemButton,
   Stack,
@@ -124,6 +124,7 @@ const RetentionLeads = () => {
   const [modalIndex, setModalIndex] = useState(0);
   const [leadLoading, setLeadLoading] = useState(false);
   const [filteredAllLeads, setFilteredAllLeads] = useState([]);
+  const [currentIndex, setCurrentIndex] = useState(0);
   const [filterAnchorEl, setFilterAnchorEl] = useState(null);
   const [orderPlacedFilter, setOrderPlacedFilter] = useState("Order Placed"); // or "Order Not Placed"
   const [dateRangeFilter, setDateRangeFilter] = useState("");
@@ -229,12 +230,16 @@ const RetentionLeads = () => {
         if (!followupDate) return "";
         const date = new Date(followupDate);
         const today = new Date();
+        today.setHours(0, 0, 0, 0); // normalize to midnight
+        date.setHours(0, 0, 0, 0); // normalize to midnight
         const diffInDays = Math.ceil((date - today) / (1000 * 60 * 60 * 24));
         if (diffInDays < 0) return "Follow-up Missed";
         if (diffInDays === 0) return "Today";
         if (diffInDays === 1) return "Tomorrow";
-        return "Later";
+        if (diffInDays >= 2) return "Later";
+        return "";
       };
+
 
       const leadsWithReminders = response.data.map((lead) => ({
         ...lead,
@@ -400,21 +405,16 @@ const RetentionLeads = () => {
 
   // Load more leads on scroll near bottom
   const loadMoreLeads = () => {
-    if (loadingMore || !hasMore) return;
-    setLoadingMore(true);
-    setTimeout(() => {
-      setLeads((prevLeads) => {
-        const nextLeads = allLeads.slice(
-          prevLeads.length,
-          prevLeads.length + leadsPerPage
-        );
-        const updatedLeads = [...prevLeads, ...nextLeads];
-        setHasMore(updatedLeads.length < allLeads.length);
-        return updatedLeads;
-      });
-      setLoadingMore(false);
-    }, 500);
-  };
+  if (loadingMore || !hasMore) return;
+  setLoadingMore(true);
+  setTimeout(() => {
+    const nextBatch = filteredAllLeads.slice(currentIndex, currentIndex + leadsPerPage);
+    setLeads((prev) => [...prev, ...nextBatch]);
+    setCurrentIndex((prev) => prev + leadsPerPage);
+    setHasMore(currentIndex + leadsPerPage < filteredAllLeads.length);
+    setLoadingMore(false);
+  }, 500);
+};
 
   // Scroll event handler
   const handleScroll = useCallback(() => {
@@ -504,14 +504,18 @@ const RetentionLeads = () => {
     };
   }, [handleScroll]);
 
-  useEffect(() => {
-    const filtered = filteredLeadsByFilters(allLeads);
-    setFilteredAllLeads(filtered);
-    setLeads(filtered.slice(0, leadsPerPage));
-    setHasMore(filtered.length > leadsPerPage);
-    setSelectedLeadIndex(null);
-    setUploadedImages([]);
-  }, [filters, allLeads, orderPlacedFilter, dateRangeFilter]);
+  const applyFilters = useCallback(() => {
+  const filtered = filteredLeadsByFilters(allLeads);
+  setFilteredAllLeads(filtered);
+  setLeads(filtered.slice(0, leadsPerPage));
+  setCurrentIndex(leadsPerPage);
+  setHasMore(filtered.length > leadsPerPage);
+}, [allLeads, filters, orderPlacedFilter, dateRangeFilter]);
+
+useEffect(() => {
+  applyFilters();
+}, [applyFilters]);
+
 
 
   useEffect(() => {
@@ -645,17 +649,19 @@ const RetentionLeads = () => {
     }
 
     // Follow-up Reminder filter: normalize all values
-    if (filters.rtFollowupReminder !== null && filters.rtFollowupReminder !== "") {
-      // Map UI values to lead field values if needed
-      let reminderFilter = filters.rtFollowupReminder;
-      // Your followupTagMap uses 'Follow-up Missed' (not 'Missed') and '' for Not Set
-      // Make sure your filters use these exact strings
-
+    if (filters.rtFollowupReminder !== null) {
+      const reminderFilter = filters.rtFollowupReminder;
       filtered = filtered.filter((lead) => {
         const reminder = lead.rtFollowupReminder || "";
-        return reminder === reminderFilter;
+        if (reminderFilter === "") {
+          // Not Set filter → only leads with empty or null reminder
+          return reminder === "";
+        } else {
+          return reminder === reminderFilter;
+        }
       });
     }
+
 
     // Order Placed filter
     if (orderPlacedFilter === "Order Placed") {
@@ -813,12 +819,26 @@ const RetentionLeads = () => {
           borderRight: "1px solid #ddd",
           display: "flex",
           flexDirection: "column",
-          p: 1,
+           pt: 0,         
+           px: 1,         
+           pb: 1, 
           bgcolor: "background.paper",
           overflowY: "auto",
         }}
         ref={containerRef}
       >
+        <Box
+          sx={{
+            position: "sticky",
+            top: 0,
+            zIndex: 10,
+            backgroundColor: "background.paper",
+            mt: 0, 
+            pt: 1, 
+            pb: 1, 
+            borderBottom: "1px solid #ddd", 
+          }}
+        >
         {/* Search + Filter + Sort + More icons */}
         <Stack direction="row" spacing={2}>
           {[
@@ -997,7 +1017,7 @@ const RetentionLeads = () => {
             </IconButton>
           </Tooltip>
         </Box>
-
+        </Box>
         <Menu
   anchorEl={moreOptionsAnchorEl}
   open={Boolean(moreOptionsAnchorEl)}
@@ -1403,7 +1423,7 @@ const RetentionLeads = () => {
                     </Typography>
                     <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                       <Typography variant="body2">
-                        {leads[selectedLeadIndex].contactNumber}
+                        {leads[selectedLeadIndex]?.contactNumber || "N/A"}
                       </Typography>
                       <Tooltip title="Call">
                         <IconButton
@@ -2262,8 +2282,6 @@ const RetentionLeads = () => {
                 </Box>
               )}
             </Paper>
-
-
           </>
         )}
       </Box>

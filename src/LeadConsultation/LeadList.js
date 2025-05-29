@@ -4,11 +4,11 @@ import {
   Button,
   TextField,
   IconButton,
-  Typography,
+  Typography, 
   Dialog,
   DialogActions,
   DialogContent,
-  Avatar,
+  Avatar,   
   MenuItem,
   Select,
   FormControl,
@@ -315,88 +315,48 @@ const calculateCompletionPercent = (customer) => {
 
   // Fetch customers based on role, page, and search value
   const fetchCustomers = async (page = 1, reset = false, searchValue = "") => {
-    try {
-      // 1. Build your text filters
-      const filters = searchValue
-        ? JSON.stringify({ search: searchValue })
-        : "{}";
+  try {
+    const filters = searchValue
+      ? JSON.stringify({ search: searchValue })
+      : "{}";
 
-      // 2. Common params for ALL requests
-      const commonParams = {
-        page,
-        limit,
-        filters,
-        status: filterStatus,
-        tags: JSON.stringify(selectedFilters),
-        sortBy: sortOrder
-      };
+    const params = {
+      page,
+      limit,
+      filters,
+      status: filterStatus,
+      tags: JSON.stringify(selectedFilters),
+      sortBy: sortOrder,
+      userRole: loggedInUser?.role,
+      userId: loggedInUser?.id || loggedInUser?._id,
+      userName: loggedInUser?.fullName,
+    };
 
-      if (filterAgent.length > 0) {
-        commonParams.assignedTo = filterAgent.join(",");
-      }
-
-      if (filterDate) {
-        commonParams.createdAt = filterDate;
-      }
-
-      let response;
-
-      // 3a. If Sales Agent, include assignedTo
-      if (loggedInUser?.role === "Sales Agent") {
-        response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/customers", {
-          params: {
-            ...commonParams,
-            assignedTo: loggedInUser.fullName
-          }
-        });
-
-        // 3b. If Retention Agent, pull all then client-filter by IDs
-      } else if (loggedInUser?.role === "Retention Agent") {
-        // fetch all their consultation assignments
-        const consRes = await axios.get(
-          "https://muditamleads-14f32a10d7f7.herokuapp.com/api/consultation-details"
-        );
-        const myIds = consRes.data
-          .filter(c =>
-            c.presales?.assignExpert?.toString() === loggedInUser.id
-          )
-          .map(c => c.customerId.toString());
-
-        // fetch up to 1000, with the same common params
-        response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/customers", {
-          params: {
-            ...commonParams,
-            limit: 1000
-          }
-        });
-
-        // client-side reduce to only my IDs
-        response.data.customers = response.data.customers.filter(c =>
-          c.assignedTo === loggedInUser.fullName ||
-          myIds.includes(c._id)
-        );
-
-        // 3c. Everyone else
-      } else {
-        response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/customers", {
-          params: commonParams
-        });
-      }
-
-      // 4. Merge or reset
-      if (page === 1 || reset) {
-        setCustomers(response.data.customers);
-      } else {
-        setCustomers(prev => [...prev, ...response.data.customers]);
-      }
-
-      setTotalPages(response.data.totalPages);
-      setCurrentPage(response.data.currentPage);
-
-    } catch (err) {
-      console.error("Error fetching customers:", err);
+    if (filterAgent.length > 0) {
+      params.assignedTo = filterAgent.join(",");
     }
-  };
+
+    if (filterDate) {
+      params.createdAt = filterDate;
+    }
+
+    const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/customers", {
+      params,
+    });
+
+    if (page === 1 || reset) {
+      setCustomers(response.data.customers);
+    } else {
+      setCustomers(prev => [...prev, ...response.data.customers]);
+    }
+
+    setTotalPages(response.data.totalPages);
+    setCurrentPage(response.data.currentPage);
+
+  } catch (err) {
+    console.error("Error fetching customers:", err);
+  }
+};
 
 
   // Load first page on component mount or when loggedInUser changes
