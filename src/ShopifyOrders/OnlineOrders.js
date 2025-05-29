@@ -9,9 +9,11 @@ import {
   TableRow,
   Paper,
   TablePagination,
-  Select, 
+  Select,
   MenuItem,
-  Button
+  Button,
+  CircularProgress,
+  Typography,
 } from '@mui/material';
 
 const OnlineOrders = () => {
@@ -19,6 +21,8 @@ const OnlineOrders = () => {
   const [retentionAgents, setRetentionAgents] = useState([]);
   const [currentPage, setCurrentPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(50);
+  const [loadingTable, setLoadingTable] = useState(false);
+  const [estimatedTime, setEstimatedTime] = useState(260); // estimated for ~26,000 rows (260 chunks)
 
   const productAbbreviations = {
     'Karela Jamun Fizz': 'KJF',
@@ -31,41 +35,41 @@ const OnlineOrders = () => {
     'Performance Forever': 'PF',
     'Power Gut': 'PGut',
     'Shilajit with Gold': 'Shilajit',
-    'Diabetes Management Kit': 'Kit'
+    'Diabetes Management Kit': 'Kit',
   };
- 
+
   const storedStartDate = localStorage.getItem('startDate');
-  const storedEndDate = localStorage.getItem('endDate'); 
+  const storedEndDate = localStorage.getItem('endDate');
   const defaultStart = storedStartDate || "2025-02-01";
   const today = new Date().toISOString().split("T")[0];
   const defaultEnd = storedEndDate || today;
 
   const [startDate, setStartDate] = useState(defaultStart);
   const [endDate, setEndDate] = useState(defaultEnd);
- 
+
   useEffect(() => {
     localStorage.setItem('startDate', startDate);
     localStorage.setItem('endDate', endDate);
   }, [startDate, endDate]);
- 
+
   const fetchAllLeads = async () => {
     try {
-      const limit = 100;  
+      const limit = 100;
       let page = 1;
       let allLeads = [];
-      let totalPages = 1;  
+      let totalPages = 1;
 
       do {
         const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads", {
           params: {
             page,
             limit,
-            filters: JSON.stringify({}),  
+            filters: JSON.stringify({}),
           },
         });
         allLeads = allLeads.concat(response.data.leads);
         totalPages = response.data.totalPages;
-        page++; 
+        page++;
       } while (page <= totalPages);
 
       return allLeads;
@@ -74,28 +78,44 @@ const OnlineOrders = () => {
       return [];
     }
   };
- 
+
   const fetchData = async () => {
+    setLoadingTable(true);
+    setEstimatedTime(260);
+
+    const startTime = Date.now();
+const totalSeconds = 260;
+
+const timer = setInterval(() => {
+  const elapsed = Math.floor((Date.now() - startTime) / 1000);
+  const remaining = Math.max(totalSeconds - elapsed, 0);
+  setEstimatedTime(remaining);
+
+  if (remaining === 0) {
+    clearInterval(timer);
+  }
+}, 1000);
+
+
     try {
       const [ordersResponse, agentsResponse] = await Promise.all([
         axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/orders", {
-          params: { startDate, endDate }
+          params: { startDate, endDate },
         }),
         axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/employees?role=Retention%20Agent"),
       ]);
 
       const leads = await fetchAllLeads();
 
-      // Filter only web orders (channel "web" or "208644538369")
-      const webOrders = ordersResponse.data.filter(order =>
-        order.channel_name === "web" || order.channel_name === "208644538369"
-      ); 
- 
+      const webOrders = ordersResponse.data.filter(
+        (order) => order.channel_name === "web" || order.channel_name === "208644538369"
+      );
+
       const ordersWithHealthExperts = webOrders
-        .map(order => { 
+        .map((order) => {
           const normalizedOrderPhone = order.contact_number.replace(/[^\d]/g, "");
-          const matchingLead = leads.find(lead =>
-            lead.contactNumber.replace(/[^\d]/g, "") === normalizedOrderPhone
+          const matchingLead = leads.find(
+            (lead) => lead.contactNumber.replace(/[^\d]/g, "") === normalizedOrderPhone
           );
           let healthExpertAssigned = "Not Assigned";
           let leadExists = false;
@@ -106,7 +126,7 @@ const OnlineOrders = () => {
             leadExists = true;
             healthExpertAssigned = matchingLead.healthExpertAssigned || "Not Assigned";
             agentAssigned = matchingLead.agentAssigned || "Online Order";
-            isSaved = (agentAssigned === "Online Order");
+            isSaved = agentAssigned === "Online Order";
           }
 
           return {
@@ -117,41 +137,44 @@ const OnlineOrders = () => {
             agentAssigned,
           };
         })
-        .filter(order => order.healthExpertAssigned === "Not Assigned");
+        .filter((order) => order.healthExpertAssigned === "Not Assigned");
 
       setOrders(ordersWithHealthExperts);
       setRetentionAgents(agentsResponse.data);
     } catch (error) {
       console.error("Error fetching data:", error);
+    } finally {
+      clearInterval(timer);
+      setLoadingTable(false);
     }
   };
- 
+
   useEffect(() => {
     fetchData();
   }, [startDate, endDate]);
 
-  const handleSaveHealthExpert = async (orderIndex) => { 
+  const handleSaveHealthExpert = async (orderIndex) => {
     const globalIndex = currentPage * rowsPerPage + orderIndex;
-    const order = orders[globalIndex];  
+    const order = orders[globalIndex];
     if (!order.healthExpertAssigned) return;
 
     const leadData = {
       orderId: order.order_id,
       name: order.name,
       contactNumber: order.contact_number,
-      date: new Date(order.created_at).toISOString().split('T')[0],
-      lastOrderDate: new Date(order.created_at).toISOString().split('T')[0], 
+      date: new Date(order.created_at).toISOString().split("T")[0],
+      lastOrderDate: new Date(order.created_at).toISOString().split("T")[0],
       amount: order.total_price,
       modeOfPayment: Array.isArray(order.payment_gateway_names)
         ? order.payment_gateway_names.join(", ")
         : order.payment_gateway_names,
       productsOrdered: order.line_items
-        ? order.line_items.map(item => productAbbreviations[item.title] || item.title).join(", ")
+        ? order.line_items.map((item) => productAbbreviations[item.title] || item.title).join(", ")
         : "",
       agentAssigned: order.agentAssigned,
       healthExpertAssigned: order.healthExpertAssigned,
-      leadStatus: 'Sales Done',
-      salesStatus: 'Sales Done',
+      leadStatus: "Sales Done",
+      salesStatus: "Sales Done",
     };
 
     try {
@@ -166,11 +189,11 @@ const OnlineOrders = () => {
       } else {
         await axios.post("https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads", leadData);
       }
- 
+
       const updatedOrders = orders.filter((_, index) => index !== globalIndex);
       setOrders(updatedOrders);
     } catch (error) {
-      console.error('Failed to update lead:', error);
+      console.error("Failed to update lead:", error);
     }
   };
 
@@ -182,7 +205,7 @@ const OnlineOrders = () => {
     setOrders(updatedOrders);
   };
 
-  const handleChangePage = (event, newPage) => { 
+  const handleChangePage = (event, newPage) => {
     setCurrentPage(newPage);
   };
 
@@ -191,30 +214,24 @@ const OnlineOrders = () => {
     setCurrentPage(0);
   };
 
-  // Paginate orders returned by the API.
-  const paginatedOrders = orders.slice(currentPage * rowsPerPage, currentPage * rowsPerPage + rowsPerPage);
+  const paginatedOrders = orders.slice(
+    currentPage * rowsPerPage,
+    currentPage * rowsPerPage + rowsPerPage
+  );
 
   return (
     <>
-      {/* Date Filters */}
       <div style={{ marginBottom: "16px", display: "flex", gap: "16px", alignItems: "center" }}>
         <label>
           Start from:&nbsp;
-          <input 
-            type="date" 
-            value={startDate} 
-            onChange={(e) => setStartDate(e.target.value)} 
-          />
+          <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
         </label>
         <label>
           End to:&nbsp;
-          <input 
-            type="date" 
-            value={endDate} 
-            onChange={(e) => setEndDate(e.target.value)} 
-          />
+          <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
         </label>
       </div>
+
       <TableContainer component={Paper} sx={{ minWidth: 650 }}>
         <Table stickyHeader aria-label="sticky table">
           <TableHead>
@@ -233,59 +250,70 @@ const OnlineOrders = () => {
             </TableRow>
           </TableHead>
           <TableBody>
-            {paginatedOrders.map((order, index) => (
-              <TableRow key={order.order_id}>
-                <TableCell component="th" scope="row">{order.order_id}</TableCell>
-                <TableCell>{order.name}</TableCell>
-                <TableCell>{order.contact_number}</TableCell>
-                <TableCell>{new Date(order.created_at).toLocaleDateString()}</TableCell>
-                <TableCell>{order.total_price}</TableCell>
-                <TableCell>
-                  {Array.isArray(order.payment_gateway_names)
-                    ? order.payment_gateway_names.join(", ")
-                    : order.payment_gateway_names}
-                </TableCell>
-                <TableCell>
-                  {order.line_items
-                    ? order.line_items
-                        .map(item => productAbbreviations[item.title] || item.title)
-                        .join(", ")
-                    : ""}
-                </TableCell>
-                <TableCell>{order.agentAssigned}</TableCell>
-                <TableCell>{order.channel_name}</TableCell>
-                <TableCell>
-                  <Select
-                    value={order.healthExpertAssigned || ""}
-                    onChange={(e) => handleChangeHealthExpert(index, e.target.value)}  
-                    displayEmpty
-                    fullWidth
-                  >
-                    <MenuItem value="">
-                      {/* Empty item */}
-                    </MenuItem>
-                    {retentionAgents.map((agent) => (
-                      <MenuItem key={agent._id} value={agent.fullName}>
-                        {agent.fullName}
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </TableCell>
-                <TableCell>
-                  <Button
-                    variant="contained"
-                    style={{
-                      backgroundColor: order.isSaved ? "lightgreen" : "primary",
-                      color: order.isSaved ? "black" : "white",
-                    }}
-                    onClick={() => handleSaveHealthExpert(index)}
-                    disabled={order.isSaved}
-                  >
-                    {order.isSaved ? "Saved" : "Save"}
-                  </Button>
+            {loadingTable ? (
+              <TableRow>
+                <TableCell colSpan={11} align="center">
+                  <CircularProgress size={60} />
+                  <Typography variant="body1" style={{ marginTop: '10px' }}>
+                    Loading table data... ~{estimatedTime} seconds left
+                  </Typography>
                 </TableCell>
               </TableRow>
-            ))}
+            ) : (
+              paginatedOrders.map((order, index) => (
+                <TableRow key={order.order_id}>
+                  <TableCell component="th" scope="row">
+                    {order.order_id}
+                  </TableCell>
+                  <TableCell>{order.name}</TableCell>
+                  <TableCell>{order.contact_number}</TableCell>
+                  <TableCell>{new Date(order.created_at).toLocaleDateString()}</TableCell>
+                  <TableCell>{order.total_price}</TableCell>
+                  <TableCell>
+                    {Array.isArray(order.payment_gateway_names)
+                      ? order.payment_gateway_names.join(", ")
+                      : order.payment_gateway_names}
+                  </TableCell>
+                  <TableCell>
+                    {order.line_items
+                      ? order.line_items
+                          .map((item) => productAbbreviations[item.title] || item.title)
+                          .join(", ")
+                      : ""}
+                  </TableCell>
+                  <TableCell>{order.agentAssigned}</TableCell>
+                  <TableCell>{order.channel_name}</TableCell>
+                  <TableCell>
+                    <Select
+                      value={order.healthExpertAssigned || ""}
+                      onChange={(e) => handleChangeHealthExpert(index, e.target.value)}
+                      displayEmpty
+                      fullWidth
+                    >
+                      <MenuItem value=""></MenuItem>
+                      {retentionAgents.map((agent) => (
+                        <MenuItem key={agent._id} value={agent.fullName}>
+                          {agent.fullName}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </TableCell>
+                  <TableCell>
+                    <Button
+                      variant="contained"
+                      style={{
+                        backgroundColor: order.isSaved ? "lightgreen" : "primary",
+                        color: order.isSaved ? "black" : "white",
+                      }}
+                      onClick={() => handleSaveHealthExpert(index)}
+                      disabled={order.isSaved}
+                    >
+                      {order.isSaved ? "Saved" : "Save"}
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
           </TableBody>
         </Table>
       </TableContainer>

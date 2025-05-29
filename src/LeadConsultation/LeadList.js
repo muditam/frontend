@@ -899,7 +899,7 @@ const calculateCompletionPercent = (customer) => {
                 value={leadData.location}
                 onChange={(event, newValue) => setLeadData({ ...leadData, location: newValue })}
                 renderInput={(params) => (
-                  <TextField {...params} label="Location" variant="outlined" size="small" required />
+                  <TextField {...params} label="Location" variant="outlined" size="small" />
                 )}
               />
             </Grid>
