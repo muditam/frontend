@@ -405,7 +405,7 @@ const calculateCompletionPercent = (customer) => {
       alert("Failed to download CSV.");
     }
   };  
-  
+   
 
   // Define filter arrays based on the lead status dropdown value in presales
   const openStatuses = [

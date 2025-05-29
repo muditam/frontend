@@ -604,7 +604,7 @@ useEffect(() => {
 
   const updateLeadImagesOnServer = async (leadId, images) => {
     try {
-      await axios.patch(`http://lcalhost:5000/api/leads/${leadId}/images`, { images });
+      await axios.patch(`https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/${leadId}/images`, { images });
     } catch (err) {
       console.error("Failed to update images on server", err);
     }
@@ -1019,24 +1019,24 @@ useEffect(() => {
         </Box>
         </Box>
         <Menu
-  anchorEl={moreOptionsAnchorEl}
-  open={Boolean(moreOptionsAnchorEl)}
-  onClose={() => setMoreOptionsAnchorEl(null)}
-  anchorOrigin={{ vertical: "bottom", horizontal: "left" }}
-  transformOrigin={{ vertical: "top", horizontal: "left" }}
->
-  {["Delivered", "Undelivered"].map((status) => (
-    <MenuItem
-      key={status}
-      onClick={async () => {
-        setMoreOptionsAnchorEl(null);
-        await filterLeadsByShipmentStatus(status);
-      }}
-    >
-      {status}
-    </MenuItem>
-  ))}
-</Menu>
+          anchorEl={moreOptionsAnchorEl}
+          open={Boolean(moreOptionsAnchorEl)}
+          onClose={() => setMoreOptionsAnchorEl(null)}
+          anchorOrigin={{ vertical: "bottom", horizontal: "left" }}
+          transformOrigin={{ vertical: "top", horizontal: "left" }}
+        >
+          {["Delivered", "Out For Delivery", "In Transit", "RTO Delivered" ].map((status) => (
+            <MenuItem
+              key={status}
+              onClick={async () => {
+                setMoreOptionsAnchorEl(null);
+                await filterLeadsByShipmentStatus(status);
+              }}
+            >
+              {status}
+            </MenuItem>
+          ))}
+        </Menu>
 
 
 
