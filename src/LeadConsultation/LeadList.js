@@ -59,7 +59,7 @@ const getCreatedAtLabel = (createdAt) => {
 
 /**
  * Computes the follow-up tag based on the lead's followUpDate:
- * - "Missed" if date is in the past
+ * - "Missed" if date is in the past 
  * - "Today" if the date is today
  * - "Tomorrow" if the date is tomorrow
  * - "Later" if the date is further in the future
@@ -104,7 +104,7 @@ const leadSourceOptions = [
   "Degpeg",
 ];
 
-const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId }) => {
+const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId, reloadTrigger }) => {
   const [leadData, setLeadData] = useState({
     name: "",
     phone: "",
@@ -357,6 +357,10 @@ const calculateCompletionPercent = (customer) => {
     console.error("Error fetching customers:", err);
   }
 };
+
+useEffect(() => {
+  fetchCustomers(1, true, searchQuery);
+}, [reloadTrigger]);
 
 
   // Load first page on component mount or when loggedInUser changes

@@ -125,7 +125,7 @@ const getCreatedAtLabel = (createdAt) => {
 // Steps for the original stepper
 const stepsOriginal = ["Presales", "Consultation", "Closing"];
 
-const ConsultationDetails = ({ customerId }) => {
+const ConsultationDetails = ({ customerId, reloadTrigger, onReload }) => {
   const [customer, setCustomer] = useState(null);
   const [loading, setLoading] = useState(true);
   const [followUpDate, setFollowUpDate] = useState("");
@@ -196,7 +196,7 @@ const ConsultationDetails = ({ customerId }) => {
       setCustomer(null);
       setLoading(false);
     }
-  }, [customerId]);
+  }, [customerId, reloadTrigger]);
 
   // Save updated follow-up date
   const handleSaveFollowUp = () => {
@@ -208,6 +208,9 @@ const ConsultationDetails = ({ customerId }) => {
       })
       .then((response) => {
         setCustomer(response.data.customer);
+        if (onReload) {
+        onReload(); 
+      }
       })
       .catch((error) => {
         console.error("Error updating follow-up date:", error);

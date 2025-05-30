@@ -1911,7 +1911,7 @@ const CartDrawer = ({ closeDrawer }) => {
                 </Typography>
               )}
               {/* Notes field and button */}
-              <TextField
+              <TextField 
                 label="Add Order Notes"
                 variant="outlined"
                 fullWidth
