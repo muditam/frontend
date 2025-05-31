@@ -20,10 +20,8 @@ import {
   Chip,
   CircularProgress,
 } from "@mui/material";
-import { Close, Delete as DeleteIcon } from "@mui/icons-material";
-import axios from "axios";
-import { WarningAmber } from "@mui/icons-material";
-
+import { Close, Delete as DeleteIcon, WarningAmber } from "@mui/icons-material";
+import axios from "axios"; 
 
 
 
@@ -39,9 +37,10 @@ const EscalationsPage = () => {
   const [loading, setLoading] = useState(false); // For submit button
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleteEscalationId, setDeleteEscalationId] = useState(null);
+  const [showClosedOnly, setShowClosedOnly] = useState(false);
 
 
-  const user = JSON.parse(sessionStorage.getItem("user")); // logged-in user
+  const user = JSON.parse(sessionStorage.getItem("user"));  
 
 
   const [formData, setFormData] = useState({
@@ -51,9 +50,9 @@ const EscalationsPage = () => {
     contactNumber: "",
     agentName: "",
     query: "",
-    attachedFiles: [], // array for multiple files
+    attachedFiles: [],
     status: "Open",
-    assignedTo: "",
+    assignedTo: "Preeti Shrestha",
     remark: "",
     resolvedDate: "",
   });
@@ -71,15 +70,14 @@ const EscalationsPage = () => {
   const fetchEmployees = async () => {
     try {
       const response = await axios.get(`${BACKEND_URL}/employees`);
-      const activeEmployees = response.data.filter(
-        (emp) => emp.status === "active"
+      const activeManagers = response.data.filter(
+        (emp) => emp.status === "active" 
       );
-      setEmployees(activeEmployees);
+      setEmployees(activeManagers);
     } catch (error) {
       console.error("Failed to fetch employees", error);
     }
   };
-
 
   const fetchEscalations = async () => {
     try {
@@ -89,7 +87,6 @@ const EscalationsPage = () => {
       console.error("Failed to fetch escalations", error);
     }
   };
-
 
   const handleConfirmDelete = async () => {
     try {
@@ -102,18 +99,15 @@ const EscalationsPage = () => {
     setDeleteEscalationId(null);
   };
 
-
   const handleCancelDelete = () => {
     setDeleteDialogOpen(false);
     setDeleteEscalationId(null);
   };
 
-
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData((fd) => ({ ...fd, [name]: value }));
   };
-
 
   const handleFileChange = (e) => {
     const files = Array.from(e.target.files);
@@ -124,7 +118,6 @@ const EscalationsPage = () => {
     e.target.value = null;
   };
 
-
   const handleRemoveFile = (index) => {
     setFormData((fd) => {
       const newFiles = [...fd.attachedFiles];
@@ -132,7 +125,6 @@ const EscalationsPage = () => {
       return { ...fd, attachedFiles: newFiles };
     });
   };
-
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -149,15 +141,12 @@ const EscalationsPage = () => {
         form.append("attachedFiles", file);
       });
 
-
       await axios.post(`${BACKEND_URL}/escalations`, form, {
         headers: { "Content-Type": "multipart/form-data" },
       });
 
-
       setOpenForm(false);
       fetchEscalations();
-
 
       setFormData({
         date: "",
@@ -168,7 +157,7 @@ const EscalationsPage = () => {
         query: "",
         attachedFiles: [],
         status: "Open",
-        assignedTo: "",
+        assignedTo: "Preeti Shrestha",
         remark: "",
         resolvedDate: "",
       });
@@ -178,27 +167,34 @@ const EscalationsPage = () => {
     setLoading(false);
   };
 
-
   const handleEditCell = async (index, field, value) => {
-    const updatedEscalation = { ...escalations[index], [field]: value };
-    try {
-      await axios.put(`${BACKEND_URL}/escalations/${updatedEscalation._id}`, {
-        status: updatedEscalation.status,
-        assignedTo: updatedEscalation.assignedTo,
-        remark: updatedEscalation.remark,
-        resolvedDate: updatedEscalation.resolvedDate,
-      });
+  const escalationId = filteredEscalations[index]._id;
+  const updatedEscalation = escalations.find(e => e._id === escalationId);
 
 
-      setEscalations((prev) => {
-        const newArr = [...prev];
-        newArr[index] = updatedEscalation;
-        return newArr;
-      });
-    } catch (error) {
-      console.error("Failed to update escalation", error);
+  try {
+    const payload = {
+      status: field === "status" ? value : updatedEscalation.status,
+      assignedTo: field === "assignedTo" ? value : updatedEscalation.assignedTo,
+      remark: field === "remark" ? value : updatedEscalation.remark,
+      resolvedDate: field === "resolvedDate" ? value : updatedEscalation.resolvedDate,
+    };
+
+    const response = await axios.put(
+      `${BACKEND_URL}/escalations/${updatedEscalation._id}`,
+      payload
+    );
+ 
+    if (showClosedOnly && payload.status !== "Closed") {
+      setShowClosedOnly(false);
     }
-  };
+
+    await fetchEscalations();
+  } catch (error) {
+    console.error("Failed to update escalation", error);
+  }
+};
+
 
 
   const handleOpenFile = (fileUrl) => {
@@ -206,12 +202,10 @@ const EscalationsPage = () => {
     setOpenFileDialog(true);
   };
 
-
-  const filteredEscalations =
-    user?.role === "Manager"
-      ? escalations
-      : escalations.filter((e) => e.agentName === user?.fullName);
-
+  const filteredEscalations = escalations.filter((esc) => {
+    if (showClosedOnly) return esc.status === "Closed";
+    return esc.status === "Open" || esc.status === "In Progress";
+  });
 
   return (
     <Box sx={{ padding: 3, bgcolor: "#fff", borderRadius: 2 }}>
@@ -227,7 +221,7 @@ const EscalationsPage = () => {
         Escalations
       </Typography>
 
-
+<Box sx={{ display: "flex", justifyContent: "space-between", mb: 2 }}>
       <Button
         variant="contained"
         onClick={() => setOpenForm(true)}
@@ -236,7 +230,14 @@ const EscalationsPage = () => {
         Add Escalation
       </Button>
 
-
+      <Button
+          variant={showClosedOnly ? "contained" : "outlined"}
+          sx={{ backgroundColor: showClosedOnly ? "black" : "transparent", color: showClosedOnly ? "white" : "black" }}
+          onClick={() => setShowClosedOnly(!showClosedOnly)}
+        >
+          {showClosedOnly ? "Show Open / In Progress" : "Show Closed"}
+        </Button> 
+</Box>
       {/* Add New Escalation Form Dialog */}
       <Dialog
         open={openForm}
@@ -335,6 +336,28 @@ const EscalationsPage = () => {
                 }}
               />
             </Box>
+            
+            <Box sx={{ display: 'flex', gap: 2 }}>
+             <TextField
+              label="Contact Number"
+              name="contactNumber"
+              value={formData.contactNumber}
+              onChange={handleChange}
+              required
+              fullWidth
+              variant="filled"
+              InputProps={{
+                disableUnderline: true,
+                sx: { backgroundColor: "#fff", borderRadius: 1, px: 1 },
+              }}
+              InputLabelProps={{
+                sx: {
+                  color: "rgba(0,0,0,0.6)",
+                  "&.Mui-focused": { color: "gray" },
+                  "&.MuiInputLabel-shrink": { color: "gray" },
+                },
+              }}
+            />
 
             <TextField
               select
@@ -362,11 +385,12 @@ const EscalationsPage = () => {
               }}
             >
               {employees.map((emp) => (
-                <MenuItem key={emp._id} value={emp.fullName}>
-                  {emp.fullName}
+                <MenuItem key={emp._id} value={emp.fullName}>       
+                  {emp.fullName}  
                 </MenuItem>
               ))}
             </TextField>
+            </Box>
             <TextField
               label="Query"
               name="query"
@@ -525,8 +549,15 @@ const EscalationsPage = () => {
                 <TableCell align="center">{esc.name}</TableCell>
                 <TableCell align="center">{esc.contactNumber}</TableCell>
                 <TableCell align="center">{esc.agentName}</TableCell>
-                <TableCell sx={{ whiteSpace: "nowrap", maxWidth: 220 }}>
-                  {esc.query}
+                <TableCell 
+                  sx={{ 
+                    whiteSpace: "pre-wrap", 
+                    maxWidth: 500, 
+                    minWidth: 300, 
+                    wordBreak: "break-word" 
+                  }}
+                >
+                  {esc.query.match(/.{1,100}/g)?.join('\n')}
                 </TableCell>
                 <TableCell align="center" sx={{ whiteSpace: "nowrap" }}>
                   {esc.attachedFileUrls && esc.attachedFileUrls.length > 0 ? (
@@ -602,7 +633,7 @@ const EscalationsPage = () => {
                     esc.assignedTo
                   )}
                 </TableCell>
-                <TableCell>
+                <TableCell sx={{ minWidth: 300 }}>
                   {user?.role === "Manager" ? (
                     <TextField
                       size="small"
