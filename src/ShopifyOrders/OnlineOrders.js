@@ -67,7 +67,7 @@ const OnlineOrders = () => {
             filters: JSON.stringify({}),
           },
         });
-        allLeads = allLeads.concat(response.data.leads);
+        allLeads = allLeads.concat(response.data.leads); 
         totalPages = response.data.totalPages;
         page++;
       } while (page <= totalPages);
