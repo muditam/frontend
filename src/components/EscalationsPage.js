@@ -21,7 +21,7 @@ import {
   CircularProgress,
 } from "@mui/material";
 import { Close, Delete as DeleteIcon, WarningAmber } from "@mui/icons-material";
-import axios from "axios"; 
+import axios from "axios";
 
 
 
@@ -40,7 +40,7 @@ const EscalationsPage = () => {
   const [showClosedOnly, setShowClosedOnly] = useState(false);
 
 
-  const user = JSON.parse(sessionStorage.getItem("user"));  
+  const user = JSON.parse(sessionStorage.getItem("user"));
 
 
   const [formData, setFormData] = useState({
@@ -71,7 +71,7 @@ const EscalationsPage = () => {
     try {
       const response = await axios.get(`${BACKEND_URL}/employees`);
       const activeManagers = response.data.filter(
-        (emp) => emp.status === "active" 
+        (emp) => emp.status === "active"
       );
       setEmployees(activeManagers);
     } catch (error) {
@@ -168,32 +168,31 @@ const EscalationsPage = () => {
   };
 
   const handleEditCell = async (index, field, value) => {
-  const escalationId = filteredEscalations[index]._id;
-  const updatedEscalation = escalations.find(e => e._id === escalationId);
+    const updatedEscalation = filteredEscalations[index];
 
+    try {
+      const payload = {
+        status: field === "status" ? value : updatedEscalation.status,
+        assignedTo: field === "assignedTo" ? value : updatedEscalation.assignedTo,
+        remark: field === "remark" ? value : updatedEscalation.remark,
+        resolvedDate: field === "resolvedDate" ? value : updatedEscalation.resolvedDate,
+      };
 
-  try {
-    const payload = {
-      status: field === "status" ? value : updatedEscalation.status,
-      assignedTo: field === "assignedTo" ? value : updatedEscalation.assignedTo,
-      remark: field === "remark" ? value : updatedEscalation.remark,
-      resolvedDate: field === "resolvedDate" ? value : updatedEscalation.resolvedDate,
-    };
+      await axios.put(
+        `${BACKEND_URL}/escalations/${updatedEscalation._id}`,
+        payload
+      );
 
-    const response = await axios.put(
-      `${BACKEND_URL}/escalations/${updatedEscalation._id}`,
-      payload
-    );
- 
-    if (showClosedOnly && payload.status !== "Closed") {
-      setShowClosedOnly(false);
+      if (showClosedOnly && payload.status !== "Closed") {
+        setShowClosedOnly(false);
+      }
+
+      await fetchEscalations();
+    } catch (error) {
+      console.error("Failed to update escalation", error);
     }
+  };
 
-    await fetchEscalations();
-  } catch (error) {
-    console.error("Failed to update escalation", error);
-  }
-};
 
 
 
@@ -221,23 +220,23 @@ const EscalationsPage = () => {
         Escalations
       </Typography>
 
-<Box sx={{ display: "flex", justifyContent: "space-between", mb: 2 }}>
-      <Button
-        variant="contained"
-        onClick={() => setOpenForm(true)}
-        sx={{ mb: 2, backgroundColor: "black" }}
-      >
-        Add Escalation
-      </Button>
+      <Box sx={{ display: "flex", justifyContent: "space-between", mb: 2 }}>
+        <Button
+          variant="contained"
+          onClick={() => setOpenForm(true)}
+          sx={{ mb: 2, backgroundColor: "black" }}
+        >
+          Add Escalation
+        </Button>
 
-      <Button
+        <Button
           variant={showClosedOnly ? "contained" : "outlined"}
           sx={{ backgroundColor: showClosedOnly ? "black" : "transparent", color: showClosedOnly ? "white" : "black" }}
           onClick={() => setShowClosedOnly(!showClosedOnly)}
         >
           {showClosedOnly ? "Show Open / In Progress" : "Show Closed"}
-        </Button> 
-</Box>
+        </Button>
+      </Box>
       {/* Add New Escalation Form Dialog */}
       <Dialog
         open={openForm}
@@ -336,60 +335,60 @@ const EscalationsPage = () => {
                 }}
               />
             </Box>
-            
-            <Box sx={{ display: 'flex', gap: 2 }}>
-             <TextField
-              label="Contact Number"
-              name="contactNumber"
-              value={formData.contactNumber}
-              onChange={handleChange}
-              required
-              fullWidth
-              variant="filled"
-              InputProps={{
-                disableUnderline: true,
-                sx: { backgroundColor: "#fff", borderRadius: 1, px: 1 },
-              }}
-              InputLabelProps={{
-                sx: {
-                  color: "rgba(0,0,0,0.6)",
-                  "&.Mui-focused": { color: "gray" },
-                  "&.MuiInputLabel-shrink": { color: "gray" },
-                },
-              }}
-            />
 
-            <TextField
-              select
-              label="Agent Name"
-              name="agentName"
-              value={formData.agentName}
-              onChange={handleChange}
-              required
-              fullWidth
-              variant="filled"
-              InputProps={{
-                disableUnderline: true,
-                sx: { backgroundColor: "#fff", borderRadius: 1, px: 1 },
-              }}
-              InputLabelProps={{
-                sx: {
-                  color: "rgba(0,0,0,0.6)", // default label color
-                  "&.Mui-focused": {
-                    color: "gray", // label color when focused
+            <Box sx={{ display: 'flex', gap: 2 }}>
+              <TextField
+                label="Contact Number"
+                name="contactNumber"
+                value={formData.contactNumber}
+                onChange={handleChange}
+                required
+                fullWidth
+                variant="filled"
+                InputProps={{
+                  disableUnderline: true,
+                  sx: { backgroundColor: "#fff", borderRadius: 1, px: 1 },
+                }}
+                InputLabelProps={{
+                  sx: {
+                    color: "rgba(0,0,0,0.6)",
+                    "&.Mui-focused": { color: "gray" },
+                    "&.MuiInputLabel-shrink": { color: "gray" },
                   },
-                  "&.MuiInputLabel-shrink": {
-                    color: "gray", // label color when shrunk (input filled)
+                }}
+              />
+
+              <TextField
+                select
+                label="Agent Name"
+                name="agentName"
+                value={formData.agentName}
+                onChange={handleChange}
+                required
+                fullWidth
+                variant="filled"
+                InputProps={{
+                  disableUnderline: true,
+                  sx: { backgroundColor: "#fff", borderRadius: 1, px: 1 },
+                }}
+                InputLabelProps={{
+                  sx: {
+                    color: "rgba(0,0,0,0.6)", // default label color
+                    "&.Mui-focused": {
+                      color: "gray", // label color when focused
+                    },
+                    "&.MuiInputLabel-shrink": {
+                      color: "gray", // label color when shrunk (input filled)
+                    },
                   },
-                },
-              }}
-            >
-              {employees.map((emp) => (
-                <MenuItem key={emp._id} value={emp.fullName}>       
-                  {emp.fullName}  
-                </MenuItem>
-              ))}
-            </TextField>
+                }}
+              >
+                {employees.map((emp) => (
+                  <MenuItem key={emp._id} value={emp.fullName}>
+                    {emp.fullName}
+                  </MenuItem>
+                ))}
+              </TextField>
             </Box>
             <TextField
               label="Query"
@@ -494,7 +493,7 @@ const EscalationsPage = () => {
       {/* Escalations Table */}
       <TableContainer
         component={Paper}
-        sx={{ 
+        sx={{
           borderRadius: 2,
           boxShadow: "0 4px 10px rgb(0 0 0 / 0.1)",
           bgcolor: "#fafafa",
@@ -548,12 +547,12 @@ const EscalationsPage = () => {
                 <TableCell align="center">{esc.name}</TableCell>
                 <TableCell align="center">{esc.contactNumber}</TableCell>
                 <TableCell align="center">{esc.agentName}</TableCell>
-                <TableCell 
-                  sx={{ 
-                    whiteSpace: "pre-wrap", 
-                    maxWidth: 500, 
-                    minWidth: 300, 
-                    wordBreak: "break-word" 
+                <TableCell
+                  sx={{
+                    whiteSpace: "pre-wrap",
+                    maxWidth: 500,
+                    minWidth: 300,
+                    wordBreak: "break-word"
                   }}
                 >
                   {esc.query.match(/.{1,100}/g)?.join('\n')}
@@ -632,20 +631,20 @@ const EscalationsPage = () => {
                     esc.assignedTo
                   )}
                 </TableCell>
-                <TableCell sx={{ minWidth: 300 }}>
-                  {user?.role === "Manager" ? (
-                    <TextField
-                      size="small"
-                      value={esc.remark}
-                      onChange={(e) =>
-                        handleEditCell(i, "remark", e.target.value)
-                      }
-                      fullWidth
-                    />
-                  ) : (
-                    esc.remark
-                  )}
-                </TableCell>
+                <TextField
+                  size="small"
+                  value={esc.remark}
+                  onChange={(e) => {
+                    const newRemark = e.target.value;
+                    setEscalations(prev =>
+                      prev.map((item, idx) =>
+                        idx === i ? { ...item, remark: newRemark } : item
+                      )
+                    );
+                  }}
+                  onBlur={(e) => handleEditCell(i, "remark", e.target.value)}
+                  fullWidth
+                />
                 <TableCell align="center">
                   {user?.role === "Manager" ? (
                     <TextField
