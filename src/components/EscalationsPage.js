@@ -494,8 +494,7 @@ const EscalationsPage = () => {
       {/* Escalations Table */}
       <TableContainer
         component={Paper}
-        sx={{
-          maxHeight: 550,
+        sx={{ 
           borderRadius: 2,
           boxShadow: "0 4px 10px rgb(0 0 0 / 0.1)",
           bgcolor: "#fafafa",

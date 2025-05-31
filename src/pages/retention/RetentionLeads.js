@@ -648,6 +648,26 @@ useEffect(() => {
       });
     }
 
+    if (dateRangeFilter && [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December"
+].includes(dateRangeFilter)) {
+  filtered = filtered.filter((lead) => {
+    if (!lead.lastOrderDate) return false;
+    const orderDate = new Date(lead.lastOrderDate);
+    const monthName = orderDate.toLocaleString("default", { month: "long" });
+    return monthName === dateRangeFilter;
+  });
+
+  // Sort by year: newest year first
+  filtered.sort((a, b) => {
+    const yearA = new Date(a.lastOrderDate).getFullYear();
+    const yearB = new Date(b.lastOrderDate).getFullYear();
+    return yearB - yearA; // Descending: 2025, 2024, etc.
+  });
+}
+
+
     // Follow-up Reminder filter: normalize all values
     if (filters.rtFollowupReminder !== null) {
       const reminderFilter = filters.rtFollowupReminder;
@@ -1048,61 +1068,78 @@ useEffect(() => {
           transformOrigin={{ vertical: 'top', horizontal: 'left' }}
         >
           <Box sx={{ display: 'flex', alignItems: 'flex-start' }}>
-            {/* Left column - Order Type */}
-            <Box>
-              <Typography
-                sx={{ fontSize: "0.75rem", fontWeight: "bold", px: 2, pt: 1, pb: 0.5, color: "text.disabled" }}
-              >
-                Order Type
-              </Typography>
-              {["Order Placed", "Order Not Placed"].map((type) => (
-                <MenuItem
-                  key={type}
-                  selected={orderPlacedFilter === type}
-                  onClick={() => {
-                    setOrderPlacedFilter(type);
-                    setDateRangeFilter("");
-                  }}
-                >
-                  {type}
-                </MenuItem>
-              ))}
-            </Box>
+  {/* Left column - Order Type + Acquired By */}
+  <Box>
+    <Typography
+      sx={{ fontSize: "0.75rem", fontWeight: "bold", px: 2, pt: 1, pb: 0.5, color: "text.disabled" }}
+    >
+      Filter Type
+    </Typography>
+    {["Order Placed", "Order Not Placed", "Acquired By"].map((type) => (
+      <MenuItem
+        key={type}
+        selected={orderPlacedFilter === type}
+        onClick={() => {
+          setOrderPlacedFilter(type);
+          setDateRangeFilter("");
+        }}
+      >
+        {type}
+      </MenuItem>
+    ))}
+  </Box>
 
-            {/* Right column - Date Range (only if OrderType selected) */}
-            {orderPlacedFilter && (
-              <Box sx={{ pl: 3 }}>
-                <Typography
-                  sx={{ fontSize: "0.75rem", fontWeight: "bold", px: 2, pt: 1, pb: 0.5, color: "text.disabled" }}
-                >
-                  Date Range
-                </Typography>
-                {[
-                  "Today",
-                  "Yesterday",
-                  "Last 7 Days",
-                  "Last 10 Days",
-                  "10–20 Days Ago",
-                  "21–30 Days Ago",
-                  "This Month (Month to Date)",
-                  "Last Month",
-                  "Last 30 Days",
-                  "Last 90 Days",
-                ].map((label) => (
-                  <MenuItem
-                    key={label}
-                    selected={dateRangeFilter === label}
-                    onClick={() => {
-                      setDateRangeFilter(label);
-                      setFilterAnchorEl(null);
-                    }}
-                  >
-                    {label}
-                  </MenuItem>
-                ))}
-              </Box>
-            )}
-          </Box>
+  {/* Right column - Date Range OR Month based on selection */}
+  {orderPlacedFilter && (
+    <Box sx={{ pl: 3 }}>
+      <Typography
+        sx={{ fontSize: "0.75rem", fontWeight: "bold", px: 2, pt: 1, pb: 0.5, color: "text.disabled" }}
+      >
+        {orderPlacedFilter === "Acquired By" ? "Select Month" : "Date Range"}
+      </Typography>
+      
+      {(orderPlacedFilter === "Acquired By"
+        ? [
+            "January",
+            "February",
+            "March",
+            "April",
+            "May",
+            "June",
+            "July",
+            "August",
+            "September",
+            "October",
+            "November",
+            "December"
+          ]
+        : [
+            "Today",
+            "Yesterday",
+            "Last 7 Days",
+            "Last 10 Days",
+            "10–20 Days Ago",
+            "21–30 Days Ago",
+            "This Month (Month to Date)",
+            "Last Month",
+            "Last 30 Days",
+            "Last 90 Days"
+          ]
+      ).map((label) => (
+        <MenuItem
+          key={label}
+          selected={dateRangeFilter === label}
+          onClick={() => {
+            setDateRangeFilter(label);
+            setFilterAnchorEl(null);
+          }}
+        >
+          {label}
+        </MenuItem>
+      ))}
+    </Box>
+  )}
+</Box>
         </Menu>
 
         <Menu
