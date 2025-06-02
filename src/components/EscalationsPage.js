@@ -167,8 +167,13 @@ const EscalationsPage = () => {
     setLoading(false);
   };
 
-  const handleEditCell = async (index, field, value) => {
-    const updatedEscalation = filteredEscalations[index];
+  const handleEditCell = async (id, field, value) => {
+    const updatedEscalation = escalations.find((e) => e._id === id);
+
+    if (!updatedEscalation) {
+      console.error("Escalation not found");
+      return;
+    }
 
     try {
       const payload = {
@@ -178,10 +183,7 @@ const EscalationsPage = () => {
         resolvedDate: field === "resolvedDate" ? value : updatedEscalation.resolvedDate,
       };
 
-      await axios.put(
-        `${BACKEND_URL}/escalations/${updatedEscalation._id}`,
-        payload
-      );
+      await axios.put(`${BACKEND_URL}/escalations/${id}`, payload);
 
       if (showClosedOnly && payload.status !== "Closed") {
         setShowClosedOnly(false);
@@ -192,6 +194,7 @@ const EscalationsPage = () => {
       console.error("Failed to update escalation", error);
     }
   };
+
 
 
 
@@ -596,7 +599,7 @@ const EscalationsPage = () => {
                       size="small"
                       value={esc.status}
                       onChange={(e) =>
-                        handleEditCell(i, "status", e.target.value)
+                        handleEditCell(esc._id, "status", e.target.value)
                       }
                       sx={{ minWidth: 100 }}
                     >
@@ -617,7 +620,7 @@ const EscalationsPage = () => {
                       size="small"
                       value={esc.assignedTo}
                       onChange={(e) =>
-                        handleEditCell(i, "assignedTo", e.target.value)
+                        handleEditCell(esc._id, "assignedTo", e.target.value)
                       }
                       sx={{ minWidth: 130 }}
                     >
@@ -631,20 +634,24 @@ const EscalationsPage = () => {
                     esc.assignedTo
                   )}
                 </TableCell>
-                <TextField
-                  size="small"
-                  value={esc.remark}
-                  onChange={(e) => {
-                    const newRemark = e.target.value;
-                    setEscalations(prev =>
-                      prev.map((item, idx) =>
-                        idx === i ? { ...item, remark: newRemark } : item
-                      )
-                    );
-                  }}
-                  onBlur={(e) => handleEditCell(i, "remark", e.target.value)}
-                  fullWidth
-                />
+                <TableCell align="center" sx={{ minWidth: 250 }}>
+                  <TextField
+                    size="small"
+                    value={esc.remark}
+                    onChange={(e) => {
+                      const newRemark = e.target.value;
+                      setEscalations((prev) =>
+                        prev.map((item) =>
+                          item._id === esc._id ? { ...item, remark: newRemark } : item
+                        )
+                      );
+                    }}
+                    onBlur={(e) => handleEditCell(esc._id, "remark", e.target.value)}
+                    fullWidth
+                    sx={{ width: '100%', maxWidth: 400 }}
+                    InputProps={{ sx: { textAlign: 'center' } }}
+                  />
+                </TableCell>
                 <TableCell align="center">
                   {user?.role === "Manager" ? (
                     <TextField
