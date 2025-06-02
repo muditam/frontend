@@ -11,7 +11,7 @@ import {
   Avatar,
   InputAdornment,
   List,
-  ListItemAvatar, 
+  ListItemAvatar,
   ListItemText,
   ListItemButton,
   Stack,
@@ -154,6 +154,10 @@ const RetentionLeads = () => {
 
   const [sortSubMenuAnchorEl, setSortSubMenuAnchorEl] = useState(null);
   const [activeSortType, setActiveSortType] = useState(null);
+
+  const [selectedYear, setSelectedYear] = useState(null);
+  const [selectedMonth, setSelectedMonth] = useState(null);
+
 
   const [filters, setFilters] = useState({
     name: "",
@@ -405,16 +409,16 @@ const RetentionLeads = () => {
 
   // Load more leads on scroll near bottom
   const loadMoreLeads = () => {
-  if (loadingMore || !hasMore) return;
-  setLoadingMore(true);
-  setTimeout(() => {
-    const nextBatch = filteredAllLeads.slice(currentIndex, currentIndex + leadsPerPage);
-    setLeads((prev) => [...prev, ...nextBatch]);
-    setCurrentIndex((prev) => prev + leadsPerPage);
-    setHasMore(currentIndex + leadsPerPage < filteredAllLeads.length);
-    setLoadingMore(false);
-  }, 500);
-};
+    if (loadingMore || !hasMore) return;
+    setLoadingMore(true);
+    setTimeout(() => {
+      const nextBatch = filteredAllLeads.slice(currentIndex, currentIndex + leadsPerPage);
+      setLeads((prev) => [...prev, ...nextBatch]);
+      setCurrentIndex((prev) => prev + leadsPerPage);
+      setHasMore(currentIndex + leadsPerPage < filteredAllLeads.length);
+      setLoadingMore(false);
+    }, 500);
+  };
 
   // Scroll event handler
   const handleScroll = useCallback(() => {
@@ -505,16 +509,16 @@ const RetentionLeads = () => {
   }, [handleScroll]);
 
   const applyFilters = useCallback(() => {
-  const filtered = filteredLeadsByFilters(allLeads);
-  setFilteredAllLeads(filtered);
-  setLeads(filtered.slice(0, leadsPerPage));
-  setCurrentIndex(leadsPerPage);
-  setHasMore(filtered.length > leadsPerPage);
-}, [allLeads, filters, orderPlacedFilter, dateRangeFilter]);
+    const filtered = filteredLeadsByFilters(allLeads);
+    setFilteredAllLeads(filtered);
+    setLeads(filtered.slice(0, leadsPerPage));
+    setCurrentIndex(leadsPerPage);
+    setHasMore(filtered.length > leadsPerPage);
+  }, [allLeads, filters, orderPlacedFilter, dateRangeFilter]);
 
-useEffect(() => {
-  applyFilters();
-}, [applyFilters]);
+  useEffect(() => {
+    applyFilters();
+  }, [applyFilters]);
 
 
 
@@ -575,21 +579,21 @@ useEffect(() => {
     try {
       setLoading(true);
       setShipmentStatusFilter(status);
-  
+
       const res = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/orders/by-shipment-status", {
         params: { shipment_status: status },
       });
-  
+
       const orders = res.data;
-  
+
       const contactNumbersWithStatus = new Set(
         orders.map(order => order.contact_number)
       );
-  
+
       const filteredLeads = allLeads.filter(lead =>
         contactNumbersWithStatus.has(lead.contactNumber)
       );
-  
+
       setFilteredAllLeads(filteredLeads);
       setLeads(filteredLeads.slice(0, leadsPerPage));
       setHasMore(filteredLeads.length > leadsPerPage);
@@ -599,8 +603,8 @@ useEffect(() => {
     } finally {
       setLoading(false);
     }
-  };  
-  
+  };
+
 
   const updateLeadImagesOnServer = async (leadId, images) => {
     try {
@@ -620,7 +624,7 @@ useEffect(() => {
 
   const filteredLeadsByFilters = (inputLeads) => {
     let filtered = inputLeads;
-
+  
     // Search filter (name/contact)
     const search = filters.name.trim().toLowerCase();
     if (search) {
@@ -630,77 +634,78 @@ useEffect(() => {
         return nameMatch || numberMatch;
       });
     }
-
+  
     // Retention Status filter
     if (filters.retentionStatus && filters.retentionStatus !== "All") {
-      // Normalize retentionStatus value to lowercase for comparison
       const statusFilter = filters.retentionStatus.toLowerCase();
-
       filtered = filtered.filter((lead) => {
         const leadStatus = (lead.retentionStatus || "").toLowerCase();
         if (statusFilter === "active") {
-          // Consider empty or "active" as active leads
           return leadStatus === "active" || leadStatus === "";
         } else if (statusFilter === "lost") {
           return leadStatus === "lost";
         }
-        return true; // fallback no filtering
+        return true;
       });
     }
-
-    if (dateRangeFilter && [
-  "January", "February", "March", "April", "May", "June",
-  "July", "August", "September", "October", "November", "December"
-].includes(dateRangeFilter)) {
-  filtered = filtered.filter((lead) => {
-    if (!lead.lastOrderDate) return false;
-    const orderDate = new Date(lead.lastOrderDate);
-    const monthName = orderDate.toLocaleString("default", { month: "long" });
-    return monthName === dateRangeFilter;
-  });
-
-  // Sort by year: newest year first
-  filtered.sort((a, b) => {
-    const yearA = new Date(a.lastOrderDate).getFullYear();
-    const yearB = new Date(b.lastOrderDate).getFullYear();
-    return yearB - yearA; // Descending: 2025, 2024, etc.
-  });
-}
-
-
-    // Follow-up Reminder filter: normalize all values
+  
+    // If Acquired By → filter by selected month + year like "March 2025"
+    if (
+      dateRangeFilter &&
+      dateRangeFilter.includes(" ") &&
+      [
+        "January", "February", "March", "April", "May", "June",
+        "July", "August", "September", "October", "November", "December"
+      ].some((month) => dateRangeFilter.startsWith(month))
+    ) {
+      const [monthName, year] = dateRangeFilter.split(" ");
+      filtered = filtered.filter((lead) => {
+        if (!lead.lastOrderDate) return false;
+        const orderDate = new Date(lead.lastOrderDate);
+        const monthMatch = orderDate.toLocaleString("default", { month: "long" }) === monthName;
+        const yearMatch = orderDate.getFullYear().toString() === year;
+        return monthMatch && yearMatch;
+      });
+  
+      // Sort by year newest first (if needed)
+      filtered.sort((a, b) => {
+        const yearA = new Date(a.lastOrderDate).getFullYear();
+        const yearB = new Date(b.lastOrderDate).getFullYear();
+        return yearB - yearA;
+      });
+    }
+  
+    // Follow-up Reminder filter
     if (filters.rtFollowupReminder !== null) {
       const reminderFilter = filters.rtFollowupReminder;
       filtered = filtered.filter((lead) => {
         const reminder = lead.rtFollowupReminder || "";
         if (reminderFilter === "") {
-          // Not Set filter → only leads with empty or null reminder
           return reminder === "";
         } else {
           return reminder === reminderFilter;
         }
       });
     }
-
-
+  
     // Order Placed filter
     if (orderPlacedFilter === "Order Placed") {
       filtered = filtered.filter((lead) => !!lead.lastOrderDate);
     } else if (orderPlacedFilter === "Order Not Placed") {
       filtered = filtered.filter((lead) => !lead.lastOrderDate);
     }
-
-    // Date range filter
-    if (dateRangeFilter) {
+  
+    // Date range filters (like Today, Last 7 Days)
+    if (dateRangeFilter && !dateRangeFilter.includes(" ")) {
       const now = new Date();
       const isSameMonth = (d1, d2) =>
         d1.getMonth() === d2.getMonth() && d1.getFullYear() === d2.getFullYear();
-
+  
       filtered = filtered.filter((lead) => {
         if (!lead.lastOrderDate) return false;
         const date = new Date(lead.lastOrderDate);
         const diffDays = Math.floor((now - date) / (1000 * 60 * 60 * 24));
-
+  
         switch (dateRangeFilter) {
           case "Today":
             return diffDays === 0;
@@ -733,19 +738,18 @@ useEffect(() => {
         }
       });
     }
-
-    // Sort leads with lastOrderDate first descending, then without
+  
+    // Final sort: leads with lastOrderDate first (descending)
     filtered.sort((a, b) => {
       if (!a.lastOrderDate && !b.lastOrderDate) return 0;
       if (!a.lastOrderDate) return 1;
       if (!b.lastOrderDate) return -1;
       return new Date(b.lastOrderDate) - new Date(a.lastOrderDate);
     });
-
+  
     return filtered;
   };
-
-
+  
 
   const handleSortMenuClick = (event, type) => {
     setActiveSortType(type);
@@ -839,9 +843,9 @@ useEffect(() => {
           borderRight: "1px solid #ddd",
           display: "flex",
           flexDirection: "column",
-           pt: 0,         
-           px: 1,         
-           pb: 1, 
+          pt: 0,
+          px: 1,
+          pb: 1,
           bgcolor: "background.paper",
           overflowY: "auto",
         }}
@@ -853,190 +857,190 @@ useEffect(() => {
             top: 0,
             zIndex: 10,
             backgroundColor: "background.paper",
-            mt: 0, 
-            pt: 1, 
-            pb: 1, 
-            borderBottom: "1px solid #ddd", 
+            mt: 0,
+            pt: 1,
+            pb: 1,
+            borderBottom: "1px solid #ddd",
           }}
         >
-        {/* Search + Filter + Sort + More icons */}
-        <Stack direction="row" spacing={2}>
-          {[
-            {
-              label: "All",
-              value: "All",
-              count: allLeads.length,
-            },
-            {
-              label: "Active",
-              value: "Active",
-              count: allLeads.filter(
-                (lead) =>
-                  !lead.retentionStatus || lead.retentionStatus.toLowerCase() === "active"
-              ).length,
-            },
-            {
-              label: "Lost",
-              value: "Lost",
-              count: allLeads.filter(
-                (lead) =>
-                  lead.retentionStatus &&
-                  lead.retentionStatus.toLowerCase() === "lost"
-              ).length,
-            },
-          ].map(({ label, value, count }) => {
-            const isSelected = filters.retentionStatus === value;
+          {/* Search + Filter + Sort + More icons */}
+          <Stack direction="row" spacing={2}>
+            {[
+              {
+                label: "All",
+                value: "All",
+                count: allLeads.length,
+              },
+              {
+                label: "Active",
+                value: "Active",
+                count: allLeads.filter(
+                  (lead) =>
+                    !lead.retentionStatus || lead.retentionStatus.toLowerCase() === "active"
+                ).length,
+              },
+              {
+                label: "Lost",
+                value: "Lost",
+                count: allLeads.filter(
+                  (lead) =>
+                    lead.retentionStatus &&
+                    lead.retentionStatus.toLowerCase() === "lost"
+                ).length,
+              },
+            ].map(({ label, value, count }) => {
+              const isSelected = filters.retentionStatus === value;
 
-            return (
-              <Button
-                key={label}
-                variant={isSelected ? "contained" : "outlined"}
-                onClick={() =>
-                  setFilters((prev) => ({
-                    ...prev,
-                    retentionStatus: value,
-                  }))
-                }
-                size="small"
-                sx={{
-                  textTransform: "none",
-                  borderRadius: "4px",
-                  fontSize: "0.75rem",
-                  fontWeight: 500,
-                  color: isSelected ? "#fff" : "black",
-                  borderColor: "black",
-                  backgroundColor: isSelected ? "black" : "transparent",
-                  "&:hover": {
-                    backgroundColor: isSelected ? "#222" : "#f5f5f5",
-                  },
-                }}
-              >
-                <Box sx={{ display: "flex", alignItems: "center" }}>
-                  <Typography>{label}</Typography>
-                  <Typography
-                    variant="caption"
-                    sx={{ fontSize: "0.65rem", opacity: 0.7 }}
-                  >
-                    ({count})
-                  </Typography>
-                </Box>
-              </Button>
-            );
-          })}
-        </Stack>
-
-        <Stack direction="row" spacing={1} mt={1}>
-          {[
-            { label: "Today", value: "Today" },
-            { label: "Tomorrow", value: "Tomorrow" },
-            { label: "Missed", value: "Follow-up Missed" },
-            { label: "Later", value: "Later" },
-            { label: "Not Set", value: "" },
-          ].map(({ label, value }) => {
-            const isSelected = filters.rtFollowupReminder === value;
-            return (
-              <Button
-                key={label}
-                variant={isSelected ? "contained" : "outlined"}
-                onClick={() => {
-                  setFilters((prev) => ({
-                    ...prev,
-                    rtFollowupReminder: isSelected ? null : value,
-                    // Do NOT reset retentionStatus here; keep it as-is to combine filters
-                  }));
-                }}
-                size="small"
-                sx={{
-                  textTransform: "none",
-                  borderRadius: "4px",
-                  minWidth: "auto",
-                  px: 0.5,
-                  py: 0.2,
-                  fontSize: "0.65rem",
-                  fontWeight: 400,
-                  color: isSelected ? "#fff" : "black",
-                  borderColor: "black",
-                  backgroundColor: isSelected ? "black" : "transparent",
-                  "&:hover": {
-                    backgroundColor: isSelected ? "#222" : "#f5f5f5",
-                  },
-                }}
-              >
-                <Box
+              return (
+                <Button
+                  key={label}
+                  variant={isSelected ? "contained" : "outlined"}
+                  onClick={() =>
+                    setFilters((prev) => ({
+                      ...prev,
+                      retentionStatus: value,
+                    }))
+                  }
+                  size="small"
                   sx={{
-                    display: "flex",
-                    flexDirection: "column",
-                    alignItems: "center",
-                    lineHeight: 1.2,
+                    textTransform: "none",
+                    borderRadius: "4px",
+                    fontSize: "0.75rem",
+                    fontWeight: 500,
+                    color: isSelected ? "#fff" : "black",
+                    borderColor: "black",
+                    backgroundColor: isSelected ? "black" : "transparent",
+                    "&:hover": {
+                      backgroundColor: isSelected ? "#222" : "#f5f5f5",
+                    },
                   }}
                 >
-                  <Typography sx={{ fontSize: "0.65rem", fontWeight: 500 }}>
-                    {label}
-                  </Typography>
-                  <Typography
-                    variant="caption"
-                    sx={{ fontSize: "0.6rem", opacity: 0.7 }}
-                  >
-                    {
-                      allLeads.filter((lead) => {
-                        const retentionOk =
-                          filters.retentionStatus === "All"
-                            ? true
-                            : filters.retentionStatus === "Active"
-                              ? !lead.retentionStatus || lead.retentionStatus?.toLowerCase() === "active"
-                              : filters.retentionStatus === "Lost"
-                                ? lead.retentionStatus?.toLowerCase() === "lost"
-                                : true;
-                        return retentionOk && (lead.rtFollowupReminder || "") === value;
-                      }).length
-                    }
-                  </Typography>
-                </Box>
-              </Button>
-            );
-          })}
-        </Stack>
+                  <Box sx={{ display: "flex", alignItems: "center" }}>
+                    <Typography>{label}</Typography>
+                    <Typography
+                      variant="caption"
+                      sx={{ fontSize: "0.65rem", opacity: 0.7 }}
+                    >
+                      ({count})
+                    </Typography>
+                  </Box>
+                </Button>
+              );
+            })}
+          </Stack>
 
-        <Box sx={{ display: "flex", alignItems: "center", mb: 1, gap: 1, mt: 1, }}>
-          <TextField
-            size="small"
-            placeholder="Search leads..."
-            variant="outlined"
-            fullWidth
-            value={filters.name}
-            onChange={(e) =>
-              setFilters((prev) => ({ ...prev, name: e.target.value }))
-            }
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <SearchIcon />
-                </InputAdornment>
-              ),
-            }}
-          />
-          <Tooltip title="Filter">
-            <IconButton
+          <Stack direction="row" spacing={1} mt={1}>
+            {[
+              { label: "Today", value: "Today" },
+              { label: "Tomorrow", value: "Tomorrow" },
+              { label: "Missed", value: "Follow-up Missed" },
+              { label: "Later", value: "Later" },
+              { label: "Not Set", value: "" },
+            ].map(({ label, value }) => {
+              const isSelected = filters.rtFollowupReminder === value;
+              return (
+                <Button
+                  key={label}
+                  variant={isSelected ? "contained" : "outlined"}
+                  onClick={() => {
+                    setFilters((prev) => ({
+                      ...prev,
+                      rtFollowupReminder: isSelected ? null : value,
+                      // Do NOT reset retentionStatus here; keep it as-is to combine filters
+                    }));
+                  }}
+                  size="small"
+                  sx={{
+                    textTransform: "none",
+                    borderRadius: "4px",
+                    minWidth: "auto",
+                    px: 0.5,
+                    py: 0.2,
+                    fontSize: "0.65rem",
+                    fontWeight: 400,
+                    color: isSelected ? "#fff" : "black",
+                    borderColor: "black",
+                    backgroundColor: isSelected ? "black" : "transparent",
+                    "&:hover": {
+                      backgroundColor: isSelected ? "#222" : "#f5f5f5",
+                    },
+                  }}
+                >
+                  <Box
+                    sx={{
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "center",
+                      lineHeight: 1.2,
+                    }}
+                  >
+                    <Typography sx={{ fontSize: "0.65rem", fontWeight: 500 }}>
+                      {label}
+                    </Typography>
+                    <Typography
+                      variant="caption"
+                      sx={{ fontSize: "0.6rem", opacity: 0.7 }}
+                    >
+                      {
+                        allLeads.filter((lead) => {
+                          const retentionOk =
+                            filters.retentionStatus === "All"
+                              ? true
+                              : filters.retentionStatus === "Active"
+                                ? !lead.retentionStatus || lead.retentionStatus?.toLowerCase() === "active"
+                                : filters.retentionStatus === "Lost"
+                                  ? lead.retentionStatus?.toLowerCase() === "lost"
+                                  : true;
+                          return retentionOk && (lead.rtFollowupReminder || "") === value;
+                        }).length
+                      }
+                    </Typography>
+                  </Box>
+                </Button>
+              );
+            })}
+          </Stack>
+
+          <Box sx={{ display: "flex", alignItems: "center", mb: 1, gap: 1, mt: 1, }}>
+            <TextField
               size="small"
-              onClick={(e) => setFilterAnchorEl(e.currentTarget)}
-            >
-              <FilterListIcon />
-            </IconButton>
-          </Tooltip>
-          <Tooltip title="Sort">
-            <IconButton size="small" onClick={(e) => setSortMenuAnchorEl(e.currentTarget)}>
-              <SortIcon />
-            </IconButton>
-          </Tooltip>
-          <Tooltip title="More options">
-            <IconButton
-              size="small"
-              onClick={(e) => setMoreOptionsAnchorEl(e.currentTarget)}
-            >
-              <MoreVertIcon />
-            </IconButton>
-          </Tooltip>
-        </Box>
+              placeholder="Search leads..."
+              variant="outlined"
+              fullWidth
+              value={filters.name}
+              onChange={(e) =>
+                setFilters((prev) => ({ ...prev, name: e.target.value }))
+              }
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchIcon />
+                  </InputAdornment>
+                ),
+              }}
+            />
+            <Tooltip title="Filter">
+              <IconButton
+                size="small"
+                onClick={(e) => setFilterAnchorEl(e.currentTarget)}
+              >
+                <FilterListIcon />
+              </IconButton>
+            </Tooltip>
+            <Tooltip title="Sort">
+              <IconButton size="small" onClick={(e) => setSortMenuAnchorEl(e.currentTarget)}>
+                <SortIcon />
+              </IconButton>
+            </Tooltip>
+            <Tooltip title="More options">
+              <IconButton
+                size="small"
+                onClick={(e) => setMoreOptionsAnchorEl(e.currentTarget)}
+              >
+                <MoreVertIcon />
+              </IconButton>
+            </Tooltip>
+          </Box>
         </Box>
         <Menu
           anchorEl={moreOptionsAnchorEl}
@@ -1045,7 +1049,7 @@ useEffect(() => {
           anchorOrigin={{ vertical: "bottom", horizontal: "left" }}
           transformOrigin={{ vertical: "top", horizontal: "left" }}
         >
-          {["Delivered", "Out For Delivery", "In Transit", "RTO Delivered" ].map((status) => (
+          {["Delivered", "Out For Delivery", "In Transit", "RTO Delivered"].map((status) => (
             <MenuItem
               key={status}
               onClick={async () => {
@@ -1061,59 +1065,95 @@ useEffect(() => {
 
 
         <Menu
-          anchorEl={filterAnchorEl}
-          open={Boolean(filterAnchorEl)}
-          onClose={() => setFilterAnchorEl(null)}
-          anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
-          transformOrigin={{ vertical: 'top', horizontal: 'left' }}
-        >
-          <Box sx={{ display: 'flex', alignItems: 'flex-start' }}>
-  {/* Left column - Order Type + Acquired By */}
-  <Box>
-    <Typography
-      sx={{ fontSize: "0.75rem", fontWeight: "bold", px: 2, pt: 1, pb: 0.5, color: "text.disabled" }}
-    >
-      Filter Type
-    </Typography>
-    {["Order Placed", "Order Not Placed", "Acquired By"].map((type) => (
-      <MenuItem
-        key={type}
-        selected={orderPlacedFilter === type}
-        onClick={() => {
-          setOrderPlacedFilter(type);
-          setDateRangeFilter("");
-        }}
-      >
-        {type}
-      </MenuItem>
-    ))}
-  </Box>
-
-  {/* Right column - Date Range OR Month based on selection */}
-  {orderPlacedFilter && (
-    <Box sx={{ pl: 3 }}>
+  anchorEl={filterAnchorEl}
+  open={Boolean(filterAnchorEl)}
+  onClose={() => {
+    setFilterAnchorEl(null);
+    setSelectedYear(null); // reset year on close
+    setSelectedMonth(null); // reset month on close
+  }}
+  anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+  transformOrigin={{ vertical: 'top', horizontal: 'left' }}
+>
+  <Box sx={{ display: 'flex', alignItems: 'flex-start' }}>
+    {/* Left column - Order Type + Acquired By */}
+    <Box>
       <Typography
         sx={{ fontSize: "0.75rem", fontWeight: "bold", px: 2, pt: 1, pb: 0.5, color: "text.disabled" }}
       >
-        {orderPlacedFilter === "Acquired By" ? "Select Month" : "Date Range"}
+        Filter Type
       </Typography>
-      
-      {(orderPlacedFilter === "Acquired By"
-        ? [
-            "January",
-            "February",
-            "March",
-            "April",
-            "May",
-            "June",
-            "July",
-            "August",
-            "September",
-            "October",
-            "November",
-            "December"
-          ]
-        : [
+      {["Order Placed", "Order Not Placed", "Acquired By"].map((type) => (
+        <MenuItem
+          key={type}
+          selected={orderPlacedFilter === type}
+          onClick={() => {
+            setOrderPlacedFilter(type);
+            setDateRangeFilter("");
+            setSelectedYear(null); // reset on type change
+            setSelectedMonth(null);
+          }}
+        >
+          {type}
+        </MenuItem>
+      ))}
+    </Box>
+
+    {/* Right column */}
+    {orderPlacedFilter && (
+      <Box sx={{ pl: 3 }}>
+        <Typography
+          sx={{ fontSize: "0.75rem", fontWeight: "bold", px: 2, pt: 1, pb: 0.5, color: "text.disabled" }}
+        >
+          {orderPlacedFilter === "Acquired By"
+            ? selectedYear
+              ? "Select Month"
+              : "Select Year"
+            : "Date Range"}
+        </Typography>
+
+        {orderPlacedFilter === "Acquired By" ? (
+          !selectedYear ? (
+            [2023, 2024, 2025].map((year) => (
+              <MenuItem
+                key={year}
+                selected={selectedYear === year}
+                onClick={() => setSelectedYear(year)}
+              >
+                {year}
+              </MenuItem>
+            ))
+          ) : (
+            [
+              "January",
+              "February",
+              "March",
+              "April",
+              "May",
+              "June",
+              "July",
+              "August",
+              "September",
+              "October",
+              "November",
+              "December"
+            ].map((month) => (
+              <MenuItem
+                key={month}
+                selected={selectedMonth === month}
+                onClick={() => {
+                  const combined = `${month} ${selectedYear}`;
+                  setSelectedMonth(month);
+                  setDateRangeFilter(combined);
+                  setFilterAnchorEl(null);
+                }}
+              >
+                {month}
+              </MenuItem>
+            ))
+          )
+        ) : (
+          [
             "Today",
             "Yesterday",
             "Last 7 Days",
@@ -1124,23 +1164,23 @@ useEffect(() => {
             "Last Month",
             "Last 30 Days",
             "Last 90 Days"
-          ]
-      ).map((label) => (
-        <MenuItem
-          key={label}
-          selected={dateRangeFilter === label}
-          onClick={() => {
-            setDateRangeFilter(label);
-            setFilterAnchorEl(null);
-          }}
-        >
-          {label}
-        </MenuItem>
-      ))}
-    </Box>
-  )}
-</Box>
-        </Menu>
+          ].map((label) => (
+            <MenuItem
+              key={label}
+              selected={dateRangeFilter === label}
+              onClick={() => {
+                setDateRangeFilter(label);
+                setFilterAnchorEl(null);
+              }}
+            >
+              {label}
+            </MenuItem>
+          ))
+        )}
+      </Box>
+    )}
+  </Box>
+</Menu>
 
         <Menu
           anchorEl={sortMenuAnchorEl}
