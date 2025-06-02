@@ -38,13 +38,14 @@ import DialogActions from "@mui/material/DialogActions";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import FormatColorFillIcon from "@mui/icons-material/FormatColorFill";
 import { Menu as MuiMenu } from "@mui/material";
-
+import CommentIcon from '@mui/icons-material/Comment';
 import PhoneIcon from "@mui/icons-material/Phone";
 import FilterListIcon from "@mui/icons-material/FilterList";
 import SortIcon from "@mui/icons-material/Sort";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
 import SearchIcon from "@mui/icons-material/Search";
 import DeleteIcon from '@mui/icons-material/Delete';
+import AccessTimeIcon from '@mui/icons-material/AccessTime';
 
 import AddIcon from "@mui/icons-material/Add";
 import HistoryIcon from "@mui/icons-material/History";
@@ -157,6 +158,10 @@ const RetentionLeads = () => {
 
   const [selectedYear, setSelectedYear] = useState(null);
   const [selectedMonth, setSelectedMonth] = useState(null);
+
+  const [rtSubcellsDialogOpen, setRtSubcellsDialogOpen] = useState(false);
+
+  const [subcellsPopup, setSubcellsPopup] = useState({ open: false, subcells: [] });
 
 
   const [filters, setFilters] = useState({
@@ -275,6 +280,31 @@ const RetentionLeads = () => {
     }
   };
 
+  const saveSubcellsToBackend = async (leadId, subcells) => {
+    try {
+      await axios.put(`https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/${leadId}`, { rtSubcells: subcells });
+    } catch (error) {
+      console.error("Error saving subcells:", error);
+    }
+  };
+  
+
+  const handleAddSubcell = (leadIndex) => {
+    const updatedLeads = [...leads];
+    const lead = updatedLeads[leadIndex];
+    lead.rtSubcells = lead.rtSubcells || [];
+    lead.rtSubcells.push({ date: new Date().toLocaleDateString(), value: "" });
+    setLeads(updatedLeads);
+    saveSubcellsToBackend(lead._id, lead.rtSubcells);  // save to backend
+  };
+  
+  const handleSubcellChange = (leadIndex, subcellIndex, e) => {
+    const updatedLeads = [...leads];
+    updatedLeads[leadIndex].rtSubcells[subcellIndex].value = e.target.value;
+    setLeads(updatedLeads);
+    saveSubcellsToBackend(updatedLeads[leadIndex]._id, updatedLeads[leadIndex].rtSubcells); // save updated subcells
+  };
+  
 
   const fetchShopifyDates = async (phoneNumber) => {
     try {
@@ -624,7 +654,7 @@ const RetentionLeads = () => {
 
   const filteredLeadsByFilters = (inputLeads) => {
     let filtered = inputLeads;
-  
+
     // Search filter (name/contact)
     const search = filters.name.trim().toLowerCase();
     if (search) {
@@ -634,7 +664,7 @@ const RetentionLeads = () => {
         return nameMatch || numberMatch;
       });
     }
-  
+
     // Retention Status filter
     if (filters.retentionStatus && filters.retentionStatus !== "All") {
       const statusFilter = filters.retentionStatus.toLowerCase();
@@ -648,7 +678,7 @@ const RetentionLeads = () => {
         return true;
       });
     }
-  
+
     // If Acquired By → filter by selected month + year like "March 2025"
     if (
       dateRangeFilter &&
@@ -666,7 +696,7 @@ const RetentionLeads = () => {
         const yearMatch = orderDate.getFullYear().toString() === year;
         return monthMatch && yearMatch;
       });
-  
+
       // Sort by year newest first (if needed)
       filtered.sort((a, b) => {
         const yearA = new Date(a.lastOrderDate).getFullYear();
@@ -674,7 +704,7 @@ const RetentionLeads = () => {
         return yearB - yearA;
       });
     }
-  
+
     // Follow-up Reminder filter
     if (filters.rtFollowupReminder !== null) {
       const reminderFilter = filters.rtFollowupReminder;
@@ -687,25 +717,25 @@ const RetentionLeads = () => {
         }
       });
     }
-  
+
     // Order Placed filter
     if (orderPlacedFilter === "Order Placed") {
       filtered = filtered.filter((lead) => !!lead.lastOrderDate);
     } else if (orderPlacedFilter === "Order Not Placed") {
       filtered = filtered.filter((lead) => !lead.lastOrderDate);
     }
-  
+
     // Date range filters (like Today, Last 7 Days)
     if (dateRangeFilter && !dateRangeFilter.includes(" ")) {
       const now = new Date();
       const isSameMonth = (d1, d2) =>
         d1.getMonth() === d2.getMonth() && d1.getFullYear() === d2.getFullYear();
-  
+
       filtered = filtered.filter((lead) => {
         if (!lead.lastOrderDate) return false;
         const date = new Date(lead.lastOrderDate);
         const diffDays = Math.floor((now - date) / (1000 * 60 * 60 * 24));
-  
+
         switch (dateRangeFilter) {
           case "Today":
             return diffDays === 0;
@@ -738,7 +768,7 @@ const RetentionLeads = () => {
         }
       });
     }
-  
+
     // Final sort: leads with lastOrderDate first (descending)
     filtered.sort((a, b) => {
       if (!a.lastOrderDate && !b.lastOrderDate) return 0;
@@ -746,10 +776,10 @@ const RetentionLeads = () => {
       if (!b.lastOrderDate) return -1;
       return new Date(b.lastOrderDate) - new Date(a.lastOrderDate);
     });
-  
+
     return filtered;
   };
-  
+
 
   const handleSortMenuClick = (event, type) => {
     setActiveSortType(type);
@@ -1020,12 +1050,28 @@ const RetentionLeads = () => {
               }}
             />
             <Tooltip title="Filter">
-              <IconButton
-                size="small"
-                onClick={(e) => setFilterAnchorEl(e.currentTarget)}
+              <Badge
+                color="primary"
+                badgeContent={
+                  // Show count only if "Acquired In" filter active and dateRangeFilter set
+                  orderPlacedFilter === "Acquired In" && dateRangeFilter
+                    ? filteredAllLeads.length
+                    : 0
+                }
+                invisible={
+                  !(orderPlacedFilter === "Acquired In" && dateRangeFilter && filteredAllLeads.length > 0)
+                }
+                overlap="circular"
+                anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
               >
-                <FilterListIcon />
-              </IconButton>
+                <IconButton
+                  size="small"
+                  onClick={(e) => setFilterAnchorEl(e.currentTarget)}
+                  aria-label={`Filter leads${orderPlacedFilter === "Acquired In" && dateRangeFilter ? `: ${dateRangeFilter}` : ''}`}
+                >
+                  <FilterListIcon />
+                </IconButton>
+              </Badge>
             </Tooltip>
             <Tooltip title="Sort">
               <IconButton size="small" onClick={(e) => setSortMenuAnchorEl(e.currentTarget)}>
@@ -1065,122 +1111,122 @@ const RetentionLeads = () => {
 
 
         <Menu
-  anchorEl={filterAnchorEl}
-  open={Boolean(filterAnchorEl)}
-  onClose={() => {
-    setFilterAnchorEl(null);
-    setSelectedYear(null); // reset year on close
-    setSelectedMonth(null); // reset month on close
-  }}
-  anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
-  transformOrigin={{ vertical: 'top', horizontal: 'left' }}
->
-  <Box sx={{ display: 'flex', alignItems: 'flex-start' }}>
-    {/* Left column - Order Type + Acquired By */}
-    <Box>
-      <Typography
-        sx={{ fontSize: "0.75rem", fontWeight: "bold", px: 2, pt: 1, pb: 0.5, color: "text.disabled" }}
-      >
-        Filter Type
-      </Typography>
-      {["Order Placed", "Order Not Placed", "Acquired By"].map((type) => (
-        <MenuItem
-          key={type}
-          selected={orderPlacedFilter === type}
-          onClick={() => {
-            setOrderPlacedFilter(type);
-            setDateRangeFilter("");
-            setSelectedYear(null); // reset on type change
-            setSelectedMonth(null);
+          anchorEl={filterAnchorEl}
+          open={Boolean(filterAnchorEl)}
+          onClose={() => {
+            setFilterAnchorEl(null);
+            setSelectedYear(null); // reset year on close
+            setSelectedMonth(null); // reset month on close
           }}
+          anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+          transformOrigin={{ vertical: 'top', horizontal: 'left' }}
         >
-          {type}
-        </MenuItem>
-      ))}
-    </Box>
-
-    {/* Right column */}
-    {orderPlacedFilter && (
-      <Box sx={{ pl: 3 }}>
-        <Typography
-          sx={{ fontSize: "0.75rem", fontWeight: "bold", px: 2, pt: 1, pb: 0.5, color: "text.disabled" }}
-        >
-          {orderPlacedFilter === "Acquired By"
-            ? selectedYear
-              ? "Select Month"
-              : "Select Year"
-            : "Date Range"}
-        </Typography>
-
-        {orderPlacedFilter === "Acquired By" ? (
-          !selectedYear ? (
-            [2023, 2024, 2025].map((year) => (
-              <MenuItem
-                key={year}
-                selected={selectedYear === year}
-                onClick={() => setSelectedYear(year)}
+          <Box sx={{ display: 'flex', alignItems: 'flex-start' }}>
+            {/* Left column - Order Type + Acquired By */}
+            <Box>
+              <Typography
+                sx={{ fontSize: "0.75rem", fontWeight: "bold", px: 2, pt: 1, pb: 0.5, color: "text.disabled" }}
               >
-                {year}
-              </MenuItem>
-            ))
-          ) : (
-            [
-              "January",
-              "February",
-              "March",
-              "April",
-              "May",
-              "June",
-              "July",
-              "August",
-              "September",
-              "October",
-              "November",
-              "December"
-            ].map((month) => (
-              <MenuItem
-                key={month}
-                selected={selectedMonth === month}
-                onClick={() => {
-                  const combined = `${month} ${selectedYear}`;
-                  setSelectedMonth(month);
-                  setDateRangeFilter(combined);
-                  setFilterAnchorEl(null);
-                }}
-              >
-                {month}
-              </MenuItem>
-            ))
-          )
-        ) : (
-          [
-            "Today",
-            "Yesterday",
-            "Last 7 Days",
-            "Last 10 Days",
-            "10–20 Days Ago",
-            "21–30 Days Ago",
-            "This Month (Month to Date)",
-            "Last Month",
-            "Last 30 Days",
-            "Last 90 Days"
-          ].map((label) => (
-            <MenuItem
-              key={label}
-              selected={dateRangeFilter === label}
-              onClick={() => {
-                setDateRangeFilter(label);
-                setFilterAnchorEl(null);
-              }}
-            >
-              {label}
-            </MenuItem>
-          ))
-        )}
-      </Box>
-    )}
-  </Box>
-</Menu>
+                Filter Type
+              </Typography>
+              {["Order Placed", "Order Not Placed", "Acquired In"].map((type) => (
+                <MenuItem
+                  key={type}
+                  selected={orderPlacedFilter === type}
+                  onClick={() => {
+                    setOrderPlacedFilter(type);
+                    setDateRangeFilter("");
+                    setSelectedYear(null); // reset on type change
+                    setSelectedMonth(null);
+                  }}
+                >
+                  {type}
+                </MenuItem>
+              ))}
+            </Box>
+
+            {/* Right column */}
+            {orderPlacedFilter && (
+              <Box sx={{ pl: 3 }}>
+                <Typography
+                  sx={{ fontSize: "0.75rem", fontWeight: "bold", px: 2, pt: 1, pb: 0.5, color: "text.disabled" }}
+                >
+                  {orderPlacedFilter === "Acquired In"
+                    ? selectedYear
+                      ? "Select Month"
+                      : "Select Year"
+                    : "Date Range"}
+                </Typography>
+
+                {orderPlacedFilter === "Acquired In" ? (
+                  !selectedYear ? (
+                    [2023, 2024, 2025].map((year) => (
+                      <MenuItem
+                        key={year}
+                        selected={selectedYear === year}
+                        onClick={() => setSelectedYear(year)}
+                      >
+                        {year}
+                      </MenuItem>
+                    ))
+                  ) : (
+                    [
+                      "January",
+                      "February",
+                      "March",
+                      "April",
+                      "May",
+                      "June",
+                      "July",
+                      "August",
+                      "September",
+                      "October",
+                      "November",
+                      "December"
+                    ].map((month) => (
+                      <MenuItem
+                        key={month}
+                        selected={selectedMonth === month}
+                        onClick={() => {
+                          const combined = `${month} ${selectedYear}`;
+                          setSelectedMonth(month);
+                          setDateRangeFilter(combined);
+                          setFilterAnchorEl(null);
+                        }}
+                      >
+                        {month}
+                      </MenuItem>
+                    ))
+                  )
+                ) : (
+                  [
+                    "Today",
+                    "Yesterday",
+                    "Last 7 Days",
+                    "Last 10 Days",
+                    "10–20 Days Ago",
+                    "21–30 Days Ago",
+                    "This Month (Month to Date)",
+                    "Last Month",
+                    "Last 30 Days",
+                    "Last 90 Days"
+                  ].map((label) => (
+                    <MenuItem
+                      key={label}
+                      selected={dateRangeFilter === label}
+                      onClick={() => {
+                        setDateRangeFilter(label);
+                        setFilterAnchorEl(null);
+                      }}
+                    >
+                      {label}
+                    </MenuItem>
+                  ))
+                )}
+              </Box>
+            )}
+          </Box>
+        </Menu>
 
         <Menu
           anchorEl={sortMenuAnchorEl}
@@ -1672,7 +1718,7 @@ const RetentionLeads = () => {
                       Customer Name
                     </Typography>
                     <Typography variant="body2">
-                      {leads[selectedLeadIndex].name || "N/A"}
+                      {leads[selectedLeadIndex]?.name || "N/A"}
                     </Typography>
                   </Box>
 
@@ -1681,7 +1727,7 @@ const RetentionLeads = () => {
                       Agent Assigned
                     </Typography>
                     <Typography variant="body2">
-                      {leads[selectedLeadIndex].agentAssigned || "N/A"}
+                      {leads[selectedLeadIndex]?.agentAssigned || "N/A"}
                     </Typography>
                   </Box>
 
@@ -1691,7 +1737,7 @@ const RetentionLeads = () => {
                     </Typography>
                     <TextField
                       type="date"
-                      value={leads[selectedLeadIndex].rtNextFollowupDate || ""}
+                      value={leads[selectedLeadIndex]?.rtNextFollowupDate || ""}
                       onChange={(e) => handleInputChange(e, selectedLeadIndex, "rtNextFollowupDate")}
                       size="small"
                       variant="outlined"
@@ -1704,7 +1750,7 @@ const RetentionLeads = () => {
                       Followup Status
                     </Typography>
                     <Select
-                      value={leads[selectedLeadIndex].rtFollowupStatus || ""}
+                      value={leads[selectedLeadIndex]?.rtFollowupStatus || ""}
                       onChange={(e) => handleInputChange(e, selectedLeadIndex, "rtFollowupStatus")}
                       size="small"
                       fullWidth
@@ -1738,7 +1784,7 @@ const RetentionLeads = () => {
                       Retention Status
                     </Typography>
                     <Select
-                      value={leads[selectedLeadIndex].retentionStatus || ""}
+                      value={leads[selectedLeadIndex]?.retentionStatus || ""}
                       onChange={(e) => handleInputChange(e, selectedLeadIndex, "retentionStatus")}
                       size="small"
                       fullWidth
@@ -1756,7 +1802,7 @@ const RetentionLeads = () => {
                       Preferred Method
                     </Typography>
                     <Select
-                      value={leads[selectedLeadIndex].communicationMethod || ""}
+                      value={leads[selectedLeadIndex]?.communicationMethod || ""}
                       onChange={(e) => handleInputChange(e, selectedLeadIndex, "communicationMethod")}
                       size="small"
                       fullWidth
@@ -1774,7 +1820,7 @@ const RetentionLeads = () => {
                       Preferred Language
                     </Typography>
                     <Select
-                      value={leads[selectedLeadIndex].preferredLanguage || ""}
+                      value={leads[selectedLeadIndex]?.preferredLanguage || ""}
                       onChange={(e) => handleInputChange(e, selectedLeadIndex, "preferredLanguage")}
                       size="small"
                       fullWidth
@@ -1787,19 +1833,98 @@ const RetentionLeads = () => {
                     </Select>
                   </Box>
 
-                  <Box sx={{ minWidth: 150 }}>
-                    <Typography variant="subtitle2" color="text.secondary" mb={0.5}>
-                      Remark
-                    </Typography>
-                    <TextField
-                      value={leads[selectedLeadIndex]?.rtRemark || ""}
-                      onChange={(e) => handleInputChange(e, selectedLeadIndex, "rtRemark")}
-                      size="small"
-                      fullWidth
-                      placeholder="Enter remark"
-                      variant="outlined"
-                    />
-                  </Box>
+                  <Box sx={{ minWidth: 150, display: 'flex', flexDirection: 'column', mt: 3 }}>
+  <Typography variant="subtitle2" color="text.secondary" mb={1}>
+    Remark
+  </Typography>
+  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+    <TextField
+      label={
+        leads[selectedLeadIndex]?.rtSubcells?.length > 0
+          ? leads[selectedLeadIndex]?.rtSubcells[leads[selectedLeadIndex].rtSubcells.length - 1].date
+          : "Remark"
+      }
+      value={
+        leads[selectedLeadIndex]?.rtSubcells?.length > 0
+          ? leads[selectedLeadIndex]?.rtSubcells[leads[selectedLeadIndex].rtSubcells.length - 1].value
+          : leads[selectedLeadIndex]?.rtRemark || ""
+      }
+      onChange={(e) => {
+        if (leads[selectedLeadIndex]?.rtSubcells?.length > 0) {
+          handleSubcellChange(
+            selectedLeadIndex,
+            leads[selectedLeadIndex].rtSubcells.length - 1,
+            e
+          );
+        } else {
+          handleInputChange(e, selectedLeadIndex, "rtRemark");
+        }
+      }}
+      size="small"
+      fullWidth
+      variant="outlined"
+    />
+    <Tooltip title="Add Remark Entry">
+      <IconButton
+        size="small"
+        sx={{ color: "black" }}
+        onClick={() => handleAddSubcell(selectedLeadIndex)}
+      >
+        <AddIcon fontSize="small" />
+      </IconButton>
+    </Tooltip>
+    <Tooltip title="View Remark History">
+      <IconButton
+        size="small"
+        sx={{ color: "black" }}
+        onClick={() =>
+          setSubcellsPopup({
+            open: true,
+            subcells: leads[selectedLeadIndex]?.rtSubcells || [],
+          })
+        }
+      >
+        <AccessTimeIcon fontSize="small" />
+      </IconButton>
+    </Tooltip>
+  </Box>
+</Box>
+
+
+<Dialog
+  open={subcellsPopup.open}
+  onClose={() => setSubcellsPopup({ open: false, subcells: [] })}
+  maxWidth="sm"
+  fullWidth
+>
+  <DialogTitle sx={{ fontWeight: 600, textAlign: "center" }}>
+    Remark History
+  </DialogTitle>
+  <DialogContent>
+    <Table size="small">
+      <TableHead>
+        <TableRow>
+          <HeaderTableCell>Date</HeaderTableCell>
+          <HeaderTableCell>Remark</HeaderTableCell>
+        </TableRow>
+      </TableHead>
+      <TableBody>
+        {subcellsPopup.subcells.map((subcell, idx) => (
+          <StyledTableRow key={idx}>
+            <BodyTableCell>{subcell.date || "N/A"}</BodyTableCell>
+            <BodyTableCell>{subcell.value || "No Remark"}</BodyTableCell>
+          </StyledTableRow>
+        ))}
+      </TableBody>
+    </Table>
+  </DialogContent>
+  <DialogActions>
+    <Button onClick={() => setSubcellsPopup({ open: false, subcells: [] })}>
+      Close
+    </Button>
+  </DialogActions>
+</Dialog>
+
 
                 </Stack>
 
