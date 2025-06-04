@@ -343,7 +343,7 @@ const calculateCompletionPercent = (customer) => {
       params.createdAt = filterDate;
     }
 
-    const response = await axios.get("http://localhost:5001/api/customers", {
+    const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/customers", {
       params,
     });
 
