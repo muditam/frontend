@@ -1058,6 +1058,7 @@ const RetentionLeads = () => {
                     ? filteredAllLeads.length
                     : 0
                 }
+                max={9999} 
                 invisible={
                   !(orderPlacedFilter === "Acquired In" && dateRangeFilter && filteredAllLeads.length > 0)
                 }
@@ -1147,7 +1148,7 @@ const RetentionLeads = () => {
 
             {/* Right column */}
             {orderPlacedFilter && (
-              <Box sx={{ pl: 3 }}>
+              <Box sx={{ pl: 3 }}> 
                 <Typography
                   sx={{ fontSize: "0.75rem", fontWeight: "bold", px: 2, pt: 1, pb: 0.5, color: "text.disabled" }}
                 >

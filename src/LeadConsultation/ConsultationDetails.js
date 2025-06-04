@@ -210,7 +210,7 @@ const ConsultationDetails = ({ customerId, reloadTrigger, onReload }) => {
         setCustomer(response.data.customer);
         if (onReload) {
         onReload(); 
-      }
+      }   
       })
       .catch((error) => {
         console.error("Error updating follow-up date:", error);

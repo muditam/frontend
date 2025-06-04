@@ -29,6 +29,7 @@ import Checkbox from "@mui/material/Checkbox";
 import DownloadIcon from "@mui/icons-material/Download";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
 import { CircularProgress } from "@mui/material";
+import { Badge } from "@mui/material";
 import axios from "axios";
 
 /**
@@ -134,6 +135,7 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
   const limit = 20; // Number of leads per page 
 
   const [filterMenuAnchorEl, setFilterMenuAnchorEl] = useState(null);
+  const [totalMatchingCustomers, setTotalMatchingCustomers] = useState(0);
   const [selectedFilters, setSelectedFilters] = useState([]);
   const filterOptions = [
     "Missed",
@@ -145,6 +147,7 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
     "CNP",
     "On Follow Up",
     "New Lead",
+    "No Agents",
   ];
 
   const handleFilterClick = (e) => setFilterMenuAnchorEl(e.currentTarget);
@@ -340,12 +343,13 @@ const calculateCompletionPercent = (customer) => {
       params.createdAt = filterDate;
     }
 
-    const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/customers", {
+    const response = await axios.get("http://localhost:5001/api/customers", {
       params,
     });
 
     if (page === 1 || reset) {
       setCustomers(response.data.customers);
+      setTotalMatchingCustomers(response.data.totalCustomers);
     } else {
       setCustomers(prev => [...prev, ...response.data.customers]);
     }
@@ -401,7 +405,7 @@ useEffect(() => {
       const link = document.createElement("a");
       link.href = url;
       link.setAttribute("download", "customers.csv");
-      document.body.appendChild(link);
+      document.body.appendChild(link); 
       link.click();
       document.body.removeChild(link);
     } catch (error) {
@@ -535,13 +539,45 @@ useEffect(() => {
           sx={{ fontSize: "0.8rem" }}
         />
         <Box sx={{ display: "flex", ml: 1 }}>
-          <IconButton
-            size="small"
-            sx={{ color: "black" }}
-            onClick={handleFilterClick}
-          >
-            <FilterList fontSize="small" />
-          </IconButton>
+          <Box sx={{ width: 42, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+  {(filterStatus || selectedFilters.length > 0 || searchQuery || filterAgent.length > 0 || filterDate) ? (
+    <Badge
+      badgeContent={totalMatchingCustomers}
+      max={9999}
+      color="primary"
+      overlap="circular"
+      anchorOrigin={{
+        vertical: 'top',
+        horizontal: 'right',
+      }}
+      sx={{
+        '& .MuiBadge-badge': {
+          fontSize: '0.6rem',
+          height: 16,
+          minWidth: 16,
+          padding: '0 4px',
+        },
+      }}
+    >
+      <IconButton
+        size="small"
+        sx={{ color: "black" }}
+        onClick={(e) => setFilterMenuAnchorEl(e.currentTarget)}  
+      >
+        <FilterList fontSize="small" />
+      </IconButton>
+    </Badge>
+  ) : (
+    <IconButton
+      size="small"
+      sx={{ color: "black" }}
+      onClick={(e) => setFilterMenuAnchorEl(e.currentTarget)}  
+    >
+      <FilterList fontSize="small" />
+    </IconButton>
+  )}
+</Box>
+
           <Menu
             anchorEl={filterMenuAnchorEl}
             open={Boolean(filterMenuAnchorEl)}

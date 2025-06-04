@@ -229,7 +229,7 @@ const EscalationsPage = () => {
           onClick={() => setOpenForm(true)}
           sx={{ mb: 2, backgroundColor: "black" }}
         >
-          Add Escalation
+          Add Escalation 
         </Button>
 
         <Button
@@ -659,7 +659,7 @@ const EscalationsPage = () => {
                       size="small"
                       value={esc.resolvedDate || ""}
                       onChange={(e) =>
-                        handleEditCell(i, "resolvedDate", e.target.value)
+                        handleEditCell(esc._id, "resolvedDate", e.target.value)
                       }
                       InputLabelProps={{ shrink: true }}
                       sx={{ minWidth: 120 }}
