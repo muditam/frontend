@@ -147,7 +147,7 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
     "CNP",
     "On Follow Up",
     "New Lead",
-    "No Agents",
+    "No RT Agents",
   ];
 
   const handleFilterClick = (e) => setFilterMenuAnchorEl(e.currentTarget);
@@ -172,6 +172,7 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
 
   const [moreAnchorEl, setMoreAnchorEl] = useState(null);
   const isMoreMenuOpen = Boolean(moreAnchorEl);
+  const [loading, setLoading] = useState(false);
 
   const [filterAgent, setFilterAgent] = useState([]);
   const [filterDate, setFilterDate] = useState("");
@@ -318,6 +319,7 @@ const calculateCompletionPercent = (customer) => {
 
   // Fetch customers based on role, page, and search value
   const fetchCustomers = async (page = 1, reset = false, searchValue = "") => {
+    setLoading(true); 
   try {
     const filters = searchValue
       ? JSON.stringify({ search: searchValue })
@@ -359,25 +361,28 @@ const calculateCompletionPercent = (customer) => {
 
   } catch (err) {
     console.error("Error fetching customers:", err);
+  } finally {
+    setLoading(false);  
   }
 };
 
-useEffect(() => {
-  fetchCustomers(1, true, searchQuery);
-}, [reloadTrigger]);
-
-
-  // Load first page on component mount or when loggedInUser changes
   useEffect(() => {
     fetchCustomers(1, true, searchQuery);
-    // loggedInUser is memoized, so this runs only once on mount
+  }, [reloadTrigger]);
+
+ 
+  useEffect(() => {
+    fetchCustomers(1, true, searchQuery); 
   }, [loggedInUser]);
 
-  // When searchQuery changes, reset pagination and fetch matching customers
+  useEffect(() => {
+    fetchCounts();  
+  }, [filterStatus, filterAgent]);
+
   useEffect(() => {
     fetchCustomers(1, true, searchQuery);
-    fetchCounts();
   }, [searchQuery, filterStatus, selectedFilters, sortOrder, filterDate, filterAgent]);
+
 
   const handleScroll = () => {
     const container = listRef.current;
@@ -444,7 +449,12 @@ useEffect(() => {
     setMoreAnchorEl(null);
   };
 
-
+  const activeFilters =
+  !!filterStatus ||
+  selectedFilters.length > 0 ||
+  !!searchQuery ||
+  filterAgent.length > 0 ||
+  !!filterDate;
 
   return (
     <Box sx={{ width: "100%", height: "100%", display: "flex", flexDirection: "column" }}>
@@ -540,34 +550,25 @@ useEffect(() => {
         />
         <Box sx={{ display: "flex", ml: 1 }}>
           <Box sx={{ width: 42, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-  {(filterStatus || selectedFilters.length > 0 || searchQuery || filterAgent.length > 0 || filterDate) ? (
-    <Badge
-      badgeContent={totalMatchingCustomers}
-      max={9999}
-      color="primary"
-      overlap="circular"
-      anchorOrigin={{
-        vertical: 'top',
-        horizontal: 'right',
-      }}
-      sx={{
-        '& .MuiBadge-badge': {
-          fontSize: '0.6rem',
-          height: 16,
-          minWidth: 16,
-          padding: '0 4px',
-        },
-      }}
-    >
-      <IconButton
-        size="small"
-        sx={{ color: "black" }}
-        onClick={(e) => setFilterMenuAnchorEl(e.currentTarget)}  
-      >
-        <FilterList fontSize="small" />
-      </IconButton>
-    </Badge>
-  ) : (
+  <Badge
+    badgeContent={activeFilters ? totalMatchingCustomers : 0}
+    max={9999}
+    color="primary"
+    invisible={!activeFilters}
+    overlap="circular"
+    anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
+    sx={{
+      width: 42,
+      display: 'flex',
+      justifyContent: 'center',
+      '& .MuiBadge-badge': {
+        fontSize: '0.6rem',
+        height: 16,
+        minWidth: 16,
+        padding: '0 4px',
+      },
+    }}
+  >
     <IconButton
       size="small"
       sx={{ color: "black" }}
@@ -575,8 +576,9 @@ useEffect(() => {
     >
       <FilterList fontSize="small" />
     </IconButton>
-  )}
+  </Badge>
 </Box>
+
 
           <Menu
             anchorEl={filterMenuAnchorEl}
