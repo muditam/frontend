@@ -95,7 +95,7 @@ const timer = setInterval(() => {
     clearInterval(timer);
   }
 }, 1000);
-
+ 
 
     try {
       const [ordersResponse, agentsResponse] = await Promise.all([
@@ -105,10 +105,16 @@ const timer = setInterval(() => {
         axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/employees?role=Retention%20Agent"),
       ]);
 
-      const leads = await fetchAllLeads();
+      const phones = ordersResponse.data
+  .filter((o) => o.channel_name === "web" || o.channel_name === "208644538369")
+  .map((o) => o.contact_number.replace(/[^\d]/g, ""));
+
+const leadsRes = await axios.post("https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/by-phones", { phoneNumbers: phones });
+const leads = leadsRes.data;
+
 
       const webOrders = ordersResponse.data.filter(
-        (order) => order.channel_name === "web" || order.channel_name === "208644538369"
+        (order) => order.channel_name === "web" || order.channel_name === "208644538369" || order.channel_name === "252664381441"
       );
 
       const ordersWithHealthExperts = webOrders
