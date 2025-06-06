@@ -22,7 +22,9 @@ const OnlineOrders = () => {
   const [currentPage, setCurrentPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(50);
   const [loadingTable, setLoadingTable] = useState(false);
-  const [estimatedTime, setEstimatedTime] = useState(260); // estimated for ~26,000 rows (260 chunks)
+  const [estimatedTime, setEstimatedTime] = useState(260);
+  const [selectedStatus, setSelectedStatus] = useState('');
+  const [availableStatuses, setAvailableStatuses] = useState([]);
 
   const productAbbreviations = {
     'Karela Jamun Fizz': 'KJF',
@@ -52,50 +54,22 @@ const OnlineOrders = () => {
     localStorage.setItem('endDate', endDate);
   }, [startDate, endDate]);
 
-  const fetchAllLeads = async () => {
-    try {
-      const limit = 100;
-      let page = 1;
-      let allLeads = [];
-      let totalPages = 1;
-
-      do {
-        const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads", {
-          params: {
-            page,
-            limit,
-            filters: JSON.stringify({}),
-          },
-        });
-        allLeads = allLeads.concat(response.data.leads); 
-        totalPages = response.data.totalPages;
-        page++;
-      } while (page <= totalPages);
-
-      return allLeads;
-    } catch (error) {
-      console.error("Error fetching all leads:", error);
-      return [];
-    }
-  };
-
   const fetchData = async () => {
     setLoadingTable(true);
     setEstimatedTime(260);
 
     const startTime = Date.now();
-const totalSeconds = 260;
+    const totalSeconds = 260;
 
-const timer = setInterval(() => {
-  const elapsed = Math.floor((Date.now() - startTime) / 1000);
-  const remaining = Math.max(totalSeconds - elapsed, 0);
-  setEstimatedTime(remaining);
+    const timer = setInterval(() => {
+      const elapsed = Math.floor((Date.now() - startTime) / 1000);
+      const remaining = Math.max(totalSeconds - elapsed, 0);
+      setEstimatedTime(remaining);
 
-  if (remaining === 0) {
-    clearInterval(timer);
-  }
-}, 1000);
- 
+      if (remaining === 0) {
+        clearInterval(timer);
+      }
+    }, 1000);
 
     try {
       const [ordersResponse, agentsResponse] = await Promise.all([
@@ -106,12 +80,11 @@ const timer = setInterval(() => {
       ]);
 
       const phones = ordersResponse.data
-  .filter((o) => o.channel_name === "web" || o.channel_name === "208644538369")
-  .map((o) => o.contact_number.replace(/[^\d]/g, ""));
+        .filter((o) => o.channel_name === "web" || o.channel_name === "208644538369")
+        .map((o) => o.contact_number.replace(/[^\d]/g, ""));
 
-const leadsRes = await axios.post("https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/by-phones", { phoneNumbers: phones });
-const leads = leadsRes.data;
-
+      const leadsRes = await axios.post("https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/by-phones", { phoneNumbers: phones });
+      const leads = leadsRes.data;
 
       const webOrders = ordersResponse.data.filter(
         (order) => order.channel_name === "web" || order.channel_name === "208644538369" || order.channel_name === "252664381441"
@@ -147,6 +120,9 @@ const leads = leadsRes.data;
 
       setOrders(ordersWithHealthExperts);
       setRetentionAgents(agentsResponse.data);
+
+      const uniqueStatuses = [...new Set(ordersWithHealthExperts.map(o => o.shipway_status || 'Not Available'))];
+      setAvailableStatuses(uniqueStatuses);
     } catch (error) {
       console.error("Error fetching data:", error);
     } finally {
@@ -161,7 +137,7 @@ const leads = leadsRes.data;
 
   const handleSaveHealthExpert = async (orderIndex) => {
     const globalIndex = currentPage * rowsPerPage + orderIndex;
-    const order = orders[globalIndex];
+    const order = filteredOrders[globalIndex];
     if (!order.healthExpertAssigned) return;
 
     const leadData = {
@@ -205,10 +181,14 @@ const leads = leadsRes.data;
 
   const handleChangeHealthExpert = (orderIndex, expertName) => {
     const globalIndex = currentPage * rowsPerPage + orderIndex;
-    const updatedOrders = [...orders];
+    const updatedOrders = [...filteredOrders];
     updatedOrders[globalIndex].healthExpertAssigned = expertName;
     updatedOrders[globalIndex].isSaved = false;
-    setOrders(updatedOrders);
+    setOrders((prevOrders) =>
+      prevOrders.map((order) =>
+        order.order_id === updatedOrders[globalIndex].order_id ? updatedOrders[globalIndex] : order
+      )
+    );
   };
 
   const handleChangePage = (event, newPage) => {
@@ -220,7 +200,11 @@ const leads = leadsRes.data;
     setCurrentPage(0);
   };
 
-  const paginatedOrders = orders.slice(
+  const filteredOrders = selectedStatus
+    ? orders.filter((order) => order.shipway_status === selectedStatus)
+    : orders;
+
+  const paginatedOrders = filteredOrders.slice(
     currentPage * rowsPerPage,
     currentPage * rowsPerPage + rowsPerPage
   );
@@ -236,6 +220,20 @@ const leads = leadsRes.data;
           End to:&nbsp;
           <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
         </label>
+        <div style={{ marginLeft: 'auto' }}>
+          <label style={{ marginRight: '8px' }}>Filter by Shipway Status:</label>
+          <Select
+            value={selectedStatus}
+            onChange={(e) => setSelectedStatus(e.target.value)}
+            displayEmpty
+            size="small"
+          >
+            <MenuItem value="">All</MenuItem>
+            {availableStatuses.map(status => (
+              <MenuItem key={status} value={status}>{status}</MenuItem>
+            ))}
+          </Select>
+        </div>
       </div>
 
       <TableContainer component={Paper} sx={{ minWidth: 650 }}>
@@ -251,6 +249,7 @@ const leads = leadsRes.data;
               <TableCell>Products Ordered</TableCell>
               <TableCell>Agent Assigned</TableCell>
               <TableCell>Channel Name</TableCell>
+              <TableCell>Shipway Status</TableCell>
               <TableCell>Health Expert Assigned</TableCell>
               <TableCell>Action</TableCell>
             </TableRow>
@@ -258,7 +257,7 @@ const leads = leadsRes.data;
           <TableBody>
             {loadingTable ? (
               <TableRow>
-                <TableCell colSpan={11} align="center">
+                <TableCell colSpan={12} align="center">
                   <CircularProgress size={60} />
                   <Typography variant="body1" style={{ marginTop: '10px' }}>
                     Loading table data... ~{estimatedTime} seconds left
@@ -268,9 +267,7 @@ const leads = leadsRes.data;
             ) : (
               paginatedOrders.map((order, index) => (
                 <TableRow key={order.order_id}>
-                  <TableCell component="th" scope="row">
-                    {order.order_id}
-                  </TableCell>
+                  <TableCell>{order.order_id}</TableCell>
                   <TableCell>{order.name}</TableCell>
                   <TableCell>{order.contact_number}</TableCell>
                   <TableCell>{new Date(order.created_at).toLocaleDateString()}</TableCell>
@@ -282,13 +279,12 @@ const leads = leadsRes.data;
                   </TableCell>
                   <TableCell>
                     {order.line_items
-                      ? order.line_items
-                          .map((item) => productAbbreviations[item.title] || item.title)
-                          .join(", ")
+                      ? order.line_items.map((item) => productAbbreviations[item.title] || item.title).join(", ")
                       : ""}
                   </TableCell>
                   <TableCell>{order.agentAssigned}</TableCell>
                   <TableCell>{order.channel_name}</TableCell>
+                  <TableCell>{order.shipway_status}</TableCell>
                   <TableCell>
                     <Select
                       value={order.healthExpertAssigned || ""}
@@ -326,7 +322,7 @@ const leads = leadsRes.data;
       <TablePagination
         rowsPerPageOptions={[10, 20, 50, 100]}
         component="div"
-        count={orders.length}
+        count={filteredOrders.length}
         rowsPerPage={rowsPerPage}
         page={currentPage}
         onPageChange={handleChangePage}
