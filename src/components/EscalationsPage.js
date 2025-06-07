@@ -19,6 +19,7 @@ import {
   Typography,
   Chip,
   CircularProgress,
+  TablePagination,
 } from "@mui/material";
 import { Close, Delete as DeleteIcon, WarningAmber } from "@mui/icons-material";
 import axios from "axios";
@@ -38,6 +39,9 @@ const EscalationsPage = () => {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleteEscalationId, setDeleteEscalationId] = useState(null);
   const [showClosedOnly, setShowClosedOnly] = useState(false);
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
+
 
 
   const user = JSON.parse(sessionStorage.getItem("user"));
@@ -535,8 +539,10 @@ const EscalationsPage = () => {
             </TableRow>
           </TableHead>
           <TableBody>
-            {filteredEscalations.map((esc, i) => (
-              <TableRow
+            {filteredEscalations
+            .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
+            .map((esc, i) => (
+              <TableRow 
                 key={esc._id}
                 hover
                 sx={{
@@ -688,6 +694,18 @@ const EscalationsPage = () => {
             ))}
           </TableBody>
         </Table>
+        <TablePagination
+          component="div"
+          count={filteredEscalations.length}
+          page={page}
+          onPageChange={(event, newPage) => setPage(newPage)}
+          rowsPerPage={rowsPerPage}
+          onRowsPerPageChange={(event) => {
+            setRowsPerPage(parseInt(event.target.value, 10));
+            setPage(0);
+          }}
+          rowsPerPageOptions={[5, 10, 25, 50, 100]}
+        />
       </TableContainer>
 
 
