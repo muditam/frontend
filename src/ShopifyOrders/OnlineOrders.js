@@ -25,6 +25,9 @@ const OnlineOrders = () => {
   const [estimatedTime, setEstimatedTime] = useState(260);
   const [selectedStatus, setSelectedStatus] = useState('');
   const [availableStatuses, setAvailableStatuses] = useState([]);
+  const [selectedPaymentMode, setSelectedPaymentMode] = useState('');
+  const [availablePaymentModes, setAvailablePaymentModes] = useState([]);
+
 
   const productAbbreviations = {
     'Karela Jamun Fizz': 'KJF',
@@ -111,6 +114,15 @@ const OnlineOrders = () => {
       setOrders(ordersWithHealthExperts);
       setRetentionAgents(agentsResponse.data);
 
+      const allModes = ordersWithHealthExperts.map((o) =>
+        Array.isArray(o.payment_gateway_names)
+          ? o.payment_gateway_names.join(", ")
+          : o.payment_gateway_names
+      );
+      const uniqueModes = [...new Set(allModes)];
+      setAvailablePaymentModes(uniqueModes);
+
+
       const uniqueStatuses = [...new Set(ordersWithHealthExperts.map((o) => o.shipway_status || "Not Available"))];
       setAvailableStatuses(uniqueStatuses);
     } catch (error) {
@@ -191,9 +203,16 @@ const OnlineOrders = () => {
     setCurrentPage(0);
   };
 
-  const filteredOrders = selectedStatus
-    ? orders.filter((order) => order.shipway_status === selectedStatus)
-    : orders;
+  const filteredOrders = orders.filter((order) => {
+  const matchesStatus = selectedStatus ? order.shipway_status === selectedStatus : true;
+  const mode =
+    Array.isArray(order.payment_gateway_names)
+      ? order.payment_gateway_names.join(", ")
+      : order.payment_gateway_names;
+  const matchesMode = selectedPaymentMode ? mode === selectedPaymentMode : true;
+  return matchesStatus && matchesMode;
+  });
+
 
   const paginatedOrders = filteredOrders.slice(
     currentPage * rowsPerPage,
@@ -211,22 +230,40 @@ const OnlineOrders = () => {
           End to:&nbsp;
           <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
         </label>
-        <div style={{ marginLeft: "auto" }}>
-          <label style={{ marginRight: "8px" }}>Filter by Shipway Status:</label>
-          <Select
-            value={selectedStatus}
-            onChange={(e) => setSelectedStatus(e.target.value)}
-            displayEmpty
-            size="small"
-          >
-            <MenuItem value="">All</MenuItem>
-            {availableStatuses.map((status) => (
-              <MenuItem key={status} value={status}>
-                {status}
-              </MenuItem>
-            ))}
-          </Select>
-        </div>
+        <div style={{ marginLeft: "auto", display: "flex", gap: "16px", alignItems: "center" }}>
+  <div>
+    <label style={{ marginRight: "8px" }}>Filter by Shipway Status:</label>
+    <Select
+      value={selectedStatus}
+      onChange={(e) => setSelectedStatus(e.target.value)}
+      displayEmpty
+      size="small"
+    >
+      <MenuItem value="">All</MenuItem>
+      {availableStatuses.map((status) => (
+        <MenuItem key={status} value={status}>
+          {status}
+        </MenuItem>
+      ))}
+    </Select>
+  </div>
+  <div>
+    <label style={{ marginRight: "8px" }}>Mode of Payment:</label>
+    <Select
+      value={selectedPaymentMode}
+      onChange={(e) => setSelectedPaymentMode(e.target.value)}
+      displayEmpty
+      size="small"
+    >
+      <MenuItem value="">All</MenuItem>
+      {availablePaymentModes.map((mode) => (
+        <MenuItem key={mode} value={mode}>
+          {mode}
+        </MenuItem>
+      ))}
+    </Select>
+  </div>
+</div>
       </div>
 
       <TableContainer component={Paper} sx={{ minWidth: 650 }}>
