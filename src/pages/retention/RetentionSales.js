@@ -254,7 +254,7 @@ const RetentionSales = () => {
     setDisplayedSales(filteredSales);
   };
 
-
+  
   const resetFilters = () => {
     setFilters({
       dateFrom: "",

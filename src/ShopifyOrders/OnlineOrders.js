@@ -66,9 +66,7 @@ const OnlineOrders = () => {
       const remaining = Math.max(totalSeconds - elapsed, 0);
       setEstimatedTime(remaining);
 
-      if (remaining === 0) {
-        clearInterval(timer);
-      }
+      if (remaining === 0) clearInterval(timer);
     }, 1000);
 
     try {
@@ -79,49 +77,41 @@ const OnlineOrders = () => {
         axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/employees?role=Retention%20Agent"),
       ]);
 
-      const phones = ordersResponse.data
-        .filter((o) => o.channel_name === "web" || o.channel_name === "208644538369")
-        .map((o) => o.contact_number.replace(/[^\d]/g, ""));
-
-      const leadsRes = await axios.post("https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/by-phones", { phoneNumbers: phones });
-      const leads = leadsRes.data;
-
       const webOrders = ordersResponse.data.filter(
-        (order) => order.channel_name === "web" || order.channel_name === "208644538369" || order.channel_name === "252664381441"
+        (order) =>
+          order.channel_name === "web" ||
+          order.channel_name === "208644538369" ||
+          order.channel_name === "252664381441"
       );
+
+      const phones = webOrders.map((o) => o.contact_number.replace(/[^\d]/g, ""));
+      const leadsRes = await axios.post("https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/by-phones", {
+        phoneNumbers: phones,
+      });
+      const leads = leadsRes.data;
+      const leadPhonesSet = new Set(leads.map((lead) => lead.contactNumber.replace(/[^\d]/g, "")));
 
       const ordersWithHealthExperts = webOrders
         .map((order) => {
-          const normalizedOrderPhone = order.contact_number.replace(/[^\d]/g, "");
+          const normalizedPhone = order.contact_number.replace(/[^\d]/g, "");
           const matchingLead = leads.find(
-            (lead) => lead.contactNumber.replace(/[^\d]/g, "") === normalizedOrderPhone
+            (lead) => lead.contactNumber.replace(/[^\d]/g, "") === normalizedPhone
           );
-          let healthExpertAssigned = "Not Assigned";
-          let leadExists = false;
-          let isSaved = false;
-          let agentAssigned = "Online Order";
-
-          if (matchingLead) {
-            leadExists = true;
-            healthExpertAssigned = matchingLead.healthExpertAssigned || "Not Assigned";
-            agentAssigned = matchingLead.agentAssigned || "Online Order";
-            isSaved = agentAssigned === "Online Order";
-          }
-
           return {
             ...order,
-            healthExpertAssigned,
-            leadExists,
-            isSaved,
-            agentAssigned,
+            normalizedPhone,
+            healthExpertAssigned: matchingLead?.healthExpertAssigned || "Not Assigned",
+            leadExists: !!matchingLead,
+            isSaved: matchingLead?.agentAssigned === "Online Order",
+            agentAssigned: matchingLead?.agentAssigned || "Online Order",
           };
         })
-        .filter((order) => order.healthExpertAssigned === "Not Assigned");
+        .filter((order) => !leadPhonesSet.has(order.normalizedPhone));
 
       setOrders(ordersWithHealthExperts);
       setRetentionAgents(agentsResponse.data);
 
-      const uniqueStatuses = [...new Set(ordersWithHealthExperts.map(o => o.shipway_status || 'Not Available'))];
+      const uniqueStatuses = [...new Set(ordersWithHealthExperts.map((o) => o.shipway_status || "Not Available"))];
       setAvailableStatuses(uniqueStatuses);
     } catch (error) {
       console.error("Error fetching data:", error);
@@ -172,6 +162,7 @@ const OnlineOrders = () => {
         await axios.post("https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads", leadData);
       }
 
+      // Remove order from list after save
       const updatedOrders = orders.filter((_, index) => index !== globalIndex);
       setOrders(updatedOrders);
     } catch (error) {
@@ -220,8 +211,8 @@ const OnlineOrders = () => {
           End to:&nbsp;
           <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
         </label>
-        <div style={{ marginLeft: 'auto' }}>
-          <label style={{ marginRight: '8px' }}>Filter by Shipway Status:</label>
+        <div style={{ marginLeft: "auto" }}>
+          <label style={{ marginRight: "8px" }}>Filter by Shipway Status:</label>
           <Select
             value={selectedStatus}
             onChange={(e) => setSelectedStatus(e.target.value)}
@@ -229,15 +220,17 @@ const OnlineOrders = () => {
             size="small"
           >
             <MenuItem value="">All</MenuItem>
-            {availableStatuses.map(status => (
-              <MenuItem key={status} value={status}>{status}</MenuItem>
+            {availableStatuses.map((status) => (
+              <MenuItem key={status} value={status}>
+                {status}
+              </MenuItem>
             ))}
           </Select>
         </div>
       </div>
 
       <TableContainer component={Paper} sx={{ minWidth: 650 }}>
-        <Table stickyHeader aria-label="sticky table">
+        <Table stickyHeader>
           <TableHead>
             <TableRow>
               <TableCell>Order ID</TableCell>
@@ -259,7 +252,7 @@ const OnlineOrders = () => {
               <TableRow>
                 <TableCell colSpan={12} align="center">
                   <CircularProgress size={60} />
-                  <Typography variant="body1" style={{ marginTop: '10px' }}>
+                  <Typography variant="body1" style={{ marginTop: "10px" }}>
                     Loading table data... ~{estimatedTime} seconds left
                   </Typography>
                 </TableCell>
@@ -279,7 +272,9 @@ const OnlineOrders = () => {
                   </TableCell>
                   <TableCell>
                     {order.line_items
-                      ? order.line_items.map((item) => productAbbreviations[item.title] || item.title).join(", ")
+                      ? order.line_items
+                          .map((item) => productAbbreviations[item.title] || item.title)
+                          .join(", ")
                       : ""}
                   </TableCell>
                   <TableCell>{order.agentAssigned}</TableCell>

@@ -147,6 +147,7 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
     "CNP",
     "On Follow Up",
     "New Lead",
+    "Call Back Later",
     "No RT Agents",
   ];
 
@@ -427,7 +428,7 @@ const calculateCompletionPercent = (customer) => {
     "CONS Done",
     "Call Back Later",
     "On Follow Up",
-    "CNP",
+    "CNP", 
     "Switch Off",
   ];
   const lostStatuses = [

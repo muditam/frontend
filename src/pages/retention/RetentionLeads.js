@@ -442,7 +442,8 @@ const RetentionLeads = () => {
     if (loadingMore || !hasMore) return;
     setLoadingMore(true);
     setTimeout(() => {
-      const nextBatch = filteredAllLeads.slice(currentIndex, currentIndex + leadsPerPage);
+      const filtered = filteredLeadsByFilters(allLeads);  
+      const nextBatch = filtered.slice(currentIndex, currentIndex + leadsPerPage);
       setLeads((prev) => [...prev, ...nextBatch]);
       setCurrentIndex((prev) => prev + leadsPerPage);
       setHasMore(currentIndex + leadsPerPage < filteredAllLeads.length);
@@ -539,7 +540,7 @@ const RetentionLeads = () => {
   }, [handleScroll]);
 
   const applyFilters = useCallback(() => {
-    const filtered = filteredLeadsByFilters(allLeads);
+    const filtered = filteredLeadsByFilters([...allLeads]);
     setFilteredAllLeads(filtered);
     setLeads(filtered.slice(0, leadsPerPage));
     setCurrentIndex(leadsPerPage);
@@ -1045,7 +1046,7 @@ const RetentionLeads = () => {
                 startAdornment: (
                   <InputAdornment position="start">
                     <SearchIcon />
-                  </InputAdornment>
+                  </InputAdornment> 
                 ),
               }}
             />
@@ -1554,7 +1555,7 @@ const RetentionLeads = () => {
                           color="default"
                           sx={{ color: "black" }}
                           onClick={() =>
-                            handleCallIconClick(leads[selectedLeadIndex].contactNumber)
+                            handleCallIconClick(leads[selectedLeadIndex]?.contactNumber)
                           }
                         >
                           <PhoneIcon fontSize="small" />
@@ -1564,7 +1565,7 @@ const RetentionLeads = () => {
                         <IconButton
                           color="default"
                           sx={{ color: "black" }}
-                          onClick={() => handleCopy(leads[selectedLeadIndex].contactNumber)}
+                          onClick={() => handleCopy(leads[selectedLeadIndex]?.contactNumber)}
                         >
                           <ContentCopyIcon fontSize="small" />
                         </IconButton>
@@ -1947,7 +1948,7 @@ const RetentionLeads = () => {
                     <Box sx={{ mt: 2 }}>
                       {/* Total Orders Count */}
                       <Typography variant="subtitle2" sx={{ mb: 1 }}>
-                        Total Orders: {shopifyDatesMap[leads[selectedLeadIndex].contactNumber]?.orders?.length || 0}
+                        Total Orders: {shopifyDatesMap[leads[selectedLeadIndex]?.contactNumber]?.orders?.length || 0}
                       </Typography>
 
                       <Box sx={{ display: 'flex', gap: 3, flexWrap: 'wrap', mt: 2 }}>
@@ -1956,8 +1957,8 @@ const RetentionLeads = () => {
                             First Order Date
                           </Typography>
                           <Typography variant="body2">
-                            {shopifyDatesMap[leads[selectedLeadIndex].contactNumber]?.firstOrderDate
-                              ? new Date(shopifyDatesMap[leads[selectedLeadIndex].contactNumber].firstOrderDate).toLocaleDateString()
+                            {shopifyDatesMap[leads[selectedLeadIndex]?.contactNumber]?.firstOrderDate
+                              ? new Date(shopifyDatesMap[leads[selectedLeadIndex]?.contactNumber].firstOrderDate).toLocaleDateString()
                               : "N/A"}
                           </Typography>
                         </Box>
@@ -1988,7 +1989,7 @@ const RetentionLeads = () => {
                         </Box>
                       </Box>
                       {/* Orders List */}
-                      {(shopifyDatesMap[leads[selectedLeadIndex].contactNumber]?.orders || []).map((order, i) => {
+                      {(shopifyDatesMap[leads[selectedLeadIndex]?.contactNumber]?.orders || []).map((order, i) => {
                         const noteInput = noteInputs[order.id] || "";
                         const savingNote = savingNotes[order.id] || false;
 
@@ -2008,13 +2009,13 @@ const RetentionLeads = () => {
                               { note: noteInput }
                             );
                             setShopifyDatesMap((prev) => {
-                              const updatedOrders = prev[leads[selectedLeadIndex].contactNumber].orders.map((o) =>
+                              const updatedOrders = prev[leads[selectedLeadIndex]?.contactNumber].orders.map((o) =>
                                 o.id === order.id ? { ...o, note: noteInput } : o
                               );
                               return {
                                 ...prev,
-                                [leads[selectedLeadIndex].contactNumber]: {
-                                  ...prev[leads[selectedLeadIndex].contactNumber],
+                                [leads[selectedLeadIndex]?.contactNumber]: {
+                                  ...prev[leads[selectedLeadIndex]?.contactNumber],
                                   orders: updatedOrders,
                                 },
                               };
@@ -2106,12 +2107,12 @@ const RetentionLeads = () => {
                                   fontSize: "0.7rem",
                                 }}
                                 onClick={() => {
-                                  const updated = [...(shopifyDatesMap[leads[selectedLeadIndex].contactNumber].orders || [])];
+                                  const updated = [...(shopifyDatesMap[leads[selectedLeadIndex]?.contactNumber].orders || [])];
                                   updated[i].showAddress = !updated[i].showAddress;
                                   setShopifyDatesMap(prev => ({
                                     ...prev,
-                                    [leads[selectedLeadIndex].contactNumber]: {
-                                      ...prev[leads[selectedLeadIndex].contactNumber],
+                                    [leads[selectedLeadIndex]?.contactNumber]: {
+                                      ...prev[leads[selectedLeadIndex]?.contactNumber],
                                       orders: updated,
                                     },
                                   }));
