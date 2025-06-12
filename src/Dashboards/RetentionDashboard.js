@@ -324,7 +324,7 @@ const RetentionAgentDashboard = () => {
     try {
       setApplyingShipment(true);
       const response = await axios.get(
-        "http://localhost:5001/api/shipment-summary",
+        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/shipment-summary",
         {
           params: { agentName: retentionAgentName, startDate, endDate },
         }
