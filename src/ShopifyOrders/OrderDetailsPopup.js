@@ -10,6 +10,7 @@ import {
   Select,
   Checkbox,
   FormControlLabel,
+  CircularProgress,
 } from "@mui/material";
 import { motion } from "framer-motion";
 import CloseIcon from "@mui/icons-material/Close";
@@ -40,6 +41,7 @@ const OrderDetailsPopup = ({ orderId, agentName, onClose }) => {
   const [paymentMethod, setPaymentMethod] = useState("");
   const [upsellChecked, setUpsellChecked] = useState(false);
   const [upsellAmount, setUpsellAmount] = useState("");
+  const [isAdding, setIsAdding] = useState(false);
 
   const [discount, setDiscount] = useState("");
 
@@ -144,32 +146,37 @@ const OrderDetailsPopup = ({ orderId, agentName, onClose }) => {
 
 
   const handleAddToMyOrders = async () => {
-    if (!orderDetails) return;
-    try {
-      const payload = {
-        customerName: orderDetails.customerName,
-        phone: orderDetails.phone,
-        shippingAddress: orderDetails.shippingAddress,
-        paymentStatus: orderDetails.paymentStatus,
-        productOrdered: mappedProductOrdered,
-        orderDate: orderDetails.orderDate,
-        orderId: orderDetails.orderId,
-        totalPrice: upsellChecked ? Number(upsellAmount) : Number(orderDetails.totalPrice),
-        agentName: selectedAgent,
-        partialPayment: partialPayment,
-        dosageOrdered,
-        selfRemark,
-        paymentMethod,
-        upsellAmount: upsellChecked ? Number(upsellAmount) : 0,
-      };
-      await axios.post("https://muditamleads-14f32a10d7f7.herokuapp.com/api/my-orders", payload);
-      setMessage("Order added successfully to My Sales.");
-      setOrderAdded(true);
-    } catch (error) {
-      console.error("Error adding order:", error);
-      setMessage("Error adding order.");
-    }
-  };
+  if (!orderDetails || orderAdded || isAdding) return;
+  setIsAdding(true);
+  try {
+    const payload = {
+      customerName: orderDetails.customerName,
+      phone: orderDetails.phone,
+      shippingAddress: orderDetails.shippingAddress,
+      paymentStatus: orderDetails.paymentStatus,
+      productOrdered: mappedProductOrdered,
+      orderDate: orderDetails.orderDate,
+      orderId: orderDetails.orderId,
+      totalPrice: upsellChecked ? Number(upsellAmount) : Number(orderDetails.totalPrice),
+      agentName: selectedAgent,
+      partialPayment: partialPayment,
+      dosageOrdered,
+      selfRemark,
+      paymentMethod,
+      upsellAmount: upsellChecked ? Number(upsellAmount) : 0,
+    };
+    await axios.post("https://muditamleads-14f32a10d7f7.herokuapp.com/api/my-orders", payload);
+    setOrderAdded(true);
+    setMessage("Order added successfully to My Sales.");
+  } catch (error) {
+    console.error("Error adding order:", error);
+    setMessage("Error adding order.");
+  } finally {
+    setIsAdding(false);
+  }
+};
+
+
 
   return (
     <motion.div
@@ -470,9 +477,16 @@ const OrderDetailsPopup = ({ orderId, agentName, onClose }) => {
                 variant="contained"
                 size="small"
                 onClick={handleAddToMyOrders}
-                sx={{ backgroundColor: "#000", color: "#fff" }}
+                sx={{ backgroundColor: "#000", color: "#fff", minWidth: 120 }}
+                disabled={orderAdded || isAdding}
               >
-                {orderAdded ? "Added" : "+ My Orders"}
+                {isAdding ? (
+                  <CircularProgress size={18} sx={{ color: "#fff" }} />
+                ) : orderAdded ? (
+                  "Added"
+                ) : (
+                  "+ My Orders"
+                )}
               </Button>
             )}
           </Box>

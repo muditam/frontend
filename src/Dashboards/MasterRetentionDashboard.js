@@ -354,7 +354,7 @@ const ManagerRetentionDashboard = () => {
     } catch (err) {
       console.error("Error fetching agent shipment summary:", err);
       setAgentShipmentSummary([]);
-    }
+    } 
   };
 
   // ---------------------------------------------

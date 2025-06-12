@@ -22,7 +22,7 @@ const OnlineOrders = () => {
   const [currentPage, setCurrentPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(50);
   const [loadingTable, setLoadingTable] = useState(false);
-  const [estimatedTime, setEstimatedTime] = useState(260);
+  const [estimatedTime, setEstimatedTime] = useState(60);
   const [selectedStatus, setSelectedStatus] = useState('');
   const [availableStatuses, setAvailableStatuses] = useState([]);
   const [selectedPaymentMode, setSelectedPaymentMode] = useState('');
@@ -59,10 +59,10 @@ const OnlineOrders = () => {
 
   const fetchData = async () => {
     setLoadingTable(true);
-    setEstimatedTime(260);
+    setEstimatedTime(60);
 
     const startTime = Date.now();
-    const totalSeconds = 260;
+    const totalSeconds = 60;
 
     const timer = setInterval(() => {
       const elapsed = Math.floor((Date.now() - startTime) / 1000);
@@ -204,13 +204,13 @@ const OnlineOrders = () => {
   };
 
   const filteredOrders = orders.filter((order) => {
-  const matchesStatus = selectedStatus ? order.shipway_status === selectedStatus : true;
-  const mode =
-    Array.isArray(order.payment_gateway_names)
-      ? order.payment_gateway_names.join(", ")
-      : order.payment_gateway_names;
-  const matchesMode = selectedPaymentMode ? mode === selectedPaymentMode : true;
-  return matchesStatus && matchesMode;
+    const matchesStatus = selectedStatus ? order.shipway_status === selectedStatus : true;
+    const mode =
+      Array.isArray(order.payment_gateway_names)
+        ? order.payment_gateway_names.join(", ")
+        : order.payment_gateway_names;
+    const matchesMode = selectedPaymentMode ? mode === selectedPaymentMode : true;
+    return matchesStatus && matchesMode;
   });
 
 
@@ -231,39 +231,39 @@ const OnlineOrders = () => {
           <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
         </label>
         <div style={{ marginLeft: "auto", display: "flex", gap: "16px", alignItems: "center" }}>
-  <div>
-    <label style={{ marginRight: "8px" }}>Filter by Shipway Status:</label>
-    <Select
-      value={selectedStatus}
-      onChange={(e) => setSelectedStatus(e.target.value)}
-      displayEmpty
-      size="small"
-    >
-      <MenuItem value="">All</MenuItem>
-      {availableStatuses.map((status) => (
-        <MenuItem key={status} value={status}>
-          {status}
-        </MenuItem>
-      ))}
-    </Select>
-  </div>
-  <div>
-    <label style={{ marginRight: "8px" }}>Mode of Payment:</label>
-    <Select
-      value={selectedPaymentMode}
-      onChange={(e) => setSelectedPaymentMode(e.target.value)}
-      displayEmpty
-      size="small"
-    >
-      <MenuItem value="">All</MenuItem>
-      {availablePaymentModes.map((mode) => (
-        <MenuItem key={mode} value={mode}>
-          {mode}
-        </MenuItem>
-      ))}
-    </Select>
-  </div>
-</div>
+          <div>
+            <label style={{ marginRight: "8px" }}>Filter by Shipway Status:</label>
+            <Select
+              value={selectedStatus}
+              onChange={(e) => setSelectedStatus(e.target.value)}
+              displayEmpty
+              size="small"
+            >
+              <MenuItem value="">All</MenuItem>
+              {availableStatuses.map((status) => (
+                <MenuItem key={status} value={status}>
+                  {status}
+                </MenuItem>
+              ))}
+            </Select>
+          </div>
+          <div>
+            <label style={{ marginRight: "8px" }}>Mode of Payment:</label>
+            <Select
+              value={selectedPaymentMode}
+              onChange={(e) => setSelectedPaymentMode(e.target.value)}
+              displayEmpty
+              size="small"
+            >
+              <MenuItem value="">All</MenuItem>
+              {availablePaymentModes.map((mode) => (
+                <MenuItem key={mode} value={mode}>
+                  {mode}
+                </MenuItem>
+              ))}
+            </Select>
+          </div>
+        </div>
       </div>
 
       <TableContainer component={Paper} sx={{ minWidth: 650 }}>
@@ -310,8 +310,8 @@ const OnlineOrders = () => {
                   <TableCell>
                     {order.line_items
                       ? order.line_items
-                          .map((item) => productAbbreviations[item.title] || item.title)
-                          .join(", ")
+                        .map((item) => productAbbreviations[item.title] || item.title)
+                        .join(", ")
                       : ""}
                   </TableCell>
                   <TableCell>{order.agentAssigned}</TableCell>
