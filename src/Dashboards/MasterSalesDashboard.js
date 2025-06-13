@@ -570,7 +570,7 @@ const ManagerSalesDashboard = () => {
         sx={{
           textAlign: "center",
           color: "#1E293B",
-          letterSpacing: "0.8px",
+          letterSpacing: "0.8px", 
           mb: 3,
           mt: -5,
           display: "flex",

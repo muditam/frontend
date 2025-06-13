@@ -84,7 +84,8 @@ const OnlineOrders = () => {
         (order) =>
           order.channel_name === "web" ||
           order.channel_name === "208644538369" ||
-          order.channel_name === "252664381441"
+          order.channel_name === "252664381441" ||
+          order.channel_name === "205650526209"
       );
 
       const phones = webOrders.map((o) => o.contact_number.replace(/[^\d]/g, ""));

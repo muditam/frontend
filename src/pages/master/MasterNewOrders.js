@@ -373,6 +373,7 @@ const NewOrders = () => {
               <TableCell>Products Ordered</TableCell>
               <TableCell>Dosage Ordered</TableCell>
               <TableCell>Health Expert Assigned *</TableCell>
+              <TableCell>Shipment Status</TableCell>
               <TableCell>Remark for HE</TableCell>
               <TableCell>Amount Paid</TableCell>
               <TableCell>Mode of Payment</TableCell>
@@ -393,7 +394,7 @@ const NewOrders = () => {
                     : order.productsOrdered || "N/A"}
                 </TableCell>
                 <TableCell>{order.dosageOrdered || "N/A"}</TableCell>
-                <TableCell>
+                <TableCell> 
                   <Select
                     value={order.healthExpertAssigned || ""}
                     onChange={(e) => handleHealthExpertChange(e, index)}
@@ -406,6 +407,7 @@ const NewOrders = () => {
                     ))}
                   </Select>
                 </TableCell>
+                <TableCell>{order.shipment_status || "N/A"}</TableCell>
                 <TableCell>{order.remarkForHE || "N/A"}</TableCell>
                 <TableCell>{order.amountPaid || "N/A"}</TableCell>
                 <TableCell>{order.modeOfPayment || "N/A"}</TableCell>
@@ -432,3 +434,4 @@ export default NewOrders;
 
 
 
+ 
