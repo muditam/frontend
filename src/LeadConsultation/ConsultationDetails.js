@@ -461,7 +461,7 @@ const ConsultationDetails = ({ customerId, reloadTrigger, onReload }) => {
               "General Query",
               "Fake Lead",
               "Invalid Number",
-              "Not Interested", 
+              "Not Interested-Lost", 
               "Ordered from Other Sources",
               "language barrier",
               "Budget issue",
