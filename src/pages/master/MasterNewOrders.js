@@ -64,7 +64,7 @@ const NewOrders = () => {
   // Fetch combined orders from the new combined orders endpoint
   const fetchNewOrders = async () => {
     try {
-      const response = await axios.get("http://localhost:5001/api/orders/combined", {
+      const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/orders/combined", {
         params: {
           page: page + 1, // converting to 1-indexed for backend
           limit: rowsPerPage,
