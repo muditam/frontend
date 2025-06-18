@@ -197,6 +197,8 @@ const RetentionLeads = () => {
   const [anchorElColor, setAnchorElColor] = useState(null);
   const [colorMenuIdx, setColorMenuIdx] = useState(null);
 
+  const [shipmentStatusMap, setShipmentStatusMap] = useState({});
+
   const handleCopy = (text) => {
     navigator.clipboard.writeText(text);
     setCopySuccess(true);
@@ -287,7 +289,7 @@ const RetentionLeads = () => {
       console.error("Error saving subcells:", error);
     }
   };
-  
+
 
   const handleAddSubcell = (leadIndex) => {
     const updatedLeads = [...leads];
@@ -297,20 +299,22 @@ const RetentionLeads = () => {
     setLeads(updatedLeads);
     saveSubcellsToBackend(lead._id, lead.rtSubcells);  // save to backend
   };
-  
+
   const handleSubcellChange = (leadIndex, subcellIndex, e) => {
     const updatedLeads = [...leads];
     updatedLeads[leadIndex].rtSubcells[subcellIndex].value = e.target.value;
     setLeads(updatedLeads);
     saveSubcellsToBackend(updatedLeads[leadIndex]._id, updatedLeads[leadIndex].rtSubcells); // save updated subcells
   };
-  
+
 
   const fetchShopifyDates = async (phoneNumber) => {
     try {
       const res = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/shopify/orders-dates", {
         params: { phoneNumber },
       });
+
+      // Store order data as before
       setShopifyDatesMap((prev) => ({
         ...prev,
         [phoneNumber]: {
@@ -320,8 +324,30 @@ const RetentionLeads = () => {
           orders: res.data.orders || [],
         },
       }));
+
+      // Get all order IDs from Shopify orders
+      const orderIds = (res.data.orders || []).map(order => order.name.replace(/^#/, ''));
+
+      if (orderIds.length > 0) {
+        // Fetch shipment statuses for all these order IDs in one backend call
+        // Backend API should accept ?order_ids=1001,1002,1003 etc and return { order_id: shipment_status }
+        const response = await axios.get(
+          `https://muditamleads-14f32a10d7f7.herokuapp.com/api/orders/by-order-ids`,
+          {
+            params: { order_ids: orderIds.join(',') }
+          }
+        );
+        // Example response: [{order_id: '1001', shipment_status: 'Delivered'}, ...]
+        const statusMap = {};
+        response.data.forEach((order) => {
+          statusMap[order.order_id] = order.shipment_status;
+        });
+        setShipmentStatusMap(statusMap);  
+      } else {
+        setShipmentStatusMap({});
+      }
     } catch (err) {
-      console.error("Failed to fetch Shopify dates", err);
+      console.error("Failed to fetch Shopify dates or shipment statuses", err);
       setShopifyDatesMap((prev) => ({
         ...prev,
         [phoneNumber]: {
@@ -330,6 +356,7 @@ const RetentionLeads = () => {
           totalSpend: 0,
         },
       }));
+      setShipmentStatusMap({});
     }
   };
 
@@ -442,7 +469,7 @@ const RetentionLeads = () => {
     if (loadingMore || !hasMore) return;
     setLoadingMore(true);
     setTimeout(() => {
-      const filtered = filteredLeadsByFilters(allLeads);  
+      const filtered = filteredLeadsByFilters(allLeads);
       const nextBatch = filtered.slice(currentIndex, currentIndex + leadsPerPage);
       setLeads((prev) => [...prev, ...nextBatch]);
       setCurrentIndex((prev) => prev + leadsPerPage);
@@ -1046,7 +1073,7 @@ const RetentionLeads = () => {
                 startAdornment: (
                   <InputAdornment position="start">
                     <SearchIcon />
-                  </InputAdornment> 
+                  </InputAdornment>
                 ),
               }}
             />
@@ -1059,7 +1086,7 @@ const RetentionLeads = () => {
                     ? filteredAllLeads.length
                     : 0
                 }
-                max={9999} 
+                max={9999}
                 invisible={
                   !(orderPlacedFilter === "Acquired In" && dateRangeFilter && filteredAllLeads.length > 0)
                 }
@@ -1149,7 +1176,7 @@ const RetentionLeads = () => {
 
             {/* Right column */}
             {orderPlacedFilter && (
-              <Box sx={{ pl: 3 }}> 
+              <Box sx={{ pl: 3 }}>
                 <Typography
                   sx={{ fontSize: "0.75rem", fontWeight: "bold", px: 2, pt: 1, pb: 0.5, color: "text.disabled" }}
                 >
@@ -1836,96 +1863,96 @@ const RetentionLeads = () => {
                   </Box>
 
                   <Box sx={{ minWidth: 150, display: 'flex', flexDirection: 'column', mt: 3 }}>
-  <Typography variant="subtitle2" color="text.secondary" mb={1}>
-    Remark
-  </Typography>
-  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-    <TextField
-      label={
-        leads[selectedLeadIndex]?.rtSubcells?.length > 0
-          ? leads[selectedLeadIndex]?.rtSubcells[leads[selectedLeadIndex].rtSubcells.length - 1].date
-          : "Remark"
-      }
-      value={
-        leads[selectedLeadIndex]?.rtSubcells?.length > 0
-          ? leads[selectedLeadIndex]?.rtSubcells[leads[selectedLeadIndex].rtSubcells.length - 1].value
-          : leads[selectedLeadIndex]?.rtRemark || ""
-      }
-      onChange={(e) => {
-        if (leads[selectedLeadIndex]?.rtSubcells?.length > 0) {
-          handleSubcellChange(
-            selectedLeadIndex,
-            leads[selectedLeadIndex].rtSubcells.length - 1,
-            e
-          );
-        } else {
-          handleInputChange(e, selectedLeadIndex, "rtRemark");
-        }
-      }}
-      size="small"
-      fullWidth
-      variant="outlined"
-    />
-    <Tooltip title="Add Remark Entry">
-      <IconButton
-        size="small"
-        sx={{ color: "black" }}
-        onClick={() => handleAddSubcell(selectedLeadIndex)}
-      >
-        <AddIcon fontSize="small" />
-      </IconButton>
-    </Tooltip>
-    <Tooltip title="View Remark History">
-      <IconButton
-        size="small"
-        sx={{ color: "black" }}
-        onClick={() =>
-          setSubcellsPopup({
-            open: true,
-            subcells: leads[selectedLeadIndex]?.rtSubcells || [],
-          })
-        }
-      >
-        <AccessTimeIcon fontSize="small" />
-      </IconButton>
-    </Tooltip>
-  </Box>
-</Box>
+                    <Typography variant="subtitle2" color="text.secondary" mb={1}>
+                      Remark
+                    </Typography>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <TextField
+                        label={
+                          leads[selectedLeadIndex]?.rtSubcells?.length > 0
+                            ? leads[selectedLeadIndex]?.rtSubcells[leads[selectedLeadIndex].rtSubcells.length - 1].date
+                            : "Remark"
+                        }
+                        value={
+                          leads[selectedLeadIndex]?.rtSubcells?.length > 0
+                            ? leads[selectedLeadIndex]?.rtSubcells[leads[selectedLeadIndex].rtSubcells.length - 1].value
+                            : leads[selectedLeadIndex]?.rtRemark || ""
+                        }
+                        onChange={(e) => {
+                          if (leads[selectedLeadIndex]?.rtSubcells?.length > 0) {
+                            handleSubcellChange(
+                              selectedLeadIndex,
+                              leads[selectedLeadIndex].rtSubcells.length - 1,
+                              e
+                            );
+                          } else {
+                            handleInputChange(e, selectedLeadIndex, "rtRemark");
+                          }
+                        }}
+                        size="small"
+                        fullWidth
+                        variant="outlined"
+                      />
+                      <Tooltip title="Add Remark Entry">
+                        <IconButton
+                          size="small"
+                          sx={{ color: "black" }}
+                          onClick={() => handleAddSubcell(selectedLeadIndex)}
+                        >
+                          <AddIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                      <Tooltip title="View Remark History">
+                        <IconButton
+                          size="small"
+                          sx={{ color: "black" }}
+                          onClick={() =>
+                            setSubcellsPopup({
+                              open: true,
+                              subcells: leads[selectedLeadIndex]?.rtSubcells || [],
+                            })
+                          }
+                        >
+                          <AccessTimeIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                    </Box>
+                  </Box>
 
 
-<Dialog
-  open={subcellsPopup.open}
-  onClose={() => setSubcellsPopup({ open: false, subcells: [] })}
-  maxWidth="sm"
-  fullWidth
->
-  <DialogTitle sx={{ fontWeight: 600, textAlign: "center" }}>
-    Remark History
-  </DialogTitle>
-  <DialogContent>
-    <Table size="small">
-      <TableHead>
-        <TableRow>
-          <HeaderTableCell>Date</HeaderTableCell>
-          <HeaderTableCell>Remark</HeaderTableCell>
-        </TableRow>
-      </TableHead>
-      <TableBody>
-        {subcellsPopup.subcells.map((subcell, idx) => (
-          <StyledTableRow key={idx}>
-            <BodyTableCell>{subcell.date || "N/A"}</BodyTableCell>
-            <BodyTableCell>{subcell.value || "No Remark"}</BodyTableCell>
-          </StyledTableRow>
-        ))}
-      </TableBody>
-    </Table>
-  </DialogContent>
-  <DialogActions>
-    <Button onClick={() => setSubcellsPopup({ open: false, subcells: [] })}>
-      Close
-    </Button>
-  </DialogActions>
-</Dialog>
+                  <Dialog
+                    open={subcellsPopup.open}
+                    onClose={() => setSubcellsPopup({ open: false, subcells: [] })}
+                    maxWidth="sm"
+                    fullWidth
+                  >
+                    <DialogTitle sx={{ fontWeight: 600, textAlign: "center" }}>
+                      Remark History
+                    </DialogTitle>
+                    <DialogContent>
+                      <Table size="small">
+                        <TableHead>
+                          <TableRow>
+                            <HeaderTableCell>Date</HeaderTableCell>
+                            <HeaderTableCell>Remark</HeaderTableCell>
+                          </TableRow>
+                        </TableHead>
+                        <TableBody>
+                          {subcellsPopup.subcells.map((subcell, idx) => (
+                            <StyledTableRow key={idx}>
+                              <BodyTableCell>{subcell.date || "N/A"}</BodyTableCell>
+                              <BodyTableCell>{subcell.value || "No Remark"}</BodyTableCell>
+                            </StyledTableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </DialogContent>
+                    <DialogActions>
+                      <Button onClick={() => setSubcellsPopup({ open: false, subcells: [] })}>
+                        Close
+                      </Button>
+                    </DialogActions>
+                  </Dialog>
 
 
                 </Stack>
@@ -1992,6 +2019,8 @@ const RetentionLeads = () => {
                       {(shopifyDatesMap[leads[selectedLeadIndex]?.contactNumber]?.orders || []).map((order, i) => {
                         const noteInput = noteInputs[order.id] || "";
                         const savingNote = savingNotes[order.id] || false;
+                        const cleanOrderId = order.name.replace(/^#/, '').trim();
+                        const shipmentStatus = shipmentStatusMap[cleanOrderId] || "N/A";
 
                         const handleNoteChange = (val) => {
                           setNoteInputs((prev) => ({ ...prev, [order.id]: val }));
@@ -2045,7 +2074,20 @@ const RetentionLeads = () => {
                                 fontSize: "0.8rem",
                               }}
                             >
-                              <Box>Order ID: {order.name}</Box>
+                              <Box>Order ID: {order.name}
+                                <span style={{
+                                  marginLeft: 12,
+                                  fontWeight: "normal",
+                                  color: "#222",
+                                  background: "#f1f1f1",
+                                  padding: "1px 6px",
+                                  borderRadius: "6px",
+                                  fontSize: "0.75em",
+                                  marginRight: 8
+                                }}>
+                                  Delivery Status: <b>{shipmentStatus}</b>
+                                </span>
+                              </Box>
                               <Box>Total Amount: ₹{order.total_price}</Box>
                               <Box>Date: {new Date(order.created_at).toLocaleString()}</Box>
                               <Box>Fulfillment Status: {order.fulfillment_status || "Unfulfilled"}</Box>
