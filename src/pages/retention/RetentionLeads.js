@@ -199,6 +199,11 @@ const RetentionLeads = () => {
 
   const [shipmentStatusMap, setShipmentStatusMap] = useState({});
 
+  const [consultationDialogOpen, setConsultationDialogOpen] = useState(false);
+  const [consultationHistory, setConsultationHistory] = useState([]);
+  const [consultationLoading, setConsultationLoading] = useState(false);
+
+
   const handleCopy = (text) => {
     navigator.clipboard.writeText(text);
     setCopySuccess(true);
@@ -266,7 +271,7 @@ const RetentionLeads = () => {
       leadsWithReminders.sort((a, b) => {
         if (!a.lastOrderDate) return 1;
         if (!b.lastOrderDate) return -1;
-        return new Date(b.lastOrderDate) - new Date(a.lastOrderDate);
+        return new Date(b.lastOrderDate) - new Date(a.lastOrderDate);  
       });
 
       setAllLeads(leadsWithReminders);
@@ -342,7 +347,7 @@ const RetentionLeads = () => {
         response.data.forEach((order) => {
           statusMap[order.order_id] = order.shipment_status;
         });
-        setShipmentStatusMap(statusMap);  
+        setShipmentStatusMap(statusMap);
       } else {
         setShipmentStatusMap({});
       }
@@ -1971,6 +1976,29 @@ const RetentionLeads = () => {
                     See Order History
                   </Button>
 
+                  <Button
+                    onClick={async () => {
+                      setConsultationDialogOpen(true);
+                      setConsultationLoading(true);
+                      try {
+                        const contactNumber = leads[selectedLeadIndex]?.contactNumber;
+                        const res = await axios.get(`https://muditamleads-14f32a10d7f7.herokuapp.com/api/consultation-history?contactNumber=${contactNumber}`);
+                        setConsultationHistory(res.data.consultations || []);
+                      } catch (err) {
+                        setConsultationHistory([]);
+                      }
+                      setConsultationLoading(false);
+                    }}
+                    sx={{
+                      fontSize: "0.75rem",
+                      textTransform: "none",
+                      backgroundColor: "white",
+                      color: "black",
+                    }}
+                  >
+                    Consultation History
+                  </Button>
+
                   {showOrders && (
                     <Box sx={{ mt: 2 }}>
                       {/* Total Orders Count */}
@@ -2173,6 +2201,141 @@ const RetentionLeads = () => {
                       })}
                     </Box>
                   )}
+
+                  <Dialog open={consultationDialogOpen} onClose={() => setConsultationDialogOpen(false)} maxWidth="md" fullWidth>
+                    <DialogTitle sx={{ fontWeight: 600, textAlign: "center" }}>
+                      Consultation History
+                    </DialogTitle>
+                    <DialogContent>
+                      {consultationLoading ? (
+                        <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', py: 4 }}>
+                          <CircularProgress />
+                        </Box>
+                      ) : consultationHistory.length === 0 ? (
+                        <Typography align="center" color="text.secondary" sx={{ my: 3 }}>No consultation history found.</Typography>
+                      ) : (
+                        consultationHistory.map((cons, idx) => (
+                          <Paper key={idx} sx={{ p: 2, mb: 2, borderRadius: 2, boxShadow: 1 }}>
+                            <Typography variant="subtitle1" fontWeight={600} sx={{ mb: 1 }}>
+                              Consultation #{consultationHistory.length - idx}
+                            </Typography>
+                            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
+                              {/* Presales */}
+                              <Box>
+                                <Typography variant="body2" fontWeight={600}>HBA1c</Typography>
+                                <Typography variant="body2">{cons.presales?.hba1c || '—'}</Typography>
+                              </Box>
+                              <Box>
+                                <Typography variant="body2" fontWeight={600}>Last Test Done</Typography>
+                                <Typography variant="body2">{cons.presales?.lastTestDone || '—'}</Typography>
+                              </Box>
+                              <Box>
+                                <Typography variant="body2" fontWeight={600}>Fasting Sugar</Typography>
+                                <Typography variant="body2">{cons.presales?.fastingSugar || '—'}</Typography>
+                              </Box>
+                              <Box>
+                                <Typography variant="body2" fontWeight={600}>PP Sugar</Typography>
+                                <Typography variant="body2">{cons.presales?.ppSugar || '—'}</Typography>
+                              </Box>
+                              <Box>
+                                <Typography variant="body2" fontWeight={600}>Duration of Diabetes</Typography>
+                                <Typography variant="body2">{cons.presales?.durationOfDiabetes || '—'}</Typography>
+                              </Box>
+                              <Box>
+                                <Typography variant="body2" fontWeight={600}>Gender</Typography>
+                                <Typography variant="body2">{cons.presales?.gender || '—'}</Typography>
+                              </Box>
+                              <Box>
+                                <Typography variant="body2" fontWeight={600}>Diet Type</Typography>
+                                <Typography variant="body2">{cons.presales?.dietType || '—'}</Typography>
+                              </Box>
+                              <Box>
+                                <Typography variant="body2" fontWeight={600}>Weight</Typography>
+                                <Typography variant="body2">{cons.presales?.weight ?? '—'}</Typography>
+                              </Box>
+                              <Box>
+                                <Typography variant="body2" fontWeight={600}>Sitting Time</Typography>
+                                <Typography variant="body2">{cons.presales?.sittingTime || '—'}</Typography>
+                              </Box>
+                              <Box>
+                                <Typography variant="body2" fontWeight={600}>Exercise Routine</Typography>
+                                <Typography variant="body2">{cons.presales?.exerciseRoutine || '—'}</Typography>
+                              </Box>
+                              <Box>
+                                <Typography variant="body2" fontWeight={600}>Outside Meals</Typography>
+                                <Typography variant="body2">{cons.presales?.outsideMeals || '—'}</Typography>
+                              </Box>
+                              <Box>
+                                <Typography variant="body2" fontWeight={600}>Time Of Sleep</Typography>
+                                <Typography variant="body2">{cons.presales?.timeOfSleep || '—'}</Typography>
+                              </Box>
+
+                              {/* Consultation */}
+                              <Box>
+                                <Typography variant="body2" fontWeight={600}>Current Medications</Typography>
+                                <Typography variant="body2">{(cons.consultation?.currentMedications || []).join(", ") || '—'}</Typography>
+                              </Box>
+                              <Box>
+                                <Typography variant="body2" fontWeight={600}>Side Effects</Typography>
+                                <Typography variant="body2">{cons.consultation?.sideEffects || '—'}</Typography>
+                              </Box>
+                              <Box>
+                                <Typography variant="body2" fontWeight={600}>Sudden Sugar Fluctuations</Typography>
+                                <Typography variant="body2">{cons.consultation?.suddenSugarFluctuations || '—'}</Typography>
+                              </Box>
+                              <Box>
+                                <Typography variant="body2" fontWeight={600}>Symptoms</Typography>
+                                <Typography variant="body2">{(cons.consultation?.symptoms || []).join(", ") || '—'}</Typography>
+                              </Box>
+                              <Box>
+                                <Typography variant="body2" fontWeight={600}>Family History</Typography>
+                                <Typography variant="body2">{cons.consultation?.familyHistory || '—'}</Typography>
+                              </Box>
+                              <Box>
+                                <Typography variant="body2" fontWeight={600}>Other Conditions</Typography>
+                                <Typography variant="body2">{(cons.consultation?.otherConditions || []).join(", ") || '—'}</Typography>
+                              </Box>
+                              <Box>
+                                <Typography variant="body2" fontWeight={600}>Stress Level</Typography>
+                                <Typography variant="body2">{cons.consultation?.stressLevel || '—'}</Typography>
+                              </Box>
+                              <Box>
+                                <Typography variant="body2" fontWeight={600}>Monitor Blood Sugar</Typography>
+                                <Typography variant="body2">{cons.consultation?.monitorBloodSugar || '—'}</Typography>
+                              </Box>
+                              <Box>
+                                <Typography variant="body2" fontWeight={600}>Pain In Liver</Typography>
+                                <Typography variant="body2">{cons.consultation?.painInLiver || '—'}</Typography>
+                              </Box>
+                              <Box>
+                                <Typography variant="body2" fontWeight={600}>Gut Issues</Typography>
+                                <Typography variant="body2">{cons.consultation?.gutIssues || '—'}</Typography>
+                              </Box>
+                              <Box>
+                                <Typography variant="body2" fontWeight={600}>Energy Levels</Typography>
+                                <Typography variant="body2">{cons.consultation?.energyLevels || '—'}</Typography>
+                              </Box>
+                              <Box>
+                                <Typography variant="body2" fontWeight={600}>Sleep Quality</Typography>
+                                <Typography variant="body2">{cons.consultation?.sleepQuality || '—'}</Typography>
+                              </Box>
+                              <Box>
+                                <Typography variant="body2" fontWeight={600}>Sugar Cravings</Typography>
+                                <Typography variant="body2">{cons.consultation?.sugarCravings || '—'}</Typography>
+                              </Box>
+                            </Box>
+                          </Paper>
+                        ))
+                      )}
+                    </DialogContent>
+                    <DialogActions>
+                      <Button onClick={() => setConsultationDialogOpen(false)} sx={{ color: "black" }}>
+                        Close
+                      </Button>
+                    </DialogActions>
+                  </Dialog>
+
+
                 </Box>
               </Paper>
               <Details contactNumber={leads[selectedLeadIndex]?.contactNumber} onDetailsUpdate={updateLeadDetails} />

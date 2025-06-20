@@ -84,7 +84,7 @@ const RetentionSales = () => {
     productsOrdered: "",
     dosageOrdered: "",
     modeOfPayment: "",
-    shipmentStatus: "",
+    shipmentStatus: [],
   });
 
 
@@ -223,22 +223,24 @@ const RetentionSales = () => {
 
   // Apply filters to the full dataset
   const applyFilters = (salesData = allSales) => {
-    const filteredSales = salesData.filter((sale) => {
-      return (
-        (!filters.dateFrom || new Date(sale.date) >= new Date(filters.dateFrom)) &&
-        (!filters.dateTo || new Date(sale.date) <= new Date(filters.dateTo)) &&
-        (!filters.name ||
-          sale.name.toLowerCase().includes(filters.name.toLowerCase())) &&
-        (!filters.contactNumber ||
-          sale.contactNumber.includes(filters.contactNumber)) &&
-        (!filters.productsOrdered.length ||
-          filters.productsOrdered.every((p) =>
-            sale.productsOrdered.includes(p)
-          )) &&
-        (!filters.dosageOrdered || sale.dosageOrdered === filters.dosageOrdered) &&
-        (!filters.modeOfPayment || sale.modeOfPayment === filters.modeOfPayment) &&
-        (!filters.shipmentStatus ||
-          (filters.shipmentStatus === "Others"
+  const filteredSales = salesData.filter((sale) => {
+    return (
+      (!filters.dateFrom || new Date(sale.date) >= new Date(filters.dateFrom)) &&
+      (!filters.dateTo || new Date(sale.date) <= new Date(filters.dateTo)) &&
+      (!filters.name ||
+        sale.name.toLowerCase().includes(filters.name.toLowerCase())) &&
+      (!filters.contactNumber ||
+        sale.contactNumber.includes(filters.contactNumber)) &&
+      (!filters.productsOrdered.length ||
+        filters.productsOrdered.every((p) =>
+          sale.productsOrdered.includes(p)
+        )) &&
+      (!filters.dosageOrdered || sale.dosageOrdered === filters.dosageOrdered) &&
+      (!filters.modeOfPayment || sale.modeOfPayment === filters.modeOfPayment) &&
+      (
+        !filters.shipmentStatus.length ||
+        filters.shipmentStatus.some(status =>
+          status === "Others"
             ? ![
                 "Delivered",
                 "In Transit",
@@ -247,12 +249,15 @@ const RetentionSales = () => {
                 "RTO Delivered",
                 "Undelivered",
               ].includes(sale.shipway_status)
-            : sale.shipway_status === filters.shipmentStatus))
-      );
-    });
-    setCurrentPage(0);
-    setDisplayedSales(filteredSales);
-  };
+            : sale.shipway_status === status
+        )
+      )
+    );
+  });
+  setCurrentPage(0);
+  setDisplayedSales(filteredSales);
+};
+
 
   
   const resetFilters = () => {
@@ -264,7 +269,7 @@ const RetentionSales = () => {
       productsOrdered: "",
       dosageOrdered: "",
       modeOfPayment: "",
-      shipmentStatus: "",
+      shipmentStatus: [],
     });
     setDisplayedSales(allSales);
     setFilterOpen(false)
@@ -565,26 +570,27 @@ const RetentionSales = () => {
             </Select>
           </FormControl>
           <FormControl fullWidth sx={formControlSx}>
-            <InputLabel id="shipment-status-label">
-              Shipment Status
-            </InputLabel>
-            <Select
-              value={filters.shipmentStatus}
-              onChange={(e) =>
-                setFilters((prev) => ({
-                  ...prev,
-                  shipmentStatus: e.target.value,
-                }))
-              }
-              label="Shipment Status"
-            >
-              {shipmentStatusOptions.map((status) => (
-                <MenuItem key={status} value={status}>
-                  {status}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
+              <InputLabel id="shipment-status-label">Shipment Status</InputLabel>
+              <Select
+                label="Shipment Status"
+                multiple
+                value={filters.shipmentStatus || []}
+                onChange={(e) =>
+                  setFilters((prev) => ({
+                    ...prev,
+                    shipmentStatus: e.target.value,
+                  }))
+                }
+                renderValue={(selected) => selected.join(", ")}
+              >
+                {shipmentStatusOptions.map((status) => (
+                  <MenuItem key={status} value={status}>
+                    <Checkbox checked={filters.shipmentStatus.includes(status)} />
+                    <ListItemText primary={status} />
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
           </Box>
           <Button
             variant="contained"
