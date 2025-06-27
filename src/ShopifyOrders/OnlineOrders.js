@@ -326,7 +326,7 @@ const OnlineOrders = () => {
                       fullWidth
                     >
                       <MenuItem value=""></MenuItem>
-                      {retentionAgents.map((agent) => (
+                      {retentionAgents.filter((agent) => agent.status === "active").map((agent) => (
                         <MenuItem key={agent._id} value={agent.fullName}>
                           {agent.fullName}
                         </MenuItem>
@@ -337,7 +337,7 @@ const OnlineOrders = () => {
                     <Button
                       variant="contained"
                       style={{
-                        backgroundColor: order.isSaved ? "lightgreen" : "primary",
+                        backgroundColor: order.isSaved ? "lightgreen" : "primary", 
                         color: order.isSaved ? "black" : "white",
                       }}
                       onClick={() => handleSaveHealthExpert(index)}
