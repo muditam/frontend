@@ -587,40 +587,27 @@ const CartDrawer = ({ closeDrawer }) => {
   };
 
   
+  // ----- PAYMENT & ORDER CREATION -----
   const handleGeneratePaymentLink = async () => {
-  try {
-    const amountToCharge = parseFloat(finalTotal.toFixed(2));
-
-    const response = await axios.post(
-      "https://muditamleads-14f32a10d7f7.herokuapp.com/api/razorpay/create-payment-link", // ✅ Replace with your deployed backend
-      {
-        amount: amountToCharge,
-        currency: "INR",
-        customer: {
-          name: confirmedAddress?.fullName || "Customer",
-          email: confirmedAddress?.email || "example@example.com",
-          contact: phoneNumber || "0000000000",
-        },
-      }
-    );
-
-    const { paymentLink, orderId, expireAt } = response.data;
-
-    if (paymentLink) {
-      // Optional: open payment link immediately
-      window.open(paymentLink, "_blank");
-
-      // Store in Redux for tracking / redirect screen
-      dispatch(setRazorpayLink(paymentLink)); // ✅ Optional: rename this to setPhonePeLink for clarity
-    } else {
-      alert("Payment link not received. Please try again.");
+    try {
+      const amountToCharge = parseFloat(finalTotal.toFixed(2));
+      const response = await axios.post(
+        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/razorpay/create-payment-link",
+        {
+          amount: amountToCharge,
+          currency: "INR",
+          customer: {
+            name: confirmedAddress?.fullName || "Customer Name",
+            email: confirmedAddress?.email || "customer@example.com",
+            contact: phoneNumber || "1234567890",
+          },
+        }
+      );
+      dispatch(setRazorpayLink(response.data.paymentLink));
+    } catch (error) {
+      console.error("Error generating payment link:", error);
     }
-
-  } catch (error) {
-    console.error("Error generating PhonePe payment link:", error.response?.data || error.message);
-    alert("Failed to generate payment link. Please try again.");
-  }
-};
+  };
 
 
 
