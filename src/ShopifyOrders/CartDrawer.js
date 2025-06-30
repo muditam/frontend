@@ -591,7 +591,7 @@ const CartDrawer = ({ closeDrawer }) => {
     try {
       const amountToCharge = parseFloat(finalTotal.toFixed(2));
       const response = await axios.post(
-        "http://localhost:5001/api/phonepe/create-payment-link",
+        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/phonepe/create-payment-link",
         {
           amount: amountToCharge,
           name: confirmedAddress?.fullName || "Customer Name",

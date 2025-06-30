@@ -62,7 +62,7 @@ const CreateOrderPopup = ({ open, onClose, prefillCustomer = {} }) => {
   // Fetch all addresses from Shopify for this customer
   const fetchCustomerAddresses = async (phone) => {
     try {
-      const res = await axios.get(`http://localhost:5001/api/shopify/customers?phone=${encodeURIComponent(phone)}`);
+      const res = await axios.get(`https://muditamleads-14f32a10d7f7.herokuapp.com/api/shopify/customers?phone=${encodeURIComponent(phone)}`);
       if (res.data && Array.isArray(res.data.addresses)) {
         setAllAddresses(res.data.addresses);
         if (res.data.addresses.length === 1) {
@@ -95,7 +95,7 @@ const CreateOrderPopup = ({ open, onClose, prefillCustomer = {} }) => {
   const fetchProducts = async () => {
     setLoading(true);
     try {
-      const res = await axios.get("http://localhost:5001/api/shopify/active-products");
+      const res = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/shopify/active-products");
       setProducts(res.data || []);
     } catch (error) {
       console.error("Error fetching products", error);
@@ -159,7 +159,7 @@ const CreateOrderPopup = ({ open, onClose, prefillCustomer = {} }) => {
     setGeneratingPaymentLink(true);
     try {
       // Assume you have this API on your backend!
-      const res = await axios.post("http://localhost:5001/api/razorpay/generate-link", {
+      const res = await axios.post("https://muditamleads-14f32a10d7f7.herokuapp.com/api/razorpay/generate-link", {
         customerName: customer.name,
         customerPhone: customer.phone,
         customerAddress: customer.address,
@@ -176,7 +176,7 @@ const CreateOrderPopup = ({ open, onClose, prefillCustomer = {} }) => {
   const handlePlaceOrder = async () => {
     // Send to backend: name, phone, address, items, paymentMethod, transactionId, etc.
     try {
-      await axios.post("http://localhost:5001/api/shopify/place-order", {
+      await axios.post("https://muditamleads-14f32a10d7f7.herokuapp.com/api/shopify/place-order", {
         customer,
         cartItems,
         paymentMethod,
