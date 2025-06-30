@@ -30,6 +30,7 @@ import { keyframes, styled } from "@mui/material/styles";
 import axios from "axios";
 import Details from "./Details";
 import RetentionFollowUp from "./RetentionFollowUp";
+import CreateOrderPopup from "./CreateOrderPopup";
 
 import Dialog from "@mui/material/Dialog";
 import DialogTitle from "@mui/material/DialogTitle";
@@ -164,6 +165,9 @@ const RetentionLeads = () => {
   const [subcellsPopup, setSubcellsPopup] = useState({ open: false, subcells: [] });
 
 
+
+
+
   const [filters, setFilters] = useState({
     name: "",
     contactNumber: "",
@@ -202,6 +206,9 @@ const RetentionLeads = () => {
   const [consultationDialogOpen, setConsultationDialogOpen] = useState(false);
   const [consultationHistory, setConsultationHistory] = useState([]);
   const [consultationLoading, setConsultationLoading] = useState(false);
+
+  const [orderPopupOpen, setOrderPopupOpen] = useState(false);
+  const [selectedLead, setSelectedLead] = useState(null);
 
 
   const handleCopy = (text) => {
@@ -271,7 +278,7 @@ const RetentionLeads = () => {
       leadsWithReminders.sort((a, b) => {
         if (!a.lastOrderDate) return 1;
         if (!b.lastOrderDate) return -1;
-        return new Date(b.lastOrderDate) - new Date(a.lastOrderDate);  
+        return new Date(b.lastOrderDate) - new Date(a.lastOrderDate);
       });
 
       setAllLeads(leadsWithReminders);
@@ -635,6 +642,11 @@ const RetentionLeads = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleCreateOrderClick = (lead) => {
+    setSelectedLead(lead); // where lead = { name, phone }
+    setOrderPopupOpen(true);
   };
 
 
@@ -1999,6 +2011,22 @@ const RetentionLeads = () => {
                     Consultation History
                   </Button>
 
+                  <DialogActions>
+                    <Button
+                      onClick={() => setOrderPopupOpen(true)}
+                      sx={{ color: "black" }}
+                    >
+                      Create Order 
+                    </Button>
+                  </DialogActions>
+                  <CreateOrderPopup
+                    open={orderPopupOpen}
+                    onClose={() => setOrderPopupOpen(false)}
+                    prefillCustomer={{
+                      name: leads[selectedLeadIndex]?.name || "",
+                      phone: leads[selectedLeadIndex]?.contactNumber || "",
+                    }}
+                  />
                   {showOrders && (
                     <Box sx={{ mt: 2 }}>
                       {/* Total Orders Count */}

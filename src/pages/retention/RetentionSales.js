@@ -27,8 +27,6 @@ import axios from "axios";
 import TuneIcon from "@mui/icons-material/Tune";
 
 
-
-
 const productOptions = [
   "KJF",
   "SDP",
@@ -81,7 +79,7 @@ const RetentionSales = () => {
     dateTo: "",
     name: "",
     contactNumber: "",
-    productsOrdered: "",
+    productsOrdered: [],
     dosageOrdered: "",
     modeOfPayment: "",
     shipmentStatus: [],
@@ -109,8 +107,8 @@ const RetentionSales = () => {
       alert("Failed to load sales data. Please try again.");
     }
   };
- 
 
+  
 
   useEffect(() => {
     if (loggedInUser) {
@@ -398,6 +396,7 @@ const RetentionSales = () => {
 
   return (
     <Box sx={{ padding: 2 }}>
+
       <Typography variant="h5" gutterBottom sx={{
         fontWeight: "bold",
         textAlign: "center",
@@ -424,6 +423,7 @@ const RetentionSales = () => {
         Filter
       </Button>
 
+      
 
       <Drawer
         anchor="right"
