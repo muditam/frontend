@@ -52,7 +52,7 @@ const OrderDetailsPopup = ({ orderId,
 
   const [discount, setDiscount] = useState(propDiscount || "");
 
-  const agent = selectedAgent || agentName || "N/A";
+  const agent = selectedAgent?.trim() ? selectedAgent : "N/A";
 
   useEffect(() => {
     // Fetch order details from Shopify when component mounts.
@@ -72,12 +72,16 @@ const OrderDetailsPopup = ({ orderId,
   }, [orderId]);
 
   useEffect(() => {
-  if (!agentName && typeof window !== "undefined") {
-    const user = JSON.parse(localStorage.getItem("user"));
-    setSelectedAgent(user?.fullName || "N/A");
-  } else {
-    setSelectedAgent(agentName);
+  let fallbackAgent = "N/A";
+  if (typeof window !== "undefined") {
+    let user = null;
+try {
+  user = JSON.parse(localStorage.getItem("user"));
+} catch {}
+
+    if (user?.fullName) fallbackAgent = user.fullName;
   }
+  setSelectedAgent(agentName || fallbackAgent);
 }, [agentName]);
 
 useEffect(() => {
@@ -334,7 +338,7 @@ useEffect(() => {
                   variant="outlined"
                   size="small"
                   type="number"
-                  value={discount}
+                  value={String(discount)}
                   onChange={(e) => setDiscount(e.target.value)}
                   sx={{ p: 0 }}
                 />
@@ -348,7 +352,7 @@ useEffect(() => {
                 <Select
                   fullWidth
                   size="small"
-                  value={paymentMethod}
+                  value={paymentMethod || ""}
                   onChange={(e) => setPaymentMethod(e.target.value)}
                   MenuProps={{
                     container: document.body, 
@@ -381,7 +385,7 @@ useEffect(() => {
                       variant="outlined"
                       size="small"
                       type="number"
-                      value={partialPayment}
+                      value={String(partialPayment)}
                       onChange={(e) => setPartialPayment(e.target.value)}
                       sx={{ p: 0 }}
                     />
@@ -407,7 +411,7 @@ useEffect(() => {
                     size="small"
                     label="Upsell Amount"
                     type="number"
-                    value={upsellAmount}
+                    value={upsellAmount || ""}
                     onChange={(e) => setUpsellAmount(e.target.value)}
                   />
                 </Grid>
@@ -422,7 +426,7 @@ useEffect(() => {
                 <Select
                   fullWidth
                   size="small"
-                  value={dosageOrdered}
+                  value={dosageOrdered || ""}
                   onChange={(e) => setDosageOrdered(e.target.value)}
                   MenuProps={{
                     container: document.body, 
@@ -453,7 +457,7 @@ useEffect(() => {
                 <TextField
                   fullWidth
                   size="small"
-                  value={selfRemark}
+                  value={selfRemark || ""}
                   onChange={(e) => setSelfRemark(e.target.value)}
                 />
               </Grid>

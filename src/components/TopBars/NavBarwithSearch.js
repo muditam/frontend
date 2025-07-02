@@ -40,7 +40,7 @@ import CartDrawer from "../../ShopifyOrders/CartDrawer";
 import EmojiEventsIcon from "@mui/icons-material/EmojiEvents";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import ExpandLessIcon from "@mui/icons-material/ExpandLess";
-import LeaderboardIcon from "@mui/icons-material/Leaderboard"; 
+import LeaderboardIcon from "@mui/icons-material/Leaderboard";
 import RocketLaunchIcon from "@mui/icons-material/RocketLaunch";
 import { Syringe } from "lucide-react";
 import pincodeData from "../../LeadConsultation/ProcessTracker/pincodeData";
@@ -49,6 +49,10 @@ import LeaderboardPopover from "./LeaderboardPopover";
 const SlideDown = React.forwardRef(function Transition(props, ref) {
   return <Slide direction="down" ref={ref} {...props} />;
 });
+
+  
+
+
 
 const getAvatarUrl = (name) =>
   `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(name)}&backgroundType=gradientLinear&radius=50`;
@@ -72,7 +76,7 @@ const NavbarWithSearch = () => {
   const [pincode, setPincode] = useState("");
   const [availableLabs, setAvailableLabs] = useState([]);
   const [checkClicked, setCheckClicked] = useState(false);
-  const [incentiveOpen, setIncentiveOpen] = useState(false); 
+  const [incentiveOpen, setIncentiveOpen] = useState(false);
   const leaderboardAnchorRef = useRef(null);
   const [leaderboardOpen, setLeaderboardOpen] = useState(false);
 
@@ -91,6 +95,26 @@ const NavbarWithSearch = () => {
   const closeBloodTestDialog = () => setBloodTestDialog(false);
 
   const handlePincodeChange = (e) => setPincode(e.target.value);
+
+  // Helper to get working days left in this month (Mon-Sat)
+  function getWorkingDaysLeft() {
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = today.getMonth();
+    const date = today.getDate();
+    const lastDay = new Date(year, month + 1, 0).getDate();
+    let days = 0;
+    for (let d = date; d <= lastDay; d++) {
+      const check = new Date(year, month, d);
+      if (check.getDay() !== 0) days++; // not Sunday
+    }
+    return days;
+  }
+  const workingDaysLeft = getWorkingDaysLeft();
+  const dailySalesRequired =
+    workingDaysLeft > 0 && target - salesProgress > 0
+      ? Math.ceil((target - salesProgress) / workingDaysLeft)
+      : 0;
 
   const checkLabs = () => {
     setCheckClicked(true);
@@ -267,7 +291,7 @@ const NavbarWithSearch = () => {
 
           {/* Center: Shopify Customer Search Bar */}
           <Box sx={{ flex: 1, display: "flex", justifyContent: "center" }}>
-            <Box sx={{ position: "relative", width: 400 }}>
+            <Box sx={{ position: "relative", width: 300 }}>
               <ClickAwayListener onClickAway={handleShopifyClickAway}>
                 <div>
                   <TextField
@@ -307,7 +331,7 @@ const NavbarWithSearch = () => {
                         bgcolor: "#f5f5f5",
                         border: "1px solid #ccc",
                         borderRadius: "4px",
-                        maxHeight: 300,
+                        maxHeight: 290,
                         overflowY: "auto",
                         zIndex: 10,
                         color: "black",
@@ -504,28 +528,45 @@ const NavbarWithSearch = () => {
                 p: 1,
                 bgcolor: "#000",
                 borderRadius: 2,
-                minWidth: 130,
+                minWidth: 140,
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
               }}
             >
               <Typography
-                variant="caption"
-                sx={{
-                  color: "#fff",
-                  fontSize: "1.3rem",
-                  fontWeight: 500,
-                  letterSpacing: "0.5px",
-                  display: "flex",
-                  alignItems: "center"
-                }}
-              >
-                Target: ({salesProgress} / {target}){" "}
-                <span style={{ marginLeft: 8, color: "#f7c942", fontWeight: 700 }}>
-                  {target > 0 ? `${Math.round((salesProgress / target) * 100)}%` : "0%"}
-                </span>
-              </Typography>
+      variant="caption"
+      sx={{
+        color: "#fff",
+        fontSize: "1rem",
+        fontWeight: 500,
+        letterSpacing: "0.5px",
+        display: "flex",
+        alignItems: "center"
+      }}
+    >
+      DRR:
+      <span style={{ marginLeft: 5, color: "#19d444", fontWeight: 700 }}>
+        {dailySalesRequired > 0 ? `₹${dailySalesRequired}` : "₹0"}
+      </span>
+    </Typography>
+    <Divider orientation="vertical" flexItem sx={{ mx: 1, borderColor: "#444" }} />
+    <Typography
+      variant="caption"
+      sx={{
+        color: "#fff",
+        fontSize: "1rem",
+        fontWeight: 500,
+        letterSpacing: "0.5px",
+        display: "flex",
+        alignItems: "center"
+      }}
+    >
+      Target: ({salesProgress} / {target}){" "}
+      <span style={{ marginLeft: 8, color: "#f7c942", fontWeight: 700 }}>
+        {target > 0 ? `${Math.round((salesProgress / target) * 100)}%` : "0%"}
+      </span>
+    </Typography>
             </Box>
           )}
 
@@ -545,29 +586,29 @@ const NavbarWithSearch = () => {
 
 
             <IconButton
-  ref={leaderboardAnchorRef}
-  onClick={() => setLeaderboardOpen(true)}
-  sx={{
-    mr: 1,
-    color: "#fff",
-    borderRadius: "50%",
-    p: 1.1,
-    "&:hover": { bgcolor: "#fff", color: "#e0e0e0" }
-  }}
-  title="View Leaderboard"
->
-  <EmojiEventsIcon />
-</IconButton>
+              ref={leaderboardAnchorRef}
+              onClick={() => setLeaderboardOpen(true)}
+              sx={{
+                mr: 0.5,
+                color: "#fff",
+                borderRadius: "50%",
+                p: 1.1,
+                "&:hover": { bgcolor: "#fff", color: "#e0e0e0" }
+              }}
+              title="View Leaderboard"
+            >
+              <EmojiEventsIcon />
+            </IconButton>
 
-<LeaderboardPopover
-  open={leaderboardOpen}
-  anchorEl={leaderboardAnchorRef.current}
-  onClose={() => setLeaderboardOpen(false)}
-/>
+            <LeaderboardPopover
+              open={leaderboardOpen}
+              anchorEl={leaderboardAnchorRef.current}
+              onClose={() => setLeaderboardOpen(false)}
+            />
             <IconButton
               color="error"
               onClick={openBloodTestDialog}
-              sx={{ mr: 1, color: "#fff", borderRadius: "50%", p: 1.1, "&:hover": { bgcolor: "#e0e0e0" } }}
+              sx={{ mr: 0.5, color: "#fff", borderRadius: "50%", p: 1.1, "&:hover": { bgcolor: "#e0e0e0" } }}
               title="Blood Test Pincode Check"
             >
               <Syringe />
@@ -576,7 +617,7 @@ const NavbarWithSearch = () => {
             {user && (
               <IconButton
                 onClick={() => navigate("/my-templates")}
-                sx={{ mr: 1, "&:hover": { backgroundColor: "#e0e0e0" } }}
+                sx={{ mr: 0.5, "&:hover": { backgroundColor: "#e0e0e0" } }}
               >
                 <StickyNote2Icon sx={{ color: "white" }} />
               </IconButton>
@@ -590,7 +631,7 @@ const NavbarWithSearch = () => {
                 <ShoppingCartIcon />
               </IconButton>
             )}
-            <Box sx={{ position: "relative", width: 240, ml: 2 }}>
+            <Box sx={{ position: "relative", width: 220, ml: 2 }}>
               <ClickAwayListener onClickAway={handleClickAway}>
                 <div>
                   <TextField

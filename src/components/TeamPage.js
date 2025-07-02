@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import {
   Box, Typography, Button, TextField, Table, TableHead,
-  TableRow, TableCell, TableBody, Paper, Autocomplete, Chip,
+  TableRow, TableCell, TableBody, Paper, Autocomplete,
   Dialog, DialogTitle, DialogContent, DialogActions, IconButton
 } from "@mui/material";
 import CircularProgress from "@mui/material/CircularProgress";
@@ -13,17 +13,33 @@ import axios from "axios";
 const getManagerId = () =>
   (JSON.parse(sessionStorage.getItem("user")) || {}).id || "";
 
+// Helper to calculate remaining working days (Mon-Sat) in current month (including today if not Sunday)
+function getRemainingWorkingDays() {
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = today.getMonth();
+  const lastDate = new Date(year, month + 1, 0).getDate();
+
+  let count = 0;
+  for (let d = today.getDate(); d <= lastDate; d++) {
+    const date = new Date(year, month, d);
+    // Sunday = 0
+    if (date.getDay() !== 0) count++;
+  }
+  return count;
+}
+
 const TeamPage = ({ managerId: managerIdProp }) => {
   const managerId = managerIdProp || getManagerId();
 
   // States
   const [allAgents, setAllAgents] = useState([]);
-  const [teamMembers, setTeamMembers] = useState([]); // Current team (objects)
+  const [teamMembers, setTeamMembers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [addOpen, setAddOpen] = useState(false);
   const [searchValue, setSearchValue] = useState([]);
   const [addLoading, setAddLoading] = useState(false);
-  const [tableProgress, setTableProgress] = useState({}); // { id: true/false }
+  const [tableProgress, setTableProgress] = useState({});
   const [tableRows, setTableRows] = useState([]);
 
   // Totals for header
@@ -106,8 +122,6 @@ const TeamPage = ({ managerId: managerIdProp }) => {
   }, [teamMembers]);
 
   // --- Add/Remove Logic ---
-
-  // Add selected agents to team
   const handleAddSelected = async () => {
     setAddLoading(true);
     try {
@@ -158,6 +172,9 @@ const TeamPage = ({ managerId: managerIdProp }) => {
   // Compute total % achieved
   const totalPctAch = totalTarget === 0 ? 0 : Math.min(100, (totalAchieved / totalTarget) * 100);
 
+  // Calculate working days left in month (Mon-Sat)
+  const workingDaysLeft = getRemainingWorkingDays();
+
   return (
     <Box sx={{ p: 4, bgcolor: "#fff" }}>
       <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2 }}>
@@ -193,61 +210,69 @@ const TeamPage = ({ managerId: managerIdProp }) => {
         <Table>
           <TableHead>
             <TableRow>
-              {["Name", "Monthly Targets", "Achieved", "Pending", "% Achieved", "% Pending", ""].map(h =>
-                <TableCell
-                  key={h}
-                  sx={{
-                    color: "#000",
-                    fontWeight: "bold",
-                    fontSize: 15,
-                    textAlign: "center"
-                  }}
-                >
-                  {h}
-                </TableCell>
-              )}
+              <TableCell sx={{ color: "#000", fontWeight: "bold", fontSize: 15, textAlign: "center" }}>Name</TableCell>
+              <TableCell sx={{ color: "#000", fontWeight: "bold", fontSize: 15, textAlign: "center" }}>Monthly Targets</TableCell>
+              <TableCell sx={{ color: "#000", fontWeight: "bold", fontSize: 15, textAlign: "center" }}>Achieved</TableCell>
+              <TableCell sx={{ color: "#000", fontWeight: "bold", fontSize: 15, textAlign: "center" }}>Pending</TableCell>
+              <TableCell sx={{ color: "#000", fontWeight: "bold", fontSize: 15, textAlign: "center" }}>
+                Daily Sales Required<br />
+                <span style={{ fontSize: 12, fontWeight: 400, color: "#444" }}>
+                  ({workingDaysLeft} working days left)
+                </span>
+              </TableCell>
+              <TableCell sx={{ color: "#000", fontWeight: "bold", fontSize: 15, textAlign: "center" }}>% Achieved</TableCell>
+              <TableCell sx={{ color: "#000", fontWeight: "bold", fontSize: 15, textAlign: "center" }}>% Pending</TableCell>
+              <TableCell sx={{ color: "#000", fontWeight: "bold", fontSize: 15, textAlign: "center" }}></TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={7} align="center">
+                <TableCell colSpan={8} align="center">
                   <CircularProgress sx={{ color: "#000" }} />
                 </TableCell>
               </TableRow>
             ) : tableRows.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} align="center">No team members.</TableCell>
+                <TableCell colSpan={8} align="center">No team members.</TableCell>
               </TableRow>
             ) : (
-              tableRows.map((row, idx) => (
-                <TableRow key={row.id}>
-                  <TableCell align="center">{row.name}</TableCell>
-                  <TableCell align="center">
-                    {row.monthlyTarget?.toLocaleString() || 0}{" "}
-                    <span style={{ color: "#777", fontWeight: "normal" }}>
-                      ({row.pctAch.toFixed(1)}%)
-                    </span>
-                  </TableCell>
-                  <TableCell align="center">{row.achieved}</TableCell>
-                  <TableCell align="center">{row.pending}</TableCell>
-                  <TableCell align="center">{row.pctAch.toFixed(1)}%</TableCell>
-                  <TableCell align="center">{row.pctPend.toFixed(1)}%</TableCell>
-                  <TableCell align="center">
-                    <IconButton
-                      size="small"
-                      disabled={!!tableProgress[row.id]}
-                      onClick={() => handleRemove(row.id)}
-                    >
-                      {tableProgress[row.id] ? (
-                        <CircularProgress size={24} sx={{ color: "#000" }} />
-                      ) : (
-                        <DeleteIcon sx={{ color: "#d32f2f" }} />
-                      )}
-                    </IconButton>
-                  </TableCell>
-                </TableRow>
-              ))
+              tableRows.map((row, idx) => {
+                // Calculate daily sales required
+                const pendingNum = parseInt((row.pending + "").replace(/,/g, "")) || 0;
+                const dailyRequired = workingDaysLeft > 0 ? Math.ceil(pendingNum / workingDaysLeft) : "--";
+                return (
+                  <TableRow key={row.id}>
+                    <TableCell align="center">{row.name}</TableCell>
+                    <TableCell align="center">
+                      {row.monthlyTarget?.toLocaleString() || 0}{" "}
+                      <span style={{ color: "#777", fontWeight: "normal" }}>
+                        ({row.pctAch.toFixed(1)}%)
+                      </span>
+                    </TableCell>
+                    <TableCell align="center">{row.achieved}</TableCell>
+                    <TableCell align="center">{row.pending}</TableCell>
+                    <TableCell align="center">
+                      {dailyRequired === "--" ? "--" : `₹${dailyRequired.toLocaleString()}`}
+                    </TableCell>
+                    <TableCell align="center">{row.pctAch.toFixed(1)}%</TableCell>
+                    <TableCell align="center">{row.pctPend.toFixed(1)}%</TableCell>
+                    <TableCell align="center">
+                      <IconButton
+                        size="small"
+                        disabled={!!tableProgress[row.id]}
+                        onClick={() => handleRemove(row.id)}
+                      >
+                        {tableProgress[row.id] ? (
+                          <CircularProgress size={24} sx={{ color: "#000" }} />
+                        ) : (
+                          <DeleteIcon sx={{ color: "#d32f2f" }} />
+                        )}
+                      </IconButton>
+                    </TableCell>
+                  </TableRow>
+                );
+              })
             )}
           </TableBody>
         </Table>

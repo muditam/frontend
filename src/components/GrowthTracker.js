@@ -499,7 +499,7 @@ export default function GrowthTracker() {
                 color: "#fff",
                 mt: 2,
                 px: 6,
-                fontWeight: 700,
+                fontWeight: 700, 
                 borderRadius: 2.5,
                 fontSize: 16,
                 boxShadow: "0 2px 7px #1113",
@@ -507,7 +507,7 @@ export default function GrowthTracker() {
               }}
             >
               Back
-            </Button>
+            </Button> 
           </Box>
         </Box>
       )}
