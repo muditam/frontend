@@ -41,6 +41,7 @@ import EmojiEventsIcon from "@mui/icons-material/EmojiEvents";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import ExpandLessIcon from "@mui/icons-material/ExpandLess";
 import LeaderboardIcon from "@mui/icons-material/Leaderboard"; 
+import RocketLaunchIcon from "@mui/icons-material/RocketLaunch";
 import { Syringe } from "lucide-react";
 import pincodeData from "../../LeadConsultation/ProcessTracker/pincodeData";
 import LeaderboardPopover from "./LeaderboardPopover";
@@ -539,7 +540,7 @@ const NavbarWithSearch = () => {
               }}
               title="View Incentive Structure"
             >
-              <EmojiEventsIcon sx={{ fontSize: "2.2rem" }} />
+              <RocketLaunchIcon sx={{ fontSize: "2.2rem" }} />
             </IconButton>
 
             <IconButton
@@ -554,7 +555,7 @@ const NavbarWithSearch = () => {
   }}
   title="View Leaderboard"
 >
-  <LeaderboardIcon sx={{ fontSize: "2.1rem" }} />
+  <EmojiEventsIcon sx={{ fontSize: "2.1rem" }} />
 </IconButton>
 
 <LeaderboardPopover
