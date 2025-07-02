@@ -540,8 +540,9 @@ const NavbarWithSearch = () => {
               }}
               title="View Incentive Structure"
             >
-              <RocketLaunchIcon sx={{ fontSize: "2.2rem" }} />
+              <RocketLaunchIcon />
             </IconButton>
+
 
             <IconButton
   ref={leaderboardAnchorRef}
@@ -555,7 +556,7 @@ const NavbarWithSearch = () => {
   }}
   title="View Leaderboard"
 >
-  <EmojiEventsIcon sx={{ fontSize: "2.1rem" }} />
+  <EmojiEventsIcon />
 </IconButton>
 
 <LeaderboardPopover
@@ -569,7 +570,7 @@ const NavbarWithSearch = () => {
               sx={{ mr: 1, color: "#fff", borderRadius: "50%", p: 1.1, "&:hover": { bgcolor: "#e0e0e0" } }}
               title="Blood Test Pincode Check"
             >
-              <Syringe style={{ fontSize: "2.1rem" }} />
+              <Syringe />
             </IconButton>
 
             {user && (
@@ -580,7 +581,6 @@ const NavbarWithSearch = () => {
                 <StickyNote2Icon sx={{ color: "white" }} />
               </IconButton>
             )}
-            <Notifications />
             {user && location.pathname !== "/login" && (
               <IconButton
                 color="inherit"

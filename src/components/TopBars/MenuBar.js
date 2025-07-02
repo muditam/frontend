@@ -26,7 +26,31 @@ import ShoppingCartIcon from "@mui/icons-material/ShoppingCart";
 import DeleteIcon from "@mui/icons-material/Delete";
 import CompareArrowsIcon from "@mui/icons-material/CompareArrows";
 import ChatBubbleIcon from "@mui/icons-material/ChatBubble";
+import TrendingUpIcon from "@mui/icons-material/TrendingUp";
 import { Link, useNavigate } from "react-router-dom";
+
+// Put this ABOVE the MenuBar component in the same file, or in its own file and import it
+const GrowthIcon = ({ size = 22, style }) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 64 64"
+    fill="none"
+    style={style}
+    xmlns="http://www.w3.org/2000/svg"
+  >
+    {/* Steps */}
+    <rect x="2" y="50" width="10" height="12" fill="black" />
+    <rect x="18" y="36" width="10" height="26" fill="black" />
+    {/* Person (Head, Body, Arm) */}
+    <circle cx="33" cy="17" r="6" fill="black" />
+    <rect x="30" y="23" width="6" height="16" fill="black" />
+    <rect x="28" y="30" width="10" height="3" rx="1.5" fill="black" transform="rotate(-30 28 30)" />
+    {/* Upward Arrow */}
+    <rect x="48" y="22" width="8" height="28" fill="black" />
+    <polygon points="52,8 60,22 44,22" fill="black" />
+  </svg>
+);
 
 
 const MenuBar = ({ toggleDrawer }) => {
@@ -711,6 +735,33 @@ const MenuBar = ({ toggleDrawer }) => {
                 </Collapse>
               </>
             )}
+
+            <ListItem
+  button
+  component={Link}
+  to="/my-growth-plan"
+  sx={{
+    display: "flex",
+    alignItems: "center",
+    padding: "10px 20px",
+    borderRadius: "4px",
+    margin: "4px 0",
+    transition: "background-color 0.3s, transform 0.2s",
+    "&:hover": {
+      backgroundColor: "#e0f7fa",
+      color: "#007aff",
+      transform: "scale(1.02)",
+    },
+  }}
+  onClick={toggleDrawer}
+>
+  <TrendingUpIcon sx={{ fontSize: 24, marginRight: "12px" }} />
+  <Typography variant="body1" style={{ fontSize: "14px" }}>
+    Growth At Muditam
+  </Typography>
+</ListItem>
+
+
             <Box
               sx={{
                 display: "flex",

@@ -28,7 +28,8 @@ import PrivateRoute from "./components/PrivateRoute";
 import MyTemplates from "./components/MyTemplates";  
 import LeadManagement from './LeadConsultation/LeadManagement';
 import EscalationsPage from './components/EscalationsPage';
-import TeamPage from "./components/TeamPage";
+import TeamPage from "./components/TeamPage"; 
+import GrowthTracker from "./components/GrowthTracker";
 
 const App = () => {
   return (
@@ -225,6 +226,14 @@ const App = () => {
             element={
               <PrivateRoute>
                 <TeamPage />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/my-growth-plan"
+            element={
+              <PrivateRoute>
+                <GrowthTracker />
               </PrivateRoute>
             }
           />
