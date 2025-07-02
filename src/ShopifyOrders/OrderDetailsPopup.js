@@ -24,7 +24,14 @@ const flipVariants = {
   visible: { rotateY: 0, opacity: 1, transition: { duration: 0.4 } },
 };
 
-const OrderDetailsPopup = ({ orderId, agentName, onClose }) => {
+const OrderDetailsPopup = ({ orderId,
+  agentName,
+  discount: propDiscount,
+  discountType,
+  paymentMethod: propPaymentMethod,
+  upsellAmount: propUpsellAmount,
+  onClose,
+ }) => { 
   const [orderDetails, setOrderDetails] = useState(null);
   const [partialPayment, setPartialPayment] = useState("");
   const [detailsConfirmed, setDetailsConfirmed] = useState(false);
@@ -38,12 +45,14 @@ const OrderDetailsPopup = ({ orderId, agentName, onClose }) => {
   // NEW fields: Dosage Ordered, Self Remark, and Payment Method
   const [dosageOrdered, setDosageOrdered] = useState("10-Days");
   const [selfRemark, setSelfRemark] = useState("");
-  const [paymentMethod, setPaymentMethod] = useState("");
-  const [upsellChecked, setUpsellChecked] = useState(false);
-  const [upsellAmount, setUpsellAmount] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState(propPaymentMethod || "");
+  const [upsellChecked, setUpsellChecked] = useState(!!propUpsellAmount);
+  const [upsellAmount, setUpsellAmount] = useState(propUpsellAmount || "");
   const [isAdding, setIsAdding] = useState(false);
 
-  const [discount, setDiscount] = useState("");
+  const [discount, setDiscount] = useState(propDiscount || "");
+
+  const agent = selectedAgent || agentName || "N/A";
 
   useEffect(() => {
     // Fetch order details from Shopify when component mounts.
@@ -61,6 +70,26 @@ const OrderDetailsPopup = ({ orderId, agentName, onClose }) => {
     };
     fetchOrderDetails();
   }, [orderId]);
+
+  useEffect(() => {
+  if (!agentName && typeof window !== "undefined") {
+    const user = JSON.parse(localStorage.getItem("user"));
+    setSelectedAgent(user?.fullName || "N/A");
+  } else {
+    setSelectedAgent(agentName);
+  }
+}, [agentName]);
+
+useEffect(() => {
+  if (propPaymentMethod) setPaymentMethod(propPaymentMethod);
+  if (propUpsellAmount) {
+    setUpsellChecked(true);
+    setUpsellAmount(propUpsellAmount);
+  }
+  if (propDiscount) setDiscount(propDiscount);
+}, [propPaymentMethod, propUpsellAmount, propDiscount]);
+
+
 
   // Employee search: fetch all employees and filter client-side
   const searchEmployees = async (query) => {
@@ -107,11 +136,11 @@ const OrderDetailsPopup = ({ orderId, agentName, onClose }) => {
     Total Price: ${upsellChecked
         ? upsellAmount
         : orderDetails.totalPrice}
-    Health Expert: ${selectedAgent}
-    Discount: ${discount}
+    Health Expert: ${agent}
+    Discount: ${discountType === "percentage" ? `${discount}%` : `₹${discount}`}
     Dosage Ordered: ${dosageOrdered}`;
 
-    if (orderDetails.paymentStatus === "pending") {
+    if (orderDetails.paymentStatus === "pending") { 
       detailsText += `\nPartial Payment: ${partialPayment}`;
     }
     if (paymentMethod === "Partial Paid") {
@@ -158,7 +187,7 @@ const OrderDetailsPopup = ({ orderId, agentName, onClose }) => {
       orderDate: orderDetails.orderDate,
       orderId: orderDetails.orderId,
       totalPrice: upsellChecked ? Number(upsellAmount) : Number(orderDetails.totalPrice),
-      agentName: selectedAgent,
+      agentName: agent, 
       partialPayment: partialPayment,
       dosageOrdered,
       selfRemark,
@@ -321,6 +350,15 @@ const OrderDetailsPopup = ({ orderId, agentName, onClose }) => {
                   size="small"
                   value={paymentMethod}
                   onChange={(e) => setPaymentMethod(e.target.value)}
+                  MenuProps={{
+                    container: document.body, 
+                    disablePortal: true,       
+                    PaperProps: {
+                      style: {
+                        zIndex: 2000,          
+                      },
+                    },
+                  }}
                 >
                   {["Partial Paid", "Razorpay", "COD", "UPI", "Bank Transfer", "PayPal"].map(
                     (option) => (
@@ -386,6 +424,15 @@ const OrderDetailsPopup = ({ orderId, agentName, onClose }) => {
                   size="small"
                   value={dosageOrdered}
                   onChange={(e) => setDosageOrdered(e.target.value)}
+                  MenuProps={{
+                    container: document.body, 
+                    disablePortal: true,     
+                    PaperProps: {
+                      style: {
+                        zIndex: 2000,          
+                      },
+                    },
+                  }}
                 >
                   {["10-Days", "20-Days", "30-Days", "60-Days", "90-Days"].map(
                     (option) => (

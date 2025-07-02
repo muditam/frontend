@@ -34,7 +34,7 @@ const MenuBar = ({ toggleDrawer }) => {
   const [role, setRole] = useState(null);
   const navigate = useNavigate();
   const [user, setUser] = useState(JSON.parse(sessionStorage.getItem("user")));
-
+  const hasTeam = user && user.hasTeam;
 
   useEffect(() => {
     if (user && user.role) {
@@ -42,20 +42,15 @@ const MenuBar = ({ toggleDrawer }) => {
     }
   }, [user]);
 
-
-
-
   const handleDropdownClick = (menu) => {
     setOpenDropdown((prev) => ({ ...prev, [menu]: !prev[menu] }));
   };
-
 
   const handleLogout = () => {
     sessionStorage.removeItem("user");
     setUser(null);
     navigate("/login");
   };
-
 
   return (
     <Drawer
@@ -211,6 +206,33 @@ const MenuBar = ({ toggleDrawer }) => {
             Escalations
           </Typography>
         </ListItem>
+
+        {hasTeam && (
+  <ListItem
+    button
+    component={Link}
+    to="/team"
+    sx={{
+      display: "flex",
+      alignItems: "center",
+      padding: "10px 20px",
+      borderRadius: "4px",
+      margin: "4px 0",
+      transition: "background-color 0.3s, transform 0.2s",
+      "&:hover": {
+        backgroundColor: "#e0f7fa",
+        color: "#007aff",
+        transform: "scale(1.02)",
+      },
+    }}
+    onClick={toggleDrawer}
+  >
+    <PersonIcon sx={{ marginRight: "12px" }} />
+    <Typography variant="body1" style={{ fontSize: "14px" }}>
+      Team
+    </Typography>
+  </ListItem>
+)}
 
         {user ? (
           <>

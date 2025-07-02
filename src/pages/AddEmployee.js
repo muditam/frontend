@@ -17,20 +17,12 @@ import {
   TableRow,
   Paper,
   IconButton,
-  Avatar,
   InputAdornment,
+  Checkbox,
+  FormControlLabel,
 } from "@mui/material";
-
-
-import { Person, Visibility, VisibilityOff } from "@mui/icons-material";
-
-
-import { WarningAmber } from "@mui/icons-material";  
-
-
-import { Edit, Delete } from "@mui/icons-material";
+import { Visibility, VisibilityOff, WarningAmber, Edit, Delete } from "@mui/icons-material";
 import axios from "axios";
-
 
 const AddEmployee = () => {
   const [employees, setEmployees] = useState([]);
@@ -49,27 +41,24 @@ const AddEmployee = () => {
     role: "",
     password: "",
     confirmPassword: "",
-    async: 1, // Default value set to 1
-    status: "active", // Default status is active
+    async: 1,
+    status: "active",
+    target: "",
+    hasTeam: false,  
   });
   const [error, setError] = useState("");
-  const [viewInactive, setViewInactive] = useState(false); 
-
+  const [viewInactive, setViewInactive] = useState(false);
 
   const roles = ["Manager", "Sales Agent", "Retention Agent"];
   const statusOptions = ["active", "inactive"];
-
 
   useEffect(() => {
     fetchEmployees();
   }, [viewInactive]);
 
-
   const fetchEmployees = async () => {
     try {
-      const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/employees");  
-      // When viewInactive is true, show only inactive employees;
-      // when false, show only active employees.
+      const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/employees");
       const fetchedEmployees = response.data.filter(emp =>
         viewInactive ? emp.status === "inactive" : emp.status === "active"
       );
@@ -79,62 +68,54 @@ const AddEmployee = () => {
     }
   };
 
-
   const handleChange = (e) => {
-    const { name, value } = e.target;
-    setEmployeeData({ ...employeeData, [name]: value });
+    const { name, value, type, checked } = e.target;
+    setEmployeeData({ ...employeeData, [name]: type === "checkbox" ? checked : value });
   };
 
-
   const validateForm = () => {
-    const { fullName, email, callerId, agentNumber, role, password, confirmPassword } = employeeData;
+    const { fullName, email, callerId, agentNumber, role, password, confirmPassword, target } = employeeData;
 
-
-    if (!fullName || !email || !callerId || !agentNumber || !role || (!isEditMode && !password)) {
+    if (!fullName || !email || !callerId || !agentNumber || !role || (!isEditMode && !password) || target === "") {
       setError("All fields are required.");
       return false;
     }
-
 
     if (!/^[a-zA-Z ]+$/.test(fullName)) {
       setError("Full Name should contain only alphabets and spaces.");
       return false;
     }
 
-
     if (!/^[\w-.]+@([\w-]+\.)+[\w-]{2,4}$/.test(email)) {
       setError("Invalid email format.");
       return false;
     }
 
-
     if (!/^[0-9]+$/.test(callerId)) {
       setError("Contact Number must be a 10-digit number.");
       return false;
     }
-
-
+    if (!/^\d+$/.test(target)) {
+      setError("Target must be a number.");
+      return false;
+    }
     if (!isEditMode && password.length < 8) {
       setError("Password must be at least 8 characters long.");
       return false;
     }
-
 
     if (!isEditMode && password !== confirmPassword) {
       setError("Passwords do not match.");
       return false;
     }
 
-
     setError("");
     return true;
   };
 
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!validateForm()) return;
-
 
     try {
       if (isEditMode) {
@@ -157,13 +138,14 @@ const AddEmployee = () => {
         confirmPassword: "",
         async: 1,
         status: "active",
+        target: "",
+        hasTeam: false,
       });
     } catch (error) {
       console.error("Error submitting employee data:", error);
       setError("Error occurred while saving employee data.");
     }
   };
-
 
   const handleEdit = (employee) => {
     setEmployeeData({
@@ -176,12 +158,13 @@ const AddEmployee = () => {
       confirmPassword: "",
       async: 1,
       status: employee.status,
+      target: employee.target || "",
+      hasTeam: employee.hasTeam || false, // <-- NEW FIELD
     });
     setCurrentEmployeeId(employee._id);
     setIsEditMode(true);
     setOpen(true);
   };
-
 
   const handleDelete = async (id) => {
     try {
@@ -193,24 +176,21 @@ const AddEmployee = () => {
     }
   };
 
-
-   const confirmDelete = (id) => {
-     setEmployeeToDelete(id);
-     setDeleteDialogOpen(true);
-   };
-
+  const confirmDelete = (id) => {
+    setEmployeeToDelete(id);
+    setDeleteDialogOpen(true);
+  };
 
   const handleToggleViewInactive = () => {
     setViewInactive(!viewInactive);
   };
-
 
   return (
     <Box sx={{ maxWidth: 800, margin: "auto", mt: 5, padding: 3 }}>
       <Typography
         variant="h5"
         gutterBottom
-        sx={{ textAlign: "center", color: "#000000", fontWeight:"bold" }}
+        sx={{ textAlign: "center", color: "#000000", fontWeight: "bold" }}
       >
         Employee Management
       </Typography>
@@ -230,6 +210,8 @@ const AddEmployee = () => {
               confirmPassword: "",
               async: 1,
               status: "active",
+              target: "",
+              hasTeam: false,
             });
             setOpen(true);
           }}
@@ -240,7 +222,6 @@ const AddEmployee = () => {
           {viewInactive ? "Hide Inactive Employees" : "View Inactive Employees"}
         </Button>
       </Box>
-
 
       <TableContainer
         component={Paper}
@@ -256,6 +237,7 @@ const AddEmployee = () => {
                 "Agent Number (IVR)",
                 "Role",
                 "Status",
+                "Target",
                 "Async",
                 "Actions",
               ].map((head) => (
@@ -313,7 +295,10 @@ const AddEmployee = () => {
                   >
                     {employee.status}
                   </Box>
-                </TableCell> 
+                </TableCell>
+                <TableCell align="center" sx={{ padding: "8px 16px" }}>
+                  {employee.target || 0}
+                </TableCell>
                 <TableCell align="center" sx={{ padding: "8px 16px" }}>
                   {employee.async}
                 </TableCell>
@@ -336,7 +321,6 @@ const AddEmployee = () => {
           </TableBody>
         </Table>
       </TableContainer>
-
 
       <Dialog
         open={open}
@@ -434,6 +418,21 @@ const AddEmployee = () => {
                 </MenuItem>
               ))}
             </TextField>
+
+            {/* Have a Team Checkbox BELOW Role */}
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={!!employeeData.hasTeam}
+                  onChange={handleChange}
+                  name="hasTeam"
+                  color="primary"
+                />
+              }
+              label="Have a Team?"
+              sx={{ pl: 1, mt: -1, mb: 1 }}
+            />
+
             <TextField
               select
               fullWidth
@@ -453,6 +452,20 @@ const AddEmployee = () => {
                 </MenuItem>
               ))}
             </TextField>
+            {/* Target input just below Status */}
+            <TextField
+              fullWidth
+              label="Target"
+              name="target"
+              type="number"
+              value={employeeData.target}
+              onChange={handleChange}
+              variant="filled"
+              InputProps={{
+                disableUnderline: true,
+                sx: { backgroundColor: "#fff", borderRadius: 1, px: 1 },
+              }}
+            />
             <TextField
               fullWidth
               label="Async"
@@ -467,7 +480,7 @@ const AddEmployee = () => {
             />
             {!isEditMode && (
               <>
-                              <TextField
+                <TextField
                   fullWidth
                   type={showPassword ? "text" : "password"}
                   label="Password"
@@ -557,7 +570,6 @@ const AddEmployee = () => {
         </DialogActions>
       </Dialog>
 
-
       <Dialog
         open={deleteDialogOpen}
         onClose={() => setDeleteDialogOpen(false)}
@@ -581,7 +593,7 @@ const AddEmployee = () => {
           >
             Cancel
           </Button>
-          <Button
+          <Button 
             onClick={() => handleDelete(employeeToDelete)}
             variant="contained"
             color="error"
@@ -593,6 +605,5 @@ const AddEmployee = () => {
     </Box>
   );
 };
-
 
 export default AddEmployee;

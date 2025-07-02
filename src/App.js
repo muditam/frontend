@@ -28,6 +28,7 @@ import PrivateRoute from "./components/PrivateRoute";
 import MyTemplates from "./components/MyTemplates";  
 import LeadManagement from './LeadConsultation/LeadManagement';
 import EscalationsPage from './components/EscalationsPage';
+import TeamPage from "./components/TeamPage";
 
 const App = () => {
   return (
@@ -216,6 +217,14 @@ const App = () => {
             element={
               <PrivateRoute>
                 <MyTemplates />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/team"
+            element={
+              <PrivateRoute>
+                <TeamPage />
               </PrivateRoute>
             }
           />

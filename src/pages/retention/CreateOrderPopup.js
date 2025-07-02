@@ -5,6 +5,7 @@ import {
   TextField, IconButton, Divider, FormControlLabel, Radio, RadioGroup
 } from "@mui/material";
 import ShoppingCartIcon from '@mui/icons-material/ShoppingCart';
+import OrderDetailsPopup from "../../ShopifyOrders/OrderDetailsPopup";
 import DeleteIcon from '@mui/icons-material/Delete';
 import axios from "axios";
 
@@ -30,6 +31,7 @@ const CreateOrderPopup = ({ open, onClose, prefillCustomer = {} }) => {
   const [shippingCharge, setShippingCharge] = useState();
   const [discount, setDiscount] = useState();
   const [customer, setCustomer] = useState({ name: '', phone: '', address: '' });
+  const [discountType, setDiscountType] = useState("amount");
 
   // Address selection state
   const [allAddresses, setAllAddresses] = useState([]);
@@ -41,7 +43,15 @@ const CreateOrderPopup = ({ open, onClose, prefillCustomer = {} }) => {
   const [transactionId, setTransactionId] = useState("");
   const [generatingPaymentLink, setGeneratingPaymentLink] = useState(false);
 
-  // Always set name/phone from prefillCustomer; fetch addresses from Shopify
+  const [showOrderDetailsPopup, setShowOrderDetailsPopup] = useState(false); // ✅
+  const [orderDetailsPayload, setOrderDetailsPayload] = useState(null);
+
+  // Post-order note dialog
+  const [showNoteDialog, setShowNoteDialog] = useState(false);
+  const [noteText, setNoteText] = useState("");
+  const [latestOrderId, setLatestOrderId] = useState(null);
+
+  // Always set name/phone from prefillCustomer; fetch addresses from Shopify 
   useEffect(() => {
     if (!prefillCustomer?.phone) return;
     setCustomer({
@@ -63,11 +73,15 @@ const CreateOrderPopup = ({ open, onClose, prefillCustomer = {} }) => {
   const fetchCustomerAddresses = async (phone) => {
     try {
       const res = await axios.get(`https://muditamleads-14f32a10d7f7.herokuapp.com/api/shopify/customers?phone=${encodeURIComponent(phone)}`);
+      setCustomer(prev => ({
+        ...prev,
+        customerId: res.data.id,
+      }));
       if (res.data && Array.isArray(res.data.addresses)) {
         setAllAddresses(res.data.addresses);
         if (res.data.addresses.length === 1) {
           setSelectedAddressId(res.data.addresses[0].id);
-          setCustomer(prev => ({ ...prev, address: res.data.addresses[0].formatted }));
+          setCustomer(prev => ({ ...prev, address: res.data.addresses[0] })); // full address object
         } else {
           setCustomer(prev => ({ ...prev, address: "" }));
         }
@@ -84,7 +98,7 @@ const CreateOrderPopup = ({ open, onClose, prefillCustomer = {} }) => {
       setCustomer(prev => ({ ...prev, address: "" }));
     } else {
       const found = allAddresses.find(a => a.id === selectedAddressId);
-      setCustomer(prev => ({ ...prev, address: found ? found.formatted : "" }));
+      setCustomer(prev => ({ ...prev, address: found ? found : "" })); // assign full address object
     }
   }, [selectedAddressId, allAddresses]);
 
@@ -138,7 +152,12 @@ const CreateOrderPopup = ({ open, onClose, prefillCustomer = {} }) => {
   };
 
   const subtotal = cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
-  const total = subtotal - (discount || 0) + Number(shippingCharge || 0);
+  const discountAmount =
+    discountType === "percentage"
+      ? (subtotal * (discount || 0)) / 100
+      : (discount || 0);
+
+  const total = subtotal - discountAmount + Number(shippingCharge || 0);
 
   const filteredProducts = products.filter(product =>
     product.title.toLowerCase().includes(search.toLowerCase())
@@ -158,11 +177,10 @@ const CreateOrderPopup = ({ open, onClose, prefillCustomer = {} }) => {
   const handleGeneratePaymentLink = async () => {
     setGeneratingPaymentLink(true);
     try {
-      // Assume you have this API on your backend!
       const res = await axios.post("https://muditamleads-14f32a10d7f7.herokuapp.com/api/razorpay/generate-link", {
         customerName: customer.name,
         customerPhone: customer.phone,
-        customerAddress: customer.address,
+        customerAddress: customer.address.formatted || customer.address,
         amount: total,
       });
       setPaymentLink(res.data.paymentLink);
@@ -173,260 +191,364 @@ const CreateOrderPopup = ({ open, onClose, prefillCustomer = {} }) => {
     }
   };
 
+  // Place Order Handler (no notes, always enabled after address select)
   const handlePlaceOrder = async () => {
-    // Send to backend: name, phone, address, items, paymentMethod, transactionId, etc.
-    try {
-      await axios.post("https://muditamleads-14f32a10d7f7.herokuapp.com/api/shopify/place-order", {
-        customer,
-        cartItems,
-        paymentMethod,
-        transactionId: paymentMethod === "Prepaid" ? transactionId : undefined,
-        shippingCharge,
-        discount,
-        notes:
-          paymentMethod === "Prepaid"
-            ? `Prepaid. Transaction ID: ${transactionId || ""}`
-            : "COD order.",
-      });
-      alert("Order placed successfully!");
-      onClose();
-    } catch (err) {
-      alert("Order placement failed.");
-    }
-  };
+  try {
+    const payload = {
+      customer,
+      cartItems,
+      paymentMethod,
+      transactionId: paymentMethod === "Prepaid" ? transactionId : undefined,
+      shippingCharge,
+      discount,
+      discountType,
+    };
+
+    const res = await axios.post("https://muditamleads-14f32a10d7f7.herokuapp.com/api/shopify/place-order", payload);
+    const newOrderId = res.data?.shopifyOrder?.id;
+
+    setLatestOrderId(newOrderId || null);
+    alert("Order placed successfully!");
+    setShowNoteDialog(true); // ✅ Show note dialog
+
+    const user = JSON.parse(localStorage.getItem("user"));
+    const agentName = user?.fullName || "";
+
+    // ✅ Prepare order details but DO NOT show yet (wait until note is added)
+    setOrderDetailsPayload({
+      orderId: newOrderId,
+      agentName,
+      discount,
+      discountType,
+      paymentMethod,
+      upsellAmount: 0, // set to actual if needed
+    });
+  } catch (err) {
+    alert("Order placement failed.");
+  }
+};
+
+
+  // Optional: Add a note to the order after placement
+const handleAddNote = async () => {
+  if (!latestOrderId || !noteText) return;
+  try {
+    await axios.post("https://muditamleads-14f32a10d7f7.herokuapp.com/api/shopify/add-note", {
+      orderId: latestOrderId,
+      note: noteText,
+    });
+    alert("Note added to order!");
+    setShowNoteDialog(false);
+    setNoteText("");
+
+    const user = JSON.parse(localStorage.getItem("user")); // ✅ read logged-in user
+    const agentName = user?.fullName || "";
+
+    setOrderDetailsPayload({
+      orderId: latestOrderId,
+      agentName,
+      discount,
+      discountType,
+      paymentMethod,
+      upsellAmount: 0, // Optional: you can compute and pass real upsell if needed
+    });
+    setShowOrderDetailsPopup(true);
+  } catch (err) {
+    alert("Failed to add note.");
+  }
+};
+
 
   // --- UI render below ---
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
-      <DialogTitle>
-        Select products
-        <IconButton sx={{ float: 'right' }} onClick={() => setCartOpen(true)}>
-          <ShoppingCartIcon />
-        </IconButton>
-      </DialogTitle>
-      <DialogContent dividers sx={{ maxHeight: "70vh" }}>
-        <Box sx={{ mb: 2 }}>
-          <TextField
-            fullWidth
-            label="Search products"
-            variant="outlined"
-            size="small"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-        </Box>
-        {loading ? (
-          <CircularProgress />
-        ) : (
-          filteredProducts.map((product) => (
-            <Box key={product.id} sx={{ mb: 2 }}>
-              <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1 }}>
-                {product.image && (
-                  <Avatar src={product.image} variant="square" sx={{ width: 40, height: 40 }} />
-                )}
-                <Typography fontWeight="bold">{product.title}</Typography>
-              </Box>
-              {product.variants.map((variant) => (
-                <Box
-                  key={variant.id}
-                  onClick={() => handleVariantToggle(variant.id)}
-                  sx={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    px: 2,
-                    py: 1,
-                    borderBottom: "1px solid #eee",
-                    backgroundColor: selectedVariants[variant.id] ? '#f0f0f0' : 'transparent',
-                    cursor: 'pointer'
-                  }}
-                >
-                  <Checkbox
-                    checked={!!selectedVariants[variant.id]}
-                    onChange={() => handleVariantToggle(variant.id)}
-                    onClick={(e) => e.stopPropagation()}
-                  />
-                  <Typography sx={{ flex: 1 }}>{variant.title}</Typography>
-                  <Typography sx={{ width: 150, textAlign: "center" }}>
-                    {variant.inventory_quantity} available
-                  </Typography>
-                  <Typography sx={{ width: 100, textAlign: "right" }}>
-                    ₹{variant.price} INR
-                  </Typography>
+    <>
+      <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
+        <DialogTitle>
+          Select products
+          <IconButton sx={{ float: 'right' }} onClick={() => setCartOpen(true)}>
+            <ShoppingCartIcon />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent dividers sx={{ maxHeight: "70vh" }}>
+          <Box sx={{ mb: 2 }}>
+            <TextField
+              fullWidth
+              label="Search products"
+              variant="outlined"
+              size="small"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </Box>
+          {loading ? (
+            <CircularProgress />
+          ) : (
+            filteredProducts.map((product) => (
+              <Box key={product.id} sx={{ mb: 2 }}>
+                <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1 }}>
+                  {product.image && (
+                    <Avatar src={product.image} variant="square" sx={{ width: 40, height: 40 }} />
+                  )}
+                  <Typography fontWeight="bold">{product.title}</Typography>
                 </Box>
-              ))}
-            </Box>
-          ))
-        )}
-      </DialogContent>
-      <DialogActions>
-        <Typography sx={{ flexGrow: 1, px: 2 }}>
-          {Object.keys(selectedVariants).filter(id => selectedVariants[id]).length} variants selected
-        </Typography>
-        <Button onClick={onClose}>Cancel</Button>
-        <Button variant="contained" onClick={handleAdd}>Add</Button> 
-      </DialogActions>
-
-      {/* Cart Dialog */}
-      <Dialog open={cartOpen} onClose={() => setCartOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>Your Cart</DialogTitle>
-        <DialogContent dividers>
-          {cartItems.map(item => (
-            <Box key={item.id} sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-              {item.image && (
-                <Avatar src={item.image} variant="square" sx={{ width: 40, height: 40, mr: 1 }} />
-              )}
-              <Box sx={{ flexGrow: 1 }}>
-                <Typography>{item.productTitle} x{item.quantity}</Typography>
-                <Typography variant="body2" color="textSecondary">{item.title}</Typography>
+                {product.variants.map((variant) => (
+                  <Box
+                    key={variant.id}
+                    onClick={() => handleVariantToggle(variant.id)}
+                    sx={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      px: 2,
+                      py: 1,
+                      borderBottom: "1px solid #eee",
+                      backgroundColor: selectedVariants[variant.id] ? '#f0f0f0' : 'transparent',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <Checkbox
+                      checked={!!selectedVariants[variant.id]}
+                      onChange={() => handleVariantToggle(variant.id)}
+                      onClick={(e) => e.stopPropagation()}
+                    />
+                    <Typography sx={{ flex: 1 }}>{variant.title}</Typography>
+                    <Typography sx={{ width: 150, textAlign: "center" }}>
+                      {variant.inventory_quantity} available
+                    </Typography>
+                    <Typography sx={{ width: 100, textAlign: "right" }}>
+                      ₹{variant.price} INR
+                    </Typography>
+                  </Box>
+                ))}
               </Box>
-              <Typography>₹{item.price * item.quantity}</Typography>
-              <Box sx={{ display: 'flex', alignItems: 'center', mx: 1 }}>
-                <Button size="small" onClick={() => updateQuantity(item.id, -1)}>-</Button>
-                <Typography sx={{ mx: 1 }}>{item.quantity}</Typography>
-                <Button size="small" onClick={() => updateQuantity(item.id, 1)}>+</Button>
-              </Box>
-              <IconButton onClick={() => removeItem(item.id)}>
-                <DeleteIcon />
-              </IconButton>
-            </Box>
-          ))}
-
-          <Divider sx={{ my: 2 }} />
-          <Box sx={{ mb: 2 }}>
-            <Typography>Discount (₹)</Typography>
-            <TextField
-              fullWidth size="small" type="number"
-              value={discount || ''}
-              onChange={e => setDiscount(Number(e.target.value))}
-            />
-          </Box>
-          <Box sx={{ mb: 2 }}>
-            <Typography>Shipping Charges (₹)</Typography>
-            <TextField
-              fullWidth size="small" type="number"
-              value={shippingCharge || ''}
-              onChange={e => setShippingCharge(Number(e.target.value))}
-            />
-          </Box>
-
-          <Divider sx={{ my: 2 }} />
-          <Typography>Sub-Total: ₹{subtotal.toFixed(2)}</Typography>
-          <Typography>Tax: ₹0.00</Typography>
-          <Typography>Discount: -₹{(discount || 0).toFixed(2)}</Typography>
-          <Typography>Shipping: ₹{(Number(shippingCharge) || 0).toFixed(2)}</Typography>
-          <Typography fontWeight="bold">Total: ₹{total.toFixed(2)}</Typography>
+            ))
+          )}
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setCartOpen(false)}>Close</Button>
-          <Button variant="contained" onClick={handleNext}>Next</Button>
+          <Typography sx={{ flexGrow: 1, px: 2 }}>
+            {Object.keys(selectedVariants).filter(id => selectedVariants[id]).length} variants selected
+          </Typography>
+          <Button onClick={onClose}>Cancel</Button>
+          <Button variant="contained" onClick={handleAdd}>Add</Button> 
         </DialogActions>
+
+        {/* Cart Dialog */}
+        <Dialog open={cartOpen} onClose={() => setCartOpen(false)} maxWidth="sm" fullWidth>
+          <DialogTitle>Your Cart</DialogTitle>
+          <DialogContent dividers>
+            {cartItems.map(item => (
+              <Box key={item.id} sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                {item.image && (
+                  <Avatar src={item.image} variant="square" sx={{ width: 40, height: 40, mr: 1 }} />
+                )}
+                <Box sx={{ flexGrow: 1 }}>
+                  <Typography>{item.productTitle} x{item.quantity}</Typography>
+                  <Typography variant="body2" color="textSecondary">{item.title}</Typography>
+                </Box>
+                <Typography>₹{item.price * item.quantity}</Typography>
+                <Box sx={{ display: 'flex', alignItems: 'center', mx: 1 }}>
+                  <Button size="small" onClick={() => updateQuantity(item.id, -1)}>-</Button>
+                  <Typography sx={{ mx: 1 }}>{item.quantity}</Typography>
+                  <Button size="small" onClick={() => updateQuantity(item.id, 1)}>+</Button>
+                </Box>
+                <IconButton onClick={() => removeItem(item.id)}>
+                  <DeleteIcon />
+                </IconButton>
+              </Box>
+            ))}
+
+            <Divider sx={{ my: 2 }} />
+            <Box sx={{ mb: 2 }}>
+              <Typography>Discount</Typography>
+              <Box sx={{ display: 'flex', gap: 1 }}>
+                <TextField
+                  select
+                  size="small"
+                  value={discountType}
+                  onChange={e => setDiscountType(e.target.value)}
+                  SelectProps={{ native: true }}
+                  sx={{ width: 240 }}
+                >
+                  <option value="amount">Amount (₹)</option>
+                  <option value="percentage">Percentage (%)</option>
+                </TextField>
+                <TextField
+                  fullWidth
+                  size="small"
+                  type="number"
+                  label={discountType === "percentage" ? "Discount %" : "Discount ₹"}
+                  value={discount || ''}
+                  onChange={(e) => setDiscount(Number(e.target.value))}
+                />
+              </Box>
+            </Box>
+
+            <Box sx={{ mb: 2 }}>
+              <Typography>Shipping Charges (₹)</Typography>
+              <TextField
+                fullWidth size="small" type="number"
+                value={shippingCharge || ''}
+                onChange={e => setShippingCharge(Number(e.target.value))}
+              />
+            </Box>
+
+            <Divider sx={{ my: 2 }} />
+            <Typography>Sub-Total: ₹{subtotal.toFixed(2)}</Typography>
+            <Typography>Tax: ₹0.00</Typography>
+            <Typography>
+              Discount: -₹{discountAmount.toFixed(2)} ({discountType === "percentage" ? `${discount || 0}%` : `₹${discount || 0}`})
+            </Typography>
+            <Typography>Shipping: ₹{(Number(shippingCharge) || 0).toFixed(2)}</Typography>
+            <Typography fontWeight="bold">Total: ₹{total.toFixed(2)}</Typography>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setCartOpen(false)}>Close</Button>
+            <Button variant="contained" onClick={handleNext}>Next</Button>
+          </DialogActions>
+        </Dialog>
+
+        {/* Customer Info Dialog */}
+        <Dialog open={customerDialogOpen} onClose={() => setCustomerDialogOpen(false)} maxWidth="sm" fullWidth>
+          <DialogTitle>Customer Information</DialogTitle>
+          <DialogContent dividers>
+            <Typography variant="subtitle2">Name</Typography>
+            <Typography sx={{ mb: 1 }}>{customer.name || '-'}</Typography>
+            <Typography variant="subtitle2">Phone</Typography>
+            <Typography sx={{ mb: 1 }}>{customer.phone || '-'}</Typography>
+            <Typography variant="subtitle2">Address</Typography>
+            {allAddresses.length > 1 && (
+              <Box sx={{ mb: 2 }}>
+                <RadioGroup
+                  value={selectedAddressId || ""}
+                  onChange={e => setSelectedAddressId(Number(e.target.value))}
+                >
+                  {allAddresses.map(addr => (
+                    <FormControlLabel
+                      key={addr.id}
+                      value={addr.id}
+                      control={<Radio />}
+                      label={addr.formatted}
+                    />
+                  ))}
+                </RadioGroup>
+              </Box>
+            )}
+            {allAddresses.length === 1 && (
+              <Typography sx={{ whiteSpace: 'pre-line' }}>
+                {customer.address.formatted || '-'}
+              </Typography>
+            )}
+            {allAddresses.length === 0 && (
+              <Typography sx={{ whiteSpace: 'pre-line' }}>
+                -
+              </Typography>
+            )}
+
+            {/* Payment Method */}
+            <Typography variant="subtitle2" sx={{ mt: 2 }}>Select Payment Method</Typography>
+            <RadioGroup
+              row
+              value={paymentMethod}
+              onChange={e => {
+                setPaymentMethod(e.target.value);
+                setPaymentLink("");
+                setTransactionId("");
+              }}
+            >
+              <FormControlLabel value="Prepaid" control={<Radio />} label="Prepaid" />
+              <FormControlLabel value="COD" control={<Radio />} label="Cash on Delivery (COD)" />
+            </RadioGroup>
+
+            {/* Prepaid UI */}
+            {paymentMethod === "Prepaid" && (
+              <Box sx={{ mt: 2 }}>
+                <Button
+                  variant="outlined"
+                  onClick={handleGeneratePaymentLink}
+                  disabled={generatingPaymentLink || !!paymentLink || !customer.address}
+                >
+                  {generatingPaymentLink
+                    ? "Generating..."
+                    : paymentLink
+                    ? "Payment Link Generated"
+                    : "Generate Payment Link"}
+                </Button>
+                {paymentLink && (
+                  <Box sx={{ mt: 1 }}>
+                    <TextField
+                      fullWidth
+                      value={paymentLink}
+                      InputProps={{ readOnly: true }}
+                      sx={{ mb: 1 }}
+                    />
+                    <Button onClick={() => navigator.clipboard.writeText(paymentLink)} sx={{ mb: 2 }}>
+                      Copy Payment Link
+                    </Button>
+                    <TextField
+                      fullWidth
+                      label="Enter Transaction ID"
+                      value={transactionId}
+                      onChange={e => setTransactionId(e.target.value)}
+                      sx={{ mt: 2 }}
+                    />
+                  </Box>
+                )}
+              </Box>
+            )}
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={handleBackToCart}>Back</Button>
+            <Button
+              variant="contained"
+              onClick={handlePlaceOrder}
+              disabled={!customer.address} // <--- Only check for address!
+            >
+              Place Order
+            </Button>
+          </DialogActions>
+        </Dialog>
       </Dialog>
 
-      {/* Customer Info Dialog */}
-      <Dialog open={customerDialogOpen} onClose={() => setCustomerDialogOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>Customer Information</DialogTitle>
-        <DialogContent dividers>
-          <Typography variant="subtitle2">Name</Typography>
-          <Typography sx={{ mb: 1 }}>{customer.name || '-'}</Typography>
-          <Typography variant="subtitle2">Phone</Typography>
-          <Typography sx={{ mb: 1 }}>{customer.phone || '-'}</Typography>
-          <Typography variant="subtitle2">Address</Typography>
-          {allAddresses.length > 1 && (
-            <Box sx={{ mb: 2 }}>
-              <RadioGroup
-                value={selectedAddressId || ""}
-                onChange={e => setSelectedAddressId(Number(e.target.value))}
-              >
-                {allAddresses.map(addr => (
-                  <FormControlLabel
-                    key={addr.id}
-                    value={addr.id}
-                    control={<Radio />}
-                    label={addr.formatted}
-                  />
-                ))}
-              </RadioGroup>
-            </Box>
-          )}
-          {allAddresses.length === 1 && (
-            <Typography sx={{ whiteSpace: 'pre-line' }}>
-              {customer.address || '-'}
-            </Typography>
-          )}
-          {allAddresses.length === 0 && (
-            <Typography sx={{ whiteSpace: 'pre-line' }}>
-              -
-            </Typography>
-          )}
-
-          {/* Payment Method */}
-          <Typography variant="subtitle2" sx={{ mt: 2 }}>Select Payment Method</Typography>
-          <RadioGroup
-            row
-            value={paymentMethod}
-            onChange={e => {
-              setPaymentMethod(e.target.value);
-              setPaymentLink("");
-              setTransactionId("");
-            }}
-          >
-            <FormControlLabel value="Prepaid" control={<Radio />} label="Prepaid" />
-            <FormControlLabel value="COD" control={<Radio />} label="Cash on Delivery (COD)" />
-          </RadioGroup>
-
-          {/* Prepaid UI */}
-          {paymentMethod === "Prepaid" && (
-            <Box sx={{ mt: 2 }}>
-              <Button
-                variant="outlined"
-                onClick={handleGeneratePaymentLink}
-                disabled={generatingPaymentLink || !!paymentLink || !customer.address}
-              >
-                {generatingPaymentLink
-                  ? "Generating..."
-                  : paymentLink
-                  ? "Payment Link Generated"
-                  : "Generate Payment Link"}
-              </Button>
-              {paymentLink && (
-                <Box sx={{ mt: 1 }}>
-                  <TextField
-                    fullWidth
-                    value={paymentLink}
-                    InputProps={{ readOnly: true }}
-                    sx={{ mb: 1 }}
-                  />
-                  <Button onClick={() => navigator.clipboard.writeText(paymentLink)} sx={{ mb: 2 }}>
-                    Copy Payment Link
-                  </Button>
-                  <TextField
-                    fullWidth
-                    label="Enter Transaction ID"
-                    value={transactionId}
-                    onChange={e => setTransactionId(e.target.value)}
-                    sx={{ mt: 2 }}
-                  />
-                </Box>
-              )}
-            </Box>
-          )}
+      {/* Note Dialog */}
+      <Dialog open={showNoteDialog} onClose={() => setShowNoteDialog(false)}>
+        <DialogTitle>Add Note to Order?</DialogTitle>
+        <DialogContent>
+          <TextField
+            autoFocus
+            margin="dense"
+            label="Order Note"
+            type="text"
+            fullWidth
+            value={noteText}
+            onChange={e => setNoteText(e.target.value)}
+            multiline
+            minRows={2}
+          />
         </DialogContent>
         <DialogActions>
-          <Button onClick={handleBackToCart}>Back</Button>
-          <Button
-            variant="contained"
-            onClick={handlePlaceOrder}
-            disabled={
-              !customer.address ||
-              (paymentMethod === "Prepaid" && (!paymentLink || !transactionId))
-            }
-          >
-            Place Order
+          <Button onClick={() => setShowNoteDialog(false)}>Cancel</Button>
+          <Button variant="contained" onClick={handleAddNote} disabled={!noteText}> 
+            Add Note
           </Button>
         </DialogActions>
       </Dialog>
-    </Dialog>
+
+     {showOrderDetailsPopup && orderDetailsPayload && (
+      <OrderDetailsPopup
+        orderId={orderDetailsPayload.orderId}
+        agentName={orderDetailsPayload.agentName}
+        discount={orderDetailsPayload.discount}
+        discountType={orderDetailsPayload.discountType}
+        paymentMethod={orderDetailsPayload.paymentMethod}
+        upsellAmount={orderDetailsPayload.upsellAmount}
+        onClose={() => {
+          setShowOrderDetailsPopup(false);
+          setOrderDetailsPayload(null);
+          onClose(); // close parent popup after done
+        }}
+      />
+    )}
+    </>
   );
 };
 

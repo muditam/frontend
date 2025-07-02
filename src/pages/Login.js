@@ -16,9 +16,7 @@ const LoginPage = () => {
   const [loading, setLoading] = useState(false);
   const [forgotPassMessage, setForgotPassMessage] = useState(false);
 
-
   const navigate = useNavigate();
-
 
   const spinnerStyles = {
     width: "26px",
@@ -30,7 +28,6 @@ const LoginPage = () => {
     boxSizing: "border-box",
     animation: "rotation 1s linear infinite",
   };
-
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -53,7 +50,6 @@ const LoginPage = () => {
       setLoading(false); // Set loading state to false once the request is done
     }
   };
-
 
   return (
     <Grid container sx={{ minHeight: "90vh" }}>
@@ -78,7 +74,6 @@ const LoginPage = () => {
           alt="Muditam Ayurveda Logo"
           sx={{ width: 200, mb: 3 }}
         />
-
 
         <div
           style={{
@@ -150,14 +145,11 @@ const LoginPage = () => {
             }}
           />
 
-
           {error && (
             <Typography color="error" sx={{ mb: 2, textAlign: "center" }}>
               {error}
             </Typography>
           )}
-
-
           <TextField
             label="User ID"
             variant="outlined"
@@ -165,8 +157,6 @@ const LoginPage = () => {
             fullWidth
             sx={{
               mb: 2,
-
-
               "& .MuiInputLabel-root": {
                 top: "50%",
                 transform: "translateY(-50%)",
@@ -193,8 +183,6 @@ const LoginPage = () => {
             value={userId}
             onChange={(e) => setUserId(e.target.value)}
           />
-
-
           <TextField
             label="Password"
             variant="outlined"
@@ -202,8 +190,6 @@ const LoginPage = () => {
             fullWidth
             sx={{
               mb: 2,
-
-
               "& .MuiInputLabel-root": {
                 top: "50%",
                 transform: "translateY(-50%)",
@@ -232,8 +218,6 @@ const LoginPage = () => {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
           />
-
-
           <Button
             variant="contained"
             fullWidth
@@ -250,8 +234,6 @@ const LoginPage = () => {
           >
             {loading ? <span style={spinnerStyles}></span> : "Sign In"}
           </Button>
-
-
           <Button
             variant="outlined"
             fullWidth
@@ -270,8 +252,6 @@ const LoginPage = () => {
           >
             Forgot Password
           </Button>
-
-
           {forgotPassMessage && (
             <Typography
               sx={{
@@ -293,10 +273,4 @@ const LoginPage = () => {
   );
 };
 
-
 export default LoginPage;
-
-
-
-
-

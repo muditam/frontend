@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   AppBar,
   Toolbar,
@@ -13,6 +13,20 @@ import {
   IconButton,
   Collapse,
   InputAdornment,
+  Dialog,
+  DialogContent,
+  Button,
+  DialogTitle,
+  DialogActions,
+  Grid,
+  Divider,
+  Chip,
+  Table,
+  Slide,
+  TableCell,
+  TableBody,
+  TableHead,
+  TableRow,
 } from "@mui/material";
 import MenuIcon from "@mui/icons-material/Menu";
 import ShoppingCartIcon from "@mui/icons-material/ShoppingCart";
@@ -23,9 +37,15 @@ import { useNavigate, useLocation } from "react-router-dom";
 import Notifications from "../Notifications";
 import StickyNote2Icon from "@mui/icons-material/StickyNote2";
 import CartDrawer from "../../ShopifyOrders/CartDrawer";
+import EmojiEventsIcon from "@mui/icons-material/EmojiEvents";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import ExpandLessIcon from "@mui/icons-material/ExpandLess";
+import { Syringe } from "lucide-react"; 
+import pincodeData from "../../LeadConsultation/ProcessTracker/pincodeData";
 
+const SlideDown = React.forwardRef(function Transition(props, ref) {
+  return <Slide direction="down" ref={ref} {...props} />;
+});
 
 const NavbarWithSearch = () => {
   const [query, setQuery] = useState("");
@@ -39,6 +59,13 @@ const NavbarWithSearch = () => {
   const [cartDrawerOpen, setCartDrawerOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [expandedOrderIds, setExpandedOrderIds] = useState([]);
+  const [target, setTarget] = useState(0);
+  const [salesProgress, setSalesProgress] = useState(0);
+  const [bloodTestDialog, setBloodTestDialog] = useState(false);
+  const [pincode, setPincode] = useState("");
+  const [availableLabs, setAvailableLabs] = useState([]);
+  const [checkClicked, setCheckClicked] = useState(false);
+  const [incentiveOpen, setIncentiveOpen] = useState(false);
 
   const navigate = useNavigate();
   const location = useLocation();
@@ -46,10 +73,31 @@ const NavbarWithSearch = () => {
 
   const user = JSON.parse(sessionStorage.getItem("user"));
 
+  const openBloodTestDialog = () => {
+    setPincode("");
+    setAvailableLabs([]);
+    setCheckClicked(false);
+    setBloodTestDialog(true);
+  };
+  const closeBloodTestDialog = () => setBloodTestDialog(false);
 
-  if (location.pathname === "/login") {
-    return null;
-  }
+  const handlePincodeChange = (e) => setPincode(e.target.value);
+
+  const checkLabs = () => {
+    setCheckClicked(true);
+    const labs = [];
+    const pin = pincode.trim();
+    if (!pin) {
+      setAvailableLabs([]);
+      return;
+    }
+    if (pincodeData.Redcliff.includes(pin)) labs.push("Redcliff");
+    if (pincodeData.Lalpathlab.includes(pin)) labs.push("Lalpathlab");
+    if (pincodeData.Redcliff.includes(pin)) labs.push("Healthians");
+    if (pincodeData.Lalpathlab.includes(pin)) labs.push("Tataonemg");
+    if (pincodeData.Redcliff.includes(pin)) labs.push("PathKind"); 
+    setAvailableLabs(labs);
+  };
 
   const handleSearch = async (e) => {
     const value = e.target.value;
@@ -76,6 +124,8 @@ const NavbarWithSearch = () => {
   };
 
 
+  
+
   const handleClickAway = () => {
     setShowResults(false);
   };
@@ -84,6 +134,53 @@ const NavbarWithSearch = () => {
   const handleShopifyInputChange = (e) => {
     setShopifyQuery(e.target.value);
   };
+
+
+   useEffect(() => {
+    async function fetchTarget() {
+      if (!user) return;
+      try {
+        const response = await axios.get(
+          "https://muditamleads-14f32a10d7f7.herokuapp.com/api/employees",
+          {
+            params: {
+              fullName: user.fullName,
+              email: user.email,
+            },
+          }
+        );
+        if (response.data && response.data[0]) {
+          setTarget(response.data[0].target || 0);
+        }
+      } catch (error) {
+        console.error("Error fetching employee target:", error);
+      }
+    }
+    fetchTarget();
+  }, [user]);
+
+  useEffect(() => {
+    async function fetchSalesProgress() {
+      if (!user) return;
+      try {
+        const response = await axios.get(
+          "https://muditamleads-14f32a10d7f7.herokuapp.com/api/retention-sales/progress",
+          {
+            params: { name: user.fullName },
+          }
+        );
+        setSalesProgress(response.data.total || 0);
+      } catch (error) {
+        console.error("Error fetching retention sales progress:", error);
+      }
+    }
+    fetchSalesProgress();
+  }, [user]);
+
+  // Early return after hooks
+  if (location.pathname === "/login") {
+    return null;
+  }
 
 
   const executeShopifySearch = async () => {
@@ -194,7 +291,7 @@ const NavbarWithSearch = () => {
                         padding: "8px 12px",
                         ...smallFont,
                       },
-                    }}
+                    }} 
                     InputProps={{
                       endAdornment: (
                         <InputAdornment position="end">
@@ -408,9 +505,61 @@ const NavbarWithSearch = () => {
             </Box>
           </Box>
 
+          {user?.role !== "Manager" && (
+  <Box
+    sx={{
+      mx: 2,
+      p: 1,
+      bgcolor: "#000",
+      borderRadius: 2,
+      minWidth: 130,
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+    }}
+  >
+    <Typography
+      variant="caption"
+      sx={{
+        color: "#fff",
+        fontSize: "1.3rem",
+        fontWeight: 500,
+        letterSpacing: "0.5px",
+        display: "flex",
+        alignItems: "center"
+      }}
+    >
+      Target: ({salesProgress} / {target}){" "}
+      <span style={{ marginLeft: 8, color: "#f7c942", fontWeight: 700 }}>
+        {target > 0 ? `${Math.round((salesProgress / target) * 100)}%` : "0%"}
+      </span>
+    </Typography>
+  </Box>
+)}
 
           {/* Right side: Icons and LMS Search */}
           <Box sx={{ display: "flex", alignItems: "center" }}>
+            <IconButton
+              onClick={() => setIncentiveOpen(true)}
+              sx={{
+                mr: 1,
+                color: "#fff",
+                "&:hover": { color: "#faaf00", bgcolor: "#fff4e1" }
+              }}
+              title="View Incentive Structure"
+            >
+              <EmojiEventsIcon sx={{ fontSize: "2.2rem" }} />
+            </IconButton>
+
+            <IconButton
+              color="error"
+              onClick={openBloodTestDialog}
+              sx={{ mr: 1, color: "#fff", borderRadius: "50%", p: 1.1, "&:hover": { bgcolor: "#e0e0e0" } }}
+              title="Blood Test Pincode Check"
+            >
+              <Syringe style={{ fontSize: "2.1rem" }} />
+            </IconButton>
+
             {user && (
               <IconButton
                 onClick={() => navigate("/my-templates")}
@@ -470,7 +619,7 @@ const NavbarWithSearch = () => {
                           onClick={() => {
                             navigate(`/lead/${item._id}`);
                             handleClickAway();
-                          }}
+                          }}  
                           sx={smallFont}
                         >
                           <ListItemText
@@ -489,6 +638,169 @@ const NavbarWithSearch = () => {
           </Box>
         </Toolbar>
       </AppBar>
+
+      <Dialog open={bloodTestDialog} onClose={closeBloodTestDialog} maxWidth="xs" fullWidth PaperProps={{
+  sx: {
+    borderRadius: 4,
+    p: 0,
+    background: "#fff",
+    boxShadow: "0 6px 24px 0 rgba(110,49,49,0.12)",
+  }
+}}>
+  <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", pt: 3, pb: 1 }}>
+    <Syringe style={{ fontSize: "2.5rem", color: "#e53935" }} />
+    <DialogTitle sx={{ textAlign: "center", pb: 0, fontWeight: 600, fontSize: "1.35rem", letterSpacing: 0.5 }}>
+      Blood Test Availability
+    </DialogTitle>
+  </Box>
+  <DialogContent sx={{ pt: 1 }}>
+    <Typography variant="body2" sx={{ mb: 2, textAlign: "center", color: "#6a6868" }}>
+      Enter your pincode to check which labs are available for home blood test collection.
+    </Typography>
+    <TextField
+      fullWidth
+      label="Enter Pincode"
+      value={pincode}
+      onChange={handlePincodeChange}
+      variant="outlined"
+      margin="normal"
+      inputProps={{ maxLength: 6, inputMode: "numeric", pattern: "[0-9]*" }}
+      sx={{
+        background: "#fafbfc",
+        borderRadius: 2,
+        "& .MuiOutlinedInput-root": { borderRadius: 2 }
+      }}
+    />
+    <Button
+      variant="contained"
+      color="error"
+      fullWidth
+      sx={{ mt: 1, fontWeight: 600, letterSpacing: 0.3, borderRadius: 2 }}
+      onClick={checkLabs}
+      size="large"
+    >
+      Check
+    </Button>
+    <Divider sx={{ my: 2 }} />
+    {checkClicked && (
+      <Box sx={{ mt: 1, minHeight: 30, display: "flex", flexDirection: "column", alignItems: "center" }}>
+        {availableLabs.length === 0 ? (
+          <Typography color="error" sx={{ fontWeight: 500 }}>
+            No labs available for this pincode.
+          </Typography>
+        ) : (
+          <>
+            <Typography sx={{ mb: 1, fontWeight: 500, color: "#222" }}>
+              Available Lab{availableLabs.length > 1 ? "s" : ""}:
+            </Typography>
+            <Grid container spacing={2} sx={{ mt: 0.5, width: "100%" }}>
+  {availableLabs.map((lab, idx) => (
+    <Grid item xs={6} key={lab}>
+      <Chip
+        label={lab}
+        sx={{
+          width: "100%",
+          bgcolor: lab === "Redcliff" ? "#e3f2fd" : "#e3f2fd",
+          color: lab === "Redcliff" ? "#0351a6" : "#0351a6",
+          fontWeight: 600,
+          fontSize: "1.05rem",
+          px: 2,
+          py: 1,
+          borderRadius: "1rem",
+          justifyContent: "center",
+          display: "flex"
+        }}
+      />
+    </Grid>
+  ))}
+</Grid>
+          </>
+        )}
+      </Box>
+    )}
+  </DialogContent>
+  <DialogActions sx={{ pb: 2, justifyContent: "center" }}>
+    <Button onClick={closeBloodTestDialog} sx={{ color: "#555", fontWeight: 600, letterSpacing: 0.4 }}>
+      Close
+    </Button>
+  </DialogActions>
+</Dialog>
+
+<Dialog
+        open={incentiveOpen}
+        TransitionComponent={SlideDown}
+        keepMounted
+        onClose={() => setIncentiveOpen(false)}
+        maxWidth="sm"
+        fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: 3,
+            mt: 3,
+            boxShadow: "0 10px 36px 0 rgba(0,0,0,0.22)",
+            background: "#fff",
+          },
+        }}
+      >
+        <DialogTitle
+          sx={{
+            textAlign: "center",
+            fontWeight: "bold",
+            fontSize: "1.5rem",
+            color: "#222",
+            letterSpacing: 0.5,
+            pt: 3,
+            pb: 1
+          }}
+        >
+          Incentive Structure
+        </DialogTitle>
+        <DialogContent sx={{ pt: 0 }}>
+          <Table sx={{ minWidth: 550 }}>
+            <TableHead>
+              <TableRow>
+                <TableCell sx={{ fontWeight: "bold", fontSize: 15, color: "#000", textAlign: "center" }}>Slab (Monthly Sales)</TableCell>
+                <TableCell sx={{ fontWeight: "bold", fontSize: 15, color: "#000", textAlign: "center" }}>Reward Rate</TableCell>
+                <TableCell sx={{ fontWeight: "bold", fontSize: 15, color: "#000", textAlign: "center" }}>Monthly Incentive (₹)</TableCell>
+                <TableCell sx={{ fontWeight: "bold", fontSize: 15, color: "#000", textAlign: "center" }}>Annual Incentive (₹)</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {[
+                { slab: "3L – 4L", rate: "2%", monthly: "6,000 – 8,000", annual: "72,000 – 96,000" },
+                { slab: "4L – 5L", rate: "2.50%", monthly: "10,000 – 12,500", annual: "1,20,000 – 1,50,000" },
+                { slab: "5L – 6L", rate: "3%", monthly: "15,000 – 18,000", annual: "1,80,000 – 2,16,000" },
+                { slab: "6L – 8L", rate: "3.50%", monthly: "21,000 – 28,000", annual: "2,52,000 – 3,36,000" },
+                { slab: "8L – 10L", rate: "4%", monthly: "32,000 – 40,000", annual: "3,84,000 – 4,80,000" },
+              ].map((row) => (
+                <TableRow key={row.slab}>
+                  <TableCell align="center">{row.slab}</TableCell>
+                  <TableCell align="center">{row.rate}</TableCell>
+                  <TableCell align="center">{row.monthly}</TableCell>
+                  <TableCell align="center">{row.annual}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </DialogContent>
+        <DialogActions sx={{ justifyContent: "center", pb: 2 }}>
+          <Button
+            onClick={() => setIncentiveOpen(false)}
+            variant="contained"
+            sx={{
+              bgcolor: "#000",
+              color: "#fff",
+              borderRadius: 2,
+              textTransform: "none",
+              px: 4,
+              fontWeight: 600,
+              "&:hover": { bgcolor: "#111" }
+            }}
+          >
+            Close
+          </Button>
+        </DialogActions>
+      </Dialog>
 
 
       {/* Sidebar Drawer */}

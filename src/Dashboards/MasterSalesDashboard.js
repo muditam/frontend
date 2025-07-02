@@ -1434,7 +1434,7 @@ const ManagerSalesDashboard = () => {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setOrderIdsPopupOpen(false)} variant="outlined">
-            Close
+            Close 
           </Button>
         </DialogActions>
       </Dialog>
