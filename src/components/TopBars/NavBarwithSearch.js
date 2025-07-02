@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useRef, useState, useEffect } from "react";
 import {
   AppBar,
   Toolbar,
@@ -40,12 +40,18 @@ import CartDrawer from "../../ShopifyOrders/CartDrawer";
 import EmojiEventsIcon from "@mui/icons-material/EmojiEvents";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import ExpandLessIcon from "@mui/icons-material/ExpandLess";
-import { Syringe } from "lucide-react"; 
+import LeaderboardIcon from "@mui/icons-material/Leaderboard"; 
+import { Syringe } from "lucide-react";
 import pincodeData from "../../LeadConsultation/ProcessTracker/pincodeData";
+import LeaderboardPopover from "./LeaderboardPopover";
 
 const SlideDown = React.forwardRef(function Transition(props, ref) {
   return <Slide direction="down" ref={ref} {...props} />;
 });
+
+const getAvatarUrl = (name) =>
+  `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(name)}&backgroundType=gradientLinear&radius=50`;
+
 
 const NavbarWithSearch = () => {
   const [query, setQuery] = useState("");
@@ -65,11 +71,13 @@ const NavbarWithSearch = () => {
   const [pincode, setPincode] = useState("");
   const [availableLabs, setAvailableLabs] = useState([]);
   const [checkClicked, setCheckClicked] = useState(false);
-  const [incentiveOpen, setIncentiveOpen] = useState(false);
+  const [incentiveOpen, setIncentiveOpen] = useState(false); 
+  const leaderboardAnchorRef = useRef(null);
+  const [leaderboardOpen, setLeaderboardOpen] = useState(false);
+
 
   const navigate = useNavigate();
   const location = useLocation();
-
 
   const user = JSON.parse(sessionStorage.getItem("user"));
 
@@ -95,7 +103,7 @@ const NavbarWithSearch = () => {
     if (pincodeData.Lalpathlab.includes(pin)) labs.push("Lalpathlab");
     if (pincodeData.Redcliff.includes(pin)) labs.push("Healthians");
     if (pincodeData.Lalpathlab.includes(pin)) labs.push("Tataonemg");
-    if (pincodeData.Redcliff.includes(pin)) labs.push("PathKind"); 
+    if (pincodeData.Redcliff.includes(pin)) labs.push("PathKind");
     setAvailableLabs(labs);
   };
 
@@ -103,15 +111,13 @@ const NavbarWithSearch = () => {
     const value = e.target.value;
     setQuery(value);
 
-
     if (value.trim() === "") {
       setResults([]);
       setShowResults(false);
       return;
     }
 
-
-    try { 
+    try {
       const response = await axios.get(
         "https://muditamleads-14f32a10d7f7.herokuapp.com/api/search",
         { params: { query: value } }
@@ -123,20 +129,15 @@ const NavbarWithSearch = () => {
     }
   };
 
-
-  
-
   const handleClickAway = () => {
     setShowResults(false);
   };
-
 
   const handleShopifyInputChange = (e) => {
     setShopifyQuery(e.target.value);
   };
 
-
-   useEffect(() => {
+  useEffect(() => {
     async function fetchTarget() {
       if (!user) return;
       try {
@@ -182,14 +183,12 @@ const NavbarWithSearch = () => {
     return null;
   }
 
-
   const executeShopifySearch = async () => {
     if (!shopifyQuery.trim()) {
       setCustomerData(null);
       setShowCustomerDetails(false);
       return;
-    } 
-
+    }
 
     try {
       // Call the new endpoint to get customer details
@@ -209,21 +208,17 @@ const NavbarWithSearch = () => {
     }
   };
 
-
   const handleShopifyClickAway = () => {
     setShowCustomerDetails(false);
   };
-
 
   const toggleOrders = () => {
     setShowOrders((prev) => !prev);
   };
 
-
   const toggleShowAllOrders = () => {
     setShowAllOrders((prev) => !prev);
   };
-
 
   const toggleMenu = (open) => () => {
     setMenuOpen(open);
@@ -236,14 +231,10 @@ const NavbarWithSearch = () => {
         : [...prev, orderId]
     );
   };
-  
 
   const toggleCartDrawer = (open) => () => setCartDrawerOpen(open);
 
-
-  // Styling for small font and neat spacing
   const smallFont = { fontSize: "0.8rem" };
-
 
   return (
     <>
@@ -291,7 +282,7 @@ const NavbarWithSearch = () => {
                         padding: "8px 12px",
                         ...smallFont,
                       },
-                    }} 
+                    }}
                     InputProps={{
                       endAdornment: (
                         <InputAdornment position="end">
@@ -506,36 +497,36 @@ const NavbarWithSearch = () => {
           </Box>
 
           {user?.role !== "Manager" && (
-  <Box
-    sx={{
-      mx: 2,
-      p: 1,
-      bgcolor: "#000",
-      borderRadius: 2,
-      minWidth: 130,
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "center",
-    }}
-  >
-    <Typography
-      variant="caption"
-      sx={{
-        color: "#fff",
-        fontSize: "1.3rem",
-        fontWeight: 500,
-        letterSpacing: "0.5px",
-        display: "flex",
-        alignItems: "center"
-      }}
-    >
-      Target: ({salesProgress} / {target}){" "}
-      <span style={{ marginLeft: 8, color: "#f7c942", fontWeight: 700 }}>
-        {target > 0 ? `${Math.round((salesProgress / target) * 100)}%` : "0%"}
-      </span>
-    </Typography>
-  </Box>
-)}
+            <Box
+              sx={{
+                mx: 2,
+                p: 1,
+                bgcolor: "#000",
+                borderRadius: 2,
+                minWidth: 130,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <Typography
+                variant="caption"
+                sx={{
+                  color: "#fff",
+                  fontSize: "1.3rem",
+                  fontWeight: 500,
+                  letterSpacing: "0.5px",
+                  display: "flex",
+                  alignItems: "center"
+                }}
+              >
+                Target: ({salesProgress} / {target}){" "}
+                <span style={{ marginLeft: 8, color: "#f7c942", fontWeight: 700 }}>
+                  {target > 0 ? `${Math.round((salesProgress / target) * 100)}%` : "0%"}
+                </span>
+              </Typography>
+            </Box>
+          )}
 
           {/* Right side: Icons and LMS Search */}
           <Box sx={{ display: "flex", alignItems: "center" }}>
@@ -544,13 +535,33 @@ const NavbarWithSearch = () => {
               sx={{
                 mr: 1,
                 color: "#fff",
-                "&:hover": { color: "#faaf00", bgcolor: "#fff4e1" }
+                "&:hover": { color: "#fff", bgcolor: "#e0e0e0" }
               }}
               title="View Incentive Structure"
             >
               <EmojiEventsIcon sx={{ fontSize: "2.2rem" }} />
             </IconButton>
 
+            <IconButton
+  ref={leaderboardAnchorRef}
+  onClick={() => setLeaderboardOpen(true)}
+  sx={{
+    mr: 1,
+    color: "#fff",
+    borderRadius: "50%",
+    p: 1.1,
+    "&:hover": { bgcolor: "#fff", color: "#e0e0e0" }
+  }}
+  title="View Leaderboard"
+>
+  <LeaderboardIcon sx={{ fontSize: "2.1rem" }} />
+</IconButton>
+
+<LeaderboardPopover
+  open={leaderboardOpen}
+  anchorEl={leaderboardAnchorRef.current}
+  onClose={() => setLeaderboardOpen(false)}
+/>
             <IconButton
               color="error"
               onClick={openBloodTestDialog}
@@ -619,7 +630,7 @@ const NavbarWithSearch = () => {
                           onClick={() => {
                             navigate(`/lead/${item._id}`);
                             handleClickAway();
-                          }}  
+                          }}
                           sx={smallFont}
                         >
                           <ListItemText
@@ -640,93 +651,93 @@ const NavbarWithSearch = () => {
       </AppBar>
 
       <Dialog open={bloodTestDialog} onClose={closeBloodTestDialog} maxWidth="xs" fullWidth PaperProps={{
-  sx: {
-    borderRadius: 4,
-    p: 0,
-    background: "#fff",
-    boxShadow: "0 6px 24px 0 rgba(110,49,49,0.12)",
-  }
-}}>
-  <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", pt: 3, pb: 1 }}>
-    <Syringe style={{ fontSize: "2.5rem", color: "#e53935" }} />
-    <DialogTitle sx={{ textAlign: "center", pb: 0, fontWeight: 600, fontSize: "1.35rem", letterSpacing: 0.5 }}>
-      Blood Test Availability
-    </DialogTitle>
-  </Box>
-  <DialogContent sx={{ pt: 1 }}>
-    <Typography variant="body2" sx={{ mb: 2, textAlign: "center", color: "#6a6868" }}>
-      Enter your pincode to check which labs are available for home blood test collection.
-    </Typography>
-    <TextField
-      fullWidth
-      label="Enter Pincode"
-      value={pincode}
-      onChange={handlePincodeChange}
-      variant="outlined"
-      margin="normal"
-      inputProps={{ maxLength: 6, inputMode: "numeric", pattern: "[0-9]*" }}
-      sx={{
-        background: "#fafbfc",
-        borderRadius: 2,
-        "& .MuiOutlinedInput-root": { borderRadius: 2 }
-      }}
-    />
-    <Button
-      variant="contained"
-      color="error"
-      fullWidth
-      sx={{ mt: 1, fontWeight: 600, letterSpacing: 0.3, borderRadius: 2 }}
-      onClick={checkLabs}
-      size="large"
-    >
-      Check
-    </Button>
-    <Divider sx={{ my: 2 }} />
-    {checkClicked && (
-      <Box sx={{ mt: 1, minHeight: 30, display: "flex", flexDirection: "column", alignItems: "center" }}>
-        {availableLabs.length === 0 ? (
-          <Typography color="error" sx={{ fontWeight: 500 }}>
-            No labs available for this pincode.
+        sx: {
+          borderRadius: 4,
+          p: 0,
+          background: "#fff",
+          boxShadow: "0 6px 24px 0 rgba(110,49,49,0.12)",
+        }
+      }}>
+        <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", pt: 3, pb: 1 }}>
+          <Syringe style={{ fontSize: "2.5rem", color: "#e53935" }} />
+          <DialogTitle sx={{ textAlign: "center", pb: 0, fontWeight: 600, fontSize: "1.35rem", letterSpacing: 0.5 }}>
+            Blood Test Availability
+          </DialogTitle>
+        </Box>
+        <DialogContent sx={{ pt: 1 }}>
+          <Typography variant="body2" sx={{ mb: 2, textAlign: "center", color: "#6a6868" }}>
+            Enter your pincode to check which labs are available for home blood test collection.
           </Typography>
-        ) : (
-          <>
-            <Typography sx={{ mb: 1, fontWeight: 500, color: "#222" }}>
-              Available Lab{availableLabs.length > 1 ? "s" : ""}:
-            </Typography>
-            <Grid container spacing={2} sx={{ mt: 0.5, width: "100%" }}>
-  {availableLabs.map((lab, idx) => (
-    <Grid item xs={6} key={lab}>
-      <Chip
-        label={lab}
-        sx={{
-          width: "100%",
-          bgcolor: lab === "Redcliff" ? "#e3f2fd" : "#e3f2fd",
-          color: lab === "Redcliff" ? "#0351a6" : "#0351a6",
-          fontWeight: 600,
-          fontSize: "1.05rem",
-          px: 2,
-          py: 1,
-          borderRadius: "1rem",
-          justifyContent: "center",
-          display: "flex"
-        }}
-      />
-    </Grid>
-  ))}
-</Grid>
-          </>
-        )}
-      </Box>
-    )}
-  </DialogContent>
-  <DialogActions sx={{ pb: 2, justifyContent: "center" }}>
-    <Button onClick={closeBloodTestDialog} sx={{ color: "#555", fontWeight: 600, letterSpacing: 0.4 }}>
-      Close
-    </Button>
-  </DialogActions>
-</Dialog>
+          <TextField
+            fullWidth
+            label="Enter Pincode"
+            value={pincode}
+            onChange={handlePincodeChange}
+            variant="outlined"
+            margin="normal"
+            inputProps={{ maxLength: 6, inputMode: "numeric", pattern: "[0-9]*" }}
+            sx={{
+              background: "#fafbfc",
+              borderRadius: 2,
+              "& .MuiOutlinedInput-root": { borderRadius: 2 }
+            }}
+          />
+          <Button
+            variant="contained"
+            color="error"
+            fullWidth
+            sx={{ mt: 1, fontWeight: 600, letterSpacing: 0.3, borderRadius: 2 }}
+            onClick={checkLabs}
+            size="large"
+          >
+            Check
+          </Button>
+          <Divider sx={{ my: 2 }} />
+          {checkClicked && (
+            <Box sx={{ mt: 1, minHeight: 30, display: "flex", flexDirection: "column", alignItems: "center" }}>
+              {availableLabs.length === 0 ? (
+                <Typography color="error" sx={{ fontWeight: 500 }}>
+                  No labs available for this pincode.
+                </Typography>
+              ) : (
+                <>
+                  <Typography sx={{ mb: 1, fontWeight: 500, color: "#222" }}>
+                    Available Lab{availableLabs.length > 1 ? "s" : ""}:
+                  </Typography>
+                  <Grid container spacing={2} sx={{ mt: 0.5, width: "100%" }}>
+                    {availableLabs.map((lab, idx) => (
+                      <Grid item xs={6} key={lab}>
+                        <Chip
+                          label={lab}
+                          sx={{
+                            width: "100%",
+                            bgcolor: lab === "Redcliff" ? "#e3f2fd" : "#e3f2fd",
+                            color: lab === "Redcliff" ? "#0351a6" : "#0351a6",
+                            fontWeight: 600,
+                            fontSize: "1.05rem",
+                            px: 2,
+                            py: 1,
+                            borderRadius: "1rem",
+                            justifyContent: "center",
+                            display: "flex"
+                          }}
+                        />
+                      </Grid>
+                    ))}
+                  </Grid>
+                </>
+              )}
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ pb: 2, justifyContent: "center" }}>
+          <Button onClick={closeBloodTestDialog} sx={{ color: "#555", fontWeight: 600, letterSpacing: 0.4 }}>
+            Close
+          </Button>
+        </DialogActions>
+      </Dialog>
 
-<Dialog
+      <Dialog
         open={incentiveOpen}
         TransitionComponent={SlideDown}
         keepMounted
@@ -801,7 +812,6 @@ const NavbarWithSearch = () => {
           </Button>
         </DialogActions>
       </Dialog>
-
 
       {/* Sidebar Drawer */}
       <Drawer
