@@ -1050,12 +1050,8 @@ const LeadTable = () => {
               <TableCell sx={styles.tableHead}>Amount Paid</TableCell>
               <TableCell sx={styles.tableHead}>Mode of Payment</TableCell>
               <TableCell sx={styles.tableHead}>Delivery Status</TableCell>
-              <TableCell sx={styles.tableHead}>
-                Health Expert Assigned
-              </TableCell>
-              <TableCell sx={styles.tableHead}>Order ID</TableCell>
-              <TableCell sx={styles.tableHead}>Dosage Expiring</TableCell>
-              <TableCell sx={styles.tableHead}>Dosage Expiring</TableCell>
+              <TableCell sx={styles.tableHead}>Health Expert Assigned</TableCell>
+              <TableCell sx={styles.tableHead}>Order ID</TableCell> 
               <TableCell sx={styles.tableHead}>RT Next Followup Date</TableCell>
               <TableCell sx={styles.tableHead}>Dosage Expiring</TableCell>
               <TableCell sx={styles.tableHead}>RT-Followup Reminder</TableCell>
@@ -1064,8 +1060,7 @@ const LeadTable = () => {
               <TableCell sx={styles.tableHead}>Retention Status</TableCell>
               <TableCell sx={styles.tableHead}>RT-Remark</TableCell>
             </TableRow>
-          </TableHead>
-
+          </TableHead> 
 
           <TableBody>
             {loading ? (
@@ -1553,11 +1548,11 @@ const LeadTable = () => {
                           {dosage}
                         </MenuItem>
                       ))}
-                    </Select>
+                    </Select> 
                   </TableCell>
                   <TableCell>
                     <Select
-                      value={lead.retentionStatus || ""}
+                      value={lead.retentionStatus || ""} 
                       onChange={(e) =>
                         handleInputChange(e, index, "retentionStatus")
                       }

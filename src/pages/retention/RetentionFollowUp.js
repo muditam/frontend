@@ -161,9 +161,18 @@ const RetentionFollowUp = ({ contactNumber }) => {
                   InputLabelProps={{ shrink: true }}
                   fullWidth
                   value={fup.date}
-                  onChange={(e) =>
-                    handleChange(index, "date", e.target.value)
-                  }
+                  onChange={(e) => handleChange(index, "date", e.target.value)}
+                  inputProps={{
+                    min: (() => {
+                      const today = new Date();
+                      return today.toISOString().split('T')[0];
+                    })(),
+                    max: (() => {
+                      const today = new Date();
+                      today.setDate(today.getDate() + 10);
+                      return today.toISOString().split('T')[0];
+                    })(),
+                  }}
                 />
               </Grid>
               <Grid item xs={12} sm={2}>

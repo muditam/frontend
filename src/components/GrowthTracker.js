@@ -16,9 +16,10 @@ import dayjs from "dayjs";
 import duration from "dayjs/plugin/duration";
 dayjs.extend(duration);
 
+
 // Fixed hike amounts for each slab except the first
 const hikeAmounts = [
-  0,    // First 6 Months: No hike
+  0, // First 6 Months: No hike
   5000, // 2nd slab
   5000, // 3rd slab
   7000, // 4th slab
@@ -27,6 +28,7 @@ const hikeAmounts = [
   9000, // 7th slab
   9000, // 8th slab
 ];
+
 
 // Slab definitions
 const slabs = [
@@ -41,35 +43,49 @@ const slabs = [
   },
   // Year 2
   {
-    responsibilities: "Senior Dietitian/Senior Sales Agent with a team of Junior Dietitians (Min 4)",
-    targets: "Self targets + Team targets. Maintain 5 Lakhs for 6 Months to move to next slab",
+    responsibilities:
+      "Senior Dietitian/Senior Sales Agent with a team of Junior Dietitians (Min 4)",
+    targets:
+      "Self targets + Team targets. Maintain 5 Lakhs for 6 Months to move to next slab",
   },
   {
-    responsibilities: "Senior Dietitian/Senior Sales Agent with a team of Junior Dietitians (Min 4)",
-    targets: "Self targets + Team targets. Maintain 5 Lakhs for 6 Months to move to next slab",
+    responsibilities:
+      "Senior Dietitian/Senior Sales Agent with a team of Junior Dietitians (Min 4)",
+    targets:
+      "Self targets + Team targets. Maintain 5 Lakhs for 6 Months to move to next slab",
   },
   // Year 3
   {
-    responsibilities: "Team Leader with a team of 15 to 20, Team Targets, Team Strategy, Team Hiring",
-    targets: "Achieve Team Targets & contribute in Team Strategy, Team Training, New Process Development & Team Hiring",
+    responsibilities:
+      "Team Leader with a team of 15 to 20, Team Targets, Team Strategy, Team Hiring",
+    targets:
+      "Achieve Team Targets & contribute in Team Strategy, Team Training, New Process Development & Team Hiring",
   },
   {
-    responsibilities: "Team Leader with a team of 15 to 20, Team Targets, Team Strategy, Team Hiring",
-    targets: "Achieve Team Targets & contribute in Team Strategy, Team Training, New Process Development & Team Hiring",
+    responsibilities:
+      "Team Leader with a team of 15 to 20, Team Targets, Team Strategy, Team Hiring",
+    targets:
+      "Achieve Team Targets & contribute in Team Strategy, Team Training, New Process Development & Team Hiring",
   },
   // Year 4
   {
-    responsibilities: "Manager with a team of 40+, Team Targets, Team Strategy, Team Hiring, Business Strategy, Marketing Strategy, Profit & Loss Management",
-    targets: "Achieve Team Targets & contribute in sales strategy, Team Hiring, Business Strategy, Marketing Strategy, Profit & Loss Management",
+    responsibilities:
+      "Manager with a team of 40+, Team Targets, Team Strategy, Team Hiring, Business Strategy, Marketing Strategy, Profit & Loss Management",
+    targets:
+      "Achieve Team Targets & contribute in sales strategy, Team Hiring, Business Strategy, Marketing Strategy, Profit & Loss Management",
   },
   {
-    responsibilities: "Manager with a team of 40+, Team Targets, Team Strategy, Team Hiring, Business Strategy, Marketing Strategy, Profit & Loss Management",
-    targets: "Achieve Team Targets & contribute in sales strategy, Team Hiring, Business Strategy, Marketing Strategy, Profit & Loss Management",
+    responsibilities:
+      "Manager with a team of 40+, Team Targets, Team Strategy, Team Hiring, Business Strategy, Marketing Strategy, Profit & Loss Management",
+    targets:
+      "Achieve Team Targets & contribute in sales strategy, Team Hiring, Business Strategy, Marketing Strategy, Profit & Loss Management",
   },
 ];
 
+
 const bonuses = [50000, 75000, 125000, 150000]; // 1st-4th years (fixed)
 const years = ["Year 1", "Year 2", "Year 3", "Year 4"];
+
 
 const yearColors = [
   "#FFF9DF", // Year 1 (pale yellow)
@@ -77,6 +93,7 @@ const yearColors = [
   "#FFF0F0", // Year 3 (pale pink)
   "#EAFBF0", // Year 4 (pale green)
 ];
+
 
 function getTenure(joinDate) {
   const now = dayjs();
@@ -90,17 +107,20 @@ function getTenure(joinDate) {
   return tenure.trim();
 }
 
+
 function getSlabDates(joiningDate, idx) {
   const start = dayjs(joiningDate).add(idx * 6, "month");
   const end = start.add(6, "month").subtract(1, "day");
   return `${start.format("MMM YYYY")} - ${end.format("MMM YYYY")}`;
 }
 
+
 export default function GrowthTracker() {
   const [joiningSalary, setJoiningSalary] = useState("");
   const [joiningDate, setJoiningDate] = useState("");
   const [showTable, setShowTable] = useState(false);
   const [error, setError] = useState("");
+
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -116,6 +136,7 @@ export default function GrowthTracker() {
     setError("");
   };
 
+
   // --- Salary calculation logic ---
   const getSalaryForSlab = (base, idx) => {
     let salary = Number(base);
@@ -124,6 +145,7 @@ export default function GrowthTracker() {
     }
     return Math.round(salary);
   };
+
 
   // Hike % calculation for this slab vs previous
   const getHikePercent = (base, idx) => {
@@ -134,6 +156,7 @@ export default function GrowthTracker() {
     return `${hike.toFixed(2)}%`;
   };
 
+
   // Package for a year (2 slabs)
   const getYearlyPackage = (base, yearIdx) => {
     const a = getSalaryForSlab(base, yearIdx * 2);
@@ -142,6 +165,7 @@ export default function GrowthTracker() {
     return a * 6 + b * 6 + bonus;
   };
 
+
   function isMergedCell(idx) {
     return idx % 2 === 0;
   }
@@ -149,82 +173,182 @@ export default function GrowthTracker() {
     return idx % 2 === 1;
   }
 
+
   // Row background for the year (applied on both slabs of each year)
   const getRowSx = (idx) => ({
     background: yearColors[Math.floor(idx / 2)],
     "&:last-child td, &:last-child th": { border: 0 },
   });
 
+
   return (
-    <Box sx={{ maxWidth: "100vw", mx: "auto", mt: 5, p: { xs: 1, md: 4 } }}>
-      <Typography
-        variant="h4"
-        fontWeight={900}
-        textAlign="center"
-        gutterBottom
-        sx={{
-          color: "#111",
-          letterSpacing: 1.2,
-          mb: 2,
-        }}
-      >
-        Growth Calculator
-      </Typography>
+    <Box sx={{ maxWidth: "100vw", mx: "auto", mt: 5, p: 1 }}>
+      {!showTable ? null : (
+        <>
+          <Typography
+            variant="h4"
+            fontWeight={600}
+            textAlign="center"
+            gutterBottom
+            sx={{ color: "#111" }}
+          >
+            Growth Calculator
+          </Typography>
+          <Box
+            sx={{
+              height: 3,
+              borderRadius: "20px",
+              backgroundColor: "#FFD700",
+              mr: 80,
+              ml: 80,
+              mb: 5,
+            }}
+          />
+        </>
+      )}
+
 
       {!showTable ? (
         <Box
-          component="form"
           sx={{
             display: "flex",
-            flexDirection: { xs: "column", sm: "row" },
-            gap: 3,
-            alignItems: "center",
             justifyContent: "center",
-            mt: 4,
-            mb: 6,
+            alignItems: "center",
+            flexDirection: "column",
+            gap: 2,
+            mt: 5,
+           
           }}
+          component="form"
           onSubmit={handleSubmit}
         >
-          <TextField
-            label="Joining Date"
-            type="date"
-            InputLabelProps={{ shrink: true }}
-            required
-            value={joiningDate}
-            onChange={(e) => setJoiningDate(e.target.value)}
-            sx={{ minWidth: 180 }}
-          />
-          <TextField
-            label="Joining Salary (per month)"
-            type="number"
-            required
-            value={joiningSalary}
-            onChange={(e) => setJoiningSalary(e.target.value)}
-            inputProps={{ min: 8000, step: 500 }}
-            sx={{ minWidth: 180 }}
-          />
-          <Button
-            type="submit"
-            size="large"
-            variant="contained"
+          <Box
             sx={{
-              bgcolor: "#111",
-              color: "#fff",
-              fontWeight: 800,
-              px: 4,
-              py: 1.5,
-              fontSize: 18,
+              display: "flex",
+              justifyContent: "center",
+              alignItems: "center",
+              flexDirection: "column",
+              gap: 2,
               borderRadius: 3,
-              boxShadow: "0 2px 8px #1113",
-              "&:hover": { bgcolor: "#222" },
+              backgroundColor: "#fff",
+              boxShadow: "0px 4px 12px rgba(0,0,0,0.1)",
+              width: 550,
+              p:2
             }}
           >
-            Calculate
-          </Button>
+            <Typography
+              variant="h4"
+              fontWeight={600}
+              textAlign="center"
+              gutterBottom
+              sx={{ color: "#111", mt: 2 }}
+            >
+              Growth Calculator
+            </Typography>
+            <Box
+              sx={{
+                height: 3,
+                borderRadius: "20px",
+                backgroundColor: "#FFD700",
+                width: "70%",
+                mx: 1,
+                mb: 3,
+              }}
+            />
+            <TextField
+              label="Joining Date"
+              type="date"
+              InputLabelProps={{ shrink: true }}
+              required
+              value={joiningDate}
+              onChange={(e) => setJoiningDate(e.target.value)}
+              sx={{
+                width: 500,
+                background: "#fafbfc",
+                borderRadius: 2,
+                "& .MuiInputBase-input": { padding: "10px 12px" },
+                "& .MuiInputLabel-root.Mui-focused, & .MuiInputLabel-root.MuiFormLabel-filled":
+                  {
+                    top: 0,
+                    color: "gray",
+                    transform: "translateY(-50%) translateX(8px)",
+                    paddingLeft: "8px",
+                    fontSize: "0.80rem",
+                  },
+                "& .MuiOutlinedInput-root": {
+                  "& input": { padding: "10px !important" },
+                  "&.Mui-focused fieldset": {
+                    borderColor: "black",
+                    borderStyle: "dashed",
+                  },
+                  "&:hover fieldset": { borderColor: "black" },
+                },
+              }}
+            />
+            <TextField
+              label="Joining Salary (per month)"
+              type="number"
+              required
+              value={joiningSalary}
+              onChange={(e) => setJoiningSalary(e.target.value)}
+              inputProps={{ min: 8000, step: 500 }}
+              variant="outlined"
+              sx={{
+                width: 500,
+               
+                background: "#fafbfc",
+                borderRadius: 2,
+
+
+                "& .MuiInputLabel-root": {
+                  top: "50%",
+                  transform: "translateY(-50%)",
+                  transition: "all 0.2s ease-in-out",
+                  fontSize: "0.85rem",
+                  paddingLeft: "8px",
+                },
+                "& .MuiInputLabel-root.Mui-focused, & .MuiInputLabel-root.MuiFormLabel-filled":
+                  {
+                    top: 0,
+                    color: "gray",
+                    transform: "translateY(-50%) translateX(8px)",
+                    paddingLeft: "8px",
+                    fontSize: "0.75rem",
+                  },
+                "& .MuiOutlinedInput-root": {
+                  "& input": {
+                    padding: "10px !important",
+                  },
+                  "&.Mui-focused fieldset": {
+                    borderColor: "black",
+                    borderStyle: "dashed",
+                  },
+                  "&:hover fieldset": { borderColor: "black" },
+                },
+              }}
+            />
+            <Button
+              type="submit"
+              size="small"
+              variant="contained"
+              sx={{
+                bgcolor: "#111",
+                width: 500,
+                color: "#fff",
+                px: 4,
+                py: 2,
+                borderRadius: 2,
+                boxShadow: "0 2px 8px #1113",
+                "&:hover": { bgcolor: "#222" },
+              }}
+            >
+              Calculate
+            </Button>
+          </Box>
         </Box>
       ) : (
         <Box>
-          <Box sx={{ display: "flex", justifyContent: "center", mb: 2 }}>
+          <Box sx={{ display: "flex", justifyContent: "center", mb: 1 }}>
             <Typography
               sx={{
                 fontWeight: 800,
@@ -240,6 +364,7 @@ export default function GrowthTracker() {
               </span>
             </Typography>
           </Box>
+
 
           <TableContainer
             component={Paper}
@@ -383,14 +508,20 @@ export default function GrowthTracker() {
                       : isCellHidden(idx)
                       ? null
                       : "";
-                  const pkg =
-                    isMergedCell(idx)
-                      ? `₹${getYearlyPackage(joiningSalary, yearIdx).toLocaleString()}`
-                      : isCellHidden(idx)
-                      ? null
-                      : "";
-                  const year =
-                    isMergedCell(idx) ? years[yearIdx] : isCellHidden(idx) ? null : "";
+                  const pkg = isMergedCell(idx)
+                    ? `₹${getYearlyPackage(
+                        joiningSalary,
+                        yearIdx
+                      ).toLocaleString()}`
+                    : isCellHidden(idx)
+                    ? null
+                    : "";
+                  const year = isMergedCell(idx)
+                    ? years[yearIdx]
+                    : isCellHidden(idx)
+                    ? null
+                    : "";
+
 
                   return (
                     <TableRow key={idx} sx={getRowSx(idx)}>
@@ -410,7 +541,13 @@ export default function GrowthTracker() {
                           {year}
                         </TableCell>
                       ) : null}
-                      <TableCell sx={{ fontWeight: 700, fontSize: 15, whiteSpace: "pre-line" }}>
+                      <TableCell
+                        sx={{
+                          fontWeight: 700,
+                          fontSize: 15,
+                          whiteSpace: "pre-line",
+                        }}
+                      >
                         {joiningDate ? getSlabDates(joiningDate, idx) : ""}
                         <br />
                         <span style={{ color: "#1976d2", fontSize: 12 }}>
@@ -434,12 +571,30 @@ export default function GrowthTracker() {
                         ₹{total.toLocaleString()}
                       </TableCell>
                       {isMergedCell(idx) ? (
-                        <TableCell rowSpan={2} sx={{ fontWeight: 800, fontSize: 15.5, textAlign: "center", verticalAlign: "middle", whiteSpace: "nowrap" }}>
+                        <TableCell
+                          rowSpan={2}
+                          sx={{
+                            fontWeight: 800,
+                            fontSize: 15.5,
+                            textAlign: "center",
+                            verticalAlign: "middle",
+                            whiteSpace: "nowrap",
+                          }}
+                        >
                           {bonus}
                         </TableCell>
                       ) : null}
                       {isMergedCell(idx) ? (
-                        <TableCell rowSpan={2} sx={{ fontWeight: 900, fontSize: 16, textAlign: "center", verticalAlign: "middle", whiteSpace: "nowrap" }}>
+                        <TableCell
+                          rowSpan={2}
+                          sx={{
+                            fontWeight: 900,
+                            fontSize: 16,
+                            textAlign: "center",
+                            verticalAlign: "middle",
+                            whiteSpace: "nowrap",
+                          }}
+                        >
                           {pkg}
                         </TableCell>
                       ) : null}
@@ -474,7 +629,12 @@ export default function GrowthTracker() {
             </Table>
           </TableContainer>
 
-          <Box mt={2.5} mb={3} sx={{ maxWidth: 1250, mx: "auto", color: "#ab3709" }}>
+
+          <Box
+            mt={2.5}
+            mb={3}
+            sx={{ maxWidth: 1250, mx: "auto", color: "#ab3709" }}
+          >
             <Typography
               variant="body2"
               sx={{
@@ -483,13 +643,19 @@ export default function GrowthTracker() {
                 whiteSpace: "pre-line",
               }}
             >
-              <b>Terms:</b> If not achieved in 6 months, extra months will be given to complete the target. However, the target for the extra months will also be added, but only 50% of the extra period target will be counted towards the requirement. The candidate must complete the target to move to the next slab.
+              <b>Terms:</b> If not achieved in 6 months, extra months will be
+              given to complete the target. However, the target for the extra
+              months will also be added, but only 50% of the extra period target
+              will be counted towards the requirement. The candidate must
+              complete the target to move to the next slab.
               {"\n"}
               <span style={{ color: "#333" }}>
-                Yearly Bonus: Employees can avail the yearly bonus only if they achieve their yearly targets.
+                Yearly Bonus: Employees can avail the yearly bonus only if they
+                achieve their yearly targets.
               </span>
             </Typography>
           </Box>
+
 
           <Box sx={{ display: "flex", justifyContent: "center" }}>
             <Button
@@ -499,7 +665,7 @@ export default function GrowthTracker() {
                 color: "#fff",
                 mt: 2,
                 px: 6,
-                fontWeight: 700, 
+                fontWeight: 700,
                 borderRadius: 2.5,
                 fontSize: 16,
                 boxShadow: "0 2px 7px #1113",
@@ -507,7 +673,7 @@ export default function GrowthTracker() {
               }}
             >
               Back
-            </Button> 
+            </Button>
           </Box>
         </Box>
       )}
@@ -519,3 +685,6 @@ export default function GrowthTracker() {
     </Box>
   );
 }
+
+
+

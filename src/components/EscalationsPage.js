@@ -208,7 +208,10 @@ const EscalationsPage = () => {
     setOpenFileDialog(true);
   };
 
-  const filteredEscalations = escalations.filter((esc) => {
+  const filteredEscalations = escalations
+  .slice() 
+  .sort((a, b) => new Date(b.date) - new Date(a.date))
+  .filter((esc) => {
     if (showClosedOnly) return esc.status === "Closed";
     return esc.status === "Open" || esc.status === "In Progress";
   });

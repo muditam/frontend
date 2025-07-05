@@ -97,6 +97,12 @@ const ConsultationFollowup = ({ customerId }) => {
       });
   };
 
+  const today = new Date();
+const minDate = today.toISOString().split('T')[0];
+const next7 = new Date();
+next7.setDate(today.getDate() + 10);
+const maxDate = next7.toISOString().split('T')[0];
+
   if (loading) {
     return (
       <Typography sx={{ color: "black", textAlign: "center" }}>
@@ -173,6 +179,10 @@ const ConsultationFollowup = ({ customerId }) => {
                 fullWidth
                 value={fup.date}
                 onChange={(e) => handleChange(index, "date", e.target.value)}
+                inputProps={{
+                  min: minDate,
+                  max: maxDate,
+                }}
                 sx={{
                   "& .MuiOutlinedInput-root": {
                     "&.Mui-focused fieldset": { borderColor: "black" },
@@ -186,7 +196,7 @@ const ConsultationFollowup = ({ customerId }) => {
                 variant="outlined"
                 select
                 label="Taking supplements regularly"
-                InputLabelProps={{
+                InputLabelProps={{ 
                   sx: { "&.Mui-focused": { color: "black" } },
                 }}
                 fullWidth

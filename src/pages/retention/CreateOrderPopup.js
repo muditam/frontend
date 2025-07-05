@@ -43,9 +43,6 @@ const CreateOrderPopup = ({ open, onClose, prefillCustomer = {} }) => {
   const [transactionId, setTransactionId] = useState("");
   const [generatingPaymentLink, setGeneratingPaymentLink] = useState(false);
 
-  const [showOrderDetailsPopup, setShowOrderDetailsPopup] = useState(false); // ✅
-  const [orderDetailsPayload, setOrderDetailsPayload] = useState(null);
-
   // Post-order note dialog
   const [showNoteDialog, setShowNoteDialog] = useState(false);
   const [noteText, setNoteText] = useState("");
@@ -81,7 +78,7 @@ const CreateOrderPopup = ({ open, onClose, prefillCustomer = {} }) => {
         setAllAddresses(res.data.addresses);
         if (res.data.addresses.length === 1) {
           setSelectedAddressId(res.data.addresses[0].id);
-          setCustomer(prev => ({ ...prev, address: res.data.addresses[0] })); // full address object
+          setCustomer(prev => ({ ...prev, address: res.data.addresses[0] }));  
         } else {
           setCustomer(prev => ({ ...prev, address: "" }));
         }
@@ -98,7 +95,7 @@ const CreateOrderPopup = ({ open, onClose, prefillCustomer = {} }) => {
       setCustomer(prev => ({ ...prev, address: "" }));
     } else {
       const found = allAddresses.find(a => a.id === selectedAddressId);
-      setCustomer(prev => ({ ...prev, address: found ? found : "" })); // assign full address object
+      setCustomer(prev => ({ ...prev, address: found ? found : "" })); 
     }
   }, [selectedAddressId, allAddresses]);
 
@@ -210,19 +207,7 @@ const CreateOrderPopup = ({ open, onClose, prefillCustomer = {} }) => {
     setLatestOrderId(newOrderId || null);
     alert("Order placed successfully!");
     setShowNoteDialog(true); // ✅ Show note dialog
-
-    const user = JSON.parse(localStorage.getItem("user"));
-    const agentName = user?.fullName || "";
-
-    // ✅ Prepare order details but DO NOT show yet (wait until note is added)
-    setOrderDetailsPayload({
-      orderId: newOrderId,
-      agentName,
-      discount,
-      discountType,
-      paymentMethod,
-      upsellAmount: 0, // set to actual if needed
-    });
+ 
   } catch (err) {
     alert("Order placement failed.");
   }
@@ -241,18 +226,6 @@ const handleAddNote = async () => {
     setShowNoteDialog(false);
     setNoteText("");
 
-    const user = JSON.parse(localStorage.getItem("user")); // ✅ read logged-in user
-    const agentName = user?.fullName || "";
-
-    setOrderDetailsPayload({
-      orderId: latestOrderId,
-      agentName,
-      discount,
-      discountType,
-      paymentMethod,
-      upsellAmount: 0, // Optional: you can compute and pass real upsell if needed
-    });
-    setShowOrderDetailsPopup(true);
   } catch (err) {
     alert("Failed to add note.");
   }
@@ -478,12 +451,12 @@ const handleAddNote = async () => {
                     <TextField
                       fullWidth
                       value={paymentLink}
-                      InputProps={{ readOnly: true }}
+                      InputProps={{ readOnly: true }} 
                       sx={{ mb: 1 }}
                     />
                     <Button onClick={() => navigator.clipboard.writeText(paymentLink)} sx={{ mb: 2 }}>
-                      Copy Payment Link
-                    </Button>
+                      Copy Payment Link 
+                    </Button> 
                     <TextField
                       fullWidth
                       label="Enter Transaction ID"
@@ -532,22 +505,6 @@ const handleAddNote = async () => {
           </Button>
         </DialogActions>
       </Dialog>
-
-     {showOrderDetailsPopup && orderDetailsPayload && (
-      <OrderDetailsPopup
-        orderId={orderDetailsPayload.orderId}
-        agentName={orderDetailsPayload.agentName}
-        discount={orderDetailsPayload.discount}
-        discountType={orderDetailsPayload.discountType}
-        paymentMethod={orderDetailsPayload.paymentMethod}
-        upsellAmount={orderDetailsPayload.upsellAmount}
-        onClose={() => {
-          setShowOrderDetailsPopup(false);
-          setOrderDetailsPayload(null);
-          onClose(); // close parent popup after done
-        }}
-      />
-    )}
     </>
   );
 };

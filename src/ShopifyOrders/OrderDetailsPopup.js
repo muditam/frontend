@@ -79,7 +79,7 @@ try {
   user = JSON.parse(localStorage.getItem("user"));
 } catch {}
 
-    if (user?.fullName) fallbackAgent = user.fullName;
+    if (user?.fullName) fallbackAgent = user.fullName; 
   }
   setSelectedAgent(agentName || fallbackAgent);
 }, [agentName]);

@@ -279,6 +279,12 @@ const ConsultationDetails = ({ customerId, reloadTrigger, onReload }) => {
     }
   };
 
+  const today = new Date();
+  const minDate = today.toISOString().split('T')[0];
+  const next7 = new Date();
+  next7.setDate(today.getDate() + 10);
+  const maxDate = next7.toISOString().split('T')[0];
+
   if (loading) {
     return (
       <Box
@@ -375,6 +381,10 @@ const ConsultationDetails = ({ customerId, reloadTrigger, onReload }) => {
                 onChange={(e) => setFollowUpDate(e.target.value)}
                 type="date"
                 size="small"
+                inputProps={{
+                  min: minDate,
+                  max: maxDate,
+                }}
               />
             </TableCell>
             <TableCell><IconButton size="small" onClick={handleOpenEdit}><EditIcon/></IconButton> <Button size="small" variant="contained" onClick={handleSaveFollowUp} sx={{ ml:1, backgroundColor:'black', color:'white', '&:hover':{backgroundColor:'#333'} }}>Save</Button></TableCell>

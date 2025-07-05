@@ -40,7 +40,7 @@ import CartDrawer from "../../ShopifyOrders/CartDrawer";
 import EmojiEventsIcon from "@mui/icons-material/EmojiEvents";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import ExpandLessIcon from "@mui/icons-material/ExpandLess";
-import LeaderboardIcon from "@mui/icons-material/Leaderboard";
+import CloseIcon from '@mui/icons-material/Close';
 import RocketLaunchIcon from "@mui/icons-material/RocketLaunch";
 import { Syringe } from "lucide-react";
 import pincodeData from "../../LeadConsultation/ProcessTracker/pincodeData";
@@ -50,7 +50,7 @@ const SlideDown = React.forwardRef(function Transition(props, ref) {
   return <Slide direction="down" ref={ref} {...props} />;
 });
 
-  
+
 
 
 
@@ -535,38 +535,38 @@ const NavbarWithSearch = () => {
               }}
             >
               <Typography
-      variant="caption"
-      sx={{
-        color: "#fff",
-        fontSize: "1rem",
-        fontWeight: 500,
-        letterSpacing: "0.5px",
-        display: "flex",
-        alignItems: "center"
-      }}
-    >
-      DRR:
-      <span style={{ marginLeft: 5, color: "#19d444", fontWeight: 700 }}>
-        {dailySalesRequired > 0 ? `₹${dailySalesRequired}` : "₹0"}
-      </span>
-    </Typography>
-    <Divider orientation="vertical" flexItem sx={{ mx: 1, borderColor: "#444" }} />
-    <Typography
-      variant="caption"
-      sx={{
-        color: "#fff",
-        fontSize: "1rem",
-        fontWeight: 500,
-        letterSpacing: "0.5px",
-        display: "flex",
-        alignItems: "center"
-      }}
-    >
-      Target: ({salesProgress} / {target}){" "}
-      <span style={{ marginLeft: 8, color: "#f7c942", fontWeight: 700 }}>
-        {target > 0 ? `${Math.round((salesProgress / target) * 100)}%` : "0%"}
-      </span>
-    </Typography>
+                variant="caption"
+                sx={{
+                  color: "#fff",
+                  fontSize: "0.8rem",
+                  fontWeight: 500,
+                  letterSpacing: "0.5px",
+                  display: "flex",
+                  alignItems: "center"
+                }}
+              >
+                DRR:
+                <span style={{ marginLeft: 5, color: "#19d444", fontWeight: 700 }}>
+                  {dailySalesRequired > 0 ? `₹${dailySalesRequired}` : "₹0"}
+                </span>
+              </Typography>
+              <Divider orientation="vertical" flexItem sx={{ mx: 1, borderColor: "#444" }} />
+              <Typography
+                variant="caption"
+                sx={{
+                  color: "#fff",
+                  fontSize: "1rem",
+                  fontWeight: 500,
+                  letterSpacing: "0.5px",
+                  display: "flex",
+                  alignItems: "center"
+                }}
+              >
+                Target: ({salesProgress} / {target}){" "}
+                <span style={{ marginLeft: 8, color: "#f7c942", fontWeight: 700 }}>
+                  {target > 0 ? `${Math.round((salesProgress / target) * 100)}%` : "0%"}
+                </span>
+              </Typography>
             </Box>
           )}
 
@@ -692,23 +692,68 @@ const NavbarWithSearch = () => {
         </Toolbar>
       </AppBar>
 
-      <Dialog open={bloodTestDialog} onClose={closeBloodTestDialog} maxWidth="xs" fullWidth PaperProps={{
-        sx: {
-          borderRadius: 4,
-          p: 0,
-          background: "#fff",
-          boxShadow: "0 6px 24px 0 rgba(110,49,49,0.12)",
-        }
-      }}>
-        <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", pt: 3, pb: 1 }}>
-          <Syringe style={{ fontSize: "2.5rem", color: "#e53935" }} />
-          <DialogTitle sx={{ textAlign: "center", pb: 0, fontWeight: 600, fontSize: "1.35rem", letterSpacing: 0.5 }}>
+      <Dialog
+        open={bloodTestDialog}
+        onClose={closeBloodTestDialog}
+        maxWidth="xs"
+        fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: 2,
+            width: 400,
+            p: 0,
+            background: "#fff",
+            boxShadow: "0 6px 24px 0 rgba(110,49,49,0.12)",
+            position: 'relative',
+          },
+        }}
+      >
+        {/* Cross (X) Button in top right */}
+        <IconButton
+          aria-label="close"
+          onClick={closeBloodTestDialog}
+          sx={{
+            position: 'absolute',
+            right: 10,
+            top: 10,
+            color: '#333',
+            zIndex: 10,
+          }}
+        >
+          <CloseIcon />
+        </IconButton>
+
+        <Box
+          sx={{
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            pt: 3,
+            pb: 1,
+          }}
+        >
+          <Syringe style={{ fontSize: "1.5rem", color: "#000" }} />
+          <DialogTitle
+            sx={{
+              textAlign: "center",
+              pb: 0,
+              fontWeight: 600,
+              fontSize: "1.2rem",
+            }}
+          >
             Blood Test Availability
           </DialogTitle>
+          <Box
+            sx={{ height: 3, borderRadius: "20px", backgroundColor: "#FFD700", width: "90%" }}
+          />
         </Box>
         <DialogContent sx={{ pt: 1 }}>
-          <Typography variant="body2" sx={{ mb: 2, textAlign: "center", color: "#6a6868" }}>
-            Enter your pincode to check which labs are available for home blood test collection.
+          <Typography
+            variant="body2"
+            sx={{ textAlign: "center", color: "#6a6868", fontSize: "14px" }}
+          >
+            Enter your pincode to check which labs are available for home blood
+            test collection.
           </Typography>
           <TextField
             fullWidth
@@ -717,51 +762,76 @@ const NavbarWithSearch = () => {
             onChange={handlePincodeChange}
             variant="outlined"
             margin="normal"
-            inputProps={{ maxLength: 6, inputMode: "numeric", pattern: "[0-9]*" }}
+            inputProps={{
+              maxLength: 6,
+              inputMode: "numeric",
+              pattern: "[0-9]*",
+            }}
             sx={{
               background: "#fafbfc",
               borderRadius: 2,
-              "& .MuiOutlinedInput-root": { borderRadius: 2 }
+              "& .MuiInputLabel-root": {
+                top: "50%",
+                transform: "translateY(-50%)",
+                transition: "all 0.2s ease-in-out",
+                fontSize: "0.85rem",
+                paddingLeft: "8px",
+              },
+              "& .MuiInputLabel-root.Mui-focused, & .MuiInputLabel-root.MuiFormLabel-filled": {
+                top: 0,
+                color: "gray",
+                transform: "translateY(-50%) translateX(8px)",
+                paddingLeft: "8px",
+                fontSize: "0.75rem",
+              },
+              "& .MuiOutlinedInput-root": {
+                "& input": {
+                  padding: "8px !important",
+                },
+                "&.Mui-focused fieldset": { borderColor: "black" },
+                "&:hover fieldset": { borderColor: "black" },
+              },
             }}
           />
           <Button
             variant="contained"
-            color="error"
             fullWidth
-            sx={{ mt: 1, fontWeight: 600, letterSpacing: 0.3, borderRadius: 2 }}
+            sx={{ mt: 1, borderRadius: 1.5, backgroundColor: "black", color: "white", mb: 2 }}
             onClick={checkLabs}
-            size="large"
+            size="medium"
           >
             Check
           </Button>
-          <Divider sx={{ my: 2 }} />
           {checkClicked && (
-            <Box sx={{ mt: 1, minHeight: 30, display: "flex", flexDirection: "column", alignItems: "center" }}>
+            <Box
+              sx={{
+                mt: 1,
+                minHeight: 30,
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+              }}
+            >
               {availableLabs.length === 0 ? (
-                <Typography color="error" sx={{ fontWeight: 500 }}>
+                <Typography color="error" sx={{ fontWeight: 500, fontSize: "15px" }}>
                   No labs available for this pincode.
                 </Typography>
               ) : (
                 <>
-                  <Typography sx={{ mb: 1, fontWeight: 500, color: "#222" }}>
+                  <Typography sx={{ fontWeight: 500, color: "#222", fontSize: "15px" }}>
                     Available Lab{availableLabs.length > 1 ? "s" : ""}:
                   </Typography>
-                  <Grid container spacing={2} sx={{ mt: 0.5, width: "100%" }}>
+                  <Grid container spacing={1} sx={{ mt: 0.5, width: "100%", justifyContent: "center", display: "flex" }}>
                     {availableLabs.map((lab, idx) => (
-                      <Grid item xs={6} key={lab}>
+                      <Grid item xs={3.5} key={lab} >
                         <Chip
                           label={lab}
                           sx={{
                             width: "100%",
-                            bgcolor: lab === "Redcliff" ? "#e3f2fd" : "#e3f2fd",
-                            color: lab === "Redcliff" ? "#0351a6" : "#0351a6",
-                            fontWeight: 600,
-                            fontSize: "1.05rem",
-                            px: 2,
-                            py: 1,
+                            bgcolor: "#e3f2fd",
+                            color: "#0351a6",
+                            fontSize: "14px",
                             borderRadius: "1rem",
-                            justifyContent: "center",
-                            display: "flex"
                           }}
                         />
                       </Grid>
@@ -772,11 +842,6 @@ const NavbarWithSearch = () => {
             </Box>
           )}
         </DialogContent>
-        <DialogActions sx={{ pb: 2, justifyContent: "center" }}>
-          <Button onClick={closeBloodTestDialog} sx={{ color: "#555", fontWeight: 600, letterSpacing: 0.4 }}>
-            Close
-          </Button>
-        </DialogActions>
       </Dialog>
 
       <Dialog
@@ -784,11 +849,10 @@ const NavbarWithSearch = () => {
         TransitionComponent={SlideDown}
         keepMounted
         onClose={() => setIncentiveOpen(false)}
-        maxWidth="sm"
-        fullWidth
+        maxWidth="500"
         PaperProps={{
           sx: {
-            borderRadius: 3,
+            borderRadius: 2,
             mt: 3,
             boxShadow: "0 10px 36px 0 rgba(0,0,0,0.22)",
             background: "#fff",
@@ -799,32 +863,93 @@ const NavbarWithSearch = () => {
           sx={{
             textAlign: "center",
             fontWeight: "bold",
-            fontSize: "1.5rem",
+            fontSize: "1.3rem",
             color: "#222",
-            letterSpacing: 0.5,
-            pt: 3,
-            pb: 1
           }}
         >
           Incentive Structure
         </DialogTitle>
-        <DialogContent sx={{ pt: 0 }}>
-          <Table sx={{ minWidth: 550 }}>
+        <Box
+          sx={{ height: 3, borderRadius: "20px", backgroundColor: "#FFD700", ml: 2, mr: 2 }}
+        />
+        <DialogContent>
+          <Table>
             <TableHead>
               <TableRow>
-                <TableCell sx={{ fontWeight: "bold", fontSize: 15, color: "#000", textAlign: "center" }}>Slab (Monthly Sales)</TableCell>
-                <TableCell sx={{ fontWeight: "bold", fontSize: 15, color: "#000", textAlign: "center" }}>Reward Rate</TableCell>
-                <TableCell sx={{ fontWeight: "bold", fontSize: 15, color: "#000", textAlign: "center" }}>Monthly Incentive (₹)</TableCell>
-                <TableCell sx={{ fontWeight: "bold", fontSize: 15, color: "#000", textAlign: "center" }}>Annual Incentive (₹)</TableCell>
+                <TableCell
+                  sx={{
+                    fontWeight: "bold",
+                    fontSize: 15,
+                    color: "#000",
+                    textAlign: "center",
+                  }}
+                >
+                  Slab (Monthly Sales)
+                </TableCell>
+                <TableCell
+                  sx={{
+                    fontWeight: "bold",
+                    fontSize: 15,
+                    color: "#000",
+                    textAlign: "center",
+                  }}
+                >
+                  Reward Rate
+                </TableCell>
+                <TableCell
+                  sx={{
+                    fontWeight: "bold",
+                    fontSize: 15,
+                    color: "#000",
+                    textAlign: "center",
+                  }}
+                >
+                  Monthly Incentive (₹)
+                </TableCell>
+                <TableCell
+                  sx={{
+                    fontWeight: "bold",
+                    fontSize: 15,
+                    color: "#000",
+                    textAlign: "center",
+                  }}
+                >
+                  Annual Incentive (₹)
+                </TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
               {[
-                { slab: "3L – 4L", rate: "2%", monthly: "6,000 – 8,000", annual: "72,000 – 96,000" },
-                { slab: "4L – 5L", rate: "2.50%", monthly: "10,000 – 12,500", annual: "1,20,000 – 1,50,000" },
-                { slab: "5L – 6L", rate: "3%", monthly: "15,000 – 18,000", annual: "1,80,000 – 2,16,000" },
-                { slab: "6L – 8L", rate: "3.50%", monthly: "21,000 – 28,000", annual: "2,52,000 – 3,36,000" },
-                { slab: "8L – 10L", rate: "4%", monthly: "32,000 – 40,000", annual: "3,84,000 – 4,80,000" },
+                {
+                  slab: "3L – 4L",
+                  rate: "2%",
+                  monthly: "6,000 – 8,000",
+                  annual: "72,000 – 96,000",
+                },
+                {
+                  slab: "4L – 5L",
+                  rate: "2.50%",
+                  monthly: "10,000 – 12,500",
+                  annual: "1,20,000 – 1,50,000",
+                },
+                {
+                  slab: "5L – 6L",
+                  rate: "3%",
+                  monthly: "15,000 – 18,000",
+                  annual: "1,80,000 – 2,16,000",
+                },
+                {
+                  slab: "6L – 8L",
+                  rate: "3.50%",
+                  monthly: "21,000 – 28,000",
+                  annual: "2,52,000 – 3,36,000",
+                },
+                {
+                  slab: "8L – 10L",
+                  rate: "4%",
+                  monthly: "32,000 – 40,000",
+                  annual: "3,84,000 – 4,80,000",
+                },
               ].map((row) => (
                 <TableRow key={row.slab}>
                   <TableCell align="center">{row.slab}</TableCell>
@@ -846,13 +971,12 @@ const NavbarWithSearch = () => {
               borderRadius: 2,
               textTransform: "none",
               px: 4,
-              fontWeight: 600,
-              "&:hover": { bgcolor: "#111" }
+              "&:hover": { bgcolor: "#111" },
             }}
           >
             Close
           </Button>
-        </DialogActions>
+        </DialogActions> 
       </Dialog>
 
       {/* Sidebar Drawer */}

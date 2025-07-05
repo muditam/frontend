@@ -1,828 +1,768 @@
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import {
   Box,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  Paper,
+  Stack,
   Typography,
-  Button,
-  Drawer,
-  TextField,
-  OutlinedInput,
-  Select,
-  MenuItem,
-  FormControl,
-  InputLabel,
-  Checkbox,
-  ListItemText,
+  Avatar,
   Divider,
-  Input,
-  TablePagination,
+  TextField,
+  Paper,
+  CircularProgress,
+  Tooltip,
+  InputAdornment,
+  Button,
+  IconButton,
+  Popover,
+  Checkbox,
+  FormControlLabel,
 } from "@mui/material";
-import axios from "axios";
-import TuneIcon from "@mui/icons-material/Tune";
+import SearchIcon from "@mui/icons-material/Search";
+import FilterListIcon from "@mui/icons-material/FilterList";
+import SortIcon from "@mui/icons-material/Sort";
 
-const RetentionTable = () => {
-  const [retentionLeads, setRetentionLeads] = useState([]);
-  const [totalLeads, setTotalLeads] = useState(0);
-  const [filterOpen, setFilterOpen] = useState(false);
-  const [retentionAgents, setRetentionAgents] = useState([]);
-  const [currentPage, setCurrentPage] = useState(0);
-  const [rowsPerPage, setRowsPerPage] = useState(50);
-  const [agents, setAgents] = useState([]);
-  const [salesAgents, setSalesAgents] = useState([]);
+// Helper: get initials from name
+const getInitials = (name) =>
+  name
+    ? name
+      .split(" ")
+      .map((n) => n[0])
+      .join("")
+      .toUpperCase()
+    : "";
 
-  const [filters, setFilters] = useState({
-    name: "",
-    contactNumber: "",
-    agentAssigned: [],
-    productPitched: [],
-    productsOrdered: [],
-    dosageOrdered: "",
-    modeOfPayment: "",
-    healthExpertAssigned: "",
-    rtFollowupReminder: [],
-    rtFollowupStatus: "",
-    lastOrderDate: "",
-    retentionStatus: "",
-    lastOrderDateFrom: "",
-    lastOrderDateTo: "",
-  });
-  const [activeFilters, setActiveFilters] = useState({});
+const followupMap = {
+  "Follow-up Missed": { color: "#f44336", label: "Missed" },
+  Missed: { color: "#f44336", label: "Missed" },
+  Today: { color: "#388e3c", label: "Today" },
+  Tomorrow: { color: "#1976d2", label: "Tomorrow" },
+  Later: { color: "#fbc02d", label: "Later" },
+  NotSet: { color: "#bdbdbd", label: "NotSet" },
+  "": { color: "#bdbdbd", label: "NotSet" },
+  null: { color: "#bdbdbd", label: "NotSet" },
+  undefined: { color: "#bdbdbd", label: "NotSet" },
+};
+function getFollowup(reminder) {
+  if (!reminder) return followupMap[""];
+  if (reminder === "Follow-up Missed") return followupMap["Missed"];
+  return followupMap[reminder] || { color: "#eee", label: reminder };
+}
 
-  const [dropdownOptions] = useState({
-    dosageOrdered: ["10-Days", "20-Days", "30-Days", "60-Days", "90-Days"],
-    modeOfPayment: ["Partial Paid", "Razorpay", "COD", "UPI", "Bank Transfer"],
-    deliveryStatus: ["Delivered", "RTO", "Undelivered"],
-    retentionStatus: ["Active", "Lost"],
-    rtFollowupReminder: ["Today", "Tomorrow", "Follow-up Missed", "Later"],
-    rtFollowupStatus: [
-      "Good Results",
-      "No Result",
-      "Sales Done",
-      "Do Not Want to Continue",
-      "Call Not Picked",
-      "Blood Test Suggested",
-      "Product Issue",
-      "Order from Other Source",
-      "Upsell",
-      "Follow Up Again",
-      "Call Back",
-      "Others",
-    ],
-    productOptions: [
-      "KJF",
-      "SDP",
-      "VKR",
-      "L-Fx",
-      "S&S",
-      "CPV",
-      "HDP",
-      "PF",
-      "PGut",
-      "Shilajit",
-      "Kit",
-      "Blood Test",
-    ],
-  });
-
-  // Fetch retention leads with pagination and filters applied
-  const fetchRetentionLeads = async () => {
-    try {
-      const response = await axios.get(
-        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/retention",
-        {
-          params: {
-            ...activeFilters,
-            page: currentPage + 1,
-            limit: rowsPerPage,
-          },
-        }
-      );
-      setRetentionLeads(response.data.leads);
-      setTotalLeads(response.data.totalLeads);
-    } catch (error) {
-      console.error("Error fetching retention leads:", error);
-    }
-  };
-
-  const fetchRetentionAgents = async () => {
-    try {
-      const response = await axios.get(
-        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/employees",
-        { params: { role: "Retention Agent" } }
-      );
-      setRetentionAgents(response.data.map((agent) => agent.fullName));
-    } catch (error) {
-      console.error("Error fetching retention agents:", error);
-    }
-  };
-  const fetchSalesAgents = async () => {
-    try {
-      const response = await axios.get(
-        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/employees",
-        { params: { role: "Sales Agent" } }
-      );
-      setSalesAgents(response.data.map((agent) => agent.fullName));
-    } catch (error) {
-      console.error("Error fetching sales agents:", error);
-    }
-  };
-
-  useEffect(() => {
-    fetchRetentionLeads(); 
-  }, [currentPage, rowsPerPage, activeFilters]);
-
-  useEffect(() => {
-    fetchRetentionAgents();
-    fetchSalesAgents();
-  }, []);
-
-  const handleApplyFilters = () => {
-    const payload = { ...filters };
-    if (payload.lastOrderDateFrom) {
-      const from = new Date(payload.lastOrderDateFrom);
-      from.setHours(0, 0, 0, 0);
-      payload.lastOrderDateFrom = from.toISOString();
-    }
-    if (payload.lastOrderDateTo) {
-      const to = new Date(payload.lastOrderDateTo);
-      to.setHours(23, 59, 59, 999);
-      payload.lastOrderDateTo = to.toISOString();
-    }
-    Object.keys(payload).forEach((k) => {
-      const v = payload[k];
-      if (v === "" || (Array.isArray(v) && v.length === 0)) {
-        delete payload[k];
-      }
-    });
-    setActiveFilters(payload);
-    setFilterOpen(false);
-    setCurrentPage(0)
-  };
-
-  const resetFilters = () => {
-    setFilters({
-      name: "",
-      contactNumber: "",
-      agentAssigned: [],
-      productPitched: [],
-      productsOrdered: [],
-      dosageOrdered: "",
-      modeOfPayment: "",
-      healthExpertAssigned: "",
-      rtFollowupReminder: [],
-      lastOrderDate: "",
-      rtFollowupStatus: "",
-      lastOrderDateFrom: "",
-      lastOrderDateTo: "",
-      retentionStatus: "",
-    });
-    setCurrentPage(0);
-    setActiveFilters({});
-    setFilterOpen(false);
-  };
-
-   // Download full dataset as CSV
-   const handleDownload = async () => {
-    try {
-      // Fetch all leads without pagination
-      const response = await axios.get(
-        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/retention",
-        { params: { ...activeFilters, page: 1, limit: totalLeads } }
-      );
-      const data = response.data.leads;
-      // Define CSV headers
-      const headers = [
-        "Last Order Date",
-        "Name",
-        "Contact No",
-        "Agent Assigned",
-        "Product Pitched",
-        "Remark for HE",
-        "Products Ordered",
-        "Dosage Ordered",
-        "Mode Of Payment",
-        "Delivery Status",
-        "Health Expert Assigned",
-        "Dosage Expiring",
-        "RT Next Followup Date",
-        "RT- Followup Reminder",
-        "RT- Followup Status",
-        "Repeat Dosage Ordered",
-        "Retention Status",
-        "RT- Remark",
-      ];
-      // Map rows
-      const rows = data.map((lead) => [
-        lead.lastOrderDate,
-        lead.name,
-        lead.contactNumber,
-        Array.isArray(lead.agentAssigned) ? lead.agentAssigned.join("; ") : lead.agentAssigned,
-        lead.productPitched?.join("; "),
-        lead.agentsRemarks,
-        lead.productsOrdered?.join("; "),
-        lead.dosageOrdered,
-        lead.modeOfPayment,
-        lead.deliveryStatus,
-        lead.healthExpertAssigned,
-        lead.dosageExpiring,
-        lead.rtNextFollowupDate,
-        lead.rtFollowupReminder,
-        lead.rtFollowupStatus,
-        lead.repeatDosageOrdered,
-        lead.retentionStatus,
-        lead.rtRemark,
-      ]);
-      // Build CSV string
-      let csvContent = headers.join(",") + "\n";
-      rows.forEach((r) => {
-        csvContent += r.map((cell) => `"${cell ?? ""}"`).join(",") + "\n";
-      });
-      // Create blob and trigger download
-      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.setAttribute("download", "retention_leads.csv");
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    } catch (error) {
-      console.error("Download failed:", error);
-    }
-  };
-  
-  const handleChangePage = (event, newPage) => {
-    setCurrentPage(newPage);
-  };
-
-  const handleChangeRowsPerPage = (event) => {
-    setRowsPerPage(parseInt(event.target.value, 10));
-    setCurrentPage(0);
-  };
-
-  const styles = {
-    container: {
-      fontFamily: "Inter, sans-serif",
-      fontWeight: 450,
-      fontSize: "13px",
-      lineHeight: "20px",
-    },
-    header: {
-      color: "rgb(74, 74, 74)",
-    },
-    table: {
-      minWidth: 650,
-    },
-    tableCell: {
-      backgroundColor: "white",
-      padding: "4px 8px",
-      height: "24px",
-      lineHeight: "20px",
-      whiteSpace: "nowrap",
-      textOverflow: "ellipsis",
-      overflow: "hidden",
-      maxWidth: "200px",
-      fontSize: "0.875rem",
-      textAlign: "center",
-      borderBottom: "1px solid #333",
-    },
-    card: {
-      borderRadius: "8px",
-      boxShadow: "0 4px 6px rgba(0, 0, 0, 0.1)",
-    },
-    tableHead: {
-      color: "white",
-      backgroundColor: "black",
-      whiteSpace: "nowrap",
-      overflow: "hidden",
-      textOverflow: "ellipsis",
-      // padding: "10px",
-      textAlign: "center",
-    },
-    button: {
-      borderRadius: "8px",
-      textTransform: "none",
-      boxShadow: "0 2px 4px rgba(0, 0, 0, 0.1)",
-    },
-  };
-
-  return (
-    <Box
-      sx={{ padding: 2, backgroundColor: "#f9f9f9" }}
-      style={styles.container}
-    >
-      <Typography
-        gutterBottom
-        variant="h4"
-        sx={{
-          fontWeight: "bold",
-          textAlign: "center",
-          letterSpacing: "1px",
-          color: "black",
-          marginBottom: 2,
-        }}
-      >
-        Master Data - Retention
-      </Typography>
-
-      <Box sx={{ display: 'flex', justifyContent: 'flex-start', mb: 2 }}>
-      <Button
-        variant="contained"
-        onClick={() => setFilterOpen(true)}
-        sx={{ backgroundColor: "black", ...styles.button }}
-        startIcon={<TuneIcon />}
-      >
-        Filter
-      </Button>
-      
-        <Button
-          variant="contained"
-          onClick={handleDownload}
-          sx={{  ml: 2, backgroundColor: "black", ...styles.button }}
-        >
-          Download
-        </Button>
-
-      </Box>
-
-      <Drawer
-        anchor="right"
-        open={filterOpen}
-        onClose={() => setFilterOpen(false)}
-        sx={{
-          transition: "all 0.5s ease-in-out",
-          "& .MuiDrawer-paper": {
-            boxShadow: "0px 4px 10px rgba(0, 0, 0, 0.2)",
-            borderRadius: "10px 0 0 10px",
-          },
-        }}
-      >
-        <Box sx={{ width: 250, padding: 2 }}>
-          <Typography
-            variant="h6"
-            gutterBottom
-            sx={{
-              mb: 1,
-              position: "sticky",
-              top: 0,
-              fontWeight: "bold",
-              textAlign: "center",
-              color: "#333",
-              background: "white",
-              zIndex: 10,
-            }}
-          >
-            Filters
-          </Typography>
-          <Box
-            sx={{
-              height: "2px",
-              backgroundColor: "#FFC107",
-              width: "100%",
-              borderRadius: "2px",
-              mb: 2,
-            }}
-          />
-          <Box sx={{ marginBottom: 1 }}>
-            {Object.keys(filters).map((key) => (
-              <FormControl
-                key={key}
-                fullWidth
-                variant="outlined"
-                sx={{
-                  mb: 2,
-                  "& .MuiInputLabel-root": {
-                    fontSize: "0.85rem",
-                    paddingLeft: "8px",
-                    top: "50%",
-                    transition: "all 0.4s ease-in-out",
-                    transform: "translateY(-50%)",
-                  },
-                  "& .MuiInputLabel-root.Mui-focused, & .MuiInputLabel-root.MuiFormLabel-filled":
-                  {
-                    top: 0,
-                    transform: "translateY(-50%) translateX(8px)",
-                    fontSize: "0.75rem",
-                    color: "gray",
-                  },
-                  "& .MuiOutlinedInput-root": {
-                    "& input": {
-                      padding: "4px !important",
-                    },
-                    "& .MuiSelect-select": {
-                      padding: "4px",
-                    },
-                    "&.Mui-focused fieldset": {
-                      borderColor: "black",
-                    },
-                    "&:hover fieldset": {
-                      borderColor: "black",
-                    },
-                  },
-                }}
-              >
-                {key === "healthExpertAssigned" ? (
-                  <>
-                    <InputLabel>Health Expert Assigned</InputLabel>
-                    <Select
-                      label="Health Expert Assigned"
-                      value={filters[key] || ""}
-                      onChange={(e) =>
-                        setFilters((prev) => ({
-                          ...prev,
-                          [key]: e.target.value,
-                        }))
-                      }
-                    >
-                      {retentionAgents.map((agent) => (
-                        <MenuItem key={agent} value={agent}>
-                          {agent}
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  </>
-                ) : key === "agentAssigned" ? (
-                  <>
-                    <InputLabel>Agent Assigned</InputLabel>
-                    <Select
-                      label="Agent Assigned"
-                      multiple
-                      value={Array.isArray(filters[key]) ? filters[key] : []}
-                      onChange={(e) =>
-                        setFilters((prev) => ({
-                          ...prev,
-                          [key]: e.target.value,
-                        }))
-                      }
-                      renderValue={(selected) => selected.join(", ")}
-                    >
-                      {salesAgents.map((agent) => (
-                        <MenuItem key={agent} value={agent}>
-                          <Checkbox
-                            checked={filters[key]?.includes(agent) || false}
-                          />
-                          <ListItemText primary={agent} />
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  </>
-                ) : key === "productPitched" ? (
-                  <>
-                    <InputLabel>Product Pitched</InputLabel>
-                    <Select
-                      label="Product Pitched"
-                      multiple
-                      value={Array.isArray(filters[key]) ? filters[key] : []}
-                      onChange={(e) =>
-                        setFilters((prev) => ({
-                          ...prev,
-                          [key]: e.target.value,
-                        }))
-                      }
-                      renderValue={(selected) => selected.join(", ")}
-                    >
-                      {dropdownOptions.productOptions.map((product) => (
-                        <MenuItem key={product} value={product}>
-                          <Checkbox
-                            checked={filters[key]?.includes(product) || false}
-                          />
-                          <ListItemText primary={product} />
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  </>
-                ) : key === "productsOrdered" ? (
-                  <>
-                    <InputLabel>Products Ordered</InputLabel>
-                    <Select
-                      label="Products Ordered"
-                      multiple
-                      value={Array.isArray(filters[key]) ? filters[key] : []}
-                      onChange={(e) =>
-                        setFilters((prev) => ({
-                          ...prev,
-                          [key]: e.target.value,
-                        }))
-                      }
-                      renderValue={(selected) => selected.join(", ")}
-                    >
-                      {dropdownOptions.productOptions.map((product) => (
-                        <MenuItem key={product} value={product}>
-                          <Checkbox
-                            checked={filters[key]?.includes(product) || false}
-                          />
-                          <ListItemText primary={product} />
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  </>
-                ) : key === "lastOrderDate" ? (
-                  <>
-                    <TextField
-                      label="Last Order Date"
-                      type="date"
-                      InputLabelProps={{ shrink: true }}
-                      value={filters[key]}
-                      onChange={(e) =>
-                        setFilters((prev) => ({
-                          ...prev,
-                          [key]: e.target.value,
-                        }))
-                      }
-                      sx={{
-                        minWidth: 180,
-                        "& .MuiInputBase-root": {
-                          backgroundColor: "background.default",
-                        },
-                        "& .MuiInputLabel-root": {
-                          top: -1,
-                          transform: "translate(10px, -6px) scale(0.85)",
-                          transition: "all 0.4s ease-in-out",
-                          color: "#777",
-                        },
-                      }}
-                    />
-                  </>
-                ) : key === "lastOrderDateFrom" ? (
-                  <>
-                    <TextField
-                      label="Last Order Date From"
-                      type="date"
-                      fullWidth
-                      InputLabelProps={{ shrink: true }}
-                      value={filters[key]}
-                      onChange={(e) =>
-                        setFilters((prev) => ({
-                          ...prev,
-                          [key]: e.target.value,
-                        }))}
-                      sx={{
-                        minWidth: 180,
-                        "& .MuiInputBase-root": {
-                          backgroundColor: "background.default",
-                        },
-                        "& .MuiInputLabel-root": {
-                          top: -1,
-                          transform: "translate(10px, -6px) scale(0.85)",
-                          transition: "all 0.4s ease-in-out",
-                          color: "#777",
-                        },
-                      }}
-                    />
-                  </>
-                ) : key === "lastOrderDateTo" ? (
-                  <>
-                    <TextField
-                      label="Last Order Date To"
-                      type="date"
-                      fullWidth
-                      InputLabelProps={{ shrink: true }}
-                      value={filters[key]}
-                      onChange={(e) =>
-                        setFilters((prev) => ({
-                          ...prev,
-                          [key]: e.target.value,
-                        }))}
-                      sx={{
-                        minWidth: 180,
-                        "& .MuiInputBase-root": {
-                          backgroundColor: "background.default",
-                        },
-                        "& .MuiInputLabel-root": {
-                          top: -1,
-                          transform: "translate(10px, -6px) scale(0.85)",
-                          transition: "all 0.4s ease-in-out",
-                          color: "#777",
-                        },
-                      }}
-                    />
-                  </>
-                ) : Array.isArray(dropdownOptions[key]) ? (
-                  <>
-                    <InputLabel>
-                      {key
-                        .replace(/([A-Z])/g, " $1")
-                        .replace(/^./, (str) => str.toUpperCase())}
-                    </InputLabel>
-                    <Select
-                      label={key
-                        .replace(/([A-Z])/g, " $1")
-                        .replace(/^./, (str) => str.toUpperCase())}
-                      multiple
-                      value={Array.isArray(filters[key]) ? filters[key] : []}
-                      onChange={(e) =>
-                        setFilters((prev) => ({
-                          ...prev,
-                          [key]: e.target.value,
-                        }))
-                      }
-                      renderValue={(selected) => selected.join(", ")}
-                    >
-                      {dropdownOptions[key].map((option) => (
-                        <MenuItem key={option} value={option}>
-                          <Checkbox
-                            checked={filters[key]?.includes(option) || false}
-                          />
-                          <ListItemText primary={option} />
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  </>
-                ) : (
-                  <>
-                    <InputLabel>
-                      {key
-                        .replace(/([A-Z])/g, " $1")
-                        .replace(/^./, (str) => str.toUpperCase())}
-                    </InputLabel>
-                    <OutlinedInput
-                      value={filters[key]}
-                      label={key
-                        .replace(/([A-Z])/g, " $1")
-                        .replace(/^./, (str) => str.toUpperCase())}
-                      onChange={(e) =>
-                        setFilters((prev) => ({
-                          ...prev,
-                          [key]: e.target.value,
-                        }))
-                      }
-                    />
-                  </>
-                )}
-              </FormControl>
-            ))}
-          </Box>
-          <Divider />
-          <Button
-            variant="contained"
-            fullWidth
-            onClick={handleApplyFilters}
-            sx={{
-              marginBottom: 1,
-              backgroundColor: "black",
-              transition: "background-color 0.2s ease-in-out",
-              "&:hover": {
-                backgroundColor: "#333",
-              },
-            }}
-          >
-            Apply Filters
-          </Button>
-          <Button
-            variant="outlined"
-            fullWidth
-            onClick={resetFilters}
-            sx={{
-              marginBottom: 1,
-              color: "black",
-              borderColor: "black",
-              transition: "all 0.2s ease-in-out",
-              "&:hover": {
-                borderColor: "#333",
-                color: "#333",
-              },
-            }}
-          >
-            Reset Filters
-          </Button>
-        </Box>
-      </Drawer>
-
-
-      <TableContainer
-        component={Paper}
-        style={{ backgroundColor: "#121212", borderRadius: "10px" }}
-        sx={{ maxHeight: 1000 }}
-      >
-        <Table
-          stickyHeader
-          aria-label="sticky table"
-          style={{ minWidth: 1200 }}
-        >
-          <TableHead>
-            <TableRow>
-              {[
-                "Last Order Date",
-                "Name",
-                "Contact No",
-                "Agent Assigned",
-                "Product Pitched",
-                "Remark for HE",
-                "Products Ordered",
-                "Dosage Ordered",
-                "Mode Of Payment",
-                "Delivery Status",
-                "Health Expert Assigned",
-                "Dosage Expiring",
-                "RT Next Followup Date",
-                "RT- Followup Reminder",
-                "RT- Followup Status",
-                "Repeat Dosage Ordered",
-                "Retention Status",
-                "RT- Remark",
-              ].map((heading) => (
-                <TableCell
-                  key={heading}
-                  sx={{
-                    backgroundColor: "#1f1f1f",
-                    color: "#ffffff",
-                    fontWeight: "bold",
-                    borderBottom: "1px solid #333",
-                    fontSize: "0.875rem",
-                    whiteSpace: "nowrap",
-                    textAlign: "center",
-                    paddingTop: "5px",
-                    paddingBottom: "5px"
-                  }}
-                >
-                  {heading}
-                </TableCell>
-              ))}
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {retentionLeads.map((lead) => (
-              <TableRow
-                key={lead._id}
-                sx={{
-                  backgroundColor: "#1a1a1a",
-                  "&:hover": {
-                    backgroundColor: "#2a2a2a",
-                  },
-                }}
-              >
-                <TableCell sx={styles.tableCell}>
-                  {lead.lastOrderDate}
-                </TableCell>
-                <TableCell sx={styles.tableCell}>{lead.name}</TableCell>
-                <TableCell sx={styles.tableCell}>
-                  {lead.contactNumber}
-                </TableCell>
-                <TableCell sx={styles.tableCell}>
-                  {lead.agentAssigned}
-                </TableCell>
-                <TableCell sx={styles.tableCell}>
-                  {lead.productPitched?.join(", ")}
-                </TableCell>
-                <TableCell sx={styles.tableCell}>
-                  {lead.agentsRemarks}
-                </TableCell>
-                <TableCell sx={styles.tableCell}>
-                  {lead.productsOrdered?.join(", ")}
-                </TableCell>
-                <TableCell sx={styles.tableCell}>
-                  {lead.dosageOrdered}
-                </TableCell>
-                <TableCell sx={styles.tableCell}>
-                  {lead.modeOfPayment}
-                </TableCell>
-                <TableCell sx={styles.tableCell}>
-                  {lead.deliveryStatus}
-                </TableCell>
-                <TableCell sx={styles.tableCell}>
-                  {lead.healthExpertAssigned}
-                </TableCell>
-                <TableCell sx={styles.tableCell}>
-                  {lead.dosageExpiring}
-                </TableCell>
-                <TableCell sx={styles.tableCell}>
-                  {lead.rtNextFollowupDate}
-                </TableCell>
-                <TableCell sx={styles.tableCell}>
-                  {lead.rtFollowupReminder}
-                </TableCell>
-                <TableCell sx={styles.tableCell}>
-                  {lead.rtFollowupStatus}
-                </TableCell>
-                <TableCell sx={styles.tableCell}>
-                  {lead.repeatDosageOrdered}
-                </TableCell>
-                <TableCell sx={styles.tableCell}>
-                  {lead.retentionStatus}
-                </TableCell>
-                <TableCell sx={styles.tableCell}>{lead.rtRemark}</TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </TableContainer>
-      <TablePagination
-        rowsPerPageOptions={[10, 20, 50, 100]}
-        component="div"
-        count={totalLeads}
-        rowsPerPage={rowsPerPage}
-        page={currentPage}
-        onPageChange={handleChangePage}
-        onRowsPerPageChange={handleChangeRowsPerPage}
-      />
-    </Box>
-  );
+const formatCS = (lead) => {
+  if (lead.lastOrderDate) {
+    const diff =
+      (new Date() - new Date(lead.lastOrderDate)) / (1000 * 60 * 60 * 24);
+    return `CS - ${Math.floor(diff)} days`;
+  }
+  return "CS - N/A";
 };
 
-export default RetentionTable;
+const FOLLOWUP_BUTTONS = [
+  { key: "Today", label: "Today" },
+  { key: "Tomorrow", label: "Tomorrow" },
+  { key: "Missed", label: "Missed" }, // Use Missed key (not "Follow-up Missed")
+  { key: "Later", label: "Later" },
+  { key: "NotSet", label: "NotSet" },
+];
+
+const TOP_FILTERS = [
+  { key: "All", label: "All" },
+  { key: "Active", label: "Active" },
+  { key: "Lost", label: "Lost" },
+];
+
+const PAGE_SIZE = 20;
+const API_URL = "https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/retention";
+
+export default function RetentionTable() {
+  // State
+  const [leads, setLeads] = useState([]);
+  const [counts, setCounts] = useState({});
+  const [topCounts, setTopCounts] = useState({});
+  const [selectedIdx, setSelectedIdx] = useState(0);
+  const [followupFilter, setFollowupFilter] = useState(null);
+  const [topFilter, setTopFilter] = useState("All");
+  const [search, setSearch] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
+  const [page, setPage] = useState(1);
+  const [filterAnchorEl, setFilterAnchorEl] = useState(null);
+  const [filterType, setFilterType] = useState(null); // "salesAgent" | "healthExpert"
+  const [agents, setAgents] = useState([]);
+  const [healthExperts, setHealthExperts] = useState([]);
+  const [selectedAgents, setSelectedAgents] = useState([]);
+  const [selectedHealthExperts, setSelectedHealthExperts] = useState([]);
+
+
+  const listRef = useRef(null);
+
+  // Fetch leads paginated with filters
+  const fetchLeads = useCallback(
+    async (reset = false) => {
+      setLoading(true);
+      try {
+        const params = new URLSearchParams({
+          page: reset ? "1" : page.toString(),
+          limit: PAGE_SIZE.toString(),
+          retentionStatus: topFilter,
+        });
+        if (search.trim()) params.append("search", search.trim());
+        if (followupFilter) params.append("followup", followupFilter);
+        if (selectedAgents.length > 0) params.append("agentAssigned", selectedAgents.join(","));
+        if (selectedHealthExperts.length > 0) params.append("healthExpertAssigned", selectedHealthExperts.join(","));
+
+        const res = await fetch(`${API_URL}?${params}`);
+        const data = await res.json();
+        setLeads((prev) => (reset ? data.leads : [...prev, ...data.leads]));
+        setCounts(data.counts || {});
+        setTopCounts(data.topCounts || {});
+        setHasMore(data.leads.length === PAGE_SIZE);
+      } catch (err) {
+        setHasMore(false);
+      }
+      setLoading(false);
+    },
+    [page, topFilter, followupFilter, search, selectedAgents, selectedHealthExperts]
+  );
+
+
+  // On mount & when page changes
+  useEffect(() => {
+    fetchLeads(page === 1);
+    // eslint-disable-next-line
+  }, [page]);
+
+  useEffect(() => {
+    // Only active employees, and specific roles
+    const fetchEmployees = async () => {
+      const agentsRes = await fetch("https://muditamleads-14f32a10d7f7.herokuapp.com/api/employees?role=Sales%20Agent");
+      const agentsData = await agentsRes.json();
+      setAgents(agentsData.filter((emp) => emp.status === "active"));
+
+      const healthRes = await fetch("https://muditamleads-14f32a10d7f7.herokuapp.com/api/employees?role=Retention%20Agent");
+      const healthData = await healthRes.json();
+      setHealthExperts(healthData.filter((emp) => emp.status === "active"));
+    };
+    fetchEmployees();
+  }, []);
+
+
+  // Reset on filter/search
+  useEffect(() => {
+    setPage(1);
+    setLeads([]);
+    fetchLeads(true);
+    setSelectedIdx(0);
+    // eslint-disable-next-line
+  }, [followupFilter, topFilter, search, selectedAgents, selectedHealthExperts]);
+
+
+  // Infinite scroll handler
+  const onScroll = (e) => {
+    const el = e.target;
+    if (el.scrollHeight - el.scrollTop - el.clientHeight < 40 && !loading && hasMore) {
+      setPage((p) => p + 1);
+    }
+  };
+
+  // Render
+  return (
+    <Box sx={{ display: "flex", minHeight: "100vh", fontFamily: "Inter, sans-serif" }}>
+      {/* Sidebar 25% */}
+      <Box
+        sx={{
+          width: "25%",
+          minWidth: 260,
+          maxWidth: 390,
+          bgcolor: "#fff",
+          boxShadow: "2px 0 10px #0001",
+          borderRight: "1px solid #eee",
+          display: "flex",
+          flexDirection: "column",
+          height: "100vh",
+          p: 0,
+        }}
+      >
+        {/* Top Filter Buttons */}
+        <Stack direction="row" spacing={1} sx={{ p: 2, pt: 2.2, pb: 0 }}>
+          {TOP_FILTERS.map((f) => (
+            <Button
+              key={f.key}
+              variant={topFilter === f.key ? "contained" : "outlined"}
+              color="inherit"
+              onClick={() => setTopFilter(f.key)}
+              sx={{
+                px: 2.1,
+                pt: 1,
+                pb: 0.4,
+                minWidth: 0,
+                fontSize: 11,
+                fontWeight: 500,
+                borderRadius: 2.5,
+                borderColor: "#ccc",
+                boxShadow: topFilter === f.key ? 1 : 0,
+                bgcolor: topFilter === f.key ? "#222" : "#fff",
+                color: topFilter === f.key ? "#fff" : "#222",
+                position: "relative",
+                flexDirection: "column",
+                transition: "all 0.15s",
+                "&:hover": { bgcolor: topFilter === f.key ? "#222" : "#f3f3f3" },
+                textTransform: "none",
+                lineHeight: 1,
+                height: 38,
+                mb: 0.4,
+              }}
+            >
+              {f.label}
+              <Typography
+                sx={{
+                  fontWeight: 500,
+                  fontSize: 12,
+                  color: topFilter === f.key ? "#eee" : "#999",
+                  mt: 0.2,
+                  lineHeight: 1,
+                }}
+              >
+                {topCounts[f.key] || 0}
+              </Typography>
+            </Button>
+          ))}
+        </Stack>
+        {/* Followup Buttons Row */}
+        <Stack direction="row" spacing={1} sx={{ px: 2, pb: 0.2, pt: 1 }}>
+          {FOLLOWUP_BUTTONS.map((f) => {
+            const selected = followupFilter === f.key;
+            const pill = getFollowup(f.key);
+            return (
+              <Button
+                key={f.key}
+                variant={selected ? "contained" : "outlined"}
+                color="inherit"
+                onClick={() => setFollowupFilter(selected ? null : f.key)}
+                sx={{
+                  px: 2.1,
+                  pt: 1,
+                  pb: 0.4,
+                  minWidth: 0,
+                  fontSize: 11,
+                  fontWeight: 500,
+                  borderRadius: 2.5,
+                  borderColor: "#ccc",
+                  boxShadow: selected ? 1 : 0,
+                  bgcolor: selected ? pill.color || "#222" : "#fff",
+                  color: selected ? "#fff" : "#222",
+                  position: "relative",
+                  flexDirection: "column",
+                  transition: "all 0.15s",
+                  "&:hover": {
+                    bgcolor: selected ? pill.color || "#222" : "#f3f3f3",
+                  },
+                  textTransform: "none",
+                  lineHeight: 1,
+                  height: 38,
+                  mb: 0.4,
+                }}
+              >
+                {f.label}
+                <Typography
+                  sx={{
+                    fontWeight: 700,
+                    fontSize: 12,
+                    color: selected
+                      ? pill.color === "#fbc02d" || pill.color === "#bdbdbd"
+                        ? "#222"
+                        : "#fff"
+                      : "#888",
+                    mt: 0.2,
+                    lineHeight: 1.1,
+                  }}
+                >
+                  {counts[f.label] || counts[f.key] || 0}
+                </Typography>
+              </Button>
+            );
+          })}
+        </Stack>
+
+        <Box sx={{ px: 2, pt: 1.5 }}>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+            <TextField
+              placeholder="Search leads..."
+              size="small"
+              fullWidth
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              InputProps={{
+                sx: { borderRadius: 2, fontSize: 14 },
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchIcon sx={{ fontSize: 18, color: "#888" }} />
+                  </InputAdornment>
+                ),
+              }}
+            />
+            <IconButton
+              size="small"
+              onClick={(e) => setFilterAnchorEl(e.currentTarget)}
+            >
+              <FilterListIcon sx={{ color: "#888" }} />
+            </IconButton>
+
+            <IconButton size="small">
+              <SortIcon sx={{ color: "#888" }} />
+            </IconButton>
+          </Box>
+          <Popover
+            open={Boolean(filterAnchorEl)}
+            anchorEl={filterAnchorEl}
+            onClose={() => { setFilterAnchorEl(null); setFilterType(null); }}
+            anchorOrigin={{ vertical: "bottom", horizontal: "left" }}
+          >
+            {!filterType ? (
+              <Stack sx={{ p: 1, minWidth: 180 }}>
+                <Button
+                  onClick={() => setFilterType("salesAgent")}
+                  sx={{ justifyContent: "flex-start", textTransform: "none", mb: 1 }}
+                >
+                  Sales Agent
+                </Button>
+                <Button
+                  onClick={() => setFilterType("healthExpert")}
+                  sx={{ justifyContent: "flex-start", textTransform: "none" }}
+                >
+                  Health Expert
+                </Button>
+              </Stack>
+            ) : (
+              <Stack sx={{ p: 2, minWidth: 220 }}>
+                <Typography sx={{ mb: 1.5, fontWeight: 600 }}>
+                  {filterType === "salesAgent" ? "Select Sales Agents" : "Select Health Experts"}
+                </Typography>
+                <Stack direction="column" spacing={1} sx={{ maxHeight: 280, overflowY: "auto" }}>
+                  {(filterType === "salesAgent" ? agents : healthExperts).map((emp) => (
+                    <FormControlLabel
+                      key={emp._id}
+                      control={
+                        <Checkbox
+                          size="small"
+                          checked={
+                            filterType === "salesAgent"
+                              ? selectedAgents.includes(emp.fullName)
+                              : selectedHealthExperts.includes(emp.fullName)
+                          }
+                          onChange={(e) => {
+                            const checked = e.target.checked;
+                            const setSelected = filterType === "salesAgent" ? setSelectedAgents : setSelectedHealthExperts;
+                            const selected = filterType === "salesAgent" ? selectedAgents : selectedHealthExperts;
+                            setSelected(
+                              checked
+                                ? [...selected, emp.fullName]
+                                : selected.filter((name) => name !== emp.fullName)
+                            );
+                          }}
+                        />
+                      }
+                      label={emp.fullName}
+                    />
+                  ))}
+                </Stack>
+              </Stack>
+            )}
+          </Popover>
+
+        </Box>
+        <Divider sx={{ mt: 2 }} />
+
+        {/* Leads List (infinite scroll) */}
+        <Box
+          sx={{
+            flex: 1,
+            overflowY: "auto",
+            px: 0.5,
+            pt: 1,
+            position: "relative",
+          }}
+          ref={listRef}
+          onScroll={onScroll}
+        >
+          <Stack spacing={0.8}>
+            {leads.length === 0 && !loading && (
+              <Typography align="center" sx={{ mt: 6, color: "#aaa" }}>
+                No leads found
+              </Typography>
+            )}
+            {leads.map((lead, idx) => {
+              const isActive = idx === selectedIdx;
+              const followup = getFollowup(lead.calculatedReminder);
+              return (
+                <Paper
+                  key={lead._id || idx}
+                  elevation={isActive ? 4 : 0}
+                  sx={{
+                    display: "flex",
+                    alignItems: "center",
+                    borderRadius: 2,
+                    px: 1.5,
+                    py: 1,
+                    mb: 0.2,
+                    border: isActive
+                      ? "2.5px solid #1976d2"
+                      : "1px solid #e0e0e0",
+                    bgcolor: isActive ? "#e9f4ff" : "#fff",
+                    cursor: "pointer",
+                    position: "relative",
+                  }}
+                  onClick={() => setSelectedIdx(idx)}
+                >
+                  <Avatar
+                    sx={{
+                      bgcolor: "#222",
+                      width: 40,
+                      height: 40,
+                      fontWeight: 600,
+                      fontSize: 18,
+                      mr: 1,
+                    }}
+                  >
+                    {getInitials(lead.name)}
+                  </Avatar>
+                  <Box sx={{ flex: 1, minWidth: 0 }}>
+                    <Typography
+                      sx={{
+                        fontWeight: 600,
+                        fontSize: 15.5,
+                        whiteSpace: "nowrap",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        color: "#111",
+                      }}
+                    >
+                      {lead.name || "No Name"}
+                    </Typography>
+                    <Typography
+                      sx={{
+                        fontSize: 13,
+                        color: "#666",
+                        fontWeight: 400,
+                        mt: 0.1,
+                      }}
+                    >
+                      {formatCS(lead)}
+                    </Typography>
+                  </Box>
+                  {/* Percentage circle at absolute right top */}
+                  <Tooltip title="Profile Completion">
+                    <Box
+                      sx={{
+                        position: "absolute",
+                        top: -2,
+                        right: 2,
+                        width: 22,
+                        height: 22,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        zIndex: 2,
+                      }}
+                    >
+                      <Typography
+                        sx={{
+                          fontWeight: 700,
+                          fontSize: 14,
+                          color: "#1976d2",
+                        }}
+                      >
+                        {typeof lead.profilePercent === "number"
+                          ? `${lead.profilePercent}%`
+                          : "0%"}
+                      </Typography>
+                    </Box>
+                  </Tooltip>
+                  <Box
+                    sx={{
+                      minWidth: 72,
+                      display: "flex",
+                      justifyContent: "flex-end",
+                      ml: 1,
+                    }}
+                  >
+                    <Box
+                      sx={{
+                        bgcolor: followup.color,
+                        color:
+                          followup.color === "#fbc02d" ||
+                            followup.color === "#bdbdbd"
+                            ? "#111"
+                            : "#fff",
+                        borderRadius: 1,
+                        px: 1.2,
+                        fontSize: 13,
+                        fontWeight: 500,
+                        height: 26,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
+                      {followup.label}
+                    </Box>
+                  </Box>
+                </Paper>
+              );
+            })}
+            {loading && (
+              <Box sx={{ display: "flex", justifyContent: "center", my: 2 }}>
+                <CircularProgress size={24} />
+              </Box>
+            )}
+          </Stack>
+        </Box>
+      </Box>
+
+      {/* Main content 75% */}
+      <Box sx={{ flex: 1, p: 3, minWidth: 0, bgcolor: "#f8fafc" }}>
+        {leads[selectedIdx] ? (
+          <Paper
+            sx={{
+              borderRadius: 3,
+              boxShadow: "0 3px 16px #0002",
+              p: 3,
+              minHeight: 340,
+              bgcolor: "#fff",
+              width: "100%",
+              mb: 2,
+            }}
+          >
+            <Stack direction="row" alignItems="center" spacing={2} mb={2}>
+              <Avatar
+                sx={{
+                  bgcolor: "#222",
+                  width: 60,
+                  height: 60,
+                  fontWeight: 600,
+                  fontSize: 28,
+                  mr: 2,
+                }}
+              >
+                {getInitials(leads[selectedIdx].name)}
+              </Avatar>
+              <Box>
+                <Typography variant="h5" sx={{ fontWeight: 600 }}>
+                  {leads[selectedIdx].name}
+                </Typography>
+                <Typography sx={{ color: "#666", fontSize: 16 }}>
+                  {leads[selectedIdx].contactNumber}
+                </Typography>
+                <Stack direction="row" spacing={2} mt={1}>
+                  <Box
+                    sx={{
+                      bgcolor:
+                        leads[selectedIdx].retentionStatus === "Lost"
+                          ? "#f44336"
+                          : "#388e3c",
+                      color: "#fff",
+                      borderRadius: 1.5,
+                      px: 1.7,
+                      fontWeight: 600,
+                      fontSize: 14,
+                      height: 28,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    {leads[selectedIdx].retentionStatus || "Active"}
+                  </Box>
+                  <Box
+                    sx={{
+                      bgcolor: "#1976d2",
+                      color: "#fff",
+                      borderRadius: 1.5,
+                      px: 1.7,
+                      fontWeight: 500,
+                      fontSize: 14,
+                      height: 28,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    {leads[selectedIdx].agentAssigned || "Unassigned"}
+                  </Box>
+                </Stack>
+              </Box>
+            </Stack>
+            {/* Summary Custom Sections */}
+            <Divider sx={{ mb: 2 }} />
+            <Stack spacing={2}>
+              {/* --- BASIC INFO SECTION --- */}
+              <Box>
+                <Typography sx={{ color: "#777", fontWeight: 600 }}>Lead Information</Typography>
+                <Stack direction="row" spacing={4} mt={1} flexWrap="wrap">
+                  <Box><b>Lead Source:</b> {leads[selectedIdx]?.leadSource || "--"}</Box>
+                  <Box><b>Enquiry For:</b> {leads[selectedIdx]?.enquiryFor || "--"}</Box>
+                  <Box><b>Customer Type:</b> {leads[selectedIdx]?.customerType || "--"}</Box>
+                  <Box><b>Order ID:</b> {leads[selectedIdx]?.orderId || "--"}</Box>
+                  <Box><b>Agent Assigned:</b> {leads[selectedIdx]?.agentAssigned || "--"}</Box>
+                  <Box><b>Sales Status:</b> {leads[selectedIdx]?.salesStatus || "--"}</Box>
+                  <Box><b>Lead Status:</b> {leads[selectedIdx]?.leadStatus || "--"}</Box> 
+                </Stack>
+              </Box>
+
+              {/* --- PRODUCT & PAYMENT SECTION --- */}
+              <Box>
+                <Typography sx={{ color: "#777", fontWeight: 600 }}>Product & Payment</Typography>
+                <Stack direction="row" spacing={4} mt={1} flexWrap="wrap">
+                  <Box>
+                    <b>Products Ordered:</b> {(leads[selectedIdx]?.productsOrdered || []).join(", ") || "--"}
+                  </Box>
+                  <Box><b>Dosage Ordered:</b> {leads[selectedIdx]?.dosageOrdered || "--"}</Box>
+                  <Box>
+                    <b>Amount Paid:</b>{" "}
+                    {typeof leads[selectedIdx]?.amountPaid === "number"
+                      ? `₹${leads[selectedIdx].amountPaid}` : "--"}
+                  </Box>
+                  <Box><b>Mode of Payment:</b> {leads[selectedIdx]?.modeOfPayment || "--"}</Box>
+                  <Box><b>Delivery Status:</b> {leads[selectedIdx]?.deliveryStatus || "--"}</Box>
+                </Stack>
+              </Box>
+
+              {/* --- FOLLOW UP & RETENTION SECTION --- */}
+              <Box>
+                <Typography sx={{ color: "#777", fontWeight: 600 }}>Follow Up & Retention</Typography>
+                <Stack direction="row" spacing={4} mt={1} flexWrap="wrap">
+                  <Box>
+                    <b>Next Followup Date:</b> {leads[selectedIdx]?.rtNextFollowupDate || "--"}
+                  </Box>
+                  <Box>
+                    <b>Followup Reminder:</b> {leads[selectedIdx]?.calculatedReminder || "--"}
+                  </Box>
+                  <Box>
+                    <b>Followup Status:</b> {leads[selectedIdx]?.rtFollowupStatus || "--"}
+                  </Box>
+                  <Box>
+                    <b>Remark:</b> {leads[selectedIdx]?.agentsRemarks || "--"}
+                  </Box>
+                  <Box>
+                    <b>Retention Status:</b> {leads[selectedIdx]?.retentionStatus || "--"}
+                  </Box>
+                  <Box>
+                    <b>Last Order Date:</b> {leads[selectedIdx]?.lastOrderDate || "--"}
+                  </Box>
+                  <Box>
+                    <b>Communication Method:</b> {leads[selectedIdx]?.communicationMethod || "--"}
+                  </Box>
+                  <Box>
+                    <b>Preferred Language:</b> {leads[selectedIdx]?.preferredLanguage || "--"}
+                  </Box>
+                </Stack>
+              </Box>
+
+              {/* --- HEALTH & DOSAGE SECTION --- */}
+              <Box>
+                <Typography sx={{ color: "#777", fontWeight: 600 }}>Health & Dosage</Typography>
+                <Stack direction="row" spacing={4} mt={1} flexWrap="wrap">
+                  <Box>
+                    <b>Health Expert Assigned:</b> {leads[selectedIdx]?.healthExpertAssigned || "--"}
+                  </Box>
+                  <Box>
+                    <b>Dosage Expiring:</b> {leads[selectedIdx]?.dosageExpiring || "--"}
+                  </Box>
+                  <Box>
+                    <b>Repeat Dosage Ordered:</b> {leads[selectedIdx]?.repeatDosageOrdered || "--"}
+                  </Box>
+                  <Box>
+                    <b>RT Remark:</b> {leads[selectedIdx]?.rtRemark || "--"}
+                  </Box>
+                </Stack>
+              </Box>
+
+              {/* --- DETAILS (NESTED) SECTION --- */}
+              {leads[selectedIdx]?.details && (
+                <Box>
+                  <Typography sx={{ color: "#777", fontWeight: 600 }}>Patient Details</Typography>
+                  <Stack direction="row" spacing={4} mt={1} flexWrap="wrap">
+                    {Object.entries(leads[selectedIdx].details).map(([key, value]) => (
+                      <Box key={key}>
+                        <b>{key.replace(/([A-Z])/g, " $1").replace(/^./, str => str.toUpperCase())}:</b>{" "}
+                        {Array.isArray(value) ? value.join(", ") : (value || "--")}
+                      </Box>
+                    ))}
+                  </Stack>
+                </Box>
+              )}
+
+              {/* --- FOLLOW UPS (NESTED ARRAY) --- */}
+              {Array.isArray(leads[selectedIdx]?.followUps) && leads[selectedIdx].followUps.length > 0 && (
+                <Box>
+                  <Typography sx={{ color: "#777", fontWeight: 600 }}>Follow Ups</Typography>
+                  <Stack direction="column" spacing={1} mt={1}>
+                    {leads[selectedIdx].followUps.map((fu, i) => (
+                      <Box key={i} sx={{ border: "1px solid #eee", p: 1, borderRadius: 1 }}>
+                        {Object.entries(fu).map(([k, v]) => (
+                          <Box key={k}>
+                            <b>{k.replace(/([A-Z])/g, " $1").replace(/^./, str => str.toUpperCase())}:</b>{" "}
+                            {typeof v === "object" && v !== null ? JSON.stringify(v) : (v || "--")}
+                          </Box>
+                        ))}
+                      </Box>
+                    ))}
+                  </Stack>
+                </Box>
+              )}
+
+              {/* --- IMAGES (NESTED ARRAY) --- */}
+              {Array.isArray(leads[selectedIdx]?.images) && leads[selectedIdx].images.length > 0 && (
+                <Box>
+                  <Typography sx={{ color: "#777", fontWeight: 600 }}>Images</Typography>
+                  <Stack direction="column" spacing={1} mt={1}>
+                    {leads[selectedIdx].images.map((img, i) => (
+                      <Box key={i} sx={{ border: "1px solid #eee", p: 1, borderRadius: 1 }}>
+                        <b>URL:</b> {img.url} <br />
+                        <b>Date:</b> {img.date ? new Date(img.date).toLocaleString() : "--"} <br />
+                        <b>Tag:</b> {img.tag || "--"}
+                      </Box>
+                    ))}
+                  </Stack>
+                </Box>
+              )}
+
+              {/* --- RT SUBCELLS (NESTED ARRAY) --- */}
+              {Array.isArray(leads[selectedIdx]?.rtSubcells) && leads[selectedIdx].rtSubcells.length > 0 && (
+                <Box>
+                  <Typography sx={{ color: "#777", fontWeight: 600 }}>RT Subcells</Typography>
+                  <Stack direction="row" spacing={4} mt={1} flexWrap="wrap">
+                    {leads[selectedIdx].rtSubcells.map((rt, i) => (
+                      <Box key={i}>
+                        <b>Date:</b> {rt.date || "--"} <b>Value:</b> {rt.value || "--"}
+                      </Box>
+                    ))}
+                  </Stack>
+                </Box>
+              )}
+
+              {/* --- REACHOUT LOGS (NESTED ARRAY) --- */}
+              {Array.isArray(leads[selectedIdx]?.reachoutLogs) && leads[selectedIdx].reachoutLogs.length > 0 && (
+                <Box>
+                  <Typography sx={{ color: "#777", fontWeight: 600 }}>Reachout Logs</Typography>
+                  <Stack direction="column" spacing={1} mt={1}>
+                    {leads[selectedIdx].reachoutLogs.map((log, i) => (
+                      <Box key={i} sx={{ border: "1px solid #eee", p: 1, borderRadius: 1 }}>
+                        <b>Timestamp:</b> {log.timestamp ? new Date(log.timestamp).toLocaleString() : "--"} <br />
+                        <b>Method:</b> {log.method || "--"} <br />
+                        <b>Status:</b> {log.status || "--"}
+                      </Box>
+                    ))}
+                  </Stack>
+                </Box>
+              )}
+            </Stack>
+          </Paper>
+        ) : (
+          <Paper sx={{ p: 4, textAlign: "center", color: "#aaa" }}>
+            No Lead Selected
+          </Paper>
+        )}
+      </Box>
+    </Box>
+  );
+}

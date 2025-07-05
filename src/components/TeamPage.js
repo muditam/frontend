@@ -162,6 +162,15 @@ const TeamPage = ({ managerId: managerIdProp }) => {
     }
   };
 
+    // Calculate working days left in month (Mon-Sat)
+  const workingDaysLeft = getRemainingWorkingDays();
+  const teamPending = Math.max(0, totalTarget - totalAchieved);
+  const teamDailyRequired =
+    workingDaysLeft > 0 && teamPending > 0
+      ? Math.ceil(teamPending / workingDaysLeft)
+      : 0;
+
+
   if (!managerId)
     return (
       <Box sx={{ p: 4, color: "red" }}>
@@ -172,9 +181,6 @@ const TeamPage = ({ managerId: managerIdProp }) => {
   // Compute total % achieved
   const totalPctAch = totalTarget === 0 ? 0 : Math.min(100, (totalAchieved / totalTarget) * 100);
 
-  // Calculate working days left in month (Mon-Sat)
-  const workingDaysLeft = getRemainingWorkingDays();
-
   return (
     <Box sx={{ p: 4, bgcolor: "#fff" }}>
       <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2 }}>
@@ -182,6 +188,22 @@ const TeamPage = ({ managerId: managerIdProp }) => {
           Team Management
         </Typography>
         <Box sx={{ display: "flex", alignItems: "center", gap: 3 }}>
+          <Typography
+            variant="subtitle1"
+            sx={{
+              color: "#000",
+              fontWeight: "bold", 
+              mr: 2,
+              fontSize: 16,
+              display: "flex",
+              alignItems: "center"
+            }}
+          >
+            Daily Sales Required:{" "}
+            <span style={{ marginLeft: 7, color: "#000", fontWeight: 700 }}>
+              ₹{teamDailyRequired.toLocaleString()}{" "}
+            </span> 
+          </Typography>
           <Typography variant="subtitle1" sx={{ color: "#000", fontWeight: "bold", mr: 1 }}>
             Achieved: {totalAchieved.toLocaleString()} / {totalTarget.toLocaleString()}{" "}
             <span style={{ color: "#777", fontWeight: "normal" }}>
@@ -306,7 +328,7 @@ const TeamPage = ({ managerId: managerIdProp }) => {
               <TextField {...params} label="Search Employees" variant="outlined" />
             )}
             sx={{ mt: 2 }}
-          />
+          /> 
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setAddOpen(false)} color="secondary" variant="outlined">

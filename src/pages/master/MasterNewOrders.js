@@ -166,7 +166,7 @@ const NewOrders = () => {
         "Remark for HE",
         "Amount Paid",
         "Mode of Payment"
-      ];
+      ]; 
 
 
       const rows = orders.map(order => [

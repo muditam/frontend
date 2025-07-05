@@ -1782,13 +1782,27 @@ const RetentionLeads = () => {
                       Next Followup Date
                     </Typography>
                     <TextField
-                      type="date"
-                      value={leads[selectedLeadIndex]?.rtNextFollowupDate || ""}
-                      onChange={(e) => handleInputChange(e, selectedLeadIndex, "rtNextFollowupDate")}
-                      size="small"
-                      variant="outlined"
-                      sx={{ minWidth: 140 }}
-                    />
+  type="date"
+  value={leads[selectedLeadIndex]?.rtNextFollowupDate || ""}
+  onChange={(e) => handleInputChange(e, selectedLeadIndex, "rtNextFollowupDate")}
+  size="small"
+  variant="outlined"
+  sx={{ minWidth: 140 }}
+  inputProps={{
+    min: (() => {
+      const today = new Date();
+      return today.toISOString().split('T')[0];
+    })(),
+    max: (() => {
+      const today = new Date();
+      today.setDate(today.getDate() + 10);
+      return today.toISOString().split('T')[0];
+    })(),
+    // Optional: Prevent keyboard input
+    // readOnly: true,
+  }}
+/>
+
                   </Box>
 
                   <Box sx={{ minWidth: 130 }}>
@@ -2023,7 +2037,7 @@ const RetentionLeads = () => {
                     open={orderPopupOpen}
                     onClose={() => setOrderPopupOpen(false)}
                     prefillCustomer={{
-                      name: leads[selectedLeadIndex]?.name || "",
+                      name: leads[selectedLeadIndex]?.name || "", 
                       phone: leads[selectedLeadIndex]?.contactNumber || "",
                     }}
                   />

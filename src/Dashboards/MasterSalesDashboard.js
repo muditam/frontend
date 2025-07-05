@@ -639,7 +639,7 @@ const ManagerSalesDashboard = () => {
 
 
         {/* Time range dropdown (shared by all summaries) */}
-        {["Sales Summary", "Followup Summary", "Lead Source Summary", "Shipment Summary"].includes(
+        {["Sales Summary", "Lead Source Summary", "Shipment Summary"].includes(
           selectedSummary
         ) && (
             <>

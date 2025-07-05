@@ -16,6 +16,7 @@ import {
   MenuItem,
   Select,
   Button,
+  Grid,
 } from "@mui/material";
 import axios from "axios";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
@@ -23,6 +24,12 @@ import {
   AccountCircle,
   ShoppingCart,
   CurrencyRupee,
+  PersonOff,
+  EventBusy,
+  EventAvailable,
+  Event,
+  Update,
+  HighlightOff,
 } from "@mui/icons-material";
 
 // ---------------------------------------------
@@ -156,6 +163,17 @@ const ManagerRetentionDashboard = () => {
   const [agentShipmentSummary, setAgentShipmentSummary] = useState([]);
 
   const [loading, setLoading] = useState(true);
+  const [followupSummary, setFollowupSummary] = useState({
+    totalNoFollowupSet: 0,
+    totalFollowupMissed: 0,
+    totalFollowupToday: 0,
+    totalFollowupTomorrow: 0,
+    totalFollowupLater: 0,
+    totalLostCustomers: 0,
+  });
+
+
+  const [followupMetrics, setFollowupMetrics] = useState([]);
 
   // ---------------------------------------------
   // 4) Fetch active customer counts (unchanged)
@@ -256,8 +274,59 @@ const ManagerRetentionDashboard = () => {
       console.error("Error fetching dashboard data by range:", err);
     } finally {
       setLoading(false);
-    }
+    }   
   };
+
+   const fetchFollowupSummary = async () => {
+    setLoading(true);
+    try {
+      const res = await axios.get(
+        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/retention-sales/aggregated-followup"
+      );
+      const summary = res.data.summary || [];
+      setFollowupMetrics(summary);
+
+
+      console.log(summary);
+
+
+      // Calculate totals across all agents
+      const totals = summary.reduce(
+        (acc, agent) => {
+          acc.totalNoFollowupSet += agent.noFollowupSet || 0;
+          acc.totalFollowupMissed += agent.followupMissed || 0;
+          acc.totalFollowupToday += agent.followupToday || 0;
+          acc.totalFollowupTomorrow += agent.followupTomorrow || 0;
+          acc.totalFollowupLater += agent.followupLater || 0;
+          acc.totalLostCustomers += agent.lostCustomers || 0;
+          return acc;
+        },
+        {
+          totalNoFollowupSet: 0,
+          totalFollowupMissed: 0,
+          totalFollowupToday: 0,
+          totalFollowupTomorrow: 0,
+          totalFollowupLater: 0,
+          totalLostCustomers: 0,
+        }
+      );
+      setFollowupSummary(totals);
+    } catch (err) {
+      console.error("Error fetching agent followup summary:", err);
+      setAgentMetrics([]);
+      setFollowupSummary({
+        totalNoFollowupSet: 0,
+        totalFollowupMissed: 0,
+        totalFollowupToday: 0,
+        totalFollowupTomorrow: 0,
+        totalFollowupLater: 0,
+        totalLostCustomers: 0,
+      });
+    }
+    setLoading(false);
+  };
+
+
 
   const fetchActiveRetentionAgents = async () => {
     try {
@@ -403,6 +472,8 @@ const ManagerRetentionDashboard = () => {
     await fetchShipmentData(customShipmentStart, customShipmentEnd);
   };
 
+  
+
   useEffect(() => {
     // On summary change, reload data for selected date range
     const loadData = async () => {
@@ -424,8 +495,11 @@ const ManagerRetentionDashboard = () => {
             ? getDateRange(dashboardRange)
             : { startDate: customDashboardStart, endDate: customDashboardEnd };
         await fetchReachoutLogsCounts(startDate, endDate);
+      } else if (selectedSummary === "Followup Summary") {
+        await fetchFollowupSummary();
       }
     };
+
 
     loadData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -514,6 +588,9 @@ const ManagerRetentionDashboard = () => {
           >
             <MenuItem value="Agent's Summary">
               <Typography variant="body2">Agent's Summary</Typography>
+            </MenuItem>
+            <MenuItem value="Followup Summary">
+              <Typography variant="body2">Followup Summary</Typography>
             </MenuItem>
             <MenuItem value="Shipment Summary">
               <Typography variant="body2">Shipment Summary</Typography>
@@ -870,6 +947,266 @@ const ManagerRetentionDashboard = () => {
                       </TableRow>
                     )
                   )}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          </Box>
+        </>
+      )}
+
+       {selectedSummary === "Followup Summary" && (
+        <>
+          {/* Agent's Summary Cards */}
+          <Box
+            sx={{
+              padding: 2,
+              marginTop: 3,
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              maxWidth: "100%",
+            }}
+          >
+            <Typography
+              variant="h6"
+              fontWeight="bold"
+              sx={{ textAlign: "center", color: "#000", marginBottom: 2 }}
+            >
+              Followup Summary
+            </Typography>
+           
+            <Grid container spacing={2} width="50%">
+              {[
+                {
+                  label: "No Followup Set",
+                  icon: <PersonOff sx={{ fontSize: 28, color: "#880e4f" }} />,
+                  background:"#fff0f5 ",
+                  value: followupSummary.totalNoFollowupSet,
+                },
+                {
+                  label: "Followup Missed",
+                  background:"#fff8e1",
+                  value: followupSummary.totalFollowupMissed,
+                  icon: <EventBusy sx={{ fontSize: 28, color: "#e65100" }} />,
+                },
+                {
+                  label: "Followup Today",
+                  background:"#ffebee",
+                  value: followupSummary.totalFollowupToday,
+                  icon: <EventAvailable sx={{ fontSize: 28, color: "#b71c1c" }} />,
+                },
+                {
+                  label: "Followup Tomorrow",
+                  background:"#f3e5f5",
+                  value: followupSummary.totalFollowupTomorrow,
+                  icon: <Event sx={{ fontSize: 28, color: "#6a1b9a" }} />,
+                },
+                {
+                  label: "Followup Later",
+                  background:"#e3f2fd",
+                  value: followupSummary.totalFollowupLater,
+                  icon: <Update sx={{ fontSize: 28, color: "#1a237e" }} />,
+                },
+                {
+                  label: "Lost Customers",
+                  background:"#e8f5e9",
+                  value: followupSummary.totalLostCustomers,
+                  icon: <HighlightOff sx={{ fontSize: 28, color: "#1b5e20" }} />,
+                },
+              ].map(({ label, value, icon, background }) => (
+                <Grid item xs={12} sm={6} md={4} key={label}>
+                  <Box
+                    key={label}
+                    sx={{
+                      p: 2,
+                      borderRadius: 2,
+                      background: background,
+                      boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
+                      textAlign: "center",
+                      transition: "all 0.3s ease",
+                      minWidth: 80,
+                      height: 130,
+                      "&:hover": { transform: "translateY(2px)" },
+                    }}
+                  >
+                    <Box
+                      sx={{
+                        width: 40,
+                        height: 40,
+                        borderRadius: "50%",
+                        backgroundColor: "rgba(255,255,255,0.2)",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        mx: "auto",
+                        mb: 1,
+                      }}
+                    >
+                      {icon}
+                    </Box>
+
+
+                    <Typography
+                      variant="body2"
+                      sx={{ fontWeight: 500, mb: 1, mt: 1 }}
+                    >
+                      {label}
+                    </Typography>
+                    <Typography variant="subtitle1" fontWeight="600">
+                      {loading ? (
+                        <CircularProgress size={16} sx={{ color: "#fff" }} />
+                      ) : (
+                        value
+                      )}
+                    </Typography>
+                  </Box>
+                </Grid>
+              ))}
+            </Grid>
+          </Box>
+
+
+          {/* Agent Metrics Table */}
+          <Box
+            sx={{
+              padding: 2,
+              marginTop: 3,
+              backgroundColor: "#FFFFFF",
+              borderRadius: 2,
+              boxShadow: "0px 4px 12px rgba(0, 0, 0, 0.1)",
+              maxWidth: "1000px",
+              margin: "0 auto",
+            }}
+          >
+            <Typography
+              variant="h6"
+              fontWeight="bold"
+              sx={{ textAlign: "center", color: "#000", marginBottom: 2 }}
+            >
+              Agent Followup Metrics
+            </Typography>
+            <TableContainer
+              sx={{
+                borderRadius: 2,
+                boxShadow: "0px 2px 8px rgba(0, 0, 0, 0.08)",
+                overflowX: "auto",
+              }}
+              component={Paper}
+            >
+              <Table>
+                <TableHead>
+                  <TableRow
+                    sx={{
+                      background:
+                        "linear-gradient(135deg, #64B5F6 30%, #42A5F5 100%)",
+                    }}
+                  >
+                    {[
+                      "Agent Name",
+                      "No Followup Set",
+                      "Followup Missed",
+                      "Followup Today",
+                      "Followup Tomorrow",
+                      "Followup Later",
+                      "Lost Customers",
+                    ].map((header) => (
+                      <TableCell
+                        key={header}
+                        sx={{
+                          fontWeight: "bold",
+                          textAlign: "center",
+                          color: "#fff",
+                          fontSize: "14px",
+                          padding: "10px",
+                        }}
+                      >
+                        {header}
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                </TableHead>
+                {loading && (
+                  <TableBody>
+                    <TableRow>
+                      <TableCell colSpan={5} sx={{ padding: 0 }}>
+                        <LinearProgress
+                          variant="indeterminate"
+                          sx={{ width: "100%", height: "3px" }}
+                        />
+                      </TableCell>
+                    </TableRow>
+                  </TableBody>
+                )}
+                <TableBody>
+                  {!loading && followupMetrics.length > 0 ? (
+                    followupMetrics.map((agent, index) => (
+                      <TableRow
+                        key={agent.agentName}
+                        sx={{
+                          backgroundColor:
+                            index % 2 === 0 ? "#F9FAFB" : "#FFFFFF",
+                          "&:hover": {
+                            backgroundColor: "#E3F2FD",
+                            transition: "0.3s",
+                          },
+                        }}
+                      >
+                        <TableCell
+                          sx={{
+                            padding: "12px",
+                            textAlign: "center",
+                            fontWeight: 500,
+                          }}
+                        >
+                          {agent.agentName} {/* ✅ FIXED */}
+                        </TableCell>
+                        <TableCell
+                          sx={{ padding: "12px", textAlign: "center" }}
+                        >
+                          {agent.noFollowupSet}
+                        </TableCell>
+                        <TableCell
+                          sx={{ padding: "12px", textAlign: "center" }}
+                        >
+                          {agent.followupMissed}
+                        </TableCell>
+                        <TableCell
+                          sx={{ padding: "12px", textAlign: "center" }}
+                        >
+                          {agent.followupToday}
+                        </TableCell>
+                        <TableCell
+                          sx={{ padding: "12px", textAlign: "center" }}
+                        >
+                          {agent.followupTomorrow}
+                        </TableCell>
+                        <TableCell
+                          sx={{ padding: "12px", textAlign: "center" }}
+                        >
+                          {agent.followupLater}
+                        </TableCell>
+                        <TableCell
+                          sx={{ padding: "12px", textAlign: "center" }}
+                        >
+                          {agent.lostCustomers}
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  ) : !loading ? (
+                    <TableRow>
+                      <TableCell
+                        colSpan={6} // ✅ change to 6 columns
+                        align="center"
+                        sx={{
+                          padding: "12px",
+                          color: "#888",
+                          fontStyle: "italic",
+                        }}
+                      >
+                        No data found.
+                      </TableCell>
+                    </TableRow>
+                  ) : null}
                 </TableBody>
               </Table>
             </TableContainer>
