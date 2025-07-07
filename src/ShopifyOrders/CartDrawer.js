@@ -71,7 +71,7 @@ const INDIAN_STATES = [
   "Bihar",
   "Chhattisgarh",
   "Delhi",
-  "Goa", 
+  "Goa",
   "Gujarat",
   "Haryana",
   "Himachal Pradesh",
@@ -90,13 +90,13 @@ const INDIAN_STATES = [
   "Puducherry",
   "Punjab",
   "Rajasthan",
-  "Sikkim", 
+  "Sikkim",
   "Tamil Nadu",
   "Telangana",
   "Tripura",
   "Uttar Pradesh",
   "Uttarakhand",
-  "West Bengal", 
+  "West Bengal",
   "Andaman and Nicobar",
   "chandigarh",
 ];
@@ -177,7 +177,7 @@ const CartDrawer = ({ closeDrawer }) => {
 
   const [phonePeLink, setPhonePeLink] = useState("");
   const [razorpayPaymentLink, setRazorpayPaymentLink] = useState("");
-  const [copyStatus, setCopyStatus] = useState("");  
+  const [copyStatus, setCopyStatus] = useState("");
 
 
   // Pulling data from Redux store
@@ -545,7 +545,7 @@ const CartDrawer = ({ closeDrawer }) => {
   const handleChangeEditAddress = (field, value) => {
     setEditAddressData((prev) => ({ ...prev, [field]: value }));
   };
-  
+
   const handleSaveEditedAddress = async (index) => {
     try {
       if (!customerId) {
@@ -557,15 +557,15 @@ const CartDrawer = ({ closeDrawer }) => {
         alert("This address does not have a Shopify ID.");
         return;
       }
-      
+
       // Parse first and last name from fullName (for Shopify)
       const fullNameParts = editAddressData.fullName.trim().split(" ");
       const first_name = fullNameParts.shift() || "";
       const last_name = fullNameParts.join(" ");
-  
+
       await axios.put("https://muditamleads-14f32a10d7f7.herokuapp.com/api/shopify/customer-address", {
         customerId: customerId,
-        addressId: addressToUpdate.id,   
+        addressId: addressToUpdate.id,
         first_name,
         last_name,
         phone: editAddressData.phone || phoneNumber,
@@ -576,15 +576,15 @@ const CartDrawer = ({ closeDrawer }) => {
         country: editAddressData.country,
         zip: editAddressData.pincode,
       });
-  
+
       // Update the Redux addresses state locally:
       const updatedAddresses = [...addresses];
       updatedAddresses[index] = { ...editAddressData };
       dispatch(setAddresses(updatedAddresses));
-  
+
       // Clear editing state
       setEditingAddressIndex(null);
-      setEditAddressData({}); 
+      setEditAddressData({});
     } catch (err) {
       console.error("Error updating address:", err);
       alert("Error updating address on Shopify.");
@@ -592,49 +592,47 @@ const CartDrawer = ({ closeDrawer }) => {
   };
 
   const handleGeneratePaymentLink = async () => {
-  try {
-    const amountToCharge = parseFloat(finalTotal.toFixed(2));
-    const phoneWithCountryCode = phoneNumber.startsWith('+91')
-      ? phoneNumber
-      : `+91${phoneNumber}`;
-    // 1. Call PhonePe API (local backend)     
-    const phonePeResp = await axios.post(
-      "https://muditamleads-14f32a10d7f7.herokuapp.com/api/phonepe/create-payment-link", 
-      {
-        amount: amountToCharge,
-        customer: {
-          name: confirmedAddress?.fullName || "Customer Name",
-          email: confirmedAddress?.email || "customer@example.com",
-          phoneNumber: phoneWithCountryCode,
-        },
-      }
-    );
-    setPhonePeLink(phonePeResp.data.paylinkUrl);
+    try {
+      const amountToCharge = parseFloat(finalTotal.toFixed(2));
+      const phoneWithCountryCode = phoneNumber.startsWith('+91')
+        ? phoneNumber
+        : `+91${phoneNumber}`;
+      // 1. Call PhonePe API (local backend)     
+      const phonePeResp = await axios.post(
+        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/phonepe/create-payment-link",
+        {
+          amount: amountToCharge,
+          customer: {
+            name: confirmedAddress?.fullName || "Customer Name",
+            email: confirmedAddress?.email || "customer@example.com",
+            phoneNumber: phoneWithCountryCode,
+          },
+        }
+      );
+      setPhonePeLink(phonePeResp.data.paylinkUrl);
 
-    // 2. Call Razorpay API (your backend)
-    const razorpayResp = await axios.post(
-      "https://muditamleads-14f32a10d7f7.herokuapp.com/api/razorpay/create-payment-link",
-      {
-        amount: amountToCharge,
-        currency: "INR",
-        customer: {
-          name: confirmedAddress?.fullName || "Customer Name",
-          email: confirmedAddress?.email || "customer@example.com",
-          contact: phoneNumber || "1234567890",
-        },
-      }
-    );
-    setRazorpayPaymentLink(razorpayResp.data.paymentLink);
-  } catch (error) {
-    console.error("Error generating payment links:", error);
-    alert(
-      error?.response?.data?.message ||
-      "Failed to generate payment links. Please try again."
-    );
-  }
-};
-
-
+      // 2. Call Razorpay API (your backend)
+      const razorpayResp = await axios.post(
+        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/razorpay/create-payment-link",
+        {
+          amount: amountToCharge,
+          currency: "INR",
+          customer: {
+            name: confirmedAddress?.fullName || "Customer Name",
+            email: confirmedAddress?.email || "customer@example.com",
+            contact: phoneNumber || "1234567890",
+          },
+        }
+      );
+      setRazorpayPaymentLink(razorpayResp.data.paymentLink);
+    } catch (error) {
+      console.error("Error generating payment links:", error);
+      alert(
+        error?.response?.data?.message ||
+        "Failed to generate payment links. Please try again."
+      );
+    }
+  };
 
   const handleCreateOrder = async () => {
     setIsOrderLoading(true);
@@ -1953,7 +1951,7 @@ const CartDrawer = ({ closeDrawer }) => {
                 </Typography>
               )}
               {/* Notes field and button */}
-              <TextField 
+              <TextField
                 label="Add Order Notes"
                 variant="outlined"
                 fullWidth

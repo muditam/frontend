@@ -164,7 +164,10 @@ const RetentionLeads = () => {
 
   const [subcellsPopup, setSubcellsPopup] = useState({ open: false, subcells: [] });
 
-
+  const [notReachedLeadsCount, setNotReachedLeadsCount] = useState(0);
+  const [showingNotReached, setShowingNotReached] = useState(false);
+  const [showingReached, setShowingReached] = useState(false);
+  const [reachedLeadsCount, setReachedLeadsCount] = useState(0);
 
 
 
@@ -416,6 +419,59 @@ const RetentionLeads = () => {
       console.error("Failed to fetch logs", err);
     }
   };
+ 
+// Only for retentionStatus Active or not set
+const getNotReachedLeads = (leads, days = 7) => {
+  const now = new Date();
+  const cutoff = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
+
+  return leads.filter(lead => {
+    // Only consider Active or not set
+    const status = (lead.retentionStatus || "").toLowerCase();
+    if (status && status !== "active") return false;
+
+    // If no logs, considered not reached
+    if (!lead.reachoutLogs || lead.reachoutLogs.length === 0) return true;
+
+    // Find latest log timestamp
+    const latestLog = lead.reachoutLogs.reduce((latest, log) => {
+      const ts = new Date(log.timestamp);
+      return (!latest || ts > latest) ? ts : latest;
+    }, null);
+
+    // No valid timestamp? Not reached.
+    if (!latestLog) return true;
+    // If latest reachout log is before the cutoff, considered not reached.
+    return latestLog < cutoff;
+  });
+};
+
+// Leads with at least one reachout log in last 7 days, retentionStatus Active or not set
+const getReachedLeads = (leads, days = 7) => {
+  const now = new Date();
+  const cutoff = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
+
+  return leads.filter(lead => {
+    const status = (lead.retentionStatus || "").toLowerCase();
+    if (status && status !== "active") return false;
+    if (!lead.reachoutLogs || lead.reachoutLogs.length === 0) return false;
+
+    // Any log in last X days?
+    return lead.reachoutLogs.some(log => {
+      const ts = new Date(log.timestamp);
+      return ts >= cutoff;
+    });
+  });
+};
+
+
+useEffect(() => {
+  // Calculate both counts from current filtered base (or allLeads)
+  setNotReachedLeadsCount(getNotReachedLeads(filteredAllLeads).length);
+  setReachedLeadsCount(getReachedLeads(filteredAllLeads).length);
+}, [filteredAllLeads, allLeads]);
+
+
 
   const handleLeadSelect = (idx) => {
     setSelectedLeadIndex(idx);
@@ -645,7 +701,7 @@ const RetentionLeads = () => {
   };
 
   const handleCreateOrderClick = (lead) => {
-    setSelectedLead(lead); // where lead = { name, phone }
+    setSelectedLead(lead);  
     setOrderPopupOpen(true);
   };
 
@@ -1133,7 +1189,68 @@ const RetentionLeads = () => {
               </IconButton>
             </Tooltip>
           </Box>
-        </Box>
+           <Box sx={{ mt: 1, mb: 1, display: "flex", gap: 1 }}>
+            <Button
+    variant={showingReached ? "contained" : "outlined"}
+    color={showingReached ? "success" : "inherit"}
+    size="small"
+    sx={{
+      fontWeight: 600,
+      borderRadius: 2,
+      color: showingReached ? "#fff" : "black",
+      borderColor: showingReached ? "green" : "black",
+      textTransform: "none",
+      px: 2,
+    }}
+    onClick={() => {
+      if (!showingReached) {
+        const filtered = getReachedLeads(filteredAllLeads);
+        setLeads(filtered.slice(0, leadsPerPage));
+        setHasMore(filtered.length > leadsPerPage);
+        setCurrentIndex(leadsPerPage);
+        setShowingNotReached(false);
+      } else {
+        applyFilters();
+      }
+      setShowingReached(!showingReached);
+      setSelectedLeadIndex(null);
+    }}
+  >
+    Reached This Week ({reachedLeadsCount})
+  </Button>
+  <Button
+    variant={showingNotReached ? "contained" : "outlined"}
+    color={showingNotReached ? "error" : "inherit"}
+    size="small"
+    sx={{
+      fontWeight: 600,
+      borderRadius: 2,
+      color: showingNotReached ? "#fff" : "black",
+      borderColor: showingNotReached ? "red" : "black",
+      textTransform: "none",
+      px: 2,
+    }}
+    onClick={() => {
+      if (!showingNotReached) {
+        const filtered = getNotReachedLeads(filteredAllLeads);
+        setLeads(filtered.slice(0, leadsPerPage));
+        setHasMore(filtered.length > leadsPerPage);
+        setCurrentIndex(leadsPerPage);
+        setShowingReached(false);
+      } else {
+        applyFilters();
+      }
+      setShowingNotReached(!showingNotReached);
+      setSelectedLeadIndex(null);
+    }}
+  >
+    Not Reached This week ({notReachedLeadsCount})
+  </Button>
+</Box>
+        </Box> 
+
+       
+
         <Menu
           anchorEl={moreOptionsAnchorEl}
           open={Boolean(moreOptionsAnchorEl)}
@@ -1154,21 +1271,18 @@ const RetentionLeads = () => {
           ))}
         </Menu>
 
-
-
         <Menu
           anchorEl={filterAnchorEl}
           open={Boolean(filterAnchorEl)}
           onClose={() => {
             setFilterAnchorEl(null);
-            setSelectedYear(null); // reset year on close
-            setSelectedMonth(null); // reset month on close
+            setSelectedYear(null);  
+            setSelectedMonth(null); 
           }}
           anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
           transformOrigin={{ vertical: 'top', horizontal: 'left' }}
         >
-          <Box sx={{ display: 'flex', alignItems: 'flex-start' }}>
-            {/* Left column - Order Type + Acquired By */}
+          <Box sx={{ display: 'flex', alignItems: 'flex-start' }}> 
             <Box>
               <Typography
                 sx={{ fontSize: "0.75rem", fontWeight: "bold", px: 2, pt: 1, pb: 0.5, color: "text.disabled" }}
@@ -1182,7 +1296,7 @@ const RetentionLeads = () => {
                   onClick={() => {
                     setOrderPlacedFilter(type);
                     setDateRangeFilter("");
-                    setSelectedYear(null); // reset on type change
+                    setSelectedYear(null);  
                     setSelectedMonth(null);
                   }}
                 >
@@ -1364,7 +1478,7 @@ const RetentionLeads = () => {
             const followup = lead.rtFollowupReminder || "";
             const tagInfo = followupTagMap[followup] || followupTagMap[""];
 
-            const isSelected = selectedLeadIndex === idx;
+            const isSelected = selectedLeadIndex === idx;  
 
             return (
               <ListItemButton
@@ -1411,7 +1525,7 @@ const RetentionLeads = () => {
                   </IconButton>
                 </ListItemAvatar>
 
-                <ListItemText
+                <ListItemText 
                   primary={
                     <Box
                       sx={{
@@ -1528,7 +1642,7 @@ const RetentionLeads = () => {
             sx={{
               display: "flex",
               justifyContent: "center",
-              py: 1,
+              py: 1,  
             }}
           >
             <CircularProgress size={24} />
