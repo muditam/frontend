@@ -954,14 +954,14 @@ const NavbarWithSearch = () => {
                 <TableRow key={row.slab}>
                   <TableCell align="center">{row.slab}</TableCell>
                   <TableCell align="center">{row.rate}</TableCell>
-                  <TableCell align="center">{row.monthly}</TableCell>
+                  <TableCell align="center">{row.monthly}</TableCell> 
                   <TableCell align="center">{row.annual}</TableCell>
                 </TableRow>
               ))}
             </TableBody>
           </Table>
         </DialogContent>
-        <DialogActions sx={{ justifyContent: "center", pb: 2 }}>
+        <DialogActions sx={{ justifyContent: "center", pb: 2 }}> 
           <Button
             onClick={() => setIncentiveOpen(false)}
             variant="contained"

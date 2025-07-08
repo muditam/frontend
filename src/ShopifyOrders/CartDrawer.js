@@ -176,7 +176,7 @@ const CartDrawer = ({ closeDrawer }) => {
   const loggedInAgentName = loggedInUser.fullName || "Default Agent";
 
   const [phonePeLink, setPhonePeLink] = useState("");
-  const [razorpayPaymentLink, setRazorpayPaymentLink] = useState("");
+  // const [razorpayPaymentLink, setRazorpayPaymentLink] = useState("");
   const [copyStatus, setCopyStatus] = useState("");
 
 
@@ -591,48 +591,78 @@ const CartDrawer = ({ closeDrawer }) => {
     }
   };
 
-  const handleGeneratePaymentLink = async () => {
-    try {
-      const amountToCharge = parseFloat(finalTotal.toFixed(2));
-      const phoneWithCountryCode = phoneNumber.startsWith('+91')
-        ? phoneNumber
-        : `+91${phoneNumber}`;
-      // 1. Call PhonePe API (local backend)     
-      const phonePeResp = await axios.post(
-        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/phonepe/create-payment-link",
-        {
-          amount: amountToCharge,
-          customer: {
-            name: confirmedAddress?.fullName || "Customer Name",
-            email: confirmedAddress?.email || "customer@example.com",
-            phoneNumber: phoneWithCountryCode,
-          },
-        }
-      );
-      setPhonePeLink(phonePeResp.data.paylinkUrl);
+  // const handleGeneratePaymentLink = async () => {
+  //   try {
+  //     const amountToCharge = parseFloat(finalTotal.toFixed(2));
+  //     const phoneWithCountryCode = phoneNumber.startsWith('+91')
+  //       ? phoneNumber
+  //       : `+91${phoneNumber}`;
+  //     // 1. Call PhonePe API (local backend)     
+  //     const phonePeResp = await axios.post(
+  //       "https://muditamleads-14f32a10d7f7.herokuapp.com/api/phonepe/create-payment-link",
+  //       {
+  //         amount: amountToCharge,
+  //         customer: {
+  //           name: confirmedAddress?.fullName || "Customer Name",
+  //           email: confirmedAddress?.email || "customer@example.com",
+  //           phoneNumber: phoneWithCountryCode,
+  //         },
+  //       }
+  //     );
+  //     setPhonePeLink(phonePeResp.data.paylinkUrl);
 
-      // 2. Call Razorpay API (your backend)
-      const razorpayResp = await axios.post(
-        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/razorpay/create-payment-link",
-        {
-          amount: amountToCharge,
-          currency: "INR",
-          customer: {
-            name: confirmedAddress?.fullName || "Customer Name",
-            email: confirmedAddress?.email || "customer@example.com",
-            contact: phoneNumber || "1234567890",
-          },
-        }
-      );
-      setRazorpayPaymentLink(razorpayResp.data.paymentLink);
-    } catch (error) {
-      console.error("Error generating payment links:", error);
-      alert(
-        error?.response?.data?.message ||
-        "Failed to generate payment links. Please try again."
-      );
-    }
-  };
+  //     // 2. Call Razorpay API (your backend)
+  //     const razorpayResp = await axios.post(
+  //       "https://muditamleads-14f32a10d7f7.herokuapp.com/api/razorpay/create-payment-link",
+  //       {
+  //         amount: amountToCharge,
+  //         currency: "INR",
+  //         customer: {
+  //           name: confirmedAddress?.fullName || "Customer Name",
+  //           email: confirmedAddress?.email || "customer@example.com",
+  //           contact: phoneNumber || "1234567890",
+  //         },
+  //       }
+  //     );
+  //     setRazorpayPaymentLink(razorpayResp.data.paymentLink);
+  //   } catch (error) {
+  //     console.error("Error generating payment links:", error);
+  //     alert(
+  //       error?.response?.data?.message ||
+  //       "Failed to generate payment links. Please try again."
+  //     );
+  //   }
+  // };
+
+  const handleGeneratePaymentLink = async () => {
+  try {
+    const amountToCharge = parseFloat(finalTotal.toFixed(2));
+    const phoneWithCountryCode = phoneNumber.startsWith('+91')
+      ? phoneNumber
+      : `+91${phoneNumber}`;
+
+    // Only call PhonePe API
+    const phonePeResp = await axios.post(
+      "https://muditamleads-14f32a10d7f7.herokuapp.com/api/phonepe/create-payment-link",
+      {
+        amount: amountToCharge,
+        customer: {
+          name: confirmedAddress?.fullName || "Customer Name",
+          email: confirmedAddress?.email || "customer@example.com",
+          phoneNumber: phoneWithCountryCode,
+        },
+      }
+    );
+    setPhonePeLink(phonePeResp.data.paylinkUrl);
+  } catch (error) {
+    console.error("Error generating payment link:", error);
+    alert(
+      error?.response?.data?.message ||
+      "Failed to generate payment link. Please try again."
+    );
+  }
+};
+
 
   const handleCreateOrder = async () => {
     setIsOrderLoading(true);
@@ -1814,37 +1844,22 @@ const CartDrawer = ({ closeDrawer }) => {
                           ? "Link Generated"
                           : "Generate Payment Link"}
                       </Button>
-                      {(phonePeLink || razorpayPaymentLink) && (
+                      {phonePeLink && (
                         <Box sx={{ mb: 2 }}>
                           <Typography variant="body2" sx={{ mb: 1 }}>
-                            Payment Links:
+                            Payment Link:
                           </Typography>
-                          {phonePeLink && (
-                            <Button
-                              variant="outlined"
-                              onClick={() => {
-                                navigator.clipboard.writeText(phonePeLink);
-                                setCopyStatus("PhonePe link copied!");
-                                setTimeout(() => setCopyStatus(""), 1200);
-                              }}
-                              sx={{ ...buttonStyle, mr: 1 }}
-                            >
-                              PhonePe Link
-                            </Button>
-                          )}
-                          {razorpayPaymentLink && (
-                            <Button
-                              variant="outlined"
-                              onClick={() => {
-                                navigator.clipboard.writeText(razorpayPaymentLink);
-                                setCopyStatus("Razorpay link copied!");
-                                setTimeout(() => setCopyStatus(""), 1200);
-                              }}
-                              sx={buttonStyle}
-                            >
-                              Razorpay Link
-                            </Button>
-                          )}
+                          <Button
+                            variant="outlined"
+                            onClick={() => {
+                              navigator.clipboard.writeText(phonePeLink);
+                              setCopyStatus("PhonePe link copied!");
+                              setTimeout(() => setCopyStatus(""), 1200);
+                            }}
+                            sx={buttonStyle}
+                          >
+                            PhonePe Link
+                          </Button>
                           <Typography variant="caption" sx={{ ml: 1, color: "green" }}>
                             {copyStatus}
                           </Typography>
