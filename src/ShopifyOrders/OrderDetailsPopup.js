@@ -200,7 +200,7 @@ useEffect(() => {
     };
     await axios.post("https://muditamleads-14f32a10d7f7.herokuapp.com/api/my-orders", payload);
     setOrderAdded(true);
-    setMessage("Order added successfully to My Sales.");
+    setMessage("Order added successfully to My Sales."); 
   } catch (error) {
     console.error("Error adding order:", error);
     setMessage("Error adding order.");

@@ -63,7 +63,7 @@ const SalesMySales = () => {
           salesStatus: "Sales Done",
           page: currentPage + 1,
           limit: rowsPerPage,
-        },
+        }, 
       });
 
       let { leads, totalLeads } = leadsResponse.data;
@@ -181,39 +181,90 @@ const SalesMySales = () => {
   };
 
   const handleInputChange = async (e, index, field) => {
-    const updatedSales = [...sales];
-    updatedSales[index][field] = e.target.value;
+  const updatedSales = [...sales];
+  updatedSales[index][field] = e.target.value;
 
-    // Only update dosageOrdered (and its derived dosageExpiring) if not coming from MyOrders.
-    if (field === "dosageOrdered" && !updatedSales[index].myOrderData) {
-      const days = parseInt(e.target.value.split("-")[0], 10);
-      updatedSales[index].dosageExpiring = calculateDosageExpiring(days);
-      try {
-        await axios.put(
-          `https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/${updatedSales[index]._id}`,
-          {
-            dosageOrdered: e.target.value,
-            dosageExpiring: updatedSales[index].dosageExpiring,
-          }
-        );
-      } catch (error) {
-        console.error("Error updating dosageOrdered and dosageExpiring:", error);
-      }
+  if (field === "dosageOrdered" && !updatedSales[index].myOrderData) {
+    const days = parseInt(e.target.value.split("-")[0], 10);
+    updatedSales[index].dosageExpiring = calculateDosageExpiring(days);
+  }
+
+  setSales(updatedSales);
+  const sale = updatedSales[index];
+
+  if (sale.myOrderData) return;
+
+  const isNew = sale._id?.startsWith("temp-");
+  const requiredFieldsFilled = sale.name && sale.contactNumber;
+
+  // Avoid multiple POSTs
+  if (isNew && requiredFieldsFilled && !sale.posting) {
+    updatedSales[index].posting = true;
+    setSales([...updatedSales]);
+
+    const user = JSON.parse(sessionStorage.getItem("user"));
+    const payload = {
+      name: sale.name,
+      contactNumber: sale.contactNumber,
+      productsOrdered: sale.productsOrdered,
+      dosageOrdered: sale.dosageOrdered,
+      dosageExpiring: sale.dosageExpiring,
+      amountPaid: parseFloat(sale.amountPaid),
+      modeOfPayment: sale.modeOfPayment,
+      lastOrderDate: sale.lastOrderDate,
+      salesStatus: "Sales Done",
+      agentAssigned: agentAssignedName || user?.fullName || "Unknown",
+      agentsRemarks: sale.agentsRemarks || "",
+      date: new Date().toISOString().split("T")[0],
+    };
+
+    try {
+      const res = await axios.post("https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads", payload);
+      const savedLead = res.data.lead;
+      updatedSales[index] = { ...savedLead }; // replace the whole row
+      setSales(updatedSales);
+    } catch (error) {
+      console.error("Error saving new sale:", error);
+      updatedSales[index].posting = false; // allow retry
+      setSales(updatedSales);
     }
 
-    setSales(updatedSales);
-    const saleId = updatedSales[index]._id;
+    return;
+  }
+
+  // Normal update for existing lead
+  if (!isNew) {
     try {
       await axios.put(
-        `https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/${saleId}`,
-        {
-          [field]: e.target.value,
-        }
+        `https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/${sale._id}`,
+        { [field]: e.target.value }
       );
     } catch (error) {
       console.error("Error updating sale:", error);
     }
+  }
+};
+
+
+
+  const handleAddSale = () => {
+  const newSale = {
+    _id: `temp-${Date.now()}`, // temporary ID
+    name: "",
+    contactNumber: "",
+    productsOrdered: [],
+    dosageOrdered: "",
+    amountPaid: "",
+    modeOfPayment: "",
+    lastOrderDate: new Date().toISOString().split("T")[0],
+    agentsRemarks: "",
+    salesStatus: "Sales Done",
+    posting: false, // NEW
   };
+  setSales((prevSales) => [newSale, ...prevSales]);
+};
+
+
 
   const applyFilters = () => {
     const filteredSales = sales.filter((sale) => {
@@ -257,7 +308,7 @@ const SalesMySales = () => {
     fetchSales(agentAssignedName);
   };
 
-  const handleChangePage = (event, newPage) => {
+  const handleChangePage = (event, newPage) => { 
     setCurrentPage(newPage);
   };
 
@@ -269,13 +320,15 @@ const SalesMySales = () => {
 
   return (
     <Box sx={{ padding: 2 }}>
-      <Typography variant="h5" gutterBottom>
-        My Sales
-      </Typography>
+      <Box sx={{ display: "flex", gap: 2, mb: 2 }}>
+  <Button variant="contained" onClick={handleAddSale}>
+    Add Sale
+  </Button>
+  <Button variant="contained" onClick={() => setFilterOpen(true)}>
+    Filter
+  </Button>
+</Box>
 
-      <Button variant="contained" sx={{ mb: 2 }} onClick={() => setFilterOpen(true)}>
-        Filter
-      </Button>
       <Drawer anchor="right" open={filterOpen} onClose={() => setFilterOpen(false)}>
         <Box sx={{ width: 300, padding: 2 }}>
           <Typography variant="h6" gutterBottom>
