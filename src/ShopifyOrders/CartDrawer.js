@@ -637,11 +637,18 @@ const CartDrawer = ({ closeDrawer }) => {
   const handleGeneratePaymentLink = async () => {
   try {
     const amountToCharge = parseFloat(finalTotal.toFixed(2));
-    const phoneWithCountryCode = phoneNumber.startsWith('+91')
-      ? phoneNumber
-      : `+91${phoneNumber}`;
 
-    // Only call PhonePe API
+    // Clean and extract final 10-digit number
+    const digitsOnly = phoneNumber.replace(/\D/g, "");
+    const finalPhone = digitsOnly.startsWith("91") && digitsOnly.length > 10
+      ? digitsOnly.slice(2)
+      : digitsOnly;
+
+    if (finalPhone.length !== 10) {
+      alert("Invalid phone number. Please enter a valid 10-digit number.");
+      return;
+    }
+
     const phonePeResp = await axios.post(
       "https://muditamleads-14f32a10d7f7.herokuapp.com/api/phonepe/create-payment-link",
       {
@@ -649,10 +656,11 @@ const CartDrawer = ({ closeDrawer }) => {
         customer: {
           name: confirmedAddress?.fullName || "Customer Name",
           email: confirmedAddress?.email || "customer@example.com",
-          phoneNumber: phoneWithCountryCode,
+          phoneNumber: finalPhone, 
         },
       }
     );
+
     setPhonePeLink(phonePeResp.data.paylinkUrl);
   } catch (error) {
     console.error("Error generating payment link:", error);
@@ -662,6 +670,7 @@ const CartDrawer = ({ closeDrawer }) => {
     );
   }
 };
+
 
 
   const handleCreateOrder = async () => {

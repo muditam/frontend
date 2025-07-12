@@ -185,7 +185,7 @@ const NavbarWithSearch = () => {
     fetchTarget();
   }, [user]);
 
-  useEffect(() => {
+  useEffect(() => { 
     async function fetchSalesProgress() {
       if (!user) return;
       try {

@@ -195,7 +195,7 @@ const LeadTable = () => {
 
     try {
       const response = await axios.post(
-        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads",
+        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads", 
         newLeadData,
         leadToAdd
       );
@@ -343,7 +343,7 @@ const LeadTable = () => {
         console.log("Lead updated successfully");
         fetchLeads();
       } else {
-        console.error("Failed to update lead:", response.data);
+        console.error("Failed to update lead:", response.data); 
       }
     } catch (error) {
       console.error(
@@ -447,7 +447,7 @@ const LeadTable = () => {
 
   const exportToCSV = () => {
     window.location.href =
-      "https://muditamleads-14f32a10d7f7.herokuapp.com/export-leads";
+      "https://muditamleads-14f32a10d7f7.herokuapp.com:5001/export-leads";
   };
 
 

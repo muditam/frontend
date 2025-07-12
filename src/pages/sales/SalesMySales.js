@@ -87,7 +87,7 @@ const SalesMySales = () => {
       const mergedSales = leads.map((sale) => {
         const matchingOrder = myOrdersMap[sale.contactNumber];
         if (matchingOrder) {
-          return {
+          return { 
             ...sale,
             myOrderData: {
               orderDate: matchingOrder.orderDate,
@@ -255,7 +255,7 @@ const SalesMySales = () => {
     productsOrdered: [],
     dosageOrdered: "",
     amountPaid: "",
-    modeOfPayment: "",
+    modeOfPayment: "", 
     lastOrderDate: new Date().toISOString().split("T")[0],
     agentsRemarks: "",
     salesStatus: "Sales Done",
