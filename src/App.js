@@ -31,6 +31,7 @@ import EscalationsPage from './components/EscalationsPage';
 import TeamPage from "./components/TeamPage"; 
 import GrowthTracker from "./components/GrowthTracker";
 import Leaderboard from "./components/Leaderboard";
+import ShipmentDetails from "./pages/filtered/ShipmentDetails";
 
 const App = () => {
   return (
@@ -187,6 +188,14 @@ const App = () => {
             element={
               <PrivateRoute>
                 <RetentionData />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/shipment-details"
+            element={
+              <PrivateRoute>
+                <ShipmentDetails />
               </PrivateRoute>
             }
           />

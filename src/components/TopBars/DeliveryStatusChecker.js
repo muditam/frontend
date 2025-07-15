@@ -60,8 +60,7 @@ const DeliveryStatusChecker = ({ onClose }) => {
 
   // Copy to clipboard function
   const handleCopy = (text) => {
-    navigator.clipboard.writeText(text).then(() => {
-      alert("Tracking number copied!");
+    navigator.clipboard.writeText(text).then(() => { 
     });
   };
 
@@ -232,7 +231,7 @@ const DeliveryStatusChecker = ({ onClose }) => {
                         Track Here
                       </Link>
                       <IconButton
-                        onClick={() => handleCopy(item.tracking_number)}
+                        onClick={() => handleCopy(`https://track.shipway.com/t/${item.tracking_number}`)}
                         sx={{
                           color: "#000",
                           fontSize: "1rem",

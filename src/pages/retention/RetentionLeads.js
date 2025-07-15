@@ -245,7 +245,7 @@ const RetentionLeads = () => {
   // Fetch retention leads
   const fetchRetentionLeads = async (user) => {
     setLoading(true);
-    try {
+    try { 
       const response = await axios.get(
         "https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/retentions",
         { params: { fullName: user.fullName, email: user.email } }
@@ -754,121 +754,122 @@ const RetentionLeads = () => {
   };
 
   const filteredLeadsByFilters = (inputLeads) => {
-    if (!inputLeads || inputLeads.length === 0) return [];
+  if (!inputLeads || inputLeads.length === 0) return [];
 
-    let filtered = [...inputLeads];
+  let filtered = [...inputLeads];
 
-    // Apply all filters (retentionStatus, date, followup, etc.)
-    if (filters.retentionStatus && filters.retentionStatus !== "All") {
-      const statusFilter = filters.retentionStatus.toLowerCase();
-      filtered = filtered.filter((lead) => {
-        const leadStatus = (lead.retentionStatus || "").toLowerCase();
-        return statusFilter === "active"
-          ? leadStatus === "active" || leadStatus === ""
-          : statusFilter === "lost"
-            ? leadStatus === "lost"
-            : true;
-      });
-    }
+  // Apply all filters (retentionStatus, date, followup, etc.)
+  if (filters.retentionStatus && filters.retentionStatus !== "All") {
+    const statusFilter = filters.retentionStatus.toLowerCase();
+    filtered = filtered.filter((lead) => {
+      const leadStatus = (lead.retentionStatus || "").toLowerCase();
+      return statusFilter === "active"
+        ? leadStatus === "active" || leadStatus === ""
+        : statusFilter === "lost"
+          ? leadStatus === "lost"
+          : true;
+    });
+  }
 
-    if (
-      dateRangeFilter &&
-      dateRangeFilter.includes(" ") &&
-      [
-        "January", "February", "March", "April", "May", "June",
-        "July", "August", "September", "October", "November", "December"
-      ].some((month) => dateRangeFilter.startsWith(month))
-    ) {
-      const [monthName, year] = dateRangeFilter.split(" ");
-      filtered = filtered.filter((lead) => {
-        if (!lead.lastOrderDate) return false;
-        const orderDate = new Date(lead.lastOrderDate);
-        return (
-          orderDate.toLocaleString("default", { month: "long" }) === monthName &&
-          orderDate.getFullYear().toString() === year
-        );
-      });
-    }
+  if (
+    dateRangeFilter &&
+    dateRangeFilter.includes(" ") &&
+    [
+      "January", "February", "March", "April", "May", "June",
+      "July", "August", "September", "October", "November", "December"
+    ].some((month) => dateRangeFilter.startsWith(month))
+  ) {
+    const [monthName, year] = dateRangeFilter.split(" ");
+    filtered = filtered.filter((lead) => {
+      if (!lead.lastOrderDate) return false;
+      const orderDate = new Date(lead.lastOrderDate);
+      return (
+        orderDate.toLocaleString("default", { month: "long" }) === monthName &&
+        orderDate.getFullYear().toString() === year
+      );
+    });
+  }
 
-    if (filters.rtFollowupReminder !== null) {
-      filtered = filtered.filter((lead) => {
-        const reminder = lead.rtFollowupReminder || "";
-        return filters.rtFollowupReminder === ""
-          ? reminder === ""
-          : reminder === filters.rtFollowupReminder;
-      });
-    }
+  if (filters.rtFollowupReminder !== null) {
+    filtered = filtered.filter((lead) => {
+      const reminder = lead.rtFollowupReminder || "";
+      return filters.rtFollowupReminder === ""
+        ? reminder === ""
+        : reminder === filters.rtFollowupReminder;
+    });
+  }
 
-    if (orderPlacedFilter === "Order Placed") {
-      filtered = filtered.filter((lead) => !!lead.lastOrderDate);
-    } else if (orderPlacedFilter === "Order Not Placed") {
-      filtered = filtered.filter((lead) => !lead.lastOrderDate);
-    }
+  if (orderPlacedFilter === "Order Placed") {
+    filtered = filtered.filter((lead) => !!lead.lastOrderDate);
+  } else if (orderPlacedFilter === "Order Not Placed") {
+    filtered = filtered.filter((lead) => !lead.lastOrderDate);
+  }
 
-    if (dateRangeFilter && !dateRangeFilter.includes(" ")) {
-      const now = new Date();
-      const isSameMonth = (d1, d2) =>
-        d1.getMonth() === d2.getMonth() && d1.getFullYear() === d2.getFullYear();
+  if (dateRangeFilter && !dateRangeFilter.includes(" ")) {
+    const now = new Date();
+    const isSameMonth = (d1, d2) =>
+      d1.getMonth() === d2.getMonth() && d1.getFullYear() === d2.getFullYear();
 
-      filtered = filtered.filter((lead) => {
-        if (!lead.lastOrderDate) return false;
-        const date = new Date(lead.lastOrderDate);
-        const diffDays = Math.floor((now - date) / (1000 * 60 * 60 * 24));
-        switch (dateRangeFilter) {
-          case "Today": return diffDays === 0;
-          case "Yesterday": return diffDays === 1;
-          case "Last 7 Days": return diffDays <= 7;
-          case "Last 10 Days": return diffDays <= 10;
-          case "10–20 Days Ago": return diffDays >= 10 && diffDays <= 20;
-          case "21–30 Days Ago": return diffDays >= 21 && diffDays <= 30;
-          case "This Month (Month to Date)": return isSameMonth(date, now);
-          case "Last Month": {
-            const lastMonth = new Date();
-            lastMonth.setMonth(now.getMonth() - 1);
-            return (
-              date.getMonth() === lastMonth.getMonth() &&
-              date.getFullYear() === lastMonth.getFullYear()
-            );
-          }
-          case "Last 30 Days": return diffDays <= 30;
-          case "Last 90 Days": return diffDays <= 90;
-          default: return true;
+    filtered = filtered.filter((lead) => {
+      if (!lead.lastOrderDate) return false;
+      const date = new Date(lead.lastOrderDate);
+      const diffDays = Math.floor((now - date) / (1000 * 60 * 60 * 24));
+      switch (dateRangeFilter) {
+        case "Today": return diffDays === 0;
+        case "Yesterday": return diffDays === 1;
+        case "Last 7 Days": return diffDays <= 7;
+        case "Last 10 Days": return diffDays <= 10;
+        case "10–20 Days Ago": return diffDays >= 10 && diffDays <= 20;
+        case "21–30 Days Ago": return diffDays >= 21 && diffDays <= 30;
+        case "This Month (Month to Date)": return isSameMonth(date, now);
+        case "Last Month": {
+          const lastMonth = new Date();
+          lastMonth.setMonth(now.getMonth() - 1);
+          return (
+            date.getMonth() === lastMonth.getMonth() &&
+            date.getFullYear() === lastMonth.getFullYear()
+          );
         }
-      });
-    }
+        case "Last 30 Days": return diffDays <= 30;
+        case "Last 90 Days": return diffDays <= 90;
+        default: return true;
+      }
+    });
+  }
 
-    const search = filters.name.trim().toLowerCase();
-    const isSerial = /^\d+$/.test(search);
+  // —— search / serial logic —— //
+  const search = filters.name.trim().toLowerCase();
 
-    if (search) {
-      if (isSerial) {
-        const serialIndex = parseInt(search, 10) - 1;
-        if (serialIndex >= 0 && serialIndex < filtered.length) {
-          filtered = filtered.slice(serialIndex);
-        } else {
-          filtered = [];
-        }
+  if (search) {
+    // 1–5 digits → serial lookup (slice from that index)
+    if (/^\d{1,5}$/.test(search)) {
+      const serialIndex = parseInt(search, 10) - 1;
+      if (serialIndex >= 0 && serialIndex < filtered.length) {
+        filtered = filtered.slice(serialIndex);
       } else {
-        // Fallback to name/phone search
-        filtered = filtered.filter((lead) => {
-          const nameMatch = lead.name?.toLowerCase().includes(search);
-          const numberMatch = lead.contactNumber?.includes(search);
-          return nameMatch || numberMatch;
-        });
+        filtered = [];
       }
     }
+    // anything else (text OR ≥6 digits) → name or phone match
+    else {
+      filtered = filtered.filter((lead) => {
+        const nameMatch   = lead.name?.toLowerCase().includes(search);
+        const numberMatch = lead.contactNumber?.includes(search);
+        return nameMatch || numberMatch;
+      });
+    }
+  }
 
+  // Final sort: latest order first
+  filtered.sort((a, b) => {
+    if (!a.lastOrderDate && !b.lastOrderDate) return 0;
+    if (!a.lastOrderDate) return 1;
+    if (!b.lastOrderDate) return -1;
+    return new Date(b.lastOrderDate) - new Date(a.lastOrderDate);
+  });
 
-    // Final sort: latest order first
-    filtered.sort((a, b) => {
-      if (!a.lastOrderDate && !b.lastOrderDate) return 0;
-      if (!a.lastOrderDate) return 1;
-      if (!b.lastOrderDate) return -1;
-      return new Date(b.lastOrderDate) - new Date(a.lastOrderDate);
-    });
-
-    return filtered;
-  };
+  return filtered;
+};
 
 
   const handleSortMenuClick = (event, type) => {
