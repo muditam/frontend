@@ -21,8 +21,8 @@ import {
   Checkbox,
   FormControlLabel,
 } from "@mui/material";
-import { Visibility, VisibilityOff, WarningAmber, Edit, Delete } from "@mui/icons-material";
-import axios from "axios";
+import { Visibility, VisibilityOff, WarningAmber, Edit, Delete } from "@mui/icons-material";  
+import axios from "axios"; 
 
 const AddEmployee = () => {
   const [employees, setEmployees] = useState([]);
@@ -45,9 +45,11 @@ const AddEmployee = () => {
     status: "active",
     target: "",
     hasTeam: false,  
+    teamLeader: "",
   });
   const [error, setError] = useState("");
   const [viewInactive, setViewInactive] = useState(false);
+  const [allActiveEmployees, setAllActiveEmployees] = useState([]);
 
   const roles = ["Manager", "Sales Agent", "Retention Agent"];
   const statusOptions = ["active", "inactive"];
@@ -57,26 +59,34 @@ const AddEmployee = () => {
   }, [viewInactive]);
  
   const fetchEmployees = async () => {
-    try {
-      const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/employees");
-      const fetchedEmployees = response.data.filter(emp =>
-        viewInactive ? emp.status === "inactive" : emp.status === "active"
-      );
-      setEmployees(fetchedEmployees);
-    } catch (error) {
-      console.error("Failed to fetch employees", error);
-    }
-  };
+  try {
+    const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/employees");
+    const fetchedEmployees = response.data.filter(emp =>
+      viewInactive ? emp.status === "inactive" : emp.status === "active"
+    );
+
+    setEmployees(fetchedEmployees);
+
+    // Use raw teamLeader _id for form dropdowns (not full name)
+    const activeEmployees = response.data.filter(emp => emp.status === "active");
+
+    setAllActiveEmployees(activeEmployees);
+  } catch (error) {
+    console.error("Failed to fetch employees", error);
+  }
+};
+
+
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
-    setEmployeeData({ ...employeeData, [name]: type === "checkbox" ? checked : value });
+    setEmployeeData({ ...employeeData, [name]: type === "checkbox" ? checked : value }); 
   };
 
   const validateForm = () => {
     const { fullName, email, callerId, agentNumber, role, password, confirmPassword, target } = employeeData;
 
-    if (!fullName || !email || !callerId || !agentNumber || !role || (!isEditMode && !password) || target === "") {
+    if (!fullName || !email || !callerId || !agentNumber || !role || (!isEditMode && !password) || target === "") { 
       setError("All fields are required.");
       return false;
     }
@@ -159,7 +169,8 @@ const AddEmployee = () => {
       async: 1,
       status: employee.status,
       target: employee.target || "",
-      hasTeam: employee.hasTeam || false, // <-- NEW FIELD
+      hasTeam: employee.hasTeam || false,  
+      teamLeader: employee.teamLeader?._id || "", 
     });
     setCurrentEmployeeId(employee._id);
     setIsEditMode(true);
@@ -415,6 +426,26 @@ const AddEmployee = () => {
               {roles.map((role) => (
                 <MenuItem key={role} value={role}>
                   {role}
+                </MenuItem>
+              ))}
+            </TextField>
+
+            <TextField
+              select
+              fullWidth
+              label="Team Leader"
+              name="teamLeader"
+              value={employeeData.teamLeader}
+              onChange={handleChange}
+              variant="filled"
+              InputProps={{
+                disableUnderline: true,
+                sx: { backgroundColor: "#fff", borderRadius: 1, px: 1 },
+              }}
+            >
+              {allActiveEmployees.map((employee) => (
+                <MenuItem key={employee._id} value={employee._id}>
+                  {employee.fullName}
                 </MenuItem>
               ))}
             </TextField>

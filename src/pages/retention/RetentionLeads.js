@@ -419,57 +419,57 @@ const RetentionLeads = () => {
       console.error("Failed to fetch logs", err);
     }
   };
- 
-// Only for retentionStatus Active or not set
-const getNotReachedLeads = (leads, days = 7) => {
-  const now = new Date();
-  const cutoff = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
 
-  return leads.filter(lead => {
-    // Only consider Active or not set
-    const status = (lead.retentionStatus || "").toLowerCase();
-    if (status && status !== "active") return false;
+  // Only for retentionStatus Active or not set
+  const getNotReachedLeads = (leads, days = 7) => {
+    const now = new Date();
+    const cutoff = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
 
-    // If no logs, considered not reached
-    if (!lead.reachoutLogs || lead.reachoutLogs.length === 0) return true;
+    return leads.filter(lead => {
+      // Only consider Active or not set
+      const status = (lead.retentionStatus || "").toLowerCase();
+      if (status && status !== "active") return false;
 
-    // Find latest log timestamp
-    const latestLog = lead.reachoutLogs.reduce((latest, log) => {
-      const ts = new Date(log.timestamp);
-      return (!latest || ts > latest) ? ts : latest;
-    }, null);
+      // If no logs, considered not reached
+      if (!lead.reachoutLogs || lead.reachoutLogs.length === 0) return true;
 
-    // No valid timestamp? Not reached.
-    if (!latestLog) return true;
-    // If latest reachout log is before the cutoff, considered not reached.
-    return latestLog < cutoff;
-  });
-};
+      // Find latest log timestamp
+      const latestLog = lead.reachoutLogs.reduce((latest, log) => {
+        const ts = new Date(log.timestamp);
+        return (!latest || ts > latest) ? ts : latest;
+      }, null);
 
-// Leads with at least one reachout log in last 7 days, retentionStatus Active or not set
-const getReachedLeads = (leads, days = 7) => {
-  const now = new Date();
-  const cutoff = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
-
-  return leads.filter(lead => {
-    const status = (lead.retentionStatus || "").toLowerCase();
-    if (status && status !== "active") return false;
-    if (!lead.reachoutLogs || lead.reachoutLogs.length === 0) return false;
-
-    // Any log in last X days?
-    return lead.reachoutLogs.some(log => {
-      const ts = new Date(log.timestamp);
-      return ts >= cutoff;
+      // No valid timestamp? Not reached.
+      if (!latestLog) return true;
+      // If latest reachout log is before the cutoff, considered not reached.
+      return latestLog < cutoff;
     });
-  });
-};
+  };
+
+  // Leads with at least one reachout log in last 7 days, retentionStatus Active or not set
+  const getReachedLeads = (leads, days = 7) => {
+    const now = new Date();
+    const cutoff = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
+
+    return leads.filter(lead => {
+      const status = (lead.retentionStatus || "").toLowerCase();
+      if (status && status !== "active") return false;
+      if (!lead.reachoutLogs || lead.reachoutLogs.length === 0) return false;
+
+      // Any log in last X days?
+      return lead.reachoutLogs.some(log => {
+        const ts = new Date(log.timestamp);
+        return ts >= cutoff;
+      });
+    });
+  };
 
 
-useEffect(() => {
-  // Calculate both counts from current filtered base (or allLeads)
-  setNotReachedLeadsCount(getNotReachedLeads(filteredAllLeads).length);
-  setReachedLeadsCount(getReachedLeads(filteredAllLeads).length);
-}, [filteredAllLeads, allLeads]);
+  useEffect(() => {
+    // Calculate both counts from current filtered base (or allLeads)
+    setNotReachedLeadsCount(getNotReachedLeads(filteredAllLeads).length);
+    setReachedLeadsCount(getReachedLeads(filteredAllLeads).length);
+  }, [filteredAllLeads, allLeads]);
 
 
 
@@ -701,7 +701,7 @@ useEffect(() => {
   };
 
   const handleCreateOrderClick = (lead) => {
-    setSelectedLead(lead);  
+    setSelectedLead(lead);
     setOrderPopupOpen(true);
   };
 
@@ -754,33 +754,23 @@ useEffect(() => {
   };
 
   const filteredLeadsByFilters = (inputLeads) => {
-    let filtered = inputLeads;
+    if (!inputLeads || inputLeads.length === 0) return [];
 
-    // Search filter (name/contact)
-    const search = filters.name.trim().toLowerCase();
-    if (search) {
-      filtered = filtered.filter((lead) => {
-        const nameMatch = lead.name?.toLowerCase().includes(search);
-        const numberMatch = lead.contactNumber?.includes(search);
-        return nameMatch || numberMatch;
-      });
-    }
+    let filtered = [...inputLeads];
 
-    // Retention Status filter
+    // Apply all filters (retentionStatus, date, followup, etc.)
     if (filters.retentionStatus && filters.retentionStatus !== "All") {
       const statusFilter = filters.retentionStatus.toLowerCase();
       filtered = filtered.filter((lead) => {
         const leadStatus = (lead.retentionStatus || "").toLowerCase();
-        if (statusFilter === "active") {
-          return leadStatus === "active" || leadStatus === "";
-        } else if (statusFilter === "lost") {
-          return leadStatus === "lost";
-        }
-        return true;
+        return statusFilter === "active"
+          ? leadStatus === "active" || leadStatus === ""
+          : statusFilter === "lost"
+            ? leadStatus === "lost"
+            : true;
       });
     }
 
-    // If Acquired By → filter by selected month + year like "March 2025"
     if (
       dateRangeFilter &&
       dateRangeFilter.includes(" ") &&
@@ -793,40 +783,28 @@ useEffect(() => {
       filtered = filtered.filter((lead) => {
         if (!lead.lastOrderDate) return false;
         const orderDate = new Date(lead.lastOrderDate);
-        const monthMatch = orderDate.toLocaleString("default", { month: "long" }) === monthName;
-        const yearMatch = orderDate.getFullYear().toString() === year;
-        return monthMatch && yearMatch;
-      });
-
-      // Sort by year newest first (if needed)
-      filtered.sort((a, b) => {
-        const yearA = new Date(a.lastOrderDate).getFullYear();
-        const yearB = new Date(b.lastOrderDate).getFullYear();
-        return yearB - yearA;
+        return (
+          orderDate.toLocaleString("default", { month: "long" }) === monthName &&
+          orderDate.getFullYear().toString() === year
+        );
       });
     }
 
-    // Follow-up Reminder filter
     if (filters.rtFollowupReminder !== null) {
-      const reminderFilter = filters.rtFollowupReminder;
       filtered = filtered.filter((lead) => {
         const reminder = lead.rtFollowupReminder || "";
-        if (reminderFilter === "") {
-          return reminder === "";
-        } else {
-          return reminder === reminderFilter;
-        }
+        return filters.rtFollowupReminder === ""
+          ? reminder === ""
+          : reminder === filters.rtFollowupReminder;
       });
     }
 
-    // Order Placed filter
     if (orderPlacedFilter === "Order Placed") {
       filtered = filtered.filter((lead) => !!lead.lastOrderDate);
     } else if (orderPlacedFilter === "Order Not Placed") {
       filtered = filtered.filter((lead) => !lead.lastOrderDate);
     }
 
-    // Date range filters (like Today, Last 7 Days)
     if (dateRangeFilter && !dateRangeFilter.includes(" ")) {
       const now = new Date();
       const isSameMonth = (d1, d2) =>
@@ -836,22 +814,14 @@ useEffect(() => {
         if (!lead.lastOrderDate) return false;
         const date = new Date(lead.lastOrderDate);
         const diffDays = Math.floor((now - date) / (1000 * 60 * 60 * 24));
-
         switch (dateRangeFilter) {
-          case "Today":
-            return diffDays === 0;
-          case "Yesterday":
-            return diffDays === 1;
-          case "Last 7 Days":
-            return diffDays <= 7;
-          case "Last 10 Days":
-            return diffDays <= 10;
-          case "10–20 Days Ago":
-            return diffDays >= 10 && diffDays <= 20;
-          case "21–30 Days Ago":
-            return diffDays >= 21 && diffDays <= 30;
-          case "This Month (Month to Date)":
-            return isSameMonth(date, now);
+          case "Today": return diffDays === 0;
+          case "Yesterday": return diffDays === 1;
+          case "Last 7 Days": return diffDays <= 7;
+          case "Last 10 Days": return diffDays <= 10;
+          case "10–20 Days Ago": return diffDays >= 10 && diffDays <= 20;
+          case "21–30 Days Ago": return diffDays >= 21 && diffDays <= 30;
+          case "This Month (Month to Date)": return isSameMonth(date, now);
           case "Last Month": {
             const lastMonth = new Date();
             lastMonth.setMonth(now.getMonth() - 1);
@@ -860,17 +830,36 @@ useEffect(() => {
               date.getFullYear() === lastMonth.getFullYear()
             );
           }
-          case "Last 30 Days":
-            return diffDays <= 30;
-          case "Last 90 Days":
-            return diffDays <= 90;
-          default:
-            return true;
+          case "Last 30 Days": return diffDays <= 30;
+          case "Last 90 Days": return diffDays <= 90;
+          default: return true;
         }
       });
     }
 
-    // Final sort: leads with lastOrderDate first (descending)
+    const search = filters.name.trim().toLowerCase();
+    const isSerial = /^\d+$/.test(search);
+
+    if (search) {
+      if (isSerial) {
+        const serialIndex = parseInt(search, 10) - 1;
+        if (serialIndex >= 0 && serialIndex < filtered.length) {
+          filtered = filtered.slice(serialIndex);
+        } else {
+          filtered = [];
+        }
+      } else {
+        // Fallback to name/phone search
+        filtered = filtered.filter((lead) => {
+          const nameMatch = lead.name?.toLowerCase().includes(search);
+          const numberMatch = lead.contactNumber?.includes(search);
+          return nameMatch || numberMatch;
+        });
+      }
+    }
+
+
+    // Final sort: latest order first
     filtered.sort((a, b) => {
       if (!a.lastOrderDate && !b.lastOrderDate) return 0;
       if (!a.lastOrderDate) return 1;
@@ -1189,67 +1178,67 @@ useEffect(() => {
               </IconButton>
             </Tooltip>
           </Box>
-           <Box sx={{ mt: 1, mb: 1, display: "flex", gap: 1 }}>
+          <Box sx={{ mt: 1, mb: 1, display: "flex", gap: 1 }}>
             <Button
-    variant={showingReached ? "contained" : "outlined"}
-    color={showingReached ? "success" : "inherit"}
-    size="small"
-    sx={{
-      fontWeight: 600,
-      borderRadius: 2,
-      color: showingReached ? "#fff" : "black",
-      borderColor: showingReached ? "green" : "black",
-      textTransform: "none",
-      px: 2,
-    }}
-    onClick={() => {
-      if (!showingReached) {
-        const filtered = getReachedLeads(filteredAllLeads);
-        setLeads(filtered.slice(0, leadsPerPage));
-        setHasMore(filtered.length > leadsPerPage);
-        setCurrentIndex(leadsPerPage);
-        setShowingNotReached(false);
-      } else {
-        applyFilters();
-      }
-      setShowingReached(!showingReached);
-      setSelectedLeadIndex(null);
-    }}
-  >
-    Reached This Week ({reachedLeadsCount})
-  </Button>
-  <Button
-    variant={showingNotReached ? "contained" : "outlined"}
-    color={showingNotReached ? "error" : "inherit"}
-    size="small"
-    sx={{
-      fontWeight: 600,
-      borderRadius: 2,
-      color: showingNotReached ? "#fff" : "black",
-      borderColor: showingNotReached ? "red" : "black",
-      textTransform: "none",
-      px: 2,
-    }}
-    onClick={() => {
-      if (!showingNotReached) {
-        const filtered = getNotReachedLeads(filteredAllLeads);
-        setLeads(filtered.slice(0, leadsPerPage));
-        setHasMore(filtered.length > leadsPerPage);
-        setCurrentIndex(leadsPerPage);
-        setShowingReached(false);
-      } else {
-        applyFilters();
-      }
-      setShowingNotReached(!showingNotReached);
-      setSelectedLeadIndex(null);
-    }}
-  >
-    Not Reached This week ({notReachedLeadsCount})
-  </Button>
-</Box>
-        </Box> 
+              variant={showingReached ? "contained" : "outlined"}
+              color={showingReached ? "success" : "inherit"}
+              size="small"
+              sx={{
+                fontWeight: 600,
+                borderRadius: 2,
+                color: showingReached ? "#fff" : "black",
+                borderColor: showingReached ? "green" : "black",
+                textTransform: "none",
+                px: 2,
+              }}
+              onClick={() => {
+                if (!showingReached) {
+                  const filtered = getReachedLeads(filteredAllLeads);
+                  setLeads(filtered.slice(0, leadsPerPage));
+                  setHasMore(filtered.length > leadsPerPage);
+                  setCurrentIndex(leadsPerPage);
+                  setShowingNotReached(false);
+                } else {
+                  applyFilters();
+                }
+                setShowingReached(!showingReached);
+                setSelectedLeadIndex(null);
+              }}
+            >
+              Reached This Week ({reachedLeadsCount})
+            </Button>
+            <Button
+              variant={showingNotReached ? "contained" : "outlined"}
+              color={showingNotReached ? "error" : "inherit"}
+              size="small"
+              sx={{
+                fontWeight: 600,
+                borderRadius: 2,
+                color: showingNotReached ? "#fff" : "black",
+                borderColor: showingNotReached ? "red" : "black",
+                textTransform: "none",
+                px: 2,
+              }}
+              onClick={() => {
+                if (!showingNotReached) {
+                  const filtered = getNotReachedLeads(filteredAllLeads);
+                  setLeads(filtered.slice(0, leadsPerPage));
+                  setHasMore(filtered.length > leadsPerPage);
+                  setCurrentIndex(leadsPerPage);
+                  setShowingReached(false);
+                } else {
+                  applyFilters();
+                }
+                setShowingNotReached(!showingNotReached);
+                setSelectedLeadIndex(null);
+              }}
+            >
+              Not Reached This week ({notReachedLeadsCount})
+            </Button>
+          </Box>
+        </Box>
 
-       
+
 
         <Menu
           anchorEl={moreOptionsAnchorEl}
@@ -1276,13 +1265,13 @@ useEffect(() => {
           open={Boolean(filterAnchorEl)}
           onClose={() => {
             setFilterAnchorEl(null);
-            setSelectedYear(null);  
-            setSelectedMonth(null); 
+            setSelectedYear(null);
+            setSelectedMonth(null);
           }}
           anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
           transformOrigin={{ vertical: 'top', horizontal: 'left' }}
         >
-          <Box sx={{ display: 'flex', alignItems: 'flex-start' }}> 
+          <Box sx={{ display: 'flex', alignItems: 'flex-start' }}>
             <Box>
               <Typography
                 sx={{ fontSize: "0.75rem", fontWeight: "bold", px: 2, pt: 1, pb: 0.5, color: "text.disabled" }}
@@ -1296,7 +1285,7 @@ useEffect(() => {
                   onClick={() => {
                     setOrderPlacedFilter(type);
                     setDateRangeFilter("");
-                    setSelectedYear(null);  
+                    setSelectedYear(null);
                     setSelectedMonth(null);
                   }}
                 >
@@ -1478,7 +1467,7 @@ useEffect(() => {
             const followup = lead.rtFollowupReminder || "";
             const tagInfo = followupTagMap[followup] || followupTagMap[""];
 
-            const isSelected = selectedLeadIndex === idx;  
+            const isSelected = selectedLeadIndex === idx;
 
             return (
               <ListItemButton
@@ -1492,6 +1481,7 @@ useEffect(() => {
                       ? "rgba(25, 118, 210, 0.15)"
                       : "inherit",
                   position: "relative",
+                  px: 1,
                 }}
                 onClick={() => {
                   setLeadLoading(true);
@@ -1499,7 +1489,21 @@ useEffect(() => {
                   setTimeout(() => setLeadLoading(false), 500);
                 }}
               >
-                <ListItemAvatar sx={{ position: "relative" }}>
+                {/* Small Serial Number */}
+                <Box
+                  sx={{
+                    position: "absolute",
+                    top: 0,
+                    left: 3,
+                    fontSize: "0.8rem",
+                    fontWeight: "bold",
+                    color: "text.secondary",
+                    opacity: 0.7,
+                  }}
+                >
+                  {allLeads.findIndex((l) => l._id === lead._id) + 1}
+                </Box>
+                <ListItemAvatar sx={{ position: "relative", ml: 2 }}>
                   <Avatar sx={{ bgcolor: "black", fontSize: "0.8rem" }}>
                     {initials}
                   </Avatar>
@@ -1507,7 +1511,7 @@ useEffect(() => {
                     size="small"
                     sx={{
                       position: "absolute",
-                      top: -6,
+                      top: -3,
                       left: -6,
                       bgcolor: "white",
                       width: 20,
@@ -1517,7 +1521,7 @@ useEffect(() => {
                     }}
                     onClick={(e) => {
                       e.stopPropagation();
-                      setColorMenuIdx(idx);
+                      setColorMenuIdx(idx); 
                       setAnchorElColor(e.currentTarget);
                     }}
                   >
@@ -1525,7 +1529,7 @@ useEffect(() => {
                   </IconButton>
                 </ListItemAvatar>
 
-                <ListItemText 
+                <ListItemText
                   primary={
                     <Box
                       sx={{
@@ -1543,40 +1547,28 @@ useEffect(() => {
                         {lead.name}
                       </Typography>
 
-                      <Box
-                        sx={{
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "space-between",
-                        }}
-                      >
-                        <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                      <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                        <Menu
+                          anchorEl={anchorElColor}
+                          open={colorMenuIdx === idx}
+                          onClose={() => {
+                            setAnchorElColor(null);
+                            setColorMenuIdx(null);
+                          }}
+                        >
+                          <MenuItem onClick={() => handleColorSelect("#ffdbbb", idx)}>Good</MenuItem>
+                          <MenuItem onClick={() => handleColorSelect("#baddff", idx)}>Very Good</MenuItem>
+                          <MenuItem onClick={() => handleColorSelect("#bafff5", idx)}>Excellent</MenuItem>
+                          <MenuItem onClick={() => handleColorSelect("", idx)}>Remove Color</MenuItem>
+                        </Menu>
 
-
-                          <Menu
-                            anchorEl={anchorElColor}
-                            open={colorMenuIdx === idx}
-                            onClose={() => {
-                              setAnchorElColor(null);
-                              setColorMenuIdx(null);
-                            }}
-                          >
-                            <MenuItem onClick={() => handleColorSelect("#ffdbbb", idx)}>Good</MenuItem>
-                            <MenuItem onClick={() => handleColorSelect("#baddff", idx)}>Very Good</MenuItem>
-                            <MenuItem onClick={() => handleColorSelect("#bafff5", idx)}>Excellent</MenuItem>
-                            <MenuItem onClick={() => handleColorSelect("", idx)}>Remove Color</MenuItem>
-                          </Menu>
-
-
-                          <Chip
-                            label={tagInfo.label}
-                            color={tagInfo.color}
-                            size="small"
-                            sx={{ fontWeight: "bold" }}
-                          />
-                        </Box>
+                        <Chip
+                          label={tagInfo.label}
+                          color={tagInfo.color}
+                          size="small"
+                          sx={{ fontWeight: "bold" }}
+                        />
                       </Box>
-
                     </Box>
                   }
                   secondary={
@@ -1615,6 +1607,7 @@ useEffect(() => {
                     </Box>
                   }
                 />
+
                 <Typography
                   variant="caption"
                   sx={{
@@ -1636,13 +1629,15 @@ useEffect(() => {
           })}
         </List>
 
+
+
         {/* Loading spinner at bottom */}
         {loadingMore && (
           <Box
             sx={{
               display: "flex",
               justifyContent: "center",
-              py: 1,  
+              py: 1,
             }}
           >
             <CircularProgress size={24} />
@@ -1896,26 +1891,26 @@ useEffect(() => {
                       Next Followup Date
                     </Typography>
                     <TextField
-  type="date"
-  value={leads[selectedLeadIndex]?.rtNextFollowupDate || ""}
-  onChange={(e) => handleInputChange(e, selectedLeadIndex, "rtNextFollowupDate")}
-  size="small"
-  variant="outlined"
-  sx={{ minWidth: 140 }}
-  inputProps={{
-    min: (() => {
-      const today = new Date();
-      return today.toISOString().split('T')[0];
-    })(),
-    max: (() => {
-      const today = new Date();
-      today.setDate(today.getDate() + 10);
-      return today.toISOString().split('T')[0];
-    })(),
-    // Optional: Prevent keyboard input
-    // readOnly: true,
-  }}
-/>
+                      type="date"
+                      value={leads[selectedLeadIndex]?.rtNextFollowupDate || ""}
+                      onChange={(e) => handleInputChange(e, selectedLeadIndex, "rtNextFollowupDate")}
+                      size="small"
+                      variant="outlined"
+                      sx={{ minWidth: 140 }}
+                      inputProps={{
+                        min: (() => {
+                          const today = new Date();
+                          return today.toISOString().split('T')[0];
+                        })(),
+                        max: (() => {
+                          const today = new Date();
+                          today.setDate(today.getDate() + 10);
+                          return today.toISOString().split('T')[0];
+                        })(),
+                        // Optional: Prevent keyboard input
+                        // readOnly: true,
+                      }}
+                    />
 
                   </Box>
 
@@ -2144,14 +2139,14 @@ useEffect(() => {
                       onClick={() => setOrderPopupOpen(true)}
                       sx={{ color: "black" }}
                     >
-                      Create Order 
+                      Create Order
                     </Button>
                   </DialogActions>
                   <CreateOrderPopup
                     open={orderPopupOpen}
                     onClose={() => setOrderPopupOpen(false)}
                     prefillCustomer={{
-                      name: leads[selectedLeadIndex]?.name || "", 
+                      name: leads[selectedLeadIndex]?.name || "",
                       phone: leads[selectedLeadIndex]?.contactNumber || "",
                     }}
                   />

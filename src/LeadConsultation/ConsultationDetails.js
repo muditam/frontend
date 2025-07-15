@@ -110,7 +110,7 @@ const getCreatedAtLabel = (createdAt) => {
   now.setHours(0, 0, 0, 0);
   created.setHours(0, 0, 0, 0);
   const diffTime = now.getTime() - created.getTime();
-  const diffDays = Math.round(diffTime / (1000 * 3600 * 24));
+  const diffDays = Math.round(diffTime / (1000 * 3600 * 24)); 
   if (diffDays === 0) return "Today";
   if (diffDays === 1) return "Yesterday";
   if (diffDays >= 2 && diffDays <= 7) {
@@ -291,7 +291,7 @@ const ConsultationDetails = ({ customerId, reloadTrigger, onReload }) => {
         sx={{
           height: "100%",
           display: "flex",
-          justifyContent: "center",
+          justifyContent: "center", 
           alignItems: "center",
         }}
       >
@@ -299,7 +299,7 @@ const ConsultationDetails = ({ customerId, reloadTrigger, onReload }) => {
       </Box>
     );
   }
-  if (!customer) return <div>No customer found.</div>;
+  if (!customer) return <div>No customer Selected</div>;
 
   return (
     <Box sx={{ p: 2 }}>

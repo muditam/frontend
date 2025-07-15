@@ -4,11 +4,11 @@ import {
   Button,
   TextField,
   IconButton,
-  Typography, 
+  Typography,
   Dialog,
   DialogActions,
   DialogContent,
-  Avatar,   
+  Avatar,
   MenuItem,
   Select,
   FormControl,
@@ -210,67 +210,67 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
     setLeadData({ ...leadData, [name]: value });
   };
 
-   // 1. Add this utility function INSIDE LeadList component (or import if you prefer)
-const calculateCompletionPercent = (customer) => {
-  // Define required fields from each section for completeness check
-  const presalesFields = [
-    "leadStatus", "hba1c", "lastTestDone", "fastingSugar", "ppSugar",
-    "durationOfDiabetes", "gender", "dietType", "weight", "sittingTime",
-    "exerciseRoutine", "outsideMeals", "timeOfSleep", "assignExpert", "doctorCons",
-  ];
-  const consultationFields = [
-    "currentMedications", "sideEffects", "suddenSugarFluctuations", "symptoms",
-    "familyHistory", "otherConditions", "stressLevel", "monitorBloodSugar",
-    "painInLiver", "gutIssues", "energyLevels", "sleepQuality", "sugarCravings",
-  ];
-  const closingFields = [
-    "expectedResult", "preferredDiet", "courseDuration", "freebie", "bloodTest"
-  ];
+  // 1. Add this utility function INSIDE LeadList component (or import if you prefer)
+  const calculateCompletionPercent = (customer) => {
+    // Define required fields from each section for completeness check
+    const presalesFields = [
+      "leadStatus", "hba1c", "lastTestDone", "fastingSugar", "ppSugar",
+      "durationOfDiabetes", "gender", "dietType", "weight", "sittingTime",
+      "exerciseRoutine", "outsideMeals", "timeOfSleep", "assignExpert", "doctorCons",
+    ];
+    const consultationFields = [
+      "currentMedications", "sideEffects", "suddenSugarFluctuations", "symptoms",
+      "familyHistory", "otherConditions", "stressLevel", "monitorBloodSugar",
+      "painInLiver", "gutIssues", "energyLevels", "sleepQuality", "sugarCravings",
+    ];
+    const closingFields = [
+      "expectedResult", "preferredDiet", "courseDuration", "freebie", "bloodTest"
+    ];
 
-  // Helper: count how many fields are filled (non-empty, non-null)
-  const countFilledFields = (obj, fields) => {
-    if (!obj) return 0;
-    let filled = 0;
-    fields.forEach((field) => {
-      const val = obj[field];
-      if (Array.isArray(val)) {
-        if (val.length > 0) filled++;
-      } else if (val !== null && val !== undefined && val !== "") {
-        filled++;
-      }
-    });
-    return filled;
+    // Helper: count how many fields are filled (non-empty, non-null)
+    const countFilledFields = (obj, fields) => {
+      if (!obj) return 0;
+      let filled = 0;
+      fields.forEach((field) => {
+        const val = obj[field];
+        if (Array.isArray(val)) {
+          if (val.length > 0) filled++;
+        } else if (val !== null && val !== undefined && val !== "") {
+          filled++;
+        }
+      });
+      return filled;
+    };
+
+    const presales = customer.presales || {};
+    const consultation = customer.consultation || {};
+    const closing = customer.closing || {};
+
+    const presalesFilled = countFilledFields(presales, presalesFields);
+    const consultationFilled = countFilledFields(consultation, consultationFields);
+    const closingFilled = countFilledFields(closing, closingFields);
+
+    const totalFields = presalesFields.length + consultationFields.length + closingFields.length;
+    const filledFields = presalesFilled + consultationFilled + closingFilled;
+
+    return Math.round((filledFields / totalFields) * 100);
   };
-
-  const presales = customer.presales || {};
-  const consultation = customer.consultation || {};
-  const closing = customer.closing || {};
-
-  const presalesFilled = countFilledFields(presales, presalesFields);
-  const consultationFilled = countFilledFields(consultation, consultationFields);
-  const closingFilled = countFilledFields(closing, closingFields);
-
-  const totalFields = presalesFields.length + consultationFields.length + closingFields.length;
-  const filledFields = presalesFilled + consultationFilled + closingFilled;
-
-  return Math.round((filledFields / totalFields) * 100);
-};
 
   const fetchCounts = async () => {
     try {
       if (!loggedInUser) return;
-  
+
       const params = {
         role: loggedInUser.role,
       };
-  
+
       if (loggedInUser.role === "Sales Agent") {
         params.userName = loggedInUser.fullName;
       } else if (loggedInUser.role === "Retention Agent") {
         params.userId = loggedInUser.id || loggedInUser._id;
         params.userName = loggedInUser.fullName;
       }
-  
+
       const res = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/customers/counts", { params });
       setOpenCount(res.data.openCount || 0);
       setWonCount(res.data.wonCount || 0);
@@ -279,7 +279,7 @@ const calculateCompletionPercent = (customer) => {
       console.error("Error fetching lead counts:", error);
     }
   };
-  
+
 
   // When adding a new lead, check for duplicate phone then post the data.
   const handleSubmit = async (e) => {
@@ -320,64 +320,68 @@ const calculateCompletionPercent = (customer) => {
 
   // Fetch customers based on role, page, and search value
   const fetchCustomers = async (page = 1, reset = false, searchValue = "") => {
-    setLoading(true); 
-  try {
-    const filters = searchValue
-      ? JSON.stringify({ search: searchValue })
-      : "{}";
+    setLoading(true);
+    try {
+      const filters = searchValue
+        ? JSON.stringify({ search: searchValue })
+        : "{}";
 
-    const params = {
-      page,
-      limit,
-      filters,
-      status: filterStatus,
-      tags: JSON.stringify(selectedFilters),
-      sortBy: sortOrder,
-      userRole: loggedInUser?.role,
-      userId: loggedInUser?.id || loggedInUser?._id,
-      userName: loggedInUser?.fullName,
-    };
+      const params = {
+        page,
+        limit,
+        filters,
+        status: filterStatus,
+        tags: JSON.stringify(selectedFilters),
+        sortBy: sortOrder,
+        userRole: loggedInUser?.role,
+        userId: loggedInUser?.id || loggedInUser?._id,
+        userName: loggedInUser?.fullName,
+      };
 
-    if (filterAgent.length > 0) {
-      params.assignedTo = filterAgent.join(",");
+      if (filterAgent.length > 0) {
+        params.assignedTo = filterAgent.join(",");
+      }
+
+      if (filterDate) {
+        params.createdAt = filterDate;
+      }
+
+      const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/customers", {  
+        params,
+      });
+
+      if (page === 1 || reset) {
+        setCustomers(response.data.customers);
+        setTotalMatchingCustomers(response.data.totalCustomers);
+
+        if (response.data.customers.length > 0 && !selectedCustomerId) {
+          onSelectCustomer(response.data.customers[0]._id);
+        }
+      } else {
+        setCustomers(prev => [...prev, ...response.data.customers]);
+      }
+
+      setTotalPages(response.data.totalPages);
+      setCurrentPage(response.data.currentPage);
+
+    } catch (err) {
+      console.error("Error fetching customers:", err);
+    } finally {
+      setLoading(false);
     }
-
-    if (filterDate) {
-      params.createdAt = filterDate;
-    }
-
-    const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/customers", {
-      params,
-    });
-
-    if (page === 1 || reset) {
-      setCustomers(response.data.customers);
-      setTotalMatchingCustomers(response.data.totalCustomers);
-    } else {
-      setCustomers(prev => [...prev, ...response.data.customers]);
-    }
-
-    setTotalPages(response.data.totalPages);
-    setCurrentPage(response.data.currentPage);
-
-  } catch (err) {
-    console.error("Error fetching customers:", err);
-  } finally {
-    setLoading(false);  
-  }
-};
+  };
 
   useEffect(() => {
     fetchCustomers(1, true, searchQuery);
   }, [reloadTrigger]);
 
- 
+
   useEffect(() => {
-    fetchCustomers(1, true, searchQuery); 
+    fetchCustomers(1, true, searchQuery);
   }, [loggedInUser]);
 
   useEffect(() => {
-    fetchCounts();  
+    fetchCounts();
   }, [filterStatus, filterAgent]);
 
   useEffect(() => {
@@ -399,27 +403,27 @@ const calculateCompletionPercent = (customer) => {
   const handleDownloadCSV = () => {
     try {
       const params = new URLSearchParams();
-  
+
       if (searchQuery) params.append("filters", JSON.stringify({ search: searchQuery }));
       if (filterStatus) params.append("status", filterStatus);
       if (selectedFilters.length > 0) params.append("tags", JSON.stringify(selectedFilters));
       if (filterAgent.length > 0) params.append("assignedTo", filterAgent.join(","));
       if (filterDate) params.append("createdAt", filterDate);
-  
+
       const url = `https://muditamleads-14f32a10d7f7.herokuapp.com/api/customers/export-csv?${params.toString()}`;
-  
+
       const link = document.createElement("a");
       link.href = url;
       link.setAttribute("download", "customers.csv");
-      document.body.appendChild(link); 
+      document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
     } catch (error) {
       console.error("Error triggering CSV download:", error);
       alert("Failed to download CSV.");
     }
-  };  
-   
+  };
+
 
   // Define filter arrays based on the lead status dropdown value in presales
   const openStatuses = [
@@ -428,7 +432,7 @@ const calculateCompletionPercent = (customer) => {
     "CONS Done",
     "Call Back Later",
     "On Follow Up",
-    "CNP", 
+    "CNP",
     "Switch Off",
   ];
   const lostStatuses = [
@@ -451,11 +455,11 @@ const calculateCompletionPercent = (customer) => {
   };
 
   const activeFilters =
-  !!filterStatus ||
-  selectedFilters.length > 0 ||
-  !!searchQuery ||
-  filterAgent.length > 0 ||
-  !!filterDate;
+    !!filterStatus ||
+    selectedFilters.length > 0 ||
+    !!searchQuery ||
+    filterAgent.length > 0 ||
+    !!filterDate;
 
   return (
     <Box sx={{ width: "100%", height: "100%", display: "flex", flexDirection: "column" }}>
@@ -551,35 +555,34 @@ const calculateCompletionPercent = (customer) => {
         />
         <Box sx={{ display: "flex", ml: 1 }}>
           <Box sx={{ width: 42, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-  <Badge
-    badgeContent={activeFilters ? totalMatchingCustomers : 0}
-    max={9999}
-    color="primary"
-    invisible={!activeFilters}
-    overlap="circular"
-    anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
-    sx={{
-      width: 42,
-      display: 'flex',
-      justifyContent: 'center',
-      '& .MuiBadge-badge': {
-        fontSize: '0.6rem',
-        height: 16,
-        minWidth: 16,
-        padding: '0 4px',
-      },
-    }}
-  >
-    <IconButton
-      size="small"
-      sx={{ color: "black" }}
-      onClick={(e) => setFilterMenuAnchorEl(e.currentTarget)}  
-    >
-      <FilterList fontSize="small" />
-    </IconButton>
-  </Badge>
-</Box>
-
+            <Badge
+              badgeContent={activeFilters ? totalMatchingCustomers : 0}
+              max={9999}
+              color="primary"
+              invisible={!activeFilters}
+              overlap="circular"
+              anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
+              sx={{
+                width: 42,
+                display: 'flex',
+                justifyContent: 'center',
+                '& .MuiBadge-badge': {
+                  fontSize: '0.6rem',
+                  height: 16,
+                  minWidth: 16,
+                  padding: '0 4px',
+                },
+              }}
+            >
+              <IconButton
+                size="small"
+                sx={{ color: "black" }}
+                onClick={(e) => setFilterMenuAnchorEl(e.currentTarget)}
+              >
+                <FilterList fontSize="small" />
+              </IconButton>
+            </Badge>
+          </Box>
 
           <Menu
             anchorEl={filterMenuAnchorEl}
@@ -739,140 +742,149 @@ const calculateCompletionPercent = (customer) => {
         ref={listRef}
         onScroll={handleScroll}
         sx={{ flex: 1, overflowY: "auto" }}>
-        {customers.map((customer) => (
-          <Box
-            key={customer._id}
-            onClick={() => onSelectCustomer(customer._id)}
-            sx={{
-              position: "relative",
-              display: "flex",
-              alignItems: "center",
-              px: 1,
-              py: 0.5,
-              borderBottom: "1px solid #e0e0e0",
-              cursor: "pointer",
-              backgroundColor: customer._id === selectedCustomerId ? "#e0f7fa" : "inherit",
-              ":hover": {
-                backgroundColor: customer._id === selectedCustomerId ? "#e0f7fa" : "#f9f9f9",
-              },
-            }}
-          >
-            <Avatar
+        {loading && customers.length === 0 ? (
+          <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", mt: 4 }}>
+            <CircularProgress />
+            <Typography variant="body2" sx={{ mt: 1 }}>
+              Please wait...
+            </Typography>
+          </Box>
+        ) : (
+          customers.map((customer) => (
+            <Box
+              key={customer._id}
+              onClick={() => onSelectCustomer(customer._id)}
               sx={{
-                bgcolor: "black",
-                color: "white",
-                mr: 1,
-                width: 30,
-                height: 30,
-                fontSize: "0.8rem",
+                position: "relative",
+                display: "flex",
+                alignItems: "center",
+                px: 1,
+                py: 0.5,
+                borderBottom: "1px solid #e0e0e0",
+                cursor: "pointer",
+                backgroundColor: customer._id === selectedCustomerId ? "#e0f7fa" : "inherit",
+                ":hover": {
+                  backgroundColor: customer._id === selectedCustomerId ? "#e0f7fa" : "#f9f9f9",
+                },
               }}
             >
-              {getInitials(customer.name)}
-            </Avatar>
-            <Box sx={{ flex: 1 }}>
-              <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <Typography variant="body2" sx={{ fontWeight: "bold", fontSize: "0.8rem" }}>
-                  {`${customer.name} - ${customer.age}`}
-                </Typography>
-                <Typography variant="body2" sx={{ fontSize: "0.7rem", color: "gray" }}>
-                  {getCreatedAtLabel(customer.createdAt)}
-                </Typography>
-              </Box>
-              <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mt: 0.5 }}>
-                <Typography variant="body2" sx={{ fontSize: "0.7rem", color: "gray" }}>
-                  {customer.lookingFor ? customer.lookingFor : "No Condition"} • {customer.assignedTo ? customer.assignedTo : "Unassigned"}
-                </Typography>
-                {!["Switch Off", "General Query", "Fake Lead", "Invalid Number", "Not Interested"].includes(customer.presales?.leadStatus) && (
-                  <Chip
-                    label={getFollowUpTag(customer.followUpDate)}
-                    size="small"
-                    sx={{
-                      fontSize: "0.7rem",
-                      backgroundColor:
-                        getFollowUpTag(customer.followUpDate) === "Missed"
-                          ? "#e57373"
-                          : getFollowUpTag(customer.followUpDate) === "Today"
-                            ? "#81c784"
-                            : getFollowUpTag(customer.followUpDate) === "Tomorrow"
-                              ? "#64b5f6"
-                              : "#ffb74d",
-                      color: "white",
-                    }}
-                  />
-                )}
+              <Avatar
+                sx={{
+                  bgcolor: "black",
+                  color: "white",
+                  mr: 1,
+                  width: 30,
+                  height: 30,
+                  fontSize: "0.8rem",
+                }}
+              >
+                {getInitials(customer.name)}
+              </Avatar>
+              <Box sx={{ flex: 1 }}>
+                <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <Typography variant="body2" sx={{ fontWeight: "bold", fontSize: "0.8rem" }}>
+                    {`${customer.name} - ${customer.age}`}
+                  </Typography>
+                  <Typography variant="body2" sx={{ fontSize: "0.7rem", color: "gray" }}>
+                    {getCreatedAtLabel(customer.createdAt)}
+                  </Typography>
+                </Box>
+                <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mt: 0.5 }}>
+                  <Typography variant="body2" sx={{ fontSize: "0.7rem", color: "gray" }}>
+                    {customer.lookingFor ? customer.lookingFor : "No Condition"} • {customer.assignedTo ? customer.assignedTo : "Unassigned"}
+                  </Typography>
+                  {!["Switch Off", "General Query", "Fake Lead", "Invalid Number", "Not Interested"].includes(customer.presales?.leadStatus) && (
+                    <Chip
+                      label={getFollowUpTag(customer.followUpDate)}
+                      size="small"
+                      sx={{
+                        fontSize: "0.7rem",
+                        backgroundColor:
+                          getFollowUpTag(customer.followUpDate) === "Missed"
+                            ? "#e57373"
+                            : getFollowUpTag(customer.followUpDate) === "Today"
+                              ? "#81c784"
+                              : getFollowUpTag(customer.followUpDate) === "Tomorrow"
+                                ? "#64b5f6"
+                                : "#ffb74d",
+                        color: "white",
+                      }}
+                    />
+                  )}
+                </Box>
+                <Box
+                  sx={{
+                    display: "flex",
+                    alignItems: "center",
+                    mt: 0.5,
+                  }}
+                >
+                  <Typography
+                    variant="body2"
+                    sx={{ color: "gray", fontSize: "0.7rem" }}
+                  >
+                    {customer.location || "Unknown"}
+                  </Typography>
+
+                  {/* Scheduled / Done chips, with a left margin */}
+                  {customer.presales?.leadStatus === "CONS Scheduled" && (
+                    <Chip
+                      label="Scheduled"
+                      size="small"
+                      sx={{
+                        ml: 1,
+                        fontSize: "0.7rem",
+                        backgroundColor: "#64b5f6",
+                        color: "white",
+                      }}
+                    />
+                  )}
+                  {customer.presales?.leadStatus === "CONS Done" && (
+                    <Chip
+                      label="Done"
+                      size="small"
+                      sx={{
+                        ml: 1,
+                        fontSize: "0.7rem",
+                        backgroundColor: "#81c784",
+                        color: "white",
+                      }}
+                    />
+                  )}
+                  {customer.presales?.leadStatus === "Sales Done" && (
+                    <Chip
+                      label="WON"
+                      size="small"
+                      sx={{
+                        ml: 1,
+                        fontSize: "0.7rem",
+                        backgroundColor: "#d3ac2f",
+                        color: "white",
+                      }}
+                    />
+                  )}
+                </Box>
               </Box>
               <Box
                 sx={{
-                  display: "flex",
-                  alignItems: "center",
-                  mt: 0.5,
+                  position: "absolute",
+                  bottom: 4,
+                  right: 8,
+                  bgcolor: "#1976d2",
+                  color: "white",
+                  px: 0.7,
+                  py: 0.3,
+                  borderRadius: "4px",
+                  fontSize: "0.65rem",
+                  fontWeight: "bold",
+                  userSelect: "none",
                 }}
               >
-                <Typography
-                  variant="body2"
-                  sx={{ color: "gray", fontSize: "0.7rem" }}
-                >
-                  {customer.location || "Unknown"}
-                </Typography>
-
-                {/* Scheduled / Done chips, with a left margin */}
-                {customer.presales?.leadStatus === "CONS Scheduled" && (
-                  <Chip
-                    label="Scheduled"
-                    size="small"
-                    sx={{
-                      ml: 1,
-                      fontSize: "0.7rem",
-                      backgroundColor: "#64b5f6",
-                      color: "white",
-                    }}
-                  />
-                )}
-                {customer.presales?.leadStatus === "CONS Done" && (
-                  <Chip
-                    label="Done"
-                    size="small"
-                    sx={{
-                      ml: 1,
-                      fontSize: "0.7rem",
-                      backgroundColor: "#81c784",
-                      color: "white",
-                    }}
-                  />
-                )}
-                {customer.presales?.leadStatus === "Sales Done" && (
-                  <Chip
-                    label="WON"
-                    size="small"
-                    sx={{
-                      ml: 1,
-                      fontSize: "0.7rem",
-                      backgroundColor: "#d3ac2f",
-                      color: "white",
-                    }}
-                  />
-                )}
+                {calculateCompletionPercent(customer)}%
               </Box>
             </Box>
-            <Box
-  sx={{
-    position: "absolute",
-    bottom: 4,
-    right: 8,
-    bgcolor: "#1976d2",
-    color: "white",
-    px: 0.7,
-    py: 0.3,
-    borderRadius: "4px",
-    fontSize: "0.65rem",
-    fontWeight: "bold",
-    userSelect: "none",
-  }}
->
-  {calculateCompletionPercent(customer)}%
-</Box>
-          </Box>
-        ))}
+          ))
+        )}
         {loadingMore && (
           <Box sx={{ textAlign: 'center', py: 1 }}>
             <CircularProgress size={24} />

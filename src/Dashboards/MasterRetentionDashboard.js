@@ -200,7 +200,7 @@ const ManagerRetentionDashboard = () => {
         { params: { startDate, endDate } }
       );
       return res.data;
-    } catch (err) {
+    } catch (err) { 
       console.error("Error fetching aggregated sales data:", err);
       return [];
     }
@@ -296,7 +296,7 @@ const ManagerRetentionDashboard = () => {
           acc.totalNoFollowupSet += agent.noFollowupSet || 0;
           acc.totalFollowupMissed += agent.followupMissed || 0;
           acc.totalFollowupToday += agent.followupToday || 0;
-          acc.totalFollowupTomorrow += agent.followupTomorrow || 0;
+          acc.totalFollowupTomorrow += agent.followupTomorrow || 0; 
           acc.totalFollowupLater += agent.followupLater || 0;
           acc.totalLostCustomers += agent.lostCustomers || 0;
           return acc;

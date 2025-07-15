@@ -42,16 +42,16 @@ import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import ExpandLessIcon from "@mui/icons-material/ExpandLess";
 import CloseIcon from '@mui/icons-material/Close';
 import RocketLaunchIcon from "@mui/icons-material/RocketLaunch";
+import LocalShippingIcon from "@mui/icons-material/LocalShipping";
 import { Syringe } from "lucide-react";
 import pincodeData from "../../LeadConsultation/ProcessTracker/pincodeData";
+import DeliveryStatusChecker from "./DeliveryStatusChecker";
 import LeaderboardPopover from "./LeaderboardPopover";
+import DownloadIcon from '@mui/icons-material/Download';
 
 const SlideDown = React.forwardRef(function Transition(props, ref) {
   return <Slide direction="down" ref={ref} {...props} />;
 });
-
-
-
 
 
 const getAvatarUrl = (name) =>
@@ -79,7 +79,7 @@ const NavbarWithSearch = () => {
   const [incentiveOpen, setIncentiveOpen] = useState(false);
   const leaderboardAnchorRef = useRef(null);
   const [leaderboardOpen, setLeaderboardOpen] = useState(false);
-
+  const [deliveryDialogOpen, setDeliveryDialogOpen] = useState(false);
 
   const navigate = useNavigate();
   const location = useLocation();
@@ -185,7 +185,7 @@ const NavbarWithSearch = () => {
     fetchTarget();
   }, [user]);
 
-  useEffect(() => { 
+  useEffect(() => {
     async function fetchSalesProgress() {
       if (!user) return;
       try {
@@ -256,6 +256,29 @@ const NavbarWithSearch = () => {
         : [...prev, orderId]
     );
   };
+
+  const handleDownloadOrders = async () => {
+    try {
+      const response = await axios.get(
+        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/myorders/download",
+        { responseType: 'blob' }
+      );
+
+      // Create a URL and trigger download
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', 'myorders.csv');
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      alert('Error downloading orders. Please try again.');
+      console.error(error);
+    }
+  };
+
 
   const toggleCartDrawer = (open) => () => setCartDrawerOpen(open);
 
@@ -584,7 +607,6 @@ const NavbarWithSearch = () => {
               <RocketLaunchIcon />
             </IconButton>
 
-
             <IconButton
               ref={leaderboardAnchorRef}
               onClick={() => setLeaderboardOpen(true)}
@@ -614,6 +636,26 @@ const NavbarWithSearch = () => {
               <Syringe />
             </IconButton>
 
+            <IconButton
+              onClick={() => setDeliveryDialogOpen(true)}
+              sx={{ mr: 0.5, color: "#fff", borderRadius: "50%", p: 1.1, "&:hover": { bgcolor: "#e0e0e0" } }}
+              title="Delivery Status Checker"
+            >
+              <LocalShippingIcon />
+            </IconButton>
+
+            {/* <IconButton
+              sx={{
+                mr: 1,
+                color: "#fff",
+                "&:hover": { color: "#fff", bgcolor: "#e0e0e0" }
+              }}
+              title="Download All Orders (CSV)"
+              onClick={handleDownloadOrders}
+            >
+              <DownloadIcon />
+            </IconButton> */}
+
             {user && (
               <IconButton
                 onClick={() => navigate("/my-templates")}
@@ -631,7 +673,7 @@ const NavbarWithSearch = () => {
                 <ShoppingCartIcon />
               </IconButton>
             )}
-            <Box sx={{ position: "relative", width: 220, ml: 2 }}>
+            <Box sx={{ position: "relative", width: 200, ml: 2 }}>
               <ClickAwayListener onClickAway={handleClickAway}>
                 <div>
                   <TextField
@@ -673,12 +715,13 @@ const NavbarWithSearch = () => {
                             navigate(`/lead/${item._id}`);
                             handleClickAway();
                           }}
-                          sx={smallFont}
+                          sx={{
+                            ...smallFont,
+                            backgroundColor: item.source === "customer" ? "#ffe5e5" : "inherit"
+                          }}
                         >
                           <ListItemText
-                            primary={`${item.name || "No Name"} (${item.contactNumber
-                              }) (${item.agentAssigned}) [${item.healthExpertAssigned
-                              }]`}
+                            primary={`${item.name || "No Name"} (${item.contactNumber}) (${item.agentAssigned}) [${item.healthExpertAssigned}]`}
                             primaryTypographyProps={{ style: smallFont }}
                           />
                         </ListItem>
@@ -691,6 +734,24 @@ const NavbarWithSearch = () => {
           </Box>
         </Toolbar>
       </AppBar>
+
+      <Dialog
+        open={deliveryDialogOpen}
+        onClose={() => setDeliveryDialogOpen(false)}
+        maxWidth="sm"
+        fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: 2,
+            p: 2,
+            background: "#fff",
+          },
+        }}
+      >
+        <DialogContent>
+          <DeliveryStatusChecker onClose={() => setDeliveryDialogOpen(false)} />
+        </DialogContent>
+      </Dialog>
 
       <Dialog
         open={bloodTestDialog}
@@ -954,14 +1015,14 @@ const NavbarWithSearch = () => {
                 <TableRow key={row.slab}>
                   <TableCell align="center">{row.slab}</TableCell>
                   <TableCell align="center">{row.rate}</TableCell>
-                  <TableCell align="center">{row.monthly}</TableCell> 
+                  <TableCell align="center">{row.monthly}</TableCell>
                   <TableCell align="center">{row.annual}</TableCell>
                 </TableRow>
               ))}
             </TableBody>
           </Table>
         </DialogContent>
-        <DialogActions sx={{ justifyContent: "center", pb: 2 }}> 
+        <DialogActions sx={{ justifyContent: "center", pb: 2 }}>
           <Button
             onClick={() => setIncentiveOpen(false)}
             variant="contained"
@@ -976,7 +1037,7 @@ const NavbarWithSearch = () => {
           >
             Close
           </Button>
-        </DialogActions> 
+        </DialogActions>
       </Dialog>
 
       {/* Sidebar Drawer */}
@@ -994,7 +1055,6 @@ const NavbarWithSearch = () => {
         <MenuBar toggleDrawer={toggleMenu(false)} />
       </Drawer>
 
-
       {/* Cart Drawer */}
       <Drawer
         anchor="right"
@@ -1005,11 +1065,6 @@ const NavbarWithSearch = () => {
       </Drawer>
     </>
   );
-
-
-
 };
 
-
 export default NavbarWithSearch;
-

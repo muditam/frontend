@@ -307,7 +307,7 @@ const Presales = ({ customerId, parentLeadStatus  }) => {
           </Grid>
 
             {/* Assign Expert dropdown – wrapped in Tooltip if disabled */}
-            <Grid item xs={6} sx={cellStyle}>
+            {/* <Grid item xs={6} sx={cellStyle}>
               <Tooltip
                 title={!isAssignExpertEditable ? "Update Lead Status First" : ""}
                 arrow
@@ -343,7 +343,7 @@ const Presales = ({ customerId, parentLeadStatus  }) => {
                   </FormControl>
                 </span>
               </Tooltip>
-            </Grid>
+            </Grid> */}
 
             {/* Row 1: HbA1c, Last Test Done, Fasting Sugar, PP Sugar */}
             <Grid item xs={3} sx={cellStyle}>

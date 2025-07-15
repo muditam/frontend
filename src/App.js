@@ -30,6 +30,7 @@ import LeadManagement from './LeadConsultation/LeadManagement';
 import EscalationsPage from './components/EscalationsPage';
 import TeamPage from "./components/TeamPage"; 
 import GrowthTracker from "./components/GrowthTracker";
+import Leaderboard from "./components/Leaderboard";
 
 const App = () => {
   return (
@@ -234,6 +235,14 @@ const App = () => {
             element={
               <PrivateRoute>
                 <GrowthTracker />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/leaderboard"
+            element={
+              <PrivateRoute>
+                <Leaderboard />
               </PrivateRoute>
             }
           />

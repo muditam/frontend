@@ -92,7 +92,7 @@ const getDateRange = (rangeValue) => {
     case "Week to date":
       start = getWeekStart(new Date());
       break;
-    case "Month to date":
+    case "Month to date": 
       start = new Date(now.getFullYear(), now.getMonth(), 1);
       break;
     case "Year to date":
@@ -111,7 +111,7 @@ const getDateRange = (rangeValue) => {
       const prevYear = month - 1 < 0 ? year - 1 : year;
       start = new Date(prevYear, prevMonth, 1);
       end = new Date(prevYear, prevMonth + 1, 0);
-      return { startDate: toISODate(start), endDate: toISODate(end) };
+      return { startDate: toISODate(start), endDate: toISODate(end) };   
     }
     case "Last 12 months":
       start.setFullYear(now.getFullYear() - 1);
@@ -186,7 +186,7 @@ const RetentionAgentDashboard = () => {
       // 1. Fetch active customers from the /active-counts endpoint.
       // This endpoint returns an array with objects like { _id: "<agentName>", activeCount: <number> }
       const activeCountsResponse = await axios.get(
-        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/retention/active-counts"
+        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/retention/active-counts" 
       );
       const activeCountsData = activeCountsResponse.data;
       const activeCountForAgent = activeCountsData.find(
