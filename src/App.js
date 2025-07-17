@@ -27,10 +27,12 @@ import RetentionLost from "./Lostdata/RetentionLost";
 import PrivateRoute from "./components/PrivateRoute";
 import MyTemplates from "./components/MyTemplates";  
 import LeadManagement from './LeadConsultation/LeadManagement';
-import EscalationsPage from './components/EscalationsPage';
+import EscalationsPage from './components/EscalationsPage'; 
 import TeamPage from "./components/TeamPage"; 
 import GrowthTracker from "./components/GrowthTracker";
 import Leaderboard from "./components/Leaderboard";
+import DeliveredSalesRecord from "./components/DeliveredSalesRecord";
+import DeliveredHistory from "./components/TopBars/DeliveredHistory";
 import ShipmentDetails from "./pages/filtered/ShipmentDetails";
 
 const App = () => {
@@ -252,6 +254,22 @@ const App = () => {
             element={
               <PrivateRoute>
                 <Leaderboard />
+              </PrivateRoute> 
+            }
+          />
+          <Route
+            path="/delivered-sales-record"
+            element={
+              <PrivateRoute>
+                <DeliveredSalesRecord />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/delivered-history"
+            element={
+              <PrivateRoute>
+                <DeliveredHistory />
               </PrivateRoute>
             }
           />

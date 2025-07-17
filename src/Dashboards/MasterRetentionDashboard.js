@@ -282,14 +282,10 @@ const ManagerRetentionDashboard = () => {
     setLoading(true);
     try {
       const res = await axios.get(
-        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/retention-sales/aggregated-followup"
+        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/retention-sales/aggregated-followup" 
       );
       const summary = res.data.summary || [];
       setFollowupMetrics(summary);
-
-
-      console.log(summary);
-
 
       // Calculate totals across all agents
       const totals = summary.reduce(
@@ -328,11 +324,10 @@ const ManagerRetentionDashboard = () => {
   };
 
 
-
   const fetchActiveRetentionAgents = async () => {
     try {
       const res = await axios.get(
-        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/employees",
+        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/employees",  
         { params: { role: "Retention Agent" } }
       );
       return res.data.filter((agent) => agent.status === "active");

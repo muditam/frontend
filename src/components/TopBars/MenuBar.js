@@ -26,8 +26,9 @@ import ShoppingCartIcon from "@mui/icons-material/ShoppingCart";
 import DeleteIcon from "@mui/icons-material/Delete";
 import CompareArrowsIcon from "@mui/icons-material/CompareArrows";
 import ChatBubbleIcon from "@mui/icons-material/ChatBubble";
-import TrendingUpIcon from "@mui/icons-material/TrendingUp";
+import TrendingUpIcon from "@mui/icons-material/TrendingUp"; 
 import EmojiEventsIcon from "@mui/icons-material/EmojiEvents"
+import FactCheckIcon from "@mui/icons-material/FactCheck"
 import { Link, useNavigate } from "react-router-dom";
 
 // Put this ABOVE the MenuBar component in the same file, or in its own file and import it
@@ -738,30 +739,54 @@ const MenuBar = ({ toggleDrawer }) => {
             )}
 
             <ListItem
-  button
-  component={Link}
-  to="/leaderboard"
-  sx={{
-    display: "flex",
-    alignItems: "center",
-    padding: "10px 20px",
-    borderRadius: "4px",
-    margin: "4px 0",
-    transition: "background-color 0.3s, transform 0.2s",
-    "&:hover": {
-      backgroundColor: "#e0f7fa",
-      color: "#007aff",
-      transform: "scale(1.02)",
-    },
-  }}
-  onClick={toggleDrawer}
->
-  <EmojiEventsIcon sx={{ fontSize: 24, marginRight: "12px" }} />
-  <Typography variant="body1" style={{ fontSize: "14px" }}>
-    Leaderboard
-  </Typography>
-</ListItem>
+              button
+              component={Link}
+              to="/delivered-sales-record"
+              sx={{
+                display: "flex",
+                alignItems: "center",
+                padding: "10px 20px",
+                borderRadius: "4px",
+                margin: "4px 0",
+                transition: "background-color 0.3s, transform 0.2s",
+                "&:hover": {
+                  backgroundColor: "#e0f7fa",
+                  color: "#007aff",
+                  transform: "scale(1.02)",
+                },
+              }}
+              onClick={toggleDrawer}
+            >
+              <FactCheckIcon sx={{ fontSize: 20, marginRight: "12px" }} />
+              <Typography variant="body1" style={{ fontSize: "14px" }}>
+                Delivered Sales Record
+              </Typography>
+            </ListItem>
 
+            <ListItem
+              button
+              component={Link}
+              to="/leaderboard"
+              sx={{
+                display: "flex",
+                alignItems: "center",
+                padding: "10px 20px",
+                borderRadius: "4px",
+                margin: "4px 0",
+                transition: "background-color 0.3s, transform 0.2s",
+                "&:hover": {
+                  backgroundColor: "#e0f7fa",
+                  color: "#007aff",
+                  transform: "scale(1.02)",
+                },
+              }}
+              onClick={toggleDrawer}
+            >
+              <EmojiEventsIcon sx={{ fontSize: 24, marginRight: "12px" }} />
+              <Typography variant="body1" style={{ fontSize: "14px" }}>
+                Leaderboard
+              </Typography>
+            </ListItem>
 
             <ListItem
               button

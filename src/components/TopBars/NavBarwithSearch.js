@@ -48,6 +48,8 @@ import pincodeData from "../../LeadConsultation/ProcessTracker/pincodeData";
 import DeliveryStatusChecker from "./DeliveryStatusChecker";
 import LeaderboardPopover from "./LeaderboardPopover";
 import DownloadIcon from '@mui/icons-material/Download';
+import { Flower2 } from "lucide-react";
+import Bloomleader from "./Bloomleader";
 
 const SlideDown = React.forwardRef(function Transition(props, ref) {
   return <Slide direction="down" ref={ref} {...props} />;
@@ -80,6 +82,8 @@ const NavbarWithSearch = () => {
   const leaderboardAnchorRef = useRef(null);
   const [leaderboardOpen, setLeaderboardOpen] = useState(false);
   const [deliveryDialogOpen, setDeliveryDialogOpen] = useState(false);
+  const [bloomOpen, setBloomOpen] = useState(false);
+
 
   const navigate = useNavigate();
   const location = useLocation();
@@ -608,6 +612,20 @@ const NavbarWithSearch = () => {
             </IconButton>
 
             <IconButton
+              onClick={() => setBloomOpen(true)}
+              sx={{
+                mr: 0.5,
+                color: "#fff",
+                borderRadius: "50%",
+                p: 1.1,
+                "&:hover": { bgcolor: "#fff", color: "#e0e0e0" }
+              }}
+              title="View Bloom Leaderboard"
+            >
+              <Flower2 />
+            </IconButton>
+
+            <IconButton
               ref={leaderboardAnchorRef}
               onClick={() => setLeaderboardOpen(true)}
               sx={{
@@ -619,8 +637,10 @@ const NavbarWithSearch = () => {
               }}
               title="View Leaderboard"
             >
-              <EmojiEventsIcon />
+              <EmojiEventsIcon /> 
             </IconButton>
+
+            <Bloomleader open={bloomOpen} anchorEl={leaderboardAnchorRef.current} onClose={() => setBloomOpen(false)} />
 
             <LeaderboardPopover
               open={leaderboardOpen}
@@ -764,7 +784,7 @@ const NavbarWithSearch = () => {
             width: 400,
             p: 0,
             background: "#fff",
-            boxShadow: "0 6px 24px 0 rgba(110,49,49,0.12)",
+            boxShadow: "0 6px 24px 0 rgba(110,49,49,0.12)", 
             position: 'relative',
           },
         }}
@@ -981,6 +1001,12 @@ const NavbarWithSearch = () => {
             </TableHead>
             <TableBody>
               {[
+                {
+                  slab:   "2L – 3L",
+                  rate:   "1.50%",
+                  monthly: "3,000 – 4,500",
+                  annual:  "36,000 – 54,000",
+                },
                 {
                   slab: "3L – 4L",
                   rate: "2%",

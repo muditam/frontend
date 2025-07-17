@@ -320,7 +320,7 @@ const LeadTable = () => {
 
 
   const calculateDosageExpiring = (days) => {
-    const currentDate = new Date();
+    const currentDate = new Date(); 
     currentDate.setDate(currentDate.getDate() + days);
     return currentDate.toISOString().split("T")[0];
   };

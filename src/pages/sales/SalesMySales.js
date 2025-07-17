@@ -13,7 +13,7 @@ import {
   Select,
   MenuItem,
   Checkbox,
-  FormControl,
+  FormControl, 
   ListItemText,
   Button,
   Drawer,
@@ -54,88 +54,129 @@ const SalesMySales = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentPage, rowsPerPage, agentAssignedName]);
 
-  // Fetch leads and MyOrders, merge them, and then update shipment status using orderId.
+  // Fetch leads and MyOrders, merge them, and then update shipment status using orderId. 
+  // const fetchSales = async (agentAssignedName) => {
+  //   try {
+  //     const leadsResponse = await axios.get("http://localhost:5001/api/leads", { 
+  //       params: {
+  //         agentAssignedName,
+  //         salesStatus: "Sales Done",
+  //         page: currentPage + 1,
+  //         limit: rowsPerPage,
+  //       }, 
+  //     });
+
+  //     let { leads, totalLeads } = leadsResponse.data; 
+  //     leads = leads || []; 
+
+  //     // Fetch MyOrders data
+  //     const myOrdersResponse = await axios.get("http://localhost:5001/api/my-orders"); 
+  //     const allMyOrders = myOrdersResponse.data || []; 
+  //     const myOrders = allMyOrders.filter(
+  //       o => o.agentName?.trim().toLowerCase() === agentAssignedName.trim().toLowerCase()
+  //     );
+
+  //     console.log("▶ raw MyOrders:", allMyOrders);
+  //     console.log("▶ agentAssignedName:", agentAssignedName);
+  //     console.log("▶ filtered:", allMyOrders.filter(o => o.agentName === agentAssignedName));
+
+
+  //     // Create a map keyed by phone from filtered MyOrders.
+  //     // const myOrdersMap = {};
+  //     // myOrders.forEach((order) => {
+  //     //   myOrdersMap[order.phone] = order;
+  //     // });
+
+  //     const normalizePhone = p => {
+  //     const digits = String(p || "").replace(/\D/g, "");
+  //      return digits.length > 10 ? digits.slice(-10) : digits;
+  //    };
+
+
+  //    // Build a map keyed by normalized phone
+  //     const myOrdersMap = {};
+  //    myOrders.forEach(order => {
+  //      const key = normalizePhone(order.phone); 
+  //      if (key) myOrdersMap[key] = order;
+  //     });
+
+  //     console.log("→ myOrdersMap keys:", Object.keys(myOrdersMap).slice(0,10));
+  //     console.log("→ sample lead contactNumbers:", leads.slice(0,10).map(l => l.contactNumber));
+
+  //     // Merge MyOrders data into leads if a matching contact is found.
+  //     // Include the orderId from MyOrders.
+  //     const mergedSales = leads.map((sale) => {
+  //       const key = normalizePhone(sale.contactNumber);   
+  //       const matchingOrder = myOrdersMap[key];
+  //       if (matchingOrder) {
+  //         return { 
+  //           ...sale,
+  //           myOrderData: {
+  //             orderDate: matchingOrder.orderDate,
+  //             productOrdered: matchingOrder.productOrdered,
+  //             dosageOrdered: matchingOrder.dosageOrdered,
+  //             totalPrice: matchingOrder.totalPrice,
+  //             paymentMethod: matchingOrder.paymentMethod,
+  //             partialPayment: matchingOrder.partialPayment,
+  //             selfRemark: matchingOrder.selfRemark,
+  //             orderId: matchingOrder.orderId, // Order ID from MyOrders.
+  //             shipmentStatus: "", // To be updated below.
+  //           },
+  //         };
+  //       }
+  //       return sale;
+  //     });
+
+  //     // For every sale with myOrderData.orderId, fetch shipment status.
+  //     const updatedSales = await Promise.all(
+  //       mergedSales.map(async (sale) => {
+  //         if (sale.myOrderData && sale.myOrderData.orderId) {
+  //           // Normalize orderId: remove leading '#' if present.
+  //           const normalizedOrderId = sale.myOrderData.orderId.startsWith("#")
+  //             ? sale.myOrderData.orderId.slice(1)
+  //             : sale.myOrderData.orderId;
+  //           try {
+  //             const orderRes = await axios.get("http://localhost:5001/api/order-by-id", {
+  //               params: { orderId: normalizedOrderId },
+  //             });
+  //             if (orderRes.data && orderRes.data.shipment_status) {
+  //               sale.myOrderData.shipmentStatus = orderRes.data.shipment_status;
+  //             } else {
+  //               sale.myOrderData.shipmentStatus = "Not available";
+  //             }
+  //           } catch (err) {
+  //             console.error("Error fetching shipment status for order", normalizedOrderId, err);
+  //             sale.myOrderData.shipmentStatus = "Not available";
+  //           }
+  //         }
+  //         return sale;
+  //       })
+  //     );
+
+  //     setSales(updatedSales);
+  //     setTotalSales(totalLeads || 0);
+  //   } catch (error) {
+  //     console.error("Failed to fetch sales", error);
+  //   }
+  // };
+
   const fetchSales = async (agentAssignedName) => {
-    try {
-      const leadsResponse = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads", {
-        params: {
-          agentAssignedName,
-          salesStatus: "Sales Done",
-          page: currentPage + 1,
-          limit: rowsPerPage,
-        }, 
-      });
+  try {
+    const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/merged-sales", {
+      params: {
+        agentAssignedName,
+        page: currentPage + 1,
+        limit: rowsPerPage,
+      },
+    });
 
-      let { leads, totalLeads } = leadsResponse.data;
-      leads = leads || [];
-
-      // Fetch MyOrders data
-      const myOrdersResponse = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/my-orders");
-      const allMyOrders = myOrdersResponse.data || []; 
-      const myOrders = allMyOrders.filter(
-        (order) => order.agentName === agentAssignedName
-      );
-
-      // Create a map keyed by phone from filtered MyOrders.
-      const myOrdersMap = {};
-      myOrders.forEach((order) => {
-        myOrdersMap[order.phone] = order;
-      });
-
-      // Merge MyOrders data into leads if a matching contact is found.
-      // Include the orderId from MyOrders.
-      const mergedSales = leads.map((sale) => {
-        const matchingOrder = myOrdersMap[sale.contactNumber];
-        if (matchingOrder) {
-          return { 
-            ...sale,
-            myOrderData: {
-              orderDate: matchingOrder.orderDate,
-              productOrdered: matchingOrder.productOrdered,
-              dosageOrdered: matchingOrder.dosageOrdered,
-              totalPrice: matchingOrder.totalPrice,
-              paymentMethod: matchingOrder.paymentMethod,
-              selfRemark: matchingOrder.selfRemark,
-              orderId: matchingOrder.orderId, // Order ID from MyOrders.
-              shipmentStatus: "", // To be updated below.
-            },
-          };
-        }
-        return sale;
-      });
-
-      // For every sale with myOrderData.orderId, fetch shipment status.
-      const updatedSales = await Promise.all(
-        mergedSales.map(async (sale) => {
-          if (sale.myOrderData && sale.myOrderData.orderId) {
-            // Normalize orderId: remove leading '#' if present.
-            const normalizedOrderId = sale.myOrderData.orderId.startsWith("#")
-              ? sale.myOrderData.orderId.slice(1)
-              : sale.myOrderData.orderId;
-            try {
-              const orderRes = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/order-by-id", {
-                params: { orderId: normalizedOrderId },
-              });
-              if (orderRes.data && orderRes.data.shipment_status) {
-                sale.myOrderData.shipmentStatus = orderRes.data.shipment_status;
-              } else {
-                sale.myOrderData.shipmentStatus = "Not available";
-              }
-            } catch (err) {
-              console.error("Error fetching shipment status for order", normalizedOrderId, err);
-              sale.myOrderData.shipmentStatus = "Not available";
-            }
-          }
-          return sale;
-        })
-      );
-
-      setSales(updatedSales);
-      setTotalSales(totalLeads || 0);
-    } catch (error) {
-      console.error("Failed to fetch sales", error);
-    }
-  };
+    const { sales: updatedSales, totalSales = 0 } = response.data;
+    setSales(updatedSales);
+    setTotalSales(totalSales);
+  } catch (error) {
+    console.error("Failed to fetch merged sales:", error);
+  }
+};
 
   const dropdownOptions = [
     {
@@ -146,7 +187,7 @@ const SalesMySales = () => {
     {
       key: "modeOfPayment",
       label: "Mode of Payment",
-      options: ["Partial Paid", "Razorpay", "COD", "UPI", "Bank Transfer"],
+      options: ["Partial Paid", "Razorpay", "COD", "UPI", "Bank Transfer"], 
     },
     {
       key: "dosageOrdered",
@@ -192,8 +233,6 @@ const SalesMySales = () => {
   setSales(updatedSales);
   const sale = updatedSales[index];
 
-  if (sale.myOrderData) return;
-
   const isNew = sale._id?.startsWith("temp-");
   const requiredFieldsFilled = sale.name && sale.contactNumber;
 
@@ -210,6 +249,7 @@ const SalesMySales = () => {
       dosageOrdered: sale.dosageOrdered,
       dosageExpiring: sale.dosageExpiring,
       amountPaid: parseFloat(sale.amountPaid),
+      partialPayment: sale.partialPayment || 0,
       modeOfPayment: sale.modeOfPayment,
       lastOrderDate: sale.lastOrderDate,
       salesStatus: "Sales Done",
@@ -236,7 +276,7 @@ const SalesMySales = () => {
   if (!isNew) {
     try {
       await axios.put(
-        `https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/${sale._id}`,
+        `http://localhost:5001/api/merged-sales/${sale._id}`,
         { [field]: e.target.value }
       );
     } catch (error) {
@@ -460,6 +500,7 @@ const SalesMySales = () => {
               <TableCell>Products Ordered *</TableCell>
               <TableCell>Dosage Ordered *</TableCell> 
               <TableCell>Amount Paid *</TableCell>
+              <TableCell>Partial Payment</TableCell>
               <TableCell>Mode of Payment *</TableCell>
               <TableCell>Order Id</TableCell>
               <TableCell>Shipment Status</TableCell>
@@ -468,7 +509,7 @@ const SalesMySales = () => {
           </TableHead>
           <TableBody>
             {sales.map((sale, index) => (
-              <TableRow key={sale._id}>
+              <TableRow key={sale._id || sale.myOrderData?.orderId || index}>
                 <TableCell>
                   {sale.myOrderData ? (
                     <TextField
@@ -598,6 +639,25 @@ const SalesMySales = () => {
                 <TableCell>
                   {sale.myOrderData ? (
                     <TextField
+                      value={sale.myOrderData.partialPayment || 0}
+                      InputProps={{ readOnly: true }}
+                      type="number"
+                      fullWidth
+                    />
+                  ) : (
+                    <TextField
+                      type="number"
+                      value={sale.partialPayment || ""}
+                      onChange={(e) =>
+                        handleInputChange(e, index, "partialPayment")
+                      }
+                      fullWidth
+                    />
+                  )}
+                </TableCell>
+                <TableCell>
+                  {sale.myOrderData ? (
+                    <TextField
                       value={sale.myOrderData.paymentMethod || ""}
                       InputProps={{ readOnly: true }}
                       fullWidth
@@ -676,10 +736,10 @@ const SalesMySales = () => {
         rowsPerPage={rowsPerPage}
         page={currentPage}
         onPageChange={handleChangePage}
-        onRowsPerPageChange={handleChangeRowsPerPage}
+        onRowsPerPageChange={handleChangeRowsPerPage} 
       />
     </Box>
   );
 };
 
-export default SalesMySales;
+export default SalesMySales; 

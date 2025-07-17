@@ -42,8 +42,8 @@ const getRankSuffix = (num) => {
   if (num === 2) return "2nd";
   if (num === 3) return "3rd";
   if (num % 10 === 1 && num !== 11) return `${num}st`;
-  if (num % 10 === 2 && num !== 12) return `${num}nd`;
-  if (num % 10 === 3 && num !== 13) return `${num}rd`;
+  if (num % 10 === 2 && num !== 12) return `${num}nd`;     
+  if (num % 10 === 3 && num !== 13) return `${num}rd`; 
   return `${num}th`;
 };
 
@@ -71,11 +71,16 @@ export default function LeaderboardPopover({ open, anchorEl, onClose }) {
       try {
         const agentsRes = await fetch("https://muditamleads-14f32a10d7f7.herokuapp.com/api/employees");
         const agentsArr = await agentsRes.json();
-        const agents = agentsArr.filter(
-          (emp) =>
-            emp.status === "active" &&
-            (emp.role === "Sales Agent" || emp.role === "Retention Agent")
-        );
+
+        const ninetyDaysAgo = new Date();
+          ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90); 
+
+          const agents = agentsArr.filter(
+            (emp) =>
+              emp.status === "active" &&
+              (emp.role === "Sales Agent" || emp.role === "Retention Agent") &&
+              emp.joiningDate && new Date(emp.joiningDate) <= ninetyDaysAgo
+          );
         const agentSales = await Promise.all(
           agents.map(async (agent) => {
             try {
@@ -111,7 +116,7 @@ export default function LeaderboardPopover({ open, anchorEl, onClose }) {
         setShowGifts(false);
         onClose();
       }}
-      anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
+      anchorOrigin={{ vertical: "bottom", horizontal: "center" }} 
       transformOrigin={{ vertical: "top", horizontal: "center" }}
       PaperProps={{
         sx: {
@@ -469,8 +474,8 @@ export default function LeaderboardPopover({ open, anchorEl, onClose }) {
                           textAlign: "center",
                           letterSpacing: 0.13,
                         }}
-                      >
-                        ₹{Math.round(person.sales).toLocaleString()}
+                      > 
+                        ₹{Math.round(person.sales).toLocaleString()} 
                       </Box>
                       <Typography
                         sx={{

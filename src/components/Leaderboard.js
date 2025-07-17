@@ -13,7 +13,7 @@ import CardGiftcardIcon from "@mui/icons-material/CardGiftcard";
 
 const giftPrizes = [
   { rank: 1, label: "Gift worth 5000", color: "#f39c12" },
-  { rank: 2, label: "Gift worth 3000", color: "#999" },
+  { rank: 2, label: "Gift worth 3000", color: "#999" }, 
   { rank: 3, label: "Gift worth 2000", color: "#e67e22" },
   { rank: 4, label: "Assured Gift" },
   { rank: 5, label: "Assured Gift" },

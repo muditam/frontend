@@ -46,6 +46,7 @@ const AddEmployee = () => {
     target: "",
     hasTeam: false,  
     teamLeader: "",
+    joiningDate: "",
   });
   const [error, setError] = useState("");
   const [viewInactive, setViewInactive] = useState(false);
@@ -61,14 +62,17 @@ const AddEmployee = () => {
   const fetchEmployees = async () => {
   try {
     const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/employees");
-    const fetchedEmployees = response.data.filter(emp =>
-      viewInactive ? emp.status === "inactive" : emp.status === "active"
-    );
+    const fetchedEmployees = response.data
+  .filter(emp => viewInactive ? emp.status === "inactive" : emp.status === "active")
+  .sort((a, b) => a.fullName.localeCompare(b.fullName));
+
 
     setEmployees(fetchedEmployees);
 
     // Use raw teamLeader _id for form dropdowns (not full name)
-    const activeEmployees = response.data.filter(emp => emp.status === "active");
+    const activeEmployees = response.data
+  .filter(emp => emp.status === "active")
+  .sort((a, b) => a.fullName.localeCompare(b.fullName));
 
     setAllActiveEmployees(activeEmployees);
   } catch (error) {
@@ -134,7 +138,7 @@ const AddEmployee = () => {
           employeeData
         );
       } else {
-        await axios.post("https://muditamleads-14f32a10d7f7.herokuapp.com/api/employees", employeeData);
+        await axios.post("https://muditamleads-14f32a10d7f7.herokuapp.com/api/employees", employeeData);  
       }
       fetchEmployees();
       setOpen(false);
@@ -150,9 +154,10 @@ const AddEmployee = () => {
         status: "active",
         target: "",
         hasTeam: false,
+        joiningDate: "",
       });
     } catch (error) {
-      console.error("Error submitting employee data:", error);
+      console.error("Error submitting employee data:", error); 
       setError("Error occurred while saving employee data.");
     }
   };
@@ -171,15 +176,18 @@ const AddEmployee = () => {
       target: employee.target || "",
       hasTeam: employee.hasTeam || false,  
       teamLeader: employee.teamLeader?._id || "", 
+      joiningDate: employee.joiningDate
+      ? new Date(employee.joiningDate).toISOString().split("T")[0]
+      : "",
     });
     setCurrentEmployeeId(employee._id);
     setIsEditMode(true);
-    setOpen(true);
+    setOpen(true); 
   };
 
   const handleDelete = async (id) => {
     try {
-      await axios.delete(`https://muditamleads-14f32a10d7f7.herokuapp.com/api/employees/${id}`);
+      await axios.delete(`https://muditamleads-14f32a10d7f7.herokuapp.com/api/employees/${id}`); 
       fetchEmployees();
       setDeleteDialogOpen(false);
     } catch (error) {
@@ -223,6 +231,7 @@ const AddEmployee = () => {
               status: "active",
               target: "",
               hasTeam: false,
+              joiningDate: "",
             });
             setOpen(true);
           }}
@@ -462,6 +471,21 @@ const AddEmployee = () => {
               }
               label="Have a Team?"
               sx={{ pl: 1, mt: -1, mb: 1 }}
+            />
+
+            <TextField
+              fullWidth
+              label="Joining Date"
+              name="joiningDate"
+              type="date"
+              value={employeeData.joiningDate}
+              onChange={handleChange}
+              InputLabelProps={{ shrink: true }}
+              variant="filled"
+              InputProps={{
+                disableUnderline: true,
+                sx: { backgroundColor: "#fff", borderRadius: 1, px: 1 }, 
+              }}
             />
 
             <TextField
