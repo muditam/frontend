@@ -108,8 +108,6 @@ const RetentionSales = () => {
     }
   };
 
-  
-
   useEffect(() => {
     if (loggedInUser) {
       fetchSales();

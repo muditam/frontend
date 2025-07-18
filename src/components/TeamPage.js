@@ -42,7 +42,7 @@ const TeamPage = ({ managerId: managerIdProp }) => {
 
   const [totalAchieved, setTotalAchieved] = useState(0);
   const [totalTarget, setTotalTarget] = useState(0);
-  const [filterLeader, setFilterLeader] = useState(""); 
+  const [filterLeader, setFilterLeader] = useState("");
 
   useEffect(() => {
     if (!managerId) return;
@@ -83,7 +83,7 @@ const TeamPage = ({ managerId: managerIdProp }) => {
             `https://muditamleads-14f32a10d7f7.herokuapp.com/api/retention-sales/progress?name=${encodeURIComponent(emp.fullName)}`
           );
           achieved = data.total || 0;
-        } catch (e) {}
+        } catch (e) { }
 
         const monthlyTarget = emp.target || 0;
         const pending = Math.max(0, monthlyTarget - achieved);
@@ -112,24 +112,24 @@ const TeamPage = ({ managerId: managerIdProp }) => {
   }, [teamMembers]);
 
   const getSortedRows = () => {
-  let filtered = tableRows;
-  if (filterLeader) {
-    filtered = filtered.filter(row => row.teamLeader === filterLeader);
-  }
-
-  if (!sortConfig.key) return filtered;
-
-  return [...filtered].sort((a, b) => {
-    const aVal = a[sortConfig.key];
-    const bVal = b[sortConfig.key];
-    if (typeof aVal === "string") {
-      return sortConfig.direction === "asc"
-        ? aVal.localeCompare(bVal)
-        : bVal.localeCompare(aVal);
+    let filtered = tableRows;
+    if (filterLeader) {
+      filtered = filtered.filter(row => row.teamLeader === filterLeader);
     }
-    return sortConfig.direction === "asc" ? aVal - bVal : bVal - aVal;
-  });
-};
+
+    if (!sortConfig.key) return filtered;
+
+    return [...filtered].sort((a, b) => {
+      const aVal = a[sortConfig.key];
+      const bVal = b[sortConfig.key];
+      if (typeof aVal === "string") {
+        return sortConfig.direction === "asc"
+          ? aVal.localeCompare(bVal)
+          : bVal.localeCompare(aVal);
+      }
+      return sortConfig.direction === "asc" ? aVal - bVal : bVal - aVal;
+    });
+  };
 
 
   const handleSort = key => {
@@ -187,8 +187,8 @@ const TeamPage = ({ managerId: managerIdProp }) => {
   };
 
   const uniqueTeamLeaders = Array.from(
-  new Set(teamMembers.map(emp => emp.teamLeader).filter(Boolean))
-);
+    new Set(teamMembers.map(emp => emp.teamLeader).filter(Boolean))
+  );
 
 
   if (!managerId)
@@ -201,32 +201,32 @@ const TeamPage = ({ managerId: managerIdProp }) => {
           Team Management
         </Typography>
         <Box sx={{ display: "flex", alignItems: "center", gap: 3, flexWrap: "wrap" }}>
-  <TextField
-    select
-    label="Filter by Team Leader"
-    value={filterLeader}
-    onChange={(e) => setFilterLeader(e.target.value)}
-    SelectProps={{ native: true }}
-    size="small"
-    sx={{ minWidth: 200 }}
-  > 
-    {uniqueTeamLeaders.map(name => (
-      <option key={name} value={name}>
-        {name}
-      </option>
-    ))}
-  </TextField>
+          <TextField
+            select
+            label="Filter by Team Leader"
+            value={filterLeader}
+            onChange={(e) => setFilterLeader(e.target.value)}
+            SelectProps={{ native: true }}
+            size="small"
+            sx={{ minWidth: 200 }}
+          >
+            {uniqueTeamLeaders.map(name => (
+              <option key={name} value={name}>
+                {name}
+              </option>
+            ))}
+          </TextField>
 
-  <Typography variant="subtitle1" sx={{ fontWeight: "bold" }}>
-    Daily Sales Required: <span style={{ fontWeight: 700 }}>₹{teamDailyRequired.toLocaleString()}</span>
-  </Typography>
-  <Typography variant="subtitle1" sx={{ fontWeight: "bold" }}>
-    Achieved: {totalAchieved.toLocaleString()} / {totalTarget.toLocaleString()} ({totalPctAch.toFixed(1)}%)
-  </Typography>
-  <Button variant="contained" sx={{ bgcolor: "#000", color: "#fff" }} onClick={() => setAddOpen(true)}>
-    Add
-  </Button>
-</Box>
+          <Typography variant="subtitle1" sx={{ fontWeight: "bold" }}>
+            Daily Sales Required: <span style={{ fontWeight: 700 }}>₹{teamDailyRequired.toLocaleString()}</span>
+          </Typography>
+          <Typography variant="subtitle1" sx={{ fontWeight: "bold" }}>
+            Achieved: {totalAchieved.toLocaleString()} / {totalTarget.toLocaleString()} ({totalPctAch.toFixed(1)}%)
+          </Typography>
+          <Button variant="contained" sx={{ bgcolor: "#000", color: "#fff" }} onClick={() => setAddOpen(true)}>
+            Add
+          </Button>
+        </Box>
 
       </Box>
 

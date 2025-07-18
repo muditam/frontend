@@ -114,7 +114,7 @@ const getCreatedAtLabel = (createdAt) => {
   if (diffDays === 0) return "Today";
   if (diffDays === 1) return "Yesterday";
   if (diffDays >= 2 && diffDays <= 7) {
-    return created.toLocaleDateString("en-US", { weekday: "long" });
+    return created.toLocaleDateString("en-US", { weekday: "long" }); 
   }
   const day = created.getDate().toString().padStart(2, "0");
   const month = (created.getMonth() + 1).toString().padStart(2, "0");

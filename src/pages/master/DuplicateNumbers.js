@@ -9,7 +9,7 @@ const DuplicateNumbers = () => {
   // Each group contains a contactNumber and an array of lead documents.
   const fetchDuplicates = async () => {
     try {
-      const res = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/duplicate-leads/duplicates");
+      const res = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/duplicate-leads/duplicates"); 
       setDuplicateGroups(res.data);
       setLoading(false);
     } catch (error) {
@@ -22,22 +22,30 @@ const DuplicateNumbers = () => {
     fetchDuplicates();
   }, []);
 
-  // Handle deletion of an individual lead.
-  // This version immediately deletes the lead when the delete icon is clicked.
   const handleDeleteLead = async (leadId) => {
-    try {
-      await axios.delete(`https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/${leadId}`);
-      console.log("Lead deleted successfully");
-      fetchDuplicates();
-    } catch (error) {
-      console.error("Error deleting lead:", error);
-    }
-  };
+  try {
+    await axios.delete(`https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/${leadId}`);
+    console.log("Lead deleted successfully");
+
+    // Optimistically update state
+    setDuplicateGroups((prevGroups) =>
+      prevGroups
+        .map((group) => ({
+          ...group,
+          leads: group.leads.filter((lead) => lead._id !== leadId),
+        }))
+        .filter((group) => group.leads.length > 1) // Only keep groups with more than 1
+    );
+  } catch (error) {
+    console.error("Error deleting lead:", error);
+  }
+};
+
 
   if (loading) return <div>Loading...</div>;
 
   // Assign one color per duplicate group.
-  // For example, group 0 will use light gray, group 1 light green, group 2 light gray, etc.
+  // For example, group 0 will use light gray, group 1 light green, group 2 light gray, etc. 
   const groupColors = ["#d3d3d3", "#90ee90"];
 
   return (

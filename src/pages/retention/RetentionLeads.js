@@ -693,7 +693,7 @@ const RetentionLeads = () => {
         console.error("Backend Error Response:", response.data);
       }
     } catch (error) {
-      console.error("Error placing the call", error.response?.data || error);
+      console.error("Error placing the call", error.response?.data || error); 
       setCallingMessage("There was an error placing the call.");
     } finally {
       setLoading(false);
@@ -2835,7 +2835,7 @@ const RetentionLeads = () => {
                       <Button variant="outlined" color="error" onClick={deleteModalImage}>
                         Delete
                       </Button>
-                      <Button variant="text" onClick={closeModal} sx={{ color: "black" }}>
+                      <Button variant="text" onClick={closeModal} sx={{ color: "black" }}> 
                         Close
                       </Button>
                     </Box>
@@ -2845,9 +2845,9 @@ const RetentionLeads = () => {
             </Paper>
           </>
         )}
-      </Box>
+      </Box> 
     </Box>
   );
 };
 
-export default RetentionLeads;
+export default RetentionLeads; 

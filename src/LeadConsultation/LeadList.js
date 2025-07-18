@@ -29,6 +29,8 @@ import Checkbox from "@mui/material/Checkbox";
 import DownloadIcon from "@mui/icons-material/Download";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
 import { CircularProgress } from "@mui/material";
+import JumpIcon from "@mui/icons-material/KeyboardDoubleArrowDown";
+import Popover from "@mui/material/Popover";
 import { Badge } from "@mui/material";
 import axios from "axios";
 
@@ -129,6 +131,9 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
   const [yesterdayChecked, setYesterdayChecked] = useState(false);
   const [dayBeforeChecked, setDayBeforeChecked] = useState(false);
 
+  const [jumpAnchorEl, setJumpAnchorEl] = useState(null);
+  const [jumpInput, setJumpInput] = useState("");
+
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -182,6 +187,8 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
   const [wonCount, setWonCount] = useState(0);
   const [lostCount, setLostCount] = useState(0);
 
+  const [jumpMode, setJumpMode] = useState(false);
+  const [jumpOffset, setJumpOffset] = useState(0);
 
   // Memoize loggedInUser to prevent re-renders from recreating the object
   const loggedInUser = useMemo(() => {
@@ -290,7 +297,7 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
         return;
       }
       // Duplicate check: if phone number already exists, show error
-      const duplicateCheck = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/check-duplicate", {
+      const duplicateCheck = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/check-duplicate", { 
         params: { contactNumber: leadData.phone },
       });
       if (duplicateCheck.data.exists) {
@@ -308,7 +315,7 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
         leadDate: ld.toISOString(),
       };
 
-      await axios.post("https://muditamleads-14f32a10d7f7.herokuapp.com/api/customers", payload);
+      await axios.post("https://muditamleads-14f32a10d7f7.herokuapp.com/api/customers", payload); 
       setError("");
       setOpen(false);
       // Reload the first page after a new lead is added (with search filter if any)
@@ -319,7 +326,7 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
   };
 
   // Fetch customers based on role, page, and search value
-  const fetchCustomers = async (page = 1, reset = false, searchValue = "") => {
+  const fetchCustomers = async (page = 1, reset = false, searchValue = "", skip = null) => {
     setLoading(true);
     try {
       const filters = searchValue
@@ -346,17 +353,21 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
         params.createdAt = filterDate;
       }
 
-      const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/customers", {  
+      if (skip !== null) {
+      params.skip = skip;
+    }
+
+      const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/customers", {
         params,
       });
 
-      if (page === 1 || reset) {
-        setCustomers(response.data.customers);
-        setTotalMatchingCustomers(response.data.totalCustomers);
-
-        if (response.data.customers.length > 0 && !selectedCustomerId) {
-          onSelectCustomer(response.data.customers[0]._id);
-        }
+      if (reset) {
+      setJumpOffset(skip || 0); // Important: Set the base offset only on reset
+      setCustomers(response.data.customers);
+      setTotalMatchingCustomers(response.data.totalCustomers);
+      if (response.data.customers.length > 0 && !selectedCustomerId) {
+        onSelectCustomer(response.data.customers[0]._id);
+      }
       } else {
         setCustomers(prev => [...prev, ...response.data.customers]);
       }
@@ -388,6 +399,20 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
     fetchCustomers(1, true, searchQuery);
   }, [searchQuery, filterStatus, selectedFilters, sortOrder, filterDate, filterAgent]);
 
+  useEffect(() => {
+  if (!jumpMode) {
+    fetchCustomers(1, true, searchQuery);
+  }
+}, [searchQuery, filterStatus, selectedFilters, sortOrder, filterDate, filterAgent]);
+
+useEffect(() => {
+  if (!jumpMode) {
+    setJumpOffset(0); // reset offset
+    fetchCustomers(1, true, searchQuery);
+  }
+}, [searchQuery, filterStatus, selectedFilters, sortOrder, filterDate, filterAgent]);
+
+
 
   const handleScroll = () => {
     const container = listRef.current;
@@ -395,7 +420,7 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
     const { scrollTop, scrollHeight, clientHeight } = container;
     if (scrollTop + clientHeight >= scrollHeight - 50 && !loadingMore && currentPage < totalPages) {
       setLoadingMore(true);
-      fetchCustomers(currentPage + 1, false, searchQuery)
+      fetchCustomers(currentPage + 1, false, searchQuery, jumpOffset + currentPage * limit)
         .finally(() => setLoadingMore(false));
     }
   };
@@ -553,6 +578,55 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
           }}
           sx={{ fontSize: "0.8rem" }}
         />
+
+        <IconButton size="small" sx={{ ml: 1 }} onClick={(e) => setJumpAnchorEl(e.currentTarget)}>
+          <JumpIcon />
+        </IconButton>
+
+        <Popover
+          open={Boolean(jumpAnchorEl)}
+          anchorEl={jumpAnchorEl}
+          onClose={() => setJumpAnchorEl(null)}
+          anchorOrigin={{
+            vertical: "bottom",
+            horizontal: "left",
+          }}
+        >
+          <Box sx={{ p: 2, display: "flex", gap: 1 }}>
+            <TextField
+              label="Jump to"
+              variant="outlined"
+              size="small"
+              value={jumpInput}
+              type="number"
+              onChange={(e) => setJumpInput(e.target.value.replace(/\D/g, ""))}
+              sx={{ width: 100 }}
+            />
+            <Button
+  variant="contained"
+  size="small"
+  disabled={!jumpInput || isNaN(jumpInput)}
+  onClick={() => {
+    const jumpIndex = parseInt(jumpInput) - 1; 
+    if (jumpIndex >= 0) {
+      const skip = jumpIndex;
+      setJumpOffset(skip);
+      setJumpMode(true);
+      fetchCustomers(1, true, searchQuery, skip);
+      if (listRef.current) {
+        listRef.current.scrollTo({ top: 0, behavior: "smooth" });
+      }
+    }
+    setJumpAnchorEl(null);
+  }}
+>
+  Go
+</Button>
+
+
+          </Box>
+        </Popover>
+
         <Box sx={{ display: "flex", ml: 1 }}>
           <Box sx={{ width: 42, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
             <Badge
@@ -750,7 +824,7 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
             </Typography>
           </Box>
         ) : (
-          customers.map((customer) => (
+          customers.map((customer, index) => (
             <Box
               key={customer._id}
               onClick={() => onSelectCustomer(customer._id)}
@@ -768,6 +842,21 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
                 },
               }}
             >
+              <Typography
+          sx={{
+            position: "absolute", 
+            top: 4,
+            left: 4,
+            fontSize: "0.75rem",
+            fontWeight: 600,
+            color: "#888", 
+            px: 0.6,
+            py: 0.2,
+            borderRadius: "4px",
+          }}
+        >
+          {jumpOffset + index + 1}
+        </Typography>
               <Avatar
                 sx={{
                   bgcolor: "black",
