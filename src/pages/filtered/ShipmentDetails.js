@@ -59,7 +59,7 @@ const ShipmentDetails = () => {
         if (endDate) params.endDate = endDate;
 
         const { data } = await axios.get(
-          'https://muditamleads-14f32a10d7f7.herokuapp.com/api/retention-sales/all',
+          'https://muditamleads-14f32a10d7f7.herokuapp.com/api/retention-sales/allnew',
           { params }
         );
 

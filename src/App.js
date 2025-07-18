@@ -14,14 +14,13 @@ import RetentionLeads from "./pages/retention/RetentionLeads";
 import RetentionSales from "./pages/retention/RetentionSales";
 import ShipwayOrders from "./pages/Home";
 import Login from "./pages/Login";
-import NavbarWithSearch from "./components/TopBars/NavBarwithSearch";
+import NavbarWithSearch from "./components/TopBars/NavBarwithSearch"; 
 import SalesDashboard from "./components/Dashboards/SalesDashboard";
 import OrdersTable from "./ShopifyOrders/AllShopifyOrders";
 import OnlineOrders from "./ShopifyOrders/OnlineOrders";
 import TransferRequests from "./components/LeadRequests/TransferRequest";
 import LeadDetail from "./components/LeadRequests/LeadDetails";
-import RetentionData from "./pages/filtered/Retention";
-import NotificationListener from "./components/NotificationListener";
+import RetentionData from "./pages/filtered/Retention"; 
 import AcquisitionLost from "./Lostdata/AcquisitionLost";
 import RetentionLost from "./Lostdata/RetentionLost";
 import PrivateRoute from "./components/PrivateRoute";
@@ -39,8 +38,7 @@ const App = () => {
   return (
     <Router>
       <div>
-        <NavbarWithSearch />
-        <NotificationListener /> 
+        <NavbarWithSearch /> 
 
         <Routes>
  

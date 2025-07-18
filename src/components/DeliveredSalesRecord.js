@@ -19,18 +19,46 @@ const DeliveredSalesRecord = () => {
   const [employees, setEmployees] = useState([]);
   const navigate = useNavigate();
 
+  const storedUser = JSON.parse(sessionStorage.getItem("user") || "{}");
+  const userRole = (storedUser?.role || "").toLowerCase().trim();
+  const userName = (storedUser?.fullName || "").toLowerCase().trim();
+
   useEffect(() => {
-    axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/deliver-history").then((res) => {
-      const filtered = res.data.filter(
-        (emp) =>
-          emp.status === "active" &&
-          (emp.role === "Sales Agent" || emp.role === "Retention Agent")
-      );
-      setEmployees(filtered);
-    });
-  }, []);
+    const fetchData = async () => {
+      try {
+        const res = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/deliver-history", {
+          params: {
+            role: storedUser?.role,
+            fullName: storedUser?.fullName,
+          },
+        });
+
+        const activeEmployees = (res.data || []).filter((emp) => emp.status === "active");
+
+        let filtered = [];
+        if (userRole === "sales agent" || userRole === "retention agent") {
+          filtered = activeEmployees.filter(
+            (emp) => (emp.fullName || "").toLowerCase().trim() === userName
+          );
+        } else {
+          filtered = activeEmployees.filter(
+            (emp) =>
+              emp.role === "Sales Agent" || emp.role === "Retention Agent"
+          );
+        }
+
+        setEmployees(filtered);
+      } catch (err) {
+        console.error("Failed to fetch delivered history:", err);
+        setEmployees([]);
+      }
+    };
+
+    fetchData();
+  }, [userRole, userName]);
 
   const calculateTenure = (joiningDate) => {
+    if (!joiningDate) return "--";
     const join = new Date(joiningDate);
     const now = new Date();
     const diffMonths =
@@ -47,54 +75,79 @@ const DeliveredSalesRecord = () => {
   );
 
   return (
-    <Box p={3}>
-      <Box display="flex" justifyContent="space-between" mb={2}>
-        <Typography variant="h6">Delivered Sales Record</Typography>
-        <Button variant="contained" onClick={() => navigate("/delivered-history")}>
-          Add Delivered Sales
-        </Button>
-      </Box>
+    <Box p={3} display="flex" justifyContent="center">
+      <Box width="100%" maxWidth="65%">
+        <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
+          <Typography variant="h6" fontWeight="bold" color="black">
+            Delivered Sales Record
+          </Typography>
+          <Button
+            variant="contained"
+            onClick={() => navigate("/delivered-history")}
+            sx={{
+              backgroundColor: "black",
+              color: "white",
+              "&:hover": { backgroundColor: "#333" },
+              textTransform: "none",
+              fontWeight: "bold",
+            }}
+          >
+            View Delivered Sales
+          </Button>
+        </Box>
 
-      <TableContainer component={Paper}>
-        <Table>
-          <TableHead sx={{ backgroundColor: "#f5f5f5" }}>
-            <TableRow>
-              <TableCell><strong>Name</strong></TableCell>
-              <TableCell><strong>Joining Date</strong></TableCell>
-              <TableCell><strong>Tenure</strong></TableCell>
-              <TableCell><strong>Total Sales</strong></TableCell>
-            </TableRow>
-          </TableHead>
-
-          <TableBody>
-            {employees.map((emp) => (
-              <TableRow key={emp._id}>
-                <TableCell>{emp.fullName}</TableCell>
-                <TableCell>
-                  {emp.joiningDate
-                    ? new Date(emp.joiningDate).toLocaleDateString()
-                    : "--"}
-                </TableCell>
-                <TableCell>
-                  {emp.joiningDate ? calculateTenure(emp.joiningDate) : "--"}
-                </TableCell>
-                <TableCell>{emp.totalDeliveredSales || 0}</TableCell>
+        <TableContainer component={Paper}>
+          <Table>
+            <TableHead>
+              <TableRow sx={{ backgroundColor: "#000" }}>
+                {["Name", "Joining Date", "Tenure", "Total Sales"].map((title) => (
+                  <TableCell
+                    key={title}
+                    align="center"
+                    sx={{ color: "#fff", fontWeight: "bold", fontSize: "15px" }}
+                  >
+                    {title}
+                  </TableCell>
+                ))}
               </TableRow>
-            ))}
-          </TableBody>
+            </TableHead>
 
-          <TableFooter>
-            <TableRow>
-              <TableCell colSpan={3} align="right">
-                <strong>Grand Total Sales:</strong>
-              </TableCell>
-              <TableCell>
-                <strong>{totalAllSales}</strong>
-              </TableCell>
-            </TableRow>
-          </TableFooter>
-        </Table>
-      </TableContainer>
+            <TableBody>
+              {employees.map((emp, idx) => (
+                <TableRow
+                  key={emp._id}
+                  sx={{
+                    backgroundColor: idx % 2 === 0 ? "#f9f9f9" : "#eaeaea",
+                    "&:hover": { backgroundColor: "#ddd" },
+                  }}
+                >
+                  <TableCell align="center" sx={{ fontWeight: 500 }}>{emp.fullName}</TableCell>
+                  <TableCell align="center">
+                    {emp.joiningDate
+                      ? new Date(emp.joiningDate).toLocaleDateString()
+                      : "--"}
+                  </TableCell>
+                  <TableCell align="center">{calculateTenure(emp.joiningDate)}</TableCell>
+                  <TableCell align="center">{emp.totalDeliveredSales || 0}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+
+            {employees.length > 1 && (
+              <TableFooter>
+                <TableRow sx={{ backgroundColor: "#f0f0f0" }}>
+                  <TableCell colSpan={3} align="right" sx={{ fontWeight: "bold" }}>
+                    Grand Total Sales:
+                  </TableCell>
+                  <TableCell align="center" sx={{ fontWeight: "bold" }}>
+                    {totalAllSales}
+                  </TableCell>
+                </TableRow>
+              </TableFooter>
+            )}
+          </Table>
+        </TableContainer>
+      </Box>
     </Box>
   );
 };

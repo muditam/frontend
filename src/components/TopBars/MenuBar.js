@@ -466,7 +466,7 @@ const MenuBar = ({ toggleDrawer }) => {
                     padding: "10px 20px",
                     borderRadius: "4px",
                     margin: "4px 0",
-                    transition: "background-color 0.3s, transform 0.2s",
+                    transition: "background-color 0.3s, transform 0.2s", 
                     "&:hover": {
                       backgroundColor: "#e0f7fa",
                       color: "#007aff",

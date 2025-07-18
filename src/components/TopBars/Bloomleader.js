@@ -10,6 +10,8 @@ const giftPrizes = [
   { rank: 3, label: "Gift worth 1000" }, 
 ];
 
+const GIFT_CONDITION_NOTE = "Condition: Minimum 80% Target Should be Meet"; 
+
 const getRankSuffix = (num) => {
   if (num === 1) return "1st";
   if (num === 2) return "2nd";
@@ -220,6 +222,17 @@ export default function Bloomleader({ open, anchorEl, onClose }) {
               </Box>
             ))}
           </Box>
+          <Box sx={{
+                      width: "90%",
+                      color: "#7057e6",
+                      fontSize: 15.5,
+                      textAlign: "center",
+                      letterSpacing: 0.13,
+                      mb: 4.4,
+                      fontWeight: 600,
+                    }}>
+                      {GIFT_CONDITION_NOTE}
+                    </Box>
           <Button
             variant="contained"
             onClick={() => setShowGifts(false)}
@@ -288,67 +301,85 @@ export default function Bloomleader({ open, anchorEl, onClose }) {
                 if (!person) return <Box key={i} sx={{ flex: 1 }} />;
 
                 return (
-                  <Box key={person.name} sx={{ flex: 1, alignItems: "center" }}>
-                    <Typography sx={{ fontWeight: 800, fontSize: 20, textAlign: "center", mb: 1.1 }}>
-                      {getFirstName(person.name)}
-                      {rank === 1 && (
-                        <EmojiEventsIcon sx={{ ml: 1, fontSize: 25, color: "#FFD700" }} />
-                      )}
-                    </Typography>
-                    <Box
-                      sx={{
-                        width: avatarSize,
-                        height: avatarSize,
-                        borderRadius: "50%",
-                        overflow: "hidden",
-                        mb: 1,
-                        border: "4px solid #fff",
-                        boxShadow: podiumGlow[rank - 1],
-                      }}
-                    >
-                      <img
-                        src={getAvatarUrl(person.name)}
-                        alt={person.name}
-                        width="100%"
-                        height="100%"
-                      />
-                    </Box>
-                    <Box
-                      sx={{
-                        width: 85,
-                        height: podiumHeight,
-                        bgcolor: "transparent",
-                        borderRadius: "16px 16px 13px 13px",
-                        position: "relative",
-                        boxShadow: "0 8px 20px 3px #756dc43a",
-                      }}
-                    >
-                      <Box
-                        sx={{
-                          position: "absolute",
-                          bottom: 0,
-                          width: "100%",
-                          height: "100%",
-                          background: podiumColors[rank - 1],
-                          borderRadius: "inherit",
-                        }}
-                      />
-                      <Typography
-                        sx={{
-                          position: "absolute",
-                          bottom: 16,
-                          width: "100%",
-                          textAlign: "center",
-                          fontWeight: 900,
-                          fontSize: 30,
-                          color: "#fff",
-                        }}
-                      >
-                        {rank}
-                      </Typography>
-                    </Box>
-                  </Box>
-                );
+                  <Box
+    key={person.name}
+    sx={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center" }}
+  >
+    <Typography sx={{ fontWeight: 800, fontSize: 20, textAlign: "center", mb: 1.1 }}>
+      {getFirstName(person.name)}
+      {rank === 1 && (
+        <EmojiEventsIcon sx={{ ml: 1, fontSize: 25, color: "#FFD700" }} />
+      )}
+    </Typography>
+
+    <Box
+      sx={{
+        width: avatarSize,
+        height: avatarSize,
+        borderRadius: "50%",
+        overflow: "hidden",
+        mb: 1,
+        border: "4px solid #fff",
+        boxShadow: podiumGlow[rank - 1],
+      }}
+    >
+      <img
+        src={getAvatarUrl(person.name)}
+        alt={person.name}
+        width="100%"
+        height="100%"
+      />
+    </Box>
+
+    {/* Sales */}
+    <Typography
+      sx={{
+        fontWeight: 800,
+        fontSize: 18,
+        color: "#fff",
+        mb: 1,
+        textAlign: "center",
+      }}
+    >
+      ₹{Math.round(person.sales).toLocaleString()}
+    </Typography>
+
+    <Box
+      sx={{
+        width: 85,
+        height: podiumHeight,
+        bgcolor: "transparent",
+        borderRadius: "16px 16px 13px 13px",
+        position: "relative",
+        boxShadow: "0 8px 20px 3px #756dc43a",
+      }}
+    >
+      <Box
+        sx={{
+          position: "absolute",
+          bottom: 0,
+          width: "100%",
+          height: "100%",
+          background: podiumColors[rank - 1],
+          borderRadius: "inherit",
+        }}
+      />
+      <Typography
+        sx={{
+          position: "absolute",
+          bottom: 16,
+          width: "100%",
+          textAlign: "center",
+          fontWeight: 900,
+          fontSize: 30,
+          color: "#fff",
+        }}
+      >
+        {rank}
+      </Typography>
+    </Box>
+  </Box>
+);
               })}
             </Box>
 

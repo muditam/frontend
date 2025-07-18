@@ -19,20 +19,24 @@ const DeliveredHistory = () => {
   const [monthKeys, setMonthKeys] = useState([]);
   const [saving, setSaving] = useState(false);
 
+  const storedUser = JSON.parse(sessionStorage.getItem("user") || "{}");
+  const userRole = (storedUser?.role || "").toLowerCase().trim();
+
   useEffect(() => {
     fetchData();
   }, []);
 
   const fetchData = async () => {
-    const res = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/deliver-history");
-    const salesAgents = res.data.filter(
-      (emp) =>
-        emp.status === "active" &&
-        (emp.role === "Sales Agent" || emp.role === "Retention Agent")
-    );
-    setAgents(salesAgents);
+    const res = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/deliver-history", {
+      params: {
+        role: storedUser.role,
+        fullName: storedUser.fullName,
+      },
+    });
 
-    // Generate months from Jan 2024 to now
+    const filteredAgents = res.data || [];
+    setAgents(filteredAgents);
+
     const start = new Date("2024-01-01");
     const now = new Date();
     const months = [];
@@ -40,18 +44,21 @@ const DeliveredHistory = () => {
       months.push(start.toLocaleString("default", { month: "short", year: "2-digit" }));
       start.setMonth(start.getMonth() + 1);
     }
-    setMonthKeys(months.reverse()); // Current month first
+    setMonthKeys(months.reverse());
   };
 
   const handleSave = async () => {
     setSaving(true);
     try {
       for (const emp of agents) {
-        await axios.put(`https://muditamleads-14f32a10d7f7.herokuapp.com/api/deliver-history/${emp._id}/monthly-sales`, {
-          monthlyDeliveredSales: emp.monthlyDeliveredSales || {},
-        });
+        await axios.put(
+          `https://muditamleads-14f32a10d7f7.herokuapp.com/api/deliver-history/${emp._id}/monthly-sales`,
+          {
+            monthlyDeliveredSales: emp.monthlyDeliveredSales || {},
+          }
+        );
       }
-      fetchData(); // Refresh after save
+      fetchData();
     } catch (err) {
       console.error("Failed to save:", err);
     } finally {
@@ -63,9 +70,11 @@ const DeliveredHistory = () => {
     <Box p={3}>
       <Box display="flex" justifyContent="space-between" mb={2}>
         <Typography variant="h6">Delivered Sales History (Editable)</Typography>
-        <Button variant="contained" color="primary" onClick={handleSave} disabled={saving}>
-          {saving ? "Saving..." : "Save All"}
-        </Button>
+        {userRole !== "sales agent" && userRole !== "retention agent" && (
+          <Button variant="contained" color="primary" onClick={handleSave} disabled={saving}>
+            {saving ? "Saving..." : "Save All"}
+          </Button>
+        )}
       </Box>
 
       <TableContainer component={Paper} sx={{ overflowX: "auto", maxWidth: "100%" }}>
@@ -80,6 +89,7 @@ const DeliveredHistory = () => {
                   backgroundColor: "#f5f5f5",
                   minWidth: 180,
                   fontWeight: "bold",
+                  textAlign: "center",
                 }}
               >
                 Name
@@ -104,7 +114,7 @@ const DeliveredHistory = () => {
                     minWidth: 100,
                     fontWeight: "bold",
                     backgroundColor: "#f5f5f5",
-                    zIndex: 1,
+                    textAlign: "center",
                   }}
                 >
                   {month}
@@ -123,6 +133,7 @@ const DeliveredHistory = () => {
                     backgroundColor: "white",
                     zIndex: 2,
                     minWidth: 180,
+                    textAlign: "center",
                   }}
                 >
                   {emp.fullName}
@@ -145,41 +156,48 @@ const DeliveredHistory = () => {
                 </TableCell>
 
                 {monthKeys.map((month) => (
-                  <TableCell key={month} sx={{ minWidth: 100 }}>
-                    <TextField
-                      variant="outlined"
-                      size="small"
-                      type="number"
-                      value={emp.monthlyDeliveredSales?.[month] || ""}
-                      InputProps={{
-                        inputProps: {
-                          min: 0,
-                          inputMode: "numeric",
-                          style: {
-                            textAlign: "center",
-                            appearance: "none",
-                            MozAppearance: "textfield",
-                            WebkitAppearance: "none",
+                  <TableCell key={month} sx={{ minWidth: 100, textAlign: "center" }}>
+                    {userRole === "sales agent" || userRole === "retention agent" ? (
+                      <Typography>
+                        {emp.monthlyDeliveredSales?.[month] || 0}
+                      </Typography>
+                    ) : (
+                      <TextField
+                        variant="outlined"
+                        size="small"
+                        type="number"
+                        value={emp.monthlyDeliveredSales?.[month] || ""}
+                        InputProps={{
+                          inputProps: {
+                            min: 0,
+                            inputMode: "numeric",
+                            style: {
+                              textAlign: "center",
+                              appearance: "none",
+                              MozAppearance: "textfield",
+                              WebkitAppearance: "none",
+                            },
                           },
-                        },
-                      }}
-                      sx={{
-                        width: "80px",
-                        "& input::-webkit-outer-spin-button, & input::-webkit-inner-spin-button": {
-                          WebkitAppearance: "none",
-                          margin: 0,
-                        },
-                      }}
-                      onChange={(e) => {
-                        const updated = [...agents];
-                        const index = updated.findIndex((x) => x._id === emp._id);
-                        if (!updated[index].monthlyDeliveredSales)
-                          updated[index].monthlyDeliveredSales = {};
-                        updated[index].monthlyDeliveredSales[month] =
-                          parseInt(e.target.value) || 0;
-                        setAgents(updated);
-                      }}
-                    />
+                        }}
+                        sx={{
+                          width: "80px",
+                          "& input::-webkit-outer-spin-button, & input::-webkit-inner-spin-button":
+                            {
+                              WebkitAppearance: "none",
+                              margin: 0,
+                            },
+                        }}
+                        onChange={(e) => {
+                          const updated = [...agents];
+                          const index = updated.findIndex((x) => x._id === emp._id);
+                          if (!updated[index].monthlyDeliveredSales)
+                            updated[index].monthlyDeliveredSales = {};
+                          updated[index].monthlyDeliveredSales[month] =
+                            parseInt(e.target.value) || 0;
+                          setAgents(updated);
+                        }}
+                      />
+                    )}
                   </TableCell>
                 ))}
               </TableRow>

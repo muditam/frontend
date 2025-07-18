@@ -133,10 +133,10 @@ const SalesMySales = () => {
   //         if (sale.myOrderData && sale.myOrderData.orderId) {
   //           // Normalize orderId: remove leading '#' if present.
   //           const normalizedOrderId = sale.myOrderData.orderId.startsWith("#")
-  //             ? sale.myOrderData.orderId.slice(1)
+  //             ? sale.myOrderData.orderId.slice(1) 
   //             : sale.myOrderData.orderId;
   //           try {
-  //             const orderRes = await axios.get("http://localhost:5001/api/order-by-id", {
+  //             const orderRes = await axios.get("http://localhost:5001/api/order-by-id", {             
   //               params: { orderId: normalizedOrderId },
   //             });
   //             if (orderRes.data && orderRes.data.shipment_status) {
@@ -276,7 +276,7 @@ const SalesMySales = () => {
   if (!isNew) {
     try {
       await axios.put(
-        `http://localhost:5001/api/merged-sales/${sale._id}`,
+        `https://muditamleads-14f32a10d7f7.herokuapp.com/api/merged-sales/${sale._id}`,
         { [field]: e.target.value }
       );
     } catch (error) {

@@ -231,7 +231,7 @@ const DeliveryStatusChecker = ({ onClose }) => {
                         Track Here
                       </Link>
                       <IconButton
-                        onClick={() => handleCopy(`https://track.shipway.com/t/${item.tracking_number}`)}
+                        onClick={() => handleCopy(`https://track.shipway.com/t/${item.tracking_number}`)} 
                         sx={{
                           color: "#000",
                           fontSize: "1rem",
