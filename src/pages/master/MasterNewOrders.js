@@ -10,7 +10,7 @@ import {
   TableRow,
   Paper,
   Select,
-  MenuItem,
+  MenuItem, 
   Button,
   Drawer,
   TextField,
@@ -21,7 +21,7 @@ import {
   TablePagination,
   Divider,
 } from "@mui/material";
-import axios from "axios";
+import axios from "axios"; 
 
 
 const NewOrders = () => {
@@ -64,7 +64,7 @@ const NewOrders = () => {
   // Fetch combined orders from the new combined orders endpoint
   const fetchNewOrders = async () => {
     try {
-      const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/orders/combined", {
+      const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/orders/combined", { 
         params: {
           page: page + 1, // converting to 1-indexed for backend
           limit: rowsPerPage,
@@ -149,7 +149,7 @@ const NewOrders = () => {
         params: {
           page: 1,
           limit: totalOrders || 10000,
-          ...filters,
+          ...(filters || {}), 
         },
       });
       const orders = response.data.orders;
@@ -220,7 +220,7 @@ const NewOrders = () => {
   return (
     <Box sx={{ padding: 2 }}>
       <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2 }}>
-        <Typography variant="h5">Master Data - Combined Orders</Typography>
+        <Typography variant="h5">Master Data - New Orders</Typography>
         <Box>
           <Button variant="contained" onClick={() => setFilterOpen(true)} sx={{ mr: 1 }}>
             Filter
@@ -373,7 +373,7 @@ const NewOrders = () => {
               <TableCell>Products Ordered</TableCell>
               <TableCell>Dosage Ordered</TableCell>
               <TableCell>Health Expert Assigned *</TableCell>
-              <TableCell>Shipment Status</TableCell>
+              {/* <TableCell>Shipment Status</TableCell> */}
               <TableCell>Remark for HE</TableCell>
               <TableCell>Amount Paid</TableCell>
               <TableCell>Mode of Payment</TableCell>
@@ -404,20 +404,20 @@ const NewOrders = () => {
                       <MenuItem key={expert._id} value={expert.fullName}>
                         {expert.fullName}
                       </MenuItem>
-                    ))}
+                    ))} 
                   </Select>
                 </TableCell>
-                <TableCell>{order.shipment_status || "N/A"}</TableCell>
-                <TableCell>{order.remarkForHE || "N/A"}</TableCell>
+                {/* <TableCell>{order.shipment_status || "N/A"}</TableCell> */}
+                <TableCell>{order.remarkForHE || "N/A"}</TableCell> 
                 <TableCell>{order.amountPaid || "N/A"}</TableCell>
-                <TableCell>{order.modeOfPayment || "N/A"}</TableCell>
+                <TableCell>{order.modeOfPayment || "N/A"}</TableCell> 
               </TableRow>
             ))}
           </TableBody>
         </Table>
       </TableContainer>
       <TablePagination
-        rowsPerPageOptions={[10, 20, 50, 100]}
+        rowsPerPageOptions={[10, 30, 50, 100]}
         component="div"
         count={totalOrders}
         rowsPerPage={rowsPerPage}

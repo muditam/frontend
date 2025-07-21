@@ -462,7 +462,7 @@ const AgentDashboard = () => {
                       <Typography variant="subtitle2" sx={{ color: "#555" }}>{label}</Typography>
                       <Typography variant="h6" fontWeight="bold" sx={{ color: "#333" }}>
                         {value !== undefined ? value : <CircularProgress size={18} />}
-                      </Typography>
+                      </Typography> 
                     </Box>
                   </Box>
                 </Grid>

@@ -69,7 +69,7 @@ const DeliveredHistory = () => {
   return (
     <Box p={3}>
       <Box display="flex" justifyContent="space-between" mb={2}>
-        <Typography variant="h6">Delivered Sales History (Editable)</Typography>
+        <Typography variant="h6">Delivered Sales History</Typography>
         {userRole !== "sales agent" && userRole !== "retention agent" && (
           <Button variant="contained" color="primary" onClick={handleSave} disabled={saving}>
             {saving ? "Saving..." : "Save All"}
@@ -156,7 +156,7 @@ const DeliveredHistory = () => {
                 </TableCell>
 
                 {monthKeys.map((month) => (
-                  <TableCell key={month} sx={{ minWidth: 100, textAlign: "center" }}>
+                  <TableCell key={month} sx={{ minWidth: 120, textAlign: "center" }}>
                     {userRole === "sales agent" || userRole === "retention agent" ? (
                       <Typography>
                         {emp.monthlyDeliveredSales?.[month] || 0}
@@ -180,7 +180,7 @@ const DeliveredHistory = () => {
                           },
                         }}
                         sx={{
-                          width: "80px",
+                          width: "100px",
                           "& input::-webkit-outer-spin-button, & input::-webkit-inner-spin-button":
                             {
                               WebkitAppearance: "none",

@@ -210,6 +210,9 @@ const TeamPage = ({ managerId: managerIdProp }) => {
             size="small"
             sx={{ minWidth: 200 }}
           >
+            <option value="" disabled>
+              Filter by Team Leader
+            </option>
             {uniqueTeamLeaders.map(name => (
               <option key={name} value={name}>
                 {name}

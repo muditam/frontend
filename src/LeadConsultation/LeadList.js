@@ -152,8 +152,7 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
     "CNP",
     "On Follow Up",
     "New Lead",
-    "Call Back Later",
-    "No RT Agents",
+    "Call Back Later", 
   ];
 
   const handleFilterClick = (e) => setFilterMenuAnchorEl(e.currentTarget);
@@ -278,7 +277,7 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
         params.userName = loggedInUser.fullName;
       }
 
-      const res = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/customers/counts", { params });
+      const res = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/customers/counts", { params }); 
       setOpenCount(res.data.openCount || 0);
       setWonCount(res.data.wonCount || 0);
       setLostCount(res.data.lostCount || 0);
@@ -357,7 +356,7 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
       params.skip = skip;
     }
 
-      const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/customers", {
+      const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/customers", { 
         params,
       });
 
@@ -365,11 +364,8 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
       setJumpOffset(skip || 0); // Important: Set the base offset only on reset
       setCustomers(response.data.customers);
       setTotalMatchingCustomers(response.data.totalCustomers);
-      if (response.data.customers.length > 0 && !selectedCustomerId) {
-        onSelectCustomer(response.data.customers[0]._id);
-      }
       } else {
-        setCustomers(prev => [...prev, ...response.data.customers]);
+        setCustomers(prev => [...prev, ...response.data.customers]); 
       }
 
       setTotalPages(response.data.totalPages);
@@ -382,35 +378,39 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
     }
   };
 
-  useEffect(() => {
-    fetchCustomers(1, true, searchQuery);
-  }, [reloadTrigger]);
-
-
-  useEffect(() => {
-    fetchCustomers(1, true, searchQuery);
-  }, [loggedInUser]);
+  
 
   useEffect(() => {
     fetchCounts();
   }, [filterStatus, filterAgent]);
 
   useEffect(() => {
-    fetchCustomers(1, true, searchQuery);
-  }, [searchQuery, filterStatus, selectedFilters, sortOrder, filterDate, filterAgent]);
-
-  useEffect(() => {
   if (!jumpMode) {
+    setJumpOffset(0);
     fetchCustomers(1, true, searchQuery);
   }
-}, [searchQuery, filterStatus, selectedFilters, sortOrder, filterDate, filterAgent]);
+}, [
+  reloadTrigger,
+  loggedInUser,
+  searchQuery,
+  filterStatus,
+  selectedFilters,
+  sortOrder,
+  filterDate,
+  filterAgent,
+]);
 
 useEffect(() => {
-  if (!jumpMode) {
-    setJumpOffset(0); // reset offset
-    fetchCustomers(1, true, searchQuery);
+  if (jumpMode && jumpOffset >= 0) {
+    fetchCustomers(1, true, searchQuery, jumpOffset); 
   }
-}, [searchQuery, filterStatus, selectedFilters, sortOrder, filterDate, filterAgent]);
+}, [jumpMode, jumpOffset]);
+
+useEffect(() => {
+  if (jumpMode && !loading) {
+    setJumpMode(false);
+  }
+}, [loading]);
 
 
 
@@ -882,7 +882,7 @@ useEffect(() => {
                   <Typography variant="body2" sx={{ fontSize: "0.7rem", color: "gray" }}>
                     {customer.lookingFor ? customer.lookingFor : "No Condition"} • {customer.assignedTo ? customer.assignedTo : "Unassigned"}
                   </Typography>
-                  {!["Switch Off", "General Query", "Fake Lead", "Invalid Number", "Not Interested"].includes(customer.presales?.leadStatus) && (
+                  {!["Switch Off", "General Query", "Fake Lead", "Invalid Number", "Not Interested"].includes(customer.leadStatus) && (
                     <Chip
                       label={getFollowUpTag(customer.followUpDate)}
                       size="small"
@@ -916,7 +916,7 @@ useEffect(() => {
                   </Typography>
 
                   {/* Scheduled / Done chips, with a left margin */}
-                  {customer.presales?.leadStatus === "CONS Scheduled" && (
+                  {customer.leadStatus === "CONS Scheduled" && (
                     <Chip
                       label="Scheduled"
                       size="small"
@@ -928,7 +928,7 @@ useEffect(() => {
                       }}
                     />
                   )}
-                  {customer.presales?.leadStatus === "CONS Done" && (
+                  {customer.leadStatus === "CONS Done" && (
                     <Chip
                       label="Done"
                       size="small"
@@ -940,7 +940,7 @@ useEffect(() => {
                       }}
                     />
                   )}
-                  {customer.presales?.leadStatus === "Sales Done" && (
+                  {customer.leadStatus === "Sales Done" && (
                     <Chip
                       label="WON"
                       size="small"
@@ -1143,4 +1143,4 @@ useEffect(() => {
   );
 };
 
-export default LeadList;
+export default LeadList; 

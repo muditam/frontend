@@ -37,7 +37,7 @@ import EditIcon from '@mui/icons-material/Edit';
 import ShoppingCartIcon from "@mui/icons-material/ShoppingCart";
 import ChatIcon from "@mui/icons-material/Chat";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
-import ScheduleIcon from "@mui/icons-material/Schedule"; 
+import ScheduleIcon from "@mui/icons-material/Schedule";
 import HistoryIcon from "@mui/icons-material/History";
 
 // Original stepper icons for Presales, Consultation & Closing
@@ -110,11 +110,11 @@ const getCreatedAtLabel = (createdAt) => {
   now.setHours(0, 0, 0, 0);
   created.setHours(0, 0, 0, 0);
   const diffTime = now.getTime() - created.getTime();
-  const diffDays = Math.round(diffTime / (1000 * 3600 * 24)); 
+  const diffDays = Math.round(diffTime / (1000 * 3600 * 24));
   if (diffDays === 0) return "Today";
   if (diffDays === 1) return "Yesterday";
   if (diffDays >= 2 && diffDays <= 7) {
-    return created.toLocaleDateString("en-US", { weekday: "long" }); 
+    return created.toLocaleDateString("en-US", { weekday: "long" });
   }
   const day = created.getDate().toString().padStart(2, "0");
   const month = (created.getMonth() + 1).toString().padStart(2, "0");
@@ -161,9 +161,12 @@ const ConsultationDetails = ({ customerId, reloadTrigger, onReload }) => {
   // Fetch customer data and consultation details on mount or when customerId changes
   useEffect(() => {
     setLeadStatus("New Lead");
+    setSubLeadStatus("");
+
     if (customerId) {
       setLoading(true);
-      // Fetch customer info
+
+      // Fetch customer info (includes leadStatus and subLeadStatus now)
       axios
         .get(`https://muditamleads-14f32a10d7f7.herokuapp.com/api/customers/${customerId}`)
         .then((response) => {
@@ -171,6 +174,8 @@ const ConsultationDetails = ({ customerId, reloadTrigger, onReload }) => {
           if (c) {
             setCustomer(c);
             setFollowUpDate(c.followUpDate ? c.followUpDate.split("T")[0] : "");
+            setLeadStatus(c.leadStatus || "New Lead");
+            setSubLeadStatus(c.subLeadStatus || "");
           }
           setLoading(false);
         })
@@ -178,25 +183,13 @@ const ConsultationDetails = ({ customerId, reloadTrigger, onReload }) => {
           console.error("Error fetching customer:", error);
           setLoading(false);
         });
-      // Fetch consultation details to get presales.leadStatus
-      axios
-        .get(`https://muditamleads-14f32a10d7f7.herokuapp.com/api/consultation-details?customerId=${customerId}`)
-        .then((res) => {
-          if (res.data && res.data.length > 0) {
-            const presalesData = res.data[0].presales;
-            if (presalesData && presalesData.leadStatus) {
-              setLeadStatus(presalesData.leadStatus);
-            }
-          }
-        })
-        .catch((err) =>
-          console.error("Error fetching consultation details:", err)
-        );
+
     } else {
       setCustomer(null);
       setLoading(false);
     }
   }, [customerId, reloadTrigger]);
+
 
   // Save updated follow-up date
   const handleSaveFollowUp = () => {
@@ -209,25 +202,32 @@ const ConsultationDetails = ({ customerId, reloadTrigger, onReload }) => {
       .then((response) => {
         setCustomer(response.data.customer);
         if (onReload) {
-        onReload(); 
-      }   
+          onReload();
+        }
       })
       .catch((error) => {
         console.error("Error updating follow-up date:", error);
       });
   };
 
-  const handleSubLeadStatusChange = async (newSubStatus) => {
-    setSubLeadStatus(newSubStatus);
+  const handleLeadStatusChange = async (event) => {
+    const newStatus = event.target.value;
+    setLeadStatus(newStatus);
+
     try {
-      await axios.post("https://muditamleads-14f32a10d7f7.herokuapp.com/api/consultation-details", {
-        customerId,
-        presales: { subLeadStatus: newSubStatus },
-      });
+      const updated = {
+        ...customer,
+        leadStatus: newStatus,
+      };
+
+      await axios.put(`https://muditamleads-14f32a10d7f7.herokuapp.com/api/customers/${customerId}`, updated);
+
+      if (onReload) onReload();
     } catch (error) {
-      console.error("Error updating subLeadStatus:", error);
+      console.error("Error updating leadStatus in customer:", error);
     }
-  };  
+  };
+
 
   const handleOpenEdit = () => {
     setEditData({
@@ -265,19 +265,23 @@ const ConsultationDetails = ({ customerId, reloadTrigger, onReload }) => {
     setActiveStep(stepIndex);
   };
 
-  // When lead status is changed from the dropdown, update local state and backend
-  const handleLeadStatusChange = async (event) => {
-    const newStatus = event.target.value;
-    setLeadStatus(newStatus);
+  const handleSubLeadStatusChange = async (newSubStatus) => {
+    setSubLeadStatus(newSubStatus);
+
     try {
-      await axios.post("https://muditamleads-14f32a10d7f7.herokuapp.com/api/consultation-details", {
-        customerId,
-        presales: { leadStatus: newStatus },
-      });
+      const updated = {
+        ...customer,
+        subLeadStatus: newSubStatus,
+      };
+
+      await axios.put(`https://muditamleads-14f32a10d7f7.herokuapp.com/api/customers/${customerId}`, updated);
+
+      if (onReload) onReload();
     } catch (error) {
-      console.error("Error updating leadStatus:", error);
+      console.error("Error updating subLeadStatus in customer:", error);
     }
   };
+
 
   const today = new Date();
   const minDate = today.toISOString().split('T')[0];
@@ -291,7 +295,7 @@ const ConsultationDetails = ({ customerId, reloadTrigger, onReload }) => {
         sx={{
           height: "100%",
           display: "flex",
-          justifyContent: "center", 
+          justifyContent: "center",
           alignItems: "center",
         }}
       >
@@ -299,12 +303,28 @@ const ConsultationDetails = ({ customerId, reloadTrigger, onReload }) => {
       </Box>
     );
   }
-  if (!customer) return <div>No customer Selected</div>;
+  if (!customer) {
+    return (
+      <Box
+        sx={{
+          height: "100%",
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+        }}
+      >
+        <Typography variant="h5" sx={{ color: "#555" }}> 
+          No customer selected
+        </Typography>
+      </Box>
+    );
+  }
+
 
   return (
     <Box sx={{ p: 2 }}>
 
-<Dialog open={editOpen} onClose={() => setEditOpen(false)} fullWidth maxWidth="sm">
+      <Dialog open={editOpen} onClose={() => setEditOpen(false)} fullWidth maxWidth="sm">
         <DialogContent>
           <Typography variant="h6" sx={{ mb: 2 }}>Edit Customer</Typography>
           <Grid container spacing={1}>
@@ -387,7 +407,7 @@ const ConsultationDetails = ({ customerId, reloadTrigger, onReload }) => {
                 }}
               />
             </TableCell>
-            <TableCell><IconButton size="small" onClick={handleOpenEdit}><EditIcon/></IconButton> <Button size="small" variant="contained" onClick={handleSaveFollowUp} sx={{ ml:1, backgroundColor:'black', color:'white', '&:hover':{backgroundColor:'#333'} }}>Save</Button></TableCell>
+            <TableCell><IconButton size="small" onClick={handleOpenEdit}><EditIcon /></IconButton> <Button size="small" variant="contained" onClick={handleSaveFollowUp} sx={{ ml: 1, backgroundColor: 'black', color: 'white', '&:hover': { backgroundColor: '#333' } }}>Save</Button></TableCell>
           </TableRow>
         </TableBody>
       </Table>
@@ -464,14 +484,14 @@ const ConsultationDetails = ({ customerId, reloadTrigger, onReload }) => {
               "CONS Scheduled",
               "CONS Done",
               "Sales Done",
-              "Call Back Later", 
+              "Call Back Later",
               "On Follow Up",
-              "CNP", 
+              "CNP",
               "Switch Off",
               "General Query",
               "Fake Lead",
               "Invalid Number",
-              "Not Interested-Lost", 
+              "Not Interested-Lost",
               "Ordered from Other Sources",
               "language barrier",
               "Budget issue",
