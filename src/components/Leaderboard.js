@@ -102,7 +102,7 @@ const Leaderboard = () => {
   ];
 
   return (
-    <Box sx={{ minHeight: "100vh", px: 2, py: 4, position: "relative", bgcolor: "#f8f6ff" }}>
+    <Box sx={{ minHeight: "90vh", px: 2, py: 4, position: "relative", bgcolor: "#f8f6ff" }}>
       {/* Gift Button */}
       <IconButton
         onClick={() => setShowGifts(!showGifts)}

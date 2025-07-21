@@ -196,13 +196,13 @@ const RetentionAgentDashboard = () => {
 
       // 2. Fetch today's summary data from /api/today-summary
       const todaySummaryResponse = await axios.get(
-        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/today-summary",
+        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/today-summary", 
         { params: { agentName, startDate, endDate } }
       );
 
       // Merge the returned data from todaySummary with the active count value.
       const updatedTodayMetrics = {
-        ...todaySummaryResponse.data,
+        ...todaySummaryResponse.data, 
         activeCustomers: activeCount,
       };
       setTodayMetrics(updatedTodayMetrics);

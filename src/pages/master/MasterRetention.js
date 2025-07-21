@@ -307,9 +307,9 @@ export default function RetentionTable() {
               <FilterListIcon sx={{ color: "#888" }} />
             </IconButton>
 
-            <IconButton size="small">
+            {/* <IconButton size="small">
               <SortIcon sx={{ color: "#888" }} />
-            </IconButton>
+            </IconButton> */}
           </Box>
           <Popover
             open={Boolean(filterAnchorEl)}

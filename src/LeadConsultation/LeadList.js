@@ -30,6 +30,7 @@ import DownloadIcon from "@mui/icons-material/Download";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
 import { CircularProgress } from "@mui/material";
 import JumpIcon from "@mui/icons-material/KeyboardDoubleArrowDown";
+import { Today, EventBusy, EventAvailable, FiberNew } from "@mui/icons-material";
 import Popover from "@mui/material/Popover";
 import { Badge } from "@mui/material";
 import axios from "axios";
@@ -148,11 +149,10 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
     "Tomorrow",
     "CONS Scheduled",
     "CONS Done",
-    "Sales Done",
     "CNP",
     "On Follow Up",
     "New Lead",
-    "Call Back Later", 
+    "Call Back Later",
   ];
 
   const handleFilterClick = (e) => setFilterMenuAnchorEl(e.currentTarget);
@@ -185,6 +185,10 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
   const [openCount, setOpenCount] = useState(0);
   const [wonCount, setWonCount] = useState(0);
   const [lostCount, setLostCount] = useState(0);
+
+  const [activeTagFilters, setActiveTagFilters] = useState([]);
+  const [tagCounts, setTagCounts] = useState({});
+
 
   const [jumpMode, setJumpMode] = useState(false);
   const [jumpOffset, setJumpOffset] = useState(0);
@@ -281,6 +285,13 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
       setOpenCount(res.data.openCount || 0);
       setWonCount(res.data.wonCount || 0);
       setLostCount(res.data.lostCount || 0);
+
+      setTagCounts({
+        Today: res.data.todayCount || 0,
+        Missed: res.data.missedCount || 0,
+        Tomorrow: res.data.tomorrowCount || 0,
+        "New Lead": res.data.newLeadCount || 0,
+      });
     } catch (error) {
       console.error("Error fetching lead counts:", error);
     }
@@ -296,7 +307,7 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
         return;
       }
       // Duplicate check: if phone number already exists, show error
-      const duplicateCheck = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/check-duplicate", { 
+      const duplicateCheck = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/check-duplicate", {
         params: { contactNumber: leadData.phone },
       });
       if (duplicateCheck.data.exists) {
@@ -314,7 +325,7 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
         leadDate: ld.toISOString(),
       };
 
-      await axios.post("https://muditamleads-14f32a10d7f7.herokuapp.com/api/customers", payload); 
+      await axios.post("https://muditamleads-14f32a10d7f7.herokuapp.com/api/customers", payload);
       setError("");
       setOpen(false);
       // Reload the first page after a new lead is added (with search filter if any)
@@ -353,19 +364,19 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
       }
 
       if (skip !== null) {
-      params.skip = skip;
-    }
+        params.skip = skip;
+      }
 
-      const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/customers", { 
+      const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/customers", {
         params,
       });
 
       if (reset) {
-      setJumpOffset(skip || 0); // Important: Set the base offset only on reset
-      setCustomers(response.data.customers);
-      setTotalMatchingCustomers(response.data.totalCustomers);
+        setJumpOffset(skip || 0); // Important: Set the base offset only on reset
+        setCustomers(response.data.customers);
+        setTotalMatchingCustomers(response.data.totalCustomers);
       } else {
-        setCustomers(prev => [...prev, ...response.data.customers]); 
+        setCustomers(prev => [...prev, ...response.data.customers]);
       }
 
       setTotalPages(response.data.totalPages);
@@ -378,39 +389,39 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
     }
   };
 
-  
+
 
   useEffect(() => {
     fetchCounts();
   }, [filterStatus, filterAgent]);
 
   useEffect(() => {
-  if (!jumpMode) {
-    setJumpOffset(0);
-    fetchCustomers(1, true, searchQuery);
-  }
-}, [
-  reloadTrigger,
-  loggedInUser,
-  searchQuery,
-  filterStatus,
-  selectedFilters,
-  sortOrder,
-  filterDate,
-  filterAgent,
-]);
+    if (!jumpMode) {
+      setJumpOffset(0);
+      fetchCustomers(1, true, searchQuery);
+    }
+  }, [
+    reloadTrigger,
+    loggedInUser,
+    searchQuery,
+    filterStatus,
+    selectedFilters,
+    sortOrder,
+    filterDate,
+    filterAgent,
+  ]);
 
-useEffect(() => {
-  if (jumpMode && jumpOffset >= 0) {
-    fetchCustomers(1, true, searchQuery, jumpOffset); 
-  }
-}, [jumpMode, jumpOffset]);
+  useEffect(() => {
+    if (jumpMode && jumpOffset >= 0) {
+      fetchCustomers(1, true, searchQuery, jumpOffset);
+    }
+  }, [jumpMode, jumpOffset]);
 
-useEffect(() => {
-  if (jumpMode && !loading) {
-    setJumpMode(false);
-  }
-}, [loading]);
+  useEffect(() => {
+    if (jumpMode && !loading) {
+      setJumpMode(false);
+    }
+  }, [loading]);
 
 
 
@@ -488,7 +499,6 @@ useEffect(() => {
 
   return (
     <Box sx={{ width: "100%", height: "100%", display: "flex", flexDirection: "column" }}>
-      {/* Top Bar with Add Lead & Filter Buttons */}
       <Box
         sx={{
           backgroundColor: "black",
@@ -557,8 +567,77 @@ useEffect(() => {
         >
           Lost ({lostCount})
         </Button>
-
       </Box>
+
+      <Box
+        sx={{
+          backgroundColor: "#222",
+          color: "white",
+          display: "flex",
+          alignItems: "center",
+          gap: 0.5,
+          p: 0.5,
+          flexWrap: "wrap",
+        }}
+      >
+        <Button
+          variant={selectedFilters.includes("Today") ? "contained" : "outlined"}
+          size="small"
+          sx={{
+            textTransform: "none",
+            fontSize: "0.6rem",
+            borderColor: "white",
+            color: "white",
+            padding: "2px",
+          }}
+          onClick={() => handleFilterToggle("Today")}
+        >
+          Today ({tagCounts["Today"] || 0})
+        </Button>
+        <Button
+          variant={selectedFilters.includes("Missed") ? "contained" : "outlined"}
+          size="small"
+          sx={{
+            textTransform: "none",
+            fontSize: "0.6rem",
+            borderColor: "white",
+            color: "white",
+            padding: "2px",
+          }}
+          onClick={() => handleFilterToggle("Missed")}
+        >
+          Missed ({tagCounts["Missed"] || 0})
+        </Button>
+        <Button
+          variant={selectedFilters.includes("Tomorrow") ? "contained" : "outlined"}
+          size="small"
+          sx={{
+            textTransform: "none",
+            fontSize: "0.6rem",
+            borderColor: "white",
+            color: "white",
+            padding: "2px",
+          }}
+          onClick={() => handleFilterToggle("Tomorrow")}
+        >
+          Tomorrow ({tagCounts["Tomorrow"] || 0})
+        </Button>
+        <Button
+          variant={selectedFilters.includes("New Lead") ? "contained" : "outlined"}
+          size="small"
+          sx={{
+            textTransform: "none",
+            fontSize: "0.6rem",
+            borderColor: "white",
+            color: "white",
+            padding: "2px",
+          }}
+          onClick={() => handleFilterToggle("New Lead")}
+        >
+          New Lead ({tagCounts["New Lead"] || 0})
+        </Button>
+      </Box>
+
 
       {/* Search Bar */}
       <Box sx={{ p: 1, display: "flex", alignItems: "center" }}>
@@ -603,25 +682,25 @@ useEffect(() => {
               sx={{ width: 100 }}
             />
             <Button
-  variant="contained"
-  size="small"
-  disabled={!jumpInput || isNaN(jumpInput)}
-  onClick={() => {
-    const jumpIndex = parseInt(jumpInput) - 1; 
-    if (jumpIndex >= 0) {
-      const skip = jumpIndex;
-      setJumpOffset(skip);
-      setJumpMode(true);
-      fetchCustomers(1, true, searchQuery, skip);
-      if (listRef.current) {
-        listRef.current.scrollTo({ top: 0, behavior: "smooth" });
-      }
-    }
-    setJumpAnchorEl(null);
-  }}
->
-  Go
-</Button>
+              variant="contained"
+              size="small"
+              disabled={!jumpInput || isNaN(jumpInput)}
+              onClick={() => {
+                const jumpIndex = parseInt(jumpInput) - 1;
+                if (jumpIndex >= 0) {
+                  const skip = jumpIndex;
+                  setJumpOffset(skip);
+                  setJumpMode(true);
+                  fetchCustomers(1, true, searchQuery, skip);
+                  if (listRef.current) {
+                    listRef.current.scrollTo({ top: 0, behavior: "smooth" });
+                  }
+                }
+                setJumpAnchorEl(null);
+              }}
+            >
+              Go
+            </Button>
 
 
           </Box>
@@ -657,6 +736,8 @@ useEffect(() => {
               </IconButton>
             </Badge>
           </Box>
+
+
 
           <Menu
             anchorEl={filterMenuAnchorEl}
@@ -843,20 +924,20 @@ useEffect(() => {
               }}
             >
               <Typography
-          sx={{
-            position: "absolute", 
-            top: 4,
-            left: 4,
-            fontSize: "0.75rem",
-            fontWeight: 600,
-            color: "#888", 
-            px: 0.6,
-            py: 0.2,
-            borderRadius: "4px",
-          }}
-        >
-          {jumpOffset + index + 1}
-        </Typography>
+                sx={{
+                  position: "absolute",
+                  top: 4,
+                  left: 4,
+                  fontSize: "0.75rem",
+                  fontWeight: 600,
+                  color: "#888",
+                  px: 0.6,
+                  py: 0.2,
+                  borderRadius: "4px",
+                }}
+              >
+                {jumpOffset + index + 1}
+              </Typography>
               <Avatar
                 sx={{
                   bgcolor: "black",
