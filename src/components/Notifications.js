@@ -74,7 +74,7 @@ const Notifications = () => {
     setNotifications([]);
   };
 
-  // -------------------------------------------
+  // ------------------------------------------- 
   // Fetch notifications only when popover is open
   // -------------------------------------------
   useEffect(() => {

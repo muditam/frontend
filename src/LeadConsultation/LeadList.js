@@ -143,15 +143,11 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
   const [filterMenuAnchorEl, setFilterMenuAnchorEl] = useState(null);
   const [totalMatchingCustomers, setTotalMatchingCustomers] = useState(0);
   const [selectedFilters, setSelectedFilters] = useState([]);
-  const filterOptions = [
-    "Missed",
-    "Today",
-    "Tomorrow",
+  const filterOptions = [ 
     "CONS Scheduled",
     "CONS Done",
     "CNP",
-    "On Follow Up",
-    "New Lead",
+    "On Follow Up", 
     "Call Back Later",
   ];
 

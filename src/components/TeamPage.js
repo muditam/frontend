@@ -87,8 +87,8 @@ const TeamPage = ({ managerId: managerIdProp }) => {
 
         const monthlyTarget = emp.target || 0;
         const pending = Math.max(0, monthlyTarget - achieved);
-        const pctAch = monthlyTarget === 0 ? 0 : Math.min(100, (achieved / monthlyTarget) * 100);
-        const pctPend = 100 - pctAch;
+        const pctAch = monthlyTarget === 0 ? 0 : (achieved / monthlyTarget) * 100;
+        const pctPend = Math.max(0, 100 - pctAch);
         return {
           id: emp._id,
           name: emp.fullName,
@@ -131,6 +131,16 @@ const TeamPage = ({ managerId: managerIdProp }) => {
     });
   };
 
+  const filteredRows = getSortedRows();
+  const filteredAchieved = filteredRows.reduce((acc, row) => acc + (row.achieved || 0), 0);
+  const filteredTarget = filteredRows.reduce((acc, row) => acc + (row.monthlyTarget || 0), 0);
+  const workingDaysLeft = getRemainingWorkingDays();
+  const filteredPending = Math.max(0, filteredTarget - filteredAchieved);
+  const filteredDailyRequired =
+    workingDaysLeft > 0 && filteredPending > 0
+      ? Math.ceil(filteredPending / workingDaysLeft)
+      : 0;
+  const filteredPctAch = filteredTarget === 0 ? 0 : (filteredAchieved / filteredTarget) * 100;
 
   const handleSort = key => {
     setSortConfig(prev => {
@@ -140,14 +150,6 @@ const TeamPage = ({ managerId: managerIdProp }) => {
       return { key, direction: "asc" };
     });
   };
-
-  const workingDaysLeft = getRemainingWorkingDays();
-  const teamPending = Math.max(0, totalTarget - totalAchieved);
-  const teamDailyRequired =
-    workingDaysLeft > 0 && teamPending > 0
-      ? Math.ceil(teamPending / workingDaysLeft)
-      : 0;
-  const totalPctAch = totalTarget === 0 ? 0 : Math.min(100, (totalAchieved / totalTarget) * 100);
 
   const handleAddSelected = async () => {
     setAddLoading(true);
@@ -190,13 +192,12 @@ const TeamPage = ({ managerId: managerIdProp }) => {
     new Set(teamMembers.map(emp => emp.teamLeader).filter(Boolean))
   );
 
-
   if (!managerId)
     return <Box sx={{ p: 4, color: "red" }}>Manager ID not found. Please login again.</Box>;
 
   return (
     <Box sx={{ p: 4, bgcolor: "#fff" }}>
-      <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2 }}>
+      <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2 }}> 
         <Typography variant="h5" sx={{ color: "#000", fontWeight: "bold" }}>
           Team Management
         </Typography>
@@ -210,9 +211,7 @@ const TeamPage = ({ managerId: managerIdProp }) => {
             size="small"
             sx={{ minWidth: 200 }}
           >
-            <option value="" disabled>
-              Filter by Team Leader
-            </option>
+            <option value="">Filter by Team Leader</option>
             {uniqueTeamLeaders.map(name => (
               <option key={name} value={name}>
                 {name}
@@ -221,16 +220,15 @@ const TeamPage = ({ managerId: managerIdProp }) => {
           </TextField>
 
           <Typography variant="subtitle1" sx={{ fontWeight: "bold" }}>
-            Daily Sales Required: <span style={{ fontWeight: 700 }}>₹{teamDailyRequired.toLocaleString()}</span>
+            Daily Sales Required: <span style={{ fontWeight: 700 }}>₹{filteredDailyRequired.toLocaleString()}</span>
           </Typography>
           <Typography variant="subtitle1" sx={{ fontWeight: "bold" }}>
-            Achieved: {totalAchieved.toLocaleString()} / {totalTarget.toLocaleString()} ({totalPctAch.toFixed(1)}%)
+            Achieved: {filteredAchieved.toLocaleString()} / {filteredTarget.toLocaleString()} ({filteredPctAch.toFixed(1)}%)
           </Typography>
           <Button variant="contained" sx={{ bgcolor: "#000", color: "#fff" }} onClick={() => setAddOpen(true)}>
             Add
           </Button>
         </Box>
-
       </Box>
 
       <Paper sx={{ mt: 2, p: 2, borderRadius: 2 }}>

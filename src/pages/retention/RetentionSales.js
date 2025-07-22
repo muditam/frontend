@@ -113,7 +113,7 @@ const RetentionSales = () => {
       fetchSales();
     }
   }, []);
- 
+
   const handleInputChange = (e, id, field) => {
     setEditedSales((prev) => ({
       ...prev,
@@ -128,25 +128,29 @@ const RetentionSales = () => {
   const handleSave = async (id) => {
     if (editedSales[id]) {
       setSavingStatus((prev) => ({ ...prev, [id]: "Saving..." }));
-     
+
       // Find the sale in the current state to check which collection it comes from.
       const sale = allSales.find((s) => s._id === id);
       // Create the update payload from edited data.
       const updatePayload = { ...editedSales[id] };
-     
+
+      if (editedSales[id]?.orderId) {
+  updatePayload.orderId = editedSales[id].orderId;
+}
+
       // If this is a MyOrder record, ensure you include the source.
       if (sale && sale.source === "MyOrder") {
         updatePayload.source = "MyOrder";
       }
-     
+
       try {
         const response = await axios.put(
-          `https://muditamleads-14f32a10d7f7.herokuapp.com/api/retention-sales/all/${id}`,
+          `https://muditamleads-14f32a10d7f7.herokuapp.com/api/retention-sales/all/${id}`, 
           updatePayload
         );
-       
+
         const updatedSales = allSales.map((s) =>
-          s._id === id ? { ...s, ...response.data } : s
+          s._id === id ? { ...s, ...response.data, orderId: updatePayload.orderId || s.orderId } : s
         );
         setAllSales(updatedSales);
         setDisplayedSales(updatedSales);
@@ -164,7 +168,7 @@ const RetentionSales = () => {
         setSavingStatus((prev) => ({ ...prev, [id]: "Error" }));
       }
     }
-  };  
+  };
 
 
   const handleAddSale = async () => {
@@ -219,25 +223,25 @@ const RetentionSales = () => {
 
   // Apply filters to the full dataset
   const applyFilters = (salesData = allSales) => {
-  const filteredSales = salesData.filter((sale) => {
-    return (
-      (!filters.dateFrom || new Date(sale.date) >= new Date(filters.dateFrom)) &&
-      (!filters.dateTo || new Date(sale.date) <= new Date(filters.dateTo)) &&
-      (!filters.name ||
-        sale.name.toLowerCase().includes(filters.name.toLowerCase())) &&
-      (!filters.contactNumber ||
-        sale.contactNumber.includes(filters.contactNumber)) &&
-      (!filters.productsOrdered.length ||
-        filters.productsOrdered.every((p) =>
-          sale.productsOrdered.includes(p)
-        )) &&
-      (!filters.dosageOrdered || sale.dosageOrdered === filters.dosageOrdered) &&
-      (!filters.modeOfPayment || sale.modeOfPayment === filters.modeOfPayment) &&
-      (
-        !filters.shipmentStatus.length ||
-        filters.shipmentStatus.some(status =>
-          status === "Others"
-            ? ![
+    const filteredSales = salesData.filter((sale) => {
+      return (
+        (!filters.dateFrom || new Date(sale.date) >= new Date(filters.dateFrom)) &&
+        (!filters.dateTo || new Date(sale.date) <= new Date(filters.dateTo)) &&
+        (!filters.name ||
+          sale.name.toLowerCase().includes(filters.name.toLowerCase())) &&
+        (!filters.contactNumber ||
+          sale.contactNumber.includes(filters.contactNumber)) &&
+        (!filters.productsOrdered.length ||
+          filters.productsOrdered.every((p) =>
+            sale.productsOrdered.includes(p)
+          )) &&
+        (!filters.dosageOrdered || sale.dosageOrdered === filters.dosageOrdered) &&
+        (!filters.modeOfPayment || sale.modeOfPayment === filters.modeOfPayment) &&
+        (
+          !filters.shipmentStatus.length ||
+          filters.shipmentStatus.some(status =>
+            status === "Others"
+              ? ![
                 "Delivered",
                 "In Transit",
                 "Out for delivery",
@@ -245,17 +249,17 @@ const RetentionSales = () => {
                 "RTO Delivered",
                 "Undelivered",
               ].includes(sale.shipway_status)
-            : sale.shipway_status === status
+              : sale.shipway_status === status
+          )
         )
-      )
-    );
-  });
-  setCurrentPage(0);
-  setDisplayedSales(filteredSales);
-};
+      );
+    });
+    setCurrentPage(0);
+    setDisplayedSales(filteredSales);
+  };
 
 
-  
+
   const resetFilters = () => {
     setFilters({
       dateFrom: "",
@@ -414,14 +418,14 @@ const RetentionSales = () => {
       </Button>
       <Button
         variant="contained"
-         sx={{ mb: 2,ml:2, backgroundColor: "black" }}
-                  startIcon={<TuneIcon />}
+        sx={{ mb: 2, ml: 2, backgroundColor: "black" }}
+        startIcon={<TuneIcon />}
         onClick={() => setFilterOpen(true)}
       >
         Filter
       </Button>
 
-      
+
 
       <Drawer
         anchor="right"
@@ -437,137 +441,137 @@ const RetentionSales = () => {
       >
         <Box sx={{ width: 250, padding: 2 }}>
           <Typography variant="h6" gutterBottom
-          sx={{
-            mb: 1,
-            position: "sticky",
-            top: 0,
-            fontWeight: "bold",
-            textAlign: "center",
-            color: "#333",
-            background: "white",
-            zIndex: 10,
-          }}>
+            sx={{
+              mb: 1,
+              position: "sticky",
+              top: 0,
+              fontWeight: "bold",
+              textAlign: "center",
+              color: "#333",
+              background: "white",
+              zIndex: 10,
+            }}>
             Filters
           </Typography>
-           <Box
-                      sx={{
-                        height: "2px",
-                        backgroundColor: "#FFC107",
-                        mb: 2,
-                        borderRadius: "2px",
-                      }}
+          <Box
+            sx={{
+              height: "2px",
+              backgroundColor: "#FFC107",
+              mb: 2,
+              borderRadius: "2px",
+            }}
+          />
+          <Box sx={{ mb: 1 }}>
+
+            <TextField
+              label="Date From"
+              type="date"
+              fullWidth
+              value={filters.dateFrom}
+              onChange={(e) =>
+                setFilters((prev) => ({ ...prev, dateFrom: e.target.value }))
+              }
+              InputLabelProps={{ shrink: true }}
+              sx={dateFieldSx}
+            />
+            <TextField
+              label="Date To"
+              type="date"
+              fullWidth
+              value={filters.dateTo}
+              onChange={(e) =>
+                setFilters((prev) => ({ ...prev, dateTo: e.target.value }))
+              }
+              InputLabelProps={{ shrink: true }}
+              sx={dateFieldSx}
+            />
+            <TextField
+              label="Name"
+              fullWidth
+              value={filters.name}
+              onChange={(e) =>
+                setFilters((prev) => ({ ...prev, name: e.target.value }))
+              }
+              sx={textFieldSx}
+            />
+            <TextField
+              label="Contact No"
+              fullWidth
+              value={filters.contactNumber}
+              onChange={(e) =>
+                setFilters((prev) => ({ ...prev, contactNumber: e.target.value }))
+              }
+              sx={textFieldSx}
+            />
+            <FormControl fullWidth sx={formControlSx}>
+              <InputLabel id="products-ordered-label">
+                Products Ordered
+              </InputLabel>
+              <Select
+                label="Products Ordered"
+                multiple
+                value={filters.productsOrdered || []}
+                onChange={(e) =>
+                  setFilters((prev) => ({
+                    ...prev,
+                    productsOrdered: e.target.value,
+                  }))
+                }
+                renderValue={(selected) => selected.join(", ")}
+              >
+                {productOptions.map((product) => (
+                  <MenuItem key={product} value={product}>
+                    <Checkbox
+                      checked={filters.productsOrdered.includes(product)}
                     />
-                              <Box sx={{ mb: 1 }}>
-                   
-          <TextField
-            label="Date From"
-            type="date"
-            fullWidth
-            value={filters.dateFrom}
-            onChange={(e) =>
-              setFilters((prev) => ({ ...prev, dateFrom: e.target.value }))
-            }
-            InputLabelProps={{ shrink: true }}
-            sx={dateFieldSx}
-          />
-          <TextField
-            label="Date To"
-            type="date"
-            fullWidth
-            value={filters.dateTo}
-            onChange={(e) =>
-              setFilters((prev) => ({ ...prev, dateTo: e.target.value }))
-            }
-            InputLabelProps={{ shrink: true }}
-            sx={dateFieldSx}
-          />
-          <TextField
-            label="Name"
-            fullWidth
-            value={filters.name}
-            onChange={(e) =>
-              setFilters((prev) => ({ ...prev, name: e.target.value }))
-            }
-            sx={textFieldSx}
-          />
-          <TextField
-            label="Contact No"
-            fullWidth
-            value={filters.contactNumber}
-            onChange={(e) =>
-              setFilters((prev) => ({ ...prev, contactNumber: e.target.value }))
-            }
-            sx={textFieldSx}
-          />
-          <FormControl fullWidth sx={formControlSx}>
-            <InputLabel id="products-ordered-label">
-              Products Ordered
-            </InputLabel>
-            <Select
-            label="Products Ordered"
-              multiple
-              value={filters.productsOrdered || []}
-              onChange={(e) =>
-                setFilters((prev) => ({
-                  ...prev,
-                  productsOrdered: e.target.value,
-                }))
-              }
-              renderValue={(selected) => selected.join(", ")}
-            >
-              {productOptions.map((product) => (
-                <MenuItem key={product} value={product}>
-                  <Checkbox
-                    checked={filters.productsOrdered.includes(product)}
-                  />
-                  <ListItemText primary={product} />
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-          <FormControl fullWidth sx={formControlSx}>
-            <InputLabel id="dosage-ordered-label">
-              Dosage Ordered
-            </InputLabel>
-            <Select
-            label="Dosage Ordered"
-              value={filters.dosageOrdered}
-              onChange={(e) =>
-                setFilters((prev) => ({
-                  ...prev,
-                  dosageOrdered: e.target.value,
-                }))
-              }
-            >
-              {dosageOptions.map((dosage) => (
-                <MenuItem key={dosage} value={dosage}>
-                  {dosage}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-          <FormControl fullWidth sx={formControlSx}>
-            <InputLabel id="mode-of-payment-label">
-              Mode of Payment
-            </InputLabel>
-            <Select
-            label="Mode of Payment"
-              value={filters.modeOfPayment}
-              onChange={(e) =>
-                setFilters((prev) => ({
-                  ...prev,
-                  modeOfPayment: e.target.value,
-                }))
-              }
-            >
-              {paymentModes.map((mode) => (
-                <MenuItem key={mode} value={mode}>
-                  {mode}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-          <FormControl fullWidth sx={formControlSx}>
+                    <ListItemText primary={product} />
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+            <FormControl fullWidth sx={formControlSx}>
+              <InputLabel id="dosage-ordered-label">
+                Dosage Ordered
+              </InputLabel>
+              <Select
+                label="Dosage Ordered"
+                value={filters.dosageOrdered}
+                onChange={(e) =>
+                  setFilters((prev) => ({
+                    ...prev,
+                    dosageOrdered: e.target.value,
+                  }))
+                }
+              >
+                {dosageOptions.map((dosage) => (
+                  <MenuItem key={dosage} value={dosage}>
+                    {dosage}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+            <FormControl fullWidth sx={formControlSx}>
+              <InputLabel id="mode-of-payment-label">
+                Mode of Payment
+              </InputLabel>
+              <Select
+                label="Mode of Payment"
+                value={filters.modeOfPayment}
+                onChange={(e) =>
+                  setFilters((prev) => ({
+                    ...prev,
+                    modeOfPayment: e.target.value,
+                  }))
+                }
+              >
+                {paymentModes.map((mode) => (
+                  <MenuItem key={mode} value={mode}>
+                    {mode}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+            <FormControl fullWidth sx={formControlSx}>
               <InputLabel id="shipment-status-label">Shipment Status</InputLabel>
               <Select
                 label="Shipment Status"
@@ -608,16 +612,16 @@ const RetentionSales = () => {
           >
             Apply Filters
           </Button>
-          <Button variant="outlined" fullWidth onClick={resetFilters}  sx={{
-              marginBottom: 1,
-              color: "black",
-              borderColor: "black",
-              transition: "all 0.2s ease-in-out",
-              "&:hover": {
-                borderColor: "#333",
-                color: "#333",
-              },
-            }}>
+          <Button variant="outlined" fullWidth onClick={resetFilters} sx={{
+            marginBottom: 1,
+            color: "black",
+            borderColor: "black",
+            transition: "all 0.2s ease-in-out",
+            "&:hover": {
+              borderColor: "#333",
+              color: "#333",
+            },
+          }}>
             Reset Filters
           </Button>
         </Box>
@@ -702,18 +706,18 @@ const RetentionSales = () => {
                   />
                 </TableCell>
                 <TableCell style={{ whiteSpace: "nowrap", minWidth: "170px" }}>
-                <TextField
-                  value={(
-                    editedSales[sale._id]?.amountPaid ??
+                  <TextField
+                    value={(
+                      editedSales[sale._id]?.amountPaid ??
                       (sale.upsellAmount > 0
                         ? sale.upsellAmount
                         : sale.amountPaid)
-                  ) || 0}
-                  onChange={(e) =>
-                    handleInputChange(e, sale._id, "amountPaid")
-                  }
-                  fullWidth
-                />
+                    ) || 0}
+                    onChange={(e) =>
+                      handleInputChange(e, sale._id, "amountPaid")
+                    }
+                    fullWidth
+                  />
                 </TableCell>
                 <TableCell>
                   <TextField
@@ -741,7 +745,19 @@ const RetentionSales = () => {
                     fullWidth
                   />
                 </TableCell>
-                <TableCell>{sale.orderId}</TableCell>
+                <TableCell>
+                  {sale.orderId ? (
+                    sale.orderId
+                  ) : (
+                    <TextField
+                      size="small"
+                      placeholder="Add Order ID"
+                      value={editedSales[sale._id]?.orderId || ""}
+                      onChange={(e) => handleInputChange(e, sale._id, "orderId")}
+                      fullWidth
+                    />
+                  )}
+                </TableCell>
                 <TableCell>{sale.shipway_status}</TableCell>
                 <TableCell>{sale.orderCreatedBy}</TableCell>
                 <TableCell style={{ whiteSpace: "nowrap", minWidth: "180px" }}>
@@ -754,7 +770,7 @@ const RetentionSales = () => {
                 <TableCell>
                   <Button
                     variant="contained"
-                    sx={{backgroundColor:"black", color:"white"}}
+                    sx={{ backgroundColor: "black", color: "white" }}
                     onClick={() => handleSave(sale._id)}
                   >
                     {savingStatus[sale._id]

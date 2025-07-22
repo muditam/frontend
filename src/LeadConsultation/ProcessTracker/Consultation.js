@@ -547,7 +547,7 @@ const Consultation = ({ customerId }) => {
                 />
               }
               label={item.label}
-              sx={{ "& .MuiFormControlLabel-label": { fontSize: "0.7rem", color: "black" } }}
+              sx={{ "& .MuiFormControlLabel-label": { fontSize: "0.7rem", color: "black" } }} 
             />
           </Tooltip>
         ))}

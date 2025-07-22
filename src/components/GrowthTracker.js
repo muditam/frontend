@@ -128,7 +128,7 @@ export default function GrowthTracker() {
       setError("Please enter both joining date and salary.");
       return;
     }
-    if (isNaN(Number(joiningSalary)) || Number(joiningSalary) < 8000) {
+    if (isNaN(Number(joiningSalary)) || Number(joiningSalary) < 8000) { 
       setError("Enter a valid salary (minimum ₹8,000).");
       return;
     }

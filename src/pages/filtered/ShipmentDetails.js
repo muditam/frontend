@@ -14,7 +14,11 @@ import {
   styled,
   ThemeProvider,
   createTheme,
+  Select,
+  MenuItem,
+  Tooltip,
 } from '@mui/material';
+import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import axios from 'axios';
 
 function useQuery() {
@@ -49,6 +53,8 @@ const ShipmentDetails = () => {
   const [records, setRecords] = useState([]);
   const [loading, setLoading] = useState(false);
 
+  const FIXED_STATUS_OPTIONS = ['Delivered', 'RTO', 'RTO Delivered'];
+
   useEffect(() => {
     const fetchAndFilter = async () => {
       setLoading(true);
@@ -63,9 +69,8 @@ const ShipmentDetails = () => {
           { params }
         );
 
-        const filtered = data.filter(r => {
-          if (category !== 'Total Orders' && (r.shipway_status || '').trim() !== category)  
-            return false;
+        const filtered = data.filter((r) => {
+          if (category !== 'Total Orders' && (r.shipway_status || '').trim() !== category) return false;
           return true;
         });
 
@@ -79,6 +84,24 @@ const ShipmentDetails = () => {
 
     fetchAndFilter();
   }, [category, agent, startDate, endDate]);
+
+  const handleStatusChange = async (idx, orderId, newStatus) => {
+    try {
+      await axios.post('https://muditamleads-14f32a10d7f7.herokuapp.com/api/shipway/update-status', {
+        orderId,
+        newStatus,
+        selfUpdated: true,
+      });
+
+      setRecords((prev) =>
+        prev.map((item, i) =>
+          i === idx ? { ...item, shipway_status: newStatus } : item
+        )
+      );
+    } catch (error) {
+      console.error('Error updating shipment status:', error);
+    }
+  };
 
   return (
     <ThemeProvider theme={blackTheme}>
@@ -102,28 +125,78 @@ const ShipmentDetails = () => {
           </Box>
         ) : (
           <TableContainer component={Paper} elevation={4} sx={{ borderRadius: 2, overflow: 'hidden' }}>
-            <Table sx={{ minWidth: 650 }}>
+            <Table sx={{ minWidth: 800 }}>
               <TableHead sx={{ backgroundColor: 'primary.main' }}>
                 <TableRow>
-                  <TableCell sx={{ color: '#fff', fontWeight: 600 }}>Order ID</TableCell>
+                  <TableCell sx={{ color: '#fff', fontWeight: 600 }}>Order Date</TableCell>
+                  <TableCell sx={{ color: '#fff', fontWeight: 600 }}>Order ID</TableCell>
                   <TableCell sx={{ color: '#fff', fontWeight: 600 }}>Contact Number</TableCell>
                   <TableCell sx={{ color: '#fff', fontWeight: 600 }}>Amount Paid</TableCell>
-                  <TableCell sx={{ color: '#fff', fontWeight: 600 }}>Status</TableCell>
+                  <TableCell sx={{ color: '#fff', fontWeight: 600 }}>Shipment Status</TableCell>
+                  <TableCell sx={{ color: '#fff', fontWeight: 600 }}>Tracking Number</TableCell>
+                  <TableCell sx={{ color: '#fff', fontWeight: 600 }}>Carrier</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
-                {records.map((r, idx) => (
-                  <StripedTableRow key={r._id} index={idx}>
-                    <TableCell>{r.orderId}</TableCell>
-                    <TableCell>{r.contactNumber || '—'}</TableCell>
-                    <TableCell>₹{Number(r.amountPaid).toFixed(2)}</TableCell>
-                    <TableCell>{r.shipway_status || '—'}</TableCell>
-                  </StripedTableRow>
-                ))}
+                {records.map((r, idx) => {
+                  const currentStatus = r.shipway_status || 'Not Available';
+                  const statusOptions = FIXED_STATUS_OPTIONS.includes(currentStatus)
+                    ? FIXED_STATUS_OPTIONS
+                    : [currentStatus, ...FIXED_STATUS_OPTIONS];
+
+                  return (
+                    <StripedTableRow key={r._id || `${r.orderId}-${idx}`} index={idx}>
+                      <TableCell>{r.date || '—'}</TableCell>
+                      <TableCell>{r.orderId || '—'}</TableCell>
+                      <TableCell>{r.contactNumber || '—'}</TableCell>
+                      <TableCell>₹{Number(r.amountPaid || 0).toFixed(2)}</TableCell>
+                      <TableCell>
+                        <Select
+                          size="small"
+                          value={currentStatus}
+                          onChange={(e) => handleStatusChange(idx, r.orderId, e.target.value)}
+                          sx={{ minWidth: 160 }}
+                        >
+                          {statusOptions.map((option) => (
+                            <MenuItem key={option} value={option}>
+                              {option}
+                            </MenuItem>
+                          ))}
+                        </Select>
+                      </TableCell>
+                      <TableCell>
+                        {r.tracking_number ? (
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <a
+                              href={`https://track.shipway.com/t/${r.tracking_number}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              style={{ color: '#1976d2', textDecoration: 'none', fontWeight: 500 }}
+                            >
+                              {r.tracking_number}
+                            </a>
+                            <Tooltip title="Copy Tracking Link">
+                              <ContentCopyIcon
+                                fontSize="small"
+                                sx={{ cursor: 'pointer', color: '#555' }}
+                                onClick={() =>
+                                  navigator.clipboard.writeText(`https://track.shipway.com/t/${r.tracking_number}`)
+                                }
+                              />
+                            </Tooltip>
+                          </Box>
+                        ) : (
+                          '—'
+                        )}
+                      </TableCell>
+                      <TableCell>{r.carrier_title || '—'}</TableCell>
+                    </StripedTableRow>
+                  );
+                })}
 
                 {!records.length && (
                   <TableRow>
-                    <TableCell colSpan={4} align="center" sx={{ py: 6, color: '#666' }}>
+                    <TableCell colSpan={7} align="center" sx={{ py: 6, color: '#666' }}>
                       No records found.
                     </TableCell>
                   </TableRow>

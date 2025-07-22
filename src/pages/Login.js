@@ -258,7 +258,7 @@ const LoginPage = () => {
                 color: "red",
                 fontSize: "0.9rem",
                 marginTop: "6px",
-                textAlign: "center",
+                textAlign: "center", 
               }}
             >
               <ErrorOutlineIcon

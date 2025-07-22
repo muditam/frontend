@@ -2371,8 +2371,7 @@ const RetentionLeads = () => {
                             <Typography variant="subtitle1" fontWeight={600} sx={{ mb: 1 }}>
                               Consultation #{consultationHistory.length - idx}
                             </Typography>
-                            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
-                              {/* Presales */}
+                            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}> 
                               <Box>
                                 <Typography variant="body2" fontWeight={600}>HBA1c</Typography>
                                 <Typography variant="body2">{cons.presales?.hba1c || '—'}</Typography>
@@ -2826,7 +2825,7 @@ const RetentionLeads = () => {
                     />
 
                     <Box sx={{ display: "flex", gap: 2, alignItems: "center" }}>
-                      <Button variant="outlined" onClick={prevImage} sx={{ color: "black", borderColor: "black" }}>
+                      <Button variant="outlined" onClick={prevImage} sx={{ color: "black", borderColor: "black" }}> 
                         Prev
                       </Button>
                       <Button variant="outlined" onClick={nextImage} sx={{ color: "black", borderColor: "black" }}>
@@ -2850,4 +2849,4 @@ const RetentionLeads = () => {
   );
 };
 
-export default RetentionLeads; 
+export default RetentionLeads;  

@@ -50,7 +50,6 @@ const SalesDashboard = () => {
               alignItems: "center",
               gap: "25px",
               padding: "15px",
-              marginBottom: "20px",
             }}
           >
 

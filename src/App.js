@@ -39,8 +39,15 @@ const App = () => {
     <Router>
       <div>
         <NavbarWithSearch /> 
+         
 
         <Routes>
+          <Route
+            path="/shipment-details"
+            element={ 
+                <ShipmentDetails /> 
+            }
+          />
  
           <Route path="/login" element={<Login />} /> 
           <Route path="/pages/Home" element={<ShipwayOrders />}/>  
@@ -191,14 +198,7 @@ const App = () => {
               </PrivateRoute>
             }
           />
-          <Route
-            path="/shipment-details"
-            element={
-              <PrivateRoute>
-                <ShipmentDetails />
-              </PrivateRoute>
-            }
-          />
+         
           <Route
             path="/lost/acquisition"
             element={

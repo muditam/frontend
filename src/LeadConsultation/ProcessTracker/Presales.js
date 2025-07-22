@@ -209,7 +209,7 @@ const Presales = ({ customerId, parentLeadStatus  }) => {
     }
 
     // For "assignExpert": if it's an empty string, remove it.
-    if (dataToSave.assignExpert === "") {
+    if (dataToSave.assignExpert === "") { 
       delete dataToSave.assignExpert;
     }
 

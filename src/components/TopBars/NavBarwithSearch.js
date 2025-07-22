@@ -650,7 +650,7 @@ const NavbarWithSearch = () => {
             <IconButton
               color="error"
               onClick={openBloodTestDialog}
-              sx={{ mr: 0.5, color: "#fff", borderRadius: "50%", p: 1.1, "&:hover": { bgcolor: "#e0e0e0" } }}
+              sx={{ mr: 0.5, color: "#fff", borderRadius: "50%", p: 1.1, "&:hover": { bgcolor: "#e0e0e0" } }} 
               title="Blood Test Pincode Check"
             >
               <Syringe />
@@ -741,7 +741,7 @@ const NavbarWithSearch = () => {
                           }}
                         >
                           <ListItemText
-                            primary={`${item.name || "No Name"} (${item.contactNumber}) (${item.agentAssigned}) [${item.healthExpertAssigned}]`}
+                            primary={`${item.name || "No Name"} (${item.contactNumber}) (${item.agentAssigned}) [${item.healthExpertAssigned}]`} 
                             primaryTypographyProps={{ style: smallFont }}
                           />
                         </ListItem>

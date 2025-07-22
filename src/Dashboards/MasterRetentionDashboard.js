@@ -393,7 +393,7 @@ const ManagerRetentionDashboard = () => {
         "https://muditamleads-14f32a10d7f7.herokuapp.com/api/employees",
         { params: { role: "Retention Agent" } }
       );
-      const activeAgents = agentsRes.data.filter((emp) => emp.status === "active");
+      const activeAgents = agentsRes.data.filter((emp) => emp.status === "active"); 
       setRetentionAgents(activeAgents);
     } catch (err) {
       console.error("Error fetching shipment data:", err);
@@ -1274,14 +1274,15 @@ const ManagerRetentionDashboard = () => {
             {!loading && shipmentSummary.length > 0 ? ( 
               shipmentSummary.map((row, idx) => (
                 <TableRow
-  component={RouterLink}
-  to={`/shipment-details?category=${encodeURIComponent(row.category)}&startDate=${shipmentDates.startDate}&endDate=${shipmentDates.endDate}${selectedAgent ? `&agent=${encodeURIComponent(selectedAgent)}` : ""}`}
-  rel="noopener noreferrer"
-  sx={{
-    backgroundColor: idx % 2 === 0 ? "#F9FAFB" : "#FFFFFF",
-    "&:hover": { backgroundColor: "#E3F2FD", transition: "0.3s" },
-  }}
->
+                      component={RouterLink}
+                      to={`/shipment-details?category=${encodeURIComponent(row.category)}&startDate=${shipmentDates.startDate}&endDate=${shipmentDates.endDate}${selectedAgent ? `&agent=${encodeURIComponent(selectedAgent)}` : ""}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      sx={{
+                        backgroundColor: idx % 2 === 0 ? "#F9FAFB" : "#FFFFFF",
+                        "&:hover": { backgroundColor: "#E3F2FD", transition: "0.3s" },
+                      }}
+                    >
                   <TableCell sx={{ textAlign: "center", fontWeight: 500 }}>
                     {row.category}
                   </TableCell>
@@ -1323,7 +1324,7 @@ const ManagerRetentionDashboard = () => {
       Agent Wise Shipment Status
     </Typography>
 
-    {/* Agent Filter for Shipment */}
+    {/* Agent Filter for Shipment */} 
     <Box
       sx={{
         display: "flex",
@@ -1406,6 +1407,7 @@ const ManagerRetentionDashboard = () => {
     )}&category=${encodeURIComponent(
       row.category
     )}&startDate=${shipmentDates.startDate}&endDate=${shipmentDates.endDate}`} 
+    target="_blank"
   rel="noopener noreferrer"
   sx={{
     backgroundColor: idx % 2 === 0 ? "#F9FAFB" : "#FFFFFF",
@@ -1510,7 +1512,7 @@ const ManagerRetentionDashboard = () => {
               <TableBody>
                 {!loading && reachoutAgents.length > 0 ? (
                   reachoutAgents.map((agent, idx) => {
-                    const log = reachoutLogsData[agent.fullName] || {
+                    const log = reachoutLogsData[agent.fullName] || { 
                       totalCount: 0,
                       WhatsApp: 0,
                       Call: 0,
