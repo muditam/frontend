@@ -21,12 +21,11 @@ import {
   InputLabel,
   TablePagination,
   IconButton,
+  CircularProgress,
 } from "@mui/material";
 import axios from "axios";
 import PhoneIcon from "@mui/icons-material/Phone";
 import TuneIcon from "@mui/icons-material/Tune";
-
-
 
 
 const SalesMyLeads = () => {
@@ -71,24 +70,17 @@ const SalesMyLeads = () => {
   });
   const [filterOpen, setFilterOpen] = useState(false);
 
-
   useEffect(() => {
     const user = JSON.parse(sessionStorage.getItem("user"));
-
 
     if (user && !agentName) {
       setAgentName(user.fullName);
     }
 
-
     if (agentName) {
       fetchLeads(agentName);
     }
-
-
   }, [agentName, currentPage, rowsPerPage]);
-
-
 
 
   const fetchLeads = async (agentAssigned) => {
@@ -102,8 +94,6 @@ const SalesMyLeads = () => {
           filters: JSON.stringify(filters),
         },
       });
-
-
       const { leads, totalLeads } = response.data;
       setLeads(leads || []); // Update leads state with fetched data
       setTotalLeads(totalLeads || 0); // Update the total leads count
@@ -114,7 +104,6 @@ const SalesMyLeads = () => {
       setLoading(false);
     }
   };
-
 
   const styles = {
     tableCell: {
@@ -148,19 +137,14 @@ const SalesMyLeads = () => {
     },
   };
 
-
   const handleInputChange = async (e, index, field) => {
     const updatedLeads = [...leads];
-
 
     updatedLeads[index][field] = e.target.value;
     setLeads(updatedLeads);
 
-
     if (field === "contactNumber") {
       const enteredNumber = e.target.value;
-
-
       try {
         const response = await axios.get(
           "https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/check-duplicate",
@@ -168,7 +152,6 @@ const SalesMyLeads = () => {
             params: { contactNumber: enteredNumber },
           }
         );
-
 
         if (response.data.exists) {
           setValidationErrors((prev) => ({
@@ -187,7 +170,6 @@ const SalesMyLeads = () => {
       }
     }
 
-
     const leadId = updatedLeads[index]._id;
     try {
       await axios.put(
@@ -201,14 +183,10 @@ const SalesMyLeads = () => {
     }
   };
 
-
-
-
   const handleAddLead = async () => {
     const currentDate = new Date();
     const formattedDate = currentDate.toISOString().split("T")[0];
     const formattedTime = currentDate.toLocaleTimeString();
-
 
     const leadToAdd = {
       ...newLead,
@@ -217,12 +195,10 @@ const SalesMyLeads = () => {
       agentAssigned: agentName,
     };
 
-
     if (Object.values(validationErrors).some((error) => error)) {
       console.error("Fix validation errors before adding the lead.");
       return;
     }
-
 
     try {
       const response = await axios.post("https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads", leadToAdd);
@@ -250,30 +226,20 @@ const SalesMyLeads = () => {
     }
   };
 
-
   const calculateReminder = (nextFollowup) => {
     if (!nextFollowup) return "";
-
-
     const followupDate = new Date(nextFollowup);
     const today = new Date();
     const diffInDays = Math.ceil((followupDate - today) / (1000 * 60 * 60 * 24));
-
-
     if (diffInDays < 0) return "Follow-up Missed";
     if (diffInDays === 0) return "Today";
     if (diffInDays === 1) return "Tomorrow";
     return diffInDays > 1 ? "Later" : "";
   };
 
-
-
-
   const applyFilters = async () => {
     setLoading(true);
     setCurrentPage(0);
-
-
     try {
       const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads", {
         params: {
@@ -283,8 +249,6 @@ const SalesMyLeads = () => {
           filters: JSON.stringify(filters),
         },
       });
-
-
       const { leads, totalLeads } = response.data;
       setLeads(leads || []);
       setTotalLeads(totalLeads || 0);
@@ -295,9 +259,6 @@ const SalesMyLeads = () => {
       setLoading(false);
     }
   };
-
-
-
 
   const resetFilters = async () => {
     setFilters({
@@ -317,10 +278,6 @@ const SalesMyLeads = () => {
     setCurrentPage(0);
     await fetchLeads(agentName);
   };
-
-
-
-
   const handleChangePage = (event, newPage) => {
     setCurrentPage(newPage);
   };
@@ -331,8 +288,6 @@ const SalesMyLeads = () => {
       const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/employees", {
         params: { fullName: user.fullName, email: user.email }
       });
-
-
       if (response.data.length > 0) {
         return response.data[0]; // Returns { async, agentNumber, callerId }
       } else {
@@ -345,18 +300,15 @@ const SalesMyLeads = () => {
     }
   };
 
-
   const handleChangeRowsPerPage = (event) => {
     const newRowsPerPage = parseInt(event.target.value, 10);
     setRowsPerPage(newRowsPerPage);
     setCurrentPage(0);
   };
 
-
   const handleCallIconClick = async (contactNumber) => {
     setLoading(true);
     setCallingMessage(`Calling ${contactNumber}...`);
-
 
     try {
       const loggedInUser = JSON.parse(sessionStorage.getItem("user"));
@@ -366,9 +318,7 @@ const SalesMyLeads = () => {
         return;
       }
 
-
       const { async, agentNumber, callerId } = await fetchUserDetails(loggedInUser);
-
 
       if (!contactNumber || !agentNumber || !callerId) {
         setCallingMessage("Error: Missing call parameters");
@@ -377,7 +327,6 @@ const SalesMyLeads = () => {
         return;
       }
 
-
       const requestBody = {
         destination_number: contactNumber,
         async: 1,
@@ -385,18 +334,12 @@ const SalesMyLeads = () => {
         caller_id: callerId.toString().trim(),
       };
 
-
-      console.log("Sending API Request to Backend:", requestBody);
-
-
       const response = await axios.post(
         "https://muditamleads-14f32a10d7f7.herokuapp.com/api/click_to_call",
         requestBody
       );
 
-
       console.log("Backend Response:", response.data);
-
 
       if (response.data.status === "success") {
         setCallingMessage(`Successfully called ${contactNumber}`);
@@ -411,7 +354,6 @@ const SalesMyLeads = () => {
       setLoading(false);
     }
   };
-
 
   const textFieldSx = {
     mb: 2,
@@ -437,10 +379,7 @@ const SalesMyLeads = () => {
       "&.Mui-focused fieldset": { borderColor: "black" },
       "&:hover fieldset": { borderColor: "black" },
     },
-
-
   };
-
 
   const formControlSx = {
     mb: 2,
@@ -487,13 +426,11 @@ const SalesMyLeads = () => {
         Add Lead
       </Button>
 
-
       <Button variant="contained"
         sx={{ mb: 2, ml: 2, backgroundColor: "black" }}
         startIcon={<TuneIcon />} onClick={() => setFilterOpen(true)}>
         Filter
       </Button>
-
 
       <Drawer
         anchor="right"
@@ -533,8 +470,6 @@ const SalesMyLeads = () => {
               mb: 2,
             }}
           />
-
-
           <TextField
             label="Date From"
             type="date"
@@ -546,10 +481,6 @@ const SalesMyLeads = () => {
               "& .MuiInputBase-input": {
                 padding: "10px 12px",
               },
-
-
-
-
               "& .MuiInputLabel-root.Mui-focused, & .MuiInputLabel-root.MuiFormLabel-filled":
               {
                 top: 0,
@@ -581,10 +512,6 @@ const SalesMyLeads = () => {
               "& .MuiInputBase-input": {
                 padding: "10px 12px",
               },
-
-
-
-
               "& .MuiInputLabel-root.Mui-focused, & .MuiInputLabel-root.MuiFormLabel-filled":
               {
                 top: 0,
@@ -619,7 +546,6 @@ const SalesMyLeads = () => {
             onChange={(e) => setFilters((prev) => ({ ...prev, contactNumber: e.target.value }))}
             sx={textFieldSx}
           />
-
 
           {[
             { key: "leadSource", label: "Lead Source", options: ["Abandoned Cart", "BiteSpeed", "Business on Bot", "Facebook Lead", "Google Lead", "Incoming Call", "Lead Form", "Online Store", "Others", "Rampwin", "Reference", "Whatsapp", "Degpeg"] },
@@ -746,7 +672,6 @@ const SalesMyLeads = () => {
         </Box>
       </Drawer>
 
-
       <TableContainer component={Paper} sx={{ maxHeight: 1200 }}>
         <Table stickyHeader aria-label="sticky table">
           <TableHead>
@@ -774,338 +699,325 @@ const SalesMyLeads = () => {
             </TableRow>
           </TableHead>
           <TableBody>
-            {leads.map((lead, index) => (
-              <TableRow key={lead._id} sx={styles.tableRow}>
-                <TableCell sx={styles.tableCell}>
-                  <TextField
-                    type="date"
-                    value={lead.date || ""}
-                    disabled
-                    fullWidth
-                    sx={{
-                      height: "45px",
-                      "& .MuiInputBase-input": { color: "#000", },
-                      "& .MuiOutlinedInput-notchedOutline": { borderColor: "#ccc" },
-                    }}
-                  />
+            {loading ? (
+              <TableRow>
+                <TableCell colSpan={14} align="center">
+                  <Box sx={{ py: 3, display: "flex", flexDirection: "column", alignItems: "center" }}>
+                    <CircularProgress size={24} />
+                    <Typography variant="body2" sx={{ mt: 1 }}>
+                      Please Wait...
+                    </Typography>
+                  </Box>
                 </TableCell>
-
-
-                <TableCell sx={{ ...styles.tableCell, whiteSpace: "nowrap", minWidth: 150 }}>
-                  <TextField
-                    value={lead.time || ""}
-                    disabled
-                    fullWidth
-                    sx={{
-                      height: "45px",
-                      "& .MuiInputBase-input": { color: "#000", },
-                      "& .MuiOutlinedInput-notchedOutline": { borderColor: "#ccc" },
-                    }}
-                  />
-                </TableCell>
-
-
-                <TableCell sx={{ ...styles.tableCell, whiteSpace: "nowrap", minWidth: 240 }}>
-                  <TextField
-                    value={lead.name || ""}
-                    onChange={(e) => handleInputChange(e, index, "name")}
-                    fullWidth
-                    sx={{
-                      height: "45px",
-                      "& .MuiInputBase-input": { color: "#000", },
-                      "& .MuiOutlinedInput-notchedOutline": { borderColor: "#ccc" },
-                    }}
-                  />
-                </TableCell>
-
-
-                <TableCell
-                  sx={{
-                    // ...styles.tableCell,
-                    whiteSpace: "nowrap",
-                    minWidth: 240,
-                    background: "white",
-                    borderBottom: "1px solid gray",
-                    display: "flex",
-                    alignItems: "center",
-                    height: "48px"
-                  }}
-                >
-                  <TextField
-                    type="number"
-                    value={lead.contactNumber || ""}
-                    onChange={(e) => handleInputChange(e, index, "contactNumber")}
-                    error={Boolean(validationErrors[index])}
-                    helperText={validationErrors[index]}
-                    fullWidth
-                    sx={{
-                      flexGrow: 1,
-                      height: "45px",
-                      "& .MuiInputBase-input": { color: "#000", },
-                      "& .MuiOutlinedInput-notchedOutline": { borderColor: "#ccc" },
-                    }}
-                  />
-                  <IconButton
-                    color="primary"
-                    onClick={() => handleCallIconClick(lead.contactNumber)}
-                    sx={{ ml: 1 }}
-                  >
-                    <PhoneIcon />
-                  </IconButton>
-                </TableCell>
-
-
-                <TableCell sx={styles.tableCell}>
-                  <FormControl fullWidth variant="standard">
-                    <Select
-                      value={lead.leadSource || ""}
-                      onChange={(e) => handleInputChange(e, index, "leadSource")}
-                    >
-                      {[
-                        "Abandoned Cart",
-                        "BiteSpeed",
-                        "Business on Bot",
-                        "Facebook Lead",
-                        "Google Lead",
-                        "Incoming Call",
-                        "Lead Form",
-                        "Online Store",
-                        "Others",
-                        "Rampwin",
-                        "Reference",
-                        "Whatsapp",
-                        "Degpeg",
-                      ].map((src) => (
-                        <MenuItem key={src} value={src}>
-                          {src}
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
-                </TableCell>
-
-
-                {/* Repeat same pattern for the remaining cells: */}
-                <TableCell sx={styles.tableCell}>
-                  <FormControl fullWidth variant="standard">
-                    <Select
-                      value={lead.enquiryFor || ""}
-                      onChange={(e) => handleInputChange(e, index, "enquiryFor")}
-                    >
-                      {[
-                        "KJF",
-                        "SDP",
-                        "VKR",
-                        "L-Fx",
-                        "S&S",
-                        "CPV",
-                        "HDP",
-                        "PF",
-                        "PGut",
-                        "Shilajit",
-                        "Kit",
-                        "Blood Test",
-                      ].map((item) => (
-                        <MenuItem key={item} value={item}>
-                          {item}
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
-                </TableCell>
-
-
-                <TableCell sx={styles.tableCell}>
-                  <FormControl fullWidth variant="standard">
-                    <Select
-                      value={lead.customerType || ""}
-                      onChange={(e) =>
-                        handleInputChange(e, index, "customerType")
-                      }
-                    >
-                      {["Fresh", "Renewal", "Online Order"].map((type) => (
-                        <MenuItem key={type} value={type}>
-                          {type}
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
-                </TableCell>
-
-
-                <TableCell sx={{ ...styles.tableCell, whiteSpace: "nowrap", minWidth: 140 }}>
-                  <TextField
-                    value={lead.agentAssigned || ""}
-                    disabled
-                    fullWidth
-                    sx={{
-                      height: "45px",
-                      "& .MuiInputBase-input": { color: "#000", },
-                      "& .MuiOutlinedInput-notchedOutline": { borderColor: "#ccc" },
-                    }}
-                  />
-                </TableCell>
-
-
-                <TableCell sx={styles.tableCell}>
-                  <FormControl fullWidth variant="standard">
-                    <Select
-                      multiple
-                      value={lead.productPitched || []}
-                      onChange={(e) =>
-                        handleInputChange(e, index, "productPitched")
-                      }
-                      renderValue={(selected) =>
-                        selected.join(", ")
-                      }
-                    >
-                      {[
-                        "KJF",
-                        "SDP",
-                        "VKR",
-                        "L-Fx",
-                        "S&S",
-                        "CPV",
-                        "HDP",
-                        "PF",
-                        "PGut",
-                        "Shilajit",
-                        "Kit",
-                        "Blood Test",
-                      ].map((opt) => (
-                        <MenuItem key={opt} value={opt}>
-                          <Checkbox
-                            checked={lead.productPitched?.includes(opt)}
-                          />
-                          <ListItemText primary={opt} />
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
-                </TableCell>
-
-
-                <TableCell sx={styles.tableCell}>
-                  <FormControl fullWidth variant="standard">
-                    <Select
-                      value={lead.leadStatus || ""}
-                      onChange={(e) =>
-                        handleInputChange(e, index, "leadStatus")
-                      }
-                    >
-                      {[
-                        "Sales Done",
-                        "CNP - Call Not Picked",
-                        "Not Interested",
-                        "Product Issue",
-                        "Order from Other Source",
-                        "Upsell",
-                        "Fake Lead",
-                        "Follow Up",
-                        "Call Back",
-                        "New",
-                        "General Query",
-                        "Invalid Number",
-                      ].map((st) => (
-                        <MenuItem key={st} value={st}>
-                          {st}
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
-                </TableCell>
-
-
-                <TableCell sx={styles.tableCell}>
-                  <FormControl fullWidth variant="standard">
-                    <Select
-                      value={lead.salesStatus || ""}
-                      onChange={(e) =>
-                        handleInputChange(e, index, "salesStatus")
-                      }
-                    >
-                      {["Sales Done", "On Follow Up", "Lost"].map((st) => (
-                        <MenuItem key={st} value={st}>
-                          {st}
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
-                </TableCell>
-
-
-                <TableCell sx={styles.tableCell}>
-                  {lead.salesStatus === "On Follow Up" ? (
+              </TableRow>
+            ) : (
+              leads.map((lead, index) => (
+                <TableRow key={lead._id} sx={styles.tableRow}>
+                  <TableCell sx={styles.tableCell}>
                     <TextField
                       type="date"
-                      value={lead.nextFollowup || ""}
-                      onChange={(e) =>
-                        handleInputChange(e, index, "nextFollowup")
-                      }
-                      fullWidth
-                      sx={{
-                        "& .MuiInputBase-input": { color: "#000", },
-                        "& .MuiOutlinedInput-notchedOutline": {
-                          borderColor: "#ccc",
-                        },
-                      }}
-                    />
-                  ) : (
-                    <TextField
-                      value={lead.salesStatus}
+                      value={lead.date || ""}
                       disabled
                       fullWidth
                       sx={{
+                        height: "45px",
+                        "& .MuiInputBase-input": { color: "#000", },
+                        "& .MuiOutlinedInput-notchedOutline": { borderColor: "#ccc" },
+                      }}
+                    />
+                  </TableCell>
+                  <TableCell sx={{ ...styles.tableCell, whiteSpace: "nowrap", minWidth: 150 }}>
+                    <TextField
+                      value={lead.time || ""}
+                      disabled
+                      fullWidth
+                      sx={{
+                        height: "45px",
+                        "& .MuiInputBase-input": { color: "#000", },
+                        "& .MuiOutlinedInput-notchedOutline": { borderColor: "#ccc" },
+                      }}
+                    />
+                  </TableCell>
+                  <TableCell sx={{ ...styles.tableCell, whiteSpace: "nowrap", minWidth: 240 }}>
+                    <TextField
+                      value={lead.name || ""}
+                      onChange={(e) => handleInputChange(e, index, "name")}
+                      fullWidth
+                      sx={{
+                        height: "45px",
+                        "& .MuiInputBase-input": { color: "#000", },
+                        "& .MuiOutlinedInput-notchedOutline": { borderColor: "#ccc" },
+                      }}
+                    />
+                  </TableCell>
+                  <TableCell
+                    sx={{
+                      // ...styles.tableCell,
+                      whiteSpace: "nowrap",
+                      minWidth: 240,
+                      background: "white",
+                      borderBottom: "1px solid gray",
+                      display: "flex",
+                      alignItems: "center",
+                      height: "48px"
+                    }}
+                  >
+                    <TextField
+                      type="number"
+                      value={lead.contactNumber || ""}
+                      onChange={(e) => handleInputChange(e, index, "contactNumber")}
+                      error={Boolean(validationErrors[index])}
+                      helperText={validationErrors[index]}
+                      fullWidth
+                      sx={{
+                        flexGrow: 1,
+                        height: "45px",
+                        "& .MuiInputBase-input": { color: "#000", },
+                        "& .MuiOutlinedInput-notchedOutline": { borderColor: "#ccc" },
+                      }}
+                    />
+                    <IconButton
+                      color="primary"
+                      onClick={() => handleCallIconClick(lead.contactNumber)}
+                      sx={{ ml: 1 }}
+                    >
+                      <PhoneIcon />
+                    </IconButton>
+                  </TableCell>
+                  <TableCell sx={styles.tableCell}>
+                    <FormControl fullWidth variant="standard">
+                      <Select
+                        value={lead.leadSource || ""}
+                        onChange={(e) => handleInputChange(e, index, "leadSource")}
+                      >
+                        {[
+                          "Abandoned Cart",
+                          "BiteSpeed",
+                          "Business on Bot",
+                          "Facebook Lead",
+                          "Google Lead",
+                          "Incoming Call",
+                          "Lead Form",
+                          "Online Store",
+                          "Others",
+                          "Rampwin",
+                          "Reference",
+                          "Whatsapp",
+                          "Degpeg",
+                        ].map((src) => (
+                          <MenuItem key={src} value={src}>
+                            {src}
+                          </MenuItem>
+                        ))}
+                      </Select>
+                    </FormControl>
+                  </TableCell>
+
+                  {/* Repeat same pattern for the remaining cells: */}
+                  <TableCell sx={styles.tableCell}>
+                    <FormControl fullWidth variant="standard">
+                      <Select
+                        value={lead.enquiryFor || ""}
+                        onChange={(e) => handleInputChange(e, index, "enquiryFor")}
+                      >
+                        {[
+                          "KJF",
+                          "SDP",
+                          "VKR",
+                          "L-Fx",
+                          "S&S",
+                          "CPV",
+                          "HDP",
+                          "PF",
+                          "PGut",
+                          "Shilajit",
+                          "Kit",
+                          "Blood Test",
+                        ].map((item) => (
+                          <MenuItem key={item} value={item}>
+                            {item}
+                          </MenuItem>
+                        ))}
+                      </Select>
+                    </FormControl>
+                  </TableCell>
+                  <TableCell sx={styles.tableCell}>
+                    <FormControl fullWidth variant="standard">
+                      <Select
+                        value={lead.customerType || ""}
+                        onChange={(e) =>
+                          handleInputChange(e, index, "customerType")
+                        }
+                      >
+                        {["Fresh", "Renewal", "Online Order"].map((type) => (
+                          <MenuItem key={type} value={type}>
+                            {type}
+                          </MenuItem>
+                        ))}
+                      </Select>
+                    </FormControl>
+                  </TableCell>
+                  <TableCell sx={{ ...styles.tableCell, whiteSpace: "nowrap", minWidth: 140 }}>
+                    <TextField
+                      value={lead.agentAssigned || ""}
+                      disabled
+                      fullWidth
+                      sx={{
+                        height: "45px",
+                        "& .MuiInputBase-input": { color: "#000", },
+                        "& .MuiOutlinedInput-notchedOutline": { borderColor: "#ccc" },
+                      }}
+                    />
+                  </TableCell>
+                  <TableCell sx={styles.tableCell}>
+                    <FormControl fullWidth variant="standard">
+                      <Select
+                        multiple
+                        value={lead.productPitched || []}
+                        onChange={(e) =>
+                          handleInputChange(e, index, "productPitched")
+                        }
+                        renderValue={(selected) =>
+                          selected.join(", ")
+                        }
+                      >
+                        {[
+                          "KJF",
+                          "SDP",
+                          "VKR",
+                          "L-Fx",
+                          "S&S",
+                          "CPV",
+                          "HDP",
+                          "PF",
+                          "PGut",
+                          "Shilajit",
+                          "Kit",
+                          "Blood Test",
+                        ].map((opt) => (
+                          <MenuItem key={opt} value={opt}>
+                            <Checkbox
+                              checked={lead.productPitched?.includes(opt)}
+                            />
+                            <ListItemText primary={opt} />
+                          </MenuItem>
+                        ))}
+                      </Select>
+                    </FormControl>
+                  </TableCell>
+                  <TableCell sx={styles.tableCell}>
+                    <FormControl fullWidth variant="standard">
+                      <Select
+                        value={lead.leadStatus || ""}
+                        onChange={(e) =>
+                          handleInputChange(e, index, "leadStatus")
+                        }
+                      >
+                        {[
+                          "Sales Done",
+                          "CNP - Call Not Picked",
+                          "Not Interested",
+                          "Product Issue",
+                          "Order from Other Source",
+                          "Upsell",
+                          "Fake Lead",
+                          "Follow Up",
+                          "Call Back",
+                          "New",
+                          "General Query",
+                          "Invalid Number",
+                        ].map((st) => (
+                          <MenuItem key={st} value={st}>
+                            {st}
+                          </MenuItem>
+                        ))}
+                      </Select>
+                    </FormControl>
+                  </TableCell>
+                  <TableCell sx={styles.tableCell}>
+                    <FormControl fullWidth variant="standard">
+                      <Select
+                        value={lead.salesStatus || ""}
+                        onChange={(e) =>
+                          handleInputChange(e, index, "salesStatus")
+                        }
+                      >
+                        {["Sales Done", "On Follow Up", "Lost"].map((st) => (
+                          <MenuItem key={st} value={st}>
+                            {st}
+                          </MenuItem>
+                        ))}
+                      </Select>
+                    </FormControl>
+                  </TableCell>
+                  <TableCell sx={styles.tableCell}>
+                    {lead.salesStatus === "On Follow Up" ? (
+                      <TextField
+                        type="date"
+                        value={lead.nextFollowup || ""}
+                        onChange={(e) =>
+                          handleInputChange(e, index, "nextFollowup")
+                        }
+                        fullWidth
+                        sx={{
+                          "& .MuiInputBase-input": { color: "#000", },
+                          "& .MuiOutlinedInput-notchedOutline": {
+                            borderColor: "#ccc",
+                          },
+                        }}
+                      />
+                    ) : (
+                      <TextField
+                        value={lead.salesStatus}
+                        disabled
+                        fullWidth
+                        sx={{
+                          "& .MuiInputBase-input": { color: "#000", },
+                          "& .MuiOutlinedInput-notchedOutline": {
+                            borderColor: "#ccc",
+                          },
+                        }}
+                      />
+                    )}
+                  </TableCell>
+                  <TableCell
+                    sx={{
+                      ...styles.tableCell,
+                      fontSize: "0.85rem",
+                      color:
+                        calculateReminder(lead.nextFollowup) === "Today"
+                          ? "green"
+                          : calculateReminder(lead.nextFollowup) === "Tomorrow"
+                            ? "blue"
+                            : calculateReminder(lead.nextFollowup) ===
+                              "Follow-up Missed"
+                              ? "red"
+                              : "inherit",
+                    }}
+                  >
+                    {lead.salesStatus === "On Follow Up"
+                      ? calculateReminder(lead.nextFollowup)
+                      : lead.salesStatus}
+                  </TableCell>
+
+                  <TableCell sx={styles.tableCell} style={{ whiteSpace: "nowrap", minWidth: "250px" }}>
+                    <TextField
+                      value={lead.agentsRemarks || ""}
+                      onChange={(e) =>
+                        handleInputChange(e, index, "agentsRemarks")
+                      }
+                      fullWidth
+                      sx={{
                         "& .MuiInputBase-input": { color: "#000", },
                         "& .MuiOutlinedInput-notchedOutline": {
                           borderColor: "#ccc",
                         },
                       }}
                     />
-                  )}
-                </TableCell>
-
-
-                <TableCell
-                  sx={{
-                    ...styles.tableCell,
-                    fontSize: "0.85rem",
-
-
-                    color:
-                      calculateReminder(lead.nextFollowup) === "Today"
-                        ? "green"
-                        : calculateReminder(lead.nextFollowup) === "Tomorrow"
-                          ? "blue"
-                          : calculateReminder(lead.nextFollowup) ===
-                            "Follow-up Missed"
-                            ? "red"
-                            : "inherit",
-                  }}
-                >
-                  {lead.salesStatus === "On Follow Up"
-                    ? calculateReminder(lead.nextFollowup)
-                    : lead.salesStatus}
-                </TableCell>
-
-
-                <TableCell sx={styles.tableCell} style={{ whiteSpace: "nowrap", minWidth: "250px" }}>
-                  <TextField
-                    value={lead.agentsRemarks || ""}
-                    onChange={(e) =>
-                      handleInputChange(e, index, "agentsRemarks")
-                    }
-                    fullWidth
-                    sx={{
-                      "& .MuiInputBase-input": { color: "#000", },
-                      "& .MuiOutlinedInput-notchedOutline": {
-                        borderColor: "#ccc",
-                      },
-                    }}
-                  />
-                </TableCell>
-              </TableRow>
-            ))}
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
           </TableBody>
         </Table>
       </TableContainer>

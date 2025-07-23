@@ -20,6 +20,7 @@ import {
   Paper,
   TablePagination,
   InputLabel,
+  CircularProgress,
   IconButton,
 } from "@mui/material";
 import { Delete, AddCircle } from "@mui/icons-material";
@@ -74,6 +75,7 @@ const RetentionSales = () => {
   const [editedSales, setEditedSales] = useState({});
   const [savingStatus, setSavingStatus] = useState({});
   const [filterOpen, setFilterOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [filters, setFilters] = useState({
     dateFrom: "",
     dateTo: "",
@@ -86,26 +88,29 @@ const RetentionSales = () => {
   });
 
 
-  const loggedInUser = JSON.parse(sessionStorage.getItem("user"));
+  const loggedInUser = JSON.parse(sessionStorage.getItem("user")); 
 
 
   // Fetch sales and update both states
   const fetchSales = async () => {
+    setLoading(true);
     try {
       let params = {};
       if (loggedInUser.role === "Retention Agent") {
-        params.orderCreatedBy = loggedInUser.fullName;
+        params.orderCreatedBy = loggedInUser.fullName; 
       }
       const response = await axios.get(
-        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/retention-sales/all",
+        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/retention-sales/all", 
         { params }
       );
       setAllSales(response.data);
       setDisplayedSales(response.data);
     } catch (error) {
-      console.error("Error fetching retention sales:", error.response || error);
+      console.error("Error fetching retention sales:", error.response || error); 
       alert("Failed to load sales data. Please try again.");
-    }
+    } finally {
+    setLoading(false);
+  }
   };
 
   useEffect(() => {
@@ -648,7 +653,19 @@ const RetentionSales = () => {
             </TableRow>
           </TableHead>
           <TableBody>
-            {currentSales.map((sale) => (
+            {loading ? (
+  <TableRow>
+    <TableCell colSpan={13} align="center">
+      <Box sx={{ py: 3, display: "flex", flexDirection: "column", alignItems: "center" }}>
+        <CircularProgress size={24} />
+        <Typography variant="body2" sx={{ mt: 1 }}>
+          Please wait...
+        </Typography>
+      </Box>
+    </TableCell>
+  </TableRow>
+) : (
+            currentSales.map((sale) => (
               <TableRow key={sale._id}>
                 <TableCell>
                   <TextField
@@ -785,7 +802,8 @@ const RetentionSales = () => {
                   </IconButton>
                 </TableCell>
               </TableRow>
-            ))}
+            ))
+          )}
           </TableBody>
         </Table>
       </TableContainer>

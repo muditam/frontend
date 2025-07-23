@@ -20,6 +20,7 @@ import {
   ListItemText,
   TablePagination,
   Divider,
+  CircularProgress,
 } from "@mui/material";
 import axios from "axios"; 
 
@@ -30,6 +31,7 @@ const NewOrders = () => {
   const [uniqueAgents, setUniqueAgents] = useState([]);
   const [allOrders, setAllOrders] = useState([]);
   const [totalOrders, setTotalOrders] = useState(0);
+  const [loading, setLoading] = useState(false);
   const [filters, setFilters] = useState({
     startDate: "",
     endDate: "",
@@ -41,7 +43,7 @@ const NewOrders = () => {
     healthExpertAssigned: "",
     modeOfPayment: [],
   });
-  const [filterOpen, setFilterOpen] = useState(false);
+  const [filterOpen, setFilterOpen] = useState(false); 
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(30);
 
@@ -63,6 +65,7 @@ const NewOrders = () => {
 
   // Fetch combined orders from the new combined orders endpoint
   const fetchNewOrders = async () => {
+    setLoading(true);
     try {
       const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/orders/combined", { 
         params: {
@@ -84,7 +87,9 @@ const NewOrders = () => {
       setUniqueAgents(uniqueAgentNames);
     } catch (error) {
       console.error("Error fetching combined orders:", error);
-    }
+    } finally {
+    setLoading(false);  
+  }
   };
  
   const fetchRetentionAgents = async () => {
@@ -380,7 +385,17 @@ const NewOrders = () => {
             </TableRow>
           </TableHead>
           <TableBody>
-            {newOrders.map((order, index) => (
+            {newOrders.length === 0 ? (
+    <TableRow>
+      <TableCell colSpan={10} align="center">
+        <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", py: 3 }}>
+          <CircularProgress />
+          <Typography variant="body2" sx={{ mt: 1 }}>Please wait...</Typography>
+        </Box>
+      </TableCell>
+    </TableRow>
+  ) : (
+            newOrders.map((order, index) => (
               <TableRow key={order._id || index}>
                 <TableCell>
                   {order.orderDate ? new Date(order.orderDate).toLocaleDateString() : "N/A"}
@@ -412,7 +427,8 @@ const NewOrders = () => {
                 <TableCell>{order.amountPaid || "N/A"}</TableCell>
                 <TableCell>{order.modeOfPayment || "N/A"}</TableCell> 
               </TableRow>
-            ))}
+            ))
+          )}
           </TableBody>
         </Table>
       </TableContainer>

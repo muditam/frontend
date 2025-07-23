@@ -8,7 +8,7 @@ import {
   TableContainer,
   TableHead,
   TableRow,
-  Paper, 
+  Paper,
   Select,
   MenuItem,
   Button,
@@ -20,12 +20,13 @@ import {
   Checkbox,
   ListItemText,
   TablePagination,
+  CircularProgress,
 } from "@mui/material";
 import axios from "axios";
 
 const dropdownOptions = {
   productsOrdered: [
-    "KJF", "SDP", "VKR", "L-Fx", "S&S", 
+    "KJF", "SDP", "VKR", "L-Fx", "S&S",
     "CPV", "HDP", "PF", "PGut", "Shilajit", "Kit", "Blood Test"
   ],
   dosageOrdered: ["10-Days", "20-Days", "30-Days", "60-Days", "90-Days"],
@@ -38,6 +39,7 @@ const RetentionOrders = () => {
   const [currentPage, setCurrentPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(50);
   const [filterOpen, setFilterOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [filters, setFilters] = useState({
     dateFrom: "",
     dateTo: "",
@@ -85,15 +87,18 @@ const RetentionOrders = () => {
   // Fetch combined data using the orderCreatedBy query parameter.
   const fetchRetentionOrders = async () => {
     try {
+      setLoading(true);
       const response = await axios.get(
-        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/retention-sales/all", 
-        { params: { orderCreatedBy: retentionAgents } } // Pass array of retention agent names
+        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/retention-sales/allapi",
+        { params: { orderCreatedBy: retentionAgents } } // Pass array of retention agent names 
       );
       // Sort orders by descending date.
       const sortedOrders = response.data.sort((a, b) => new Date(b.date) - new Date(a.date));
       setOrders(sortedOrders);
     } catch (error) {
       console.error("Error fetching retention orders:", error);
+    } finally {
+      setLoading(false); // End loading
     }
   };
 
@@ -109,8 +114,8 @@ const RetentionOrders = () => {
             Array.isArray(order.productsOrdered)
               ? order.productsOrdered.includes(item)
               : typeof order.productsOrdered === "string"
-              ? order.productsOrdered.toLowerCase().includes(item.toLowerCase())
-              : false
+                ? order.productsOrdered.toLowerCase().includes(item.toLowerCase())
+                : false
           )) &&
         (!filters.dosageOrdered ||
           order.dosageOrdered?.toLowerCase().includes(filters.dosageOrdered.toLowerCase())) &&
@@ -446,56 +451,66 @@ const RetentionOrders = () => {
         </Box>
       </Drawer>
 
-      <TableContainer component={Paper} style={styles.card} sx={{ maxHeight: 1000 }}>
-        <Table style={styles.table} stickyHeader aria-label="sticky table">
-          <TableHead>
-            <TableRow>
-              <TableCell style={styles.tableCell}>Date</TableCell>
-              <TableCell style={styles.tableCell}>Name</TableCell>
-              <TableCell style={styles.tableCell}>Contact No</TableCell>
-              <TableCell style={styles.tableCell}>Products Ordered</TableCell>
-              <TableCell style={styles.tableCell}>Dosage Ordered</TableCell>
-              <TableCell style={styles.tableCell}>Amount Paid</TableCell>
-              <TableCell style={styles.tableCell}>Mode of Payment</TableCell>
-              <TableCell style={styles.tableCell}>Order ID</TableCell>
-              <TableCell style={styles.tableCell}>Shipment Status</TableCell>
-              <TableCell style={styles.tableCell}>Order Created By</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {currentLeads.map((order) => (
-              <TableRow
-                key={order._id}
-                sx={{ "&:hover": { backgroundColor: "#f2f2f2" } }}
-              >
-                <TableCell style={styles.tableCell}>{order.date || "N/A"}</TableCell>
-                <TableCell style={styles.tableCell}>{order.name || "N/A"}</TableCell>
-                <TableCell style={styles.tableCell}>{order.contactNumber || "N/A"}</TableCell>
-                <TableCell style={styles.tableCell}>
-                  {Array.isArray(order.productsOrdered)
-                    ? order.productsOrdered.join(", ")
-                    : order.productsOrdered || "N/A"}
-                </TableCell>
-                <TableCell style={styles.tableCell}>{order.dosageOrdered || "N/A"}</TableCell>
-                <TableCell style={styles.tableCell}>{order.amountPaid || "N/A"}</TableCell>
-                <TableCell style={styles.tableCell}>{order.modeOfPayment || "N/A"}</TableCell>
-                <TableCell style={styles.tableCell}>{order.orderId || "N/A"}</TableCell>
-                <TableCell style={styles.tableCell}>{order.shipway_status || "N/A"}</TableCell>
-                <TableCell style={styles.tableCell}>{order.orderCreatedBy || "N/A"}</TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </TableContainer>
-      <TablePagination
-        rowsPerPageOptions={[10, 20, 50, 100]}
-        component="div"
-        count={orders.length}
-        rowsPerPage={rowsPerPage}
-        page={currentPage}
-        onPageChange={handleChangePage}
-        onRowsPerPageChange={handleChangeRowsPerPage}
-      />
+          <TableContainer component={Paper} style={styles.card} sx={{ maxHeight: 1000 }}>
+            <Table style={styles.table} stickyHeader aria-label="sticky table">
+              <TableHead>
+                <TableRow>
+                  <TableCell style={styles.tableCell}>Date</TableCell>
+                  <TableCell style={styles.tableCell}>Name</TableCell>
+                  <TableCell style={styles.tableCell}>Contact No</TableCell>
+                  <TableCell style={styles.tableCell}>Products Ordered</TableCell>
+                  <TableCell style={styles.tableCell}>Dosage Ordered</TableCell>
+                  <TableCell style={styles.tableCell}>Amount Paid</TableCell>
+                  <TableCell style={styles.tableCell}>Mode of Payment</TableCell>
+                  <TableCell style={styles.tableCell}>Order ID</TableCell>
+                  <TableCell style={styles.tableCell}>Shipment Status</TableCell>
+                  <TableCell style={styles.tableCell}>Order Created By</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+
+                {loading ? (
+        <TableRow>
+          <TableCell colSpan={10} align="center">
+            <CircularProgress sx={{ my: 3 }} />
+          </TableCell>
+        </TableRow>
+      ) : (
+                currentLeads.map((order) => (
+                  <TableRow
+                    key={order._id}
+                    sx={{ "&:hover": { backgroundColor: "#f2f2f2" } }}
+                  >
+                    <TableCell style={styles.tableCell}>{order.date || "N/A"}</TableCell>
+                    <TableCell style={styles.tableCell}>{order.name || "N/A"}</TableCell>
+                    <TableCell style={styles.tableCell}>{order.contactNumber || "N/A"}</TableCell>
+                    <TableCell style={styles.tableCell}>
+                      {Array.isArray(order.productsOrdered)
+                        ? order.productsOrdered.join(", ")
+                        : order.productsOrdered || "N/A"}
+                    </TableCell>
+                    <TableCell style={styles.tableCell}>{order.dosageOrdered || "N/A"}</TableCell>
+                    <TableCell style={styles.tableCell}>{order.amountPaid || "N/A"}</TableCell>
+                    <TableCell style={styles.tableCell}>{order.modeOfPayment || "N/A"}</TableCell>
+                    <TableCell style={styles.tableCell}>{order.orderId || "N/A"}</TableCell>
+                    <TableCell style={styles.tableCell}>{order.shipway_status || "N/A"}</TableCell>
+                    <TableCell style={styles.tableCell}>{order.orderCreatedBy || "N/A"}</TableCell>
+                  </TableRow>
+                ))
+              )}
+              </TableBody>
+            </Table>
+          </TableContainer>
+          <TablePagination
+            rowsPerPageOptions={[10, 20, 50, 100]}
+            component="div"
+            count={orders.length}
+            rowsPerPage={rowsPerPage}
+            page={currentPage}
+            onPageChange={handleChangePage}
+            onRowsPerPageChange={handleChangeRowsPerPage}
+          />
+        
     </Box>
   );
 };
