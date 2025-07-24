@@ -3,21 +3,8 @@ import { Popover, Box, Typography, Button, IconButton, Slide } from "@mui/materi
 import CardGiftcardIcon from "@mui/icons-material/CardGiftcard";
 import EmojiEventsIcon from "@mui/icons-material/EmojiEvents"; // Trophy
 
-// --- Gift Data ---
-const giftPrizes = [
-  { rank: 1, label: "Gift worth 5000" },
-  { rank: 2, label: "Gift worth 3000" },
-  { rank: 3, label: "Gift worth 2000" },
-  { rank: 4, label: "Assured Gift" },
-  { rank: 5, label: "Assured Gift" },
-  { rank: 6, label: "Assured Gift" },
-  { rank: 7, label: "Assured Gift" },
-  { rank: 8, label: "Assured Gift" },
-  { rank: 9, label: "Assured Gift" },
-  { rank: 10, label: "Assured Gift" },
-];
 
-const GIFT_CONDITION_NOTE = "Condition: Minimum ₹3,00,000 sales required";
+
 
 const getAvatarUrl = (name) =>
   `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(name)}&backgroundType=gradientLinear&radius=50`;
@@ -42,8 +29,8 @@ const getRankSuffix = (num) => {
   if (num === 2) return "2nd";
   if (num === 3) return "3rd";
   if (num % 10 === 1 && num !== 11) return `${num}st`;
-  if (num % 10 === 2 && num !== 12) return `${num}nd`;     
-  if (num % 10 === 3 && num !== 13) return `${num}rd`; 
+  if (num % 10 === 2 && num !== 12) return `${num}nd`;
+  if (num % 10 === 3 && num !== 13) return `${num}rd`;
   return `${num}th`;
 };
 
@@ -64,6 +51,29 @@ export default function LeaderboardPopover({ open, anchorEl, onClose }) {
   const [leaderboardData, setLeaderboardData] = useState([]);
   const [loadingLeaderboard, setLoadingLeaderboard] = useState(false);
   const [showGifts, setShowGifts] = useState(false);
+  const [isWeekly, setIsWeekly] = useState(false);
+
+  const giftPrizes = isWeekly
+    ? [
+      { rank: 1, label: "Assured Gift" },
+      { rank: 2, label: "Assured Gift" },
+    ]
+    : [
+      { rank: 1, label: "Gift worth 5000" },
+      { rank: 2, label: "Gift worth 3000" },
+      { rank: 3, label: "Gift worth 2000" },
+      { rank: 4, label: "Assured Gift" },
+      { rank: 5, label: "Assured Gift" },
+      { rank: 6, label: "Assured Gift" },
+      { rank: 7, label: "Assured Gift" },
+      { rank: 8, label: "Assured Gift" },
+      { rank: 9, label: "Assured Gift" },
+      { rank: 10, label: "Assured Gift" },
+    ];
+
+  const GIFT_CONDITION_NOTE = isWeekly
+    ? " "
+    : "Condition: Minimum ₹3,00,000 sales required";
 
   useEffect(() => {
     const fetchLeaderboard = async () => {
@@ -73,20 +83,38 @@ export default function LeaderboardPopover({ open, anchorEl, onClose }) {
         const agentsArr = await agentsRes.json();
 
         const ninetyDaysAgo = new Date();
-          ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90); 
+        ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
 
-          const agents = agentsArr.filter(
-            (emp) =>
-              emp.status === "active" &&
-              (emp.role === "Sales Agent" || emp.role === "Retention Agent") &&
-              emp.joiningDate && new Date(emp.joiningDate) <= ninetyDaysAgo
-          );
+        const agents = agentsArr.filter(
+          (emp) =>
+            emp.status === "active" &&
+            (emp.role === "Sales Agent" || emp.role === "Retention Agent") &&
+            emp.joiningDate && new Date(emp.joiningDate) <= ninetyDaysAgo
+        );
+
+        const now = new Date();
+        let fromDate;
+
+        if (isWeekly) {
+          // Find the most recent Sunday
+          const currentDay = now.getDay(); // Sunday = 0
+          fromDate = new Date(now);
+          fromDate.setDate(now.getDate() - currentDay);
+        } else {
+          // Monthly (default): first of the month
+          fromDate = new Date(now.getFullYear(), now.getMonth(), 1);
+        }
+
+        const from = fromDate.toISOString().split("T")[0];
+        const to = now.toISOString().split("T")[0];
+
         const agentSales = await Promise.all(
           agents.map(async (agent) => {
             try {
               const salesRes = await fetch(
-                `https://muditamleads-14f32a10d7f7.herokuapp.com/api/retention-sales/progress?name=${encodeURIComponent(agent.fullName)}`
+                `https://muditamleads-14f32a10d7f7.herokuapp.com/api/retention-sales/progress?name=${encodeURIComponent(agent.fullName)}&from=${from}&to=${to}`
               );
+
               const data = await salesRes.json();
               return { name: agent.fullName, sales: data.total || 0 };
             } catch {
@@ -103,7 +131,7 @@ export default function LeaderboardPopover({ open, anchorEl, onClose }) {
       setLoadingLeaderboard(false);
     };
     if (open) fetchLeaderboard();
-  }, [open]);
+  }, [open, isWeekly]);
 
   const top3 = leaderboardData.slice(0, 3);
   const podiumDisplay = getPodiumDisplay(top3);
@@ -116,7 +144,7 @@ export default function LeaderboardPopover({ open, anchorEl, onClose }) {
         setShowGifts(false);
         onClose();
       }}
-      anchorOrigin={{ vertical: "bottom", horizontal: "center" }} 
+      anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
       transformOrigin={{ vertical: "top", horizontal: "center" }}
       PaperProps={{
         sx: {
@@ -124,10 +152,12 @@ export default function LeaderboardPopover({ open, anchorEl, onClose }) {
           borderRadius: 5,
           minWidth: 410,
           maxWidth: 450,
-          minHeight: 685, // +15px
-          maxHeight: 720,
+          minHeight: 685,   
+          maxHeight: 720, 
           boxShadow: "0 10px 32px 0 rgba(16,18,48,0.26)",
-          background: "linear-gradient(120deg,#242e4f 0%,#513a6c 100%)",
+          background: isWeekly
+            ? "	linear-gradient(120deg,#fbe4e4 0%,#f8d1d1 100%)"
+            : "linear-gradient(120deg,#242e4f 0%,#513a6c 100%)",
           color: "#fff",
           p: 0,
           overflow: "visible",
@@ -136,6 +166,65 @@ export default function LeaderboardPopover({ open, anchorEl, onClose }) {
         },
       }}
     >
+
+      <Box
+        sx={{
+          position: "absolute",
+          top: 25,
+          left: 28,
+          zIndex: 12,
+        }}
+      >
+        <Box
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            borderRadius: 10,
+            background: "#fff",
+            boxShadow: "0 2px 8px #b8b7c288",
+            overflow: "hidden",
+            border: "2px solid #e0dcf5",
+          }}
+        >
+          {/* Monthly toggle (M) */}
+          <Box
+            onClick={() => setIsWeekly(false)}
+            sx={{
+              px: 2,
+              py: 0.8,
+              fontWeight: 700,
+              fontSize: 14,
+              color: !isWeekly ? "#fff" : "#7c4dff",
+              background: !isWeekly ? "#7c4dff" : "transparent",
+              cursor: "pointer",
+              transition: "all 0.2s",
+              userSelect: "none",
+            }}
+          >
+            M
+          </Box>
+
+          {/* Weekly toggle (W) */}
+          <Box
+            onClick={() => setIsWeekly(true)}
+            sx={{
+              px: 2,
+              py: 0.8,
+              fontWeight: 700,
+              fontSize: 14,
+              color: isWeekly ? "#fff" : "#7c4dff",
+              background: isWeekly ? "#7c4dff" : "transparent",
+              cursor: "pointer",
+              transition: "all 0.2s",
+              userSelect: "none",
+            }}
+          >
+            W
+          </Box>
+        </Box>
+      </Box>
+
+
       {/* --- Gift Icon Top Right --- */}
       <Box
         sx={{
@@ -211,7 +300,7 @@ export default function LeaderboardPopover({ open, anchorEl, onClose }) {
               textShadow: "0 2px 8px #beadfd23",
             }}
           >
-            Leaderboard Rewards
+            {isWeekly ? "Weekly Rewards" : "Monthly Rewards"}
           </Typography>
           <Box
             sx={{
@@ -222,7 +311,7 @@ export default function LeaderboardPopover({ open, anchorEl, onClose }) {
               boxShadow: "0 2px 8px #a68fff18",
               background: "#fff",
               p: 2.5,
-              pb: 1, 
+              pb: 1,
             }}
           >
             <Box
@@ -260,10 +349,10 @@ export default function LeaderboardPopover({ open, anchorEl, onClose }) {
                     color: idx === 0
                       ? "#f3a139"
                       : idx === 1
-                      ? "#8e96a6"
-                      : idx === 2
-                      ? "#e6985b"
-                      : "#7759c4",
+                        ? "#8e96a6"
+                        : idx === 2
+                          ? "#e6985b"
+                          : "#7759c4",
                     fontWeight: 800,
                     letterSpacing: 0.2,
                   }}
@@ -350,7 +439,7 @@ export default function LeaderboardPopover({ open, anchorEl, onClose }) {
                 width: "100%",
                 minHeight: 250,
                 mb: 3,
-                gap: 4.3,
+                gap: 4.3, 
                 px: 2,
                 position: "relative",
               }}
@@ -361,7 +450,7 @@ export default function LeaderboardPopover({ open, anchorEl, onClose }) {
                 const podiumWidth = 85;
                 const avatarSize = 92;
 
-                if (!person) return <Box key={i} sx={{ flex: 1 }} />;
+                if (!person) return <Box key={i} sx={{ flex: 1 }} />; 
                 return (
                   <Box
                     key={person.name}
@@ -379,7 +468,7 @@ export default function LeaderboardPopover({ open, anchorEl, onClose }) {
                       <Typography
                         sx={{
                           fontWeight: 800,
-                          color: "#fff",
+                          color: isWeekly ? "#1d6527" : "#fff", 
                           fontSize: 20,
                           textAlign: "center",
                           letterSpacing: 0.1,
@@ -474,8 +563,8 @@ export default function LeaderboardPopover({ open, anchorEl, onClose }) {
                           textAlign: "center",
                           letterSpacing: 0.13,
                         }}
-                      > 
-                        ₹{Math.round(person.sales).toLocaleString()} 
+                      >
+                        ₹{Math.round(person.sales).toLocaleString()}
                       </Box>
                       <Typography
                         sx={{
@@ -538,8 +627,10 @@ export default function LeaderboardPopover({ open, anchorEl, onClose }) {
                     <Typography
                       sx={{
                         fontWeight: 900,
-                        fontSize: 17,
-                        color: "#f2be53",
+                        fontSize: 17, 
+                        color: isWeekly
+                        ? "#857310"  
+                        : "#f2be53",
                         textAlign: "right",
                         mr: 0,
                       }}
@@ -547,7 +638,7 @@ export default function LeaderboardPopover({ open, anchorEl, onClose }) {
                       {getRankSuffix(idx + 4)}
                     </Typography>
                   </Box>
-                  {/* Avatar */}
+                  {/* Avatar */} 
                   <Box sx={{ position: "relative", mr: 1.2 }}>
                     <img
                       src={getAvatarUrl(row.name)}
@@ -568,7 +659,9 @@ export default function LeaderboardPopover({ open, anchorEl, onClose }) {
                       flex: 1,
                       fontWeight: 700,
                       fontSize: 17,
-                      color: "#fff",
+                      color: isWeekly
+                        ? "#1d6527"  
+                        : "#fff",
                       letterSpacing: 0.02,
                       textShadow: "0 1px 7px #ad99ee15",
                       whiteSpace: "pre-line",
@@ -580,7 +673,9 @@ export default function LeaderboardPopover({ open, anchorEl, onClose }) {
                   <Box
                     sx={{
                       fontWeight: 900,
-                      color: "#7fffc4",
+                      color: isWeekly
+                        ? "#1d6527"  // Light maroon background
+                        : "#7fffc4",
                       fontSize: 18,
                       minWidth: 85,
                       textAlign: "right",

@@ -4,13 +4,6 @@ import { Popover, Box, Typography, Button, IconButton, Slide } from "@mui/materi
 import CardGiftcardIcon from "@mui/icons-material/CardGiftcard";
 import EmojiEventsIcon from "@mui/icons-material/EmojiEvents";
 
-const giftPrizes = [
-  { rank: 1, label: "Gift worth 3000" },
-  { rank: 2, label: "Gift worth 2000" },
-  { rank: 3, label: "Gift worth 1000" }, 
-];
-
-const GIFT_CONDITION_NOTE = "Condition: Minimum 80% Target Should be Meet"; 
 
 const getRankSuffix = (num) => {
   if (num === 1) return "1st";
@@ -24,7 +17,7 @@ const getRankSuffix = (num) => {
 
 const getFirstName = (name) => {
   if (!name) return "";
-  const parts = name.trim().split(" ").filter(Boolean);  
+  const parts = name.trim().split(" ").filter(Boolean);
   return parts[0] || "";
 };
 
@@ -58,14 +51,33 @@ export default function Bloomleader({ open, anchorEl, onClose }) {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(false);
   const [showGifts, setShowGifts] = useState(false);
+  const [isWeekly, setIsWeekly] = useState(false);
+
+  const giftPrizes = isWeekly
+    ? [
+      { rank: 1, label: "Assured Gift" },
+      { rank: 2, label: "Assured Gift" },
+    ]
+    : [
+      { rank: 1, label: "Gift worth 3000" },
+      { rank: 2, label: "Gift worth 2000" },
+      { rank: 3, label: "Gift worth 1000" },
+    ];
+
+  const GIFT_CONDITION_NOTE = isWeekly
+    ? " "
+    : "Condition: Minimum ₹3,00,000 sales required";
 
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
       try {
-        const empRes = await fetch("https://muditamleads-14f32a10d7f7.herokuapp.com/api/employees"); 
+        const empRes = await fetch(
+          "https://muditamleads-14f32a10d7f7.herokuapp.com/api/employees"
+        );
         const employees = await empRes.json();
 
+        // Filter new joiners (last 90 days)
         const newJoiners = employees.filter(
           (emp) =>
             emp.status === "active" &&
@@ -73,11 +85,34 @@ export default function Bloomleader({ open, anchorEl, onClose }) {
             isWithinLast90Days(emp.joiningDate)
         );
 
+        // Calculate date range
+        const now = new Date();
+        const yyyy = now.getFullYear();
+        const mm = String(now.getMonth() + 1).padStart(2, "0");
+
+        const firstDay = `${yyyy}-${mm}-01`;
+        const lastDayNum = new Date(yyyy, now.getMonth() + 1, 0).getDate();
+        const lastDay = `${yyyy}-${mm}-${String(lastDayNum).padStart(2, "0")}`;
+
+        const endDate = new Date();
+        const startDate = new Date();
+        startDate.setDate(endDate.getDate() - 6);
+
+        const from = isWeekly
+          ? startDate.toISOString().slice(0, 10)
+          : firstDay;
+        const to = isWeekly
+          ? endDate.toISOString().slice(0, 10)
+          : lastDay;
+
+        // Fetch sales for each new joiner
         const sales = await Promise.all(
           newJoiners.map(async (emp) => {
             try {
               const res = await fetch(
-                `https://muditamleads-14f32a10d7f7.herokuapp.com/api/retention-sales/progress?name=${encodeURIComponent(emp.fullName)}`
+                `https://muditamleads-14f32a10d7f7.herokuapp.com/api/retention-sales/progress?name=${encodeURIComponent(
+                  emp.fullName
+                )}&from=${from}&to=${to}`
               );
               const d = await res.json();
               return { name: emp.fullName, sales: d.total || 0 };
@@ -87,7 +122,10 @@ export default function Bloomleader({ open, anchorEl, onClose }) {
           })
         );
 
-        const filtered = sales.filter((s) => s.sales > 0).sort((a, b) => b.sales - a.sales);
+        const filtered = sales
+          .filter((s) => s.sales > 0)
+          .sort((a, b) => b.sales - a.sales);
+
         setData(filtered);
       } catch (e) {
         console.error("Bloomleader fetch error", e);
@@ -97,7 +135,8 @@ export default function Bloomleader({ open, anchorEl, onClose }) {
     };
 
     if (open) fetchData();
-  }, [open]);
+  }, [open, isWeekly]);
+
 
   const podiumDisplay = getPodiumDisplay(data.slice(0, 3));
 
@@ -120,7 +159,9 @@ export default function Bloomleader({ open, anchorEl, onClose }) {
           minHeight: 685,
           maxHeight: 720,
           boxShadow: "0 10px 32px 0 rgba(16,18,48,0.26)",
-          background: "linear-gradient(120deg,#1f3e42 0%,#504572 100%)",
+          background: isWeekly
+            ? "	linear-gradient(120deg,#fbe4e4 0%,#f8d1d1 100%)"
+            : "linear-gradient(120deg,#242e4f 0%,#513a6c 100%)",
           color: "#fff",
           p: 0,
           overflow: "visible",
@@ -129,6 +170,64 @@ export default function Bloomleader({ open, anchorEl, onClose }) {
         },
       }}
     >
+
+      <Box
+        sx={{
+          position: "absolute",
+          top: 25,
+          left: 28,
+          zIndex: 12,
+        }}
+      >
+        <Box
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            borderRadius: 10,
+            background: "#fff",
+            boxShadow: "0 2px 8px #b8b7c288",
+            overflow: "hidden",
+            border: "2px solid #e0dcf5",
+          }}
+        >
+          {/* Monthly toggle (M) */}
+          <Box
+            onClick={() => setIsWeekly(false)}
+            sx={{
+              px: 2,
+              py: 0.8,
+              fontWeight: 700,
+              fontSize: 14,
+              color: !isWeekly ? "#fff" : "#7c4dff",
+              background: !isWeekly ? "#7c4dff" : "transparent",
+              cursor: "pointer",
+              transition: "all 0.2s",
+              userSelect: "none",
+            }}
+          >
+            M
+          </Box>
+
+          {/* Weekly toggle (W) */}
+          <Box
+            onClick={() => setIsWeekly(true)}
+            sx={{
+              px: 2,
+              py: 0.8,
+              fontWeight: 700,
+              fontSize: 14,
+              color: isWeekly ? "#fff" : "#7c4dff",
+              background: isWeekly ? "#7c4dff" : "transparent",
+              cursor: "pointer",
+              transition: "all 0.2s",
+              userSelect: "none",
+            }}
+          >
+            W
+          </Box>
+        </Box>
+      </Box>
+
       {/* Gift toggle */}
       <Box sx={{ position: "absolute", top: 25, right: 28, zIndex: 12 }}>
         <IconButton
@@ -223,16 +322,16 @@ export default function Bloomleader({ open, anchorEl, onClose }) {
             ))}
           </Box>
           <Box sx={{
-                      width: "90%",
-                      color: "#7057e6",
-                      fontSize: 15.5,
-                      textAlign: "center",
-                      letterSpacing: 0.13,
-                      mb: 4.4,
-                      fontWeight: 600,
-                    }}>
-                      {GIFT_CONDITION_NOTE}
-                    </Box>
+            width: "90%",
+            color: "#7057e6",
+            fontSize: 15.5,
+            textAlign: "center",
+            letterSpacing: 0.13,
+            mb: 4.4,
+            fontWeight: 600,
+          }}>
+            {GIFT_CONDITION_NOTE}
+          </Box>
           <Button
             variant="contained"
             onClick={() => setShowGifts(false)}
@@ -258,7 +357,7 @@ export default function Bloomleader({ open, anchorEl, onClose }) {
         <Typography
           sx={{
             fontWeight: 900,
-            fontSize: 22,
+            fontSize: 18,
             textAlign: "center",
             mb: 3.5,
             color: "#fff",
@@ -302,84 +401,85 @@ export default function Bloomleader({ open, anchorEl, onClose }) {
 
                 return (
                   <Box
-    key={person.name}
-    sx={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center" }}
-  >
-    <Typography sx={{ fontWeight: 800, fontSize: 20, textAlign: "center", mb: 1.1 }}>
-      {getFirstName(person.name)}
-      {rank === 1 && (
-        <EmojiEventsIcon sx={{ ml: 1, fontSize: 25, color: "#FFD700" }} />
-      )}
-    </Typography>
+                    key={person.name}
+                    sx={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center" }}
+                  >
+                    <Typography sx={{ fontWeight: 800, fontSize: 20, textAlign: "center", mb: 1.1, color: isWeekly ? "#1d6527" : "#fff", }}>
+                      {getFirstName(person.name)}
+                      {rank === 1 && (
+                        <EmojiEventsIcon sx={{ ml: 1, fontSize: 25, color: "#FFD700" }} />
+                      )}
+                    </Typography>
 
-    <Box
-      sx={{
-        width: avatarSize,
-        height: avatarSize,
-        borderRadius: "50%",
-        overflow: "hidden",
-        mb: 1,
-        border: "4px solid #fff",
-        boxShadow: podiumGlow[rank - 1],
-      }}
-    >
-      <img
-        src={getAvatarUrl(person.name)}
-        alt={person.name}
-        width="100%"
-        height="100%"
-      />
-    </Box>
+                    <Box
+                      sx={{
+                        width: avatarSize,
+                        height: avatarSize,
+                        borderRadius: "50%",
+                        overflow: "hidden",
+                        mb: 1,
+                        border: "4px solid #fff",
+                        boxShadow: podiumGlow[rank - 1],
+                      }}
+                    >
+                      <img
+                        src={getAvatarUrl(person.name)}
+                        alt={person.name}
+                        width="100%"
+                        height="100%"
+                      />
+                    </Box>
 
-    {/* Sales */}
-    <Typography
-      sx={{
-        fontWeight: 800,
-        fontSize: 18,
-        color: "#fff",
-        mb: 1,
-        textAlign: "center",
-      }}
-    >
-      ₹{Math.round(person.sales).toLocaleString()}
-    </Typography>
+                    {/* Sales */}
+                    <Typography
+                      sx={{
+                        fontWeight: 800,
+                        fontSize: 18,
+                        color:  isWeekly
+                        ? "#4d35b3" : "#fff",
+                        mb: 1,
+                        textAlign: "center",
+                      }}
+                    >
+                      ₹{Math.round(person.sales).toLocaleString()}
+                    </Typography>
 
-    <Box
-      sx={{
-        width: 85,
-        height: podiumHeight,
-        bgcolor: "transparent",
-        borderRadius: "16px 16px 13px 13px",
-        position: "relative",
-        boxShadow: "0 8px 20px 3px #756dc43a",
-      }}
-    >
-      <Box
-        sx={{
-          position: "absolute",
-          bottom: 0,
-          width: "100%",
-          height: "100%",
-          background: podiumColors[rank - 1],
-          borderRadius: "inherit",
-        }}
-      />
-      <Typography
-        sx={{
-          position: "absolute",
-          bottom: 16,
-          width: "100%",
-          textAlign: "center",
-          fontWeight: 900,
-          fontSize: 30,
-          color: "#fff",
-        }}
-      >
-        {rank}
-      </Typography>
-    </Box>
-  </Box>
-);
+                    <Box
+                      sx={{
+                        width: 85,
+                        height: podiumHeight,
+                        bgcolor: "transparent",
+                        borderRadius: "16px 16px 13px 13px",
+                        position: "relative",
+                        boxShadow: "0 8px 20px 3px #756dc43a",
+                      }}
+                    >
+                      <Box
+                        sx={{
+                          position: "absolute",
+                          bottom: 0,
+                          width: "100%",
+                          height: "100%",
+                          background: podiumColors[rank - 1],
+                          borderRadius: "inherit",
+                        }}
+                      />
+                      <Typography
+                        sx={{
+                          position: "absolute",
+                          bottom: 16,
+                          width: "100%",
+                          textAlign: "center",
+                          fontWeight: 900,
+                          fontSize: 30,
+                          color: "#fff",
+                        }}
+                      >
+                        {rank}
+                      </Typography>
+                    </Box>
+                  </Box>
+                );
               })}
             </Box>
 
@@ -400,8 +500,7 @@ export default function Bloomleader({ open, anchorEl, onClose }) {
                 >
                   <Box sx={{ minWidth: 44, pr: 1.5 }}>
                     <Typography
-                      sx={{ fontWeight: 900, fontSize: 17, color: "#f2be53", textAlign: "right" }}
-                    >
+                      sx={{ fontWeight: 900, fontSize: 17, color: isWeekly ? "#857310"  : "#f2be53", textAlign: "right" }} >
                       {getRankSuffix(idx + 4)}
                     </Typography>
                   </Box>
@@ -418,10 +517,10 @@ export default function Bloomleader({ open, anchorEl, onClose }) {
                       }}
                     />
                   </Box>
-                  <Typography sx={{ flex: 1, fontWeight: 700, fontSize: 17 }}>
+                  <Typography sx={{ flex: 1, fontWeight: 700, fontSize: 17, color: isWeekly ? "#1d6527" : "#fff", }}>
                     {getFirstName(row.name)}
                   </Typography>
-                  <Box sx={{ fontWeight: 900, fontSize: 18, minWidth: 85, textAlign: "right" }}>
+                  <Box sx={{ fontWeight: 900, fontSize: 18, minWidth: 85, textAlign: "right", color: isWeekly ? "#1d6527" : "#fff", }}>
                     ₹{Math.round(row.sales).toLocaleString()}
                   </Box>
                 </Box>

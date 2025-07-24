@@ -213,7 +213,7 @@ const AddEmployee = () => {
       >
         Employee Management
       </Typography>
-      <Box sx={{ display: "flex", justifyContent: "space-between", mb: 2 }}>
+      <Box sx={{ display: "flex", justifyContent: "space-between", mb: 2 }}> 
         <Button
           variant="contained"
           color="primary"
