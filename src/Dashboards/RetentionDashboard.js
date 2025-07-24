@@ -436,7 +436,7 @@ const RetentionAgentDashboard = () => {
         textAlign="center" 
         marginTop={-2}
       >
-        {user?.fullName} - Retention Agent Dashboard
+        {user?.fullName} - Dashboard
       </Typography>
 
       {/* Combined Dropdowns for Summary Toggle and Time Range */}

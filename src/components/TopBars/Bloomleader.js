@@ -205,7 +205,7 @@ export default function Bloomleader({ open, anchorEl, onClose }) {
               userSelect: "none",
             }}
           >
-            M
+            Monthly
           </Box>
 
           {/* Weekly toggle (W) */}
@@ -223,7 +223,7 @@ export default function Bloomleader({ open, anchorEl, onClose }) {
               userSelect: "none",
             }}
           >
-            W
+            Weekly 
           </Box>
         </Box>
       </Box>
@@ -357,9 +357,10 @@ export default function Bloomleader({ open, anchorEl, onClose }) {
         <Typography
           sx={{
             fontWeight: 900,
-            fontSize: 18,
+            fontSize: 22,
             textAlign: "center",
             mb: 3.5,
+            pt: 7.5,
             color: "#fff",
             textShadow: "0 3px 14px #6958ab99",
           }}

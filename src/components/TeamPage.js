@@ -140,7 +140,7 @@ const TeamPage = ({ managerId: managerIdProp }) => {
     workingDaysLeft > 0 && filteredPending > 0
       ? Math.ceil(filteredPending / workingDaysLeft)
       : 0;
-  const filteredPctAch = filteredTarget === 0 ? 0 : (filteredAchieved / filteredTarget) * 100;
+  const filteredPctAch = filteredTarget === 0 ? 0 : (filteredAchieved / filteredTarget) * 100; 
 
   const handleSort = key => {
     setSortConfig(prev => {

@@ -105,7 +105,10 @@ export default function LeaderboardPopover({ open, anchorEl, onClose }) {
           fromDate = new Date(now.getFullYear(), now.getMonth(), 1);
         }
 
-        const from = fromDate.toISOString().split("T")[0];
+        const from = isWeekly
+          ? fromDate.toISOString().split("T")[0]
+          : `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
+
         const to = now.toISOString().split("T")[0];
 
         const agentSales = await Promise.all(
@@ -152,8 +155,8 @@ export default function LeaderboardPopover({ open, anchorEl, onClose }) {
           borderRadius: 5,
           minWidth: 410,
           maxWidth: 450,
-          minHeight: 685,   
-          maxHeight: 720, 
+          minHeight: 685,
+          maxHeight: 720,
           boxShadow: "0 10px 32px 0 rgba(16,18,48,0.26)",
           background: isWeekly
             ? "	linear-gradient(120deg,#fbe4e4 0%,#f8d1d1 100%)"
@@ -201,7 +204,7 @@ export default function LeaderboardPopover({ open, anchorEl, onClose }) {
               userSelect: "none",
             }}
           >
-            M
+            Monthly
           </Box>
 
           {/* Weekly toggle (W) */}
@@ -219,7 +222,7 @@ export default function LeaderboardPopover({ open, anchorEl, onClose }) {
               userSelect: "none",
             }}
           >
-            W
+            Weekly
           </Box>
         </Box>
       </Box>
@@ -398,7 +401,7 @@ export default function LeaderboardPopover({ open, anchorEl, onClose }) {
       {/* --- LEADERBOARD CONTENT (hide if gifts open) --- */}
       <Box sx={{
         p: 2.7,
-        pt: 2.9,
+        pt: 7.5,
         opacity: showGifts ? 0.18 : 1,
         pointerEvents: showGifts ? "none" : "auto",
         transition: "opacity 0.2s"
@@ -439,7 +442,7 @@ export default function LeaderboardPopover({ open, anchorEl, onClose }) {
                 width: "100%",
                 minHeight: 250,
                 mb: 3,
-                gap: 4.3, 
+                gap: 4.3,
                 px: 2,
                 position: "relative",
               }}
@@ -450,7 +453,7 @@ export default function LeaderboardPopover({ open, anchorEl, onClose }) {
                 const podiumWidth = 85;
                 const avatarSize = 92;
 
-                if (!person) return <Box key={i} sx={{ flex: 1 }} />; 
+                if (!person) return <Box key={i} sx={{ flex: 1 }} />;
                 return (
                   <Box
                     key={person.name}
@@ -468,7 +471,7 @@ export default function LeaderboardPopover({ open, anchorEl, onClose }) {
                       <Typography
                         sx={{
                           fontWeight: 800,
-                          color: isWeekly ? "#1d6527" : "#fff", 
+                          color: isWeekly ? "#1d6527" : "#fff",
                           fontSize: 20,
                           textAlign: "center",
                           letterSpacing: 0.1,
@@ -627,10 +630,10 @@ export default function LeaderboardPopover({ open, anchorEl, onClose }) {
                     <Typography
                       sx={{
                         fontWeight: 900,
-                        fontSize: 17, 
+                        fontSize: 17,
                         color: isWeekly
-                        ? "#857310"  
-                        : "#f2be53",
+                          ? "#857310"
+                          : "#f2be53",
                         textAlign: "right",
                         mr: 0,
                       }}
@@ -638,7 +641,7 @@ export default function LeaderboardPopover({ open, anchorEl, onClose }) {
                       {getRankSuffix(idx + 4)}
                     </Typography>
                   </Box>
-                  {/* Avatar */} 
+                  {/* Avatar */}
                   <Box sx={{ position: "relative", mr: 1.2 }}>
                     <img
                       src={getAvatarUrl(row.name)}
@@ -660,7 +663,7 @@ export default function LeaderboardPopover({ open, anchorEl, onClose }) {
                       fontWeight: 700,
                       fontSize: 17,
                       color: isWeekly
-                        ? "#1d6527"  
+                        ? "#1d6527"
                         : "#fff",
                       letterSpacing: 0.02,
                       textShadow: "0 1px 7px #ad99ee15",

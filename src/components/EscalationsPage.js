@@ -40,7 +40,7 @@ const EscalationsPage = () => {
   const [deleteEscalationId, setDeleteEscalationId] = useState(null);
   const [showClosedOnly, setShowClosedOnly] = useState(false);
   const [page, setPage] = useState(0);
-  const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [rowsPerPage, setRowsPerPage] = useState(50);
 
 
 
@@ -199,6 +199,17 @@ const EscalationsPage = () => {
     }
   };
 
+  const calculateTimeDifference = (escalationDate) => {
+    const now = new Date();
+    const date = new Date(escalationDate);
+    const timeDifference = now - date;
+
+    // Difference in hours and days
+    const hoursDifference = timeDifference / (1000 * 3600); // Convert to hours
+    const daysDifference = timeDifference / (1000 * 3600 * 24); // Convert to days
+
+    return { hoursDifference, daysDifference };
+  };
 
 
 
@@ -209,12 +220,12 @@ const EscalationsPage = () => {
   };
 
   const filteredEscalations = escalations
-  .slice() 
-  .sort((a, b) => new Date(b.date) - new Date(a.date))
-  .filter((esc) => {
-    if (showClosedOnly) return esc.status === "Closed";
-    return esc.status === "Open" || esc.status === "In Progress";
-  });
+    .slice()
+    .sort((a, b) => new Date(b.date) - new Date(a.date))
+    .filter((esc) => {
+      if (showClosedOnly) return esc.status === "Closed";
+      return esc.status === "Open" || esc.status === "In Progress";
+    });
 
   return (
     <Box sx={{ padding: 3, bgcolor: "#fff", borderRadius: 2 }}>
@@ -236,7 +247,7 @@ const EscalationsPage = () => {
           onClick={() => setOpenForm(true)}
           sx={{ mb: 2, backgroundColor: "black" }}
         >
-          Add Escalation 
+          Add Escalation
         </Button>
 
         <Button
@@ -543,158 +554,173 @@ const EscalationsPage = () => {
           </TableHead>
           <TableBody>
             {filteredEscalations
-            .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
-            .map((esc, i) => (
-              <TableRow 
-                key={esc._id}
-                hover
-                sx={{
-                  "&:hover": { bgcolor: "#e0e0e0" },
-                  cursor: "pointer",
-                  whiteSpace: "nowrap",
-                }}
-              >
-                <TableCell align="center">{esc.date}</TableCell>
-                <TableCell align="center">{esc.orderId}</TableCell>
-                <TableCell align="center">{esc.name}</TableCell>
-                <TableCell align="center">{esc.contactNumber}</TableCell>
-                <TableCell align="center">{esc.agentName}</TableCell>
-                <TableCell
-                  sx={{
-                    whiteSpace: "pre-wrap",
-                    maxWidth: 500,
-                    minWidth: 300,
-                    wordBreak: "break-word"
-                  }}
-                >
-                  {esc.query.match(/.{1,100}/g)?.join('\n')}
-                </TableCell>
-                <TableCell align="center" sx={{ whiteSpace: "nowrap" }}>
-                  {esc.attachedFileUrls && esc.attachedFileUrls.length > 0 ? (
-                    esc.attachedFileUrls.map((url, idx) => (
-                      <Button
-                        key={idx}
-                        variant="text"
-                        onClick={() => handleOpenFile(url)}
-                        sx={{
-                          display: "inline-block",
-                          mb: 0.5,
-                          color: "black",
-                          fontWeight: "bold",
-                          textTransform: "none",
-                          minWidth: 50,
-                          mx: 0.3,
-                        }}
-                      >
-                        File {idx + 1}
-                      </Button>
-                    ))
-                  ) : (
-                    <Typography
-                      variant="body2"
-                      sx={{ fontStyle: "italic", color: "text.secondary" }}
-                    >
-                      No File
-                    </Typography>
-                  )}
-                </TableCell>
+              .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
+              .map((esc) => {
+                const { hoursDifference, daysDifference } = calculateTimeDifference(esc.date);
 
+                let backgroundColor = "transparent"; 
 
-                {/* Editable only for Manager */}
-                <TableCell align="center">
-                  {user?.role === "Manager" ? (
-                    <TextField
-                      select
-                      size="small"
-                      value={esc.status}
-                      onChange={(e) =>
-                        handleEditCell(esc._id, "status", e.target.value)
-                      }
-                      sx={{ minWidth: 100 }}
-                    >
-                      {statusOptions.map((opt) => (
-                        <MenuItem key={opt} value={opt}>
-                          {opt}
-                        </MenuItem>
-                      ))}
-                    </TextField>
-                  ) : (
-                    esc.status
-                  )}
-                </TableCell>
-                <TableCell align="center">
-                  {user?.role === "Manager" ? (
-                    <TextField
-                      select
-                      size="small"
-                      value={esc.assignedTo}
-                      onChange={(e) =>
-                        handleEditCell(esc._id, "assignedTo", e.target.value)
-                      }
-                      sx={{ minWidth: 130 }}
-                    >
-                      {employees.map((emp) => (
-                        <MenuItem key={emp._id} value={emp.fullName}>
-                          {emp.fullName}
-                        </MenuItem>
-                      ))}
-                    </TextField>
-                  ) : (
-                    esc.assignedTo
-                  )}
-                </TableCell>
-                <TableCell align="center" sx={{ minWidth: 250 }}>
-                  <TextField
-                    size="small"
-                    value={esc.remark}
-                    onChange={(e) => {
-                      const newRemark = e.target.value;
-                      setEscalations((prev) =>
-                        prev.map((item) =>
-                          item._id === esc._id ? { ...item, remark: newRemark } : item
-                        )
-                      );
+                if (esc.status !== "Closed") {
+                  if (daysDifference > 3) {
+                    backgroundColor = "lightcoral";  
+                  } else if (hoursDifference > 48) {
+                    backgroundColor = "orange";  
+                  }
+                }
+
+                return (
+                  <TableRow
+                    key={esc._id}
+                    hover
+                    sx={{
+                      "&:hover": { bgcolor: "#e0e0e0" },
+                      cursor: "pointer",
+                      whiteSpace: "nowrap",
+                      backgroundColor,
                     }}
-                    onBlur={(e) => handleEditCell(esc._id, "remark", e.target.value)}
-                    fullWidth
-                    sx={{ width: '100%', maxWidth: 400 }}
-                    InputProps={{ sx: { textAlign: 'center' } }}
-                  />
-                </TableCell>
-                <TableCell align="center">
-                  {user?.role === "Manager" ? (
-                    <TextField
-                      type="date"
-                      size="small"
-                      value={esc.resolvedDate || ""}
-                      onChange={(e) =>
-                        handleEditCell(esc._id, "resolvedDate", e.target.value)
-                      }
-                      InputLabelProps={{ shrink: true }}
-                      sx={{ minWidth: 120 }}
-                    />
-                  ) : (
-                    esc.resolvedDate || "-"
-                  )}
-                </TableCell>
-                <TableCell align="right">
-                  {user?.role === "Manager" ? (
-                    <IconButton
-                      color="error"
-                      onClick={() => {
-                        setDeleteEscalationId(esc._id);
-                        setDeleteDialogOpen(true);
+                  >
+                    <TableCell align="center">{esc.date}</TableCell>
+                    <TableCell align="center">{esc.orderId}</TableCell>
+                    <TableCell align="center">{esc.name}</TableCell>
+                    <TableCell align="center">{esc.contactNumber}</TableCell>
+                    <TableCell align="center">{esc.agentName}</TableCell>
+                    <TableCell
+                      sx={{
+                        whiteSpace: "pre-wrap",
+                        maxWidth: 500,
+                        minWidth: 300,
+                        wordBreak: "break-word"
                       }}
-                      size="small"
                     >
-                      <DeleteIcon />
-                    </IconButton>
-                  ) : (
-                    "-"
-                  )}
-                </TableCell>
-              </TableRow>
-            ))}
+                      {esc.query.match(/.{1,100}/g)?.join('\n')}
+                    </TableCell>
+                    <TableCell align="center" sx={{ whiteSpace: "nowrap" }}>
+                      {esc.attachedFileUrls && esc.attachedFileUrls.length > 0 ? (
+                        esc.attachedFileUrls.map((url, idx) => (
+                          <Button
+                            key={idx}
+                            variant="text"
+                            onClick={() => handleOpenFile(url)}
+                            sx={{
+                              display: "inline-block",
+                              mb: 0.5,
+                              color: "black",
+                              fontWeight: "bold",
+                              textTransform: "none",
+                              minWidth: 50,
+                              mx: 0.3,
+                            }}
+                          >
+                            File {idx + 1}
+                          </Button>
+                        ))
+                      ) : (
+                        <Typography
+                          variant="body2"
+                          sx={{ fontStyle: "italic", color: "text.secondary" }}
+                        >
+                          No File
+                        </Typography>
+                      )}
+                    </TableCell>
+
+
+                    {/* Editable only for Manager */}
+                    <TableCell align="center">
+                      {user?.role === "Manager" ? (
+                        <TextField
+                          select
+                          size="small"
+                          value={esc.status}
+                          onChange={(e) =>
+                            handleEditCell(esc._id, "status", e.target.value)
+                          }
+                          sx={{ minWidth: 100 }}
+                        >
+                          {statusOptions.map((opt) => (
+                            <MenuItem key={opt} value={opt}>
+                              {opt}
+                            </MenuItem>
+                          ))}
+                        </TextField>
+                      ) : (
+                        esc.status
+                      )}
+                    </TableCell>
+                    <TableCell align="center">
+                      {user?.role === "Manager" ? (
+                        <TextField
+                          select
+                          size="small"
+                          value={esc.assignedTo}
+                          onChange={(e) =>
+                            handleEditCell(esc._id, "assignedTo", e.target.value)
+                          }
+                          sx={{ minWidth: 130 }}
+                        >
+                          {employees.map((emp) => (
+                            <MenuItem key={emp._id} value={emp.fullName}>
+                              {emp.fullName}
+                            </MenuItem>
+                          ))}
+                        </TextField>
+                      ) : (
+                        esc.assignedTo
+                      )}
+                    </TableCell>
+                    <TableCell align="center" sx={{ minWidth: 250 }}>
+                      <TextField
+                        size="small"
+                        value={esc.remark}
+                        onChange={(e) => {
+                          const newRemark = e.target.value;
+                          setEscalations((prev) =>
+                            prev.map((item) =>
+                              item._id === esc._id ? { ...item, remark: newRemark } : item
+                            )
+                          );
+                        }}
+                        onBlur={(e) => handleEditCell(esc._id, "remark", e.target.value)}
+                        fullWidth
+                        sx={{ width: '100%', maxWidth: 400 }}
+                        InputProps={{ sx: { textAlign: 'center' } }}
+                      />
+                    </TableCell>
+                    <TableCell align="center">
+                      {user?.role === "Manager" ? (
+                        <TextField
+                          type="date"
+                          size="small"
+                          value={esc.resolvedDate || ""}
+                          onChange={(e) =>
+                            handleEditCell(esc._id, "resolvedDate", e.target.value)
+                          }
+                          InputLabelProps={{ shrink: true }}
+                          sx={{ minWidth: 120 }}
+                        />
+                      ) : (
+                        esc.resolvedDate || "-"
+                      )}
+                    </TableCell>
+                    <TableCell align="right">
+                      {user?.role === "Manager" ? (
+                        <IconButton
+                          color="error"
+                          onClick={() => {
+                            setDeleteEscalationId(esc._id);
+                            setDeleteDialogOpen(true);
+                          }}
+                          size="small"
+                        >
+                          <DeleteIcon />
+                        </IconButton>
+                      ) : (
+                        "-"
+                      )}
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
           </TableBody>
         </Table>
         <TablePagination
