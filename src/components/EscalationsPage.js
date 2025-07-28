@@ -25,7 +25,6 @@ import { Close, Delete as DeleteIcon, WarningAmber } from "@mui/icons-material";
 import axios from "axios";
 
 
-
 const statusOptions = ["Open", "In Progress", "Closed"];
 
 
@@ -42,6 +41,8 @@ const EscalationsPage = () => {
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(50);
 
+
+  const [remarkDrafts, setRemarkDrafts] = useState({});
 
 
   const user = JSON.parse(sessionStorage.getItem("user"));
@@ -83,6 +84,7 @@ const EscalationsPage = () => {
     }
   };
 
+
   const fetchEscalations = async () => {
     try {
       const response = await axios.get(`${BACKEND_URL}/escalations`);
@@ -91,6 +93,7 @@ const EscalationsPage = () => {
       console.error("Failed to fetch escalations", error);
     }
   };
+
 
   const handleConfirmDelete = async () => {
     try {
@@ -103,15 +106,18 @@ const EscalationsPage = () => {
     setDeleteEscalationId(null);
   };
 
+
   const handleCancelDelete = () => {
     setDeleteDialogOpen(false);
     setDeleteEscalationId(null);
   };
 
+
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData((fd) => ({ ...fd, [name]: value }));
   };
+
 
   const handleFileChange = (e) => {
     const files = Array.from(e.target.files);
@@ -122,6 +128,7 @@ const EscalationsPage = () => {
     e.target.value = null;
   };
 
+
   const handleRemoveFile = (index) => {
     setFormData((fd) => {
       const newFiles = [...fd.attachedFiles];
@@ -129,6 +136,7 @@ const EscalationsPage = () => {
       return { ...fd, attachedFiles: newFiles };
     });
   };
+
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -145,12 +153,15 @@ const EscalationsPage = () => {
         form.append("attachedFiles", file);
       });
 
+
       await axios.post(`${BACKEND_URL}/escalations`, form, {
         headers: { "Content-Type": "multipart/form-data" },
       });
 
+
       setOpenForm(false);
       fetchEscalations();
+
 
       setFormData({
         date: "",
@@ -171,27 +182,35 @@ const EscalationsPage = () => {
     setLoading(false);
   };
 
+
   const handleEditCell = async (id, field, value) => {
     const updatedEscalation = escalations.find((e) => e._id === id);
+
 
     if (!updatedEscalation) {
       console.error("Escalation not found");
       return;
     }
 
+
     try {
       const payload = {
         status: field === "status" ? value : updatedEscalation.status,
-        assignedTo: field === "assignedTo" ? value : updatedEscalation.assignedTo,
+        assignedTo:
+          field === "assignedTo" ? value : updatedEscalation.assignedTo,
         remark: field === "remark" ? value : updatedEscalation.remark,
-        resolvedDate: field === "resolvedDate" ? value : updatedEscalation.resolvedDate,
+        resolvedDate:
+          field === "resolvedDate" ? value : updatedEscalation.resolvedDate,
       };
 
+
       await axios.put(`${BACKEND_URL}/escalations/${id}`, payload);
+
 
       if (showClosedOnly && payload.status !== "Closed") {
         setShowClosedOnly(false);
       }
+
 
       await fetchEscalations();
     } catch (error) {
@@ -199,25 +218,27 @@ const EscalationsPage = () => {
     }
   };
 
+
   const calculateTimeDifference = (escalationDate) => {
     const now = new Date();
     const date = new Date(escalationDate);
     const timeDifference = now - date;
 
+
     // Difference in hours and days
     const hoursDifference = timeDifference / (1000 * 3600); // Convert to hours
     const daysDifference = timeDifference / (1000 * 3600 * 24); // Convert to days
 
+
     return { hoursDifference, daysDifference };
   };
-
-
 
 
   const handleOpenFile = (fileUrl) => {
     setFileToView(fileUrl);
     setOpenFileDialog(true);
   };
+
 
   const filteredEscalations = escalations
     .slice()
@@ -226,6 +247,7 @@ const EscalationsPage = () => {
       if (showClosedOnly) return esc.status === "Closed";
       return esc.status === "Open" || esc.status === "In Progress";
     });
+
 
   return (
     <Box sx={{ padding: 3, bgcolor: "#fff", borderRadius: 2 }}>
@@ -241,6 +263,7 @@ const EscalationsPage = () => {
         Escalations
       </Typography>
 
+
       <Box sx={{ display: "flex", justifyContent: "space-between", mb: 2 }}>
         <Button
           variant="contained"
@@ -250,9 +273,13 @@ const EscalationsPage = () => {
           Add Escalation
         </Button>
 
+
         <Button
           variant={showClosedOnly ? "contained" : "outlined"}
-          sx={{ backgroundColor: showClosedOnly ? "black" : "transparent", color: showClosedOnly ? "white" : "black" }}
+          sx={{
+            backgroundColor: showClosedOnly ? "black" : "transparent",
+            color: showClosedOnly ? "white" : "black",
+          }}
           onClick={() => setShowClosedOnly(!showClosedOnly)}
         >
           {showClosedOnly ? "Show Open / In Progress" : "Show Closed"}
@@ -292,7 +319,7 @@ const EscalationsPage = () => {
             sx={{ display: "flex", flexDirection: "column", gap: 2 }}
             onSubmit={handleSubmit}
           >
-            <Box sx={{ display: 'flex', gap: 2 }}>
+            <Box sx={{ display: "flex", gap: 2 }}>
               <TextField
                 label="Date"
                 type="date"
@@ -357,7 +384,8 @@ const EscalationsPage = () => {
               />
             </Box>
 
-            <Box sx={{ display: 'flex', gap: 2 }}>
+
+            <Box sx={{ display: "flex", gap: 2 }}>
               <TextField
                 label="Contact Number"
                 name="contactNumber"
@@ -378,6 +406,7 @@ const EscalationsPage = () => {
                   },
                 }}
               />
+
 
               <TextField
                 select
@@ -523,6 +552,17 @@ const EscalationsPage = () => {
         <Table stickyHeader size="small">
           <TableHead>
             <TableRow sx={{ bgcolor: "black" }}>
+              <TableCell
+                sx={{
+                  fontWeight: "bold",
+                  color: "white",
+                  textAlign: "center",
+                  backgroundColor: "black",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                S. No.
+              </TableCell>
               {[
                 "Date",
                 "Order ID",
@@ -555,18 +595,22 @@ const EscalationsPage = () => {
           <TableBody>
             {filteredEscalations
               .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
-              .map((esc) => {
-                const { hoursDifference, daysDifference } = calculateTimeDifference(esc.date);
+              .map((esc, index) => {
+                const { hoursDifference, daysDifference } =
+                  calculateTimeDifference(esc.date);
 
-                let backgroundColor = "transparent"; 
+
+                let backgroundColor = "transparent";
+
 
                 if (esc.status !== "Closed") {
                   if (daysDifference > 3) {
-                    backgroundColor = "lightcoral";  
+                    backgroundColor = "lightcoral";
                   } else if (hoursDifference > 48) {
-                    backgroundColor = "orange";  
+                    backgroundColor = "orange";
                   }
                 }
+
 
                 return (
                   <TableRow
@@ -579,6 +623,9 @@ const EscalationsPage = () => {
                       backgroundColor,
                     }}
                   >
+                    <TableCell align="center">
+                      {page * rowsPerPage + index + 1}
+                    </TableCell>
                     <TableCell align="center">{esc.date}</TableCell>
                     <TableCell align="center">{esc.orderId}</TableCell>
                     <TableCell align="center">{esc.name}</TableCell>
@@ -589,13 +636,14 @@ const EscalationsPage = () => {
                         whiteSpace: "pre-wrap",
                         maxWidth: 500,
                         minWidth: 300,
-                        wordBreak: "break-word"
+                        wordBreak: "break-word",
                       }}
                     >
-                      {esc.query.match(/.{1,100}/g)?.join('\n')}
+                      {esc.query.match(/.{1,100}/g)?.join("\n")}
                     </TableCell>
                     <TableCell align="center" sx={{ whiteSpace: "nowrap" }}>
-                      {esc.attachedFileUrls && esc.attachedFileUrls.length > 0 ? (
+                      {esc.attachedFileUrls &&
+                      esc.attachedFileUrls.length > 0 ? (
                         esc.attachedFileUrls.map((url, idx) => (
                           <Button
                             key={idx}
@@ -654,7 +702,11 @@ const EscalationsPage = () => {
                           size="small"
                           value={esc.assignedTo}
                           onChange={(e) =>
-                            handleEditCell(esc._id, "assignedTo", e.target.value)
+                            handleEditCell(
+                              esc._id,
+                              "assignedTo",
+                              e.target.value
+                            )
                           }
                           sx={{ minWidth: 130 }}
                         >
@@ -668,7 +720,7 @@ const EscalationsPage = () => {
                         esc.assignedTo
                       )}
                     </TableCell>
-                    <TableCell align="center" sx={{ minWidth: 250 }}>
+                    {/* <TableCell align="center" sx={{ minWidth: 250 }}>
                       <TextField
                         size="small"
                         value={esc.remark}
@@ -685,7 +737,41 @@ const EscalationsPage = () => {
                         sx={{ width: '100%', maxWidth: 400 }}
                         InputProps={{ sx: { textAlign: 'center' } }}
                       />
+                    </TableCell> */}
+
+
+                    <TableCell sx={{ minWidth: 250 }}>
+                      {user?.role === "Manager" ? (
+                        <TextField
+                          size="small"
+                          value={remarkDrafts[esc._id] ?? esc.remark}
+                          onChange={(e) => {
+                            const newRemark = e.target.value;
+                            setRemarkDrafts((prev) => ({
+                              ...prev,
+                              [esc._id]: newRemark,
+                            }));
+                          }}
+                          onBlur={(e) => {
+                            const updatedValue =
+                              remarkDrafts[esc._id] ?? esc.remark;
+                            handleEditCell(esc._id, "remark", updatedValue);
+                          }}
+                          fullWidth
+                          sx={{ width: "100%", maxWidth: 400 }}
+                          InputProps={{ sx: { textAlign: "center" } }}
+                        />
+                      ) : (
+                        <Typography
+                          variant="body2"
+                          sx={{ whiteSpace: "pre-wrap" }}
+                        >
+                          {esc.remark || "-"}
+                        </Typography>
+                      )}
                     </TableCell>
+
+
                     <TableCell align="center">
                       {user?.role === "Manager" ? (
                         <TextField
@@ -693,7 +779,11 @@ const EscalationsPage = () => {
                           size="small"
                           value={esc.resolvedDate || ""}
                           onChange={(e) =>
-                            handleEditCell(esc._id, "resolvedDate", e.target.value)
+                            handleEditCell(
+                              esc._id,
+                              "resolvedDate",
+                              e.target.value
+                            )
                           }
                           InputLabelProps={{ shrink: true }}
                           sx={{ minWidth: 120 }}
@@ -744,10 +834,12 @@ const EscalationsPage = () => {
         maxWidth="xs"
         fullWidth
       >
-        <DialogTitle><Box display="flex" alignItems="center" gap={1} color="error.main">
-          <WarningAmber fontSize="medium" />
-          Confirm Deletion
-        </Box></DialogTitle>
+        <DialogTitle>
+          <Box display="flex" alignItems="center" gap={1} color="error.main">
+            <WarningAmber fontSize="medium" />
+            Confirm Deletion
+          </Box>
+        </DialogTitle>
         <DialogContent>
           <Typography>
             Are you sure you want to delete this escalation?

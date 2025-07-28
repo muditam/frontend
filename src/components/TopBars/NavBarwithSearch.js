@@ -668,7 +668,7 @@ const NavbarWithSearch = () => {
               sx={{
                 mr: 1,
                 color: "#fff",
-                "&:hover": { color: "#fff", bgcolor: "#e0e0e0" }
+                "&:hover": { color: "#fff", bgcolor: "#e0e0e0" } 
               }}
               title="Download All Orders (CSV)"
               onClick={handleDownloadOrders}
