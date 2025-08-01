@@ -495,7 +495,7 @@ export default function Bloomleader({ open, anchorEl, onClose }) {
             </Box>
 
             {/* Remaining */}
-            <Box sx={{ maxHeight: 290, overflowY: "auto", px: 1, pt: 1 }}>
+            <Box sx={{ maxHeight: 230, overflowY: "auto", px: 1, pt: 1 }}>
               {data.slice(3).map((row, idx) => (
                 <Box
                   key={row.name}
