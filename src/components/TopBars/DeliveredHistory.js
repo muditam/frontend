@@ -37,7 +37,7 @@ const DeliveredHistory = () => {
     const filteredAgents = res.data || [];
     setAgents(filteredAgents);
 
-    const start = new Date("2024-01-01");
+    const start = new Date("2024-03-01");
     const now = new Date();
     const months = [];
     while (start <= now) {

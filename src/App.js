@@ -40,7 +40,6 @@ const App = () => {
       <div>
         <NavbarWithSearch /> 
          
-
         <Routes>
           <Route
             path="/shipment-details"
@@ -50,7 +49,7 @@ const App = () => {
           />
  
           <Route path="/login" element={<Login />} /> 
-          <Route path="/pages/Home" element={<ShipwayOrders />}/>  
+          <Route path="/pages/Home" element={<ShipwayOrders />}/>   
           
           {/* Protected Routes */}
           <Route

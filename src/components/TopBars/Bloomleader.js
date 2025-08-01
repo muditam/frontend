@@ -69,74 +69,84 @@ export default function Bloomleader({ open, anchorEl, onClose }) {
     : "Condition: Minimum ₹3,00,000 sales required";
 
   useEffect(() => {
-    const fetchData = async () => {
-      setLoading(true);
-      try {
-        const empRes = await fetch(
-          "https://muditamleads-14f32a10d7f7.herokuapp.com/api/employees"
-        );
-        const employees = await empRes.json();
+  const fetchData = async () => {
+    setLoading(true);
+    try {
+      const empRes = await fetch(
+        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/employees"
+      );
+      const employees = await empRes.json();
 
-        // Filter new joiners (last 90 days)
-        const newJoiners = employees.filter(
-          (emp) =>
-            emp.status === "active" &&
-            (emp.role === "Sales Agent" || emp.role === "Retention Agent") &&
-            isWithinLast90Days(emp.joiningDate)
-        );
+      // Filter new joiners (last 90 days)
+      const newJoiners = employees.filter(
+        (emp) =>
+          emp.status === "active" &&
+          (emp.role === "Sales Agent" || emp.role === "Retention Agent") &&
+          isWithinLast90Days(emp.joiningDate)
+      );
+ 
+      const startOfWeek = (date) => {
+        const day = date.getDay(); 
+        const diff = date.getDate() - day; 
+        date.setDate(diff);
+        date.setHours(0, 0, 0, 0);  
+        return date;
+      };
+ 
+      const endOfWeek = (date) => {
+        date.setHours(23, 59, 59, 999);  
+        return date;
+      };
 
-        // Calculate date range
-        const now = new Date();
-        const yyyy = now.getFullYear();
-        const mm = String(now.getMonth() + 1).padStart(2, "0");
+      const now = new Date();
+ 
+      const sunday = startOfWeek(new Date(now));  
+      const currentDay = endOfWeek(new Date(now));  
+ 
+      const yyyy = now.getFullYear();
+      const mm = String(now.getMonth() + 1).padStart(2, "0");
 
-        const firstDay = `${yyyy}-${mm}-01`;
-        const lastDayNum = new Date(yyyy, now.getMonth() + 1, 0).getDate();
-        const lastDay = `${yyyy}-${mm}-${String(lastDayNum).padStart(2, "0")}`;
+      const firstDay = `${yyyy}-${mm}-01`;
+      const lastDayNum = new Date(yyyy, now.getMonth() + 1, 0).getDate();
+      const lastDay = `${yyyy}-${mm}-${String(lastDayNum).padStart(2, "0")}`;
 
-        const endDate = new Date();
-        const startDate = new Date();
-        startDate.setDate(endDate.getDate() - 6);
+      const from = isWeekly
+        ? sunday.toISOString().slice(0, 10)  
+        : firstDay;
+      const to = isWeekly
+        ? currentDay.toISOString().slice(0, 10) 
+        : lastDay;
+ 
+      const sales = await Promise.all(
+        newJoiners.map(async (emp) => {
+          try {
+            const res = await fetch(
+              `https://muditamleads-14f32a10d7f7.herokuapp.com/api/retention-sales/progress?name=${encodeURIComponent(
+                emp.fullName
+              )}&from=${from}&to=${to}`
+            );
+            const d = await res.json();
+            return { name: emp.fullName, sales: d.total || 0 };
+          } catch {
+            return { name: emp.fullName, sales: 0 };
+          }
+        })
+      );
+ 
+      const filtered = sales
+        .filter((s) => s.sales > 0)
+        .sort((a, b) => b.sales - a.sales);
+ 
+      setData(filtered);
+    } catch (e) {
+      console.error("Bloomleader fetch error", e);
+      setData([]);
+    }
+    setLoading(false);
+  };
 
-        const from = isWeekly
-          ? startDate.toISOString().slice(0, 10)
-          : firstDay;
-        const to = isWeekly
-          ? endDate.toISOString().slice(0, 10)
-          : lastDay;
-
-        // Fetch sales for each new joiner
-        const sales = await Promise.all(
-          newJoiners.map(async (emp) => {
-            try {
-              const res = await fetch(
-                `https://muditamleads-14f32a10d7f7.herokuapp.com/api/retention-sales/progress?name=${encodeURIComponent(
-                  emp.fullName
-                )}&from=${from}&to=${to}`
-              );
-              const d = await res.json();
-              return { name: emp.fullName, sales: d.total || 0 };
-            } catch {
-              return { name: emp.fullName, sales: 0 };
-            }
-          })
-        );
-
-        const filtered = sales
-          .filter((s) => s.sales > 0)
-          .sort((a, b) => b.sales - a.sales);
-
-        setData(filtered);
-      } catch (e) {
-        console.error("Bloomleader fetch error", e);
-        setData([]);
-      }
-      setLoading(false);
-    };
-
-    if (open) fetchData();
-  }, [open, isWeekly]);
-
+  if (open) fetchData();
+}, [open, isWeekly]);
 
   const podiumDisplay = getPodiumDisplay(data.slice(0, 3));
 

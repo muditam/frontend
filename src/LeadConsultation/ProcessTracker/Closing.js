@@ -6,8 +6,8 @@ import {
   MenuItem,
   Button,
   FormControl,
-  FormGroup, 
-  FormControlLabel, 
+  FormGroup,
+  FormControlLabel,
   InputLabel,
   Select,
   Checkbox,
@@ -17,7 +17,6 @@ import {
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import axios from "axios";
 import pincodeData from "./pincodeData"; // import the pin code information
-
 
 const expectedResultsOptions = [
   { id: 1, label: "Only Supplements (Drop of 0.8%)", improvement: "0.8" },
@@ -144,7 +143,7 @@ const Closing = ({ presalesHba1c = "8", customerId }) => {
   const [selectedProducts, setSelectedProducts] = useState([]);
   const [currentHba1c, setCurrentHba1c] = useState(presalesHba1c);
   const [generatedLink, setGeneratedLink] = useState("");
-  const [discountCodes, setDiscountCodes] = useState([]); 
+  const [discountCodes, setDiscountCodes] = useState([]);
 
   // Styling for sections
   const sectionStyle = { mb: 3, p: 1, borderBottom: "1px solid #ccc" };
@@ -153,7 +152,7 @@ const Closing = ({ presalesHba1c = "8", customerId }) => {
     const price = priceMap[prod]?.[courseDuration] ?? 0;
     return sum + price;
   }, 0);
-  
+
   // Apply each coupon in order: flat ₹ off or % off
   const discountedPrice = discountCodes.reduce((current, code) => {
     const opt = discountOptions.find((d) => d.code === code);
@@ -166,80 +165,80 @@ const Closing = ({ presalesHba1c = "8", customerId }) => {
       return current - amt;
     }
   }, totalPrice);
-  
+
   // Never go below zero, round to integer
   const finalDiscounted = Math.max(0, Math.round(discountedPrice));
 
   // Handler functions
   const handleExpectedResultSelect = (option) => {
-       setExpectedResult(option.id);
-       autoSaveClosing({
-         expectedResult: option.id,
-         preferredDiet,
-         courseDuration,
-         freebie: freebies,
-         bloodTest,
-         bloodTestDetails,
-         discountCodes,
-       });
-     }
+    setExpectedResult(option.id);
+    autoSaveClosing({
+      expectedResult: option.id,
+      preferredDiet,
+      courseDuration,
+      freebie: freebies,
+      bloodTest,
+      bloodTestDetails,
+      discountCodes,
+    });
+  }
 
-     const handlePreferredDietSelect = (option) => {
-         setPreferredDiet(option);
-         autoSaveClosing({
-           expectedResult,
-           preferredDiet: option,
-           courseDuration,
-           freebie: freebies,
-           bloodTest,
-           bloodTestDetails,
-           discountCodes,
-         });
-       }
+  const handlePreferredDietSelect = (option) => {
+    setPreferredDiet(option);
+    autoSaveClosing({
+      expectedResult,
+      preferredDiet: option,
+      courseDuration,
+      freebie: freebies,
+      bloodTest,
+      bloodTestDetails,
+      discountCodes,
+    });
+  }
 
-       const handleCourseDurationSelect = (option) => {
-           setCourseDuration(option);
-           autoSaveClosing({
-             expectedResult,
-             preferredDiet,
-             courseDuration: option,
-             freebie: freebies,
-             bloodTest,
-             bloodTestDetails,
-             discountCodes,
-           });
-         };
+  const handleCourseDurationSelect = (option) => {
+    setCourseDuration(option);
+    autoSaveClosing({
+      expectedResult,
+      preferredDiet,
+      courseDuration: option,
+      freebie: freebies,
+      bloodTest,
+      bloodTestDetails,
+      discountCodes,
+    });
+  };
 
   // Toggle selection for Freebies
   const handleFreebieSelect = (option) => {
-       const updated = freebies.includes(option)
-         ? freebies.filter((f) => f !== option)
-         : [...freebies, option];
-       setFreebies(updated);
-       autoSaveClosing({
-         expectedResult,
-         preferredDiet,
-         courseDuration,
-         freebie: updated,
-         bloodTest,
-         bloodTestDetails,
-         discountCodes,
-       });
-     }
+    const updated = freebies.includes(option)
+      ? freebies.filter((f) => f !== option)
+      : [...freebies, option];
+    setFreebies(updated);
+    autoSaveClosing({
+      expectedResult,
+      preferredDiet,
+      courseDuration,
+      freebie: updated,
+      bloodTest,
+      bloodTestDetails,
+      discountCodes,
+    });
+  }
 
-     const handleBloodTestSelect = (e) => {
-         const val = e.target.value;
-         setBloodTest(val);
-         autoSaveClosing({
-           expectedResult,
-           preferredDiet,
-           courseDuration,
-           freebie: freebies,
-           bloodTest: val,
-           bloodTestDetails,
-           discountCodes,
-         });
-       }
+  const handleBloodTestSelect = (e) => {
+    const val = e.target.value;
+    setBloodTest(val);
+    autoSaveClosing({
+      expectedResult,
+      preferredDiet,
+      courseDuration,
+      freebie: freebies,
+      bloodTest: val,
+      bloodTestDetails,
+      discountCodes,
+    });
+  }
 
   const handleServiceCheck = () => {
     const availableLabs = [];
@@ -248,12 +247,6 @@ const Closing = ({ presalesHba1c = "8", customerId }) => {
     }
     if (pincodeData.Lalpathlab.includes(pinCode)) {
       availableLabs.push("Lalpathlab");
-    }
-    if (pincodeData.PathKind.includes(pinCode)) {
-      availableLabs.push("PathKind");
-    }
-    if (pincodeData.Tataonemg.includes(pinCode)) {
-      availableLabs.push("TATA 1 MG");
     }
     if (pincodeData.Healthians.includes(pinCode)) {
       availableLabs.push("Healthians");
@@ -266,19 +259,19 @@ const Closing = ({ presalesHba1c = "8", customerId }) => {
   };
 
   const handleBloodTestDetailsChange = (e) => {
-       const { name, value } = e.target;
-       const updated = { ...bloodTestDetails, [name]: value };
-       setBloodTestDetails(updated);
-       autoSaveClosing({
-         expectedResult,
-         preferredDiet,
-         courseDuration,
-         freebie: freebies,
-         bloodTest,
-         bloodTestDetails: updated,
-         discountCodes,
-       });
-     }
+    const { name, value } = e.target;
+    const updated = { ...bloodTestDetails, [name]: value };
+    setBloodTestDetails(updated);
+    autoSaveClosing({
+      expectedResult,
+      preferredDiet,
+      courseDuration,
+      freebie: freebies,
+      bloodTest,
+      bloodTestDetails: updated,
+      discountCodes,
+    });
+  }
 
   const handleCreatePlanLink = () => {
     const baseUrl = "https://muditam.com/apps/consultation";
@@ -297,20 +290,20 @@ const Closing = ({ presalesHba1c = "8", customerId }) => {
   };
 
   const handleDiscountToggle = (code) => {
-       const updated = discountCodes.includes(code)
-         ? discountCodes.filter((c) => c !== code)
-         : [...discountCodes, code];
-       setDiscountCodes(updated);
-       autoSaveClosing({
-         expectedResult,
-         preferredDiet,
-         courseDuration,
-         freebie: freebies,
-         bloodTest,
-         bloodTestDetails,
-         discountCodes: updated,
-       });
-     }
+    const updated = discountCodes.includes(code)
+      ? discountCodes.filter((c) => c !== code)
+      : [...discountCodes, code];
+    setDiscountCodes(updated);
+    autoSaveClosing({
+      expectedResult,
+      preferredDiet,
+      courseDuration,
+      freebie: freebies,
+      bloodTest,
+      bloodTestDetails,
+      discountCodes: updated,
+    });
+  }
 
   useEffect(() => {
     if (customerId) {
@@ -380,7 +373,7 @@ const Closing = ({ presalesHba1c = "8", customerId }) => {
     if (isNaN(current) || isNaN(drop)) return "-";
     return (current - drop).toFixed(1);
   };
-  
+
   return (
     <Box sx={{ p: 2 }}>
 
@@ -647,14 +640,14 @@ const Closing = ({ presalesHba1c = "8", customerId }) => {
           </Typography>
         )}
 
-      <Box sx={{ ...sectionStyle, pt: 0 }}>
-              <Typography variant="subtitle1" sx={{ fontWeight: "bold", color: "black" }}>
-                Total Price: ₹{totalPrice}
-              </Typography>
-              <Typography variant="subtitle1" sx={{ fontWeight: "bold", color: "black" }}>
-                Discounted Price: ₹{finalDiscounted}
-              </Typography>
-            </Box>
+        <Box sx={{ ...sectionStyle, pt: 0 }}>
+          <Typography variant="subtitle1" sx={{ fontWeight: "bold", color: "black" }}>
+            Total Price: ₹{totalPrice}
+          </Typography>
+          <Typography variant="subtitle1" sx={{ fontWeight: "bold", color: "black" }}>
+            Discounted Price: ₹{finalDiscounted}
+          </Typography>
+        </Box>
 
         <Grid container spacing={2}>
           <Grid item xs={6}>
@@ -690,7 +683,6 @@ const Closing = ({ presalesHba1c = "8", customerId }) => {
         )}
       </Box>
 
-
       <Box sx={sectionStyle}>
         <Typography variant="h6" sx={{ mb: 1, fontWeight: "bold" }}>
           Discount Codes
@@ -710,8 +702,6 @@ const Closing = ({ presalesHba1c = "8", customerId }) => {
           ))}
         </FormGroup>
       </Box>
- 
-      
     </Box>
   );
 };

@@ -247,7 +247,7 @@ const RetentionLeads = () => {
     setLoading(true);
     try { 
       const response = await axios.get(
-        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/retentions",
+        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/retentions", 
         { params: { fullName: user.fullName, email: user.email } }
       );
       const { async, agentNumber, callerId } = await fetchUserDetails(user);

@@ -71,7 +71,7 @@ export default function LeaderboardPopover({ open, anchorEl, onClose }) {
       { rank: 10, label: "Assured Gift" },
     ];
 
-  const GIFT_CONDITION_NOTE = isWeekly
+  const GIFT_CONDITION_NOTE = isWeekly 
     ? " "
     : "Condition: Minimum ₹3,00,000 sales required";
 

@@ -40,7 +40,7 @@ import CartDrawer from "../../ShopifyOrders/CartDrawer";
 import EmojiEventsIcon from "@mui/icons-material/EmojiEvents";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import ExpandLessIcon from "@mui/icons-material/ExpandLess";
-import CloseIcon from '@mui/icons-material/Close';
+import CloseIcon from '@mui/icons-material/Close'; 
 import RocketLaunchIcon from "@mui/icons-material/RocketLaunch";
 import LocalShippingIcon from "@mui/icons-material/LocalShipping";
 import { Syringe } from "lucide-react";
@@ -129,10 +129,8 @@ const NavbarWithSearch = () => {
       return;
     }
     if (pincodeData.Redcliff.includes(pin)) labs.push("Redcliff");
-    if (pincodeData.Lalpathlab.includes(pin)) labs.push("Lalpathlab");
-    if (pincodeData.Redcliff.includes(pin)) labs.push("Healthians");
-    if (pincodeData.Lalpathlab.includes(pin)) labs.push("Tataonemg");
-    if (pincodeData.Redcliff.includes(pin)) labs.push("PathKind");
+    if (pincodeData.Lalpathlab.includes(pin)) labs.push("Lalpathlab"); 
+    if (pincodeData.Redcliff.includes(pin)) labs.push("Healthians"); 
     setAvailableLabs(labs);
   };
 
@@ -741,7 +739,7 @@ const NavbarWithSearch = () => {
                           }}
                         >
                           <ListItemText
-                            primary={`${item.name || "No Name"} (${item.contactNumber}) (${item.agentAssigned}) [${item.healthExpertAssigned}]`} 
+                            primary={`${item.name || "No Name"} (${item.contactNumber}) (${item.agentAssigned}) [${item.healthExpertAssigned}]${item.hasOpenEscalation ? " ? " : ""}`} 
                             primaryTypographyProps={{ style: smallFont }}
                           />
                         </ListItem>
