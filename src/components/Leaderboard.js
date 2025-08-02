@@ -13,7 +13,7 @@ import CardGiftcardIcon from "@mui/icons-material/CardGiftcard";
 
 const giftPrizes = [
   { rank: 1, label: "Gift worth 5000", color: "#f39c12" },
-  { rank: 2, label: "Gift worth 3000", color: "#999" }, 
+  { rank: 2, label: "Gift worth 3000", color: "#999" },
   { rank: 3, label: "Gift worth 2000", color: "#e67e22" },
   { rank: 4, label: "Assured Gift" },
   { rank: 5, label: "Assured Gift" },
@@ -51,11 +51,17 @@ const Leaderboard = () => {
       try {
         const res = await fetch("https://muditamleads-14f32a10d7f7.herokuapp.com/api/employees");
         const all = await res.json();
+        const ninetyDaysAgo = new Date();
+        ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 60);
+
         const agents = all.filter(
           (e) =>
             e.status === "active" &&
-            (e.role === "Sales Agent" || e.role === "Retention Agent")
+            (e.role === "Sales Agent" || e.role === "Retention Agent") &&
+            e.joiningDate &&
+            new Date(e.joiningDate) <= ninetyDaysAgo
         );
+
 
         const agentNames = agents.map((a) => a.fullName);
         const progressRes = await fetch(
@@ -89,7 +95,7 @@ const Leaderboard = () => {
       }
     };
 
-    fetchLeaderboard();   
+    fetchLeaderboard();
   }, []);
 
   const podium = data.slice(0, 3);
@@ -136,7 +142,7 @@ const Leaderboard = () => {
             Leaderboard Rewards
           </Typography>
           <Box sx={{ bgcolor: "#fff", borderRadius: 3, p: 2, mb: 2, border: "1px solid #e0d7ff" }}>
-            <Box sx={{ display: "flex", justifyContent: "space-between", fontWeight: 600, color: "#7c3aed", mb: 1 }}> 
+            <Box sx={{ display: "flex", justifyContent: "space-between", fontWeight: 600, color: "#7c3aed", mb: 1 }}>
               <span>Rank</span>
               <span>Reward</span>
             </Box>
@@ -147,7 +153,7 @@ const Leaderboard = () => {
                   display: "flex",
                   justifyContent: "space-between",
                   mb: 1,
-                  color: gift.color || "#5b42bd", 
+                  color: gift.color || "#5b42bd",
                   fontWeight: 500,
                 }}
               >
@@ -247,7 +253,7 @@ const Leaderboard = () => {
           <Box maxWidth="900px" mx="auto">
             <Grid container spacing={1.5}>
               {rest.map((user, idx) => (
-                <Grid item xs={12} sm={6} md={4} key={user.name}> 
+                <Grid item xs={12} sm={6} md={4} key={user.name}>
                   <Box
                     sx={{
                       display: "flex",

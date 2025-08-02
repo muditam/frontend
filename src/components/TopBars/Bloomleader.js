@@ -43,16 +43,16 @@ const isWithinLast90Days = (dateStr) => {
   if (!dateStr) return false;
   const date = new Date(dateStr);
   const cutoff = new Date();
-  cutoff.setDate(cutoff.getDate() - 90);
+  cutoff.setDate(cutoff.getDate() - 60);
   return date >= cutoff;
 };
 
 export default function Bloomleader({ open, anchorEl, onClose }) {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [showGifts, setShowGifts] = useState(false);
-  const [isWeekly, setIsWeekly] = useState(false);
-
+  const [showGifts, setShowGifts] = useState(false); 
+  const [isWeekly, setIsWeekly] = useState(false); 
+ 
   const giftPrizes = isWeekly
     ? [
       { rank: 1, label: "Assured Gift" },

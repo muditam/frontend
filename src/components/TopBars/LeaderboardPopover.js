@@ -71,7 +71,7 @@ export default function LeaderboardPopover({ open, anchorEl, onClose }) {
       { rank: 10, label: "Assured Gift" },
     ];
 
-  const GIFT_CONDITION_NOTE = isWeekly 
+  const GIFT_CONDITION_NOTE = isWeekly  
     ? " "
     : "Condition: Minimum ₹3,00,000 sales required";
 
@@ -83,7 +83,7 @@ export default function LeaderboardPopover({ open, anchorEl, onClose }) {
         const agentsArr = await agentsRes.json();
 
         const ninetyDaysAgo = new Date();
-        ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+        ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 60);
 
         const agents = agentsArr.filter(
           (emp) =>

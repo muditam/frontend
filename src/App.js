@@ -14,22 +14,23 @@ import RetentionLeads from "./pages/retention/RetentionLeads";
 import RetentionSales from "./pages/retention/RetentionSales";
 import ShipwayOrders from "./pages/Home";
 import Login from "./pages/Login";
-import NavbarWithSearch from "./components/TopBars/NavBarwithSearch"; 
+import NavbarWithSearch from "./components/TopBars/NavBarwithSearch";
 import SalesDashboard from "./components/Dashboards/SalesDashboard";
 import OrdersTable from "./ShopifyOrders/AllShopifyOrders";
 import OnlineOrders from "./ShopifyOrders/OnlineOrders";
-import TransferRequests from "./components/LeadRequests/TransferRequest";
+import TransferRequests from "./components/LeadRequests/TransferRequest"; 
 import LeadDetail from "./components/LeadRequests/LeadDetails";
-import RetentionData from "./pages/filtered/Retention"; 
+import RetentionData from "./pages/filtered/Retention";
 import AcquisitionLost from "./Lostdata/AcquisitionLost";
 import RetentionLost from "./Lostdata/RetentionLost";
 import PrivateRoute from "./components/PrivateRoute";
-import MyTemplates from "./components/MyTemplates";  
+import MyTemplates from "./components/MyTemplates";
 import LeadManagement from './LeadConsultation/LeadManagement';
-import EscalationsPage from './components/EscalationsPage'; 
-import TeamPage from "./components/TeamPage"; 
+import EscalationsPage from './components/EscalationsPage';
+import TeamPage from "./components/TeamPage";
 import GrowthTracker from "./components/GrowthTracker";
 import Leaderboard from "./components/Leaderboard";
+import BloomLeaderboard from "./components/BloomLeaderboard";
 import DeliveredSalesRecord from "./components/DeliveredSalesRecord";
 import DeliveredHistory from "./components/TopBars/DeliveredHistory";
 import ShipmentDetails from "./pages/filtered/ShipmentDetails";
@@ -38,29 +39,29 @@ const App = () => {
   return (
     <Router>
       <div>
-        <NavbarWithSearch /> 
-         
+        <NavbarWithSearch />
+
         <Routes>
           <Route
             path="/shipment-details"
-            element={ 
-                <ShipmentDetails /> 
+            element={
+              <ShipmentDetails />
             }
           />
- 
-          <Route path="/login" element={<Login />} /> 
-          <Route path="/pages/Home" element={<ShipwayOrders />}/>   
-          
+
+          <Route path="/login" element={<Login />} />
+          <Route path="/pages/Home" element={<ShipwayOrders />} />
+
           {/* Protected Routes */}
           <Route
             path="/"
-            element={ 
+            element={
               <PrivateRoute>
                 <SalesDashboard />
               </PrivateRoute>
             }
           />
-          
+
           <Route
             path="/lead/:id"
             element={
@@ -197,7 +198,7 @@ const App = () => {
               </PrivateRoute>
             }
           />
-         
+
           <Route
             path="/lost/acquisition"
             element={
@@ -208,7 +209,7 @@ const App = () => {
           />
           <Route
             path="/escalations"
-            element={ 
+            element={
               <PrivateRoute>
                 <EscalationsPage />
               </PrivateRoute>
@@ -251,7 +252,15 @@ const App = () => {
             element={
               <PrivateRoute>
                 <Leaderboard />
-              </PrivateRoute> 
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/bloom-leaderboard"
+            element={
+              <PrivateRoute>
+                <BloomLeaderboard />
+              </PrivateRoute>
             }
           />
           <Route

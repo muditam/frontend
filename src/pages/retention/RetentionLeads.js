@@ -299,7 +299,7 @@ const RetentionLeads = () => {
 
   const saveSubcellsToBackend = async (leadId, subcells) => {
     try {
-      await axios.put(`https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/${leadId}`, { rtSubcells: subcells });
+      await axios.put(`https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/${leadId}`, { rtSubcells: subcells }); 
     } catch (error) {
       console.error("Error saving subcells:", error);
     }
@@ -312,14 +312,14 @@ const RetentionLeads = () => {
     lead.rtSubcells = lead.rtSubcells || [];
     lead.rtSubcells.push({ date: new Date().toLocaleDateString(), value: "" });
     setLeads(updatedLeads);
-    saveSubcellsToBackend(lead._id, lead.rtSubcells);  // save to backend
+    saveSubcellsToBackend(lead._id, lead.rtSubcells);   
   };
 
   const handleSubcellChange = (leadIndex, subcellIndex, e) => {
     const updatedLeads = [...leads];
     updatedLeads[leadIndex].rtSubcells[subcellIndex].value = e.target.value;
     setLeads(updatedLeads);
-    saveSubcellsToBackend(updatedLeads[leadIndex]._id, updatedLeads[leadIndex].rtSubcells); // save updated subcells
+    saveSubcellsToBackend(updatedLeads[leadIndex]._id, updatedLeads[leadIndex].rtSubcells);  
   };
 
 
@@ -339,20 +339,16 @@ const RetentionLeads = () => {
           orders: res.data.orders || [],
         },
       }));
-
-      // Get all order IDs from Shopify orders
+ 
       const orderIds = (res.data.orders || []).map(order => order.name.replace(/^#/, ''));
 
-      if (orderIds.length > 0) {
-        // Fetch shipment statuses for all these order IDs in one backend call
-        // Backend API should accept ?order_ids=1001,1002,1003 etc and return { order_id: shipment_status }
+      if (orderIds.length > 0) { 
         const response = await axios.get(
           `https://muditamleads-14f32a10d7f7.herokuapp.com/api/orders/by-order-ids`,
           {
             params: { order_ids: orderIds.join(',') }
           }
-        );
-        // Example response: [{order_id: '1001', shipment_status: 'Delivered'}, ...]
+        ); 
         const statusMap = {};
         response.data.forEach((order) => {
           statusMap[order.order_id] = order.shipment_status;

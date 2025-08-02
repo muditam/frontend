@@ -8,9 +8,7 @@ import {
   Drawer,
   Avatar,
   IconButton,
-} from "@mui/material";
-import ExpandLess from "@mui/icons-material/ExpandLess";
-import ExpandMore from "@mui/icons-material/ExpandMore";
+} from "@mui/material"; 
 import LogoutIcon from "@mui/icons-material/Logout";
 import UnfoldMoreIcon from "@mui/icons-material/UnfoldMore";
 import HomeIcon from "@mui/icons-material/Home";
@@ -40,12 +38,12 @@ const GrowthIcon = ({ size = 22, style }) => (
     fill="none"
     style={style}
     xmlns="http://www.w3.org/2000/svg"
-  > 
+  >
     <rect x="2" y="50" width="10" height="12" fill="black" />
-    <rect x="18" y="36" width="10" height="26" fill="black" /> 
+    <rect x="18" y="36" width="10" height="26" fill="black" />
     <circle cx="33" cy="17" r="6" fill="black" />
     <rect x="30" y="23" width="6" height="16" fill="black" />
-    <rect x="28" y="30" width="10" height="3" rx="1.5" fill="black" transform="rotate(-30 28 30)" /> 
+    <rect x="28" y="30" width="10" height="3" rx="1.5" fill="black" transform="rotate(-30 28 30)" />
     <rect x="48" y="22" width="8" height="28" fill="black" />
     <polygon points="52,8 60,22 44,22" fill="black" />
   </svg>
@@ -99,7 +97,7 @@ const MenuBar = ({ toggleDrawer }) => {
           }}
         >
           <Box sx={{ display: "flex", alignItems: "center" }}>
-            <AssignmentIcon sx={{ width: 35, height: 35, marginRight: 1 }} /> 
+            <AssignmentIcon sx={{ width: 35, height: 35, marginRight: 1 }} />
             <Box sx={{ display: "flex", flexDirection: "column" }}>
               <Typography
                 variant="h6"
@@ -122,7 +120,7 @@ const MenuBar = ({ toggleDrawer }) => {
                 Lead Management
               </Typography>
             </Box>
-          </Box> 
+          </Box>
           <UnfoldMoreIcon />
         </ListItem>
 
@@ -139,7 +137,7 @@ const MenuBar = ({ toggleDrawer }) => {
             "&:hover": {
               backgroundColor: "#e0f7fa",
               color: "#007aff",
-              transform: "scale(1.02)", 
+              transform: "scale(1.02)",
             },
           }}
           component={Link}
@@ -166,7 +164,7 @@ const MenuBar = ({ toggleDrawer }) => {
             "&:hover": {
               backgroundColor: "#e0f7fa",
               color: "#007aff",
-              transform: "scale(1.02)",  
+              transform: "scale(1.02)",
             },
           }}
           to="/my-templates"
@@ -298,7 +296,7 @@ const MenuBar = ({ toggleDrawer }) => {
                     "&:hover": {
                       backgroundColor: "#e0f7fa",
                       color: "#007aff",
-                      transform: "scale(1.02)", 
+                      transform: "scale(1.02)",
                     },
                   }}
                 >
@@ -321,9 +319,9 @@ const MenuBar = ({ toggleDrawer }) => {
                 >
                   <List
                     sx={{
-                      borderLeft: "2px solid #007aff",  
-                      marginLeft: "24px",  
-                      paddingLeft: "4px",  
+                      borderLeft: "2px solid #007aff",
+                      marginLeft: "24px",
+                      paddingLeft: "4px",
                     }}
                   >
                     <ListItem
@@ -413,7 +411,7 @@ const MenuBar = ({ toggleDrawer }) => {
                     "&:hover": {
                       backgroundColor: "#e0f7fa",
                       color: "#007aff",
-                      transform: "scale(1.02)", 
+                      transform: "scale(1.02)",
                     },
                   }}
                   onClick={toggleDrawer}
@@ -439,7 +437,7 @@ const MenuBar = ({ toggleDrawer }) => {
                     "&:hover": {
                       backgroundColor: "#e0f7fa",
                       color: "#007aff",
-                      transform: "scale(1.02)",  
+                      transform: "scale(1.02)",
                     },
                   }}
                   onClick={toggleDrawer}
@@ -488,11 +486,11 @@ const MenuBar = ({ toggleDrawer }) => {
                 >
                   <List
                     sx={{
-                      borderLeft: "2px solid #007aff",  
-                      marginLeft: "24px", 
-                      paddingLeft: "4px",  
+                      borderLeft: "2px solid #007aff",
+                      marginLeft: "24px",
+                      paddingLeft: "4px",
                     }}
-                  > 
+                  >
                     <ListItem
                       button
                       component={Link}
@@ -523,15 +521,15 @@ const MenuBar = ({ toggleDrawer }) => {
                   to="/online-orders"
                   sx={{
                     display: "flex",
-                    alignItems: "center",  
-                    padding: "10px 20px",  
+                    alignItems: "center",
+                    padding: "10px 20px",
                     borderRadius: "4px",
-                    margin: "4px 0", 
+                    margin: "4px 0",
                     transition: "background-color 0.3s, transform 0.2s",
                     "&:hover": {
-                      backgroundColor: "#e0f7fa",  
-                      color: "#007aff", 
-                      transform: "scale(1.02)", 
+                      backgroundColor: "#e0f7fa",
+                      color: "#007aff",
+                      transform: "scale(1.02)",
                     },
                   }}
                   onClick={toggleDrawer}
@@ -548,15 +546,15 @@ const MenuBar = ({ toggleDrawer }) => {
                   to="/transfer-requests"
                   sx={{
                     display: "flex",
-                    alignItems: "center",  
-                    padding: "10px 20px",  
+                    alignItems: "center",
+                    padding: "10px 20px",
                     borderRadius: "4px",
-                    margin: "4px 0", 
+                    margin: "4px 0",
                     transition: "background-color 0.3s, transform 0.2s",
                     "&:hover": {
-                      backgroundColor: "#e0f7fa", 
-                      color: "#007aff",  
-                      transform: "scale(1.02)", 
+                      backgroundColor: "#e0f7fa",
+                      color: "#007aff",
+                      transform: "scale(1.02)",
                     },
                   }}
                   onClick={toggleDrawer}
@@ -587,7 +585,7 @@ const MenuBar = ({ toggleDrawer }) => {
                     "&:hover": {
                       backgroundColor: "#e0f7fa",
                       color: "#007aff",
-                      transform: "scale(1.02)", 
+                      transform: "scale(1.02)",
                     },
                   }}
                 >
@@ -597,7 +595,7 @@ const MenuBar = ({ toggleDrawer }) => {
                       Sales Agent
                     </Typography>
                   </Box>
-                  {openDropdown.salesAgent ? <ExpandLess /> : <ExpandMore />}
+                  {openDropdown.salesAgent ? <KeyboardArrowDownIcon /> : <KeyboardArrowRightIcon />}
                 </ListItem>
 
                 <Collapse
@@ -607,11 +605,11 @@ const MenuBar = ({ toggleDrawer }) => {
                 >
                   <List
                     sx={{
-                      borderLeft: "2px solid #007aff",  
-                      marginLeft: "24px", 
-                      paddingLeft: "4px", 
+                      borderLeft: "2px solid #007aff",
+                      marginLeft: "24px",
+                      paddingLeft: "4px",
                     }}
-                  > 
+                  >
                     <ListItem
                       button
                       component={Link}
@@ -654,7 +652,7 @@ const MenuBar = ({ toggleDrawer }) => {
                     "&:hover": {
                       backgroundColor: "#e0f7fa",
                       color: "#007aff",
-                      transform: "scale(1.02)",  
+                      transform: "scale(1.02)",
                     },
                   }}
                 >
@@ -672,9 +670,9 @@ const MenuBar = ({ toggleDrawer }) => {
                     }}
                   >
                     {openDropdown.retentionAgent ? (
-                      <ExpandLess />
+                      <KeyboardArrowDownIcon />
                     ) : (
-                      <ExpandMore />
+                      <KeyboardArrowRightIcon />
                     )}
                   </Box>
                 </ListItem>
@@ -686,9 +684,9 @@ const MenuBar = ({ toggleDrawer }) => {
                 >
                   <List
                     sx={{
-                      borderLeft: "2px solid #007aff", 
-                      marginLeft: "24px", 
-                      paddingLeft: "4px", 
+                      borderLeft: "2px solid #007aff",
+                      marginLeft: "24px",
+                      paddingLeft: "4px",
                     }}
                   >
                     {/* Retention Leads */}
@@ -747,10 +745,10 @@ const MenuBar = ({ toggleDrawer }) => {
 
             <ListItem
               button
-              component={Link}
-              to="/leaderboard"
+              onClick={() => handleDropdownClick("leaderboard")}
               sx={{
                 display: "flex",
+                justifyContent: "space-between",
                 alignItems: "center",
                 padding: "10px 20px",
                 borderRadius: "4px",
@@ -762,13 +760,47 @@ const MenuBar = ({ toggleDrawer }) => {
                   transform: "scale(1.02)",
                 },
               }}
-              onClick={toggleDrawer}
             >
-              <EmojiEventsIcon sx={{ fontSize: 24, marginRight: "12px" }} />
-              <Typography variant="body1" style={{ fontSize: "14px" }}>
-                Leaderboard
-              </Typography>
+              <Box sx={{ display: "flex", alignItems: "center" }}>
+                <EmojiEventsIcon sx={{ fontSize: 24, marginRight: "12px" }} />
+                <Typography variant="body1" sx={{ fontSize: "14px" }}>
+                  Leaderboard
+                </Typography>
+              </Box>
+              {openDropdown.leaderboard ? <KeyboardArrowDownIcon /> : <KeyboardArrowRightIcon />}
             </ListItem>
+
+            <Collapse in={openDropdown.leaderboard} timeout="auto" unmountOnExit>
+              <List
+                sx={{
+                  borderLeft: "2px solid #007aff",
+                  marginLeft: "24px",
+                  paddingLeft: "4px",
+                }}
+              >
+                <ListItem
+                  button
+                  component={Link}
+                  to="/leaderboard"
+                  onClick={toggleDrawer}
+                >
+                  <Typography variant="body2" sx={{ fontSize: "13px" }}>
+                    All Leaderboard
+                  </Typography>
+                </ListItem>
+                <ListItem
+                  button
+                  component={Link}
+                  to="/bloom-leaderboard"
+                  onClick={toggleDrawer}
+                >
+                  <Typography variant="body2" sx={{ fontSize: "13px" }}>
+                    Bloom Leaderboard
+                  </Typography>
+                </ListItem>
+              </List>
+            </Collapse>
+
 
             <ListItem
               button
