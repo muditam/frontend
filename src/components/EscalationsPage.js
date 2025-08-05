@@ -40,7 +40,7 @@ const EscalationsPage = () => {
   const [showClosedOnly, setShowClosedOnly] = useState(false);
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(50);
-
+  const [initialLoading, setInitialLoading] = useState(true);
 
   const [remarkDrafts, setRemarkDrafts] = useState({});
 
@@ -67,6 +67,7 @@ const EscalationsPage = () => {
 
 
   useEffect(() => {
+    setInitialLoading(true);
     fetchEmployees();
     fetchEscalations();
   }, []);
@@ -86,14 +87,13 @@ const EscalationsPage = () => {
 
 
   const fetchEscalations = async () => {
-    try {
-      setLoading(true);
+    try { 
       const response = await axios.get(`${BACKEND_URL}/escalations`);
       setEscalations(response.data);
     } catch (error) {
       console.error("Failed to fetch escalations", error);
     } finally {
-      setLoading(false);
+      setInitialLoading(false);
     }
   };
 
@@ -596,7 +596,7 @@ const EscalationsPage = () => {
             </TableRow>
           </TableHead>
           <TableBody>
-            {loading ? (
+            {initialLoading ? (
               <TableRow>
                 <TableCell colSpan={13} align="center">
                   <CircularProgress size={28} />
