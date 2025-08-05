@@ -12,7 +12,7 @@ const DuplicateNumbers = () => {
       setDuplicateGroups(res.data);
       setLoading(false); 
     } catch (error) {
-      console.error("Error fetching duplicates:", error);
+      console.error("Error fetching duplicates:", error); 
       setLoading(false);
     }
   };
@@ -21,9 +21,9 @@ const DuplicateNumbers = () => {
     fetchDuplicates();
   }, []);
 
-  const handleDeleteLead = async (leadId) => {
+  const handleDeleteLead = async (leadId, type) => {
     try {
-      await axios.delete(`https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/${leadId}`);
+      await axios.delete(`https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/${type}/${leadId}`);
       // Optimistically update state
       setDuplicateGroups((prevGroups) =>
         prevGroups
@@ -67,7 +67,7 @@ const DuplicateNumbers = () => {
               >
                 <td>
                   <button
-                    onClick={() => handleDeleteLead(lead._id)}
+                    onClick={() => handleDeleteLead(lead._id, lead.type)}
                     style={{
                       border: "none",
                       background: "none",
@@ -86,7 +86,7 @@ const DuplicateNumbers = () => {
                 <td>{lead.salesStatus}</td>
                 <td>{lead.healthExpertAssigned}</td>
                 <td>
-                  {lead.type === "customer" ? "?" : lead.retentionStatus}
+                  {lead.type === "customer" ? "?" : (lead.retentionStatus ?? "")}
                 </td>
               </tr>
             ))
