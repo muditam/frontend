@@ -8,7 +8,7 @@ import {
   Drawer,
   Avatar,
   IconButton,
-} from "@mui/material"; 
+} from "@mui/material";
 import LogoutIcon from "@mui/icons-material/Logout";
 import UnfoldMoreIcon from "@mui/icons-material/UnfoldMore";
 import HomeIcon from "@mui/icons-material/Home";
@@ -27,6 +27,8 @@ import ChatBubbleIcon from "@mui/icons-material/ChatBubble";
 import TrendingUpIcon from "@mui/icons-material/TrendingUp";
 import EmojiEventsIcon from "@mui/icons-material/EmojiEvents"
 import FactCheckIcon from "@mui/icons-material/FactCheck"
+import ErrorOutlineIcon from "@mui/icons-material/ErrorOutline";
+import LocalShippingIcon from "@mui/icons-material/LocalShipping";
 import { Link, useNavigate } from "react-router-dom";
 
 // Put this ABOVE the MenuBar component in the same file, or in its own file and import it
@@ -72,6 +74,32 @@ const MenuBar = ({ toggleDrawer }) => {
     setUser(null);
     navigate("/login");
   };
+
+  const menuItemStyle = {
+    display: "flex",
+    alignItems: "center",
+    padding: "10px 20px",
+    borderRadius: "4px",
+    margin: "4px 0",
+    transition: "background-color 0.3s, transform 0.2s",
+    "&:hover": {
+      backgroundColor: "#e0f7fa",
+      color: "#007aff",
+      transform: "scale(1.02)",
+    },
+  };
+
+  const dropdownStyle = {
+    ...menuItemStyle,
+    justifyContent: "space-between",
+  };
+
+  const nestedListStyle = {
+    borderLeft: "2px solid #007aff",
+    marginLeft: "24px",
+    paddingLeft: "4px",
+  };
+
 
   return (
     <Drawer
@@ -150,81 +178,85 @@ const MenuBar = ({ toggleDrawer }) => {
           </Typography>
         </ListItem>
 
+        {role !== "Finance" && role !== "Operations" && (
+          <ListItem
+            button
+            component={Link}
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              padding: "10px 20px",
+              borderRadius: "4px",
+              margin: "4px 0",
+              transition: "background-color 0.3s, transform 0.2s",
+              "&:hover": {
+                backgroundColor: "#e0f7fa",
+                color: "#007aff",
+                transform: "scale(1.02)",
+              },
+            }}
+            to="/my-templates"
+            onClick={toggleDrawer}
+          >
+            <DescriptionIcon sx={{ marginRight: "12px" }} />
+            <Typography variant="body1" style={{ fontSize: "14px" }}>
+              My Templates
+            </Typography>
+          </ListItem>
+        )}
+        {role !== "Finance" && role !== "Operations" && (
+          <ListItem
+            button
+            component={Link}
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              padding: "10px 20px",
+              borderRadius: "4px",
+              margin: "4px 0",
+              transition: "background-color 0.3s, transform 0.2s",
+              "&:hover": {
+                backgroundColor: "#e0f7fa",
+                color: "#007aff",
+                transform: "scale(1.02)",
+              },
+            }}
+            to="/leadmanagement"
+            onClick={toggleDrawer}
+          >
+            <ChatBubbleIcon sx={{ marginRight: "12px" }} />
+            <Typography variant="body1" style={{ fontSize: "14px" }}>
+              Consultation
+            </Typography>
+          </ListItem>
+        )}
 
-        <ListItem
-          button
-          component={Link}
-          sx={{
-            display: "flex",
-            alignItems: "center",
-            padding: "10px 20px",
-            borderRadius: "4px",
-            margin: "4px 0",
-            transition: "background-color 0.3s, transform 0.2s",
-            "&:hover": {
-              backgroundColor: "#e0f7fa",
-              color: "#007aff",
-              transform: "scale(1.02)",
-            },
-          }}
-          to="/my-templates"
-          onClick={toggleDrawer}
-        >
-          <DescriptionIcon sx={{ marginRight: "12px" }} />
-          <Typography variant="body1" style={{ fontSize: "14px" }}>
-            My Templates
-          </Typography>
-        </ListItem>
-
-        <ListItem
-          button
-          component={Link}
-          sx={{
-            display: "flex",
-            alignItems: "center",
-            padding: "10px 20px",
-            borderRadius: "4px",
-            margin: "4px 0",
-            transition: "background-color 0.3s, transform 0.2s",
-            "&:hover": {
-              backgroundColor: "#e0f7fa",
-              color: "#007aff",
-              transform: "scale(1.02)",
-            },
-          }}
-          to="/leadmanagement"
-          onClick={toggleDrawer}
-        >
-          <ChatBubbleIcon sx={{ marginRight: "12px" }} />
-          <Typography variant="body1" style={{ fontSize: "14px" }}>
-            Consultation
-          </Typography>
-        </ListItem>
-
-        <ListItem
-          button
-          component={Link}
-          to="/escalations"
-          sx={{
-            display: "flex",
-            alignItems: "center",
-            padding: "10px 20px",
-            borderRadius: "4px",
-            margin: "4px 0",
-            transition: "background-color 0.3s, transform 0.2s",
-            "&:hover": {
-              backgroundColor: "#e0f7fa",
-              color: "#007aff",
-              transform: "scale(1.02)",
-            },
-          }}
-          onClick={toggleDrawer}
-        >
-          <AssignmentIcon sx={{ fontSize: 18, marginRight: "8px" }} />
-          <Typography variant="body1" sx={{ fontSize: "14px" }}>
-            Escalations
-          </Typography>
-        </ListItem>
+        {role !== "Finance" && (
+          <ListItem
+            button
+            component={Link}
+            to="/escalations"
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              padding: "10px 20px",
+              borderRadius: "4px",
+              margin: "4px 0",
+              transition: "background-color 0.3s, transform 0.2s",
+              "&:hover": {
+                backgroundColor: "#e0f7fa",
+                color: "#007aff",
+                transform: "scale(1.02)",
+              },
+            }}
+            onClick={toggleDrawer}
+          >
+            <AssignmentIcon sx={{ fontSize: 18, marginRight: "8px" }} />
+            <Typography variant="body1" sx={{ fontSize: "14px" }}>
+              Escalations
+            </Typography>
+          </ListItem>
+        )}
 
         {hasTeam && (
           <ListItem
@@ -718,57 +750,207 @@ const MenuBar = ({ toggleDrawer }) => {
               </>
             )}
 
-            <ListItem
-              button
-              component={Link}
-              to="/delivered-sales-record"
-              sx={{
-                display: "flex",
-                alignItems: "center",
-                padding: "10px 20px",
-                borderRadius: "4px",
-                margin: "4px 0",
-                transition: "background-color 0.3s, transform 0.2s",
-                "&:hover": {
-                  backgroundColor: "#e0f7fa",
-                  color: "#007aff",
-                  transform: "scale(1.02)",
-                },
-              }}
-              onClick={toggleDrawer}
-            >
-              <FactCheckIcon sx={{ fontSize: 20, marginRight: "12px" }} />
-              <Typography variant="body1" style={{ fontSize: "14px" }}>
-                Delivered Sales Record
-              </Typography>
-            </ListItem>
+            {role === "Finance" && (
+              <>
+                <ListItem
+                  button
+                  component={Link}
+                  to="/order-summary"
+                  sx={menuItemStyle}
+                  onClick={toggleDrawer}
+                >
+                  <FactCheckIcon sx={{ fontSize: 18, marginRight: "8px" }} />
+                  <Typography variant="body1" sx={{ fontSize: "14px" }}>
+                    Order Summary
+                  </Typography>
+                </ListItem>
 
-            <ListItem
-              button
-              onClick={() => handleDropdownClick("leaderboard")}
-              sx={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                padding: "10px 20px",
-                borderRadius: "4px",
-                margin: "4px 0",
-                transition: "background-color 0.3s, transform 0.2s",
-                "&:hover": {
-                  backgroundColor: "#e0f7fa",
-                  color: "#007aff",
-                  transform: "scale(1.02)",
-                },
-              }}
-            >
-              <Box sx={{ display: "flex", alignItems: "center" }}>
-                <EmojiEventsIcon sx={{ fontSize: 24, marginRight: "12px" }} />
-                <Typography variant="body1" sx={{ fontSize: "14px" }}>
-                  Leaderboard
+                <ListItem
+                  button
+                  onClick={() => handleDropdownClick("paymentGateway")}
+                  sx={dropdownStyle}
+                >
+                  <Box sx={{ display: "flex", alignItems: "center" }}>
+                    <CompareArrowsIcon sx={{ fontSize: 18, marginRight: "8px" }} />
+                    <Typography variant="body1" sx={{ fontSize: "14px" }}>
+                      Prepaid Remittance
+                    </Typography>
+                  </Box>
+                  {openDropdown.paymentGateway ? <KeyboardArrowDownIcon /> : <KeyboardArrowRightIcon />}
+                </ListItem>
+
+                <Collapse in={openDropdown.paymentGateway} timeout="auto" unmountOnExit>
+                  <List sx={nestedListStyle}>
+                    <ListItem button component={Link} to="/gateway/razorpay" onClick={toggleDrawer}>
+                      <Typography variant="body2" sx={{ fontSize: "13px" }}>Razorpay</Typography>
+                    </ListItem>
+                    <ListItem button component={Link} to="/gateway/phonepe" onClick={toggleDrawer}>
+                      <Typography variant="body2" sx={{ fontSize: "13px" }}>PhonePe</Typography>
+                    </ListItem>
+                    <ListItem button component={Link} to="/gateway/easebuzz" onClick={toggleDrawer}>
+                      <Typography variant="body2" sx={{ fontSize: "13px" }}>Easebuzz</Typography>
+                    </ListItem>
+                    <ListItem button component={Link} to="/gateway/bank-transfer" onClick={toggleDrawer}>
+                      <Typography variant="body2" sx={{ fontSize: "13px" }}>Bank Transfer</Typography>
+                    </ListItem>
+                  </List>
+                </Collapse>
+
+                <ListItem
+                  button
+                  component={Link}
+                  to="/rto-sheet"
+                  sx={menuItemStyle}
+                  onClick={toggleDrawer}
+                >
+                  <DeleteIcon sx={{ fontSize: 18, marginRight: "8px" }} />
+                  <Typography variant="body1" sx={{ fontSize: "14px" }}>
+                    RTO Sheet
+                  </Typography>
+                </ListItem>
+
+                <ListItem
+                  button
+                  onClick={() => handleDropdownClick("remittance")}
+                  sx={dropdownStyle}
+                >
+                  <Box sx={{ display: "flex", alignItems: "center" }}>
+                    <TrendingUpIcon sx={{ fontSize: 18, marginRight: "8px" }} />
+                    <Typography variant="body1" sx={{ fontSize: "14px" }}>
+                      COD Remittance
+                    </Typography>
+                  </Box>
+                  {openDropdown.remittance ? <KeyboardArrowDownIcon /> : <KeyboardArrowRightIcon />}
+                </ListItem>
+
+                <Collapse in={openDropdown.remittance} timeout="auto" unmountOnExit>
+                  <List sx={nestedListStyle}>
+                    <ListItem button component={Link} to="/remittance/bluedart" onClick={toggleDrawer}>
+                      <Typography variant="body2" sx={{ fontSize: "13px" }}>Bluedart</Typography>
+                    </ListItem>
+                    <ListItem button component={Link} to="/remittance/dtdc" onClick={toggleDrawer}>
+                      <Typography variant="body2" sx={{ fontSize: "13px" }}>DTDC</Typography>
+                    </ListItem>
+                    <ListItem button component={Link} to="/remittance/delhivery" onClick={toggleDrawer}>
+                      <Typography variant="body2" sx={{ fontSize: "13px" }}>Delhivery</Typography>
+                    </ListItem>
+                    <ListItem button component={Link} to="/remittance/shiprocket" onClick={toggleDrawer}>
+                      <Typography variant="body2" sx={{ fontSize: "13px" }}>Shiprocket</Typography>
+                    </ListItem>
+                  </List>
+                </Collapse>
+              </>
+            )}
+
+            {role === "Operations" && (
+              <ListItem
+                button
+                component={Link}
+                to="/operations/undelivered-orders"
+                sx={{
+                  display: "flex",
+                  alignItems: "center",
+                  padding: "10px 20px",
+                  borderRadius: "4px",
+                  margin: "4px 0",
+                  transition: "background-color 0.3s, transform 0.2s",
+                  "&:hover": {
+                    backgroundColor: "#e0f7fa",
+                    color: "#007aff",
+                    transform: "scale(1.02)",
+                  },
+                }}
+                onClick={toggleDrawer}
+              >
+                <ErrorOutlineIcon sx={{ fontSize: 20, marginRight: "12px" }} />
+                <Typography variant="body1" style={{ fontSize: "14px" }}>
+                  Undelivered Orders
                 </Typography>
-              </Box>
-              {openDropdown.leaderboard ? <KeyboardArrowDownIcon /> : <KeyboardArrowRightIcon />}
-            </ListItem>
+              </ListItem>
+            )}
+
+            {role === "Operations" && (
+              <ListItem
+                button
+                component={Link}
+                to="/operations/rto-delivered" // updated route
+                sx={{
+                  display: "flex",
+                  alignItems: "center",
+                  padding: "10px 20px",
+                  borderRadius: "4px",
+                  margin: "4px 0",
+                  transition: "background-color 0.3s, transform 0.2s",
+                  "&:hover": {
+                    backgroundColor: "#e0f7fa",
+                    color: "#007aff",
+                    transform: "scale(1.02)",
+                  },
+                }}
+                onClick={toggleDrawer}
+              >
+                <LocalShippingIcon sx={{ fontSize: 20, marginRight: "12px" }} /> {/* updated icon */}
+                <Typography variant="body1" style={{ fontSize: "14px" }}>
+                  RTO Delivered
+                </Typography>
+              </ListItem>
+            )}
+
+            {role !== "Finance" && role !== "Operations" && (
+              <ListItem
+                button
+                component={Link}
+                to="/delivered-sales-record"
+                sx={{
+                  display: "flex",
+                  alignItems: "center",
+                  padding: "10px 20px",
+                  borderRadius: "4px",
+                  margin: "4px 0",
+                  transition: "background-color 0.3s, transform 0.2s",
+                  "&:hover": {
+                    backgroundColor: "#e0f7fa",
+                    color: "#007aff",
+                    transform: "scale(1.02)",
+                  },
+                }}
+                onClick={toggleDrawer}
+              >
+                <FactCheckIcon sx={{ fontSize: 20, marginRight: "12px" }} />
+                <Typography variant="body1" style={{ fontSize: "14px" }}>
+                  Delivered Sales Record
+                </Typography>
+              </ListItem>
+            )}
+
+            {role !== "Finance" && role !== "Operations" && (
+              <ListItem
+                button
+                onClick={() => handleDropdownClick("leaderboard")}
+                sx={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  padding: "10px 20px",
+                  borderRadius: "4px",
+                  margin: "4px 0",
+                  transition: "background-color 0.3s, transform 0.2s",
+                  "&:hover": {
+                    backgroundColor: "#e0f7fa",
+                    color: "#007aff",
+                    transform: "scale(1.02)",
+                  },
+                }}
+              >
+                <Box sx={{ display: "flex", alignItems: "center" }}>
+                  <EmojiEventsIcon sx={{ fontSize: 24, marginRight: "12px" }} />
+                  <Typography variant="body1" sx={{ fontSize: "14px" }}>
+                    Leaderboard
+                  </Typography>
+                </Box>
+                {openDropdown.leaderboard ? <KeyboardArrowDownIcon /> : <KeyboardArrowRightIcon />}
+              </ListItem>
+            )}
 
             <Collapse in={openDropdown.leaderboard} timeout="auto" unmountOnExit>
               <List
@@ -801,31 +983,32 @@ const MenuBar = ({ toggleDrawer }) => {
               </List>
             </Collapse>
 
-
-            <ListItem
-              button
-              component={Link}
-              to="/my-growth-plan"
-              sx={{
-                display: "flex",
-                alignItems: "center",
-                padding: "10px 20px",
-                borderRadius: "4px",
-                margin: "4px 0",
-                transition: "background-color 0.3s, transform 0.2s",
-                "&:hover": {
-                  backgroundColor: "#e0f7fa",
-                  color: "#007aff",
-                  transform: "scale(1.02)",
-                },
-              }}
-              onClick={toggleDrawer}
-            >
-              <TrendingUpIcon sx={{ fontSize: 24, marginRight: "12px" }} />
-              <Typography variant="body1" style={{ fontSize: "14px" }}>
-                Growth At Muditam
-              </Typography>
-            </ListItem>
+            {role !== "Finance" && role !== "Operations" && (
+              <ListItem
+                button
+                component={Link}
+                to="/my-growth-plan"
+                sx={{
+                  display: "flex",
+                  alignItems: "center",
+                  padding: "10px 20px",
+                  borderRadius: "4px",
+                  margin: "4px 0",
+                  transition: "background-color 0.3s, transform 0.2s",
+                  "&:hover": {
+                    backgroundColor: "#e0f7fa",
+                    color: "#007aff",
+                    transform: "scale(1.02)",
+                  },
+                }}
+                onClick={toggleDrawer}
+              >
+                <TrendingUpIcon sx={{ fontSize: 24, marginRight: "12px" }} />
+                <Typography variant="body1" style={{ fontSize: "14px" }}>
+                  Growth At Muditam
+                </Typography>
+              </ListItem>
+            )}
 
 
             <Box

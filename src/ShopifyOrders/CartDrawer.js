@@ -591,49 +591,6 @@ const CartDrawer = ({ closeDrawer }) => {
     }
   };
 
-  // const handleGeneratePaymentLink = async () => {
-  //   try {
-  //     const amountToCharge = parseFloat(finalTotal.toFixed(2));
-  //     const phoneWithCountryCode = phoneNumber.startsWith('+91')
-  //       ? phoneNumber
-  //       : `+91${phoneNumber}`;
-  //     // 1. Call PhonePe API (local backend)     
-  //     const phonePeResp = await axios.post(
-  //       "https://muditamleads-14f32a10d7f7.herokuapp.com/api/phonepe/create-payment-link",
-  //       {
-  //         amount: amountToCharge,
-  //         customer: {
-  //           name: confirmedAddress?.fullName || "Customer Name",
-  //           email: confirmedAddress?.email || "customer@example.com",
-  //           phoneNumber: phoneWithCountryCode,
-  //         },
-  //       }
-  //     );
-  //     setPhonePeLink(phonePeResp.data.paylinkUrl);
-
-  //     // 2. Call Razorpay API (your backend)
-  //     const razorpayResp = await axios.post(
-  //       "https://muditamleads-14f32a10d7f7.herokuapp.com/api/razorpay/create-payment-link",
-  //       {
-  //         amount: amountToCharge,
-  //         currency: "INR",
-  //         customer: {
-  //           name: confirmedAddress?.fullName || "Customer Name",
-  //           email: confirmedAddress?.email || "customer@example.com",
-  //           contact: phoneNumber || "1234567890",
-  //         },
-  //       }
-  //     );
-  //     setRazorpayPaymentLink(razorpayResp.data.paymentLink);
-  //   } catch (error) {
-  //     console.error("Error generating payment links:", error);
-  //     alert(
-  //       error?.response?.data?.message ||
-  //       "Failed to generate payment links. Please try again."
-  //     );
-  //   }
-  // };
-
 // ----- PAYMENT & ORDER CREATION -----
   const handleGeneratePaymentLink = async () => {
     try {
@@ -703,7 +660,7 @@ const CartDrawer = ({ closeDrawer }) => {
 
     try {
       const response = await axios.post(
-        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/shopify/create-order",
+        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/shopify/create-order", 
         orderData
       );
       // Capture order id from Shopify response
@@ -1998,6 +1955,7 @@ const CartDrawer = ({ closeDrawer }) => {
           <OrderDetailsPopup
             orderId={orderId}
             agentName={loggedInAgentName}
+            transactionId={transactionId} 
             onClose={() => setShowOrderDetailsPopup(false)}
           />
         )}

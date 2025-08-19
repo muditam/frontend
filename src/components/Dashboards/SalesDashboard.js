@@ -4,6 +4,7 @@ import AgentDashboard from "../../Dashboards/AgentDashboard";
 import RetentionAgentDashboard from "../../Dashboards/RetentionDashboard";
 import ManagerSalesDashboard from "../../Dashboards/MasterSalesDashboard";
 import ManagerRetentionDashboard from "../../Dashboards/MasterRetentionDashboard";
+import FinanceDashboard from "../../Dashboards/FinanceDashboard";
 import { Box } from "@mui/material";
 
 
@@ -122,6 +123,7 @@ const SalesDashboard = () => {
       )}
       {role === "Sales Agent" && <AgentDashboard />}
       {role === "Retention Agent" && <RetentionAgentDashboard />}
+      {role === "Finance" && <FinanceDashboard />}
     </div>
   );
 };

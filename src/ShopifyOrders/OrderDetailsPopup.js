@@ -30,6 +30,7 @@ const OrderDetailsPopup = ({ orderId,
   discountType,
   paymentMethod: propPaymentMethod,
   upsellAmount: propUpsellAmount,
+  transactionId: propTransactionId,
   onClose,
  }) => { 
   const [orderDetails, setOrderDetails] = useState(null);
@@ -111,9 +112,9 @@ useEffect(() => {
   };
 
   const handleAgentSearchChange = (e) => {
-    const value = e.target.value;
+    const value = e.target.value; 
     setEmployeeSearch(value);
-    if (value.length >= 2) {
+    if (value.length >= 2) { 
       searchEmployees(value);
     } else {
       setEmployeeResults([]);
@@ -197,6 +198,7 @@ useEffect(() => {
       selfRemark,
       paymentMethod,
       upsellAmount: upsellChecked ? Number(upsellAmount) : 0,
+      transactionId: propTransactionId,
     };
     await axios.post("https://muditamleads-14f32a10d7f7.herokuapp.com/api/my-orders", payload);
     setOrderAdded(true);
@@ -550,7 +552,7 @@ useEffect(() => {
 
           {/* Render the Close Button only if the order has been added */}
           {orderAdded && (
-            <Button variant="text" size="small" fullWidth onClick={onClose} sx={{ mt: 1, color: "#000" }}>
+            <Button variant="text" size="small" fullWidth onClick={onClose} sx={{ mt: 1, color: "#000" }}> 
               Close
             </Button>
           )}

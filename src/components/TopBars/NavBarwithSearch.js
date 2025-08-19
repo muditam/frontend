@@ -259,7 +259,7 @@ const NavbarWithSearch = () => {
     );
   };
 
-  const handleDownloadOrders = async () => {
+  const handleDownloadOrders = async () => { 
     try {
       const response = await axios.get(
         "https://muditamleads-14f32a10d7f7.herokuapp.com/api/myorders/download",
@@ -546,7 +546,7 @@ const NavbarWithSearch = () => {
             </Box>
           </Box>
 
-          {user?.role !== "Manager" && (
+          {user?.role !== "Manager" && user?.role !== "Finance" && user?.role !== "Operations" && (
             <Box
               sx={{
                 mx: 2,
@@ -597,6 +597,7 @@ const NavbarWithSearch = () => {
 
           {/* Right side: Icons and LMS Search */}
           <Box sx={{ display: "flex", alignItems: "center" }}>
+            {user?.role !== "Finance" && user?.role !== "Operations" && (
             <IconButton
               onClick={() => setIncentiveOpen(true)}
               sx={{
@@ -607,8 +608,10 @@ const NavbarWithSearch = () => {
               title="View Incentive Structure"
             >
               <RocketLaunchIcon />
-            </IconButton>
-
+            </IconButton> 
+            )} 
+ 
+            {user?.role !== "Finance" && user?.role !== "Operations" && (
             <IconButton
               onClick={() => setBloomOpen(true)}
               sx={{
@@ -622,7 +625,9 @@ const NavbarWithSearch = () => {
             >
               <Flower2 />
             </IconButton>
+            )}
 
+            {user?.role !== "Finance" && user?.role !== "Operations" && (
             <IconButton
               ref={leaderboardAnchorRef}
               onClick={() => setLeaderboardOpen(true)}
@@ -637,6 +642,7 @@ const NavbarWithSearch = () => {
             >
               <EmojiEventsIcon /> 
             </IconButton>
+            )}
 
             <Bloomleader open={bloomOpen} anchorEl={leaderboardAnchorRef.current} onClose={() => setBloomOpen(false)} />
 
@@ -645,6 +651,8 @@ const NavbarWithSearch = () => {
               anchorEl={leaderboardAnchorRef.current}
               onClose={() => setLeaderboardOpen(false)}
             />
+
+            {user?.role !== "Finance" && user?.role !== "Operations" && (
             <IconButton
               color="error"
               onClick={openBloodTestDialog}
@@ -653,7 +661,9 @@ const NavbarWithSearch = () => {
             >
               <Syringe />
             </IconButton>
+            )}
 
+            {user?.role !== "Finance" && user?.role !== "Operations" && (
             <IconButton
               onClick={() => setDeliveryDialogOpen(true)}
               sx={{ mr: 0.5, color: "#fff", borderRadius: "50%", p: 1.1, "&:hover": { bgcolor: "#e0e0e0" } }}
@@ -661,6 +671,7 @@ const NavbarWithSearch = () => {
             >
               <LocalShippingIcon />
             </IconButton>
+            )}
 
             {/* <IconButton
               sx={{
@@ -668,20 +679,23 @@ const NavbarWithSearch = () => {
                 color: "#fff",
                 "&:hover": { color: "#fff", bgcolor: "#e0e0e0" } 
               }}
-              title="Download All Orders (CSV)"
+              title="Download All Orders (CSV)" 
               onClick={handleDownloadOrders}
             >
               <DownloadIcon />
-            </IconButton> */}
+            </IconButton> 
+ 
 
-            {user && (
+            {/* {user && (
               <IconButton
                 onClick={() => navigate("/my-templates")}
                 sx={{ mr: 0.5, "&:hover": { backgroundColor: "#e0e0e0" } }}
               >
                 <StickyNote2Icon sx={{ color: "white" }} />
               </IconButton>
-            )}
+            )} */}
+
+
             {user && location.pathname !== "/login" && (
               <IconButton
                 color="inherit"

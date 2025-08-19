@@ -34,6 +34,16 @@ import BloomLeaderboard from "./components/BloomLeaderboard";
 import DeliveredSalesRecord from "./components/DeliveredSalesRecord";
 import DeliveredHistory from "./components/TopBars/DeliveredHistory";
 import ShipmentDetails from "./pages/filtered/ShipmentDetails";
+import FinanceOrderSummary from "./components/Finance/FinanceOrderSummary";
+import RazorpaySettlement from "./components/Finance/Payments/RazorpaySettlement";
+import EasebuzzPayout from "./components/Finance/Payments/GokwikSettlement";
+import PhonePePayout from "./components/Finance/Payments/PhonepeSettlement";
+import BluedartUpload from "./components/Finance/Cod-remittance/BlueDart";
+import Delhivery from "./components/Finance/Cod-remittance/Delhivery"; 
+import DTDC from "./components/Finance/Cod-remittance/DtdcUpload";
+import OrderSummeryForOperations from "./components/Operation/OrderSummeryForOperations";  
+import ReturnOrders from "./components/Operation/ReturnOrders";
+import AbandonedCheckouts from "./components/AbandonedCheckouts";
 
 const App = () => {
   return (
@@ -43,13 +53,14 @@ const App = () => {
 
         <Routes>
           <Route
-            path="/shipment-details"
+            path="/shipment-details" 
             element={
               <ShipmentDetails />
             }
           />
 
-          <Route path="/login" element={<Login />} />
+          <Route path="/login" element={<Login />} />  
+          <Route path="/aband" element={<AbandonedCheckouts />} />  
           <Route path="/pages/Home" element={<ShipwayOrders />} />
 
           {/* Protected Routes */}
@@ -276,6 +287,78 @@ const App = () => {
             element={
               <PrivateRoute>
                 <DeliveredHistory />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/order-summary"
+            element={
+              <PrivateRoute>
+                <FinanceOrderSummary />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/gateway/razorpay"
+            element={
+              <PrivateRoute>
+                <RazorpaySettlement />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/gateway/easebuzz"
+            element={
+              <PrivateRoute>
+                <EasebuzzPayout />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/gateway/phonepe" 
+            element={
+              <PrivateRoute>
+                <PhonePePayout />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/remittance/bluedart" 
+            element={
+              <PrivateRoute>
+                <BluedartUpload />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/remittance/delhivery" 
+            element={
+              <PrivateRoute>
+                <Delhivery />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/remittance/dtdc" 
+            element={
+              <PrivateRoute>
+                <DTDC />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/operations/undelivered-orders" 
+            element={
+              <PrivateRoute>
+                <OrderSummeryForOperations />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/operations/rto-delivered" 
+            element={
+              <PrivateRoute>
+                <ReturnOrders />
               </PrivateRoute>
             }
           />

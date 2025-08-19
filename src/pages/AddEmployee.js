@@ -52,7 +52,7 @@ const AddEmployee = () => {
   const [viewInactive, setViewInactive] = useState(false);
   const [allActiveEmployees, setAllActiveEmployees] = useState([]);
 
-  const roles = ["Manager", "Sales Agent", "Retention Agent"];
+  const roles = ["Manager", "Sales Agent", "Retention Agent", "Finance", "Operations"];
   const statusOptions = ["active", "inactive"];
 
   useEffect(() => {
