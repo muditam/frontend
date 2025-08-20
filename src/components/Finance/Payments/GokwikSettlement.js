@@ -62,7 +62,7 @@ const EasebuzzUpload = () => {
       setRecords(json.data || []);
       setTotalCount(json.totalCount || 0);
     } catch (err) {
-      alert("Failed to fetch data.");
+      alert("Failed to fetch data");
     } finally {
       setLoading(false);
     }

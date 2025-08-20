@@ -92,8 +92,8 @@ export default function LeaderboardPopover({ open, anchorEl, onClose }) {
             emp.joiningDate && new Date(emp.joiningDate) <= ninetyDaysAgo
         );
 
-        const now = new Date();
-        let fromDate;
+        const now = new Date(); 
+        let fromDate; 
 
         if (isWeekly) {
           // Find the most recent Sunday

@@ -2771,7 +2771,7 @@ const RetentionLeads = () => {
                   >
                     Save
                   </Button>
-                  <Button onClick={() => setTagDialogOpen(false)} sx={{ color: "black" }}>
+                  <Button onClick={() => setTagDialogOpen(false)} sx={{ color: "black" }}> 
                     Cancel
                   </Button>
                 </DialogActions>

@@ -47,7 +47,7 @@ const isWithinLast90Days = (dateStr) => {
   return date >= cutoff;
 };
 
-export default function Bloomleader({ open, anchorEl, onClose }) {
+export default function Bloomleader({ open, anchorEl, onClose }) {  
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(false);
   const [showGifts, setShowGifts] = useState(false); 
@@ -139,7 +139,7 @@ export default function Bloomleader({ open, anchorEl, onClose }) {
  
       setData(filtered);
     } catch (e) {
-      console.error("Bloomleader fetch error", e);
+      console.error("leaderboard fetch error", e);
       setData([]);
     }
     setLoading(false);

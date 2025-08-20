@@ -101,7 +101,7 @@ const leadSourceOptions = [
   "Incoming Call",
   "Lead Form",
   "Online Store",
-  "Others",
+  "Others", 
   "Rampwin",
   "Reference",
   "Whatsapp",
@@ -119,7 +119,7 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
     followUpDate: new Date().toISOString().split("T")[0],
     leadSource: "",
   });
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(false); 
   const [error, setError] = useState("");
   const [customers, setCustomers] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
@@ -188,6 +188,8 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
 
   const [jumpMode, setJumpMode] = useState(false);
   const [jumpOffset, setJumpOffset] = useState(0);
+
+  const suppressFetchRef = useRef(false);
 
   // Memoize loggedInUser to prevent re-renders from recreating the object
   const loggedInUser = useMemo(() => {
@@ -392,6 +394,11 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
   }, [filterStatus, filterAgent]);
 
   useEffect(() => {
+    if (suppressFetchRef.current) {
+    suppressFetchRef.current = false;
+    return; // Skip fetch on lead selection
+  }
+
     if (!jumpMode) {
       setJumpOffset(0);
       fetchCustomers(1, true, searchQuery);
@@ -406,6 +413,7 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
     filterDate,
     filterAgent,
   ]);
+
 
   useEffect(() => {
     if (jumpMode && jumpOffset >= 0) {
@@ -533,6 +541,8 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
         >
           Open ({openCount})
         </Button>
+
+        {loggedInUser?.role !== "Sales Agent" && (
         <Button
           startIcon={<CheckCircleIcon />}
           variant={filterStatus === "Won" ? "contained" : "outlined"}
@@ -548,6 +558,8 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
         >
           Won ({wonCount})
         </Button>
+        )}
+
         <Button
           startIcon={<CancelIcon />}
           variant={filterStatus === "Lost" ? "contained" : "outlined"}
@@ -904,7 +916,10 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
           customers.map((customer, index) => (
             <Box
               key={customer._id}
-              onClick={() => onSelectCustomer(customer._id)}
+              onClick={() => {
+                suppressFetchRef.current = true;
+                onSelectCustomer(customer._id);
+              }}
               sx={{
                 position: "relative",
                 display: "flex",

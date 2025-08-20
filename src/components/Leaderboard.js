@@ -53,7 +53,7 @@ const Leaderboard = () => {
         const all = await res.json();
         const ninetyDaysAgo = new Date();
         ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 60);
-
+ 
         const agents = all.filter(
           (e) =>
             e.status === "active" &&

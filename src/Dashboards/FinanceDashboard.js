@@ -1,102 +1,103 @@
 import React, { useEffect, useState } from "react";
 import {
-  Box,
-  Grid,
-  Typography,
-  Paper,
-  CircularProgress,
+  Box, Paper, Typography, Table, TableHead, TableRow, TableCell, TableBody,
+  Stack, CircularProgress, Alert, Button
 } from "@mui/material";
-import AccountBalanceIcon from "@mui/icons-material/AccountBalance";
-import ReceiptIcon from "@mui/icons-material/Receipt";
-import ListAltIcon from "@mui/icons-material/ListAlt";
-import AssignmentReturnIcon from "@mui/icons-material/AssignmentReturn";
+import axios from "axios";
 
-const InfoCard = ({ title, value, icon }) => (
-  <Paper
-    elevation={3}
-    sx={{
-      p: 2,
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "space-between",
-      borderRadius: 2,
-    }}
-  >
-    <Box>
-      <Typography variant="subtitle2" color="text.secondary">
-        {title}
+const currency = (n) =>
+  new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 2 }).format(n || 0);
+
+const percent = (n) => `${(n || 0).toFixed(2)}%`;
+
+const Section = ({ title, data }) => (
+  <Paper sx={{ p: 2 }}>
+    <Typography variant="h6" sx={{ fontWeight: 700, mb: 1 }}>{title}</Typography>
+    <Table size="small">
+      <TableHead>
+        <TableRow sx={{ background: "#e6eef6" }}>
+          <TableCell sx={{ fontWeight: 700 }}>Order Status</TableCell>
+          <TableCell sx={{ fontWeight: 700 }}>Count</TableCell>
+          <TableCell sx={{ fontWeight: 700 }}>(%)</TableCell>
+          <TableCell sx={{ fontWeight: 700 }}>Order Amount</TableCell>
+          <TableCell sx={{ fontWeight: 700 }}>Received Amount</TableCell>
+          <TableCell sx={{ fontWeight: 700 }}>Balance Amount</TableCell>
+        </TableRow>
+      </TableHead>
+      <TableBody>
+        {data.rows.map((r) => (
+          <TableRow key={r.label}>
+            <TableCell>{r.label}</TableCell>
+            <TableCell>{r.count}</TableCell>
+            <TableCell>{percent(r.pct)}</TableCell>
+            <TableCell>{currency(r.orderAmount)}</TableCell>
+            <TableCell>{currency(r.receivedAmount)}</TableCell>
+            <TableCell>{currency(r.balanceAmount)}</TableCell>
+          </TableRow>
+        ))}
+        <TableRow sx={{ background: "#eef7ea" }}>
+          <TableCell sx={{ fontWeight: 700 }}>Total</TableCell>
+          <TableCell sx={{ fontWeight: 700 }}>{data.totals.count || 0}</TableCell>
+          <TableCell sx={{ fontWeight: 700 }}>100.00%</TableCell>
+          <TableCell sx={{ fontWeight: 700 }}>{currency(data.totals.orderAmount || 0)}</TableCell>
+          <TableCell sx={{ fontWeight: 700 }}>{currency(data.totals.receivedAmount || 0)}</TableCell>
+          <TableCell sx={{ fontWeight: 700 }}>{currency(data.totals.balanceAmount || 0)}</TableCell>
+        </TableRow>
+      </TableBody>
+    </Table>
+    {typeof data.rtoRate === "number" && (
+      <Typography sx={{ mt: 1, fontWeight: 700 }}>
+        Total RTO % Rate {percent(data.rtoRate)}
       </Typography>
-      <Typography variant="h6" fontWeight={600}>
-        {value}
-      </Typography>
-    </Box>
-    {icon}
+    )}
   </Paper>
 );
 
 const FinanceDashboard = () => {
-  const [loading, setLoading] = useState(true);
-  const [summary, setSummary] = useState({
-    totalRevenue: 0,
-    totalOrders: 0,
-    gatewayTransactions: 0,
-    totalRTOs: 0,
-  });
+  const [loading, setLoading] = useState(false);
+  const [prepaid, setPrepaid] = useState({ rows: [], totals: {}, rtoRate: 0 });
+  const [cod, setCod] = useState({ rows: [], totals: {} });
+  const [error, setError] = useState("");
 
-  useEffect(() => {
-    // Simulate API call
-    setTimeout(() => {
-      setSummary({
-        totalRevenue: 125000,
-        totalOrders: 320,
-        gatewayTransactions: 980,
-        totalRTOs: 12,
-      });
+  const load = async () => {
+    setLoading(true); setError("");
+    try {
+      const res = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/finance/dashboard");
+      setPrepaid(res.data.prepaid || { rows: [], totals: {}, rtoRate: 0 });
+      setCod(res.data.cod || { rows: [], totals: {} });
+    } catch (e) {
+      console.error(e);
+      setError("Failed to load dashboard. Check server logs.");
+    } finally {
       setLoading(false);
-    }, 1000);
-  }, []);
+    }
+  };
+
+  useEffect(() => { load(); }, []);
 
   return (
     <Box sx={{ p: 3 }}>
-      <Typography variant="h5" sx={{ mb: 3, fontWeight: 600 }}>
-        Finance Dashboard
-      </Typography>
+      <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 2 }}>
+        <Typography variant="h5" sx={{ fontWeight: 800 }}>Finance Dashboard</Typography>
+        <Button
+          variant="contained"
+          onClick={load}
+          sx={{ textTransform: "none", backgroundColor: "black" }}
+        >
+          Refresh
+        </Button>
+      </Stack>
 
+      {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
       {loading ? (
-        <Box sx={{ display: "flex", justifyContent: "center", mt: 5 }}>
+        <Box sx={{ display: "flex", justifyContent: "center", mt: 6 }}>
           <CircularProgress />
         </Box>
       ) : (
-        <Grid container spacing={3}>
-          <Grid item xs={12} md={6} lg={3}>
-            <InfoCard
-              title="Total Revenue"
-              value={`₹${summary.totalRevenue.toLocaleString()}`}
-              icon={<AccountBalanceIcon color="primary" fontSize="large" />}
-            />
-          </Grid>
-          <Grid item xs={12} md={6} lg={3}>
-            <InfoCard
-              title="Total Orders"
-              value={summary.totalOrders}
-              icon={<ListAltIcon color="secondary" fontSize="large" />}
-            />
-          </Grid>
-          <Grid item xs={12} md={6} lg={3}>
-            <InfoCard
-              title="Gateway Txns"
-              value={summary.gatewayTransactions}
-              icon={<ReceiptIcon color="success" fontSize="large" />}
-            />
-          </Grid>
-          <Grid item xs={12} md={6} lg={3}>
-            <InfoCard
-              title="RTO Orders"
-              value={summary.totalRTOs}
-              icon={<AssignmentReturnIcon color="error" fontSize="large" />}
-            />
-          </Grid>
-        </Grid>
+        <Stack spacing={3}>
+          <Section title="Prepaid" data={prepaid} />
+          <Section title="COD" data={cod} />
+        </Stack>
       )}
     </Box>
   );

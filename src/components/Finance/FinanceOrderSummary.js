@@ -18,6 +18,7 @@ import {
   Stack,
   InputLabel,
   Button,
+  Alert,
 } from "@mui/material";
 import { styled } from "@mui/material/styles";
 import axios from "axios";
@@ -83,10 +84,7 @@ const getDateRange = (filter) => {
         end: now.subtract(1, "year").endOf("year"),
       };
     case "Quarter to date":
-      return {
-        start: now.startOf("quarter"),
-        end: now.endOf("day"),
-      };
+      return { start: now.startOf("quarter"), end: now.endOf("day") };
     default:
       return { start: null, end: null };
   }
@@ -100,21 +98,29 @@ const FinanceOrderSummary = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [page, setPage] = useState(0);
   const [totalCount, setTotalCount] = useState(0);
-
   const [selectedFilter, setSelectedFilter] = useState("Last 7 days");
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    fetchFinanceOrders(1); // always reload from page 1 when filter changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedFilter]);
 
   useEffect(() => {
     fetchFinanceOrders(page + 1);
-  }, [page, selectedFilter]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page]);
 
   const fetchFinanceOrders = async (pageNumber) => {
     setLoading(true);
+    setError("");
 
     const range = getDateRange(selectedFilter);
     const startDate = range.start?.toISOString();
     const endDate = range.end?.toISOString();
 
     try {
+      // Use relative URL so dev/prod hit the same origin server
       const res = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/finance/orders", {
         params: {
           page: pageNumber,
@@ -128,6 +134,7 @@ const FinanceOrderSummary = () => {
       setTotalCount(res.data.totalCount || 0);
     } catch (err) {
       console.error("Error fetching finance orders:", err);
+      setError("Couldn't load orders. Check your server logs and network tab.");
       setOrders([]);
       setTotalCount(0);
     } finally {
@@ -147,17 +154,22 @@ const FinanceOrderSummary = () => {
   const handleRefresh = async () => {
     try {
       setRefreshing(true);
-      // Default July 2025 (you can change year/month below if needed)
-      await axios.post("https://muditamleads-14f32a10d7f7.herokuapp.com/api/finance/refresh-shopify", {
-        // empty body
-      }, {
-        params: { year: 2025, month: 7 }
-      });
+      setError("");
+      // This endpoint pulls July 2025 into DB (server-side)
+      await axios.post(
+        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/finance/refresh-shopify",
+        null,
+        { params: { year: 2025, month: 7 } }
+      );
 
-      // reload current page from DB
-      await fetchFinanceOrders(page + 1);
+      // After refresh, switch filter to "Last month" (July if current month is Aug 2025)
+      // and reset to first page to show the newly pulled data.
+      setSelectedFilter("Last month");
+      setPage(0);
+      await fetchFinanceOrders(1);
     } catch (e) {
       console.error("Refresh error:", e);
+      setError("Refresh failed. Verify your backend URL and env vars.");
     } finally {
       setRefreshing(false);
     }
@@ -180,12 +192,12 @@ const FinanceOrderSummary = () => {
         </Button>
       </Stack>
 
-      <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 3 }}>
+      <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 2 }}>
         <FormControl size="small">
           <InputLabel>Date Filter</InputLabel>
           <Select
             value={selectedFilter}
-            onChange={(e) => setSelectedFilter(e.target.value)}
+            onChange={(e) => handleFilterChange(e.target.value)}
             label="Date Filter"
           >
             {DATE_FILTERS.map((label) => (
@@ -197,10 +209,32 @@ const FinanceOrderSummary = () => {
         </FormControl>
       </Stack>
 
+      {error && (
+        <Alert severity="error" sx={{ mb: 2 }}>
+          {error}
+        </Alert>
+      )}
+
       {loading ? (
         <Box sx={{ display: "flex", justifyContent: "center", mt: 5 }}>
           <CircularProgress color="inherit" />
         </Box>
+      ) : orders.length === 0 ? (
+        <Paper sx={{ p: 3, textAlign: "center" }}>
+          <Typography variant="body1" sx={{ mb: 1 }}>
+            No orders match the current filter.
+          </Typography>
+          <Typography variant="body2" sx={{ mb: 2, color: "text.secondary" }}>
+            If you just pulled July data, try switching to <strong>Last month</strong>.
+          </Typography>
+          <Button
+            variant="outlined"
+            onClick={() => handleFilterChange("Last month")}
+            sx={{ textTransform: "none" }}
+          >
+            View Last Month
+          </Button>
+        </Paper>
       ) : (
         <>
           <TableContainer component={Paper}>
@@ -235,8 +269,10 @@ const FinanceOrderSummary = () => {
               </TableHead>
               <TableBody>
                 {orders.map((order, idx) => (
-                  <TableRow key={idx}>
-                    <TableCell>{order.createdAt ? new Date(order.createdAt).toLocaleDateString() : "--"}</TableCell>
+                  <TableRow key={order.orderName || idx}>
+                    <TableCell>
+                      {order.createdAt ? new Date(order.createdAt).toLocaleDateString() : "--"}
+                    </TableCell>
                     <TableCell>{order.orderName}</TableCell>
                     <TableCell>{order.trackingId || "--"}</TableCell>
                     <TableCell>
@@ -285,7 +321,7 @@ const FinanceOrderSummary = () => {
                       <TextField
                         size="small"
                         type="date"
-                        value={order.settlementDate?.slice(0, 10) || ""}
+                        value={order.settlementDate || ""} // backend already returns "YYYY-MM-DD"
                         onChange={(e) => {
                           const updated = [...orders];
                           updated[idx].settlementDate = e.target.value;

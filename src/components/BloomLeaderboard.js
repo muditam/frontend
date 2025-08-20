@@ -18,7 +18,7 @@ const giftPrizes = [
     { rank: 4, label: "Assured Gift" },
     { rank: 5, label: "Assured Gift" },
     { rank: 6, label: "Assured Gift" },
-    { rank: 7, label: "Assured Gift" },
+    { rank: 7, label: "Assured Gift" }, 
     { rank: 8, label: "Assured Gift" },
     { rank: 9, label: "Assured Gift" },
     { rank: 10, label: "Assured Gift" },
