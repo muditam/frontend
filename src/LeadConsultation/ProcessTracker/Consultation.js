@@ -244,6 +244,7 @@ const Consultation = ({ customerId }) => {
     "Power Gut",
     "Shilajit with Gold",
     "Nerve Fix",
+    "Core Essentials",
     "Glucometer",
     "Dumbbells",
     "HbA1c - Blood Test",

@@ -683,7 +683,7 @@ const NavbarWithSearch = () => {
               onClick={handleDownloadOrders}
             >
               <DownloadIcon />
-            </IconButton> 
+            </IconButton> */}
  
 
             {/* {user && (

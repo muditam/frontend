@@ -349,7 +349,7 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
         tags: JSON.stringify(selectedFilters),
         sortBy: sortOrder,
         userRole: loggedInUser?.role,
-        userId: loggedInUser?.id || loggedInUser?._id,
+        userId: loggedInUser?.id || loggedInUser?._id, 
         userName: loggedInUser?.fullName,
       };
 

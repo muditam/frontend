@@ -32,7 +32,12 @@ import SearchIcon from "@mui/icons-material/Search";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import SendIcon from "@mui/icons-material/Send";
 
+const API_BASE =
+  process.env.REACT_APP_API_BASE ||
+  "https://muditamleads-14f32a10d7f7.herokuapp.com";
+
 const DATE_FILTERS = [
+  "All time",
   "Custom range",
   "Today",
   "Yesterday",
@@ -50,6 +55,8 @@ const DATE_FILTERS = [
 ];
 
 const getDateRange = (label) => {
+  if (label === "All time") return { start: "", end: "" };
+
   const now = dayjs();
   let start = null;
   let end = null;
@@ -120,8 +127,7 @@ const getDateRange = (label) => {
 function formatMoney(value, currency = "INR") {
   if (value === null || value === undefined || value === "") return "-";
   if (typeof value !== "number") return String(value);
-
-  // If integer and large, assume minor units (paise/cents)
+  // Backend now prefers minor units (paise). This will still auto-detect.
   const useMinor = Number.isInteger(value) && Math.abs(value) >= 1000;
   const n = useMinor ? value / 100 : value;
   return `${currency} ${n.toFixed(2)}`;
@@ -158,7 +164,7 @@ export default function AbandonedCheckouts() {
       if (start) params.start = start;
       if (end) params.end = end;
 
-      const { data } = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/abandoned", { params });
+      const { data } = await axios.get(`${API_BASE}/api/abandoned`, { params });
       setRows(data.items || []);
       setCount(data.total || 0);
     } catch (e) {
@@ -180,7 +186,7 @@ export default function AbandonedCheckouts() {
 
   const onNotify = async (id) => {
     try {
-      await axios.post(`https://muditamleads-14f32a10d7f7.herokuapp.com/api/abandoned/${id}/notify`);
+      await axios.post(`${API_BASE}/api/abandoned/${id}/notify`);
       setRows((prev) =>
         prev.map((r) => (r._id === id ? { ...r, notified: true, notifiedAt: new Date().toISOString() } : r))
       );
@@ -269,7 +275,8 @@ export default function AbandonedCheckouts() {
                 <TableCell>Contact</TableCell>
                 <TableCell>Products (Title / Variant / Qty / Final Line Price)</TableCell>
                 <TableCell>Total</TableCell>
-                <TableCell>IDs</TableCell>
+                <TableCell>IDs & Links</TableCell>
+                <TableCell>Meta</TableCell>
                 <TableCell>Status</TableCell>
                 <TableCell align="right">Actions</TableCell>
               </TableRow>
@@ -278,13 +285,13 @@ export default function AbandonedCheckouts() {
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={8} align="center">
+                  <TableCell colSpan={9} align="center">
                     <CircularProgress size={24} />
                   </TableCell>
                 </TableRow>
               ) : rows.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={8} align="center">
+                  <TableCell colSpan={9} align="center">
                     No data
                   </TableCell>
                 </TableRow>
@@ -294,9 +301,8 @@ export default function AbandonedCheckouts() {
                   const currency = r.currency || "INR";
                   const preview = items.slice(0, 2);
 
-                  // Use aliases from backend so IDs always render
-                  const evtId = r.eventId || r.requestId || r.cId || r.token || "-";
-                  const chkId = r.checkoutId || r.token || "-";
+                  const evtId = r.eventId || "-";
+                  const chkId = r.checkoutId || "-";
 
                   return (
                     <TableRow key={r._id} hover>
@@ -344,11 +350,11 @@ export default function AbandonedCheckouts() {
                         <Typography variant="body2">Evt: {evtId}</Typography>
                         <Typography variant="body2">Chk: {chkId}</Typography>
                         {r.orderId && <Typography variant="body2">Ord: {r.orderId}</Typography>}
-                        {r.abcUrl && (
+                        {r.recoveryUrl && (
                           <Button
                             size="small"
                             variant="text"
-                            href={r.abcUrl}
+                            href={r.recoveryUrl}
                             target="_blank"
                             rel="noreferrer"
                             sx={{ px: 0, minWidth: 0, textTransform: "none" }}
@@ -356,6 +362,17 @@ export default function AbandonedCheckouts() {
                             Open cart
                           </Button>
                         )}
+                      </TableCell>
+
+                      <TableCell>
+                        <Stack spacing={0.5}>
+                          <Typography variant="body2" color="text.secondary">
+                            {r.city ? `City: ${r.city}` : ""}
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            {r.ip ? `IP: ${r.ip}` : ""}
+                          </Typography>
+                        </Stack>
                       </TableCell>
 
                       <TableCell>

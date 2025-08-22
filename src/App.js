@@ -42,8 +42,9 @@ import BluedartUpload from "./components/Finance/Cod-remittance/BlueDart";
 import Delhivery from "./components/Finance/Cod-remittance/Delhivery"; 
 import DTDC from "./components/Finance/Cod-remittance/DtdcUpload";
 import OrderSummeryForOperations from "./components/Operation/OrderSummeryForOperations";  
-import ReturnOrders from "./components/Operation/ReturnOrders";
+import ReturnOrders from "./components/Operation/ReturnOrders"; 
 import AbandonedCheckouts from "./components/AbandonedCheckouts";
+import UndeliveredOrders from "./components/Operation/UndeliveredOrders";
 
 const App = () => {
   return (
@@ -61,7 +62,8 @@ const App = () => {
 
           <Route path="/login" element={<Login />} />  
           <Route path="/aband" element={<AbandonedCheckouts />} />  
-          <Route path="/pages/Home" element={<ShipwayOrders />} />
+          <Route path="/pages/Home" element={<ShipwayOrders />} /> 
+          <Route path="/operations/undelivered" element={<UndeliveredOrders />} />
 
           {/* Protected Routes */}
           <Route
@@ -73,7 +75,7 @@ const App = () => {
             }
           />
 
-          <Route
+          <Route 
             path="/lead/:id"
             element={
               <PrivateRoute>

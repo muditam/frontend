@@ -8,8 +8,7 @@ import ShoppingCartIcon from '@mui/icons-material/ShoppingCart';
 import OrderDetailsPopup from "../../ShopifyOrders/OrderDetailsPopup";
 import DeleteIcon from '@mui/icons-material/Delete';
 import axios from "axios";
-
-// Helper to normalize phone (always +91XXXXXXXXXX)
+  
 const normalizePhone = (phone) => {
   if (!phone) return '';
   const clean = phone.replace(/\D/g, '');
@@ -213,7 +212,6 @@ const CreateOrderPopup = ({ open, onClose, prefillCustomer = {} }) => {
   }
 };
 
-
   // Optional: Add a note to the order after placement
 const handleAddNote = async () => {
   if (!latestOrderId || !noteText) return;
@@ -230,9 +228,7 @@ const handleAddNote = async () => {
     alert("Failed to add note.");
   }
 };
-
-
-  // --- UI render below ---
+ 
   return (
     <>
       <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>

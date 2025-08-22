@@ -169,7 +169,7 @@ const RetentionLeads = () => {
   const [showingReached, setShowingReached] = useState(false);
   const [reachedLeadsCount, setReachedLeadsCount] = useState(0);
 
-
+  const [ordersLoading, setOrdersLoading] = useState(false);
 
   const [filters, setFilters] = useState({
     name: "",
@@ -245,9 +245,9 @@ const RetentionLeads = () => {
   // Fetch retention leads
   const fetchRetentionLeads = async (user) => {
     setLoading(true);
-    try { 
+    try {
       const response = await axios.get(
-        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/retentions", 
+        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/retentions",
         { params: { fullName: user.fullName, email: user.email } }
       );
       const { async, agentNumber, callerId } = await fetchUserDetails(user);
@@ -299,7 +299,7 @@ const RetentionLeads = () => {
 
   const saveSubcellsToBackend = async (leadId, subcells) => {
     try {
-      await axios.put(`https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/${leadId}`, { rtSubcells: subcells }); 
+      await axios.put(`https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/${leadId}`, { rtSubcells: subcells });
     } catch (error) {
       console.error("Error saving subcells:", error);
     }
@@ -312,14 +312,14 @@ const RetentionLeads = () => {
     lead.rtSubcells = lead.rtSubcells || [];
     lead.rtSubcells.push({ date: new Date().toLocaleDateString(), value: "" });
     setLeads(updatedLeads);
-    saveSubcellsToBackend(lead._id, lead.rtSubcells);   
+    saveSubcellsToBackend(lead._id, lead.rtSubcells);
   };
 
   const handleSubcellChange = (leadIndex, subcellIndex, e) => {
     const updatedLeads = [...leads];
     updatedLeads[leadIndex].rtSubcells[subcellIndex].value = e.target.value;
     setLeads(updatedLeads);
-    saveSubcellsToBackend(updatedLeads[leadIndex]._id, updatedLeads[leadIndex].rtSubcells);  
+    saveSubcellsToBackend(updatedLeads[leadIndex]._id, updatedLeads[leadIndex].rtSubcells);
   };
 
 
@@ -339,16 +339,16 @@ const RetentionLeads = () => {
           orders: res.data.orders || [],
         },
       }));
- 
+
       const orderIds = (res.data.orders || []).map(order => order.name.replace(/^#/, ''));
 
-      if (orderIds.length > 0) { 
+      if (orderIds.length > 0) {
         const response = await axios.get(
           `https://muditamleads-14f32a10d7f7.herokuapp.com/api/orders/by-order-ids`,
           {
             params: { order_ids: orderIds.join(',') }
           }
-        ); 
+        );
         const statusMap = {};
         response.data.forEach((order) => {
           statusMap[order.order_id] = order.shipment_status;
@@ -471,7 +471,6 @@ const RetentionLeads = () => {
 
   const handleLeadSelect = (idx) => {
     setSelectedLeadIndex(idx);
-    fetchShopifyDates(leads[idx].contactNumber);
   };
 
   const handleInputChange = async (e, index, field) => {
@@ -689,7 +688,7 @@ const RetentionLeads = () => {
         console.error("Backend Error Response:", response.data);
       }
     } catch (error) {
-      console.error("Error placing the call", error.response?.data || error); 
+      console.error("Error placing the call", error.response?.data || error);
       setCallingMessage("There was an error placing the call.");
     } finally {
       setLoading(false);
@@ -750,122 +749,122 @@ const RetentionLeads = () => {
   };
 
   const filteredLeadsByFilters = (inputLeads) => {
-  if (!inputLeads || inputLeads.length === 0) return [];
+    if (!inputLeads || inputLeads.length === 0) return [];
 
-  let filtered = [...inputLeads];
+    let filtered = [...inputLeads];
 
-  // Apply all filters (retentionStatus, date, followup, etc.)
-  if (filters.retentionStatus && filters.retentionStatus !== "All") {
-    const statusFilter = filters.retentionStatus.toLowerCase();
-    filtered = filtered.filter((lead) => {
-      const leadStatus = (lead.retentionStatus || "").toLowerCase();
-      return statusFilter === "active"
-        ? leadStatus === "active" || leadStatus === ""
-        : statusFilter === "lost"
-          ? leadStatus === "lost"
-          : true;
-    });
-  }
-
-  if (
-    dateRangeFilter &&
-    dateRangeFilter.includes(" ") &&
-    [
-      "January", "February", "March", "April", "May", "June",
-      "July", "August", "September", "October", "November", "December"
-    ].some((month) => dateRangeFilter.startsWith(month))
-  ) {
-    const [monthName, year] = dateRangeFilter.split(" ");
-    filtered = filtered.filter((lead) => {
-      if (!lead.lastOrderDate) return false;
-      const orderDate = new Date(lead.lastOrderDate);
-      return (
-        orderDate.toLocaleString("default", { month: "long" }) === monthName &&
-        orderDate.getFullYear().toString() === year
-      );
-    });
-  }
-
-  if (filters.rtFollowupReminder !== null) {
-    filtered = filtered.filter((lead) => {
-      const reminder = lead.rtFollowupReminder || "";
-      return filters.rtFollowupReminder === ""
-        ? reminder === ""
-        : reminder === filters.rtFollowupReminder;
-    });
-  }
-
-  if (orderPlacedFilter === "Order Placed") {
-    filtered = filtered.filter((lead) => !!lead.lastOrderDate);
-  } else if (orderPlacedFilter === "Order Not Placed") {
-    filtered = filtered.filter((lead) => !lead.lastOrderDate);
-  }
-
-  if (dateRangeFilter && !dateRangeFilter.includes(" ")) {
-    const now = new Date();
-    const isSameMonth = (d1, d2) =>
-      d1.getMonth() === d2.getMonth() && d1.getFullYear() === d2.getFullYear();
-
-    filtered = filtered.filter((lead) => {
-      if (!lead.lastOrderDate) return false;
-      const date = new Date(lead.lastOrderDate);
-      const diffDays = Math.floor((now - date) / (1000 * 60 * 60 * 24));
-      switch (dateRangeFilter) {
-        case "Today": return diffDays === 0;
-        case "Yesterday": return diffDays === 1;
-        case "Last 7 Days": return diffDays <= 7;
-        case "Last 10 Days": return diffDays <= 10;
-        case "10–20 Days Ago": return diffDays >= 10 && diffDays <= 20;
-        case "21–30 Days Ago": return diffDays >= 21 && diffDays <= 30;
-        case "This Month (Month to Date)": return isSameMonth(date, now);
-        case "Last Month": {
-          const lastMonth = new Date();
-          lastMonth.setMonth(now.getMonth() - 1);
-          return (
-            date.getMonth() === lastMonth.getMonth() &&
-            date.getFullYear() === lastMonth.getFullYear()
-          );
-        }
-        case "Last 30 Days": return diffDays <= 30;
-        case "Last 90 Days": return diffDays <= 90;
-        default: return true;
-      }
-    });
-  }
-
-  // —— search / serial logic —— //
-  const search = filters.name.trim().toLowerCase();
-
-  if (search) {
-    // 1–5 digits → serial lookup (slice from that index)
-    if (/^\d{1,5}$/.test(search)) {
-      const serialIndex = parseInt(search, 10) - 1;
-      if (serialIndex >= 0 && serialIndex < filtered.length) {
-        filtered = filtered.slice(serialIndex);
-      } else {
-        filtered = [];
-      }
-    }
-    // anything else (text OR ≥6 digits) → name or phone match
-    else {
+    // Apply all filters (retentionStatus, date, followup, etc.)
+    if (filters.retentionStatus && filters.retentionStatus !== "All") {
+      const statusFilter = filters.retentionStatus.toLowerCase();
       filtered = filtered.filter((lead) => {
-        const nameMatch   = lead.name?.toLowerCase().includes(search);
-        const numberMatch = lead.contactNumber?.includes(search);
-        return nameMatch || numberMatch;
+        const leadStatus = (lead.retentionStatus || "").toLowerCase();
+        return statusFilter === "active"
+          ? leadStatus === "active" || leadStatus === ""
+          : statusFilter === "lost"
+            ? leadStatus === "lost"
+            : true;
       });
     }
-  }
 
-  // Final sort: latest order first
-  filtered.sort((a, b) => {
-    if (!a.lastOrderDate && !b.lastOrderDate) return 0;
-    if (!a.lastOrderDate) return 1;
-    if (!b.lastOrderDate) return -1;
-    return new Date(b.lastOrderDate) - new Date(a.lastOrderDate);
-  });
+    if (
+      dateRangeFilter &&
+      dateRangeFilter.includes(" ") &&
+      [
+        "January", "February", "March", "April", "May", "June",
+        "July", "August", "September", "October", "November", "December"
+      ].some((month) => dateRangeFilter.startsWith(month))
+    ) {
+      const [monthName, year] = dateRangeFilter.split(" ");
+      filtered = filtered.filter((lead) => {
+        if (!lead.lastOrderDate) return false;
+        const orderDate = new Date(lead.lastOrderDate);
+        return (
+          orderDate.toLocaleString("default", { month: "long" }) === monthName &&
+          orderDate.getFullYear().toString() === year
+        );
+      });
+    }
 
-  return filtered;
-};
+    if (filters.rtFollowupReminder !== null) {
+      filtered = filtered.filter((lead) => {
+        const reminder = lead.rtFollowupReminder || "";
+        return filters.rtFollowupReminder === ""
+          ? reminder === ""
+          : reminder === filters.rtFollowupReminder;
+      });
+    }
+
+    if (orderPlacedFilter === "Order Placed") {
+      filtered = filtered.filter((lead) => !!lead.lastOrderDate);
+    } else if (orderPlacedFilter === "Order Not Placed") {
+      filtered = filtered.filter((lead) => !lead.lastOrderDate);
+    }
+
+    if (dateRangeFilter && !dateRangeFilter.includes(" ")) {
+      const now = new Date();
+      const isSameMonth = (d1, d2) =>
+        d1.getMonth() === d2.getMonth() && d1.getFullYear() === d2.getFullYear();
+
+      filtered = filtered.filter((lead) => {
+        if (!lead.lastOrderDate) return false;
+        const date = new Date(lead.lastOrderDate);
+        const diffDays = Math.floor((now - date) / (1000 * 60 * 60 * 24));
+        switch (dateRangeFilter) {
+          case "Today": return diffDays === 0;
+          case "Yesterday": return diffDays === 1;
+          case "Last 7 Days": return diffDays <= 7;
+          case "Last 10 Days": return diffDays <= 10;
+          case "10–20 Days Ago": return diffDays >= 10 && diffDays <= 20;
+          case "21–30 Days Ago": return diffDays >= 21 && diffDays <= 30;
+          case "This Month (Month to Date)": return isSameMonth(date, now);
+          case "Last Month": {
+            const lastMonth = new Date();
+            lastMonth.setMonth(now.getMonth() - 1);
+            return (
+              date.getMonth() === lastMonth.getMonth() &&
+              date.getFullYear() === lastMonth.getFullYear()
+            );
+          }
+          case "Last 30 Days": return diffDays <= 30;
+          case "Last 90 Days": return diffDays <= 90;
+          default: return true;
+        }
+      });
+    }
+
+    // —— search / serial logic —— //
+    const search = filters.name.trim().toLowerCase();
+
+    if (search) {
+      // 1–5 digits → serial lookup (slice from that index)
+      if (/^\d{1,5}$/.test(search)) {
+        const serialIndex = parseInt(search, 10) - 1;
+        if (serialIndex >= 0 && serialIndex < filtered.length) {
+          filtered = filtered.slice(serialIndex);
+        } else {
+          filtered = [];
+        }
+      }
+      // anything else (text OR ≥6 digits) → name or phone match
+      else {
+        filtered = filtered.filter((lead) => {
+          const nameMatch = lead.name?.toLowerCase().includes(search);
+          const numberMatch = lead.contactNumber?.includes(search);
+          return nameMatch || numberMatch;
+        });
+      }
+    }
+
+    // Final sort: latest order first
+    filtered.sort((a, b) => {
+      if (!a.lastOrderDate && !b.lastOrderDate) return 0;
+      if (!a.lastOrderDate) return 1;
+      if (!b.lastOrderDate) return -1;
+      return new Date(b.lastOrderDate) - new Date(a.lastOrderDate);
+    });
+
+    return filtered;
+  };
 
 
   const handleSortMenuClick = (event, type) => {
@@ -1518,7 +1517,7 @@ const RetentionLeads = () => {
                     }}
                     onClick={(e) => {
                       e.stopPropagation();
-                      setColorMenuIdx(idx); 
+                      setColorMenuIdx(idx);
                       setAnchorElColor(e.currentTarget);
                     }}
                   >
@@ -2096,7 +2095,26 @@ const RetentionLeads = () => {
 
                 <Box sx={{ mt: 2 }}>
                   <Button
-                    onClick={() => setShowOrders((prev) => !prev)}
+                    onClick={async () => {
+                      const opening = !showOrders;
+                      setShowOrders(opening);
+                      if (!opening) return; // just closing; no call
+
+                      const phone = leads[selectedLeadIndex]?.contactNumber;
+                      if (!phone) return;
+
+                      // if already cached with orders, skip calling API
+                      const cached = shopifyDatesMap[phone];
+                      const hasOrders = Array.isArray(cached?.orders) && cached.orders.length > 0;
+                      if (hasOrders) return;
+
+                      try {
+                        setOrdersLoading(true);
+                        await fetchShopifyDates(phone);
+                      } finally {
+                        setOrdersLoading(false);
+                      }
+                    }}
                     endIcon={showOrders ? <KeyboardArrowUpIcon /> : <KeyboardArrowDownIcon />}
                     sx={{
                       fontSize: "0.75rem",
@@ -2105,7 +2123,7 @@ const RetentionLeads = () => {
                       color: "black",
                     }}
                   >
-                    See Order History
+                    {ordersLoading ? "Loading Order History..." : "See Order History"}
                   </Button>
 
                   <Button
@@ -2123,233 +2141,243 @@ const RetentionLeads = () => {
                     }}
                     sx={{
                       fontSize: "0.75rem",
-                      textTransform: "none",
+                      textTransform: "none", 
                       backgroundColor: "white",
                       color: "black",
                     }}
                   >
-                    Consultation History
+                    Consultation History 
                   </Button>
 
                   <DialogActions>
                     <Button
-                      onClick={() => setOrderPopupOpen(true)}
+                      onClick={() => setOrderPopupOpen(true)} 
                       sx={{ color: "black" }}
                     >
                       Create Order
                     </Button>
                   </DialogActions>
-                  <CreateOrderPopup
-                    open={orderPopupOpen}
-                    onClose={() => setOrderPopupOpen(false)}
-                    prefillCustomer={{
-                      name: leads[selectedLeadIndex]?.name || "",
-                      phone: leads[selectedLeadIndex]?.contactNumber || "",
-                    }}
-                  />
+                  {orderPopupOpen && selectedLeadIndex !== null && (
+  <CreateOrderPopup
+    open={orderPopupOpen}
+    onClose={() => setOrderPopupOpen(false)}
+    prefillCustomer={{
+      name: leads[selectedLeadIndex]?.name || "",
+      phone: leads[selectedLeadIndex]?.contactNumber || "",
+    }}
+  />
+)}
+
                   {showOrders && (
                     <Box sx={{ mt: 2 }}>
-                      {/* Total Orders Count */}
-                      <Typography variant="subtitle2" sx={{ mb: 1 }}>
-                        Total Orders: {shopifyDatesMap[leads[selectedLeadIndex]?.contactNumber]?.orders?.length || 0}
-                      </Typography>
-
-                      <Box sx={{ display: 'flex', gap: 3, flexWrap: 'wrap', mt: 2 }}>
-                        <Box sx={{ minWidth: 150 }}>
-                          <Typography variant="subtitle2" color="text.secondary" mb={0.5}>
-                            First Order Date
-                          </Typography>
-                          <Typography variant="body2">
-                            {shopifyDatesMap[leads[selectedLeadIndex]?.contactNumber]?.firstOrderDate
-                              ? new Date(shopifyDatesMap[leads[selectedLeadIndex]?.contactNumber].firstOrderDate).toLocaleDateString()
-                              : "N/A"}
-                          </Typography>
+                      {ordersLoading ? (
+                        <Box sx={{ display: "flex", justifyContent: "center", py: 2 }}>
+                          <CircularProgress size={24} />
                         </Box>
-
-                        {/* Shopify Last Order Date */}
-                        <Box sx={{ minWidth: 150 }}>
-                          <Typography variant="subtitle2" color="text.secondary" mb={0.5}>
-                            Last Order Date
+                      ) : (
+                        <>
+                          <Typography variant="subtitle2" sx={{ mb: 1 }}>
+                            Total Orders: {shopifyDatesMap[leads[selectedLeadIndex]?.contactNumber]?.orders?.length || 0}
                           </Typography>
-                          <Typography
-                            variant="body2"
-                            color="text.secondary"
-                            sx={{ fontWeight: "normal", whiteSpace: "nowrap" }}
-                          >
-                            {leads[selectedLeadIndex]?.lastOrderDate
-                              ? new Date(leads[selectedLeadIndex].lastOrderDate).toLocaleDateString()
-                              : "N/A"}
-                          </Typography>
-                        </Box>
 
-                        <Box sx={{ minWidth: 150 }}>
-                          <Typography variant="subtitle2" color="text.secondary" mb={0.5}>
-                            Total Spend
-                          </Typography>
-                          <Typography variant="body2">
-                            ₹{shopifyDatesMap[leads[selectedLeadIndex]?.contactNumber]?.totalSpend?.toFixed(2) || "0.00"}
-                          </Typography>
-                        </Box>
-                      </Box>
-                      {/* Orders List */}
-                      {(shopifyDatesMap[leads[selectedLeadIndex]?.contactNumber]?.orders || []).map((order, i) => {
-                        const noteInput = noteInputs[order.id] || "";
-                        const savingNote = savingNotes[order.id] || false;
-                        const cleanOrderId = order.name.replace(/^#/, '').trim();
-                        const shipmentStatus = shipmentStatusMap[cleanOrderId] || "N/A";
-
-                        const handleNoteChange = (val) => {
-                          setNoteInputs((prev) => ({ ...prev, [order.id]: val }));
-                        };
-
-                        const handleSaveNote = async () => {
-                          if (!noteInput.trim()) {
-                            alert("Note cannot be empty");
-                            return;
-                          }
-                          setSavingNotes((prev) => ({ ...prev, [order.id]: true }));
-                          try {
-                            await axios.put(
-                              `https://muditamleads-14f32a10d7f7.herokuapp.com/api/shopify/orders/${order.id}/note`,
-                              { note: noteInput }
-                            );
-                            setShopifyDatesMap((prev) => {
-                              const updatedOrders = prev[leads[selectedLeadIndex]?.contactNumber].orders.map((o) =>
-                                o.id === order.id ? { ...o, note: noteInput } : o
-                              );
-                              return {
-                                ...prev,
-                                [leads[selectedLeadIndex]?.contactNumber]: {
-                                  ...prev[leads[selectedLeadIndex]?.contactNumber],
-                                  orders: updatedOrders,
-                                },
-                              };
-                            });
-                            setNoteInputs((prev) => ({ ...prev, [order.id]: "" }));
-                          } catch (error) {
-                            console.error("Failed to save note", error.response?.data || error.message);
-                            alert("Failed to save note");
-                          } finally {
-                            setSavingNotes((prev) => ({ ...prev, [order.id]: false }));
-                          }
-                        };
-
-                        return (
-                          <Box
-                            key={order.id}
-                            sx={{ border: "1px solid #ccc", borderRadius: 1, p: 1, mb: 1, fontSize: "0.75rem" }}
-                          >
-                            {/* First line: Order ID, Total Amount, Date, Fulfillment Status */}
-                            <Box
-                              sx={{
-                                display: "flex",
-                                flexWrap: "wrap",
-                                gap: 2,
-                                mb: 1,
-                                fontWeight: "bold",
-                                fontSize: "0.8rem",
-                              }}
-                            >
-                              <Box>Order ID: {order.name}
-                                <span style={{
-                                  marginLeft: 12,
-                                  fontWeight: "normal",
-                                  color: "#222",
-                                  background: "#f1f1f1",
-                                  padding: "1px 6px",
-                                  borderRadius: "6px",
-                                  fontSize: "0.75em",
-                                  marginRight: 8
-                                }}>
-                                  Delivery Status: <b>{shipmentStatus}</b>
-                                </span>
-                              </Box>
-                              <Box>Total Amount: ₹{order.total_price}</Box>
-                              <Box>Date: {new Date(order.created_at).toLocaleString()}</Box>
-                              <Box>Fulfillment Status: {order.fulfillment_status || "Unfulfilled"}</Box>
+                          <Box sx={{ display: 'flex', gap: 3, flexWrap: 'wrap', mt: 2 }}>
+                            <Box sx={{ minWidth: 150 }}>
+                              <Typography variant="subtitle2" color="text.secondary" mb={0.5}>
+                                First Order Date
+                              </Typography>
+                              <Typography variant="body2">
+                                {shopifyDatesMap[leads[selectedLeadIndex]?.contactNumber]?.firstOrderDate
+                                  ? new Date(shopifyDatesMap[leads[selectedLeadIndex]?.contactNumber].firstOrderDate).toLocaleDateString()
+                                  : "N/A"}
+                              </Typography>
                             </Box>
 
-                            {/* Second line: Items on left, Notes on right */}
-                            <Box
-                              sx={{
-                                display: "flex",
-                                justifyContent: "space-between",
-                                alignItems: "flex-start",
-                                gap: 2,
-                                mb: 1,
-                              }}
-                            >
-                              {/* Items */}
-                              <Box sx={{ flex: 1, minWidth: 0, fontSize: "0.75rem" }}>
-                                <b>Items:</b> {order.line_items.map(item => `${item.quantity} x ${item.name}`).join(", ")}
-                              </Box>
-
-                              {/* Notes */}
-                              <Box sx={{ minWidth: 200, maxWidth: 300 }}>
-                                {order.note ? (
-                                  <Typography sx={{ fontSize: "0.75rem", fontStyle: "italic", whiteSpace: "pre-wrap" }}>
-                                    <b>Note:</b> {order.note}
-                                  </Typography>
-                                ) : (
-                                  <Box sx={{ display: "flex", gap: 1 }}>
-                                    <TextField
-                                      size="small"
-                                      variant="outlined"
-                                      placeholder="Add note"
-                                      value={noteInput}
-                                      onChange={(e) => handleNoteChange(e.target.value)}
-                                      disabled={savingNote}
-                                      fullWidth
-                                    />
-                                    <Button
-                                      variant="contained"
-                                      size="small"
-                                      onClick={handleSaveNote}
-                                      disabled={savingNote}
-                                    >
-                                      {savingNote ? "Saving..." : "Save"}
-                                    </Button>
-                                  </Box>
-                                )}
-                              </Box>
+                            {/* Shopify Last Order Date */}
+                            <Box sx={{ minWidth: 150 }}>
+                              <Typography variant="subtitle2" color="text.secondary" mb={0.5}>
+                                Last Order Date
+                              </Typography>
+                              <Typography
+                                variant="body2"
+                                color="text.secondary"
+                                sx={{ fontWeight: "normal", whiteSpace: "nowrap" }}
+                              >
+                                {leads[selectedLeadIndex]?.lastOrderDate
+                                  ? new Date(leads[selectedLeadIndex].lastOrderDate).toLocaleDateString()
+                                  : "N/A"}
+                              </Typography>
                             </Box>
 
-                            {/* Address toggle button and address */}
-                            <Box>
-                              <Button
-                                size="small"
-                                sx={{
-                                  mt: 1,
-                                  backgroundColor: "white",
-                                  color: "black",
-                                  fontSize: "0.7rem",
-                                }}
-                                onClick={() => {
-                                  const updated = [...(shopifyDatesMap[leads[selectedLeadIndex]?.contactNumber].orders || [])];
-                                  updated[i].showAddress = !updated[i].showAddress;
-                                  setShopifyDatesMap(prev => ({
+                            <Box sx={{ minWidth: 150 }}>
+                              <Typography variant="subtitle2" color="text.secondary" mb={0.5}>
+                                Total Spend
+                              </Typography>
+                              <Typography variant="body2">
+                                ₹{shopifyDatesMap[leads[selectedLeadIndex]?.contactNumber]?.totalSpend?.toFixed(2) || "0.00"}
+                              </Typography>
+                            </Box>
+                          </Box>
+                          {/* Orders List */}
+                          {(shopifyDatesMap[leads[selectedLeadIndex]?.contactNumber]?.orders || []).map((order, i) => {
+                            const noteInput = noteInputs[order.id] || "";
+                            const savingNote = savingNotes[order.id] || false;
+                            const cleanOrderId = order.name.replace(/^#/, '').trim();
+                            const shipmentStatus = shipmentStatusMap[cleanOrderId] || "N/A";
+
+                            const handleNoteChange = (val) => {
+                              setNoteInputs((prev) => ({ ...prev, [order.id]: val }));
+                            };
+
+                            const handleSaveNote = async () => {
+                              if (!noteInput.trim()) {
+                                alert("Note cannot be empty");
+                                return;
+                              }
+                              setSavingNotes((prev) => ({ ...prev, [order.id]: true }));
+                              try {
+                                await axios.put(
+                                  `https://muditamleads-14f32a10d7f7.herokuapp.com/api/shopify/orders/${order.id}/note`,
+                                  { note: noteInput }
+                                );
+                                setShopifyDatesMap((prev) => {
+                                  const updatedOrders = prev[leads[selectedLeadIndex]?.contactNumber].orders.map((o) =>
+                                    o.id === order.id ? { ...o, note: noteInput } : o
+                                  );
+                                  return {
                                     ...prev,
                                     [leads[selectedLeadIndex]?.contactNumber]: {
                                       ...prev[leads[selectedLeadIndex]?.contactNumber],
-                                      orders: updated,
+                                      orders: updatedOrders,
                                     },
-                                  }));
-                                }}
-                              >
-                                {order.showAddress ? "Hide Address" : "Show Address"}
-                              </Button>
-                              {order.showAddress && (
-                                <Typography variant="body2" sx={{ mt: 1, fontSize: "0.75rem" }}>
-                                  {order.shipping_address?.address1 || ""}, {order.shipping_address?.city || ""}, {order.shipping_address?.zip || ""}
-                                </Typography>
-                              )}
-                            </Box>
-                          </Box>
-                        );
-                      })}
-                    </Box>
-                  )}
+                                  };
+                                });
+                                setNoteInputs((prev) => ({ ...prev, [order.id]: "" }));
+                              } catch (error) {
+                                console.error("Failed to save note", error.response?.data || error.message);
+                                alert("Failed to save note");
+                              } finally {
+                                setSavingNotes((prev) => ({ ...prev, [order.id]: false }));
+                              }
+                            };
 
+                            return (
+                              <Box
+                                key={order.id}
+                                sx={{ border: "1px solid #ccc", borderRadius: 1, p: 1, mb: 1, fontSize: "0.75rem" }}
+                              >
+                                {/* First line: Order ID, Total Amount, Date, Fulfillment Status */}
+                                <Box
+                                  sx={{
+                                    display: "flex",
+                                    flexWrap: "wrap",
+                                    gap: 2,
+                                    mb: 1,
+                                    fontWeight: "bold",
+                                    fontSize: "0.8rem",
+                                  }}
+                                >
+                                  <Box>Order ID: {order.name}
+                                    <span style={{
+                                      marginLeft: 12,
+                                      fontWeight: "normal",
+                                      color: "#222",
+                                      background: "#f1f1f1",
+                                      padding: "1px 6px",
+                                      borderRadius: "6px",
+                                      fontSize: "0.75em",
+                                      marginRight: 8
+                                    }}>
+                                      Delivery Status: <b>{shipmentStatus}</b>
+                                    </span>
+                                  </Box>
+                                  <Box>Total Amount: ₹{order.total_price}</Box>
+                                  <Box>Date: {new Date(order.created_at).toLocaleString()}</Box>
+                                  <Box>Fulfillment Status: {order.fulfillment_status || "Unfulfilled"}</Box>
+                                </Box>
+
+                                {/* Second line: Items on left, Notes on right */}
+                                <Box
+                                  sx={{
+                                    display: "flex",
+                                    justifyContent: "space-between",
+                                    alignItems: "flex-start",
+                                    gap: 2,
+                                    mb: 1,
+                                  }}
+                                >
+                                  {/* Items */}
+                                  <Box sx={{ flex: 1, minWidth: 0, fontSize: "0.75rem" }}>
+                                    <b>Items:</b> {order.line_items.map(item => `${item.quantity} x ${item.name}`).join(", ")}
+                                  </Box>
+
+                                  {/* Notes */}
+                                  <Box sx={{ minWidth: 200, maxWidth: 300 }}>
+                                    {order.note ? (
+                                      <Typography sx={{ fontSize: "0.75rem", fontStyle: "italic", whiteSpace: "pre-wrap" }}>
+                                        <b>Note:</b> {order.note}
+                                      </Typography>
+                                    ) : (
+                                      <Box sx={{ display: "flex", gap: 1 }}>
+                                        <TextField
+                                          size="small"
+                                          variant="outlined"
+                                          placeholder="Add note"
+                                          value={noteInput}
+                                          onChange={(e) => handleNoteChange(e.target.value)}
+                                          disabled={savingNote}
+                                          fullWidth
+                                        />
+                                        <Button
+                                          variant="contained"
+                                          size="small"
+                                          onClick={handleSaveNote}
+                                          disabled={savingNote}
+                                        >
+                                          {savingNote ? "Saving..." : "Save"}
+                                        </Button>
+                                      </Box>
+                                    )}
+                                  </Box>
+                                </Box>
+
+                                {/* Address toggle button and address */}
+                                <Box>
+                                  <Button
+                                    size="small"
+                                    sx={{
+                                      mt: 1,
+                                      backgroundColor: "white",
+                                      color: "black",
+                                      fontSize: "0.7rem",
+                                    }}
+                                    onClick={() => {
+                                      const updated = [...(shopifyDatesMap[leads[selectedLeadIndex]?.contactNumber].orders || [])];
+                                      updated[i].showAddress = !updated[i].showAddress;
+                                      setShopifyDatesMap(prev => ({
+                                        ...prev,
+                                        [leads[selectedLeadIndex]?.contactNumber]: {
+                                          ...prev[leads[selectedLeadIndex]?.contactNumber],
+                                          orders: updated,
+                                        },
+                                      }));
+                                    }}
+                                  >
+                                    {order.showAddress ? "Hide Address" : "Show Address"}
+                                  </Button>
+                                  {order.showAddress && (
+                                    <Typography variant="body2" sx={{ mt: 1, fontSize: "0.75rem" }}>
+                                      {order.shipping_address?.address1 || ""}, {order.shipping_address?.city || ""}, {order.shipping_address?.zip || ""}
+                                    </Typography>
+                                  )}
+                                </Box>
+                              </Box>
+                            );
+                          })}
+                          </>
+                          )}
+                        </Box>
+                  )}
+    
                   <Dialog open={consultationDialogOpen} onClose={() => setConsultationDialogOpen(false)} maxWidth="md" fullWidth>
                     <DialogTitle sx={{ fontWeight: 600, textAlign: "center" }}>
                       Consultation History
@@ -2367,7 +2395,7 @@ const RetentionLeads = () => {
                             <Typography variant="subtitle1" fontWeight={600} sx={{ mb: 1 }}>
                               Consultation #{consultationHistory.length - idx}
                             </Typography>
-                            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}> 
+                            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
                               <Box>
                                 <Typography variant="body2" fontWeight={600}>HBA1c</Typography>
                                 <Typography variant="body2">{cons.presales?.hba1c || '—'}</Typography>
@@ -2771,7 +2799,7 @@ const RetentionLeads = () => {
                   >
                     Save
                   </Button>
-                  <Button onClick={() => setTagDialogOpen(false)} sx={{ color: "black" }}> 
+                  <Button onClick={() => setTagDialogOpen(false)} sx={{ color: "black" }}>
                     Cancel
                   </Button>
                 </DialogActions>
@@ -2821,7 +2849,7 @@ const RetentionLeads = () => {
                     />
 
                     <Box sx={{ display: "flex", gap: 2, alignItems: "center" }}>
-                      <Button variant="outlined" onClick={prevImage} sx={{ color: "black", borderColor: "black" }}> 
+                      <Button variant="outlined" onClick={prevImage} sx={{ color: "black", borderColor: "black" }}>
                         Prev
                       </Button>
                       <Button variant="outlined" onClick={nextImage} sx={{ color: "black", borderColor: "black" }}>
@@ -2830,7 +2858,7 @@ const RetentionLeads = () => {
                       <Button variant="outlined" color="error" onClick={deleteModalImage}>
                         Delete
                       </Button>
-                      <Button variant="text" onClick={closeModal} sx={{ color: "black" }}> 
+                      <Button variant="text" onClick={closeModal} sx={{ color: "black" }}>
                         Close
                       </Button>
                     </Box>
@@ -2840,7 +2868,7 @@ const RetentionLeads = () => {
             </Paper>
           </>
         )}
-      </Box> 
+      </Box>
     </Box>
   );
 };

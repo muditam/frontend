@@ -95,16 +95,28 @@ const priceMap = {
     "4 months": 5400,
   },
   "Performance Forever": {
-    "1 month": 249,
-    "2 months": 479,
-    "3 months": 729,
-    "4 months": 3199,
+    "1 month": 999,
+    "2 months": 1799,
+    "3 months": 2499,
+    "4 months": 2499,
   },
   "Shilajit with Gold": {
     "1 month": 1295,
     "2 months": 2495,
     "3 months": 3495,
     "4 months": 4495,
+  },
+  "Nerve Fix": {
+    "1 month": 780,
+    "2 months": 1490,
+    "3 months": 1995,
+    "4 months": 1995,
+  },
+  "Core Essentials": {
+    "1 month": 475,
+    "2 months": 895,
+    "3 months": 1295,
+    "4 months": 2500,
   },
   "HbA1c - Blood Test": {
     "1 month": 300,
@@ -121,7 +133,7 @@ const priceMap = {
   "Lipid + HbA1c + Liver": {
     "1 month": 650,
     "2 months": 650,
-    "3 months": 650,
+    "3 months": 650, 
     "4 months": 650,
   },
 };

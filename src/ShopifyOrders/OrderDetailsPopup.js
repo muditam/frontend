@@ -152,7 +152,7 @@ useEffect(() => {
       detailsText += `\nAmount Pending: ${Number(orderDetails.totalPrice)}`;
     } else if (paymentMethod === "COD") {
       detailsText += `\nAmount Pending: ${orderDetails.totalPrice}`;
-    }
+    } 
     // Do not include upsell amount in the copied text
     navigator.clipboard.writeText(detailsText);
     setMessage("Data copied to clipboard. Details confirmed.");
