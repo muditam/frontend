@@ -19,115 +19,40 @@ import {
   InputLabel,
   FormControl,
   IconButton,
-  Chip,
   CircularProgress,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
 } from "@mui/material";
 import dayjs from "dayjs";
 import axios from "axios";
 import SearchIcon from "@mui/icons-material/Search";
 import RefreshIcon from "@mui/icons-material/Refresh";
-import SendIcon from "@mui/icons-material/Send";
 
 const API_BASE =
   process.env.REACT_APP_API_BASE ||
   "https://muditamleads-14f32a10d7f7.herokuapp.com";
 
-const DATE_FILTERS = [
-  "All time",
-  "Custom range",
-  "Today",
-  "Yesterday",
-  "Last 7 days",
-  "Last 30 days",
-  "Week to date",
-  "Month to date",
-  "Year to date",
-  "Last 90 days",
-  "Last 365 days",
-  "Last month",
-  "Last 12 months",
-  "Last year",
-  "Quarter to date",
-];
+const DATE_FILTERS = ["All time", "Custom range", "Today", "Yesterday"];
 
 const getDateRange = (label) => {
-  if (label === "All time") return { start: "", end: "" };
-
+  if (label === "All time" || label === "Custom range") {
+    return { start: "", end: "" };
+  }
   const now = dayjs();
   let start = null;
   let end = null;
-
   switch (label) {
     case "Today":
-      start = now.startOf("day");
-      end = now.endOf("day");
-      break;
+      start = now.startOf("day"); end = now.endOf("day"); break;
     case "Yesterday":
       start = now.subtract(1, "day").startOf("day");
-      end = now.subtract(1, "day").endOf("day");
-      break;
-    case "Last 7 days":
-      start = now.subtract(6, "day").startOf("day");
-      end = now.endOf("day");
-      break;
-    case "Last 30 days":
-      start = now.subtract(29, "day").startOf("day");
-      end = now.endOf("day");
-      break;
-    case "Week to date":
-      start = now.startOf("week");
-      end = now.endOf("day");
-      break;
-    case "Month to date":
-      start = now.startOf("month");
-      end = now.endOf("day");
-      break;
-    case "Quarter to date":
-      start = now.startOf("quarter");
-      end = now.endOf("day");
-      break;
-    case "Year to date":
-      start = now.startOf("year");
-      end = now.endOf("day");
-      break;
-    case "Last 90 days":
-      start = now.subtract(89, "day").startOf("day");
-      end = now.endOf("day");
-      break;
-    case "Last 365 days":
-      start = now.subtract(364, "day").startOf("day");
-      end = now.endOf("day");
-      break;
-    case "Last month":
-      start = now.subtract(1, "month").startOf("month");
-      end = now.subtract(1, "month").endOf("month");
-      break;
-    case "Last 12 months":
-      start = now.subtract(11, "month").startOf("month");
-      end = now.endOf("month");
-      break;
-    case "Last year":
-      start = now.subtract(1, "year").startOf("year");
-      end = now.subtract(1, "year").endOf("year");
-      break;
-    default:
-      break;
+      end = now.subtract(1, "day").endOf("day"); break;
+    default: break;
   }
-  return {
-    start: start ? start.toISOString() : "",
-    end: end ? end.toISOString() : "",
-  };
+  return { start: start ? start.toISOString() : "", end: end ? end.toISOString() : "" };
 };
 
-// Heuristic money formatter that handles minor/major units gracefully
 function formatMoney(value, currency = "INR") {
   if (value === null || value === undefined || value === "") return "-";
   if (typeof value !== "number") return String(value);
-  // Backend now prefers minor units (paise). This will still auto-detect.
   const useMinor = Number.isInteger(value) && Math.abs(value) >= 1000;
   const n = useMinor ? value / 100 : value;
   return `${currency} ${n.toFixed(2)}`;
@@ -142,27 +67,68 @@ export default function AbandonedCheckouts() {
   const [page, setPage] = useState(0);
   const [limit, setLimit] = useState(50);
 
-  const [quickRange, setQuickRange] = useState("Last 7 days");
+  const [quickRange, setQuickRange] = useState("Today");
   const quick = useMemo(() => getDateRange(quickRange), [quickRange]);
 
   const [customStart, setCustomStart] = useState("");
   const [customEnd, setCustomEnd] = useState("");
 
-  const [itemDialog, setItemDialog] = useState({ open: false, row: null });
+  const [employees, setEmployees] = useState([]);
+  const [assignments, setAssignments] = useState({});
+  const [savingRow, setSavingRow] = useState(null);
 
+  // current user (read from localStorage)
+  const [currentUser, setCurrentUser] = useState(null);
+  const isAgent =
+    currentUser &&
+    (currentUser.role === "Sales Agent" || currentUser.role === "Retention Agent");
+
+  // assigned filter: 'unassigned' (default) or 'assigned'
+  const [assignedFilter, setAssignedFilter] = useState("unassigned");
+  const toggleAssignedFilter = () =>
+    setAssignedFilter((prev) => (prev === "unassigned" ? "assigned" : "unassigned"));
+
+  // Compute range params
   const start = quickRange === "Custom range" ? customStart : quick.start;
   const end = quickRange === "Custom range" ? customEnd : quick.end;
+
+  // Load current user from localStorage (first matching key)
+  useEffect(() => {
+    const keys = ["employee", "authUser", "user"];
+    let found = null;
+    for (const k of keys) {
+      const raw = localStorage.getItem(k);
+      if (raw) {
+        try {
+          const parsed = JSON.parse(raw);
+          if (parsed && typeof parsed === "object") {
+            found = parsed;
+            break;
+          }
+        } catch {}
+      }
+    }
+    if (found) {
+      setCurrentUser(found);
+      // Agents should only see assigned leads (their own)
+      if (found.role === "Sales Agent" || found.role === "Retention Agent") {
+        setAssignedFilter("assigned");
+      }
+    }
+  }, []);
 
   const fetchData = async () => {
     try {
       setLoading(true);
-      const params = {
-        page: page + 1,
-        limit,
-      };
-      if (query) params.query = query; // backend searches items & ids too
+      const effectiveAssigned = isAgent ? "assigned" : assignedFilter;
+      const params = { page: page + 1, limit, assigned: effectiveAssigned };
+      if (query) params.query = query;
       if (start) params.start = start;
       if (end) params.end = end;
+      if (isAgent && currentUser?._id) {
+        // backend should filter by this expert id
+        params.expertId = currentUser._id;
+      }
 
       const { data } = await axios.get(`${API_BASE}/api/abandoned`, { params });
       setRows(data.items || []);
@@ -174,30 +140,71 @@ export default function AbandonedCheckouts() {
     }
   };
 
-  useEffect(() => {
-    fetchData();
-    // eslint-disable-next-line
-  }, [page, limit, quickRange]);
-
-  const onSearch = () => {
-    setPage(0);
-    fetchData();
-  };
-
-  const onNotify = async (id) => {
+  const fetchEmployees = async () => {
     try {
-      await axios.post(`${API_BASE}/api/abandoned/${id}/notify`);
-      setRows((prev) =>
-        prev.map((r) => (r._id === id ? { ...r, notified: true, notifiedAt: new Date().toISOString() } : r))
+      const { data } = await axios.get(`${API_BASE}/api/employees`);
+      const filtered = (Array.isArray(data) ? data : []).filter(
+        (e) =>
+          String(e.status).toLowerCase() === "active" &&
+          (e.role === "Sales Agent" || e.role === "Retention Agent")
       );
+      filtered.sort((a, b) => (a.fullName || "").localeCompare(b.fullName || ""));
+      setEmployees(filtered);
     } catch (e) {
-      console.error(e);
-      alert("Notify failed");
+      console.error("Failed to load employees", e);
+      setEmployees([]);
     }
   };
 
-  const openItems = (row) => setItemDialog({ open: true, row });
-  const closeItems = () => setItemDialog({ open: false, row: null });
+  useEffect(() => { fetchEmployees(); }, []);
+
+  useEffect(() => {
+    fetchData();
+    // eslint-disable-next-line
+  }, [page, limit, quickRange, assignedFilter, isAgent, currentUser?._id]);
+
+  const onSearch = () => { setPage(0); fetchData(); };
+
+  const handleAssignChange = (rowId, empId) => {
+    setAssignments((prev) => ({ ...prev, [rowId]: empId }));
+  };
+
+  const onSaveAssign = async (row) => {
+    const expertId = assignments[row._id] || row?.assignedExpert?._id;
+    if (!expertId) return;
+
+    try {
+      setSavingRow(row._id);
+      const { data } = await axios.post(
+        `${API_BASE}/api/abandoned/${row._id}/assign-expert`,
+        { expertId }
+      );
+      const emp = employees.find((e) => e._id === expertId);
+      if (emp) {
+        setRows((prev) =>
+          prev.map((r) =>
+            r._id === row._id
+              ? {
+                  ...r,
+                  assignedExpert: {
+                    _id: emp._id,
+                    fullName: emp.fullName,
+                    email: emp.email,
+                    role: emp.role,
+                  },
+                  assignedAt: data?.assignedAt || new Date().toISOString(),
+                }
+              : r
+          )
+        );
+      }
+    } catch (e) {
+      console.error("Assign expert failed", e);
+      alert("Failed to assign expert");
+    } finally {
+      setSavingRow(null);
+    }
+  };
 
   return (
     <Box p={2}>
@@ -205,7 +212,7 @@ export default function AbandonedCheckouts() {
         <Typography variant="h6" fontWeight={700}>
           Abandoned Checkouts
         </Typography>
-        <Stack direction="row" spacing={1}>
+        <Stack direction="row" spacing={1} alignItems="center">
           <IconButton onClick={fetchData} aria-label="Refresh">
             <RefreshIcon />
           </IconButton>
@@ -222,6 +229,7 @@ export default function AbandonedCheckouts() {
             onKeyDown={(e) => e.key === "Enter" && onSearch()}
             sx={{ minWidth: 320 }}
           />
+
           <FormControl size="small" sx={{ minWidth: 180 }}>
             <InputLabel>Range</InputLabel>
             <Select label="Range" value={quickRange} onChange={(e) => setQuickRange(e.target.value)}>
@@ -262,6 +270,13 @@ export default function AbandonedCheckouts() {
           >
             Search
           </Button>
+
+          {/* Show toggle only for non-agents (e.g., Admin) */}
+          {!isAgent && (
+            <Button variant="outlined" onClick={toggleAssignedFilter}>
+              {assignedFilter === "unassigned" ? "Assigned" : "Unassigned"}
+            </Button>
+          )}
         </Stack>
       </Paper>
 
@@ -275,9 +290,7 @@ export default function AbandonedCheckouts() {
                 <TableCell>Contact</TableCell>
                 <TableCell>Products (Title / Variant / Qty / Final Line Price)</TableCell>
                 <TableCell>Total</TableCell>
-                <TableCell>IDs & Links</TableCell>
-                <TableCell>Meta</TableCell>
-                <TableCell>Status</TableCell>
+                <TableCell>Assign Expert</TableCell>
                 <TableCell align="right">Actions</TableCell>
               </TableRow>
             </TableHead>
@@ -285,13 +298,13 @@ export default function AbandonedCheckouts() {
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={9} align="center">
+                  <TableCell colSpan={8} align="center">
                     <CircularProgress size={24} />
                   </TableCell>
                 </TableRow>
               ) : rows.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={9} align="center">
+                  <TableCell colSpan={8} align="center">
                     No data
                   </TableCell>
                 </TableRow>
@@ -300,9 +313,7 @@ export default function AbandonedCheckouts() {
                   const items = Array.isArray(r.items) ? r.items : [];
                   const currency = r.currency || "INR";
                   const preview = items.slice(0, 2);
-
-                  const evtId = r.eventId || "-";
-                  const chkId = r.checkoutId || "-";
+                  const selectedEmpId = assignments[r._id] || r?.assignedExpert?._id || "";
 
                   return (
                     <TableRow key={r._id} hover>
@@ -325,77 +336,40 @@ export default function AbandonedCheckouts() {
                             <Typography key={idx} variant="body2">
                               <b>{it.title || "-"}</b>
                               {it.variantTitle ? ` — ${it.variantTitle}` : ""} • x{it.quantity ?? 1} •{" "}
-                              {formatMoney(
-                                it.finalLinePrice ?? (it.unitPrice || 0) * (it.quantity ?? 1),
-                                currency
-                              )}
+                              {formatMoney(it.finalLinePrice ?? (it.unitPrice || 0) * (it.quantity ?? 1), currency)}
                             </Typography>
                           ))}
-                          {items.length > 2 && (
-                            <Button
-                              size="small"
-                              variant="text"
-                              onClick={() => openItems(r)}
-                              sx={{ px: 0, minWidth: 0, textTransform: "none" }}
-                            >
-                              View all ({items.length})
-                            </Button>
-                          )}
                         </Stack>
                       </TableCell>
 
                       <TableCell>{formatMoney(r.total, currency)}</TableCell>
 
                       <TableCell>
-                        <Typography variant="body2">Evt: {evtId}</Typography>
-                        <Typography variant="body2">Chk: {chkId}</Typography>
-                        {r.orderId && <Typography variant="body2">Ord: {r.orderId}</Typography>}
-                        {r.recoveryUrl && (
-                          <Button
-                            size="small"
-                            variant="text"
-                            href={r.recoveryUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                            sx={{ px: 0, minWidth: 0, textTransform: "none" }}
+                        <FormControl size="small" fullWidth sx={{ minWidth: 220 }}>
+                          <InputLabel>Expert</InputLabel>
+                          <Select
+                            label="Expert"
+                            value={selectedEmpId}
+                            onChange={(e) => handleAssignChange(r._id, e.target.value)}
                           >
-                            Open cart
-                          </Button>
-                        )}
-                      </TableCell>
-
-                      <TableCell>
-                        <Stack spacing={0.5}>
-                          <Typography variant="body2" color="text.secondary">
-                            {r.city ? `City: ${r.city}` : ""}
-                          </Typography>
-                          <Typography variant="body2" color="text.secondary">
-                            {r.ip ? `IP: ${r.ip}` : ""}
-                          </Typography>
-                        </Stack>
-                      </TableCell>
-
-                      <TableCell>
-                        <Stack direction="row" spacing={1} alignItems="center">
-                          <Chip size="small" label={r.type || "abandoned_checkout"} variant="outlined" />
-                          {r.notified ? (
-                            <Chip size="small" color="success" label="Notified" />
-                          ) : (
-                            <Chip size="small" color="warning" label="Pending" />
-                          )}
-                        </Stack>
+                            {employees.map((emp) => (
+                              <MenuItem key={emp._id} value={emp._id}>
+                                {emp.fullName}
+                              </MenuItem>
+                            ))}
+                          </Select>
+                        </FormControl>
                       </TableCell>
 
                       <TableCell align="right">
                         <Button
                           size="small"
                           variant="contained"
-                          startIcon={<SendIcon />}
-                          disabled={!!r.notified}
-                          onClick={() => onNotify(r._id)}
+                          onClick={() => onSaveAssign(r)}
+                          disabled={!selectedEmpId || savingRow === r._id}
                           sx={{ bgcolor: "#000", ":hover": { bgcolor: "#111" } }}
                         >
-                          Notify
+                          {savingRow === r._id ? "Saving..." : "Save"}
                         </Button>
                       </TableCell>
                     </TableRow>
@@ -419,39 +393,6 @@ export default function AbandonedCheckouts() {
           rowsPerPageOptions={[25, 50, 100]}
         />
       </Paper>
-
-      {/* Items dialog */}
-      <Dialog open={itemDialog.open} onClose={closeItems} maxWidth="md" fullWidth>
-        <DialogTitle>Cart items</DialogTitle>
-        <DialogContent dividers>
-          {itemDialog.row && Array.isArray(itemDialog.row.items) && itemDialog.row.items.length > 0 ? (
-            <Stack spacing={1}>
-              {itemDialog.row.items.map((it, i) => (
-                <Stack key={i} direction="row" justifyContent="space-between" alignItems="center">
-                  <Box>
-                    <Typography fontWeight={600}>{it.title || "-"}</Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      {it.variantTitle ? `${it.variantTitle} • ` : ""}Qty: {it.quantity ?? 1}
-                      {it.sku ? ` • SKU: ${it.sku}` : ""}
-                    </Typography>
-                  </Box>
-                  <Typography>
-                    {formatMoney(
-                      (it.finalLinePrice ?? (it.unitPrice || 0) * (it.quantity ?? 1)) || 0,
-                      itemDialog.row.currency || "INR"
-                    )}
-                  </Typography>
-                </Stack>
-              ))}
-            </Stack>
-          ) : (
-            <Typography>No items</Typography>
-          )}
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={closeItems}>Close</Button>
-        </DialogActions>
-      </Dialog>
     </Box>
   );
 }

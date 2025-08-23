@@ -29,6 +29,7 @@ import EmojiEventsIcon from "@mui/icons-material/EmojiEvents"
 import FactCheckIcon from "@mui/icons-material/FactCheck"
 import ErrorOutlineIcon from "@mui/icons-material/ErrorOutline";
 import LocalShippingIcon from "@mui/icons-material/LocalShipping";
+import Inventory2Icon from "@mui/icons-material/Inventory2";
 import { Link, useNavigate } from "react-router-dom";
 
 // Put this ABOVE the MenuBar component in the same file, or in its own file and import it
@@ -281,6 +282,29 @@ const MenuBar = ({ toggleDrawer }) => {
             <PersonIcon sx={{ marginRight: "12px" }} />
             <Typography variant="body1" style={{ fontSize: "14px" }}>
               Team
+            </Typography>
+          </ListItem>
+        )}
+
+        {role !== "Finance" && role !== "Operations" && (
+          <ListItem
+            button
+            component={Link}
+            to="/aband"
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              padding: "10px 20px",
+              borderRadius: "4px",
+              margin: "4px 0",
+              transition: "background-color 0.3s, transform 0.2s",
+              "&:hover": { backgroundColor: "#e0f7fa", color: "#007aff", transform: "scale(1.02)" },
+            }}
+            onClick={toggleDrawer}
+          >
+            <Inventory2Icon sx={{ fontSize: 18, marginRight: "8px" }} />
+            <Typography variant="body1" sx={{ fontSize: "14px" }}>
+              Abandoned Cart
             </Typography>
           </ListItem>
         )}

@@ -45,7 +45,7 @@ const AddEmployee = () => {
     status: "active",
     target: "",
     hasTeam: false,  
-    teamLeader: "",
+    teamLeader: "", 
     joiningDate: "",
   });
   const [error, setError] = useState("");
