@@ -33,18 +33,14 @@ const API_BASE =
 const DATE_FILTERS = ["All time", "Custom range", "Today", "Yesterday"];
 
 const getDateRange = (label) => {
-  if (label === "All time" || label === "Custom range") {
-    return { start: "", end: "" };
-  }
+  if (label === "All time" || label === "Custom range") return { start: "", end: "" };
   const now = dayjs();
-  let start = null;
-  let end = null;
+  let start = null, end = null;
   switch (label) {
     case "Today":
       start = now.startOf("day"); end = now.endOf("day"); break;
     case "Yesterday":
-      start = now.subtract(1, "day").startOf("day");
-      end = now.subtract(1, "day").endOf("day"); break;
+      start = now.subtract(1, "day").startOf("day"); end = now.subtract(1, "day").endOf("day"); break;
     default: break;
   }
   return { start: start ? start.toISOString() : "", end: end ? end.toISOString() : "" };
@@ -56,6 +52,43 @@ function formatMoney(value, currency = "INR") {
   const useMinor = Number.isInteger(value) && Math.abs(value) >= 1000;
   const n = useMinor ? value / 100 : value;
   return `${currency} ${n.toFixed(2)}`;
+}
+
+// ---- NEW: robust localStorage user reader ----
+function readCurrentUserFromStorage() {
+  const keys = ["employee", "authUser", "user", "currentUser", "loggedInUser"];
+  for (const k of keys) {
+    const raw = localStorage.getItem(k);
+    if (!raw) continue;
+    try {
+      const parsed = JSON.parse(raw);
+      if (!parsed || typeof parsed !== "object") continue;
+
+      // try a few common shapes
+      const candidates = [
+        parsed,
+        parsed.user,
+        parsed.employee,
+        parsed.data, // sometimes JWT decode-like shapes
+      ].filter(Boolean);
+
+      for (const c of candidates) {
+        const id =
+          c._id || c.id || c.userId || c.userid || c.user_id || c.employeeId || c.employee_id;
+        const role =
+          c.role || c.userRole || c.position || (c.roles && Array.isArray(c.roles) ? c.roles[0] : undefined);
+        const fullName = c.fullName || c.name || c.username || c.displayName || "";
+        const email = c.email || "";
+
+        if (id && role) {
+          return { _id: String(id), role: String(role), fullName, email };
+        }
+      }
+    } catch {
+      // ignore parse errors
+    }
+  }
+  return null;
 }
 
 export default function AbandonedCheckouts() {
@@ -77,41 +110,27 @@ export default function AbandonedCheckouts() {
   const [assignments, setAssignments] = useState({});
   const [savingRow, setSavingRow] = useState(null);
 
-  // current user (read from localStorage)
   const [currentUser, setCurrentUser] = useState(null);
-  const isAgent =
-    currentUser &&
-    (currentUser.role === "Sales Agent" || currentUser.role === "Retention Agent");
+  const isAgent = useMemo(() => {
+    const r = (currentUser?.role || "").toLowerCase();
+    return r === "sales agent" || r === "retention agent";
+  }, [currentUser]);
 
-  // assigned filter: 'unassigned' (default) or 'assigned'
   const [assignedFilter, setAssignedFilter] = useState("unassigned");
   const toggleAssignedFilter = () =>
     setAssignedFilter((prev) => (prev === "unassigned" ? "assigned" : "unassigned"));
 
-  // Compute range params
   const start = quickRange === "Custom range" ? customStart : quick.start;
   const end = quickRange === "Custom range" ? customEnd : quick.end;
 
-  // Load current user from localStorage (first matching key)
+  // load current user once
   useEffect(() => {
-    const keys = ["employee", "authUser", "user"];
-    let found = null;
-    for (const k of keys) {
-      const raw = localStorage.getItem(k);
-      if (raw) {
-        try {
-          const parsed = JSON.parse(raw);
-          if (parsed && typeof parsed === "object") {
-            found = parsed;
-            break;
-          }
-        } catch {}
-      }
-    }
-    if (found) {
-      setCurrentUser(found);
-      // Agents should only see assigned leads (their own)
-      if (found.role === "Sales Agent" || found.role === "Retention Agent") {
+    const u = readCurrentUserFromStorage();
+    if (u) {
+      setCurrentUser(u);
+      // Agents: force to "assigned"
+      const r = (u.role || "").toLowerCase();
+      if (r === "sales agent" || r === "retention agent") {
         setAssignedFilter("assigned");
       }
     }
@@ -120,13 +139,17 @@ export default function AbandonedCheckouts() {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const effectiveAssigned = isAgent ? "assigned" : assignedFilter;
-      const params = { page: page + 1, limit, assigned: effectiveAssigned };
+      const params = {
+        page: page + 1,
+        limit,
+        assigned: isAgent ? "assigned" : assignedFilter,
+      };
       if (query) params.query = query;
       if (start) params.start = start;
       if (end) params.end = end;
+
+      // Agents see only their own assigned leads
       if (isAgent && currentUser?._id) {
-        // backend should filter by this expert id
         params.expertId = currentUser._id;
       }
 
@@ -175,10 +198,7 @@ export default function AbandonedCheckouts() {
 
     try {
       setSavingRow(row._id);
-      const { data } = await axios.post(
-        `${API_BASE}/api/abandoned/${row._id}/assign-expert`,
-        { expertId }
-      );
+      const { data } = await axios.post(`${API_BASE}/api/abandoned/${row._id}/assign-expert`, { expertId });
       const emp = employees.find((e) => e._id === expertId);
       if (emp) {
         setRows((prev) =>
@@ -271,7 +291,7 @@ export default function AbandonedCheckouts() {
             Search
           </Button>
 
-          {/* Show toggle only for non-agents (e.g., Admin) */}
+          {/* Toggle only for non-agents */}
           {!isAgent && (
             <Button variant="outlined" onClick={toggleAssignedFilter}>
               {assignedFilter === "unassigned" ? "Assigned" : "Unassigned"}
