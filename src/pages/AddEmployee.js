@@ -21,8 +21,8 @@ import {
   Checkbox,
   FormControlLabel,
 } from "@mui/material";
-import { Visibility, VisibilityOff, WarningAmber, Edit, Delete } from "@mui/icons-material";  
-import axios from "axios"; 
+import { Visibility, VisibilityOff, WarningAmber, Edit, Delete } from "@mui/icons-material";
+import axios from "axios";
 
 const AddEmployee = () => {
   const [employees, setEmployees] = useState([]);
@@ -44,8 +44,8 @@ const AddEmployee = () => {
     async: 1,
     status: "active",
     target: "",
-    hasTeam: false,  
-    teamLeader: "", 
+    hasTeam: false,
+    teamLeader: "",
     joiningDate: "",
   });
   const [error, setError] = useState("");
@@ -56,41 +56,39 @@ const AddEmployee = () => {
   const statusOptions = ["active", "inactive"];
 
   useEffect(() => {
-    fetchEmployees(); 
+    fetchEmployees();
   }, [viewInactive]);
- 
+
   const fetchEmployees = async () => {
-  try {
-    const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/employees");
-    const fetchedEmployees = response.data
-  .filter(emp => viewInactive ? emp.status === "inactive" : emp.status === "active")
-  .sort((a, b) => a.fullName.localeCompare(b.fullName));
+    try {
+      const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/employees");
+      const fetchedEmployees = response.data
+        .filter(emp => viewInactive ? emp.status === "inactive" : emp.status === "active")
+        .sort((a, b) => a.fullName.localeCompare(b.fullName));
 
 
-    setEmployees(fetchedEmployees);
+      setEmployees(fetchedEmployees);
 
-    // Use raw teamLeader _id for form dropdowns (not full name)
-    const activeEmployees = response.data
-  .filter(emp => emp.status === "active")
-  .sort((a, b) => a.fullName.localeCompare(b.fullName));
+      // Use raw teamLeader _id for form dropdowns (not full name)
+      const activeEmployees = response.data
+        .filter(emp => emp.status === "active")
+        .sort((a, b) => a.fullName.localeCompare(b.fullName));
 
-    setAllActiveEmployees(activeEmployees);
-  } catch (error) {
-    console.error("Failed to fetch employees", error);
-  }
-};
-
-
+      setAllActiveEmployees(activeEmployees);
+    } catch (error) {
+      console.error("Failed to fetch employees", error);
+    }
+  };
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
-    setEmployeeData({ ...employeeData, [name]: type === "checkbox" ? checked : value }); 
+    setEmployeeData({ ...employeeData, [name]: type === "checkbox" ? checked : value });
   };
 
   const validateForm = () => {
     const { fullName, email, callerId, agentNumber, role, password, confirmPassword, target } = employeeData;
 
-    if (!fullName || !email || !callerId || !agentNumber || !role || (!isEditMode && !password) || target === "") { 
+    if (!fullName || !email || !callerId || !agentNumber || !role || (!isEditMode && !password) || target === "") {
       setError("All fields are required.");
       return false;
     }
@@ -138,7 +136,7 @@ const AddEmployee = () => {
           employeeData
         );
       } else {
-        await axios.post("https://muditamleads-14f32a10d7f7.herokuapp.com/api/employees", employeeData);  
+        await axios.post("https://muditamleads-14f32a10d7f7.herokuapp.com/api/employees", employeeData);
       }
       fetchEmployees();
       setOpen(false);
@@ -157,7 +155,7 @@ const AddEmployee = () => {
         joiningDate: "",
       });
     } catch (error) {
-      console.error("Error submitting employee data:", error); 
+      console.error("Error submitting employee data:", error);
       setError("Error occurred while saving employee data.");
     }
   };
@@ -174,20 +172,20 @@ const AddEmployee = () => {
       async: 1,
       status: employee.status,
       target: employee.target || "",
-      hasTeam: employee.hasTeam || false,  
-      teamLeader: employee.teamLeader?._id || "", 
+      hasTeam: employee.hasTeam || false,
+      teamLeader: employee.teamLeader?._id || "",
       joiningDate: employee.joiningDate
-      ? new Date(employee.joiningDate).toISOString().split("T")[0]
-      : "",
+        ? new Date(employee.joiningDate).toISOString().split("T")[0]
+        : "",
     });
     setCurrentEmployeeId(employee._id);
     setIsEditMode(true);
-    setOpen(true); 
+    setOpen(true);
   };
 
   const handleDelete = async (id) => {
     try {
-      await axios.delete(`https://muditamleads-14f32a10d7f7.herokuapp.com/api/employees/${id}`); 
+      await axios.delete(`https://muditamleads-14f32a10d7f7.herokuapp.com/api/employees/${id}`);
       fetchEmployees();
       setDeleteDialogOpen(false);
     } catch (error) {
@@ -213,7 +211,7 @@ const AddEmployee = () => {
       >
         Employee Management
       </Typography>
-      <Box sx={{ display: "flex", justifyContent: "space-between", mb: 2 }}> 
+      <Box sx={{ display: "flex", justifyContent: "space-between", mb: 2 }}>
         <Button
           variant="contained"
           color="primary"
@@ -484,7 +482,7 @@ const AddEmployee = () => {
               variant="filled"
               InputProps={{
                 disableUnderline: true,
-                sx: { backgroundColor: "#fff", borderRadius: 1, px: 1 }, 
+                sx: { backgroundColor: "#fff", borderRadius: 1, px: 1 },
               }}
             />
 
@@ -648,7 +646,7 @@ const AddEmployee = () => {
           >
             Cancel
           </Button>
-          <Button 
+          <Button
             onClick={() => handleDelete(employeeToDelete)}
             variant="contained"
             color="error"

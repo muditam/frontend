@@ -54,41 +54,27 @@ function formatMoney(value, currency = "INR") {
   return `${currency} ${n.toFixed(2)}`;
 }
 
-// ---- NEW: robust localStorage user reader ----
-function readCurrentUserFromStorage() {
-  const keys = ["employee", "authUser", "user", "currentUser", "loggedInUser"];
-  for (const k of keys) {
-    const raw = localStorage.getItem(k);
-    if (!raw) continue;
-    try {
-      const parsed = JSON.parse(raw);
-      if (!parsed || typeof parsed !== "object") continue;
-
-      // try a few common shapes
-      const candidates = [
-        parsed,
-        parsed.user,
-        parsed.employee,
-        parsed.data, // sometimes JWT decode-like shapes
-      ].filter(Boolean);
-
-      for (const c of candidates) {
-        const id =
-          c._id || c.id || c.userId || c.userid || c.user_id || c.employeeId || c.employee_id;
-        const role =
-          c.role || c.userRole || c.position || (c.roles && Array.isArray(c.roles) ? c.roles[0] : undefined);
-        const fullName = c.fullName || c.name || c.username || c.displayName || "";
-        const email = c.email || "";
-
-        if (id && role) {
-          return { _id: String(id), role: String(role), fullName, email };
-        }
-      }
-    } catch {
-      // ignore parse errors
+// Read current user from SESSION (your login saves to sessionStorage)
+function readCurrentUser() {
+  try {
+    const raw = sessionStorage.getItem("user");
+    if (!raw) return null;
+    const u = JSON.parse(raw);
+    const cands = [u, u.user, u.employee, u.data].filter(Boolean);
+    for (const c of cands) {
+      const id = c?._id || c?.id || c?.userId || c?.employeeId;
+      const role = c?.role || c?.userRole;
+      const email = c?.email || "";
+      const fullName = c?.fullName || c?.name || "";
+      if (role) return { _id: id ? String(id) : undefined, role: String(role), email, fullName };
     }
-  }
+  } catch {}
   return null;
+}
+
+function isSalesOrRetention(role) {
+  const r = String(role || "").toLowerCase().replace(/[\s_]/g, "");
+  return r === "salesagent" || r === "retentionagent";
 }
 
 export default function AbandonedCheckouts() {
@@ -111,46 +97,102 @@ export default function AbandonedCheckouts() {
   const [savingRow, setSavingRow] = useState(null);
 
   const [currentUser, setCurrentUser] = useState(null);
-  const isAgent = useMemo(() => {
-    const r = (currentUser?.role || "").toLowerCase();
-    return r === "sales agent" || r === "retention agent";
-  }, [currentUser]);
+  const [userResolved, setUserResolved] = useState(false); // NEW: gate initial fetch
+  const isAgent = useMemo(() => isSalesOrRetention(currentUser?.role), [currentUser]);
 
+  // Resolve logged-in user's Employee _id (by email/fullName)
+  const [agentEmployeeId, setAgentEmployeeId] = useState(
+    () => sessionStorage.getItem("agentEmployeeId") || null // NEW: cache restore
+  );
+
+  // Admins can toggle; agents are forced to "assigned"
   const [assignedFilter, setAssignedFilter] = useState("unassigned");
+  const effectiveAssigned = isAgent ? "assigned" : assignedFilter; // NEW: derived
   const toggleAssignedFilter = () =>
     setAssignedFilter((prev) => (prev === "unassigned" ? "assigned" : "unassigned"));
 
   const start = quickRange === "Custom range" ? customStart : quick.start;
   const end = quickRange === "Custom range" ? customEnd : quick.end;
 
-  // load current user once
+  // Load current user (SESSION) and mark resolved
   useEffect(() => {
-    const u = readCurrentUserFromStorage();
+    const u = readCurrentUser();
     if (u) {
       setCurrentUser(u);
-      // Agents: force to "assigned"
-      const r = (u.role || "").toLowerCase();
-      if (r === "sales agent" || r === "retention agent") {
-        setAssignedFilter("assigned");
-      }
+      if (isSalesOrRetention(u.role)) setAssignedFilter("assigned");
     }
+    setUserResolved(true); // mark that we've attempted read
   }, []);
 
+  // Load employees (active Sales/Retention)
+  useEffect(() => {
+    (async () => {
+      try {
+        const { data } = await axios.get(`${API_BASE}/api/employees`);
+        const filtered = (Array.isArray(data) ? data : []).filter(
+          (e) =>
+            String(e.status).toLowerCase() === "active" &&
+            (e.role === "Sales Agent" || e.role === "Retention Agent")
+        );
+        filtered.sort((a, b) => (a.fullName || "").localeCompare(b.fullName || ""));
+        setEmployees(filtered);
+      } catch {
+        setEmployees([]);
+      }
+    })();
+  }, []);
+
+  // Resolve this agent's Employee _id (and cache it)
+  useEffect(() => {
+    if (!isAgent || !employees.length || agentEmployeeId) return;
+    let resolved = null;
+
+    if (currentUser?.email) {
+      resolved = employees.find(
+        (e) => (e.email || "").toLowerCase() === currentUser.email.toLowerCase()
+      )?._id;
+    }
+    if (!resolved && currentUser?.fullName) {
+      resolved = employees.find(
+        (e) => (e.fullName || "").toLowerCase() === currentUser.fullName.toLowerCase()
+      )?._id;
+    }
+
+    if (resolved) {
+      setAgentEmployeeId(resolved);
+      sessionStorage.setItem("agentEmployeeId", String(resolved)); // NEW: cache
+    }
+  }, [isAgent, employees, currentUser, agentEmployeeId]);
+
+  // Only fetch when we're ready:
+  // - user has been resolved
+  // - if agent: we have either agentEmployeeId or currentUser.email
+  const readyToFetch = useMemo(() => {
+    if (!userResolved) return false;
+    if (!isAgent) return true;
+    return Boolean(agentEmployeeId || currentUser?.email);
+  }, [userResolved, isAgent, agentEmployeeId, currentUser?.email]);
+
   const fetchData = async () => {
+    if (!readyToFetch) return; // guard against premature calls
     try {
       setLoading(true);
       const params = {
         page: page + 1,
         limit,
-        assigned: isAgent ? "assigned" : assignedFilter,
+        assigned: effectiveAssigned,
       };
       if (query) params.query = query;
       if (start) params.start = start;
       if (end) params.end = end;
 
-      // Agents see only their own assigned leads
-      if (isAgent && currentUser?._id) {
-        params.expertId = currentUser._id;
+      // Agents: restrict to their own leads (strong id filter; fallback to email)
+      if (isAgent) {
+        if (agentEmployeeId) {
+          params.expertId = agentEmployeeId;
+        } else if (currentUser?.email) {
+          params.expertEmail = currentUser.email;
+        }
       }
 
       const { data } = await axios.get(`${API_BASE}/api/abandoned`, { params });
@@ -163,42 +205,31 @@ export default function AbandonedCheckouts() {
     }
   };
 
-  const fetchEmployees = async () => {
-    try {
-      const { data } = await axios.get(`${API_BASE}/api/employees`);
-      const filtered = (Array.isArray(data) ? data : []).filter(
-        (e) =>
-          String(e.status).toLowerCase() === "active" &&
-          (e.role === "Sales Agent" || e.role === "Retention Agent")
-      );
-      filtered.sort((a, b) => (a.fullName || "").localeCompare(b.fullName || ""));
-      setEmployees(filtered);
-    } catch (e) {
-      console.error("Failed to load employees", e);
-      setEmployees([]);
-    }
-  };
-
-  useEffect(() => { fetchEmployees(); }, []);
-
+  // Fetch on param changes, but only when ready
   useEffect(() => {
     fetchData();
-    // eslint-disable-next-line
-  }, [page, limit, quickRange, assignedFilter, isAgent, currentUser?._id]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    readyToFetch,
+    page,
+    limit,
+    quickRange,
+    effectiveAssigned, // use derived value
+    currentUser?.email,
+    agentEmployeeId,
+  ]);
 
   const onSearch = () => { setPage(0); fetchData(); };
-
-  const handleAssignChange = (rowId, empId) => {
-    setAssignments((prev) => ({ ...prev, [rowId]: empId }));
-  };
 
   const onSaveAssign = async (row) => {
     const expertId = assignments[row._id] || row?.assignedExpert?._id;
     if (!expertId) return;
-
     try {
       setSavingRow(row._id);
-      const { data } = await axios.post(`${API_BASE}/api/abandoned/${row._id}/assign-expert`, { expertId });
+      const { data } = await axios.post(
+        `${API_BASE}/api/abandoned/${row._id}/assign-expert`,
+        { expertId }
+      );
       const emp = employees.find((e) => e._id === expertId);
       if (emp) {
         setRows((prev) =>
@@ -219,7 +250,6 @@ export default function AbandonedCheckouts() {
         );
       }
     } catch (e) {
-      console.error("Assign expert failed", e);
       alert("Failed to assign expert");
     } finally {
       setSavingRow(null);
@@ -229,13 +259,9 @@ export default function AbandonedCheckouts() {
   return (
     <Box p={2}>
       <Stack direction="row" alignItems="center" justifyContent="space-between" mb={2}>
-        <Typography variant="h6" fontWeight={700}>
-          Abandoned Checkouts
-        </Typography>
+        <Typography variant="h6" fontWeight={700}>Abandoned Checkouts</Typography>
         <Stack direction="row" spacing={1} alignItems="center">
-          <IconButton onClick={fetchData} aria-label="Refresh">
-            <RefreshIcon />
-          </IconButton>
+          <IconButton onClick={fetchData} aria-label="Refresh"><RefreshIcon /></IconButton>
         </Stack>
       </Stack>
 
@@ -254,9 +280,7 @@ export default function AbandonedCheckouts() {
             <InputLabel>Range</InputLabel>
             <Select label="Range" value={quickRange} onChange={(e) => setQuickRange(e.target.value)}>
               {DATE_FILTERS.map((opt) => (
-                <MenuItem key={opt} value={opt}>
-                  {opt}
-                </MenuItem>
+                <MenuItem key={opt} value={opt}>{opt}</MenuItem>
               ))}
             </Select>
           </FormControl>
@@ -291,7 +315,7 @@ export default function AbandonedCheckouts() {
             Search
           </Button>
 
-          {/* Toggle only for non-agents */}
+          {/* Hide Assigned/Unassigned toggle for agents */}
           {!isAgent && (
             <Button variant="outlined" onClick={toggleAssignedFilter}>
               {assignedFilter === "unassigned" ? "Assigned" : "Unassigned"}
@@ -317,17 +341,9 @@ export default function AbandonedCheckouts() {
 
             <TableBody>
               {loading ? (
-                <TableRow>
-                  <TableCell colSpan={8} align="center">
-                    <CircularProgress size={24} />
-                  </TableCell>
-                </TableRow>
+                <TableRow><TableCell colSpan={8} align="center"><CircularProgress size={24} /></TableCell></TableRow>
               ) : rows.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={8} align="center">
-                    No data
-                  </TableCell>
-                </TableRow>
+                <TableRow><TableCell colSpan={8} align="center">No data</TableCell></TableRow>
               ) : (
                 rows.map((r) => {
                   const items = Array.isArray(r.items) ? r.items : [];
@@ -342,9 +358,7 @@ export default function AbandonedCheckouts() {
                       <TableCell>
                         <Stack spacing={0.5}>
                           <Typography fontWeight={600}>{r.customer?.name || "-"}</Typography>
-                          <Typography variant="body2" color="text.secondary">
-                            {r.customer?.email || "-"}
-                          </Typography>
+                          <Typography variant="body2" color="text.secondary">{r.customer?.email || "-"}</Typography>
                         </Stack>
                       </TableCell>
 
@@ -370,12 +384,10 @@ export default function AbandonedCheckouts() {
                           <Select
                             label="Expert"
                             value={selectedEmpId}
-                            onChange={(e) => handleAssignChange(r._id, e.target.value)}
+                            onChange={(e) => setAssignments((p) => ({ ...p, [r._id]: e.target.value }))}
                           >
                             {employees.map((emp) => (
-                              <MenuItem key={emp._id} value={emp._id}>
-                                {emp.fullName}
-                              </MenuItem>
+                              <MenuItem key={emp._id} value={emp._id}>{emp.fullName}</MenuItem>
                             ))}
                           </Select>
                         </FormControl>

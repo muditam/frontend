@@ -30,6 +30,7 @@ import FactCheckIcon from "@mui/icons-material/FactCheck"
 import ErrorOutlineIcon from "@mui/icons-material/ErrorOutline";
 import LocalShippingIcon from "@mui/icons-material/LocalShipping";
 import Inventory2Icon from "@mui/icons-material/Inventory2";
+import EmailIcon from "@mui/icons-material/Email";
 import { Link, useNavigate } from "react-router-dom";
 
 // Put this ABOVE the MenuBar component in the same file, or in its own file and import it
@@ -920,13 +921,40 @@ const MenuBar = ({ toggleDrawer }) => {
               </ListItem>
             )}
 
+            {role === "Operations" && (
+              <ListItem
+                button
+                component={Link}
+                to="/operations/undelivered" // updated route
+                sx={{
+                  display: "flex",
+                  alignItems: "center",
+                  padding: "10px 20px",
+                  borderRadius: "4px",
+                  margin: "4px 0",
+                  transition: "background-color 0.3s, transform 0.2s",
+                  "&:hover": {
+                    backgroundColor: "#e0f7fa",
+                    color: "#007aff",
+                    transform: "scale(1.02)",
+                  },
+                }}
+                onClick={toggleDrawer}
+              >
+                <EmailIcon sx={{ fontSize: 20, marginRight: "12px" }} />  
+                <Typography variant="body1" style={{ fontSize: "14px" }}>
+                  Email Undelivered
+                </Typography>
+              </ListItem>
+            )}
+
             {role !== "Finance" && role !== "Operations" && (
               <ListItem
                 button
                 component={Link}
                 to="/delivered-sales-record"
                 sx={{
-                  display: "flex",
+                  display: "flex", 
                   alignItems: "center",
                   padding: "10px 20px",
                   borderRadius: "4px",

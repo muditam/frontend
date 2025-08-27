@@ -18,7 +18,7 @@ import NavbarWithSearch from "./components/TopBars/NavBarwithSearch";
 import SalesDashboard from "./components/Dashboards/SalesDashboard";
 import OrdersTable from "./ShopifyOrders/AllShopifyOrders";
 import OnlineOrders from "./ShopifyOrders/OnlineOrders";
-import TransferRequests from "./components/LeadRequests/TransferRequest"; 
+import TransferRequests from "./components/LeadRequests/TransferRequest";
 import LeadDetail from "./components/LeadRequests/LeadDetails";
 import RetentionData from "./pages/filtered/Retention";
 import AcquisitionLost from "./Lostdata/AcquisitionLost";
@@ -39,10 +39,10 @@ import RazorpaySettlement from "./components/Finance/Payments/RazorpaySettlement
 import EasebuzzPayout from "./components/Finance/Payments/GokwikSettlement";
 import PhonePePayout from "./components/Finance/Payments/PhonepeSettlement";
 import BluedartUpload from "./components/Finance/Cod-remittance/BlueDart";
-import Delhivery from "./components/Finance/Cod-remittance/Delhivery"; 
+import Delhivery from "./components/Finance/Cod-remittance/Delhivery";
 import DTDC from "./components/Finance/Cod-remittance/DtdcUpload";
-import OrderSummeryForOperations from "./components/Operation/OrderSummeryForOperations";  
-import ReturnOrders from "./components/Operation/ReturnOrders"; 
+import OrderSummeryForOperations from "./components/Operation/OrderSummeryForOperations";
+import ReturnOrders from "./components/Operation/ReturnOrders";
 import AbandonedCheckouts from "./components/AbandonedCheckouts";
 import UndeliveredOrders from "./components/Operation/UndeliveredOrders";
 
@@ -54,15 +54,14 @@ const App = () => {
 
         <Routes>
           <Route
-            path="/shipment-details" 
+            path="/shipment-details"
             element={
               <ShipmentDetails />
             }
           />
 
-          <Route path="/login" element={<Login />} />  
-          <Route path="/aband" element={<AbandonedCheckouts />} />  
-          <Route path="/pages/Home" element={<ShipwayOrders />} /> 
+          <Route path="/login" element={<Login />} />
+          <Route path="/pages/Home" element={<ShipwayOrders />} />
           <Route path="/operations/undelivered" element={<UndeliveredOrders />} />
 
           {/* Protected Routes */}
@@ -75,7 +74,7 @@ const App = () => {
             }
           />
 
-          <Route 
+          <Route
             path="/lead/:id"
             element={
               <PrivateRoute>
@@ -285,6 +284,14 @@ const App = () => {
             }
           />
           <Route
+            path="/aband"
+            element={
+              <PrivateRoute>
+                <AbandonedCheckouts />
+              </PrivateRoute>
+            }
+          />
+          <Route
             path="/delivered-history"
             element={
               <PrivateRoute>
@@ -317,7 +324,7 @@ const App = () => {
             }
           />
           <Route
-            path="/gateway/phonepe" 
+            path="/gateway/phonepe"
             element={
               <PrivateRoute>
                 <PhonePePayout />
@@ -325,7 +332,7 @@ const App = () => {
             }
           />
           <Route
-            path="/remittance/bluedart" 
+            path="/remittance/bluedart"
             element={
               <PrivateRoute>
                 <BluedartUpload />
@@ -333,7 +340,7 @@ const App = () => {
             }
           />
           <Route
-            path="/remittance/delhivery" 
+            path="/remittance/delhivery"
             element={
               <PrivateRoute>
                 <Delhivery />
@@ -341,7 +348,7 @@ const App = () => {
             }
           />
           <Route
-            path="/remittance/dtdc" 
+            path="/remittance/dtdc"
             element={
               <PrivateRoute>
                 <DTDC />
@@ -349,7 +356,7 @@ const App = () => {
             }
           />
           <Route
-            path="/operations/undelivered-orders" 
+            path="/operations/undelivered-orders"
             element={
               <PrivateRoute>
                 <OrderSummeryForOperations />
@@ -357,7 +364,7 @@ const App = () => {
             }
           />
           <Route
-            path="/operations/rto-delivered" 
+            path="/operations/rto-delivered"
             element={
               <PrivateRoute>
                 <ReturnOrders />

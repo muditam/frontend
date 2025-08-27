@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   Box,
   Button,
@@ -15,7 +15,7 @@ import {
   TableRow,
   Paper,
   IconButton,
-  MenuItem,
+  MenuItem, 
   Typography,
   Chip,
   CircularProgress,
@@ -34,6 +34,7 @@ const EscalationsPage = () => {
   const [fileToView, setFileToView] = useState(null);
   const [escalations, setEscalations] = useState([]);
   const [employees, setEmployees] = useState([]);
+  const allowedRolesForAssign = ["Manager", "Operations"];
   const [loading, setLoading] = useState(false); // For submit button
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleteEscalationId, setDeleteEscalationId] = useState(null);
@@ -57,7 +58,7 @@ const EscalationsPage = () => {
     query: "",
     attachedFiles: [],
     status: "Open",
-    assignedTo: "Preeti Shrestha",
+    assignedTo: "",
     remark: "",
     resolvedDate: "",
   });
@@ -65,6 +66,11 @@ const EscalationsPage = () => {
 
   const BACKEND_URL = "https://muditamleads-14f32a10d7f7.herokuapp.com/api";
 
+  const allowedAssignees = useMemo(() => {
+   return employees
+     .filter((emp) => allowedRolesForAssign.includes(emp.role))
+     .sort((a, b) => a.fullName.localeCompare(b.fullName));
+ }, [employees]);
 
   useEffect(() => {
     setInitialLoading(true);
@@ -76,10 +82,12 @@ const EscalationsPage = () => {
   const fetchEmployees = async () => {
     try {
       const response = await axios.get(`${BACKEND_URL}/employees`);
-      const activeManagers = response.data.filter(
-        (emp) => emp.status === "active"
-      );
-      setEmployees(activeManagers);
+      // const activeManagers = response.data.filter(
+      //   (emp) => emp.status === "active"
+      // );
+      // setEmployees(activeManagers);
+      const activeEmployees = response.data.filter((emp) => emp.status === "active");
+   setEmployees(activeEmployees);
     } catch (error) {
       console.error("Failed to fetch employees", error);
     }
@@ -165,7 +173,6 @@ const EscalationsPage = () => {
       setOpenForm(false);
       fetchEscalations();
 
-
       setFormData({
         date: "",
         orderId: "",
@@ -175,7 +182,7 @@ const EscalationsPage = () => {
         query: "",
         attachedFiles: [],
         status: "Open",
-        assignedTo: "Preeti Shrestha",
+        assignedTo: "",
         remark: "",
         resolvedDate: "",
       });
@@ -185,39 +192,45 @@ const EscalationsPage = () => {
     setLoading(false);
   };
 
+  const updateLocalEscalation = (id, patch) => {
+    setEscalations((prev) =>
+      prev.map((e) => (e._id === id ? { ...e, ...patch } : e))
+   );
+  };
 
   const handleEditCell = async (id, field, value) => {
-    const updatedEscalation = escalations.find((e) => e._id === id);
-
-
-    if (!updatedEscalation) {
-      console.error("Escalation not found");
-      return;
+    const current = escalations.find((e) => e._id === id);
+    if (!current) return;
+ 
+    const next = {
+      status: field === "status" ? value : current.status,
+      assignedTo: field === "assignedTo" ? value : current.assignedTo,
+      remark: field === "remark" ? value : current.remark,
+      resolvedDate: field === "resolvedDate" ? value : current.resolvedDate,
+    };
+ 
+    // Optimistic UI update
+    updateLocalEscalation(id, next);
+ 
+    // Adjust filter immediately if needed
+    if (showClosedOnly && next.status !== "Closed") {
+      setShowClosedOnly(false);
     }
-
-
+ 
     try {
-      const payload = {
-        status: field === "status" ? value : updatedEscalation.status,
-        assignedTo:
-          field === "assignedTo" ? value : updatedEscalation.assignedTo,
-        remark: field === "remark" ? value : updatedEscalation.remark,
-        resolvedDate:
-          field === "resolvedDate" ? value : updatedEscalation.resolvedDate,
-      };
-
-
-      await axios.put(`${BACKEND_URL}/escalations/${id}`, payload);
-
-
-      if (showClosedOnly && payload.status !== "Closed") {
-        setShowClosedOnly(false);
-      }
-
-
-      await fetchEscalations();
-    } catch (error) {
-      console.error("Failed to update escalation", error);
+      await axios.put(`${BACKEND_URL}/escalations/${id}`, next);
+      // Success: nothing else to do (we already updated UI)
+    } catch (err) {
+      console.error("Failed to update escalation", err);
+      // Roll back on failure
+      updateLocalEscalation(id, {
+        status: current.status,
+        assignedTo: current.assignedTo,
+        remark: current.remark,
+        resolvedDate: current.resolvedDate,
+      });
+      // Optional: surface error to user
+      // window.alert("Update failed. Please try again.");
     }
   };
 
@@ -685,7 +698,7 @@ const EscalationsPage = () => {
 
                       {/* Editable only for Manager */}
                       <TableCell align="center">
-                        {user?.role === "Manager" ? (
+                        {user?.role === "Manager" || user?.role === "Operations" ? (
                           <TextField
                             select
                             size="small"
@@ -706,7 +719,7 @@ const EscalationsPage = () => {
                         )}
                       </TableCell>
                       <TableCell align="center">
-                        {user?.role === "Manager" ? (
+                        {user?.role === "Manager" || user?.role === "Operations" ? (
                           <TextField
                             select
                             size="small"
@@ -720,7 +733,7 @@ const EscalationsPage = () => {
                             }
                             sx={{ minWidth: 130 }}
                           >
-                            {employees.map((emp) => (
+                            {allowedAssignees.map((emp) => (
                               <MenuItem key={emp._id} value={emp.fullName}>
                                 {emp.fullName}
                               </MenuItem>
@@ -751,7 +764,7 @@ const EscalationsPage = () => {
 
 
                       <TableCell sx={{ minWidth: 250 }}>
-                        {user?.role === "Manager" ? (
+                        {user?.role === "Manager" || user?.role === "Operations" ? (
                           <TextField
                             size="small"
                             value={remarkDrafts[esc._id] ?? esc.remark}
@@ -782,7 +795,7 @@ const EscalationsPage = () => {
                       </TableCell>
 
                       <TableCell align="center">
-                        {user?.role === "Manager" ? (
+                        {user?.role === "Manager" || user?.role === "Operations" ? (
                           <TextField
                             type="date"
                             size="small"
@@ -802,7 +815,7 @@ const EscalationsPage = () => {
                         )}
                       </TableCell>
                       <TableCell align="right">
-                        {user?.role === "Manager" ? (
+                        {user?.role === "Manager" || user?.role === "Operations" ? (
                           <IconButton
                             color="error"
                             onClick={() => {
