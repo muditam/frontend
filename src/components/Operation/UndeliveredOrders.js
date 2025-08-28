@@ -34,7 +34,7 @@ import { IconButton } from "@mui/material";
 import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 
-const API_BASE = process.env.REACT_APP_API_BASE || "https://muditamleads-14f32a10d7f7.herokuapp.com";
+const API_BASE = process.env.REACT_APP_API_BASE || "http://localhost:5001";
 
 const SUBJECT_TEMPLATES = [
   { key: "fakeRemark", label: "Escalation – Fake Delivery Remark | Order ID {{Order_ID}} | AWB {{tracking_number}}" },
