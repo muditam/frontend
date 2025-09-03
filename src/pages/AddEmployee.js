@@ -76,7 +76,7 @@ const AddEmployee = () => {
 
       setAllActiveEmployees(activeEmployees);
     } catch (error) {
-      console.error("Failed to fetch employees", error);
+      console.error("Failed to fetch employees", error); 
     }
   };
 

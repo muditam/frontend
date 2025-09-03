@@ -34,7 +34,7 @@ import { IconButton } from "@mui/material";
 import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 
-const API_BASE = process.env.REACT_APP_API_BASE || "http://localhost:5001";
+const API_BASE = process.env.REACT_APP_API_BASE || "https://muditamleads-14f32a10d7f7.herokuapp.com";
 
 const SUBJECT_TEMPLATES = [
   { key: "fakeRemark", label: "Escalation – Fake Delivery Remark | Order ID {{Order_ID}} | AWB {{tracking_number}}" },
@@ -51,42 +51,42 @@ const CONTENT_TEMPLATES = [
   {
     key: "fakeRemark",
     label:
-      "Dear Team,\nThe tracking for AWB {{tracking_number}} shows Fake Remark, which is incorrect. Customer wants the Shipment on priority basis. Kindly deliver at the earliest.\nRegards,\n{{Agent_Name}}",
+      "Dear Team,\n\nThe tracking for AWB {{tracking_number}} shows Fake Remark,\nwhich is incorrect.\nCustomer wants the Shipment on priority basis.\nKindly deliver at the earliest.\n\nRegards,\n{{Agent_Name}}",
   },
   {
     key: "notReceived",
     label:
-      "Dear Team,\nAWB {{tracking_number}} is marked delivered, but the consignee has not received it. Please check and resolve urgently.\nRegards,\n{{Agent_Name}}",
+      "Dear Team,\n\nAWB {{tracking_number}} is marked delivered,\nbut the consignee has not received it.\nPlease check and resolve urgently.\n\nRegards,\n{{Agent_Name}}",
   },
   {
     key: "delayed",
     label:
-      "Dear Team,\nAWB {{tracking_number}} dispatched on {{order date}} has crossed the expected delivery time. Kindly arrange delivery without further delay.\nRegards,\n{{Agent_Name}}",
+      "Dear Team,\n\nAWB {{tracking_number}} dispatched on {{order date}} has crossed the expected delivery time.\nKindly arrange delivery without further delay.\n\nRegards,\n{{Agent_Name}}",
   },
   {
     key: "doorstep",
     label:
-      "Dear Team,\nKindly ensure AWB {{tracking_number}} is delivered at the customer’s doorstep as committed. Please arrange delivery on priority.\nRegards,\n{{Agent_Name}}",
+      "Dear Team,\n\nKindly ensure AWB {{tracking_number}} is delivered at the customer’s doorstep as committed.\nPlease arrange delivery on priority.\n\nRegards,\n{{Agent_Name}}",
   },
   {
     key: "wrongOtp",
     label:
-      "Dear Team,\nFor AWB {{tracking_number}}, the courier boy took OTP from the customer under false pretext for cancellation. Please investigate and reattempt delivery immediately.\nRegards,\n{{Agent_Name}}",
+      "Dear Team,\n\nFor AWB {{tracking_number}}, the courier boy took OTP from the customer under false pretext for cancellation.\nPlease investigate and reattempt delivery immediately.\n\nRegards,\n{{Agent_Name}}",
   },
   {
     key: "codToPrepaid",
     label:
-      "Dear Team,\nPlease change the payment mode for AWB {{tracking_number}} from COD to Prepaid and process delivery accordingly.\nRegards,\n{{Agent_Name}}",
+      "Dear Team,\n\nPlease change the payment mode for AWB {{tracking_number}} from COD to Prepaid and process delivery accordingly.\n\nRegards,\n{{Agent_Name}}",
   },
   {
     key: "rto",
    label:
-      "Dear Team,\nPlease initiate RTO for AWB {{tracking_number}} and confirm once updated in the system.\nRegards,\n{{Agent_Name}}",
+      "Dear Team,\n\nPlease initiate RTO for AWB {{tracking_number}} and confirm once updated in the system.\n\nRegards,\n{{Agent_Name}}",
   },
   {
     key: "urgentDelivery",
     label:
-     "Dear Team,\nThis shipment AWB {{tracking_number}} is critical. Kindly ensure delivery to the customer today without fail.\nRegards,\n{{Agent_Name}}",
+     "Dear Team,\n\nThis shipment AWB {{tracking_number}} is critical.\nKindly ensure delivery to the customer today without fail.\n\nRegards,\n{{Agent_Name}}",
  },
 ];
 
@@ -216,8 +216,8 @@ const renderReplyPreview = (orderId) => {
      "order id": ord.order_id || "-",
     "tracking_number": ord.tracking_number || "-",
     "awb": ord.tracking_number || "-",
-    "order date": ord.order_date ? dayjs(ord.order_date).format("DD/MM/YYYY") : "-",
-   "agent_name": getAgentName(emailForm.from),
+    "order date": ord.order_date ? dayjs(ord.order_date).format("DD/MM/YYYY") : "-", 
+   "agent_name": getAgentName(), 
   };
   const subjectTpl =
     SUBJECT_TEMPLATES.find((t) => t.key === replyForm.subjectTemplateKey)?.label ||
@@ -277,20 +277,16 @@ const handleSendReply = async () => {
     setReplySending(false);
   }
 };
-
-// Get agent name: logged-in user name -> localStorage('agentName') -> "From" local-part -> 'Agent'
-const getAgentName = (fromEmail) => {
-  const uiUser =
-    (window?.authUser && window.authUser.name) ||
-    localStorage.getItem("agentName") ||
-    "";
-  if (uiUser) return uiUser;
-  if (fromEmail && typeof fromEmail === "string") {
-    const local = String(fromEmail).split("@")[0] || "";
-    if (local) return local.replace(/\./g, " ");
+ 
+// Get agent name from sessionStorage
+const getAgentName = () => {
+  const user = JSON.parse(sessionStorage.getItem("user")); // Assuming the user data is stored in sessionStorage with key "user"
+  if (user && user.fullName) {
+    return user.fullName; // Use fullName from the logged-in user data
   }
-  return "Agent";
+  return "Agent"; // Fallback to "Agent" if no name found
 };
+
 
 // Robust token replacement for both {{token}} and {token}, case-insensitive
 const replaceTokens = (tpl, vars) => {
@@ -371,12 +367,29 @@ const replaceTokens = (tpl, vars) => {
     if (!sending) setEmailOpen(false);
   };
 
+  const SUBJECT_TO_CONTENT_MAP = {
+  fakeRemark: "fakeRemark",
+  notReceived: "notReceived",
+  delayed: "delayed",
+  doorstep: "doorstep",
+  wrongOtp: "wrongOtp",
+  codToPrepaid: "codToPrepaid",
+  rto: "rto",
+  urgentDelivery: "urgentDelivery",
+};
+
   const handleFromChange = (e) =>
     setEmailForm((p) => ({ ...p, from: e.target.value }));
   const handleToChange = (_, values) =>
     setEmailForm((p) => ({ ...p, to: values }));
-  const handleSubjectTemplateChange = (e) =>
-    setEmailForm((p) => ({ ...p, subjectTemplateKey: e.target.value }));
+  const handleSubjectTemplateChange = (e) => {
+  const selectedSubjectTemplateKey = e.target.value;
+  setEmailForm((p) => ({
+    ...p,
+    subjectTemplateKey: selectedSubjectTemplateKey,
+    contentTemplateKey: SUBJECT_TO_CONTENT_MAP[selectedSubjectTemplateKey],  
+  }));
+};
   const handleContentTemplateChange = (e) =>
     setEmailForm((p) => ({ ...p, contentTemplateKey: e.target.value }));
   const handleAttachmentsChange = (e) => {

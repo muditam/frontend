@@ -87,7 +87,7 @@ const RetentionOrders = () => {
   // Fetch combined data using the orderCreatedBy query parameter.
   const fetchRetentionOrders = async () => {
     try {
-      setLoading(true);
+      setLoading(true); 
       const response = await axios.get(
         "https://muditamleads-14f32a10d7f7.herokuapp.com/api/retention-sales/allapi",
         { params: { orderCreatedBy: retentionAgents } } // Pass array of retention agent names 

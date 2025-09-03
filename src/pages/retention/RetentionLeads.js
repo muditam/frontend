@@ -17,14 +17,10 @@ import {
   Stack,
   Chip,
   TableRow,
-  Table,
-  TableBody,
-  TableHead,
   Menu,
   TableCell,
   CircularProgress,
   Button,
-  Snackbar,
 } from "@mui/material";
 import { keyframes, styled } from "@mui/material/styles";
 import axios from "axios";
@@ -112,6 +108,95 @@ const BodyTableCell = styled(TableCell)(({ theme }) => ({
   textAlign: "center",
 }));
 
+const IST_TZ = 'Asia/Kolkata';
+const MONTHS_3_UPPER = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEPT', 'OCT', 'NOV', 'DEC'];
+
+const isValidDate = (d) => d instanceof Date && !Number.isNaN(d.getTime());
+
+/** Parse:
+ *  - Date instance
+ *  - number (ms) or numeric string "1693248000000"
+ *  - ISO "2025-09-03T10:15:00.000Z"
+ *  - "YYYY-MM-DD"
+ *  - "DD/MM/YYYY" or "DD-MM-YYYY"  (interpreted as DD/MM, Indian style)
+ */
+const toDateSafe = (raw) => {
+  if (raw == null || raw === '') return null;
+  if (raw instanceof Date) return raw;
+  if (typeof raw === 'number') return new Date(raw);
+
+  const s = String(raw).trim();
+
+  // numeric string (epoch ms)
+  if (/^\d+$/.test(s)) {
+    const ms = parseInt(s, 10);
+    const d = new Date(ms);
+    return isValidDate(d) ? d : null;
+  }
+
+  // ISO or YYYY-MM-DD
+  if (/^\d{4}-\d{2}-\d{2}(T.*)?$/.test(s)) {
+    const d = new Date(s);
+    return isValidDate(d) ? d : null;
+  }
+
+  // DD/MM/YYYY or DD-MM-YYYY
+  const m = s.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{2,4})$/);
+  if (m) {
+    let [, dd, mm, yyyy] = m;
+    if (yyyy.length === 2) yyyy = '20' + yyyy;
+    // create at IST midnight
+    const d = new Date(`${yyyy}-${mm.padStart(2, '0')}-${dd.padStart(2, '0')}T00:00:00+05:30`);
+    return isValidDate(d) ? d : null;
+  }
+
+  const d = new Date(s);
+  return isValidDate(d) ? d : null;
+};
+
+// "YYYY-MM-DD" key in IST (stable for grouping)
+const getISTDayKey = (raw) => {
+  const d = toDateSafe(raw);
+  if (!isValidDate(d)) return null;
+  // Use .format (not formatToParts) to avoid RangeError in edge cases
+  const formatted = new Intl.DateTimeFormat('en-CA', {
+    timeZone: IST_TZ,
+    year: 'numeric', month: '2-digit', day: '2-digit'
+  }).format(d); // e.g., "2025-09-03"
+  return formatted;
+};
+
+// "DD SEPT YYYY"
+const formatDayHeaderIST = (dayKeyOrRaw) => {
+  // If it's already a dayKey "YYYY-MM-DD", split; else parse and make a key
+  let dayKey = /^\d{4}-\d{2}-\d{2}$/.test(String(dayKeyOrRaw))
+    ? String(dayKeyOrRaw)
+    : getISTDayKey(dayKeyOrRaw);
+
+  if (!dayKey) return '—';
+
+  const [yyyy, mm, dd] = dayKey.split('-');
+  const monthIdx = parseInt(mm, 10) - 1;
+  return `${dd} ${MONTHS_3_UPPER[monthIdx]} ${yyyy}`;
+};
+
+// "05:19 AM"
+const formatTimeIST = (raw) => {
+  const d = toDateSafe(raw);
+  if (!isValidDate(d)) return '—';
+  // Use US locale for 12h format with AM/PM
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: IST_TZ,
+    hour: '2-digit', minute: '2-digit', hour12: true
+  }).formatToParts(d);
+
+  const hh = (parts.find(p => p.type === 'hour')?.value ?? '00').padStart(2, '0');
+  const mm = (parts.find(p => p.type === 'minute')?.value ?? '00').padStart(2, '0');
+  const ap = (parts.find(p => p.type === 'dayPeriod')?.value ?? 'AM').toUpperCase();
+
+  return `${hh}:${mm} ${ap}`;
+};
+
 const RetentionLeads = () => {
   const [allLeads, setAllLeads] = useState([]); // All leads fetched from server
   const [leads, setLeads] = useState([]); // Leads currently displayed
@@ -120,7 +205,9 @@ const RetentionLeads = () => {
   const [callingMessage, setCallingMessage] = useState("");
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
+  // const [selectedLeadIndex, setSelectedLeadIndex] = useState(null);
   const [selectedLeadIndex, setSelectedLeadIndex] = useState(null);
+  const [selectedLeadId, setSelectedLeadId] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [modalImages, setModalImages] = useState([]);
   const [modalIndex, setModalIndex] = useState(0);
@@ -213,6 +300,11 @@ const RetentionLeads = () => {
   const [orderPopupOpen, setOrderPopupOpen] = useState(false);
   const [selectedLead, setSelectedLead] = useState(null);
 
+  // --- Remarks height/overflow control ---
+  const remarksBodyRef = useRef(null);
+  const [showRemarksMore, setShowRemarksMore] = useState(false);
+  const [remarksExpanded, setRemarksExpanded] = useState(false);
+
 
   const handleCopy = (text) => {
     navigator.clipboard.writeText(text);
@@ -288,7 +380,7 @@ const RetentionLeads = () => {
       setFilteredAllLeads(leadsWithReminders);
       setLeads(leadsWithReminders.slice(0, leadsPerPage));
       setHasMore(leadsWithReminders.length > leadsPerPage);
-      setSelectedLeadIndex(null);
+      // setSelectedLeadIndex(null);
       setUploadedImages([]);
     } catch (error) {
       console.error("Failed to fetch retention leads:", error);
@@ -306,22 +398,44 @@ const RetentionLeads = () => {
   };
 
 
-  const handleAddSubcell = (leadIndex) => {
-    const updatedLeads = [...leads];
-    const lead = updatedLeads[leadIndex];
-    lead.rtSubcells = lead.rtSubcells || [];
-    lead.rtSubcells.push({ date: new Date().toLocaleDateString(), value: "" });
-    setLeads(updatedLeads);
-    saveSubcellsToBackend(lead._id, lead.rtSubcells);
+  const handleAddSubcell = (leadIdx) => {
+    setLeads(prev => {
+      const list = [...prev];
+      const lead = { ...list[leadIdx] };
+
+      // Pull the text from the input that you're currently editing
+      const draft =
+        lead.rtSubcells?.length > 0
+          ? lead.rtSubcells[lead.rtSubcells.length - 1].value
+          : lead.rtRemark;
+
+      const newEntry = {
+        date: new Date().toISOString(),  // ISO (works with your parser)
+        value: (draft || '').trim(),
+        by: currentUserName,
+      };
+
+      lead.rtSubcells = [...(lead.rtSubcells || []), newEntry];
+      lead.rtRemark = ''; // optional: clear initial remark
+      list[leadIdx] = lead;
+      return list;
+    });
   };
+
 
   const handleSubcellChange = (leadIndex, subcellIndex, e) => {
-    const updatedLeads = [...leads];
-    updatedLeads[leadIndex].rtSubcells[subcellIndex].value = e.target.value;
-    setLeads(updatedLeads);
-    saveSubcellsToBackend(updatedLeads[leadIndex]._id, updatedLeads[leadIndex].rtSubcells);
+    const value = e.target.value;
+    setLeads(prev => {
+      const next = [...prev];
+      const lead = { ...next[leadIndex] };
+      const arr = [...(lead.rtSubcells || [])];
+      arr[subcellIndex] = { ...arr[subcellIndex], value };
+      lead.rtSubcells = arr;
+      next[leadIndex] = lead;
+      saveSubcellsToBackend(lead._id, arr);
+      return next;
+    });
   };
-
 
   const fetchShopifyDates = async (phoneNumber) => {
     try {
@@ -467,11 +581,38 @@ const RetentionLeads = () => {
     setReachedLeadsCount(getReachedLeads(filteredAllLeads).length);
   }, [filteredAllLeads, allLeads]);
 
+  const handleLeadSelect = (idx, id) => {
+   setSelectedLeadId(id);
+    setSelectedLeadIndex(idx); 
+ }
+
+  useEffect(() => {
+    if (!selectedLeadId) return;
+    const i = leads.findIndex(l => l._id === selectedLeadId);
+    setSelectedLeadIndex(i === -1 ? null : i);
+ }, [leads, selectedLeadId]);
+
+  useEffect(() => {
+    const el = remarksBodyRef.current;
+    if (!el) return;
+
+    const measure = () => {
+      // show button only when collapsed AND content really overflows
+      const needsMore = el.scrollHeight > el.clientHeight + 1;
+      setShowRemarksMore(!remarksExpanded && needsMore);
+    };
+
+    // wait a frame for layout/styles to settle
+    const raf = requestAnimationFrame(measure);
+    window.addEventListener("resize", measure);
+
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener("resize", measure);
+    };
+  }, [selectedLeadIndex, leads, remarksExpanded]);
 
 
-  const handleLeadSelect = (idx) => {
-    setSelectedLeadIndex(idx);
-  };
 
   const handleInputChange = async (e, index, field) => {
     const value = e.target.value;
@@ -641,6 +782,15 @@ const RetentionLeads = () => {
     applyFilters();
   }, [applyFilters]);
 
+
+  const currentUserName = React.useMemo(() => {
+    try {
+      const u = JSON.parse(sessionStorage.getItem('user'));
+      return u?.fullName || u?.name || (u?.email ? u.email.split('@')[0] : '') || 'Unknown';
+    } catch {
+      return 'Unknown';
+    }
+  }, []);
 
 
   useEffect(() => {
@@ -1463,7 +1613,7 @@ const RetentionLeads = () => {
             const followup = lead.rtFollowupReminder || "";
             const tagInfo = followupTagMap[followup] || followupTagMap[""];
 
-            const isSelected = selectedLeadIndex === idx;
+            const isSelected = lead._id === selectedLeadId;
 
             return (
               <ListItemButton
@@ -1481,7 +1631,7 @@ const RetentionLeads = () => {
                 }}
                 onClick={() => {
                   setLeadLoading(true);
-                  handleLeadSelect(idx);
+                  handleLeadSelect(idx, lead._id);
                   setTimeout(() => setLeadLoading(false), 500);
                 }}
               >
@@ -1998,99 +2148,6 @@ const RetentionLeads = () => {
                     </Select>
                   </Box>
 
-                  <Box sx={{ minWidth: 150, display: 'flex', flexDirection: 'column', mt: 3 }}>
-                    <Typography variant="subtitle2" color="text.secondary" mb={1}>
-                      Remark
-                    </Typography>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <TextField
-                        label={
-                          leads[selectedLeadIndex]?.rtSubcells?.length > 0
-                            ? leads[selectedLeadIndex]?.rtSubcells[leads[selectedLeadIndex].rtSubcells.length - 1].date
-                            : "Remark"
-                        }
-                        value={
-                          leads[selectedLeadIndex]?.rtSubcells?.length > 0
-                            ? leads[selectedLeadIndex]?.rtSubcells[leads[selectedLeadIndex].rtSubcells.length - 1].value
-                            : leads[selectedLeadIndex]?.rtRemark || ""
-                        }
-                        onChange={(e) => {
-                          if (leads[selectedLeadIndex]?.rtSubcells?.length > 0) {
-                            handleSubcellChange(
-                              selectedLeadIndex,
-                              leads[selectedLeadIndex].rtSubcells.length - 1,
-                              e
-                            );
-                          } else {
-                            handleInputChange(e, selectedLeadIndex, "rtRemark");
-                          }
-                        }}
-                        size="small"
-                        fullWidth
-                        variant="outlined"
-                      />
-                      <Tooltip title="Add Remark Entry">
-                        <IconButton
-                          size="small"
-                          sx={{ color: "black" }}
-                          onClick={() => handleAddSubcell(selectedLeadIndex)}
-                        >
-                          <AddIcon fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
-                      <Tooltip title="View Remark History">
-                        <IconButton
-                          size="small"
-                          sx={{ color: "black" }}
-                          onClick={() =>
-                            setSubcellsPopup({
-                              open: true,
-                              subcells: leads[selectedLeadIndex]?.rtSubcells || [],
-                            })
-                          }
-                        >
-                          <AccessTimeIcon fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
-                    </Box>
-                  </Box>
-
-
-                  <Dialog
-                    open={subcellsPopup.open}
-                    onClose={() => setSubcellsPopup({ open: false, subcells: [] })}
-                    maxWidth="sm"
-                    fullWidth
-                  >
-                    <DialogTitle sx={{ fontWeight: 600, textAlign: "center" }}>
-                      Remark History
-                    </DialogTitle>
-                    <DialogContent>
-                      <Table size="small">
-                        <TableHead>
-                          <TableRow>
-                            <HeaderTableCell>Date</HeaderTableCell>
-                            <HeaderTableCell>Remark</HeaderTableCell>
-                          </TableRow>
-                        </TableHead>
-                        <TableBody>
-                          {subcellsPopup.subcells.map((subcell, idx) => (
-                            <StyledTableRow key={idx}>
-                              <BodyTableCell>{subcell.date || "N/A"}</BodyTableCell>
-                              <BodyTableCell>{subcell.value || "No Remark"}</BodyTableCell>
-                            </StyledTableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </DialogContent>
-                    <DialogActions>
-                      <Button onClick={() => setSubcellsPopup({ open: false, subcells: [] })}>
-                        Close
-                      </Button>
-                    </DialogActions>
-                  </Dialog>
-
-
                 </Stack>
 
                 <Box sx={{ mt: 2 }}>
@@ -2141,32 +2198,32 @@ const RetentionLeads = () => {
                     }}
                     sx={{
                       fontSize: "0.75rem",
-                      textTransform: "none", 
+                      textTransform: "none",
                       backgroundColor: "white",
                       color: "black",
                     }}
                   >
-                    Consultation History 
+                    Consultation History
                   </Button>
 
                   <DialogActions>
                     <Button
-                      onClick={() => setOrderPopupOpen(true)} 
+                      onClick={() => setOrderPopupOpen(true)}
                       sx={{ color: "black" }}
                     >
                       Create Order
                     </Button>
                   </DialogActions>
                   {orderPopupOpen && selectedLeadIndex !== null && (
-  <CreateOrderPopup
-    open={orderPopupOpen}
-    onClose={() => setOrderPopupOpen(false)}
-    prefillCustomer={{
-      name: leads[selectedLeadIndex]?.name || "",
-      phone: leads[selectedLeadIndex]?.contactNumber || "",
-    }}
-  />
-)}
+                    <CreateOrderPopup
+                      open={orderPopupOpen}
+                      onClose={() => setOrderPopupOpen(false)}
+                      prefillCustomer={{
+                        name: leads[selectedLeadIndex]?.name || "",
+                        phone: leads[selectedLeadIndex]?.contactNumber || "",
+                      }}
+                    />
+                  )}
 
                   {showOrders && (
                     <Box sx={{ mt: 2 }}>
@@ -2373,11 +2430,11 @@ const RetentionLeads = () => {
                               </Box>
                             );
                           })}
-                          </>
-                          )}
-                        </Box>
+                        </>
+                      )}
+                    </Box>
                   )}
-    
+
                   <Dialog open={consultationDialogOpen} onClose={() => setConsultationDialogOpen(false)} maxWidth="md" fullWidth>
                     <DialogTitle sx={{ fontWeight: 600, textAlign: "center" }}>
                       Consultation History
@@ -2535,6 +2592,241 @@ const RetentionLeads = () => {
               }}
               elevation={3}
             >
+
+              <Box
+                sx={{
+                  mt: 1,
+                  height: '50vh',
+                  display: 'flex',
+                  flexDirection: 'column'
+                }}
+              >
+
+                <Typography variant="subtitle2" color="text.secondary" mb={1}>
+                  Notes
+                </Typography>
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                  <TextField
+                    label={
+                      leads[selectedLeadIndex]?.rtSubcells?.length > 0
+                        ? leads[selectedLeadIndex]?.rtSubcells[leads[selectedLeadIndex].rtSubcells.length - 1].date
+                        : "Remark"
+                    }
+                    value={
+                      leads[selectedLeadIndex]?.rtSubcells?.length > 0
+                        ? leads[selectedLeadIndex]?.rtSubcells[leads[selectedLeadIndex].rtSubcells.length - 1].value
+                        : leads[selectedLeadIndex]?.rtRemark || ""
+                    }
+                    onChange={(e) => {
+                      if (leads[selectedLeadIndex]?.rtSubcells?.length > 0) {
+                        handleSubcellChange(
+                          selectedLeadIndex,
+                          leads[selectedLeadIndex].rtSubcells.length - 1,
+                          e
+                        );
+                      } else {
+                        handleInputChange(e, selectedLeadIndex, "rtRemark");
+                      }
+                    }}
+                    multiline
+                    minRows={3}   // ~3x taller input
+                    size="small"
+                    fullWidth
+                    variant="outlined"
+                  />
+
+                  <Button
+                    variant="contained"
+                    size="small"
+                    onClick={() => handleAddSubcell(selectedLeadIndex)} // if "Save" should create a new entry; replace with your own save handler if needed
+                    sx={{ alignSelf: 'flex-start', backgroundColor: 'black', textTransform: 'none' }}
+                  >
+                    Save
+                  </Button>
+                </Box>
+
+
+                {/* Scrollable/collapsible body */}
+                <Box
+                  ref={remarksBodyRef}
+                  sx={{
+                    mt: 1,
+                    pr: 1,
+                    overflowY: remarksExpanded ? 'auto' : 'hidden',
+                    height: remarksExpanded ? '50vh' : '40vh',  
+                    position: 'relative'
+                  }}
+                >
+                  <Box sx={{ mt: 1 }}>
+                    {(() => {
+                      const list = [...(leads[selectedLeadIndex]?.rtSubcells || [])];
+ 
+                      const normalizeUser = (by) =>
+                        (typeof by === 'string' ? by.trim() : '') || 'Expert';
+ 
+                      list.sort((a, b) => {
+                        const ta = toDateSafe(a?.date)?.getTime() ?? -Infinity;
+                        const tb = toDateSafe(b?.date)?.getTime() ?? -Infinity;
+                        return tb - ta;
+                      });
+
+                      const dated = {};
+                      const invalid = {};
+
+                      const getInvalidLabel = (raw) => {
+                        const s = String(raw ?? "").trim();
+                        return s || "—";
+                      };
+
+                      list.forEach((sub) => {
+                        const key = getISTDayKey(sub?.date);
+                        if (key) {
+                          (dated[key] ||= []).push(sub);
+                        } else {
+                          const label = getInvalidLabel(sub?.date);
+                          (invalid[label] ||= []).push(sub);
+                        }
+                      });
+
+                      const blocks = [];
+ 
+                      Object.keys(dated)
+                        .sort((a, b) => (a > b ? -1 : 1))
+                        .forEach((dayKey) => {
+                          const items = dated[dayKey];
+
+                          // Within the day, newest first
+                          items.sort((a, b) => {
+                            const ta = toDateSafe(a?.date)?.getTime() ?? -Infinity;
+                            const tb = toDateSafe(b?.date)?.getTime() ?? -Infinity;
+                            return tb - ta;
+                          });
+ 
+                          const usersLabel = Array.from(
+                            new Set(items.map(s => normalizeUser(s?.by)))
+                          ).join(', ');
+ 
+                          const firstTime = formatTimeIST(items[0]?.date);  
+                          const notesJoined = items
+                            .map((s) => (s?.value?.trim() ? s.value.trim() : "—"))
+                            .join(" | ");
+
+                          blocks.push(
+                            <Box key={`dated-${dayKey}`} sx={{ mb: 1.25 }}>
+                              <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                                {`${formatDayHeaderIST(dayKey)}-(${usersLabel})`} 
+                              </Typography>
+                              <Typography
+                                variant="body2"
+                                sx={{
+                                  whiteSpace: "pre-wrap",
+                                  wordBreak: "break-word",
+                                  overflowWrap: "anywhere",
+                                  lineHeight: 1.4,
+                                  mt: 0.25,
+                                }}
+                              >
+                                {firstTime && firstTime !== "—"
+                                  ? `${firstTime} — ${notesJoined}`
+                                  : notesJoined}
+                              </Typography>
+                            </Box>
+                          );
+                        });
+ 
+                      Object.keys(invalid).forEach((label) => {
+                        const items = invalid[label];
+
+                        const usersLabel = Array.from(
+                          new Set(items.map(s => normalizeUser(s?.by)))
+                        ).join(', ');
+
+                        const notesJoined = items
+                          .map((s) => (s?.value?.trim() ? s.value.trim() : "—"))
+                          .join(" | ");
+
+                        blocks.push(
+                          <Box key={`invalid-${label}`} sx={{ mb: 1.25 }}>
+                            <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                              {`${label}: (${usersLabel})`}  
+                            </Typography>
+                            <Typography
+                              variant="body2"
+                              sx={{
+                                whiteSpace: "pre-wrap",
+                                wordBreak: "break-word",
+                                overflowWrap: "anywhere",
+                                lineHeight: 1.4,
+                                mt: 0.25,
+                              }}
+                            >
+                              {notesJoined}
+                            </Typography>
+                          </Box>
+                        );
+                      });
+
+                      return blocks;
+                    })()}
+                  </Box>
+
+
+                  {/* First Cons Notes at the bottom */}
+                  {leads[selectedLeadIndex]?.rtRemark && (
+                    <Box sx={{ mt: 1 }}>
+                      <Typography
+                        variant="body2"
+                        sx={{
+                          display: 'block',
+                          whiteSpace: 'pre-wrap',
+                          wordBreak: 'break-word',
+                          overflowWrap: 'anywhere',
+                          lineHeight: 1.4
+                        }}
+                      >
+                        <Box component="span" sx={{ fontWeight: 600, mr: 1 }}>
+                          First Cons Notes:
+                        </Box>
+                        {leads[selectedLeadIndex]?.rtRemark}
+                      </Typography>
+                    </Box>
+                  )}
+
+
+                  {/* Fade + Load more (only when collapsed and overflowing) */}
+                  {!remarksExpanded && showRemarksMore && (
+                    <Box
+                      sx={{
+                        position: 'absolute',
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        height: 56,
+                        background:
+                          'linear-gradient(to bottom, rgba(255,255,255,0), rgba(255,255,255,1))',
+                        display: 'flex',
+                        alignItems: 'flex-end',
+                        justifyContent: 'center',
+                        pb: 0.5,
+                        zIndex: 1,
+                      }}
+                    >
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        onClick={() => setRemarksExpanded(true)}
+                        sx={{ textTransform: 'none', color: 'black', borderColor: 'black' }}
+                      >
+                        Load more
+                      </Button>
+                    </Box>
+                  )}
+                </Box>
+              </Box>
+
+
+
+
               <Typography variant="h6" gutterBottom sx={{ color: "black" }}>
                 Upload Images
               </Typography>

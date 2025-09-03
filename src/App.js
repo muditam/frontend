@@ -1,6 +1,7 @@
 import React from "react";
 import "./global.css";
 import { BrowserRouter as Router, Route, Routes } from "react-router-dom";
+import SmartfloIncomingCallOverlay from "./components/SmartfloIncomingCallOverlay";
 import BulkDataUpload from "./components/BulkDataUpload";
 import AddEmployee from "./pages/AddEmployee";
 import LeadTable from "./pages/master/MasterLeads";
@@ -45,12 +46,16 @@ import OrderSummeryForOperations from "./components/Operation/OrderSummeryForOpe
 import ReturnOrders from "./components/Operation/ReturnOrders";
 import AbandonedCheckouts from "./components/AbandonedCheckouts";
 import UndeliveredOrders from "./components/Operation/UndeliveredOrders";
+import SmartfloCallLogs from "./components/SmartfloCallLogs";
+import SmartfloDataAnalytics from "./components/SmartfloDataAnalytics";
+
 
 const App = () => {
   return (
     <Router>
       <div>
         <NavbarWithSearch />
+        <SmartfloIncomingCallOverlay />
 
         <Routes>
           <Route
@@ -63,6 +68,8 @@ const App = () => {
           <Route path="/login" element={<Login />} />
           <Route path="/pages/Home" element={<ShipwayOrders />} />
           <Route path="/operations/undelivered" element={<UndeliveredOrders />} />
+          <Route path="/smartflo/call-logs" element={<SmartfloCallLogs />} />
+          <Route path="/smartflo/data-analytics" element={<SmartfloDataAnalytics />} />
 
           {/* Protected Routes */}
           <Route

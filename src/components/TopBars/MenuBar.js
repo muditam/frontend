@@ -31,6 +31,8 @@ import ErrorOutlineIcon from "@mui/icons-material/ErrorOutline";
 import LocalShippingIcon from "@mui/icons-material/LocalShipping";
 import Inventory2Icon from "@mui/icons-material/Inventory2";
 import EmailIcon from "@mui/icons-material/Email";
+import PhoneInTalkIcon from "@mui/icons-material/PhoneInTalk";
+import AnalyticsIcon from "@mui/icons-material/Analytics";
 import { Link, useNavigate } from "react-router-dom";
 
 // Put this ABOVE the MenuBar component in the same file, or in its own file and import it
@@ -774,6 +776,53 @@ const MenuBar = ({ toggleDrawer }) => {
                 </Collapse>
               </>
             )}
+
+            {role !== "Finance" && role !== "Operations" && (
+           <>
+            <ListItem
+               button
+               onClick={() => handleDropdownClick("smartflo")}
+               sx={dropdownStyle}
+             >
+              <Box sx={{ display: "flex", alignItems: "center" }}>
+                 <PhoneInTalkIcon sx={{ fontSize: 20, marginRight: "12px" }} />
+                 <Typography variant="body1" sx={{ fontSize: "14px" }}>
+                   Smartflo
+                 </Typography>
+               </Box>
+               {openDropdown.smartflo ? (
+                 <KeyboardArrowDownIcon />
+               ) : (
+                 <KeyboardArrowRightIcon />
+               )}
+             </ListItem>
+ 
+             <Collapse in={openDropdown.smartflo} timeout="auto" unmountOnExit>
+               <List sx={nestedListStyle}>
+                 <ListItem
+                   button
+                   component={Link}
+                   to="/smartflo/call-logs"
+                   onClick={toggleDrawer}
+                 >
+                   <Typography variant="body2" sx={{ fontSize: "13px" }}>
+                     Call Logs
+                  </Typography>
+                 </ListItem>
+                 <ListItem
+                   button
+                   component={Link}
+                   to="/smartflo/data-analytics"
+                  onClick={toggleDrawer}
+                 >
+                   <Typography variant="body2" sx={{ fontSize: "13px" }}>
+                     Data Analytics
+                   </Typography>
+                 </ListItem>
+               </List>
+             </Collapse>
+           </>
+         )}
 
             {role === "Finance" && (
               <>

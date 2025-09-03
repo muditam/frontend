@@ -15,7 +15,7 @@ import {
   TableRow,
   Paper,
   IconButton,
-  MenuItem, 
+  MenuItem,
   Typography,
   Chip,
   CircularProgress,
@@ -34,20 +34,15 @@ const EscalationsPage = () => {
   const [fileToView, setFileToView] = useState(null);
   const [escalations, setEscalations] = useState([]);
   const [employees, setEmployees] = useState([]);
-  const allowedRolesForAssign = ["Manager", "Operations"];
-  const [loading, setLoading] = useState(false); // For submit button
+  const allowedRolesForAssign = ["Operations"];
+  const [loading, setLoading] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleteEscalationId, setDeleteEscalationId] = useState(null);
   const [showClosedOnly, setShowClosedOnly] = useState(false);
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(50);
   const [initialLoading, setInitialLoading] = useState(true);
-
-  const [remarkDrafts, setRemarkDrafts] = useState({});
-
-
-  const user = JSON.parse(sessionStorage.getItem("user"));
-
+  const [totalCount, setTotalCount] = useState(0);
 
   const [formData, setFormData] = useState({
     date: "",
@@ -67,15 +62,13 @@ const EscalationsPage = () => {
   const BACKEND_URL = "https://muditamleads-14f32a10d7f7.herokuapp.com/api";
 
   const allowedAssignees = useMemo(() => {
-   return employees
-     .filter((emp) => allowedRolesForAssign.includes(emp.role))
-     .sort((a, b) => a.fullName.localeCompare(b.fullName));
- }, [employees]);
+    return employees
+      .filter((emp) => allowedRolesForAssign.includes(emp.role))
+      .sort((a, b) => a.fullName.localeCompare(b.fullName));
+  }, [employees]);
 
-  useEffect(() => {
-    setInitialLoading(true);
-    fetchEmployees();
-    fetchEscalations();
+  useEffect(() => { 
+    fetchEmployees(); 
   }, []);
 
 
@@ -87,17 +80,27 @@ const EscalationsPage = () => {
       // );
       // setEmployees(activeManagers);
       const activeEmployees = response.data.filter((emp) => emp.status === "active");
-   setEmployees(activeEmployees);
+      setEmployees(activeEmployees);
     } catch (error) {
       console.error("Failed to fetch employees", error);
     }
   };
 
 
-  const fetchEscalations = async () => {
-    try { 
-      const response = await axios.get(`${BACKEND_URL}/escalations`);
-      setEscalations(response.data);
+  const fetchEscalations = async (pageIdx = page, rpp = rowsPerPage, closedOnly = showClosedOnly) => {
+    try {
+      const statusParam = closedOnly ? 'Closed' : 'Open,In Progress';
+      const response = await axios.get(`${BACKEND_URL}/escalations`, {
+        params: {
+          page: pageIdx + 1,           // API is 1-based
+          limit: rpp,
+          status: statusParam,
+          sortBy: 'createdAt',
+          order: 'desc',
+        },
+      });
+      setEscalations(response.data.data);
+      setTotalCount(response.data.total);
     } catch (error) {
       console.error("Failed to fetch escalations", error);
     } finally {
@@ -105,11 +108,18 @@ const EscalationsPage = () => {
     }
   };
 
+  // load on mount + whenever page/size/filter changes
+  useEffect(() => {
+    setInitialLoading(true);
+    fetchEscalations(page, rowsPerPage, showClosedOnly);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, rowsPerPage, showClosedOnly]);
+
 
   const handleConfirmDelete = async () => {
     try {
       await axios.delete(`${BACKEND_URL}/escalations/${deleteEscalationId}`);
-      fetchEscalations();
+      fetchEscalations(page, rowsPerPage, showClosedOnly);
     } catch (error) {
       console.error("Failed to delete escalation", error);
     }
@@ -148,6 +158,28 @@ const EscalationsPage = () => {
     });
   };
 
+  const user = useMemo(() => {
+    try { return JSON.parse(sessionStorage.getItem("user")); }
+    catch { return null; }
+  }, []);
+
+  // const sortedEscalations = useMemo(() => {
+  //   // sort only when escalations array changes
+  //   return escalations.slice().sort((a, b) => new Date(b.date) - new Date(a.date));
+  // }, [escalations]);
+
+  // const filteredEscalations = useMemo(() => {
+  //   return sortedEscalations.filter((esc) =>
+  //     showClosedOnly ? esc.status === "Closed" : (esc.status === "Open" || esc.status === "In Progress")
+  //   );
+  // }, [sortedEscalations, showClosedOnly]);
+
+  // const pagedEscalations = useMemo(() => {
+  //   const start = page * rowsPerPage;
+  //   return filteredEscalations.slice(start, start + rowsPerPage);
+  // }, [filteredEscalations, page, rowsPerPage]);
+
+
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -164,11 +196,9 @@ const EscalationsPage = () => {
         form.append("attachedFiles", file);
       });
 
-
       await axios.post(`${BACKEND_URL}/escalations`, form, {
         headers: { "Content-Type": "multipart/form-data" },
       });
-
 
       setOpenForm(false);
       fetchEscalations();
@@ -195,28 +225,28 @@ const EscalationsPage = () => {
   const updateLocalEscalation = (id, patch) => {
     setEscalations((prev) =>
       prev.map((e) => (e._id === id ? { ...e, ...patch } : e))
-   );
+    );
   };
 
   const handleEditCell = async (id, field, value) => {
     const current = escalations.find((e) => e._id === id);
     if (!current) return;
- 
+
     const next = {
       status: field === "status" ? value : current.status,
       assignedTo: field === "assignedTo" ? value : current.assignedTo,
       remark: field === "remark" ? value : current.remark,
       resolvedDate: field === "resolvedDate" ? value : current.resolvedDate,
     };
- 
+
     // Optimistic UI update
     updateLocalEscalation(id, next);
- 
+
     // Adjust filter immediately if needed
     if (showClosedOnly && next.status !== "Closed") {
       setShowClosedOnly(false);
     }
- 
+
     try {
       await axios.put(`${BACKEND_URL}/escalations/${id}`, next);
       // Success: nothing else to do (we already updated UI)
@@ -229,8 +259,6 @@ const EscalationsPage = () => {
         remark: current.remark,
         resolvedDate: current.resolvedDate,
       });
-      // Optional: surface error to user
-      // window.alert("Update failed. Please try again.");
     }
   };
 
@@ -254,16 +282,6 @@ const EscalationsPage = () => {
     setFileToView(fileUrl);
     setOpenFileDialog(true);
   };
-
-
-  const filteredEscalations = escalations
-    .slice()
-    .sort((a, b) => new Date(b.date) - new Date(a.date))
-    .filter((esc) => {
-      if (showClosedOnly) return esc.status === "Closed";
-      return esc.status === "Open" || esc.status === "In Progress";
-    });
-
 
   return (
     <Box sx={{ padding: 3, bgcolor: "#fff", borderRadius: 2 }}>
@@ -616,134 +634,128 @@ const EscalationsPage = () => {
                 </TableCell>
               </TableRow>
             ) : (
-              filteredEscalations
-                .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
-                .map((esc, index) => {
-                  const { hoursDifference, daysDifference } =
-                    calculateTimeDifference(esc.date);
+              escalations.map((esc, index) => {
+                // use createdAt as fallback if date is missing/strings are messy
+                const baseDate = esc.date ? new Date(esc.date) : new Date(esc.createdAt);
+                const now = new Date();
+                const hoursDifference = (now - baseDate) / (1000 * 3600);
+                const daysDifference = hoursDifference / 24;
 
+                let backgroundColor = "transparent";
+                if (esc.status !== "Closed") {
+                  if (daysDifference > 3) backgroundColor = "lightcoral";
+                  else if (hoursDifference > 48) backgroundColor = "orange";
+                }
 
-                  let backgroundColor = "transparent";
-
-
-                  if (esc.status !== "Closed") {
-                    if (daysDifference > 3) {
-                      backgroundColor = "lightcoral";
-                    } else if (hoursDifference > 48) {
-                      backgroundColor = "orange";
-                    }
-                  }
-
-
-                  return (
-                    <TableRow
-                      key={esc._id}
-                      hover
+                return (
+                  <TableRow
+                    key={esc._id}
+                    hover
+                    sx={{
+                      "&:hover": { bgcolor: "#e0e0e0" },
+                      cursor: "pointer",
+                      whiteSpace: "nowrap",
+                      backgroundColor,
+                    }}
+                  >
+                    <TableCell align="center">
+                      {page * rowsPerPage + index + 1}
+                    </TableCell>
+                    <TableCell align="center">{esc.date}</TableCell>
+                    <TableCell align="center">{esc.orderId}</TableCell>
+                    <TableCell align="center">{esc.name}</TableCell>
+                    <TableCell align="center">{esc.contactNumber}</TableCell>
+                    <TableCell align="center">{esc.agentName}</TableCell>
+                    <TableCell
                       sx={{
-                        "&:hover": { bgcolor: "#e0e0e0" },
-                        cursor: "pointer",
-                        whiteSpace: "nowrap",
-                        backgroundColor,
+                        whiteSpace: "pre-wrap",
+                        maxWidth: 500,
+                        minWidth: 300,
+                        wordBreak: "break-word",
                       }}
                     >
-                      <TableCell align="center">
-                        {page * rowsPerPage + index + 1}
-                      </TableCell>
-                      <TableCell align="center">{esc.date}</TableCell>
-                      <TableCell align="center">{esc.orderId}</TableCell>
-                      <TableCell align="center">{esc.name}</TableCell>
-                      <TableCell align="center">{esc.contactNumber}</TableCell>
-                      <TableCell align="center">{esc.agentName}</TableCell>
-                      <TableCell
-                        sx={{
-                          whiteSpace: "pre-wrap",
-                          maxWidth: 500,
-                          minWidth: 300,
-                          wordBreak: "break-word",
-                        }}
-                      >
-                        {esc.query.match(/.{1,100}/g)?.join("\n")}
-                      </TableCell>
-                      <TableCell align="center" sx={{ whiteSpace: "nowrap" }}>
-                        {esc.attachedFileUrls &&
-                          esc.attachedFileUrls.length > 0 ? (
-                          esc.attachedFileUrls.map((url, idx) => (
-                            <Button
-                              key={idx}
-                              variant="text"
-                              onClick={() => handleOpenFile(url)}
-                              sx={{
-                                display: "inline-block",
-                                mb: 0.5,
-                                color: "black",
-                                fontWeight: "bold",
-                                textTransform: "none",
-                                minWidth: 50,
-                                mx: 0.3,
-                              }}
-                            >
-                              File {idx + 1}
-                            </Button>
-                          ))
-                        ) : (
-                          <Typography
-                            variant="body2"
-                            sx={{ fontStyle: "italic", color: "text.secondary" }}
+                      {esc.query.match(/.{1,100}/g)?.join("\n")}
+                    </TableCell>
+                    <TableCell align="center" sx={{ whiteSpace: "nowrap" }}>
+                      {esc.attachedFileUrls &&
+                        esc.attachedFileUrls.length > 0 ? (
+                        esc.attachedFileUrls.map((url, idx) => (
+                          <Button
+                            key={idx}
+                            variant="text"
+                            onClick={() => handleOpenFile(url)}
+                            sx={{
+                              display: "inline-block",
+                              mb: 0.5,
+                              color: "black",
+                              fontWeight: "bold",
+                              textTransform: "none",
+                              minWidth: 50,
+                              mx: 0.3,
+                            }}
                           >
-                            No File
-                          </Typography>
-                        )}
-                      </TableCell>
+                            File {idx + 1}
+                          </Button>
+                        ))
+                      ) : (
+                        <Typography
+                          variant="body2"
+                          sx={{ fontStyle: "italic", color: "text.secondary" }}
+                        >
+                          No File
+                        </Typography>
+                      )}
+                    </TableCell>
 
 
-                      {/* Editable only for Manager */}
-                      <TableCell align="center">
-                        {user?.role === "Manager" || user?.role === "Operations" ? (
-                          <TextField
-                            select
-                            size="small"
-                            value={esc.status}
-                            onChange={(e) =>
-                              handleEditCell(esc._id, "status", e.target.value)
-                            }
-                            sx={{ minWidth: 100 }}
-                          >
-                            {statusOptions.map((opt) => (
-                              <MenuItem key={opt} value={opt}>
-                                {opt}
-                              </MenuItem>
-                            ))}
-                          </TextField>
-                        ) : (
-                          esc.status
-                        )}
-                      </TableCell>
-                      <TableCell align="center">
-                        {user?.role === "Manager" || user?.role === "Operations" ? (
-                          <TextField
-                            select
-                            size="small"
-                            value={esc.assignedTo}
-                            onChange={(e) =>
-                              handleEditCell(
-                                esc._id,
-                                "assignedTo",
-                                e.target.value
-                              )
-                            }
-                            sx={{ minWidth: 130 }}
-                          >
-                            {allowedAssignees.map((emp) => (
-                              <MenuItem key={emp._id} value={emp.fullName}>
-                                {emp.fullName}
-                              </MenuItem>
-                            ))}
-                          </TextField>
-                        ) : (
-                          esc.assignedTo
-                        )}
-                      </TableCell>
-                      {/* <TableCell align="center" sx={{ minWidth: 250 }}>
+                    {/* Editable only for Manager */}
+                    <TableCell align="center">
+                      {user?.role === "Manager" || user?.role === "Operations" ? (
+                        <TextField
+                          select
+                          size="small"
+                          value={esc.status}
+                          onChange={(e) =>
+                            handleEditCell(esc._id, "status", e.target.value)
+                          }
+                          sx={{ minWidth: 100 }}
+                        >
+                          {statusOptions.map((opt) => (
+                            <MenuItem key={opt} value={opt}>
+                              {opt}
+                            </MenuItem>
+                          ))}
+                        </TextField>
+                      ) : (
+                        esc.status
+                      )}
+                    </TableCell>
+                    <TableCell align="center">
+                      {user?.role === "Manager" || user?.role === "Operations" ? (
+                        <TextField
+                          select
+                          size="small"
+                          value={esc.assignedTo}
+                          onChange={(e) =>
+                            handleEditCell(
+                              esc._id,
+                              "assignedTo",
+                              e.target.value
+                            )
+                          }
+                          sx={{ minWidth: 130 }}
+                        >
+                          {allowedAssignees.map((emp) => (
+                            <MenuItem key={emp._id} value={emp.fullName}>
+                              {emp.fullName}
+                            </MenuItem>
+                          ))}
+                        </TextField>
+                      ) : (
+                        esc.assignedTo
+                      )}
+                    </TableCell>
+                    {/* <TableCell align="center" sx={{ minWidth: 250 }}>
                       <TextField
                         size="small"
                         value={esc.remark}
@@ -763,93 +775,82 @@ const EscalationsPage = () => {
                     </TableCell> */}
 
 
-                      <TableCell sx={{ minWidth: 250 }}>
-                        {user?.role === "Manager" || user?.role === "Operations" ? (
-                          <TextField
-                            size="small"
-                            value={remarkDrafts[esc._id] ?? esc.remark}
-                            onChange={(e) => {
-                              const newRemark = e.target.value;
-                              setRemarkDrafts((prev) => ({
-                                ...prev,
-                                [esc._id]: newRemark,
-                              }));
-                            }}
-                            onBlur={(e) => {
-                              const updatedValue =
-                                remarkDrafts[esc._id] ?? esc.remark;
-                              handleEditCell(esc._id, "remark", updatedValue);
-                            }}
-                            fullWidth
-                            sx={{ width: "100%", maxWidth: 400 }}
-                            InputProps={{ sx: { textAlign: "center" } }}
-                          />
-                        ) : (
-                          <Typography
-                            variant="body2"
-                            sx={{ whiteSpace: "pre-wrap" }}
-                          >
-                            {esc.remark || "-"}
-                          </Typography>
-                        )}
-                      </TableCell>
-
-                      <TableCell align="center">
-                        {user?.role === "Manager" || user?.role === "Operations" ? (
-                          <TextField
-                            type="date"
-                            size="small"
-                            value={esc.resolvedDate || ""}
-                            onChange={(e) =>
-                              handleEditCell(
-                                esc._id,
-                                "resolvedDate",
-                                e.target.value
-                              )
+                    <TableCell sx={{ minWidth: 350 }}>
+                      {user?.role === "Manager" || user?.role === "Operations" ? (
+                        <TextField
+                          key={`${esc._id}:${esc.remark ?? ""}`}
+                          size="small"
+                          defaultValue={esc.remark}
+                          onBlur={(e) => {
+                            const val = e.target.value;
+                            if (val !== esc.remark) {
+                              handleEditCell(esc._id, "remark", val);
                             }
-                            InputLabelProps={{ shrink: true }}
-                            sx={{ minWidth: 180 }}
-                          />
-                        ) : (
-                          esc.resolvedDate || "-"
-                        )}
-                      </TableCell>
-                      <TableCell align="right">
-                        {user?.role === "Manager" || user?.role === "Operations" ? (
-                          <IconButton
-                            color="error"
-                            onClick={() => {
-                              setDeleteEscalationId(esc._id);
-                              setDeleteDialogOpen(true);
-                            }}
-                            size="small"
-                          >
-                            <DeleteIcon />
-                          </IconButton>
-                        ) : (
-                          "-"
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  );
-                })
+                          }}
+                          fullWidth
+                          sx={{ width: "100%", maxWidth: 400 }}
+                          InputProps={{ sx: { textAlign: "center" } }}
+                        />
+                      ) : (
+                        <Typography variant="body2" sx={{ whiteSpace: "pre-wrap" }}>
+                          {esc.remark || "-"}
+                        </Typography>
+                      )}
+                    </TableCell>
+
+
+                    <TableCell align="center">
+                      {user?.role === "Manager" || user?.role === "Operations" ? (
+                        <TextField
+                          type="date"
+                          size="small"
+                          value={esc.resolvedDate || ""}
+                          onChange={(e) =>
+                            handleEditCell(
+                              esc._id,
+                              "resolvedDate",
+                              e.target.value
+                            )
+                          }
+                          InputLabelProps={{ shrink: true }}
+                          sx={{ minWidth: 180 }}
+                        />
+                      ) : (
+                        esc.resolvedDate || "-"
+                      )}
+                    </TableCell>
+                    <TableCell align="right">
+                      {user?.role === "Manager" || user?.role === "Operations" ? (
+                        <IconButton
+                          color="error"
+                          onClick={() => {
+                            setDeleteEscalationId(esc._id);
+                            setDeleteDialogOpen(true);
+                          }}
+                          size="small"
+                        >
+                          <DeleteIcon />
+                        </IconButton>
+                      ) : (
+                        "-"
+                      )}
+                    </TableCell>
+                  </TableRow>
+                );
+              })
             )}
           </TableBody>
         </Table>
         <TablePagination
           component="div"
-          count={filteredEscalations.length}
+          count={totalCount}                 // <— use server count
           page={page}
-          onPageChange={(event, newPage) => setPage(newPage)}
+          onPageChange={(e, newPage) => setPage(newPage)}
           rowsPerPage={rowsPerPage}
-          onRowsPerPageChange={(event) => {
-            setRowsPerPage(parseInt(event.target.value, 10));
-            setPage(0);
-          }}
-          rowsPerPageOptions={[5, 10, 25, 50, 100]}
+          onRowsPerPageChange={(e) => { setRowsPerPage(parseInt(e.target.value, 10)); setPage(0); }}
+          rowsPerPageOptions={[25, 50, 100, 200]}
         />
       </TableContainer>
-
 
       <Dialog
         open={deleteDialogOpen}

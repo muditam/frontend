@@ -157,10 +157,7 @@ const BloomLeaderboard = () => {
                                 <span>{gift.label}</span>
                             </Box>
                         ))}
-                    </Box>
-                    <Typography variant="body2" textAlign="center" color="#7c3aed" fontWeight={500}>
-                        Condition: Minimum ₹3,00,000 sales required
-                    </Typography>
+                    </Box> 
                     <Button
                         onClick={() => setShowGifts(false)}
                         fullWidth

@@ -55,8 +55,6 @@ export default function LeaderboardPopover({ open, anchorEl, onClose }) {
 
   const giftPrizes = isWeekly
     ? [
-      { rank: 1, label: "Assured Gift" },
-      { rank: 2, label: "Assured Gift" },
     ]
     : [
       { rank: 1, label: "Gift worth 5000" },
