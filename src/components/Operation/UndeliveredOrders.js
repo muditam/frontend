@@ -80,14 +80,14 @@ const CONTENT_TEMPLATES = [
   },
   {
     key: "rto",
-   label:
+    label:
       "Dear Team,\n\nPlease initiate RTO for AWB {{tracking_number}} and confirm once updated in the system.\n\nRegards,\n{{Agent_Name}}",
   },
   {
     key: "urgentDelivery",
     label:
-     "Dear Team,\n\nThis shipment AWB {{tracking_number}} is critical.\nKindly ensure delivery to the customer today without fail.\n\nRegards,\n{{Agent_Name}}",
- },
+      "Dear Team,\n\nThis shipment AWB {{tracking_number}} is critical.\nKindly ensure delivery to the customer today without fail.\n\nRegards,\n{{Agent_Name}}",
+  },
 ];
 
 const EMAIL_SUGGESTIONS = [
@@ -107,6 +107,13 @@ const UndeliveredOrdersTabs = () => {
   const [replyIndex, setReplyIndex] = useState(0);  // current visible index
   const [replyHasMore, setReplyHasMore] = useState(false);
   const [replyOffset, setReplyOffset] = useState(0);
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
+  const [availableStatuses, setAvailableStatuses] = useState([]); // from backend facets
+  const [statusFilter, setStatusFilter] = useState([]);
+  const [draftFromDate, setDraftFromDate] = useState("");
+  const [draftToDate, setDraftToDate] = useState("");
+  const [draftStatusFilter, setDraftStatusFilter] = useState([]);
   const REPLIES_PAGE_SIZE = 5;
 
 
@@ -170,19 +177,51 @@ const UndeliveredOrdersTabs = () => {
   useEffect(() => {
     fetchOrders(tab, page + 1, rowsPerPage);
     setSelectedIds(new Set());
-  }, [tab, page, rowsPerPage]);
+  }, [tab, page, rowsPerPage, fromDate, toDate, statusFilter]);
 
   const fetchOrders = async (priority, pageNum, limit) => {
     try {
+      const params = new URLSearchParams();
+      params.set('priority', priority);
+      params.set('page', String(pageNum));
+      params.set('limit', String(limit));
+
+      if (fromDate) params.set('startDate', fromDate);
+      if (toDate) params.set('endDate', toDate);
+      if (statusFilter.length) params.set('status', statusFilter.join(','));
+
       const res = await axios.get(
-        `https://muditamleads-14f32a10d7f7.herokuapp.com/api/orders/undelivered?priority=${priority}&page=${pageNum}&limit=${limit}`
+        `https://muditamleads-14f32a10d7f7.herokuapp.com/api/orders/undelivered?${params.toString()}`
       );
+
       setOrders(res.data.data || []);
       setTotal(res.data.total || 0);
       setCounts(res.data.counts || { High: 0, Medium: 0, Low: 0 });
+
+      // NEW: status facet for the dropdown
+      if (Array.isArray(res.data?.facets?.statuses)) {
+        setAvailableStatuses(res.data.facets.statuses);
+      } else {
+        // fallback: build from current page (may be partial)
+        const uniq = Array.from(new Set((res.data.data || []).map(o => o.shipment_status).filter(Boolean)));
+        setAvailableStatuses(uniq);
+      }
     } catch (err) {
       console.error("Error fetching orders:", err);
     }
+  };
+
+  useEffect(() => {
+    setDraftFromDate(fromDate);
+    setDraftToDate(toDate);
+    setDraftStatusFilter(statusFilter);
+  }, [fromDate, toDate, statusFilter]);
+
+  const applyFilters = () => {
+    setFromDate(draftFromDate);
+    setToDate(draftToDate);
+    setStatusFilter(draftStatusFilter);
+    setPage(0);
   };
 
   // Selection helpers
@@ -200,110 +239,110 @@ const UndeliveredOrdersTabs = () => {
   );
 
   // --- add these with your other useState hooks ---
-const [replyComposeOpen, setReplyComposeOpen] = useState(false);
-const [replySending, setReplySending] = useState(false);
-const [replyForm, setReplyForm] = useState({
-  subjectTemplateKey: "notDelivered",
-  contentTemplateKey: "statusNotDelivered",
-});
+  const [replyComposeOpen, setReplyComposeOpen] = useState(false);
+  const [replySending, setReplySending] = useState(false);
+  const [replyForm, setReplyForm] = useState({
+    subjectTemplateKey: "notDelivered",
+    contentTemplateKey: "statusNotDelivered",
+  });
 
-// Render helper to reuse your template renderer
-const renderReplyPreview = (orderId) => {
-  const ord = orders.find((o) => o.order_id === orderId);
-  if (!ord) return { subject: "", content: "" };
-  const vars = {
-    "order_id": ord.order_id || "-",
-     "order id": ord.order_id || "-",
-    "tracking_number": ord.tracking_number || "-",
-    "awb": ord.tracking_number || "-",
-    "order date": ord.order_date ? dayjs(ord.order_date).format("DD/MM/YYYY") : "-", 
-   "agent_name": getAgentName(), 
-  };
-  const subjectTpl =
-    SUBJECT_TEMPLATES.find((t) => t.key === replyForm.subjectTemplateKey)?.label ||
-    SUBJECT_TEMPLATES[0].label;
-  const contentTpl =
-    CONTENT_TEMPLATES.find((t) => t.key === replyForm.contentTemplateKey)?.label ||
-    CONTENT_TEMPLATES[0].label;
-
-  return {
-    subject: replaceTokens(subjectTpl, vars),
-    content: replaceTokens(contentTpl, vars),
-  };
-};
-
-// reply dropdown handlers
-const handleReplySubjectChange = (e) =>
-  setReplyForm((p) => ({ ...p, subjectTemplateKey: e.target.value }));
-const handleReplyContentChange = (e) =>
-  setReplyForm((p) => ({ ...p, contentTemplateKey: e.target.value }));
-
-// send reply (calls your backend)
-const handleSendReply = async () => {
-  if (!replyDlg.orderId) return;
-  try {
-    setReplySending(true);
-    const payload = {
-      orderId: replyDlg.orderId,
-      subjectTemplateKey: replyForm.subjectTemplateKey,
-      contentTemplateKey: replyForm.contentTemplateKey,
+  // Render helper to reuse your template renderer
+  const renderReplyPreview = (orderId) => {
+    const ord = orders.find((o) => o.order_id === orderId);
+    if (!ord) return { subject: "", content: "" };
+    const vars = {
+      "order_id": ord.order_id || "-",
+      "order id": ord.order_id || "-",
+      "tracking_number": ord.tracking_number || "-",
+      "awb": ord.tracking_number || "-",
+      "order date": ord.order_date ? dayjs(ord.order_date).format("DD/MM/YYYY") : "-",
+      "agent_name": getAgentName(),
     };
-    await axios.post(`${API_BASE}/api/zoho/reply`, payload);
+    const subjectTpl =
+      SUBJECT_TEMPLATES.find((t) => t.key === replyForm.subjectTemplateKey)?.label ||
+      SUBJECT_TEMPLATES[0].label;
+    const contentTpl =
+      CONTENT_TEMPLATES.find((t) => t.key === replyForm.contentTemplateKey)?.label ||
+      CONTENT_TEMPLATES[0].label;
 
-    // refresh this order's latest reply after sending
+    return {
+      subject: replaceTokens(subjectTpl, vars),
+      content: replaceTokens(contentTpl, vars),
+    };
+  };
+
+  // reply dropdown handlers
+  const handleReplySubjectChange = (e) =>
+    setReplyForm((p) => ({ ...p, subjectTemplateKey: e.target.value }));
+  const handleReplyContentChange = (e) =>
+    setReplyForm((p) => ({ ...p, contentTemplateKey: e.target.value }));
+
+  // send reply (calls your backend)
+  const handleSendReply = async () => {
+    if (!replyDlg.orderId) return;
     try {
-      const qs = encodeURIComponent(replyDlg.orderId);
-      const { data } = await axios.get(`${API_BASE}/api/zoho/replies?orderIds=${qs}`);
-      const rep = data?.replies?.[replyDlg.orderId] || null;
-      setEmailStatus((prev) => ({
-        ...prev,
-        [replyDlg.orderId]: {
-          ...(prev[replyDlg.orderId] || { emailed: true, count: prev[replyDlg.orderId]?.count || 0 }),
-          ...(rep ? { lastReply: rep } : {}),
-        },
-      }));
-      setReplyDlg((d) => ({ ...d, data: rep }));
-    } catch {}
+      setReplySending(true);
+      const payload = {
+        orderId: replyDlg.orderId,
+        subjectTemplateKey: replyForm.subjectTemplateKey,
+        contentTemplateKey: replyForm.contentTemplateKey,
+      };
+      await axios.post(`${API_BASE}/api/zoho/reply`, payload);
 
-    setToast({ open: true, severity: "success", msg: "Reply sent." });
-    setReplyComposeOpen(false);
-  } catch (err) {
-    setToast({
-      open: true,
-      severity: "error",
-      msg: err?.response?.data?.message || err?.message || "Failed to send reply.",
+      // refresh this order's latest reply after sending
+      try {
+        const qs = encodeURIComponent(replyDlg.orderId);
+        const { data } = await axios.get(`${API_BASE}/api/zoho/replies?orderIds=${qs}`);
+        const rep = data?.replies?.[replyDlg.orderId] || null;
+        setEmailStatus((prev) => ({
+          ...prev,
+          [replyDlg.orderId]: {
+            ...(prev[replyDlg.orderId] || { emailed: true, count: prev[replyDlg.orderId]?.count || 0 }),
+            ...(rep ? { lastReply: rep } : {}),
+          },
+        }));
+        setReplyDlg((d) => ({ ...d, data: rep }));
+      } catch { }
+
+      setToast({ open: true, severity: "success", msg: "Reply sent." });
+      setReplyComposeOpen(false);
+    } catch (err) {
+      setToast({
+        open: true,
+        severity: "error",
+        msg: err?.response?.data?.message || err?.message || "Failed to send reply.",
+      });
+    } finally {
+      setReplySending(false);
+    }
+  };
+
+  // Get agent name from sessionStorage
+  const getAgentName = () => {
+    const user = JSON.parse(sessionStorage.getItem("user")); // Assuming the user data is stored in sessionStorage with key "user"
+    if (user && user.fullName) {
+      return user.fullName; // Use fullName from the logged-in user data
+    }
+    return "Agent"; // Fallback to "Agent" if no name found
+  };
+
+
+  // Robust token replacement for both {{token}} and {token}, case-insensitive
+  const replaceTokens = (tpl, vars) => {
+    if (!tpl) return "";
+    let out = String(tpl);
+    // Handle {{ token }} style
+    out = out.replace(/{{\s*([^}]+)\s*}}/gi, (_, raw) => {
+      const key = String(raw).trim().toLowerCase();
+      return vars[key] ?? "";
     });
-  } finally {
-    setReplySending(false);
-  }
-};
- 
-// Get agent name from sessionStorage
-const getAgentName = () => {
-  const user = JSON.parse(sessionStorage.getItem("user")); // Assuming the user data is stored in sessionStorage with key "user"
-  if (user && user.fullName) {
-    return user.fullName; // Use fullName from the logged-in user data
-  }
-  return "Agent"; // Fallback to "Agent" if no name found
-};
-
-
-// Robust token replacement for both {{token}} and {token}, case-insensitive
-const replaceTokens = (tpl, vars) => {
-  if (!tpl) return "";
-  let out = String(tpl);
-  // Handle {{ token }} style
-  out = out.replace(/{{\s*([^}]+)\s*}}/gi, (_, raw) => {
-    const key = String(raw).trim().toLowerCase();
-    return vars[key] ?? "";
-  });
-  // Back-compat for {token} style already used in older UI
-  out = out.replace(/{\s*([^}]+)\s*}/gi, (_, raw) => {
-    const key = String(raw).trim().toLowerCase();
-    return vars[key] ?? "";
-  });
-  return out;
-};
+    // Back-compat for {token} style already used in older UI
+    out = out.replace(/{\s*([^}]+)\s*}/gi, (_, raw) => {
+      const key = String(raw).trim().toLowerCase();
+      return vars[key] ?? "";
+    });
+    return out;
+  };
 
   const toggleOne = (id) => {
     setSelectedIds((prev) => {
@@ -327,31 +366,31 @@ const replaceTokens = (tpl, vars) => {
   };
 
   const loadRepliesPage = async ({ orderId, offset = 0, append = false }) => {
-  try {
-    const { data } = await axios.get(
-      `${API_BASE}/api/zoho/replies/list`,
-      { params: { orderId, offset, limit: REPLIES_PAGE_SIZE } }
-    );
-    const rawItems = Array.isArray(data?.items) ? data.items : [];
+    try {
+      const { data } = await axios.get(
+        `${API_BASE}/api/zoho/replies/list`,
+        { params: { orderId, offset, limit: REPLIES_PAGE_SIZE } }
+      );
+      const rawItems = Array.isArray(data?.items) ? data.items : [];
 
-    // Prefer only external replies (not from us). If none, show all.
-    const external = rawItems.filter((it) => !it.isSelf);
-    const items = external.length ? external : rawItems;
+      // Prefer only external replies (not from us). If none, show all.
+      const external = rawItems.filter((it) => !it.isSelf);
+      const items = external.length ? external : rawItems;
 
-    setReplyItems((prev) => (append ? [...prev, ...items] : items));
-    setReplyHasMore(!!data?.hasMore);
-    setReplyOffset(offset + rawItems.length); // advance by raw length so paging stays correct
+      setReplyItems((prev) => (append ? [...prev, ...items] : items));
+      setReplyHasMore(!!data?.hasMore);
+      setReplyOffset(offset + rawItems.length); // advance by raw length so paging stays correct
 
-    if (!append) setReplyIndex(0);
+      if (!append) setReplyIndex(0);
 
-    if (!items.length) {
-      setToast({ open: true, severity: "info", msg: "No replies found in this thread yet." });
+      if (!items.length) {
+        setToast({ open: true, severity: "info", msg: "No replies found in this thread yet." });
+      }
+    } catch (e) {
+      console.error("Failed to load replies list:", e);
+      setToast({ open: true, severity: "error", msg: "Failed to load replies." });
     }
-  } catch (e) {
-    console.error("Failed to load replies list:", e);
-    setToast({ open: true, severity: "error", msg: "Failed to load replies." });
-  }
-};
+  };
 
 
 
@@ -368,28 +407,28 @@ const replaceTokens = (tpl, vars) => {
   };
 
   const SUBJECT_TO_CONTENT_MAP = {
-  fakeRemark: "fakeRemark",
-  notReceived: "notReceived",
-  delayed: "delayed",
-  doorstep: "doorstep",
-  wrongOtp: "wrongOtp",
-  codToPrepaid: "codToPrepaid",
-  rto: "rto",
-  urgentDelivery: "urgentDelivery",
-};
+    fakeRemark: "fakeRemark",
+    notReceived: "notReceived",
+    delayed: "delayed",
+    doorstep: "doorstep",
+    wrongOtp: "wrongOtp",
+    codToPrepaid: "codToPrepaid",
+    rto: "rto",
+    urgentDelivery: "urgentDelivery",
+  };
 
   const handleFromChange = (e) =>
     setEmailForm((p) => ({ ...p, from: e.target.value }));
   const handleToChange = (_, values) =>
     setEmailForm((p) => ({ ...p, to: values }));
   const handleSubjectTemplateChange = (e) => {
-  const selectedSubjectTemplateKey = e.target.value;
-  setEmailForm((p) => ({
-    ...p,
-    subjectTemplateKey: selectedSubjectTemplateKey,
-    contentTemplateKey: SUBJECT_TO_CONTENT_MAP[selectedSubjectTemplateKey],  
-  }));
-};
+    const selectedSubjectTemplateKey = e.target.value;
+    setEmailForm((p) => ({
+      ...p,
+      subjectTemplateKey: selectedSubjectTemplateKey,
+      contentTemplateKey: SUBJECT_TO_CONTENT_MAP[selectedSubjectTemplateKey],
+    }));
+  };
   const handleContentTemplateChange = (e) =>
     setEmailForm((p) => ({ ...p, contentTemplateKey: e.target.value }));
   const handleAttachmentsChange = (e) => {
@@ -400,16 +439,16 @@ const replaceTokens = (tpl, vars) => {
   const fmt = (d) => (d ? dayjs(d).format("DD/MM/YYYY") : "-");
   const first = selectedOrders[0];
   const previewVars = first
-   ? {
+    ? {
       // normalized, lower-cased keys for replaceTokens
-       "order_id": first.order_id || "-",
-       "order id": first.order_id || "-",
-       "tracking_number": first.tracking_number || "-",
+      "order_id": first.order_id || "-",
+      "order id": first.order_id || "-",
+      "tracking_number": first.tracking_number || "-",
       "awb": first.tracking_number || "-",
-       "order date": fmt(first.order_date),
+      "order date": fmt(first.order_date),
       "agent_name": getAgentName(emailForm.from),
-     }
-   : null;
+    }
+    : null;
 
   const renderTemplate = (tpl, v) =>
     tpl
@@ -420,20 +459,20 @@ const replaceTokens = (tpl, vars) => {
       .replace(/{order_date}/g, v.order_date);
 
   const previewSubject =
-   first &&
-   replaceTokens(
-     SUBJECT_TEMPLATES.find((t) => t.key === emailForm.subjectTemplateKey)?.label ||
+    first &&
+    replaceTokens(
+      SUBJECT_TEMPLATES.find((t) => t.key === emailForm.subjectTemplateKey)?.label ||
       SUBJECT_TEMPLATES[0].label,
-    previewVars
-   );
- 
- const previewContent =
-   first &&
-   replaceTokens(
-     CONTENT_TEMPLATES.find((t) => t.key === emailForm.contentTemplateKey)?.label ||
-       CONTENT_TEMPLATES[0].label,
-     previewVars
-   );
+      previewVars
+    );
+
+  const previewContent =
+    first &&
+    replaceTokens(
+      CONTENT_TEMPLATES.find((t) => t.key === emailForm.contentTemplateKey)?.label ||
+      CONTENT_TEMPLATES[0].label,
+      previewVars
+    );
 
   // Send email (batch) then refresh emailed state from backend
   const handleSendEmail = async () => {
@@ -554,31 +593,31 @@ const replaceTokens = (tpl, vars) => {
       setEmailStatus((prev) => ({
         ...prev,
         [orderId]: {
-          ...(prev[orderId] || { emailed: true, count: prev[orderId]?.count || 0 }),
+          ...(prev[orderId] || {}),
           ...(rep ? { lastReply: rep } : {}),
         },
       }));
 
       setReplyDlg((d) => ({ ...d, loading: false, data: rep }));
     } catch {
-    setReplyDlg((d) => ({ ...d, loading: false }));
-  }
+      setReplyDlg((d) => ({ ...d, loading: false }));
+    }
   };
 
   const showPrevReply = () => {
-  setReplyIndex((idx) => Math.max(0, idx - 1));
-};
+    setReplyIndex((idx) => Math.max(0, idx - 1));
+  };
 
-const showNextReply = async () => {
-  const isLastLoaded = replyIndex >= replyItems.length - 1;
-  if (isLastLoaded && replyHasMore && replyDlg.orderId) {
-    // Fetch next page and then move forward
-    await loadRepliesPage({ orderId: replyDlg.orderId, offset: replyOffset, append: true });
-    setReplyIndex((idx) => Math.min(idx + 1, replyItems.length)); // move to first of the new page
-  } else {
-    setReplyIndex((idx) => Math.min(replyItems.length - 1, idx + 1));
-  }
-};
+  const showNextReply = async () => {
+    const isLastLoaded = replyIndex >= replyItems.length - 1;
+    if (isLastLoaded && replyHasMore && replyDlg.orderId) {
+      // Fetch next page and then move forward
+      await loadRepliesPage({ orderId: replyDlg.orderId, offset: replyOffset, append: true });
+      setReplyIndex((idx) => Math.min(idx + 1, replyItems.length)); // move to first of the new page
+    } else {
+      setReplyIndex((idx) => Math.min(replyItems.length - 1, idx + 1));
+    }
+  };
 
 
   const closeReplyDialog = () =>
@@ -642,6 +681,8 @@ const showNextReply = async () => {
           <Tab value="Low" label={`Low (${counts.Low})`} />
         </Tabs>
 
+
+
         <Button
           variant="contained"
           disabled={selectedOrders.length === 0}
@@ -655,6 +696,65 @@ const showNextReply = async () => {
           Send Email
         </Button>
       </Box>
+
+      <Paper sx={{ p: 2, mb: 1 }}>
+        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} alignItems="center">
+          <TextField
+            type="date"
+            label="From date"
+            value={draftFromDate}
+            onChange={(e) => setDraftFromDate(e.target.value)}
+            InputLabelProps={{ shrink: true }}
+            size="small"
+          />
+          <TextField
+            type="date"
+            label="To date"
+            value={draftToDate}
+            onChange={(e) => setDraftToDate(e.target.value)}
+            InputLabelProps={{ shrink: true }}
+            size="small"
+          />
+
+          <Select
+            multiple
+            displayEmpty
+            value={draftStatusFilter}
+            onChange={(e) => {
+              const val = typeof e.target.value === 'string' ? e.target.value.split(',') : e.target.value;
+              setDraftStatusFilter(val);
+            }}
+            renderValue={(selected) => selected.length ? selected.join(', ') : 'All statuses'}
+            size="small"
+            sx={{ minWidth: 220 }}
+          >
+            {availableStatuses.map((s) => (
+              <MenuItem key={s} value={s}>{s}</MenuItem>
+            ))}
+          </Select>
+
+          {/* NEW: Apply button to the right of Status */}
+          <Button
+            variant="contained"
+            onClick={applyFilters}
+            sx={{ bgcolor: 'black', color: 'white', '&:hover': { bgcolor: '#333' } }}
+          >
+            Apply
+          </Button>
+
+          <Button
+            variant="text"
+            onClick={() => {
+              // reset both live and draft filters
+              setFromDate(""); setToDate(""); setStatusFilter([]);
+              setDraftFromDate(""); setDraftToDate(""); setDraftStatusFilter([]);
+              setPage(0);
+            }}
+          >
+            Reset
+          </Button>
+        </Stack>
+      </Paper>
 
       {/* Orders Table */}
       <Paper sx={{ mt: 2 }}>
@@ -679,6 +779,12 @@ const showNextReply = async () => {
               </TableCell>
               <TableCell align="center" sx={{ color: "white", fontWeight: "bold" }}>
                 Order ID
+              </TableCell>
+              <TableCell align="center" sx={{ color: "white", fontWeight: "bold" }}>
+                Customer Phone
+              </TableCell>
+              <TableCell align="center" sx={{ color: "white", fontWeight: "bold" }}>
+                Priority
               </TableCell>
               <TableCell align="center" sx={{ color: "white", fontWeight: "bold" }}>
                 Status
@@ -722,6 +828,18 @@ const showNextReply = async () => {
                       />
                     </TableCell>
                     <TableCell align="center">{order.order_id || "-"}</TableCell>
+                    <TableCell align="center">{order.contact_number || "-"}</TableCell>
+                    <TableCell align="center">
+                      {order.hasEscalation ? (
+                        <Chip
+                          size="small"
+                          label="High Priority"
+                          sx={{ bgcolor: "yellow", color: "black" }} 
+                        />
+                      ) : (
+                        "-"
+                      )}
+                    </TableCell>
                     <TableCell align="center">{order.shipment_status || "-"}</TableCell>
                     <TableCell align="center">
                       {order.order_date ? dayjs(order.order_date).format("DD/MM/YYYY") : "-"}
@@ -924,162 +1042,162 @@ const showNextReply = async () => {
 
       {/* Reply Dialog (on-demand) */}
       <Dialog open={replyDlg.open} onClose={closeReplyDialog} fullWidth maxWidth="sm">
-  <DialogTitle sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-  <span>Reply</span>
-  <Box>
-    <IconButton
-      size="small"
-      onClick={showPrevReply}
-      disabled={replyDlg.loading || replyIndex <= 0}
-      aria-label="Previous reply"
-    >
-      <ChevronLeftIcon />
-    </IconButton>
-    <IconButton
-      size="small"
-      onClick={showNextReply}
-      disabled={replyDlg.loading || (!replyHasMore && replyIndex >= replyItems.length - 1)}
-      aria-label="Next reply"
-    >
-      <ChevronRightIcon />
-    </IconButton>
-  </Box>
-</DialogTitle>
-
-
-  <DialogContent dividers>
-    {replyDlg.loading ? (
-      <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-        <CircularProgress size={18} /> <Typography>Loading reply…</Typography>
-      </Box>
-    ) : (
-      <Stack spacing={2}>
-        {/* Existing reply preview (if any) */}
-        {replyItems.length > 0 ? (
-      <Stack spacing={1}>
-        <Typography variant="body2"><b>Order ID:</b> {replyDlg.orderId}</Typography>
-        <Typography variant="body2"><b>From:</b> {replyItems[replyIndex]?.from || "-"}</Typography>
-        <Typography variant="body2">
-          <b>At:</b>{" "}
-          {replyItems[replyIndex]?.at ? dayjs(replyItems[replyIndex].at).format("DD/MM/YYYY HH:mm") : "-"}
-        </Typography>
-        <Typography variant="body1" sx={{ whiteSpace: "pre-wrap" }}>
-          {replyItems[replyIndex]?.text || "(no preview)"}
-        </Typography>
-        <Typography variant="caption" sx={{ opacity: 0.7 }}>
-          {replyItems.length > 0 ? `Reply ${replyIndex + 1} of ${replyHasMore ? `${replyItems.length}+` : replyItems.length}` : ""}
-        </Typography>
-      </Stack>
-    ) : replyDlg.data ? (
-      // Fallback: old single reply (if list was empty)
-      <Stack spacing={1}>
-        <Typography variant="body2"><b>Order ID:</b> {replyDlg.orderId}</Typography>
-        <Typography variant="body2"><b>From:</b> {replyDlg.data.from || "-"}</Typography>
-        <Typography variant="body2">
-          <b>At:</b>{" "}
-          {replyDlg.data.at ? dayjs(replyDlg.data.at).format("DD/MM/YYYY HH:mm") : "-"}
-        </Typography>
-        <Typography variant="body1" sx={{ whiteSpace: "pre-wrap" }}>
-          {replyDlg.data.text || "(no preview)"}
-        </Typography>
-      </Stack>
-    ) : (
-      <Typography variant="body2">No reply found.</Typography>
-    )}
-
-        {/* Compose area toggled by the Reply button */}
-        {replyComposeOpen && (
-          <Box sx={{ mt: 1 }}>
-            <Typography variant="subtitle2" sx={{ mb: 1 }}>
-              Compose reply (same thread)
-            </Typography>
-
-            {/* Subject template */}
-            <Box sx={{ mb: 1.5 }}>
-              <Typography variant="caption" sx={{ mb: 0.5, display: "block" }}>
-                Subject Template
-              </Typography>
-              <Select
-                fullWidth
-                size="small"
-                value={replyForm.subjectTemplateKey}
-                onChange={handleReplySubjectChange}
-                sx={{
-                  "& .MuiOutlinedInput-notchedOutline": { borderColor: "rgba(0,0,0,0.23)" },
-                  "&.Mui-focused .MuiOutlinedInput-notchedOutline": { borderColor: "black" },
-                }}
-              >
-                {SUBJECT_TEMPLATES.map((t) => (
-                  <MenuItem key={t.key} value={t.key}>
-                    {t.label}
-                  </MenuItem>
-                ))}
-              </Select>
-              <Typography variant="body2" sx={{ mt: 0.5, opacity: 0.8 }}>
-                Preview: {replyDlg.orderId ? renderReplyPreview(replyDlg.orderId).subject : ""}
-              </Typography>
-            </Box>
-
-            {/* Content template */}
-            <Box>
-              <Typography variant="caption" sx={{ mb: 0.5, display: "block" }}>
-                Content Template
-              </Typography>
-              <Select
-                fullWidth
-                size="small"
-                value={replyForm.contentTemplateKey}
-                onChange={handleReplyContentChange}
-                sx={{
-                  "& .MuiOutlinedInput-notchedOutline": { borderColor: "rgba(0,0,0,0.23)" },
-                  "&.Mui-focused .MuiOutlinedInput-notchedOutline": { borderColor: "black" },
-                }}
-              >
-                {CONTENT_TEMPLATES.map((t) => (
-                  <MenuItem key={t.key} value={t.key}>
-                    {t.label}
-                  </MenuItem>
-                ))}
-              </Select>
-              <Typography
-                variant="body2"
-                sx={{ mt: 0.5, whiteSpace: "pre-wrap", opacity: 0.8 }}
-              >
-                Preview: {replyDlg.orderId ? renderReplyPreview(replyDlg.orderId).content : ""}
-              </Typography>
-            </Box>
+        <DialogTitle sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <span>Reply</span>
+          <Box>
+            <IconButton
+              size="small"
+              onClick={showPrevReply}
+              disabled={replyDlg.loading || replyIndex <= 0}
+              aria-label="Previous reply"
+            >
+              <ChevronLeftIcon />
+            </IconButton>
+            <IconButton
+              size="small"
+              onClick={showNextReply}
+              disabled={replyDlg.loading || (!replyHasMore && replyIndex >= replyItems.length - 1)}
+              aria-label="Next reply"
+            >
+              <ChevronRightIcon />
+            </IconButton>
           </Box>
-        )}
-      </Stack>
-    )}
-  </DialogContent>
+        </DialogTitle>
 
-  <DialogActions>
-    {/* Toggle compose UI */}
-    <Button
-      onClick={() => setReplyComposeOpen((v) => !v)}
-      disabled={replyDlg.loading}
-      sx={{ mr: "auto" }}
-    >
-      {replyComposeOpen ? "Cancel Reply" : "Reply"}
-    </Button>
 
-    {/* Send button only shown when composing */}
-    {replyComposeOpen && (
-      <Button
-        onClick={handleSendReply}
-        variant="contained"
-        disabled={replySending}
-        startIcon={replySending ? <CircularProgress size={18} /> : null}
-        sx={{ bgcolor: "black", color: "white", "&:hover": { bgcolor: "#333" } }}
-      >
-        {replySending ? "Sending..." : "Send Reply"}
-      </Button>
-    )}
+        <DialogContent dividers>
+          {replyDlg.loading ? (
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+              <CircularProgress size={18} /> <Typography>Loading reply…</Typography>
+            </Box>
+          ) : (
+            <Stack spacing={2}>
+              {/* Existing reply preview (if any) */}
+              {replyItems.length > 0 ? (
+                <Stack spacing={1}>
+                  <Typography variant="body2"><b>Order ID:</b> {replyDlg.orderId}</Typography>
+                  <Typography variant="body2"><b>From:</b> {replyItems[replyIndex]?.from || "-"}</Typography>
+                  <Typography variant="body2">
+                    <b>At:</b>{" "}
+                    {replyItems[replyIndex]?.at ? dayjs(replyItems[replyIndex].at).format("DD/MM/YYYY HH:mm") : "-"}
+                  </Typography>
+                  <Typography variant="body1" sx={{ whiteSpace: "pre-wrap" }}>
+                    {replyItems[replyIndex]?.text || "(no preview)"}
+                  </Typography>
+                  <Typography variant="caption" sx={{ opacity: 0.7 }}>
+                    {replyItems.length > 0 ? `Reply ${replyIndex + 1} of ${replyHasMore ? `${replyItems.length}+` : replyItems.length}` : ""}
+                  </Typography>
+                </Stack>
+              ) : replyDlg.data ? (
+                // Fallback: old single reply (if list was empty)
+                <Stack spacing={1}>
+                  <Typography variant="body2"><b>Order ID:</b> {replyDlg.orderId}</Typography>
+                  <Typography variant="body2"><b>From:</b> {replyDlg.data.from || "-"}</Typography>
+                  <Typography variant="body2">
+                    <b>At:</b>{" "}
+                    {replyDlg.data.at ? dayjs(replyDlg.data.at).format("DD/MM/YYYY HH:mm") : "-"}
+                  </Typography>
+                  <Typography variant="body1" sx={{ whiteSpace: "pre-wrap" }}>
+                    {replyDlg.data.text || "(no preview)"}
+                  </Typography>
+                </Stack>
+              ) : (
+                <Typography variant="body2">No reply found.</Typography>
+              )}
 
-    <Button onClick={closeReplyDialog}>Close</Button>
-  </DialogActions>
-</Dialog>
+              {/* Compose area toggled by the Reply button */}
+              {replyComposeOpen && (
+                <Box sx={{ mt: 1 }}>
+                  <Typography variant="subtitle2" sx={{ mb: 1 }}>
+                    Compose reply (same thread)
+                  </Typography>
+
+                  {/* Subject template */}
+                  <Box sx={{ mb: 1.5 }}>
+                    <Typography variant="caption" sx={{ mb: 0.5, display: "block" }}>
+                      Subject Template
+                    </Typography>
+                    <Select
+                      fullWidth
+                      size="small"
+                      value={replyForm.subjectTemplateKey}
+                      onChange={handleReplySubjectChange}
+                      sx={{
+                        "& .MuiOutlinedInput-notchedOutline": { borderColor: "rgba(0,0,0,0.23)" },
+                        "&.Mui-focused .MuiOutlinedInput-notchedOutline": { borderColor: "black" },
+                      }}
+                    >
+                      {SUBJECT_TEMPLATES.map((t) => (
+                        <MenuItem key={t.key} value={t.key}>
+                          {t.label}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                    <Typography variant="body2" sx={{ mt: 0.5, opacity: 0.8 }}>
+                      Preview: {replyDlg.orderId ? renderReplyPreview(replyDlg.orderId).subject : ""}
+                    </Typography>
+                  </Box>
+
+                  {/* Content template */}
+                  <Box>
+                    <Typography variant="caption" sx={{ mb: 0.5, display: "block" }}>
+                      Content Template
+                    </Typography>
+                    <Select
+                      fullWidth
+                      size="small"
+                      value={replyForm.contentTemplateKey}
+                      onChange={handleReplyContentChange}
+                      sx={{
+                        "& .MuiOutlinedInput-notchedOutline": { borderColor: "rgba(0,0,0,0.23)" },
+                        "&.Mui-focused .MuiOutlinedInput-notchedOutline": { borderColor: "black" },
+                      }}
+                    >
+                      {CONTENT_TEMPLATES.map((t) => (
+                        <MenuItem key={t.key} value={t.key}>
+                          {t.label}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                    <Typography
+                      variant="body2"
+                      sx={{ mt: 0.5, whiteSpace: "pre-wrap", opacity: 0.8 }}
+                    >
+                      Preview: {replyDlg.orderId ? renderReplyPreview(replyDlg.orderId).content : ""}
+                    </Typography>
+                  </Box>
+                </Box>
+              )}
+            </Stack>
+          )}
+        </DialogContent>
+
+        <DialogActions>
+          {/* Toggle compose UI */}
+          <Button
+            onClick={() => setReplyComposeOpen((v) => !v)}
+            disabled={replyDlg.loading}
+            sx={{ mr: "auto" }}
+          >
+            {replyComposeOpen ? "Cancel Reply" : "Reply"}
+          </Button>
+
+          {/* Send button only shown when composing */}
+          {replyComposeOpen && (
+            <Button
+              onClick={handleSendReply}
+              variant="contained"
+              disabled={replySending}
+              startIcon={replySending ? <CircularProgress size={18} /> : null}
+              sx={{ bgcolor: "black", color: "white", "&:hover": { bgcolor: "#333" } }}
+            >
+              {replySending ? "Sending..." : "Send Reply"}
+            </Button>
+          )}
+
+          <Button onClick={closeReplyDialog}>Close</Button>
+        </DialogActions>
+      </Dialog>
 
 
       {/* Toast */}

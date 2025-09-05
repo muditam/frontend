@@ -208,7 +208,7 @@ const DeliveryStatusChecker = ({ onClose }) => {
                     <Typography sx={{ fontSize: "0.85rem", color: "#444" }}>
                       Status:{" "}
                       <span style={{ fontWeight: 600 }}>
-                        {item.shipment_status}
+                        {item.shipment_status} 
                       </span>
                     </Typography>
                   </Grid>

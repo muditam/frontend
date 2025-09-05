@@ -1,7 +1,6 @@
 import React from "react";
 import "./global.css";
-import { BrowserRouter as Router, Route, Routes } from "react-router-dom";
-import SmartfloIncomingCallOverlay from "./components/SmartfloIncomingCallOverlay";
+import { BrowserRouter as Router, Route, Routes } from "react-router-dom"; 
 import BulkDataUpload from "./components/BulkDataUpload";
 import AddEmployee from "./pages/AddEmployee";
 import LeadTable from "./pages/master/MasterLeads";
@@ -19,7 +18,7 @@ import NavbarWithSearch from "./components/TopBars/NavBarwithSearch";
 import SalesDashboard from "./components/Dashboards/SalesDashboard";
 import OrdersTable from "./ShopifyOrders/AllShopifyOrders";
 import OnlineOrders from "./ShopifyOrders/OnlineOrders";
-import TransferRequests from "./components/LeadRequests/TransferRequest";
+import TransferRequests from "./components/LeadRequests/TransferRequest"; 
 import LeadDetail from "./components/LeadRequests/LeadDetails";
 import RetentionData from "./pages/filtered/Retention";
 import AcquisitionLost from "./Lostdata/AcquisitionLost";
@@ -48,14 +47,14 @@ import AbandonedCheckouts from "./components/AbandonedCheckouts";
 import UndeliveredOrders from "./components/Operation/UndeliveredOrders";
 import SmartfloCallLogs from "./components/SmartfloCallLogs";
 import SmartfloDataAnalytics from "./components/SmartfloDataAnalytics";
-
+import ReturnDeliveredOrders from "./components/ReturnDeliveredOrders";
+import DietTemplateAdmin from "./components/DietTemplateAdmin";
 
 const App = () => {
   return (
     <Router>
       <div>
-        <NavbarWithSearch />
-        <SmartfloIncomingCallOverlay />
+        <NavbarWithSearch /> 
 
         <Routes>
           <Route
@@ -70,6 +69,7 @@ const App = () => {
           <Route path="/operations/undelivered" element={<UndeliveredOrders />} />
           <Route path="/smartflo/call-logs" element={<SmartfloCallLogs />} />
           <Route path="/smartflo/data-analytics" element={<SmartfloDataAnalytics />} />
+          <Route path="/diet-template" element={<DietTemplateAdmin />} />
 
           {/* Protected Routes */}
           <Route
@@ -375,6 +375,14 @@ const App = () => {
             element={
               <PrivateRoute>
                 <ReturnOrders />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/Agent-return"
+            element={
+              <PrivateRoute>
+                <ReturnDeliveredOrders />
               </PrivateRoute>
             }
           />

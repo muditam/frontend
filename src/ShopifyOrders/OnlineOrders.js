@@ -28,7 +28,6 @@ const OnlineOrders = () => {
   const [selectedPaymentMode, setSelectedPaymentMode] = useState('');
   const [availablePaymentModes, setAvailablePaymentModes] = useState([]);
 
-
   const productAbbreviations = {
     'Karela Jamun Fizz': 'KJF',
     'Sugar Defend Pro': 'SDP',
@@ -41,7 +40,10 @@ const OnlineOrders = () => {
     'Power Gut': 'PGut',
     'Shilajit with Gold': 'Shilajit',
     'Diabetes Management Kit': 'Kit',
-  };
+  }; 
+
+  // 1) Helper at the top (below imports)
+  const phoneLast10 = (v = "") => String(v).replace(/\D/g, "").slice(-10);
 
   const storedStartDate = localStorage.getItem('startDate');
   const storedEndDate = localStorage.getItem('endDate');
@@ -49,7 +51,7 @@ const OnlineOrders = () => {
   const today = new Date().toISOString().split("T")[0];
   const defaultEnd = storedEndDate || today;
 
-  const [startDate, setStartDate] = useState(defaultStart);
+  const [startDate, setStartDate] = useState(defaultStart); 
   const [endDate, setEndDate] = useState(defaultEnd);
 
   useEffect(() => {
@@ -88,18 +90,19 @@ const OnlineOrders = () => {
           order.channel_name === "205650526209"
       );
 
-      const phones = webOrders.map((o) => o.contact_number.replace(/[^\d]/g, ""));
+      const phones = webOrders.map((o) => phoneLast10(o.contact_number));
       const leadsRes = await axios.post("https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/by-phones", {
         phoneNumbers: phones,
       });
-      const leads = leadsRes.data;
-      const leadPhonesSet = new Set(leads.map((lead) => lead.contactNumber.replace(/[^\d]/g, "")));
+      const leads = leadsRes.data; 
+      const leadPhonesSet = new Set(leads.map((lead) => phoneLast10(lead.contactNumber)));
+
 
       const ordersWithHealthExperts = webOrders
         .map((order) => {
-          const normalizedPhone = order.contact_number.replace(/[^\d]/g, "");
+          const normalizedPhone = phoneLast10(order.contact_number);
           const matchingLead = leads.find(
-            (lead) => lead.contactNumber.replace(/[^\d]/g, "") === normalizedPhone
+            (lead) => phoneLast10(lead.contactNumber) === normalizedPhone
           );
           return {
             ...order,
@@ -120,7 +123,7 @@ const OnlineOrders = () => {
           ? o.payment_gateway_names.join(", ")
           : o.payment_gateway_names
       );
-      const uniqueModes = [...new Set(allModes)];
+      const uniqueModes = [...new Set(allModes.filter(Boolean))];
       setAvailablePaymentModes(uniqueModes);
 
 
@@ -143,10 +146,12 @@ const OnlineOrders = () => {
     const order = filteredOrders[globalIndex];
     if (!order.healthExpertAssigned) return;
 
+    const contactNumberNormalized = phoneLast10(order.contact_number);
+
     const leadData = {
       orderId: order.order_id,
       name: order.name,
-      contactNumber: order.contact_number,
+      contactNumber: contactNumberNormalized,
       date: new Date(order.created_at).toISOString().split("T")[0],
       lastOrderDate: new Date(order.created_at).toISOString().split("T")[0],
       amount: order.total_price,
@@ -164,7 +169,8 @@ const OnlineOrders = () => {
 
     try {
       const existingLeadResponse = await axios.get(
-        `https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/check-duplicate?contactNumber=${leadData.contactNumber}`
+        `https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/check-duplicate`,
+        { params: { contactNumber: contactNumberNormalized } }
       );
       if (existingLeadResponse.data.exists) {
         await axios.put(
@@ -176,10 +182,10 @@ const OnlineOrders = () => {
       }
 
       // Remove order from list after save
-      const updatedOrders = orders.filter((_, index) => index !== globalIndex);
+      const updatedOrders = orders.filter((o) => o.order_id !== order.order_id);
       setOrders(updatedOrders);
     } catch (error) {
-      console.error("Failed to update lead:", error);
+      console.error("Failed to update lead:", error); 
     }
   };
 

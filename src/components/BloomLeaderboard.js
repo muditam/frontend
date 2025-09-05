@@ -33,11 +33,25 @@ const getRankSuffix = (num) => {
     if (num === 3) return "3rd";
     if (num % 10 === 1 && num !== 11) return `${num}st`;
     if (num % 10 === 2 && num !== 12) return `${num}nd`;
-    if (num % 10 === 3 && num !== 13) return `${num}rd`;
+    if (num % 10 === 3 && num !== 13) return `${num}rd`; 
     return `${num}th`;
 };
 
 const getFirstName = (name) => name.trim().split(" ")[0];
+ 
+const getPromotionMonthStart = (joiningDate) => {
+  if (!joiningDate) return new Date(8640000000000000); // far future
+  const jd = new Date(joiningDate);
+  if (isNaN(jd)) return new Date(8640000000000000);
+  const threshold = new Date(jd);
+  threshold.setDate(threshold.getDate() + 60); // day they cross 60 days
+  return new Date(threshold.getFullYear(), threshold.getMonth() + 1, 1); // next month's 1st
+};
+
+// Keep in Bloom until the 1st of the month after 60 days
+const isEligibleForBloom = (joiningDate, today = new Date()) =>
+  today < getPromotionMonthStart(joiningDate);
+
 
 const BloomLeaderboard = () => {
     const [data, setData] = useState([]);
@@ -50,17 +64,15 @@ const BloomLeaderboard = () => {
                 const res = await fetch("https://muditamleads-14f32a10d7f7.herokuapp.com/api/employees");
                 const all = await res.json();
                 const today = new Date();
-                const sixtyDaysAgo = new Date();
-                sixtyDaysAgo.setDate(today.getDate() - 60);
-
                 const agents = all.filter(
-                    (e) =>
-                        e.status === "active" &&
-                        (e.role === "Sales Agent" || e.role === "Retention Agent") &&
-                        e.joiningDate &&
-                        new Date(e.joiningDate) > sixtyDaysAgo
-                );
+                   (e) =>
+                     e.status === "active" &&
+                     (e.role === "Sales Agent" || e.role === "Retention Agent") &&
+                     e.joiningDate &&
+                     isEligibleForBloom(e.joiningDate, today)
+                 );
 
+                 
                 const agentNames = agents.map((a) => a.fullName);
                 const progressRes = await fetch(
                     "https://muditamleads-14f32a10d7f7.herokuapp.com/api/retention-sales/progress-multiple",

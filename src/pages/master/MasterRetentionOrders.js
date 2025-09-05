@@ -40,6 +40,8 @@ const RetentionOrders = () => {
   const [rowsPerPage, setRowsPerPage] = useState(50);
   const [filterOpen, setFilterOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [rawOrders, setRawOrders] = useState([]); 
+
   const [filters, setFilters] = useState({
     dateFrom: "",
     dateTo: "",
@@ -85,69 +87,88 @@ const RetentionOrders = () => {
   };
 
   // Fetch combined data using the orderCreatedBy query parameter.
+  // const fetchRetentionOrders = async () => {
+  //   try {
+  //     setLoading(true); 
+  //     const response = await axios.get(
+  //       "https://muditamleads-14f32a10d7f7.herokuapp.com/api/retention-sales/allapi",
+  //       { params: { orderCreatedBy: retentionAgents } } // Pass array of retention agent names 
+  //     );
+  //     // Sort orders by descending date.
+  //     const sortedOrders = response.data.sort((a, b) => new Date(b.date) - new Date(a.date));
+  //     setOrders(sortedOrders);
+  //   } catch (error) {
+  //     console.error("Error fetching retention orders:", error);
+  //   } finally {
+  //     setLoading(false); // End loading
+  //   }
+  // };
+
   const fetchRetentionOrders = async () => {
-    try {
-      setLoading(true); 
-      const response = await axios.get(
-        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/retention-sales/allapi",
-        { params: { orderCreatedBy: retentionAgents } } // Pass array of retention agent names 
-      );
-      // Sort orders by descending date.
-      const sortedOrders = response.data.sort((a, b) => new Date(b.date) - new Date(a.date));
-      setOrders(sortedOrders);
-    } catch (error) {
-      console.error("Error fetching retention orders:", error);
-    } finally {
-      setLoading(false); // End loading
-    }
-  };
+  try {
+    setLoading(true);
+    const response = await axios.get(
+      "https://muditamleads-14f32a10d7f7.herokuapp.com/api/retention-sales/allapi",
+      {
+        params: { orderCreatedBy: retentionAgents }, // array OK
+        // ensure orderCreatedBy=A&orderCreatedBy=B (no indexes)
+        paramsSerializer: { indexes: false },
+      }
+    );
+    const data = response.data; // already sorted desc by date
+    setRawOrders(data);
+    setOrders(data);
+    setCurrentPage(0);
+  } catch (error) {
+    console.error("Error fetching retention orders:", error);
+  } finally {
+    setLoading(false);
+  }
+};
 
   const applyFilters = () => {
-    const filteredOrders = orders.filter((order) => {
-      return (
-        (!filters.dateFrom || new Date(order.date) >= new Date(filters.dateFrom)) &&
-        (!filters.dateTo || new Date(order.date) <= new Date(filters.dateTo)) &&
-        (!filters.name || order.name?.toLowerCase().includes(filters.name.toLowerCase())) &&
-        (!filters.contactNumber || order.contactNumber?.includes(filters.contactNumber)) &&
-        (!filters.productsOrdered.length ||
-          filters.productsOrdered.some((item) =>
-            Array.isArray(order.productsOrdered)
-              ? order.productsOrdered.includes(item)
-              : typeof order.productsOrdered === "string"
-                ? order.productsOrdered.toLowerCase().includes(item.toLowerCase())
-                : false
-          )) &&
-        (!filters.dosageOrdered ||
-          order.dosageOrdered?.toLowerCase().includes(filters.dosageOrdered.toLowerCase())) &&
-        (!filters.modeOfPayment ||
-          order.modeOfPayment?.toLowerCase().includes(filters.modeOfPayment.toLowerCase())) &&
-        (!filters.amountFrom || parseFloat(order.amountPaid) >= parseFloat(filters.amountFrom)) &&
-        (!filters.amountTo || parseFloat(order.amountPaid) <= parseFloat(filters.amountTo)) &&
-        (!filters.orderCreatedBy.length ||
-          filters.orderCreatedBy.some((creator) =>
-            creator.toLowerCase() === order.orderCreatedBy?.toLowerCase()
-          ))
-      );
-    });
-    setOrders(filteredOrders);
-  };
+  const filteredOrders = rawOrders.filter((order) => {
+    return (
+      (!filters.dateFrom || new Date(order.date) >= new Date(filters.dateFrom)) &&
+      (!filters.dateTo || new Date(order.date) <= new Date(filters.dateTo)) &&
+      (!filters.name || order.name?.toLowerCase().includes(filters.name.toLowerCase())) &&
+      (!filters.contactNumber || order.contactNumber?.includes(filters.contactNumber)) &&
+      (!filters.productsOrdered.length ||
+        filters.productsOrdered.some((item) =>
+          Array.isArray(order.productsOrdered)
+            ? order.productsOrdered.includes(item)
+            : typeof order.productsOrdered === "string"
+              ? order.productsOrdered.toLowerCase().includes(item.toLowerCase())
+              : false
+        )) &&
+      (!filters.dosageOrdered ||
+        order.dosageOrdered?.toLowerCase().includes(filters.dosageOrdered.toLowerCase())) &&
+      (!filters.modeOfPayment ||
+        order.modeOfPayment?.toLowerCase().includes(filters.modeOfPayment.toLowerCase())) &&
+      (!filters.amountFrom || parseFloat(order.amountPaid) >= parseFloat(filters.amountFrom)) &&
+      (!filters.amountTo || parseFloat(order.amountPaid) <= parseFloat(filters.amountTo)) &&
+      (!filters.orderCreatedBy.length ||
+        filters.orderCreatedBy.some((creator) =>
+          creator.toLowerCase() === order.orderCreatedBy?.toLowerCase()
+        ))
+    );
+  });
+
+  setOrders(filteredOrders);
+  setCurrentPage(0);
+  setFilterOpen(false);
+};
+
 
   const resetFilters = () => {
-    setFilters({
-      dateFrom: "",
-      dateTo: "",
-      name: "",
-      contactNumber: "",
-      productsOrdered: [],
-      dosageOrdered: "",
-      amountFrom: "",
-      amountTo: "",
-      modeOfPayment: "",
-      deliveryStatus: "",
-      orderCreatedBy: "",
-    });
-    fetchRetentionOrders();
-  };
+  setFilters({
+    dateFrom: "", dateTo: "", name: "", contactNumber: "",
+    productsOrdered: [], dosageOrdered: "", amountFrom: "", amountTo: "",
+    modeOfPayment: "", deliveryStatus: "", orderCreatedBy: "",
+  });
+  setOrders(rawOrders);   // restore from master
+  setCurrentPage(0);
+};
 
   const handleChangePage = (event, newPage) => {
     setCurrentPage(newPage);
@@ -165,50 +186,41 @@ const RetentionOrders = () => {
 
   // Export to CSV without "Shopify Amount"
   const exportToCSV = () => {
-    if (orders.length === 0) return;
-    const headers = [
-      "Date",
-      "Name",
-      "Contact No",
-      "Products Ordered",
-      "Dosage Ordered",
-      "Amount Paid",
-      "Mode of Payment",
-      "Order ID",
-      "Shipment Status",
-      "Order Created By",
-    ];
-    const csvRows = [
-      headers.join(","),
-      ...orders.map((order) => {
-        const row = [
-          order.date || "",
-          order.name || "",
-          order.contactNumber || "",
-          Array.isArray(order.productsOrdered)
-            ? order.productsOrdered.join(" | ")
-            : order.productsOrdered || "",
-          order.dosageOrdered || "",
-          order.amountPaid || "",
-          order.modeOfPayment || "",
-          order.orderId || "",
-          order.shipway_status || "",
-          order.orderCreatedBy || "",
-        ];
-        return row.map((field) => `"${field}"`).join(",");
-      }),
-    ];
-    const csvString = csvRows.join("\n");
-    const blob = new Blob([csvString], { type: "text/csv" });
-    const url = window.URL.createObjectURL(blob);
+  if (orders.length === 0) return;
+  const headers = [
+    "Date","Name","Contact No","Products Ordered","Dosage Ordered",
+    "Amount Paid","Mode of Payment","Order ID","Shipment Status","Order Created By",
+  ];
+  const csvRows = [
+    headers.join(","),
+    ...orders.map((order) => {
+      const row = [
+        order.date || "",
+        order.name || "",
+        order.contactNumber || "",
+        Array.isArray(order.productsOrdered)
+          ? order.productsOrdered.join(" | ")
+          : order.productsOrdered || "",
+        order.dosageOrdered || "",
+        order.amountPaid || "",
+        order.modeOfPayment || "",
+        order.orderId || "",
+        order.shipway_status || "",
+        order.orderCreatedBy || "",
+      ];
+      return row.map((field) => `"${String(field).replace(/"/g, '""')}"`).join(",");
+    }),
+  ];
+  const blob = new Blob([csvRows.join("\n")], { type: "text/csv" });
+  const url = window.URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "retention_orders.csv";
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+};
 
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "retention_orders.csv";
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-  };
 
   const styles = {
     container: {

@@ -23,6 +23,20 @@ const podiumGlow = [
   "0 0 28px 0 #d6e0efbb, 0 1px 6px #A8B2BD44",
   "0 0 26px 0 #f1bfa2a5, 0 1px 6px #D88A5B44",
 ];
+ 
+const getPromotionMonthStart = (joiningDate) => {
+  if (!joiningDate) return new Date(8640000000000000); // far future
+  const jd = new Date(joiningDate);
+  if (isNaN(jd)) return new Date(8640000000000000);
+  const threshold = new Date(jd);
+  threshold.setDate(threshold.getDate() + 60); // day they cross 60 days
+  return new Date(threshold.getFullYear(), threshold.getMonth() + 1, 1); // next month's 1st
+};
+
+// Eligible for main leaderboard starting the 1st of the month after 60 days
+const isEligibleForLeaderboard = (joiningDate, today = new Date()) =>
+  today >= getPromotionMonthStart(joiningDate);
+
 
 const getRankSuffix = (num) => {
   if (num === 1) return "1st";
@@ -57,7 +71,7 @@ export default function LeaderboardPopover({ open, anchorEl, onClose }) {
     ? [
     ]
     : [
-      { rank: 1, label: "Gift worth 5000" },
+      { rank: 1, label: "Gift worth 5000" }, 
       { rank: 2, label: "Gift worth 3000" },
       { rank: 3, label: "Gift worth 2000" },
       { rank: 4, label: "Assured Gift" },
@@ -80,15 +94,14 @@ export default function LeaderboardPopover({ open, anchorEl, onClose }) {
         const agentsRes = await fetch("https://muditamleads-14f32a10d7f7.herokuapp.com/api/employees");
         const agentsArr = await agentsRes.json();
 
-        const ninetyDaysAgo = new Date();
-        ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 60);
-
-        const agents = agentsArr.filter(
-          (emp) =>
-            emp.status === "active" &&
-            (emp.role === "Sales Agent" || emp.role === "Retention Agent") &&
-            emp.joiningDate && new Date(emp.joiningDate) <= ninetyDaysAgo
-        );
+        const today = new Date();
+         const agents = agentsArr.filter(
+           (emp) =>
+             emp.status === "active" &&
+             (emp.role === "Sales Agent" || emp.role === "Retention Agent") &&
+             emp.joiningDate &&
+             isEligibleForLeaderboard(emp.joiningDate, today)
+         );
 
         const now = new Date(); 
         let fromDate; 
@@ -335,7 +348,7 @@ export default function LeaderboardPopover({ open, anchorEl, onClose }) {
                 sx={{
                   display: "flex",
                   alignItems: "center",
-                  fontWeight: 700,
+                  fontWeight: 700, 
                   fontSize: 17,
                   color: "#594e94",
                   mb: 1.1,

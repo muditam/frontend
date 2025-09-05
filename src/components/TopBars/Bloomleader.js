@@ -39,13 +39,21 @@ const podiumGlow = [
 
 const getPodiumDisplay = (data) => [data[1], data[0], data[2]];
 
-const isWithinLast90Days = (dateStr) => {
-  if (!dateStr) return false;
-  const date = new Date(dateStr);
-  const cutoff = new Date();
-  cutoff.setDate(cutoff.getDate() - 60);
-  return date >= cutoff;
+// --- Promotion gating ---
+// First day of the month AFTER the day they cross 60 days from joining
+const getPromotionMonthStart = (joiningDate) => {
+  if (!joiningDate) return new Date(8640000000000000); // far future
+  const jd = new Date(joiningDate);
+  if (isNaN(jd)) return new Date(8640000000000000);
+  const threshold = new Date(jd);
+  threshold.setDate(threshold.getDate() + 60); // day they cross 60 days
+  return new Date(threshold.getFullYear(), threshold.getMonth() + 1, 1); // next month's 1st
 };
+
+// Show in Bloom until the 1st of the month after 60 days
+const isEligibleForBloom = (joiningDate, today = new Date()) =>
+  today < getPromotionMonthStart(joiningDate);
+
 
 export default function Bloomleader({ open, anchorEl, onClose }) {  
   const [data, setData] = useState([]);
@@ -70,20 +78,21 @@ export default function Bloomleader({ open, anchorEl, onClose }) {
 
   useEffect(() => {
   const fetchData = async () => {
-    setLoading(true);
+    setLoading(true); 
     try {
       const empRes = await fetch(
         "https://muditamleads-14f32a10d7f7.herokuapp.com/api/employees"
       );
       const employees = await empRes.json();
 
-      // Filter new joiners (last 90 days)
-      const newJoiners = employees.filter(
-        (emp) =>
-          emp.status === "active" &&
-          (emp.role === "Sales Agent" || emp.role === "Retention Agent") &&
-          isWithinLast90Days(emp.joiningDate)
-      );
+      const now = new Date();
+ 
+  const newJoiners = employees.filter(
+    (emp) =>
+      (emp.role === "Sales Agent" || emp.role === "Retention Agent") &&
+      emp.joiningDate &&
+      isEligibleForBloom(emp.joiningDate, now)
+  );
  
       const startOfWeek = (date) => {
         const day = date.getDay(); 
@@ -98,7 +107,7 @@ export default function Bloomleader({ open, anchorEl, onClose }) {
         return date;
       };
 
-      const now = new Date();
+      
  
       const sunday = startOfWeek(new Date(now));  
       const currentDay = endOfWeek(new Date(now));  

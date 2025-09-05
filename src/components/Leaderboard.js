@@ -39,6 +39,20 @@ const getRankSuffix = (num) => {
   return `${num}th`;
 };
 
+const getPromotionMonthStart = (joiningDate) => {
+  if (!joiningDate) return new Date(8640000000000000); // far future
+  const jd = new Date(joiningDate);
+  if (isNaN(jd)) return new Date(8640000000000000);
+  const threshold = new Date(jd);
+  threshold.setDate(threshold.getDate() + 60); // day they cross 60 days
+  return new Date(threshold.getFullYear(), threshold.getMonth() + 1, 1); // next month's 1st
+};
+
+// Eligible for leaderboard starting the 1st of the month after 60 days
+const isEligibleForLeaderboard = (joiningDate, today = new Date()) =>
+  today >= getPromotionMonthStart(joiningDate);
+
+
 const getFirstName = (name) => name.trim().split(" ")[0];
 
 const Leaderboard = () => {
@@ -51,15 +65,13 @@ const Leaderboard = () => {
       try {
         const res = await fetch("https://muditamleads-14f32a10d7f7.herokuapp.com/api/employees");
         const all = await res.json();
-        const ninetyDaysAgo = new Date();
-        ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 60);
- 
+        const today = new Date();
         const agents = all.filter(
           (e) =>
             e.status === "active" &&
             (e.role === "Sales Agent" || e.role === "Retention Agent") &&
             e.joiningDate &&
-            new Date(e.joiningDate) <= ninetyDaysAgo
+            isEligibleForLeaderboard(e.joiningDate, today)
         );
 
 
@@ -170,7 +182,7 @@ const Leaderboard = () => {
             fullWidth
             variant="contained"
             sx={{ mt: 3, backgroundColor: "#7c3aed", fontWeight: 700 }}
-          >
+          > 
             Close
           </Button>
         </Box>

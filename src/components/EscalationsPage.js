@@ -20,12 +20,14 @@ import {
   Chip,
   CircularProgress,
   TablePagination,
+  InputAdornment,
 } from "@mui/material";
 import { Close, Delete as DeleteIcon, WarningAmber } from "@mui/icons-material";
 import axios from "axios";
 
 
 const statusOptions = ["Open", "In Progress", "Closed"];
+const reasonOptions = ["Order not received/delayed", "Fake delivery remark", "Urgent delivery Needed", "Wrong product received", "Partial order received", "Asking for refund/replacement", "Order RTO but need it", "Delivery Boy Issue", "Payment Issue", "Others"];
 
 
 const EscalationsPage = () => {
@@ -42,7 +44,9 @@ const EscalationsPage = () => {
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(50);
   const [initialLoading, setInitialLoading] = useState(true);
-  const [totalCount, setTotalCount] = useState(0);
+  const [totalCount, setTotalCount] = useState(0); 
+  const [orderIdError, setOrderIdError] = useState(false);
+  const [orderIdErrorMsg, setOrderIdErrorMsg] = useState("");
 
   const [formData, setFormData] = useState({
     date: "",
@@ -56,8 +60,8 @@ const EscalationsPage = () => {
     assignedTo: "",
     remark: "",
     resolvedDate: "",
+    reason: "",
   });
-
 
   const BACKEND_URL = "https://muditamleads-14f32a10d7f7.herokuapp.com/api";
 
@@ -67,18 +71,14 @@ const EscalationsPage = () => {
       .sort((a, b) => a.fullName.localeCompare(b.fullName));
   }, [employees]);
 
-  useEffect(() => { 
-    fetchEmployees(); 
+  useEffect(() => {
+    fetchEmployees();
   }, []);
 
 
   const fetchEmployees = async () => {
     try {
       const response = await axios.get(`${BACKEND_URL}/employees`);
-      // const activeManagers = response.data.filter(
-      //   (emp) => emp.status === "active"
-      // );
-      // setEmployees(activeManagers);
       const activeEmployees = response.data.filter((emp) => emp.status === "active");
       setEmployees(activeEmployees);
     } catch (error) {
@@ -136,6 +136,17 @@ const EscalationsPage = () => {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
+    if (name === "orderId") {
+      const v = String(value || "");
+      // If user includes any '#' or starts with '#MA' -> show inline error
+      if (/#/i.test(v) || /^\s*#\s*ma/i.test(v)) {
+        setOrderIdError(true);
+        setOrderIdErrorMsg("Add order id without #MA");
+      } else {
+        setOrderIdError(false);
+        setOrderIdErrorMsg("");
+      }
+    }
     setFormData((fd) => ({ ...fd, [name]: value }));
   };
 
@@ -163,28 +174,22 @@ const EscalationsPage = () => {
     catch { return null; }
   }, []);
 
-  // const sortedEscalations = useMemo(() => {
-  //   // sort only when escalations array changes
-  //   return escalations.slice().sort((a, b) => new Date(b.date) - new Date(a.date));
-  // }, [escalations]);
-
-  // const filteredEscalations = useMemo(() => {
-  //   return sortedEscalations.filter((esc) =>
-  //     showClosedOnly ? esc.status === "Closed" : (esc.status === "Open" || esc.status === "In Progress")
-  //   );
-  // }, [sortedEscalations, showClosedOnly]);
-
-  // const pagedEscalations = useMemo(() => {
-  //   const start = page * rowsPerPage;
-  //   return filteredEscalations.slice(start, start + rowsPerPage);
-  // }, [filteredEscalations, page, rowsPerPage]);
-
-
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
     try {
+      if (orderIdError) {
+        setLoading(false);
+        return;
+      }
+      // Optional: ensure there are some digits
+      const digits = String(formData.orderId || "").replace(/\D/g, "");
+      if (!digits) {
+        setOrderIdError(true);
+        setOrderIdErrorMsg("Please enter the numeric part of the Order ID");
+        setLoading(false);
+        return;
+      }
       const form = new FormData();
       form.append("date", formData.date);
       form.append("orderId", formData.orderId);
@@ -192,6 +197,7 @@ const EscalationsPage = () => {
       form.append("contactNumber", formData.contactNumber);
       form.append("agentName", formData.agentName);
       form.append("query", formData.query);
+      form.append("reason", formData.reason);
       formData.attachedFiles.forEach((file) => {
         form.append("attachedFiles", file);
       });
@@ -215,9 +221,20 @@ const EscalationsPage = () => {
         assignedTo: "",
         remark: "",
         resolvedDate: "",
+        reason: "",
       });
+      setOrderIdError(false);
+      setOrderIdErrorMsg("");
     } catch (error) {
       console.error("Failed to submit escalation", error);
+      const msg =
+        error?.response?.data?.error ||
+        error?.message ||
+        "";
+      if (/without\s*#MA/i.test(msg)) {
+        setOrderIdError(true);
+        setOrderIdErrorMsg("Add order id without #MA");
+      }
     }
     setLoading(false);
   };
@@ -384,9 +401,14 @@ const EscalationsPage = () => {
                 required
                 fullWidth
                 variant="filled"
+                error={orderIdError}
+                inputProps={{ inputMode: "numeric", pattern: "\\d*" }}
                 InputProps={{
                   disableUnderline: true,
                   sx: { backgroundColor: "#fff", borderRadius: 1, px: 1 },
+                  startAdornment: (
+                    <InputAdornment position="start">#MA</InputAdornment>
+                  ),
                 }}
                 InputLabelProps={{
                   sx: {
@@ -396,6 +418,7 @@ const EscalationsPage = () => {
                   },
                 }}
               />
+
               <TextField
                 label="Name"
                 name="name"
@@ -473,9 +496,35 @@ const EscalationsPage = () => {
                   </MenuItem>
                 ))}
               </TextField>
+              <TextField
+                select
+                label="Reasons"
+                name="reason"
+                value={formData.reason}
+                onChange={handleChange}
+                fullWidth
+                variant="filled"
+                InputProps={{
+                  disableUnderline: true,
+                  sx: { backgroundColor: "#fff", borderRadius: 1, px: 1 },
+                }}
+                InputLabelProps={{
+                  sx: {
+                    color: "rgba(0,0,0,0.6)",
+                    "&.Mui-focused": { color: "gray" },
+                    "&.MuiInputLabel-shrink": { color: "gray" },
+                  },
+                }}
+              >
+                {reasonOptions.map((opt) => (
+                  <MenuItem key={opt} value={opt}>
+                    {opt}
+                  </MenuItem>
+                ))}
+              </TextField>
             </Box>
             <TextField
-              label="Query"
+              label="Remark"
               name="query"
               value={formData.query}
               onChange={handleChange}
@@ -600,9 +649,11 @@ const EscalationsPage = () => {
               {[
                 "Date",
                 "Order ID",
+                "Tracking Id",
                 "Name",
                 "Contact Number",
                 "Agent Name",
+                "Reason",
                 "Query",
                 "Attach File",
                 "Status",
@@ -629,7 +680,7 @@ const EscalationsPage = () => {
           <TableBody>
             {initialLoading ? (
               <TableRow>
-                <TableCell colSpan={13} align="center">
+                <TableCell colSpan={15} align="center">
                   <CircularProgress size={28} />
                 </TableCell>
               </TableRow>
@@ -663,9 +714,24 @@ const EscalationsPage = () => {
                     </TableCell>
                     <TableCell align="center">{esc.date}</TableCell>
                     <TableCell align="center">{esc.orderId}</TableCell>
+                    <TableCell align="center">
+                      {esc.trackingId ? (
+                        <a
+                          href={`https://track.shipway.com/t/${encodeURIComponent(esc.trackingId)}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{ color: "black", textDecoration: "underline" }}
+                        >
+                          {esc.trackingId}
+                        </a>
+                      ) : (
+                        "-"
+                      )}
+                    </TableCell>
                     <TableCell align="center">{esc.name}</TableCell>
                     <TableCell align="center">{esc.contactNumber}</TableCell>
                     <TableCell align="center">{esc.agentName}</TableCell>
+                    <TableCell align="center">{esc.reason || "-"}</TableCell>
                     <TableCell
                       sx={{
                         whiteSpace: "pre-wrap",

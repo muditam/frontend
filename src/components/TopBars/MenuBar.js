@@ -32,6 +32,8 @@ import LocalShippingIcon from "@mui/icons-material/LocalShipping";
 import Inventory2Icon from "@mui/icons-material/Inventory2";
 import EmailIcon from "@mui/icons-material/Email";
 import PhoneInTalkIcon from "@mui/icons-material/PhoneInTalk";
+import AssignmentReturnedIcon from "@mui/icons-material/AssignmentReturned";
+import DinnerDiningIcon from "@mui/icons-material/DinnerDining";
 import AnalyticsIcon from "@mui/icons-material/Analytics";
 import { Link, useNavigate } from "react-router-dom";
 
@@ -963,11 +965,11 @@ const MenuBar = ({ toggleDrawer }) => {
                 }}
                 onClick={toggleDrawer}
               >
-                <LocalShippingIcon sx={{ fontSize: 20, marginRight: "12px" }} /> {/* updated icon */}
+                <LocalShippingIcon sx={{ fontSize: 20, marginRight: "12px" }} />  
                 <Typography variant="body1" style={{ fontSize: "14px" }}>
                   RTO Delivered
                 </Typography>
-              </ListItem>
+              </ListItem> 
             )}
 
             {role === "Operations" && (
@@ -1083,6 +1085,60 @@ const MenuBar = ({ toggleDrawer }) => {
                 </ListItem>
               </List>
             </Collapse>
+
+            {role !== "Finance" && role !== "Operations" && role !== "Manager" && (
+              <ListItem
+                button
+                component={Link}
+                to="/Agent-return"
+                sx={{
+                  display: "flex",
+                  alignItems: "center",
+                  padding: "10px 20px",
+                  borderRadius: "4px",
+                  margin: "4px 0",
+                  transition: "background-color 0.3s, transform 0.2s", 
+                  "&:hover": {
+                    backgroundColor: "#e0f7fa",
+                    color: "#007aff",
+                    transform: "scale(1.02)",
+                  },
+                }}
+                onClick={toggleDrawer}
+              >
+                <AssignmentReturnedIcon sx={{ fontSize: 24, marginRight: "12px" }} />
+                <Typography variant="body1" style={{ fontSize: "14px" }}>
+                  Return Delivered
+                </Typography>
+              </ListItem>
+            )}
+
+            {role === "Manager" && (
+  <ListItem
+    button
+    component={Link}
+    to="/diet-template"
+    sx={{
+      display: "flex",
+      alignItems: "center",
+      padding: "10px 20px",
+      borderRadius: "4px",
+      margin: "4px 0",
+      transition: "background-color 0.3s, transform 0.2s", 
+      "&:hover": {
+        backgroundColor: "#e0f7fa",
+        color: "#007aff",
+        transform: "scale(1.02)",
+      },
+    }}
+    onClick={toggleDrawer}
+  >
+    <DinnerDiningIcon sx={{ fontSize: 24, marginRight: "12px" }} />
+    <Typography variant="body1" style={{ fontSize: "14px" }}>
+      Diet Template Builder
+    </Typography>
+  </ListItem>
+)}
 
             {role !== "Finance" && role !== "Operations" && (
               <ListItem

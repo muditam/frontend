@@ -59,6 +59,8 @@ import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
 import KeyboardArrowUpIcon from "@mui/icons-material/KeyboardArrowUp";
 
+import CreateDietPlanPopup from "./CreateDietPlanPopup";
+
 const fadeIn = keyframes`
   from { opacity: 0; transform: translateY(-10px); }
   to { opacity: 1; transform: translateY(0); }
@@ -257,6 +259,8 @@ const RetentionLeads = () => {
   const [reachedLeadsCount, setReachedLeadsCount] = useState(0);
 
   const [ordersLoading, setOrdersLoading] = useState(false);
+
+  const [dietPlanOpen, setDietPlanOpen] = useState(false);
 
   const [filters, setFilters] = useState({
     name: "",
@@ -529,6 +533,11 @@ const RetentionLeads = () => {
       console.error("Failed to fetch logs", err);
     }
   };
+
+  const handleCreateDietPlanClick = (lead) => {
+   setSelectedLead(lead);
+   setDietPlanOpen(true);
+ };
 
   // Only for retentionStatus Active or not set
   const getNotReachedLeads = (leads, days = 7) => {
@@ -827,10 +836,10 @@ const RetentionLeads = () => {
       };
       console.log("Sending API Request to Backend:", requestBody);
       const response = await axios.post(
-        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/click_to_call",
-        requestBody
+        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/click_to_call", 
+        requestBody 
       );
-      console.log("Backend Response:", response.data);
+      console.log("Backend Response:", response.data); 
       if (response.data.status === "success") {
         setCallingMessage(`Successfully called ${contactNumber}`);
       } else {
@@ -2207,6 +2216,13 @@ const RetentionLeads = () => {
                   </Button>
 
                   <DialogActions>
+                     <Button
+     onClick={() => setDietPlanOpen(true)}
+     sx={{ mr: 1, color: "black" }}
+   >
+     Create Diet Plan
+   </Button>
+
                     <Button
                       onClick={() => setOrderPopupOpen(true)}
                       sx={{ color: "black" }}
@@ -2221,6 +2237,18 @@ const RetentionLeads = () => {
                       prefillCustomer={{
                         name: leads[selectedLeadIndex]?.name || "",
                         phone: leads[selectedLeadIndex]?.contactNumber || "",
+                      }}
+                    />
+                  )}
+
+                  {dietPlanOpen && selectedLeadIndex !== null && (
+                    <CreateDietPlanPopup
+                      open={dietPlanOpen}
+                      onClose={() => setDietPlanOpen(false)}
+                      prefillCustomer={{
+                        name: leads[selectedLeadIndex]?.name || "",
+                        phone: leads[selectedLeadIndex]?.contactNumber || "",
+                        leadId: leads[selectedLeadIndex]?._id || "",
                       }}
                     />
                   )}

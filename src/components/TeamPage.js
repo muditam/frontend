@@ -10,6 +10,9 @@ import Checkbox from "@mui/material/Checkbox";
 import { ArrowDownward, ArrowUpward } from "@mui/icons-material";
 import axios from "axios";
 
+const fmt0 = (n) =>
+   Number(n ?? 0).toLocaleString("en-IN", { maximumFractionDigits: 0 });
+
 const getManagerId = () =>
   (JSON.parse(sessionStorage.getItem("user")) || {}).id || "";
 
@@ -272,14 +275,14 @@ const TeamPage = ({ managerId: managerIdProp }) => {
             ) : (
               getSortedRows().map(row => {
                 const pendingNum = +`${row.pending}`.replace(/,/g, "");
-                const dailyRequired = workingDaysLeft > 0 ? Math.ceil(pendingNum / workingDaysLeft) : "--";
+                const dailyRequired = workingDaysLeft > 0 ? Math.ceil(pendingNum / workingDaysLeft) : "--"; 
                 return (
-                  <TableRow key={row.id}>
+                  <TableRow key={row.id}> 
                     <TableCell align="center">{row.name}</TableCell>
                     <TableCell align="center">{row.teamLeader}</TableCell>
                     <TableCell align="center">{row.monthlyTarget.toLocaleString()}</TableCell>
-                    <TableCell align="center">{(+row.achieved).toLocaleString()}</TableCell>
-                    <TableCell align="center">{(+row.pending).toLocaleString()}</TableCell>
+                    <TableCell align="center">{fmt0(row.achieved)}</TableCell>
+                    <TableCell align="center">{fmt0(row.pending)}</TableCell>
                     <TableCell align="center">{dailyRequired === "--" ? "--" : `₹${dailyRequired.toLocaleString()}`}</TableCell>
                     <TableCell align="center">{row.pctAch.toFixed(1)}%</TableCell>
                     <TableCell align="center">{row.pctPend.toFixed(1)}%</TableCell>
