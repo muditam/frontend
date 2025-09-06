@@ -2217,18 +2217,32 @@ const RetentionLeads = () => {
 
                   <DialogActions>
                      <Button
-     onClick={() => setDietPlanOpen(true)}
-     sx={{ mr: 1, color: "black" }}
-   >
-     Create Diet Plan
-   </Button>
+  onClick={() => setDietPlanOpen(true)}
+  sx={{
+    mr: 1,
+    backgroundColor: "black",
+    color: "white",
+    "&:hover": {
+      backgroundColor: "#333", // darker black on hover
+    },
+  }}
+>
+  Create Diet Plan
+</Button>
 
-                    <Button
-                      onClick={() => setOrderPopupOpen(true)}
-                      sx={{ color: "black" }}
-                    >
-                      Create Order
-                    </Button>
+<Button
+  onClick={() => setOrderPopupOpen(true)}
+  sx={{
+    backgroundColor: "black",
+    color: "white",
+    "&:hover": {
+      backgroundColor: "#333",
+    },
+  }}
+>
+  Create Order
+</Button>
+
                   </DialogActions>
                   {orderPopupOpen && selectedLeadIndex !== null && (
                     <CreateOrderPopup

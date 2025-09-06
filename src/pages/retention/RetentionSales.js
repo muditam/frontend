@@ -260,10 +260,8 @@ const RetentionSales = () => {
       );
     });
     setCurrentPage(0);
-    setDisplayedSales(filteredSales);
+    setDisplayedSales(filteredSales); 
   };
-
-
 
   const resetFilters = () => {
     setFilters({

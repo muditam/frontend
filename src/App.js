@@ -49,6 +49,7 @@ import SmartfloCallLogs from "./components/SmartfloCallLogs";
 import SmartfloDataAnalytics from "./components/SmartfloDataAnalytics";
 import ReturnDeliveredOrders from "./components/ReturnDeliveredOrders";
 import DietTemplateAdmin from "./components/DietTemplateAdmin";
+import "./realtime/IncomingCallSSEBoot";
 
 const App = () => {
   return (

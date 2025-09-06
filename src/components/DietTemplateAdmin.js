@@ -2,13 +2,13 @@ import React, { useEffect, useMemo, useState } from "react";
 import {
   Box, Button, Chip, Dialog, DialogTitle, DialogContent, DialogActions,
   IconButton, Menu, MenuItem, Select, Stack, Table, TableHead, TableRow,
-  TableCell, TableBody, TextField, Typography, Paper, Tooltip, Divider
+  TableCell, TableBody, TextField, Typography, Paper, Tooltip, Divider, InputAdornment
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import DeleteIcon from "@mui/icons-material/Delete";
 import axios from "axios";
 
-const API_BASE = "http://localhost:5001"; // ✅ fixed triple slash issue
+const API_BASE = "https://muditamleads-14f32a10d7f7.herokuapp.com";
 
 const MEALS = ["Breakfast", "Lunch", "Snacks", "Dinner"];
 const FORTNIGHT_DAYS = 14;
@@ -17,11 +17,11 @@ const emptyFortnight = () =>
   MEALS.reduce((acc, meal) => {
     acc[meal] = Array(FORTNIGHT_DAYS).fill("");
     return acc;
-  }, {});
+  }, {}); 
 
+// ▶ Monthly default WITHOUT Mid‑Morning Snack (as requested)
 const defaultMonthly = () => ({
   Breakfast: { title: "Breakfast Options (Select any one)", time: "8am-9am", options: [""] },
-  "Mid-Morning Snack": { title: "Mid-Morning Snack Options", time: "10:30am-11:30am", options: [""] },
   Lunch: { title: "Lunch Options (Select any one)", time: "1pm-2pm", options: [""] },
   "Evening Snack": { title: "Evening Snack Options (Select any one)", time: "4pm-5pm", options: [""] },
   Dinner: { title: "Dinner Options (Select any one)", time: "7pm-8pm", options: [""] },
@@ -42,7 +42,7 @@ export default function DietTemplatesAdmin() {
   const [name, setName] = useState("");
   const [category, setCategory] = useState("");
   const [tags, setTags] = useState("");
-  const [status, setStatus] = useState("draft"); // draft | published
+  const [status, setStatus] = useState("draft"); // draft | published | archived
 
   // weekly body
   const [fortnight, setFortnight] = useState(emptyFortnight());
@@ -94,6 +94,7 @@ export default function DietTemplatesAdmin() {
     });
   };
 
+  // --- Monthly handlers ---
   const setMonthlyField = (slot, field, value) => {
     setMonthly(prev => ({ ...prev, [slot]: { ...prev[slot], [field]: value } }));
   };
@@ -147,42 +148,30 @@ export default function DietTemplatesAdmin() {
     }
   };
 
+  // ——— UI helpers (black‑first styling) ———
+  const blackContained = {
+    backgroundColor: "black",
+    color: "white",
+    "&:hover": { backgroundColor: "#222" },
+    borderRadius: 8,
+  };
+  const blackOutlined = {
+    borderColor: "black",
+    color: "black",
+    "&:hover": { borderColor: "#222", backgroundColor: "rgba(0,0,0,0.04)" },
+    borderRadius: 8,
+  };
+
   return (
     <Box sx={{ p: 3, backgroundColor: "#fafafa", minHeight: "100vh" }}>
       <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 3 }}>
         <Typography variant="h5" fontWeight={700}>Diet Templates</Typography>
         <Box>
-          <Button
-            variant="outlined"
-            sx={{ mr: 1 }}
-            onClick={() => { setTypeFilter(""); setStatusFilter(""); }}
-          >
-            Clear Filters
-          </Button>
-          <Button
-            variant="contained"
-            startIcon={<AddIcon />}
-            onClick={(e) => setCreateMenuEl(e.currentTarget)}
-            sx={{
-              backgroundColor: "black",
-              "&:hover": { backgroundColor: "#222" },
-              borderRadius: 2,
-              px: 3
-            }}
-          >
-            Create New Template
-          </Button>
-          <Menu
-            anchorEl={createMenuEl}
-            open={Boolean(createMenuEl)}
-            onClose={() => setCreateMenuEl(null)}
-          >
-            <MenuItem onClick={() => { openCreate("weekly-14"); setCreateMenuEl(null); }}>
-              Weekly Template (14 Days)
-            </MenuItem>
-            <MenuItem onClick={() => { openCreate("monthly-options"); setCreateMenuEl(null); }}>
-              Monthly Template (Options)
-            </MenuItem>
+          <Button variant="outlined" sx={{ ...blackOutlined, mr: 1 }} onClick={() => { setTypeFilter(""); setStatusFilter(""); }}>Clear Filters</Button>
+          <Button variant="contained" startIcon={<AddIcon />} onClick={(e) => setCreateMenuEl(e.currentTarget)} sx={{ ...blackContained, px: 3 }}>Create New Template</Button>
+          <Menu anchorEl={createMenuEl} open={Boolean(createMenuEl)} onClose={() => setCreateMenuEl(null)}>
+            <MenuItem onClick={() => { openCreate("weekly-14"); setCreateMenuEl(null); }}>Weekly Template (14 Days)</MenuItem>
+            <MenuItem onClick={() => { openCreate("monthly-options"); setCreateMenuEl(null); }}>Monthly Template (Options)</MenuItem>
           </Menu>
         </Box>
       </Stack>
@@ -211,8 +200,7 @@ export default function DietTemplatesAdmin() {
               <TableCell>Type</TableCell>
               <TableCell>Category</TableCell>
               <TableCell>Tags</TableCell>
-              <TableCell>Status</TableCell>
-              <TableCell>Version</TableCell>
+              <TableCell>Status</TableCell> 
               <TableCell>Updated</TableCell>
             </TableRow>
           </TableHead>
@@ -228,13 +216,8 @@ export default function DietTemplatesAdmin() {
                   ))}
                 </TableCell>
                 <TableCell>
-                  <Chip
-                    label={r.status}
-                    color={r.status === "published" ? "success" : r.status === "draft" ? "warning" : "default"}
-                    size="small"
-                  />
-                </TableCell>
-                <TableCell>{r.version}</TableCell>
+                  <Chip label={r.status} color={r.status === "published" ? "success" : r.status === "draft" ? "warning" : "default"} size="small" />
+                </TableCell> 
                 <TableCell>{r.updatedAt ? new Date(r.updatedAt).toLocaleString() : "—"}</TableCell>
               </TableRow>
             ))}
@@ -251,9 +234,7 @@ export default function DietTemplatesAdmin() {
 
       {/* CREATE / EDIT DIALOG */}
       <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)} maxWidth="xl" fullWidth>
-        <DialogTitle sx={{ fontWeight: 700 }}>
-          {`Create ${formType === "weekly-14" ? "Weekly (14-day)" : "Monthly (Options)"} Template`}
-        </DialogTitle>
+        <DialogTitle sx={{ fontWeight: 700 }}>{`Create ${formType === "weekly-14" ? "Weekly (14-day)" : "Monthly (Options)"} Template`}</DialogTitle>
         <DialogContent dividers sx={{ backgroundColor: "#fafafa" }}>
           {/* Meta */}
           <Stack direction={{ xs: "column", md: "row" }} spacing={2} sx={{ mb: 3 }}>
@@ -288,13 +269,7 @@ export default function DietTemplatesAdmin() {
                       <TableCell sx={{ fontWeight: 600 }}>{meal}</TableCell>
                       {Array.from({ length: FORTNIGHT_DAYS }, (_, i) => (
                         <TableCell key={i} align="center">
-                          <TextField
-                            size="small"
-                            value={fortnight[meal][i]}
-                            onChange={(e) => setCell(meal, i, e.target.value)}
-                            placeholder={`${meal}...`}
-                            sx={{ minWidth: 160 }}
-                          />
+                          <TextField size="small" value={fortnight[meal][i]} onChange={(e) => setCell(meal, i, e.target.value)} placeholder={`${meal}...`} sx={{ minWidth: 160 }} />
                         </TableCell>
                       ))}
                     </TableRow>
@@ -304,29 +279,40 @@ export default function DietTemplatesAdmin() {
             </Box>
           ) : (
             <>
-              {Object.keys(monthly).map(slot => {
+              {/* MONTHLY OPTIONS – polished UX */}
+              {Object.keys(monthly).map((slot) => {
                 const s = monthly[slot];
                 return (
-                  <Paper key={slot} variant="outlined" sx={{ p: 2, mb: 2, borderRadius: 2 }}>
-                    <Stack direction={{ xs: "column", md: "row" }} spacing={2} alignItems="center">
+                  <Paper key={slot} variant="outlined" sx={{ p: 2, mb: 2, borderRadius: 2, borderColor: "#00000022" }}>
+                    {/* Header: non‑editable title (left), editable time (right) */}
+                    <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1 }}>
+                      <Typography variant="subtitle1" fontWeight={700}>{slot}</Typography>
                       <TextField
                         size="small"
-                        label={`${slot} Title`}
-                        value={s.title}
-                        onChange={(e) => setMonthlyField(slot, "title", e.target.value)}
-                        fullWidth
-                      />
-                      <TextField
-                        size="small"
-                        label="Time"
                         value={s.time}
                         onChange={(e) => setMonthlyField(slot, "time", e.target.value)}
-                        sx={{ minWidth: 180 }}
+                        placeholder="8am-9am"
+                        sx={{ width: 140 }}
+                        inputProps={{ style: { textAlign: "center" } }}
+                        InputProps={{
+                          startAdornment: (<InputAdornment position="start"></InputAdornment>),
+                          endAdornment: (<InputAdornment position="end"></InputAdornment>),
+                        }}
                       />
                     </Stack>
-                    <Box sx={{ mt: 2 }}>
+
+                    {/* Options List */}
+                    <Box>
                       {s.options.map((opt, idx) => (
                         <Stack key={idx} direction="row" spacing={1} alignItems="center" sx={{ mb: 1 }}>
+                          {/* Delete icon on the LEFT (requested) */}
+                          <Tooltip title="Remove option">
+                            <span>
+                              <IconButton size="small" onClick={() => removeMonthlyOption(slot, idx)} sx={{ color: "black" }} aria-label={`Delete option ${idx + 1}`}>
+                                <DeleteIcon fontSize="small" />
+                              </IconButton>
+                            </span>
+                          </Tooltip>
                           <TextField
                             size="small"
                             fullWidth
@@ -334,19 +320,9 @@ export default function DietTemplatesAdmin() {
                             placeholder={`Option ${idx + 1}`}
                             onChange={(e) => setMonthlyOption(slot, idx, e.target.value)}
                           />
-                          <Tooltip title="Remove Option">
-                            <IconButton size="small" onClick={() => removeMonthlyOption(slot, idx)}>
-                              <DeleteIcon fontSize="small" />
-                            </IconButton>
-                          </Tooltip>
                         </Stack>
                       ))}
-                      <Button
-                        variant="outlined"
-                        size="small"
-                        startIcon={<AddIcon />}
-                        onClick={() => addMonthlyOption(slot)}
-                      >
+                      <Button variant="outlined" size="small" startIcon={<AddIcon />} onClick={() => addMonthlyOption(slot)} sx={{ ...blackOutlined }}>
                         Add Option
                       </Button>
                     </Box>
@@ -358,17 +334,7 @@ export default function DietTemplatesAdmin() {
         </DialogContent>
         <DialogActions sx={{ p: 2 }}>
           <Button onClick={() => setDialogOpen(false)} sx={{ color: "black" }}>Cancel</Button>
-          <Button
-            variant="contained"
-            onClick={onSave}
-            disabled={!canSave}
-            sx={{
-              backgroundColor: "black",
-              "&:hover": { backgroundColor: "#222" },
-              borderRadius: 2,
-              px: 3
-            }}
-          >
+          <Button variant="contained" onClick={onSave} disabled={!canSave} sx={{ ...blackContained, px: 3 }}>
             Save Template
           </Button>
         </DialogActions>
