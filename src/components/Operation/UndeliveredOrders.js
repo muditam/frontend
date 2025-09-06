@@ -8,7 +8,7 @@ import {
   TableRow,
   TableCell,
   TableBody,
-  TablePagination,
+  TablePagination, 
   Paper,
   Button,
   Dialog,
@@ -19,7 +19,7 @@ import {
   Stack,
   Snackbar,
   Alert,
-  CircularProgress,
+  CircularProgress, 
   Checkbox,
   Chip,
   MenuItem,
@@ -27,7 +27,7 @@ import {
   Typography,
   Tooltip,
 } from "@mui/material";
-import Autocomplete from "@mui/material/Autocomplete";
+import Autocomplete from "@mui/material/Autocomplete"; 
 import dayjs from "dayjs";
 import axios from "axios";
 import { IconButton } from "@mui/material";
@@ -47,7 +47,32 @@ const SUBJECT_TEMPLATES = [
   { key: "urgentDelivery", label: "Urgent Delivery Required | Order ID {{Order_ID}} | AWB {{tracking_number}}" },
 ];
 
-const CONTENT_TEMPLATES = [
+// UI options for the issue selector
+const ISSUE_OPTIONS = [
+  { label: "Fake Remark", value: "fakeRemark" },
+  { label: "Not Received", value: "notReceived" },
+  { label: "Delay Issue", value: "delayed" },
+  { label: "Doorstep Request", value: "doorstep" },
+  { label: "Wrong OTP", value: "wrongOtp" },
+  { label: "Mode Change", value: "codToPrepaid" },
+  { label: "RTO Request", value: "rto" },
+  { label: "Urgent Delivery", value: "urgentDelivery" },
+];
+
+// (Optional) If you ever want to map a chosen issue to the email subject/content template keys:
+const ISSUE_TO_TEMPLATE_KEY = {
+  fakeRemark: "fakeRemark",
+  notReceived: "notReceived",
+  delayed: "delayed",
+  doorstep: "doorstep",
+  wrongOtp: "wrongOtp",
+  codToPrepaid: "codToPrepaid",
+  rto: "rto",
+  urgentDelivery: "urgentDelivery",
+};
+
+
+const CONTENT_TEMPLATES = [ 
   {
     key: "fakeRemark",
     label:
@@ -90,10 +115,21 @@ const CONTENT_TEMPLATES = [
   },
 ];
 
-const EMAIL_SUGGESTIONS = [
-  "Devesh.muditam@gmail.com",
-  "madhur.muditam@gmail.com",
-  "operations@muditam.com",
+// Map couriers to their default recipient lists
+const CARRIER_EMAILS = {
+  Bluedart: ["bluedart1@gmail.com", "bluedart2@gmail.com", "bluedart3@gmail.com"],
+  DTDC: ["dtdc1@gmail.com", "dtdc2@gmail.com", "dtdc3@gmail.com"],
+  Delhivery: ["delhivery1@gmail.com", "delhivery2@gmail.com", "delhivery3@gmail.com"],
+};
+
+
+const EMAIL_SUGGESTIONS = [ 
+  // Bluedart
+  "bluedart1@gmail.com", "bluedart2@gmail.com", "bluedart3@gmail.com",
+  // DTDC
+  "dtdc1@gmail.com", "dtdc2@gmail.com", "dtdc3@gmail.com",
+  // Delhivery
+  "delhivery1@gmail.com", "delhivery2@gmail.com", "delhivery3@gmail.com",
 ];
 
 const UndeliveredOrdersTabs = () => {
@@ -113,7 +149,9 @@ const UndeliveredOrdersTabs = () => {
   const [statusFilter, setStatusFilter] = useState([]);
   const [draftFromDate, setDraftFromDate] = useState("");
   const [draftToDate, setDraftToDate] = useState("");
-  const [draftStatusFilter, setDraftStatusFilter] = useState([]);
+  const [draftStatusFilter, setDraftStatusFilter] = useState([]); 
+  const [selectedCarrier, setSelectedCarrier] = useState("");
+  const [rowIssue, setRowIssue] = useState({});
   const REPLIES_PAGE_SIZE = 5;
 
 
@@ -154,7 +192,7 @@ const UndeliveredOrdersTabs = () => {
         const map = {};
         sentOrderIds.forEach((oid) => {
           map[oid] = {
-            emailed: (counts[oid] || 0) > 0,   // highlights “emailed” rows for all with count
+            emailed: (counts[oid] || 0) > 0,   
             count: counts[oid] || 0,
             ...(replies[oid] ? { lastReply: replies[oid] } : {}),
           };
@@ -172,8 +210,7 @@ const UndeliveredOrdersTabs = () => {
     };
     loadSentFromBackend();
   }, []);
-
-  // Fetch orders when tab/page/rows change
+ 
   useEffect(() => {
     fetchOrders(tab, page + 1, rowsPerPage);
     setSelectedIds(new Set());
@@ -188,7 +225,7 @@ const UndeliveredOrdersTabs = () => {
 
       if (fromDate) params.set('startDate', fromDate);
       if (toDate) params.set('endDate', toDate);
-      if (statusFilter.length) params.set('status', statusFilter.join(','));
+      if (statusFilter.length) params.set('status', statusFilter.join(',')); 
 
       const res = await axios.get(
         `https://muditamleads-14f32a10d7f7.herokuapp.com/api/orders/undelivered?${params.toString()}`
@@ -197,12 +234,10 @@ const UndeliveredOrdersTabs = () => {
       setOrders(res.data.data || []);
       setTotal(res.data.total || 0);
       setCounts(res.data.counts || { High: 0, Medium: 0, Low: 0 });
-
-      // NEW: status facet for the dropdown
+ 
       if (Array.isArray(res.data?.facets?.statuses)) {
         setAvailableStatuses(res.data.facets.statuses);
-      } else {
-        // fallback: build from current page (may be partial)
+      } else { 
         const uniq = Array.from(new Set((res.data.data || []).map(o => o.shipment_status).filter(Boolean)));
         setAvailableStatuses(uniq);
       }
@@ -210,6 +245,20 @@ const UndeliveredOrdersTabs = () => {
       console.error("Error fetching orders:", err);
     }
   };
+
+  const handleCarrierChange = (e) => {
+  const carrier = e.target.value;
+  setSelectedCarrier(carrier); 
+
+  if (!carrier) return;
+
+  const defaults = CARRIER_EMAILS[carrier] || [];
+  // Replace current “to” with courier defaults, de-duplicated
+  setEmailForm((prev) => ({
+    ...prev,
+    to: Array.from(new Set(defaults)),
+  }));
+};
 
   useEffect(() => {
     setDraftFromDate(fromDate);
@@ -223,8 +272,7 @@ const UndeliveredOrdersTabs = () => {
     setStatusFilter(draftStatusFilter);
     setPage(0);
   };
-
-  // Selection helpers
+ 
   const allVisibleSelected = useMemo(
     () => orders.length > 0 && orders.every((o) => selectedIds.has(o._id)),
     [orders, selectedIds]
@@ -319,15 +367,13 @@ const UndeliveredOrdersTabs = () => {
 
   // Get agent name from sessionStorage
   const getAgentName = () => {
-    const user = JSON.parse(sessionStorage.getItem("user")); // Assuming the user data is stored in sessionStorage with key "user"
+    const user = JSON.parse(sessionStorage.getItem("user"));  
     if (user && user.fullName) {
-      return user.fullName; // Use fullName from the logged-in user data
+      return user.fullName;  
     }
-    return "Agent"; // Fallback to "Agent" if no name found
+    return "Agent";  
   };
 
-
-  // Robust token replacement for both {{token}} and {token}, case-insensitive
   const replaceTokens = (tpl, vars) => {
     if (!tpl) return "";
     let out = String(tpl);
@@ -802,6 +848,9 @@ const UndeliveredOrdersTabs = () => {
                 Carrier
               </TableCell>
               <TableCell align="center" sx={{ color: "white", fontWeight: "bold" }}>
+                Issue
+              </TableCell>
+              <TableCell align="center" sx={{ color: "white", fontWeight: "bold" }}>
                 Email / Reply
               </TableCell>
             </TableRow>
@@ -851,6 +900,32 @@ const UndeliveredOrdersTabs = () => {
                     </TableCell>
                     <TableCell align="center">{order.tracking_number || "-"}</TableCell>
                     <TableCell align="center">{order.carrier_title || "-"}</TableCell>
+                    {/* Issue dropdown */}
+<TableCell align="center">
+  <Select
+    size="small"
+    displayEmpty
+    value={rowIssue[order._id] || ""}
+    onChange={(e) =>
+      setRowIssue((prev) => ({ ...prev, [order._id]: e.target.value }))
+    }
+    sx={{
+      minWidth: 180,
+      "& .MuiOutlinedInput-notchedOutline": { borderColor: "rgba(0,0,0,0.23)" }, 
+      "&.Mui-focused .MuiOutlinedInput-notchedOutline": { borderColor: "black" },
+    }}
+  >
+    <MenuItem value="">
+      <em>Select issue</em>
+    </MenuItem>
+    {ISSUE_OPTIONS.map((opt) => (
+      <MenuItem key={opt.value} value={opt.value}>
+        {opt.label}
+      </MenuItem>
+    ))}
+  </Select>
+</TableCell>
+
                     <TableCell align="center">{renderEmailStatusCell(order)}</TableCell>
                   </TableRow>
                 );
@@ -911,6 +986,33 @@ const UndeliveredOrdersTabs = () => {
               }}
             />
 
+            {/* Courier preset (auto-fills To) */}
+<Box>
+  <Typography variant="subtitle2" sx={{ mb: 0.5 }}>
+    Courier Recipients
+  </Typography>
+  <Select
+    fullWidth
+    displayEmpty
+    value={selectedCarrier}
+    onChange={handleCarrierChange}
+    sx={{
+      "& .MuiOutlinedInput-notchedOutline": { borderColor: "rgba(0,0,0,0.23)" },
+      "&.Mui-focused .MuiOutlinedInput-notchedOutline": { borderColor: "black" },
+    }}
+  >
+    <MenuItem value="">
+      <em>Select courier to auto-fill recipients</em>
+    </MenuItem>
+    {Object.keys(CARRIER_EMAILS).map((c) => (
+      <MenuItem key={c} value={c}>{c}</MenuItem>
+    ))}
+  </Select>
+  <Typography variant="caption" sx={{ mt: 0.5, display: "block", opacity: 0.8 }}>
+    Choosing a courier will populate the “To” field below with its associated emails. You can still add/remove recipients.
+  </Typography>
+</Box>
+
             {/* To (multi + freeSolo) */}
             <Autocomplete
               multiple
@@ -945,6 +1047,9 @@ const UndeliveredOrdersTabs = () => {
                 />
               )}
             />
+
+            
+
 
             {/* Subject template */}
             <Box>

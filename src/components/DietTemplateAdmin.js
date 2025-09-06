@@ -2,13 +2,13 @@ import React, { useEffect, useMemo, useState } from "react";
 import {
   Box, Button, Chip, Dialog, DialogTitle, DialogContent, DialogActions,
   IconButton, Menu, MenuItem, Select, Stack, Table, TableHead, TableRow,
-  TableCell, TableBody, TextField, Typography, Paper, RadioGroup, FormControlLabel, Radio
+  TableCell, TableBody, TextField, Typography, Paper, Tooltip, Divider
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import DeleteIcon from "@mui/icons-material/Delete";
 import axios from "axios";
 
-const API_BASE = "http:///localhost:5001";
+const API_BASE = "http://localhost:5001"; // ✅ fixed triple slash issue
 
 const MEALS = ["Breakfast", "Lunch", "Snacks", "Dinner"];
 const FORTNIGHT_DAYS = 14;
@@ -69,7 +69,6 @@ export default function DietTemplatesAdmin() {
 
   useEffect(() => {
     fetchRows();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [typeFilter, statusFilter]);
 
   const resetForm = () => {
@@ -149,14 +148,14 @@ export default function DietTemplatesAdmin() {
   };
 
   return (
-    <Box sx={{ p: 2 }}>
-      <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 2 }}>
-        <Typography variant="h6">Diet Templates</Typography>
+    <Box sx={{ p: 3, backgroundColor: "#fafafa", minHeight: "100vh" }}>
+      <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 3 }}>
+        <Typography variant="h5" fontWeight={700}>Diet Templates</Typography>
         <Box>
           <Button
             variant="outlined"
             sx={{ mr: 1 }}
-            onClick={() => setTypeFilter(typeFilter ? "" : "")}
+            onClick={() => { setTypeFilter(""); setStatusFilter(""); }}
           >
             Clear Filters
           </Button>
@@ -164,7 +163,12 @@ export default function DietTemplatesAdmin() {
             variant="contained"
             startIcon={<AddIcon />}
             onClick={(e) => setCreateMenuEl(e.currentTarget)}
-            sx={{ backgroundColor: "black", "&:hover": { backgroundColor: "#222" } }}
+            sx={{
+              backgroundColor: "black",
+              "&:hover": { backgroundColor: "#222" },
+              borderRadius: 2,
+              px: 3
+            }}
           >
             Create New Template
           </Button>
@@ -174,7 +178,7 @@ export default function DietTemplatesAdmin() {
             onClose={() => setCreateMenuEl(null)}
           >
             <MenuItem onClick={() => { openCreate("weekly-14"); setCreateMenuEl(null); }}>
-              Weekly Template (14 days)
+              Weekly Template (14 Days)
             </MenuItem>
             <MenuItem onClick={() => { openCreate("monthly-options"); setCreateMenuEl(null); }}>
               Monthly Template (Options)
@@ -183,13 +187,14 @@ export default function DietTemplatesAdmin() {
         </Box>
       </Stack>
 
+      {/* Filters */}
       <Stack direction="row" spacing={2} sx={{ mb: 2 }}>
-        <Select size="small" value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} displayEmpty>
+        <Select size="small" value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} displayEmpty sx={{ minWidth: 180 }}>
           <MenuItem value="">All Types</MenuItem>
           <MenuItem value="weekly-14">Weekly (14)</MenuItem>
           <MenuItem value="monthly-options">Monthly (Options)</MenuItem>
         </Select>
-        <Select size="small" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} displayEmpty>
+        <Select size="small" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} displayEmpty sx={{ minWidth: 180 }}>
           <MenuItem value="">Any Status</MenuItem>
           <MenuItem value="published">Published</MenuItem>
           <MenuItem value="draft">Draft</MenuItem>
@@ -197,8 +202,9 @@ export default function DietTemplatesAdmin() {
         </Select>
       </Stack>
 
-      <Paper variant="outlined">
-        <Table size="small">
+      {/* Table */}
+      <Paper variant="outlined" sx={{ borderRadius: 2, overflow: "hidden" }}>
+        <Table size="small" stickyHeader>
           <TableHead>
             <TableRow>
               <TableCell>Name</TableCell>
@@ -212,37 +218,47 @@ export default function DietTemplatesAdmin() {
           </TableHead>
           <TableBody>
             {rows.map((r) => (
-              <TableRow key={r._id}>
-                <TableCell>{r.name}</TableCell>
+              <TableRow key={r._id} hover>
+                <TableCell><b>{r.name}</b></TableCell>
                 <TableCell>{r.type}</TableCell>
                 <TableCell>{r.category || "—"}</TableCell>
                 <TableCell>
-                  {(r.tags || []).map(t => <Chip key={t} size="small" label={t} sx={{ mr: .5 }} />)}
+                  {(r.tags || []).map(t => (
+                    <Chip key={t} size="small" label={t} sx={{ mr: .5, mb: .5 }} />
+                  ))}
                 </TableCell>
-                <TableCell>{r.status}</TableCell>
+                <TableCell>
+                  <Chip
+                    label={r.status}
+                    color={r.status === "published" ? "success" : r.status === "draft" ? "warning" : "default"}
+                    size="small"
+                  />
+                </TableCell>
                 <TableCell>{r.version}</TableCell>
                 <TableCell>{r.updatedAt ? new Date(r.updatedAt).toLocaleString() : "—"}</TableCell>
               </TableRow>
             ))}
             {!rows.length && !loading && (
-              <TableRow><TableCell colSpan={7}><Typography align="center">No templates found</Typography></TableCell></TableRow>
+              <TableRow>
+                <TableCell colSpan={7}>
+                  <Typography align="center" sx={{ py: 2, opacity: 0.6 }}>No templates found</Typography>
+                </TableCell>
+              </TableRow>
             )}
           </TableBody>
         </Table>
       </Paper>
 
       {/* CREATE / EDIT DIALOG */}
-      <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)} maxWidth="lg" fullWidth>
+      <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)} maxWidth="xl" fullWidth>
         <DialogTitle sx={{ fontWeight: 700 }}>
           {`Create ${formType === "weekly-14" ? "Weekly (14-day)" : "Monthly (Options)"} Template`}
         </DialogTitle>
-        <DialogContent dividers>
+        <DialogContent dividers sx={{ backgroundColor: "#fafafa" }}>
           {/* Meta */}
-          <Stack direction={{ xs: "column", md: "row" }} spacing={2} sx={{ mb: 2 }}>
+          <Stack direction={{ xs: "column", md: "row" }} spacing={2} sx={{ mb: 3 }}>
             <TextField label="Template Name" value={name} onChange={(e) => setName(e.target.value)} fullWidth size="small" />
             <TextField label="Category" value={category} onChange={(e) => setCategory(e.target.value)} fullWidth size="small" />
-          </Stack>
-          <Stack direction={{ xs: "column", md: "row" }} spacing={2} sx={{ mb: 2 }}>
             <TextField label="Tags (comma-separated)" value={tags} onChange={(e) => setTags(e.target.value)} fullWidth size="small" />
             <Select size="small" value={status} onChange={(e) => setStatus(e.target.value)} sx={{ minWidth: 160 }}>
               <MenuItem value="draft">Draft</MenuItem>
@@ -250,16 +266,19 @@ export default function DietTemplatesAdmin() {
               <MenuItem value="archived">Archived</MenuItem>
             </Select>
           </Stack>
+          <Divider sx={{ mb: 3 }} />
 
           {/* Body */}
           {formType === "weekly-14" ? (
             <Box sx={{ overflowX: "auto" }}>
-              <Table size="small">
+              <Table size="small" stickyHeader>
                 <TableHead>
                   <TableRow>
-                    <TableCell sx={{ fontWeight: 700 }}>Meal</TableCell>
+                    <TableCell sx={{ fontWeight: 700, backgroundColor: "#f5f5f5" }}>Meal</TableCell>
                     {Array.from({ length: FORTNIGHT_DAYS }, (_, i) => (
-                      <TableCell key={i} align="center" sx={{ fontWeight: 700 }}>Day {i + 1}</TableCell>
+                      <TableCell key={i} align="center" sx={{ fontWeight: 700, minWidth: 160, backgroundColor: "#f5f5f5" }}>
+                        Day {i + 1}
+                      </TableCell>
                     ))}
                   </TableRow>
                 </TableHead>
@@ -271,10 +290,10 @@ export default function DietTemplatesAdmin() {
                         <TableCell key={i} align="center">
                           <TextField
                             size="small"
-                            fullWidth
                             value={fortnight[meal][i]}
                             onChange={(e) => setCell(meal, i, e.target.value)}
                             placeholder={`${meal}...`}
+                            sx={{ minWidth: 160 }}
                           />
                         </TableCell>
                       ))}
@@ -285,10 +304,10 @@ export default function DietTemplatesAdmin() {
             </Box>
           ) : (
             <>
-              {["Breakfast", "Mid-Morning Snack", "Lunch", "Evening Snack", "Dinner"].map(slot => {
+              {Object.keys(monthly).map(slot => {
                 const s = monthly[slot];
                 return (
-                  <Paper key={slot} variant="outlined" sx={{ p: 2, mb: 2 }}>
+                  <Paper key={slot} variant="outlined" sx={{ p: 2, mb: 2, borderRadius: 2 }}>
                     <Stack direction={{ xs: "column", md: "row" }} spacing={2} alignItems="center">
                       <TextField
                         size="small"
@@ -305,7 +324,7 @@ export default function DietTemplatesAdmin() {
                         sx={{ minWidth: 180 }}
                       />
                     </Stack>
-                    <Box sx={{ mt: 1 }}>
+                    <Box sx={{ mt: 2 }}>
                       {s.options.map((opt, idx) => (
                         <Stack key={idx} direction="row" spacing={1} alignItems="center" sx={{ mb: 1 }}>
                           <TextField
@@ -315,12 +334,19 @@ export default function DietTemplatesAdmin() {
                             placeholder={`Option ${idx + 1}`}
                             onChange={(e) => setMonthlyOption(slot, idx, e.target.value)}
                           />
-                          <IconButton size="small" onClick={() => removeMonthlyOption(slot, idx)}>
-                            <DeleteIcon fontSize="small" />
-                          </IconButton>
+                          <Tooltip title="Remove Option">
+                            <IconButton size="small" onClick={() => removeMonthlyOption(slot, idx)}>
+                              <DeleteIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
                         </Stack>
                       ))}
-                      <Button variant="outlined" size="small" startIcon={<AddIcon />} onClick={() => addMonthlyOption(slot)}>
+                      <Button
+                        variant="outlined"
+                        size="small"
+                        startIcon={<AddIcon />}
+                        onClick={() => addMonthlyOption(slot)}
+                      >
                         Add Option
                       </Button>
                     </Box>
@@ -330,13 +356,18 @@ export default function DietTemplatesAdmin() {
             </>
           )}
         </DialogContent>
-        <DialogActions>
+        <DialogActions sx={{ p: 2 }}>
           <Button onClick={() => setDialogOpen(false)} sx={{ color: "black" }}>Cancel</Button>
           <Button
             variant="contained"
             onClick={onSave}
             disabled={!canSave}
-            sx={{ backgroundColor: "black", "&:hover": { backgroundColor: "#222" } }}
+            sx={{
+              backgroundColor: "black",
+              "&:hover": { backgroundColor: "#222" },
+              borderRadius: 2,
+              px: 3
+            }}
           >
             Save Template
           </Button>
