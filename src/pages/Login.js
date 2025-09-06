@@ -39,7 +39,8 @@ const LoginPage = () => {
         { email: userId, password }
       );
       if (response.status === 200) {
-        sessionStorage.setItem("user", JSON.stringify(response.data.user));
+        sessionStorage.setItem("user", JSON.stringify(response.data.user)); 
+        window.dispatchEvent(new Event("session:user:set")); 
         navigate("/");
       }
     } catch (err) {

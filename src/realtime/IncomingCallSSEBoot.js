@@ -2,43 +2,86 @@ import React, { useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import IncomingCallToast from "./IncomingCallToast";
 
+function didKey(v) {
+  // must match the server’s normalization
+  return String(v || "").replace(/\D/g, "").slice(-10);
+}
+
 // Simple store inside boot
 function Boot() {
   const [toasts, setToasts] = useState([]);
   const esRef = useRef(null);
+  const recentIdsRef = useRef(new Map()); // uuid -> ts (for dedupe)
 
   useEffect(() => {
-    // get agent DID/callerId from session (adjust keys if needed)
-    let user = {};
-    try { user = JSON.parse(sessionStorage.getItem("user") || "{}"); } catch {}
-    const did = user?.callerId || user?.agentNumber || "";
-
-    if (!did) {
-      console.warn("[SSE] No DID found in sessionStorage.user (callerId/agentNumber).");
-      return;
+    function pruneOld() {
+      const now = Date.now();
+      for (const [k, ts] of recentIdsRef.current) {
+        if (now - ts > 60_000) recentIdsRef.current.delete(k); // keep 1 minute
+      }
     }
 
-    const es = new EventSource(`https://muditamleads-14f32a10d7f7.herokuapp.com/api/sse?did=${encodeURIComponent(did)}`, { withCredentials: true });
-    esRef.current = es; 
+    function start() {
+      let user = {};
+      try { user = JSON.parse(sessionStorage.getItem("user") || "{}"); } catch {}
+      const raw = user?.callerId || user?.agentNumber || "";
+      const key = didKey(raw);
 
-    es.onmessage = (msg) => {
-      try {
-        const data = JSON.parse(msg.data);
-        if (data?.type === "incoming_call") {
+      if (!key) {
+        console.warn("[SSE] No DID found in sessionStorage.user (callerId/agentNumber).");
+        return;
+      }
+
+      // Close any previous connection before opening a new one
+      try { esRef.current?.close(); } catch {}
+
+      const url = `https://muditamleads-14f32a10d7f7.herokuapp.com/api/sse?did=${encodeURIComponent(key)}`;
+      const es = new EventSource(url); // no cookies needed
+      esRef.current = es;
+
+      es.onmessage = (msg) => {
+        try {
+          const data = JSON.parse(msg.data);
+
+          // ignore non-call messages
+          if (!data || data.type !== "incoming_call") return;
+
+          // dedupe using uuid or callId
+          const id = data.uuid || data.callId || `${data.did}:${data.ani}:${data.start_stamp}`;
+          pruneOld();
+          if (recentIdsRef.current.has(id)) return;
+          recentIdsRef.current.set(id, Date.now());
+
           setToasts((cur) => [...cur, data]);
-        }
-      } catch {}
-    };
-    es.onerror = () => { /* allow browser auto-reconnect */ };
+        } catch {}
+      };
 
-    return () => { try { es.close(); } catch {} };
+      es.onerror = () => {
+        // let browser auto-reconnect; if needed you can log here
+      };
+    }
+
+    // initial attempt
+    start();
+
+    // re-try after login (when sessionStorage.user is set)
+    const onSet = () => start();
+    window.addEventListener("session:user:set", onSet);
+
+    return () => {
+      window.removeEventListener("session:user:set", onSet);
+      try { esRef.current?.close(); } catch {}
+    };
   }, []);
 
   return (
     <>
       {toasts.map((t, i) => (
-        <IncomingCallToast key={`${t.uuid || t.callId || i}-${i}`} event={t}
-          onClose={() => setToasts((cur) => cur.filter((_, idx) => idx !== i))} />
+        <IncomingCallToast
+          key={`${t.uuid || t.callId || `${t.did}-${t.ani}-${i}`}`}
+          event={t}
+          onClose={() => setToasts((cur) => cur.filter((_, idx) => idx !== i))}
+        />
       ))}
     </>
   );
@@ -59,8 +102,6 @@ function Boot() {
   // Optional: listen for custom SPA navigate events from toast
   window.addEventListener("app:navigate", (e) => {
     const href = e?.detail?.href;
-    if (!href) return;
-    // If your app exposes a global navigate, hook here.
-    // Otherwise, the toast falls back to window.location.href.
+    if (!href) return; 
   });
 })();
