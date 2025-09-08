@@ -100,9 +100,9 @@ export default function RetentionTable() {
     async (reset = false) => {
       setLoading(true);
       try {
-        const params = new URLSearchParams({
-          page: reset ? "1" : page.toString(),
-          limit: PAGE_SIZE.toString(),
+        const params = new URLSearchParams({ 
+          page: reset ? "1" : page.toString(), 
+          limit: PAGE_SIZE.toString(), 
           retentionStatus: topFilter,
         });
         if (search.trim()) params.append("search", search.trim());
