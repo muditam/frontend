@@ -428,7 +428,6 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
   }, [loading]);
 
 
-
   const handleScroll = () => {
     const container = listRef.current;
     if (!container) return;
