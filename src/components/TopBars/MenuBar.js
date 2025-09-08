@@ -314,6 +314,33 @@ const MenuBar = ({ toggleDrawer }) => {
           </ListItem>
         )}
 
+        {role !== "Finance" && role !== "Operations" && role !== "Manager" && (
+              <ListItem
+                button
+                component={Link}
+                to="/Agent-return"
+                sx={{
+                  display: "flex",
+                  alignItems: "center",
+                  padding: "10px 20px",
+                  borderRadius: "4px",
+                  margin: "4px 0",
+                  transition: "background-color 0.3s, transform 0.2s", 
+                  "&:hover": {
+                    backgroundColor: "#e0f7fa",
+                    color: "#007aff",
+                    transform: "scale(1.02)",
+                  },
+                }}
+                onClick={toggleDrawer}
+              >
+                <AssignmentReturnedIcon sx={{ fontSize: 24, marginRight: "12px" }} />
+                <Typography variant="body1" style={{ fontSize: "14px" }}>
+                  MY RTOs
+                </Typography>
+              </ListItem>
+            )}
+
         {user ? (
           <>
             {role === "Manager" && (
@@ -447,7 +474,7 @@ const MenuBar = ({ toggleDrawer }) => {
                       to="/master/Duplicates"
                       onClick={toggleDrawer}
                     >
-                      <Typography
+                      <Typography 
                         variant="body2"
                         sx={{ fontSize: "13px" }}
                         onClick={toggleDrawer}
@@ -1086,32 +1113,7 @@ const MenuBar = ({ toggleDrawer }) => {
               </List>
             </Collapse>
 
-            {role !== "Finance" && role !== "Operations" && role !== "Manager" && (
-              <ListItem
-                button
-                component={Link}
-                to="/Agent-return"
-                sx={{
-                  display: "flex",
-                  alignItems: "center",
-                  padding: "10px 20px",
-                  borderRadius: "4px",
-                  margin: "4px 0",
-                  transition: "background-color 0.3s, transform 0.2s", 
-                  "&:hover": {
-                    backgroundColor: "#e0f7fa",
-                    color: "#007aff",
-                    transform: "scale(1.02)",
-                  },
-                }}
-                onClick={toggleDrawer}
-              >
-                <AssignmentReturnedIcon sx={{ fontSize: 24, marginRight: "12px" }} />
-                <Typography variant="body1" style={{ fontSize: "14px" }}>
-                  Return Delivered
-                </Typography>
-              </ListItem>
-            )}
+            
 
             {role === "Manager" && (
   <ListItem

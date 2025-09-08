@@ -1,29 +1,57 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
+import { TablePagination } from "@mui/material";
+
+const API_BASE = "https://muditamleads-14f32a10d7f7.herokuapp.com";
 
 const DuplicateNumbers = () => {
   const [duplicateGroups, setDuplicateGroups] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // Fetch duplicate groups from the backend.
-  const fetchDuplicates = async () => {
+  // pagination state
+  const [page, setPage] = useState(0);            // 0-based for MUI
+  const [rowsPerPage, setRowsPerPage] = useState(50);
+  const [totalGroups, setTotalGroups] = useState(0);
+
+  const groupColors = ["#d3d3d3", "#90ee90"];
+
+  const fetchDuplicates = async (p = page, l = rowsPerPage) => {
     try {
-      const res = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/duplicate-leads/duplicates"); 
-      setDuplicateGroups(res.data);
-      setLoading(false); 
+      setLoading(true);
+      const res = await axios.get(`${API_BASE}/api/duplicate-leads/duplicates`, {
+        params: { page: p + 1, limit: l }, // backend expects 1-based page
+      });
+      // Response shape: { page, limit, totalGroups, groups: [...] }
+      setDuplicateGroups(res.data.groups || []);
+      setTotalGroups(res.data.totalGroups || 0);
     } catch (error) {
-      console.error("Error fetching duplicates:", error); 
+      console.error("Error fetching duplicates:", error);
+    } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchDuplicates();
+    fetchDuplicates(0, rowsPerPage);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const handleChangePage = (_e, newPage) => {
+    setPage(newPage);
+    fetchDuplicates(newPage, rowsPerPage);
+  };
+
+  const handleChangeRowsPerPage = (e) => {
+    const newLimit = parseInt(e.target.value, 10);
+    setRowsPerPage(newLimit);
+    setPage(0);
+    fetchDuplicates(0, newLimit);
+  };
 
   const handleDeleteLead = async (leadId, type) => {
     try {
-      await axios.delete(`https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/${type}/${leadId}`);
+      await axios.delete(`${API_BASE}/api/duplicate-leads/${type}/${leadId}`);
+
       // Optimistically update state
       setDuplicateGroups((prevGroups) =>
         prevGroups
@@ -33,14 +61,19 @@ const DuplicateNumbers = () => {
           }))
           .filter((group) => group.leads.length > 1)
       );
+
+      // Optional: if this page becomes empty after deletion, refetch current page
+      // (helps when the last group on a page gets reduced)
+      // If needed, uncomment:
+      // if (duplicateGroups.every(g => g.leads.length <= 1)) {
+      //   fetchDuplicates(page, rowsPerPage);
+      // }
     } catch (error) {
       console.error("Error deleting lead:", error);
     }
   };
 
   if (loading) return <div>Loading...</div>;
-
-  const groupColors = ["#d3d3d3", "#90ee90"];
 
   return (
     <div style={{ fontSize: "12px", margin: "20px" }}>
@@ -60,10 +93,12 @@ const DuplicateNumbers = () => {
         </thead>
         <tbody>
           {duplicateGroups.map((group, groupIndex) =>
-            group.leads.map((lead) => (
+            (group.leads || []).map((lead) => (
               <tr
                 key={lead._id}
-                style={{ backgroundColor: groupColors[groupIndex % groupColors.length] }}
+                style={{
+                  backgroundColor: groupColors[groupIndex % groupColors.length],
+                }}
               >
                 <td>
                   <button
@@ -85,14 +120,22 @@ const DuplicateNumbers = () => {
                 <td>{lead.leadStatus}</td>
                 <td>{lead.salesStatus}</td>
                 <td>{lead.healthExpertAssigned}</td>
-                <td>
-                  {lead.type === "customer" ? "?" : (lead.retentionStatus ?? "")}
-                </td>
+                <td>{lead.type === "customer" ? "?" : (lead.retentionStatus ?? "")}</td>
               </tr>
             ))
           )}
         </tbody>
       </table>
+
+      <TablePagination
+        component="div"
+        count={totalGroups}
+        page={page}
+        onPageChange={handleChangePage}
+        rowsPerPage={rowsPerPage}
+        onRowsPerPageChange={handleChangeRowsPerPage}
+        rowsPerPageOptions={[25, 50, 100, 200]}
+      />
     </div>
   );
 };
