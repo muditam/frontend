@@ -27,6 +27,7 @@ import axios from "axios";
 import Details from "./Details";
 import RetentionFollowUp from "./RetentionFollowUp";
 import CreateOrderPopup from "./CreateOrderPopup";
+import CohortDataCustomer from "./CohortDataCustomer";
 
 import Dialog from "@mui/material/Dialog";
 import DialogTitle from "@mui/material/DialogTitle";
@@ -2616,6 +2617,8 @@ const RetentionLeads = () => {
 
               <RetentionFollowUp contactNumber={leads[selectedLeadIndex]?.contactNumber} />
 
+              <CohortDataCustomer contactNumber={leads[selectedLeadIndex]?.contactNumber} />
+
             </Box>
 
             {/* Image Upload Section - 30% width */}
@@ -2865,9 +2868,6 @@ const RetentionLeads = () => {
                   )}
                 </Box>
               </Box>
-
-
-
 
               <Typography variant="h6" gutterBottom sx={{ color: "black" }}>
                 Upload Images

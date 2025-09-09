@@ -49,10 +49,11 @@ import SmartfloCallLogs from "./components/SmartfloCallLogs";
 import SmartfloDataAnalytics from "./components/SmartfloDataAnalytics";
 import ReturnDeliveredOrders from "./components/ReturnDeliveredOrders";
 import DietTemplateAdmin from "./components/DietTemplateAdmin";
+import AllProducts from "./components/all-products";
 import "./realtime/IncomingCallSSEBoot";
 
 const App = () => {
-  return (
+  return ( 
     <Router>
       <div>
         <NavbarWithSearch /> 
@@ -384,6 +385,14 @@ const App = () => {
             element={
               <PrivateRoute>
                 <ReturnDeliveredOrders />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/all-products"
+            element={
+              <PrivateRoute>
+                <AllProducts />
               </PrivateRoute>
             }
           />

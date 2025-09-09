@@ -118,6 +118,12 @@ const priceMap = {
     "3 months": 1295,
     "4 months": 2500,
   },
+  "Omega Fuel": {
+    "1 month": 495,
+    "2 months": 850,
+    "3 months": 1195,
+    "4 months": 2195, 
+  },
   "HbA1c - Blood Test": {
     "1 month": 300,
     "2 months": 300,

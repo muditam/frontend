@@ -1142,6 +1142,39 @@ const MenuBar = ({ toggleDrawer }) => {
   </ListItem>
 )}
 
+{role === "Manager" && (
+  <>
+    <ListItem
+      button
+      onClick={() => handleDropdownClick("others")}
+      sx={dropdownStyle}
+    >
+      <Box sx={{ display: "flex", alignItems: "center" }}>
+        <FolderIcon sx={{ fontSize: 18, marginRight: "8px" }} />
+        <Typography variant="body1" sx={{ fontSize: "14px" }}>
+          Others
+        </Typography>
+      </Box>
+      {openDropdown.others ? <KeyboardArrowDownIcon /> : <KeyboardArrowRightIcon />}
+    </ListItem>
+
+    <Collapse in={openDropdown.others} timeout="auto" unmountOnExit>
+      <List sx={nestedListStyle}>
+        <ListItem
+          button
+          component={Link}
+          to="/all-products"
+          onClick={toggleDrawer}
+        >
+          <Typography variant="body2" sx={{ fontSize: "13px" }}>
+            All Products
+          </Typography>
+        </ListItem>
+      </List>
+    </Collapse>
+  </>
+)}
+
             {role !== "Finance" && role !== "Operations" && (
               <ListItem
                 button
