@@ -294,7 +294,7 @@ const Closing = ({ presalesHba1c = "8", customerId }) => {
   const handleCreatePlanLink = () => {
     const baseUrl = "https://muditam.com/apps/consultation";
     const planLink = `${baseUrl}/${customerId}`;
-    setGeneratedLink(planLink);
+    setGeneratedLink(planLink); 
   };
 
   const handleGetPaymentLink = () => {

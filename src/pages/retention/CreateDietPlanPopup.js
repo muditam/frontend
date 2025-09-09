@@ -30,9 +30,11 @@ import {
 import DeleteIcon from "@mui/icons-material/Delete";
 import AddIcon from "@mui/icons-material/Add";
 import StarIcon from "@mui/icons-material/Star";
+import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import axios from "axios";
 
 const BASE_URL = "https://muditamleads-14f32a10d7f7.herokuapp.com";
+const PUBLIC_LINK_BASE = "https://muditam.com/apps/consultation/diet-plan"; // ✅ final path
 
 // ---------- HELPERS ----------
 const WEEKLY_TYPE = "weekly-14";
@@ -41,7 +43,7 @@ const MONTHLY_TYPE = "monthly-options";
 const mealsOrder = ["Breakfast", "Lunch", "Snacks", "Dinner"];
 const monthlySlotOrder = ["Breakfast", "Lunch", "Evening Snack", "Dinner"];
 
-const FORTNIGHT_DAYS = 14; 
+const FORTNIGHT_DAYS = 14;
 
 const emptyFortnight = () =>
   mealsOrder.reduce((acc, meal) => {
@@ -141,6 +143,9 @@ export default function CreateDietPlanPopup({
     () => pastPlans.find((p) => String(p._id) === String(selectedPastPlanId)),
     [pastPlans, selectedPastPlanId]
   );
+
+  // ✅ generated plan link (shown after Save & Download)
+  const [generatedLink, setGeneratedLink] = useState("");
 
   const blackContained = {
     backgroundColor: "black",
@@ -443,48 +448,59 @@ export default function CreateDietPlanPopup({
   };
 
   const replicatePlanIntoEditor = (doc) => {
-  if (!doc) return;
-  const {
-    planType: pType,
-    templateId: tId,
-    fortnight: f14,
-    monthly: mOpt,
-  } = unwrapPlan(doc);
+    if (!doc) return;
+    const {
+      planType: pType,
+      templateId: tId,
+      fortnight: f14,
+      monthly: mOpt,
+    } = unwrapPlan(doc);
 
-  const safeType = pType || "Weekly";
-  setPlanType(safeType);
-  setTemplateId(tId ? String(tId) : "");
+    const safeType = pType || "Weekly";
+    setPlanType(safeType);
+    setTemplateId(tId ? String(tId) : "");
 
-  if (safeType === "Weekly" && f14) {
-    const normalized = emptyFortnight();
-    mealsOrder.forEach((meal) => {
-      const arr = Array.isArray(f14[meal]) ? f14[meal] : [];
-      normalized[meal] = [...arr].slice(0, FORTNIGHT_DAYS);
-      while (normalized[meal].length < FORTNIGHT_DAYS) normalized[meal].push("");
-    });
-    setFortnight(deepClone(normalized));
-    setMonthly(defaultMonthlyState());
-  } else if (safeType === "Monthly" && mOpt) {
-    const normalized = defaultMonthlyState();
-    monthlySlotOrder.forEach((slotKey) => {
-      const slot = mOpt[slotKey];
-      if (slot && typeof slot === "object") {
-        normalized[slotKey] = {
-          time: slot.time ?? "",
-          options: Array.isArray(slot.options) ? [...slot.options] : [],
-        };
-      }
-    });
-    setMonthly(deepClone(normalized));
-    setFortnight(emptyFortnight());
-  }
-};
+    if (safeType === "Weekly" && f14) {
+      const normalized = emptyFortnight();
+      mealsOrder.forEach((meal) => {
+        const arr = Array.isArray(f14[meal]) ? f14[meal] : [];
+        normalized[meal] = [...arr].slice(0, FORTNIGHT_DAYS);
+        while (normalized[meal].length < FORTNIGHT_DAYS) normalized[meal].push("");
+      });
+      setFortnight(deepClone(normalized));
+      setMonthly(defaultMonthlyState());
+    } else if (safeType === "Monthly" && mOpt) {
+      const normalized = defaultMonthlyState();
+      monthlySlotOrder.forEach((slotKey) => {
+        const slot = mOpt[slotKey];
+        if (slot && typeof slot === "object") {
+          normalized[slotKey] = {
+            time: slot.time ?? "",
+            options: Array.isArray(slot.options) ? [...slot.options] : [],
+          };
+        }
+      });
+      setMonthly(deepClone(normalized));
+      setFortnight(emptyFortnight());
+    }
+  };
 
-const handleReplicateSelected = () => {
-  if (!selectedPastPlan) return;
-  replicatePlanIntoEditor(selectedPastPlan);
-};
+  const handleReplicateSelected = () => {
+    if (!selectedPastPlan) return;
+    replicatePlanIntoEditor(selectedPastPlan);
+  };
 
+  // Copy handler
+  const handleCopyLink = async () => {
+    if (!generatedLink) return;
+    try {
+      await navigator.clipboard?.writeText(generatedLink);
+      alert("Link copied to clipboard.");
+    } catch {
+      // fallback
+      window.prompt("Copy this link:", generatedLink);
+    }
+  };
 
   const handleSave = async (mode /* "share" | "download" */) => {
     if (!canSave) return;
@@ -498,6 +514,14 @@ const handleReplicateSelected = () => {
           await Promise.resolve(onSaved({ payload, created }));
         } catch {}
       }
+
+      // Try to extract the created plan's ID robustly
+      const createdId =
+        created?._id ||
+        created?.item?._id ||
+        created?.data?._id ||
+        created?.plan?._id ||
+        created?.result?._id;
 
       if (mode === "share") {
         const text =
@@ -514,13 +538,26 @@ const handleReplicateSelected = () => {
         } else {
           alert(text);
         }
-      } else if (mode === "download") {
-        if (planType === "Weekly") downloadWeeklyCSV(payload);
-        else downloadMonthlyCSV(payload);
+        // Close after share (original behavior)
+        setSaving(false);
+        onClose?.();
+        return;
       }
 
+      // mode === "download"
+      if (planType === "Weekly") downloadWeeklyCSV(payload);
+      else downloadMonthlyCSV(payload);
+
+      // ✅ Generate and show the public plan link using the newly-created Plan ID
+      if (createdId) {
+        setGeneratedLink(`${PUBLIC_LINK_BASE}/${createdId}`);
+      } else {
+        setGeneratedLink("");
+        console.warn("Could not determine created diet plan _id for link.");
+      }
+
+      // Keep dialog open so the link is visible/copyable
       setSaving(false);
-      onClose?.();
     } catch (err) {
       console.error("Failed to save diet plan:", err?.response?.data || err?.message || err);
       alert(err?.response?.data?.error || "Failed to save diet plan. Please check server logs.");
@@ -531,12 +568,12 @@ const handleReplicateSelected = () => {
   const mostRecentPlan = pastPlans[0];
 
   const renderPastPlanPreview = (doc) => {
-     if (!doc) return null;
-  const u = unwrapPlan(doc);
-  const isWeekly = u.planType === "Weekly";
-  const effectiveDays = isWeekly ? 14 : 30;
-  const isoStart = (u.startDate || "").slice(0, 10);
-  const range = isoStart ? fmtRange(isoStart, effectiveDays) : "—";
+    if (!doc) return null;
+    const u = unwrapPlan(doc);
+    const isWeekly = u.planType === "Weekly";
+    const effectiveDays = isWeekly ? 14 : 30;
+    const isoStart = (u.startDate || "").slice(0, 10);
+    const range = isoStart ? fmtRange(isoStart, effectiveDays) : "—";
 
     return (
       <Box
@@ -655,86 +692,85 @@ const handleReplicateSelected = () => {
         </Typography>
 
         {/* Controls row: Plan Type, Template, Past Plans (to the RIGHT of template) */}
-       <Stack
-  direction={{ xs: "column", sm: "row" }}
-  spacing={2}
-  alignItems={{ xs: "stretch", sm: "center" }}
->
-  {/* Plan Type */}
-  <FormControl size="small" sx={{ width: 200 }}>
-    <InputLabel shrink id="plan-type-label">Plan Type</InputLabel>
-    <Select
-      labelId="plan-type-label"
-      value={planType}
-      onChange={(e) => setPlanType(e.target.value)}
-      label="Plan Type"
-      sx={{
-        "& .MuiOutlinedInput-notchedOutline": { borderColor: "rgba(0,0,0,0.23)" },
-        "&.Mui-focused .MuiOutlinedInput-notchedOutline": { borderColor: "black" },
-      }}
-    >
-      <MenuItem value="Weekly">Two Weeks (14 Days)</MenuItem>
-      <MenuItem value="Monthly">Monthly (Options)</MenuItem>
-    </Select>
-  </FormControl>
+        <Stack
+          direction={{ xs: "column", sm: "row" }}
+          spacing={2}
+          alignItems={{ xs: "stretch", sm: "center" }}
+        >
+          {/* Plan Type */}
+          <FormControl size="small" sx={{ width: 200 }}>
+            <InputLabel shrink id="plan-type-label">Plan Type</InputLabel>
+            <Select
+              labelId="plan-type-label"
+              value={planType}
+              onChange={(e) => setPlanType(e.target.value)}
+              label="Plan Type"
+              sx={{
+                "& .MuiOutlinedInput-notchedOutline": { borderColor: "rgba(0,0,0,0.23)" },
+                "&.Mui-focused .MuiOutlinedInput-notchedOutline": { borderColor: "black" },
+              }}
+            >
+              <MenuItem value="Weekly">Two Weeks (14 Days)</MenuItem>
+              <MenuItem value="Monthly">Monthly (Options)</MenuItem>
+            </Select>
+          </FormControl>
 
-  {/* Template */}
-  <FormControl size="small" sx={{ width: 260 }} disabled={loadingTemplates || !!templatesError}>
-    <InputLabel shrink id="template-label">Select Template</InputLabel>
-    <Select
-      labelId="template-label"
-      value={templateId}
-      onChange={(e) => setTemplateId(e.target.value)}
-      label="Select Template"
-      sx={{
-        "& .MuiOutlinedInput-notchedOutline": { borderColor: "rgba(0,0,0,0.23)" },
-        "&.Mui-focused .MuiOutlinedInput-notchedOutline": { borderColor: "black" },
-      }}
-    >
-      {(planType === "Weekly" ? templatesWeekly : templatesMonthly).map((t) => (
-        <MenuItem key={t._id} value={t._id}>
-          {t.name} {t.category ? `— ${t.category}` : ""} {t.version ? `(v${t.version})` : ""}
-        </MenuItem>
-      ))}
-    </Select>
-    {/* Optional helper text for loading/error */}
-    {loadingTemplates && <FormHelperText>Loading templates…</FormHelperText>}
-    {!!templatesError && <FormHelperText error>Failed to load templates</FormHelperText>}
-  </FormControl>
+          {/* Template */}
+          <FormControl size="small" sx={{ width: 260 }} disabled={loadingTemplates || !!templatesError}>
+            <InputLabel shrink id="template-label">Select Template</InputLabel>
+            <Select
+              labelId="template-label"
+              value={templateId}
+              onChange={(e) => setTemplateId(e.target.value)}
+              label="Select Template"
+              sx={{
+                "& .MuiOutlinedInput-notchedOutline": { borderColor: "rgba(0,0,0,0.23)" },
+                "&.Mui-focused .MuiOutlinedInput-notchedOutline": { borderColor: "black" },
+              }}
+            >
+              {(planType === "Weekly" ? templatesWeekly : templatesMonthly).map((t) => (
+                <MenuItem key={t._id} value={t._id}>
+                  {t.name} {t.category ? `— ${t.category}` : ""} {t.version ? `(v${t.version})` : ""}
+                </MenuItem>
+              ))}
+            </Select>
+            {/* Optional helper text for loading/error */}
+            {loadingTemplates && <FormHelperText>Loading templates…</FormHelperText>}
+            {!!templatesError && <FormHelperText error>Failed to load templates</FormHelperText>}
+          </FormControl>
 
-  {/* Past Plans (to the right of Template) */}
-  <Box sx={{ display: "flex", alignItems: "flex-start", gap: 1, flex: 1 }}>
-    <FormControl size="small" sx={{ minWidth: 260 }} disabled={loadingPast || !pastPlans.length}>
-      <InputLabel shrink id="past-plans-label">See/Replicate Past Plan</InputLabel>
-      <Select
-        labelId="past-plans-label"
-        value={selectedPastPlanId}
-        onChange={(e) => setSelectedPastPlanId(e.target.value)}
-        label="Select Past Plan"
-        MenuProps={PastPlansMenuProps} // keeps list to ~4 visible items
-      >
-        {pastPlans.map((p) => {
-          const isoStart = (p.startDate || "").slice(0, 10);
-          const days = p.planType === "Weekly" ? 14 : 30;
-          const label = `${p.templateLabel || p.planType} (${p.planType})`;
-          const range = isoStart ? fmtRange(isoStart, days) : "";
-          return (
-            <MenuItem key={p._id} value={p._id}>
-              {label} {range ? `• ${range}` : ""}
-            </MenuItem>
-          );
-        })}
-      </Select>
-      {!loadingPast && !pastPlans.length && (
-        <FormHelperText>
-          ★ No past diet plan available
-        </FormHelperText>
-      )}
-      {loadingPast && <FormHelperText>Loading past plans…</FormHelperText>}
-    </FormControl>
-  </Box>
-</Stack>
-
+          {/* Past Plans (to the right of Template) */}
+          <Box sx={{ display: "flex", alignItems: "flex-start", gap: 1, flex: 1 }}>
+            <FormControl size="small" sx={{ minWidth: 260 }} disabled={loadingPast || !pastPlans.length}>
+              <InputLabel shrink id="past-plans-label">See/Replicate Past Plan</InputLabel>
+              <Select
+                labelId="past-plans-label"
+                value={selectedPastPlanId}
+                onChange={(e) => setSelectedPastPlanId(e.target.value)}
+                label="Select Past Plan"
+                MenuProps={PastPlansMenuProps} // keeps list to ~4 visible items
+              >
+                {pastPlans.map((p) => {
+                  const isoStart = (p.startDate || "").slice(0, 10);
+                  const days = p.planType === "Weekly" ? 14 : 30;
+                  const label = `${p.templateLabel || p.planType} (${p.planType})`;
+                  const range = isoStart ? fmtRange(isoStart, days) : "";
+                  return (
+                    <MenuItem key={p._id} value={p._id}>
+                      {label} {range ? `• ${range}` : ""}
+                    </MenuItem>
+                  );
+                })}
+              </Select>
+              {!loadingPast && !pastPlans.length && (
+                <FormHelperText>
+                  ★ No past diet plan available
+                </FormHelperText>
+              )}
+              {loadingPast && <FormHelperText>Loading past plans…</FormHelperText>}
+            </FormControl>
+          </Box>
+        </Stack>
 
         {/* If a past plan is picked in the dropdown, show non-editable preview + replicate */}
         {selectedPastPlan && renderPastPlanPreview(selectedPastPlan)}
@@ -968,27 +1004,44 @@ const handleReplicateSelected = () => {
         </Box>
       </DialogContent>
 
-      <DialogActions sx={{ p: 2 }}>
-        <Button onClick={onClose} disabled={saving} sx={{ color: "black" }}>
-          Cancel
-        </Button>
-        <Button
-          variant="outlined"
-          disabled={!canSave}
-          onClick={() => handleSave("share")}
-          sx={{ ...blackOutlined }}
-          startIcon={saving ? <CircularProgress size={16} /> : null}
-        >
-          {saving ? "Saving..." : "Save & Share"}
-        </Button>
-        <Button
-          variant="contained"
-          disabled={!canSave}
-          onClick={() => handleSave("download")}
-          sx={{ ...blackContained }}
-        >
-          Save & Download
-        </Button>
+      <DialogActions sx={{ p: 2, flexDirection: "column", alignItems: "stretch", gap: 1 }}>
+        <Box sx={{ display: "flex", gap: 1, justifyContent: "flex-end" }}>
+          <Button onClick={onClose} disabled={saving} sx={{ color: "black" }}>
+            Cancel
+          </Button>
+          <Button
+            variant="outlined"
+            disabled={!canSave}
+            onClick={() => handleSave("share")}
+            sx={{ ...blackOutlined }}
+            startIcon={saving ? <CircularProgress size={16} /> : null}
+          >
+            {saving ? "Saving..." : "Save & Share"}
+          </Button>
+          <Button
+            variant="contained"
+            disabled={!canSave}
+            onClick={() => handleSave("download")}
+            sx={{ ...blackContained }}
+          >
+            Save & Download
+          </Button>
+        </Box>
+
+        {/* ✅ Link appears just below buttons after Save & Download */}
+        {generatedLink && (
+          <Box sx={{ mt: 1, display: "flex", alignItems: "center", gap: 1 }}>
+            <TextField
+              fullWidth
+              size="small"
+              value={generatedLink}
+              InputProps={{ readOnly: true }}
+            />
+            <IconButton onClick={handleCopyLink} aria-label="Copy link">
+              <ContentCopyIcon />
+            </IconButton>
+          </Box>
+        )}
       </DialogActions>
     </Dialog>
   );
