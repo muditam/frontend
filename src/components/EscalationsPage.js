@@ -84,7 +84,7 @@ const EscalationsPage = () => {
     products: [],
   });
 
-  const BACKEND_URL = "hhttps://muditamleads-14f32a10d7f7.herokuapp.com/api";
+  const BACKEND_URL = "https://muditamleads-14f32a10d7f7.herokuapp.com/api";
 
   const allowedAssignees = useMemo(() => {
     return employees

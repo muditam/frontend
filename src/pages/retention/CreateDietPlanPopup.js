@@ -34,6 +34,9 @@ import DeleteIcon from "@mui/icons-material/Delete";
 import AddIcon from "@mui/icons-material/Add";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
+import EditIcon from "@mui/icons-material/Edit";
+import CheckIcon from "@mui/icons-material/Check";
+import CloseIcon from "@mui/icons-material/Close";
 import axios from "axios";
 
 const BASE_URL = "https://muditamleads-14f32a10d7f7.herokuapp.com";
@@ -240,7 +243,14 @@ export default function CreateDietPlanPopup({
   const [conditions, setConditions] = useState([]);
   const [healthGoals, setHealthGoals] = useState([]);
   const [goalsTouched, setGoalsTouched] = useState(false); // prevent overwriting manual edits
-  const [newGoal, setNewGoal] = useState("");
+  const [newGoal, setNewGoal] = useState(""); 
+
+  const [editVitalsMode, setEditVitalsMode] = useState(false);
+  const [editAge, setEditAge] = useState("");
+  const [editHeightCm, setEditHeightCm] = useState("");
+  const [editWeightKg, setEditWeightKg] = useState("");
+  const [savingVitals, setSavingVitals] = useState(false); 
+  const [vitalsErrorMsg, setVitalsErrorMsg] = useState("");
 
   useEffect(() => {
     if (goalsTouched) return;
@@ -396,6 +406,48 @@ export default function CreateDietPlanPopup({
     }
   }, [selectedTemplate]);
 
+  const startEditVitals = () => {
+   setVitalsErrorMsg("");
+   setEditAge(String(age ?? ""));
+   setEditHeightCm(String(heightCm ?? ""));
+   setEditWeightKg(String(weightKg ?? ""));
+  setEditVitalsMode(true);
+};
+
+const cancelEditVitals = () => {
+  setVitalsErrorMsg("");
+  setEditVitalsMode(false);
+};
+
+const saveEditVitals = async () => {
+  if (!leadId) return;
+  const a = Number(editAge);
+  const h = Number(editHeightCm);
+  const w = Number(editWeightKg);
+  if (![a, h, w].every((n) => Number.isFinite(n) && n > 0)) {
+    setVitalsErrorMsg("Please enter valid positive numbers for Age, Height, and Weight.");
+    return;
+  }
+  try {
+    setSavingVitals(true);
+    setVitalsErrorMsg("");
+    // Update both places for compatibility: details + healthProfile
+    await axios.put(`${BASE_URL}/api/leads/${leadId}`, {
+      details: { age: a, height: h, heightCm: h, weight: w, weightKg: w }, 
+      healthProfile: { age: a, heightCm: h, weightKg: w },
+    });
+    // Reflect locally
+    setAge(a); setHeightCm(h); setWeightKg(w);
+    setEditVitalsMode(false);
+  } catch (e) {
+    setVitalsErrorMsg(
+      e?.response?.data?.error || "Failed to update vitals. Please try again."
+    );
+  } finally {
+    setSavingVitals(false);
+  }
+};
+
   // start date computed
   const startDate = useMemo(() => {
     const today = new Date();
@@ -422,9 +474,9 @@ export default function CreateDietPlanPopup({
    const conditionsFilled = useMemo(() => (conditions?.length ?? 0) > 0, [conditions]);
 
   const canSave = useMemo(() => {
-    if (!leadId || saving || !templateId || !vitalsFilled || conditionsFilled) return false; 
+    if (!leadId || saving || !templateId || !vitalsFilled || !conditionsFilled) return false; 
 
-    if (planType === "Weekly") {
+    if (planType === "Weekly") { 
       const any = mealsOrder.some((m) =>
         fortnight[m].some((v) => (v || "").trim())
       );
@@ -771,25 +823,87 @@ export default function CreateDietPlanPopup({
           justifyContent="space-between"
           spacing={2}
         >
-          <Typography variant="body2" sx={{ opacity: 0.8 }}>
-            <b>Customer:</b> {name || "—"} &nbsp; | &nbsp; <b>Phone:</b>{" "}
-            {phone || "—"} &nbsp; | &nbsp; <b>Age:</b> {age || "—"} &nbsp; | &nbsp;{" "}
-            <b>Height:</b> {heightCm ? `${heightCm} cm` : "—"} &nbsp; | &nbsp;{" "}
-            <b>Weight:</b> {weightKg ? `${weightKg} kg` : "—"}
-          </Typography>
+          {!editVitalsMode ? (
+            <Stack
+              direction="row"
+              alignItems="center"
+              spacing={1}
+              sx={{ flexWrap: "wrap" }}
+            >
+              <Typography variant="body2" sx={{ opacity: 0.8 }}>
+                <b>Customer:</b> {name || "—"} &nbsp; | &nbsp; <b>Phone:</b>{" "}
+                {phone || "—"} &nbsp; | &nbsp; <b>Age:</b> {age || "—"} &nbsp; | &nbsp;{" "}
+                <b>Height:</b> {heightCm ? `${heightCm} cm` : "—"} &nbsp; | &nbsp;{" "}
+                <b>Weight:</b> {weightKg ? `${weightKg} kg` : "—"}
+              </Typography>
+              <Tooltip title="Edit age/height/weight">
+                <span>
+                  <IconButton size="small" onClick={startEditVitals} aria-label="Edit vitals">
+                    <EditIcon fontSize="small" />
+                  </IconButton>
+                </span>
+              </Tooltip>
+            </Stack>
+          ) : (
+            <Stack direction={{ xs: "column", md: "row" }} spacing={1} alignItems="center">
+              <TextField
+                label="Age"
+                size="small"
+                type="number"
+                value={editAge}
+                onChange={(e) => setEditAge(e.target.value)}
+                sx={{ width: 110 }}
+                InputLabelProps={{ shrink: true }}
+              />
+              <TextField
+                label="Height (cm)"
+                size="small"
+                type="number"
+                value={editHeightCm}
+                onChange={(e) => setEditHeightCm(e.target.value)}
+                sx={{ width: 140 }}
+                InputLabelProps={{ shrink: true }}
+              />
+              <TextField
+                label="Weight (kg)"
+                size="small"
+                type="number"
+                value={editWeightKg}
+                onChange={(e) => setEditWeightKg(e.target.value)}
+                sx={{ width: 140 }}
+                InputLabelProps={{ shrink: true }}
+              />
+              <Tooltip title="Save">
+                <span>
+                  <IconButton
+                    size="small"
+                    onClick={saveEditVitals}
+                    aria-label="Save vitals"
+                    disabled={savingVitals}
+                    sx={{ color: "black" }}
+                  >
+                    <CheckIcon fontSize="small" />
+                  </IconButton>
+                </span>
+              </Tooltip>
+              <Tooltip title="Cancel">
+                <IconButton size="small" onClick={cancelEditVitals} aria-label="Cancel edit">
+                  <CloseIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
+            </Stack>
+          )}
         </Stack>
+
+        {vitalsErrorMsg && (
+          <Alert severity="error" variant="outlined">{vitalsErrorMsg}</Alert>
+        )}
  
         {!vitalsFilled && (
           <Alert severity="error" variant="outlined">
              Age, Height, and Weight are required. Please update the lead’s details before saving.
           </Alert>
          )}
-
-        {!conditionsFilled && (
-          <Alert severity="error" variant="outlined">
-           At least one Health Condition is required. Please select it below.
-          </Alert>
-        )}
 
         {/* Controls row: Plan Type, Template, Past Plans */}
         <Stack
@@ -1219,11 +1333,10 @@ export default function CreateDietPlanPopup({
             sx={{ ...blackContained }}
             startIcon={saving ? <CircularProgress size={16} /> : null}
           >
-            Save & Download
+            Save & Share
           </Button>
         </Box>
-
-        {/* Animated "generating link..." status */}
+ 
         <Collapse in={saving} timeout={300} unmountOnExit>
           <Stack
             direction="row"
