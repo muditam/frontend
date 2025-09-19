@@ -17,7 +17,7 @@ import {
   Table,
   TableHead,
   TableRow,
-  TableCell,
+  TableCell, 
   TableBody,
   Paper,
   IconButton,
@@ -28,6 +28,7 @@ import {
   Chip,
   CircularProgress,
   Collapse,
+  Alert,
 } from "@mui/material";
 import DeleteIcon from "@mui/icons-material/Delete";
 import AddIcon from "@mui/icons-material/Add";
@@ -41,13 +42,13 @@ const PUBLIC_LINK_BASE = "https://muditam.com/apps/consultation/diet-plan";
 // ---------- HELPERS ----------
 const WEEKLY_TYPE = "weekly-14";
 const MONTHLY_TYPE = "monthly-options";
-
+ 
 const mealsOrder = ["Breakfast", "Lunch", "Snacks", "Dinner"];
 const monthlySlotOrder = ["Breakfast", "Lunch", "Evening Snack", "Dinner"];
 
 const FORTNIGHT_DAYS = 14;
 
-const emptyFortnight = () =>
+const emptyFortnight = () => 
   mealsOrder.reduce((acc, meal) => {
     acc[meal] = Array(FORTNIGHT_DAYS).fill("");
     return acc;
@@ -338,7 +339,7 @@ export default function CreateDietPlanPopup({
   // Initial planType sync
   useEffect(() => {
     setPlanType(initialPlanType);
-  }, [initialPlanType]);
+  }, [initialPlanType]); 
 
   // Templates for current type
   const templateOptions =
@@ -406,25 +407,34 @@ export default function CreateDietPlanPopup({
       tm.setDate(tm.getDate() + 1);
       return toISO(tm);
     }
-    return customStartDate || toISO(today);
+    return customStartDate || toISO(today); 
   }, [startMode, customStartDate]);
 
-  const durationDays = planType === "Weekly" ? FORTNIGHT_DAYS : 30;
+  const durationDays = planType === "Weekly" ? FORTNIGHT_DAYS : 30; 
+
+  const vitalsFilled = useMemo(() => {
+     const a = String(age ?? "").trim();
+     const h = String(heightCm ?? "").trim();
+     const w = String(weightKg ?? "").trim();
+     return Boolean(a && h && w);
+   }, [age, heightCm, weightKg]);
+
+   const conditionsFilled = useMemo(() => (conditions?.length ?? 0) > 0, [conditions]);
 
   const canSave = useMemo(() => {
-    if (!leadId || saving || !templateId) return false;
+    if (!leadId || saving || !templateId || !vitalsFilled || conditionsFilled) return false; 
 
     if (planType === "Weekly") {
       const any = mealsOrder.some((m) =>
         fortnight[m].some((v) => (v || "").trim())
       );
       return any;
-    }
+    } 
     const anyMonthly = Object.values(monthly).some((slot) =>
       slot.options.some((o) => (o || "").trim())
     );
     return anyMonthly;
-  }, [leadId, saving, templateId, planType, fortnight, monthly]);
+  }, [leadId, saving, templateId, planType, fortnight, monthly, vitalsFilled, conditionsFilled]);
 
   // -------- Weekly helpers --------
   const setCell = (meal, dayIdx, value) => {
@@ -514,7 +524,16 @@ export default function CreateDietPlanPopup({
   // Save handler — no CSV download anymore, just link with animation
   const handleSave = async () => {
     if (!canSave) return;
-    const payload = makePayload();
+    if (!vitalsFilled) {
+       alert("Age, Height, and Weight are required. Please update these before saving.");
+       return;
+     } 
+
+     if (!conditionsFilled) {
+      alert("Please select at least one Health Condition before saving.");
+     return;
+    }
+    const payload = makePayload(); 
     try {
       setGeneratedLink(""); // clear old link
       setSaving(true);
@@ -759,6 +778,18 @@ export default function CreateDietPlanPopup({
             <b>Weight:</b> {weightKg ? `${weightKg} kg` : "—"}
           </Typography>
         </Stack>
+ 
+        {!vitalsFilled && (
+          <Alert severity="error" variant="outlined">
+             Age, Height, and Weight are required. Please update the lead’s details before saving.
+          </Alert>
+         )}
+
+        {!conditionsFilled && (
+          <Alert severity="error" variant="outlined">
+           At least one Health Condition is required. Please select it below.
+          </Alert>
+        )}
 
         {/* Controls row: Plan Type, Template, Past Plans */}
         <Stack
@@ -880,12 +911,13 @@ export default function CreateDietPlanPopup({
 
           <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
             {/* Conditions (multi) */}
-            <FormControl size="small" sx={{ minWidth: 240 }}>
+            <FormControl size="small" sx={{ minWidth: 240 }} error={!conditionsFilled}> 
               <InputLabel id="conditions-label">Conditions</InputLabel>
               <Select
                 labelId="conditions-label"
                 label="Conditions"
                 multiple
+                required
                 value={conditions}
                 onChange={(e) =>
                   setConditions(
@@ -896,15 +928,17 @@ export default function CreateDietPlanPopup({
                 }
                 renderValue={(selected) => selected.join(", ")}
               >
-                {CONDITION_OPTIONS.map((opt) => (
+                {CONDITION_OPTIONS.map((opt) => ( 
                   <MenuItem key={opt} value={opt}>
                     {opt}
                   </MenuItem>
                 ))}
-              </Select>
+              </Select> 
               <FormHelperText>
-                Selecting conditions will auto-pick relevant goals (you can edit).
-              </FormHelperText>
+                {conditionsFilled
+                  ? "Selecting conditions will auto-pick relevant goals (you can edit)."
+                  : "Please select at least one condition."}
+             </FormHelperText>
             </FormControl>
 
             {/* Health Goals (multi) */}
