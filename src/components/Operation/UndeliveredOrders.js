@@ -8,7 +8,7 @@ import {
   TableRow,
   TableCell,
   TableBody,
-  TablePagination, 
+  TablePagination,
   Paper,
   Button,
   Dialog,
@@ -19,7 +19,7 @@ import {
   Stack,
   Snackbar,
   Alert,
-  CircularProgress, 
+  CircularProgress,
   Checkbox,
   Chip,
   MenuItem,
@@ -27,7 +27,7 @@ import {
   Typography,
   Tooltip,
 } from "@mui/material";
-import Autocomplete from "@mui/material/Autocomplete"; 
+import Autocomplete from "@mui/material/Autocomplete";
 import dayjs from "dayjs";
 import axios from "axios";
 import { IconButton } from "@mui/material";
@@ -57,6 +57,8 @@ const ISSUE_OPTIONS = [
   { label: "Mode Change", value: "codToPrepaid" },
   { label: "RTO Request", value: "rto" },
   { label: "Urgent Delivery", value: "urgentDelivery" },
+  { label: "Hold", value: "hold" },
+  { label: "Ringing", value: "ringing" },
 ];
 
 // (Optional) If you ever want to map a chosen issue to the email subject/content template keys:
@@ -72,7 +74,7 @@ const ISSUE_TO_TEMPLATE_KEY = {
 };
 
 
-const CONTENT_TEMPLATES = [ 
+const CONTENT_TEMPLATES = [
   {
     key: "fakeRemark",
     label:
@@ -123,7 +125,7 @@ const CARRIER_EMAILS = {
 };
 
 
-const EMAIL_SUGGESTIONS = [ 
+const EMAIL_SUGGESTIONS = [
   // Bluedart
   "bluedart1@gmail.com", "bluedart2@gmail.com", "bluedart3@gmail.com",
   // DTDC
@@ -149,9 +151,10 @@ const UndeliveredOrdersTabs = () => {
   const [statusFilter, setStatusFilter] = useState([]);
   const [draftFromDate, setDraftFromDate] = useState("");
   const [draftToDate, setDraftToDate] = useState("");
-  const [draftStatusFilter, setDraftStatusFilter] = useState([]); 
+  const [draftStatusFilter, setDraftStatusFilter] = useState([]);
   const [selectedCarrier, setSelectedCarrier] = useState("");
   const [rowIssue, setRowIssue] = useState({});
+  const [savingIssueIds, setSavingIssueIds] = useState({});
   const REPLIES_PAGE_SIZE = 5;
 
 
@@ -192,7 +195,7 @@ const UndeliveredOrdersTabs = () => {
         const map = {};
         sentOrderIds.forEach((oid) => {
           map[oid] = {
-            emailed: (counts[oid] || 0) > 0,   
+            emailed: (counts[oid] || 0) > 0,
             count: counts[oid] || 0,
             ...(replies[oid] ? { lastReply: replies[oid] } : {}),
           };
@@ -210,7 +213,7 @@ const UndeliveredOrdersTabs = () => {
     };
     loadSentFromBackend();
   }, []);
- 
+
   useEffect(() => {
     fetchOrders(tab, page + 1, rowsPerPage);
     setSelectedIds(new Set());
@@ -225,7 +228,7 @@ const UndeliveredOrdersTabs = () => {
 
       if (fromDate) params.set('startDate', fromDate);
       if (toDate) params.set('endDate', toDate);
-      if (statusFilter.length) params.set('status', statusFilter.join(',')); 
+      if (statusFilter.length) params.set('status', statusFilter.join(','));
 
       const res = await axios.get(
         `https://muditamleads-14f32a10d7f7.herokuapp.com/api/orders/undelivered?${params.toString()}`
@@ -234,10 +237,10 @@ const UndeliveredOrdersTabs = () => {
       setOrders(res.data.data || []);
       setTotal(res.data.total || 0);
       setCounts(res.data.counts || { High: 0, Medium: 0, Low: 0 });
- 
+
       if (Array.isArray(res.data?.facets?.statuses)) {
         setAvailableStatuses(res.data.facets.statuses);
-      } else { 
+      } else {
         const uniq = Array.from(new Set((res.data.data || []).map(o => o.shipment_status).filter(Boolean)));
         setAvailableStatuses(uniq);
       }
@@ -246,19 +249,45 @@ const UndeliveredOrdersTabs = () => {
     }
   };
 
+  const handleIssueChange = async (order, newValue) => {
+    setRowIssue(prev => ({ ...prev, [order._id]: newValue }));
+
+    if ((order.issue || "") === (newValue || "")) return;
+
+    try {
+      setSavingIssueIds(prev => ({ ...prev, [order._id]: true }));
+      await axios.patch(`${API_BASE}/api/orders/${order._id}/issue`, { issue: newValue });
+
+      setOrders(prev =>
+        prev.map(o => (o._id === order._id ? { ...o, issue: newValue } : o))
+      );
+
+      setToast({ open: true, severity: "success", msg: "Issue saved." });
+    } catch (e) {
+      setRowIssue(prev => ({ ...prev, [order._id]: order.issue || "" }));
+      setToast({
+        open: true,
+        severity: "error",
+        msg: e?.response?.data?.error || "Failed to save issue.",
+      });
+    } finally {
+      setSavingIssueIds(prev => ({ ...prev, [order._id]: false }));
+    }
+  };
+
   const handleCarrierChange = (e) => {
-  const carrier = e.target.value;
-  setSelectedCarrier(carrier); 
+    const carrier = e.target.value;
+    setSelectedCarrier(carrier);
 
-  if (!carrier) return;
+    if (!carrier) return;
 
-  const defaults = CARRIER_EMAILS[carrier] || [];
-  // Replace current “to” with courier defaults, de-duplicated
-  setEmailForm((prev) => ({
-    ...prev,
-    to: Array.from(new Set(defaults)),
-  }));
-};
+    const defaults = CARRIER_EMAILS[carrier] || [];
+    // Replace current “to” with courier defaults, de-duplicated
+    setEmailForm((prev) => ({
+      ...prev,
+      to: Array.from(new Set(defaults)),
+    }));
+  };
 
   useEffect(() => {
     setDraftFromDate(fromDate);
@@ -272,7 +301,7 @@ const UndeliveredOrdersTabs = () => {
     setStatusFilter(draftStatusFilter);
     setPage(0);
   };
- 
+
   const allVisibleSelected = useMemo(
     () => orders.length > 0 && orders.every((o) => selectedIds.has(o._id)),
     [orders, selectedIds]
@@ -367,11 +396,11 @@ const UndeliveredOrdersTabs = () => {
 
   // Get agent name from sessionStorage
   const getAgentName = () => {
-    const user = JSON.parse(sessionStorage.getItem("user"));  
+    const user = JSON.parse(sessionStorage.getItem("user"));
     if (user && user.fullName) {
-      return user.fullName;  
+      return user.fullName;
     }
-    return "Agent";  
+    return "Agent";
   };
 
   const replaceTokens = (tpl, vars) => {
@@ -489,6 +518,7 @@ const UndeliveredOrdersTabs = () => {
       // normalized, lower-cased keys for replaceTokens
       "order_id": first.order_id || "-",
       "order id": first.order_id || "-",
+      "customer_name": first.full_name || "-",
       "tracking_number": first.tracking_number || "-",
       "awb": first.tracking_number || "-",
       "order date": fmt(first.order_date),
@@ -677,6 +707,109 @@ const UndeliveredOrdersTabs = () => {
     </Box>
   );
 
+  const formatINR = (n) => {
+    if (n == null || n === '') return '-';
+    const num = Number(n);
+    if (Number.isNaN(num)) return '-';
+    return '₹' + new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 }).format(num);
+  };
+
+  const renderProducts = (order) => {
+    // Backend supplies productsAbbrev: string[]
+    const arr = Array.isArray(order?.productsAbbrev) ? order.productsAbbrev : [];
+    return arr.length ? arr.join(' + ') : '-';
+  };
+
+  const toCsvCell = (v) => {
+     if (v == null) return "";
+     const s = String(v).replace(/\r?\n/g, " ");      
+     return /[",]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+   };
+ 
+   const rowsToCsv = (rows) => {
+     const header = [
+       "Order ID",
+       "Customer Phone",
+       "Customer Name",
+       "Priority",
+       "Status",
+       "Agent Name", 
+       "Order Date",
+       "Amount",
+       "Products",
+       "Due Days",
+       "Tracking No.",
+       "Carrier",
+       "Issue",
+     ];
+     const body = rows.map((o) => {
+       const dueDays = o.order_date ? Math.max(0, dayjs().diff(dayjs(o.order_date), "day")) : "";
+       const products = Array.isArray(o.productsAbbrev) && o.productsAbbrev.length
+         ? o.productsAbbrev.join(" + ")
+         : "";
+        return [
+         o.order_id || "",
+         o.contact_number || "",
+         o.full_name || "",
+         o.priority || "",
+         o.shipment_status || "", 
+         o.agentName || "", 
+         o.order_date ? dayjs(o.order_date).format("DD/MM/YYYY") : "", 
+         formatINR(o.amount),
+         products,
+         dueDays,
+         o.tracking_number || "",
+         o.carrier_title || "",
+         o.issue || "",
+       ].map(toCsvCell).join(",");
+     });
+     // BOM for Excel opening + UTF-8
+     return "\uFEFF" + [header.join(","), ...body].join("\n");
+   };
+ 
+   const handleDownload = async () => {
+     try {
+       const API_PAGE = 200; // backend max
+       let pageNum = 1;
+       let all = [];
+       let totalCount = 0;
+       do {
+         const params = new URLSearchParams();
+         params.set("priority", tab);
+         params.set("page", String(pageNum));
+         params.set("limit", String(API_PAGE));
+         if (fromDate) params.set("startDate", fromDate);
+         if (toDate) params.set("endDate", toDate);
+         if (statusFilter.length) params.set("status", statusFilter.join(","));
+ 
+         const res = await axios.get(`${API_BASE}/api/orders/undelivered?${params.toString()}`);
+         const chunk = Array.isArray(res.data?.data) ? res.data.data : [];
+         totalCount = res.data?.total ?? (pageNum === 1 ? chunk.length : totalCount);
+         all = all.concat(chunk);
+         pageNum += 1;
+         if (!chunk.length) break;
+       } while (all.length < totalCount);
+ 
+       const csv = rowsToCsv(all);
+       const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+       const url = URL.createObjectURL(blob);
+       const a = document.createElement("a");
+       const filename = `undelivered_${tab.toLowerCase()}_${dayjs().format("YYYYMMDD_HHmm")}.csv`;
+       a.href = url;
+       a.download = filename;
+       document.body.appendChild(a);
+       a.click();
+       document.body.removeChild(a);
+       URL.revokeObjectURL(url);
+       setToast({ open: true, severity: "success", msg: `Downloaded ${all.length} ${tab} record(s).` });
+     } catch (err) {
+       console.error("Download failed:", err);
+      setToast({ open: true, severity: "error", msg: "Failed to download CSV." });
+    }
+  };
+
+
+
   const renderEmailStatusCell = (order) => {
     const status = emailStatus[order.order_id];
     if (!status?.emailed) {
@@ -688,7 +821,7 @@ const UndeliveredOrdersTabs = () => {
           onClick={() => openReplyDialog(order.order_id)}
           clickable
         />
-      );
+      ); 
     }
 
     const label = status.lastReply
@@ -729,18 +862,24 @@ const UndeliveredOrdersTabs = () => {
 
 
 
-        <Button
-          variant="contained"
-          disabled={selectedOrders.length === 0}
-          onClick={handleOpenEmail}
-          sx={{
-            bgcolor: "black",
-            color: "white",
-            "&:hover": { bgcolor: "#333" },
-          }}
-        >
-          Send Email
-        </Button>
+        <Box display="flex" gap={1}> 
+          <Button
+            variant="outlined"
+            onClick={handleDownload}
+            sx={{ borderColor: "black", color: "black", "&:hover": { borderColor: "#333" } }}
+          >
+            Download
+          </Button>
+
+          <Button
+            variant="contained"
+            disabled={selectedOrders.length === 0}
+            onClick={handleOpenEmail}
+            sx={{ bgcolor: "black", color: "white", "&:hover": { bgcolor: "#333" } }}
+          >
+            Send Email
+          </Button>
+        </Box>
       </Box>
 
       <Paper sx={{ p: 2, mb: 1 }}>
@@ -830,13 +969,25 @@ const UndeliveredOrdersTabs = () => {
                 Customer Phone
               </TableCell>
               <TableCell align="center" sx={{ color: "white", fontWeight: "bold" }}>
+                Customer Name
+              </TableCell>
+              <TableCell align="center" sx={{ color: "white", fontWeight: "bold" }}>
                 Priority
               </TableCell>
               <TableCell align="center" sx={{ color: "white", fontWeight: "bold" }}>
                 Status
               </TableCell>
               <TableCell align="center" sx={{ color: "white", fontWeight: "bold" }}>
+                Agent
+              </TableCell>
+              <TableCell align="center" sx={{ color: "white", fontWeight: "bold" }}>
                 Order Date
+              </TableCell>
+              <TableCell align="center" sx={{ color: "white", fontWeight: "bold" }}>
+                Amount
+              </TableCell>
+              <TableCell align="center" sx={{ color: "white", fontWeight: "bold" }}>
+                Products
               </TableCell>
               <TableCell align="center" sx={{ color: "white", fontWeight: "bold" }}>
                 Due Days
@@ -878,21 +1029,25 @@ const UndeliveredOrdersTabs = () => {
                     </TableCell>
                     <TableCell align="center">{order.order_id || "-"}</TableCell>
                     <TableCell align="center">{order.contact_number || "-"}</TableCell>
+                    <TableCell align="center">{order.full_name || "-"}</TableCell>
                     <TableCell align="center">
                       {order.hasEscalation ? (
                         <Chip
                           size="small"
                           label="High Priority"
-                          sx={{ bgcolor: "yellow", color: "black" }} 
+                          sx={{ bgcolor: "yellow", color: "black" }}
                         />
                       ) : (
                         "-"
                       )}
                     </TableCell>
                     <TableCell align="center">{order.shipment_status || "-"}</TableCell>
+                    <TableCell align="center">{order.agentName || "-"}</TableCell> 
                     <TableCell align="center">
                       {order.order_date ? dayjs(order.order_date).format("DD/MM/YYYY") : "-"}
                     </TableCell>
+                    <TableCell align="center">{formatINR(order.amount)}</TableCell>
+                    <TableCell align="center">{renderProducts(order)}</TableCell>
                     <TableCell align="center">
                       {order.order_date
                         ? Math.max(0, dayjs().diff(dayjs(order.order_date), "day"))
@@ -901,30 +1056,35 @@ const UndeliveredOrdersTabs = () => {
                     <TableCell align="center">{order.tracking_number || "-"}</TableCell>
                     <TableCell align="center">{order.carrier_title || "-"}</TableCell>
                     {/* Issue dropdown */}
-<TableCell align="center">
-  <Select
-    size="small"
-    displayEmpty
-    value={rowIssue[order._id] || ""}
-    onChange={(e) =>
-      setRowIssue((prev) => ({ ...prev, [order._id]: e.target.value }))
-    }
-    sx={{
-      minWidth: 180,
-      "& .MuiOutlinedInput-notchedOutline": { borderColor: "rgba(0,0,0,0.23)" }, 
-      "&.Mui-focused .MuiOutlinedInput-notchedOutline": { borderColor: "black" },
-    }}
-  >
-    <MenuItem value="">
-      <em>Select issue</em>
-    </MenuItem>
-    {ISSUE_OPTIONS.map((opt) => (
-      <MenuItem key={opt.value} value={opt.value}>
-        {opt.label}
-      </MenuItem>
-    ))}
-  </Select>
-</TableCell>
+                    <TableCell align="center">
+                      <Box sx={{ display: "inline-flex", alignItems: "center", gap: 1 }}>
+                        <Select
+                          size="small"
+                          displayEmpty
+                          value={(rowIssue[order._id] ?? order.issue ?? "")}
+                          onChange={(e) => handleIssueChange(order, e.target.value)}
+                          disabled={!!savingIssueIds[order._id]}
+                          sx={{
+                            minWidth: 180,
+                            "& .MuiOutlinedInput-notchedOutline": { borderColor: "rgba(0,0,0,0.23)" },
+                            "&.Mui-focused .MuiOutlinedInput-notchedOutline": { borderColor: "black" },
+                            opacity: savingIssueIds[order._id] ? 0.6 : 1,
+                          }}
+                        >
+                          <MenuItem value="">
+                            <em>Select issue</em>
+                          </MenuItem>
+                          {ISSUE_OPTIONS.map((opt) => (
+                            <MenuItem key={opt.value} value={opt.value}>
+                              {opt.label}
+                            </MenuItem>
+                          ))}
+                        </Select>
+
+                        {savingIssueIds[order._id] && <CircularProgress size={16} />}
+                      </Box>
+                    </TableCell>
+
 
                     <TableCell align="center">{renderEmailStatusCell(order)}</TableCell>
                   </TableRow>
@@ -987,31 +1147,31 @@ const UndeliveredOrdersTabs = () => {
             />
 
             {/* Courier preset (auto-fills To) */}
-<Box>
-  <Typography variant="subtitle2" sx={{ mb: 0.5 }}>
-    Courier Recipients
-  </Typography>
-  <Select
-    fullWidth
-    displayEmpty
-    value={selectedCarrier}
-    onChange={handleCarrierChange}
-    sx={{
-      "& .MuiOutlinedInput-notchedOutline": { borderColor: "rgba(0,0,0,0.23)" },
-      "&.Mui-focused .MuiOutlinedInput-notchedOutline": { borderColor: "black" },
-    }}
-  >
-    <MenuItem value="">
-      <em>Select courier to auto-fill recipients</em>
-    </MenuItem>
-    {Object.keys(CARRIER_EMAILS).map((c) => (
-      <MenuItem key={c} value={c}>{c}</MenuItem>
-    ))}
-  </Select>
-  <Typography variant="caption" sx={{ mt: 0.5, display: "block", opacity: 0.8 }}>
-    Choosing a courier will populate the “To” field below with its associated emails. You can still add/remove recipients.
-  </Typography>
-</Box>
+            <Box>
+              <Typography variant="subtitle2" sx={{ mb: 0.5 }}>
+                Courier Recipients
+              </Typography>
+              <Select
+                fullWidth
+                displayEmpty
+                value={selectedCarrier}
+                onChange={handleCarrierChange}
+                sx={{
+                  "& .MuiOutlinedInput-notchedOutline": { borderColor: "rgba(0,0,0,0.23)" },
+                  "&.Mui-focused .MuiOutlinedInput-notchedOutline": { borderColor: "black" },
+                }}
+              >
+                <MenuItem value="">
+                  <em>Select courier to auto-fill recipients</em>
+                </MenuItem>
+                {Object.keys(CARRIER_EMAILS).map((c) => (
+                  <MenuItem key={c} value={c}>{c}</MenuItem>
+                ))}
+              </Select>
+              <Typography variant="caption" sx={{ mt: 0.5, display: "block", opacity: 0.8 }}>
+                Choosing a courier will populate the “To” field below with its associated emails. You can still add/remove recipients.
+              </Typography>
+            </Box>
 
             {/* To (multi + freeSolo) */}
             <Autocomplete
@@ -1047,9 +1207,6 @@ const UndeliveredOrdersTabs = () => {
                 />
               )}
             />
-
-            
-
 
             {/* Subject template */}
             <Box>

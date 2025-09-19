@@ -447,7 +447,7 @@ const LeadTable = () => {
 
   const exportToCSV = () => {
     window.location.href =
-      "https://muditamleads-14f32a10d7f7.herokuapp.com/export-leads";
+      "https://muditamleads-14f32a10d7f7.herokuapp.com/export-leads"; 
   };
 
 

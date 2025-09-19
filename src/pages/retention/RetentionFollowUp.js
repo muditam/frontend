@@ -213,8 +213,8 @@ const RetentionFollowUp = ({ contactNumber }) => {
                     variant="outlined"
                     label="Fasting Sugar"
                     fullWidth
-                    value={fup.currentSugar.fasting}
-                    onChange={(e) =>
+                    value={fup.currentSugar.fasting} 
+                    onChange={(e) => 
                       handleChange(index, "fasting", e.target.value)
                     }
                   />

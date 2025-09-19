@@ -165,8 +165,6 @@ export default function AbandonedCheckouts() {
   }, [isAgent, employees, currentUser, agentEmployeeId]);
 
   // Only fetch when we're ready:
-  // - user has been resolved
-  // - if agent: we have either agentEmployeeId or currentUser.email
   const readyToFetch = useMemo(() => {
     if (!userResolved) return false;
     if (!isAgent) return true;
@@ -208,7 +206,7 @@ export default function AbandonedCheckouts() {
   // Fetch on param changes, but only when ready
   useEffect(() => {
     fetchData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     readyToFetch,
     page,
@@ -334,6 +332,7 @@ export default function AbandonedCheckouts() {
                 <TableCell>Contact</TableCell>
                 <TableCell>Products (Title / Variant / Qty / Final Line Price)</TableCell>
                 <TableCell>Total</TableCell>
+                <TableCell>State</TableCell>
                 <TableCell>Assign Expert</TableCell>
                 <TableCell align="right">Actions</TableCell>
               </TableRow>
@@ -377,6 +376,10 @@ export default function AbandonedCheckouts() {
                       </TableCell>
 
                       <TableCell>{formatMoney(r.total, currency)}</TableCell>
+
+                      <TableCell>
+                        {r.customer?.state || "-"} 
+                      </TableCell>
 
                       <TableCell>
                         <FormControl size="small" fullWidth sx={{ minWidth: 220 }}>

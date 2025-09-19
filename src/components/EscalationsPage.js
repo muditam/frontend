@@ -21,6 +21,7 @@ import {
   CircularProgress,
   TablePagination,
   InputAdornment,
+  Checkbox, ListItemText, Tooltip,
 } from "@mui/material";
 import { Close, Delete as DeleteIcon, WarningAmber } from "@mui/icons-material";
 import axios from "axios";
@@ -28,6 +29,23 @@ import axios from "axios";
 
 const statusOptions = ["Open", "In Progress", "Closed"];
 const reasonOptions = ["Order not received/delayed", "Fake delivery remark", "Urgent delivery Needed", "Wrong product received", "Partial order received", "Asking for refund/replacement", "Order RTO but need it", "Delivery Boy Issue", "Payment Issue", "Others"];
+
+const productOptions = [
+  { code: "KJF", label: "KJF" },
+  { code: "SDP", label: "SDP" },
+  { code: "VKR", label: "VKR" },
+  { code: "LFx", label: "LFx" },
+  { code: "CPV", label: "CPV" },
+  { code: "HDP", label: "HDP" },
+  { code: "PF", label: "PF" },
+  { code: "PGut", label: "PGut" },
+  { code: "SWG", label: "SWG" },
+  { code: "Nerve Fix", label: "Nerve Fix" },
+  { code: "Core Essentials", label: "Core Essentials" },
+  { code: "Omega Fuel", label: "Omega Fuel" },
+  { code: "Glucometer", label: "Glucometer" },
+  { code: "Blood test", label: "Blood test" },
+];
 
 
 const EscalationsPage = () => {
@@ -44,9 +62,10 @@ const EscalationsPage = () => {
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(50);
   const [initialLoading, setInitialLoading] = useState(true);
-  const [totalCount, setTotalCount] = useState(0); 
+  const [totalCount, setTotalCount] = useState(0);
   const [orderIdError, setOrderIdError] = useState(false);
   const [orderIdErrorMsg, setOrderIdErrorMsg] = useState("");
+  const [reasonFilter, setReasonFilter] = useState("");
 
   const [formData, setFormData] = useState({
     date: "",
@@ -61,9 +80,11 @@ const EscalationsPage = () => {
     remark: "",
     resolvedDate: "",
     reason: "",
+    amount: "",
+    products: [],
   });
 
-  const BACKEND_URL = "https://muditamleads-14f32a10d7f7.herokuapp.com/api";
+  const BACKEND_URL = "hhttps://muditamleads-14f32a10d7f7.herokuapp.com/api";
 
   const allowedAssignees = useMemo(() => {
     return employees
@@ -90,15 +111,16 @@ const EscalationsPage = () => {
   const fetchEscalations = async (pageIdx = page, rpp = rowsPerPage, closedOnly = showClosedOnly) => {
     try {
       const statusParam = closedOnly ? 'Closed' : 'Open,In Progress';
-      const response = await axios.get(`${BACKEND_URL}/escalations`, {
-        params: {
-          page: pageIdx + 1,           // API is 1-based
-          limit: rpp,
-          status: statusParam,
-          sortBy: 'createdAt',
-          order: 'desc',
-        },
-      });
+      const params = {
+        page: pageIdx + 1,     // API is 1-based
+        limit: rpp,
+        status: statusParam,
+        sortBy: 'createdAt',
+        order: 'desc',
+      };
+      if (reasonFilter) params.reason = reasonFilter;  // <— NEW
+
+      const response = await axios.get(`${BACKEND_URL}/escalations`, { params });
       setEscalations(response.data.data);
       setTotalCount(response.data.total);
     } catch (error) {
@@ -113,7 +135,7 @@ const EscalationsPage = () => {
     setInitialLoading(true);
     fetchEscalations(page, rowsPerPage, showClosedOnly);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, rowsPerPage, showClosedOnly]);
+  }, [page, rowsPerPage, showClosedOnly, reasonFilter]);
 
 
   const handleConfirmDelete = async () => {
@@ -136,6 +158,11 @@ const EscalationsPage = () => {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
+    if (name === "products") {
+      // MUI multiple select returns an array of values
+      setFormData((fd) => ({ ...fd, products: value }));
+      return;
+    }
     if (name === "orderId") {
       const v = String(value || "");
       // If user includes any '#' or starts with '#MA' -> show inline error
@@ -198,6 +225,8 @@ const EscalationsPage = () => {
       form.append("agentName", formData.agentName);
       form.append("query", formData.query);
       form.append("reason", formData.reason);
+      form.append("amount", formData.amount || "");
+      (formData.products || []).forEach((p) => form.append("products", p));
       formData.attachedFiles.forEach((file) => {
         form.append("attachedFiles", file);
       });
@@ -222,6 +251,8 @@ const EscalationsPage = () => {
         remark: "",
         resolvedDate: "",
         reason: "",
+        amount: "",
+        products: [],
       });
       setOrderIdError(false);
       setOrderIdErrorMsg("");
@@ -242,7 +273,7 @@ const EscalationsPage = () => {
   const updateLocalEscalation = (id, patch) => {
     setEscalations((prev) =>
       prev.map((e) => (e._id === id ? { ...e, ...patch } : e))
-    );
+    ); 
   };
 
   const handleEditCell = async (id, field, value) => {
@@ -325,16 +356,38 @@ const EscalationsPage = () => {
         </Button>
 
 
-        <Button
-          variant={showClosedOnly ? "contained" : "outlined"}
-          sx={{
-            backgroundColor: showClosedOnly ? "black" : "transparent",
-            color: showClosedOnly ? "white" : "black",
-          }}
-          onClick={() => setShowClosedOnly(!showClosedOnly)}
-        >
-          {showClosedOnly ? "Show Open / In Progress" : "Show Closed"}
-        </Button>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+          {/* NEW: Reason filter */}
+          <TextField
+            select
+            size="small"
+            label=""
+            value={reasonFilter}
+            onChange={(e) => { setReasonFilter(e.target.value); setPage(0); }}
+            sx={{ minWidth: 240, bgcolor: "#fff" }}
+            SelectProps={{ displayEmpty: true }}
+          >
+            <MenuItem value="">
+              <em>All reasons</em>
+            </MenuItem>
+            {reasonOptions.map((opt) => (
+              <MenuItem key={opt} value={opt}>
+                {opt}
+              </MenuItem>
+            ))}
+          </TextField>
+
+          <Button
+            variant={showClosedOnly ? "contained" : "outlined"}
+            sx={{
+              backgroundColor: showClosedOnly ? "black" : "transparent",
+              color: showClosedOnly ? "white" : "black",
+            }}
+            onClick={() => setShowClosedOnly(!showClosedOnly)}
+          >
+            {showClosedOnly ? "Show Open / In Progress" : "Show Closed"}
+          </Button>
+        </Box>
       </Box>
       {/* Add New Escalation Form Dialog */}
       <Dialog
@@ -523,6 +576,78 @@ const EscalationsPage = () => {
                 ))}
               </TextField>
             </Box>
+            <Box sx={{ display: "flex", gap: 2 }}>
+              {/* Amount */}
+              <TextField
+                label="Amount"
+                name="amount"
+                type="number"
+                value={formData.amount}
+                onChange={handleChange}
+                fullWidth
+                variant="filled"
+                InputProps={{
+                  disableUnderline: true,
+                  sx: { backgroundColor: "#fff", borderRadius: 1, px: 1 },
+                  startAdornment: <InputAdornment position="start">₹</InputAdornment>,
+                }}
+                InputLabelProps={{
+                  sx: {
+                    color: "rgba(0,0,0,0.6)",
+                    "&.Mui-focused": { color: "gray" },
+                    "&.MuiInputLabel-shrink": { color: "gray" },
+                  },
+                  shrink: true,
+                }}
+              />
+
+              {/* Products (multi-select with checkboxes) */}
+              <TextField
+                select
+                label="Products"
+                name="products"
+                value={formData.products}
+                onChange={handleChange}
+                fullWidth
+                variant="filled"
+                SelectProps={{
+                  multiple: true,
+                  renderValue: (selected) => (
+                    <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5 }}>
+                      {selected.map((code) => (
+                        <Chip key={code} label={code} size="small" />
+                      ))}
+                    </Box>
+                  ),
+                }}
+                InputProps={{
+                  disableUnderline: true,
+                  sx: { backgroundColor: "#fff", borderRadius: 1, px: 1 },
+                }}
+                InputLabelProps={{
+                  sx: {
+                    color: "rgba(0,0,0,0.6)",
+                    "&.Mui-focused": { color: "gray" },
+                    "&.MuiInputLabel-shrink": { color: "gray" },
+                  },
+                }}
+              >
+                {productOptions.map((opt) => (
+                  <MenuItem key={opt.code} value={opt.code}>
+                    <Checkbox checked={formData.products.indexOf(opt.code) > -1} />
+                    {/* Show short code prominently; full name as helper text/tooltip */}
+                    <ListItemText
+                      primary={
+                        <Tooltip title={opt.label} placement="right">
+                          <span>{opt.code}</span>
+                        </Tooltip>
+                      }
+                      secondary={opt.code === opt.label ? "" : opt.label}
+                    />
+                  </MenuItem>
+                ))}
+              </TextField>
+            </Box>
             <TextField
               label="Remark"
               name="query"
@@ -653,6 +778,8 @@ const EscalationsPage = () => {
                 "Name",
                 "Contact Number",
                 "Agent Name",
+                "Amount",
+                "Products",
                 "Reason",
                 "Query",
                 "Attach File",
@@ -731,6 +858,19 @@ const EscalationsPage = () => {
                     <TableCell align="center">{esc.name}</TableCell>
                     <TableCell align="center">{esc.contactNumber}</TableCell>
                     <TableCell align="center">{esc.agentName}</TableCell>
+                    <TableCell align="center">{esc.amount ?? "-"}</TableCell>
+                    <TableCell align="center">
+                      {Array.isArray(esc.products) && esc.products.length > 0
+                        ? (
+                          <Box sx={{ display: "inline-flex", gap: 0.5, flexWrap: "wrap", justifyContent: "center" }}>
+                            {esc.products.map((p, i) => (
+                              <Chip key={`${esc._id}-p-${i}`} label={p} size="small" sx={{ bgcolor: "#000", color: "#fff" }} />
+                            ))}
+                          </Box>
+                        )
+                        : "-"
+                      }
+                    </TableCell>
                     <TableCell align="center">{esc.reason || "-"}</TableCell>
                     <TableCell
                       sx={{
@@ -821,25 +961,6 @@ const EscalationsPage = () => {
                         esc.assignedTo
                       )}
                     </TableCell>
-                    {/* <TableCell align="center" sx={{ minWidth: 250 }}>
-                      <TextField
-                        size="small"
-                        value={esc.remark}
-                        onChange={(e) => {
-                          const newRemark = e.target.value;
-                          setEscalations((prev) =>
-                            prev.map((item) =>
-                              item._id === esc._id ? { ...item, remark: newRemark } : item
-                            )
-                          );
-                        }}
-                        onBlur={(e) => handleEditCell(esc._id, "remark", e.target.value)}
-                        fullWidth
-                        sx={{ width: '100%', maxWidth: 400 }}
-                        InputProps={{ sx: { textAlign: 'center' } }}
-                      />
-                    </TableCell> */}
-
 
                     <TableCell sx={{ minWidth: 350 }}>
                       {user?.role === "Manager" || user?.role === "Operations" ? (
@@ -993,6 +1114,3 @@ const EscalationsPage = () => {
 
 
 export default EscalationsPage;
-
-
-

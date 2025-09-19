@@ -121,7 +121,7 @@ const FinanceOrderSummary = () => {
 
     try {
       // Use relative URL so dev/prod hit the same origin server
-      const res = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/finance/orders", {
+      const res = await axios.get("http://localhost:5001/api/finance/orders", {
         params: {
           page: pageNumber,
           limit: rowsPerPage,
@@ -142,7 +142,7 @@ const FinanceOrderSummary = () => {
     }
   };
 
-  const handleChangePage = (_, newPage) => {
+  const handleChangePage = (_, newPage) => { 
     setPage(newPage);
   };
 
@@ -157,7 +157,7 @@ const FinanceOrderSummary = () => {
       setError("");
       // This endpoint pulls July 2025 into DB (server-side)
       await axios.post(
-        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/finance/refresh-shopify",
+        "http://localhost:5001/api/finance/refresh-shopify",
         null,
         { params: { year: 2025, month: 7 } }
       );
@@ -225,7 +225,7 @@ const FinanceOrderSummary = () => {
             No orders match the current filter.
           </Typography>
           <Typography variant="body2" sx={{ mb: 2, color: "text.secondary" }}>
-            If you just pulled July data, try switching to <strong>Last month</strong>.
+            If you just pulled July data, try switching to <strong>Last month</strong>. 
           </Typography>
           <Button
             variant="outlined"

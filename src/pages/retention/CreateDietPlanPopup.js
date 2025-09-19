@@ -10,7 +10,6 @@ import {
   Button,
   Stack,
   Typography,
-  CircularProgress,
   RadioGroup,
   FormControlLabel,
   Radio,
@@ -26,15 +25,18 @@ import {
   FormHelperText,
   FormControl,
   InputLabel,
+  Chip,
+  CircularProgress,
+  Collapse,
 } from "@mui/material";
 import DeleteIcon from "@mui/icons-material/Delete";
 import AddIcon from "@mui/icons-material/Add";
-import StarIcon from "@mui/icons-material/Star";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
+import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
 import axios from "axios";
 
 const BASE_URL = "https://muditamleads-14f32a10d7f7.herokuapp.com";
-const PUBLIC_LINK_BASE = "https://muditam.com/apps/consultation/diet-plan"; // ✅ final path
+const PUBLIC_LINK_BASE = "https://muditam.com/apps/consultation/diet-plan";
 
 // ---------- HELPERS ----------
 const WEEKLY_TYPE = "weekly-14";
@@ -57,6 +59,14 @@ const defaultMonthlyState = () =>
     return acc;
   }, {});
 
+// Default weekly times (editable)
+const defaultWeeklyTimes = () => ({
+  Breakfast: "",
+  Lunch: "",
+  Snacks: "",
+  Dinner: "",
+});
+
 function toISO(date) {
   const d = new Date(date);
   return new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()))
@@ -78,6 +88,51 @@ function fmtRange(isoStart, days) {
   return `${from.toLocaleDateString()} — ${to.toLocaleDateString()}`;
 }
 
+// Health profile + goals metadata
+const CONDITION_OPTIONS = [
+  "Diabetes",
+  "Fatty Liver",
+  "High Cholesterol",
+  "Thyroid",
+  "Digestive Issues",
+];
+
+const GOAL_OPTIONS = [
+  "Blood sugar control",
+  "Weight management",
+  "Reduce Liver Stress",
+  "Cholesterol & heart health",
+  "Hormonal & metabolic balance",
+  "Better digestion & gut health",
+  "Steady energy levels",
+  "Reduced inflammation",
+];
+
+const CONDITION_TO_GOALS = {
+  Diabetes: ["Blood sugar control"],
+  "Fatty Liver": [
+    "Reduce Liver Stress",
+    "Weight management",
+    "Better digestion & gut health",
+    "Reduced inflammation",
+  ],
+  "High Cholesterol": [
+    "Cholesterol & heart health",
+    "Weight management",
+    "Reduced inflammation",
+  ],
+  Thyroid: [
+    "Hormonal & metabolic balance",
+    "Weight management",
+    "Steady energy levels",
+  ],
+  "Digestive Issues": [
+    "Better digestion & gut health",
+    "Steady energy levels",
+    "Reduced inflammation",
+  ],
+};
+
 // Accepts either a flattened document or one with a `.plan` object
 function unwrapPlan(doc) {
   const p = doc?.plan || doc || {};
@@ -88,7 +143,11 @@ function unwrapPlan(doc) {
     startDate: p.startDate,
     durationDays: p.durationDays,
     fortnight: p.fortnight,
+    weeklyTimes: p.weeklyTimes,
     monthly: p.monthly,
+    healthProfile: p.healthProfile, // kept for local UI display only (not sent now)
+    conditions: p.conditions,
+    healthGoals: p.healthGoals,
   };
 }
 
@@ -104,18 +163,33 @@ const PastPlansMenuProps = {
   },
 };
 
-// ---------- COMPONENT ----------
 export default function CreateDietPlanPopup({
   open,
   onClose,
   prefillCustomer = {},
-  initialPlanType = "Weekly", // "Weekly" | "Monthly"
-  onSaved, // optional callback after successful save
+  initialPlanType = "Weekly",
+  onSaved,
 }) {
-  const { name = "", phone = "", leadId = "" } = prefillCustomer;
+  const {
+    name = "",
+    phone = "",
+    leadId = "",
+    age: preAge = "",
+    heightCm: preHeight = "",
+    weightKg: preWeight = "",
+  } = prefillCustomer;
 
-  // Plan controls (UI-facing labels)
-  const [planType, setPlanType] = useState(initialPlanType); // "Weekly" | "Monthly"
+  const appUser = useMemo(() => {
+    try {
+      return JSON.parse(sessionStorage.getItem("user") || "null");
+    } catch {
+      return null;
+    }
+  }, []);
+
+  const createdByName = (appUser && appUser.fullName) || "";
+
+  const [planType, setPlanType] = useState(initialPlanType);
 
   // Templates from backend
   const [loadingTemplates, setLoadingTemplates] = useState(false);
@@ -130,6 +204,8 @@ export default function CreateDietPlanPopup({
 
   // Weekly (14 days) state
   const [fortnight, setFortnight] = useState(emptyFortnight());
+  const [weeklyTimes, setWeeklyTimes] = useState(defaultWeeklyTimes());
+
   // Monthly (options) state (no title)
   const [monthly, setMonthly] = useState(defaultMonthlyState());
 
@@ -146,6 +222,47 @@ export default function CreateDietPlanPopup({
 
   // ✅ generated plan link (shown after Save & Download)
   const [generatedLink, setGeneratedLink] = useState("");
+
+  // Health inputs for quick display (not sent to backend anymore)
+  const [age, setAge] = useState(preAge ?? "");
+  const [heightCm, setHeightCm] = useState(preHeight ?? "");
+  const [weightKg, setWeightKg] = useState(preWeight ?? "");
+
+  // keep inputs in sync if parent prefill changes
+  useEffect(() => {
+    setAge(preAge ?? "");
+    setHeightCm(preHeight ?? "");
+    setWeightKg(preWeight ?? "");
+  }, [preAge, preHeight, preWeight]);
+
+  // Conditions & Goals
+  const [conditions, setConditions] = useState([]);
+  const [healthGoals, setHealthGoals] = useState([]);
+  const [goalsTouched, setGoalsTouched] = useState(false); // prevent overwriting manual edits
+  const [newGoal, setNewGoal] = useState("");
+
+  useEffect(() => {
+    if (goalsTouched) return;
+    const auto = Array.from(
+      new Set(
+        (conditions || []).flatMap((c) => CONDITION_TO_GOALS[c] || [])
+      )
+    );
+    setHealthGoals(auto);
+  }, [conditions, goalsTouched]);
+
+  const addCustomGoal = () => {
+    const g = (newGoal || "").trim();
+    if (!g) return;
+    setHealthGoals((prev) => Array.from(new Set([...(prev || []), g])));
+    setNewGoal("");
+    setGoalsTouched(true);
+  };
+
+  const removeGoal = (goal) => {
+    setHealthGoals((prev) => (prev || []).filter((g) => g !== goal));
+    setGoalsTouched(true);
+  };
 
   const blackContained = {
     backgroundColor: "black",
@@ -183,31 +300,39 @@ export default function CreateDietPlanPopup({
     fetchTemplates();
   }, [open]);
 
-  // Load past plans for this customer
+  // Load lead health fields + goals/conditions (display only)
   useEffect(() => {
     if (!open || !leadId) return;
-    const loadPast = async () => {
-      setLoadingPast(true);
+    (async () => {
       try {
-        const { data } = await axios.get(`${BASE_URL}/api/diet-plans`, {
-          params: { leadId, limit: 50 },
-        });
-        const items = data?.items || [];
-        setPastPlans(items);
+        const { data } = await axios.get(`${BASE_URL}/api/leads/${leadId}`);
+        const hp = data?.healthProfile || {};
+        const det = data?.details || {};
+
+        const _age = det?.age ?? hp?.age ?? "";
+        const _height = det?.height ?? hp?.heightCm ?? "";
+        const _weight = det?.weight ?? hp?.weightKg ?? "";
+
+        setAge(_age === 0 ? "0" : _age?.toString() || "");
+        setHeightCm(_height === 0 ? "0" : _height?.toString() || "");
+        setWeightKg(_weight === 0 ? "0" : _weight?.toString() || "");
+
+        setConditions(data?.conditions || []);
+        setHealthGoals(data?.healthGoals || []);
+        setGoalsTouched(Boolean((data?.healthGoals || []).length));
       } catch {
         // silent
-      } finally {
-        setLoadingPast(false);
       }
-    };
-    loadPast();
+    })();
   }, [open, leadId]);
 
   // Reset per plan-type switch
   useEffect(() => {
     setTemplateId("");
     setFortnight(emptyFortnight());
+    setWeeklyTimes(defaultWeeklyTimes());
     setMonthly(defaultMonthlyState());
+    setGeneratedLink(""); // clear old link on type change
   }, [planType]);
 
   // Initial planType sync
@@ -216,7 +341,8 @@ export default function CreateDietPlanPopup({
   }, [initialPlanType]);
 
   // Templates for current type
-  const templateOptions = planType === "Weekly" ? templatesWeekly : templatesMonthly;
+  const templateOptions =
+    planType === "Weekly" ? templatesWeekly : templatesMonthly;
 
   // Selected template
   const selectedTemplate = useMemo(
@@ -242,6 +368,14 @@ export default function CreateDietPlanPopup({
       } else {
         setFortnight(emptyFortnight());
       }
+
+      const wt = body?.weeklyTimes || defaultWeeklyTimes();
+      setWeeklyTimes({
+        Breakfast: wt.Breakfast || "",
+        Lunch: wt.Lunch || "",
+        Snacks: wt.Snacks || "",
+        Dinner: wt.Dinner || "",
+      });
     } else if (type === MONTHLY_TYPE) {
       const fromBody = body?.monthly;
       const normalized = defaultMonthlyState();
@@ -281,7 +415,9 @@ export default function CreateDietPlanPopup({
     if (!leadId || saving || !templateId) return false;
 
     if (planType === "Weekly") {
-      const any = mealsOrder.some((m) => fortnight[m].some((v) => (v || "").trim()));
+      const any = mealsOrder.some((m) =>
+        fortnight[m].some((v) => (v || "").trim())
+      );
       return any;
     }
     const anyMonthly = Object.values(monthly).some((slot) =>
@@ -297,6 +433,10 @@ export default function CreateDietPlanPopup({
       next[meal][dayIdx] = value;
       return next;
     });
+  };
+
+  const setWeeklyTime = (meal, value) => {
+    setWeeklyTimes((prev) => ({ ...prev, [meal]: value }));
   };
 
   // -------- Monthly helpers (no title) --------
@@ -342,109 +482,77 @@ export default function CreateDietPlanPopup({
           (planType === "Weekly" ? WEEKLY_TYPE : MONTHLY_TYPE),
         startDate,
         durationDays,
-        ...(planType === "Weekly" ? { fortnight } : { monthly }),
+        ...(planType === "Weekly" ? { fortnight, weeklyTimes } : { monthly }),
+        // ✅ send conditions & goals only (no health profile in payload now)
+        conditions,
+        healthGoals,
         createdAt: new Date().toISOString(),
       },
     };
   };
 
   const saveToBackend = async (payload) => {
-    const { data } = await axios.post(`${BASE_URL}/api/diet-plans`, payload);
+    const body = {
+      ...payload,
+      createdBy: createdByName,
+    };
+    const { data } = await axios.post(`${BASE_URL}/api/diet-plans`, body);
     return data;
   };
 
-  const weeklyShareText = (payload) => {
-    const lines = [];
-    lines.push(`Diet Plan (14-Day) — ${payload.plan.templateLabel}`);
-    lines.push(`Start: ${payload.plan.startDate}`);
-    lines.push("");
-    for (let d = 0; d < FORTNIGHT_DAYS; d++) {
-      lines.push(`Day ${d + 1}:`);
-      for (const meal of mealsOrder) {
-        const val = payload.plan.fortnight[meal][d] || "-";
-        lines.push(`• ${meal}: ${val}`);
+  // Copy handler
+  const handleCopyLink = async () => {
+    if (!generatedLink) return;
+    try {
+      await navigator.clipboard?.writeText(generatedLink);
+    } catch {
+      // fallback
+      window.prompt("Copy this link:", generatedLink);
+    }
+  };
+
+  // Save handler — no CSV download anymore, just link with animation
+  const handleSave = async () => {
+    if (!canSave) return;
+    const payload = makePayload();
+    try {
+      setGeneratedLink(""); // clear old link
+      setSaving(true);
+      const created = await saveToBackend(payload);
+
+      if (typeof onSaved === "function") {
+        try {
+          await Promise.resolve(onSaved({ payload, created }));
+        } catch {}
       }
-      lines.push("");
-    }
-    return lines.join("\n");
-  };
 
-  const monthlyShareText = (payload) => {
-    const lines = [];
-    lines.push(`Diet Plan (Monthly Options) — ${payload.plan.templateLabel}`);
-    lines.push(`Start: ${payload.plan.startDate}`);
-    lines.push("");
-    monthlySlotOrder.forEach((slotKey) => {
-      const slot = payload.plan.monthly[slotKey];
-      if (!slot) return;
-      const header = `${slotKey}${slot.time ? ` (${slot.time})` : ""}`;
-      lines.push(header);
-      (slot.options || []).forEach((opt) => lines.push(`• ${opt}`));
-      lines.push("");
-    });
-    return lines.join("\n");
-  };
+      const createdId =
+        created?._id ||
+        created?.item?._id ||
+        created?.data?._id ||
+        created?.plan?._id ||
+        created?.result?._id;
 
-  const downloadWeeklyCSV = (payload) => {
-    const header = [
-      "Meal",
-      ...Array.from({ length: FORTNIGHT_DAYS }, (_, i) => `Day ${i + 1}`),
-    ];
-    const rows = [header];
-    for (const meal of mealsOrder) {
-      rows.push([
-        meal,
-        ...payload.plan.fortnight[meal].map((v) =>
-          (v || "").replace(/[\n\r,]/g, " ")
-        ),
-      ]);
-    }
-    const csv = rows.map((r) => r.join(",")).join("\n");
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    const fname = `${(name || "diet-plan")
-      .replace(/\s+/g, "_")}-weekly14-${payload.plan.startDate}.csv`;
-    a.href = url;
-    a.download = fname;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  };
-
-  const downloadMonthlyCSV = (payload) => {
-    const header = ["Slot", "Time", "Option"];
-    const rows = [header];
-
-    monthlySlotOrder.forEach((slotKey) => {
-      const slot = payload.plan.monthly[slotKey];
-      if (!slot) return;
-      if (!slot.options || slot.options.length === 0) {
-        rows.push([slotKey, slot.time || "", ""]);
+      if (createdId) {
+        // ✅ Append ?by=<fullName> so the viewer route uses this immediately
+        const byParam = createdByName ? `?by=${encodeURIComponent(createdByName)}` : "";
+        setGeneratedLink(`${PUBLIC_LINK_BASE}/${createdId}${byParam}`);
       } else {
-        slot.options.forEach((opt) =>
-          rows.push([
-            slotKey,
-            slot.time || "",
-            (opt || "").replace(/[\n\r,]/g, " "),
-          ])
-        );
+        setGeneratedLink("");
+        console.warn("Could not determine created diet plan _id for link.");
       }
-    });
-
-    const csv = rows.map((r) => r.join(",")).join("\n");
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    const fname = `${(name || "diet-plan")
-      .replace(/\s+/g, "_")}-monthly-${payload.plan.startDate}.csv`;
-    a.href = url;
-    a.download = fname;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error(
+        "Failed to save diet plan:",
+        err?.response?.data || err?.message || err
+      );
+      alert(
+        err?.response?.data?.error ||
+          "Failed to save diet plan. Please check server logs."
+      );
+    } finally {
+      setSaving(false);
+    }
   };
 
   const replicatePlanIntoEditor = (doc) => {
@@ -453,7 +561,11 @@ export default function CreateDietPlanPopup({
       planType: pType,
       templateId: tId,
       fortnight: f14,
+      weeklyTimes: wt,
       monthly: mOpt,
+      healthProfile: hp,
+      conditions: cond,
+      healthGoals: goals,
     } = unwrapPlan(doc);
 
     const safeType = pType || "Weekly";
@@ -468,6 +580,12 @@ export default function CreateDietPlanPopup({
         while (normalized[meal].length < FORTNIGHT_DAYS) normalized[meal].push("");
       });
       setFortnight(deepClone(normalized));
+      setWeeklyTimes({
+        Breakfast: wt?.Breakfast || "",
+        Lunch: wt?.Lunch || "",
+        Snacks: wt?.Snacks || "",
+        Dinner: wt?.Dinner || "",
+      });
       setMonthly(defaultMonthlyState());
     } else if (safeType === "Monthly" && mOpt) {
       const normalized = defaultMonthlyState();
@@ -482,90 +600,19 @@ export default function CreateDietPlanPopup({
       });
       setMonthly(deepClone(normalized));
       setFortnight(emptyFortnight());
+      setWeeklyTimes(defaultWeeklyTimes());
     }
+
+    // restore health info (display only)
+    setAge(hp?.age ?? "");
+    setHeightCm(hp?.heightCm ?? "");
+    setWeightKg(hp?.weightKg ?? "");
+
+    // restore conditions & goals
+    setConditions(cond || []);
+    setHealthGoals(goals || []);
+    setGoalsTouched(Boolean(goals && goals.length));
   };
-
-  const handleReplicateSelected = () => {
-    if (!selectedPastPlan) return;
-    replicatePlanIntoEditor(selectedPastPlan);
-  };
-
-  // Copy handler
-  const handleCopyLink = async () => {
-    if (!generatedLink) return;
-    try {
-      await navigator.clipboard?.writeText(generatedLink);
-      alert("Link copied to clipboard.");
-    } catch {
-      // fallback
-      window.prompt("Copy this link:", generatedLink);
-    }
-  };
-
-  const handleSave = async (mode /* "share" | "download" */) => {
-    if (!canSave) return;
-    const payload = makePayload();
-    try {
-      setSaving(true);
-      const created = await saveToBackend(payload);
-
-      if (typeof onSaved === "function") {
-        try {
-          await Promise.resolve(onSaved({ payload, created }));
-        } catch {}
-      }
-
-      // Try to extract the created plan's ID robustly
-      const createdId =
-        created?._id ||
-        created?.item?._id ||
-        created?.data?._id ||
-        created?.plan?._id ||
-        created?.result?._id;
-
-      if (mode === "share") {
-        const text =
-          planType === "Weekly"
-            ? weeklyShareText(payload)
-            : monthlyShareText(payload);
-        if (navigator.share) {
-          try {
-            await navigator.share({ text, title: "Diet Plan" });
-          } catch {}
-        } else if (navigator.clipboard) {
-          await navigator.clipboard.writeText(text);
-          alert("Diet plan text copied to clipboard.");
-        } else {
-          alert(text);
-        }
-        // Close after share (original behavior)
-        setSaving(false);
-        onClose?.();
-        return;
-      }
-
-      // mode === "download"
-      if (planType === "Weekly") downloadWeeklyCSV(payload);
-      else downloadMonthlyCSV(payload);
-
-      // ✅ Generate and show the public plan link using the newly-created Plan ID
-      if (createdId) {
-        setGeneratedLink(`${PUBLIC_LINK_BASE}/${createdId}`);
-      } else {
-        setGeneratedLink("");
-        console.warn("Could not determine created diet plan _id for link.");
-      }
-
-      // Keep dialog open so the link is visible/copyable
-      setSaving(false);
-    } catch (err) {
-      console.error("Failed to save diet plan:", err?.response?.data || err?.message || err);
-      alert(err?.response?.data?.error || "Failed to save diet plan. Please check server logs.");
-      setSaving(false);
-    }
-  };
-
-  const mostRecentPlan = pastPlans[0];
 
   const renderPastPlanPreview = (doc) => {
     if (!doc) return null;
@@ -601,7 +648,11 @@ export default function CreateDietPlanPopup({
                     <TableCell
                       key={i}
                       align="center"
-                      sx={{ fontWeight: 700, backgroundColor: "#f5f5f5", minWidth: 120 }}
+                      sx={{
+                        fontWeight: 700,
+                        backgroundColor: "#f5f5f5",
+                        minWidth: 120,
+                      }}
                     >
                       Day {i + 1}
                     </TableCell>
@@ -611,7 +662,16 @@ export default function CreateDietPlanPopup({
               <TableBody>
                 {mealsOrder.map((meal) => (
                   <TableRow key={meal}>
-                    <TableCell sx={{ fontWeight: 600 }}>{meal}</TableCell>
+                    <TableCell sx={{ fontWeight: 600 }}>
+                      <Box>
+                        <Typography sx={{ fontWeight: 600 }}>{meal}</Typography>
+                        <Typography variant="caption" sx={{ color: "text.secondary" }}>
+                          {u.weeklyTimes && u.weeklyTimes[meal]
+                            ? `(${u.weeklyTimes[meal]})`
+                            : ""}
+                        </Typography>
+                      </Box>
+                    </TableCell>
                     {Array.from({ length: 14 }, (_, i) => (
                       <TableCell key={i} align="left">
                         <Typography variant="body2" sx={{ whiteSpace: "pre-wrap" }}>
@@ -685,13 +745,22 @@ export default function CreateDietPlanPopup({
           gap: 2,
         }}
       >
-        {/* Customer */}
-        <Typography variant="body2" sx={{ opacity: 0.8 }}>
-          <b>Customer:</b> {name || "—"} &nbsp; | &nbsp; <b>Phone:</b>{" "}
-          {phone || "—"}
-        </Typography>
+        {/* Customer + Health quick inputs (display only) */}
+        <Stack
+          direction={{ xs: "column", md: "row" }}
+          alignItems={{ xs: "flex-start", md: "center" }}
+          justifyContent="space-between"
+          spacing={2}
+        >
+          <Typography variant="body2" sx={{ opacity: 0.8 }}>
+            <b>Customer:</b> {name || "—"} &nbsp; | &nbsp; <b>Phone:</b>{" "}
+            {phone || "—"} &nbsp; | &nbsp; <b>Age:</b> {age || "—"} &nbsp; | &nbsp;{" "}
+            <b>Height:</b> {heightCm ? `${heightCm} cm` : "—"} &nbsp; | &nbsp;{" "}
+            <b>Weight:</b> {weightKg ? `${weightKg} kg` : "—"}
+          </Typography>
+        </Stack>
 
-        {/* Controls row: Plan Type, Template, Past Plans (to the RIGHT of template) */}
+        {/* Controls row: Plan Type, Template, Past Plans */}
         <Stack
           direction={{ xs: "column", sm: "row" }}
           spacing={2}
@@ -699,15 +768,21 @@ export default function CreateDietPlanPopup({
         >
           {/* Plan Type */}
           <FormControl size="small" sx={{ width: 200 }}>
-            <InputLabel shrink id="plan-type-label">Plan Type</InputLabel>
+            <InputLabel shrink id="plan-type-label">
+              Plan Type
+            </InputLabel>
             <Select
               labelId="plan-type-label"
               value={planType}
               onChange={(e) => setPlanType(e.target.value)}
               label="Plan Type"
               sx={{
-                "& .MuiOutlinedInput-notchedOutline": { borderColor: "rgba(0,0,0,0.23)" },
-                "&.Mui-focused .MuiOutlinedInput-notchedOutline": { borderColor: "black" },
+                "& .MuiOutlinedInput-notchedOutline": {
+                  borderColor: "rgba(0,0,0,0.23)",
+                },
+                "&.Mui-focused .MuiOutlinedInput-notchedOutline": {
+                  borderColor: "black",
+                },
               }}
             >
               <MenuItem value="Weekly">Two Weeks (14 Days)</MenuItem>
@@ -716,39 +791,61 @@ export default function CreateDietPlanPopup({
           </FormControl>
 
           {/* Template */}
-          <FormControl size="small" sx={{ width: 260 }} disabled={loadingTemplates || !!templatesError}>
-            <InputLabel shrink id="template-label">Select Template</InputLabel>
+          <FormControl
+            size="small"
+            sx={{ width: 260 }}
+            disabled={loadingTemplates || !!templatesError}
+          >
+            <InputLabel shrink id="template-label">
+              Select Template
+            </InputLabel>
             <Select
               labelId="template-label"
               value={templateId}
               onChange={(e) => setTemplateId(e.target.value)}
               label="Select Template"
               sx={{
-                "& .MuiOutlinedInput-notchedOutline": { borderColor: "rgba(0,0,0,0.23)" },
-                "&.Mui-focused .MuiOutlinedInput-notchedOutline": { borderColor: "black" },
+                "& .MuiOutlinedInput-notchedOutline": {
+                  borderColor: "rgba(0,0,0,0.23)",
+                },
+                "&.Mui-focused .MuiOutlinedInput-notchedOutline": {
+                  borderColor: "black",
+                },
               }}
             >
-              {(planType === "Weekly" ? templatesWeekly : templatesMonthly).map((t) => (
-                <MenuItem key={t._id} value={t._id}>
-                  {t.name} {t.category ? `— ${t.category}` : ""} {t.version ? `(v${t.version})` : ""}
-                </MenuItem>
-              ))}
+              {(planType === "Weekly" ? templatesWeekly : templatesMonthly).map(
+                (t) => (
+                  <MenuItem key={t._id} value={t._id}>
+                    {t.name} {t.category ? `— ${t.category}` : ""}{" "}
+                    {t.version ? `(v${t.version})` : ""}
+                  </MenuItem>
+                )
+              )}
             </Select>
-            {/* Optional helper text for loading/error */}
-            {loadingTemplates && <FormHelperText>Loading templates…</FormHelperText>}
-            {!!templatesError && <FormHelperText error>Failed to load templates</FormHelperText>}
+            {loadingTemplates && (
+              <FormHelperText>Loading templates…</FormHelperText>
+            )}
+            {!!templatesError && (
+              <FormHelperText error>Failed to load templates</FormHelperText>
+            )}
           </FormControl>
 
-          {/* Past Plans (to the right of Template) */}
+          {/* Past Plans */}
           <Box sx={{ display: "flex", alignItems: "flex-start", gap: 1, flex: 1 }}>
-            <FormControl size="small" sx={{ minWidth: 260 }} disabled={loadingPast || !pastPlans.length}>
-              <InputLabel shrink id="past-plans-label">See/Replicate Past Plan</InputLabel>
+            <FormControl
+              size="small"
+              sx={{ minWidth: 260 }}
+              disabled={loadingPast || !pastPlans.length}
+            >
+              <InputLabel shrink id="past-plans-label">
+                See/Replicate Past Plan
+              </InputLabel>
               <Select
                 labelId="past-plans-label"
                 value={selectedPastPlanId}
                 onChange={(e) => setSelectedPastPlanId(e.target.value)}
                 label="Select Past Plan"
-                MenuProps={PastPlansMenuProps} // keeps list to ~4 visible items
+                MenuProps={PastPlansMenuProps}
               >
                 {pastPlans.map((p) => {
                   const isoStart = (p.startDate || "").slice(0, 10);
@@ -763,29 +860,94 @@ export default function CreateDietPlanPopup({
                 })}
               </Select>
               {!loadingPast && !pastPlans.length && (
-                <FormHelperText>
-                  ★ No past diet plan available
-                </FormHelperText>
+                <FormHelperText>★ No past diet plan available</FormHelperText>
               )}
-              {loadingPast && <FormHelperText>Loading past plans…</FormHelperText>}
+              {loadingPast && (
+                <FormHelperText>Loading past plans…</FormHelperText>
+              )}
             </FormControl>
           </Box>
         </Stack>
 
-        {/* If a past plan is picked in the dropdown, show non-editable preview + replicate */}
-        {selectedPastPlan && renderPastPlanPreview(selectedPastPlan)}
+        {/* Conditions & Goals */}
+        <Paper
+          variant="outlined"
+          sx={{ p: 2, borderRadius: 2, borderColor: "rgba(0,0,0,0.08)" }}
+        >
+          <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 700 }}>
+            Health Conditions & Goals
+          </Typography>
+
+          <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
+            {/* Conditions (multi) */}
+            <FormControl size="small" sx={{ minWidth: 240 }}>
+              <InputLabel id="conditions-label">Conditions</InputLabel>
+              <Select
+                labelId="conditions-label"
+                label="Conditions"
+                multiple
+                value={conditions}
+                onChange={(e) =>
+                  setConditions(
+                    typeof e.target.value === "string"
+                      ? e.target.value.split(",")
+                      : e.target.value
+                  )
+                }
+                renderValue={(selected) => selected.join(", ")}
+              >
+                {CONDITION_OPTIONS.map((opt) => (
+                  <MenuItem key={opt} value={opt}>
+                    {opt}
+                  </MenuItem>
+                ))}
+              </Select>
+              <FormHelperText>
+                Selecting conditions will auto-pick relevant goals (you can edit).
+              </FormHelperText>
+            </FormControl>
+
+            {/* Health Goals (multi) */}
+            <FormControl size="small" sx={{ minWidth: 200, flex: 1 }}>
+              <InputLabel id="goals-label">Health Goals</InputLabel>
+              <Select
+                labelId="goals-label"
+                label="Health Goals"
+                multiple
+                value={healthGoals}
+                onChange={(e) => {
+                  const vals =
+                    typeof e.target.value === "string"
+                      ? e.target.value.split(",")
+                      : e.target.value;
+                  setHealthGoals(vals);
+                  setGoalsTouched(true);
+                }}
+                renderValue={(selected) => selected.join(", ")}
+              >
+                {GOAL_OPTIONS.map((opt) => (
+                  <MenuItem key={opt} value={opt}>
+                    {opt}
+                  </MenuItem>
+                ))}
+              </Select>
+              <FormHelperText>Add your own goals below if needed.</FormHelperText>
+            </FormControl>
+          </Stack>
+
+          {/* Selected goal chips with delete */}
+          {!!healthGoals.length && (
+            <Box sx={{ mt: 1, display: "flex", flexWrap: "wrap", gap: 0.75 }}>
+              {healthGoals.map((g) => (
+                <Chip key={g} label={g} onDelete={() => removeGoal(g)} />
+              ))}
+            </Box>
+          )}
+        </Paper>
 
         {/* Start Date Options */}
-        <Stack
-          direction={{ xs: "column", sm: "row" }}
-          spacing={2}
-          alignItems="center"
-        >
-          <RadioGroup
-            row
-            value={startMode}
-            onChange={(e) => setStartMode(e.target.value)}
-          >
+        <Stack direction={{ xs: "column", sm: "row" }} spacing={2} alignItems="center">
+          <RadioGroup row value={startMode} onChange={(e) => setStartMode(e.target.value)}>
             <FormControlLabel value="Today" control={<Radio />} label="Today" />
             <FormControlLabel value="Tomorrow" control={<Radio />} label="Tomorrow" />
             <FormControlLabel value="Custom" control={<Radio />} label="Custom" />
@@ -810,7 +972,6 @@ export default function CreateDietPlanPopup({
             />
           )}
 
-          {/* Live date range for current (unsaved) plan */}
           <Typography variant="body2" sx={{ ml: { xs: 0, sm: 1 }, opacity: 0.7 }}>
             {planType === "Weekly"
               ? `Range: ${fmtRange(startDate, 14)}`
@@ -873,17 +1034,30 @@ export default function CreateDietPlanPopup({
                           position: "sticky",
                           left: 0,
                           zIndex: 1,
-                          backgroundColor:
-                            rIdx % 2 ? "rgba(0,0,0,0.015)" : "#fff",
+                          backgroundColor: rIdx % 2 ? "rgba(0,0,0,0.015)" : "#fff",
                         }}
                       >
-                        {meal}
+                        {/* Meal name with time below it */}
+                        <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
+                          <Typography sx={{ fontWeight: 600 }}>{meal}</Typography>
+                          <TextField
+                            variant="standard"
+                            size="small"
+                            placeholder="8–9 AM"
+                            value={weeklyTimes[meal] || ""}
+                            onChange={(e) => setWeeklyTime(meal, e.target.value)}
+                            inputProps={{ "aria-label": `${meal} time` }}
+                            sx={{ maxWidth: 140 }}
+                          />
+                        </Box>
                       </TableCell>
                       {Array.from({ length: FORTNIGHT_DAYS }, (_, i) => (
                         <TableCell key={i} align="center" sx={{ minWidth: 220 }}>
                           <TextField
                             size="small"
                             fullWidth
+                            multiline
+                            minRows={2}
                             value={fortnight[meal][i]}
                             onChange={(e) => setCell(meal, i, e.target.value)}
                             placeholder={`Enter ${meal.toLowerCase()}`}
@@ -908,10 +1082,7 @@ export default function CreateDietPlanPopup({
                 p: 1,
               }}
             >
-              <Typography
-                variant="subtitle2"
-                sx={{ mb: 1, opacity: 0.75, px: 1 }}
-              >
+              <Typography variant="subtitle2" sx={{ mb: 1, opacity: 0.75, px: 1 }}>
                 Monthly plan uses option lists per slot. Patients can select any one.
               </Typography>
 
@@ -925,16 +1096,12 @@ export default function CreateDietPlanPopup({
                     sx={{
                       p: 2,
                       mb: 2,
-                      borderColor: "rgba(0,0,0,0.10)",
+                      borderColor: "rgba(0,0,0,0.1)",
                       borderRadius: 2,
                     }}
                   >
                     <Stack direction="row" alignItems="center" spacing={2} sx={{ mb: 1 }}>
-                      <Typography
-                        variant="subtitle1"
-                        fontWeight={700}
-                        sx={{ minWidth: 80 }}
-                      >
+                      <Typography variant="subtitle1" fontWeight={700} sx={{ minWidth: 80 }}>
                         {slotKey}
                       </Typography>
 
@@ -1004,44 +1171,69 @@ export default function CreateDietPlanPopup({
         </Box>
       </DialogContent>
 
-      <DialogActions sx={{ p: 2, flexDirection: "column", alignItems: "stretch", gap: 1 }}>
+      <DialogActions
+        sx={{ p: 2, flexDirection: "column", alignItems: "stretch", gap: 1 }}
+      >
         <Box sx={{ display: "flex", gap: 1, justifyContent: "flex-end" }}>
           <Button onClick={onClose} disabled={saving} sx={{ color: "black" }}>
             Cancel
           </Button>
           <Button
-            variant="outlined"
-            disabled={!canSave}
-            onClick={() => handleSave("share")}
-            sx={{ ...blackOutlined }}
-            startIcon={saving ? <CircularProgress size={16} /> : null}
-          >
-            {saving ? "Saving..." : "Save & Share"}
-          </Button>
-          <Button
             variant="contained"
-            disabled={!canSave}
-            onClick={() => handleSave("download")}
+            disabled={!canSave || saving}
+            onClick={handleSave}
             sx={{ ...blackContained }}
+            startIcon={saving ? <CircularProgress size={16} /> : null}
           >
             Save & Download
           </Button>
         </Box>
 
-        {/* ✅ Link appears just below buttons after Save & Download */}
-        {generatedLink && (
-          <Box sx={{ mt: 1, display: "flex", alignItems: "center", gap: 1 }}>
+        {/* Animated "generating link..." status */}
+        <Collapse in={saving} timeout={300} unmountOnExit>
+          <Stack
+            direction="row"
+            alignItems="center"
+            spacing={1}
+            sx={{ mt: 0.5, color: "text.secondary" }}
+          >
+            <CircularProgress size={18} />
+            <Typography variant="body2">Generating link…</Typography>
+          </Stack>
+        </Collapse>
+
+        {/* ✅ Link appears below with an animated reveal */}
+        <Collapse in={Boolean(generatedLink)} timeout={400} unmountOnExit>
+          <Paper
+            elevation={0}
+            sx={{
+              mt: 1,
+              p: 1,
+              display: "flex",
+              alignItems: "center",
+              gap: 1,
+              border: "1px solid #e0e0e0",
+              borderRadius: 1.5,
+              background: "#fafafa",
+            }}
+          >
+            <CheckCircleOutlineIcon sx={{ color: "#2e7d32" }} />
+            <Typography variant="body2" sx={{ fontWeight: 600, mr: 1 }}>
+              Link ready
+            </Typography>
             <TextField
               fullWidth
               size="small"
               value={generatedLink}
               InputProps={{ readOnly: true }}
             />
-            <IconButton onClick={handleCopyLink} aria-label="Copy link">
-              <ContentCopyIcon />
-            </IconButton>
-          </Box>
-        )}
+            <Tooltip title="Copy link">
+              <IconButton onClick={handleCopyLink} aria-label="Copy link">
+                <ContentCopyIcon />
+              </IconButton>
+            </Tooltip>
+          </Paper>
+        </Collapse>
       </DialogActions>
     </Dialog>
   );

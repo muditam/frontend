@@ -7,22 +7,22 @@ import {
 import AddIcon from "@mui/icons-material/Add";
 import DeleteIcon from "@mui/icons-material/Delete";
 import EditIcon from "@mui/icons-material/Edit";
-import CloseIcon from "@mui/icons-material/Close"; 
-import ContentCopyIcon from "@mui/icons-material/ContentCopy";  
-import axios from "axios"; 
+import CloseIcon from "@mui/icons-material/Close";
+import ContentCopyIcon from "@mui/icons-material/ContentCopy";
+import axios from "axios";
 
-const API_BASE = "https://muditamleads-14f32a10d7f7.herokuapp.com";    
+const API_BASE = "https://muditamleads-14f32a10d7f7.herokuapp.com";
 
 const MEALS = ["Breakfast", "Lunch", "Snacks", "Dinner"]; 
 const FORTNIGHT_DAYS = 14;
 
-// ▶ Weekly meal times to show under each meal name
-const WEEKLY_TIMES = {
-  Breakfast: "8am-9am",
-  Lunch: "1pm-2pm",
-  Snacks: "4pm-5pm",
-  Dinner: "7pm-8pm",
-};
+// Default weekly times (editable by user; not hardcoded in UI)
+const defaultWeeklyTimes = () => ({
+  Breakfast: "8:00–9:00 AM", 
+  Lunch: "1:00–2:00 PM",
+  Snacks: "4:00–5:00 PM",
+  Dinner: "7:00–8:00 PM",
+});
 
 const emptyFortnight = () =>
   MEALS.reduce((acc, meal) => {
@@ -59,6 +59,7 @@ export default function DietTemplatesAdmin() {
 
   // weekly body
   const [fortnight, setFortnight] = useState(emptyFortnight());
+  const [weeklyTimes, setWeeklyTimes] = useState(defaultWeeklyTimes());
 
   // monthly body
   const [monthly, setMonthly] = useState(defaultMonthly());
@@ -71,11 +72,10 @@ export default function DietTemplatesAdmin() {
   // DUPLICATE dialog state
   const [dupState, setDupState] = useState({
     open: false,
-    src: null,          // source row object
+    src: null,
     newName: "",
     loading: false,
   });
-
 
   const fetchRows = async () => {
     setLoading(true);
@@ -104,6 +104,7 @@ export default function DietTemplatesAdmin() {
     setTags("");
     setStatus("draft");
     setFortnight(emptyFortnight());
+    setWeeklyTimes(defaultWeeklyTimes());
     setMonthly(defaultMonthly());
     setIsEditing(false);
     setEditingId(null);
@@ -148,16 +149,20 @@ export default function DietTemplatesAdmin() {
   };
 
   const body = useMemo(() => {
-    return formType === "weekly-14" ? { fortnight } : { monthly };
-  }, [formType, fortnight, monthly]);
+    return formType === "weekly-14"
+      ? { fortnight, weeklyTimes }
+      : { monthly };
+  }, [formType, fortnight, weeklyTimes, monthly]);
 
   const canSave = useMemo(() => {
     if (!name.trim()) return false;
     if (formType === "weekly-14") {
-      return MEALS.some(m => fortnight[m].some(v => (v || "").trim()));
+      const hasAnyCell = MEALS.some(m => fortnight[m].some(v => (v || "").trim()));
+      const timesOk = MEALS.every(m => (weeklyTimes[m] || "").trim());
+      return hasAnyCell && timesOk;
     }
     return Object.values(monthly).some(s => s.options.some(o => (o || "").trim()));
-  }, [name, formType, fortnight, monthly]);
+  }, [name, formType, fortnight, weeklyTimes, monthly]);
 
   const onSave = async () => {
     if (!canSave) return;
@@ -189,8 +194,7 @@ export default function DietTemplatesAdmin() {
   };
 
   const handleEdit = (e, row) => {
-    e.stopPropagation(); // prevent row click → view
-    // Prefill the form
+    e.stopPropagation();
     setIsEditing(true);
     setEditingId(row._id);
     setFormType(row.type);
@@ -200,7 +204,6 @@ export default function DietTemplatesAdmin() {
     setStatus(row.status || "draft");
 
     if (row.type === "weekly-14") {
-      // Ensure structure integrity
       const f = row.body?.fortnight || emptyFortnight();
       const normalized = {};
       MEALS.forEach(m => {
@@ -209,9 +212,17 @@ export default function DietTemplatesAdmin() {
         normalized[m] = arr;
       });
       setFortnight(normalized);
+
+      const wt = row.body?.weeklyTimes || defaultWeeklyTimes();
+      setWeeklyTimes({
+        Breakfast: wt.Breakfast || "",
+        Lunch: wt.Lunch || "",
+        Snacks: wt.Snacks || "",
+        Dinner: wt.Dinner || "",
+      });
+
     } else {
       const m = row.body?.monthly || defaultMonthly();
-      // Keep only the four slots we use
       const clean = defaultMonthly();
       ["Breakfast", "Lunch", "Evening Snack", "Dinner"].forEach(slot => {
         if (m[slot]) clean[slot] = {
@@ -239,7 +250,6 @@ export default function DietTemplatesAdmin() {
     if (!dupState.newName.trim() || !dupState.src) return;
     setDupState(s => ({ ...s, loading: true }));
     try {
-      // Ensure we have full body; if missing, fetch once
       let src = dupState.src;
       if (!src.body) {
         const { data } = await axios.get(`${API_BASE}/api/diet-templates/${src._id}`);
@@ -250,8 +260,8 @@ export default function DietTemplatesAdmin() {
         type: src.type,
         category: src.category || null,
         tags: Array.isArray(src.tags) ? src.tags : [],
-        status: "draft",            // keep duplicates as draft
-        body: src.body,             // deep copy not required; server stores new doc
+        status: "draft",
+        body: src.body,
       };
       await axios.post(`${API_BASE}/api/diet-templates`, payload);
       setDupState({ open: false, src: null, newName: "", loading: false });
@@ -262,7 +272,6 @@ export default function DietTemplatesAdmin() {
     }
   };
 
-
   const handleDelete = (e, row) => {
     e.stopPropagation();
     setDeleteConfirm({ open: true, id: row._id, name: row.name });
@@ -272,7 +281,6 @@ export default function DietTemplatesAdmin() {
     try {
       await axios.delete(`${API_BASE}/api/diet-templates/${deleteConfirm.id}`);
       setDeleteConfirm({ open: false, id: null, name: "" });
-      // If you deleted what you were viewing, close view
       if (selectedRow && selectedRow._id === deleteConfirm.id) setViewOpen(false);
       fetchRows();
     } catch (e) {
@@ -434,10 +442,19 @@ export default function DietTemplatesAdmin() {
                     <TableRow key={meal}>
                       <TableCell sx={{ fontWeight: 600 }}>
                         <Box>
-                          <Typography sx={{ fontWeight: 600 }}>{meal}</Typography>
-                          <Typography variant="caption" sx={{ color: "text.secondary" }}>
-                            ({WEEKLY_TIMES[meal]})
-                          </Typography>
+                          <Typography sx={{ fontWeight: 600, mb: 0.5 }}>{meal}</Typography>
+                          {/* Editable weekly time (standard variant) */}
+                          <TextField
+                            variant="standard"
+                            size="small"
+                            value={weeklyTimes[meal]}
+                            onChange={(e) =>
+                              setWeeklyTimes(prev => ({ ...prev, [meal]: e.target.value }))
+                            }
+                            placeholder="e.g., 8–9 AM"
+                            inputProps={{ 'aria-label': `${meal} time` }}
+                            sx={{ minWidth: 140 }}
+                          />
                         </Box>
                       </TableCell>
                       {Array.from({ length: FORTNIGHT_DAYS }, (_, i) => (
@@ -554,7 +571,7 @@ export default function DietTemplatesAdmin() {
                             <Box>
                               <Typography sx={{ fontWeight: 600 }}>{m}</Typography>
                               <Typography variant="caption" sx={{ color: "text.secondary" }}>
-                                ({WEEKLY_TIMES[m]})
+                                ({selectedRow.body?.weeklyTimes?.[m] || "—"})
                               </Typography>
                             </Box>
                           </TableCell>
@@ -600,10 +617,11 @@ export default function DietTemplatesAdmin() {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setDeleteConfirm({ open: false, id: null, name: "" })} sx={{ color: "black" }}>Cancel</Button>
-          <Button onClick={confirmDelete} sx={{ ...blackContained }}>Delete</Button>
+          <Button onClick={confirmDelete} sx={{ backgroundColor: "black", color: "white", "&:hover": { backgroundColor: "#222" } }}>Delete</Button>
         </DialogActions>
       </Dialog>
 
+      {/* DUPLICATE */}
       <Dialog
         open={dupState.open}
         onClose={() => setDupState({ open: false, src: null, newName: "", loading: false })}

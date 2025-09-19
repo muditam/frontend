@@ -252,7 +252,7 @@ const RetentionLeads = () => {
 
   const [rtSubcellsDialogOpen, setRtSubcellsDialogOpen] = useState(false);
 
-  const [subcellsPopup, setSubcellsPopup] = useState({ open: false, subcells: [] });
+  const [subcellsPopup, setSubcellsPopup] = useState({ open: false, subcells: [] }); 
 
   const [notReachedLeadsCount, setNotReachedLeadsCount] = useState(0);
   const [showingNotReached, setShowingNotReached] = useState(false);
@@ -3169,10 +3169,10 @@ const RetentionLeads = () => {
                       alignItems: "center",
                       userSelect: "none",
                     }}
-                    onClick={(e) => e.stopPropagation()}
+                    onClick={(e) => e.stopPropagation()}  
                   >
                     <img
-                      src={modalImages[modalIndex].preview || modalImages[modalIndex].url || ""}
+                      src={modalImages[modalIndex].preview || modalImages[modalIndex].url || ""}   
                       alt="modal-img"
                       style={{
                         maxWidth: "80vw",
