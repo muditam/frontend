@@ -372,7 +372,7 @@ export default function AbandonedCheckouts() {
                               {formatMoney(it.finalLinePrice ?? (it.unitPrice || 0) * (it.quantity ?? 1), currency)}
                             </Typography>
                           ))}
-                        </Stack>
+                        </Stack> 
                       </TableCell>
 
                       <TableCell>{formatMoney(r.total, currency)}</TableCell>

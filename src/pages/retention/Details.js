@@ -20,13 +20,14 @@ import {
   CircularProgress,
   Stack,
   InputAdornment,
+  Checkbox,
+  FormControlLabel,
 } from "@mui/material";
 import {
   KeyboardDoubleArrowDown,
   KeyboardDoubleArrowUp,
   FavoriteRounded,
   ScienceRounded,
-  FitnessCenterRounded,
   LocalHotelRounded,
   MedicationRounded,
   PsychologyRounded,
@@ -42,7 +43,7 @@ const API_BASE =
 
 const initialFormState = {
   age: "",
-  height: "",
+  height: "",        // stored as CM in DB
   hba1c: "",
   lastTestDone: "",
   fastingSugar: "",
@@ -91,50 +92,66 @@ const badgeColorByHba1c = (val) => {
   return "error";
 };
 
-const badgeColorByBMI = (bmi) => {
-  if (!bmi) return "default";
-  if (bmi < 18.5) return "warning";
-  if (bmi <= 24.9) return "success";
-  if (bmi <= 29.9) return "warning";
-  return "error";
+/** ----- Height parsing utilities (ft/in -> cm) ----- */
+
+const feetInchesToCm = (ft = 0, inch = 0) =>
+  +(ft * 30.48 + inch * 2.54).toFixed(1);
+
+/**
+ * Accepts:
+ *  - 5'8", 5'8, 5 ' 8
+ *  - 5-8, 5 8
+ *  - 5.8  (dot treated as INCH separator if right part is 0..11; else decimal feet)
+ *  - 5.67 ft (decimal feet)
+ * Returns CM (number) or "" if invalid.
+ */
+const parseFeetHeightToCm = (raw) => {
+  if (raw == null) return "";
+
+  let s = String(raw).trim().toLowerCase();
+
+  // Normalize words to symbols
+  s = s
+    .replace(/\"|inches?|in\b/g, '"')
+    .replace(/feet?|ft\b/g, "'")
+    .replace(/\s+/g, " ");
+
+  // 1) 5'8" / 5'8
+  const m1 = s.match(/^(\d+(?:\.\d+)?)[\'’]\s*(\d+(?:\.\d+)?)?/);
+  if (m1) {
+    const ft = parseFloat(m1[1]) || 0;
+    const inch = parseFloat(m1[2]) || 0;
+    return feetInchesToCm(ft, inch);
+  }
+
+  // 2) 5-8 or 5 8
+  const m2 = s.match(/^(\d+(?:\.\d+)?)\s*[- ]\s*(\d+(?:\.\d+)?)/);
+  if (m2) {
+    const ft = parseFloat(m2[1]) || 0;
+    const inch = parseFloat(m2[2]) || 0;
+    return feetInchesToCm(ft, inch);
+  }
+
+  // 3) 5.8  -> interpret dot as inches if RHS 0..11
+  const m3 = s.match(/^(\d+)\.(\d+)$/);
+  if (m3) {
+    const ft = parseInt(m3[1], 10);
+    const rhs = m3[2];
+    const asInches = parseInt(rhs, 10);
+    if (!Number.isNaN(asInches) && asInches >= 0 && asInches <= 11) {
+      return feetInchesToCm(ft, asInches);
+    }
+    // decimal feet
+    const decFeet = parseFloat(s);
+    return Number.isFinite(decFeet) ? +(decFeet * 30.48).toFixed(1) : "";
+  }
+
+  // 4) plain decimal -> decimal feet
+  const dec = parseFloat(s);
+  if (Number.isFinite(dec)) return +(dec * 30.48).toFixed(1);
+
+  return "";
 };
-
-/** ---------- OPTIONS ---------- */
-
-const currentMedicationsOptions = [
-  "Metformin",
-  "Glimepiride",
-  "Glipizide",
-  "Sitagliptin",
-  "Liraglutide",
-  "Pioglitazone",
-  "Canagliflozin",
-  "Empagliflozin",
-  "Dapagliflozin",
-  "Exenatide",
-];
-const sideEffectsOptions = ["Nausea", "Weight gain", "None"];
-const suddenSugarFluctuationsOptions = ["Yes", "No"];
-const familyHistoryOptions = ["Yes", "No"];
-const monitorBloodSugarOptions = ["Daily", "Weekly", "Rarely", "Never"];
-const sugarCravingsOptions = ["Often", "Sometimes", "Never"];
-const symptomsOptions = [
-  "Frequent urination",
-  "Increased thirst",
-  "Increased hunger",
-  "Fatigue",
-  "Blurred vision",
-  "Slow-healing wounds",
-  "Unexplained weight loss",
-  "Numbness or tingling",
-  "Frequent infections",
-  "Darkened skin",
-];
-const otherConditionsOptions = ["Thyroid", "BP", "Cholesterol"];
-const stressLevelOptions = ["Low", "Moderate", "High"];
-const gutIssuesOptions = ["Constipation", "Diarrhea", "Bloating"];
-const energyLevelsOptions = ["Low", "Medium", "High"];
-const sleepQualityOptions = ["Poor", "Average", "Good"];
 
 /** ---------- SECTION WRAPPER ---------- */
 const SectionCard = ({ icon, title, children }) => {
@@ -168,19 +185,26 @@ const Details = ({ contactNumber, onDetailsUpdate }) => {
   const [open, setOpen] = useState(false); // collapsed by default
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState(initialFormState);
+
+  // height: ft mode + visible input for ft field
+  const [heightInFeetMode, setHeightInFeetMode] = useState(false);
+  const [heightFeetInput, setHeightFeetInput] = useState(""); // e.g., "5'8" or "5.8"
+
   const [saveState, setSaveState] = useState("idle"); // 'idle' | 'saving' | 'saved' | 'error'
   const [lastSavedAt, setLastSavedAt] = useState(null);
   const [snack, setSnack] = useState({ open: false, message: "", severity: "success" });
-
   const debounceRef = useRef(null);
 
-  const bmi = useMemo(() => computeBMI(formData.height, formData.weight), [formData.height, formData.weight]);
+  const bmi = useMemo(
+    () => computeBMI(formData.height, formData.weight),
+    [formData.height, formData.weight]
+  );
 
   /** ------- LOAD DETAILS ------- */
   useEffect(() => {
     if (!contactNumber) {
       setFormData(initialFormState);
-      setOpen(false);
+      setOpen(false); // <-- fixed line
       return;
     }
     setLoading(true);
@@ -190,8 +214,19 @@ const Details = ({ contactNumber, onDetailsUpdate }) => {
         const { data } = await axios.get(`${API_BASE}/get-details/${contactNumber}`);
         if (data?.details) {
           setFormData({ ...initialFormState, ...data.details });
+          // if we already store cm, derive a readable feet string for display when toggled
+          const cm = Number(data.details.height);
+          if (cm) {
+            const totalIn = cm / 2.54;
+            const ft = Math.floor(totalIn / 12);
+            const inch = Math.round(totalIn - ft * 12);
+            setHeightFeetInput(`${ft}'${inch}`);
+          } else {
+            setHeightFeetInput("");
+          }
         } else {
           setFormData(initialFormState);
+          setHeightFeetInput("");
         }
       } catch (err) {
         console.error("Fetch error:", err);
@@ -232,6 +267,17 @@ const Details = ({ contactNumber, onDetailsUpdate }) => {
   /** ------- HANDLERS ------- */
   const handleChange = (e) => {
     const { name, value } = e.target;
+
+    // Special handling for height when in ft mode
+    if (name === "height" && heightInFeetMode) {
+      setHeightFeetInput(value);
+      const cm = parseFeetHeightToCm(value);
+      const updated = { ...formData, height: cm || "" };
+      setFormData(updated);
+      autoSave(updated);
+      return;
+    }
+
     const updated = { ...formData, [name]: value };
     setFormData(updated);
     autoSave(updated);
@@ -243,23 +289,24 @@ const Details = ({ contactNumber, onDetailsUpdate }) => {
     autoSave(updated);
   };
 
-  /** ------- HEADER BAR UI ------- */
+  /** ------- HEADER BAR UI (click-anywhere to expand/collapse) ------- */
   const HeaderBar = () => (
     <Box
+      onClick={() => setOpen((v) => !v)}
       sx={{
         position: "relative",
         borderRadius: 3,
         overflow: "hidden",
-        background:
-          "linear-gradient(90deg, #0f172a 0%, #1e293b 45%, #334155 100%)", 
+        background: "linear-gradient(90deg, #0f172a 0%, #1e293b 45%, #334155 100%)",
         color: "white",
         px: { xs: 2, sm: 3 },
         py: 2,
         boxShadow: "0 8px 24px rgba(14,165,233,0.25)",
+        cursor: "pointer",
+        userSelect: "none",
       }}
     >
       <Stack direction="row" alignItems="center" justifyContent="space-between" gap={2}>
-         
         {/* Title + Summary chips */}
         <Stack
           direction={{ xs: "column", sm: "row" }}
@@ -315,9 +362,13 @@ const Details = ({ contactNumber, onDetailsUpdate }) => {
             )}
           </Stack>
 
+          {/* Stop click bubbling so header doesn't toggle twice */}
           <IconButton
             size="small"
-            onClick={() => setOpen((v) => !v)}
+            onClick={(e) => {
+              e.stopPropagation();
+              setOpen((v) => !v);
+            }}
             sx={{
               color: "white",
               bgcolor: "rgba(255,255,255,0.18)",
@@ -366,13 +417,7 @@ const Details = ({ contactNumber, onDetailsUpdate }) => {
       <HeaderBar />
 
       <Collapse in={open} timeout={300} unmountOnExit>
-        <Box
-          sx={{
-            mt: 2,
-            display: "grid",
-            gap: 2,
-          }}
-        >
+        <Box sx={{ mt: 2, display: "grid", gap: 2 }}>
           {/* Loading shimmer */}
           {loading ? (
             <Paper
@@ -392,10 +437,7 @@ const Details = ({ contactNumber, onDetailsUpdate }) => {
           ) : (
             <>
               {/* Vitals & Labs */}
-              <SectionCard
-                icon={<FavoriteRounded color="error" />}
-                title="Vitals & Labs"
-              >
+              <SectionCard icon={<FavoriteRounded color="error" />} title="Vitals & Labs">
                 <Grid container spacing={2}>
                   <Grid item xs={6} sm={3} md={2.2}>
                     <TextField
@@ -410,20 +452,70 @@ const Details = ({ contactNumber, onDetailsUpdate }) => {
                     />
                   </Grid>
 
-                  <Grid item xs={6} sm={3} md={2.2}>
-                    <TextField
-                      name="height"
-                      label="Height"
-                      type="number"
-                      size="small"
-                      fullWidth
-                      value={formData.height}
-                      onChange={handleChange}
-                      InputProps={{
-                        inputProps: { inputMode: "numeric", pattern: "[0-9]*" },
-                        endAdornment: <InputAdornment position="end">cm</InputAdornment>,
-                      }}
-                    />
+                  {/* HEIGHT with ft/in toggle */}
+                  <Grid item xs={6} sm={3} md={3}>
+                    <Stack direction={{ xs: "column", sm: "row" }} spacing={1} alignItems="flex-start">
+                      <Box sx={{ flex: 1, width: "100%" }}>
+                        {heightInFeetMode ? (
+                          <TextField
+                            name="height"
+                            label="Height (ft′in″)"
+                            placeholder={`e.g. 5'8  or  5-8  or  5.8`}
+                            size="small"
+                            fullWidth
+                            value={heightFeetInput}
+                            onChange={handleChange}
+                            InputProps={{
+                              endAdornment: (
+                                <InputAdornment position="end">ft/in</InputAdornment>
+                              ),
+                            }}
+                            helperText="Use 5'8, 5-8, 5 8, or 5.8 (dot = inches)"
+                          />
+                        ) : (
+                          <TextField
+                            name="height"
+                            label="Height (cm)"
+                            type="number"
+                            size="small"
+                            fullWidth
+                            value={formData.height}
+                            onChange={handleChange}
+                            InputProps={{
+                              inputProps: { inputMode: "numeric", pattern: "[0-9]*" },
+                              endAdornment: <InputAdornment position="end">cm</InputAdornment>,
+                            }}
+                          />
+                        )}
+                      </Box>
+
+                      <FormControlLabel
+                        control={
+                          <Checkbox
+                            checked={heightInFeetMode}
+                            onChange={(e) => {
+                              const next = e.target.checked;
+                              setHeightInFeetMode(next);
+                              if (next) {
+                                // go to ft display – prefill from cm
+                                const cm = Number(formData.height);
+                                if (cm) {
+                                  const totalIn = cm / 2.54;
+                                  const ft = Math.floor(totalIn / 12);
+                                  const inch = Math.round(totalIn - ft * 12);
+                                  setHeightFeetInput(`${ft}'${inch}`);
+                                } else {
+                                  setHeightFeetInput("");
+                                }
+                              }
+                            }}
+                            size="small"
+                          />
+                        }
+                        label="ft/in"
+                        sx={{ ml: 0.5, mt: { xs: 0, sm: 0.2 } }}
+                      />
+                    </Stack>
                   </Grid>
 
                   <Grid item xs={6} sm={3} md={2.2}>
@@ -555,15 +647,17 @@ const Details = ({ contactNumber, onDetailsUpdate }) => {
               </SectionCard>
 
               {/* Lifestyle */}
-              <SectionCard
-                icon={<LocalHotelRounded color="primary" />}
-                title="Lifestyle"
-              >
+              <SectionCard icon={<LocalHotelRounded color="primary" />} title="Lifestyle">
                 <Grid container spacing={2}>
                   <Grid item xs={6} sm={4} md={3}>
                     <FormControl fullWidth size="small">
                       <InputLabel>Gender</InputLabel>
-                      <Select name="gender" value={formData.gender} label="Gender" onChange={handleChange}>
+                      <Select
+                        name="gender"
+                        value={formData.gender}
+                        label="Gender"
+                        onChange={handleChange}
+                      >
                         {["Male", "Female", "Other"].map((option) => (
                           <MenuItem key={option} value={option}>
                             {option}
@@ -576,7 +670,12 @@ const Details = ({ contactNumber, onDetailsUpdate }) => {
                   <Grid item xs={6} sm={4} md={3}>
                     <FormControl fullWidth size="small">
                       <InputLabel>Diet Type</InputLabel>
-                      <Select name="dietType" value={formData.dietType} label="Diet Type" onChange={handleChange}>
+                      <Select
+                        name="dietType"
+                        value={formData.dietType}
+                        label="Diet Type"
+                        onChange={handleChange}
+                      >
                         {["Vegetarian", "Non-vegetarian", "Vegan"].map((option) => (
                           <MenuItem key={option} value={option}>
                             {option}
@@ -589,7 +688,12 @@ const Details = ({ contactNumber, onDetailsUpdate }) => {
                   <Grid item xs={12} sm={6} md={3}>
                     <FormControl fullWidth size="small">
                       <InputLabel>Sitting Time</InputLabel>
-                      <Select name="sittingTime" value={formData.sittingTime} label="Sitting Time" onChange={handleChange}>
+                      <Select
+                        name="sittingTime"
+                        value={formData.sittingTime}
+                        label="Sitting Time"
+                        onChange={handleChange}
+                      >
                         {[
                           "Less than 1 hour",
                           "1-2 hours",
@@ -681,7 +785,7 @@ const Details = ({ contactNumber, onDetailsUpdate }) => {
                         label="Energy Levels"
                         onChange={handleChange}
                       >
-                        {energyLevelsOptions.map((opt) => (
+                        {["Low", "Medium", "High"].map((opt) => (
                           <MenuItem key={opt} value={opt}>
                             {opt}
                           </MenuItem>
@@ -699,7 +803,7 @@ const Details = ({ contactNumber, onDetailsUpdate }) => {
                         label="Sleep Quality"
                         onChange={handleChange}
                       >
-                        {sleepQualityOptions.map((opt) => (
+                        {["Poor", "Average", "Good"].map((opt) => (
                           <MenuItem key={opt} value={opt}>
                             {opt}
                           </MenuItem>
@@ -710,17 +814,25 @@ const Details = ({ contactNumber, onDetailsUpdate }) => {
                 </Grid>
               </SectionCard>
 
-              {/* Meds & Effects */}
-              <SectionCard
-                icon={<MedicationRounded color="secondary" />}
-                title="Medications & Effects"
-              >
+              {/* Medications & Effects */}
+              <SectionCard icon={<MedicationRounded color="secondary" />} title="Medications & Effects">
                 <Grid container spacing={2}>
-                  <Grid item xs={12} md={6}>
+                  <Grid item xs={12} md={3}>
                     <Autocomplete
                       multiple
                       freeSolo
-                      options={currentMedicationsOptions}
+                      options={[
+                        "Metformin",
+                        "Glimepiride",
+                        "Glipizide",
+                        "Sitagliptin",
+                        "Liraglutide",
+                        "Pioglitazone",
+                        "Canagliflozin",
+                        "Empagliflozin",
+                        "Dapagliflozin",
+                        "Exenatide",
+                      ]}
                       value={formData.currentMedications || []}
                       onChange={(_, newValue) =>
                         handleMultiSelectChange("currentMedications", newValue)
@@ -741,7 +853,7 @@ const Details = ({ contactNumber, onDetailsUpdate }) => {
                         label="Side Effects"
                         onChange={handleChange}
                       >
-                        {sideEffectsOptions.map((opt) => (
+                        {["Nausea", "Weight gain", "None"].map((opt) => (
                           <MenuItem key={opt} value={opt}>
                             {opt}
                           </MenuItem>
@@ -759,7 +871,7 @@ const Details = ({ contactNumber, onDetailsUpdate }) => {
                         label="Sudden Sugar Fluctuations"
                         onChange={handleChange}
                       >
-                        {suddenSugarFluctuationsOptions.map((opt) => (
+                        {["Yes", "No"].map((opt) => (
                           <MenuItem key={opt} value={opt}>
                             {opt}
                           </MenuItem>
@@ -777,7 +889,7 @@ const Details = ({ contactNumber, onDetailsUpdate }) => {
                         label="Family History"
                         onChange={handleChange}
                       >
-                        {familyHistoryOptions.map((opt) => (
+                        {["Yes", "No"].map((opt) => (
                           <MenuItem key={opt} value={opt}>
                             {opt}
                           </MenuItem>
@@ -795,7 +907,7 @@ const Details = ({ contactNumber, onDetailsUpdate }) => {
                         label="Monitor Blood Sugar"
                         onChange={handleChange}
                       >
-                        {monitorBloodSugarOptions.map((opt) => (
+                        {["Daily", "Weekly", "Rarely", "Never"].map((opt) => (
                           <MenuItem key={opt} value={opt}>
                             {opt}
                           </MenuItem>
@@ -813,7 +925,7 @@ const Details = ({ contactNumber, onDetailsUpdate }) => {
                         label="Sugar Cravings"
                         onChange={handleChange}
                       >
-                        {sugarCravingsOptions.map((opt) => (
+                        {["Often", "Sometimes", "Never"].map((opt) => (
                           <MenuItem key={opt} value={opt}>
                             {opt}
                           </MenuItem>
@@ -831,7 +943,7 @@ const Details = ({ contactNumber, onDetailsUpdate }) => {
                         label="Stress Level"
                         onChange={handleChange}
                       >
-                        {stressLevelOptions.map((opt) => (
+                        {["Low", "Moderate", "High"].map((opt) => (
                           <MenuItem key={opt} value={opt}>
                             {opt}
                           </MenuItem>
@@ -861,30 +973,36 @@ const Details = ({ contactNumber, onDetailsUpdate }) => {
               </SectionCard>
 
               {/* Symptoms & Conditions */}
-              <SectionCard
-                icon={<PsychologyRounded color="info" />}
-                title="Symptoms & Conditions"
-              >
+              <SectionCard icon={<PsychologyRounded color="info" />} title="Symptoms & Conditions">
                 <Grid container spacing={2}>
-                  <Grid item xs={12} md={6}>
+                  <Grid item xs={12} md={3}>
                     <Autocomplete
                       multiple
                       freeSolo
-                      options={symptomsOptions}
+                      options={[
+                        "Frequent urination",
+                        "Increased thirst",
+                        "Increased hunger",
+                        "Fatigue",
+                        "Blurred vision",
+                        "Slow-healing wounds",
+                        "Unexplained weight loss",
+                        "Numbness or tingling",
+                        "Frequent infections",
+                        "Darkened skin",
+                      ]}
                       value={formData.symptoms || []}
                       onChange={(_, newValue) => handleMultiSelectChange("symptoms", newValue)}
-                      renderInput={(params) => (
-                        <TextField {...params} label="Symptoms" size="small" />
-                      )}
+                      renderInput={(params) => <TextField {...params} label="Symptoms" size="small" />}
                       limitTags={3}
                     />
                   </Grid>
 
-                  <Grid item xs={12} md={6}>
+                  <Grid item xs={12} md={3}>
                     <Autocomplete
                       multiple
                       freeSolo
-                      options={otherConditionsOptions}
+                      options={["Thyroid", "BP", "Cholesterol"]}
                       value={formData.otherConditions || []}
                       onChange={(_, newValue) => handleMultiSelectChange("otherConditions", newValue)}
                       renderInput={(params) => (
@@ -903,7 +1021,7 @@ const Details = ({ contactNumber, onDetailsUpdate }) => {
                         label="Gut Issues"
                         onChange={handleChange}
                       >
-                        {gutIssuesOptions.map((opt) => (
+                        {["Constipation", "Diarrhea", "Bloating"].map((opt) => (
                           <MenuItem key={opt} value={opt}>
                             {opt}
                           </MenuItem>

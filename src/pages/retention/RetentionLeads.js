@@ -21,6 +21,9 @@ import {
   TableCell,
   CircularProgress,
   Button,
+  FormControl,
+  InputLabel,
+  SvgIcon,
 } from "@mui/material";
 import { keyframes, styled } from "@mui/material/styles";
 import axios from "axios";
@@ -59,6 +62,9 @@ import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 
 import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
 import KeyboardArrowUpIcon from "@mui/icons-material/KeyboardArrowUp";
+
+import LanguageIcon from "@mui/icons-material/Language";
+import PlaceIcon from "@mui/icons-material/Place";
 
 import CreateDietPlanPopup from "./CreateDietPlanPopup";
 
@@ -212,7 +218,6 @@ const RetentionLeads = () => {
   const [selectedLeadIndex, setSelectedLeadIndex] = useState(null);
   const [selectedLeadId, setSelectedLeadId] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
-  const [modalImages, setModalImages] = useState([]);
   const [modalIndex, setModalIndex] = useState(0);
   const [leadLoading, setLeadLoading] = useState(false);
   const [filteredAllLeads, setFilteredAllLeads] = useState([]);
@@ -252,7 +257,7 @@ const RetentionLeads = () => {
 
   const [rtSubcellsDialogOpen, setRtSubcellsDialogOpen] = useState(false);
 
-  const [subcellsPopup, setSubcellsPopup] = useState({ open: false, subcells: [] }); 
+  const [subcellsPopup, setSubcellsPopup] = useState({ open: false, subcells: [] });
 
   const [notReachedLeadsCount, setNotReachedLeadsCount] = useState(0);
   const [showingNotReached, setShowingNotReached] = useState(false);
@@ -288,19 +293,12 @@ const RetentionLeads = () => {
 
   const [shopifyDatesMap, setShopifyDatesMap] = useState({});
 
-  // Image upload state
-  const [uploadedImages, setUploadedImages] = useState([]);
-
   const [showOrders, setShowOrders] = useState(false);
 
   const [anchorElColor, setAnchorElColor] = useState(null);
   const [colorMenuIdx, setColorMenuIdx] = useState(null);
 
   const [shipmentStatusMap, setShipmentStatusMap] = useState({});
-
-  const [consultationDialogOpen, setConsultationDialogOpen] = useState(false);
-  const [consultationHistory, setConsultationHistory] = useState([]);
-  const [consultationLoading, setConsultationLoading] = useState(false);
 
   const [orderPopupOpen, setOrderPopupOpen] = useState(false);
   const [selectedLead, setSelectedLead] = useState(null);
@@ -385,8 +383,7 @@ const RetentionLeads = () => {
       setFilteredAllLeads(leadsWithReminders);
       setLeads(leadsWithReminders.slice(0, leadsPerPage));
       setHasMore(leadsWithReminders.length > leadsPerPage);
-      // setSelectedLeadIndex(null);
-      setUploadedImages([]);
+      // setSelectedLeadIndex(null); 
     } catch (error) {
       console.error("Failed to fetch retention leads:", error);
     } finally {
@@ -426,7 +423,6 @@ const RetentionLeads = () => {
       return list;
     });
   };
-
 
   const handleSubcellChange = (leadIndex, subcellIndex, e) => {
     const value = e.target.value;
@@ -536,9 +532,9 @@ const RetentionLeads = () => {
   };
 
   const handleCreateDietPlanClick = (lead) => {
-   setSelectedLead(lead);
-   setDietPlanOpen(true);
- };
+    setSelectedLead(lead);
+    setDietPlanOpen(true);
+  };
 
   // Only for retentionStatus Active or not set
   const getNotReachedLeads = (leads, days = 7) => {
@@ -592,15 +588,15 @@ const RetentionLeads = () => {
   }, [filteredAllLeads, allLeads]);
 
   const handleLeadSelect = (idx, id) => {
-   setSelectedLeadId(id);
-    setSelectedLeadIndex(idx); 
- }
+    setSelectedLeadId(id);
+    setSelectedLeadIndex(idx);
+  }
 
   useEffect(() => {
     if (!selectedLeadId) return;
     const i = leads.findIndex(l => l._id === selectedLeadId);
     setSelectedLeadIndex(i === -1 ? null : i);
- }, [leads, selectedLeadId]);
+  }, [leads, selectedLeadId]);
 
   useEffect(() => {
     const el = remarksBodyRef.current;
@@ -646,26 +642,6 @@ const RetentionLeads = () => {
     }
   };
 
-
-  useEffect(() => {
-    if (selectedLeadIndex === null) {
-      setUploadedImages([]);
-      return;
-    }
-    const lead = leads[selectedLeadIndex];
-    if (lead && lead.images && Array.isArray(lead.images)) {
-      const imgs = lead.images.map((img, idx) => ({
-        preview: img.url || img.preview,
-        date: img.date ? new Date(img.date) : new Date(),
-        tag: img.tag || "",
-        index: idx,
-      }));
-      setUploadedImages(imgs);
-    } else {
-      setUploadedImages([]);
-    }
-  }, [selectedLeadIndex, leads]);
-
   const getDetailsCompletionPercent = (details) => {
     if (!details) return 0;
     const totalFields = Object.keys(details).length;
@@ -701,56 +677,8 @@ const RetentionLeads = () => {
     }
   }, [loadMoreLeads]);
 
-  const openModal = (dateGroupImages, clickedIndexInGroup) => {
-    setModalImages(dateGroupImages);
-    setModalIndex(clickedIndexInGroup);
-    setModalOpen(true);
-  };
 
   const closeModal = () => setModalOpen(false);
-
-  const prevImage = () => {
-    setModalIndex((i) => (i === 0 ? modalImages.length - 1 : i - 1));
-  };
-
-  const nextImage = () => {
-    setModalIndex((i) => (i === modalImages.length - 1 ? 0 : i + 1));
-  };
-
-  const deleteModalImage = () => {
-    const deletedImage = modalImages[modalIndex];
-    setUploadedImages((prev) => prev.filter((_, i) => i !== deletedImage.index));
-    closeModal();
-  };
-
-  const groupImagesByYearMonthDate = (images) => {
-    const grouped = {};
-
-    images.forEach((img, index) => {
-      const d = img.date || new Date();
-      const year = d.getFullYear();
-      const month = d.toLocaleString("default", { month: "long" });
-      const day = d.getDate();
-
-      if (!grouped[year]) grouped[year] = {};
-      if (!grouped[year][month]) grouped[year][month] = {};
-      if (!grouped[year][month][day]) grouped[year][month][day] = [];
-
-      grouped[year][month][day].push({ ...img, index });
-    });
-
-    return grouped;
-  };
-
-  const handleAddTag = (imageIndex, tag) => {
-    setUploadedImages((prev) =>
-      prev.map((img, i) =>
-        i === imageIndex
-          ? { ...img, tag }
-          : img
-      )
-    );
-  };
 
   const handleColorSelect = async (color, index) => {
     const updatedLeads = [...leads];
@@ -837,10 +765,10 @@ const RetentionLeads = () => {
       };
       console.log("Sending API Request to Backend:", requestBody);
       const response = await axios.post(
-        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/click_to_call", 
-        requestBody 
+        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/click_to_call",
+        requestBody
       );
-      console.log("Backend Response:", response.data); 
+      console.log("Backend Response:", response.data);
       if (response.data.status === "success") {
         setCallingMessage(`Successfully called ${contactNumber}`);
       } else {
@@ -888,15 +816,6 @@ const RetentionLeads = () => {
       console.error("Error filtering by shipment status:", error);
     } finally {
       setLoading(false);
-    }
-  };
-
-
-  const updateLeadImagesOnServer = async (leadId, images) => {
-    try {
-      await axios.patch(`https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/${leadId}/images`, { images });
-    } catch (err) {
-      console.error("Failed to update images on server", err);
     }
   };
 
@@ -1076,30 +995,6 @@ const RetentionLeads = () => {
     setSortSubMenuAnchorEl(null);
     setActiveSortType(null);
   };
-
-  const handleRemoveImage = async (index) => {
-    setUploadedImages((prev) => {
-      URL.revokeObjectURL(prev[index].preview); // cleanup
-      return prev.filter((_, i) => i !== index);
-    });
-
-    setLeads((prevLeads) => {
-      if (selectedLeadIndex === null) return prevLeads;
-      const newLeads = [...prevLeads];
-      const lead = { ...newLeads[selectedLeadIndex] };
-      if (lead.images && Array.isArray(lead.images)) {
-        lead.images = lead.images.filter((_, i) => i !== index);
-      }
-      newLeads[selectedLeadIndex] = lead;
-
-      // Update backend
-      updateLeadImagesOnServer(lead._id, lead.images);
-
-      return newLeads;
-    });
-  };
-
-  const groupedImages = groupImagesByYearMonthDate(uploadedImages);
 
   return (
     <Box
@@ -1815,7 +1710,7 @@ const RetentionLeads = () => {
         )}
       </Box>
 
-      {/* Right Content 80% - split lead details and images */}
+      {/* Right Content 80% - split lead details and Notes */}
       <Box
         sx={{
           width: "80%",
@@ -1840,779 +1735,852 @@ const RetentionLeads = () => {
             {/* Lead details - 70% width */}
             <Box sx={{ flexGrow: 1, minWidth: 0 }}>
               <Paper
+  sx={{
+    mb: 3,
+    p: 2,
+    borderRadius: 2, // ~16px
+    boxShadow: "0 2px 12px rgba(0,0,0,0.04)",
+    backgroundColor: "#fff",
+    fontSize: "0.85rem",
+    fontFamily: '"Segoe UI", Inter, system-ui, sans-serif',
+  }}
+  elevation={0}
+>
+  {/* ===== Top area: Left (avatar + Shopify orders icon) + Right (lines) ===== */}
+  <Box sx={{ display: "flex", alignItems: "flex-start", gap: 1.5 }}>
+    {/* Avatar + Shopify Orders icon below it */}
+    <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 1 }}>
+      <Avatar
+        sx={{
+          width: 44,
+          height: 44,
+          bgcolor: "#EAF3EE",
+          color: "#2E7D32",
+          fontWeight: 700,
+          fontSize: "0.95rem",
+          flex: "0 0 auto",
+        }}
+      >
+        {(leads[selectedLeadIndex]?.name || "?")
+          .split(" ")
+          .map((n) => n?.[0] || "")
+          .join("")
+          .slice(0, 2)
+          .toUpperCase()}
+      </Avatar>
+
+      {/* Shopify Orders toggle (icon-only, opens dialog) */}
+      <Tooltip title={ordersLoading ? "Loading Order History..." : "Shopify Orders"}>
+        <IconButton
+          onClick={async () => {
+            const opening = !showOrders;
+            setShowOrders(opening);
+            if (!opening) return;
+            const phone = leads[selectedLeadIndex]?.contactNumber;
+            if (!phone) return;
+            const cached = shopifyDatesMap[phone];
+            const hasOrders = Array.isArray(cached?.orders) && cached.orders.length > 0;
+            if (hasOrders) return;
+            try {
+              setOrdersLoading(true);
+              await fetchShopifyDates(phone);
+            } finally {
+              setOrdersLoading(false);
+            }
+          }}
+          sx={{
+            width: 36,
+            height: 36,
+            borderRadius: 999,
+            bgcolor: "#fff",
+            border: "1px solid #E6E8EC",
+            "&:hover": { bgcolor: "#F7F9FB" },
+          }}
+        >
+          {/* Shopify-like green bag icon */}
+          <SvgIcon fontSize="small" sx={{ color: "#5E8E3E" }} viewBox="0 0 24 24">
+            <path d="M7 7V6a5 5 0 0 1 10 0v1h1.5a1.5 1.5 0 0 1 1.49 1.29l1.36 9.5A2.5 2.5 0 0 1 18.89 21H5.11a2.5 2.5 0 0 1-2.46-2.21l1.36-9.5A1.5 1.5 0 0 1 5.5 7H7Zm2 0h6V6a3 3 0 0 0-6 0v1Z" />
+            <path d="M10.6 14.8c.3.4.8.7 1.6.7.8 0 1.2-.3 1.2-.8 0-.6-.7-.7-1.4-.9-.9-.2-2-.5-2-1.8 0-1.1.9-1.9 2.3-1.9 1 0 1.8.3 2.3.9l-.9.8c-.3-.4-.8-.6-1.5-.6-.6 0-1 .3-1 .7 0 .5.6.6 1.3.8 1 .2 2.1.5 2.1 1.9 0 1.3-1 2.1-2.5 2.1-1.2 0-2.1-.4-2.6-1.1l.9-.8Z" />
+          </SvgIcon>
+        </IconButton>
+      </Tooltip>
+    </Box>
+
+    {/* Content (stacked sections) */}
+    <Box sx={{ flex: 1, minWidth: 0 }}>
+      {/* ===== Line 1: Name – Phone – Actions – Customer Since / Last Order ===== */}
+      <Box
+        sx={{
+          display: "flex",
+          alignItems: "center",
+          gap: 1,
+          flexWrap: "wrap",
+        }}
+      >
+        <Typography sx={{ fontSize: 16, fontWeight: 700, color: "#111" }} noWrap>
+          {leads[selectedLeadIndex]?.name || "—"}
+        </Typography>
+
+        <Box sx={{ width: 4, height: 4, borderRadius: "50%", bgcolor: "#D0D5DD" }} />
+
+        <Typography sx={{ fontWeight: 600, color: "#111" }}>
+          {leads[selectedLeadIndex]?.contactNumber || "N/A"}
+        </Typography>
+
+        {/* Copy */}
+        <Tooltip title="Copy Number">
+          <IconButton
+            color="default"
+            size="small"
+            sx={{ color: "#111", p: 0.5 }}
+            onClick={() => handleCopy(leads[selectedLeadIndex]?.contactNumber)}
+          >
+            <ContentCopyIcon fontSize="inherit" />
+          </IconButton>
+        </Tooltip>
+
+        {/* Call */}
+        <Button
+          onClick={() => handleCallIconClick(leads[selectedLeadIndex]?.contactNumber)}
+          size="small"
+          startIcon={<PhoneIcon />}
+          sx={{
+            textTransform: "none",
+            bgcolor: "#2E7D32",
+            color: "#fff",
+            borderRadius: 999,
+            px: 1.75,
+            py: 0.5,
+            "&:hover": { bgcolor: "#256528" },
+          }}
+        >
+          Call
+        </Button>
+
+        {/* Add Log */}
+        <Button
+          size="small"
+          onClick={(e) => {
+            setReachoutTimestamp(new Date());
+            setReachoutMethod("");
+            setReachoutStatus("");
+            setLogPopupAnchor(e.currentTarget);
+          }}
+          sx={{
+            textTransform: "none",
+            bgcolor: "#2E7D32",
+            color: "#fff",
+            borderRadius: 999,
+            px: 1.75,
+            py: 0.5,
+            "&:hover": { bgcolor: "#256528" },
+          }}
+        >
+          Add Log
+        </Button>
+
+        {/* History (opens dialog) */}
+        <Tooltip title="View Logs">
+          <IconButton
+            size="small"
+            sx={{ color: "#111" }}
+            onClick={() => {
+              fetchLogs(leads[selectedLeadIndex]._id);
+              setLogsModalOpen(true);
+            }}
+          >
+            <Badge
+              badgeContent={Object.keys(
+                groupLogsByDate(leads[selectedLeadIndex]?.reachoutLogs || [])
+              ).length}
+              sx={{
+                "& .MuiBadge-badge": {
+                  backgroundColor: "#111",
+                  color: "#fff",
+                  boxShadow: "0 0 0 2px #fff",
+                  fontWeight: 700,
+                },
+              }}
+            >
+              <HistoryIcon />
+            </Badge>
+          </IconButton>
+        </Tooltip>
+
+        {/* Pill tags to the right of History */}
+        {(() => {
+          const phone = leads[selectedLeadIndex]?.contactNumber;
+          const first = shopifyDatesMap[phone]?.firstOrderDate;
+          const last = leads[selectedLeadIndex]?.lastOrderDate;
+
+          const since = (() => {
+            if (!first) return "N/A";
+            const start = new Date(first);
+            const now = new Date();
+            let months =
+              (now.getFullYear() - start.getFullYear()) * 12 +
+              (now.getMonth() - start.getMonth());
+            let days = now.getDate() - start.getDate();
+            if (days < 0) {
+              months -= 1;
+              const prevMonthLen = new Date(now.getFullYear(), now.getMonth(), 0).getDate();
+              days += prevMonthLen;
+            }
+            return `${months}m ${Math.max(days, 0)}d`;
+          })();
+
+          const lastDays = (() => {
+            if (!last) return "N/A";
+            const d = getDaysSince(last);
+            return d !== null ? `${d} days ago` : "N/A";
+          })();
+
+          return (
+            <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap" }}>
+              <Box
                 sx={{
-                  mb: 3,
-                  p: 2,
-                  boxShadow: 2,
-                  borderRadius: 2,
-                  backgroundColor: "background.paper",
-                  fontSize: "0.85rem",
+                  px: 1.25,
+                  py: 0.5,
+                  borderRadius: 999,
+                  bgcolor: "#F5F7FA",
+                  color: "#111",
+                  fontWeight: 600,
+                  fontSize: "0.8rem",
                 }}
-                elevation={3}
               >
-                <Stack direction="row" spacing={3} flexWrap="wrap" alignItems="center">
-                  <Box sx={{ minWidth: 180 }}>
-                    <Typography variant="subtitle2" color="text.secondary" mb={0.5}>
-                      Contact Number
+                CS – {since} 
+              </Box>
+              <Box
+                sx={{
+                  px: 1.25,
+                  py: 0.5,
+                  borderRadius: 999,
+                  bgcolor: "#F5F7FA",
+                  color: "#111",
+                  fontWeight: 600,
+                  fontSize: "0.8rem",
+                }}
+              >
+                Last Order – {lastDays}
+              </Box>
+            </Stack>
+          );
+        })()}
+      </Box>
+
+      {/* ===== Line 2: Agent | Language | Location + buttons immediately after Location ===== */}
+      <Box
+        sx={{
+          mt: 1,
+          display: "flex",
+          alignItems: "center",
+          gap: 1,
+          flexWrap: "wrap",
+        }}
+      >
+        {/* Chips + buttons inline */}
+        <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", alignItems: "center" }}>
+          <Box
+            sx={{
+              px: 1,
+              py: 0.5,
+              borderRadius: 999,
+              bgcolor: "#F5F7FA",
+              color: "#333",
+              display: "flex",
+              alignItems: "center",
+              gap: 0.75,
+              fontSize: "0.8rem",
+            }}
+          >
+            <Typography sx={{ color: "#667085", fontSize: "0.8rem" }}>Agent</Typography>
+            <Typography sx={{ fontWeight: 600 }}>
+              {leads[selectedLeadIndex]?.agentAssigned || "—"}
+            </Typography>
+          </Box>
+
+          <Box
+            sx={{
+              px: 1,
+              py: 0.5,
+              borderRadius: 999,
+              bgcolor: "#F5F7FA",
+              color: "#333",
+              display: "flex",
+              alignItems: "center",
+              gap: 0.5,
+              fontSize: "0.8rem",
+            }}
+          >
+            <LanguageIcon sx={{ fontSize: 16, color: "#667085" }} />
+            <Typography sx={{ fontWeight: 600 }}>
+              {leads[selectedLeadIndex]?.preferredLanguage || "English"}
+            </Typography>
+          </Box>
+
+          <Box
+            sx={{
+              px: 1,
+              py: 0.5,
+              borderRadius: 999,
+              bgcolor: "#F5F7FA",
+              color: "#333",
+              display: "flex",
+              alignItems: "center",
+              gap: 0.5,
+              fontSize: "0.8rem",
+            }}
+          >
+            <PlaceIcon sx={{ fontSize: 16, color: "#667085" }} />
+            <Typography sx={{ fontWeight: 600 }}>
+              {(() => {
+                const phone = leads[selectedLeadIndex]?.contactNumber;
+                const province =
+                  shopifyDatesMap[phone]?.orders?.[0]?.shipping_address?.province;
+                return province || "—";
+              })()}
+            </Typography>
+          </Box>
+
+          {/* Buttons now placed IMMEDIATELY to the right of Location */}
+          <Button
+            onClick={() => setDietPlanOpen(true)}
+            sx={{
+              textTransform: "none",
+              bgcolor: "#2E7D32",
+              color: "white",
+              borderRadius: 999,
+              px: 2,
+              "&:hover": { backgroundColor: "#256528" },
+            }}
+          >
+            Create Diet Plan
+          </Button>
+
+          <Button
+            onClick={() => setOrderPopupOpen(true)}
+            sx={{
+              textTransform: "none",
+              bgcolor: "#1976D2",
+              color: "white",
+              borderRadius: 999,
+              px: 2,
+              "&:hover": { backgroundColor: "#145ea8" },
+            }}
+          >
+            Create Order
+          </Button>
+        </Stack>
+      </Box>
+
+      {/* ===== Line 3: Controls in ONE ROW with labels ===== */}
+      <Stack
+        direction="row"
+        spacing={1}
+        sx={{ flexWrap: "wrap", alignItems: "center", mt: 2.5 }}
+      >
+        {/* Next Follow-up (date) */}
+        <TextField
+          label="Next Follow-up"
+          type="date"
+          value={leads[selectedLeadIndex]?.rtNextFollowupDate || ""}
+          onChange={(e) => handleInputChange(e, selectedLeadIndex, "rtNextFollowupDate")}
+          size="small"
+          sx={{
+            minWidth: 150,
+            "& .MuiOutlinedInput-root": {
+              borderRadius: 999,
+              "& .MuiOutlinedInput-notchedOutline": { borderColor: "#E6E8EC" },
+              "&:hover .MuiOutlinedInput-notchedOutline": { borderColor: "#DDE1E6" },
+              pr: 0,
+            },
+            "& .MuiInputLabel-root": { color: "#667085" },
+          }}
+          InputProps={{
+            inputProps: {
+              min: (() => {
+                const today = new Date();
+                return today.toISOString().split("T")[0];
+              })(),
+              max: (() => {
+                const today = new Date();
+                today.setDate(today.getDate() + 10);
+                return today.toISOString().split("T")[0];
+              })(),
+            },
+          }}
+          InputLabelProps={{ shrink: true }}
+        />
+
+        {/* Retention Status */}
+        <FormControl size="small" sx={{ minWidth: 160 }}>
+          <InputLabel>Retention Status</InputLabel>
+          <Select
+            label="Retention Status"
+            value={leads[selectedLeadIndex]?.retentionStatus || ""}
+            onChange={(e) => handleInputChange(e, selectedLeadIndex, "retentionStatus")}
+            sx={{
+              borderRadius: 999,
+              "& .MuiOutlinedInput-notchedOutline": { borderColor: "#E6E8EC" },
+              "&:hover .MuiOutlinedInput-notchedOutline": { borderColor: "#DDE1E6" },
+            }}
+          >
+            {["Active", "Lost"].map((status) => (
+              <MenuItem key={status} value={status}>
+                {status}
+              </MenuItem>
+            ))}
+          </Select>
+        </FormControl>
+
+        {/* Follow-up Status */}
+        <FormControl size="small" sx={{ minWidth: 160 }}>
+          <InputLabel>Follow-up Status</InputLabel>
+          <Select
+            label="Follow-up Status"
+            value={leads[selectedLeadIndex]?.rtFollowupStatus || ""}
+            onChange={(e) => handleInputChange(e, selectedLeadIndex, "rtFollowupStatus")}
+            sx={{
+              borderRadius: 999,
+              "& .MuiOutlinedInput-notchedOutline": { borderColor: "#E6E8EC" },
+              "&:hover .MuiOutlinedInput-notchedOutline": { borderColor: "#DDE1E6" },
+            }}
+          >
+            {[
+              "Good Results",
+              "No Result",
+              "Sales Done",
+              "Order Confirm",
+              "Do Not Want to Continue",
+              "Call Not Picked",
+              "Blood Test Suggested",
+              "Product Issue",
+              "Order from Other Source",
+              "Upsell",
+              "Follow Up Again",
+              "Call Back",
+              "Others",
+            ].map((status) => (
+              <MenuItem key={status} value={status}>
+                {status}
+              </MenuItem>
+            ))}
+          </Select>
+        </FormControl>
+
+        {/* Preferred Language */}
+        <FormControl size="small" sx={{ minWidth: 150 }}>
+          <InputLabel>Pref Language</InputLabel>
+          <Select
+            label="Pref Language"
+            value={leads[selectedLeadIndex]?.preferredLanguage || ""}
+            onChange={(e) => handleInputChange(e, selectedLeadIndex, "preferredLanguage")}
+            sx={{
+              borderRadius: 999,
+              "& .MuiOutlinedInput-notchedOutline": { borderColor: "#E6E8EC" },
+              "&:hover .MuiOutlinedInput-notchedOutline": { borderColor: "#DDE1E6" },
+            }}
+          >
+            {["Hindi", "English", "Others"].map((lang) => (
+              <MenuItem key={lang} value={lang}>
+                {lang}
+              </MenuItem>
+            ))}
+          </Select>
+        </FormControl>
+
+        {/* Preferred Method */}
+        <FormControl size="small" sx={{ minWidth: 150 }}>
+          <InputLabel>Pref Method</InputLabel>
+          <Select
+            label="Pref Method"
+            value={leads[selectedLeadIndex]?.communicationMethod || ""}
+            onChange={(e) => handleInputChange(e, selectedLeadIndex, "communicationMethod")}
+            sx={{
+              borderRadius: 999,
+              "& .MuiOutlinedInput-notchedOutline": { borderColor: "#E6E8EC" },
+              "&:hover .MuiOutlinedInput-notchedOutline": { borderColor: "#DDE1E6" },
+            }}
+          >
+            {["Call", "WhatsApp", "Both"].map((option) => (
+              <MenuItem key={option} value={option}>
+                {option}
+              </MenuItem>
+            ))}
+          </Select>
+        </FormControl>
+      </Stack>
+    </Box>
+  </Box>
+
+  {/* ---------- Popups & dialogs (unchanged functionality) ---------- */}
+  {orderPopupOpen && selectedLeadIndex !== null && (
+    <CreateOrderPopup
+      open={orderPopupOpen}
+      onClose={() => setOrderPopupOpen(false)}
+      prefillCustomer={{
+        name: leads[selectedLeadIndex]?.name || "",
+        phone: leads[selectedLeadIndex]?.contactNumber || "",
+      }}
+    />
+  )}
+
+  {dietPlanOpen && selectedLeadIndex !== null && (
+    <CreateDietPlanPopup
+      open={dietPlanOpen}
+      onClose={() => setDietPlanOpen(false)}
+      prefillCustomer={{
+        name: leads[selectedLeadIndex]?.name || "",
+        phone: leads[selectedLeadIndex]?.contactNumber || "",
+        leadId: leads[selectedLeadIndex]?._id || "",
+      }}
+    />
+  )}
+
+  {/* Log popup (unchanged) */}
+  {logPopupAnchor && (
+    <Menu
+      anchorEl={logPopupAnchor}
+      open={Boolean(logPopupAnchor)}
+      onClose={() => setLogPopupAnchor(null)}
+    >
+      <Box sx={{ px: 2, py: 1 }}>
+        <Typography variant="body2">Reachout Method</Typography>
+        <RadioGroup
+          value={reachoutMethod}
+          onChange={async (e) => {
+            const method = e.target.value;
+            setReachoutMethod(method);
+            await axios.post(
+              `https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/${leads[selectedLeadIndex]._id}/reachout-log`,
+              { timestamp: reachoutTimestamp, method }
+            );
+          }}
+        >
+          {["WhatsApp", "Call", "Both"].map((opt) => (
+            <FormControlLabel key={opt} value={opt} control={<Radio />} label={opt} />
+          ))}
+        </RadioGroup>
+
+        {reachoutMethod && (
+          <>
+            <Typography variant="body2" mt={2}>Disposition</Typography>
+            <Select
+              size="small"
+              fullWidth
+              value={reachoutStatus}
+              onChange={async (e) => {
+                const status = e.target.value;
+                setReachoutStatus(status);
+                await axios.post(
+                  `https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/${leads[selectedLeadIndex]._id}/reachout-log`,
+                  { timestamp: reachoutTimestamp, method: reachoutMethod, status }
+                );
+                setLogPopupAnchor(null);
+              }}
+            >
+              {["OC", "CNP", "Followup Done", "Order Placed", "Call Back Later", "Busy", "Switch Off", "Drop On Intro"].map((status) => (
+                <MenuItem key={status} value={status}>{status}</MenuItem>
+              ))}
+            </Select>
+          </>
+        )}
+      </Box>
+    </Menu>
+  )}
+
+  {/* Logs Modal (unchanged) */}
+  <Dialog open={logsModalOpen} onClose={() => setLogsModalOpen(false)} maxWidth="sm" fullWidth>
+    <DialogTitle>Reachout Logs</DialogTitle>
+    <DialogContent>
+      {sortedDates.map((date) => (
+        <Accordion
+          key={date}
+          expanded={expandedDate === date}
+          onChange={handleAccordionChange(date)}
+        >
+          <AccordionSummary
+            expandIcon={<ExpandMoreIcon />}
+            sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}
+          >
+            <Typography sx={{ fontWeight: "bold" }}>{date}</Typography>
+            <Box sx={{ minWidth: 120, textAlign: "right" }}>
+              <Typography sx={{ fontSize: "1rem", color: "text.secondary", whiteSpace: "nowrap", fontWeight: "bold" }}>
+                {groupedLogs[date]?.length > 0
+                  ? groupedLogs[date][groupedLogs[date].length - 1].status
+                  : ""}
+              </Typography>
+            </Box>
+          </AccordionSummary>
+          <AccordionDetails>
+            {groupedLogs[date].map((log, idx) => {
+              const time = new Date(log.timestamp).toLocaleTimeString();
+              return (
+                <Box
+                  key={idx}
+                  sx={{
+                    display: "flex",
+                    gap: 2,
+                    fontSize: "0.85rem",
+                    px: 1,
+                    mb: 0.3,
+                  }}
+                >
+                  <Box sx={{ width: 100 }}>{time}</Box>
+                  <Box sx={{ width: 100 }}>{log.method}</Box>
+                  <Box sx={{ flexGrow: 1 }}>{log.status}</Box>
+                </Box>
+              );
+            })}
+          </AccordionDetails>
+        </Accordion>
+      ))}
+    </DialogContent>
+  </Dialog>
+
+  {/* ===== Shopify Orders Dialog (replaces inline showOrders block) ===== */}
+  <Dialog
+    open={showOrders}
+    onClose={() => setShowOrders(false)}
+    maxWidth="md"
+    fullWidth
+    scroll="paper"
+  >
+    <DialogTitle sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+      <SvgIcon fontSize="small" sx={{ color: "#5E8E3E" }} viewBox="0 0 24 24">
+        <path d="M7 7V6a5 5 0 0 1 10 0v1h1.5a1.5 1.5 0 0 1 1.49 1.29l1.36 9.5A2.5 2.5 0 0 1 18.89 21H5.11a2.5 2.5 0 0 1-2.46-2.21l1.36-9.5A1.5 1.5 0 0 1 5.5 7H7Zm2 0h6V6a3 3 0 0 0-6 0v1Z" />
+        <path d="M10.6 14.8c.3.4.8.7 1.6.7.8 0 1.2-.3 1.2-.8 0-.6-.7-.7-1.4-.9-.9-.2-2-.5-2-1.8 0-1.1.9-1.9 2.3-1.9 1 0 1.8.3 2.3.9l-.9.8c-.3-.4-.8-.6-1.5-.6-.6 0-1 .3-1 .7 0 .5.6.6 1.3.8 1 .2 2.1.5 2.1 1.9 0 1.3-1 2.1-2.5 2.1-1.2 0-2.1-.4-2.6-1.1l.9-.8Z" />
+      </SvgIcon>
+      Shopify Orders — {leads[selectedLeadIndex]?.name || "Customer"}
+    </DialogTitle>
+
+    <DialogContent dividers>
+      {ordersLoading ? (
+        <Box sx={{ display: "flex", justifyContent: "center", py: 3 }}>
+          <CircularProgress size={28} />
+        </Box>
+      ) : (
+        <>
+          {/* Summary cards */}
+          <Box
+            sx={{
+              display: "grid",
+              gridTemplateColumns: { xs: "1fr", sm: "repeat(3, 1fr)" },
+              gap: 1.5,
+              mb: 2,
+            }}
+          >
+            <Paper variant="outlined" sx={{ p: 1.25, borderRadius: 2 }}>
+              <Typography variant="caption" color="text.secondary">Total Orders</Typography>
+              <Typography sx={{ fontWeight: 700 }}>
+                {shopifyDatesMap[leads[selectedLeadIndex]?.contactNumber]?.orders?.length || 0}
+              </Typography>
+            </Paper>
+            <Paper variant="outlined" sx={{ p: 1.25, borderRadius: 2 }}>
+              <Typography variant="caption" color="text.secondary">First Order Date</Typography>
+              <Typography>
+                {shopifyDatesMap[leads[selectedLeadIndex]?.contactNumber]?.firstOrderDate
+                  ? new Date(
+                      shopifyDatesMap[leads[selectedLeadIndex]?.contactNumber].firstOrderDate
+                    ).toLocaleDateString()
+                  : "N/A"}
+              </Typography>
+            </Paper>
+            <Paper variant="outlined" sx={{ p: 1.25, borderRadius: 2 }}>
+              <Typography variant="caption" color="text.secondary">Total Spend</Typography>
+              <Typography>
+                ₹{shopifyDatesMap[leads[selectedLeadIndex]?.contactNumber]?.totalSpend?.toFixed(2) || "0.00"}
+              </Typography>
+            </Paper>
+          </Box>
+
+          {/* Orders list */}
+          {(shopifyDatesMap[leads[selectedLeadIndex]?.contactNumber]?.orders || []).map((order, i) => {
+            const noteInput = noteInputs[order.id] || "";
+            const savingNote = savingNotes[order.id] || false;
+            const cleanOrderId = order.name.replace(/^#/, "").trim();
+            const shipmentStatus = shipmentStatusMap[cleanOrderId] || "N/A";
+
+            const handleNoteChange = (val) => {
+              setNoteInputs((prev) => ({ ...prev, [order.id]: val }));
+            };
+
+            const handleSaveNote = async () => {
+              if (!noteInput.trim()) {
+                alert("Note cannot be empty");
+                return;
+              }
+              setSavingNotes((prev) => ({ ...prev, [order.id]: true }));
+              try {
+                await axios.put(
+                  `https://muditamleads-14f32a10d7f7.herokuapp.com/api/shopify/orders/${order.id}/note`,
+                  { note: noteInput }
+                );
+                setShopifyDatesMap((prev) => {
+                  const updatedOrders =
+                    prev[leads[selectedLeadIndex]?.contactNumber].orders.map((o) =>
+                      o.id === order.id ? { ...o, note: noteInput } : o
+                    );
+                  return {
+                    ...prev,
+                    [leads[selectedLeadIndex]?.contactNumber]: {
+                      ...prev[leads[selectedLeadIndex]?.contactNumber],
+                      orders: updatedOrders,
+                    },
+                  };
+                });
+                setNoteInputs((prev) => ({ ...prev, [order.id]: "" }));
+              } catch (error) {
+                console.error("Failed to save note", error.response?.data || error.message);
+                alert("Failed to save note");
+              } finally {
+                setSavingNotes((prev) => ({ ...prev, [order.id]: false }));
+              }
+            };
+
+            return (
+              <Paper
+                key={order.id}
+                variant="outlined"
+                sx={{
+                  p: 1.25,
+                  mb: 1.25,
+                  borderRadius: 2,
+                  borderColor: "#E6E8EC",
+                  backgroundColor: "#FAFAFA",
+                }}
+              >
+                {/* Header row */}
+                <Box
+                  sx={{
+                    display: "flex",
+                    flexWrap: "wrap",
+                    gap: 2,
+                    alignItems: "center",
+                    mb: 1,
+                  }}
+                >
+                  <Typography sx={{ fontWeight: 700 }}>
+                    {order.name}
+                    <Box
+                      component="span"
+                      sx={{
+                        ml: 1.5,
+                        fontWeight: 500,
+                        color: "#222",
+                        bgcolor: "#F1F1F1",
+                        px: 1,
+                        py: 0.25,
+                        borderRadius: 1,
+                        fontSize: "0.75rem",
+                      }}
+                    >
+                      Delivery Status: <b>{shipmentStatus}</b>
+                    </Box>
+                  </Typography>
+
+                  <Box sx={{ ml: "auto", display: "flex", gap: 2, flexWrap: "wrap" }}>
+                    <Typography sx={{ fontWeight: 600 }}>₹{order.total_price}</Typography>
+                    <Typography color="text.secondary">
+                      {new Date(order.created_at).toLocaleString()}
                     </Typography>
-                    <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                      <Typography variant="body2">
-                        {leads[selectedLeadIndex]?.contactNumber || "N/A"}
+                    <Typography color="text.secondary">
+                      {`Fulfillment: ${order.fulfillment_status || "Unfulfilled"}`}
+                    </Typography>
+                  </Box>
+                </Box>
+
+                {/* Items + Note */}
+                <Box
+                  sx={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "flex-start",
+                    gap: 2,
+                    mb: 1,
+                  }}
+                >
+                  <Box sx={{ flex: 1, minWidth: 0, fontSize: "0.85rem" }}>
+                    <b>Items:</b>{" "}
+                    {order.line_items.map((item) => `${item.quantity} x ${item.name}`).join(", ")}
+                  </Box>
+
+                  <Box sx={{ minWidth: 240, maxWidth: 320 }}>
+                    {order.note ? (
+                      <Typography
+                        sx={{ fontSize: "0.85rem", fontStyle: "italic", whiteSpace: "pre-wrap" }}
+                      >
+                        <b>Note:</b> {order.note}
                       </Typography>
-                      <Tooltip title="Call">
-                        <IconButton
-                          color="default"
-                          sx={{ color: "black" }}
-                          onClick={() =>
-                            handleCallIconClick(leads[selectedLeadIndex]?.contactNumber)
-                          }
+                    ) : (
+                      <Box sx={{ display: "flex", gap: 1 }}>
+                        <TextField
+                          size="small"
+                          variant="outlined"
+                          placeholder="Add note"
+                          value={noteInput}
+                          onChange={(e) => handleNoteChange(e.target.value)}
+                          disabled={savingNote}
+                          fullWidth
+                        />
+                        <Button
+                          variant="contained"
+                          size="small"
+                          onClick={handleSaveNote}
+                          disabled={savingNote}
                         >
-                          <PhoneIcon fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
-                      <Tooltip title="Copy Number">
-                        <IconButton
-                          color="default"
-                          sx={{ color: "black" }}
-                          onClick={() => handleCopy(leads[selectedLeadIndex]?.contactNumber)}
-                        >
-                          <ContentCopyIcon fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
-
-                      <Tooltip title="Log Reachout">
-                        <IconButton
-                          sx={{ color: "black" }}
-                          onClick={(e) => {
-                            setReachoutTimestamp(new Date());
-                            setReachoutMethod("");
-                            setReachoutStatus("");
-                            setLogPopupAnchor(e.currentTarget);
-                          }}
-                        >
-                          <AddIcon />
-                        </IconButton>
-                      </Tooltip>
-
-
-                      <Tooltip title="View Logs">
-                        <IconButton
-                          sx={{ color: "black" }}
-                          onClick={() => {
-                            fetchLogs(leads[selectedLeadIndex]._id);
-                            setLogsModalOpen(true);
-                          }}
-                        >
-                          <Badge
-                            badgeContent={Object.keys(
-                              groupLogsByDate(leads[selectedLeadIndex]?.reachoutLogs || [])
-                            ).length}
-                            sx={{
-                              "& .MuiBadge-badge": {
-                                backgroundColor: "black",
-                                color: "white",
-                                boxShadow: '0 0 0 2px white',
-                              },
-                            }}
-                          >
-                            <HistoryIcon />
-                          </Badge>
-
-                        </IconButton>
-                      </Tooltip>
-                      {logPopupAnchor && (
-                        <Menu
-                          anchorEl={logPopupAnchor}
-                          open={Boolean(logPopupAnchor)}
-                          onClose={() => setLogPopupAnchor(null)}
-                        >
-                          <Box sx={{ px: 2, py: 1 }}>
-                            <Typography variant="body2">Reachout Method</Typography>
-                            <RadioGroup
-                              value={reachoutMethod}
-                              onChange={async (e) => {
-                                const method = e.target.value;
-                                setReachoutMethod(method);
-                                await axios.post(`https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/${leads[selectedLeadIndex]._id}/reachout-log`, {
-                                  timestamp: reachoutTimestamp,
-                                  method,
-                                });
-                              }}
-                            >
-                              {["WhatsApp", "Call", "Both"].map((opt) => (
-                                <FormControlLabel key={opt} value={opt} control={<Radio />} label={opt} />
-                              ))}
-                            </RadioGroup>
-
-                            {reachoutMethod && (
-                              <>
-                                <Typography variant="body2" mt={2}>Disposition</Typography>
-                                <Select
-                                  size="small"
-                                  fullWidth
-                                  value={reachoutStatus}
-                                  onChange={async (e) => {
-                                    const status = e.target.value;
-                                    setReachoutStatus(status);
-                                    await axios.post(`https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/${leads[selectedLeadIndex]._id}/reachout-log`, {
-                                      timestamp: reachoutTimestamp,
-                                      method: reachoutMethod,
-                                      status,
-                                    });
-                                    setLogPopupAnchor(null);
-                                  }}
-                                >
-                                  {["OC", "CNP", "Followup Done", "Order Placed", "Call Back Later", "Busy", "Switch Off", "Drop On Intro"].map(status => (
-                                    <MenuItem key={status} value={status}>{status}</MenuItem>
-                                  ))}
-                                </Select>
-                              </>
-                            )}
-                          </Box>
-                        </Menu>
-                      )}
-
-                      {/* Logs Modal */}
-                      <Dialog open={logsModalOpen} onClose={() => setLogsModalOpen(false)} maxWidth="sm" fullWidth>
-                        <DialogTitle>Reachout Logs</DialogTitle>
-                        <DialogContent>
-                          {sortedDates.map((date) => (
-                            <Accordion
-                              key={date}
-                              expanded={expandedDate === date}
-                              onChange={handleAccordionChange(date)}
-                            >
-                              <AccordionSummary
-                                expandIcon={<ExpandMoreIcon />}
-                                sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}
-                              >
-                                <Typography sx={{ fontWeight: "bold" }}>{date}</Typography>
-                                <Box sx={{ minWidth: 120, textAlign: "right" }}>
-                                  <Typography sx={{ fontSize: "1rem", color: "text.secondary", whiteSpace: "nowrap", fontWeight: "bold" }}>
-                                    {groupedLogs[date]?.length > 0
-                                      ? groupedLogs[date][groupedLogs[date].length - 1].status
-                                      : ""}
-                                  </Typography>
-                                </Box>
-                              </AccordionSummary>
-                              <AccordionDetails>
-                                {groupedLogs[date].map((log, idx) => {
-                                  const time = new Date(log.timestamp).toLocaleTimeString();
-                                  return (
-                                    <Box
-                                      key={idx}
-                                      sx={{
-                                        display: "flex",
-                                        gap: 2,
-                                        fontSize: "0.85rem",
-                                        px: 1,
-                                        mb: 0.3,
-                                      }}
-                                    >
-                                      <Box sx={{ width: 100 }}>{time}</Box>
-                                      <Box sx={{ width: 100 }}>{log.method}</Box>
-                                      <Box sx={{ flexGrow: 1 }}>{log.status}</Box>
-                                    </Box>
-                                  );
-                                })}
-                              </AccordionDetails>
-                            </Accordion>
-                          ))}
-                        </DialogContent>
-                      </Dialog>
-
-                    </Box>
+                          {savingNote ? "Saving..." : "Save"}
+                        </Button>
+                      </Box>
+                    )}
                   </Box>
+                </Box>
 
-                  <Box sx={{ minWidth: 180 }}>
-                    <Typography variant="subtitle2" color="text.secondary" mb={0.5}>
-                      Customer Name
-                    </Typography>
-                    <Typography variant="body2">
-                      {leads[selectedLeadIndex]?.name || "N/A"}
-                    </Typography>
-                  </Box>
-
-                  <Box sx={{ minWidth: 180 }}>
-                    <Typography variant="subtitle2" color="text.secondary" mb={0.5}>
-                      Agent Assigned
-                    </Typography>
-                    <Typography variant="body2">
-                      {leads[selectedLeadIndex]?.agentAssigned || "N/A"}
-                    </Typography>
-                  </Box>
-
-                  <Box sx={{ minWidth: 180 }}>
-                    <Typography variant="subtitle2" color="text.secondary" mb={0.5}>
-                      Next Followup Date
-                    </Typography>
-                    <TextField
-                      type="date"
-                      value={leads[selectedLeadIndex]?.rtNextFollowupDate || ""}
-                      onChange={(e) => handleInputChange(e, selectedLeadIndex, "rtNextFollowupDate")}
-                      size="small"
-                      variant="outlined"
-                      sx={{ minWidth: 140 }}
-                      inputProps={{
-                        min: (() => {
-                          const today = new Date();
-                          return today.toISOString().split('T')[0];
-                        })(),
-                        max: (() => {
-                          const today = new Date();
-                          today.setDate(today.getDate() + 10);
-                          return today.toISOString().split('T')[0];
-                        })(),
-                        // Optional: Prevent keyboard input
-                        // readOnly: true,
-                      }}
-                    />
-
-                  </Box>
-
-                  <Box sx={{ minWidth: 130 }}>
-                    <Typography variant="subtitle2" color="text.secondary" mb={0.5}>
-                      Followup Status
-                    </Typography>
-                    <Select
-                      value={leads[selectedLeadIndex]?.rtFollowupStatus || ""}
-                      onChange={(e) => handleInputChange(e, selectedLeadIndex, "rtFollowupStatus")}
-                      size="small"
-                      fullWidth
-                    >
-                      {[
-                        "Good Results",
-                        "No Result",
-                        "Sales Done",
-                        "Order Confirm",
-                        "Do Not Want to Continue",
-                        "Call Not Picked",
-                        "Blood Test Suggested",
-                        "Product Issue",
-                        "Order from Other Source",
-                        "Upsell",
-                        "Follow Up Again",
-                        "Call Back",
-                        "Others",
-                      ].map((status) => (
-                        <MenuItem key={status} value={status}>
-                          {status}
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  </Box>
-
-
-
-                  <Box sx={{ minWidth: 130 }}>
-                    <Typography variant="subtitle2" color="text.secondary" mb={0.5}>
-                      Retention Status
-                    </Typography>
-                    <Select
-                      value={leads[selectedLeadIndex]?.retentionStatus || ""}
-                      onChange={(e) => handleInputChange(e, selectedLeadIndex, "retentionStatus")}
-                      size="small"
-                      fullWidth
-                    >
-                      {["Active", "Lost"].map((status) => (
-                        <MenuItem key={status} value={status}>
-                          {status}
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  </Box>
-
-                  <Box sx={{ minWidth: 150 }}>
-                    <Typography variant="subtitle2" color="text.secondary" mb={0.5}>
-                      Preferred Method
-                    </Typography>
-                    <Select
-                      value={leads[selectedLeadIndex]?.communicationMethod || ""}
-                      onChange={(e) => handleInputChange(e, selectedLeadIndex, "communicationMethod")}
-                      size="small"
-                      fullWidth
-                    >
-                      {["Call", "WhatsApp", "Both"].map((option) => (
-                        <MenuItem key={option} value={option}>
-                          {option}
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  </Box>
-
-                  <Box sx={{ minWidth: 150 }}>
-                    <Typography variant="subtitle2" color="text.secondary" mb={0.5}>
-                      Preferred Language
-                    </Typography>
-                    <Select
-                      value={leads[selectedLeadIndex]?.preferredLanguage || ""}
-                      onChange={(e) => handleInputChange(e, selectedLeadIndex, "preferredLanguage")}
-                      size="small"
-                      fullWidth
-                    >
-                      {["Hindi", "English", "Others"].map((lang) => (
-                        <MenuItem key={lang} value={lang}>
-                          {lang}
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  </Box>
-
-                </Stack>
-
-                <Box sx={{ mt: 2 }}>
+                {/* Address toggle */}
+                <Box>
                   <Button
-                    onClick={async () => {
-                      const opening = !showOrders;
-                      setShowOrders(opening);
-                      if (!opening) return; // just closing; no call
-
-                      const phone = leads[selectedLeadIndex]?.contactNumber;
-                      if (!phone) return;
-
-                      // if already cached with orders, skip calling API
-                      const cached = shopifyDatesMap[phone];
-                      const hasOrders = Array.isArray(cached?.orders) && cached.orders.length > 0;
-                      if (hasOrders) return;
-
-                      try {
-                        setOrdersLoading(true);
-                        await fetchShopifyDates(phone);
-                      } finally {
-                        setOrdersLoading(false);
-                      }
-                    }}
-                    endIcon={showOrders ? <KeyboardArrowUpIcon /> : <KeyboardArrowDownIcon />}
+                    size="small"
                     sx={{
-                      fontSize: "0.75rem",
-                      textTransform: "none",
+                      mt: 0.5,
                       backgroundColor: "white",
                       color: "black",
+                      fontSize: "0.72rem",
+                    }}
+                    onClick={() => {
+                      const updated = [
+                        ...(shopifyDatesMap[leads[selectedLeadIndex]?.contactNumber].orders || []),
+                      ];
+                      updated[i].showAddress = !updated[i].showAddress;
+                      setShopifyDatesMap((prev) => ({
+                        ...prev,
+                        [leads[selectedLeadIndex]?.contactNumber]: {
+                          ...prev[leads[selectedLeadIndex]?.contactNumber],
+                          orders: updated,
+                        },
+                      }));
                     }}
                   >
-                    {ordersLoading ? "Loading Order History..." : "See Order History"}
+                    {order.showAddress ? "Hide Address" : "Show Address"}
                   </Button>
-
-                  <Button
-                    onClick={async () => {
-                      setConsultationDialogOpen(true);
-                      setConsultationLoading(true);
-                      try {
-                        const contactNumber = leads[selectedLeadIndex]?.contactNumber;
-                        const res = await axios.get(`https://muditamleads-14f32a10d7f7.herokuapp.com/api/consultation-history?contactNumber=${contactNumber}`);
-                        setConsultationHistory(res.data.consultations || []);
-                      } catch (err) {
-                        setConsultationHistory([]);
-                      }
-                      setConsultationLoading(false);
-                    }}
-                    sx={{
-                      fontSize: "0.75rem",
-                      textTransform: "none",
-                      backgroundColor: "white",
-                      color: "black",
-                    }}
-                  >
-                    Consultation History
-                  </Button>
-
-                  <DialogActions>
-                     <Button
-  onClick={() => setDietPlanOpen(true)}
-  sx={{
-    mr: 1,
-    backgroundColor: "black",
-    color: "white",
-    "&:hover": {
-      backgroundColor: "#333", // darker black on hover
-    },
-  }}
->
-  Create Diet Plan
-</Button>
-
-<Button
-  onClick={() => setOrderPopupOpen(true)}
-  sx={{
-    backgroundColor: "black",
-    color: "white",
-    "&:hover": {
-      backgroundColor: "#333",
-    },
-  }}
->
-  Create Order
-</Button>
-
-                  </DialogActions>
-                  {orderPopupOpen && selectedLeadIndex !== null && (
-                    <CreateOrderPopup
-                      open={orderPopupOpen}
-                      onClose={() => setOrderPopupOpen(false)}
-                      prefillCustomer={{
-                        name: leads[selectedLeadIndex]?.name || "",
-                        phone: leads[selectedLeadIndex]?.contactNumber || "",
-                      }}
-                    />
+                  {order.showAddress && (
+                    <Typography variant="body2" sx={{ mt: 1, fontSize: "0.85rem" }}>
+                      {order.shipping_address?.address1 || ""},{" "}
+                      {order.shipping_address?.city || ""},{" "}
+                      {order.shipping_address?.zip || ""}
+                    </Typography>
                   )}
-
-                  {dietPlanOpen && selectedLeadIndex !== null && (
-                    <CreateDietPlanPopup
-                      open={dietPlanOpen}
-                      onClose={() => setDietPlanOpen(false)}
-                      prefillCustomer={{
-                        name: leads[selectedLeadIndex]?.name || "",
-                        phone: leads[selectedLeadIndex]?.contactNumber || "",
-                        leadId: leads[selectedLeadIndex]?._id || "",
-                      }}
-                    />
-                  )}
-
-                  {showOrders && (
-                    <Box sx={{ mt: 2 }}>
-                      {ordersLoading ? (
-                        <Box sx={{ display: "flex", justifyContent: "center", py: 2 }}>
-                          <CircularProgress size={24} />
-                        </Box>
-                      ) : (
-                        <>
-                          <Typography variant="subtitle2" sx={{ mb: 1 }}>
-                            Total Orders: {shopifyDatesMap[leads[selectedLeadIndex]?.contactNumber]?.orders?.length || 0}
-                          </Typography>
-
-                          <Box sx={{ display: 'flex', gap: 3, flexWrap: 'wrap', mt: 2 }}>
-                            <Box sx={{ minWidth: 150 }}>
-                              <Typography variant="subtitle2" color="text.secondary" mb={0.5}>
-                                First Order Date
-                              </Typography>
-                              <Typography variant="body2">
-                                {shopifyDatesMap[leads[selectedLeadIndex]?.contactNumber]?.firstOrderDate
-                                  ? new Date(shopifyDatesMap[leads[selectedLeadIndex]?.contactNumber].firstOrderDate).toLocaleDateString()
-                                  : "N/A"}
-                              </Typography>
-                            </Box>
-
-                            {/* Shopify Last Order Date */}
-                            <Box sx={{ minWidth: 150 }}>
-                              <Typography variant="subtitle2" color="text.secondary" mb={0.5}>
-                                Last Order Date
-                              </Typography>
-                              <Typography
-                                variant="body2"
-                                color="text.secondary"
-                                sx={{ fontWeight: "normal", whiteSpace: "nowrap" }}
-                              >
-                                {leads[selectedLeadIndex]?.lastOrderDate
-                                  ? new Date(leads[selectedLeadIndex].lastOrderDate).toLocaleDateString()
-                                  : "N/A"}
-                              </Typography>
-                            </Box>
-
-                            <Box sx={{ minWidth: 150 }}>
-                              <Typography variant="subtitle2" color="text.secondary" mb={0.5}>
-                                Total Spend
-                              </Typography>
-                              <Typography variant="body2">
-                                ₹{shopifyDatesMap[leads[selectedLeadIndex]?.contactNumber]?.totalSpend?.toFixed(2) || "0.00"}
-                              </Typography>
-                            </Box>
-                          </Box>
-                          {/* Orders List */}
-                          {(shopifyDatesMap[leads[selectedLeadIndex]?.contactNumber]?.orders || []).map((order, i) => {
-                            const noteInput = noteInputs[order.id] || "";
-                            const savingNote = savingNotes[order.id] || false;
-                            const cleanOrderId = order.name.replace(/^#/, '').trim();
-                            const shipmentStatus = shipmentStatusMap[cleanOrderId] || "N/A";
-
-                            const handleNoteChange = (val) => {
-                              setNoteInputs((prev) => ({ ...prev, [order.id]: val }));
-                            };
-
-                            const handleSaveNote = async () => {
-                              if (!noteInput.trim()) {
-                                alert("Note cannot be empty");
-                                return;
-                              }
-                              setSavingNotes((prev) => ({ ...prev, [order.id]: true }));
-                              try {
-                                await axios.put(
-                                  `https://muditamleads-14f32a10d7f7.herokuapp.com/api/shopify/orders/${order.id}/note`,
-                                  { note: noteInput }
-                                );
-                                setShopifyDatesMap((prev) => {
-                                  const updatedOrders = prev[leads[selectedLeadIndex]?.contactNumber].orders.map((o) =>
-                                    o.id === order.id ? { ...o, note: noteInput } : o
-                                  );
-                                  return {
-                                    ...prev,
-                                    [leads[selectedLeadIndex]?.contactNumber]: {
-                                      ...prev[leads[selectedLeadIndex]?.contactNumber],
-                                      orders: updatedOrders,
-                                    },
-                                  };
-                                });
-                                setNoteInputs((prev) => ({ ...prev, [order.id]: "" }));
-                              } catch (error) {
-                                console.error("Failed to save note", error.response?.data || error.message);
-                                alert("Failed to save note");
-                              } finally {
-                                setSavingNotes((prev) => ({ ...prev, [order.id]: false }));
-                              }
-                            };
-
-                            return (
-                              <Box
-                                key={order.id}
-                                sx={{ border: "1px solid #ccc", borderRadius: 1, p: 1, mb: 1, fontSize: "0.75rem" }}
-                              >
-                                {/* First line: Order ID, Total Amount, Date, Fulfillment Status */}
-                                <Box
-                                  sx={{
-                                    display: "flex",
-                                    flexWrap: "wrap",
-                                    gap: 2,
-                                    mb: 1,
-                                    fontWeight: "bold",
-                                    fontSize: "0.8rem",
-                                  }}
-                                >
-                                  <Box>Order ID: {order.name}
-                                    <span style={{
-                                      marginLeft: 12,
-                                      fontWeight: "normal",
-                                      color: "#222",
-                                      background: "#f1f1f1",
-                                      padding: "1px 6px",
-                                      borderRadius: "6px",
-                                      fontSize: "0.75em",
-                                      marginRight: 8
-                                    }}>
-                                      Delivery Status: <b>{shipmentStatus}</b>
-                                    </span>
-                                  </Box>
-                                  <Box>Total Amount: ₹{order.total_price}</Box>
-                                  <Box>Date: {new Date(order.created_at).toLocaleString()}</Box>
-                                  <Box>Fulfillment Status: {order.fulfillment_status || "Unfulfilled"}</Box>
-                                </Box>
-
-                                {/* Second line: Items on left, Notes on right */}
-                                <Box
-                                  sx={{
-                                    display: "flex",
-                                    justifyContent: "space-between",
-                                    alignItems: "flex-start",
-                                    gap: 2,
-                                    mb: 1,
-                                  }}
-                                >
-                                  {/* Items */}
-                                  <Box sx={{ flex: 1, minWidth: 0, fontSize: "0.75rem" }}>
-                                    <b>Items:</b> {order.line_items.map(item => `${item.quantity} x ${item.name}`).join(", ")}
-                                  </Box>
-
-                                  {/* Notes */}
-                                  <Box sx={{ minWidth: 200, maxWidth: 300 }}>
-                                    {order.note ? (
-                                      <Typography sx={{ fontSize: "0.75rem", fontStyle: "italic", whiteSpace: "pre-wrap" }}>
-                                        <b>Note:</b> {order.note}
-                                      </Typography>
-                                    ) : (
-                                      <Box sx={{ display: "flex", gap: 1 }}>
-                                        <TextField
-                                          size="small"
-                                          variant="outlined"
-                                          placeholder="Add note"
-                                          value={noteInput}
-                                          onChange={(e) => handleNoteChange(e.target.value)}
-                                          disabled={savingNote}
-                                          fullWidth
-                                        />
-                                        <Button
-                                          variant="contained"
-                                          size="small"
-                                          onClick={handleSaveNote}
-                                          disabled={savingNote}
-                                        >
-                                          {savingNote ? "Saving..." : "Save"}
-                                        </Button>
-                                      </Box>
-                                    )}
-                                  </Box>
-                                </Box>
-
-                                {/* Address toggle button and address */}
-                                <Box>
-                                  <Button
-                                    size="small"
-                                    sx={{
-                                      mt: 1,
-                                      backgroundColor: "white",
-                                      color: "black",
-                                      fontSize: "0.7rem",
-                                    }}
-                                    onClick={() => {
-                                      const updated = [...(shopifyDatesMap[leads[selectedLeadIndex]?.contactNumber].orders || [])];
-                                      updated[i].showAddress = !updated[i].showAddress;
-                                      setShopifyDatesMap(prev => ({
-                                        ...prev,
-                                        [leads[selectedLeadIndex]?.contactNumber]: {
-                                          ...prev[leads[selectedLeadIndex]?.contactNumber],
-                                          orders: updated,
-                                        },
-                                      }));
-                                    }}
-                                  >
-                                    {order.showAddress ? "Hide Address" : "Show Address"}
-                                  </Button>
-                                  {order.showAddress && (
-                                    <Typography variant="body2" sx={{ mt: 1, fontSize: "0.75rem" }}>
-                                      {order.shipping_address?.address1 || ""}, {order.shipping_address?.city || ""}, {order.shipping_address?.zip || ""}
-                                    </Typography>
-                                  )}
-                                </Box>
-                              </Box>
-                            );
-                          })}
-                        </>
-                      )}
-                    </Box>
-                  )}
-
-                  <Dialog open={consultationDialogOpen} onClose={() => setConsultationDialogOpen(false)} maxWidth="md" fullWidth>
-                    <DialogTitle sx={{ fontWeight: 600, textAlign: "center" }}>
-                      Consultation History
-                    </DialogTitle>
-                    <DialogContent>
-                      {consultationLoading ? (
-                        <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', py: 4 }}>
-                          <CircularProgress />
-                        </Box>
-                      ) : consultationHistory.length === 0 ? (
-                        <Typography align="center" color="text.secondary" sx={{ my: 3 }}>No consultation history found.</Typography>
-                      ) : (
-                        consultationHistory.map((cons, idx) => (
-                          <Paper key={idx} sx={{ p: 2, mb: 2, borderRadius: 2, boxShadow: 1 }}>
-                            <Typography variant="subtitle1" fontWeight={600} sx={{ mb: 1 }}>
-                              Consultation #{consultationHistory.length - idx}
-                            </Typography>
-                            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
-                              <Box>
-                                <Typography variant="body2" fontWeight={600}>HBA1c</Typography>
-                                <Typography variant="body2">{cons.presales?.hba1c || '—'}</Typography>
-                              </Box>
-                              <Box>
-                                <Typography variant="body2" fontWeight={600}>Last Test Done</Typography>
-                                <Typography variant="body2">{cons.presales?.lastTestDone || '—'}</Typography>
-                              </Box>
-                              <Box>
-                                <Typography variant="body2" fontWeight={600}>Fasting Sugar</Typography>
-                                <Typography variant="body2">{cons.presales?.fastingSugar || '—'}</Typography>
-                              </Box>
-                              <Box>
-                                <Typography variant="body2" fontWeight={600}>PP Sugar</Typography>
-                                <Typography variant="body2">{cons.presales?.ppSugar || '—'}</Typography>
-                              </Box>
-                              <Box>
-                                <Typography variant="body2" fontWeight={600}>Duration of Diabetes</Typography>
-                                <Typography variant="body2">{cons.presales?.durationOfDiabetes || '—'}</Typography>
-                              </Box>
-                              <Box>
-                                <Typography variant="body2" fontWeight={600}>Gender</Typography>
-                                <Typography variant="body2">{cons.presales?.gender || '—'}</Typography>
-                              </Box>
-                              <Box>
-                                <Typography variant="body2" fontWeight={600}>Diet Type</Typography>
-                                <Typography variant="body2">{cons.presales?.dietType || '—'}</Typography>
-                              </Box>
-                              <Box>
-                                <Typography variant="body2" fontWeight={600}>Weight</Typography>
-                                <Typography variant="body2">{cons.presales?.weight ?? '—'}</Typography>
-                              </Box>
-                              <Box>
-                                <Typography variant="body2" fontWeight={600}>Sitting Time</Typography>
-                                <Typography variant="body2">{cons.presales?.sittingTime || '—'}</Typography>
-                              </Box>
-                              <Box>
-                                <Typography variant="body2" fontWeight={600}>Exercise Routine</Typography>
-                                <Typography variant="body2">{cons.presales?.exerciseRoutine || '—'}</Typography>
-                              </Box>
-                              <Box>
-                                <Typography variant="body2" fontWeight={600}>Outside Meals</Typography>
-                                <Typography variant="body2">{cons.presales?.outsideMeals || '—'}</Typography>
-                              </Box>
-                              <Box>
-                                <Typography variant="body2" fontWeight={600}>Time Of Sleep</Typography>
-                                <Typography variant="body2">{cons.presales?.timeOfSleep || '—'}</Typography>
-                              </Box>
-
-                              {/* Consultation */}
-                              <Box>
-                                <Typography variant="body2" fontWeight={600}>Current Medications</Typography>
-                                <Typography variant="body2">{(cons.consultation?.currentMedications || []).join(", ") || '—'}</Typography>
-                              </Box>
-                              <Box>
-                                <Typography variant="body2" fontWeight={600}>Side Effects</Typography>
-                                <Typography variant="body2">{cons.consultation?.sideEffects || '—'}</Typography>
-                              </Box>
-                              <Box>
-                                <Typography variant="body2" fontWeight={600}>Sudden Sugar Fluctuations</Typography>
-                                <Typography variant="body2">{cons.consultation?.suddenSugarFluctuations || '—'}</Typography>
-                              </Box>
-                              <Box>
-                                <Typography variant="body2" fontWeight={600}>Symptoms</Typography>
-                                <Typography variant="body2">{(cons.consultation?.symptoms || []).join(", ") || '—'}</Typography>
-                              </Box>
-                              <Box>
-                                <Typography variant="body2" fontWeight={600}>Family History</Typography>
-                                <Typography variant="body2">{cons.consultation?.familyHistory || '—'}</Typography>
-                              </Box>
-                              <Box>
-                                <Typography variant="body2" fontWeight={600}>Other Conditions</Typography>
-                                <Typography variant="body2">{(cons.consultation?.otherConditions || []).join(", ") || '—'}</Typography>
-                              </Box>
-                              <Box>
-                                <Typography variant="body2" fontWeight={600}>Stress Level</Typography>
-                                <Typography variant="body2">{cons.consultation?.stressLevel || '—'}</Typography>
-                              </Box>
-                              <Box>
-                                <Typography variant="body2" fontWeight={600}>Monitor Blood Sugar</Typography>
-                                <Typography variant="body2">{cons.consultation?.monitorBloodSugar || '—'}</Typography>
-                              </Box>
-                              <Box>
-                                <Typography variant="body2" fontWeight={600}>Pain In Liver</Typography>
-                                <Typography variant="body2">{cons.consultation?.painInLiver || '—'}</Typography>
-                              </Box>
-                              <Box>
-                                <Typography variant="body2" fontWeight={600}>Gut Issues</Typography>
-                                <Typography variant="body2">{cons.consultation?.gutIssues || '—'}</Typography>
-                              </Box>
-                              <Box>
-                                <Typography variant="body2" fontWeight={600}>Energy Levels</Typography>
-                                <Typography variant="body2">{cons.consultation?.energyLevels || '—'}</Typography>
-                              </Box>
-                              <Box>
-                                <Typography variant="body2" fontWeight={600}>Sleep Quality</Typography>
-                                <Typography variant="body2">{cons.consultation?.sleepQuality || '—'}</Typography>
-                              </Box>
-                              <Box>
-                                <Typography variant="body2" fontWeight={600}>Sugar Cravings</Typography>
-                                <Typography variant="body2">{cons.consultation?.sugarCravings || '—'}</Typography>
-                              </Box>
-                            </Box>
-                          </Paper>
-                        ))
-                      )}
-                    </DialogContent>
-                    <DialogActions>
-                      <Button onClick={() => setConsultationDialogOpen(false)} sx={{ color: "black" }}>
-                        Close
-                      </Button>
-                    </DialogActions>
-                  </Dialog>
-
-
                 </Box>
               </Paper>
+            );
+          })}
+        </>
+      )}
+    </DialogContent>
+  </Dialog>
+</Paper>
+ 
+
+
               <Details contactNumber={leads[selectedLeadIndex]?.contactNumber} onDetailsUpdate={updateLeadDetails} />
 
               <RetentionFollowUp contactNumber={leads[selectedLeadIndex]?.contactNumber} />
@@ -2621,7 +2589,7 @@ const RetentionLeads = () => {
 
             </Box>
 
-            {/* Image Upload Section - 30% width */}
+            {/* Notes Section */}
             <Paper
               sx={{
                 width: "30%",
@@ -2683,7 +2651,7 @@ const RetentionLeads = () => {
                   <Button
                     variant="contained"
                     size="small"
-                    onClick={() => handleAddSubcell(selectedLeadIndex)} // if "Save" should create a new entry; replace with your own save handler if needed
+                    onClick={() => handleAddSubcell(selectedLeadIndex)}
                     sx={{ alignSelf: 'flex-start', backgroundColor: 'black', textTransform: 'none' }}
                   >
                     Save
@@ -2698,17 +2666,17 @@ const RetentionLeads = () => {
                     mt: 1,
                     pr: 1,
                     overflowY: remarksExpanded ? 'auto' : 'hidden',
-                    height: remarksExpanded ? '50vh' : '40vh',  
+                    height: remarksExpanded ? '50vh' : '40vh',
                     position: 'relative'
                   }}
                 >
                   <Box sx={{ mt: 1 }}>
                     {(() => {
                       const list = [...(leads[selectedLeadIndex]?.rtSubcells || [])];
- 
+
                       const normalizeUser = (by) =>
                         (typeof by === 'string' ? by.trim() : '') || 'Expert';
- 
+
                       list.sort((a, b) => {
                         const ta = toDateSafe(a?.date)?.getTime() ?? -Infinity;
                         const tb = toDateSafe(b?.date)?.getTime() ?? -Infinity;
@@ -2734,7 +2702,7 @@ const RetentionLeads = () => {
                       });
 
                       const blocks = [];
- 
+
                       Object.keys(dated)
                         .sort((a, b) => (a > b ? -1 : 1))
                         .forEach((dayKey) => {
@@ -2746,12 +2714,12 @@ const RetentionLeads = () => {
                             const tb = toDateSafe(b?.date)?.getTime() ?? -Infinity;
                             return tb - ta;
                           });
- 
+
                           const usersLabel = Array.from(
                             new Set(items.map(s => normalizeUser(s?.by)))
                           ).join(', ');
- 
-                          const firstTime = formatTimeIST(items[0]?.date);  
+
+                          const firstTime = formatTimeIST(items[0]?.date);
                           const notesJoined = items
                             .map((s) => (s?.value?.trim() ? s.value.trim() : "—"))
                             .join(" | ");
@@ -2759,7 +2727,7 @@ const RetentionLeads = () => {
                           blocks.push(
                             <Box key={`dated-${dayKey}`} sx={{ mb: 1.25 }}>
                               <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                                {`${formatDayHeaderIST(dayKey)}-(${usersLabel})`} 
+                                {`${formatDayHeaderIST(dayKey)}-(${usersLabel})`}
                               </Typography>
                               <Typography
                                 variant="body2"
@@ -2778,7 +2746,7 @@ const RetentionLeads = () => {
                             </Box>
                           );
                         });
- 
+
                       Object.keys(invalid).forEach((label) => {
                         const items = invalid[label];
 
@@ -2793,7 +2761,7 @@ const RetentionLeads = () => {
                         blocks.push(
                           <Box key={`invalid-${label}`} sx={{ mb: 1.25 }}>
                             <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                              {`${label}: (${usersLabel})`}  
+                              {`${label}: (${usersLabel})`}
                             </Typography>
                             <Typography
                               variant="body2"
@@ -2869,336 +2837,6 @@ const RetentionLeads = () => {
                 </Box>
               </Box>
 
-              <Typography variant="h6" gutterBottom sx={{ color: "black" }}>
-                Upload Images
-              </Typography>
-
-              <Button
-                variant="outlined"
-                component="label"
-                sx={{ mb: 2, color: "black", borderColor: "black", "&:hover": { borderColor: "black" } }}
-              >
-                Select Images
-                <input
-                  type="file"
-                  hidden
-                  accept="image/*"
-                  multiple
-                  onChange={async (e) => {
-                    const files = Array.from(e.target.files);
-                    if (!files.length || selectedLeadIndex === null) return;
-
-                    const formData = new FormData();
-                    files.forEach((file) => formData.append("images", file));
-
-                    try {
-                      const res = await axios.post(
-                        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/upload-to-wasabi",
-                        formData
-                      );
-
-                      const uploaded = res.data.uploadedFiles.map((img) => ({
-                        url: img.url,
-                        date: new Date(),
-                        tag: "",
-                      }));
-
-                      const updatedImages = [...(leads[selectedLeadIndex].images || []), ...uploaded];
-
-                      await axios.patch(
-                        `https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/${leads[selectedLeadIndex]._id}/images`,
-                        { images: updatedImages }
-                      );
-
-                      const newLeads = [...leads];
-                      newLeads[selectedLeadIndex].images = updatedImages;
-                      setLeads(newLeads);
-
-                      const imgsForDisplay = uploaded.map((img, i) => ({
-                        preview: img.url,
-                        date: new Date(),
-                        tag: "",
-                        index: uploadedImages.length + i,
-                      }));
-                      setUploadedImages((prev) => [...prev, ...imgsForDisplay]);
-                    } catch (err) {
-                      console.error("Failed to upload image:", err);
-                      alert("Upload failed.");
-                    }
-                  }}
-                />
-              </Button>
-
-              {/* Render grouped images */}
-              {Object.keys(groupedImages)
-                .sort((a, b) => b - a)
-                .map((year) => (
-                  <Box key={year} sx={{ mb: 2 }}>
-                    <Typography variant="subtitle1" fontWeight="bold" sx={{ mb: 1, color: "black" }}>
-                      {year}
-                    </Typography>
-
-                    {Object.keys(groupedImages[year]).map((month) => (
-                      <Box key={month} sx={{ mb: 1 }}>
-                        <Typography variant="subtitle2" sx={{ mb: 1, color: "black" }}>
-                          {month}
-                        </Typography>
-
-                        {Object.keys(groupedImages[year][month])
-                          .sort((a, b) => b - a)
-                          .map((day) => {
-                            const imagesOnDate = groupedImages[year][month][day];
-                            return (
-                              <Box key={day} sx={{ mb: 2 }}>
-                                <Typography
-                                  variant="caption"
-                                  sx={{
-                                    display: "inline-block",
-                                    backgroundColor: "grey.300",
-                                    px: 1,
-                                    py: 0.3,
-                                    borderRadius: 1,
-                                    mb: 1,
-                                    fontWeight: "bold",
-                                    color: "black",
-                                  }}
-                                >
-                                  {`${day} ${month} ${year}`}
-                                </Typography>
-
-                                <Box
-                                  sx={{
-                                    display: "flex",
-                                    flexDirection: "row",
-                                    gap: 1,
-                                    overflowX: "hidden", // Hide horizontal scroll
-                                    pb: 1,
-                                  }}
-                                >
-                                  {imagesOnDate.map(({ preview, index, tag, date }, i) => {
-                                    const timeStr = new Date(date).toLocaleTimeString([], {
-                                      hour: "2-digit",
-                                      minute: "2-digit",
-                                    });
-
-                                    return (
-                                      <Box
-                                        key={index}
-                                        sx={{
-                                          position: "relative",
-                                          cursor: "pointer",
-                                          borderRadius: 1,
-                                          border: "1px solid #ccc",
-                                          overflow: "hidden",
-                                          width: i === 0 || i === imagesOnDate.length - 1 ? 80 : 100, // smaller width on left and right edges
-                                          height: 100,
-                                          flex: "0 0 auto",
-                                          boxShadow: 1,
-                                          transition: "transform 0.2s",
-                                          "&:hover": {
-                                            transform: "scale(1.1)",
-                                            zIndex: 5,
-                                          },
-                                        }}
-                                        onClick={() => openModal(imagesOnDate, i)}
-                                      >
-                                        <img
-                                          src={preview}
-                                          alt={`img-${index}`}
-                                          style={{
-                                            width: "100%",
-                                            height: "100%",
-                                            objectFit: "cover",
-                                          }}
-                                        />
-
-                                        {/* Tag badge if exists */}
-                                        {tag && (
-                                          <Box
-                                            sx={{
-                                              position: "absolute",
-                                              top: 4,
-                                              left: 4,
-                                              backgroundColor: "black",
-                                              color: "white",
-                                              fontSize: "0.6rem",
-                                              px: 0.5,
-                                              py: 0.2,
-                                              borderRadius: 0.5,
-                                              zIndex: 2,
-                                            }}
-                                          >
-                                            {tag}
-                                          </Box>
-                                        )}
-
-                                        {/* Delete icon (dustbin) */}
-                                        <IconButton
-                                          size="small"
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            handleRemoveImage(index);
-                                          }}
-                                          sx={{
-                                            position: "absolute",
-                                            top: 2,
-                                            right: 2,
-                                            backgroundColor: "rgba(255,255,255,0.8)",
-                                            zIndex: 2,
-                                          }}
-                                        >
-                                          <DeleteIcon sx={{ fontSize: "1rem", color: "black" }} />
-                                        </IconButton>
-
-                                        {/* Add Tag button if no tag */}
-                                        {!tag && (
-                                          <Button
-                                            size="small"
-                                            variant="outlined"
-                                            sx={{
-                                              position: "absolute",
-                                              top: 4,
-                                              left: 4,
-                                              backgroundColor: "rgba(0,0,0,0.7)",
-                                              color: "white",
-                                              fontSize: "0.6rem",
-                                              px: 0.5,
-                                              py: 0.2,
-                                              zIndex: 2,
-                                            }}
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              setTagDialogImageIndex(index);
-                                              setTagDialogValue("");
-                                              setTagDialogOpen(true);
-                                            }}
-                                          >
-                                            Add Tag
-                                          </Button>
-                                        )}
-
-                                        {/* Time at bottom */}
-                                        <Box
-                                          sx={{
-                                            position: "absolute",
-                                            bottom: 2,
-                                            left: "50%",
-                                            transform: "translateX(-50%)",
-                                            backgroundColor: "rgba(0,0,0,0.7)",
-                                            color: "white",
-                                            fontSize: "0.6rem",
-                                            px: 1,
-                                            py: 0.2,
-                                            borderRadius: 1,
-                                            zIndex: 2,
-                                          }}
-                                        >
-                                          {timeStr}
-                                        </Box>
-                                      </Box>
-                                    );
-                                  })}
-                                </Box>
-                              </Box>
-                            );
-                          })}
-                      </Box>
-                    ))}
-                  </Box>
-                ))}
-              <Dialog open={tagDialogOpen} onClose={() => setTagDialogOpen(false)}>
-                <DialogTitle sx={{ color: "black" }}>Select Tag</DialogTitle>
-                <DialogContent>
-                  <Select
-                    fullWidth
-                    value={tagDialogValue}
-                    onChange={(e) => setTagDialogValue(e.target.value)}
-                    size="small"
-                    sx={{ minWidth: 200, color: "black" }}
-                  >
-                    <MenuItem value="Pre Meal">Pre Meal</MenuItem>
-                    <MenuItem value="Post Meal">Post Meal</MenuItem>
-                  </Select>
-                </DialogContent>
-                <DialogActions>
-                  <Button
-                    onClick={() => {
-                      if (tagDialogImageIndex !== null) {
-                        handleAddTag(tagDialogImageIndex, tagDialogValue);
-                      }
-                      setTagDialogOpen(false);
-                    }}
-                    variant="contained"
-                    sx={{ backgroundColor: "black", "&:hover": { backgroundColor: "#222" } }}
-                  >
-                    Save
-                  </Button>
-                  <Button onClick={() => setTagDialogOpen(false)} sx={{ color: "black" }}>
-                    Cancel
-                  </Button>
-                </DialogActions>
-              </Dialog>
-
-              {/* Modal */}
-              {modalOpen && (
-                <Box
-                  sx={{
-                    position: "fixed",
-                    top: 0,
-                    left: 0,
-                    right: 0,
-                    bottom: 0,
-                    bgcolor: "rgba(0,0,0,0.7)",
-                    zIndex: 1300,
-                    display: "flex",
-                    justifyContent: "center",
-                    alignItems: "center",
-                  }}
-                  onClick={closeModal}
-                >
-                  <Box
-                    sx={{
-                      position: "relative",
-                      bgcolor: "background.paper",
-                      borderRadius: 2,
-                      p: 2,
-                      maxWidth: "90vw",
-                      maxHeight: "90vh",
-                      display: "flex",
-                      flexDirection: "column",
-                      alignItems: "center",
-                      userSelect: "none",
-                    }}
-                    onClick={(e) => e.stopPropagation()}  
-                  >
-                    <img
-                      src={modalImages[modalIndex].preview || modalImages[modalIndex].url || ""}   
-                      alt="modal-img"
-                      style={{
-                        maxWidth: "80vw",
-                        maxHeight: "70vh",
-                        borderRadius: 8,
-                        marginBottom: 8,
-                      }}
-                    />
-
-                    <Box sx={{ display: "flex", gap: 2, alignItems: "center" }}>
-                      <Button variant="outlined" onClick={prevImage} sx={{ color: "black", borderColor: "black" }}>
-                        Prev
-                      </Button>
-                      <Button variant="outlined" onClick={nextImage} sx={{ color: "black", borderColor: "black" }}>
-                        Next
-                      </Button>
-                      <Button variant="outlined" color="error" onClick={deleteModalImage}>
-                        Delete
-                      </Button>
-                      <Button variant="text" onClick={closeModal} sx={{ color: "black" }}>
-                        Close
-                      </Button>
-                    </Box>
-                  </Box>
-                </Box>
-              )}
             </Paper>
           </>
         )}
