@@ -1170,6 +1170,16 @@ const MenuBar = ({ toggleDrawer }) => {
             All Products
           </Typography>
         </ListItem>
+        <ListItem
+          button
+          component={Link}
+          to="/lead-migration" 
+          onClick={toggleDrawer}
+        >
+          <Typography variant="body2" sx={{ fontSize: "13px" }}>
+            Leads Migrate
+          </Typography>
+        </ListItem>
       </List>
     </Collapse>
   </>

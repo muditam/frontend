@@ -9,15 +9,15 @@ import {
   Select,
   MenuItem,
   Autocomplete,
-  Typography,
+  Typography, 
   IconButton,
   Chip,
   Divider,
-  Collapse,
+  Collapse, 
   Tooltip,
   Snackbar,
-  Alert,
-  CircularProgress,
+  Alert, 
+  CircularProgress, 
   Stack,
   InputAdornment,
   Checkbox,
@@ -200,11 +200,25 @@ const Details = ({ contactNumber, onDetailsUpdate }) => {
     [formData.height, formData.weight]
   );
 
+  /** ------- COMPLETION % ------- */
+  const completionPercent = useMemo(() => {
+    const keys = Object.keys(initialFormState);
+    const isFilled = (val) => {
+      if (Array.isArray(val)) return val.length > 0;
+      if (typeof val === "number") return !Number.isNaN(val);
+      if (typeof val === "string") return val.trim() !== "";
+      if (val && typeof val === "object") return Object.keys(val).length > 0;
+      return !!val;
+    };
+    const filled = keys.reduce((acc, k) => acc + (isFilled(formData[k]) ? 1 : 0), 0);
+    return Math.round((filled / keys.length) * 100);
+  }, [formData]);
+
   /** ------- LOAD DETAILS ------- */
   useEffect(() => {
     if (!contactNumber) {
       setFormData(initialFormState);
-      setOpen(false); // <-- fixed line
+      setOpen(false); // <-- keep collapsed when no contact
       return;
     }
     setLoading(true);
@@ -214,7 +228,7 @@ const Details = ({ contactNumber, onDetailsUpdate }) => {
         const { data } = await axios.get(`${API_BASE}/get-details/${contactNumber}`);
         if (data?.details) {
           setFormData({ ...initialFormState, ...data.details });
-          // if we already store cm, derive a readable feet string for display when toggled
+          // prefill ft display from cm if available
           const cm = Number(data.details.height);
           if (cm) {
             const totalIn = cm / 2.54;
@@ -339,7 +353,7 @@ const Details = ({ contactNumber, onDetailsUpdate }) => {
           </Stack>
         </Stack>
 
-        {/* Save State + Right Toggle Arrow */}
+        {/* Save State + Completion + Toggle Arrow */}
         <Stack direction="row" alignItems="center" spacing={1.25}>
           <Stack direction="row" alignItems="center" spacing={1}>
             {saveState === "saving" && (
@@ -362,6 +376,19 @@ const Details = ({ contactNumber, onDetailsUpdate }) => {
             )}
           </Stack>
 
+          {/* COMPLETION % chip — sits to the LEFT of the arrow */}
+          <Tooltip title="Profile completion">
+            <Chip
+              size="small"
+              label={`${completionPercent}%`}
+              sx={{
+                color: "white",
+                bgcolor: "rgba(255,255,255,0.18)",
+                fontWeight: 700,
+              }}
+            />
+          </Tooltip>
+
           {/* Stop click bubbling so header doesn't toggle twice */}
           <IconButton
             size="small"
@@ -374,6 +401,7 @@ const Details = ({ contactNumber, onDetailsUpdate }) => {
               bgcolor: "rgba(255,255,255,0.18)",
               "&:hover": { bgcolor: "rgba(255,255,255,0.26)" },
             }}
+            aria-label={open ? "Collapse details" : "Expand details"}
           >
             {open ? <KeyboardDoubleArrowUp /> : <KeyboardDoubleArrowDown />}
           </IconButton>

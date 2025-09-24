@@ -366,14 +366,14 @@ export default function AbandonedCheckouts() {
                       <TableCell>
                         <Stack spacing={0.5}>
                           {preview.map((it, idx) => (
-                            <Typography key={idx} variant="body2">
+                            <Typography key={idx} variant="body2"> 
                               <b>{it.title || "-"}</b>
                               {it.variantTitle ? ` — ${it.variantTitle}` : ""} • x{it.quantity ?? 1} •{" "}
                               {formatMoney(it.finalLinePrice ?? (it.unitPrice || 0) * (it.quantity ?? 1), currency)}
                             </Typography>
                           ))}
                         </Stack> 
-                      </TableCell>
+                      </TableCell> 
 
                       <TableCell>{formatMoney(r.total, currency)}</TableCell>
 

@@ -29,6 +29,7 @@ import {
   CircularProgress,
   Collapse,
   Alert,
+  Checkbox, // ⬅️ added
 } from "@mui/material";
 import DeleteIcon from "@mui/icons-material/Delete";
 import AddIcon from "@mui/icons-material/Add";
@@ -167,6 +168,47 @@ const PastPlansMenuProps = {
   },
 };
 
+/* ===== Height helpers ===== */
+
+// Parse "5.1", "5'6", "5-8", "5 8" → centimeters
+function parseFeetStringToCm(input) {
+  if (input == null) return NaN;
+  let s = String(input).trim();
+  if (!s) return NaN;
+
+  // Normalize unicode quotes and separators
+  s = s.replace(/″|”|“|’|‘/g, "'").replace(/[–—]/g, "-");
+
+  // If it's like 5.10 treat . as inch separator (not decimal feet)
+  // Accept separators: ', -, ., or space
+  const m = s.match(/^(\d+)\s*(?:'|-|\.|\s)?\s*(\d{1,2})?$/);
+  if (!m) return NaN;
+
+  const feet = parseInt(m[1], 10);
+  const inches = m[2] != null ? parseInt(m[2], 10) : 0;
+
+  if (!Number.isFinite(feet) || feet < 0) return NaN;
+  if (!Number.isFinite(inches) || inches < 0 || inches > 11) return NaN;
+
+  const totalInches = feet * 12 + inches;
+  const cm = totalInches * 2.54;
+  return Math.round(cm); // integer cm is fine for DB
+}
+
+function cmToFeetInchesString(cmVal) {
+  const cm = Number(cmVal);
+  if (!Number.isFinite(cm) || cm <= 0) return "";
+  const totalInches = cm / 2.54;
+  const feet = Math.floor(totalInches / 12);
+  let inches = Math.round(totalInches - feet * 12);
+  if (inches === 12) {
+    inches = 0;
+    // carry over
+    return `${feet + 1}'0`;
+  }
+  return `${feet}'${inches}`;
+}
+
 export default function CreateDietPlanPopup({
   open,
   onClose,
@@ -247,7 +289,8 @@ export default function CreateDietPlanPopup({
 
   const [editVitalsMode, setEditVitalsMode] = useState(false);
   const [editAge, setEditAge] = useState("");
-  const [editHeightCm, setEditHeightCm] = useState("");
+  const [editHeightRaw, setEditHeightRaw] = useState("");     // ⬅️ unified height input (cm text or ft/in text)
+  const [editHeightIsFeet, setEditHeightIsFeet] = useState(false); // ⬅️ checkbox state
   const [editWeightKg, setEditWeightKg] = useState("");
   const [savingVitals, setSavingVitals] = useState(false); 
   const [vitalsErrorMsg, setVitalsErrorMsg] = useState("");
@@ -407,48 +450,76 @@ export default function CreateDietPlanPopup({
   }, [selectedTemplate]);
 
   const startEditVitals = () => {
-   setVitalsErrorMsg("");
-   setEditAge(String(age ?? ""));
-   setEditHeightCm(String(heightCm ?? ""));
-   setEditWeightKg(String(weightKg ?? ""));
-  setEditVitalsMode(true);
-};
-
-const cancelEditVitals = () => {
-  setVitalsErrorMsg("");
-  setEditVitalsMode(false);
-};
-
-const saveEditVitals = async () => {
-  if (!leadId) return;
-  const a = Number(editAge);
-  const h = Number(editHeightCm);
-  const w = Number(editWeightKg);
-  if (![a, h, w].every((n) => Number.isFinite(n) && n > 0)) {
-    setVitalsErrorMsg("Please enter valid positive numbers for Age, Height, and Weight.");
-    return;
-  }
-  try {
-    setSavingVitals(true);
     setVitalsErrorMsg("");
-    // Update both places for compatibility: details + healthProfile
-    await axios.put(`${BASE_URL}/api/leads/${leadId}`, {
-      details: { age: a, height: h, heightCm: h, weight: w, weightKg: w }, 
-      healthProfile: { age: a, heightCm: h, weightKg: w },
-    });
-    // Reflect locally
-    setAge(a); setHeightCm(h); setWeightKg(w);
-    setEditVitalsMode(false);
-  } catch (e) {
-    setVitalsErrorMsg(
-      e?.response?.data?.error || "Failed to update vitals. Please try again."
-    );
-  } finally {
-    setSavingVitals(false);
-  }
-};
+    setEditAge(String(age ?? ""));
+    // default to cm mode; prefill raw with cm value
+    setEditHeightIsFeet(false);
+    setEditHeightRaw(String(heightCm ?? ""));
+    setEditWeightKg(String(weightKg ?? ""));
+    setEditVitalsMode(true);
+  };
 
-  // start date computed
+  const cancelEditVitals = () => {
+    setVitalsErrorMsg("");
+    setEditVitalsMode(false);
+  };
+
+  const toggleHeightMode = (checked) => {
+    setEditHeightIsFeet(checked);
+    // Convert the currently typed value for user convenience
+    if (checked) {
+      // convert cm -> feet'in string
+      const ftStr = cmToFeetInchesString(Number(editHeightRaw));
+      if (ftStr) setEditHeightRaw(ftStr);
+    } else {
+      // convert feet string -> cm number (as text)
+      const cm = parseFeetStringToCm(editHeightRaw);
+      if (Number.isFinite(cm)) setEditHeightRaw(String(cm));
+    }
+  };
+
+  const saveEditVitals = async () => {
+    if (!leadId) return;
+
+    const a = Number(editAge);
+    const w = Number(editWeightKg);
+
+    // Height parsing based on mode
+    let h;
+    if (editHeightIsFeet) {
+      h = parseFeetStringToCm(editHeightRaw);
+    } else {
+      h = Number(editHeightRaw);
+    }
+
+    if (![a, h, w].every((n) => Number.isFinite(n) && n > 0)) {
+      setVitalsErrorMsg("Please enter valid positive numbers for Age, Height, and Weight.");
+      return;
+    }
+
+    try {
+      setSavingVitals(true);
+      setVitalsErrorMsg("");
+      // Update both places for compatibility: details + healthProfile
+      await axios.put(`${BASE_URL}/api/leads/${leadId}`, {
+        details: { age: a, height: h, heightCm: h, weight: w, weightKg: w }, 
+        healthProfile: { age: a, heightCm: h, weightKg: w },
+      });
+      // Reflect locally
+      setAge(a); 
+      setHeightCm(h); 
+      setWeightKg(w);
+      setEditVitalsMode(false);
+    } catch (e) {
+      setVitalsErrorMsg(
+        e?.response?.data?.error || "Failed to update vitals. Please try again."
+      );
+    } finally {
+      setSavingVitals(false);
+    }
+  };
+
+  // start date computed 
   const startDate = useMemo(() => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -465,13 +536,13 @@ const saveEditVitals = async () => {
   const durationDays = planType === "Weekly" ? FORTNIGHT_DAYS : 30; 
 
   const vitalsFilled = useMemo(() => {
-     const a = String(age ?? "").trim();
-     const h = String(heightCm ?? "").trim();
-     const w = String(weightKg ?? "").trim();
-     return Boolean(a && h && w);
-   }, [age, heightCm, weightKg]);
+    const a = String(age ?? "").trim();
+    const h = String(heightCm ?? "").trim();
+    const w = String(weightKg ?? "").trim();
+    return Boolean(a && h && w);
+  }, [age, heightCm, weightKg]);
 
-   const conditionsFilled = useMemo(() => (conditions?.length ?? 0) > 0, [conditions]);
+  const conditionsFilled = useMemo(() => (conditions?.length ?? 0) > 0, [conditions]);
 
   const canSave = useMemo(() => {
     if (!leadId || saving || !templateId || !vitalsFilled || !conditionsFilled) return false; 
@@ -577,13 +648,13 @@ const saveEditVitals = async () => {
   const handleSave = async () => {
     if (!canSave) return;
     if (!vitalsFilled) {
-       alert("Age, Height, and Weight are required. Please update these before saving.");
-       return;
-     } 
+      alert("Age, Height, and Weight are required. Please update these before saving.");
+      return;
+    } 
 
-     if (!conditionsFilled) {
+    if (!conditionsFilled) {
       alert("Please select at least one Health Condition before saving.");
-     return;
+      return;
     }
     const payload = makePayload(); 
     try {
@@ -855,15 +926,31 @@ const saveEditVitals = async () => {
                 sx={{ width: 110 }}
                 InputLabelProps={{ shrink: true }}
               />
-              <TextField
-                label="Height (cm)"
-                size="small"
-                type="number"
-                value={editHeightCm}
-                onChange={(e) => setEditHeightCm(e.target.value)}
-                sx={{ width: 140 }}
-                InputLabelProps={{ shrink: true }}
-              />
+
+              {/* Height input with ft/in toggle */}
+              <Stack direction="row" spacing={1} alignItems="center">
+                <TextField
+                  label={editHeightIsFeet ? "Height (ft/in)" : "Height (cm)"}
+                  size="small"
+                  type={editHeightIsFeet ? "text" : "number"}
+                  value={editHeightRaw}
+                  onChange={(e) => setEditHeightRaw(e.target.value)}
+                  sx={{ width: 160 }}
+                  InputLabelProps={{ shrink: true }}
+                  placeholder={editHeightIsFeet ? "e.g. 5'6 or 5.8" : ""}
+                />
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      size="small"
+                      checked={editHeightIsFeet}
+                      onChange={(e) => toggleHeightMode(e.target.checked)}
+                    />
+                  }
+                  label="ft/in"
+                />
+              </Stack>
+
               <TextField
                 label="Weight (kg)"
                 size="small"
@@ -1359,7 +1446,7 @@ const saveEditVitals = async () => {
               display: "flex",
               alignItems: "center",
               gap: 1,
-              border: "1px solid #e0e0e0",
+              border: "1px solid #e0e0e0", 
               borderRadius: 1.5,
               background: "#fafafa",
             }}
@@ -1385,3 +1472,4 @@ const saveEditVitals = async () => {
     </Dialog>
   );
 }
+

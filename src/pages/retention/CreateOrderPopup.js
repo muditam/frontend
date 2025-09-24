@@ -2,13 +2,20 @@ import React, { useEffect, useState } from "react";
 import {
   Dialog, DialogTitle, DialogContent, DialogActions, Button,
   Typography, Box, CircularProgress, Avatar, Checkbox,
-  TextField, IconButton, Divider, FormControlLabel, Radio, RadioGroup
+  TextField, IconButton, Divider, FormControlLabel, Radio, RadioGroup,
+  Paper, Collapse, Chip
 } from "@mui/material";
 import ShoppingCartIcon from '@mui/icons-material/ShoppingCart';
 import OrderDetailsPopup from "../../ShopifyOrders/OrderDetailsPopup";
 import DeleteIcon from '@mui/icons-material/Delete';
+import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
+import ExpandLessIcon from "@mui/icons-material/ExpandLess";
+import PlaceIcon from "@mui/icons-material/Place";
+import PersonIcon from "@mui/icons-material/Person";
+import LocalPhoneIcon from "@mui/icons-material/LocalPhone";
+import PaymentIcon from "@mui/icons-material/Payment";
 import axios from "axios";
-  
+
 const normalizePhone = (phone) => {
   if (!phone) return '';
   const clean = phone.replace(/\D/g, '');
@@ -21,6 +28,7 @@ const normalizePhone = (phone) => {
 
 const CreateOrderPopup = ({ open, onClose, prefillCustomer = {} }) => {
   const [products, setProducts] = useState([]);
+  const [expanded, setExpanded] = useState({}); // productId -> boolean
   const [loading, setLoading] = useState(false);
   const [selectedVariants, setSelectedVariants] = useState({});
   const [search, setSearch] = useState("");
@@ -31,6 +39,7 @@ const CreateOrderPopup = ({ open, onClose, prefillCustomer = {} }) => {
   const [discount, setDiscount] = useState();
   const [customer, setCustomer] = useState({ name: '', phone: '', address: '' });
   const [discountType, setDiscountType] = useState("amount");
+  const [showOrderDetails, setShowOrderDetails] = useState(false);
 
   // Address selection state
   const [allAddresses, setAllAddresses] = useState([]);
@@ -47,7 +56,7 @@ const CreateOrderPopup = ({ open, onClose, prefillCustomer = {} }) => {
   const [noteText, setNoteText] = useState("");
   const [latestOrderId, setLatestOrderId] = useState(null);
 
-  // Always set name/phone from prefillCustomer; fetch addresses from Shopify 
+  // Always set name/phone from prefillCustomer; fetch addresses from Shopify
   useEffect(() => {
     if (!prefillCustomer?.phone) return;
     setCustomer({
@@ -77,7 +86,7 @@ const CreateOrderPopup = ({ open, onClose, prefillCustomer = {} }) => {
         setAllAddresses(res.data.addresses);
         if (res.data.addresses.length === 1) {
           setSelectedAddressId(res.data.addresses[0].id);
-          setCustomer(prev => ({ ...prev, address: res.data.addresses[0] }));  
+          setCustomer(prev => ({ ...prev, address: res.data.addresses[0] }));
         } else {
           setCustomer(prev => ({ ...prev, address: "" }));
         }
@@ -94,7 +103,7 @@ const CreateOrderPopup = ({ open, onClose, prefillCustomer = {} }) => {
       setCustomer(prev => ({ ...prev, address: "" }));
     } else {
       const found = allAddresses.find(a => a.id === selectedAddressId);
-      setCustomer(prev => ({ ...prev, address: found ? found : "" })); 
+      setCustomer(prev => ({ ...prev, address: found ? found : "" }));
     }
   }, [selectedAddressId, allAddresses]);
 
@@ -107,6 +116,10 @@ const CreateOrderPopup = ({ open, onClose, prefillCustomer = {} }) => {
     try {
       const res = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/shopify/active-products");
       setProducts(res.data || []);
+      // initialize collapsed state
+      const init = {};
+      (res.data || []).forEach(p => { init[p.id] = false; });
+      setExpanded(init);
     } catch (error) {
       console.error("Error fetching products", error);
     } finally {
@@ -114,7 +127,7 @@ const CreateOrderPopup = ({ open, onClose, prefillCustomer = {} }) => {
     }
   };
 
-  // Cart and selection logic (unchanged)
+  // Cart and selection logic
   const handleVariantToggle = (variantId) => {
     setSelectedVariants(prev => ({
       ...prev,
@@ -189,146 +202,291 @@ const CreateOrderPopup = ({ open, onClose, prefillCustomer = {} }) => {
 
   // Place Order Handler (no notes, always enabled after address select)
   const handlePlaceOrder = async () => {
-  try {
-    const payload = {
-      customer,
-      cartItems,
-      paymentMethod,
-      transactionId: paymentMethod === "Prepaid" ? transactionId : undefined,
-      shippingCharge,
-      discount,
-      discountType,
-    };
+    try {
+      const payload = {
+        customer,
+        cartItems,
+        paymentMethod,
+        transactionId: paymentMethod === "Prepaid" ? transactionId : undefined,
+        shippingCharge,
+        discount,
+        discountType,
+      };
 
-    const res = await axios.post("https://muditamleads-14f32a10d7f7.herokuapp.com/api/shopify/place-order", payload);
-    const newOrderId = res.data?.shopifyOrder?.id;
+      const res = await axios.post("https://muditamleads-14f32a10d7f7.herokuapp.com/api/shopify/place-order", payload);
+      const newOrderId = res.data?.shopifyOrder?.id;
 
-    setLatestOrderId(newOrderId || null);
-    alert("Order placed successfully!");
-    setShowNoteDialog(true); // ✅ Show note dialog
- 
-  } catch (err) {
-    alert("Order placement failed.");
-  }
-};
+      setLatestOrderId(newOrderId || null);
+      setShowNoteDialog(true); // open note dialog after placing the order
+    } catch (err) {
+      alert("Order placement failed.");
+    }
+  };
 
-  // Optional: Add a note to the order after placement
-const handleAddNote = async () => {
-  if (!latestOrderId || !noteText) return;
-  try {
-    await axios.post("https://muditamleads-14f32a10d7f7.herokuapp.com/api/shopify/add-note", {
-      orderId: latestOrderId,
-      note: noteText,
-    });
-    alert("Note added to order!");
-    setShowNoteDialog(false);
-    setNoteText("");
+  const handleAddNote = async () => {
+    if (!latestOrderId || !noteText) return;
+    try {
+      await axios.post("https://muditamleads-14f32a10d7f7.herokuapp.com/api/shopify/add-note", {
+        orderId: latestOrderId,
+        note: noteText,
+      });
+      // keep existing dialogs open; just show the details popup on top
+      setShowNoteDialog(false);
+      setShowOrderDetails(true);
+      setNoteText("");
+    } catch (err) {
+      alert("Failed to add note.");
+    }
+  };
 
-  } catch (err) {
-    alert("Failed to add note.");
-  }
-};
- 
+  const getLoggedInAgentName = () => {
+    try {
+      const u = JSON.parse(sessionStorage.getItem("user")) || {};
+      return (
+        u.fullName ||
+        u.name ||
+        (u.email ? u.email.split("@")[0] : "") ||
+        "N/A"
+      );
+    } catch {
+      return "N/A";
+    }
+  };
+  const agentFullName = getLoggedInAgentName();
+
+  const toggleExpand = (productId) => {
+    setExpanded(prev => ({ ...prev, [productId]: !prev[productId] }));
+  };
+
   return (
     <>
-      <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
-        <DialogTitle>
-          Select products
-          <IconButton sx={{ float: 'right' }} onClick={() => setCartOpen(true)}>
+      <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth disableEnforceFocus={showOrderDetails}>
+        <DialogTitle sx={{ fontWeight: 700 }}>
+          Create Order
+          <IconButton
+            sx={{ float: 'right', ml: 1 }}
+            onClick={() => setCartOpen(true)} 
+            aria-label="open cart"
+          >
             <ShoppingCartIcon />
           </IconButton>
         </DialogTitle>
-        <DialogContent dividers sx={{ maxHeight: "70vh" }}>
-          <Box sx={{ mb: 2 }}>
+
+        <DialogContent dividers sx={{ p: 0 }}>
+          {/* Sticky search bar */}
+          <Box
+            sx={{
+              position: "sticky",
+              top: 0,
+              zIndex: 2,
+              backgroundColor: "background.paper",
+              borderBottom: "1px solid",
+              borderColor: "divider",
+              p: 2
+            }}
+          >
             <TextField
               fullWidth
-              label="Search products"
+              placeholder="Search products..."
               variant="outlined"
               size="small"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
           </Box>
-          {loading ? (
-            <CircularProgress />
-          ) : (
-            filteredProducts.map((product) => (
-              <Box key={product.id} sx={{ mb: 2 }}>
-                <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1 }}>
-                  {product.image && (
-                    <Avatar src={product.image} variant="square" sx={{ width: 40, height: 40 }} />
-                  )}
-                  <Typography fontWeight="bold">{product.title}</Typography>
-                </Box>
-                {product.variants.map((variant) => (
-                  <Box
-                    key={variant.id}
-                    onClick={() => handleVariantToggle(variant.id)}
+
+          <Box sx={{ p: 2 }}>
+            {loading ? (
+              <Box sx={{ display: "flex", justifyContent: "center", py: 6 }}>
+                <CircularProgress />
+              </Box>
+            ) : (
+              filteredProducts.map((product) => {
+                const isExpanded = !!expanded[product.id];
+                const selectedCount = (product.variants || []).reduce(
+                  (acc, v) => acc + (selectedVariants[v.id] ? 1 : 0),
+                  0
+                );
+
+                return (
+                  <Paper
+                    key={product.id}
+                    variant="outlined"
                     sx={{
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      px: 2,
-                      py: 1,
-                      borderBottom: "1px solid #eee",
-                      backgroundColor: selectedVariants[variant.id] ? '#f0f0f0' : 'transparent',
-                      cursor: 'pointer'
+                      mb: 1.5,
+                      borderRadius: 2,
+                      overflow: "hidden",
+                      borderColor: "divider",
+                      backgroundColor: "#fff",
                     }}
                   >
-                    <Checkbox
-                      checked={!!selectedVariants[variant.id]}
-                      onChange={() => handleVariantToggle(variant.id)}
-                      onClick={(e) => e.stopPropagation()}
-                    />
-                    <Typography sx={{ flex: 1 }}>{variant.title}</Typography>
-                    <Typography sx={{ width: 150, textAlign: "center" }}>
-                      {variant.inventory_quantity} available
-                    </Typography>
-                    <Typography sx={{ width: 100, textAlign: "right" }}>
-                      ₹{variant.price} INR
-                    </Typography>
-                  </Box>
-                ))}
-              </Box>
-            ))
-          )}
+                    {/* Product Header Row */}
+                    <Box
+                      sx={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 1.25,
+                        px: 2,
+                        py: 1.25,
+                        cursor: "pointer",
+                        "&:hover": { backgroundColor: "#fafafa" },
+                      }}
+                      onClick={() => toggleExpand(product.id)}
+                    >
+                      {product.image && (
+                        <Avatar
+                          src={product.image}
+                          variant="square"
+                          sx={{ width: 44, height: 44, borderRadius: 1 }}
+                        />
+                      )}
+                      <Box sx={{ flex: 1, minWidth: 0 }}>
+                        <Typography noWrap sx={{ fontWeight: 600 }}>
+                          {product.title}
+                        </Typography>
+                        <Typography
+                          variant="caption"
+                          color="text.secondary"
+                          sx={{ display: "block" }}
+                        >
+                          {product.variants?.length || 0} variant(s)
+                          {selectedCount > 0 ? ` • ${selectedCount} selected` : ""}
+                        </Typography>
+                      </Box>
+
+                      <IconButton size="small" onClick={(e) => { e.stopPropagation(); toggleExpand(product.id); }}>
+                        {isExpanded ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+                      </IconButton>
+                    </Box>
+
+                    {/* Variants (TWO PER ROW) */}
+                    <Collapse in={isExpanded} timeout="auto" unmountOnExit>
+                      <Divider />
+                      <Box
+                        sx={{
+                          p: 1.25,
+                          display: "grid",
+                          gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" }, // 1 per row on xs, 2 per row on sm+
+                          gap: 1.25
+                        }}
+                      >
+                        {(product.variants || []).map((variant) => {
+                          const checked = !!selectedVariants[variant.id];
+                          return (
+                            <Box
+                              key={variant.id}
+                              role="button"
+                              tabIndex={0}
+                              onClick={() => handleVariantToggle(variant.id)}
+                              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleVariantToggle(variant.id); }}
+                              sx={{
+                                border: "1px solid",
+                                borderColor: checked ? "primary.main" : "divider",
+                                borderRadius: 1.5,
+                                p: 1.25,
+                                cursor: "pointer",
+                                bgcolor: checked ? "action.selected" : "background.paper",
+                                transition: "background-color .15s ease, border-color .15s ease",
+                                "&:hover": { backgroundColor: "action.hover" },
+                                display: "grid",
+                                gridTemplateRows: "auto auto",
+                                alignItems: "start",
+                                minHeight: 84
+                              }}
+                            >
+                              {/* Top row: checkbox + title */}
+                              <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                                <Checkbox
+                                  checked={checked}
+                                  tabIndex={-1}
+                                  disableRipple
+                                  sx={{ pointerEvents: "none", p: 0, mr: 0.5 }}
+                                />
+                                <Typography sx={{ fontWeight: 600 }} noWrap>
+                                  {variant.title}
+                                </Typography>
+                              </Box>
+
+                              {/* Bottom row: availability + price */}
+                              <Box sx={{
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "space-between",
+                                mt: 0.75
+                              }}>
+                                <Typography variant="caption" color="text.secondary">
+                                  {variant.inventory_quantity} available
+                                </Typography>
+                                <Typography sx={{ fontWeight: 700 }}>
+                                  ₹{variant.price} INR
+                                </Typography>
+                              </Box>
+                            </Box>
+                          );
+                        })}
+                      </Box>
+                    </Collapse>
+                  </Paper>
+                );
+              })
+            )}
+          </Box>
         </DialogContent>
-        <DialogActions>
-          <Typography sx={{ flexGrow: 1, px: 2 }}>
+
+        <DialogActions sx={{ px: 2, py: 1.5 }}>
+          <Typography sx={{ flexGrow: 1, px: 1 }}>
             {Object.keys(selectedVariants).filter(id => selectedVariants[id]).length} variants selected
           </Typography>
-          <Button onClick={onClose}>Cancel</Button>
-          <Button variant="contained" onClick={handleAdd}>Add</Button> 
+          <Button onClick={onClose}>Close</Button>
+          <Button variant="contained" onClick={handleAdd}>Add to Cart</Button>
         </DialogActions>
 
         {/* Cart Dialog */}
-        <Dialog open={cartOpen} onClose={() => setCartOpen(false)} maxWidth="sm" fullWidth>
-          <DialogTitle>Your Cart</DialogTitle>
+        <Dialog open={cartOpen} onClose={() => setCartOpen(false)} maxWidth="sm" fullWidth disableEnforceFocus={showOrderDetails}>
+          <DialogTitle sx={{ fontWeight: 700 }}>Your Cart</DialogTitle>
           <DialogContent dividers>
+            {cartItems.length === 0 && (
+              <Typography variant="body2" color="text.secondary" sx={{ py: 4, textAlign: "center" }}>
+                Your cart is empty.
+              </Typography> 
+            )}
+
             {cartItems.map(item => (
-              <Box key={item.id} sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                {item.image && (
-                  <Avatar src={item.image} variant="square" sx={{ width: 40, height: 40, mr: 1 }} />
-                )}
-                <Box sx={{ flexGrow: 1 }}>
-                  <Typography>{item.productTitle} x{item.quantity}</Typography>
-                  <Typography variant="body2" color="textSecondary">{item.title}</Typography>
+              <Paper key={item.id} variant="outlined" sx={{ p: 1.25, mb: 1.25, borderRadius: 2 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  {item.image && (
+                    <Avatar src={item.image} variant="square" sx={{ width: 44, height: 44 }} />
+                  )}
+                  <Box sx={{ flexGrow: 1, minWidth: 0 }}>
+                    <Typography noWrap sx={{ fontWeight: 600 }}>
+                      {item.productTitle} <Box component="span" sx={{ fontWeight: 400 }}>({item.title})</Box>
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      ₹{item.price} each
+                    </Typography>
+                  </Box>
+
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Button size="small" onClick={() => updateQuantity(item.id, -1)}>-</Button>
+                    <Typography sx={{ minWidth: 16, textAlign: "center" }}>{item.quantity}</Typography>
+                    <Button size="small" onClick={() => updateQuantity(item.id, 1)}>+</Button>
+                  </Box>
+
+                  <Typography sx={{ width: 90, textAlign: "right", fontWeight: 600 }}>
+                    ₹{(item.price * item.quantity).toFixed(2)}
+                  </Typography>
+
+                  <IconButton onClick={() => removeItem(item.id)}>
+                    <DeleteIcon />
+                  </IconButton>
                 </Box>
-                <Typography>₹{item.price * item.quantity}</Typography>
-                <Box sx={{ display: 'flex', alignItems: 'center', mx: 1 }}>
-                  <Button size="small" onClick={() => updateQuantity(item.id, -1)}>-</Button>
-                  <Typography sx={{ mx: 1 }}>{item.quantity}</Typography>
-                  <Button size="small" onClick={() => updateQuantity(item.id, 1)}>+</Button>
-                </Box>
-                <IconButton onClick={() => removeItem(item.id)}>
-                  <DeleteIcon />
-                </IconButton>
-              </Box>
+              </Paper>
             ))}
 
             <Divider sx={{ my: 2 }} />
+
             <Box sx={{ mb: 2 }}>
-              <Typography>Discount</Typography>
+              <Typography sx={{ fontWeight: 600, mb: 1 }}>Discount</Typography>
               <Box sx={{ display: 'flex', gap: 1 }}>
                 <TextField
                   select
@@ -353,7 +511,7 @@ const handleAddNote = async () => {
             </Box>
 
             <Box sx={{ mb: 2 }}>
-              <Typography>Shipping Charges (₹)</Typography>
+              <Typography sx={{ fontWeight: 600, mb: 1 }}>Shipping Charges (₹)</Typography>
               <TextField
                 fullWidth size="small" type="number"
                 value={shippingCharge || ''}
@@ -362,13 +520,21 @@ const handleAddNote = async () => {
             </Box>
 
             <Divider sx={{ my: 2 }} />
-            <Typography>Sub-Total: ₹{subtotal.toFixed(2)}</Typography>
-            <Typography>Tax: ₹0.00</Typography>
-            <Typography>
-              Discount: -₹{discountAmount.toFixed(2)} ({discountType === "percentage" ? `${discount || 0}%` : `₹${discount || 0}`})
-            </Typography>
-            <Typography>Shipping: ₹{(Number(shippingCharge) || 0).toFixed(2)}</Typography>
-            <Typography fontWeight="bold">Total: ₹{total.toFixed(2)}</Typography>
+            <Box sx={{ display: "grid", gridTemplateColumns: "1fr auto", rowGap: 0.5 }}>
+              <Typography>Sub-Total</Typography>
+              <Typography sx={{ fontWeight: 600 }}>₹{subtotal.toFixed(2)}</Typography>
+              <Typography>Tax</Typography>
+              <Typography sx={{ fontWeight: 600 }}>₹0.00</Typography>
+              <Typography>Discount</Typography>
+              <Typography sx={{ fontWeight: 600 }}>
+                -₹{discountAmount.toFixed(2)} ({discountType === "percentage" ? `${discount || 0}%` : `₹${discount || 0}`})
+              </Typography>
+              <Typography>Shipping</Typography>
+              <Typography sx={{ fontWeight: 600 }}>₹{(Number(shippingCharge) || 0).toFixed(2)}</Typography>
+              <Divider sx={{ gridColumn: "1 / -1", my: 0.5 }} />
+              <Typography sx={{ fontWeight: 700 }}>Total</Typography>
+              <Typography sx={{ fontWeight: 700 }}>₹{total.toFixed(2)}</Typography>
+            </Box>
           </DialogContent>
           <DialogActions>
             <Button onClick={() => setCartOpen(false)}>Close</Button>
@@ -376,101 +542,149 @@ const handleAddNote = async () => {
           </DialogActions>
         </Dialog>
 
-        {/* Customer Info Dialog */}
-        <Dialog open={customerDialogOpen} onClose={() => setCustomerDialogOpen(false)} maxWidth="sm" fullWidth>
-          <DialogTitle>Customer Information</DialogTitle>
+        {/* Customer Info Dialog (REDESIGNED) */}
+        <Dialog open={customerDialogOpen} onClose={() => setCustomerDialogOpen(false)} maxWidth="sm" fullWidth disableEnforceFocus={showOrderDetails}>
+          <DialogTitle sx={{ fontWeight: 700 }}>Customer Information</DialogTitle>
           <DialogContent dividers>
-            <Typography variant="subtitle2">Name</Typography>
-            <Typography sx={{ mb: 1 }}>{customer.name || '-'}</Typography>
-            <Typography variant="subtitle2">Phone</Typography>
-            <Typography sx={{ mb: 1 }}>{customer.phone || '-'}</Typography>
-            <Typography variant="subtitle2">Address</Typography>
-            {allAddresses.length > 1 && (
-              <Box sx={{ mb: 2 }}>
-                <RadioGroup
-                  value={selectedAddressId || ""}
-                  onChange={e => setSelectedAddressId(Number(e.target.value))}
-                >
-                  {allAddresses.map(addr => (
-                    <FormControlLabel
-                      key={addr.id}
-                      value={addr.id}
-                      control={<Radio />}
-                      label={addr.formatted}
-                    />
-                  ))}
-                </RadioGroup>
+            {/* Customer summary */}
+            <Paper variant="outlined" sx={{ p: 2, borderRadius: 2, mb: 2 }}>
+              <Box sx={{ display: "grid", gridTemplateColumns: "auto 1fr", columnGap: 1.5, rowGap: 1 }}>
+                <PersonIcon fontSize="small" />
+                <Box>
+                  <Typography variant="caption" color="text.secondary">Name</Typography>
+                  <Typography sx={{ fontWeight: 600 }}>{customer.name || '-'}</Typography> 
+                </Box>
+
+                <LocalPhoneIcon fontSize="small" />
+                <Box>
+                  <Typography variant="caption" color="text.secondary">Phone</Typography>
+                  <Typography>{customer.phone || '-'}</Typography>
+                </Box>
               </Box>
-            )}
-            {allAddresses.length === 1 && (
-              <Typography sx={{ whiteSpace: 'pre-line' }}>
-                {customer.address.formatted || '-'}
-              </Typography>
-            )}
-            {allAddresses.length === 0 && (
-              <Typography sx={{ whiteSpace: 'pre-line' }}>
-                -
-              </Typography>
-            )}
+            </Paper>
 
-            {/* Payment Method */}
-            <Typography variant="subtitle2" sx={{ mt: 2 }}>Select Payment Method</Typography>
-            <RadioGroup
-              row
-              value={paymentMethod}
-              onChange={e => {
-                setPaymentMethod(e.target.value);
-                setPaymentLink("");
-                setTransactionId("");
-              }}
-            >
-              <FormControlLabel value="Prepaid" control={<Radio />} label="Prepaid" />
-              <FormControlLabel value="COD" control={<Radio />} label="Cash on Delivery (COD)" />
-            </RadioGroup>
-
-            {/* Prepaid UI */}
-            {paymentMethod === "Prepaid" && (
-              <Box sx={{ mt: 2 }}>
-                <Button
-                  variant="outlined"
-                  onClick={handleGeneratePaymentLink}
-                  disabled={generatingPaymentLink || !!paymentLink || !customer.address}
-                >
-                  {generatingPaymentLink
-                    ? "Generating..."
-                    : paymentLink
-                    ? "Payment Link Generated"
-                    : "Generate Payment Link"}
-                </Button>
-                {paymentLink && (
-                  <Box sx={{ mt: 1 }}>
-                    <TextField
-                      fullWidth
-                      value={paymentLink}
-                      InputProps={{ readOnly: true }} 
-                      sx={{ mb: 1 }}
-                    />
-                    <Button onClick={() => navigator.clipboard.writeText(paymentLink)} sx={{ mb: 2 }}>
-                      Copy Payment Link 
-                    </Button> 
-                    <TextField
-                      fullWidth
-                      label="Enter Transaction ID"
-                      value={transactionId}
-                      onChange={e => setTransactionId(e.target.value)}
-                      sx={{ mt: 2 }}
-                    />
-                  </Box>
+            {/* Addresses */}
+            <Paper variant="outlined" sx={{ p: 2, borderRadius: 2, mb: 2 }}>
+              <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1 }}>
+                <PlaceIcon fontSize="small" />
+                <Typography sx={{ fontWeight: 600 }}>Shipping Address</Typography>
+                {allAddresses?.length > 0 && (
+                  <Chip size="small" label={`${allAddresses.length} saved`} />
                 )}
               </Box>
-            )}
+
+              {allAddresses.length > 1 && (
+                <Box sx={{ display: "grid", gap: 1, maxHeight: 200, overflowY: "auto" }}>
+                  {allAddresses.map(addr => (
+                    <Paper
+                      key={addr.id}
+                      variant="outlined"
+                      onClick={() => setSelectedAddressId(addr.id)}
+                      sx={{
+                        p: 1.25,
+                        borderRadius: 1.5,
+                        cursor: "pointer",
+                        borderColor: selectedAddressId === addr.id ? "primary.main" : "divider",
+                        bgcolor: selectedAddressId === addr.id ? "action.selected" : "transparent"
+                      }}
+                    >
+                      <FormControlLabel
+                        value={addr.id}
+                        control={<Radio checked={selectedAddressId === addr.id} />}
+                        label={
+                          <Typography sx={{ whiteSpace: "pre-line" }}>
+                            {addr.formatted}
+                          </Typography>
+                        }
+                        onChange={() => setSelectedAddressId(addr.id)}
+                      />
+                    </Paper>
+                  ))}
+                </Box>
+              )}
+
+              {allAddresses.length === 1 && (
+                <Typography sx={{ whiteSpace: 'pre-line' }}>
+                  {customer.address.formatted || '-'}
+                </Typography>
+              )}
+
+              {allAddresses.length === 0 && (
+                <Typography color="text.secondary">No saved addresses.</Typography>
+              )}
+            </Paper>
+
+            {/* Payment */}
+            <Paper variant="outlined" sx={{ p: 2, borderRadius: 2 }}>
+              <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1 }}>
+                <PaymentIcon fontSize="small" />
+                <Typography sx={{ fontWeight: 600 }}>Payment</Typography>
+              </Box>
+
+              <RadioGroup
+                row
+                value={paymentMethod}
+                onChange={e => {
+                  setPaymentMethod(e.target.value);
+                  setPaymentLink("");
+                  setTransactionId("");
+                }}
+              >
+                <FormControlLabel value="Prepaid" control={<Radio />} label="Prepaid" />
+                <FormControlLabel value="COD" control={<Radio />} label="Cash on Delivery (COD)" />
+              </RadioGroup>
+
+              {paymentMethod === "Prepaid" && (
+                <Box sx={{ mt: 1 }}>
+                  <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
+                    <Button
+                      variant="outlined"
+                      onClick={handleGeneratePaymentLink}
+                      disabled={generatingPaymentLink || !!paymentLink || !customer.address}
+                    >
+                      {generatingPaymentLink
+                        ? "Generating..."
+                        : paymentLink
+                          ? "Payment Link Generated"
+                          : "Generate Payment Link"}
+                    </Button>
+                    {!!paymentLink && (
+                      <Button onClick={() => navigator.clipboard.writeText(paymentLink)}>
+                        Copy Payment Link
+                      </Button>
+                    )}
+                  </Box>
+
+                  {!!paymentLink && (
+                    <Box sx={{ mt: 1 }}>
+                      <TextField
+                        fullWidth
+                        value={paymentLink}
+                        InputProps={{ readOnly: true }}
+                        label="Payment Link"
+                        size="small"
+                        sx={{ mb: 1 }}
+                      />
+                      <TextField
+                        fullWidth
+                        label="Transaction ID"
+                        size="small"
+                        value={transactionId}
+                        onChange={e => setTransactionId(e.target.value)}
+                      />
+                    </Box>
+                  )}
+                </Box>
+              )}
+            </Paper>
           </DialogContent>
+
           <DialogActions>
             <Button onClick={handleBackToCart}>Back</Button>
             <Button
               variant="contained"
               onClick={handlePlaceOrder}
-              disabled={!customer.address} // <--- Only check for address!
+              disabled={!customer.address}
             >
               Place Order
             </Button>
@@ -479,8 +693,8 @@ const handleAddNote = async () => {
       </Dialog>
 
       {/* Note Dialog */}
-      <Dialog open={showNoteDialog} onClose={() => setShowNoteDialog(false)}>
-        <DialogTitle>Add Note to Order?</DialogTitle>
+      <Dialog open={showNoteDialog} onClose={() => setShowNoteDialog(false)} disableEnforceFocus={showOrderDetails}>
+        <DialogTitle>Add Note to Order?</DialogTitle> 
         <DialogContent>
           <TextField
             autoFocus
@@ -488,7 +702,7 @@ const handleAddNote = async () => {
             label="Order Note"
             type="text"
             fullWidth
-            value={noteText}
+            value={noteText} 
             onChange={e => setNoteText(e.target.value)}
             multiline
             minRows={2}
@@ -496,11 +710,24 @@ const handleAddNote = async () => {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setShowNoteDialog(false)}>Cancel</Button>
-          <Button variant="contained" onClick={handleAddNote} disabled={!noteText}> 
+          <Button variant="contained" onClick={handleAddNote} disabled={!noteText}>
             Add Note
           </Button>
         </DialogActions>
       </Dialog>
+
+      {showOrderDetails && latestOrderId && (
+        <OrderDetailsPopup
+          orderId={latestOrderId}
+          agentName={agentFullName}
+          discount={discount || 0}
+          discountType={discountType}
+          paymentMethod={paymentMethod}
+          upsellAmount={undefined}
+          transactionId={transactionId}
+          onClose={() => setShowOrderDetails(false)}
+        />
+      )}
     </>
   );
 };

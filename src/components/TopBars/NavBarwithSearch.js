@@ -259,7 +259,7 @@ const NavbarWithSearch = () => {
     );
   };
 
-  const handleDownloadOrders = async () => { 
+  const handleDownloadOrders = async () => {  
     try {
       const response = await axios.get(
         "http://localhost:5001/api/myorders/download",
@@ -663,7 +663,7 @@ const NavbarWithSearch = () => {
             </IconButton>
             )}
 
-            {user?.role !== "Finance" && user?.role !== "Operations" && (
+            {user?.role !== "Finance" && user?.role !== "Operations" && ( 
             <IconButton
               onClick={() => setDeliveryDialogOpen(true)}
               sx={{ mr: 0.5, color: "#fff", borderRadius: "50%", p: 1.1, "&:hover": { bgcolor: "#e0e0e0" } }}
@@ -683,7 +683,7 @@ const NavbarWithSearch = () => {
               onClick={handleDownloadOrders} 
             >
               <DownloadIcon />
-            </IconButton>  */}   
+            </IconButton>   */} 
  
 
             {/* {user && ( 

@@ -197,11 +197,11 @@ const ManagerRetentionDashboard = () => {
   const fetchAggregatedSalesData = async (startDate, endDate) => {
     try {
       const res = await axios.get(
-        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/retention-sales/aggregated",
+        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/retention-sales/aggregated", 
         { params: { startDate, endDate } }
       );
       return res.data;
-    } catch (err) { 
+    } catch (err) {
       console.error("Error fetching aggregated sales data:", err);
       return [];
     }
@@ -275,14 +275,14 @@ const ManagerRetentionDashboard = () => {
       console.error("Error fetching dashboard data by range:", err);
     } finally {
       setLoading(false);
-    }   
+    }
   };
 
-   const fetchFollowupSummary = async () => {
+  const fetchFollowupSummary = async () => {
     setLoading(true);
     try {
       const res = await axios.get(
-        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/retention-sales/aggregated-followup" 
+        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/retention-sales/aggregated-followup"
       );
       const summary = res.data.summary || [];
       setFollowupMetrics(summary);
@@ -293,7 +293,7 @@ const ManagerRetentionDashboard = () => {
           acc.totalNoFollowupSet += agent.noFollowupSet || 0;
           acc.totalFollowupMissed += agent.followupMissed || 0;
           acc.totalFollowupToday += agent.followupToday || 0;
-          acc.totalFollowupTomorrow += agent.followupTomorrow || 0; 
+          acc.totalFollowupTomorrow += agent.followupTomorrow || 0;
           acc.totalFollowupLater += agent.followupLater || 0;
           acc.totalLostCustomers += agent.lostCustomers || 0;
           return acc;
@@ -327,7 +327,7 @@ const ManagerRetentionDashboard = () => {
   const fetchActiveRetentionAgents = async () => {
     try {
       const res = await axios.get(
-        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/employees",  
+        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/employees",
         { params: { role: "Retention Agent" } }
       );
       return res.data.filter((agent) => agent.status === "active");
@@ -354,7 +354,7 @@ const ManagerRetentionDashboard = () => {
       await Promise.all(
         activeAgents.map(async (agent) => {
           const res = await axios.get(
-            "https://muditamleads-14f32a10d7f7.herokuapp.com/api/reachout-logs/count", 
+            "https://muditamleads-14f32a10d7f7.herokuapp.com/api/reachout-logs/count",
             {
               params: {
                 startDate,
@@ -380,11 +380,11 @@ const ManagerRetentionDashboard = () => {
   // ---------------------------------------------
   // 7) Fetch overall shipment summary from new endpoint
   // ---------------------------------------------
-  const fetchShipmentData = async (startDate, endDate) => { 
+  const fetchShipmentData = async (startDate, endDate) => {
     setLoading(true);
     try {
       const shipmentRes = await axios.get(
-        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/retention-sales/shipment-summary", 
+        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/retention-sales/shipment-summary",
         { params: { startDate, endDate } }
       );
       setShipmentSummary(shipmentRes.data);
@@ -393,7 +393,7 @@ const ManagerRetentionDashboard = () => {
         "https://muditamleads-14f32a10d7f7.herokuapp.com/api/employees",
         { params: { role: "Retention Agent" } }
       );
-      const activeAgents = agentsRes.data.filter((emp) => emp.status === "active"); 
+      const activeAgents = agentsRes.data.filter((emp) => emp.status === "active");
       setRetentionAgents(activeAgents);
     } catch (err) {
       console.error("Error fetching shipment data:", err);
@@ -419,7 +419,7 @@ const ManagerRetentionDashboard = () => {
     } catch (err) {
       console.error("Error fetching agent shipment summary:", err);
       setAgentShipmentSummary([]);
-    } 
+    }
   };
 
   // ---------------------------------------------
@@ -469,10 +469,10 @@ const ManagerRetentionDashboard = () => {
   };
 
   const shipmentDates =
-  shipmentRange !== "Custom range"
-    ? getDateRange(shipmentRange)
-    : { startDate: customShipmentStart, endDate: customShipmentEnd };
-  
+    shipmentRange !== "Custom range"
+      ? getDateRange(shipmentRange)
+      : { startDate: customShipmentStart, endDate: customShipmentEnd };
+
 
   useEffect(() => {
     // On summary change, reload data for selected date range
@@ -954,7 +954,7 @@ const ManagerRetentionDashboard = () => {
         </>
       )}
 
-       {selectedSummary === "Followup Summary" && (
+      {selectedSummary === "Followup Summary" && (
         <>
           {/* Agent's Summary Cards */}
           <Box
@@ -974,42 +974,42 @@ const ManagerRetentionDashboard = () => {
             >
               Followup Summary
             </Typography>
-           
+
             <Grid container spacing={2} width="50%">
               {[
                 {
                   label: "No Followup Set",
                   icon: <PersonOff sx={{ fontSize: 28, color: "#880e4f" }} />,
-                  background:"#fff0f5 ",
+                  background: "#fff0f5 ",
                   value: followupSummary.totalNoFollowupSet,
                 },
                 {
                   label: "Followup Missed",
-                  background:"#fff8e1",
+                  background: "#fff8e1",
                   value: followupSummary.totalFollowupMissed,
                   icon: <EventBusy sx={{ fontSize: 28, color: "#e65100" }} />,
                 },
                 {
                   label: "Followup Today",
-                  background:"#ffebee",
+                  background: "#ffebee",
                   value: followupSummary.totalFollowupToday,
                   icon: <EventAvailable sx={{ fontSize: 28, color: "#b71c1c" }} />,
                 },
                 {
                   label: "Followup Tomorrow",
-                  background:"#f3e5f5",
+                  background: "#f3e5f5",
                   value: followupSummary.totalFollowupTomorrow,
                   icon: <Event sx={{ fontSize: 28, color: "#6a1b9a" }} />,
                 },
                 {
                   label: "Followup Later",
-                  background:"#e3f2fd",
+                  background: "#e3f2fd",
                   value: followupSummary.totalFollowupLater,
                   icon: <Update sx={{ fontSize: 28, color: "#1a237e" }} />,
                 },
                 {
                   label: "Lost Customers",
-                  background:"#e8f5e9",
+                  background: "#e8f5e9",
                   value: followupSummary.totalLostCustomers,
                   icon: <HighlightOff sx={{ fontSize: 28, color: "#1b5e20" }} />,
                 },
@@ -1216,235 +1216,235 @@ const ManagerRetentionDashboard = () => {
 
       {/* -------------------- SHIPMENT SUMMARY SECTION -------------------- */}
       {selectedSummary === "Shipment Summary" && (
-  <>
-    <Typography
-      variant="h5"
-      fontWeight="bold"
-      sx={{
-        textAlign: "center",
-        letterSpacing: "0.5px",
-        mt: 5,
-        mb: 3,
-        fontFamily: "'Poppins', sans-serif",
-        color: "#000",
-      }}
-    >
-      Shipment Status Summary
-    </Typography>
+        <>
+          <Typography
+            variant="h5"
+            fontWeight="bold"
+            sx={{
+              textAlign: "center",
+              letterSpacing: "0.5px",
+              mt: 5,
+              mb: 3,
+              fontFamily: "'Poppins', sans-serif",
+              color: "#000",
+            }}
+          >
+            Shipment Status Summary
+          </Typography>
 
-    {/* Overall Shipment Summary Table */}
-    <Box
-      sx={{
-        padding: 2,
-        marginTop: 3,
-        backgroundColor: "#FFFFFF",
-        borderRadius: 2,
-        boxShadow: "0px 4px 12px rgba(0, 0, 0, 0.1)",
-        maxWidth: "1000px",
-        margin: "0 auto",
-      }}
-    >
-      <TableContainer
-        sx={{ borderRadius: 2, boxShadow: "0px 2px 8px rgba(0, 0, 0, 0.08)", overflowX: "auto" }}
-        component={Paper}
-      >
-        <Table>
-          <TableHead>
-            <TableRow sx={{ background: "linear-gradient(135deg, #64B5F6 30%, #42A5F5 100%)" }}>
-              {["Category", "Count", "Amount", "Percentage"].map((header) => (
-                <TableCell
-                  key={header}
-                  sx={{ fontWeight: "bold", textAlign: "center", color: "#fff", fontSize: "14px", padding: "10px" }}
-                >
-                  {header}
-                </TableCell>
+          {/* Overall Shipment Summary Table */}
+          <Box
+            sx={{
+              padding: 2,
+              marginTop: 3,
+              backgroundColor: "#FFFFFF",
+              borderRadius: 2,
+              boxShadow: "0px 4px 12px rgba(0, 0, 0, 0.1)",
+              maxWidth: "1000px",
+              margin: "0 auto",
+            }}
+          >
+            <TableContainer
+              sx={{ borderRadius: 2, boxShadow: "0px 2px 8px rgba(0, 0, 0, 0.08)", overflowX: "auto" }}
+              component={Paper}
+            >
+              <Table>
+                <TableHead>
+                  <TableRow sx={{ background: "linear-gradient(135deg, #64B5F6 30%, #42A5F5 100%)" }}>
+                    {["Category", "Count", "Amount", "Percentage"].map((header) => (
+                      <TableCell
+                        key={header}
+                        sx={{ fontWeight: "bold", textAlign: "center", color: "#fff", fontSize: "14px", padding: "10px" }}
+                      >
+                        {header}
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                </TableHead>
+                {loading && (
+                  <TableBody>
+                    <TableRow>
+                      <TableCell colSpan={4} sx={{ padding: 0 }}>
+                        <LinearProgress variant="indeterminate" sx={{ width: "100%", height: "3px" }} />
+                      </TableCell>
+                    </TableRow>
+                  </TableBody>
+                )}
+                <TableBody>
+                  {!loading && shipmentSummary.length > 0 ? (
+                    shipmentSummary.map((row, idx) => (
+                      <TableRow
+                        component={RouterLink}
+                        to={`/shipment-details?category=${encodeURIComponent(row.category)}&startDate=${shipmentDates.startDate}&endDate=${shipmentDates.endDate}${selectedAgent ? `&agent=${encodeURIComponent(selectedAgent)}` : ""}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        sx={{
+                          backgroundColor: idx % 2 === 0 ? "#F9FAFB" : "#FFFFFF",
+                          "&:hover": { backgroundColor: "#E3F2FD", transition: "0.3s" },
+                        }}
+                      >
+                        <TableCell sx={{ textAlign: "center", fontWeight: 500 }}>
+                          {row.category}
+                        </TableCell>
+                        <TableCell sx={{ textAlign: "center" }}>{row.count}</TableCell>
+                        <TableCell sx={{ textAlign: "center" }}>
+                          ₹{parseFloat(row.totalAmount).toFixed(2)}
+                        </TableCell>
+                        <TableCell sx={{ textAlign: "center" }}>
+                          {row.percentage}%
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  ) : (
+                    !loading && (
+                      <TableRow>
+                        <TableCell colSpan={4} align="center" sx={{ color: "#888" }}>
+                          No shipment data found.
+                        </TableCell>
+                      </TableRow>
+                    )
+                  )}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          </Box>
+
+          <Typography
+            variant="h5"
+            fontWeight="bold"
+            sx={{
+              textAlign: "center",
+              letterSpacing: "0.5px",
+              mt: 5,
+              mb: 3,
+              fontFamily: "'Poppins', sans-serif",
+              color: "#000",
+            }}
+          >
+            Agent Wise Shipment Status
+          </Typography>
+
+          {/* Agent Filter for Shipment */}
+          <Box
+            sx={{
+              display: "flex",
+              gap: 2,
+              alignItems: "center",
+              mb: 2,
+              flexWrap: "wrap",
+              justifyContent: "flex-start",
+              ml: 20,
+            }}
+          >
+            <TextField
+              select
+              label="Select Agent"
+              value={selectedAgent}
+              onChange={(e) => setSelectedAgent(e.target.value)}
+              sx={{
+                width: 250,
+                backgroundColor: "#F9FAFB",
+                borderRadius: 2,
+                "& fieldset": { border: "none" },
+                boxShadow: "0px 3px 10px rgba(0, 0, 0, 0.05)",
+              }}
+            >
+              <MenuItem value="">-- Select an Agent --</MenuItem>
+              {retentionAgents.map((agent) => (
+                <MenuItem key={agent._id} value={agent.fullName}>
+                  {agent.fullName}
+                </MenuItem>
               ))}
-            </TableRow>
-          </TableHead>
-          {loading && (
-            <TableBody>
-              <TableRow>
-                <TableCell colSpan={4} sx={{ padding: 0 }}>
-                  <LinearProgress variant="indeterminate" sx={{ width: "100%", height: "3px" }} />
-                </TableCell>
-              </TableRow>
-            </TableBody>
-          )}
-          <TableBody>
-            {!loading && shipmentSummary.length > 0 ? ( 
-              shipmentSummary.map((row, idx) => (
-                <TableRow
-                      component={RouterLink}
-                      to={`/shipment-details?category=${encodeURIComponent(row.category)}&startDate=${shipmentDates.startDate}&endDate=${shipmentDates.endDate}${selectedAgent ? `&agent=${encodeURIComponent(selectedAgent)}` : ""}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      sx={{
-                        backgroundColor: idx % 2 === 0 ? "#F9FAFB" : "#FFFFFF",
-                        "&:hover": { backgroundColor: "#E3F2FD", transition: "0.3s" },
-                      }}
-                    >
-                  <TableCell sx={{ textAlign: "center", fontWeight: 500 }}>
-                    {row.category}
-                  </TableCell>
-                  <TableCell sx={{ textAlign: "center" }}>{row.count}</TableCell>
-                  <TableCell sx={{ textAlign: "center" }}>
-                    ₹{parseFloat(row.totalAmount).toFixed(2)}
-                  </TableCell>
-                  <TableCell sx={{ textAlign: "center" }}>
-                    {row.percentage}%
-                  </TableCell>
-                </TableRow>
-              ))
-            ) : (
-              !loading && (
-                <TableRow>
-                  <TableCell colSpan={4} align="center" sx={{ color: "#888" }}>
-                    No shipment data found.
-                  </TableCell>
-                </TableRow>
-              )
-            )}
-          </TableBody>
-        </Table>
-      </TableContainer>
-    </Box>
+            </TextField>
+          </Box>
 
-    <Typography
-      variant="h5"
-      fontWeight="bold"
-      sx={{
-        textAlign: "center",
-        letterSpacing: "0.5px",
-        mt: 5,
-        mb: 3,
-        fontFamily: "'Poppins', sans-serif",
-        color: "#000",
-      }}
-    >
-      Agent Wise Shipment Status
-    </Typography>
-
-    {/* Agent Filter for Shipment */} 
-    <Box
-      sx={{
-        display: "flex",
-        gap: 2,
-        alignItems: "center",
-        mb: 2,
-        flexWrap: "wrap",
-        justifyContent: "flex-start",
-        ml: 20,
-      }}
-    >
-      <TextField
-        select
-        label="Select Agent"
-        value={selectedAgent}
-        onChange={(e) => setSelectedAgent(e.target.value)}
-        sx={{
-          width: 250,
-          backgroundColor: "#F9FAFB",
-          borderRadius: 2,
-          "& fieldset": { border: "none" },
-          boxShadow: "0px 3px 10px rgba(0, 0, 0, 0.05)",
-        }}
-      >
-        <MenuItem value="">-- Select an Agent --</MenuItem>
-        {retentionAgents.map((agent) => (
-          <MenuItem key={agent._id} value={agent.fullName}>
-            {agent.fullName}
-          </MenuItem>
-        ))}
-      </TextField>
-    </Box>
-
-    {/* Agent Shipment Summary Table */}
-    <Box
-      sx={{
-        padding: 2,
-        marginTop: 3,
-        backgroundColor: "#FFFFFF",
-        borderRadius: 2,
-        boxShadow: "0px 4px 12px rgba(0, 0, 0, 0.1)",
-        maxWidth: "1000px",
-        margin: "0 auto",
-      }}
-    >
-      <TableContainer
-        sx={{ borderRadius: 2, boxShadow: "0px 2px 8px rgba(0, 0, 0, 0.08)", overflowX: "auto" }}
-        component={Paper}
-      >
-        <Table>
-          <TableHead>
-            <TableRow sx={{ background: "linear-gradient(135deg, #64B5F6 30%, #42A5F5 100%)" }}>
-              {["Category", "Count", "Amount", "Percentage"].map((header) => (
-                <TableCell
-                  key={header}
-                  sx={{ fontWeight: "bold", textAlign: "center", color: "#fff", fontSize: "14px", padding: "10px" }}
-                >
-                  {header}
-                </TableCell>
-              ))}
-            </TableRow>
-          </TableHead>
-          {loading && (
-            <TableBody>
-              <TableRow>
-                <TableCell colSpan={4} sx={{ padding: 0 }}>
-                  <LinearProgress variant="indeterminate" sx={{ width: "100%", height: "3px" }} />
-                </TableCell>
-              </TableRow>
-            </TableBody>
-          )}
-          <TableBody>
-            {!loading && agentShipmentSummary.length > 0 ? (
-              agentShipmentSummary.map((row, idx) => (
-                <TableRow
-  key={idx}
-  component={RouterLink}
-  to={`/shipment-details?agent=${encodeURIComponent(
-      selectedAgent
-    )}&category=${encodeURIComponent(
-      row.category
-    )}&startDate=${shipmentDates.startDate}&endDate=${shipmentDates.endDate}`} 
-    target="_blank"
-  rel="noopener noreferrer"
-  sx={{
-    backgroundColor: idx % 2 === 0 ? "#F9FAFB" : "#FFFFFF",
-    "&:hover": { backgroundColor: "#E3F2FD", transition: "0.3s", cursor: "pointer" },
-  }}
->
-                  <TableCell sx={{ padding: "12px", textAlign: "center", fontWeight: 500 }}>
-                    {row.category}
-                  </TableCell>
-                  <TableCell sx={{ padding: "12px", textAlign: "center" }}>{row.count}</TableCell>
-                  <TableCell sx={{ padding: "12px", textAlign: "center" }}>
-                    ₹{parseFloat(row.totalAmount).toFixed(2)}
-                  </TableCell>
-                  <TableCell sx={{ padding: "12px", textAlign: "center" }}>
-                    {row.percentage}%
-                  </TableCell>
-                </TableRow>
-              ))
-            ) : (
-              !loading && (
-                <TableRow>
-                  <TableCell
-                    colSpan={4}
-                    align="center"
-                    sx={{ padding: "12px", color: "#888", fontStyle: "italic" }}
-                  >
-                    {selectedAgent ? "No shipment data found for this agent." : "Please select an agent."}
-                  </TableCell>
-                </TableRow>
-              )
-            )}
-          </TableBody>
-        </Table>
-      </TableContainer>
-    </Box>
-  </>
-)}
+          {/* Agent Shipment Summary Table */}
+          <Box
+            sx={{
+              padding: 2,
+              marginTop: 3,
+              backgroundColor: "#FFFFFF",
+              borderRadius: 2,
+              boxShadow: "0px 4px 12px rgba(0, 0, 0, 0.1)",
+              maxWidth: "1000px",
+              margin: "0 auto",
+            }}
+          >
+            <TableContainer
+              sx={{ borderRadius: 2, boxShadow: "0px 2px 8px rgba(0, 0, 0, 0.08)", overflowX: "auto" }}
+              component={Paper}
+            >
+              <Table>
+                <TableHead>
+                  <TableRow sx={{ background: "linear-gradient(135deg, #64B5F6 30%, #42A5F5 100%)" }}>
+                    {["Category", "Count", "Amount", "Percentage"].map((header) => (
+                      <TableCell
+                        key={header}
+                        sx={{ fontWeight: "bold", textAlign: "center", color: "#fff", fontSize: "14px", padding: "10px" }}
+                      >
+                        {header}
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                </TableHead>
+                {loading && (
+                  <TableBody>
+                    <TableRow>
+                      <TableCell colSpan={4} sx={{ padding: 0 }}>
+                        <LinearProgress variant="indeterminate" sx={{ width: "100%", height: "3px" }} />
+                      </TableCell>
+                    </TableRow>
+                  </TableBody>
+                )}
+                <TableBody>
+                  {!loading && agentShipmentSummary.length > 0 ? (
+                    agentShipmentSummary.map((row, idx) => (
+                      <TableRow
+                        key={idx}
+                        component={RouterLink}
+                        to={`/shipment-details?agent=${encodeURIComponent(
+                          selectedAgent
+                        )}&category=${encodeURIComponent(
+                          row.category
+                        )}&startDate=${shipmentDates.startDate}&endDate=${shipmentDates.endDate}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        sx={{
+                          backgroundColor: idx % 2 === 0 ? "#F9FAFB" : "#FFFFFF",
+                          "&:hover": { backgroundColor: "#E3F2FD", transition: "0.3s", cursor: "pointer" },
+                        }}
+                      >
+                        <TableCell sx={{ padding: "12px", textAlign: "center", fontWeight: 500 }}>
+                          {row.category}
+                        </TableCell>
+                        <TableCell sx={{ padding: "12px", textAlign: "center" }}>{row.count}</TableCell>
+                        <TableCell sx={{ padding: "12px", textAlign: "center" }}>
+                          ₹{parseFloat(row.totalAmount).toFixed(2)}
+                        </TableCell>
+                        <TableCell sx={{ padding: "12px", textAlign: "center" }}>
+                          {row.percentage}%
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  ) : (
+                    !loading && (
+                      <TableRow>
+                        <TableCell
+                          colSpan={4}
+                          align="center"
+                          sx={{ padding: "12px", color: "#888", fontStyle: "italic" }}
+                        >
+                          {selectedAgent ? "No shipment data found for this agent." : "Please select an agent."}
+                        </TableCell>
+                      </TableRow>
+                    )
+                  )}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          </Box>
+        </>
+      )}
 
       {selectedSummary === "Reached Out Log Summary" && (
         <>
@@ -1512,7 +1512,7 @@ const ManagerRetentionDashboard = () => {
               <TableBody>
                 {!loading && reachoutAgents.length > 0 ? (
                   reachoutAgents.map((agent, idx) => {
-                    const log = reachoutLogsData[agent.fullName] || { 
+                    const log = reachoutLogsData[agent.fullName] || {
                       totalCount: 0,
                       WhatsApp: 0,
                       Call: 0,
@@ -1569,3 +1569,4 @@ const ManagerRetentionDashboard = () => {
 };
 
 export default ManagerRetentionDashboard;
+
