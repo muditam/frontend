@@ -276,6 +276,8 @@ Dosage Ordered: ${dosageOrdered}`;
           maxHeight: "92vh",
           borderRadius: 3,
           overflow: "hidden",
+          display: "flex",
+          flexDirection: "column",
         }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -572,12 +574,7 @@ Dosage Ordered: ${dosageOrdered}`;
 
               {/* Financial Summary */}
               <Paper variant="outlined" sx={{ p: 2, borderRadius: 2 }}>
-                <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1 }}>
-                  <ReceiptLongIcon fontSize="small" />
-                  <Typography variant="subtitle2" color="text.secondary">
-                    Payment Summary
-                  </Typography>
-                </Stack>
+                 
                 <Grid container spacing={1}>
                   <Grid item xs={6}>
                     <Typography variant="body2" color="text.secondary">
@@ -691,3 +688,5 @@ Dosage Ordered: ${dosageOrdered}`;
 };
 
 export default OrderDetailsPopup;
+
+

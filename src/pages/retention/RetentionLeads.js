@@ -29,7 +29,7 @@ import axios from "axios";
 import Details from "./Details";
 import RetentionFollowUp from "./RetentionFollowUp";
 import CreateOrderPopup from "./CreateOrderPopup";
-import CohortDataCustomer from "./CohortDataCustomer"; 
+import CohortDataCustomer from "./CohortDataCustomer";
 
 import Dialog from "@mui/material/Dialog";
 import DialogTitle from "@mui/material/DialogTitle";
@@ -46,7 +46,7 @@ import Radio from "@mui/material/Radio";
 import RadioGroup from "@mui/material/RadioGroup";
 import FormControlLabel from "@mui/material/FormControlLabel";
 import Badge from "@mui/material/Badge";
-
+import CalendarMonthIcon from "@mui/icons-material/CalendarMonth"; 
 import Accordion from "@mui/material/Accordion";
 import AccordionSummary from "@mui/material/AccordionSummary";
 import AccordionDetails from "@mui/material/AccordionDetails";
@@ -148,23 +148,21 @@ const formatTimeIST = (raw) => {
 
 const RetentionLeads = () => {
   const [allLeads, setAllLeads] = useState([]); // All leads fetched from server
-  const [leads, setLeads] = useState([]); // Leads currently displayed
+  const [leads, setLeads] = useState([]); // Leads currently displayed 
   const [loggedInUser, setLoggedInUser] = useState({});
   const [loading, setLoading] = useState(false);
   const [callingMessage, setCallingMessage] = useState("");
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
-  const [selectedLeadIndex, setSelectedLeadIndex] = useState(null);
-  const [selectedLeadId, setSelectedLeadId] = useState(null);
-  const [modalOpen, setModalOpen] = useState(false);
-  const [modalIndex, setModalIndex] = useState(0);
+  const [selectedLeadIndex, setSelectedLeadIndex] = useState(null); 
+  const [selectedLeadId, setSelectedLeadId] = useState(null); 
+  const [modalIndex, setModalIndex] = useState(0); 
   const [leadLoading, setLeadLoading] = useState(false);
   const [filteredAllLeads, setFilteredAllLeads] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [filterAnchorEl, setFilterAnchorEl] = useState(null);
+  const [filterAnchorEl, setFilterAnchorEl] = useState(null); 
   const [orderPlacedFilter, setOrderPlacedFilter] = useState("Order Placed");
-  const [dateRangeFilter, setDateRangeFilter] = useState("");
-
+  const [dateRangeFilter, setDateRangeFilter] = useState(""); 
   const [logPopupAnchor, setLogPopupAnchor] = useState(null);
   const [reachoutMethod, setReachoutMethod] = useState("");
   const [reachoutStatus, setReachoutStatus] = useState("");
@@ -174,6 +172,7 @@ const RetentionLeads = () => {
   const [moreOptionsAnchorEl, setMoreOptionsAnchorEl] = useState(null);
   const [shipmentStatusFilter, setShipmentStatusFilter] = useState(null);
 
+  const [noteDraft, setNoteDraft] = useState("");
 
   const [sortMenuAnchorEl, setSortMenuAnchorEl] = useState(null);
 
@@ -222,6 +221,8 @@ const RetentionLeads = () => {
 
   const containerRef = useRef(null);
 
+  const followupDateInputRef = useRef(null);
+
   const [shopifyDatesMap, setShopifyDatesMap] = useState({});
 
   const [showOrders, setShowOrders] = useState(false);
@@ -233,6 +234,9 @@ const RetentionLeads = () => {
 
   const [orderPopupOpen, setOrderPopupOpen] = useState(false);
   const [selectedLead, setSelectedLead] = useState(null);
+
+  const [followupDateAnchorEl, setFollowupDateAnchorEl] = useState(null); 
+  const [followupDateDraft, setFollowupDateDraft] = useState(""); 
 
   // --- Remarks height/overflow control ---
   const remarksBodyRef = useRef(null);
@@ -332,40 +336,32 @@ const RetentionLeads = () => {
 
 
   const handleAddSubcell = (leadIdx) => {
+    const text = (noteDraft || "").trim();
+    if (!text) return; // prevent empty saves
+
+    // update UI
     setLeads(prev => {
       const list = [...prev];
       const lead = { ...list[leadIdx] };
 
-      const draft =
-        lead.rtSubcells?.length > 0
-          ? lead.rtSubcells[lead.rtSubcells.length - 1].value
-          : lead.rtRemark;
-
       const newEntry = {
-        date: new Date().toISOString(),  // ISO (works with your parser)
-        value: (draft || '').trim(),
+        date: new Date().toISOString(),
+        value: text,
         by: currentUserName,
       };
 
       lead.rtSubcells = [...(lead.rtSubcells || []), newEntry];
-      lead.rtRemark = ''; // optional: clear initial remark
       list[leadIdx] = lead;
       return list;
     });
-  };
 
-  const handleSubcellChange = (leadIndex, subcellIndex, e) => {
-    const value = e.target.value;
-    setLeads(prev => {
-      const next = [...prev];
-      const lead = { ...next[leadIndex] };
-      const arr = [...(lead.rtSubcells || [])];
-      arr[subcellIndex] = { ...arr[subcellIndex], value };
-      lead.rtSubcells = arr;
-      next[leadIndex] = lead;
-      saveSubcellsToBackend(lead._id, arr);
-      return next;
-    });
+    // persist
+    const leadId = leads[leadIdx]?._id;
+    const nextSubcells = [
+      ...(leads[leadIdx]?.rtSubcells || []),
+      { date: new Date().toISOString(), value: text, by: currentUserName },
+    ];
+    saveSubcellsToBackend(leadId, nextSubcells);
   };
 
   const fetchShopifyDates = async (phoneNumber) => {
@@ -374,7 +370,6 @@ const RetentionLeads = () => {
         params: { phoneNumber },
       });
 
-      // Store order data as before
       setShopifyDatesMap((prev) => ({
         ...prev,
         [phoneNumber]: {
@@ -526,6 +521,18 @@ const RetentionLeads = () => {
   }, [selectedLeadIndex, leads, remarksExpanded]);
 
 
+  useEffect(() => {
+    if (selectedLeadIndex == null) {
+      setNoteDraft("");
+      return;
+    }
+    const lead = leads[selectedLeadIndex];
+    const latestVal = lead?.rtSubcells?.length
+      ? lead.rtSubcells[lead.rtSubcells.length - 1]?.value || ""
+      : lead?.rtRemark || "";
+    setNoteDraft(latestVal);
+  }, [selectedLeadIndex, leads]);
+
 
   const handleInputChange = async (e, index, field) => {
     const value = e.target.value;
@@ -569,15 +576,13 @@ const RetentionLeads = () => {
       loadMoreLeads();
     }
   }, [loadMoreLeads]);
-
-  const closeModal = () => setModalOpen(false);
-
+ 
   const handleColorSelect = async (color, index) => {
     const updatedLeads = [...leads];
     updatedLeads[index].rowColor = color;
     setLeads(updatedLeads);
-    setAnchorElColor(null);
-    setColorMenuIdx(null);
+    setAnchorElColor(null); 
+    setColorMenuIdx(null); 
 
     try {
       await axios.put(
@@ -763,6 +768,18 @@ const RetentionLeads = () => {
           : reminder === filters.rtFollowupReminder;
       });
     }
+ 
+if (filters.rtNextFollowupDate) {
+  const wanted = filters.rtNextFollowupDate;
+  filtered = filtered.filter((lead) => {
+    if (!lead.rtNextFollowupDate) return false;
+    const d = new Date(lead.rtNextFollowupDate);
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    const dd = String(d.getDate()).padStart(2, "0");
+    return `${yyyy}-${mm}-${dd}` === wanted;
+  });
+}
 
     const search = filters.name.trim().toLowerCase();
 
@@ -1006,6 +1023,36 @@ const RetentionLeads = () => {
                 ),
               }}
             />
+            <Tooltip title="Filter by Next Follow-up">
+  <IconButton
+    size="small"
+    onClick={() => {
+      const el = followupDateInputRef.current;
+      if (!el) return;
+      // Prefer showPicker() when supported; otherwise fallback to click()
+      if (typeof el.showPicker === "function") el.showPicker();
+      else el.click();
+    }}
+    // Optional: highlight when active
+    sx={filters.rtNextFollowupDate ? { bgcolor: "rgba(25,118,210,0.12)" } : undefined}
+  >
+    <CalendarMonthIcon />
+  </IconButton>
+</Tooltip>
+
+{/* Hidden input that the calendar icon triggers */}
+<input
+  ref={followupDateInputRef}
+  type="date"
+  style={{ position: "absolute", opacity: 0, width: 0, height: 0, pointerEvents: "none" }}
+  value={filters.rtNextFollowupDate || ""}
+  onChange={(e) => {
+    const v = e.target.value || "";
+    setFilters((prev) => ({ ...prev, rtNextFollowupDate: v }));
+  }}
+/>
+
+
             <Tooltip title="Filter">
               <Badge
                 color="primary"
@@ -1104,6 +1151,52 @@ const RetentionLeads = () => {
           </Box>
         </Box>
 
+        <Menu
+  anchorEl={followupDateAnchorEl}
+  open={Boolean(followupDateAnchorEl)}
+  onClose={() => setFollowupDateAnchorEl(null)}
+  anchorOrigin={{ vertical: "bottom", horizontal: "left" }}
+  transformOrigin={{ vertical: "top", horizontal: "left" }}
+>
+  <Box sx={{ p: 2, width: 260, display: "grid", gap: 1 }}>
+    <Typography variant="subtitle2">Next Follow-up on</Typography>
+
+    <TextField
+      size="small"
+      type="date"
+      value={followupDateDraft}
+      onChange={(e) => setFollowupDateDraft(e.target.value)}
+      InputLabelProps={{ shrink: true }}
+    />
+
+    <Box sx={{ display: "flex", gap: 1, mt: 0.5 }}>
+      <Button
+        variant="contained"
+        size="small"
+        onClick={() => {
+          setFilters((prev) => ({ ...prev, rtNextFollowupDate: followupDateDraft || "" }));
+          setFollowupDateAnchorEl(null);
+        }}
+        disabled={!followupDateDraft}
+        sx={{ textTransform: "none" }}
+      >
+        Apply
+      </Button>
+      <Button
+        variant="outlined"
+        size="small"
+        onClick={() => {
+          setFollowupDateDraft("");
+          setFilters((prev) => ({ ...prev, rtNextFollowupDate: "" })); 
+          setFollowupDateAnchorEl(null);
+        }}
+        sx={{ textTransform: "none" }}
+      >
+        Clear
+      </Button>
+    </Box>
+  </Box>
+</Menu>
 
 
         <Menu
@@ -1302,7 +1395,7 @@ const RetentionLeads = () => {
                   handleLeadSelect(idx, lead._id);
                   setTimeout(() => setLeadLoading(false), 500);
                 }}
-              > 
+              >
                 <Box
                   sx={{
                     position: "absolute",
@@ -1393,42 +1486,42 @@ const RetentionLeads = () => {
                       }}
                     >
                       <Typography
-  variant="caption"
-  color="text.secondary"
-  sx={{ fontWeight: "normal", whiteSpace: "nowrap", fontSize: "0.7rem", opacity: 0.8 }}
-  component="div"
->
-  {(() => {
-    const last = lead.lastOrderDate;
-    const daysSinceLast = getDaysSince(last);
+                        variant="caption"
+                        color="text.secondary"
+                        sx={{ fontWeight: "normal", whiteSpace: "nowrap", fontSize: "0.7rem", opacity: 0.8 }}
+                        component="div"
+                      >
+                        {(() => {
+                          const last = lead.lastOrderDate;
+                          const daysSinceLast = getDaysSince(last);
 
-    // consider only successful connections
-    const successStatuses = new Set(["followup done", "order placed"]);
-    const logs = (lead.reachoutLogs || []).filter(
-      (log) => successStatuses.has(String(log?.status || "").toLowerCase())
-    );
+                          // consider only successful connections
+                          const successStatuses = new Set(["followup done", "order placed"]);
+                          const logs = (lead.reachoutLogs || []).filter(
+                            (log) => successStatuses.has(String(log?.status || "").toLowerCase())
+                          );
 
-    const latestLogDate = logs.reduce((latest, log) => {
-      const d = toDateSafe(log?.timestamp);
-      return !latest || (d && d > latest) ? d : latest;
-    }, null);
+                          const latestLogDate = logs.reduce((latest, log) => {
+                            const d = toDateSafe(log?.timestamp);
+                            return !latest || (d && d > latest) ? d : latest;
+                          }, null);
 
-    const lastConnectedDays = latestLogDate ? getDaysSince(latestLogDate) : null; 
+                          const lastConnectedDays = latestLogDate ? getDaysSince(latestLogDate) : null;
 
-    if (daysSinceLast === null) return "N/A";
+                          if (daysSinceLast === null) return "N/A";
 
-    return (
-      <>
-        <div>Last Order - {daysSinceLast} days</div>
-        {lastConnectedDays !== null && (
-          <div>
-            Last Connected - {lastConnectedDays} day{lastConnectedDays === 1 ? "" : "s"}
-          </div>
-        )}
-      </>
-    );
-  })()}
-</Typography>
+                          return (
+                            <>
+                              <div>Last Order - {daysSinceLast} days</div>
+                              {lastConnectedDays !== null && (
+                                <div>
+                                  Last Connected - {lastConnectedDays} day{lastConnectedDays === 1 ? "" : "s"}
+                                </div>
+                              )}
+                            </>
+                          );
+                        })()}
+                      </Typography>
                     </Box>
                   }
                 />
@@ -1437,7 +1530,7 @@ const RetentionLeads = () => {
             );
           })}
         </List>
- 
+
         {loadingMore && (
           <Box
             sx={{
@@ -1449,20 +1542,20 @@ const RetentionLeads = () => {
             <CircularProgress size={24} />
           </Box>
         )}
- 
+
         {!loading && leads.length === 0 && (
           <Typography variant="body2" align="center" color="text.secondary" mt={2}>
             No leads found.
           </Typography>
         )}
- 
+
         {loading && (
           <Box sx={{ display: "flex", justifyContent: "center", py: 4 }}>
             <CircularProgress />
           </Box>
         )}
       </Box>
- 
+
       <Box
         sx={{
           width: "80%",
@@ -1482,22 +1575,22 @@ const RetentionLeads = () => {
               </Typography>
             )}
           </Box>
-        ) : ( 
-          <> 
+        ) : (
+          <>
             <Box sx={{ flexGrow: 1, minWidth: 0 }}>
               <Paper
                 sx={{
                   mb: 3,
                   p: 2,
-                  borderRadius: 2,  
+                  borderRadius: 2,
                   boxShadow: "0 2px 12px rgba(0,0,0,0.04)",
                   backgroundColor: "#fff",
                   fontSize: "0.85rem",
                   fontFamily: '"Segoe UI", Inter, system-ui, sans-serif',
                 }}
                 elevation={0}
-              > 
-                <Box sx={{ display: "flex", alignItems: "flex-start", gap: 1.5 }}> 
+              >
+                <Box sx={{ display: "flex", alignItems: "flex-start", gap: 1.5 }}>
                   <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 1 }}>
                     <Avatar
                       sx={{
@@ -1517,7 +1610,7 @@ const RetentionLeads = () => {
                         .slice(0, 2)
                         .toUpperCase()}
                     </Avatar>
- 
+
                     <Tooltip title={ordersLoading ? "Loading Order History..." : "Shopify Orders"}>
                       <IconButton
                         onClick={async () => {
@@ -1544,7 +1637,7 @@ const RetentionLeads = () => {
                           border: "1px solid #E6E8EC",
                           "&:hover": { bgcolor: "#F7F9FB" },
                         }}
-                      > 
+                      >
                         <SvgIcon fontSize="small" sx={{ color: "#5E8E3E" }} viewBox="0 0 24 24">
                           <path d="M7 7V6a5 5 0 0 1 10 0v1h1.5a1.5 1.5 0 0 1 1.49 1.29l1.36 9.5A2.5 2.5 0 0 1 18.89 21H5.11a2.5 2.5 0 0 1-2.46-2.21l1.36-9.5A1.5 1.5 0 0 1 5.5 7H7Zm2 0h6V6a3 3 0 0 0-6 0v1Z" />
                           <path d="M10.6 14.8c.3.4.8.7 1.6.7.8 0 1.2-.3 1.2-.8 0-.6-.7-.7-1.4-.9-.9-.2-2-.5-2-1.8 0-1.1.9-1.9 2.3-1.9 1 0 1.8.3 2.3.9l-.9.8c-.3-.4-.8-.6-1.5-.6-.6 0-1 .3-1 .7 0 .5.6.6 1.3.8 1 .2 2.1.5 2.1 1.9 0 1.3-1 2.1-2.5 2.1-1.2 0-2.1-.4-2.6-1.1l.9-.8Z" />
@@ -1552,8 +1645,8 @@ const RetentionLeads = () => {
                       </IconButton>
                     </Tooltip>
                   </Box>
- 
-                  <Box sx={{ flex: 1, minWidth: 0 }}> 
+
+                  <Box sx={{ flex: 1, minWidth: 0 }}>
                     <Box
                       sx={{
                         display: "flex",
@@ -1601,7 +1694,7 @@ const RetentionLeads = () => {
                       >
                         Call
                       </Button>
- 
+
                       <Button
                         size="small"
                         onClick={(e) => {
@@ -1622,7 +1715,7 @@ const RetentionLeads = () => {
                       >
                         Add Log
                       </Button>
- 
+
                       <Tooltip title="View Logs">
                         <IconButton
                           size="small"
@@ -1649,7 +1742,7 @@ const RetentionLeads = () => {
                           </Badge>
                         </IconButton>
                       </Tooltip>
- 
+
                       {(() => {
                         const phone = leads[selectedLeadIndex]?.contactNumber;
                         const first = shopifyDatesMap[phone]?.firstOrderDate;
@@ -1709,7 +1802,7 @@ const RetentionLeads = () => {
                         );
                       })()}
                     </Box>
- 
+
                     <Box
                       sx={{
                         mt: 1,
@@ -1718,7 +1811,7 @@ const RetentionLeads = () => {
                         gap: 1,
                         flexWrap: "wrap",
                       }}
-                    > 
+                    >
                       <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", alignItems: "center" }}>
                         <Box
                           sx={{
@@ -1781,7 +1874,7 @@ const RetentionLeads = () => {
                             })()}
                           </Typography>
                         </Box>
- 
+
                         <Button
                           onClick={() => setDietPlanOpen(true)}
                           sx={{
@@ -1801,8 +1894,8 @@ const RetentionLeads = () => {
                           onClick={() => setOrderPopupOpen(true)}
                           sx={{
                             textTransform: "none",
-                            bgcolor: "#1976D2", 
-                            color: "white",  
+                            bgcolor: "#1976D2",
+                            color: "white",
                             borderRadius: 999,
                             px: 1.55,
                             py: 0.5,
@@ -1813,12 +1906,12 @@ const RetentionLeads = () => {
                         </Button>
                       </Stack>
                     </Box>
- 
+
                     <Stack
                       direction="row"
                       spacing={1}
                       sx={{ flexWrap: "wrap", alignItems: "center", mt: 2.5 }}
-                    > 
+                    >
                       <TextField
                         label="Next Follow-up"
                         type="date"
@@ -1850,7 +1943,7 @@ const RetentionLeads = () => {
                         }}
                         InputLabelProps={{ shrink: true }}
                       />
- 
+
                       <FormControl size="small" sx={{ minWidth: 160 }}>
                         <InputLabel>Retention Status</InputLabel>
                         <Select
@@ -1864,7 +1957,7 @@ const RetentionLeads = () => {
                           }}
                         >
                           {["Active", "Lost"].map((status) => (
-                            <MenuItem key={status} value={status}> 
+                            <MenuItem key={status} value={status}>
                               {status}
                             </MenuItem>
                           ))}
@@ -2330,7 +2423,7 @@ const RetentionLeads = () => {
                 p: 2,
                 boxShadow: 2,
                 borderRadius: 2,
-                backgroundColor: "background.paper",
+                backgroundColor: "background.paper", 
                 fontSize: "0.85rem",
                 display: "flex",
                 flexDirection: "column",
@@ -2339,42 +2432,24 @@ const RetentionLeads = () => {
               }}
               elevation={3}
             >
-
-              <Box
+              <Box 
                 sx={{
-                  mt: 1,
+                  mt: 1, 
                   height: '50vh',
                   display: 'flex',
                   flexDirection: 'column'
                 }}
               >
-
                 <Typography variant="subtitle2" color="text.secondary" mb={1}>
                   Notes
                 </Typography>
+
+                {/* Editor */}
                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
                   <TextField
-                    label={
-                      leads[selectedLeadIndex]?.rtSubcells?.length > 0
-                        ? leads[selectedLeadIndex]?.rtSubcells[leads[selectedLeadIndex].rtSubcells.length - 1].date
-                        : "Remark"
-                    }
-                    value={
-                      leads[selectedLeadIndex]?.rtSubcells?.length > 0
-                        ? leads[selectedLeadIndex]?.rtSubcells[leads[selectedLeadIndex].rtSubcells.length - 1].value
-                        : leads[selectedLeadIndex]?.rtRemark || ""
-                    }
-                    onChange={(e) => {
-                      if (leads[selectedLeadIndex]?.rtSubcells?.length > 0) {
-                        handleSubcellChange(
-                          selectedLeadIndex,
-                          leads[selectedLeadIndex].rtSubcells.length - 1,
-                          e
-                        );
-                      } else {
-                        handleInputChange(e, selectedLeadIndex, "rtRemark");
-                      }
-                    }}
+                    label="Add / update note"
+                    value={noteDraft}
+                    onChange={(e) => setNoteDraft(e.target.value)}
                     multiline
                     minRows={3}
                     size="small"
@@ -2382,27 +2457,68 @@ const RetentionLeads = () => {
                     variant="outlined"
                   />
 
-                  <Button
-                    variant="contained"
-                    size="small"
-                    onClick={() => handleAddSubcell(selectedLeadIndex)}
-                    sx={{ alignSelf: 'flex-start', backgroundColor: 'black', textTransform: 'none' }}
-                  >
-                    Save
-                  </Button>
+                  <Box sx={{ display: 'flex', gap: 1 }}>
+                    <Button
+                      variant="contained"
+                      size="small"
+                      onClick={() => handleAddSubcell(selectedLeadIndex)}
+                      sx={{ alignSelf: 'flex-start', backgroundColor: 'black', textTransform: 'none' }}
+                    >
+                      Save
+                    </Button>
+
+                    <Button
+                      variant="outlined"
+                      size="small"
+                      onClick={() => {
+                        if (selectedLeadIndex == null) return;
+                        const lead = leads[selectedLeadIndex];
+                        const latestVal = lead?.rtSubcells?.length
+                          ? lead.rtSubcells[lead.rtSubcells.length - 1]?.value || ""
+                          : lead?.rtRemark || "";
+                        setNoteDraft(latestVal);
+                        setNoteDraft("");
+                      }}
+                      sx={{ textTransform: 'none', borderColor: 'black', color: 'black' }}
+                    >
+                      Reset
+                    </Button>
+                  </Box>
                 </Box>
 
+                {/* Scrollable history */}
                 <Box
                   ref={remarksBodyRef}
                   sx={{
                     mt: 1,
                     pr: 1,
                     overflowY: remarksExpanded ? 'auto' : 'hidden',
-                    height: remarksExpanded ? '50vh' : '40vh',
+                    height: remarksExpanded ? '56vh' : '44vh',
                     position: 'relative'
                   }}
                 >
                   <Box sx={{ mt: 1 }}>
+                    {/* First consult note FIRST, separate card */}
+                    {leads[selectedLeadIndex]?.rtRemark && (
+                      <Box sx={{ mb: 1.25, p: 1, bgcolor: "#FAFAFA", borderRadius: 1 }}>
+                        <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>
+                          First Cons Notes
+                        </Typography>
+                        <Typography
+                          variant="body2"
+                          sx={{
+                            whiteSpace: "pre-wrap",
+                            wordBreak: "break-word",
+                            overflowWrap: "anywhere",
+                            lineHeight: 1.4
+                          }}
+                        >
+                          {leads[selectedLeadIndex]?.rtRemark}
+                        </Typography>
+                      </Box>
+                    )}
+
+                    {/* Dated subcells as cards */}
                     {(() => {
                       const list = [...(leads[selectedLeadIndex]?.rtSubcells || [])];
 
@@ -2456,9 +2572,18 @@ const RetentionLeads = () => {
                             .join(" | ");
 
                           blocks.push(
-                            <Box key={`dated-${dayKey}`} sx={{ mb: 1.25 }}>
+                            <Box
+                              key={`dated-${dayKey}`}
+                              sx={{
+                                mb: 1,
+                                p: 1,
+                                borderRadius: 1,
+                                border: "1px solid #E6E8EC",
+                                bgcolor: "#FFFFFF",
+                              }}
+                            >
                               <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                                {`${formatDayHeaderIST(dayKey)}-(${usersLabel})`}
+                                {`${formatDayHeaderIST(dayKey)} (${usersLabel})`}
                               </Typography>
                               <Typography
                                 variant="body2"
@@ -2480,19 +2605,26 @@ const RetentionLeads = () => {
 
                       Object.keys(invalid).forEach((label) => {
                         const items = invalid[label];
-
                         const usersLabel = Array.from(
                           new Set(items.map(s => normalizeUser(s?.by)))
                         ).join(', ');
-
                         const notesJoined = items
                           .map((s) => (s?.value?.trim() ? s.value.trim() : "—"))
                           .join(" | ");
 
                         blocks.push(
-                          <Box key={`invalid-${label}`} sx={{ mb: 1.25 }}>
+                          <Box
+                            key={`invalid-${label}`}
+                            sx={{
+                              mb: 1,
+                              p: 1,
+                              borderRadius: 1,
+                              border: "1px solid #E6E8EC",
+                              bgcolor: "#FFFFFF",
+                            }}
+                          >
                             <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                              {`${label}: (${usersLabel})`}
+                              {`${label} (${usersLabel})`}
                             </Typography>
                             <Typography
                               variant="body2"
@@ -2513,26 +2645,6 @@ const RetentionLeads = () => {
                       return blocks;
                     })()}
                   </Box>
-
-                  {leads[selectedLeadIndex]?.rtRemark && (
-                    <Box sx={{ mt: 1 }}>
-                      <Typography
-                        variant="body2"
-                        sx={{
-                          display: 'block',
-                          whiteSpace: 'pre-wrap',
-                          wordBreak: 'break-word',
-                          overflowWrap: 'anywhere',
-                          lineHeight: 1.4
-                        }}
-                      >
-                        <Box component="span" sx={{ fontWeight: 600, mr: 1 }}>
-                          First Cons Notes:
-                        </Box>
-                        {leads[selectedLeadIndex]?.rtRemark}
-                      </Typography>
-                    </Box>
-                  )}
 
                   {!remarksExpanded && showRemarksMore && (
                     <Box
@@ -2563,8 +2675,8 @@ const RetentionLeads = () => {
                   )}
                 </Box>
               </Box>
-
             </Paper>
+            
           </>
         )}
       </Box>
