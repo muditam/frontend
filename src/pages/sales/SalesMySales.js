@@ -233,8 +233,7 @@ const SalesMySales = () => {
         else if (field === "selfRemark") payload.selfRemark = value;
         else if (field === "shipmentStatus") payload.shipmentStatus = value;
         else if (field === "orderId") payload.orderId = value;
-      } else {
-        // Lead fields (same as your prior logic)
+      } else { 
         payload[field] = value;
       }
 

@@ -33,12 +33,12 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
+  Tabs,
+  Tab,
 } from "@mui/material";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import PhoneIcon from "@mui/icons-material/Phone";
-import SearchIcon from "@mui/icons-material/Search";
 import RefreshIcon from "@mui/icons-material/Refresh";
-import DoneAllIcon from "@mui/icons-material/DoneAll";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import ExpandLessIcon from "@mui/icons-material/ExpandLess";
 import LaunchIcon from "@mui/icons-material/Launch";
@@ -51,12 +51,23 @@ import { ThemeProvider, createTheme } from "@mui/material/styles";
 const CREATE_PAYMENT_LINK_URL =
   "https://muditamleads-14f32a10d7f7.herokuapp.com/api/order-confirmations/create-payment-link";
 
+// Canonical enum values
 const CALL_STATUS = [
   { value: "CNP", label: "CNP" },
   { value: "ORDER_CONFIRMED", label: "Order Confirmed" },
   { value: "CALL_BACK_LATER", label: "Call Back Later" },
   { value: "CANCEL_ORDER", label: "Cancel Order" },
 ];
+
+// Tab definition → which “Shopify Notes” label it expects
+// ("ALL" is special: it means notes are NOT set)
+const TAB_MAP = {
+  ALL: { special: true }, // no notes set yet
+  CNP: { value: "CNP", label: "CNP" },
+  ORDER_CONFIRMED: { value: "ORDER_CONFIRMED", label: "Order Confirmed" },
+  CALL_BACK_LATER: { value: "CALL_BACK_LATER", label: "Call Back Later" },
+  CANCEL_ORDER: { value: "CANCEL_ORDER", label: "Cancel Order" },
+};
 
 const LANGUAGE_OPTIONS = ["English", "Hindi", "Malayalam", "Kannada", "Telugu", "Marathi"];
 
@@ -82,7 +93,14 @@ const theme = createTheme({
 const formatDateTime = (iso) => {
   if (!iso) return "";
   const d = new Date(iso);
-  return d.toLocaleString("en-IN", { hour12: true });
+  return d.toLocaleString("en-IN", {
+    year: "numeric",
+    month: "short",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+  });
 };
 
 const currency = (amt, curr = "INR") =>
@@ -123,9 +141,24 @@ const toTenDigits = (num) => {
   return d.length >= 10 ? d.slice(-10) : d;
 };
 
+// helper to check if a row belongs to a given tab (used for local, immediate removal)
+const rowMatchesTab = (row, tab) => {
+  const ops = row?.orderConfirmOps || {};
+  if (tab === "ALL") {
+    const notes = (ops.shopifyNotes ?? "").trim();
+    return notes.length === 0; // null/undefined/"" => stays in All
+  }
+  const want = TAB_MAP[tab];
+  if (!want) return true;
+  const byNotes = (ops.shopifyNotes || "").trim().toLowerCase() === want.label?.toLowerCase();
+  const byStatus = (ops.callStatus || "").trim().toUpperCase() === want.value?.toUpperCase();
+  // Prioritize Shopify Notes, but accept callStatus as fallback
+  return byNotes || byStatus;
+};
+
 export default function OrderConfirmations() {
   const [items, setItems] = useState([]);
-  const [section, setSection] = useState("pending"); // "pending" | "confirmed"
+  const [tab, setTab] = useState("ALL"); // "ALL" | "CNP" | "ORDER_CONFIRMED" | "CALL_BACK_LATER" | "CANCEL_ORDER"
   const [page, setPage] = useState(0); // TablePagination is 0-based; API is 1-based
   const [rowsPerPage, setRowsPerPage] = useState(20);
   const [total, setTotal] = useState(0);
@@ -136,11 +169,11 @@ export default function OrderConfirmations() {
   const [toast, setToast] = useState({ open: false, severity: "success", msg: "" });
   const [agents, setAgents] = useState([]);
   const [savingRow, setSavingRow] = useState({});
-  const [cancelingRow, setCancelingRow] = useState({}); // NEW: per-row cancel loading
-  const [openRow, setOpenRow] = useState({}); // collapsible details row toggle 
+  const [cancelingRow, setCancelingRow] = useState({});
+  const [expandedId, setExpandedId] = useState(null);
   const [scheduleDlg, setScheduleDlg] = useState({ open: false, row: null });
 
-  const isConfirmed = section === "confirmed";
+  const isConfirmedTab = tab === "ORDER_CONFIRMED";
 
   // Payment dialog state
   const [payDlg, setPayDlg] = useState({
@@ -157,47 +190,40 @@ export default function OrderConfirmations() {
   });
 
   const fetchAgents = useCallback(async () => {
-  try {
-    const { data } = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/employees");
-    const filtered = Array.isArray(data)
-      ? data.filter(
-          (a) =>
-            !!a?.isDoctor && (a?.status === "active" || a?.status === "Active")
-        )
-      : [];
-
-    setAgents(
-      filtered.map((a) => ({
-        id: a?._id || a?.id || a?.email || a?.name,
-        label: a?.fullName || a?.name || a?.email || String(a?._id || ""),
-      }))
-    );
-  } catch (e) {
-    console.error("Failed to fetch agents", e);
-  }
-}, []);
+    try {
+      const { data } = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/employees");
+      const filtered = Array.isArray(data)
+        ? data.filter((a) => !!a?.isDoctor && (a?.status === "active" || a?.status === "Active"))
+        : [];
+      setAgents(
+        filtered.map((a) => ({
+          id: a?._id || a?.id || a?.email || a?.name,
+          label: a?.fullName || a?.name || a?.email || String(a?._id || ""),
+        }))
+      );
+    } catch (e) {
+      console.error("Failed to fetch agents", e);
+    }
+  }, []);
 
   const fetchList = useCallback(
     async (pageZeroBased = 0, limit = rowsPerPage) => {
       try {
         setLoading(true);
-        const { data } = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/order-confirmations/list", {
-          params: {
-            section,
-            page: pageZeroBased + 1, // API is 1-based
-            limit,
-            q: qDebounced,
-            // Only restrict to financial=pending on the Pending tab
-            financial: isConfirmed ? "any" : "pending",
-          },
-        });
+        const { data } = await axios.get(
+          "https://muditamleads-14f32a10d7f7.herokuapp.com/api/order-confirmations/list",
+          {
+            params: {
+              tab,  
+              financial: "pending",  
+              page: pageZeroBased + 1,
+              limit,
+              q: qDebounced,
+            },
+          }
+        );
 
-        let rows = data?.items || [];
-        // Keep the old client-side guard only for the pending tab
-        if (!isConfirmed) {
-          rows = rows.filter((r) => String(r?.financial_status || "").toLowerCase() === "pending");
-        }
-
+        const rows = data?.items || [];
         setTotal(typeof data?.total === "number" ? data.total : rows.length);
         setItems(rows);
       } catch (e) {
@@ -207,13 +233,15 @@ export default function OrderConfirmations() {
         setLoading(false);
       }
     },
-    [qDebounced, rowsPerPage, section, isConfirmed]
+    [qDebounced, rowsPerPage, tab]
   );
 
   const syncNewAndRefresh = useCallback(async () => {
     try {
       setSyncing(true);
-      const { data } = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/orders-shopify/sync-new");
+      const { data } = await axios.get(
+        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/orders-shopify/sync-new"
+      );
       const stats = data || {};
       const parts = [];
       ["inserted", "updated", "processed", "fetched", "upserts", "total"].forEach((k) => {
@@ -224,7 +252,6 @@ export default function OrderConfirmations() {
         severity: "success",
         msg: parts.length ? `Synced (${parts.join(", ")})` : "Synced new orders",
       });
-
       await fetchList(page, rowsPerPage);
     } catch (e) {
       const msg = e?.response?.data?.error || e?.message || "Sync failed";
@@ -241,42 +268,27 @@ export default function OrderConfirmations() {
   useEffect(() => {
     setPage(0);
     fetchList(0, rowsPerPage);
-  }, [section, qDebounced]); // eslint-disable-line
+    setExpandedId(null);
+  }, [tab, qDebounced]); // eslint-disable-line 
 
   const handleChangePage = (_e, newPage) => {
     setPage(newPage);
     fetchList(newPage, rowsPerPage);
+    setExpandedId(null);
   };
 
   const openScheduleDialog = (row) => setScheduleDlg({ open: true, row });
- const closeScheduleDialog = () => setScheduleDlg({ open: false, row: null });
- 
-  const submitSchedule = async (payload) => {
-    // payload contains: doctorCallNeeded, assignedExpert, scheduleCallAt, scheduleCallNotes
-    const id = scheduleDlg.row?._id;
-    if (!id) return;
-    const updated = await patchOrder(id, payload, "Call scheduled");
-    // reflect in UI
-    setItems((rows) =>
-      rows.map((r) =>
-        r._id === id ? { ...r, orderConfirmOps: { ...(r.orderConfirmOps || {}), ...(updated?.orderConfirmOps || {}) } } : r
-      )
-    );
-  };
-
-  const handleChangeRowsPerPage = (e) => {
-    const newRpp = parseInt(e.target.value, 10);
-    setRowsPerPage(newRpp);
-    setPage(0);
-    fetchList(0, newRpp);
-  };
+  const closeScheduleDialog = () => setScheduleDlg({ open: false, row: null });
 
   const setRowSaving = (id, yes) => setSavingRow((s) => ({ ...s, [id]: yes }));
 
   const patchOrder = async (id, payload, msgOnSuccess = "Saved") => {
     try {
       setRowSaving(id, true);
-      const { data } = await axios.patch(`https://muditamleads-14f32a10d7f7.herokuapp.com/api/order-confirmations/${id}`, payload);
+      const { data } = await axios.patch(
+        `https://muditamleads-14f32a10d7f7.herokuapp.com/api/order-confirmations/${id}`,
+        payload
+      );
       setItems((rows) =>
         rows.map((r) =>
           String(r._id) === String(id)
@@ -296,62 +308,94 @@ export default function OrderConfirmations() {
     }
   };
 
+  const submitSchedule = async (payload) => {
+    const id = scheduleDlg.row?._id;
+    if (!id) return;
+    const updated = await patchOrder(id, payload, "Call scheduled");
+    setItems((rows) =>
+      rows.map((r) =>
+        r._id === id
+          ? { ...r, orderConfirmOps: { ...(r.orderConfirmOps || {}), ...(updated?.orderConfirmOps || {}) } }
+          : r
+      )
+    );
+  };
+
   const statusToNote = (val) => statusValueToLabel(val);
 
   const handleShopifyNotesChange = async (row, newValue) => {
     const label = statusToNote(newValue);
+
+    // 1) Update callStatus in our OC doc (also stamps callStatusUpdatedAt)
     try {
       await patchOrder(row._id, { callStatus: newValue }, "Status updated");
-      if (section === "pending" && String(newValue).toUpperCase() === "ORDER_CONFIRMED") {
-        setItems((rows) => rows.filter((r) => r._id !== row._id));
-        setTotal((t) => Math.max(0, t - 1));
-      }
     } catch {
       return;
     }
 
+    // If the row no longer belongs in this tab after callStatus change, we will filter it out
+    const shouldStayAfterStatus = rowMatchesTab(
+      { ...row, orderConfirmOps: { ...(row.orderConfirmOps || {}), callStatus: newValue } },
+      tab
+    );
+
+    // 2) Update Shopify note + mirror in Mongo (shopifyNotes)
     try {
-      await axios.post("https://muditamleads-14f32a10d7f7.herokuapp.com/api/order-confirmations/shopify-notes", {
-        orderName: row.orderName,
-        note: label,
-      });
-      setToast({ open: true, severity: "success", msg: "Shopify note updated" });
-      setItems((rows) =>
-        rows.map((r) =>
-          r._id === row._id ? { ...r, orderConfirmOps: { ...(r.orderConfirmOps || {}), shopifyNotes: label } } : r
-        )
+      await axios.post(
+        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/order-confirmations/shopify-notes",
+        { orderName: row.orderName, note: label }
       );
+
+      setToast({ open: true, severity: "success", msg: "Shopify note updated" });
+
+      // Update local row’s shopifyNotes
+      const updatedRow = {
+        ...row,
+        orderConfirmOps: { ...(row.orderConfirmOps || {}), shopifyNotes: label, callStatus: newValue },
+      };
+
+      // Now decide if it still belongs to the current tab (priority is Shopify Notes)
+      const shouldStayFinal = rowMatchesTab(updatedRow, tab);
+
+      if (!shouldStayAfterStatus || !shouldStayFinal) {
+        // Remove from current list; decrement total
+        setItems((rows) => rows.filter((r) => r._id !== row._id));
+        setTotal((t) => Math.max(0, t - 1));
+        setExpandedId((prev) => (prev === row._id ? null : prev));
+      } else {
+        // Keep in-place with updated fields
+        setItems((rows) => rows.map((r) => (r._id === row._id ? updatedRow : r)));
+      }
     } catch (e) {
       console.error("shopify-notes push error", e?.response?.data || e.message);
       const msg = e?.response?.data?.error || "Failed to update Shopify note";
       setToast({ open: true, severity: "error", msg });
     }
   };
-  
+
   const cancelOrderOnShopify = async (row) => {
-    const id = row._id; 
-    try { 
+    const id = row._id;
+    try {
       setCancelingRow((m) => ({ ...m, [id]: true }));
 
-      // Hit your backend order-cancel/return automation
-      const { data } = await axios.post("https://muditamleads-14f32a10d7f7.herokuapp.com/orders/update-order", {
-        orderName: row.orderName,          // router resolves with/without '#'
-        quantity: 1,                       // adjust if needed
-        returnReason: "OTHER",
-        returnReasonNote: "Cancelled via Order Confirmations UI",
-      });
+      // Hit backend cancel/return automation
+      const { data } = await axios.post(
+        "https://muditamleads-14f32a10d7f7.herokuapp.com/orders/update-order",
+        {
+          orderName: row.orderName,
+          quantity: 1,
+          returnReason: "OTHER",
+          returnReasonNote: "Cancelled via Order Confirmations UI",
+        }
+      );
 
-      // Handle success/failure reported by the endpoint
       if (data?.success) {
         setToast({ open: true, severity: "success", msg: "Order cancellation request created" });
 
-        // Mirror in our OC system: set Shopify Notes → CANCEL_ORDER (and update callStatus)
+        // Mirror: set callStatus + Shopify note → CANCEL_ORDER
         await handleShopifyNotesChange(row, "CANCEL_ORDER");
       } else {
-        const errMsg =
-          data?.result?.message ||
-          data?.message ||
-          "Cancel operation failed on server";
+        const errMsg = data?.result?.message || data?.message || "Cancel operation failed on server";
         setToast({ open: true, severity: "error", msg: errMsg });
       }
     } catch (e) {
@@ -362,9 +406,6 @@ export default function OrderConfirmations() {
     }
   };
 
-  // -------------------------------
-  // Payment Link: Dialog + Handlers
-  // -------------------------------
   const openPaymentDialog = (row) => {
     setPayDlg({
       open: true,
@@ -379,7 +420,6 @@ export default function OrderConfirmations() {
       link: "",
     });
   };
-
   const closePaymentDialog = () => setPayDlg((s) => ({ ...s, open: false }));
 
   const generateAndShareLink = async () => {
@@ -416,14 +456,6 @@ export default function OrderConfirmations() {
     }
   };
 
-  const copyPaymentLink = () => {
-    if (!payDlg.link) return;
-    copyToClipboard(payDlg.link, (ok) =>
-      setToast({ open: true, severity: ok ? "success" : "error", msg: ok ? "Link copied" : "Copy failed" })
-    );
-  };
-
-  // Helpers for read-only chip text in Confirmed tab
   const renderReadOnlyCallStatus = (val) => {
     const label = statusValueToLabel(val) || "-";
     return <Chip size="small" label={label} />;
@@ -432,52 +464,56 @@ export default function OrderConfirmations() {
   return (
     <ThemeProvider theme={theme}>
       <Box>
+        {/* Header + Tabs + Actions */}
         <Paper sx={{ p: 2, mb: 2 }}>
-          <Stack
-            direction={{ xs: "column", sm: "row" }}
-            spacing={2}
-            alignItems="center"
-            justifyContent="space-between"
-          >
-            <Typography variant="h6" fontWeight={700}>
-              {isConfirmed ? "Order Confirmation — Confirmed" : "Order Confirmation — Pending"}
-            </Typography>
-
-            <Stack direction="row" spacing={1} alignItems="center">
-              <Button
-                variant={isConfirmed ? "outlined" : "contained"}
-                color="primary"
-                startIcon={<DoneAllIcon />}
-                onClick={() => setSection((s) => (s === "pending" ? "confirmed" : "pending"))}
-              >
-                {isConfirmed ? "View Pending Orders" : "View Confirmed Orders"}
-              </Button>
-              <Tooltip title="Refresh">
-                <span>
-                  <IconButton onClick={syncNewAndRefresh} disabled={loading || syncing} color="primary">
-                    {syncing ? <CircularProgress size={18} /> : <RefreshIcon />}
-                  </IconButton>
-                </span>
-              </Tooltip>
+          <Stack spacing={2}>
+            <Stack direction="row" justifyContent="space-between" alignItems="center">
+              <Typography variant="h6" fontWeight={700}>
+                Order Confirmations
+              </Typography>
+              <Stack direction="row" spacing={1} alignItems="center">
+                <Tooltip title="Refresh">
+                  <span>
+                    <IconButton onClick={syncNewAndRefresh} disabled={loading || syncing} color="primary">
+                      {syncing ? <CircularProgress size={18} /> : <RefreshIcon />}
+                    </IconButton>
+                  </span>
+                </Tooltip>
+              </Stack>
             </Stack>
+
+            <Tabs
+              value={tab}
+              onChange={(_e, v) => setTab(v)}
+              variant="scrollable"
+              scrollButtons="auto"
+              sx={{ borderBottom: 1, borderColor: "divider" }}
+            >
+              <Tab value="ALL" label="All" />
+              <Tab value="CNP" label="CNP" />
+              <Tab value="ORDER_CONFIRMED" label="Confirmed" />
+              <Tab value="CALL_BACK_LATER" label="Call Back" />
+              <Tab value="CANCEL_ORDER" label="Cancel" />
+            </Tabs>
           </Stack>
         </Paper>
 
+        {/* Table */}
         <TableContainer component={Paper}>
           <Table size="small" stickyHeader>
             <TableHead>
               <TableRow>
                 <TableCell>S. No.</TableCell>
                 <TableCell>Date & Time</TableCell>
-                {isConfirmed && <TableCell>OC Date &amp; Time</TableCell>}
+                {isConfirmedTab && <TableCell>OC Date &amp; Time</TableCell>}
                 <TableCell>Order Name</TableCell>
                 <TableCell>Mobile</TableCell>
-                {!isConfirmed && <TableCell>Address</TableCell>}
+                {!isConfirmedTab && <TableCell>Address</TableCell>}
                 <TableCell>Products Ordered</TableCell>
                 <TableCell>Amount</TableCell>
                 <TableCell width={240}>Shopify Notes</TableCell>
-                {isConfirmed && <TableCell>Shipment Status</TableCell>}
-                {isConfirmed && <TableCell>Tracking ID</TableCell>}
+                {isConfirmedTab && <TableCell>Shipment Status</TableCell>}
+                {isConfirmedTab && <TableCell>Tracking ID</TableCell>}
                 <TableCell align="center">More</TableCell>
               </TableRow>
             </TableHead>
@@ -486,7 +522,7 @@ export default function OrderConfirmations() {
               {items.map((row, idx) => {
                 const ops = row.orderConfirmOps || {};
                 const rowSaving = !!savingRow[row._id];
-                const isOpen = !!openRow[row._id];
+                const isOpen = expandedId === row._id;
                 const serial = page * rowsPerPage + idx + 1;
                 const shipping = row.shipping || {};
                 const tracking = shipping.tracking_number || "-";
@@ -508,7 +544,7 @@ export default function OrderConfirmations() {
                       </TableCell>
 
                       {/* OC Date & Time (Confirmed tab only) */}
-                      {isConfirmed && (
+                      {isConfirmedTab && (
                         <TableCell>
                           <Typography variant="body2">
                             {ops.callStatusUpdatedAt ? formatDateTime(ops.callStatusUpdatedAt) : "-"}
@@ -516,7 +552,7 @@ export default function OrderConfirmations() {
                         </TableCell>
                       )}
 
-                      {/* Order Name */}
+                      {/* Order Name + Customer */}
                       <TableCell>
                         <Stack spacing={0.5}>
                           <Typography variant="body2" fontWeight={600}>
@@ -567,7 +603,7 @@ export default function OrderConfirmations() {
                       </TableCell>
 
                       {/* Address (hidden on Confirmed) */}
-                      {!isConfirmed && (
+                      {!isConfirmedTab && (
                         <TableCell sx={{ whiteSpace: "normal", lineHeight: 1.3, maxWidth: 360 }}>
                           <Typography variant="body2">
                             {[
@@ -589,8 +625,8 @@ export default function OrderConfirmations() {
                         <Typography variant="body2">
                           {Array.isArray(row?.productsOrdered) && row.productsOrdered.length
                             ? row.productsOrdered
-                                .map((p) => `${p?.title || ""}${p?.quantity ? ` ×${p.quantity}` : ""}`)
-                                .join(", ")
+                              .map((p) => `${p?.title || ""}${p?.quantity ? ` ×${p.quantity}` : ""}`)
+                              .join(", ")
                             : "-"}
                         </Typography>
                       </TableCell>
@@ -600,11 +636,11 @@ export default function OrderConfirmations() {
                         <Typography variant="body2">{currency(row.amount, row.currency || "INR")}</Typography>
                       </TableCell>
 
-                      {/* Shopify Notes */}
+                      {/* Shopify Notes column */}
                       <TableCell>
                         <Stack spacing={0.5}>
-                          {isConfirmed ? (
-                            // Read-only display on Confirmed
+                          {isConfirmedTab ? (
+                            // Read-only display on Confirmed tab
                             <>
                               {renderReadOnlyCallStatus(ops.callStatus)}
                               <Typography variant="caption" sx={{ opacity: 0.7 }}>
@@ -614,7 +650,7 @@ export default function OrderConfirmations() {
                               </Typography>
                             </>
                           ) : (
-                            // Editable on Pending
+                            // Editable on other tabs (including ALL)
                             <>
                               <FormControl size="small" sx={{ minWidth: 200 }}>
                                 <InputLabel id={`call-status-${row._id}`}>Shopify Notes</InputLabel>
@@ -643,18 +679,46 @@ export default function OrderConfirmations() {
                       </TableCell>
 
                       {/* Shipment Status & Tracking (Confirmed only) */}
-                      {isConfirmed && (
+                      {isConfirmedTab && (
                         <TableCell>
                           <Typography variant="body2" title={shipping.carrier_title || ""}>
                             {shipmentStatus}
                           </Typography>
                         </TableCell>
                       )}
-                      {isConfirmed && (
+                      {isConfirmedTab && (
                         <TableCell>
                           {tracking && tracking !== "-" ? (
                             <Stack direction="row" spacing={1} alignItems="center">
-                              <Typography variant="body2">{tracking}</Typography>
+                              <Typography variant="body2">
+                                <a
+                                  href={`https://track.shipway.com/t/${encodeURIComponent(tracking)}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  style={{ textDecoration: "none", color: "#1976d2", fontWeight: 600 }}
+                                >
+                                  {tracking}
+                                </a>
+                              </Typography>
+                              <Tooltip title="Copy">
+                                <span>
+                                  <IconButton
+                                    size="small" 
+                                    color="primary"
+                                    onClick={() =>
+                                      copyToClipboard(tracking, (ok) =>
+                                        setToast({
+                                          open: true,
+                                          severity: ok ? "success" : "error",
+                                          msg: ok ? "Copied" : "Copy failed",
+                                        })
+                                      )
+                                    }
+                                  >
+                                    <ContentCopyIcon fontSize="inherit" />
+                                  </IconButton>
+                                </span>
+                              </Tooltip>
                             </Stack>
                           ) : (
                             <Typography variant="body2">-</Typography>
@@ -665,7 +729,7 @@ export default function OrderConfirmations() {
                       {/* Expand / More */}
                       <TableCell align="center">
                         <IconButton
-                          onClick={() => setOpenRow((s) => ({ ...s, [row._id]: !isOpen }))}
+                          onClick={() => setExpandedId((prev) => (prev === row._id ? null : row._id))}
                           color="primary"
                           size="small"
                         >
@@ -676,10 +740,10 @@ export default function OrderConfirmations() {
 
                     {/* Collapsible details row */}
                     <TableRow>
-                      <TableCell colSpan={isConfirmed ? 11 : 10} sx={{ py: 0, background: "rgba(0,0,0,0.02)" }}>
+                      <TableCell colSpan={isConfirmedTab ? 11 : 10} sx={{ py: 0, background: "rgba(0,0,0,0.02)" }}>
                         <Collapse in={isOpen} timeout="auto" unmountOnExit>
                           <Box sx={{ p: 2 }}>
-                            {isConfirmed ? (
+                            {isConfirmedTab ? (
                               // -------- READ-ONLY DETAILS ON CONFIRMED --------
                               <Stack direction="row" spacing={3} alignItems="center" useFlexGap flexWrap="wrap">
                                 <Stack direction="row" spacing={1} alignItems="center">
@@ -731,7 +795,7 @@ export default function OrderConfirmations() {
                                     <Tooltip title="Open payment link">
                                       <IconButton
                                         size="small"
-                                        color="primary" 
+                                        color="primary"
                                         component="a"
                                         href={row.orderConfirmOps.paymentLink}
                                         target="_blank"
@@ -748,16 +812,12 @@ export default function OrderConfirmations() {
                                     <Typography variant="body2" sx={{ minWidth: 140 }}>
                                       Assigned expert
                                     </Typography>
-                                    <Chip
-                                      size="small"
-                                      label={row.orderConfirmOps.assignedExpert}
-                                      variant="outlined"
-                                    />
+                                    <Chip size="small" label={row.orderConfirmOps.assignedExpert} variant="outlined" />
                                   </Stack>
                                 ) : null}
                               </Stack>
                             ) : (
-                              // -------- EDITABLE DETAILS ON PENDING --------
+                              // -------- EDITABLE DETAILS ON OTHER TABS (incl. ALL) --------
                               <Stack direction="row" spacing={3} alignItems="center" useFlexGap flexWrap="wrap">
                                 {/* Doctor call needed */}
                                 <Stack direction="row" spacing={1} alignItems="center">
@@ -771,15 +831,14 @@ export default function OrderConfirmations() {
                                     value={row?.orderConfirmOps?.doctorCallNeeded ? "yes" : "no"}
                                     onChange={(_, val) => {
                                       if (val === "yes") {
-     // First mark doctorCallNeeded=true, then open the schedule popup
-     patchOrder(row._id, { doctorCallNeeded: true }, "Saved")
-       .then(() => openScheduleDialog(row))
-       .catch(() => {});
-   } else {
-     // Turning off simply saves and (if open) closes any dialog
-     patchOrder(row._id, { doctorCallNeeded: false }, "Saved").catch(() => {});
-     closeScheduleDialog();
-   }
+                                        // First mark doctorCallNeeded=true, then open the schedule popup
+                                        patchOrder(row._id, { doctorCallNeeded: true }, "Saved")
+                                          .then(() => openScheduleDialog(row))
+                                          .catch(() => { });
+                                      } else if (val === "no") {
+                                        patchOrder(row._id, { doctorCallNeeded: false }, "Saved").catch(() => { });
+                                        closeScheduleDialog();
+                                      }
                                     }}
                                   >
                                     <ToggleButton value="yes">Yes</ToggleButton>
@@ -787,7 +846,6 @@ export default function OrderConfirmations() {
                                   </ToggleButtonGroup>
                                 </Stack>
 
-                                 
                                 {/* Diet Plan Needed */}
                                 <Stack direction="row" spacing={1} alignItems="center">
                                   <Typography variant="body2" sx={{ minWidth: 140 }}>
@@ -818,7 +876,13 @@ export default function OrderConfirmations() {
                                     setItems((rows) =>
                                       rows.map((r) =>
                                         r._id === row._id
-                                          ? { ...r, orderConfirmOps: { ...(r.orderConfirmOps || {}), languageUsed: val } }
+                                          ? {
+                                            ...r,
+                                            orderConfirmOps: {
+                                              ...(r.orderConfirmOps || {}),
+                                              languageUsed: val,
+                                            },
+                                          }
                                           : r
                                       )
                                     );
@@ -855,7 +919,7 @@ export default function OrderConfirmations() {
                                     <ToggleButton value="no">No</ToggleButton>
                                   </ToggleButtonGroup>
 
-                                  {/* Right-side actions */}
+                                  {/* Actions */}
                                   {row?.orderConfirmOps?.codToPrepaid ? (
                                     <>
                                       <Button
@@ -884,7 +948,7 @@ export default function OrderConfirmations() {
                                     </>
                                   ) : null}
 
-                                  {/* Cancel Order -> NEW: call backend cancel API first */}
+                                  {/* Cancel Order */}
                                   <Button
                                     size="small"
                                     variant="outlined"
@@ -902,13 +966,13 @@ export default function OrderConfirmations() {
                             )}
 
                             {/* Schedule Doctor Call Dialog */}
-  <ScheduleCallDialog
-    open={scheduleDlg.open}
-    onClose={closeScheduleDialog}
-    onSubmit={submitSchedule}
-    agents={agents}
-    row={scheduleDlg.row}
-  />
+                            <ScheduleCallDialog
+                              open={scheduleDlg.open}
+                              onClose={closeScheduleDialog}
+                              onSubmit={submitSchedule}
+                              agents={agents}
+                              row={scheduleDlg.row}
+                            />
                           </Box>
                         </Collapse>
                       </TableCell>
@@ -919,7 +983,7 @@ export default function OrderConfirmations() {
 
               {loading && (
                 <TableRow>
-                  <TableCell colSpan={isConfirmed ? 11 : 10} align="center">
+                  <TableCell colSpan={isConfirmedTab ? 11 : 10} align="center">
                     <Stack direction="row" spacing={1} alignItems="center" justifyContent="center" sx={{ py: 2 }}>
                       <CircularProgress size={20} />
                       <Typography variant="body2">Loading…</Typography>
@@ -945,6 +1009,7 @@ export default function OrderConfirmations() {
               setRowsPerPage(newRpp);
               setPage(0);
               fetchList(0, newRpp);
+              setExpandedId(null);
             }}
             rowsPerPageOptions={[10, 20, 50, 100]}
           />
@@ -1007,7 +1072,18 @@ export default function OrderConfirmations() {
                     <TextField value={payDlg.link} size="small" fullWidth InputProps={{ readOnly: true }} />
                     <Tooltip title="Copy link">
                       <span>
-                        <IconButton onClick={copyPaymentLink} color="primary">
+                        <IconButton
+                          onClick={() =>
+                            copyToClipboard(payDlg.link, (ok) =>
+                              setToast({
+                                open: true,
+                                severity: ok ? "success" : "error",
+                                msg: ok ? "Link copied" : "Copy failed",
+                              })
+                            )
+                          }
+                          color="primary"
+                        >
                           <ContentCopyIcon fontSize="small" />
                         </IconButton>
                       </span>
@@ -1043,7 +1119,6 @@ export default function OrderConfirmations() {
           </DialogActions>
         </Dialog>
       </Box>
-    </ThemeProvider> 
+    </ThemeProvider>
   );
 }
-

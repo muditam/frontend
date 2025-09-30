@@ -197,7 +197,7 @@ const MenuBar = ({ toggleDrawer }) => {
               transition: "background-color 0.3s, transform 0.2s",
               "&:hover": {
                 backgroundColor: "#e0f7fa",
-                color: "#007aff",
+                color: "#007aff", 
                 transform: "scale(1.02)",
               },
             }}
@@ -310,6 +310,29 @@ const MenuBar = ({ toggleDrawer }) => {
             <Inventory2Icon sx={{ fontSize: 18, marginRight: "8px" }} />
             <Typography variant="body1" sx={{ fontSize: "14px" }}>
               Abandoned Cart
+            </Typography>
+          </ListItem>
+        )}
+
+        {role !== "Finance" && role !== "Retention Agent" && (
+          <ListItem
+            button
+            component={Link} 
+            to="/order-confirmations"
+            sx={{
+              display: "flex", 
+              alignItems: "center",
+              padding: "10px 20px",
+              borderRadius: "4px",
+              margin: "4px 0",
+              transition: "background-color 0.3s, transform 0.2s",
+              "&:hover": { backgroundColor: "#e0f7fa", color: "#007aff", transform: "scale(1.02)" },
+            }}
+            onClick={toggleDrawer}
+          >
+            <ShoppingCartIcon sx={{ fontSize: 18, marginRight: "8px" }} />
+            <Typography variant="body1" sx={{ fontSize: "14px" }}>
+              Order Confirmation
             </Typography>
           </ListItem>
         )}
@@ -487,57 +510,6 @@ const MenuBar = ({ toggleDrawer }) => {
 
                 <ListItem
                   button
-                  component={Link}
-                  to="/bulk-data-upload"
-                  sx={{
-                    display: "flex",
-                    alignItems: "center",
-                    padding: "10px 20px",
-                    borderRadius: "4px",
-                    margin: "4px 0",
-                    transition: "background-color 0.3s, transform 0.2s",
-                    "&:hover": {
-                      backgroundColor: "#e0f7fa",
-                      color: "#007aff",
-                      transform: "scale(1.02)",
-                    },
-                  }}
-                  onClick={toggleDrawer}
-                >
-                  <UploadFileIcon sx={{ fontSize: 18, marginRight: "8px" }} />
-                  <Typography variant="body1" sx={{ fontSize: "14px" }}>
-                    Bulk Data Upload
-                  </Typography>
-                </ListItem>
-
-
-                <ListItem
-                  button
-                  component={Link}
-                  to="/all-shopify-orders"
-                  sx={{
-                    display: "flex",
-                    alignItems: "center",
-                    padding: "10px 20px",
-                    borderRadius: "4px",
-                    margin: "4px 0",
-                    transition: "background-color 0.3s, transform 0.2s",
-                    "&:hover": {
-                      backgroundColor: "#e0f7fa",
-                      color: "#007aff",
-                      transform: "scale(1.02)",
-                    },
-                  }}
-                  onClick={toggleDrawer}
-                >
-                  <ShoppingCartIcon sx={{ fontSize: 18, marginRight: "8px" }} />
-                  <Typography variant="body1" sx={{ fontSize: "14px" }}>
-                    All Shopify Orders
-                  </Typography>
-                </ListItem>
-
-                <ListItem
-                  button
                   onClick={() => handleDropdownClick("lostData")}
                   sx={{
                     display: "flex",
@@ -619,7 +591,7 @@ const MenuBar = ({ toggleDrawer }) => {
                       color: "#007aff",
                       transform: "scale(1.02)",
                     },
-                  }}
+                  }} 
                   onClick={toggleDrawer}
                 >
                   <ShoppingCartIcon sx={{ fontSize: 18, marginRight: "8px" }} />
@@ -628,32 +600,6 @@ const MenuBar = ({ toggleDrawer }) => {
                   </Typography>
                 </ListItem>
 
-                <ListItem
-                  button
-                  component={Link}
-                  to="/transfer-requests"
-                  sx={{
-                    display: "flex",
-                    alignItems: "center",
-                    padding: "10px 20px",
-                    borderRadius: "4px",
-                    margin: "4px 0",
-                    transition: "background-color 0.3s, transform 0.2s",
-                    "&:hover": {
-                      backgroundColor: "#e0f7fa",
-                      color: "#007aff",
-                      transform: "scale(1.02)",
-                    },
-                  }}
-                  onClick={toggleDrawer}
-                >
-                  <CompareArrowsIcon
-                    sx={{ fontSize: 18, marginRight: "8px" }}
-                  />
-                  <Typography variant="body1" sx={{ fontSize: "14px" }}>
-                    Transfer Requests
-                  </Typography>
-                </ListItem>
               </>
             )}
 
@@ -1006,7 +952,7 @@ const MenuBar = ({ toggleDrawer }) => {
                 to="/operations/undelivered" // updated route
                 sx={{
                   display: "flex",
-                  alignItems: "center",
+                  alignItems: "center", 
                   padding: "10px 20px",
                   borderRadius: "4px",
                   margin: "4px 0",
@@ -1035,7 +981,7 @@ const MenuBar = ({ toggleDrawer }) => {
                   display: "flex", 
                   alignItems: "center",
                   padding: "10px 20px",
-                  borderRadius: "4px",
+                  borderRadius: "4px", 
                   margin: "4px 0",
                   transition: "background-color 0.3s, transform 0.2s",
                   "&:hover": {
@@ -1113,35 +1059,6 @@ const MenuBar = ({ toggleDrawer }) => {
               </List>
             </Collapse>
 
-            
-
-            {role === "Manager" && (
-  <ListItem
-    button
-    component={Link}
-    to="/diet-template"
-    sx={{
-      display: "flex",
-      alignItems: "center",
-      padding: "10px 20px",
-      borderRadius: "4px",
-      margin: "4px 0",
-      transition: "background-color 0.3s, transform 0.2s", 
-      "&:hover": {
-        backgroundColor: "#e0f7fa",
-        color: "#007aff",
-        transform: "scale(1.02)",
-      },
-    }}
-    onClick={toggleDrawer}
-  >
-    <DinnerDiningIcon sx={{ fontSize: 24, marginRight: "12px" }} />
-    <Typography variant="body1" style={{ fontSize: "14px" }}>
-      Diet Template Builder
-    </Typography>
-  </ListItem>
-)}
-
 {role === "Manager" && (
   <>
     <ListItem
@@ -1173,11 +1090,51 @@ const MenuBar = ({ toggleDrawer }) => {
         <ListItem
           button
           component={Link}
-          to="/lead-migration" 
+          to="/lead-migration"  
           onClick={toggleDrawer}
         >
           <Typography variant="body2" sx={{ fontSize: "13px" }}>
             Leads Migrate
+          </Typography>
+        </ListItem>
+        <ListItem
+          button
+          component={Link}
+          to="/diet-template" 
+          onClick={toggleDrawer} 
+        >
+          <Typography variant="body2" sx={{ fontSize: "13px" }}>
+            Diet Plan Builder 
+          </Typography>
+        </ListItem>
+        <ListItem
+          button  
+          component={Link}
+          to="/all-shopify-orders" 
+          onClick={toggleDrawer} 
+        >
+          <Typography variant="body2" sx={{ fontSize: "13px" }}>
+            All Shopify Orders
+          </Typography>
+        </ListItem>
+        <ListItem
+          button 
+          component={Link} 
+          to="/transfer-requests" 
+          onClick={toggleDrawer} 
+        >
+          <Typography variant="body2" sx={{ fontSize: "13px" }}>
+            Lead Transfer Requests
+          </Typography>
+        </ListItem>
+        <ListItem
+          button 
+          component={Link}
+          to="/bulk-data-upload" 
+          onClick={toggleDrawer} 
+        >
+          <Typography variant="body2" sx={{ fontSize: "13px" }}>
+            Bulk data Upload
           </Typography>
         </ListItem>
       </List>

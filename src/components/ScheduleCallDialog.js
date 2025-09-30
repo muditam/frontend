@@ -17,22 +17,6 @@ import {
   Box,
 } from "@mui/material";
 
-/**
- * Calendly-style Schedule Call dialog
- *
- * Props:
- * - open: boolean
- * - onClose: () => void
- * - onSubmit: (payload) => Promise<void> | void
- * - agents: [{ id, label }]
- * - row: object (optional)
- * - bookedSlots?: string[] ISO datetimes already taken (disable these)
- * - slotDurationMin?: number (default 30)
- * - businessStart?: "HH:MM" (default "09:00")
- * - businessEnd?: "HH:MM" (default "20:00")
- * - workingDays?: number[] JS day indexes allowed (default [1,2,3,4,5,6]) // Mon–Sat
- * - timezoneLabel?: string (default "IST (UTC+05:30)")
- */
 export default function ScheduleCallDialog({
   open,
   onClose,
