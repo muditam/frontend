@@ -24,6 +24,18 @@ import {
 } from "@mui/material";
 import axios from "axios";
 
+const ORDER_FIELDS = new Set([
+  "orderDate",
+  "productOrdered",
+  "dosageOrdered",
+  "totalPrice",
+  "paymentMethod",
+  "partialPayment",
+  "selfRemark",
+  "shipmentStatus",
+  "orderId",
+]);
+
 const SalesMySales = () => {
   const [sales, setSales] = useState([]);
   const [agentAssignedName, setAgentAssignedName] = useState("");
@@ -120,71 +132,119 @@ const SalesMySales = () => {
     return currentDate.toISOString().split("T")[0];
   };
 
-  const handleInputChange = async (e, index, field) => {
-    const updatedSales = [...sales];
-    updatedSales[index][field] = e.target.value;
+  // Decides whether a field edit belongs to Lead or to MyOrder
+  const getTargetForField = (sale, field) => {
+    // Order-backed fields -> use myOrderData._id if available
+    if (ORDER_FIELDS.has(field) && sale.myOrderData?._id) {
+      return { targetId: sale.myOrderData._id, source: "order" };
+    }
+    // Else edit lead row using sale._id
+    return { targetId: sale._id, source: "lead" };
+  };
 
-    if (field === "dosageOrdered" && !updatedSales[index].myOrderData) {
-      const days = parseInt(e.target.value.split("-")[0], 10);
-      updatedSales[index].dosageExpiring = calculateDosageExpiring(days);
+  const handleInputChange = async (e, index, field) => {
+    const value = e?.target?.value ?? e;
+
+    const updatedSales = [...sales];
+    const row = { ...updatedSales[index] };
+
+    // Update local state carefully (for nested myOrderData vs lead fields)
+    if (ORDER_FIELDS.has(field)) {
+      // Update nested order data in-place if present; else fall back to lead-like copy
+      if (!row.myOrderData) row.myOrderData = {};
+      if (field === "orderDate") row.myOrderData.orderDate = value;
+      else if (field === "productOrdered") row.myOrderData.productOrdered = value;
+      else if (field === "dosageOrdered") row.myOrderData.dosageOrdered = value;
+      else if (field === "totalPrice") row.myOrderData.totalPrice = value;
+      else if (field === "paymentMethod") row.myOrderData.paymentMethod = value;
+      else if (field === "partialPayment") row.myOrderData.partialPayment = value;
+      else if (field === "selfRemark") row.myOrderData.selfRemark = value;
+      else if (field === "shipmentStatus") row.myOrderData.shipmentStatus = value;
+      else if (field === "orderId") row.myOrderData.orderId = value;
+    } else {
+      // Lead-side fields
+      row[field] = value;
+
+      if (field === "dosageOrdered" && !row.myOrderData) {
+        const days = parseInt(String(value).split("-")[0], 10);
+        row.dosageExpiring = calculateDosageExpiring(days);
+      }
     }
 
+    updatedSales[index] = row;
     setSales(updatedSales);
-    const sale = updatedSales[index];
 
-    const isNew = sale._id?.startsWith("temp-");
-    const requiredFieldsFilled = sale.name && sale.contactNumber;
+    // Decide target doc & issue PUT
+    const { targetId, source } = getTargetForField(row, field);
 
-    // Avoid multiple POSTs
-    if (isNew && requiredFieldsFilled && !sale.posting) {
+    // For new temp rows, keep the POST flow (unchanged)
+    const isNew = String(row._id || "").startsWith("temp-");
+    const requiredFieldsFilled = row.name && row.contactNumber;
+
+    if (isNew && requiredFieldsFilled && !row.posting) {
       updatedSales[index].posting = true;
       setSales([...updatedSales]);
 
       const user = JSON.parse(sessionStorage.getItem("user"));
       const payload = {
-        name: sale.name,
-        contactNumber: sale.contactNumber,
-        productsOrdered: sale.productsOrdered,
-        dosageOrdered: sale.dosageOrdered,
-        dosageExpiring: sale.dosageExpiring,
-        amountPaid: parseFloat(sale.amountPaid),
-        partialPayment: sale.partialPayment || 0,
-        modeOfPayment: sale.modeOfPayment,
-        lastOrderDate: sale.lastOrderDate,
+        name: row.name,
+        contactNumber: row.contactNumber,
+        productsOrdered: row.productsOrdered,
+        dosageOrdered: row.dosageOrdered,
+        dosageExpiring: row.dosageExpiring,
+        amountPaid: parseFloat(row.amountPaid),
+        partialPayment: row.partialPayment || 0,
+        modeOfPayment: row.modeOfPayment,
+        lastOrderDate: row.lastOrderDate,
         salesStatus: "Sales Done",
         agentAssigned: agentAssignedName || user?.fullName || "Unknown",
-        agentsRemarks: sale.agentsRemarks || "",
+        agentsRemarks: row.agentsRemarks || "",
         date: new Date().toISOString().split("T")[0],
       };
 
       try {
-        const res = await axios.post("https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads", payload);
+        const res = await axios.post(
+          "https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads",
+          payload
+        );
         const savedLead = res.data.lead;
-        updatedSales[index] = { ...savedLead }; // replace the whole row
+        updatedSales[index] = { ...savedLead, myOrderData: null };
         setSales(updatedSales);
       } catch (error) {
         console.error("Error saving new sale:", error);
         updatedSales[index].posting = false; // allow retry
         setSales(updatedSales);
       }
-
       return;
     }
 
-    // Normal update for existing lead
-    if (!isNew) {
+    // Normal update: PUT to /merged-sales/:id (Lead or Order id)
+    if (targetId) {
+      // Map UI field names to backend doc fields
+      let payload = {};
+      if (source === "order") {
+        // MyOrder fields
+        if (field === "orderDate") payload.orderDate = value;
+        else if (field === "productOrdered") payload.productOrdered = value;
+        else if (field === "dosageOrdered") payload.dosageOrdered = value;
+        else if (field === "totalPrice") payload.totalPrice = value;
+        else if (field === "paymentMethod") payload.paymentMethod = value;
+        else if (field === "partialPayment") payload.partialPayment = value;
+        else if (field === "selfRemark") payload.selfRemark = value;
+        else if (field === "shipmentStatus") payload.shipmentStatus = value;
+        else if (field === "orderId") payload.orderId = value;
+      } else {
+        // Lead fields (same as your prior logic)
+        payload[field] = value;
+      }
+
       try {
-        await axios.put(
-          `https://muditamleads-14f32a10d7f7.herokuapp.com/api/merged-sales/${sale._id}`,
-          { [field]: e.target.value }
-        );
+        await axios.put(`https://muditamleads-14f32a10d7f7.herokuapp.com/api/merged-sales/${targetId}`, payload);
       } catch (error) {
         console.error("Error updating sale:", error);
       }
     }
   };
-
-
 
   const handleAddSale = () => {
     const newSale = {
@@ -198,34 +258,45 @@ const SalesMySales = () => {
       lastOrderDate: new Date().toISOString().split("T")[0],
       agentsRemarks: "",
       salesStatus: "Sales Done",
-      posting: false, // NEW
+      posting: false,
+      myOrderData: null,
     };
     setSales((prevSales) => [newSale, ...prevSales]);
   };
 
-
-
   const applyFilters = () => {
     const filteredSales = sales.filter((sale) => {
+      const firstDate =
+        (sale.myOrderData && sale.myOrderData.orderDate) ||
+        sale.lastOrderDate ||
+        "";
+
       return (
-        (!filters.dateFrom ||
-          new Date(sale.lastOrderDate) >= new Date(filters.dateFrom)) &&
-        (!filters.dateTo || new Date(sale.lastOrderDate) <= new Date(filters.dateTo)) &&
+        (!filters.dateFrom || new Date(firstDate) >= new Date(filters.dateFrom)) &&
+        (!filters.dateTo || new Date(firstDate) <= new Date(filters.dateTo)) &&
         (!filters.name ||
-          sale.name.toLowerCase().includes(filters.name.toLowerCase())) &&
+          (sale.name || "")
+            .toLowerCase()
+            .includes(filters.name.toLowerCase())) &&
         (!filters.contactNumber ||
-          sale.contactNumber.includes(filters.contactNumber)) &&
+          (sale.contactNumber || "").includes(filters.contactNumber)) &&
         (!filters.productsOrdered.length ||
           filters.productsOrdered.every((item) =>
-            sale.productsOrdered.includes(item)
+            (sale.productsOrdered || []).includes(item)
           )) &&
-        (!filters.dosageOrdered || sale.dosageOrdered === filters.dosageOrdered) &&
+        (!filters.dosageOrdered ||
+          sale.dosageOrdered === filters.dosageOrdered ||
+          sale.myOrderData?.dosageOrdered === filters.dosageOrdered) &&
         (!filters.salesStatus || sale.salesStatus === filters.salesStatus) &&
         (!filters.amountFrom ||
-          parseFloat(sale.amountPaid) >= parseFloat(filters.amountFrom)) &&
+          parseFloat(sale.amountPaid ?? sale.myOrderData?.totalPrice ?? 0) >=
+            parseFloat(filters.amountFrom)) &&
         (!filters.amountTo ||
-          parseFloat(sale.amountPaid) <= parseFloat(filters.amountTo)) &&
-        (!filters.modeOfPayment || sale.modeOfPayment === filters.modeOfPayment)
+          parseFloat(sale.amountPaid ?? sale.myOrderData?.totalPrice ?? 0) <=
+            parseFloat(filters.amountTo)) &&
+        (!filters.modeOfPayment ||
+          sale.modeOfPayment === filters.modeOfPayment ||
+          sale.myOrderData?.paymentMethod === filters.modeOfPayment)
       );
     });
     setSales(filteredSales);
@@ -280,14 +351,7 @@ const SalesMySales = () => {
             fullWidth
             value={filters.dateFrom}
             onChange={(e) => setFilters((prev) => ({ ...prev, dateFrom: e.target.value }))}
-            sx={{
-              marginBottom: 2,
-              "& .MuiInputBase-input": { padding: "10px 12px" },
-              "& .MuiOutlinedInput-root": {
-                borderColor: "#0073e6",
-                "&:hover fieldset": { borderColor: "#005bb5" },
-              },
-            }}
+            sx={{ mb: 2 }}
             InputLabelProps={{ shrink: true }}
           />
           <TextField
@@ -296,14 +360,7 @@ const SalesMySales = () => {
             fullWidth
             value={filters.dateTo}
             onChange={(e) => setFilters((prev) => ({ ...prev, dateTo: e.target.value }))}
-            sx={{
-              marginBottom: 2,
-              "& .MuiInputBase-input": { padding: "10px 12px" },
-              "& .MuiOutlinedInput-root": {
-                borderColor: "#0073e6",
-                "&:hover fieldset": { borderColor: "#005bb5" },
-              },
-            }}
+            sx={{ mb: 2 }}
             InputLabelProps={{ shrink: true }}
           />
           <TextField
@@ -318,14 +375,7 @@ const SalesMySales = () => {
             fullWidth
             value={filters.contactNumber}
             onChange={(e) => setFilters((prev) => ({ ...prev, contactNumber: e.target.value }))}
-            sx={{
-              flexGrow: 1,
-              "& input[type=number]": { MozAppearance: "textfield" },
-              "& input[type=number]::-webkit-outer-spin-button, & input[type=number]::-webkit-inner-spin-button": {
-                WebkitAppearance: "none",
-                margin: 0,
-              },
-            }}
+            sx={{ mb: 2 }}
           />
           {dropdownOptions.map(({ key, label, options, multiple }) => (
             <FormControl fullWidth sx={{ mb: 2 }} key={key}>
@@ -341,7 +391,7 @@ const SalesMySales = () => {
               >
                 {options.map((option) => (
                   <MenuItem key={option} value={option}>
-                    {multiple && <Checkbox checked={filters[key].includes(option)} />}
+                    {multiple && <Checkbox checked={(filters[key] || []).includes(option)} />}
                     <ListItemText primary={option} />
                   </MenuItem>
                 ))}
@@ -419,230 +469,235 @@ const SalesMySales = () => {
                 </TableCell>
               </TableRow>
             ) : (
-              sales.map((sale, index) => (
-                <TableRow key={sale._id || sale.myOrderData?.orderId || index}>
-                  <TableCell>
-                    {sale.myOrderData ? (
+              sales.map((sale, index) => {
+                // unique key even when same lead has multiple orders
+                const rowKey = `${sale._id || "noLead"}-${sale.myOrderData?._id || sale.myOrderData?.orderId || index}`;
+                const firstDate =
+                  (sale.myOrderData && sale.myOrderData.orderDate) || sale.lastOrderDate || "";
+
+                return (
+                  <TableRow key={rowKey}>
+                    {/* First Order Date (editable for both lead/order) */}
+                    <TableCell>
                       <TextField
                         type="date"
-                        value={
-                          sale.myOrderData.orderDate
-                            ? new Date(sale.myOrderData.orderDate)
-                              .toISOString()
-                              .split("T")[0]
-                            : ""
-                        }
-                        InputProps={{ readOnly: true }}
-                        fullWidth
-                      />
-                    ) : (
-                      <TextField
-                        type="date"
-                        value={sale.lastOrderDate || ""}
+                        value={firstDate ? new Date(firstDate).toISOString().split("T")[0] : ""}
                         onChange={(e) =>
-                          handleInputChange(e, index, "lastOrderDate")
+                          handleInputChange(
+                            e,
+                            index,
+                            sale.myOrderData ? "orderDate" : "lastOrderDate"
+                          )
                         }
                         fullWidth
                       />
-                    )}
-                  </TableCell>
-                  <TableCell style={{ whiteSpace: "nowrap", minWidth: "250px" }}>
-                    <TextField
-                      value={sale.name || ""}
-                      onChange={(e) => handleInputChange(e, index, "name")}
-                      fullWidth
-                    />
-                  </TableCell>
-                  <TableCell style={{ whiteSpace: "nowrap", minWidth: "200px" }}>
-                    <TextField
-                      type="number"
-                      value={sale.contactNumber || ""}
-                      onChange={(e) =>
-                        handleInputChange(e, index, "contactNumber")
-                      }
-                      fullWidth
-                    />
-                  </TableCell>
-                  <TableCell>
-                    {sale.myOrderData ? (
+                    </TableCell>
+
+                    {/* Name (lead field) */}
+                    <TableCell style={{ whiteSpace: "nowrap", minWidth: "250px" }}>
                       <TextField
-                        value={sale.myOrderData.productOrdered || ""}
-                        InputProps={{ readOnly: true }}
+                        value={sale.name || ""}
+                        onChange={(e) => handleInputChange(e, index, "name")}
                         fullWidth
                       />
-                    ) : (
-                      <FormControl fullWidth>
+                    </TableCell>
+
+                    {/* Contact No (lead field) */}
+                    <TableCell style={{ whiteSpace: "nowrap", minWidth: "200px" }}>
+                      <TextField
+                        type="number"
+                        value={sale.contactNumber || ""}
+                        onChange={(e) => handleInputChange(e, index, "contactNumber")}
+                        fullWidth
+                      />
+                    </TableCell>
+
+                    {/* Products Ordered (editable for both) */}
+                    <TableCell>
+                      {sale.myOrderData ? (
+                        <TextField
+                          value={sale.myOrderData.productOrdered || ""}
+                          onChange={(e) => handleInputChange(e, index, "productOrdered")}
+                          fullWidth
+                        />
+                      ) : (
+                        <FormControl fullWidth>
+                          <Select
+                            multiple
+                            value={sale.productsOrdered || []}
+                            onChange={(e) => handleInputChange(e, index, "productsOrdered")}
+                            renderValue={(selected) => (selected || []).join(", ")}
+                          >
+                            {[
+                              "KJF",
+                              "SDP",
+                              "VKR",
+                              "L-Fx",
+                              "S&S",
+                              "CPV",
+                              "HDP",
+                              "PF",
+                              "PGut",
+                              "Shilajit",
+                              "Kit",
+                              "Blood Test",
+                            ].map((product) => (
+                              <MenuItem key={product} value={product}>
+                                <Checkbox checked={(sale.productsOrdered || []).includes(product)} />
+                                <ListItemText primary={product} />
+                              </MenuItem>
+                            ))}
+                          </Select>
+                        </FormControl>
+                      )}
+                    </TableCell>
+
+                    {/* Dosage Ordered */}
+                    <TableCell>
+                      {sale.myOrderData ? (
+                        <TextField
+                          value={sale.myOrderData.dosageOrdered || ""}
+                          onChange={(e) => handleInputChange(e, index, "dosageOrdered")}
+                          fullWidth
+                        />
+                      ) : (
                         <Select
-                          multiple
-                          value={sale.productsOrdered || []}
-                          onChange={(e) =>
-                            handleInputChange(e, index, "productsOrdered")
-                          }
-                          renderValue={(selected) => selected.join(", ")}
+                          value={sale.dosageOrdered || ""}
+                          onChange={(e) => handleInputChange(e, index, "dosageOrdered")}
+                          fullWidth
                         >
-                          {[
-                            "KJF",
-                            "SDP",
-                            "VKR",
-                            "L-Fx",
-                            "S&S",
-                            "CPV",
-                            "HDP",
-                            "PF",
-                            "PGut",
-                            "Shilajit",
-                            "Kit",
-                            "Blood Test",
-                          ].map((product) => (
-                            <MenuItem key={product} value={product}>
-                              <Checkbox
-                                checked={sale.productsOrdered?.includes(product)}
-                              />
-                              <ListItemText primary={product} />
-                            </MenuItem>
-                          ))}
-                        </Select>
-                      </FormControl>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    {sale.myOrderData ? (
-                      <TextField
-                        value={sale.myOrderData.dosageOrdered || ""}
-                        InputProps={{ readOnly: true }}
-                        fullWidth
-                      />
-                    ) : (
-                      <Select
-                        value={sale.dosageOrdered || ""}
-                        onChange={(e) =>
-                          handleInputChange(e, index, "dosageOrdered")
-                        }
-                        fullWidth
-                      >
-                        {["10-Days", "20-Days", "30-Days", "60-Days", "90-Days"].map(
-                          (dosage) => (
+                          {["10-Days", "20-Days", "30-Days", "60-Days", "90-Days"].map((dosage) => (
                             <MenuItem key={dosage} value={dosage}>
                               {dosage}
                             </MenuItem>
+                          ))}
+                        </Select>
+                      )}
+                    </TableCell>
+
+                    {/* Amount Paid / totalPrice */}
+                    <TableCell style={{ whiteSpace: "nowrap", minWidth: "150px" }}>
+                      <TextField
+                        type="number"
+                        value={
+                          sale.myOrderData ? sale.myOrderData.totalPrice || "" : sale.amountPaid || ""
+                        }
+                        onChange={(e) =>
+                          handleInputChange(
+                            e,
+                            index,
+                            sale.myOrderData ? "totalPrice" : "amountPaid"
                           )
-                        )}
-                      </Select>
-                    )}
-                  </TableCell>
-                  <TableCell style={{ whiteSpace: "nowrap", minWidth: "150px" }}>
-                    {sale.myOrderData ? (
-                      <TextField
-                        type="number"
-                        value={sale.myOrderData.totalPrice || ""}
-                        InputProps={{ readOnly: true }}
-                        fullWidth
-                      />
-                    ) : (
-                      <TextField
-                        type="number"
-                        value={sale.amountPaid || ""}
-                        onChange={(e) => handleInputChange(e, index, "amountPaid")}
-                        fullWidth
-                      />
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    {sale.myOrderData ? (
-                      <TextField
-                        value={sale.myOrderData.partialPayment || 0}
-                        InputProps={{ readOnly: true }}
-                        type="number"
-                        fullWidth
-                      />
-                    ) : (
-                      <TextField
-                        type="number"
-                        value={sale.partialPayment || ""}
-                        onChange={(e) =>
-                          handleInputChange(e, index, "partialPayment")
                         }
                         fullWidth
                       />
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    {sale.myOrderData ? (
+                    </TableCell>
+
+                    {/* Partial Payment */}
+                    <TableCell>
                       <TextField
-                        value={sale.myOrderData.paymentMethod || ""}
-                        InputProps={{ readOnly: true }}
-                        fullWidth
-                      />
-                    ) : (
-                      <Select
-                        value={sale.modeOfPayment || ""}
-                        onChange={(e) => handleInputChange(e, index, "modeOfPayment")}
-                        fullWidth
-                      >
-                        {["Partial Paid", "Razorpay", "COD", "UPI", "Bank Transfer"].map(
-                          (mode) => (
-                            <MenuItem key={mode} value={mode}>
-                              {mode}
-                            </MenuItem>
+                        type="number"
+                        value={
+                          sale.myOrderData
+                            ? sale.myOrderData.partialPayment || 0
+                            : sale.partialPayment || ""
+                        }
+                        onChange={(e) =>
+                          handleInputChange(
+                            e,
+                            index,
+                            sale.myOrderData ? "partialPayment" : "partialPayment"
                           )
-                        )}
-                      </Select>
-                    )}
-                  </TableCell>
-                  <TableCell style={{ whiteSpace: "nowrap", minWidth: "150px" }}>
-                    {sale.myOrderData ? (
-                      <TextField
-                        value={sale.myOrderData.orderId || ""}
-                        InputProps={{ readOnly: true }}
-                        fullWidth
-                      />
-                    ) : (
-                      <TextField value="-" disabled fullWidth />
-                    )}
-                  </TableCell>
-                  {/* Shipment Status column */}
-                  <TableCell style={{ whiteSpace: "nowrap", minWidth: "200px" }}>
-                    {sale.myOrderData ? (
-                      <TextField
-                        value={sale.myOrderData.shipmentStatus || ""}
-                        InputProps={{ readOnly: true }}
-                        fullWidth
-                      />
-                    ) : (
-                      <TextField
-                        value={sale.shipmentStatus || ""}
-                        onChange={(e) =>
-                          handleInputChange(e, index, "shipmentStatus")
                         }
                         fullWidth
                       />
-                    )}
-                  </TableCell>
-                  <TableCell style={{ whiteSpace: "nowrap", minWidth: "250px" }}>
-                    {sale.myOrderData ? (
+                    </TableCell>
+
+                    {/* Mode of Payment / paymentMethod */}
+                    <TableCell>
+                      {sale.myOrderData ? (
+                        <TextField
+                          value={sale.myOrderData.paymentMethod || ""}
+                          onChange={(e) => handleInputChange(e, index, "paymentMethod")}
+                          fullWidth
+                        />
+                      ) : (
+                        <Select
+                          value={sale.modeOfPayment || ""}
+                          onChange={(e) => handleInputChange(e, index, "modeOfPayment")}
+                          fullWidth
+                        >
+                          {["Partial Paid", "Razorpay", "COD", "UPI", "Bank Transfer"].map(
+                            (mode) => (
+                              <MenuItem key={mode} value={mode}>
+                                {mode}
+                              </MenuItem>
+                            )
+                          )}
+                        </Select>
+                      )}
+                    </TableCell>
+
+                    {/* Order Id (editable if order row) */}
+                    <TableCell style={{ whiteSpace: "nowrap", minWidth: "150px" }}>
+                      {sale.myOrderData ? (
+                        <TextField
+                          value={sale.myOrderData.orderId || ""}
+                          onChange={(e) => handleInputChange(e, index, "orderId")}
+                          fullWidth
+                        />
+                      ) : (
+                        <TextField value="-" disabled fullWidth />
+                      )}
+                    </TableCell>
+
+                    {/* Shipment Status */}
+                    <TableCell style={{ whiteSpace: "nowrap", minWidth: "200px" }}>
                       <TextField
-                        value={sale.myOrderData.selfRemark || ""}
-                        InputProps={{ readOnly: true }}
-                        fullWidth
-                      />
-                    ) : (
-                      <TextField
-                        value={sale.agentsRemarks || ""}
+                        value={
+                          sale.myOrderData
+                            ? sale.myOrderData.shipmentStatus || ""
+                            : sale.shipmentStatus || ""
+                        }
                         onChange={(e) =>
-                          handleInputChange(e, index, "agentsRemarks")
+                          handleInputChange(
+                            e,
+                            index,
+                            sale.myOrderData ? "shipmentStatus" : "shipmentStatus"
+                          )
                         }
                         fullWidth
                       />
-                    )}
-                  </TableCell>
-                </TableRow>
-              ))
+                    </TableCell>
+
+                    {/* Agents Remarks / selfRemark */}
+                    <TableCell style={{ whiteSpace: "nowrap", minWidth: "250px" }}>
+                      <TextField
+                        value={
+                          sale.myOrderData
+                            ? sale.myOrderData.selfRemark || ""
+                            : sale.agentsRemarks || ""
+                        }
+                        onChange={(e) =>
+                          handleInputChange(
+                            e,
+                            index,
+                            sale.myOrderData ? "selfRemark" : "agentsRemarks"
+                          )
+                        }
+                        fullWidth
+                      />
+                    </TableCell>
+                  </TableRow>
+                );
+              })
             )}
           </TableBody>
         </Table>
       </TableContainer>
+
       <TablePagination
-        rowsPerPageOptions={[10, 20, 50, 100]}
+        rowsPerPageOptions={[10, 20, 50, 100]} 
         component="div"
         count={totalSales}
         rowsPerPage={rowsPerPage}
@@ -654,4 +709,4 @@ const SalesMySales = () => {
   );
 };
 
-export default SalesMySales; 
+export default SalesMySales;

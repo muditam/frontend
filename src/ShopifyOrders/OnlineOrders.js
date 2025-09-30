@@ -37,7 +37,7 @@ const PRODUCT_ABBREV = {
   "Karela Jamun Fizz": "KJF",
   "Sugar Defend Pro": "SDP",
   "Vasant Kusmakar Ras": "VKR",
-  "Liver Fix": "L-Fx",
+  "Liver Fix": "L-Fx", 
   "Stress & Sleep": "S&S", 
   "Chandraprabha Vati": "CPV",
   "Heart Defend Pro": "HDP",

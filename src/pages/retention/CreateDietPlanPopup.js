@@ -1468,7 +1468,7 @@ export default function CreateDietPlanPopup({
             </Tooltip>
           </Paper>
         </Collapse>
-      </DialogActions>
+      </DialogActions> 
     </Dialog>
   );
 }

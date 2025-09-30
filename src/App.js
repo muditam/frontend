@@ -49,7 +49,8 @@ import SmartfloCallLogs from "./components/SmartfloCallLogs";
 import SmartfloDataAnalytics from "./components/SmartfloDataAnalytics";
 import ReturnDeliveredOrders from "./components/ReturnDeliveredOrders";
 import DietTemplateAdmin from "./components/DietTemplateAdmin";
-import AllProducts from "./components/all-products";
+import AllProducts from "./components/all-products"; 
+import OrderConfirmations from "./components/OrderConfirmations";
 import LeadExpertMigration from "./components/LeadExpertMigration";
 import "./realtime/IncomingCallSSEBoot";
 
@@ -73,8 +74,9 @@ const App = () => {
           <Route path="/smartflo/call-logs" element={<SmartfloCallLogs />} />
           <Route path="/smartflo/data-analytics" element={<SmartfloDataAnalytics />} /> 
           <Route path="/lead-migration" element={<LeadExpertMigration />} />
+          <Route path="/order-confirmations" element={<OrderConfirmations />} />
 
-          {/* Protected Routes */}
+          {/* Protected Routes */} 
           <Route
             path="/"
             element={

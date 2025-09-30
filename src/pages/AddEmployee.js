@@ -45,6 +45,7 @@ const AddEmployee = () => {
     status: "active",
     target: "",
     hasTeam: false,
+    isDoctor: false,
     teamLeader: "",
     joiningDate: "",
   });
@@ -69,14 +70,13 @@ const AddEmployee = () => {
 
       setEmployees(fetchedEmployees);
 
-      // Use raw teamLeader _id for form dropdowns (not full name)
       const activeEmployees = response.data
         .filter(emp => emp.status === "active")
         .sort((a, b) => a.fullName.localeCompare(b.fullName));
 
       setAllActiveEmployees(activeEmployees);
     } catch (error) {
-      console.error("Failed to fetch employees", error); 
+      console.error("Failed to fetch employees", error);
     }
   };
 
@@ -152,6 +152,7 @@ const AddEmployee = () => {
         status: "active",
         target: "",
         hasTeam: false,
+        isDoctor: false,
         joiningDate: "",
       });
     } catch (error) {
@@ -173,6 +174,7 @@ const AddEmployee = () => {
       status: employee.status,
       target: employee.target || "",
       hasTeam: employee.hasTeam || false,
+      isDoctor: !!employee.isDoctor,
       teamLeader: employee.teamLeader?._id || "",
       joiningDate: employee.joiningDate
         ? new Date(employee.joiningDate).toISOString().split("T")[0]
@@ -458,18 +460,31 @@ const AddEmployee = () => {
             </TextField>
 
             {/* Have a Team Checkbox BELOW Role */}
-            <FormControlLabel
-              control={
-                <Checkbox
-                  checked={!!employeeData.hasTeam}
-                  onChange={handleChange}
-                  name="hasTeam"
-                  color="primary"
-                />
-              }
-              label="Have a Team?"
-              sx={{ pl: 1, mt: -1, mb: 1 }}
-            />
+            <Box sx={{ display: "flex", alignItems: "center", gap: 3, pl: 1, mt: -1, mb: 1 }}>
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    checked={!!employeeData.hasTeam}
+                    onChange={handleChange}
+                    name="hasTeam"
+                    color="primary"
+                  />
+                }
+                label="Have a Team?"
+              />
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    checked={!!employeeData.isDoctor}
+                    onChange={handleChange}
+                    name="isDoctor"
+                    color="primary"
+                  />
+                }
+                label="Is a Doctor"
+              />
+            </Box>
+
 
             <TextField
               fullWidth

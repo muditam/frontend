@@ -279,7 +279,7 @@ Dosage Ordered: ${dosageOrdered}`;
           display: "flex",
           flexDirection: "column",
         }}
-        onClick={(e) => e.stopPropagation()}
+        onClick={(e) => e.stopPropagation()} 
       >
         {/* Header */}
         <Box

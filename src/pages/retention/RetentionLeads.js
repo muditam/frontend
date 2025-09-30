@@ -46,12 +46,12 @@ import Radio from "@mui/material/Radio";
 import RadioGroup from "@mui/material/RadioGroup";
 import FormControlLabel from "@mui/material/FormControlLabel";
 import Badge from "@mui/material/Badge";
-import CalendarMonthIcon from "@mui/icons-material/CalendarMonth"; 
+import CalendarMonthIcon from "@mui/icons-material/CalendarMonth";
 import Accordion from "@mui/material/Accordion";
 import AccordionSummary from "@mui/material/AccordionSummary";
 import AccordionDetails from "@mui/material/AccordionDetails";
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
-
+import SpaIcon from "@mui/icons-material/Spa";
 import LanguageIcon from "@mui/icons-material/Language";
 import PlaceIcon from "@mui/icons-material/Place";
 
@@ -68,6 +68,7 @@ const getDaysSince = (startDate, endDate = new Date()) => {
 
 const followupTagMap = {
   "Follow-up Missed": { label: "Missed", color: "error" },
+  "Missed": { label: "Missed", color: "error" },
   Today: { label: "Today", color: "success" },
   Tomorrow: { label: "Tomorrow", color: "info" },
   Later: { label: "Later", color: "warning" },
@@ -146,6 +147,33 @@ const formatTimeIST = (raw) => {
   return `${hh}:${mm} ${ap}`;
 };
 
+// ⬇️ ADD near your other date helpers
+const startOfIST = (d = new Date()) => {
+  const ymd = new Intl.DateTimeFormat("en-CA", {
+    timeZone: IST_TZ,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(d);
+  return new Date(`${ymd}T00:00:00+05:30`);
+};
+const diffDaysIST = (a, b = new Date()) => {
+  const A = startOfIST(a).getTime();
+  const B = startOfIST(b).getTime();
+  return Math.round((A - B) / 86400000);
+};
+const computeReminderIST = (rawDate) => {
+  if (!rawDate) return "";
+  const d = toDateSafe(rawDate);
+  if (!isValidDate(d)) return "";
+  const diff = diffDaysIST(d, new Date());
+  if (diff < 0) return "Follow-up Missed";
+  if (diff === 0) return "Today";
+  if (diff === 1) return "Tomorrow";
+  return "Later";
+};
+
+
 const RetentionLeads = () => {
   const [allLeads, setAllLeads] = useState([]); // All leads fetched from server
   const [leads, setLeads] = useState([]); // Leads currently displayed 
@@ -154,23 +182,22 @@ const RetentionLeads = () => {
   const [callingMessage, setCallingMessage] = useState("");
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
-  const [selectedLeadIndex, setSelectedLeadIndex] = useState(null); 
-  const [selectedLeadId, setSelectedLeadId] = useState(null); 
-  const [modalIndex, setModalIndex] = useState(0); 
+  const [selectedLeadIndex, setSelectedLeadIndex] = useState(null);
+  const [selectedLeadId, setSelectedLeadId] = useState(null);
+  const [modalIndex, setModalIndex] = useState(0);
   const [leadLoading, setLeadLoading] = useState(false);
   const [filteredAllLeads, setFilteredAllLeads] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [filterAnchorEl, setFilterAnchorEl] = useState(null); 
+  const [filterAnchorEl, setFilterAnchorEl] = useState(null);
   const [orderPlacedFilter, setOrderPlacedFilter] = useState("Order Placed");
-  const [dateRangeFilter, setDateRangeFilter] = useState(""); 
+  const [dateRangeFilter, setDateRangeFilter] = useState("");
   const [logPopupAnchor, setLogPopupAnchor] = useState(null);
   const [reachoutMethod, setReachoutMethod] = useState("");
   const [reachoutStatus, setReachoutStatus] = useState("");
   const [reachoutTimestamp, setReachoutTimestamp] = useState(null);
   const [logsModalOpen, setLogsModalOpen] = useState(false);
   const [logsData, setLogsData] = useState([]);
-  const [moreOptionsAnchorEl, setMoreOptionsAnchorEl] = useState(null);
-  const [shipmentStatusFilter, setShipmentStatusFilter] = useState(null);
+  const [selectedConditions, setSelectedConditions] = useState([]);
 
   const [noteDraft, setNoteDraft] = useState("");
 
@@ -178,8 +205,6 @@ const RetentionLeads = () => {
 
   const [noteInputs, setNoteInputs] = useState({});
   const [savingNotes, setSavingNotes] = useState({});
-
-  const [tagDialogValue, setTagDialogValue] = useState("");
 
   const [copySuccess, setCopySuccess] = useState(false);
 
@@ -189,10 +214,8 @@ const RetentionLeads = () => {
   const [selectedYear, setSelectedYear] = useState(null);
   const [selectedMonth, setSelectedMonth] = useState(null);
 
-  const [notReachedLeadsCount, setNotReachedLeadsCount] = useState(0);
-  const [showingNotReached, setShowingNotReached] = useState(false);
-  const [showingReached, setShowingReached] = useState(false);
-  const [reachedLeadsCount, setReachedLeadsCount] = useState(0);
+  const [planCountMap, setPlanCountMap] = useState({});
+  const [planCountLoading, setPlanCountLoading] = useState({});
 
   const [ordersLoading, setOrdersLoading] = useState(false);
 
@@ -214,7 +237,7 @@ const RetentionLeads = () => {
     rtFollowupStatus: "",
     lastOrderDateFrom: "",
     lastOrderDateTo: "",
-    retentionStatus: "",
+    retentionStatus: "All",
   });
 
   const leadsPerPage = 50;
@@ -235,21 +258,38 @@ const RetentionLeads = () => {
   const [orderPopupOpen, setOrderPopupOpen] = useState(false);
   const [selectedLead, setSelectedLead] = useState(null);
 
-  const [followupDateAnchorEl, setFollowupDateAnchorEl] = useState(null); 
-  const [followupDateDraft, setFollowupDateDraft] = useState(""); 
+  const [followupDateAnchorEl, setFollowupDateAnchorEl] = useState(null);
+  const [followupDateDraft, setFollowupDateDraft] = useState("");
 
   // --- Remarks height/overflow control ---
   const remarksBodyRef = useRef(null);
   const [showRemarksMore, setShowRemarksMore] = useState(false);
   const [remarksExpanded, setRemarksExpanded] = useState(false);
 
+  const [planRemainingDaysMap, setPlanRemainingDaysMap] = useState({});
+ 
+  const [serverPage, setServerPage] = useState(1);
+  const [serverLimit] = useState(50);
+  const [serverHasMore, setServerHasMore] = useState(true);
+  const [serverTotal, setServerTotal] = useState(0);
+ 
+  const [colorFilter, setColorFilter] = useState(undefined);  
+  const [acqYear, setAcqYear] = useState(null);            
+  const [acqMonth, setAcqMonth] = useState(null);        
+
+
+  const [serverCounts, setServerCounts] = useState({
+    all: 0,
+    active: 0,
+    lost: 0,
+    followups: { missed: 0, notset: 0, today: 0, tomorrow: 0, later: 0 },
+  });
 
   const handleCopy = (text) => {
     navigator.clipboard.writeText(text);
     setCopySuccess(true);
   };
 
-  // Fetch user details helper
   const fetchUserDetails = async (user) => {
     try {
       const response = await axios.get(
@@ -272,59 +312,102 @@ const RetentionLeads = () => {
     }
   };
 
-  // Fetch retention leads
-  const fetchRetentionLeads = async (user) => {
-    setLoading(true);
+  const fetchRetentionLeadsPage = async (user, page = 1) => {
+    if (!user?.fullName || !user?.email) return { items: [], hasMore: false };
+    if (page === 1) setLoading(true);
+
     try {
-      const response = await axios.get(
-        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/retentions",
-        { params: { fullName: user.fullName, email: user.email } }
-      );
+      // map chip -> backend param
+      const followupCategory =
+        filters.rtFollowupReminder === null
+          ? undefined
+          : ({
+            "Follow-up Missed": "missed",
+            Missed: "missed",
+            Today: "today",
+            Tomorrow: "tomorrow",
+            Later: "later",
+            "": "notset",
+          }[filters.rtFollowupReminder]);
+
+      const rawSearch = (filters.name || "").trim();
+      const serialMatch = rawSearch.startsWith("#")
+        ? rawSearch.slice(1)
+        : (/^\d{1,5}$/.test(rawSearch) ? rawSearch : null);
+      const serialParam =
+        serialMatch && /^\d+$/.test(serialMatch) ? parseInt(serialMatch, 10) : null;
+
+      const resp = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/retentions", {
+        params: {
+          fullName: user.fullName,
+          email: user.email,
+          page,
+          limit: serverLimit,
+          retentionStatus: filters.retentionStatus || "All",
+          ...(followupCategory ? { followupCategory } : {}),
+          ...(serialParam ? { serial: serialParam } : rawSearch ? { search: rawSearch } : {}),
+          ...(filters.rtNextFollowupDate ? { followupDate: filters.rtNextFollowupDate } : {}),
+          ...(colorFilter !== undefined ? { rowColor: colorFilter } : {}),
+          ...(acqYear && acqMonth ? { acquiredYear: acqYear, acquiredMonth: acqMonth } : {}), 
+        },
+      });
+
+      const { items = [], total = 0, hasMore: pageHasMore = false, counts } = resp.data || {};
+
+      if (counts) setServerCounts(counts);
+      setServerTotal(total);
+      setServerHasMore(pageHasMore);
+
       const { async, agentNumber, callerId } = await fetchUserDetails(user);
 
-      const computeReminder = (followupDate) => {
-        if (!followupDate) return "";
-        const date = new Date(followupDate);
-        const today = new Date();
-        today.setHours(0, 0, 0, 0); // normalize to midnight
-        date.setHours(0, 0, 0, 0); // normalize to midnight
-        const diffInDays = Math.ceil((date - today) / (1000 * 60 * 60 * 24));
-        if (diffInDays < 0) return "Follow-up Missed";
-        if (diffInDays === 0) return "Today";
-        if (diffInDays === 1) return "Tomorrow";
-        if (diffInDays >= 2) return "Later";
-        return "";
-      };
-
-
-      const leadsWithReminders = response.data.map((lead) => ({
+      const normalized = items.map((lead) => ({
         ...lead,
-        rtFollowupReminder: lead.rtNextFollowupDate
-          ? computeReminder(lead.rtNextFollowupDate)
-          : "",
         async,
         agentNumber,
         callerId,
         rtSubcells: lead.rtSubcells || [],
       }));
 
-      leadsWithReminders.sort((a, b) => {
-        if (!a.lastOrderDate) return 1;
-        if (!b.lastOrderDate) return -1;
-        return new Date(b.lastOrderDate) - new Date(a.lastOrderDate);
-      });
+      if (page === 1) {
+        // Seed base list
+        setAllLeads(normalized);
 
-      setAllLeads(leadsWithReminders);
-      setFilteredAllLeads(leadsWithReminders);
-      setLeads(leadsWithReminders.slice(0, leadsPerPage));
-      setHasMore(leadsWithReminders.length > leadsPerPage);
-      // setSelectedLeadIndex(null); 
+        // Seed visible slice ONCE for page 1 (prevents snap-back during later appends)
+        const filtered = filteredLeadsByFilters(normalized);
+        const firstSlice = filtered.slice(0, leadsPerPage);
+
+        setFilteredAllLeads(filtered);
+        setLeads(firstSlice);
+        setHasMore(pageHasMore || filtered.length > firstSlice.length);
+        setServerPage(1);
+      } else {
+        setAllLeads((prevAll) => {
+          const merged = [...prevAll, ...normalized];
+          const after = filteredLeadsByFilters(merged);
+
+          setLeads((prev) => {
+            const start = prev.length;
+            const nextSlice = after.slice(start, start + leadsPerPage);
+
+            setHasMore(pageHasMore || after.length > (start + nextSlice.length));
+
+            return nextSlice.length ? [...prev, ...nextSlice] : prev;
+          });
+
+          setFilteredAllLeads(after);
+          return merged;
+        });
+      }
+
+      return { items: normalized, hasMore: pageHasMore };
     } catch (error) {
       console.error("Failed to fetch retention leads:", error);
+      return { items: [], hasMore: false };
     } finally {
-      setLoading(false);
+      if (page === 1) setLoading(false);
     }
   };
+
 
   const saveSubcellsToBackend = async (leadId, subcells) => {
     try {
@@ -449,48 +532,6 @@ const RetentionLeads = () => {
     setDietPlanOpen(true);
   };
 
-  const getNotReachedLeads = (leads, days = 7) => {
-    const now = new Date();
-    const cutoff = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
-
-    return leads.filter(lead => {
-      const status = (lead.retentionStatus || "").toLowerCase();
-      if (status && status !== "active") return false;
-
-      if (!lead.reachoutLogs || lead.reachoutLogs.length === 0) return true;
-
-      const latestLog = lead.reachoutLogs.reduce((latest, log) => {
-        const ts = new Date(log.timestamp);
-        return (!latest || ts > latest) ? ts : latest;
-      }, null);
-
-      if (!latestLog) return true;
-      return latestLog < cutoff;
-    });
-  };
-
-  const getReachedLeads = (leads, days = 7) => {
-    const now = new Date();
-    const cutoff = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
-
-    return leads.filter(lead => {
-      const status = (lead.retentionStatus || "").toLowerCase();
-      if (status && status !== "active") return false;
-      if (!lead.reachoutLogs || lead.reachoutLogs.length === 0) return false;
-
-      return lead.reachoutLogs.some(log => {
-        const ts = new Date(log.timestamp);
-        return ts >= cutoff;
-      });
-    });
-  };
-
-
-  useEffect(() => {
-    setNotReachedLeadsCount(getNotReachedLeads(filteredAllLeads).length);
-    setReachedLeadsCount(getReachedLeads(filteredAllLeads).length);
-  }, [filteredAllLeads, allLeads]);
-
   const handleLeadSelect = (idx, id) => {
     setSelectedLeadId(id);
     setSelectedLeadIndex(idx);
@@ -538,13 +579,7 @@ const RetentionLeads = () => {
     const value = e.target.value;
     const updatedLeads = [...leads];
     updatedLeads[index][field] = value;
-    if (field === "rtNextFollowupDate") {
-      const followupDate = new Date(value);
-      const today = new Date();
-      const diffInDays = Math.ceil((followupDate - today) / (1000 * 60 * 60 * 24));
-      updatedLeads[index].rtFollowupReminder =
-        diffInDays < 0 ? "Missed" : diffInDays === 0 ? "Today" : diffInDays === 1 ? "Tomorrow" : "Later";
-    }
+
     setLeads(updatedLeads);
     try {
       await axios.put(
@@ -556,33 +591,70 @@ const RetentionLeads = () => {
     }
   };
 
-  const loadMoreLeads = () => {
-    if (loadingMore || !hasMore) return;
+  // near other refs
+  const loadingMoreRef = useRef(false);
+
+  // replace loadMoreLeads with this:
+  const loadMoreLeads = useCallback(async () => {
+    if (loadingMoreRef.current || loadingMore) return;
+
+    const localFilteredLen = filteredAllLeads.length;
+    const haveLocalHidden = leads.length < localFilteredLen;
+
+    // If server has no more AND we already rendered all local filtered items, stop.
+    if (!serverHasMore && !haveLocalHidden) return;
+
+    loadingMoreRef.current = true;
     setLoadingMore(true);
-    setTimeout(() => {
-      const filtered = filteredLeadsByFilters(allLeads);
-      const nextBatch = filtered.slice(currentIndex, currentIndex + leadsPerPage);
-      setLeads((prev) => [...prev, ...nextBatch]);
-      setCurrentIndex((prev) => prev + leadsPerPage);
-      setHasMore(currentIndex + leadsPerPage < filteredAllLeads.length);
+    try {
+      // 1) reveal local hidden first
+      if (haveLocalHidden) {
+        const nextSlice = filteredAllLeads.slice(leads.length, leads.length + leadsPerPage);
+        if (nextSlice.length) setLeads(prev => [...prev, ...nextSlice]);
+
+        setHasMore(serverHasMore || (leads.length + nextSlice.length) < localFilteredLen);
+        return;
+      }
+
+      // 2) otherwise fetch next server page
+      if (serverHasMore && loggedInUser) {
+        const nextPage = serverPage + 1;
+        await fetchRetentionLeadsPage(loggedInUser, nextPage); // this will append & slice
+        setServerPage(nextPage);
+      }
+    } finally {
       setLoadingMore(false);
-    }, 500);
-  };
+      loadingMoreRef.current = false;
+    }
+  }, [
+    loadingMore,
+    serverHasMore,
+    loggedInUser,
+    serverPage,
+    filteredAllLeads,
+    leads,
+    leadsPerPage,
+    fetchRetentionLeadsPage,
+  ]);
+
 
   const handleScroll = useCallback(() => {
-    if (!containerRef.current) return;
-    const { scrollTop, scrollHeight, clientHeight } = containerRef.current;
+    const el = containerRef.current;
+    if (!el || !hasMore || loadingMore) return;
+    const { scrollTop, scrollHeight, clientHeight } = el;
     if (scrollHeight - scrollTop - clientHeight < 100) {
       loadMoreLeads();
     }
-  }, [loadMoreLeads]);
- 
+  }, [hasMore, loadingMore, loadMoreLeads]);
+
+
+
   const handleColorSelect = async (color, index) => {
     const updatedLeads = [...leads];
     updatedLeads[index].rowColor = color;
     setLeads(updatedLeads);
-    setAnchorElColor(null); 
-    setColorMenuIdx(null); 
+    setAnchorElColor(null);
+    setColorMenuIdx(null);
 
     try {
       await axios.put(
@@ -591,6 +663,62 @@ const RetentionLeads = () => {
       );
     } catch (error) {
       console.error("Error updating row color:", error);
+    }
+  };
+
+  const fetchDietPlanCount = async (leadId) => {
+    if (!leadId) return;
+    if (planCountLoading[leadId] || planCountMap[leadId] != null) return;
+    try {
+      setPlanCountLoading((p) => ({ ...p, [leadId]: true }));
+      const res = await axios.get(
+        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/diet-plans",
+        { params: { leadId, limit: 200 } } // fetch enough to cover recent
+      );
+      const items = res?.data?.items || [];
+      const now = new Date();
+      const ms14 = 14 * 24 * 60 * 60 * 1000;
+      const ms30 = 30 * 24 * 60 * 60 * 1000;
+      const cutoff14 = new Date(now.getTime() - ms14);
+      const cutoff30 = new Date(now.getTime() - ms30);
+
+      let count = 0;
+      let latestStart = null;
+      let latestType = null;
+
+      for (const plan of items) {
+        const sd = plan?.startDate ? new Date(plan.startDate) : null;
+        if (!sd || isNaN(sd.getTime())) continue;
+        const type = String(plan?.planType || "").toLowerCase();
+        const qualifies =
+          (type === "weekly" && sd >= cutoff14) ||
+          (type === "monthly" && sd >= cutoff30);
+        if (qualifies) {
+          count += 1;
+          if (!latestStart || sd > latestStart) {
+            latestStart = sd;
+            latestType = type; // "weekly" or "monthly"
+          }
+        }
+      }
+      setPlanCountMap((p) => ({ ...p, [leadId]: count }));
+
+      // compute remaining days from the latest qualifying plan
+      if (latestStart && latestType) {
+        const totalDays = latestType === "weekly" ? 14 : 30;
+        const elapsed = Math.floor((now - latestStart) / (1000 * 60 * 60 * 24));
+        const remaining = Math.max(totalDays - elapsed, 0);
+        setPlanRemainingDaysMap((m) => ({ ...m, [leadId]: remaining }));
+      } else {
+        setPlanRemainingDaysMap((m) => ({ ...m, [leadId]: null }));
+      }
+    } catch (e) {
+      // On error, mark as zero so we don't hammer repeatedly
+      setPlanCountMap((p) => ({ ...p, [leadId]: 0 }));
+      setPlanRemainingDaysMap((m) => ({ ...m, [leadId]: null }));
+      console.error("Failed fetching diet plans for lead", leadId, e?.response?.data || e?.message || e);
+    } finally {
+      setPlanCountLoading((p) => ({ ...p, [leadId]: false }));
     }
   };
 
@@ -605,17 +733,41 @@ const RetentionLeads = () => {
   }, [handleScroll]);
 
   const applyFilters = useCallback(() => {
-    const filtered = filteredLeadsByFilters([...allLeads]);
+    const filtered = filteredLeadsByFilters(allLeads);
     setFilteredAllLeads(filtered);
+
     setLeads(filtered.slice(0, leadsPerPage));
+    setHasMore(filtered.length > leadsPerPage || serverHasMore);
     setCurrentIndex(leadsPerPage);
-    setHasMore(filtered.length > leadsPerPage);
-  }, [allLeads, filters, orderPlacedFilter, dateRangeFilter]);
+  }, [allLeads, leadsPerPage, serverHasMore, filteredLeadsByFilters]);
+
 
   useEffect(() => {
     applyFilters();
-  }, [applyFilters]);
+  }, [filters, orderPlacedFilter, dateRangeFilter]);
 
+  useEffect(() => {
+    (async () => {
+      for (const l of leads) {
+        if (l?._id && planCountMap[l._id] == null && !planCountLoading[l._id]) {
+          fetchDietPlanCount(l._id);
+        }
+      }
+    })();
+  }, [leads]);
+
+  useEffect(() => {
+    if (!loggedInUser?.fullName || !loggedInUser?.email) return;
+
+    setServerPage(1);
+    setAllLeads([]);
+    setFilteredAllLeads([]);
+    setLeads([]);
+    setServerHasMore(true);
+    setHasMore(true);
+
+    fetchRetentionLeadsPage(loggedInUser, 1);
+  }, [loggedInUser, filters.retentionStatus, filters.rtFollowupReminder, filters.name, filters.rtNextFollowupDate, colorFilter, acqYear,  acqMonth]);
 
   const currentUserName = React.useMemo(() => {
     try {
@@ -631,9 +783,12 @@ const RetentionLeads = () => {
     const user = JSON.parse(sessionStorage.getItem("user"));
     if (user && user.role === "Retention Agent") {
       setLoggedInUser(user);
-      fetchRetentionLeads(user);
+      setServerPage(1);
+      setAllLeads([]);
+      fetchRetentionLeadsPage(user, 1);
     }
   }, []);
+
 
   useEffect(() => {
     setReachoutMethod("");
@@ -685,36 +840,6 @@ const RetentionLeads = () => {
   };
 
 
-  const filterLeadsByShipmentStatus = async (status) => {
-    try {
-      setLoading(true);
-      setShipmentStatusFilter(status);
-
-      const res = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/orders/by-shipment-status", {
-        params: { shipment_status: status },
-      });
-
-      const orders = res.data;
-
-      const contactNumbersWithStatus = new Set(
-        orders.map(order => order.contact_number)
-      );
-
-      const filteredLeads = allLeads.filter(lead =>
-        contactNumbersWithStatus.has(lead.contactNumber)
-      );
-
-      setFilteredAllLeads(filteredLeads);
-      setLeads(filteredLeads.slice(0, leadsPerPage));
-      setHasMore(filteredLeads.length > leadsPerPage);
-      setSelectedLeadIndex(null);
-    } catch (error) {
-      console.error("Error filtering by shipment status:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const updateLeadDetails = (contactNumber, newDetails) => {
     setLeads((prevLeads) => {
       return prevLeads.map((lead) =>
@@ -723,93 +848,15 @@ const RetentionLeads = () => {
     });
   };
 
-  const filteredLeadsByFilters = (inputLeads) => {
+  function filteredLeadsByFilters(inputLeads) {
     if (!inputLeads || inputLeads.length === 0) return [];
 
     let filtered = [...inputLeads];
 
-    // Apply all filters (retentionStatus, date, followup, etc.)
-    if (filters.retentionStatus && filters.retentionStatus !== "All") {
-      const statusFilter = filters.retentionStatus.toLowerCase();
-      filtered = filtered.filter((lead) => {
-        const leadStatus = (lead.retentionStatus || "").toLowerCase();
-        return statusFilter === "active"
-          ? leadStatus === "active" || leadStatus === ""
-          : statusFilter === "lost"
-            ? leadStatus === "lost"
-            : true;
-      });
-    }
-
-    if (
-      dateRangeFilter &&
-      dateRangeFilter.includes(" ") &&
-      [
-        "January", "February", "March", "April", "May", "June",
-        "July", "August", "September", "October", "November", "December"
-      ].some((month) => dateRangeFilter.startsWith(month))
-    ) {
-      const [monthName, year] = dateRangeFilter.split(" ");
-      filtered = filtered.filter((lead) => {
-        if (!lead.lastOrderDate) return false;
-        const orderDate = new Date(lead.lastOrderDate);
-        return (
-          orderDate.toLocaleString("default", { month: "long" }) === monthName &&
-          orderDate.getFullYear().toString() === year
-        );
-      });
-    }
-
-    if (filters.rtFollowupReminder !== null) {
-      filtered = filtered.filter((lead) => {
-        const reminder = lead.rtFollowupReminder || "";
-        return filters.rtFollowupReminder === ""
-          ? reminder === ""
-          : reminder === filters.rtFollowupReminder;
-      });
-    }
- 
-if (filters.rtNextFollowupDate) {
-  const wanted = filters.rtNextFollowupDate;
-  filtered = filtered.filter((lead) => {
-    if (!lead.rtNextFollowupDate) return false;
-    const d = new Date(lead.rtNextFollowupDate);
-    const yyyy = d.getFullYear();
-    const mm = String(d.getMonth() + 1).padStart(2, "0");
-    const dd = String(d.getDate()).padStart(2, "0");
-    return `${yyyy}-${mm}-${dd}` === wanted;
-  });
-}
-
-    const search = filters.name.trim().toLowerCase();
-
-    if (search) {
-      if (/^\d{1,5}$/.test(search)) {
-        const serialIndex = parseInt(search, 10) - 1;
-        if (serialIndex >= 0 && serialIndex < filtered.length) {
-          filtered = filtered.slice(serialIndex);
-        } else {
-          filtered = [];
-        }
-      }
-      else {
-        filtered = filtered.filter((lead) => {
-          const nameMatch = lead.name?.toLowerCase().includes(search);
-          const numberMatch = lead.contactNumber?.includes(search);
-          return nameMatch || numberMatch;
-        });
-      }
-    }
-
-    filtered.sort((a, b) => {
-      if (!a.lastOrderDate && !b.lastOrderDate) return 0;
-      if (!a.lastOrderDate) return 1;
-      if (!b.lastOrderDate) return -1;
-      return new Date(b.lastOrderDate) - new Date(a.lastOrderDate);
-    });
+    
 
     return filtered;
-  };
+  }
 
 
   const handleSortMenuClick = (event, type) => {
@@ -818,19 +865,23 @@ if (filters.rtNextFollowupDate) {
   };
 
   const handleSortByColor = (color) => {
-    const filtered = color
-      ? allLeads.filter((lead) => (lead.rowColor || "") === color)
-      : allLeads;
+  // color: "#ffdbbb" | "#baddff" | "#bafff5" | "" (No Color)
+  setColorFilter(color);
 
-    setFilteredAllLeads(filtered);
-    setLeads(filtered.slice(0, leadsPerPage));
-    setHasMore(filtered.length > leadsPerPage);
-    setSelectedLeadIndex(null);
+  // reset & refetch page 1 with new server filter
+  setSortMenuAnchorEl(null);
+  setSortSubMenuAnchorEl(null);
+  setActiveSortType(null);
 
-    setSortMenuAnchorEl(null);
-    setSortSubMenuAnchorEl(null);
-    setActiveSortType(null);
-  };
+  setServerPage(1); 
+  setAllLeads([]);
+  setFilteredAllLeads([]);
+  setLeads([]);
+  setServerHasMore(true);
+  setHasMore(true);
+  fetchRetentionLeadsPage(loggedInUser, 1);
+};
+
 
   return (
     <Box
@@ -874,24 +925,17 @@ if (filters.rtNextFollowupDate) {
               {
                 label: "All",
                 value: "All",
-                count: allLeads.length,
+                count: serverCounts.all,
               },
               {
                 label: "Active",
                 value: "Active",
-                count: allLeads.filter(
-                  (lead) =>
-                    !lead.retentionStatus || lead.retentionStatus.toLowerCase() === "active"
-                ).length,
+                count: serverCounts.active,
               },
               {
                 label: "Lost",
                 value: "Lost",
-                count: allLeads.filter(
-                  (lead) =>
-                    lead.retentionStatus &&
-                    lead.retentionStatus.toLowerCase() === "lost"
-                ).length,
+                count: serverCounts.lost,
               },
             ].map(({ label, value, count }) => {
               const isSelected = filters.retentionStatus === value;
@@ -904,6 +948,7 @@ if (filters.rtNextFollowupDate) {
                     setFilters((prev) => ({
                       ...prev,
                       retentionStatus: value,
+                      rtFollowupReminder: null,
                     }))
                   }
                   size="small"
@@ -985,19 +1030,13 @@ if (filters.rtNextFollowupDate) {
                       variant="caption"
                       sx={{ fontSize: "0.6rem", opacity: 0.7 }}
                     >
-                      {
-                        allLeads.filter((lead) => {
-                          const retentionOk =
-                            filters.retentionStatus === "All"
-                              ? true
-                              : filters.retentionStatus === "Active"
-                                ? !lead.retentionStatus || lead.retentionStatus?.toLowerCase() === "active"
-                                : filters.retentionStatus === "Lost"
-                                  ? lead.retentionStatus?.toLowerCase() === "lost"
-                                  : true;
-                          return retentionOk && (lead.rtFollowupReminder || "") === value;
-                        }).length
-                      }
+                      {{
+                        "Today": serverCounts.followups.today,
+                        "Tomorrow": serverCounts.followups.tomorrow,
+                        "Follow-up Missed": serverCounts.followups.missed,
+                        "Later": serverCounts.followups.later,
+                        "": serverCounts.followups.notset,
+                      }[value] ?? 0}
                     </Typography>
                   </Box>
                 </Button>
@@ -1024,33 +1063,33 @@ if (filters.rtNextFollowupDate) {
               }}
             />
             <Tooltip title="Filter by Next Follow-up">
-  <IconButton
-    size="small"
-    onClick={() => {
-      const el = followupDateInputRef.current;
-      if (!el) return;
-      // Prefer showPicker() when supported; otherwise fallback to click()
-      if (typeof el.showPicker === "function") el.showPicker();
-      else el.click();
-    }}
-    // Optional: highlight when active
-    sx={filters.rtNextFollowupDate ? { bgcolor: "rgba(25,118,210,0.12)" } : undefined}
-  >
-    <CalendarMonthIcon />
-  </IconButton>
-</Tooltip>
+              <IconButton
+                size="small"
+                onClick={() => {
+                  const el = followupDateInputRef.current;
+                  if (!el) return;
+                  // Prefer showPicker() when supported; otherwise fallback to click()
+                  if (typeof el.showPicker === "function") el.showPicker();
+                  else el.click();
+                }}
+                // Optional: highlight when active
+                sx={filters.rtNextFollowupDate ? { bgcolor: "rgba(25,118,210,0.12)" } : undefined}
+              >
+                <CalendarMonthIcon />
+              </IconButton>
+            </Tooltip>
 
-{/* Hidden input that the calendar icon triggers */}
-<input
-  ref={followupDateInputRef}
-  type="date"
-  style={{ position: "absolute", opacity: 0, width: 0, height: 0, pointerEvents: "none" }}
-  value={filters.rtNextFollowupDate || ""}
-  onChange={(e) => {
-    const v = e.target.value || "";
-    setFilters((prev) => ({ ...prev, rtNextFollowupDate: v }));
-  }}
-/>
+            {/* Hidden input that the calendar icon triggers */}
+            <input
+              ref={followupDateInputRef}
+              type="date"
+              style={{ position: "absolute", opacity: 0, width: 0, height: 0, pointerEvents: "none" }}
+              value={filters.rtNextFollowupDate || ""}
+              onChange={(e) => {
+                const v = e.target.value || "";
+                setFilters((prev) => ({ ...prev, rtNextFollowupDate: v }));
+              }}
+            />
 
 
             <Tooltip title="Filter">
@@ -1058,10 +1097,10 @@ if (filters.rtNextFollowupDate) {
                 color="primary"
                 badgeContent={
                   orderPlacedFilter === "Acquired In" && dateRangeFilter
-                    ? filteredAllLeads.length
+                    ? serverTotal 
                     : 0
                 }
-                max={9999}
+                max={9999} 
                 invisible={
                   !(orderPlacedFilter === "Acquired In" && dateRangeFilter && filteredAllLeads.length > 0)
                 }
@@ -1082,141 +1121,55 @@ if (filters.rtNextFollowupDate) {
                 <SortIcon />
               </IconButton>
             </Tooltip>
-            <Tooltip title="More options">
-              <IconButton
-                size="small"
-                onClick={(e) => setMoreOptionsAnchorEl(e.currentTarget)}
-              >
-                <MoreVertIcon />
-              </IconButton>
-            </Tooltip>
-          </Box>
-          <Box sx={{ mt: 1, mb: 1, display: "flex", gap: 1 }}>
-            <Button
-              variant={showingReached ? "contained" : "outlined"}
-              color={showingReached ? "success" : "inherit"}
-              size="small"
-              sx={{
-                fontWeight: 600,
-                borderRadius: 2,
-                color: showingReached ? "#fff" : "black",
-                borderColor: showingReached ? "green" : "black",
-                textTransform: "none",
-                px: 2,
-              }}
-              onClick={() => {
-                if (!showingReached) {
-                  const filtered = getReachedLeads(filteredAllLeads);
-                  setLeads(filtered.slice(0, leadsPerPage));
-                  setHasMore(filtered.length > leadsPerPage);
-                  setCurrentIndex(leadsPerPage);
-                  setShowingNotReached(false);
-                } else {
-                  applyFilters();
-                }
-                setShowingReached(!showingReached);
-                setSelectedLeadIndex(null);
-              }}
-            >
-              Reached This Week ({reachedLeadsCount})
-            </Button>
-            <Button
-              variant={showingNotReached ? "contained" : "outlined"}
-              color={showingNotReached ? "error" : "inherit"}
-              size="small"
-              sx={{
-                fontWeight: 600,
-                borderRadius: 2,
-                color: showingNotReached ? "#fff" : "black",
-                borderColor: showingNotReached ? "red" : "black",
-                textTransform: "none",
-                px: 2,
-              }}
-              onClick={() => {
-                if (!showingNotReached) {
-                  const filtered = getNotReachedLeads(filteredAllLeads);
-                  setLeads(filtered.slice(0, leadsPerPage));
-                  setHasMore(filtered.length > leadsPerPage);
-                  setCurrentIndex(leadsPerPage);
-                  setShowingReached(false);
-                } else {
-                  applyFilters();
-                }
-                setShowingNotReached(!showingNotReached);
-                setSelectedLeadIndex(null);
-              }}
-            >
-              Not Reached This week ({notReachedLeadsCount})
-            </Button>
+
           </Box>
         </Box>
 
         <Menu
-  anchorEl={followupDateAnchorEl}
-  open={Boolean(followupDateAnchorEl)}
-  onClose={() => setFollowupDateAnchorEl(null)}
-  anchorOrigin={{ vertical: "bottom", horizontal: "left" }}
-  transformOrigin={{ vertical: "top", horizontal: "left" }}
->
-  <Box sx={{ p: 2, width: 260, display: "grid", gap: 1 }}>
-    <Typography variant="subtitle2">Next Follow-up on</Typography>
-
-    <TextField
-      size="small"
-      type="date"
-      value={followupDateDraft}
-      onChange={(e) => setFollowupDateDraft(e.target.value)}
-      InputLabelProps={{ shrink: true }}
-    />
-
-    <Box sx={{ display: "flex", gap: 1, mt: 0.5 }}>
-      <Button
-        variant="contained"
-        size="small"
-        onClick={() => {
-          setFilters((prev) => ({ ...prev, rtNextFollowupDate: followupDateDraft || "" }));
-          setFollowupDateAnchorEl(null);
-        }}
-        disabled={!followupDateDraft}
-        sx={{ textTransform: "none" }}
-      >
-        Apply
-      </Button>
-      <Button
-        variant="outlined"
-        size="small"
-        onClick={() => {
-          setFollowupDateDraft("");
-          setFilters((prev) => ({ ...prev, rtNextFollowupDate: "" })); 
-          setFollowupDateAnchorEl(null);
-        }}
-        sx={{ textTransform: "none" }}
-      >
-        Clear
-      </Button>
-    </Box>
-  </Box>
-</Menu>
-
-
-        <Menu
-          anchorEl={moreOptionsAnchorEl}
-          open={Boolean(moreOptionsAnchorEl)}
-          onClose={() => setMoreOptionsAnchorEl(null)}
+          anchorEl={followupDateAnchorEl}
+          open={Boolean(followupDateAnchorEl)}
+          onClose={() => setFollowupDateAnchorEl(null)}
           anchorOrigin={{ vertical: "bottom", horizontal: "left" }}
           transformOrigin={{ vertical: "top", horizontal: "left" }}
         >
-          {["Delivered", "Out For Delivery", "In Transit", "RTO Delivered"].map((status) => (
-            <MenuItem
-              key={status}
-              onClick={async () => {
-                setMoreOptionsAnchorEl(null);
-                await filterLeadsByShipmentStatus(status);
-              }}
-            >
-              {status}
-            </MenuItem>
-          ))}
+          <Box sx={{ p: 2, width: 260, display: "grid", gap: 1 }}>
+            <Typography variant="subtitle2">Next Follow-up on</Typography>
+
+            <TextField
+              size="small"
+              type="date"
+              value={followupDateDraft}
+              onChange={(e) => setFollowupDateDraft(e.target.value)}
+              InputLabelProps={{ shrink: true }}
+            />
+
+            <Box sx={{ display: "flex", gap: 1, mt: 0.5 }}>
+              <Button
+                variant="contained"
+                size="small"
+                onClick={() => {
+                  setFilters((prev) => ({ ...prev, rtNextFollowupDate: followupDateDraft || "" }));
+                  setFollowupDateAnchorEl(null);
+                }}
+                disabled={!followupDateDraft}
+                sx={{ textTransform: "none" }}
+              >
+                Apply
+              </Button>
+              <Button
+                variant="outlined"
+                size="small"
+                onClick={() => {
+                  setFollowupDateDraft("");
+                  setFilters((prev) => ({ ...prev, rtNextFollowupDate: "" }));
+                  setFollowupDateAnchorEl(null);
+                }}
+                sx={{ textTransform: "none" }}
+              >
+                Clear
+              </Button>
+            </Box>
+          </Box>
         </Menu>
 
         <Menu
@@ -1242,7 +1195,7 @@ if (filters.rtNextFollowupDate) {
                   color: "text.primary",
                 }}
               >
-                Accquired In
+                Acquired In
               </Typography>
 
               <Typography
@@ -1287,11 +1240,28 @@ if (filters.rtNextFollowupDate) {
                     key={month}
                     selected={selectedMonth === month}
                     onClick={() => {
-                      const combined = `${month} ${selectedYear}`;
-                      setSelectedMonth(month);
-                      setDateRangeFilter(combined);
-                      setFilterAnchorEl(null);
-                    }}
+   const combined = `${month} ${selectedYear}`;
+   setSelectedMonth(month);
+   setDateRangeFilter(combined);
+
+   // NEW: drive server params
+   const monthIndex = [
+     "January","February","March","April","May","June",
+     "July","August","September","October","November","December"
+   ].indexOf(month) + 1;
+   setAcqYear(selectedYear); 
+   setAcqMonth(monthIndex);
+
+   // reset and refetch page 1
+   setServerPage(1);
+   setAllLeads([]);
+   setFilteredAllLeads([]);
+   setLeads([]);
+   setServerHasMore(true);
+   setHasMore(true);
+   setFilterAnchorEl(null);
+   fetchRetentionLeadsPage(loggedInUser, 1);
+ }}
                   >
                     {month}
                   </MenuItem>
@@ -1339,7 +1309,7 @@ if (filters.rtNextFollowupDate) {
               { label: "Good", color: "#ffdbbb" },
               { label: "Very Good", color: "#baddff" },
               { label: "Excellent", color: "#bafff5" },
-              { label: "No Color", color: "" },
+              { label: "No Color", color: "" }, 
             ].map(({ label, color }) => (
               <MenuItem
                 key={label}
@@ -1371,8 +1341,8 @@ if (filters.rtNextFollowupDate) {
                 .toUpperCase()
               : "?";
 
-            const followup = lead.rtFollowupReminder || "";
-            const tagInfo = followupTagMap[followup] || followupTagMap[""];
+            const followupDisplay = computeReminderIST(lead.rtNextFollowupDate);
+            const tagInfo = followupTagMap[followupDisplay] || followupTagMap[""];
 
             const isSelected = lead._id === selectedLeadId;
 
@@ -1382,6 +1352,7 @@ if (filters.rtNextFollowupDate) {
                 sx={{
                   mb: 0.5,
                   borderRadius: 1,
+                  minHeight: 64,
                   backgroundColor: lead.rowColor
                     ? lead.rowColor
                     : isSelected
@@ -1495,37 +1466,84 @@ if (filters.rtNextFollowupDate) {
                           const last = lead.lastOrderDate;
                           const daysSinceLast = getDaysSince(last);
 
-                          // consider only successful connections
-                          const successStatuses = new Set(["followup done", "order placed"]);
-                          const logs = (lead.reachoutLogs || []).filter(
-                            (log) => successStatuses.has(String(log?.status || "").toLowerCase())
-                          );
+                          // normalize + helpers
+                          const norm = (s) => String(s || "").trim().toLowerCase();
+                          const logsAll = Array.isArray(lead.reachoutLogs) ? lead.reachoutLogs : [];
 
-                          const latestLogDate = logs.reduce((latest, log) => {
-                            const d = toDateSafe(log?.timestamp);
-                            return !latest || (d && d > latest) ? d : latest;
-                          }, null);
+                          const latestFromStatuses = (statuses) => {
+                            const wanted = new Set(statuses.map((s) => s.toLowerCase()));
+                            let latest = null;
+                            for (const log of logsAll) {
+                              if (wanted.has(norm(log?.status))) {
+                                const d = toDateSafe(log?.timestamp);
+                                if (d && (!latest || d > latest)) latest = d;
+                              }
+                            }
+                            return latest;
+                          };
 
-                          const lastConnectedDays = latestLogDate ? getDaysSince(latestLogDate) : null;
+                          const latestConnected = latestFromStatuses(["Followup Done", "Order Placed"]);
+                          const lastConnectedDays = latestConnected ? getDaysSince(latestConnected) : null;
+
+                          const latestReached = latestFromStatuses(["CNP", "Call Back Later", "Switch Off", "Busy", "Drop On Intro"]);
+                          const lastReachedDays = !latestConnected && latestReached ? getDaysSince(latestReached) : null;
 
                           if (daysSinceLast === null) return "N/A";
 
                           return (
                             <>
                               <div>Last Order - {daysSinceLast} days</div>
-                              {lastConnectedDays !== null && (
+                              {lastConnectedDays !== null ? (
                                 <div>
                                   Last Connected - {lastConnectedDays} day{lastConnectedDays === 1 ? "" : "s"}
                                 </div>
-                              )}
+                              ) : lastReachedDays !== null ? (
+                                <div>
+                                  Last Reached - {lastReachedDays} day{lastReachedDays === 1 ? "" : "s"}
+                                </div>
+                              ) : null}
                             </>
                           );
                         })()}
+
                       </Typography>
                     </Box>
                   }
                 />
-
+                {!!planCountMap[lead._id] && planCountMap[lead._id] > 0 && (
+                  <Box
+                    sx={{
+                      position: "absolute",
+                      right: 6,
+                      bottom: 6,
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 0.5,
+                    }}
+                  >
+                    <Tooltip
+                      title={`Diet plans in last 14/30 days — ${planRemainingDaysMap[lead._id] != null
+                        ? planRemainingDaysMap[lead._id] + " days left"
+                        : "no active plan window"
+                        }`}
+                    >
+                      <Badge
+                        color="success"
+                        anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
+                      >
+                        <SpaIcon sx={{ fontSize: 18, color: "#2E7D32" }} />
+                      </Badge>
+                    </Tooltip>
+                    {planRemainingDaysMap[lead._id] != null && (
+                      <Typography
+                        variant="caption"
+                        sx={{ fontWeight: 700, color: "#2E7D32", lineHeight: 1 }}
+                      >
+                        {planRemainingDaysMap[lead._id]}d
+                      </Typography>
+                    )}
+                  </Box>
+                )}
               </ListItemButton>
             );
           })}
@@ -1549,7 +1567,7 @@ if (filters.rtNextFollowupDate) {
           </Typography>
         )}
 
-        {loading && (
+        {loading && !loadingMore && (
           <Box sx={{ display: "flex", justifyContent: "center", py: 4 }}>
             <CircularProgress />
           </Box>
@@ -1944,7 +1962,7 @@ if (filters.rtNextFollowupDate) {
                         InputLabelProps={{ shrink: true }}
                       />
 
-                      <FormControl size="small" sx={{ minWidth: 160 }}>
+                      <FormControl size="small" sx={{ minWidth: 130 }}>
                         <InputLabel>Retention Status</InputLabel>
                         <Select
                           label="Retention Status"
@@ -2000,7 +2018,7 @@ if (filters.rtNextFollowupDate) {
                       </FormControl>
 
                       {/* Preferred Language */}
-                      <FormControl size="small" sx={{ minWidth: 150 }}>
+                      <FormControl size="small" sx={{ minWidth: 140 }}>
                         <InputLabel>Pref Language</InputLabel>
                         <Select
                           label="Pref Language"
@@ -2021,7 +2039,7 @@ if (filters.rtNextFollowupDate) {
                       </FormControl>
 
                       {/* Preferred Method */}
-                      <FormControl size="small" sx={{ minWidth: 150 }}>
+                      <FormControl size="small" sx={{ minWidth: 140 }}>
                         <InputLabel>Pref Method</InputLabel>
                         <Select
                           label="Pref Method"
@@ -2038,6 +2056,55 @@ if (filters.rtNextFollowupDate) {
                               {option}
                             </MenuItem>
                           ))}
+                        </Select>
+                      </FormControl>
+
+                      <FormControl
+                        size="small"
+                        sx={{ minWidth: 150 }}
+                        error={(selectedConditions?.length ?? 0) === 0}
+                        focused // 👈 keep focused style always
+                      >
+                        <InputLabel
+                          id="conditions-label"
+                          shrink // 👈 keep label floating always
+                          error={(selectedConditions?.length ?? 0) === 0}
+                        >
+                          Conditions
+                        </InputLabel>
+
+                        <Select
+                          labelId="conditions-label"
+                          id="conditions-select"
+                          multiple
+                          displayEmpty
+                          label="Conditions"
+                          value={selectedConditions || []}
+                          onChange={(e) =>
+                            setSelectedConditions(
+                              typeof e.target.value === "string" ? e.target.value.split(",") : e.target.value
+                            )
+                          }
+                          renderValue={(selected) => {
+                            const s = Array.isArray(selected) ? selected : [];
+                            if (s.length === 0) {
+                              return (
+                                <span style={{ color: 'var(--mui-palette-error-main)', fontWeight: 700 }}>
+                                  Select 1
+                                </span>
+                              );
+                            }
+                            return `${s.length} selected`;
+                          }}
+                          sx={{
+                            borderRadius: 999,
+                            "& .MuiOutlinedInput-notchedOutline": { borderColor: "#E6E8EC" },
+                            "&:hover .MuiOutlinedInput-notchedOutline": { borderColor: "#DDE1E6" },
+                          }}
+                        >
+                          <MenuItem value="Diabetes">Diabetes</MenuItem>
+                          <MenuItem value="Liver">Liver</MenuItem>
+                          <MenuItem value="Cholesterol">Cholesterol</MenuItem>
                         </Select>
                       </FormControl>
                     </Stack>
@@ -2409,7 +2476,7 @@ if (filters.rtNextFollowupDate) {
                 </Dialog>
               </Paper>
 
-              <Details contactNumber={leads[selectedLeadIndex]?.contactNumber} onDetailsUpdate={updateLeadDetails} />
+              <Details contactNumber={leads[selectedLeadIndex]?.contactNumber} onDetailsUpdate={updateLeadDetails} activeConditions={selectedConditions} />
 
               <RetentionFollowUp contactNumber={leads[selectedLeadIndex]?.contactNumber} />
 
@@ -2423,7 +2490,7 @@ if (filters.rtNextFollowupDate) {
                 p: 2,
                 boxShadow: 2,
                 borderRadius: 2,
-                backgroundColor: "background.paper", 
+                backgroundColor: "background.paper",
                 fontSize: "0.85rem",
                 display: "flex",
                 flexDirection: "column",
@@ -2432,9 +2499,9 @@ if (filters.rtNextFollowupDate) {
               }}
               elevation={3}
             >
-              <Box 
+              <Box
                 sx={{
-                  mt: 1, 
+                  mt: 1,
                   height: '50vh',
                   display: 'flex',
                   flexDirection: 'column'
@@ -2477,7 +2544,6 @@ if (filters.rtNextFollowupDate) {
                           ? lead.rtSubcells[lead.rtSubcells.length - 1]?.value || ""
                           : lead?.rtRemark || "";
                         setNoteDraft(latestVal);
-                        setNoteDraft("");
                       }}
                       sx={{ textTransform: 'none', borderColor: 'black', color: 'black' }}
                     >
@@ -2676,7 +2742,7 @@ if (filters.rtNextFollowupDate) {
                 </Box>
               </Box>
             </Paper>
-            
+
           </>
         )}
       </Box>
@@ -2684,4 +2750,5 @@ if (filters.rtNextFollowupDate) {
   );
 };
 
-export default RetentionLeads;  
+export default RetentionLeads;
+

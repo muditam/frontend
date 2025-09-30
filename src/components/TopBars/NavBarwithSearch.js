@@ -259,7 +259,7 @@ const NavbarWithSearch = () => {
     );
   };
 
-  const handleDownloadOrders = async () => {  
+  const handleDownloadOrders = async () => {   
     try {
       const response = await axios.get(
         "http://localhost:5001/api/myorders/download",
