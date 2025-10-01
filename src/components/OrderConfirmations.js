@@ -1,5 +1,5 @@
 // src/components/OrderConfirmations.jsx
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Box,
   Paper,
@@ -35,6 +35,7 @@ import {
   DialogActions,
   Tabs,
   Tab,
+  Badge,
 } from "@mui/material";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import PhoneIcon from "@mui/icons-material/Phone";
@@ -44,6 +45,7 @@ import ExpandLessIcon from "@mui/icons-material/ExpandLess";
 import LaunchIcon from "@mui/icons-material/Launch";
 import CancelOutlinedIcon from "@mui/icons-material/CancelOutlined";
 import LinkOutlinedIcon from "@mui/icons-material/LinkOutlined";
+import AddIcon from "@mui/icons-material/Add"; // NEW
 import ScheduleCallDialog from "./ScheduleCallDialog";
 import axios from "axios";
 import { ThemeProvider, createTheme } from "@mui/material/styles";
@@ -94,7 +96,6 @@ const formatDateTime = (iso) => {
   if (!iso) return "";
   const d = new Date(iso);
   return d.toLocaleString("en-IN", {
-    year: "numeric",
     month: "short",
     day: "2-digit",
     hour: "2-digit",
@@ -103,10 +104,17 @@ const formatDateTime = (iso) => {
   });
 };
 
-const currency = (amt, curr = "INR") =>
-  typeof amt === "number"
-    ? new Intl.NumberFormat("en-IN", { style: "currency", currency: curr }).format(amt)
-    : "";
+const currency = (amt, curr = "INR") => {
+  if (typeof amt !== "number" || isNaN(amt)) return "";
+  const s = new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency: curr,
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  }).format(amt);
+  return s.replace(/(\.00)(?!\d)/, "");
+};
+
 
 const copyToClipboard = async (text, onDone) => {
   try {
@@ -141,19 +149,34 @@ const toTenDigits = (num) => {
   return d.length >= 10 ? d.slice(-10) : d;
 };
 
-// helper to check if a row belongs to a given tab (used for local, immediate removal)
 const rowMatchesTab = (row, tab) => {
   const ops = row?.orderConfirmOps || {};
   if (tab === "ALL") {
-    const notes = (ops.shopifyNotes ?? "").trim();
-    return notes.length === 0; // null/undefined/"" => stays in All
+    return true; // ALL shows everything that's in the list response
   }
   const want = TAB_MAP[tab];
   if (!want) return true;
-  const byNotes = (ops.shopifyNotes || "").trim().toLowerCase() === want.label?.toLowerCase();
-  const byStatus = (ops.callStatus || "").trim().toUpperCase() === want.value?.toUpperCase();
-  // Prioritize Shopify Notes, but accept callStatus as fallback
+  const byNotes =
+    (ops.shopifyNotes || "").trim().toLowerCase() === want.label?.toLowerCase();
+  const byStatus =
+    (ops.callStatus || "").trim().toUpperCase() === want.value?.toUpperCase();
   return byNotes || byStatus;
+};
+
+const rowAgeBg = (row) => {
+  const dt = row?.orderDate || row?.createdAt;
+  if (!dt) return undefined;
+  const mins = (Date.now() - new Date(dt).getTime()) / 60000;
+  if (mins <= 5) return "#e8f5e9";
+  if (mins <= 10) return "#fff3e0";
+  return "#ffebee";
+};
+
+const channelLabel = (row) => {
+  const id = String(row?.channelName || row?.sourceId || row?.source_id || "").trim();
+  if (id === "252664381441") return "Online Order";
+  if (id === "205650526209") return "Team";
+  return id || "-";
 };
 
 export default function OrderConfirmations() {
@@ -170,8 +193,10 @@ export default function OrderConfirmations() {
   const [agents, setAgents] = useState([]);
   const [savingRow, setSavingRow] = useState({});
   const [cancelingRow, setCancelingRow] = useState({});
+  const [confirmCancel, setConfirmCancel] = useState({ open: false, row: null });
   const [expandedId, setExpandedId] = useState(null);
   const [scheduleDlg, setScheduleDlg] = useState({ open: false, row: null });
+  const [historyDlg, setHistoryDlg] = useState({ open: false, phone: "", items: [], loading: false });
 
   const isConfirmedTab = tab === "ORDER_CONFIRMED";
 
@@ -187,6 +212,7 @@ export default function OrderConfirmations() {
     amount: "",
     generating: false,
     link: "",
+    discountPct: 0,
   });
 
   const fetchAgents = useCallback(async () => {
@@ -210,18 +236,15 @@ export default function OrderConfirmations() {
     async (pageZeroBased = 0, limit = rowsPerPage) => {
       try {
         setLoading(true);
-        const { data } = await axios.get(
-          "https://muditamleads-14f32a10d7f7.herokuapp.com/api/order-confirmations/list",
-          {
-            params: {
-              tab,  
-              financial: "pending",  
-              page: pageZeroBased + 1,
-              limit,
-              q: qDebounced,
-            },
-          }
-        );
+        const { data } = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/order-confirmations/list", {
+          params: {
+            tab,
+            financial: "pending",
+            page: pageZeroBased + 1,
+            limit,
+            q: qDebounced,
+          },
+        });
 
         const rows = data?.items || [];
         setTotal(typeof data?.total === "number" ? data.total : rows.length);
@@ -261,6 +284,15 @@ export default function OrderConfirmations() {
     }
   }, [fetchList, page, rowsPerPage]);
 
+  const openConfirmCancel = (row) => setConfirmCancel({ open: true, row });
+  const closeConfirmCancel = () => setConfirmCancel({ open: false, row: null });
+  const confirmCancelYes = async () => {
+    const row = confirmCancel.row;
+    if (!row) return;
+    await cancelOrderOnShopify(row);
+    closeConfirmCancel();
+  };
+
   useEffect(() => {
     fetchAgents();
   }, [fetchAgents]);
@@ -269,13 +301,20 @@ export default function OrderConfirmations() {
     setPage(0);
     fetchList(0, rowsPerPage);
     setExpandedId(null);
-  }, [tab, qDebounced]); // eslint-disable-line 
+  }, [tab, qDebounced]); // eslint-disable-line
 
   const handleChangePage = (_e, newPage) => {
     setPage(newPage);
     fetchList(newPage, rowsPerPage);
     setExpandedId(null);
   };
+
+  const finalAmount = useMemo(() => {
+    const base = Number(payDlg.amount) || 0;
+    const pct = Number(payDlg.discountPct) || 0;
+    const discounted = base * (1 - pct / 100);
+    return Number(discounted.toFixed(2));
+  }, [payDlg.amount, payDlg.discountPct]);
 
   const openScheduleDialog = (row) => setScheduleDlg({ open: true, row });
   const closeScheduleDialog = () => setScheduleDlg({ open: false, row: null });
@@ -307,6 +346,22 @@ export default function OrderConfirmations() {
       setRowSaving(id, false);
     }
   };
+
+  const openHistoryByPhone = async (rawPhone) => {
+    const phone = toTenDigits(rawPhone);
+    if (!phone) return;
+    setHistoryDlg({ open: true, phone, items: [], loading: true });
+    try {
+      const { data } = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/order-confirmations/history-by-phone", {
+        params: { phone },
+      });
+      setHistoryDlg((s) => ({ ...s, items: Array.isArray(data?.items) ? data.items : [], loading: false }));
+    } catch (e) {
+      setHistoryDlg((s) => ({ ...s, loading: false }));
+      setToast({ open: true, severity: "error", msg: "Failed to load history" });
+    }
+  };
+  const closeHistoryDlg = () => setHistoryDlg({ open: false, phone: "", items: [], loading: false });
 
   const submitSchedule = async (payload) => {
     const id = scheduleDlg.row?._id;
@@ -341,10 +396,10 @@ export default function OrderConfirmations() {
 
     // 2) Update Shopify note + mirror in Mongo (shopifyNotes)
     try {
-      await axios.post(
-        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/order-confirmations/shopify-notes",
-        { orderName: row.orderName, note: label }
-      );
+      await axios.post("https://muditamleads-14f32a10d7f7.herokuapp.com/api/order-confirmations/shopify-notes", {
+        orderName: row.orderName,
+        note: label,
+      });
 
       setToast({ open: true, severity: "success", msg: "Shopify note updated" });
 
@@ -417,48 +472,68 @@ export default function OrderConfirmations() {
       currency: "INR",
       amount: typeof row.amount === "number" ? row.amount : "",
       generating: false,
-      link: "",
+      link: "", 
+      discountPct: 0,
     });
   };
   const closePaymentDialog = () => setPayDlg((s) => ({ ...s, open: false }));
 
   const generateAndShareLink = async () => {
-    const { rowId, amount, currency, customerName, customerEmail, contact } = payDlg;
-    const amt = Number(amount);
-    if (!amt || amt <= 0) {
-      setToast({ open: true, severity: "error", msg: "Enter a valid amount" });
-      return;
-    }
-    if (!contact || contact.length !== 10) {
-      setToast({ open: true, severity: "error", msg: "Customer phone must be 10 digits" });
-      return;
-    }
+  const { rowId, amount, currency, customerName, customerEmail, contact, discountPct = 0 } = payDlg;
+  const base = Number(amount);
+  if (!base || base <= 0) {
+    setToast({ open: true, severity: "error", msg: "Enter a valid amount" });
+    return;
+  }
+  if (!contact || contact.length !== 10) {
+    setToast({ open: true, severity: "error", msg: "Customer phone must be 10 digits" });
+    return;
+  }
 
-    try {
-      setPayDlg((s) => ({ ...s, generating: true }));
-      const { data } = await axios.post(CREATE_PAYMENT_LINK_URL, {
-        amount: amt,
-        currency: currency || "INR",
-        customer: { name: customerName || "Customer", email: customerEmail || "", contact },
-      });
-      const shortUrl = data?.paymentLink;
-      if (!shortUrl) throw new Error("No payment link returned");
+  // Apply discount
+  const amtFinal = Number((base * (1 - (Number(discountPct) || 0) / 100)).toFixed(2));
 
-      await patchOrder(rowId, { paymentLink: shortUrl }, "Payment link saved");
-      setPayDlg((s) => ({ ...s, link: shortUrl, generating: false }));
-      setToast({ open: true, severity: "success", msg: "Link generated & shared via SMS" });
-    } catch (e) {
-      console.error("Generate payment link failed:", e);
-      const msg =
-        e?.response?.data?.message || e?.response?.data?.error || e?.message || "Failed to generate payment link";
-      setToast({ open: true, severity: "error", msg });
-      setPayDlg((s) => ({ ...s, generating: false }));
-    }
-  };
+  try {
+    setPayDlg((s) => ({ ...s, generating: true }));
+    const { data } = await axios.post(CREATE_PAYMENT_LINK_URL, {
+      amount: amtFinal, // <-- discounted rupee amount
+      currency: currency || "INR",
+      customer: { name: customerName || "Customer", email: customerEmail || "", contact },
+    });
+    const shortUrl = data?.paymentLink;
+    if (!shortUrl) throw new Error("No payment link returned"); 
+
+    await patchOrder(rowId, { paymentLink: shortUrl }, "Payment link saved");  
+    setPayDlg((s) => ({ ...s, link: shortUrl, generating: false }));
+    setToast({
+      open: true,
+      severity: "success", 
+      msg: discountPct
+        ? `Link generated with ${discountPct}% discount`
+        : "Link generated & shared via SMS",
+    });
+  } catch (e) {
+    console.error("Generate payment link failed:", e);
+    const msg =
+      e?.response?.data?.message || e?.response?.data?.error || e?.message || "Failed to generate payment link";
+    setToast({ open: true, severity: "error", msg });
+    setPayDlg((s) => ({ ...s, generating: false }));
+  }
+};
+
 
   const renderReadOnlyCallStatus = (val) => {
     const label = statusValueToLabel(val) || "-";
     return <Chip size="small" label={label} />;
+  };
+
+  // NEW: increment plus count
+  const handlePlusClick = async (row) => {
+    try {
+      await patchOrder(row._id, { incPlusCount: true }, "Count updated");
+    } catch {
+      /* toast already shown in patch */
+    }
   };
 
   return (
@@ -510,6 +585,7 @@ export default function OrderConfirmations() {
                 <TableCell>Mobile</TableCell>
                 {!isConfirmedTab && <TableCell>Address</TableCell>}
                 <TableCell>Products Ordered</TableCell>
+                <TableCell>Channel Name</TableCell>
                 <TableCell>Amount</TableCell>
                 <TableCell width={240}>Shopify Notes</TableCell>
                 {isConfirmedTab && <TableCell>Shipment Status</TableCell>}
@@ -530,11 +606,15 @@ export default function OrderConfirmations() {
 
                 return (
                   <React.Fragment key={row._id}>
-                    <TableRow hover>
-                      {/* S. No. */}
+                    <TableRow
+                      hover
+                      sx={{
+                        backgroundColor: rowAgeBg(row),
+                        "&:hover": { backgroundColor: rowAgeBg(row) },
+                      }}
+                    >
                       <TableCell>{serial}</TableCell>
 
-                      {/* Date / Time */}
                       <TableCell>
                         <Stack spacing={0.5}>
                           <Typography variant="body2">
@@ -552,22 +632,50 @@ export default function OrderConfirmations() {
                         </TableCell>
                       )}
 
-                      {/* Order Name + Customer */}
                       <TableCell>
                         <Stack spacing={0.5}>
-                          <Typography variant="body2" fontWeight={600}>
-                            {row.orderName || "-"}
-                          </Typography>
+                          <Stack direction="row" alignItems="center" justifyContent="space-between">
+                            <Typography variant="body2" fontWeight={600}>
+                              {row.orderName || "-"}
+                            </Typography>
+                            {(() => {
+                              const count = Number(row?.totalOrdersForPhone || 0);
+                              const isExisting = count > 1;
+                              const label = isExisting ? `Rpt-${count}` : "New";
+
+                              if (isExisting) {
+                                // Existing → outlined, clickable to open history
+                                const phone =
+                                  row?.contactNumber || row?.customerAddress?.phone || "";
+                                return (
+                                  <Tooltip title="View previous orders">
+                                    <Chip
+                                      size="small"
+                                      label={label}
+                                      variant="outlined"
+                                      onClick={() => openHistoryByPhone(phone)}
+                                      sx={{ cursor: "pointer" }}
+                                    />
+                                  </Tooltip>
+                                );
+                              }
+
+                              // New → green background
+                              return <Chip size="small" label={label} sx={{ bgcolor: "#2e7d32", color: "#fff" }} />;
+                            })()}
+                          </Stack>
+
                           {row.customerName ? (
                             <Chip size="small" label={row.customerName} variant="outlined" />
                           ) : null}
                         </Stack>
                       </TableCell>
 
-                      {/* Mobile (copy + call) */}
+                      {/* Mobile (copy + call + plus-with-count) */}
                       <TableCell>
                         <Stack direction="row" spacing={1} alignItems="center">
                           <Typography variant="body2">{row.contactNumber || "-"}</Typography>
+
                           <Tooltip title="Copy">
                             <span>
                               <IconButton
@@ -587,14 +695,10 @@ export default function OrderConfirmations() {
                               </IconButton>
                             </span>
                           </Tooltip>
+
                           <Tooltip title="Call">
                             <span>
-                              <IconButton
-                                size="small"
-                                component="a"
-                                href={telHref(row.contactNumber)}
-                                color="primary"
-                              >
+                              <IconButton size="small" component="a" href={telHref(row.contactNumber)} color="primary">
                                 <PhoneIcon fontSize="inherit" />
                               </IconButton>
                             </span>
@@ -631,10 +735,56 @@ export default function OrderConfirmations() {
                         </Typography>
                       </TableCell>
 
-                      {/* Amount */}
                       <TableCell>
-                        <Typography variant="body2">{currency(row.amount, row.currency || "INR")}</Typography>
+                        <Typography variant="body2">{channelLabel(row)}</Typography>
                       </TableCell>
+
+                      <TableCell>
+                        <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={1}>
+                          <Typography variant="body2">
+                            {currency(row.amount, row.currency || "INR")}
+                          </Typography>
+
+                          {(() => {
+                            const last = row?.orderConfirmOps?.plusUpdatedAt
+                              ? `Last call: ${formatDateTime(row.orderConfirmOps.plusUpdatedAt)}`
+                              : "No call logged yet";
+
+                            return (
+                              <Tooltip title={last}>
+                                <span>
+                                  <Badge
+                                    overlap="rectangular"
+                                    color="primary"
+                                    badgeContent={Number(row?.orderConfirmOps?.plusCount || 0)}
+                                    anchorOrigin={{ vertical: "top", horizontal: "right" }}
+                                  >
+                                    <Button
+                                      size="small"
+                                      variant="outlined"
+                                      color="primary"
+                                      onClick={() => handlePlusClick(row)}
+                                      disabled={!!savingRow[row._id]}
+                                      sx={{
+                                        textTransform: "none",
+                                        fontWeight: 600,
+                                        px: 1.25,
+                                        py: 0.25,
+                                        lineHeight: 1.2,
+                                        borderWidth: 1.5,
+                                        borderStyle: "solid",
+                                      }}
+                                    >
+                                      Add Log
+                                    </Button>
+                                  </Badge>
+                                </span>
+                              </Tooltip>
+                            );
+                          })()}
+                        </Stack>
+                      </TableCell>
+
 
                       {/* Shopify Notes column */}
                       <TableCell>
@@ -703,7 +853,7 @@ export default function OrderConfirmations() {
                               <Tooltip title="Copy">
                                 <span>
                                   <IconButton
-                                    size="small" 
+                                    size="small"
                                     color="primary"
                                     onClick={() =>
                                       copyToClipboard(tracking, (ok) =>
@@ -772,11 +922,7 @@ export default function OrderConfirmations() {
                                   <Typography variant="body2" sx={{ minWidth: 140 }}>
                                     Language
                                   </Typography>
-                                  <Chip
-                                    size="small"
-                                    label={row?.orderConfirmOps?.languageUsed || "-"}
-                                    variant="outlined"
-                                  />
+                                  <Chip size="small" label={row?.orderConfirmOps?.languageUsed || "-"} variant="outlined" />
                                 </Stack>
 
                                 <Divider flexItem orientation="vertical" />
@@ -893,9 +1039,7 @@ export default function OrderConfirmations() {
                                       patchOrder(row._id, { languageUsed: val });
                                     }
                                   }}
-                                  renderInput={(params) => (
-                                    <TextField {...params} label="Language" sx={{ minWidth: 200 }} />
-                                  )}
+                                  renderInput={(params) => <TextField {...params} label="Language" sx={{ minWidth: 200 }} />}
                                 />
 
                                 <Divider flexItem orientation="vertical" />
@@ -956,7 +1100,7 @@ export default function OrderConfirmations() {
                                     startIcon={
                                       cancelingRow[row._id] ? <CircularProgress size={16} /> : <CancelOutlinedIcon />
                                     }
-                                    onClick={() => cancelOrderOnShopify(row)}
+                                    onClick={() => openConfirmCancel(row)}
                                     disabled={!!cancelingRow[row._id]}
                                   >
                                     {cancelingRow[row._id] ? "Cancelling…" : "Cancel Order"}
@@ -993,6 +1137,68 @@ export default function OrderConfirmations() {
               )}
             </TableBody>
           </Table>
+
+          <Dialog open={historyDlg.open} onClose={closeHistoryDlg} maxWidth="md" fullWidth>
+            <DialogTitle>Previous Orders — {historyDlg.phone ? `+91 ${historyDlg.phone}` : ""}</DialogTitle>
+            <DialogContent dividers>
+              {historyDlg.loading ? (
+                <Stack direction="row" spacing={1} alignItems="center">
+                  <CircularProgress size={20} />
+                  <Typography variant="body2">Loading history…</Typography>
+                </Stack>
+              ) : historyDlg.items.length === 0 ? (
+                <Typography variant="body2">No previous orders found for this customer.</Typography>
+              ) : (
+                <Table size="small" stickyHeader>
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>Order ID</TableCell>
+                      <TableCell>Shipment Status</TableCell>
+                      <TableCell>Order Date</TableCell>
+                      <TableCell>Tracking Number</TableCell>
+                      <TableCell>Carrier Title</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {historyDlg.items.map((h) => (
+                      <TableRow key={h.order_id}>
+                        <TableCell>{h.order_id}</TableCell>
+                        <TableCell>{h.shipment_status || "-"}</TableCell>
+                        <TableCell>{h.order_date ? formatDateTime(h.order_date) : "-"}</TableCell>
+                        <TableCell>{h.tracking_number || "-"}</TableCell>
+                        <TableCell>{h.carrier_title || "-"}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </DialogContent>
+            <DialogActions>
+              <Button onClick={closeHistoryDlg}>Close</Button>
+            </DialogActions>
+          </Dialog>
+
+          <Dialog open={confirmCancel.open} onClose={closeConfirmCancel} maxWidth="xs" fullWidth>
+            <DialogTitle>Confirm Cancel</DialogTitle>
+            <DialogContent dividers>
+              <Typography variant="body2">
+                Are you sure you want to Cancel Order
+                {confirmCancel?.row?.orderName ? ` ${confirmCancel.row.orderName}` : ""}?
+              </Typography>
+            </DialogContent>
+            <DialogActions>
+              <Button onClick={closeConfirmCancel}>No</Button>
+              <Button
+                variant="contained"
+                color="error"
+                onClick={confirmCancelYes}
+                disabled={!!(confirmCancel.row && cancelingRow[confirmCancel.row._id])}
+                startIcon={confirmCancel.row && cancelingRow[confirmCancel.row._id] ? <CircularProgress size={16} /> : null}
+              >
+                {confirmCancel.row && cancelingRow[confirmCancel.row._id] ? "Cancelling…" : "Yes"}
+              </Button>
+            </DialogActions>
+          </Dialog>
 
           {/* Pagination */}
           <TablePagination
@@ -1032,8 +1238,12 @@ export default function OrderConfirmations() {
           </Alert>
         </Snackbar>
 
-        {/* Generate Payment Link Dialog */}
-        <Dialog open={payDlg.open} onClose={payDlg.generating ? undefined : closePaymentDialog} maxWidth="xs" fullWidth>
+        <Dialog
+          open={payDlg.open}
+          onClose={payDlg.generating ? undefined : closePaymentDialog}
+          maxWidth="xs"
+          fullWidth
+        >
           <DialogTitle>Generate Payment Link</DialogTitle>
           <DialogContent dividers>
             <Stack spacing={2} sx={{ mt: 1 }}>
@@ -1045,31 +1255,101 @@ export default function OrderConfirmations() {
                 onChange={(e) => setPayDlg((s) => ({ ...s, amount: e.target.value }))}
                 fullWidth
               />
+
               <TextField
                 label="Customer Name"
                 value={payDlg.customerName}
                 onChange={(e) => setPayDlg((s) => ({ ...s, customerName: e.target.value }))}
                 fullWidth
               />
+
               <TextField
                 label="Customer Phone (10 digits)"
                 value={payDlg.contact}
-                onChange={(e) => setPayDlg((s) => ({ ...s, contact: toTenDigits(e.target.value) }))}
+                onChange={(e) =>
+                  setPayDlg((s) => ({ ...s, contact: toTenDigits(e.target.value) }))
+                }
                 fullWidth
               />
+
               <TextField
                 label="Customer Email (optional)"
                 value={payDlg.customerEmail || ""}
                 onChange={(e) => setPayDlg((s) => ({ ...s, customerEmail: e.target.value }))}
                 fullWidth
               />
+
+              {/* Discount options */}
+              <Stack spacing={1}>
+                <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                  Discount
+                </Typography>
+
+                {/* Checkbox-like toggles (mutually exclusive) */}
+                <Stack direction="row" spacing={1}>
+                  <Button
+                    size="small"
+                    variant={payDlg.discountPct === 5 ? "contained" : "outlined"}
+                    onClick={() =>
+                      setPayDlg((s) => ({ ...s, discountPct: s.discountPct === 5 ? 0 : 5 }))
+                    }
+                    sx={{ textTransform: "none" }}
+                  >
+                    5% Off
+                  </Button>
+                  <Button
+                    size="small"
+                    variant={payDlg.discountPct === 10 ? "contained" : "outlined"}
+                    onClick={() =>
+                      setPayDlg((s) => ({ ...s, discountPct: s.discountPct === 10 ? 0 : 10 }))
+                    }
+                    sx={{ textTransform: "none" }}
+                  >
+                    10% Off
+                  </Button>
+                </Stack>
+
+                {/* Final amount preview */}
+                <Stack direction="row" spacing={1} alignItems="baseline">
+                  {Number(payDlg.discountPct) > 0 ? (
+                    <>
+                      <Typography
+                        variant="caption"
+                        sx={{ textDecoration: "line-through", opacity: 0.7 }}
+                      >
+                        {currency(Number(payDlg.amount) || 0, payDlg.currency || "INR")}
+                      </Typography>
+                      <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                        {currency(finalAmount, payDlg.currency || "INR")}
+                      </Typography>
+                      <Typography variant="caption" sx={{ opacity: 0.7 }}>
+                        ({payDlg.discountPct}% off)
+                      </Typography>
+                    </>
+                  ) : (
+                    <Typography variant="caption" sx={{ opacity: 0.8 }}>
+                      Final amount:{" "}
+                      <strong>
+                        {currency(Number(payDlg.amount) || 0, payDlg.currency || "INR")}
+                      </strong>
+                    </Typography>
+                  )}
+                </Stack>
+              </Stack>
+
+              {/* Generated link preview + actions */}
               {payDlg.link ? (
                 <Stack spacing={1}>
                   <Typography variant="body2" sx={{ fontWeight: 600 }}>
                     Payment Link
                   </Typography>
                   <Stack direction="row" spacing={1} alignItems="center">
-                    <TextField value={payDlg.link} size="small" fullWidth InputProps={{ readOnly: true }} />
+                    <TextField
+                      value={payDlg.link}
+                      size="small"
+                      fullWidth
+                      InputProps={{ readOnly: true }}
+                    />
                     <Tooltip title="Copy link">
                       <span>
                         <IconButton
@@ -1109,11 +1389,16 @@ export default function OrderConfirmations() {
               ) : null}
             </Stack>
           </DialogContent>
+
           <DialogActions>
             <Button onClick={closePaymentDialog} disabled={payDlg.generating}>
               Close
-            </Button>
-            <Button variant="contained" onClick={generateAndShareLink} disabled={payDlg.generating}>
+            </Button> 
+            <Button
+              variant="contained"
+              onClick={generateAndShareLink}
+              disabled={payDlg.generating}
+            >
               {payDlg.generating ? "Generating…" : "Generate & Share"}
             </Button>
           </DialogActions>

@@ -83,26 +83,8 @@ const RetentionOrders = () => {
       setRetentionAgents(activeAgents);
     } catch (error) {
       console.error("Error fetching retention employees:", error);
-    }
+    } 
   };
-
-  // Fetch combined data using the orderCreatedBy query parameter.
-  // const fetchRetentionOrders = async () => {
-  //   try {
-  //     setLoading(true); 
-  //     const response = await axios.get(
-  //       "https://muditamleads-14f32a10d7f7.herokuapp.com/api/retention-sales/allapi",
-  //       { params: { orderCreatedBy: retentionAgents } } // Pass array of retention agent names 
-  //     );
-  //     // Sort orders by descending date.
-  //     const sortedOrders = response.data.sort((a, b) => new Date(b.date) - new Date(a.date));
-  //     setOrders(sortedOrders);
-  //   } catch (error) {
-  //     console.error("Error fetching retention orders:", error);
-  //   } finally {
-  //     setLoading(false); // End loading
-  //   }
-  // };
 
   const fetchRetentionOrders = async () => {
   try {
