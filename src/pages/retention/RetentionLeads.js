@@ -260,8 +260,7 @@ const RetentionLeads = () => {
 
   const [followupDateAnchorEl, setFollowupDateAnchorEl] = useState(null);
   const [followupDateDraft, setFollowupDateDraft] = useState("");
-
-  // --- Remarks height/overflow control ---
+ 
   const remarksBodyRef = useRef(null);
   const [showRemarksMore, setShowRemarksMore] = useState(false);
   const [remarksExpanded, setRemarksExpanded] = useState(false);
@@ -339,8 +338,8 @@ const RetentionLeads = () => {
 
       const resp = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/retentions", {
         params: {
-          fullName: user.fullName,
-          email: user.email,
+          fullName: user.fullName, 
+          email: user.email, 
           page,
           limit: serverLimit,
           retentionStatus: filters.retentionStatus || "All",
@@ -533,7 +532,7 @@ const RetentionLeads = () => {
   };
 
   const handleLeadSelect = (idx, id) => {
-    setSelectedLeadId(id);
+    setSelectedLeadId(id); 
     setSelectedLeadIndex(idx);
   }
 
@@ -655,7 +654,7 @@ const RetentionLeads = () => {
     setLeads(updatedLeads);
     setAnchorElColor(null);
     setColorMenuIdx(null);
-
+ 
     try {
       await axios.put(
         `https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/${updatedLeads[index]._id}`,

@@ -179,6 +179,16 @@ const channelLabel = (row) => {
   return id || "-";
 };
 
+const boolToChoice = (v) => (v === true ? "yes" : v === false ? "no" : null);
+
+const hasOwn = (obj, key) => Object.prototype.hasOwnProperty.call(obj || {}, key);
+
+const triValue = (ops, key) => {
+  if (!ops) return null;
+  if (!hasOwn(ops, key)) return null;        // field absent → no selection
+  return ops[key] === true ? "yes" : "no"; 
+};
+
 export default function OrderConfirmations() {
   const [items, setItems] = useState([]);
   const [tab, setTab] = useState("ALL"); // "ALL" | "CNP" | "ORDER_CONFIRMED" | "CALL_BACK_LATER" | "CANCEL_ORDER"
@@ -197,6 +207,14 @@ export default function OrderConfirmations() {
   const [expandedId, setExpandedId] = useState(null);
   const [scheduleDlg, setScheduleDlg] = useState({ open: false, row: null });
   const [historyDlg, setHistoryDlg] = useState({ open: false, phone: "", items: [], loading: false });
+  const [channel, setChannel] = useState("");
+  const [counts, setCounts] = useState({
+    ALL: 0,
+    CNP: 0,
+    ORDER_CONFIRMED: 0,
+    CALL_BACK_LATER: 0,
+    CANCEL_ORDER: 0,
+  });
 
   const isConfirmedTab = tab === "ORDER_CONFIRMED";
 
@@ -214,6 +232,22 @@ export default function OrderConfirmations() {
     link: "",
     discountPct: 0,
   });
+
+  const getLoggedInFullName = () => { 
+  const direct = sessionStorage.getItem("fullName");
+  if (direct) return direct; 
+ 
+  const rawUser = sessionStorage.getItem("user");
+  if (rawUser) {
+    try {
+      const parsed = JSON.parse(rawUser);
+      if (parsed?.fullName) return parsed.fullName;
+      if (parsed?.name) return parsed.name;
+    } catch {}
+  }
+ 
+  return "";
+};
 
   const fetchAgents = useCallback(async () => {
     try {
@@ -243,6 +277,7 @@ export default function OrderConfirmations() {
             page: pageZeroBased + 1,
             limit,
             q: qDebounced,
+            channel,
           },
         });
 
@@ -255,9 +290,20 @@ export default function OrderConfirmations() {
       } finally {
         setLoading(false);
       }
-    },
-    [qDebounced, rowsPerPage, tab]
+    }, 
+    [qDebounced, rowsPerPage, tab, channel]
   );
+
+  const fetchCounts = useCallback(async () => {
+    try {
+      const { data } = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/order-confirmations/counts", {
+        params: { q: qDebounced, channel },
+      });
+      if (data?.counts) setCounts(data.counts);
+    } catch (e) {
+      console.error("fetchCounts error", e);
+    }
+  }, [qDebounced, channel]);
 
   const syncNewAndRefresh = useCallback(async () => {
     try {
@@ -276,6 +322,7 @@ export default function OrderConfirmations() {
         msg: parts.length ? `Synced (${parts.join(", ")})` : "Synced new orders",
       });
       await fetchList(page, rowsPerPage);
+      fetchCounts();
     } catch (e) {
       const msg = e?.response?.data?.error || e?.message || "Sync failed";
       setToast({ open: true, severity: "error", msg });
@@ -298,10 +345,14 @@ export default function OrderConfirmations() {
   }, [fetchAgents]);
 
   useEffect(() => {
+    fetchCounts();
+  }, [fetchCounts]);
+
+  useEffect(() => {
     setPage(0);
     fetchList(0, rowsPerPage);
     setExpandedId(null);
-  }, [tab, qDebounced]); // eslint-disable-line
+  }, [tab, qDebounced, channel]); // eslint-disable-line
 
   const handleChangePage = (_e, newPage) => {
     setPage(newPage);
@@ -379,54 +430,67 @@ export default function OrderConfirmations() {
   const statusToNote = (val) => statusValueToLabel(val);
 
   const handleShopifyNotesChange = async (row, newValue) => {
-    const label = statusToNote(newValue);
+  // Friendly label (e.g., "Order Confirmed") from enum value
+  const label = statusToNote(newValue) || String(newValue || "");
 
-    // 1) Update callStatus in our OC doc (also stamps callStatusUpdatedAt)
-    try {
-      await patchOrder(row._id, { callStatus: newValue }, "Status updated");
-    } catch {
-      return;
-    }
+  // Grab logged-in agent's name (fallback to empty string)
+  const userFullName = (typeof getLoggedInFullName === "function" && getLoggedInFullName()) || "";
 
-    // If the row no longer belongs in this tab after callStatus change, we will filter it out
-    const shouldStayAfterStatus = rowMatchesTab(
-      { ...row, orderConfirmOps: { ...(row.orderConfirmOps || {}), callStatus: newValue } },
-      tab
+  // Optional: also compose locally for immediate UI mirror
+  const finalNote = userFullName ? `${label} - ${userFullName}` : label;
+
+  try {
+    // 1) Save callStatus first (this also timestamps callStatusUpdatedAt)
+    await patchOrder(row._id, { callStatus: newValue }, "Status updated");
+  } catch {
+    return; // don't proceed if status couldn't be saved
+  }
+
+  const shouldStayAfterStatus = rowMatchesTab(
+    { ...row, orderConfirmOps: { ...(row.orderConfirmOps || {}), callStatus: newValue } },
+    tab
+  );
+
+  try {
+    // 2) Push Shopify note (FIXED URL)
+    await axios.post(
+      "https://muditamleads-14f32a10d7f7.herokuapp.com/api/order-confirmations/shopify-notes",
+      {
+        orderName: row.orderName,
+        note: label,        
+        userFullName,        
+      }
     );
 
-    // 2) Update Shopify note + mirror in Mongo (shopifyNotes)
-    try {
-      await axios.post("https://muditamleads-14f32a10d7f7.herokuapp.com/api/order-confirmations/shopify-notes", {
-        orderName: row.orderName,
-        note: label,
-      });
+    setToast({ open: true, severity: "success", msg: "Shopify note updated" });
+ 
+    // 3) Mirror locally so UI shows the exact note string immediately
+    const updatedRow = {
+      ...row,
+      orderConfirmOps: {
+        ...(row.orderConfirmOps || {}),
+        shopifyNotes: finalNote,   // "Status - FullName"
+        callStatus: newValue,
+      },
+    };
 
-      setToast({ open: true, severity: "success", msg: "Shopify note updated" });
+    const shouldStayFinal = rowMatchesTab(updatedRow, tab);
 
-      // Update local row’s shopifyNotes
-      const updatedRow = {
-        ...row,
-        orderConfirmOps: { ...(row.orderConfirmOps || {}), shopifyNotes: label, callStatus: newValue },
-      };
-
-      // Now decide if it still belongs to the current tab (priority is Shopify Notes)
-      const shouldStayFinal = rowMatchesTab(updatedRow, tab);
-
-      if (!shouldStayAfterStatus || !shouldStayFinal) {
-        // Remove from current list; decrement total
-        setItems((rows) => rows.filter((r) => r._id !== row._id));
-        setTotal((t) => Math.max(0, t - 1));
-        setExpandedId((prev) => (prev === row._id ? null : prev));
-      } else {
-        // Keep in-place with updated fields
-        setItems((rows) => rows.map((r) => (r._id === row._id ? updatedRow : r)));
-      }
-    } catch (e) {
-      console.error("shopify-notes push error", e?.response?.data || e.message);
-      const msg = e?.response?.data?.error || "Failed to update Shopify note";
-      setToast({ open: true, severity: "error", msg });
+    if (!shouldStayAfterStatus || !shouldStayFinal) {
+      setItems((rows) => rows.filter((r) => r._id !== row._id));
+      setTotal((t) => Math.max(0, t - 1));
+      setExpandedId((prev) => (prev === row._id ? null : prev));
+    } else {
+      setItems((rows) => rows.map((r) => (r._id === row._id ? updatedRow : r)));
     }
-  };
+
+    fetchCounts(); // will respect current channel filter from your hook state
+  } catch (e) {
+    console.error("shopify-notes push error", e?.response?.data || e.message);
+    const msg = e?.response?.data?.error || "Failed to update Shopify note";
+    setToast({ open: true, severity: "error", msg });
+  }
+};
 
   const cancelOrderOnShopify = async (row) => {
     const id = row._id;
@@ -472,54 +536,54 @@ export default function OrderConfirmations() {
       currency: "INR",
       amount: typeof row.amount === "number" ? row.amount : "",
       generating: false,
-      link: "", 
+      link: "",
       discountPct: 0,
     });
   };
   const closePaymentDialog = () => setPayDlg((s) => ({ ...s, open: false }));
 
   const generateAndShareLink = async () => {
-  const { rowId, amount, currency, customerName, customerEmail, contact, discountPct = 0 } = payDlg;
-  const base = Number(amount);
-  if (!base || base <= 0) {
-    setToast({ open: true, severity: "error", msg: "Enter a valid amount" });
-    return;
-  }
-  if (!contact || contact.length !== 10) {
-    setToast({ open: true, severity: "error", msg: "Customer phone must be 10 digits" });
-    return;
-  }
+    const { rowId, amount, currency, customerName, customerEmail, contact, discountPct = 0 } = payDlg;
+    const base = Number(amount);
+    if (!base || base <= 0) {
+      setToast({ open: true, severity: "error", msg: "Enter a valid amount" });
+      return;
+    }
+    if (!contact || contact.length !== 10) {
+      setToast({ open: true, severity: "error", msg: "Customer phone must be 10 digits" });
+      return;
+    }
 
-  // Apply discount
-  const amtFinal = Number((base * (1 - (Number(discountPct) || 0) / 100)).toFixed(2));
+    // Apply discount
+    const amtFinal = Number((base * (1 - (Number(discountPct) || 0) / 100)).toFixed(2));
 
-  try {
-    setPayDlg((s) => ({ ...s, generating: true }));
-    const { data } = await axios.post(CREATE_PAYMENT_LINK_URL, {
-      amount: amtFinal, // <-- discounted rupee amount
-      currency: currency || "INR",
-      customer: { name: customerName || "Customer", email: customerEmail || "", contact },
-    });
-    const shortUrl = data?.paymentLink;
-    if (!shortUrl) throw new Error("No payment link returned"); 
+    try {
+      setPayDlg((s) => ({ ...s, generating: true }));
+      const { data } = await axios.post(CREATE_PAYMENT_LINK_URL, {
+        amount: amtFinal, // <-- discounted rupee amount
+        currency: currency || "INR",
+        customer: { name: customerName || "Customer", email: customerEmail || "", contact },
+      });
+      const shortUrl = data?.paymentLink;
+      if (!shortUrl) throw new Error("No payment link returned");
 
-    await patchOrder(rowId, { paymentLink: shortUrl }, "Payment link saved");  
-    setPayDlg((s) => ({ ...s, link: shortUrl, generating: false }));
-    setToast({
-      open: true,
-      severity: "success", 
-      msg: discountPct
-        ? `Link generated with ${discountPct}% discount`
-        : "Link generated & shared via SMS",
-    });
-  } catch (e) {
-    console.error("Generate payment link failed:", e);
-    const msg =
-      e?.response?.data?.message || e?.response?.data?.error || e?.message || "Failed to generate payment link";
-    setToast({ open: true, severity: "error", msg });
-    setPayDlg((s) => ({ ...s, generating: false }));
-  }
-};
+      await patchOrder(rowId, { paymentLink: shortUrl }, "Payment link saved");
+      setPayDlg((s) => ({ ...s, link: shortUrl, generating: false }));
+      setToast({
+        open: true,
+        severity: "success",
+        msg: discountPct
+          ? `Link generated with ${discountPct}% discount`
+          : "Link generated & shared via SMS",
+      });
+    } catch (e) {
+      console.error("Generate payment link failed:", e);
+      const msg =
+        e?.response?.data?.message || e?.response?.data?.error || e?.message || "Failed to generate payment link";
+      setToast({ open: true, severity: "error", msg });
+      setPayDlg((s) => ({ ...s, generating: false }));
+    }
+  };
 
 
   const renderReadOnlyCallStatus = (val) => {
@@ -532,7 +596,6 @@ export default function OrderConfirmations() {
     try {
       await patchOrder(row._id, { incPlusCount: true }, "Count updated");
     } catch {
-      /* toast already shown in patch */
     }
   };
 
@@ -547,6 +610,20 @@ export default function OrderConfirmations() {
                 Order Confirmations
               </Typography>
               <Stack direction="row" spacing={1} alignItems="center">
+                <FormControl size="small" sx={{ minWidth: 160 }}>
+                  <InputLabel id="channel-filter-label">Channel</InputLabel>
+                  <Select
+                    labelId="channel-filter-label"
+                    label="Channel"
+                    value={channel}
+                    onChange={(e) => setChannel(e.target.value)}
+                  >
+                    <MenuItem value="">All Channels</MenuItem>
+                    <MenuItem value="Team">Team</MenuItem>
+                    <MenuItem value="Online Order">Online Order</MenuItem>
+                  </Select>
+                </FormControl>
+
                 <Tooltip title="Refresh">
                   <span>
                     <IconButton onClick={syncNewAndRefresh} disabled={loading || syncing} color="primary">
@@ -564,11 +641,11 @@ export default function OrderConfirmations() {
               scrollButtons="auto"
               sx={{ borderBottom: 1, borderColor: "divider" }}
             >
-              <Tab value="ALL" label="All" />
-              <Tab value="CNP" label="CNP" />
-              <Tab value="ORDER_CONFIRMED" label="Confirmed" />
-              <Tab value="CALL_BACK_LATER" label="Call Back" />
-              <Tab value="CANCEL_ORDER" label="Cancel" />
+              <Tab value="ALL" label={`All (${counts.ALL || 0})`} />
+              <Tab value="CNP" label={`CNP (${counts.CNP || 0})`} />
+              <Tab value="ORDER_CONFIRMED" label={`Confirmed (${counts.ORDER_CONFIRMED || 0})`} />
+              <Tab value="CALL_BACK_LATER" label={`Call Back (${counts.CALL_BACK_LATER || 0})`} />
+              <Tab value="CANCEL_ORDER" label={`Cancel (${counts.CANCEL_ORDER || 0})`} />
             </Tabs>
           </Stack>
         </Paper>
@@ -775,7 +852,7 @@ export default function OrderConfirmations() {
                                         borderStyle: "solid",
                                       }}
                                     >
-                                      Add Log
+                                      Log
                                     </Button>
                                   </Badge>
                                 </span>
@@ -828,7 +905,6 @@ export default function OrderConfirmations() {
                         </Stack>
                       </TableCell>
 
-                      {/* Shipment Status & Tracking (Confirmed only) */}
                       {isConfirmedTab && (
                         <TableCell>
                           <Typography variant="body2" title={shipping.carrier_title || ""}>
@@ -888,35 +964,45 @@ export default function OrderConfirmations() {
                       </TableCell>
                     </TableRow>
 
-                    {/* Collapsible details row */}
                     <TableRow>
                       <TableCell colSpan={isConfirmedTab ? 11 : 10} sx={{ py: 0, background: "rgba(0,0,0,0.02)" }}>
                         <Collapse in={isOpen} timeout="auto" unmountOnExit>
                           <Box sx={{ p: 2 }}>
                             {isConfirmedTab ? (
-                              // -------- READ-ONLY DETAILS ON CONFIRMED --------
                               <Stack direction="row" spacing={3} alignItems="center" useFlexGap flexWrap="wrap">
-                                <Stack direction="row" spacing={1} alignItems="center">
-                                  <Typography variant="body2" sx={{ minWidth: 140 }}>
-                                    Doctor call needed
-                                  </Typography>
-                                  <Chip
-                                    size="small"
-                                    label={row?.orderConfirmOps?.doctorCallNeeded ? "Yes" : "No"}
-                                    variant="outlined"
-                                  />
-                                </Stack>
+                                <ToggleButtonGroup
+                                  exclusive
+                                  size="small"
+                                  color="primary"
+                                  value={triValue(row?.orderConfirmOps, "doctorCallNeeded")}
+                                  onChange={(_, val) => {
+                                    if (val === "yes") {
+                                      patchOrder(row._id, { doctorCallNeeded: true }, "Saved")
+                                        .then(() => openScheduleDialog(row))
+                                        .catch(() => { });
+                                    } else if (val === "no") {
+                                      patchOrder(row._id, { doctorCallNeeded: false }, "Saved").catch(() => { });
+                                      closeScheduleDialog();
+                                    }
+                                  }}
+                                >
+                                  <ToggleButton value="yes">Yes</ToggleButton>
+                                  <ToggleButton value="no">No</ToggleButton>
+                                </ToggleButtonGroup>
 
-                                <Stack direction="row" spacing={1} alignItems="center">
-                                  <Typography variant="body2" sx={{ minWidth: 140 }}>
-                                    Diet plan needed
-                                  </Typography>
-                                  <Chip
-                                    size="small"
-                                    label={row?.orderConfirmOps?.dietPlanNeeded ? "Yes" : "No"}
-                                    variant="outlined"
-                                  />
-                                </Stack>
+                                <ToggleButtonGroup
+                                  exclusive
+                                  size="small"
+                                  color="primary"
+                                  value={triValue(row?.orderConfirmOps, "dietPlanNeeded")}
+                                  onChange={(_, val) => {
+                                    if (!val) return;
+                                    patchOrder(row._id, { dietPlanNeeded: val === "yes" });
+                                  }}
+                                >
+                                  <ToggleButton value="yes">Yes</ToggleButton>
+                                  <ToggleButton value="no">No</ToggleButton>
+                                </ToggleButtonGroup>
 
                                 <Stack direction="row" spacing={1} alignItems="center">
                                   <Typography variant="body2" sx={{ minWidth: 140 }}>
@@ -927,31 +1013,19 @@ export default function OrderConfirmations() {
 
                                 <Divider flexItem orientation="vertical" />
 
-                                <Stack direction="row" spacing={1.5} alignItems="center">
-                                  <Typography variant="body2" sx={{ minWidth: 140 }}>
-                                    COD → Prepaid
-                                  </Typography>
-                                  <Chip
-                                    size="small"
-                                    label={row?.orderConfirmOps?.codToPrepaid ? "Yes" : "No"}
-                                    variant="outlined"
-                                  />
-
-                                  {row?.orderConfirmOps?.paymentLink ? (
-                                    <Tooltip title="Open payment link">
-                                      <IconButton
-                                        size="small"
-                                        color="primary"
-                                        component="a"
-                                        href={row.orderConfirmOps.paymentLink}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                      >
-                                        <LaunchIcon fontSize="inherit" />
-                                      </IconButton>
-                                    </Tooltip>
-                                  ) : null}
-                                </Stack>
+                                <ToggleButtonGroup
+                                  exclusive
+                                  size="small"
+                                  color="primary"
+                                  value={triValue(row?.orderConfirmOps, "codToPrepaid")}
+                                  onChange={(_, val) => {
+                                    if (!val) return;
+                                    patchOrder(row._id, { codToPrepaid: val === "yes" });
+                                  }}
+                                >
+                                  <ToggleButton value="yes">Yes</ToggleButton>
+                                  <ToggleButton value="no">No</ToggleButton>
+                                </ToggleButtonGroup>
 
                                 {row?.orderConfirmOps?.assignedExpert ? (
                                   <Stack direction="row" spacing={1} alignItems="center">
@@ -963,9 +1037,7 @@ export default function OrderConfirmations() {
                                 ) : null}
                               </Stack>
                             ) : (
-                              // -------- EDITABLE DETAILS ON OTHER TABS (incl. ALL) --------
                               <Stack direction="row" spacing={3} alignItems="center" useFlexGap flexWrap="wrap">
-                                {/* Doctor call needed */}
                                 <Stack direction="row" spacing={1} alignItems="center">
                                   <Typography variant="body2" sx={{ minWidth: 140 }}>
                                     Doctor call needed
@@ -974,10 +1046,9 @@ export default function OrderConfirmations() {
                                     exclusive
                                     size="small"
                                     color="primary"
-                                    value={row?.orderConfirmOps?.doctorCallNeeded ? "yes" : "no"}
+                                    value={boolToChoice(row?.orderConfirmOps?.doctorCallNeeded)}
                                     onChange={(_, val) => {
                                       if (val === "yes") {
-                                        // First mark doctorCallNeeded=true, then open the schedule popup
                                         patchOrder(row._id, { doctorCallNeeded: true }, "Saved")
                                           .then(() => openScheduleDialog(row))
                                           .catch(() => { });
@@ -992,7 +1063,6 @@ export default function OrderConfirmations() {
                                   </ToggleButtonGroup>
                                 </Stack>
 
-                                {/* Diet Plan Needed */}
                                 <Stack direction="row" spacing={1} alignItems="center">
                                   <Typography variant="body2" sx={{ minWidth: 140 }}>
                                     Diet plan needed
@@ -1001,7 +1071,7 @@ export default function OrderConfirmations() {
                                     exclusive
                                     size="small"
                                     color="primary"
-                                    value={row?.orderConfirmOps?.dietPlanNeeded ? "yes" : "no"}
+                                    value={boolToChoice(row?.orderConfirmOps?.dietPlanNeeded)}
                                     onChange={(_, val) => {
                                       if (!val) return;
                                       patchOrder(row._id, { dietPlanNeeded: val === "yes" });
@@ -1012,7 +1082,6 @@ export default function OrderConfirmations() {
                                   </ToggleButtonGroup>
                                 </Stack>
 
-                                {/* Language (freeSolo) */}
                                 <Autocomplete
                                   size="small"
                                   freeSolo
@@ -1053,7 +1122,7 @@ export default function OrderConfirmations() {
                                     exclusive
                                     size="small"
                                     color="primary"
-                                    value={row?.orderConfirmOps?.codToPrepaid ? "yes" : "no"}
+                                    value={boolToChoice(row?.orderConfirmOps?.codToPrepaid)}
                                     onChange={(_, val) => {
                                       if (!val) return;
                                       patchOrder(row._id, { codToPrepaid: val === "yes" });
@@ -1109,13 +1178,24 @@ export default function OrderConfirmations() {
                               </Stack>
                             )}
 
-                            {/* Schedule Doctor Call Dialog */}
                             <ScheduleCallDialog
                               open={scheduleDlg.open}
-                              onClose={closeScheduleDialog}
-                              onSubmit={submitSchedule}
+                              onClose={() => setScheduleDlg({ open: false, row: null })}
                               agents={agents}
-                              row={scheduleDlg.row}
+                              orderId={scheduleDlg.row?._id}
+                              customerId={scheduleDlg.row?.customerId}
+                              createdBy={""}
+                              onScheduled={(mirror, createdDoc) => {
+                                const id = scheduleDlg.row?._id;
+                                if (!id) return;
+                                setItems((rows) =>
+                                  rows.map((r) =>
+                                    r._id === id
+                                      ? { ...r, orderConfirmOps: { ...(r.orderConfirmOps || {}), ...mirror } }
+                                      : r
+                                  )
+                                );
+                              }}
                             />
                           </Box>
                         </Collapse>
@@ -1393,7 +1473,7 @@ export default function OrderConfirmations() {
           <DialogActions>
             <Button onClick={closePaymentDialog} disabled={payDlg.generating}>
               Close
-            </Button> 
+            </Button>
             <Button
               variant="contained"
               onClick={generateAndShareLink}

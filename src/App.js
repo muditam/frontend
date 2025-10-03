@@ -52,6 +52,7 @@ import DietTemplateAdmin from "./components/DietTemplateAdmin";
 import AllProducts from "./components/all-products"; 
 import OrderConfirmations from "./components/OrderConfirmations";
 import LeadExpertMigration from "./components/LeadExpertMigration";
+import ScheduleCall from "./components/ScheduleCallsData";
 import "./realtime/IncomingCallSSEBoot";
 
 const App = () => {
@@ -74,7 +75,8 @@ const App = () => {
           <Route path="/smartflo/call-logs" element={<SmartfloCallLogs />} />
           <Route path="/smartflo/data-analytics" element={<SmartfloDataAnalytics />} /> 
           <Route path="/lead-migration" element={<LeadExpertMigration />} />
-          <Route path="/order-confirmations" element={<OrderConfirmations />} />
+          <Route path="/order-confirmations" element={<OrderConfirmations />} /> 
+          <Route path="/schedule-calls" element={<ScheduleCall />} />
 
           {/* Protected Routes */} 
           <Route
