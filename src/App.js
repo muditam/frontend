@@ -80,7 +80,7 @@ const App = () => {
 
           {/* Protected Routes */} 
           <Route
-            path="/"
+            path="/" 
             element={
               <PrivateRoute>
                 <SalesDashboard />

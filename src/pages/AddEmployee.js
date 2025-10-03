@@ -56,8 +56,8 @@ const AddEmployee = () => {
   const roles = ["Manager", "Sales Agent", "Retention Agent", "Finance", "Operations"];
   const statusOptions = ["active", "inactive"];
 
-  useEffect(() => {
-    fetchEmployees();
+  useEffect(() => {   
+    fetchEmployees();   
   }, [viewInactive]);
 
   const fetchEmployees = async () => {
@@ -122,7 +122,7 @@ const AddEmployee = () => {
     }
 
     setError("");
-    return true;
+    return true; 
   };
 
   const handleSubmit = async (e) => {
