@@ -52,6 +52,7 @@ import DietTemplateAdmin from "./components/DietTemplateAdmin";
 import AllProducts from "./components/all-products"; 
 import OrderConfirmations from "./components/OrderConfirmations";
 import LeadExpertMigration from "./components/LeadExpertMigration";
+import AssetManager from "./components/AssetManager";
 import ScheduleCall from "./components/ScheduleCallsData";
 import "./realtime/IncomingCallSSEBoot";
 
@@ -77,11 +78,12 @@ const App = () => {
           <Route path="/lead-migration" element={<LeadExpertMigration />} />
           <Route path="/order-confirmations" element={<OrderConfirmations />} /> 
           <Route path="/schedule-calls" element={<ScheduleCall />} />
+          <Route path="/assets" element={ <AssetManager /> } />
 
           {/* Protected Routes */} 
-          <Route
+          <Route 
             path="/" 
-            element={
+            element={ 
               <PrivateRoute>
                 <SalesDashboard />
               </PrivateRoute>
