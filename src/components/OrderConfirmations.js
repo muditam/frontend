@@ -1,5 +1,5 @@
 // src/components/OrderConfirmations.jsx
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Box,
   Paper,
@@ -22,7 +22,7 @@ import {
   InputLabel,
   Autocomplete,
   Snackbar,
-  Alert,
+  Alert, 
   CircularProgress,
   Collapse,
   Divider,
@@ -63,8 +63,8 @@ const CALL_STATUS = [
 ];
 
 const TAB_MAP = {
-  ALL: { special: true }, 
-  PENDING: { special: true }, 
+  ALL: { special: true },
+  PENDING: { special: true },
   CNP: { value: "CNP", label: "CNP" },
   ORDER_CONFIRMED: { value: "ORDER_CONFIRMED", label: "Order Confirmed" },
   CALL_BACK_LATER: { value: "CALL_BACK_LATER", label: "Call Back Later" },
@@ -141,7 +141,7 @@ const statusValueToLabel = (val) => {
   const found = CALL_STATUS.find((s) => s.value === val);
   return found ? found.label : String(val || "");
 };
- 
+
 const toTenDigits = (num) => {
   if (!num) return "";
   const d = String(num).replace(/\D/g, "");
@@ -149,10 +149,10 @@ const toTenDigits = (num) => {
 };
 
 const rowMatchesTab = (row, tab) => {
-  const ops = row?.orderConfirmOps || {}; 
+  const ops = row?.orderConfirmOps || {};
   if (tab === "ALL") return true;
   if (tab === "PENDING") {
-    return !(ops.shopifyNotes && ops.shopifyNotes.trim());  
+    return !(ops.shopifyNotes && ops.shopifyNotes.trim());
   }
   const want = TAB_MAP[tab];
   if (!want) return true;
@@ -167,7 +167,7 @@ const rowAgeBg = (row) => {
   const mins = (Date.now() - new Date(dt).getTime()) / 60000;
   if (mins <= 5) return "#e8f5e9";
   if (mins <= 10) return "#fff3e0";
-  return "#ffebee";
+  return "#ffffff"; 
 };
 
 const channelLabel = (row) => {
@@ -205,6 +205,26 @@ const getLoggedIn = () => {
   }
 };
 
+const safeDec = (n) => Math.max(0, (Number(n) || 0) - 1);
+const safeInc = (n) => (Number(n) || 0) + 1;
+
+function moveStatusCount(setCounts, prevStatus, newStatus) {
+  const P = (s) => String(s || "").toUpperCase();
+  const from = P(prevStatus);
+  const to = P(newStatus);
+  if (from === to) return;
+
+  setCounts((c) => ({
+    ...c,
+    ...(from ? { [from]: safeDec(c[from]) } : {}),
+    ...(to ? { [to]: safeInc(c[to]) } : {}),
+  }));
+}
+
+function decrementPendingOnFirstNote(setCounts) {
+  setCounts((c) => ({ ...c, PENDING: safeDec(c.PENDING) }));
+}
+
 const ASSIGNED_FILTER = {
   ALL: "ALL",
   UNASSIGNED: "UNASSIGNED",
@@ -234,14 +254,15 @@ export default function OrderConfirmations() {
   const [scheduleDlg, setScheduleDlg] = useState({ open: false, row: null });
   const [historyDlg, setHistoryDlg] = useState({ open: false, phone: "", items: [], loading: false });
   const [channel, setChannel] = useState("");
+  const [todayConfirmedCount, setTodayConfirmedCount] = useState(0);
   const [counts, setCounts] = useState({
-    ALL: 0, 
-    PENDING: 0, 
+    ALL: 0,
+    PENDING: 0,
     CNP: 0,
     ORDER_CONFIRMED: 0,
     CALL_BACK_LATER: 0,
     CANCEL_ORDER: 0,
-  }); 
+  });
 
   // Assigned filter:
   // - Managers: default ALL, can change
@@ -373,6 +394,19 @@ export default function OrderConfirmations() {
     }
   }, [qDebounced, channel, assignedParam]);
 
+  const fetchTodayConfirmedCount = useCallback(async () => {
+    try {
+      const params = (!isManager && myAgentId) ? { agentId: myAgentId } : {};
+      const { data } = await axios.get(
+        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/order-confirmations/today-confirmed-count",
+        { params }
+      );
+      setTodayConfirmedCount(Number(data?.count || 0));
+    } catch (e) {
+      console.error("fetchTodayConfirmedCount error", e);
+    }
+  }, [myAgentId, isManager]);
+
   const syncNewAndRefresh = useCallback(async () => {
     try {
       setSyncing(true);
@@ -397,6 +431,32 @@ export default function OrderConfirmations() {
     }
   }, [fetchList, page, rowsPerPage, fetchCounts]);
 
+  const doRoundRobinAssign = useCallback(async () => {
+    // Skip if something else already running
+    if (loading || syncing) return;
+
+    try {
+      setSyncing(true);
+      const { data } = await axios.post(
+        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/order-confirmations/assign/round-robin",
+        {}
+      );
+      const msg = data?.assigned
+        ? `Assigned ${data.assigned} orders across ${data.agents} agents`
+        : "No unassigned orders";
+      setToast({ open: true, severity: "success", msg });
+
+      await fetchList(page, rowsPerPage);
+      fetchCounts();
+    } catch (err) {
+      console.error("Round-robin failed", err);
+      setToast({ open: true, severity: "error", msg: "Round-robin failed" });
+    } finally {
+      setSyncing(false);
+    }
+  }, [loading, syncing, fetchList, page, rowsPerPage, fetchCounts]);
+
+
   const openConfirmCancel = (row) => setConfirmCancel({ open: true, row });
   const closeConfirmCancel = () => setConfirmCancel({ open: false, row: null });
   const confirmCancelYes = async () => {
@@ -418,7 +478,39 @@ export default function OrderConfirmations() {
     setPage(0);
     fetchList(0, rowsPerPage);
     setExpandedId(null);
-  }, [tab, qDebounced, channel, assignedParam]); // eslint-disable-line
+  }, [tab, qDebounced, channel, assignedParam]); // eslint-disable-line  
+
+  useEffect(() => {
+    fetchTodayConfirmedCount();
+  }, [fetchTodayConfirmedCount]);
+
+  useEffect(() => {
+    const busyRef = { current: false }; // reentrancy guard
+
+    const tick = async () => {
+      if (document.visibilityState !== "visible") return;
+      if (busyRef.current) return;
+      busyRef.current = true;
+      try {
+        // Round-robin first (assigns), then refresh counts/list
+        await doRoundRobinAssign();
+        await syncNewAndRefresh();
+      } catch (e) {
+        // errors already toasted in called fns
+      } finally {
+        busyRef.current = false;
+      }
+    };
+
+    const TEN_MIN = 10 * 60 * 1000;
+
+    const id = setInterval(() => {
+      // run async inside
+      tick();
+    }, TEN_MIN);
+
+    return () => clearInterval(id);
+  }, [doRoundRobinAssign, syncNewAndRefresh]);
 
   const handleChangePage = (_e, newPage) => {
     setPage(newPage);
@@ -489,20 +581,45 @@ export default function OrderConfirmations() {
   const statusToNote = (val) => statusValueToLabel(val);
 
   const handleShopifyNotesChange = async (row, newValue) => {
+    const prevStatus = String(row?.orderConfirmOps?.callStatus || "").toUpperCase();
+    const newStatus = String(newValue || "").toUpperCase();
+
+    const hadNoNoteBefore = !((row?.orderConfirmOps?.shopifyNotes || "").trim());
+
     const label = statusToNote(newValue) || String(newValue || "");
     const userFullName = getLoggedInFullName() || "";
     const finalNote = userFullName ? `${label} - ${userFullName}` : label;
 
     try {
       await patchOrder(row._id, { callStatus: newValue }, "Status updated");
+
+      moveStatusCount(setCounts, prevStatus, newStatus);
+
+      const nowIso = new Date().toISOString();
+      const patchedRow = {
+        ...row,
+        orderConfirmOps: {
+          ...(row.orderConfirmOps || {}),
+          callStatus: newValue,
+          callStatusUpdatedAt: nowIso,
+        },
+      };
+
+      const shouldStayAfterStatus = rowMatchesTab(patchedRow, tab);
+      if (!shouldStayAfterStatus) {
+        setItems((rows) => rows.filter((r) => r._id !== row._id));
+        setTotal((t) => Math.max(0, t - 1));
+        setExpandedId((prev) => (prev === row._id ? null : prev));
+      } else {
+        setItems((rows) => rows.map((r) => (r._id === row._id ? patchedRow : r)));
+      }
+
+      if (prevStatus !== newStatus && (prevStatus === "ORDER_CONFIRMED" || newStatus === "ORDER_CONFIRMED")) {
+        fetchTodayConfirmedCount?.();
+      }
     } catch {
       return;
     }
-
-    const shouldStayAfterStatus = rowMatchesTab(
-      { ...row, orderConfirmOps: { ...(row.orderConfirmOps || {}), callStatus: newValue } },
-      tab
-    );
 
     try {
       await axios.post("https://muditamleads-14f32a10d7f7.herokuapp.com/api/order-confirmations/shopify-notes", {
@@ -519,12 +636,12 @@ export default function OrderConfirmations() {
           ...(row.orderConfirmOps || {}),
           shopifyNotes: finalNote,
           callStatus: newValue,
+          callStatusUpdatedAt: new Date().toISOString(),
         },
       };
 
       const shouldStayFinal = rowMatchesTab(updatedRow, tab);
-
-      if (!shouldStayAfterStatus || !shouldStayFinal) {
+      if (!shouldStayFinal) {
         setItems((rows) => rows.filter((r) => r._id !== row._id));
         setTotal((t) => Math.max(0, t - 1));
         setExpandedId((prev) => (prev === row._id ? null : prev));
@@ -532,7 +649,11 @@ export default function OrderConfirmations() {
         setItems((rows) => rows.map((r) => (r._id === row._id ? updatedRow : r)));
       }
 
-      fetchCounts();
+      if (hadNoNoteBefore) {
+        decrementPendingOnFirstNote(setCounts);
+      }
+
+
     } catch (e) {
       console.error("shopify-notes push error", e?.response?.data || e.message);
       const msg = e?.response?.data?.error || "Failed to update Shopify note";
@@ -632,7 +753,7 @@ export default function OrderConfirmations() {
   const handlePlusClick = async (row) => {
     try {
       await patchOrder(row._id, { incPlusCount: true }, "Count updated");
-    } catch {}
+    } catch { }
   };
 
   return (
@@ -645,7 +766,14 @@ export default function OrderConfirmations() {
               <Typography variant="h6" fontWeight={700}>
                 Order Confirmations
               </Typography>
+
               <Stack direction="row" spacing={1} alignItems="center">
+                <Chip
+                  label={`Today's Confirmed${isManager ? '' : ' (Me)'}: ${todayConfirmedCount}`}
+                  color="primary"
+                  variant="outlined"
+                  sx={{ fontWeight: 700 }}
+                />
                 <FormControl size="small" sx={{ minWidth: 160 }}>
                   <InputLabel id="assigned-filter-label">Assigned</InputLabel>
                   <Select
@@ -659,7 +787,7 @@ export default function OrderConfirmations() {
                     <MenuItem value={ASSIGNED_FILTER.UNASSIGNED}>Unassigned</MenuItem>
                     <MenuItem value={ASSIGNED_FILTER.ME} disabled={!myAgentId}>
                       Me
-                    </MenuItem> 
+                    </MenuItem>
                   </Select>
                 </FormControl>
 
@@ -723,27 +851,7 @@ export default function OrderConfirmations() {
                 <Tooltip title="Round-robin: assign all unassigned, pending & unfulfilled orders to ACTIVE Operations agents">
                   <span>
                     <IconButton
-                      onClick={async () => {
-                        try {
-                          setSyncing(true);
-                          // no 'limit' -> let backend process ALL eligible orders
-                          const { data } = await axios.post(
-                            "https://muditamleads-14f32a10d7f7.herokuapp.com/api/order-confirmations/assign/round-robin",
-                            {}
-                          );
-                          const msg = data?.assigned
-                            ? `Assigned ${data.assigned} orders across ${data.agents} agents`
-                            : "No unassigned orders";
-                          setToast({ open: true, severity: "success", msg });
-                          await fetchList(page, rowsPerPage);
-                          fetchCounts();
-                        } catch (err) {
-                          console.error("Round-robin failed", err);
-                          setToast({ open: true, severity: "error", msg: "Round-robin failed" });
-                        } finally {
-                          setSyncing(false);
-                        }
-                      }}
+                      onClick={doRoundRobinAssign}
                       disabled={loading || syncing}
                       color="primary"
                     >
@@ -768,10 +876,10 @@ export default function OrderConfirmations() {
               onChange={(_e, v) => setTab(v)}
               variant="scrollable"
               scrollButtons="auto"
-              sx={{ borderBottom: 1, borderColor: "divider" }} 
+              sx={{ borderBottom: 1, borderColor: "divider" }}
             >
               <Tab value="ALL" label={`All (${counts.ALL || 0})`} />
-              <Tab value="PENDING" label={`Pending (${counts.PENDING || 0})`} /> 
+              <Tab value="PENDING" label={`Pending (${counts.PENDING || 0})`} />
               <Tab value="CNP" label={`CNP (${counts.CNP || 0})`} />
               <Tab value="ORDER_CONFIRMED" label={`Confirmed (${counts.ORDER_CONFIRMED || 0})`} />
               <Tab value="CALL_BACK_LATER" label={`Call Back (${counts.CALL_BACK_LATER || 0})`} />
@@ -1090,9 +1198,9 @@ export default function OrderConfirmations() {
                                     if (val === "yes") {
                                       patchOrder(row._id, { doctorCallNeeded: true }, "Saved")
                                         .then(() => openScheduleDialog(row))
-                                        .catch(() => {});
+                                        .catch(() => { });
                                     } else if (val === "no") {
-                                      patchOrder(row._id, { doctorCallNeeded: false }, "Saved").catch(() => {});
+                                      patchOrder(row._id, { doctorCallNeeded: false }, "Saved").catch(() => { });
                                       closeScheduleDialog();
                                     }
                                   }}
@@ -1162,9 +1270,9 @@ export default function OrderConfirmations() {
                                       if (val === "yes") {
                                         patchOrder(row._id, { doctorCallNeeded: true }, "Saved")
                                           .then(() => openScheduleDialog(row))
-                                          .catch(() => {});
+                                          .catch(() => { });
                                       } else if (val === "no") {
-                                        patchOrder(row._id, { doctorCallNeeded: false }, "Saved").catch(() => {});
+                                        patchOrder(row._id, { doctorCallNeeded: false }, "Saved").catch(() => { });
                                         closeScheduleDialog();
                                       }
                                     }}
@@ -1203,12 +1311,12 @@ export default function OrderConfirmations() {
                                       rows.map((r) =>
                                         r._id === row._id
                                           ? {
-                                              ...r,
-                                              orderConfirmOps: {
-                                                ...(r.orderConfirmOps || {}),
-                                                languageUsed: val,
-                                              },
-                                            }
+                                            ...r,
+                                            orderConfirmOps: {
+                                              ...(r.orderConfirmOps || {}),
+                                              languageUsed: val,
+                                            },
+                                          }
                                           : r
                                       )
                                     );
@@ -1398,6 +1506,28 @@ export default function OrderConfirmations() {
           </Alert>
         </Snackbar>
 
+        {/* Confirm Cancel Dialog */}
+        <Dialog open={confirmCancel.open} onClose={closeConfirmCancel} maxWidth="xs" fullWidth>
+          <DialogTitle>Cancel this order?</DialogTitle>
+          <DialogContent dividers>
+            <Typography variant="body2">
+              This will create a cancellation request in Shopify for <strong>{confirmCancel.row?.orderName || "-"}</strong>.
+            </Typography>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={closeConfirmCancel}>No</Button>
+            <Button
+              color="error"
+              variant="contained"
+              onClick={confirmCancelYes}
+              startIcon={cancelingRow[confirmCancel.row?._id] ? <CircularProgress size={16} /> : <CancelOutlinedIcon />}
+              disabled={!!cancelingRow[confirmCancel.row?._id]}
+            >
+              {cancelingRow[confirmCancel.row?._id] ? "Cancelling…" : "Yes, Cancel"}
+            </Button>
+          </DialogActions>
+        </Dialog>
+
         {/* Payment Link Dialog */}
         <Dialog open={payDlg.open} onClose={payDlg.generating ? undefined : closePaymentDialog} maxWidth="xs" fullWidth>
           <DialogTitle>Generate Payment Link</DialogTitle>
@@ -1534,4 +1664,4 @@ export default function OrderConfirmations() {
     </ThemeProvider>
   );
 }
- 
+

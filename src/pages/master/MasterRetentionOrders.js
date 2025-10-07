@@ -92,12 +92,11 @@ const RetentionOrders = () => {
     const response = await axios.get(
       "https://muditamleads-14f32a10d7f7.herokuapp.com/api/retention-sales/allapi",
       {
-        params: { orderCreatedBy: retentionAgents }, // array OK
-        // ensure orderCreatedBy=A&orderCreatedBy=B (no indexes)
+        params: { orderCreatedBy: retentionAgents }, 
         paramsSerializer: { indexes: false },
       }
     );
-    const data = response.data; // already sorted desc by date
+    const data = response.data;  
     setRawOrders(data);
     setOrders(data);
     setCurrentPage(0);

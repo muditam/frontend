@@ -315,34 +315,62 @@ const MenuBar = ({ toggleDrawer }) => {
         )}
 
         {role !== "Finance" && role !== "Retention Agent" && (
-          <ListItem
-            button
-            component={Link} 
-            to="/order-confirmations"
-            sx={{
-              display: "flex", 
-              alignItems: "center",
-              padding: "10px 20px",
-              borderRadius: "4px",
-              margin: "4px 0",
-              transition: "background-color 0.3s, transform 0.2s",
-              "&:hover": { backgroundColor: "#e0f7fa", color: "#007aff", transform: "scale(1.02)" },
-            }}
-            onClick={toggleDrawer}
-          >
-            <ShoppingCartIcon sx={{ fontSize: 18, marginRight: "8px" }} />
-            <Typography variant="body1" sx={{ fontSize: "14px" }}>
-              Order Confirmation
-            </Typography>
-          </ListItem>
-        )}
+  <>
+    {/* Parent dropdown */}
+    <ListItem
+      button
+      onClick={() => handleDropdownClick("orderConfirmations")}
+      sx={dropdownStyle}
+    >
+      <Box sx={{ display: "flex", alignItems: "center" }}>
+        <ShoppingCartIcon sx={{ fontSize: 18, marginRight: "8px" }} />
+        <Typography variant="body1" sx={{ fontSize: "14px" }}>
+          Order Confirmations
+        </Typography>
+      </Box>
+      {openDropdown.orderConfirmations ? (
+        <KeyboardArrowDownIcon />
+      ) : (
+        <KeyboardArrowRightIcon />
+      )}
+    </ListItem>
+
+    {/* Children */}
+    <Collapse in={openDropdown.orderConfirmations} timeout="auto" unmountOnExit>
+      <List sx={nestedListStyle}>
+        <ListItem
+          button
+          component={Link}
+          to="/order-confirmations"
+          onClick={toggleDrawer}
+        >
+          <Typography variant="body2" sx={{ fontSize: "13px" }}>
+            Order Confirmation
+          </Typography>
+        </ListItem>
+
+        <ListItem
+          button
+          component={Link}
+          to="/order-confirmations/analytics"     
+          onClick={toggleDrawer}
+        >
+          <Typography variant="body2" sx={{ fontSize: "13px" }}>
+            Order Analytics
+          </Typography>
+        </ListItem>
+      </List>
+    </Collapse>
+  </>
+)}
+
 
         {role !== "Finance" && role !== "Operations" && role !== "Manager" && (
               <ListItem
                 button
                 component={Link}
                 to="/Agent-return"
-                sx={{
+                sx={{ 
                   display: "flex",
                   alignItems: "center",
                   padding: "10px 20px",

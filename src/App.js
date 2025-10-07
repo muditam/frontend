@@ -49,11 +49,12 @@ import SmartfloCallLogs from "./components/SmartfloCallLogs";
 import SmartfloDataAnalytics from "./components/SmartfloDataAnalytics";
 import ReturnDeliveredOrders from "./components/ReturnDeliveredOrders";
 import DietTemplateAdmin from "./components/DietTemplateAdmin";
-import AllProducts from "./components/all-products"; 
+import AllProducts from "./components/all-products";
 import OrderConfirmations from "./components/OrderConfirmations";
 import LeadExpertMigration from "./components/LeadExpertMigration";
 import AssetManager from "./components/AssetManager";
 import ScheduleCall from "./components/ScheduleCallsData";
+import OrderConfirmAnalytics from "./components/OrderConfirmAnalytics";
 import "./realtime/IncomingCallSSEBoot";
 
 const App = () => {
@@ -72,18 +73,15 @@ const App = () => {
 
           <Route path="/login" element={<Login />} />
           <Route path="/pages/Home" element={<ShipwayOrders />} />
-          <Route path="/operations/undelivered" element={<UndeliveredOrders />} />
           <Route path="/smartflo/call-logs" element={<SmartfloCallLogs />} />
-          <Route path="/smartflo/data-analytics" element={<SmartfloDataAnalytics />} /> 
-          <Route path="/lead-migration" element={<LeadExpertMigration />} />
-          <Route path="/order-confirmations" element={<OrderConfirmations />} /> 
+          <Route path="/smartflo/data-analytics" element={<SmartfloDataAnalytics />} />
           <Route path="/schedule-calls" element={<ScheduleCall />} />
-          <Route path="/assets" element={ <AssetManager /> } />
+          <Route path="/assets" element={<AssetManager />} />
 
-          {/* Protected Routes */} 
-          <Route 
-            path="/" 
-            element={ 
+          {/* Protected Routes */}
+          <Route
+            path="/"
+            element={
               <PrivateRoute>
                 <SalesDashboard />
               </PrivateRoute>
@@ -408,6 +406,38 @@ const App = () => {
             element={
               <PrivateRoute>
                 <DietTemplateAdmin />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/order-confirmations"
+            element={
+              <PrivateRoute>
+                <OrderConfirmations />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/operations/undelivered" 
+            element={
+              <PrivateRoute>
+                <UndeliveredOrders />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/lead-migration"
+            element={
+              <PrivateRoute>
+                <LeadExpertMigration />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/order-confirmations/analytics"
+            element={
+              <PrivateRoute> 
+                <OrderConfirmAnalytics />
               </PrivateRoute>
             }
           />

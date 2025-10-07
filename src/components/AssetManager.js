@@ -6,13 +6,13 @@ import {
   Chip, Tooltip, Snackbar, Alert, Avatar, Badge, Divider
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
-import SearchIcon from "@mui/icons-material/Search";
-import ClearIcon from "@mui/icons-material/Clear";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import PhotoCameraIcon from "@mui/icons-material/PhotoCamera";
 import CloseIcon from "@mui/icons-material/Close";
 import ImageIcon from "@mui/icons-material/Image";
+import AddCircleOutlineIcon from "@mui/icons-material/AddCircleOutline";
+import RemoveCircleOutlineIcon from "@mui/icons-material/RemoveCircleOutline";
 
 const TYPES = ["Laptop","Mouse","Charger","HeadPhone","Keyboard","Monitor","NeckBand"];
 const CONDITIONS = ["New","Used","Very Old"];
@@ -76,11 +76,16 @@ function ImageGalleryDialog({ open, onClose, images = [], title = "Images" }) {
 
 /* ------------------------ Add/Edit Dialog ------------------------ */
 function AddEditDialog({ open, onClose, initial, onSaved }) {
-  const [form, setForm] = useState(() => initial || {
+  // items = [{ type, brand, model }]
+  const seed = initial?.items?.length
+    ? initial
+    : initial
+      ? { ...initial, items: [{ type: initial.type || "Laptop", brand: initial.brand || "", model: initial.model || "" }] }
+      : null;
+
+  const [form, setForm] = useState(() => seed || {
     assetCode: "",
-    type: "Laptop",
-    brand: "",
-    model: "",
+    items: [{ type: "Laptop", brand: "", model: "" }],
     condition: "New",
     issuedDate: "",
     assignedTo: "",
@@ -89,11 +94,14 @@ function AddEditDialog({ open, onClose, initial, onSaved }) {
   });
 
   useEffect(() => {
-    setForm(initial || {
+    const seed2 = initial?.items?.length
+      ? initial
+      : initial
+        ? { ...initial, items: [{ type: initial.type || "Laptop", brand: initial.brand || "", model: initial.model || "" }] }
+        : null;
+    setForm(seed2 || {
       assetCode: "",
-      type: "Laptop",
-      brand: "",
-      model: "",
+      items: [{ type: "Laptop", brand: "", model: "" }],
       condition: "New",
       issuedDate: "",
       assignedTo: "",
@@ -117,10 +125,29 @@ function AddEditDialog({ open, onClose, initial, onSaved }) {
     setForm(prev => ({ ...prev, images: prev.images.filter((_, i) => i !== idx) }));
   };
 
+  const addItem = () => {
+    setForm(prev => ({ ...prev, items: [...prev.items, { type: "Laptop", brand: "", model: "" }] }));
+  };
+  const removeItem = (idx) => {
+    setForm(prev => {
+      const next = prev.items.filter((_, i) => i !== idx);
+      return { ...prev, items: next.length ? next : [{ type: "Laptop", brand: "", model: "" }] };
+    });
+  };
+  const patchItem = (idx, patch) => {
+    setForm(prev => {
+      const next = [...prev.items];
+      next[idx] = { ...next[idx], ...patch };
+      return { ...prev, items: next };
+    });
+  };
+
   const save = () => {
     if (!form.assetCode.trim()) return alert("Asset Code is required");
-    if (!form.type) return alert("Type is required");
-    if (!form.condition) return alert("Condition is required");
+    if (!form.items?.length) return alert("Add at least one item");
+    for (const it of form.items) {
+      if (!it.type) return alert("Type is required for all items");
+    }
 
     const assets = loadLS(LS_KEY, []);
     if (initial?._id) {
@@ -131,7 +158,8 @@ function AddEditDialog({ open, onClose, initial, onSaved }) {
           a.assetCode.trim().toLowerCase() === form.assetCode.trim().toLowerCase()
         );
         if (dup) return alert("Another asset already uses this Asset Code.");
-        assets[idx] = { ...assets[idx], ...form, updatedAt: new Date().toISOString() };
+        const { type, brand, model, ...rest } = form;
+        assets[idx] = { ...assets[idx], ...rest, updatedAt: new Date().toISOString() };
         saveLS(LS_KEY, assets);
       }
     } else {
@@ -140,6 +168,7 @@ function AddEditDialog({ open, onClose, initial, onSaved }) {
       if (assets.some(a => a.assetCode.trim().toLowerCase() === form.assetCode.trim().toLowerCase())) {
         return alert("Asset Code already exists");
       }
+      delete doc.type; delete doc.brand; delete doc.model;
       assets.unshift(doc);
       saveLS(LS_KEY, assets);
     }
@@ -148,7 +177,7 @@ function AddEditDialog({ open, onClose, initial, onSaved }) {
   };
 
   return (
-    <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
+    <Dialog open={open} onClose={onClose} fullWidth maxWidth="md">
       <DialogTitle>{initial?._id ? "Edit Asset" : "Add Asset"}</DialogTitle>
       <DialogContent dividers>
         <Stack spacing={2} sx={{ mt: 1 }}>
@@ -159,27 +188,18 @@ function AddEditDialog({ open, onClose, initial, onSaved }) {
             required
           />
 
+          {/* Condition + Issued + Assigned */}
           <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
             <FormControl fullWidth>
-              <InputLabel>Type</InputLabel>
-              <Select label="Type" value={form.type} onChange={e=>setForm({...form, type:e.target.value})}>
-                {TYPES.map(t=><MenuItem key={t} value={t}>{t}</MenuItem>)}
-              </Select>
-            </FormControl>
-            <FormControl fullWidth>
               <InputLabel>Condition</InputLabel>
-              <Select label="Condition" value={form.condition} onChange={e=>setForm({...form, condition:e.target.value})}>
+              <Select
+                label="Condition"
+                value={form.condition}
+                onChange={e=>setForm({...form, condition:e.target.value})}
+              >
                 {CONDITIONS.map(s=><MenuItem key={s} value={s}>{s}</MenuItem>)}
               </Select>
             </FormControl>
-          </Stack>
-
-          <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
-            <TextField label="Brand" fullWidth value={form.brand} onChange={e=>setForm({...form, brand:e.target.value})}/>
-            <TextField label="Model" fullWidth value={form.model} onChange={e=>setForm({...form, model:e.target.value})}/>
-          </Stack>
-
-          <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
             <TextField
               label="Issued Date"
               type="date"
@@ -195,6 +215,53 @@ function AddEditDialog({ open, onClose, initial, onSaved }) {
               fullWidth
             />
           </Stack>
+
+          {/* Multi-type items */}
+          <Box sx={{ border: "1px dashed", borderColor: "divider", borderRadius: 2, p: 1.5 }}>
+            <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1 }}>
+              <Typography variant="subtitle2">Asset Items (Type with Brand/Model)</Typography>
+              <Button size="small" startIcon={<AddCircleOutlineIcon />} onClick={addItem}>
+                Add Item
+              </Button>
+            </Stack>
+
+            <Stack spacing={1.5}>
+              {form.items.map((it, idx) => (
+                <Stack
+                  key={idx}
+                  direction={{ xs: "column", md: "row" }}
+                  spacing={1}
+                  alignItems={{ md: "center" }}
+                >
+                  <FormControl fullWidth sx={{ minWidth: 180 }}>
+                    <InputLabel>Type</InputLabel>
+                    <Select
+                      label="Type"
+                      value={it.type}
+                      onChange={e=>patchItem(idx, { type: e.target.value })}
+                    >
+                      {TYPES.map(t => <MenuItem key={t} value={t}>{t}</MenuItem>)}
+                    </Select>
+                  </FormControl>
+                  <TextField
+                    label="Brand"
+                    value={it.brand}
+                    onChange={e=>patchItem(idx, { brand: e.target.value })}
+                    fullWidth
+                  />
+                  <TextField
+                    label="Model"
+                    value={it.model}
+                    onChange={e=>patchItem(idx, { model: e.target.value })}
+                    fullWidth
+                  />
+                  <IconButton color="error" onClick={() => removeItem(idx)} title="Remove item">
+                    <RemoveCircleOutlineIcon />
+                  </IconButton>
+                </Stack>
+              ))}
+            </Stack>
+          </Box>
 
           <TextField
             label="Notes"
@@ -289,10 +356,6 @@ function AddEditDialog({ open, onClose, initial, onSaved }) {
 
 /* ------------------------ Main Component ------------------------ */
 export default function AssetManager() {
-  // filters + paging (client side)
-  const [q, setQ] = useState("");
-  const [type, setType] = useState("");
-  const [condition, setCondition] = useState("");
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(20);
 
@@ -301,7 +364,6 @@ export default function AssetManager() {
   const [editAsset, setEditAsset] = useState(null);
   const [snack, setSnack] = useState({ open:false, msg:"", severity:"success" });
 
-  // gallery dialog state
   const [gallery, setGallery] = useState({ open: false, images: [], title: "" });
 
   useEffect(() => {
@@ -310,29 +372,11 @@ export default function AssetManager() {
     return () => window.removeEventListener("storage", listener);
   }, []);
 
-  const filtered = useMemo(() => {
-    let arr = [...items];
-    if (q.trim()) {
-      const s = q.trim().toLowerCase();
-      arr = arr.filter(a =>
-        a.assetCode.toLowerCase().includes(s) ||
-        (a.brand || "").toLowerCase().includes(s) ||
-        (a.model || "").toLowerCase().includes(s) ||
-        (a.assignedTo || "").toLowerCase().includes(s)
-      );
-    }
-    if (type) arr = arr.filter(a => a.type === type);
-    if (condition) arr = arr.filter(a => a.condition === condition);
-    return arr;
-  }, [items, q, type, condition]);
-
-  const total = filtered.length;
+  const total = items.length;
   const paged = useMemo(() => {
     const start = page * rowsPerPage;
-    return filtered.slice(start, start + rowsPerPage);
-  }, [filtered, page, rowsPerPage]);
-
-  const clear = () => { setQ(""); setType(""); setCondition(""); };
+    return items.slice(start, start + rowsPerPage);
+  }, [items, page, rowsPerPage]);
 
   const onSaved = () => {
     setItems(loadLS(LS_KEY, []));
@@ -347,11 +391,25 @@ export default function AssetManager() {
     setSnack({ open:true, msg:"Deleted", severity:"success" });
   };
 
-  // styling helpers
   const conditionChipProps = (c) => {
     if (c === "New")   return { color: "success", variant: "filled" };
     if (c === "Used")  return { color: "warning", variant: "filled" };
     return { color: "default", variant: "outlined", sx: { borderColor: "error.light", color: "error.main" } }; // Very Old
+  };
+
+  const getItemsArr = (a) => (a.items && Array.isArray(a.items) ? a.items : [{ type: a.type, brand: a.brand, model: a.model }].filter(x => x.type));
+
+  // Group items by type for categorised rendering
+  const groupByType = (arr) => {
+    const map = new Map();
+    (arr || []).forEach(it => {
+      if (!it?.type) return;
+      const key = it.type;
+      const list = map.get(key) || [];
+      list.push(it);
+      map.set(key, list);
+    });
+    return Array.from(map.entries());  
   };
 
   return (
@@ -361,10 +419,7 @@ export default function AssetManager() {
         <Stack spacing={1}>
           <Stack direction="row" alignItems="center" justifyContent="space-between">
             <Box>
-              <Typography variant="h5" sx={{ fontWeight: 800 }}>Asset Manager</Typography>
-              <Typography variant="body2" color="text.secondary">
-                Track and manage physical IT assets across your organization.
-              </Typography>
+              <Typography variant="h5" sx={{ fontWeight: 800 }}>Asset Manager</Typography> 
             </Box>
             <Button startIcon={<AddIcon/>} variant="contained" onClick={()=>setAddOpen(true)}>
               Add Asset
@@ -373,78 +428,43 @@ export default function AssetManager() {
         </Stack>
       </Paper>
 
-      {/* Filters */}
-      <Paper
-        variant="outlined"
-        sx={{
-          p: 1.5,
-          mb: 2,
-          borderRadius: 2,
-          background: (t) => t.palette.mode === "light" ? "#fbfbfd" : "transparent",
-        }}
-      >
-        <Stack direction={{ xs: "column", md: "row" }} spacing={1.5} alignItems={{ md: "center" }}>
-          <TextField
-            size="small"
-            placeholder="Search (asset code, brand, model, assigned to)"
-            value={q} onChange={e=>setQ(e.target.value)}
-            InputProps={{ startAdornment: <SearchIcon fontSize="small" sx={{ mr:1 }}/>, }}
-            fullWidth
-          />
-          <FormControl size="small" sx={{ minWidth: 160 }}>
-            <InputLabel>Type</InputLabel>
-            <Select label="Type" value={type} onChange={e=>setType(e.target.value)}>
-              <MenuItem value="">All</MenuItem>
-              {TYPES.map(t=><MenuItem key={t} value={t}>{t}</MenuItem>)}
-            </Select>
-          </FormControl>
-          <FormControl size="small" sx={{ minWidth: 160 }}>
-            <InputLabel>Condition</InputLabel>
-            <Select label="Condition" value={condition} onChange={e=>setCondition(e.target.value)}>
-              <MenuItem value="">All</MenuItem>
-              {CONDITIONS.map(s=><MenuItem key={s} value={s}>{s}</MenuItem>)}
-            </Select>
-          </FormControl>
-          <Box sx={{ flex: 1 }} />
-          <Button startIcon={<ClearIcon/>} onClick={clear}>Reset</Button>
-        </Stack>
-      </Paper>
-
       {/* Table */}
       <TableContainer
         component={Paper}
         variant="outlined"
-        sx={{
+        sx={{ 
           borderRadius: 2,
           overflow: "hidden",
-          "& .MuiTable-root": { minWidth: 960 },
+          "& .MuiTable-root": { minWidth: 1024 },
         }}
       >
         <Table size="small" stickyHeader>
           <TableHead>
             <TableRow sx={{ "& th": { bgcolor: "background.default", fontWeight: 700 } }}>
-              {/* UPDATED HEADER LABEL */}
               <TableCell sx={{ width: 260 }}>Asset Code / Assigned To</TableCell>
-              <TableCell sx={{ width: 120 }}>Type</TableCell>
-              <TableCell sx={{ width: 220 }}>Brand / Model</TableCell>
+              <TableCell sx={{ width: 220 }}>Types</TableCell>
+              <TableCell sx={{ width: 360 }}>Brand / Model (Categorised)</TableCell>
               <TableCell sx={{ width: 140 }}>Condition</TableCell>
               <TableCell sx={{ width: 140 }}>Issued Date</TableCell>
-              <TableCell sx={{ width: 180 }}>Images</TableCell>
+              <TableCell sx={{ width: 200 }}>Images</TableCell>
               <TableCell align="right" sx={{ width: 120 }}>Actions</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
             {paged.map((a) => {
               const imgs = a.images || [];
-              const first3 = imgs.slice(0, 3);
-              const more = Math.max(imgs.length - 3, 0);
+              const allItems = getItemsArr(a);
+              const groups = groupByType(allItems); // [[type, items[]]]
+
+              const first3Imgs = imgs.slice(0, 3);
+              const moreImgs = Math.max(imgs.length - 3, 0);
+
               return (
                 <TableRow
                   key={a._id}
                   hover
                   sx={{ "&:nth-of-type(odd)": { backgroundColor: (t) => t.palette.action.hover } }}
                 >
-                  {/* UPDATED CELL: stacked vertically */}
                   <TableCell>
                     <Stack spacing={0.25}>
                       <Typography variant="body2" sx={{ fontWeight: 700, pr: 2, whiteSpace: "nowrap" }}>
@@ -456,13 +476,54 @@ export default function AssetManager() {
                     </Stack>
                   </TableCell>
 
+                  {/* Types with counts */}
                   <TableCell>
-                    <Chip size="small" label={a.type} variant="outlined" />
+                    <Stack direction="row" spacing={0.5} flexWrap="wrap">
+                      {groups.map(([type, itemsForType]) => (
+                        <Chip
+                          key={`${a._id}-type-${type}`}
+                          size="small"
+                          label={`${type}`}
+                          variant="outlined"
+                        />
+                      ))} 
+                    </Stack>
                   </TableCell>
 
+                  {/* Brand/Model grouped by type */}
                   <TableCell>
-                    <Typography variant="body2" sx={{ fontWeight: 700 }}>{a.brand || "—"}</Typography>
-                    <Typography variant="caption" color="text.secondary">{a.model || ""}</Typography>
+                    <Stack spacing={0.75}>
+                      {groups.map(([type, itemsForType]) => {
+                        const show = itemsForType.slice(0, 3);
+                        const more = Math.max(itemsForType.length - 3, 0);
+                        return (
+                          <Box
+                            key={`${a._id}-group-${type}`}
+                            sx={{
+                              border: "1px dashed",
+                              borderColor: "divider",
+                              borderRadius: 1,
+                              p: 1,
+                              background: (t) => t.palette.mode === "light" ? "#fafafb" : "transparent",
+                            }}
+                          >
+                            <Typography variant="caption" sx={{ fontWeight: 700, display: "block", mb: 0.5 }}>
+                              {type}
+                            </Typography>
+                            <Stack spacing={0.25}>
+                              {show.map((it, idx) => (
+                                <Typography key={`${a._id}-bm-${type}-${idx}`} variant="body2">
+                                  {(it.brand || "—")}{it.model ? ` ${it.model}` : ""}
+                                </Typography>
+                              ))}
+                              {more > 0 && (
+                                <Typography variant="caption" color="text.secondary">+{more} more</Typography>
+                              )}
+                            </Stack>
+                          </Box>
+                        );
+                      })}
+                    </Stack>
                   </TableCell>
 
                   <TableCell>
@@ -474,7 +535,7 @@ export default function AssetManager() {
                   <TableCell>
                     {imgs.length ? (
                       <Stack direction="row" spacing={1} alignItems="center">
-                        {first3.map((src, idx) => (
+                        {first3Imgs.map((src, idx) => (
                           <Tooltip key={`${a._id}-${idx}`} title="Click to view">
                             <Avatar
                               variant="rounded"
@@ -489,8 +550,8 @@ export default function AssetManager() {
                             />
                           </Tooltip>
                         ))}
-                        {more > 0 && (
-                          <Badge badgeContent={`+${more}`} color="primary">
+                        {moreImgs > 0 && (
+                          <Badge badgeContent={`+${moreImgs}`} color="primary">
                             <Avatar
                               variant="rounded"
                               sx={{
@@ -531,7 +592,7 @@ export default function AssetManager() {
                   <Stack spacing={1} alignItems="center" sx={{ color: "text.secondary" }}>
                     <ImageIcon />
                     <Typography variant="body2">
-                      {items.length ? "No results. Try adjusting filters." : "No assets yet. Click “Add Asset” to create your first item."}
+                      No assets yet. Click “Add Asset” to create your first item.
                     </Typography>
                   </Stack>
                 </TableCell>
@@ -566,7 +627,7 @@ export default function AssetManager() {
       <ImageGalleryDialog
         open={gallery.open}
         images={gallery.images}
-        title={gallery.title}
+        title={gallery.title}  
         onClose={() => setGallery({ open: false, images: [], title: "" })}
       />
 
@@ -582,3 +643,4 @@ export default function AssetManager() {
     </Box>
   );
 }
+
