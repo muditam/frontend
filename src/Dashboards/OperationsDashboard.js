@@ -23,7 +23,7 @@ import BlockRoundedIcon from "@mui/icons-material/BlockRounded";
 import CancelRoundedIcon from "@mui/icons-material/CancelRounded";
 import axios from "axios";
 
-const API_BASE = "https://muditamleads-14f32a10d7f7.herokuapp.com";
+const API_BASE = "https://muditamleads-14f32a10d7f7.herokuapp.com"; 
 
 const getLoggedIn = () => {
   const rawUser = sessionStorage.getItem("user");

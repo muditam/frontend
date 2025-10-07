@@ -22,7 +22,7 @@ import {
   InputLabel,
   Autocomplete,
   Snackbar,
-  Alert, 
+  Alert,
   CircularProgress,
   Collapse,
   Divider,
@@ -48,6 +48,8 @@ import ExpandLessIcon from "@mui/icons-material/ExpandLess";
 import LaunchIcon from "@mui/icons-material/Launch";
 import CancelOutlinedIcon from "@mui/icons-material/CancelOutlined";
 import LinkOutlinedIcon from "@mui/icons-material/LinkOutlined";
+import SearchIcon from "@mui/icons-material/Search";
+import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
 import ScheduleCallDialog from "./ScheduleCallDialog";
 import axios from "axios";
 import { ThemeProvider, createTheme } from "@mui/material/styles";
@@ -167,7 +169,7 @@ const rowAgeBg = (row) => {
   const mins = (Date.now() - new Date(dt).getTime()) / 60000;
   if (mins <= 5) return "#e8f5e9";
   if (mins <= 10) return "#fff3e0";
-  return "#ffffff"; 
+  return "#ffffff";
 };
 
 const channelLabel = (row) => {
@@ -666,22 +668,24 @@ export default function OrderConfirmations() {
     try {
       setCancelingRow((m) => ({ ...m, [id]: true }));
 
-      const { data } = await axios.post("https://muditamleads-14f32a10d7f7.herokuapp.com/orders/update-order", {
-        orderName: row.orderName,
-        quantity: 1,
-        returnReason: "OTHER",
-        returnReasonNote: "Cancelled via Order Confirmations UI",
-      });
+      // Call the new backend
+      const { data } = await axios.post(
+        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/order-confirmations/cancel",
+        {
+          orderName: row.orderName,
+          reason: "customer",
+          email: true, 
+          restock: true,
+          note: "Cancel Order - via OC UI",
+        }
+      );
 
-      if (data?.success) {
-        setToast({ open: true, severity: "success", msg: "Order cancellation request created" });
-        await handleShopifyNotesChange(row, "CANCEL_ORDER");
-      } else {
-        const errMsg = data?.result?.message || data?.message || "Cancel operation failed on server";
-        setToast({ open: true, severity: "error", msg: errMsg });
-      }
+      // Toast & update status + counts
+      setToast({ open: true, severity: "success", msg: data?.alreadyCancelled ? "Order already cancelled" : "Order cancelled" });
+
+      await handleShopifyNotesChange(row, "CANCEL_ORDER");
     } catch (e) {
-      const msg = e?.response?.data?.message || e?.message || "Cancel operation failed";
+      const msg = e?.response?.data?.error || e?.message || "Cancel operation failed";
       setToast({ open: true, severity: "error", msg });
     } finally {
       setCancelingRow((m) => ({ ...m, [id]: false }));
@@ -871,20 +875,69 @@ export default function OrderConfirmations() {
               </Stack>
             </Stack>
 
-            <Tabs
-              value={tab}
-              onChange={(_e, v) => setTab(v)}
-              variant="scrollable"
-              scrollButtons="auto"
-              sx={{ borderBottom: 1, borderColor: "divider" }}
+            <Box
+              sx={{
+                display: "flex",
+                alignItems: "center",
+                gap: 1.5,
+                borderBottom: 1,
+                borderColor: "divider",
+                // stack on very small screens
+                flexWrap: { xs: "wrap", sm: "nowrap" },
+              }}
             >
-              <Tab value="ALL" label={`All (${counts.ALL || 0})`} />
-              <Tab value="PENDING" label={`Pending (${counts.PENDING || 0})`} />
-              <Tab value="CNP" label={`CNP (${counts.CNP || 0})`} />
-              <Tab value="ORDER_CONFIRMED" label={`Confirmed (${counts.ORDER_CONFIRMED || 0})`} />
-              <Tab value="CALL_BACK_LATER" label={`Call Back (${counts.CALL_BACK_LATER || 0})`} />
-              <Tab value="CANCEL_ORDER" label={`Cancel (${counts.CANCEL_ORDER || 0})`} />
-            </Tabs>
+              <Tabs
+                value={tab}
+                onChange={(_e, v) => setTab(v)}
+                variant="scrollable"
+                scrollButtons="auto"
+                sx={{ flex: 1, minHeight: 48 }}
+              >
+                <Tab value="ALL" label={`All (${counts.ALL || 0})`} />
+                <Tab value="PENDING" label={`Pending (${counts.PENDING || 0})`} />
+                <Tab value="CNP" label={`CNP (${counts.CNP || 0})`} />
+                <Tab value="ORDER_CONFIRMED" label={`Confirmed (${counts.ORDER_CONFIRMED || 0})`} />
+                <Tab value="CALL_BACK_LATER" label={`Call Back (${counts.CALL_BACK_LATER || 0})`} />
+                <Tab value="CANCEL_ORDER" label={`Cancel (${counts.CANCEL_ORDER || 0})`} />
+              </Tabs>
+
+              {/* Search box pinned to the right */}
+              <TextField
+                size="small"
+                placeholder="Search order # or phone…"
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    // immediate refresh; debounced will also kick in
+                    setPage(0);
+                    fetchList(0, rowsPerPage);
+                  }
+                }}
+                sx={{
+                  width: { xs: "100%", sm: 280 },
+                  my: { xs: 1, sm: 0 },
+                }}
+                InputProps={{
+                  startAdornment: (
+                    <SearchIcon sx={{ mr: 1, opacity: 0.7 }} fontSize="small" />
+                  ),
+                  endAdornment: q ? (
+                    <IconButton
+                      aria-label="Clear search"
+                      size="small"
+                      onClick={() => {
+                        setQ(""); 
+                        setPage(0); 
+                        fetchList(0, rowsPerPage);
+                      }}
+                    >
+                      <CloseRoundedIcon fontSize="small" />
+                    </IconButton>
+                  ) : null,
+                }}
+              />
+            </Box>
           </Stack>
         </Paper>
 
