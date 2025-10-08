@@ -157,7 +157,7 @@ const NavbarWithSearch = () => {
   };
 
   const handleClickAway = () => {
-    setShowResults(false);
+    setShowResults(false); 
   };
 
   const handleShopifyInputChange = (e) => {
@@ -171,7 +171,7 @@ const NavbarWithSearch = () => {
         const response = await axios.get(
           "https://muditamleads-14f32a10d7f7.herokuapp.com/api/employees",
           {
-            params: {
+            params: { 
               fullName: user.fullName,
               email: user.email,
             },
@@ -211,29 +211,27 @@ const NavbarWithSearch = () => {
   }
 
   const executeShopifySearch = async () => {
-    if (!shopifyQuery.trim()) {
-      setCustomerData(null);
-      setShowCustomerDetails(false);
-      return;
-    }
+  if (!shopifyQuery.trim()) {
+    setCustomerData(null);
+    setShowCustomerDetails(false);
+    return;
+  }
 
-    try {
-      // Call the new endpoint to get customer details
-      const response = await axios.get(
-        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/shopify/customerDetails",
-        {
-          params: { phone: shopifyQuery },
-        }
-      );
-      setCustomerData(response.data.customer);
-      setShowCustomerDetails(true);
-      // Reset orders dropdown
-      setShowOrders(false);
-      setShowAllOrders(false);
-    } catch (error) {
-      console.error("Error fetching Shopify customer details:", error);
-    }
-  };
+  try {
+    const response = await axios.get(
+      "https://muditamleads-14f32a10d7f7.herokuapp.com/api/shopify/customerDetails",
+      {
+        params: { q: shopifyQuery },   
+      }
+    );
+    setCustomerData(response.data.customer);
+    setShowCustomerDetails(true);
+    setShowOrders(false);
+    setShowAllOrders(false);
+  } catch (error) {
+    console.error("Error fetching Shopify customer details:", error);
+  }
+};
 
   const handleShopifyClickAway = () => {
     setShowCustomerDetails(false);
@@ -258,10 +256,10 @@ const NavbarWithSearch = () => {
         : [...prev, orderId]
     );
   };
-
+ 
   const handleDownloadOrders = async () => {   
     try {
-      const response = await axios.get(
+      const response = await axios.get( 
         "http://localhost:5001/api/myorders/download",
         { responseType: 'blob' }
       );
@@ -417,8 +415,8 @@ const NavbarWithSearch = () => {
                                         sx={{ pl: 3, py: 0.5, ...smallFont }}
                                       >
                                         <ListItemText
-                                          primary={`Order ${order.id} | Total Amount: ₹${order.totalAmount || 0}`}
-                                          secondary={
+                                          primary={`Order ${order.name || order.id} | Total Amount: ₹${order.totalAmount || 0}`}
+                                          secondary={ 
                                             <>
                                               <span>
                                                 {new Date(order.created_at).toLocaleString()} | Items: {order.itemCount} | {order.deliveryStatus}
@@ -429,7 +427,7 @@ const NavbarWithSearch = () => {
                                                   {item.title} - {item.variant} (₹{item.amountPaid}){" "}
                                                 </span>
                                               ))}
-                                              <br />
+                                              <br /> 
                                               <Box
                                                 onClick={() => toggleAddress(order.id)}
                                                 sx={{
@@ -491,7 +489,7 @@ const NavbarWithSearch = () => {
                                           sx={{ pl: 3, py: 0.5, ...smallFont }}
                                         >
                                           <ListItemText
-                                            primary={`Order ${order.id}`}
+                                            primary={`Order ${order.name || order.id}`} 
                                             secondary={
                                               <>
                                                 <span>

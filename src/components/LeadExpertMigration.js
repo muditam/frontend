@@ -4,10 +4,11 @@ const API_BASE = process.env.REACT_APP_API_BASE || 'https://muditamleads-14f32a1
 
 export default function LeadMigration() {
   const [experts, setExperts] = useState([]);
-  const [fromExpert, setFromExpert] = useState('');
-  const [toExpert, setToExpert] = useState('');
-  const [leads, setLeads] = useState([]); // { _id, name, contactNumber, healthExpertAssigned, checked }
+  const [fromExpert, setFromExpert] = useState(''); 
+  const [toExpert, setToExpert] = useState(''); 
+  const [leads, setLeads] = useState([]); // { _id, name, contactNumber, healthExpertAssigned, retentionStatus, checked }
   const [query, setQuery] = useState('');
+  const [onlyActive, setOnlyActive] = useState(false); 
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState('');
@@ -30,19 +31,18 @@ export default function LeadMigration() {
   }, []);
 
   // Load leads for a selected expert
-  const loadLeads = async (expert, q = '') => {
+  const loadLeads = async (expert, q = '', activeOnly = false) => {
     if (!expert) return;
     setLoading(true);
     setLeads([]);
     setMsg('');
     try {
-      const r = await fetch(
-        `${API_BASE}/api/lead-migration/experts/${encodeURIComponent(expert)}/leads?q=${encodeURIComponent(q)}`
-      );
+      const url = `${API_BASE}/api/lead-migration/experts/${encodeURIComponent(expert)}/leads?q=${encodeURIComponent(q)}${activeOnly ? '&onlyActive=1' : ''}`;
+      const r = await fetch(url);
       const j = await r.json();
       const items = (j.items || []).map(x => ({ ...x, checked: false }));
       setLeads(items);
-      setMsg(`Loaded ${items.length} leads for "${expert}"`);
+      setMsg(`Loaded ${items.length} leads for "${expert}"${activeOnly ? ' (Active only)' : ''}`);
     } catch (e) {
       setMsg('Failed to load leads');
     } finally {
@@ -54,12 +54,20 @@ export default function LeadMigration() {
     const value = e.target.value;
     setFromExpert(value);
     setLeads([]);
-    if (value) loadLeads(value, query);
+    if (value) loadLeads(value, query, onlyActive);
   };
 
   const doSearch = () => {
-    if (fromExpert) loadLeads(fromExpert, query);
+    if (fromExpert) loadLeads(fromExpert, query, onlyActive);
   };
+
+  // When onlyActive toggles, reload if we already picked an expert
+  useEffect(() => {
+    if (fromExpert) {
+      loadLeads(fromExpert, query, onlyActive);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [onlyActive]);
 
   const toggleOne = (id) => {
     setLeads(prev => prev.map(x => x._id === id ? { ...x, checked: !x.checked } : x));
@@ -96,7 +104,7 @@ export default function LeadMigration() {
       const j = await r.json();
       if (j.ok) {
         setMsg(`Migrated ${j.modified ?? 0} lead(s) to "${j.toExpert}"`);
-        await loadLeads(fromExpert, query); // refresh
+        await loadLeads(fromExpert, query, onlyActive); // refresh
       } else {
         setMsg(j.error || 'Failed to migrate');
       }
@@ -111,7 +119,6 @@ export default function LeadMigration() {
 
   return (
     <div className="lm-wrap">
-      {/* Inline styles (no extra lib) */}
       <style>{`
         .lm-wrap {
           max-width: 980px;
@@ -206,8 +213,9 @@ export default function LeadMigration() {
         .lm-topbar {
           display: flex;
           align-items: center;
-          gap: 12px;
+          gap: 16px;
           padding: 10px 16px 0 16px;
+          flex-wrap: wrap;
         }
 
         .lm-table-wrap {
@@ -287,8 +295,33 @@ export default function LeadMigration() {
           font-size: 13px;
           color: #2b2b33;
         }
-        .lm-msg.error { color: #b00020; }
+        .lm-msg.error { color: #b00020; } 
         .lm-msg.ok { color: #1a7f37; }
+
+        .status-badge {
+          display: inline-flex;
+          align-items: center;
+          padding: 4px 8px;
+          border-radius: 999px;
+          font-size: 12px;
+          font-weight: 700;
+          border: 1px solid #eee;
+        }
+        .status-active {
+          background: #e9f9ee;
+          border-color: #cdebd6;
+          color: #1a7f37;
+        }
+        .status-lost {
+          background: #fff0f0;
+          border-color: #ffd6d6;
+          color: #b00020;
+        }
+        .status-other {
+          background: #f3f5ff;
+          border-color: #e0e7ff;
+          color: #3743b2;
+        }
       `}</style>
 
       <div className="lm-card">
@@ -344,7 +377,7 @@ export default function LeadMigration() {
           </div>
         </div>
 
-        {/* Top bar: select all + hint */}
+        {/* Top bar: select all + filters */}
         <div className="lm-topbar">
           <label className="lm-hint" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <input
@@ -358,8 +391,21 @@ export default function LeadMigration() {
               <strong>Select All</strong> ({selectedCount}/{leads.length})
             </span>
           </label>
+
+          {/* New: Select only Active */}
+          <label className="lm-hint" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <input
+              type="checkbox"
+              checked={onlyActive}
+              onChange={(e) => setOnlyActive(e.target.checked)}
+              style={{ width: 18, height: 18 }}
+              disabled={!fromExpert || loading}
+            />
+            <span><strong>Select only Active</strong></span>
+          </label>
+
           <span className="lm-hint">
-            {fromExpert ? `Showing leads assigned to "${fromExpert}"` : 'Pick a From Expert to load leads'}
+            {fromExpert ? `Showing leads assigned to "${fromExpert}"${onlyActive ? ' • Active only' : ''}` : 'Pick a From Expert to load leads'}
           </span>
         </div>
 
@@ -376,7 +422,8 @@ export default function LeadMigration() {
                   <th className="lm-th" style={{ width: 70 }}>Select</th>
                   <th className="lm-th">Name</th>
                   <th className="lm-th">Contact Number</th>
-                  <th className="lm-th" style={{ width: 260 }}>Current Expert</th>
+                  <th className="lm-th" style={{ width: 220 }}>Current Expert</th>
+                  <th className="lm-th" style={{ width: 180 }}>Retention Status</th>
                 </tr>
               </thead>
               <tbody>
@@ -397,14 +444,30 @@ export default function LeadMigration() {
                       ) : '-'}
                     </td>
                     <td className="lm-td">{row.healthExpertAssigned || '-'}</td>
+                    <td className="lm-td">
+                      {row.retentionStatus ? (
+                        <span
+                          className={
+                            'status-badge ' +
+                            (row.retentionStatus?.toLowerCase() === 'active'
+                              ? 'status-active'
+                              : row.retentionStatus?.toLowerCase() === 'lost'
+                              ? 'status-lost'
+                              : 'status-other')
+                          }
+                          title="Retention status"
+                        >
+                          {row.retentionStatus}
+                        </span>
+                      ) : '-'}
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           )}
         </div>
-
-        {/* Sticky Action Footer */}
+ 
         <div className="lm-footer">
           <button
             className="lm-btn lm-btn-primary"

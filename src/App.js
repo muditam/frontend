@@ -77,8 +77,7 @@ const App = () => {
           <Route path="/smartflo/data-analytics" element={<SmartfloDataAnalytics />} />
           <Route path="/schedule-calls" element={<ScheduleCall />} />
           <Route path="/assets" element={<AssetManager />} />
-
-          {/* Protected Routes */}
+ 
           <Route
             path="/"
             element={

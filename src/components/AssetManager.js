@@ -1,9 +1,9 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState, useRef } from "react";
 import {
   Box, Paper, Stack, Typography, TextField, FormControl, InputLabel, Select, MenuItem,
   Button, IconButton, Table, TableHead, TableRow, TableCell, TableBody,
   TableContainer, TablePagination, Dialog, DialogTitle, DialogContent, DialogActions,
-  Chip, Tooltip, Snackbar, Alert, Avatar, Badge, Divider
+  Chip, Tooltip, Snackbar, Alert, Avatar, Badge, Divider, InputAdornment
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import EditIcon from "@mui/icons-material/Edit";
@@ -13,9 +13,11 @@ import CloseIcon from "@mui/icons-material/Close";
 import ImageIcon from "@mui/icons-material/Image";
 import AddCircleOutlineIcon from "@mui/icons-material/AddCircleOutline";
 import RemoveCircleOutlineIcon from "@mui/icons-material/RemoveCircleOutline";
+import CalendarMonthRoundedIcon from "@mui/icons-material/CalendarMonthRounded";
+import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
 
-const TYPES = ["Laptop","Mouse","Charger","HeadPhone","Keyboard","Monitor","NeckBand"];
-const CONDITIONS = ["New","Used","Very Old"];
+const TYPES = ["Laptop", "Mouse", "Charger", "HeadPhone", "Keyboard", "Monitor", "NeckBand"];
+const CONDITIONS = ["New", "Used", "Very Old"];
 
 const LS_KEY = "org_hw_assets_v1";
 
@@ -26,7 +28,7 @@ function loadLS(key, fallback) {
   } catch { return fallback; }
 }
 function saveLS(key, value) {
-  try { localStorage.setItem(key, JSON.stringify(value)); } catch {}
+  try { localStorage.setItem(key, JSON.stringify(value)); } catch { }
 }
 
 const fmtDate = (d) => {
@@ -38,12 +40,33 @@ const fmtDate = (d) => {
   }
 };
 
+/* ------------------------ Section Header ------------------------ */
+function SectionHeader({ title, subtitle, right, sx }) {
+  return (
+    <Stack
+      direction="row"
+      alignItems={{ xs: "flex-start", sm: "center" }}
+      justifyContent="space-between"
+      sx={{ mb: 1, ...sx }}
+      spacing={1.5}
+    >
+      <Box>
+        <Typography variant="subtitle2" sx={{ fontWeight: 800, letterSpacing: 0.2 }}>{title}</Typography>
+        {subtitle && (
+          <Typography variant="caption" color="text.secondary">{subtitle}</Typography>
+        )}
+      </Box>
+      {right}
+    </Stack>
+  );
+}
+
 /* ------------------------ Gallery Dialog ------------------------ */
 function ImageGalleryDialog({ open, onClose, images = [], title = "Images" }) {
   return (
     <Dialog open={open} onClose={onClose} fullWidth maxWidth="md">
-      <DialogTitle>{title}</DialogTitle>
-      <DialogContent dividers>
+      <DialogTitle sx={{ fontWeight: 800 }}>{title}</DialogTitle>
+      <DialogContent dividers sx={{ p: 2.5 }}>
         {images.length ? (
           <Box sx={{
             display: "grid",
@@ -67,16 +90,111 @@ function ImageGalleryDialog({ open, onClose, images = [], title = "Images" }) {
           </Stack>
         )}
       </DialogContent>
-      <DialogActions>
-        <Button onClick={onClose}>Close</Button>
+      <DialogActions sx={{ p: 1.5 }}>
+        <Button onClick={onClose} variant="contained">Close</Button>
       </DialogActions>
     </Dialog>
   );
 }
 
+/* ------------------------ Drag & Drop Upload ------------------------ */
+function Uploader({ images = [], onPick, onRemove }) {
+  const inputRef = useRef(null);
+  const [dragOver, setDragOver] = useState(false);
+
+  const openPicker = () => inputRef.current?.click();
+
+  return (
+    <Box>
+      <Box
+        onClick={openPicker}
+        onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+        onDragLeave={() => setDragOver(false)}
+        onDrop={async (e) => {
+          e.preventDefault();
+          setDragOver(false);
+          if (e.dataTransfer?.files?.length) await onPick(e.dataTransfer.files);
+        }}
+        sx={{
+          borderRadius: 2,
+          border: "1px dashed",
+          borderColor: dragOver ? "primary.main" : "divider",
+          bgcolor: dragOver ? "action.hover" : "background.paper",
+          p: 2,
+          textAlign: "center",
+          cursor: "pointer",
+          transition: "all .15s ease",
+        }}
+      >
+        <Stack alignItems="center" spacing={1}>
+          <PhotoCameraIcon />
+          <Typography variant="body2" sx={{ fontWeight: 600 }}>
+            Click or drag & drop to upload images
+          </Typography>
+          <Typography variant="caption" color="text.secondary">
+            PNG / JPG up to a few MB each
+          </Typography>
+        </Stack>
+        <input
+          ref={inputRef}
+          type="file"
+          accept="image/*"
+          multiple
+          style={{ display: "none" }}
+          onChange={async (e) => {
+            const files = e.target.files;
+            if (files?.length) await onPick(files);
+            e.target.value = ""; // reset input
+          }}
+        />
+      </Box>
+
+      {!!images.length && (
+        <Box
+          sx={{
+            mt: 1.5,
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fill, minmax(90px, 1fr))",
+            gap: 1,
+          }}
+        >
+          {images.map((src, idx) => (
+            <Box
+              key={idx}
+              sx={{
+                position: "relative",
+                border: "1px solid",
+                borderColor: "divider",
+                borderRadius: 1,
+                overflow: "hidden",
+                height: 90,
+              }}
+            >
+              <img alt={`asset-${idx}`} src={src} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+              <IconButton
+                size="small"
+                onClick={() => onRemove(idx)}
+                sx={{
+                  position: "absolute",
+                  top: 2,
+                  right: 2,
+                  bgcolor: "background.paper",
+                  "&:hover": { bgcolor: "background.paper" },
+                }}
+              >
+                <CloseIcon fontSize="small" />
+              </IconButton>
+            </Box>
+          ))}
+        </Box>
+      )}
+    </Box>
+  );
+}
+
 /* ------------------------ Add/Edit Dialog ------------------------ */
-function AddEditDialog({ open, onClose, initial, onSaved }) {
-  // items = [{ type, brand, model }]
+function AddEditDialog({ open, onClose, initial, onSaved, allAssets }) {
+  // Normalize initial shape for multi-item assets
   const seed = initial?.items?.length
     ? initial
     : initial
@@ -89,9 +207,10 @@ function AddEditDialog({ open, onClose, initial, onSaved }) {
     condition: "New",
     issuedDate: "",
     assignedTo: "",
-    notes: "",
     images: [],
   });
+
+  const [errors, setErrors] = useState({});
 
   useEffect(() => {
     const seed2 = initial?.items?.length
@@ -105,9 +224,9 @@ function AddEditDialog({ open, onClose, initial, onSaved }) {
       condition: "New",
       issuedDate: "",
       assignedTo: "",
-      notes: "",
       images: [],
     });
+    setErrors({});
   }, [initial, open]);
 
   const onPickImages = async (files) => {
@@ -125,50 +244,47 @@ function AddEditDialog({ open, onClose, initial, onSaved }) {
     setForm(prev => ({ ...prev, images: prev.images.filter((_, i) => i !== idx) }));
   };
 
-  const addItem = () => {
-    setForm(prev => ({ ...prev, items: [...prev.items, { type: "Laptop", brand: "", model: "" }] }));
-  };
-  const removeItem = (idx) => {
-    setForm(prev => {
-      const next = prev.items.filter((_, i) => i !== idx);
-      return { ...prev, items: next.length ? next : [{ type: "Laptop", brand: "", model: "" }] };
-    });
-  };
-  const patchItem = (idx, patch) => {
-    setForm(prev => {
-      const next = [...prev.items];
-      next[idx] = { ...next[idx], ...patch };
-      return { ...prev, items: next };
-    });
+  const addItem = () => setForm(prev => ({ ...prev, items: [...prev.items, { type: "Laptop", brand: "", model: "" }] }));
+  const removeItem = (idx) => setForm(prev => {
+    const next = prev.items.filter((_, i) => i !== idx);
+    return { ...prev, items: next.length ? next : [{ type: "Laptop", brand: "", model: "" }] };
+  });
+  const patchItem = (idx, patch) => setForm(prev => {
+    const next = [...prev.items];
+    next[idx] = { ...next[idx], ...patch };
+    return { ...prev, items: next };
+  });
+
+  const validate = () => {
+    const e = {};
+    if (!form.assetCode.trim()) e.assetCode = "Asset Code is required";
+    // Uniqueness check (case-insensitive) excluding current editing record
+    const assetCodeTaken = allAssets.some(a =>
+      (initial?._id ? a._id !== initial._id : true) &&
+      a.assetCode.trim().toLowerCase() === form.assetCode.trim().toLowerCase()
+    );
+    if (form.assetCode && assetCodeTaken) e.assetCode = "This Asset Code is already in use";
+    if (!form.items?.length) e.items = "Add at least one item";
+    if (form.items?.some(it => !it?.type)) e.items = "Each item must have a Type";
+    setErrors(e);
+    return Object.keys(e).length === 0;
   };
 
   const save = () => {
-    if (!form.assetCode.trim()) return alert("Asset Code is required");
-    if (!form.items?.length) return alert("Add at least one item");
-    for (const it of form.items) {
-      if (!it.type) return alert("Type is required for all items");
-    }
+    if (!validate()) return;
 
     const assets = loadLS(LS_KEY, []);
     if (initial?._id) {
       const idx = assets.findIndex(a => a._id === initial._id);
       if (idx >= 0) {
-        const dup = assets.some(a =>
-          a._id !== initial._id &&
-          a.assetCode.trim().toLowerCase() === form.assetCode.trim().toLowerCase()
-        );
-        if (dup) return alert("Another asset already uses this Asset Code.");
-        const { type, brand, model, ...rest } = form;
+        const { type, brand, model, ...rest } = form; // legacy cleanup
         assets[idx] = { ...assets[idx], ...rest, updatedAt: new Date().toISOString() };
         saveLS(LS_KEY, assets);
       }
     } else {
       const _id = crypto.randomUUID?.() || String(Date.now());
       const doc = { _id, ...form, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
-      if (assets.some(a => a.assetCode.trim().toLowerCase() === form.assetCode.trim().toLowerCase())) {
-        return alert("Asset Code already exists");
-      }
-      delete doc.type; delete doc.brand; delete doc.model;
+      delete doc.type; delete doc.brand; delete doc.model; // legacy cleanup
       assets.unshift(doc);
       saveLS(LS_KEY, assets);
     }
@@ -177,184 +293,163 @@ function AddEditDialog({ open, onClose, initial, onSaved }) {
   };
 
   return (
-    <Dialog open={open} onClose={onClose} fullWidth maxWidth="md">
-      <DialogTitle>{initial?._id ? "Edit Asset" : "Add Asset"}</DialogTitle>
-      <DialogContent dividers>
-        <Stack spacing={2} sx={{ mt: 1 }}>
-          <TextField
-            label="Asset Code"
-            value={form.assetCode}
-            onChange={e=>setForm({...form, assetCode:e.target.value})}
-            required
-          />
+    <Dialog open={open} onClose={onClose} fullWidth maxWidth="md" TransitionProps={{ timeout: 200 }}>
+      <DialogTitle sx={{ fontWeight: 900, letterSpacing: 0.2 }}>
+        {initial?._id ? "Edit Asset" : "Add Asset"}
+      </DialogTitle>
 
-          {/* Condition + Issued + Assigned */}
-          <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
-            <FormControl fullWidth>
-              <InputLabel>Condition</InputLabel>
-              <Select
-                label="Condition"
-                value={form.condition}
-                onChange={e=>setForm({...form, condition:e.target.value})}
-              >
-                {CONDITIONS.map(s=><MenuItem key={s} value={s}>{s}</MenuItem>)}
-              </Select>
-            </FormControl>
-            <TextField
-              label="Issued Date"
-              type="date"
-              value={form.issuedDate?.slice(0,10) || ""}
-              onChange={e=>setForm({...form, issuedDate:e.target.value})}
-              InputLabelProps={{ shrink: true }}
-              fullWidth
-            />
-            <TextField
-              label="Assigned To (User ID / Email)"
-              value={form.assignedTo}
-              onChange={e=>setForm({...form, assignedTo:e.target.value})}
-              fullWidth
-            />
-          </Stack>
+      <DialogContent dividers sx={{ p: { xs: 2, sm: 2.5 } }}>
+        <Paper variant="outlined" sx={{ p: 2, borderRadius: 2, mb: 1.5 }}>
+  <Stack
+    direction={{ xs: "column", md: "row" }}
+    spacing={2}
+    alignItems={{ md: "flex-start" }}
+  >
+    {/* Asset Code — a little smaller */}
+    <TextField
+      label="Asset Code"
+      value={form.assetCode}
+      onChange={(e) => setForm({ ...form, assetCode: e.target.value })}
+      required
+      error={!!errors.assetCode}
+      helperText={errors.assetCode || ""}
+      sx={{
+        flex: { md: "0 0 22%" },        // was full, now a bit narrower
+        minWidth: { xs: "100%", md: 0 },
+      }}
+    />
 
-          {/* Multi-type items */}
-          <Box sx={{ border: "1px dashed", borderColor: "divider", borderRadius: 2, p: 1.5 }}>
-            <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1 }}>
-              <Typography variant="subtitle2">Asset Items (Type with Brand/Model)</Typography>
+    {/* Condition — narrower */}
+    <FormControl
+      sx={{
+        flex: { md: "0 0 18%" },        // slightly smaller than Asset Code
+        minWidth: { xs: "100%", md: 0 },
+      }}
+    >
+      <InputLabel>Condition</InputLabel>
+      <Select
+        label="Condition"
+        value={form.condition}
+        onChange={(e) => setForm({ ...form, condition: e.target.value })}
+      >
+        {CONDITIONS.map((s) => (
+          <MenuItem key={s} value={s}>
+            {s}
+          </MenuItem>
+        ))}
+      </Select>
+    </FormControl>
+
+    {/* Issued Date — a little smaller */}
+    <TextField
+      label="Issued Date"
+      type="date"
+      value={form.issuedDate?.slice(0, 10) || ""}
+      onChange={(e) => setForm({ ...form, issuedDate: e.target.value })}
+      InputLabelProps={{ shrink: true }}
+      InputProps={{
+        startAdornment: (
+          <InputAdornment position="start"> 
+          </InputAdornment>
+        ),
+      }}
+      sx={{
+        flex: { md: "0 0 20%" },        
+        minWidth: { xs: "100%", md: 0 },
+      }}
+    />
+  
+    <TextField
+      label="Assigned To (User ID / Email)"
+      placeholder="e.g., user@company.com"
+      value={form.assignedTo}
+      onChange={(e) => setForm({ ...form, assignedTo: e.target.value })}
+      sx={{
+        flex: { md: "1 1 auto" },       // takes leftover width
+        minWidth: { xs: "100%", md: 0 },
+      }}
+    />
+  </Stack>
+</Paper>
+
+
+
+        {/* Items */}
+        <Paper variant="outlined" sx={{ p: 2, borderRadius: 2, mb: 1.5 }}>
+          <SectionHeader
+            title="Asset Items"
+            subtitle="One asset can include multiple components (e.g., Laptop + Charger)"
+            right={
               <Button size="small" startIcon={<AddCircleOutlineIcon />} onClick={addItem}>
                 Add Item
               </Button>
-            </Stack>
-
-            <Stack spacing={1.5}>
-              {form.items.map((it, idx) => (
-                <Stack
-                  key={idx}
-                  direction={{ xs: "column", md: "row" }}
-                  spacing={1}
-                  alignItems={{ md: "center" }}
-                >
+            }
+          />
+          <Stack spacing={1.25}>
+            {form.items.map((it, idx) => (
+              <Paper
+                key={idx}
+                variant="outlined"
+                sx={{
+                  p: 1.25,
+                  borderRadius: 1.5,
+                  bgcolor: (t) => t.palette.mode === "light" ? "#fbfbfc" : "background.paper",
+                }}
+              >
+                <Stack direction={{ xs: "column", md: "row" }} spacing={1} alignItems={{ md: "center" }}>
                   <FormControl fullWidth sx={{ minWidth: 180 }}>
                     <InputLabel>Type</InputLabel>
                     <Select
                       label="Type"
                       value={it.type}
-                      onChange={e=>patchItem(idx, { type: e.target.value })}
+                      onChange={e => patchItem(idx, { type: e.target.value })}
                     >
                       {TYPES.map(t => <MenuItem key={t} value={t}>{t}</MenuItem>)}
                     </Select>
                   </FormControl>
                   <TextField
                     label="Brand"
+                    placeholder="e.g., Dell"
                     value={it.brand}
-                    onChange={e=>patchItem(idx, { brand: e.target.value })}
+                    onChange={e => patchItem(idx, { brand: e.target.value })}
                     fullWidth
                   />
                   <TextField
                     label="Model"
+                    placeholder="e.g., Latitude 5440"
                     value={it.model}
-                    onChange={e=>patchItem(idx, { model: e.target.value })}
+                    onChange={e => patchItem(idx, { model: e.target.value })}
                     fullWidth
                   />
-                  <IconButton color="error" onClick={() => removeItem(idx)} title="Remove item">
-                    <RemoveCircleOutlineIcon />
-                  </IconButton>
+                  <Tooltip title="Remove item">
+                    <span>
+                      <IconButton color="error" onClick={() => removeItem(idx)} disabled={form.items.length === 1}>
+                        <RemoveCircleOutlineIcon />
+                      </IconButton>
+                    </span>
+                  </Tooltip>
                 </Stack>
-              ))}
-            </Stack>
-          </Box>
+              </Paper>
+            ))}
+            {!!errors.items && <Typography variant="caption" color="error.main">{errors.items}</Typography>}
+          </Stack>
+        </Paper>
 
-          <TextField
-            label="Notes"
-            multiline
-            minRows={2}
-            value={form.notes}
-            onChange={e=>setForm({...form, notes:e.target.value})}
-          />
-
-          {/* Images */}
-          <Box sx={{ mt: 1 }}>
-            <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1 }}>
-              <PhotoCameraIcon fontSize="small" />
-              <Typography variant="subtitle2">Images</Typography>
-              <Box sx={{ flex: 1 }} />
-              <Button
-                size="small"
-                variant="outlined"
-                startIcon={<PhotoCameraIcon />}
-                onClick={() => document.getElementById("asset-images-input")?.click()}
-              >
-                Upload Images
-              </Button>
-              <input
-                id="asset-images-input"
-                type="file"
-                accept="image/*"
-                multiple
-                style={{ display: "none" }}
-                onChange={async (e) => {
-                  const files = e.target.files;
-                  if (files?.length) await onPickImages(files);
-                  e.target.value = ""; // reset input
-                }}
-              />
-            </Stack>
-
-            {(!form.images || !form.images.length) ? (
-              <Typography variant="body2" color="text.secondary">No images attached.</Typography>
-            ) : (
-              <Box
-                sx={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(auto-fill, minmax(90px, 1fr))",
-                  gap: 1,
-                }}
-              >
-                {form.images.map((src, idx) => (
-                  <Box
-                    key={idx}
-                    sx={{
-                      position: "relative",
-                      border: "1px solid",
-                      borderColor: "divider",
-                      borderRadius: 1,
-                      overflow: "hidden",
-                      height: 90,
-                    }}
-                  >
-                    <img
-                      alt={`asset-${idx}`}
-                      src={src}
-                      style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
-                    />
-                    <IconButton
-                      size="small"
-                      onClick={() => removeImage(idx)}
-                      sx={{
-                        position: "absolute",
-                        top: 2,
-                        right: 2,
-                        bgcolor: "background.paper",
-                        "&:hover": { bgcolor: "background.paper" },
-                      }}
-                    >
-                      <CloseIcon fontSize="small" />
-                    </IconButton>
-                  </Box>
-                ))}
-              </Box>
-            )}
-          </Box>
-        </Stack>
+        {/* Images */}
+        <Paper variant="outlined" sx={{ p: 2, borderRadius: 2 }}>
+          <SectionHeader title="Images" /> 
+          <Uploader images={form.images} onPick={onPickImages} onRemove={removeImage} />
+        </Paper>
       </DialogContent>
-      <DialogActions>
+
+      <DialogActions sx={{ p: 2 }}>
         <Button onClick={onClose}>Cancel</Button>
         <Button onClick={save} variant="contained">Save</Button>
-      </DialogActions>
+      </DialogActions> 
     </Dialog>
   );
 }
-
-/* ------------------------ Main Component ------------------------ */
+ 
 export default function AssetManager() {
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(20);
@@ -362,9 +457,11 @@ export default function AssetManager() {
   const [items, setItems] = useState(() => loadLS(LS_KEY, []));
   const [addOpen, setAddOpen] = useState(false);
   const [editAsset, setEditAsset] = useState(null);
-  const [snack, setSnack] = useState({ open:false, msg:"", severity:"success" });
+  const [snack, setSnack] = useState({ open: false, msg: "", severity: "success" });
 
   const [gallery, setGallery] = useState({ open: false, images: [], title: "" });
+  const [q, setQ] = useState("");
+  const [conditionFilter, setConditionFilter] = useState("");
 
   useEffect(() => {
     const listener = () => setItems(loadLS(LS_KEY, []));
@@ -372,15 +469,36 @@ export default function AssetManager() {
     return () => window.removeEventListener("storage", listener);
   }, []);
 
-  const total = items.length;
+  const filtered = useMemo(() => {
+    const needle = q.trim().toLowerCase();
+    let arr = items;
+    if (needle) {
+      arr = arr.filter(a => {
+        const allItems = getItemsArr(a);
+        const hay = [
+          a.assetCode,
+          a.assignedTo,
+          a.condition,
+          ...allItems.map(x => x?.type || ""),
+          ...allItems.map(x => x?.brand || ""),
+          ...allItems.map(x => x?.model || ""),
+        ].join(" ").toLowerCase();
+        return hay.includes(needle);
+      });
+    }
+    if (conditionFilter) arr = arr.filter(a => a.condition === conditionFilter);
+    return arr;
+  }, [items, q, conditionFilter]);
+
+  const total = filtered.length;
   const paged = useMemo(() => {
     const start = page * rowsPerPage;
-    return items.slice(start, start + rowsPerPage);
-  }, [items, page, rowsPerPage]);
+    return filtered.slice(start, start + rowsPerPage);
+  }, [filtered, page, rowsPerPage]);
 
   const onSaved = () => {
     setItems(loadLS(LS_KEY, []));
-    setSnack({ open:true, msg:"Saved", severity:"success" });
+    setSnack({ open: true, msg: "Saved", severity: "success" });
   };
 
   const del = (asset) => {
@@ -388,16 +506,18 @@ export default function AssetManager() {
     const next = items.filter(a => a._id !== asset._id);
     saveLS(LS_KEY, next);
     setItems(next);
-    setSnack({ open:true, msg:"Deleted", severity:"success" });
+    setSnack({ open: true, msg: "Deleted", severity: "success" });
   };
 
   const conditionChipProps = (c) => {
-    if (c === "New")   return { color: "success", variant: "filled" };
-    if (c === "Used")  return { color: "warning", variant: "filled" };
-    return { color: "default", variant: "outlined", sx: { borderColor: "error.light", color: "error.main" } }; // Very Old
+    if (c === "New") return { color: "success", variant: "soft" };
+    if (c === "Used") return { color: "warning", variant: "soft" };
+    return { color: "error", variant: "outlined" }; // Very Old
   };
 
-  const getItemsArr = (a) => (a.items && Array.isArray(a.items) ? a.items : [{ type: a.type, brand: a.brand, model: a.model }].filter(x => x.type));
+  const getItemsArr = (a) => (a.items && Array.isArray(a.items)
+    ? a.items
+    : [{ type: a.type, brand: a.brand, model: a.model }].filter(x => x.type));
 
   // Group items by type for categorised rendering
   const groupByType = (arr) => {
@@ -409,21 +529,58 @@ export default function AssetManager() {
       list.push(it);
       map.set(key, list);
     });
-    return Array.from(map.entries());  
+    return Array.from(map.entries());
   };
 
   return (
     <Box sx={{ p: { xs: 1.5, md: 2.5 } }}>
-      {/* Header */}
-      <Paper elevation={0} sx={{ mb: 2, p: 0 }}>
-        <Stack spacing={1}>
-          <Stack direction="row" alignItems="center" justifyContent="space-between">
-            <Box>
-              <Typography variant="h5" sx={{ fontWeight: 800 }}>Asset Manager</Typography> 
-            </Box>
-            <Button startIcon={<AddIcon/>} variant="contained" onClick={()=>setAddOpen(true)}>
+      {/* Header / Controls */}
+      <Paper
+        elevation={0}
+        sx={{
+          mb: 2,
+          p: 2,
+          borderRadius: 2,
+          border: "1px solid",
+          borderColor: "divider",
+          bgcolor: (t) => t.palette.mode === "light" ? "#fafafa" : "background.paper",
+        }}
+      >
+        <Stack spacing={1.5}>
+          <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={1.5}>
+            <Typography variant="h5" sx={{ fontWeight: 900, letterSpacing: 0.3 }}>
+              Asset Manager
+            </Typography>
+            <Button startIcon={<AddIcon />} variant="contained" onClick={() => setAddOpen(true)}>
               Add Asset
             </Button>
+          </Stack>
+          <Stack direction={{ xs: "column", sm: "row" }} spacing={1.25}>
+            <TextField
+              value={q}
+              onChange={(e) => { setQ(e.target.value); setPage(0); }}
+              placeholder="Search by asset code, user, type, brand, model…"
+              fullWidth
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchRoundedIcon />
+                  </InputAdornment>
+                ),
+              }}
+              size="small"
+            />
+            <FormControl size="small" sx={{ minWidth: 220 }}>
+              <InputLabel>Filter: Condition</InputLabel>
+              <Select
+                label="Filter: Condition"
+                value={conditionFilter}
+                onChange={(e) => { setConditionFilter(e.target.value); setPage(0); }}
+              >
+                <MenuItem value="">All</MenuItem>
+                {CONDITIONS.map(s => <MenuItem key={s} value={s}>{s}</MenuItem>)}
+              </Select>
+            </FormControl>
           </Stack>
         </Stack>
       </Paper>
@@ -432,18 +589,18 @@ export default function AssetManager() {
       <TableContainer
         component={Paper}
         variant="outlined"
-        sx={{ 
+        sx={{
           borderRadius: 2,
           overflow: "hidden",
-          "& .MuiTable-root": { minWidth: 1024 },
+          "& .MuiTable-root": { minWidth: 1060 },
         }}
       >
         <Table size="small" stickyHeader>
           <TableHead>
-            <TableRow sx={{ "& th": { bgcolor: "background.default", fontWeight: 700 } }}>
+            <TableRow sx={{ "& th": { bgcolor: "background.default", fontWeight: 700, fontSize: 12, color: "text.secondary" } }}>
               <TableCell sx={{ width: 260 }}>Asset Code / Assigned To</TableCell>
               <TableCell sx={{ width: 220 }}>Types</TableCell>
-              <TableCell sx={{ width: 360 }}>Brand / Model (Categorised)</TableCell>
+              <TableCell sx={{ width: 360 }}>Brand / Model (Grouped)</TableCell>
               <TableCell sx={{ width: 140 }}>Condition</TableCell>
               <TableCell sx={{ width: 140 }}>Issued Date</TableCell>
               <TableCell sx={{ width: 200 }}>Images</TableCell>
@@ -454,7 +611,7 @@ export default function AssetManager() {
             {paged.map((a) => {
               const imgs = a.images || [];
               const allItems = getItemsArr(a);
-              const groups = groupByType(allItems); // [[type, items[]]]
+              const groups = groupByType(allItems);
 
               const first3Imgs = imgs.slice(0, 3);
               const moreImgs = Math.max(imgs.length - 3, 0);
@@ -463,7 +620,10 @@ export default function AssetManager() {
                 <TableRow
                   key={a._id}
                   hover
-                  sx={{ "&:nth-of-type(odd)": { backgroundColor: (t) => t.palette.action.hover } }}
+                  sx={{
+                    "&:nth-of-type(odd)": { backgroundColor: (t) => t.palette.action.hover },
+                    "& td": { borderBottomStyle: "dashed" }
+                  }}
                 >
                   <TableCell>
                     <Stack spacing={0.25}>
@@ -471,26 +631,26 @@ export default function AssetManager() {
                         {a.assetCode}
                       </Typography>
                       <Typography variant="caption" color="text.secondary">
-                        Assigned To: {a.assignedTo || "—"}
+                        {a.assignedTo ? `Assigned: ${a.assignedTo}` : "Unassigned"}
                       </Typography>
                     </Stack>
                   </TableCell>
 
-                  {/* Types with counts */}
+                  {/* Types */}
                   <TableCell>
                     <Stack direction="row" spacing={0.5} flexWrap="wrap">
-                      {groups.map(([type, itemsForType]) => (
+                      {groups.map(([type]) => (
                         <Chip
                           key={`${a._id}-type-${type}`}
                           size="small"
-                          label={`${type}`}
+                          label={type}
                           variant="outlined"
                         />
-                      ))} 
+                      ))}
                     </Stack>
                   </TableCell>
 
-                  {/* Brand/Model grouped by type */}
+                  {/* Brand/Model grouped */}
                   <TableCell>
                     <Stack spacing={0.75}>
                       {groups.map(([type, itemsForType]) => {
@@ -576,10 +736,10 @@ export default function AssetManager() {
 
                   <TableCell align="right">
                     <Tooltip title="Edit">
-                      <IconButton onClick={()=>setEditAsset(a)}><EditIcon/></IconButton>
+                      <IconButton onClick={() => setEditAsset(a)}><EditIcon /></IconButton>
                     </Tooltip>
                     <Tooltip title="Delete">
-                      <IconButton onClick={()=>del(a)}><DeleteOutlineIcon/></IconButton>
+                      <IconButton onClick={() => del(a)}><DeleteOutlineIcon /></IconButton>
                     </Tooltip>
                   </TableCell>
                 </TableRow>
@@ -592,7 +752,7 @@ export default function AssetManager() {
                   <Stack spacing={1} alignItems="center" sx={{ color: "text.secondary" }}>
                     <ImageIcon />
                     <Typography variant="body2">
-                      No assets yet. Click “Add Asset” to create your first item.
+                      No assets match your filters. Click “Add Asset” to create a new one.
                     </Typography>
                   </Stack>
                 </TableCell>
@@ -607,10 +767,10 @@ export default function AssetManager() {
           component="div"
           count={total}
           page={page}
-          onPageChange={(_, p)=>setPage(p)}
+          onPageChange={(_, p) => setPage(p)}
           rowsPerPage={rowsPerPage}
-          onRowsPerPageChange={e=>{ setRowsPerPage(parseInt(e.target.value,10)); setPage(0); }}
-          rowsPerPageOptions={[10,20,50]}
+          onRowsPerPageChange={e => { setRowsPerPage(parseInt(e.target.value, 10)); setPage(0); }}
+          rowsPerPageOptions={[10, 20, 50]}
           sx={{ px: 2 }}
         />
       </TableContainer>
@@ -618,16 +778,17 @@ export default function AssetManager() {
       {/* Add / Edit */}
       <AddEditDialog
         open={addOpen || !!editAsset}
-        onClose={()=>{ setAddOpen(false); setEditAsset(null); }}
+        onClose={() => { setAddOpen(false); setEditAsset(null); }}
         initial={editAsset}
         onSaved={onSaved}
+        allAssets={items}
       />
 
       {/* Gallery */}
       <ImageGalleryDialog
         open={gallery.open}
         images={gallery.images}
-        title={gallery.title}  
+        title={gallery.title}
         onClose={() => setGallery({ open: false, images: [], title: "" })}
       />
 
@@ -635,7 +796,7 @@ export default function AssetManager() {
       <Snackbar
         open={snack.open}
         autoHideDuration={2500}
-        onClose={()=>setSnack(s=>({...s,open:false}))}
+        onClose={() => setSnack(s => ({ ...s, open: false }))}
         anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
       >
         <Alert severity={snack.severity} variant="filled">{snack.msg}</Alert>

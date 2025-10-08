@@ -246,6 +246,7 @@ const Consultation = ({ customerId }) => {
     "Nerve Fix",
     "Core Essentials",
     "Omega Fuel",
+    "Thyroid Defend Pro",
     "Glucometer",
     "Dumbbells",
     "HbA1c - Blood Test",

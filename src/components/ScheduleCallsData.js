@@ -59,10 +59,9 @@ const fmtDateTime = (iso) =>
 const pad = (n) => String(n).padStart(2, "0");
 const toYMD = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 
-export default function ScheduleCalls({
-  // Change if you run locally:
-  apiBase = "http://localhost:5001", 
-}) {
+export default function ScheduleCalls({   
+  apiBase = "https://muditamleads-14f32a10d7f7.herokuapp.com", 
+}) {  
   const [agents, setAgents] = useState([]);
   const [loadingAgents, setLoadingAgents] = useState(false);
 
@@ -239,26 +238,66 @@ export default function ScheduleCalls({
           <TableHead>
             <TableRow>
               <TableCell>#</TableCell>
-              <TableCell>Date & Time</TableCell> 
+              <TableCell>Date & Time</TableCell>
               <TableCell>Duration</TableCell>
               <TableCell>Status</TableCell>
               <TableCell>Order</TableCell>
               <TableCell>Customer</TableCell>
               <TableCell align="right">Actions</TableCell>
             </TableRow>
-          </TableHead> 
+          </TableHead>
 
           <TableBody>
             {items.map((row, idx) => {
               const serial = page * rowsPerPage + idx + 1;
+
+              // Prefer `row.order` (enriched by API); fallback to top-level props if present
+              const order = row.order || row.orderMeta || {};
+              const orderName = order.orderName || row.orderName || "-";
+              const products = Array.isArray(order.productsOrdered || row.productsOrdered)
+                ? (order.productsOrdered || row.productsOrdered)
+                : [];
+              const productsLabel = products.length
+                ? products
+                    .map((p) => `${p?.title || ""}${p?.quantity ? ` ×${p.quantity}` : ""}`)
+                    .filter(Boolean)
+                    .join(", ")
+                : "-";
+
+              const customerName = order.customerName || row.customerName || "-";
+              const phone =
+                order.contactNumber ||
+                order.normalizedPhone ||
+                row.contactNumber ||
+                "-";
+
               return (
-                <TableRow key={row._id} hover> 
+                <TableRow key={row._id} hover>
                   <TableCell>{serial}</TableCell>
-                  <TableCell>{fmtDateTime(row.scheduleCallAt)}</TableCell> 
+                  <TableCell>{fmtDateTime(row.scheduleCallAt)}</TableCell>
                   <TableCell>{row.scheduleDurationMin ? `${row.scheduleDurationMin} min` : "-"}</TableCell>
                   <TableCell><StatusChip value={row.status} /></TableCell>
-                  <TableCell>{row.orderId || "-"}</TableCell>
-                  <TableCell>{row.customerId || "-"}</TableCell>
+
+                  {/* Order: Order Name + Products */}
+                  <TableCell>
+                    <Stack spacing={0.5}>
+                      <Typography variant="body2" fontWeight={600}>
+                        {orderName}
+                      </Typography>
+                      <Typography variant="caption" sx={{ opacity: 0.8 }}>
+                        {productsLabel}
+                      </Typography>
+                    </Stack>
+                  </TableCell>
+
+                  {/* Customer: Name + Phone */}
+                  <TableCell>
+                    <Stack spacing={0.25}>
+                      <Typography variant="body2" fontWeight={600}>{customerName}</Typography>
+                      <Typography variant="caption" sx={{ opacity: 0.8 }}>{phone}</Typography>
+                    </Stack>
+                  </TableCell>
+
                   <TableCell align="right">
                     <Stack direction="row" spacing={1} justifyContent="flex-end">
                       <Tooltip title="Details">

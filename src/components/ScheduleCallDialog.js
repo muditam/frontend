@@ -9,28 +9,23 @@ import axios from "axios";
 
 export default function ScheduleCallDialog({
   open,
-  onClose,
-  // Optional: called AFTER successful creation. Parent can mirror fields if desired.
-  onScheduled, // (mirror, createdDoc) => void
-  agents = [],
-  // Optional context to store with the schedule row
+  onClose, 
+  onScheduled,  
+  agents = [], 
   orderId,
   customerId,
   createdBy,
-
-  // If you’re deploying elsewhere, override this: 
-  apiBase = "http://localhost:5001", 
-
-  // If you pass bookedSlots directly we’ll use that; otherwise we’ll hit /slots 
+ 
+  apiBase = "https://muditamleads-14f32a10d7f7.herokuapp.com",  
+ 
   bookedSlots = [],
-  slotDurationMin = 30,
+  slotDurationMin = 15,
   businessStart = "10:30",
   businessEnd = "18:30",
-  workingDays = [1, 2, 3, 4, 5, 6], // Mon–Sat 
+  workingDays = [1, 2, 3, 4, 5, 6],  
   timezoneLabel = "IST (UTC+05:30)",
-  disableBeforeMinutesFromNow = 0, // buffer minutes for “today”
-}) {
-  // ----- Helpers -----
+  disableBeforeMinutesFromNow = 0,  
+}) { 
   const pad = (n) => String(n).padStart(2, "0");
   const toDateInputValue = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
   const fromHM = (hm) => {
@@ -46,8 +41,7 @@ export default function ScheduleCallDialog({
     a.getMinutes() === b.getMinutes();
 
   const minDateStr = useMemo(() => toDateInputValue(new Date()), []);
-
-  // normalize bookedSlots prop → Dates
+ 
   const bookedProp = useMemo(
     () =>
       (bookedSlots || [])
@@ -57,8 +51,7 @@ export default function ScheduleCallDialog({
         .filter(Boolean),
     [bookedSlots]
   );
-
-  // ----- Defaults -----
+ 
   const defaultDate = useMemo(() => {
     const now = new Date();
     let d = new Date(now);
@@ -69,15 +62,14 @@ export default function ScheduleCallDialog({
   const defaultWhenISO = useMemo(() => {
     const now = new Date();
     const buffer = Math.max(0, Number(disableBeforeMinutesFromNow) || 0);
-    now.setMinutes(now.getMinutes() + Math.max(60, buffer)); // at least +60m or buffer
+    now.setMinutes(now.getMinutes() + Math.max(60, buffer));  
     now.setSeconds(0, 0);
     const step = slotDurationMin;
     const remainder = now.getMinutes() % step;
     if (remainder) now.setMinutes(now.getMinutes() + (step - remainder));
     return now.toISOString();
   }, [slotDurationMin, disableBeforeMinutesFromNow]);
-
-  // ----- State -----
+ 
   const [expert, setExpert] = useState(null);
   const [dateStr, setDateStr] = useState(toDateInputValue(defaultDate));
   const [selectedISO, setSelectedISO] = useState(defaultWhenISO);
@@ -89,27 +81,23 @@ export default function ScheduleCallDialog({
   const [submitting, setSubmitting] = useState(false);
 
   const [toast, setToast] = useState({ open: false, severity: "success", msg: "" });
-
-  // Preselect first agent if only one
+ 
   useEffect(() => {
     if (open && agents && agents.length === 1) setExpert(agents[0]);
   }, [open, agents]);
-
-  // keep selected slot’s date synced
+ 
   useEffect(() => {
     const sel = new Date(selectedISO);
     const picked = new Date(dateStr + "T00:00:00");
     sel.setFullYear(picked.getFullYear(), picked.getMonth(), picked.getDate());
-    setSelectedISO(sel.toISOString());
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    setSelectedISO(sel.toISOString()); 
   }, [dateStr]);
-
-  // Fetch booked slots for the chosen date+expert (only if not supplied via prop)
+ 
   const expertId = expert?.id || expert?.value || expert?.label || undefined;
   useEffect(() => {
     let cancelled = false;
     if (!open) return;
-    if (bookedProp.length) { setRemoteBooked([]); return; } // prefer explicit prop
+    if (bookedProp.length) { setRemoteBooked([]); return; }  
 
     (async () => {
       try {
@@ -279,8 +267,7 @@ export default function ScheduleCallDialog({
                 color="primary"
               >
                 <ToggleButton value={15}>15 min</ToggleButton>
-                <ToggleButton value={30}>30 min</ToggleButton>
-                <ToggleButton value={45}>45 min</ToggleButton>
+                <ToggleButton value={30}>30 min</ToggleButton> 
               </ToggleButtonGroup>
 
               <Box>

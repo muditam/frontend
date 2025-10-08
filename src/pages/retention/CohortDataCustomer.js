@@ -51,8 +51,7 @@ function spanFromSchemaMonth(monthField) {
   }
   return 1;
 }
-
-// Abbreviation for product label column (e.g., "Karela Jamun Fizz" -> "KJF")
+ 
 function productAbbr(title) {
   if (!title) return "";
   return String(title)

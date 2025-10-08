@@ -124,6 +124,12 @@ const priceMap = {
     "3 months": 1195,
     "4 months": 2200, 
   },
+  "Thyroid Defend Pro": {
+    "1 month": 495,   
+    "2 months": 895,
+    "3 months": 1350, 
+    "4 months": 2500, 
+  },
   "HbA1c - Blood Test": {
     "1 month": 300,
     "2 months": 300,

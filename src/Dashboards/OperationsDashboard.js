@@ -16,15 +16,19 @@ import {
   MenuItem,
   TextField,
   Skeleton,
+  Tooltip,
 } from "@mui/material";
 import CheckCircleRoundedIcon from "@mui/icons-material/CheckCircleRounded";
 import EditNoteRoundedIcon from "@mui/icons-material/EditNoteRounded";
 import BlockRoundedIcon from "@mui/icons-material/BlockRounded";
 import CancelRoundedIcon from "@mui/icons-material/CancelRounded";
+import CurrencyExchangeRoundedIcon from "@mui/icons-material/CurrencyExchangeRounded";
+import { alpha, useTheme } from "@mui/material/styles";
 import axios from "axios";
 
-const API_BASE = "https://muditamleads-14f32a10d7f7.herokuapp.com"; 
+const API_BASE = "https://muditamleads-14f32a10d7f7.herokuapp.com";
 
+// ==== Auth helper ====
 const getLoggedIn = () => {
   const rawUser = sessionStorage.getItem("user");
   if (!rawUser) return { id: null, fullName: "", roles: [] };
@@ -45,6 +49,7 @@ const getLoggedIn = () => {
   }
 };
 
+// ==== Date helpers (IST-safe) ====
 const formatIstTodayLabel = () =>
   new Intl.DateTimeFormat("en-IN", {
     timeZone: "Asia/Kolkata",
@@ -53,42 +58,23 @@ const formatIstTodayLabel = () =>
     day: "2-digit",
   }).format(new Date());
 
-// ---- range helpers ----
-const RANGE_OPTS = [
-  "Custom range",
-  "Today",
-  "Yesterday",
-  "Last 7 days",
-  "Last 30 days",
-  "Week to date",
-  "Month to date",
-  "Year to date",
-  "Last 90 days",
-  "Last 365 days",
-  "Last month",
-  "Last 12 months",
-  "Last year",
-  "Quarter to date",
-];
+// keep exactly these options
+const RANGE_OPTS = ["Custom range", "Today", "Yesterday", "Last 7 days", "Last 30 days"];
 
 function startOfDayIST(date) {
-  // Convert 'date' (local) to IST 00:00 and return YYYY-MM-DD
   const d = new Date(date);
-  // get IST components by shifting to IST
-  const utc = d.getTime() + (d.getTimezoneOffset() * 60000);
+  const utc = d.getTime() + d.getTimezoneOffset() * 60000;
   const ist = new Date(utc + 5.5 * 3600000);
   const y = ist.getFullYear();
   const m = String(ist.getMonth() + 1).padStart(2, "0");
   const day = String(ist.getDate()).padStart(2, "0");
   return `${y}-${m}-${day}`;
 }
-
 function addDays(dateStr, delta) {
   const d = new Date(dateStr);
   d.setDate(d.getDate() + delta);
   return startOfDayIST(d);
 }
-
 function getPresetRange(preset) {
   const today = startOfDayIST(new Date());
   switch (preset) {
@@ -102,103 +88,62 @@ function getPresetRange(preset) {
       return { start: addDays(today, -6), end: today };
     case "Last 30 days":
       return { start: addDays(today, -29), end: today };
-    case "Last 90 days":
-      return { start: addDays(today, -89), end: today };
-    case "Last 365 days":
-      return { start: addDays(today, -364), end: today };
-    case "Week to date": {
-      // IST week starts Monday (ISO). Find Monday of this week.
-      const d = new Date(today);
-      const day = d.getDay() === 0 ? 7 : d.getDay(); // Mon=1..Sun=7
-      const monday = addDays(today, -(day - 1));
-      return { start: monday, end: today };
-    }
-    case "Month to date": {
-      const d = new Date(today);
-      const first = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`;
-      return { start: first, end: today };
-    }
-    case "Year to date": {
-      const d = new Date(today);
-      const first = `${d.getFullYear()}-01-01`;
-      return { start: first, end: today };
-    }
-    case "Last month": {
-      const d = new Date(today);
-      const m = d.getMonth(); // 0..11
-      const y = d.getFullYear();
-      const first = new Date(y, m - 1, 1);
-      const last = new Date(y, m, 0); // day 0 of current month = last day prev month
-      return { start: startOfDayIST(first), end: startOfDayIST(last) };
-    }
-    case "Last 12 months": {
-      const d = new Date(today);
-      const start = new Date(d.getFullYear(), d.getMonth() - 11, 1);
-      return { start: startOfDayIST(start), end: today };
-    }
-    case "Last year": {
-      const d = new Date(today);
-      const ly = d.getFullYear() - 1;
-      return { start: `${ly}-01-01`, end: `${ly}-12-31` };
-    }
-    case "Quarter to date": {
-      const d = new Date(today);
-      const m = d.getMonth(); // 0..11
-      const qStartMonth = Math.floor(m / 3) * 3;
-      const first = new Date(d.getFullYear(), qStartMonth, 1);
-      return { start: startOfDayIST(first), end: today };
-    }
     default:
       return { start: today, end: today };
   }
 }
 
-// ------- UI atom -------
-function MetricTile({ title, value, help, icon, tint, loading }) {
-  const Icon = icon;
+// ==== UI atom: improved MetricTile ====
+function MetricTile({ title, value, help, icon: Icon, paletteKey = "info", loading = false }) {
+  const theme = useTheme();
+  const base = theme.palette[paletteKey] || theme.palette.info;
+  const bg = alpha(base.main, 0.08);
+  const ring = alpha(base.main, 0.25);
+
   return (
     <Card
       elevation={0}
       sx={{
         borderRadius: 3,
         height: "100%",
-        bgcolor: `${tint}.50`,
-        border: "1px solid",
-        borderColor: `${tint}.200`,
+        background: `linear-gradient(180deg, ${alpha(base.main, 0.08)} 0%, ${alpha(
+          base.main,
+          0.02
+        )} 100%)`,
+        border: `1px solid ${ring}`,
         transition: "transform 120ms ease, box-shadow 120ms ease",
-        "&:hover": { transform: "translateY(-2px)", boxShadow: 2 },
+        "&:hover": { transform: "translateY(-2px)", boxShadow: 3 },
       }}
     >
-      <CardContent>
+      <CardContent sx={{ py: 2.25 }}>
         <Stack direction="row" spacing={2} alignItems="center">
           <Box
             sx={{
-              p: 1,
+              p: 1.25,
               borderRadius: 2,
-              bgcolor: `${tint}.100`,
-              border: "1px solid",
-              borderColor: `${tint}.200`,
+              bgcolor: bg,
+              border: `1px solid ${ring}`,
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
             }}
           >
-            <Icon sx={{ fontSize: 28, color: `${tint}.700` }} />
+            <Icon sx={{ fontSize: 28, color: base.main }} />
           </Box>
 
           <Stack spacing={0.25} sx={{ minWidth: 0 }}>
-            <Typography variant="overline" sx={{ opacity: 0.7 }} noWrap>
+            <Typography variant="overline" sx={{ opacity: 0.85 }} noWrap>
               {title}
             </Typography>
             {loading ? (
-              <Skeleton variant="text" width={72} height={36} />
+              <Skeleton variant="text" width={80} height={36} />
             ) : (
               <Typography variant="h4" fontWeight={800} sx={{ lineHeight: 1 }}>
                 {value}
               </Typography>
             )}
             {help ? (
-              <Typography variant="caption" sx={{ opacity: 0.7 }}>
+              <Typography variant="caption" sx={{ opacity: 0.75 }}>
                 {help}
               </Typography>
             ) : null}
@@ -209,7 +154,7 @@ function MetricTile({ title, value, help, icon, tint, loading }) {
   );
 }
 
-// ------- main -------
+// ==== Main ====
 export default function OpsDashboard() {
   const [{ id: myAgentId, roles }, setIdentity] = useState(getLoggedIn());
   const isManager = useMemo(() => roles.includes("manager"), [roles]);
@@ -223,8 +168,16 @@ export default function OpsDashboard() {
   const [customEnd, setCustomEnd] = useState("");
 
   const [metrics, setMetrics] = useState({
-    today: { addLogCount: 0, confirmedCount: 0, cnpCount: 0, cancelCount: 0 },
+    today: {
+      addLogCount: 0,
+      confirmedCount: 0,
+      cnpCount: 0,
+      cancelCount: 0,
+      codToPrepaidCount: 0, // NEW
+    },
     scope: "all",
+    start: "",
+    end: "",
   });
 
   const fetchMetrics = useCallback(async () => {
@@ -233,28 +186,38 @@ export default function OpsDashboard() {
       setError("");
 
       let params = !isManager && myAgentId ? { agentId: myAgentId } : {};
+      let rangeStart = "";
+      let rangeEnd = "";
+
       if (range === "Custom range") {
         if (customStart && customEnd) {
           params = { ...params, range: "custom", start: customStart, end: customEnd };
+          rangeStart = customStart;
+          rangeEnd = customEnd;
         } else {
-          // wait until both dates are picked
           setLoading(false);
           return;
         }
       } else {
         const { start, end } = getPresetRange(range);
         params = { ...params, range, start, end };
+        rangeStart = start;
+        rangeEnd = end;
       }
 
       const { data } = await axios.get(`${API_BASE}/api/ops-dashboard/metrics`, { params });
+
       setMetrics({
         today: {
           addLogCount: Number(data?.today?.addLogCount || 0),
           confirmedCount: Number(data?.today?.confirmedCount || 0),
           cnpCount: Number(data?.today?.cnpCount || 0),
           cancelCount: Number(data?.today?.cancelCount || 0),
+          codToPrepaidCount: Number(data?.today?.codToPrepaidCount || data?.today?.codToPrepaid || 0), // maps if backend uses either key
         },
         scope: data?.scope || (isManager ? "all" : "agent"),
+        start: rangeStart,
+        end: rangeEnd,
       });
     } catch (e) {
       console.error("ops metrics error", e);
@@ -277,9 +240,14 @@ export default function OpsDashboard() {
     }
   }, [range, customStart, customEnd, fetchMetrics]);
 
+  const showRangeBadge =
+    range === "Custom range"
+      ? `${metrics.start || "—"} → ${metrics.end || "—"}`
+      : range;
+
   return (
     <Box sx={{ p: { xs: 1.5, md: 2 } }}>
-      {/* Header bar with “Select Range” like screenshot */}
+      {/* Header */}
       <Paper
         sx={{
           p: 2,
@@ -287,21 +255,30 @@ export default function OpsDashboard() {
           borderRadius: 3,
           border: "1px solid",
           borderColor: "divider",
-          background: "linear-gradient(180deg, rgba(0,0,0,0.02) 0%, rgba(0,0,0,0) 100%)",
+          background: "linear-gradient(180deg, rgba(0,0,0,0.03) 0%, rgba(0,0,0,0) 100%)",
         }}
         elevation={0}
       >
-        <Stack direction="row" alignItems="center" justifyContent="space-between" flexWrap="wrap" gap={2}>
-          <Stack spacing={0.5}>
+        <Stack
+          direction="row"
+          alignItems="center"
+          justifyContent="space-between"
+          flexWrap="wrap"
+          gap={2}
+        >
+          <Stack spacing={0.75}>
             <Typography variant="h6" fontWeight={800}>
               Operations Dashboard
             </Typography>
             <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
-              <Chip size="small" color="primary" variant="outlined" label={`Scope: ${isManager ? "All Agents" : "Me"}`} />
+              <Chip
+                size="small"
+                color="primary"
+                variant="outlined"
+                label={`Scope: ${isManager ? "All Agents" : "Me"}`}
+              />
               <Chip size="small" variant="outlined" label={`Today (IST): ${formatIstTodayLabel()}`} />
-              {range !== "Custom range" ? (
-                <Chip size="small" variant="outlined" label={`Range: ${range}`} />
-              ) : null}
+              <Chip size="small" variant="outlined" label={`Range: ${showRangeBadge}`} />
             </Stack>
           </Stack>
 
@@ -352,48 +329,82 @@ export default function OpsDashboard() {
         ) : null}
       </Paper>
 
-      {/* Metric tiles, screenshot-like spacing */}
+      {/* Metric tiles */}
       <Grid container spacing={2}>
         <Grid item xs={12} sm={6} md={3}>
-          <MetricTile
-            title="Add Log"
-            value={metrics.today.addLogCount}
-            help="Unique orders logged in range"
-            icon={EditNoteRoundedIcon}
-            tint="grey"
-            loading={loading}
-          />
+          <Tooltip title="Unique orders logged in selected range">
+            <Box>
+              <MetricTile
+                title="Add Log"
+                value={metrics.today.addLogCount}
+                help=""
+                icon={EditNoteRoundedIcon}
+                paletteKey="info"
+                loading={loading}
+              />
+            </Box>
+          </Tooltip>
         </Grid>
+
         <Grid item xs={12} sm={6} md={3}>
-          <MetricTile
-            title="Confirmed"
-            value={metrics.today.confirmedCount}
-            icon={CheckCircleRoundedIcon}
-            tint="teal"
-            loading={loading}
-          />
+          <Tooltip title="Orders marked Confirmed">
+            <Box>
+              <MetricTile
+                title="Confirmed"
+                value={metrics.today.confirmedCount}
+                icon={CheckCircleRoundedIcon}
+                paletteKey="success"
+                loading={loading}
+              />
+            </Box>
+          </Tooltip>
         </Grid>
+
         <Grid item xs={12} sm={6} md={3}>
-          <MetricTile
-            title="CNP"
-            value={metrics.today.cnpCount}
-            icon={BlockRoundedIcon}
-            tint="amber"
-            loading={loading}
-          />
+          <Tooltip title="Could Not Place (CNP)">
+          <Box>
+            <MetricTile
+              title="CNP"
+              value={metrics.today.cnpCount}
+              icon={BlockRoundedIcon}
+              paletteKey="warning"
+              loading={loading}
+            />
+          </Box>
+          </Tooltip>
         </Grid>
+
         <Grid item xs={12} sm={6} md={3}>
-          <MetricTile
-            title="Cancel"
-            value={metrics.today.cancelCount}
-            icon={CancelRoundedIcon}
-            tint="red"
-            loading={loading}
-          />
+          <Tooltip title="Cancelled Orders">
+            <Box>
+              <MetricTile
+                title="Cancel"
+                value={metrics.today.cancelCount}
+                icon={CancelRoundedIcon}
+                paletteKey="error"
+                loading={loading}
+              />
+            </Box>
+          </Tooltip>
+        </Grid>
+
+        {/* NEW: COD → Prepaid */}
+        <Grid item xs={12} sm={6} md={3}>
+          <Tooltip title="Orders successfully converted from COD to Prepaid">
+            <Box>
+              <MetricTile
+                title="COD → Prepaid"
+                value={metrics.today.codToPrepaidCount}
+                icon={CurrencyExchangeRoundedIcon}
+                paletteKey="secondary"
+                loading={loading}
+              />
+            </Box>
+          </Tooltip>
         </Grid>
       </Grid>
 
-      <Divider sx={{ my: 3, opacity: 0.5 }} /> 
+      <Divider sx={{ my: 3, opacity: 0.5 }} />
     </Box>
   );
 }

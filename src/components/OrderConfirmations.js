@@ -1,6 +1,5 @@
-// src/components/OrderConfirmations.jsx
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
+import { 
   Box,
   Paper,
   Typography,
@@ -23,9 +22,9 @@ import {
   Autocomplete,
   Snackbar,
   Alert,
-  CircularProgress,
+  CircularProgress, 
   Collapse,
-  Divider,
+  Divider, 
   TablePagination,
   ToggleButton,
   ToggleButtonGroup,
@@ -59,7 +58,7 @@ const CREATE_PAYMENT_LINK_URL =
 
 const CALL_STATUS = [
   { value: "CNP", label: "CNP" },
-  { value: "ORDER_CONFIRMED", label: "Order Confirmed" },
+  { value: "ORDER_CONFIRMED", label: "Order Confirmed" }, 
   { value: "CALL_BACK_LATER", label: "Call Back Later" },
   { value: "CANCEL_ORDER", label: "Cancel Order" },
 ];
@@ -266,9 +265,6 @@ export default function OrderConfirmations() {
     CANCEL_ORDER: 0,
   });
 
-  // Assigned filter:
-  // - Managers: default ALL, can change
-  // - Non-managers: forced to ME and control disabled
   const [assigned, setAssigned] = useState(() => (isManager ? ASSIGNED_FILTER.ALL : ASSIGNED_FILTER.ME));
 
   // Active toggle state
@@ -310,9 +306,7 @@ export default function OrderConfirmations() {
   });
 
   const getLoggedInFullName = () => myFullName || "";
-
-  // Fetch the employees list (used for doctor scheduling chips)
-  // also reconcile myActive from server response (if present there)
+ 
   const fetchAgents = useCallback(async () => {
     try {
       const { data } = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/employees");
@@ -325,32 +319,19 @@ export default function OrderConfirmations() {
           label: a?.fullName || a?.name || a?.email || String(a?._id || ""),
         }))
       );
-
-      // Reconcile myActive if we find the logged-in employee in payload
-      if (myAgentId && Array.isArray(data)) {
-        const me = data.find((a) => String(a?._id || a?.id) === String(myAgentId));
-        if (me && typeof me.orderConfirmActive === "boolean") {
-          setMyActive(!!me.orderConfirmActive);
-          sessionStorage.setItem("orderConfirmActive", String(!!me.orderConfirmActive));
-        }
-      }
     } catch (e) {
       console.error("Failed to fetch agents", e);
     }
   }, [myAgentId]);
-
-  // Compose "assigned" param for API based on role & UI selection
-  const assignedParam = useMemo(() => {
-    // If user is not a manager, force ME
+ 
+  const assignedParam = useMemo(() => {  
     if (!isManager && myAgentId) return myAgentId;
-
-    // Manager honors the UI selection
+ 
     if (assigned === ASSIGNED_FILTER.UNASSIGNED) return "unassigned";
     if (assigned === ASSIGNED_FILTER.ME && myAgentId) return myAgentId;
-    return undefined; // ALL or no filter
+    return undefined; 
   }, [assigned, isManager, myAgentId]);
-
-  // Fetch list
+ 
   const fetchList = useCallback(
     async (pageZeroBased = 0, limit = rowsPerPage) => {
       try {
@@ -379,8 +360,7 @@ export default function OrderConfirmations() {
     },
     [qDebounced, rowsPerPage, tab, channel, assignedParam]
   );
-
-  // Fetch counts
+ 
   const fetchCounts = useCallback(async () => {
     try {
       const { data } = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/order-confirmations/counts", {
@@ -433,9 +413,8 @@ export default function OrderConfirmations() {
     }
   }, [fetchList, page, rowsPerPage, fetchCounts]);
 
-  const doRoundRobinAssign = useCallback(async () => {
-    // Skip if something else already running
-    if (loading || syncing) return;
+  const doRoundRobinAssign = useCallback(async () => { 
+    if (loading || syncing) return; 
 
     try {
       setSyncing(true);
@@ -480,39 +459,11 @@ export default function OrderConfirmations() {
     setPage(0);
     fetchList(0, rowsPerPage);
     setExpandedId(null);
-  }, [tab, qDebounced, channel, assignedParam]); // eslint-disable-line  
+  }, [tab, qDebounced, channel, assignedParam]);  
 
   useEffect(() => {
     fetchTodayConfirmedCount();
-  }, [fetchTodayConfirmedCount]);
-
-  useEffect(() => {
-    const busyRef = { current: false }; // reentrancy guard
-
-    const tick = async () => {
-      if (document.visibilityState !== "visible") return;
-      if (busyRef.current) return;
-      busyRef.current = true;
-      try {
-        // Round-robin first (assigns), then refresh counts/list
-        await doRoundRobinAssign();
-        await syncNewAndRefresh();
-      } catch (e) {
-        // errors already toasted in called fns
-      } finally {
-        busyRef.current = false;
-      }
-    };
-
-    const TEN_MIN = 10 * 60 * 1000;
-
-    const id = setInterval(() => {
-      // run async inside
-      tick();
-    }, TEN_MIN);
-
-    return () => clearInterval(id);
-  }, [doRoundRobinAssign, syncNewAndRefresh]);
+  }, [fetchTodayConfirmedCount]); 
 
   const handleChangePage = (_e, newPage) => {
     setPage(newPage);
@@ -674,7 +625,7 @@ export default function OrderConfirmations() {
         {
           orderName: row.orderName,
           reason: "customer",
-          email: true, 
+          email: true,
           restock: true,
           note: "Cancel Order - via OC UI",
         }
@@ -690,7 +641,27 @@ export default function OrderConfirmations() {
     } finally {
       setCancelingRow((m) => ({ ...m, [id]: false }));
     }
-  };
+  }; 
+
+  const fetchMyActiveStatus = useCallback(async () => {
+  if (!myAgentId) return;
+  try { 
+    const { data } = await axios.get(
+      `https://muditamleads-14f32a10d7f7.herokuapp.com/api/order-confirmations/agents/${myAgentId}/status`
+    );
+    const serverVal = !!data?.agent?.orderConfirmActive;
+    setMyActive(serverVal);
+    sessionStorage.setItem("orderConfirmActive", String(serverVal));
+  } catch (e) {
+    // silent fail; keep current toggle
+    console.error("fetchMyActiveStatus error", e);
+  }
+}, [myAgentId]);
+
+// On mount / when identity resolves, load the authoritative value once
+useEffect(() => {
+  fetchMyActiveStatus();
+}, [fetchMyActiveStatus]);
 
   const openPaymentDialog = (row) => {
     setPayDlg({
@@ -806,26 +777,29 @@ export default function OrderConfirmations() {
                           return;
                         }
                         try {
-                          // optimistic update + persist
+                          // optimistic
                           setMyActive(checked);
                           sessionStorage.setItem("orderConfirmActive", String(!!checked));
                           setSavingActive(true);
 
-                          await axios.post("https://muditamleads-14f32a10d7f7.herokuapp.com/api/order-confirmations/agents/toggle", {
-                            agentId: myAgentId,
-                            active: checked,
-                          });
+                          const { data } = await axios.post(
+                            "https://muditamleads-14f32a10d7f7.herokuapp.com/api/order-confirmations/agents/toggle",
+                            { agentId: myAgentId, active: checked }
+                          );
+
+                          const serverVal = !!data?.agent?.orderConfirmActive;
+                          setMyActive(serverVal);
+                          sessionStorage.setItem("orderConfirmActive", String(serverVal));
 
                           setToast({
                             open: true,
                             severity: "success",
-                            msg: checked ? "You are Active for OC" : "You are Inactive for OC",
+                            msg: serverVal ? "You are Active for OC" : "You are Inactive for OC",
                           });
                         } catch (err) {
                           console.error("toggle active failed", err);
-                          // rollback on error
-                          const prev = sessionStorage.getItem("orderConfirmActive") === "true";
-                          setMyActive(prev);
+                          // rollback to last known good (server)
+                          await fetchMyActiveStatus();
                           setToast({ open: true, severity: "error", msg: "Failed to update active status" });
                         } finally {
                           setSavingActive(false);
@@ -927,8 +901,8 @@ export default function OrderConfirmations() {
                       aria-label="Clear search"
                       size="small"
                       onClick={() => {
-                        setQ(""); 
-                        setPage(0); 
+                        setQ("");
+                        setPage(0);
                         fetchList(0, rowsPerPage);
                       }}
                     >
@@ -946,14 +920,14 @@ export default function OrderConfirmations() {
           <Table size="small" stickyHeader>
             <TableHead>
               <TableRow>
-                <TableCell>S. No.</TableCell>
+                <TableCell>SNo.</TableCell>
                 <TableCell>Date & Time</TableCell>
                 {isConfirmedTab && <TableCell>OC Date &amp; Time</TableCell>}
                 <TableCell>Order Name</TableCell>
                 <TableCell>Mobile</TableCell>
                 {!isConfirmedTab && <TableCell>Address</TableCell>}
                 <TableCell>Products Ordered</TableCell>
-                <TableCell>Channel Name</TableCell>
+                <TableCell>Channel</TableCell>
                 <TableCell>Amount</TableCell>
                 <TableCell width={240}>Shopify Notes</TableCell>
                 {isConfirmedTab && <TableCell>Shipment Status</TableCell>}
