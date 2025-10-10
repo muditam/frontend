@@ -561,115 +561,113 @@ const Details = ({ contactNumber, onDetailsUpdate, activeConditions = [] }) => {
                       />
                     </Grid>
 
-                    {/* HEIGHT + WEIGHT on one line */}
-                    <Grid item xs={12}>
-                      <Grid container spacing={2}>
-                        {/* HEIGHT */}
-                        <Grid item xs={12} sm={8}>
-                          <Stack direction="row" spacing={1} alignItems="flex-start">
-                            <Box sx={{ flex: 1, width: "100%" }}>
-                              {heightInFeetMode ? (
-                                <TextField
-                                  name="height"
-                                  label="Height (ft′in″)"
-                                  placeholder={`e.g. 5'8  or  5-8  or  5.8`}
-                                  size="small"
-                                  fullWidth
-                                  value={heightFeetInput}
-                                  onChange={handleChange} 
-                                  InputProps={{
-                                    endAdornment: (
-                                      <InputAdornment position="end">ft/in</InputAdornment>
-                                    ),
-                                  }}  
-                                /> 
-                              ) : ( 
-                                <TextField
-                                  name="height"
-                                  label="Height (cm)"
-                                  type="number"
-                                  size="small"
-                                  fullWidth
-                                  value={formData.height}
-                                  onChange={handleChange}
-                                  InputProps={{
-                                    inputProps: {
-                                      inputMode: "numeric",
-                                      pattern: "[0-9]*",
-                                    },
-                                    endAdornment: (
-                                      <InputAdornment position="end">cm</InputAdornment>
-                                    ),
-                                  }}
-                                />
-                              )}
-                            </Box>
+                    {/* HEIGHT (its own row) */}
+<Grid item xs={12}>
+  <Grid container spacing={2}>
+    <Grid item xs={12} sm={8}>
+      <Stack direction="row" spacing={1} alignItems="flex-start">
+        <Box sx={{ flex: 1, width: "100%" }}>
+          {heightInFeetMode ? (
+            <TextField
+              name="height"
+              label="Height (ft′in″)"
+              placeholder={`e.g. 5'8  or  5-8  or  5.8`}
+              size="small"
+              fullWidth
+              value={heightFeetInput}
+              onChange={handleChange}
+              InputProps={{
+                endAdornment: (
+                  <InputAdornment position="end">ft/in</InputAdornment>
+                ),
+              }}
+            />
+          ) : (
+            <TextField
+              name="height"
+              label="Height (cm)"
+              type="number"
+              size="small"
+              fullWidth
+              value={formData.height}
+              onChange={handleChange}
+              InputProps={{
+                inputProps: { inputMode: "numeric", pattern: "[0-9]*" },
+                endAdornment: <InputAdornment position="end">cm</InputAdornment>,
+              }}
+            />
+          )}
+        </Box>
 
-                            <FormControlLabel
-                              control={
-                                <Checkbox
-                                  checked={heightInFeetMode}
-                                  onChange={(e) => {
-                                    const next = e.target.checked;
-                                    setHeightInFeetMode(next);
-                                    if (next) {
-                                      const cm = Number(formData.height);
-                                      if (cm) {
-                                        const totalIn = cm / 2.54;
-                                        const ft = Math.floor(totalIn / 12);
-                                        const inch = Math.round(totalIn - ft * 12);
-                                        setHeightFeetInput(`${ft}'${inch}`);
-                                      } else {
-                                        setHeightFeetInput("");
-                                      }
-                                    }
-                                  }}
-                                  size="small"
-                                />
-                              }
-                              label="ft/in"
-                              sx={{ ml: 0.5, mt: 0.2 }}
-                            />
-                          </Stack>
-                        </Grid>
+        <FormControlLabel
+          control={
+            <Checkbox
+              checked={heightInFeetMode}
+              onChange={(e) => {
+                const next = e.target.checked;
+                setHeightInFeetMode(next);
+                if (next) {
+                  const cm = Number(formData.height);
+                  if (cm) {
+                    const totalIn = cm / 2.54;
+                    const ft = Math.floor(totalIn / 12);
+                    const inch = Math.round(totalIn - ft * 12);
+                    setHeightFeetInput(`${ft}'${inch}`);
+                  } else {
+                    setHeightFeetInput("");
+                  }
+                }
+              }}
+              size="small"
+            />
+          }
+          label="ft/in"
+          sx={{ ml: 0.5, mt: 0.2 }}
+        />
+      </Stack>
+    </Grid>
+  </Grid>
+</Grid>
 
-                        {/* WEIGHT */}
-                        <Grid item xs={12} sm={4}>
-                          <TextField
-                            name="weight"
-                            label="Weight"
-                            type="number"
-                            size="small"
-                            fullWidth
-                            value={formData.weight}
-                            onChange={handleChange}
-                            InputProps={{
-                              inputProps: { inputMode: "numeric", pattern: "[0-9]*" },
-                              endAdornment: (
-                                <InputAdornment position="end">kg</InputAdornment>
-                              ),
-                            }}
-                          />
-                        </Grid>
-                      </Grid>
-                    </Grid>
+{/* WEIGHT + BMI on one line */}
+<Grid item xs={12}>
+  <Grid container spacing={2}>
+    {/* WEIGHT */}
+    <Grid item xs={12} sm={6}>
+      <TextField
+        name="weight"
+        label="Weight"
+        type="number"
+        size="small"
+        fullWidth
+        value={formData.weight}
+        onChange={handleChange}
+        InputProps={{
+          inputProps: { inputMode: "numeric", pattern: "[0-9]*" },
+          endAdornment: <InputAdornment position="end">kg</InputAdornment>,
+        }}
+      />
+    </Grid>
 
-                    {/* BMI */}
-                    <Grid item xs={12}>
-                      <Tooltip title="Calculated from height & weight">
-                        <TextField
-                          label="BMI"
-                          size="small"
-                          fullWidth
-                          value={bmi ?? ""}
-                          InputProps={{ readOnly: true }}
-                          placeholder="—"
-                        />
-                      </Tooltip>
-                    </Grid>
+    {/* BMI */}
+    <Grid item xs={12} sm={6}>
+      <Tooltip title="Calculated from height & weight">
+        <TextField
+          label="BMI"
+          size="small"
+          fullWidth
+          value={bmi ?? ""}
+          InputProps={{ readOnly: true }}
+          placeholder="—"
+        />
+      </Tooltip>
+    </Grid>
+  </Grid>
+</Grid>
+
                   </Grid>
                 </SectionCard>
-              </Grid>
+              </Grid> 
 
 
               {/* RIGHT: LIFESTYLE (3 x 3 grid) */}

@@ -20,6 +20,7 @@ import {
   InputAdornment,
   Checkbox,
   FormControlLabel,
+  Autocomplete,
 } from "@mui/material";
 import { Visibility, VisibilityOff, WarningAmber, Edit, Delete } from "@mui/icons-material";
 import axios from "axios";
@@ -48,16 +49,18 @@ const AddEmployee = () => {
     isDoctor: false,
     teamLeader: "",
     joiningDate: "",
+    languages: [],
   });
   const [error, setError] = useState("");
   const [viewInactive, setViewInactive] = useState(false);
   const [allActiveEmployees, setAllActiveEmployees] = useState([]);
 
-  const roles = ["Manager", "Sales Agent", "Retention Agent", "Finance", "Operations"];
+  const roles = ["Manager", "Sales Agent", "Retention Agent", "Finance", "Operations", "Assets Management"];
   const statusOptions = ["active", "inactive"];
+  const LANGUAGE_OPTIONS = ["English", "Hindi", "Kannada", "Telugu", "Tamil"];
 
-  useEffect(() => {   
-    fetchEmployees();   
+  useEffect(() => {
+    fetchEmployees();
   }, [viewInactive]);
 
   const fetchEmployees = async () => {
@@ -122,7 +125,7 @@ const AddEmployee = () => {
     }
 
     setError("");
-    return true; 
+    return true;
   };
 
   const handleSubmit = async (e) => {
@@ -154,6 +157,7 @@ const AddEmployee = () => {
         hasTeam: false,
         isDoctor: false,
         joiningDate: "",
+        languages: [],
       });
     } catch (error) {
       console.error("Error submitting employee data:", error);
@@ -176,6 +180,7 @@ const AddEmployee = () => {
       hasTeam: employee.hasTeam || false,
       isDoctor: !!employee.isDoctor,
       teamLeader: employee.teamLeader?._id || "",
+      languages: Array.isArray(employee.languages) ? employee.languages : [],
       joiningDate: employee.joiningDate
         ? new Date(employee.joiningDate).toISOString().split("T")[0]
         : "",
@@ -232,6 +237,7 @@ const AddEmployee = () => {
               target: "",
               hasTeam: false,
               joiningDate: "",
+              languages: [],
             });
             setOpen(true);
           }}
@@ -458,6 +464,31 @@ const AddEmployee = () => {
                 </MenuItem>
               ))}
             </TextField>
+
+            <Autocomplete
+              multiple
+              freeSolo
+              options={LANGUAGE_OPTIONS}
+              value={employeeData.languages}
+              onChange={(_, newValue) => { 
+                const unique = [...new Set(newValue.map(v => String(v).trim()))].filter(Boolean);
+                setEmployeeData(prev => ({ ...prev, languages: unique }));
+              }}
+              renderInput={(params) => (
+                <TextField
+                  {...params}
+                  variant="filled"
+                  label="Employee Languages" 
+                  placeholder="Type and press Enter (e.g., 'Marathi')"
+                  InputProps={{
+                    ...params.InputProps,
+                    disableUnderline: true,
+                    sx: { backgroundColor: "#fff", borderRadius: 1, px: 1 },
+                  }}
+                />
+              )}
+            />
+
 
             {/* Have a Team Checkbox BELOW Role */}
             <Box sx={{ display: "flex", alignItems: "center", gap: 3, pl: 1, mt: -1, mb: 1 }}>

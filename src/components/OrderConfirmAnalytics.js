@@ -20,10 +20,15 @@ import {
   CardContent,
   Chip,
   Skeleton,
+  Grid,
 } from "@mui/material";
+import AssignmentOutlinedIcon from "@mui/icons-material/AssignmentOutlined";
+import DoneAllOutlinedIcon from "@mui/icons-material/DoneAllOutlined";
+import CurrencyRupeeIcon from "@mui/icons-material/CurrencyRupee";
+import WorkHistoryOutlinedIcon from "@mui/icons-material/WorkHistoryOutlined";
 import axios from "axios";
 
-const API_BASE = "https://muditamleads-14f32a10d7f7.herokuapp.com";
+const API_BASE = "https://muditamleads-14f32a10d7f7.herokuapp.com"; // unchanged
 
 // ===== Range helpers (trimmed to 5 options) =====
 const RANGE_OPTS = [
@@ -66,11 +71,80 @@ function getPresetRange(preset) {
   }
 }
 
-// Small wrapper card
+// Money formatter
+const money = (n) =>
+  new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency: "INR",
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  }).format(Number(n || 0));
+
+// Simple wrapper
 function SmallCard({ children }) {
   return (
-    <Card elevation={0} sx={{ borderRadius: 3, border: "1px solid", borderColor: "divider" }}>
+    <Card
+      elevation={0}
+      sx={{
+        borderRadius: 3,
+        border: "1px solid",
+        borderColor: "divider",
+        background: "#fff",
+      }}
+    >
       <CardContent>{children}</CardContent>
+    </Card>
+  );
+}
+
+// KPI card (visual only; uses your existing totals)
+function KpiCard({ icon, label, value, prefix = "", accent = "primary" }) {
+  const palette =
+    {
+      primary: { bg: "rgba(25,118,210,.08)", color: "#1976d2" },
+      green: { bg: "rgba(76,175,80,.10)", color: "#2e7d32" },
+      orange: { bg: "rgba(255,171,0,.14)", color: "#ff9800" },
+      teal: { bg: "rgba(0,150,136,.12)", color: "#00796b" },
+    }[accent] || { bg: "rgba(25,118,210,.08)", color: "#1976d2" };
+
+  return (
+    <Card
+      elevation={0}
+      sx={{
+        height: "100%",
+        borderRadius: 3,
+        border: "1px solid",
+        borderColor: "divider",
+        background: "#fafafa",
+        px: 2.5,
+        py: 2,
+      }}
+    >
+      <Stack spacing={1}>
+        <Stack direction="row" alignItems="center" spacing={1}>
+          <Box
+            sx={{
+              width: 36,
+              height: 36,
+              borderRadius: 1.5,
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              background: palette.bg,
+              color: palette.color,
+            }}
+          >
+            {icon}
+          </Box>
+          <Typography variant="caption" sx={{ color: "text.secondary", fontWeight: 600 }}>
+            {label}
+          </Typography>
+        </Stack>
+        <Typography variant="h5" sx={{ fontWeight: 800 }}>
+          {prefix}
+          {value}
+        </Typography>
+      </Stack>
     </Card>
   );
 }
@@ -84,6 +158,14 @@ export default function OrderAnalytics() {
   const [loading, setLoading] = useState(false);
   const [rows, setRows] = useState([]); // [{agentId, agentName, counts:{all,pending,confirmed,cnp,callBack,cancel,addLog}}]
   const [error, setError] = useState("");
+
+  // overall totals (window-level) from backend — we only display these 4
+  const [totalsBox, setTotalsBox] = useState({
+    totalOrders: 0,
+    totalWorkedOrders: 0,
+    totalAmountOfOrders: 0,
+    totalAmountOfWorkedOrders: 0,
+  });
 
   const computedRange = useMemo(() => {
     if (range === "Custom range" && customStart && customEnd) {
@@ -102,8 +184,27 @@ export default function OrderAnalytics() {
           ? { range: "custom", start: computedRange.start, end: computedRange.end }
           : { range, start: computedRange.start, end: computedRange.end };
 
-      const { data } = await axios.get(`${API_BASE}/api/order-analytics/agents`, { params });
+      const { data } = await axios.get(`${API_BASE}/api/order-analytics/agents`, {
+        params,
+      });
+
       setRows(Array.isArray(data?.items) ? data.items : []);
+
+      if (data?.totals) {
+        setTotalsBox({
+          totalOrders: Number(data.totals.totalOrders || 0),
+          totalWorkedOrders: Number(data.totals.totalWorkedOrders || 0),
+          totalAmountOfOrders: Number(data.totals.totalAmountOfOrders || 0),
+          totalAmountOfWorkedOrders: Number(data.totals.totalAmountOfWorkedOrders || 0),
+        });
+      } else {
+        setTotalsBox({
+          totalOrders: 0,
+          totalWorkedOrders: 0,
+          totalAmountOfOrders: 0,
+          totalAmountOfWorkedOrders: 0,
+        });
+      }
     } catch (e) {
       console.error("order analytics error", e);
       setError("Failed to load order analytics");
@@ -122,27 +223,32 @@ export default function OrderAnalytics() {
     }
   }, [range, customStart, customEnd, fetchData]);
 
-  // Totals per column
-  const totals = useMemo(() => {
+  // (unchanged) totals across visible agent rows for the table footer
+  const tableTotals = useMemo(() => {
     const sum = { all: 0, pending: 0, confirmed: 0, cnp: 0, callBack: 0, cancel: 0, addLog: 0 };
     for (const r of rows) {
       const c = r.counts || {};
-      sum.all += c.all || 0;
-      sum.pending += c.pending || 0;
-      sum.confirmed += c.confirmed || 0;
-      sum.cnp += c.cnp || 0;
-      sum.callBack += c.callBack || 0;
-      sum.cancel += c.cancel || 0;
-      sum.addLog += c.addLog || 0;
+      sum.all += c.all ?? 0;
+      sum.pending += c.pending ?? 0;
+      sum.confirmed += c.confirmed ?? 0;
+      sum.cnp += c.cnp ?? 0;
+      sum.callBack += c.callBack ?? 0;
+      sum.cancel += c.cancel ?? 0;
+      sum.addLog += c.addLog ?? 0;
     }
     return sum;
   }, [rows]);
 
   return (
     <Box sx={{ p: { xs: 1.5, md: 2 } }}>
-      {/* Header: Range */}
+      {/* Range selector */}
       <SmallCard>
-        <Stack direction={{ xs: "column", md: "row" }} spacing={2} alignItems={{ xs: "flex-start", md: "center" }} justifyContent="space-between">
+        <Stack
+          direction={{ xs: "column", md: "row" }}
+          spacing={2}
+          alignItems={{ xs: "flex-start", md: "center" }}
+          justifyContent="space-between"
+        >
           <Stack direction="row" spacing={1.5} alignItems="center" flexWrap="wrap">
             <FormControl size="small" sx={{ minWidth: 220 }}>
               <InputLabel id="range-label">Select Range</InputLabel>
@@ -189,34 +295,125 @@ export default function OrderAnalytics() {
           </Stack>
 
           {error ? (
-            <Typography variant="caption" color="error">{error}</Typography>
+            <Typography variant="caption" color="error">
+              {error}
+            </Typography>
           ) : null}
         </Stack>
       </SmallCard>
 
-      {/* Table with all columns visible */}
+      {/* === NEW: KPI cards (design-only change) === */}
+      <Box sx={{ mt: 2 }}>
+        <Grid container spacing={2}>
+          {/* Total Orders */}
+          <Grid item xs={12} sm={6} md={3}>
+            {loading ? (
+              <Card elevation={0} sx={{ borderRadius: 3, border: "1px solid", borderColor: "divider", p: 2 }}>
+                <Skeleton variant="rounded" height={64} />
+              </Card>
+            ) : (
+              <KpiCard
+                icon={<AssignmentOutlinedIcon fontSize="small" />}
+                label="Total Orders"
+                value={totalsBox.totalOrders}
+                accent="primary"
+              />
+            )}
+          </Grid>
+
+          {/* Total Worked Orders */}
+          <Grid item xs={12} sm={6} md={3}>
+            {loading ? (
+              <Card elevation={0} sx={{ borderRadius: 3, border: "1px solid", borderColor: "divider", p: 2 }}>
+                <Skeleton variant="rounded" height={64} />
+              </Card>
+            ) : (
+              <KpiCard
+                icon={<WorkHistoryOutlinedIcon fontSize="small" />}
+                label="Total Worked Orders"
+                value={totalsBox.totalWorkedOrders}
+                accent="orange"
+              />
+            )}
+          </Grid>
+
+          {/* Total Amount of Orders */}
+          <Grid item xs={12} sm={6} md={3}>
+            {loading ? (
+              <Card elevation={0} sx={{ borderRadius: 3, border: "1px solid", borderColor: "divider", p: 2 }}>
+                <Skeleton variant="rounded" height={64} />
+              </Card>
+            ) : (
+              <KpiCard
+                icon={<CurrencyRupeeIcon fontSize="small" />}
+                label="Total Amount of Orders"
+                value={money(totalsBox.totalAmountOfOrders).replace("₹", "")}
+                prefix="₹"
+                accent="teal"
+              />
+            )}
+          </Grid>
+
+          {/* Total Amount of Worked Orders */}
+          <Grid item xs={12} sm={6} md={3}>
+            {loading ? (
+              <Card elevation={0} sx={{ borderRadius: 3, border: "1px solid", borderColor: "divider", p: 2 }}>
+                <Skeleton variant="rounded" height={64} />
+              </Card>
+            ) : (
+              <KpiCard
+                icon={<DoneAllOutlinedIcon fontSize="small" />}
+                label="Total Amount of Worked Orders"
+                value={money(totalsBox.totalAmountOfWorkedOrders).replace("₹", "")}
+                prefix="₹"
+                accent="green"
+              />
+            )}
+          </Grid>
+        </Grid>
+      </Box>
+
+      {/* Table (unchanged) */}
       <Paper sx={{ mt: 2, borderRadius: 3, border: "1px solid", borderColor: "divider" }} elevation={0}>
         <TableContainer>
           <Table size="small" stickyHeader>
             <TableHead>
               <TableRow>
                 <TableCell sx={{ fontWeight: 800, minWidth: 220 }}>Agent Name (Active)</TableCell>
-                <TableCell align="right" sx={{ fontWeight: 800 }}>All</TableCell>
-                <TableCell align="right" sx={{ fontWeight: 800 }}>Pending</TableCell>
-                <TableCell align="right" sx={{ fontWeight: 800 }}>Confirmed Orders</TableCell>
-                <TableCell align="right" sx={{ fontWeight: 800 }}>CNP</TableCell>
-                <TableCell align="right" sx={{ fontWeight: 800 }}>Call Back</TableCell>
-                <TableCell align="right" sx={{ fontWeight: 800 }}>Cancel</TableCell>
-                <TableCell align="right" sx={{ fontWeight: 800 }}>Add Log Count</TableCell>
+                <TableCell align="right" sx={{ fontWeight: 800 }}>
+                  All
+                </TableCell>
+                <TableCell align="right" sx={{ fontWeight: 800 }}>
+                  Pending
+                </TableCell>
+                <TableCell align="right" sx={{ fontWeight: 800 }}>
+                  Confirmed Orders
+                </TableCell>
+                <TableCell align="right" sx={{ fontWeight: 800 }}>
+                  CNP
+                </TableCell>
+                <TableCell align="right" sx={{ fontWeight: 800 }}>
+                  Call Back
+                </TableCell>
+                <TableCell align="right" sx={{ fontWeight: 800 }}>
+                  Cancel
+                </TableCell>
+                <TableCell align="right" sx={{ fontWeight: 800 }}>
+                  Add Log Count
+                </TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
               {loading ? (
                 [...Array(6)].map((_, i) => (
                   <TableRow key={i}>
-                    <TableCell><Skeleton width={180} /></TableCell>
+                    <TableCell>
+                      <Skeleton width={180} />
+                    </TableCell>
                     {[...Array(7)].map((__, j) => (
-                      <TableCell key={j} align="right"><Skeleton width={40} /></TableCell>
+                      <TableCell key={j} align="right">
+                        <Skeleton width={40} />
+                      </TableCell>
                     ))}
                   </TableRow>
                 ))
@@ -234,7 +431,9 @@ export default function OrderAnalytics() {
                       <TableCell>{r.agentName || "-"}</TableCell>
                       <TableCell align="right">{c.all || 0}</TableCell>
                       <TableCell align="right">{c.pending || 0}</TableCell>
-                      <TableCell align="right" sx={{ fontWeight: 700 }}>{c.confirmed || 0}</TableCell>
+                      <TableCell align="right" sx={{ fontWeight: 700 }}>
+                        {c.confirmed || 0}
+                      </TableCell>
                       <TableCell align="right">{c.cnp || 0}</TableCell>
                       <TableCell align="right">{c.callBack || 0}</TableCell>
                       <TableCell align="right">{c.cancel || 0}</TableCell>
@@ -247,13 +446,27 @@ export default function OrderAnalytics() {
               {!loading && rows.length > 0 && (
                 <TableRow>
                   <TableCell sx={{ fontWeight: 800 }}>Total</TableCell>
-                  <TableCell align="right" sx={{ fontWeight: 800 }}>{totals.all}</TableCell>
-                  <TableCell align="right" sx={{ fontWeight: 800 }}>{totals.pending}</TableCell>
-                  <TableCell align="right" sx={{ fontWeight: 800 }}>{totals.confirmed}</TableCell>
-                  <TableCell align="right" sx={{ fontWeight: 800 }}>{totals.cnp}</TableCell>
-                  <TableCell align="right" sx={{ fontWeight: 800 }}>{totals.callBack}</TableCell>
-                  <TableCell align="right" sx={{ fontWeight: 800 }}>{totals.cancel}</TableCell>
-                  <TableCell align="right" sx={{ fontWeight: 800 }}>{totals.addLog}</TableCell>
+                  <TableCell align="right" sx={{ fontWeight: 800 }}>
+                    {tableTotals.all}
+                  </TableCell>
+                  <TableCell align="right" sx={{ fontWeight: 800 }}>
+                    {tableTotals.pending}
+                  </TableCell>
+                  <TableCell align="right" sx={{ fontWeight: 800 }}>
+                    {tableTotals.confirmed}
+                  </TableCell>
+                  <TableCell align="right" sx={{ fontWeight: 800 }}>
+                    {tableTotals.cnp}
+                  </TableCell>
+                  <TableCell align="right" sx={{ fontWeight: 800 }}>
+                    {tableTotals.callBack}
+                  </TableCell>
+                  <TableCell align="right" sx={{ fontWeight: 800 }}>
+                    {tableTotals.cancel}
+                  </TableCell>
+                  <TableCell align="right" sx={{ fontWeight: 800 }}>
+                    {tableTotals.addLog}
+                  </TableCell>
                 </TableRow>
               )}
             </TableBody>

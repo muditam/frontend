@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { 
+import {
   Box,
   Paper,
   Typography,
@@ -22,9 +22,9 @@ import {
   Autocomplete,
   Snackbar,
   Alert,
-  CircularProgress, 
+  CircularProgress,
   Collapse,
-  Divider, 
+  Divider,
   TablePagination,
   ToggleButton,
   ToggleButtonGroup,
@@ -58,7 +58,7 @@ const CREATE_PAYMENT_LINK_URL =
 
 const CALL_STATUS = [
   { value: "CNP", label: "CNP" },
-  { value: "ORDER_CONFIRMED", label: "Order Confirmed" }, 
+  { value: "ORDER_CONFIRMED", label: "Order Confirmed" },
   { value: "CALL_BACK_LATER", label: "Call Back Later" },
   { value: "CANCEL_ORDER", label: "Cancel Order" },
 ];
@@ -250,7 +250,7 @@ export default function OrderConfirmations() {
   const [agents, setAgents] = useState([]);
   const [savingRow, setSavingRow] = useState({});
   const [cancelingRow, setCancelingRow] = useState({});
-  const [confirmCancel, setConfirmCancel] = useState({ open: false, row: null });
+  const [confirmCancel, setConfirmCancel] = useState({ open: false, row: null, reason: "" });
   const [expandedId, setExpandedId] = useState(null);
   const [scheduleDlg, setScheduleDlg] = useState({ open: false, row: null });
   const [historyDlg, setHistoryDlg] = useState({ open: false, phone: "", items: [], loading: false });
@@ -306,7 +306,7 @@ export default function OrderConfirmations() {
   });
 
   const getLoggedInFullName = () => myFullName || "";
- 
+
   const fetchAgents = useCallback(async () => {
     try {
       const { data } = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/employees");
@@ -323,15 +323,15 @@ export default function OrderConfirmations() {
       console.error("Failed to fetch agents", e);
     }
   }, [myAgentId]);
- 
-  const assignedParam = useMemo(() => {  
+
+  const assignedParam = useMemo(() => {
     if (!isManager && myAgentId) return myAgentId;
- 
+
     if (assigned === ASSIGNED_FILTER.UNASSIGNED) return "unassigned";
     if (assigned === ASSIGNED_FILTER.ME && myAgentId) return myAgentId;
-    return undefined; 
+    return undefined;
   }, [assigned, isManager, myAgentId]);
- 
+
   const fetchList = useCallback(
     async (pageZeroBased = 0, limit = rowsPerPage) => {
       try {
@@ -360,7 +360,7 @@ export default function OrderConfirmations() {
     },
     [qDebounced, rowsPerPage, tab, channel, assignedParam]
   );
- 
+
   const fetchCounts = useCallback(async () => {
     try {
       const { data } = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/order-confirmations/counts", {
@@ -413,8 +413,8 @@ export default function OrderConfirmations() {
     }
   }, [fetchList, page, rowsPerPage, fetchCounts]);
 
-  const doRoundRobinAssign = useCallback(async () => { 
-    if (loading || syncing) return; 
+  const doRoundRobinAssign = useCallback(async () => {
+    if (loading || syncing) return;
 
     try {
       setSyncing(true);
@@ -438,12 +438,12 @@ export default function OrderConfirmations() {
   }, [loading, syncing, fetchList, page, rowsPerPage, fetchCounts]);
 
 
-  const openConfirmCancel = (row) => setConfirmCancel({ open: true, row });
+  const openConfirmCancel = (row) => setConfirmCancel({ open: true, row, reason: row?.orderConfirmOps?.ocCancelReason || "" });
   const closeConfirmCancel = () => setConfirmCancel({ open: false, row: null });
   const confirmCancelYes = async () => {
     const row = confirmCancel.row;
     if (!row) return;
-    await cancelOrderOnShopify(row);
+    await cancelOrderOnShopify(row, confirmCancel.reason || "");
     closeConfirmCancel();
   };
 
@@ -459,11 +459,11 @@ export default function OrderConfirmations() {
     setPage(0);
     fetchList(0, rowsPerPage);
     setExpandedId(null);
-  }, [tab, qDebounced, channel, assignedParam]);  
+  }, [tab, qDebounced, channel, assignedParam]);
 
   useEffect(() => {
     fetchTodayConfirmedCount();
-  }, [fetchTodayConfirmedCount]); 
+  }, [fetchTodayConfirmedCount]);
 
   const handleChangePage = (_e, newPage) => {
     setPage(newPage);
@@ -614,7 +614,7 @@ export default function OrderConfirmations() {
     }
   };
 
-  const cancelOrderOnShopify = async (row) => {
+  const cancelOrderOnShopify = async (row, ocReason = "") => {
     const id = row._id;
     try {
       setCancelingRow((m) => ({ ...m, [id]: true }));
@@ -628,6 +628,7 @@ export default function OrderConfirmations() {
           email: true,
           restock: true,
           note: "Cancel Order - via OC UI",
+          ocCancelReason: ocReason,
         }
       );
 
@@ -635,33 +636,47 @@ export default function OrderConfirmations() {
       setToast({ open: true, severity: "success", msg: data?.alreadyCancelled ? "Order already cancelled" : "Order cancelled" });
 
       await handleShopifyNotesChange(row, "CANCEL_ORDER");
+
+      setItems((rows) =>
+        rows.map((r) =>
+          r._id === row._id
+            ? {
+              ...r,
+              orderConfirmOps: {
+                ...(r.orderConfirmOps || {}),
+                ocCancelReason: ocReason,
+              },
+            }
+            : r
+        )
+      );
     } catch (e) {
       const msg = e?.response?.data?.error || e?.message || "Cancel operation failed";
       setToast({ open: true, severity: "error", msg });
     } finally {
       setCancelingRow((m) => ({ ...m, [id]: false }));
     }
-  }; 
+  };
 
   const fetchMyActiveStatus = useCallback(async () => {
-  if (!myAgentId) return;
-  try { 
-    const { data } = await axios.get(
-      `https://muditamleads-14f32a10d7f7.herokuapp.com/api/order-confirmations/agents/${myAgentId}/status`
-    );
-    const serverVal = !!data?.agent?.orderConfirmActive;
-    setMyActive(serverVal);
-    sessionStorage.setItem("orderConfirmActive", String(serverVal));
-  } catch (e) {
-    // silent fail; keep current toggle
-    console.error("fetchMyActiveStatus error", e);
-  }
-}, [myAgentId]);
+    if (!myAgentId) return;
+    try {
+      const { data } = await axios.get(
+        `https://muditamleads-14f32a10d7f7.herokuapp.com/api/order-confirmations/agents/${myAgentId}/status`
+      );
+      const serverVal = !!data?.agent?.orderConfirmActive;
+      setMyActive(serverVal);
+      sessionStorage.setItem("orderConfirmActive", String(serverVal));
+    } catch (e) {
+      // silent fail; keep current toggle
+      console.error("fetchMyActiveStatus error", e);
+    }
+  }, [myAgentId]);
 
-// On mount / when identity resolves, load the authoritative value once
-useEffect(() => {
-  fetchMyActiveStatus();
-}, [fetchMyActiveStatus]);
+  // On mount / when identity resolves, load the authoritative value once
+  useEffect(() => {
+    fetchMyActiveStatus();
+  }, [fetchMyActiveStatus]);
 
   const openPaymentDialog = (row) => {
     setPayDlg({
@@ -767,49 +782,51 @@ useEffect(() => {
                 </FormControl>
 
                 {/* Active/Inactive toggle (persist immediately, then reconcile w/ server) */}
-                <FormControlLabel
-                  control={
-                    <Switch
-                      checked={myActive}
-                      onChange={async (_e, checked) => {
-                        if (!myAgentId) {
-                          setToast({ open: true, severity: "error", msg: "No agent id found for current user" });
-                          return;
-                        }
-                        try {
-                          // optimistic
-                          setMyActive(checked);
-                          sessionStorage.setItem("orderConfirmActive", String(!!checked));
-                          setSavingActive(true);
+                {!isManager && (
+                  <FormControlLabel
+                    control={
+                      <Switch
+                        checked={myActive}
+                        onChange={async (_e, checked) => {
+                          if (!myAgentId) {
+                            setToast({ open: true, severity: "error", msg: "No agent id found for current user" });
+                            return;
+                          }
+                          try {
+                            // optimistic
+                            setMyActive(checked);
+                            sessionStorage.setItem("orderConfirmActive", String(!!checked));
+                            setSavingActive(true);
 
-                          const { data } = await axios.post(
-                            "https://muditamleads-14f32a10d7f7.herokuapp.com/api/order-confirmations/agents/toggle",
-                            { agentId: myAgentId, active: checked }
-                          );
+                            const { data } = await axios.post(
+                              "https://muditamleads-14f32a10d7f7.herokuapp.com/api/order-confirmations/agents/toggle",
+                              { agentId: myAgentId, active: checked }
+                            );
 
-                          const serverVal = !!data?.agent?.orderConfirmActive;
-                          setMyActive(serverVal);
-                          sessionStorage.setItem("orderConfirmActive", String(serverVal));
+                            const serverVal = !!data?.agent?.orderConfirmActive;
+                            setMyActive(serverVal);
+                            sessionStorage.setItem("orderConfirmActive", String(serverVal));
 
-                          setToast({
-                            open: true,
-                            severity: "success",
-                            msg: serverVal ? "You are Active for OC" : "You are Inactive for OC",
-                          });
-                        } catch (err) {
-                          console.error("toggle active failed", err);
-                          // rollback to last known good (server)
-                          await fetchMyActiveStatus();
-                          setToast({ open: true, severity: "error", msg: "Failed to update active status" });
-                        } finally {
-                          setSavingActive(false);
-                        }
-                      }}
-                      disabled={savingActive}
-                    />
-                  }
-                  label={savingActive ? "Saving..." : "Active for OC"}
-                />
+                            setToast({
+                              open: true,
+                              severity: "success",
+                              msg: serverVal ? "You are Active for OC" : "You are Inactive for OC",
+                            });
+                          } catch (err) {
+                            console.error("toggle active failed", err);
+                            // rollback to last known good (server)
+                            await fetchMyActiveStatus();
+                            setToast({ open: true, severity: "error", msg: "Failed to update active status" });
+                          } finally {
+                            setSavingActive(false);
+                          }
+                        }}
+                        disabled={savingActive}
+                      />
+                    }
+                    label={savingActive ? "Saving..." : "Active for OC"}
+                  />
+                )}
 
                 <FormControl size="small" sx={{ minWidth: 160 }}>
                   <InputLabel id="channel-filter-label">Channel</InputLabel>
@@ -824,6 +841,7 @@ useEffect(() => {
                     <MenuItem value="Online Order">Online Order</MenuItem>
                   </Select>
                 </FormControl>
+
 
                 {/* Round-robin button – visible to all; backend should only assign to Active OC + Operations */}
                 <Tooltip title="Round-robin: assign all unassigned, pending & unfulfilled orders to ACTIVE Operations agents">
@@ -1418,6 +1436,15 @@ useEffect(() => {
                                   >
                                     {cancelingRow[row._id] ? "Cancelling…" : "Cancel Order"}
                                   </Button>
+
+                                  {row?.orderConfirmOps?.ocCancelReason ? (
+                                    <Chip
+                                      size="small"
+                                      variant="outlined"
+                                      sx={{ ml: 1 }}
+                                      label={`Reason: ${row.orderConfirmOps.ocCancelReason}`}
+                                    />
+                                  ) : null}
                                 </Stack>
                               </Stack>
                             )}
@@ -1532,14 +1559,23 @@ useEffect(() => {
             {toast.msg}
           </Alert>
         </Snackbar>
-
-        {/* Confirm Cancel Dialog */}
+ 
         <Dialog open={confirmCancel.open} onClose={closeConfirmCancel} maxWidth="xs" fullWidth>
           <DialogTitle>Cancel this order?</DialogTitle>
           <DialogContent dividers>
             <Typography variant="body2">
               This will create a cancellation request in Shopify for <strong>{confirmCancel.row?.orderName || "-"}</strong>.
             </Typography>
+
+            <Box sx={{ mt: 2 }}>
+              <TextField 
+                label="Reason" 
+                placeholder="e.g., Customer requested cancellation"
+                value={confirmCancel.reason}
+                onChange={(e) => setConfirmCancel((s) => ({ ...s, reason: e.target.value }))}
+                fullWidth
+              />   
+            </Box>  
           </DialogContent>
           <DialogActions>
             <Button onClick={closeConfirmCancel}>No</Button>

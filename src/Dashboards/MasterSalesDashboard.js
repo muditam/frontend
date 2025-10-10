@@ -18,7 +18,7 @@ import {
   TextField,
   Button,
   Dialog,
-  DialogTitle, 
+  DialogTitle,
   DialogContent,
   DialogActions,
 } from "@mui/material";
@@ -153,17 +153,11 @@ const ManagerSalesDashboard = () => {
   const [followupStats, setFollowupStats] = useState([]);
   const [leadSourceData, setLeadSourceData] = useState([]);
 
+  const [unassignedDeliveredCount, setUnassignedDeliveredCount] = useState(undefined); 
 
-  // Agents (for lead source summary and shipment summary)
   const [agents, setAgents] = useState([]);
   const [selectedAgent, setSelectedAgent] = useState("All Agents");
 
-
-  // The selected summary:
-  //   "Sales Summary",
-  //   "Followup Summary",
-  //   "Lead Source Summary",
-  //   "Shipment Summary"  <-- newly added
   const [selectedSummary, setSelectedSummary] = useState("Sales Summary");
 
 
@@ -213,7 +207,7 @@ const ManagerSalesDashboard = () => {
       const activeAgents = response.data
         .filter((agent) => agent.status === "active")
         .map((agent) => agent.fullName);
-      setAgents(["All Agents", ...activeAgents]);  
+      setAgents(["All Agents", ...activeAgents]);
     } catch (error) {
       console.error("Error fetching agents:", error);
     }
@@ -324,8 +318,8 @@ const ManagerSalesDashboard = () => {
       try {
         const params = { startDate, endDate };
         if (selectedAgent && selectedAgent !== "All Agents") {
-                   params.agentName = selectedAgent;
-                 }
+          params.agentName = selectedAgent;
+        }
         // Remove or ignore the agent filter since it's not applicable for the Order schema.
         const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/all-shipment-summary", { params });
         setShipmentData(response.data || []);
@@ -341,6 +335,19 @@ const ManagerSalesDashboard = () => {
     [selectedAgent]
   );
 
+  const fetchUnassignedDeliveredCount = useCallback(async () => {
+  try { 
+    const res = await axios.get(
+      "https://muditamleads-14f32a10d7f7.herokuapp.com/api/orders-un/unassigned-delivered-count"
+    );
+    setUnassignedDeliveredCount(res.data?.count ?? 0);
+  } catch (error) {
+    console.error("Error fetching unassigned delivered count:", error);
+    setUnassignedDeliveredCount(0);
+  }
+}, []);
+
+ 
   // Combined table fetch
   const fetchTableData = useCallback(
     async (summary, startDate, endDate) => {
@@ -357,7 +364,7 @@ const ManagerSalesDashboard = () => {
             await fetchLeadSourceData(startDate, endDate);
             break;
           case "Shipment Summary":
-            await fetchShipmentData(startDate, endDate);
+            await fetchShipmentData(startDate, endDate); 
             break;
           default:
             console.warn("Unknown table selected");
@@ -420,14 +427,14 @@ const ManagerSalesDashboard = () => {
         fetchLeadSourceData(startDate, endDate);
       }
     } else if (selectedSummary === "Shipment Summary") {
-            const [startDate, endDate] =
-              range === "Custom range" && customStart && customEnd
-                ? [customStart, customEnd]
-                : Object.values(getDateRange(range));
-     
-            fetchShipmentData(startDate, endDate);
-          }
-   
+      const [startDate, endDate] =
+        range === "Custom range" && customStart && customEnd
+          ? [customStart, customEnd]
+          : Object.values(getDateRange(range));
+
+      fetchShipmentData(startDate, endDate);
+    }
+
   }, [
     selectedAgent,
     shipmentAgent,
@@ -435,9 +442,13 @@ const ManagerSalesDashboard = () => {
     range,
     customStart,
     customEnd,
-    fetchLeadSourceData,
+    fetchLeadSourceData, 
     fetchShipmentData,
   ]);
+
+  useEffect(() => {
+  fetchUnassignedDeliveredCount();
+}, [fetchUnassignedDeliveredCount]);
 
 
   // Handler for Sales Done card click to open popup
@@ -562,15 +573,43 @@ const ManagerSalesDashboard = () => {
 
 
   return (
-    <Box sx={{ padding: 3 }}>
-      {/* Dashboard Title */}
+    <Box sx={{ padding: 3, position: "relative" }}>
+      {/* Dashboard Title */} 
+       <Box
+      sx={{ position: "absolute", top: 12, right: 12, zIndex: 2 }}
+    >
+      <Paper
+        sx={{
+          px: 2.5,
+          py: 1.25,
+          borderRadius: 2,
+          backgroundColor: "#FFF7ED",
+          border: "1px solid #FFEDD5",
+          boxShadow: "0px 3px 10px rgba(0,0,0,0.04)",
+          minWidth: 240,
+          textAlign: "center",
+        }}
+      >
+        <Typography variant="subtitle2" sx={{ color: "#9A3412" }}>
+          Unassigned Delivered Orders
+        </Typography>
+        <Typography variant="h6" fontWeight="bold" sx={{ color: "#7C2D12" }}>
+          {unassignedDeliveredCount !== undefined ? (
+            unassignedDeliveredCount
+          ) : (
+            <CircularProgress size={16} />
+          )}
+        </Typography>
+      </Paper>
+    </Box>
+
       <Typography
         variant="h4"
         fontWeight="bold"
         sx={{
           textAlign: "center",
           color: "#1E293B",
-          letterSpacing: "0.8px", 
+          letterSpacing: "0.8px",
           mb: 3,
           mt: -5,
           display: "flex",
@@ -1434,13 +1473,13 @@ const ManagerSalesDashboard = () => {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setOrderIdsPopupOpen(false)} variant="outlined">
-            Close 
+            Close
           </Button>
         </DialogActions>
       </Dialog>
     </Box>
   );
-};
+}; 
 
 
 export default ManagerSalesDashboard;

@@ -40,7 +40,7 @@ import CartDrawer from "../../ShopifyOrders/CartDrawer";
 import EmojiEventsIcon from "@mui/icons-material/EmojiEvents";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import ExpandLessIcon from "@mui/icons-material/ExpandLess";
-import CloseIcon from '@mui/icons-material/Close'; 
+import CloseIcon from '@mui/icons-material/Close';
 import RocketLaunchIcon from "@mui/icons-material/RocketLaunch";
 import LocalShippingIcon from "@mui/icons-material/LocalShipping";
 import { Syringe } from "lucide-react";
@@ -129,8 +129,8 @@ const NavbarWithSearch = () => {
       return;
     }
     if (pincodeData.Redcliff.includes(pin)) labs.push("Redcliff");
-    if (pincodeData.Lalpathlab.includes(pin)) labs.push("Lalpathlab"); 
-    if (pincodeData.Redcliff.includes(pin)) labs.push("Healthians"); 
+    if (pincodeData.Lalpathlab.includes(pin)) labs.push("Lalpathlab");
+    if (pincodeData.Redcliff.includes(pin)) labs.push("Healthians");
     setAvailableLabs(labs);
   };
 
@@ -157,7 +157,7 @@ const NavbarWithSearch = () => {
   };
 
   const handleClickAway = () => {
-    setShowResults(false); 
+    setShowResults(false);
   };
 
   const handleShopifyInputChange = (e) => {
@@ -171,7 +171,7 @@ const NavbarWithSearch = () => {
         const response = await axios.get(
           "https://muditamleads-14f32a10d7f7.herokuapp.com/api/employees",
           {
-            params: { 
+            params: {
               fullName: user.fullName,
               email: user.email,
             },
@@ -211,27 +211,27 @@ const NavbarWithSearch = () => {
   }
 
   const executeShopifySearch = async () => {
-  if (!shopifyQuery.trim()) {
-    setCustomerData(null);
-    setShowCustomerDetails(false);
-    return;
-  }
+    if (!shopifyQuery.trim()) {
+      setCustomerData(null);
+      setShowCustomerDetails(false); 
+      return;
+    }
 
-  try {
-    const response = await axios.get(
-      "https://muditamleads-14f32a10d7f7.herokuapp.com/api/shopify/customerDetails",
-      {
-        params: { q: shopifyQuery },   
-      }
-    );
-    setCustomerData(response.data.customer);
-    setShowCustomerDetails(true);
-    setShowOrders(false);
-    setShowAllOrders(false);
-  } catch (error) {
-    console.error("Error fetching Shopify customer details:", error);
-  }
-};
+    try {
+      const response = await axios.get(
+        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/shopify/customerDetails", 
+        {
+          params: { q: shopifyQuery },  
+        }
+      );
+      setCustomerData(response.data.customer); 
+      setShowCustomerDetails(true);
+      setShowOrders(false);
+      setShowAllOrders(false);
+    } catch (error) {
+      console.error("Error fetching Shopify customer details:", error);
+    }
+  };
 
   const handleShopifyClickAway = () => {
     setShowCustomerDetails(false);
@@ -256,10 +256,10 @@ const NavbarWithSearch = () => {
         : [...prev, orderId]
     );
   };
- 
-  const handleDownloadOrders = async () => {   
+
+  const handleDownloadOrders = async () => {
     try {
-      const response = await axios.get( 
+      const response = await axios.get(
         "http://localhost:5001/api/myorders/download",
         { responseType: 'blob' }
       );
@@ -416,10 +416,12 @@ const NavbarWithSearch = () => {
                                       >
                                         <ListItemText
                                           primary={`Order ${order.name || order.id} | Total Amount: ₹${order.totalAmount || 0}`}
-                                          secondary={ 
+                                          secondary={
                                             <>
                                               <span>
                                                 {new Date(order.created_at).toLocaleString()} | Items: {order.itemCount} | {order.deliveryStatus}
+                                                {" | "}
+                                                Shipment: {order.shipmentStatus ?? "N/A"}
                                               </span>
                                               <br />
                                               {order.lineItems.map((item, idx) => (
@@ -427,7 +429,7 @@ const NavbarWithSearch = () => {
                                                   {item.title} - {item.variant} (₹{item.amountPaid}){" "}
                                                 </span>
                                               ))}
-                                              <br /> 
+                                              <br />
                                               <Box
                                                 onClick={() => toggleAddress(order.id)}
                                                 sx={{
@@ -489,7 +491,7 @@ const NavbarWithSearch = () => {
                                           sx={{ pl: 3, py: 0.5, ...smallFont }}
                                         >
                                           <ListItemText
-                                            primary={`Order ${order.name || order.id}`} 
+                                            primary={`Order ${order.name || order.id}`}
                                             secondary={
                                               <>
                                                 <span>
@@ -544,7 +546,7 @@ const NavbarWithSearch = () => {
             </Box>
           </Box>
 
-          {user?.role !== "Manager" && user?.role !== "Finance" && user?.role !== "Operations" && (
+          {user?.role !== "Manager" && user?.role !== "Finance" && user?.role !== "Operations" && user?.role !== "Assets Management" && (
             <Box
               sx={{
                 mx: 2,
@@ -595,51 +597,51 @@ const NavbarWithSearch = () => {
 
           {/* Right side: Icons and LMS Search */}
           <Box sx={{ display: "flex", alignItems: "center" }}>
-            {user?.role !== "Finance" && user?.role !== "Operations" && (
-            <IconButton
-              onClick={() => setIncentiveOpen(true)}
-              sx={{
-                mr: 1,
-                color: "#fff",
-                "&:hover": { color: "#fff", bgcolor: "#e0e0e0" }
-              }}
-              title="View Incentive Structure"
-            >
-              <RocketLaunchIcon />
-            </IconButton> 
-            )} 
- 
-            {user?.role !== "Finance" && user?.role !== "Operations" && (
-            <IconButton
-              onClick={() => setBloomOpen(true)}
-              sx={{
-                mr: 0.5,
-                color: "#fff",
-                borderRadius: "50%",
-                p: 1.1,
-                "&:hover": { bgcolor: "#fff", color: "#e0e0e0" }
-              }}
-              title="View Bloom Leaderboard"
-            >
-              <Flower2 />
-            </IconButton>
+            {user?.role !== "Finance" && user?.role !== "Operations" && user?.role !== "Assets Management" && (
+              <IconButton
+                onClick={() => setIncentiveOpen(true)}
+                sx={{
+                  mr: 1,
+                  color: "#fff",
+                  "&:hover": { color: "#fff", bgcolor: "#e0e0e0" }
+                }}
+                title="View Incentive Structure"
+              >
+                <RocketLaunchIcon />
+              </IconButton>
             )}
 
-            {user?.role !== "Finance" && user?.role !== "Operations" && (
-            <IconButton
-              ref={leaderboardAnchorRef}
-              onClick={() => setLeaderboardOpen(true)}
-              sx={{
-                mr: 0.5,
-                color: "#fff",
-                borderRadius: "50%",
-                p: 1.1,
-                "&:hover": { bgcolor: "#fff", color: "#e0e0e0" }
-              }}
-              title="View Leaderboard"
-            >
-              <EmojiEventsIcon /> 
-            </IconButton>
+            {user?.role !== "Finance" && user?.role !== "Operations" && user?.role !== "Assets Management" && (
+              <IconButton
+                onClick={() => setBloomOpen(true)}
+                sx={{
+                  mr: 0.5,
+                  color: "#fff",
+                  borderRadius: "50%",
+                  p: 1.1,
+                  "&:hover": { bgcolor: "#fff", color: "#e0e0e0" }
+                }}
+                title="View Bloom Leaderboard"
+              >
+                <Flower2 />
+              </IconButton>
+            )}
+
+            {user?.role !== "Finance" && user?.role !== "Operations" && user?.role !== "Assets Management" && (
+              <IconButton
+                ref={leaderboardAnchorRef}
+                onClick={() => setLeaderboardOpen(true)}
+                sx={{
+                  mr: 0.5,
+                  color: "#fff",
+                  borderRadius: "50%",
+                  p: 1.1,
+                  "&:hover": { bgcolor: "#fff", color: "#e0e0e0" }
+                }}
+                title="View Leaderboard"
+              >
+                <EmojiEventsIcon />
+              </IconButton>
             )}
 
             <Bloomleader open={bloomOpen} anchorEl={leaderboardAnchorRef.current} onClose={() => setBloomOpen(false)} />
@@ -650,25 +652,25 @@ const NavbarWithSearch = () => {
               onClose={() => setLeaderboardOpen(false)}
             />
 
-            {user?.role !== "Finance" && user?.role !== "Operations" && (
-            <IconButton
-              color="error"
-              onClick={openBloodTestDialog}
-              sx={{ mr: 0.5, color: "#fff", borderRadius: "50%", p: 1.1, "&:hover": { bgcolor: "#e0e0e0" } }} 
-              title="Blood Test Pincode Check"
-            >
-              <Syringe />
-            </IconButton>
+            {user?.role !== "Finance" && user?.role !== "Operations" && user?.role !== "Assets Management" && (
+              <IconButton
+                color="error"
+                onClick={openBloodTestDialog}
+                sx={{ mr: 0.5, color: "#fff", borderRadius: "50%", p: 1.1, "&:hover": { bgcolor: "#e0e0e0" } }}
+                title="Blood Test Pincode Check"
+              >
+                <Syringe />
+              </IconButton>
             )}
 
-            {user?.role !== "Finance" && user?.role !== "Operations" && ( 
-            <IconButton
-              onClick={() => setDeliveryDialogOpen(true)}
-              sx={{ mr: 0.5, color: "#fff", borderRadius: "50%", p: 1.1, "&:hover": { bgcolor: "#e0e0e0" } }}
-              title="Delivery Status Checker"
-            >
-              <LocalShippingIcon />
-            </IconButton>
+            {user?.role !== "Finance" && user?.role !== "Operations" && user?.role !== "Assets Management" && (
+              <IconButton
+                onClick={() => setDeliveryDialogOpen(true)}
+                sx={{ mr: 0.5, color: "#fff", borderRadius: "50%", p: 1.1, "&:hover": { bgcolor: "#e0e0e0" } }}
+                title="Delivery Status Checker"
+              >
+                <LocalShippingIcon />
+              </IconButton>
             )}
 
             {/* <IconButton
@@ -681,8 +683,8 @@ const NavbarWithSearch = () => {
               onClick={handleDownloadOrders} 
             >
               <DownloadIcon />
-            </IconButton>   */} 
- 
+            </IconButton>   */}
+
 
             {/* {user && ( 
               <IconButton
@@ -751,7 +753,7 @@ const NavbarWithSearch = () => {
                           }}
                         >
                           <ListItemText
-                            primary={`${item.name || "No Name"} (${item.contactNumber}) (${item.agentAssigned}) [${item.healthExpertAssigned}]${item.hasOpenEscalation ? " ? " : ""}`} 
+                            primary={`${item.name || "No Name"} (${item.contactNumber}) (${item.agentAssigned}) [${item.healthExpertAssigned}]${item.hasOpenEscalation ? " ? " : ""}`}
                             primaryTypographyProps={{ style: smallFont }}
                           />
                         </ListItem>
@@ -794,7 +796,7 @@ const NavbarWithSearch = () => {
             width: 400,
             p: 0,
             background: "#fff",
-            boxShadow: "0 6px 24px 0 rgba(110,49,49,0.12)", 
+            boxShadow: "0 6px 24px 0 rgba(110,49,49,0.12)",
             position: 'relative',
           },
         }}
@@ -1012,10 +1014,10 @@ const NavbarWithSearch = () => {
             <TableBody>
               {[
                 {
-                  slab:   "2L – 3L",
-                  rate:   "1.50%",
+                  slab: "2L – 3L",
+                  rate: "1.50%",
                   monthly: "3,000 – 4,500",
-                  annual:  "36,000 – 54,000",
+                  annual: "36,000 – 54,000",
                 },
                 {
                   slab: "3L – 4L",

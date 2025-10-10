@@ -184,7 +184,7 @@ const MenuBar = ({ toggleDrawer }) => {
           </Typography>
         </ListItem>
 
-        {role !== "Finance" && role !== "Operations" && (
+        {role !== "Finance" && role !== "Operations" && role !== "Assets Management" &&(
           <ListItem
             button
             component={Link}
@@ -197,7 +197,7 @@ const MenuBar = ({ toggleDrawer }) => {
               transition: "background-color 0.3s, transform 0.2s",
               "&:hover": {
                 backgroundColor: "#e0f7fa",
-                color: "#007aff", 
+                color: "#007aff",
                 transform: "scale(1.02)",
               },
             }}
@@ -210,7 +210,7 @@ const MenuBar = ({ toggleDrawer }) => {
             </Typography>
           </ListItem>
         )}
-        {role !== "Finance" && role !== "Operations" && (
+        {role !== "Finance" && role !== "Operations" && role !== "Assets Management" && (
           <ListItem
             button
             component={Link}
@@ -237,7 +237,7 @@ const MenuBar = ({ toggleDrawer }) => {
           </ListItem>
         )}
 
-        {role !== "Finance" && (
+        {role !== "Finance" && role !== "Assets Management" &&(
           <ListItem
             button
             component={Link}
@@ -245,7 +245,7 @@ const MenuBar = ({ toggleDrawer }) => {
             sx={{
               display: "flex",
               alignItems: "center",
-              padding: "10px 20px",
+              padding: "10px 20px", 
               borderRadius: "4px",
               margin: "4px 0",
               transition: "background-color 0.3s, transform 0.2s",
@@ -291,7 +291,7 @@ const MenuBar = ({ toggleDrawer }) => {
           </ListItem>
         )}
 
-        {role !== "Finance" && role !== "Operations" && (
+        {role !== "Finance" && role !== "Operations" && role !== "Assets Management" && (
           <ListItem
             button
             component={Link}
@@ -314,83 +314,83 @@ const MenuBar = ({ toggleDrawer }) => {
           </ListItem>
         )}
 
-        {role !== "Finance" && role !== "Retention Agent" && (
-  <>
-    {/* Parent dropdown */}
-    <ListItem
-      button
-      onClick={() => handleDropdownClick("orderConfirmations")}
-      sx={dropdownStyle}
-    >
-      <Box sx={{ display: "flex", alignItems: "center" }}>
-        <ShoppingCartIcon sx={{ fontSize: 18, marginRight: "8px" }} />
-        <Typography variant="body1" sx={{ fontSize: "14px" }}>
-          Order Confirmations
-        </Typography>
-      </Box>
-      {openDropdown.orderConfirmations ? (
-        <KeyboardArrowDownIcon />
-      ) : (
-        <KeyboardArrowRightIcon />
-      )}
-    </ListItem>
-
-    {/* Children */}
-    <Collapse in={openDropdown.orderConfirmations} timeout="auto" unmountOnExit>
-      <List sx={nestedListStyle}>
-        <ListItem
-          button
-          component={Link}
-          to="/order-confirmations"
-          onClick={toggleDrawer}
-        >
-          <Typography variant="body2" sx={{ fontSize: "13px" }}>
-            Order Confirmation
-          </Typography>
-        </ListItem>
-
-        <ListItem
-          button
-          component={Link}
-          to="/order-confirmations/analytics"     
-          onClick={toggleDrawer}
-        >
-          <Typography variant="body2" sx={{ fontSize: "13px" }}>
-            Order Analytics
-          </Typography>
-        </ListItem>
-      </List>
-    </Collapse>
-  </>
-)}
-
-
-        {role !== "Finance" && role !== "Operations" && role !== "Manager" && (
-              <ListItem
-                button
-                component={Link}
-                to="/Agent-return"
-                sx={{ 
-                  display: "flex",
-                  alignItems: "center",
-                  padding: "10px 20px",
-                  borderRadius: "4px",
-                  margin: "4px 0",
-                  transition: "background-color 0.3s, transform 0.2s", 
-                  "&:hover": {
-                    backgroundColor: "#e0f7fa",
-                    color: "#007aff",
-                    transform: "scale(1.02)",
-                  },
-                }}
-                onClick={toggleDrawer}
-              >
-                <AssignmentReturnedIcon sx={{ fontSize: 24, marginRight: "12px" }} />
-                <Typography variant="body1" style={{ fontSize: "14px" }}>
-                  MY RTOs
+        {role !== "Finance" && role !== "Retention Agent" && role !== "Assets Management" &&(
+          <>
+            {/* Parent dropdown */}
+            <ListItem
+              button
+              onClick={() => handleDropdownClick("orderConfirmations")}
+              sx={dropdownStyle}
+            >
+              <Box sx={{ display: "flex", alignItems: "center" }}>
+                <ShoppingCartIcon sx={{ fontSize: 18, marginRight: "8px" }} /> 
+                <Typography variant="body1" sx={{ fontSize: "14px" }}>
+                  Order Confirmations
                 </Typography>
-              </ListItem>
-            )}
+              </Box>
+              {openDropdown.orderConfirmations ? (
+                <KeyboardArrowDownIcon />
+              ) : (
+                <KeyboardArrowRightIcon />
+              )}
+            </ListItem>
+
+            {/* Children */}
+            <Collapse in={openDropdown.orderConfirmations} timeout="auto" unmountOnExit>
+              <List sx={nestedListStyle}>
+                <ListItem
+                  button
+                  component={Link}
+                  to="/order-confirmations"
+                  onClick={toggleDrawer}
+                >
+                  <Typography variant="body2" sx={{ fontSize: "13px" }}>
+                    Order Confirmation
+                  </Typography>
+                </ListItem>
+
+                <ListItem
+                  button
+                  component={Link}
+                  to="/order-confirmations/analytics"
+                  onClick={toggleDrawer}
+                >
+                  <Typography variant="body2" sx={{ fontSize: "13px" }}>
+                    Order Analytics
+                  </Typography>
+                </ListItem>
+              </List>
+            </Collapse>
+          </>
+        )}
+
+
+        {role !== "Finance" && role !== "Operations" && role !== "Manager" && role !== "Assets Management" && (
+          <ListItem
+            button
+            component={Link}
+            to="/Agent-return"
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              padding: "10px 20px",
+              borderRadius: "4px",
+              margin: "4px 0",
+              transition: "background-color 0.3s, transform 0.2s",
+              "&:hover": {
+                backgroundColor: "#e0f7fa",
+                color: "#007aff",
+                transform: "scale(1.02)",
+              },
+            }}
+            onClick={toggleDrawer}
+          >
+            <AssignmentReturnedIcon sx={{ fontSize: 24, marginRight: "12px" }} />
+            <Typography variant="body1" style={{ fontSize: "14px" }}>
+              MY RTOs
+            </Typography>
+          </ListItem>
+        )}
 
         {user ? (
           <>
@@ -525,7 +525,7 @@ const MenuBar = ({ toggleDrawer }) => {
                       to="/master/Duplicates"
                       onClick={toggleDrawer}
                     >
-                      <Typography 
+                      <Typography
                         variant="body2"
                         sx={{ fontSize: "13px" }}
                         onClick={toggleDrawer}
@@ -619,7 +619,7 @@ const MenuBar = ({ toggleDrawer }) => {
                       color: "#007aff",
                       transform: "scale(1.02)",
                     },
-                  }} 
+                  }}
                   onClick={toggleDrawer}
                 >
                   <ShoppingCartIcon sx={{ fontSize: 18, marginRight: "8px" }} />
@@ -780,52 +780,52 @@ const MenuBar = ({ toggleDrawer }) => {
               </>
             )}
 
-            {role !== "Finance" && role !== "Operations" && (
-           <>
-            <ListItem
-               button
-               onClick={() => handleDropdownClick("smartflo")}
-               sx={dropdownStyle}
-             >
-              <Box sx={{ display: "flex", alignItems: "center" }}>
-                 <PhoneInTalkIcon sx={{ fontSize: 20, marginRight: "12px" }} />
-                 <Typography variant="body1" sx={{ fontSize: "14px" }}>
-                   Smartflo
-                 </Typography>
-               </Box>
-               {openDropdown.smartflo ? (
-                 <KeyboardArrowDownIcon />
-               ) : (
-                 <KeyboardArrowRightIcon />
-               )}
-             </ListItem>
- 
-             <Collapse in={openDropdown.smartflo} timeout="auto" unmountOnExit>
-               <List sx={nestedListStyle}>
-                 <ListItem
-                   button
-                   component={Link}
-                   to="/smartflo/call-logs"
-                   onClick={toggleDrawer}
-                 >
-                   <Typography variant="body2" sx={{ fontSize: "13px" }}>
-                     Call Logs
-                  </Typography>
-                 </ListItem>
-                 <ListItem
-                   button
-                   component={Link}
-                   to="/smartflo/data-analytics"
-                  onClick={toggleDrawer}
-                 >
-                   <Typography variant="body2" sx={{ fontSize: "13px" }}>
-                     Data Analytics
-                   </Typography>
-                 </ListItem>
-               </List>
-             </Collapse>
-           </>
-         )}
+            {role !== "Finance" && role !== "Operations" && role !== "Assets Management" &&(
+              <>
+                <ListItem
+                  button
+                  onClick={() => handleDropdownClick("smartflo")}
+                  sx={dropdownStyle}
+                >
+                  <Box sx={{ display: "flex", alignItems: "center" }}>
+                    <PhoneInTalkIcon sx={{ fontSize: 20, marginRight: "12px" }} />
+                    <Typography variant="body1" sx={{ fontSize: "14px" }}>
+                      Smartflo
+                    </Typography>
+                  </Box>
+                  {openDropdown.smartflo ? (
+                    <KeyboardArrowDownIcon />
+                  ) : (
+                    <KeyboardArrowRightIcon />
+                  )}
+                </ListItem>
+
+                <Collapse in={openDropdown.smartflo} timeout="auto" unmountOnExit>
+                  <List sx={nestedListStyle}>
+                    <ListItem
+                      button
+                      component={Link}
+                      to="/smartflo/call-logs"
+                      onClick={toggleDrawer}
+                    >
+                      <Typography variant="body2" sx={{ fontSize: "13px" }}>
+                        Call Logs
+                      </Typography>
+                    </ListItem>
+                    <ListItem
+                      button
+                      component={Link}
+                      to="/smartflo/data-analytics"
+                      onClick={toggleDrawer}
+                    >
+                      <Typography variant="body2" sx={{ fontSize: "13px" }}>
+                        Data Analytics
+                      </Typography>
+                    </ListItem>
+                  </List>
+                </Collapse>
+              </>
+            )}
 
             {role === "Finance" && (
               <>
@@ -836,7 +836,7 @@ const MenuBar = ({ toggleDrawer }) => {
                   sx={menuItemStyle}
                   onClick={toggleDrawer}
                 >
-                  <FactCheckIcon sx={{ fontSize: 18, marginRight: "8px" }} />
+                  <FactCheckIcon sx={{ fontSize: 18, marginRight: "8px" }} /> 
                   <Typography variant="body1" sx={{ fontSize: "14px" }}>
                     Order Summary
                   </Typography>
@@ -966,11 +966,11 @@ const MenuBar = ({ toggleDrawer }) => {
                 }}
                 onClick={toggleDrawer}
               >
-                <LocalShippingIcon sx={{ fontSize: 20, marginRight: "12px" }} />  
+                <LocalShippingIcon sx={{ fontSize: 20, marginRight: "12px" }} />
                 <Typography variant="body1" style={{ fontSize: "14px" }}>
                   RTO Delivered
                 </Typography>
-              </ListItem> 
+              </ListItem>
             )}
 
             {role === "Operations" && (
@@ -993,23 +993,23 @@ const MenuBar = ({ toggleDrawer }) => {
                 }}
                 onClick={toggleDrawer}
               >
-                <EmailIcon sx={{ fontSize: 20, marginRight: "12px" }} />  
+                <EmailIcon sx={{ fontSize: 20, marginRight: "12px" }} />
                 <Typography variant="body1" style={{ fontSize: "14px" }}>
                   Email Undelivered
                 </Typography>
               </ListItem>
             )}
 
-            {role !== "Finance" && role !== "Operations" && (
+            {role !== "Finance" && role !== "Operations" && role !== "Assets Management" &&(
               <ListItem
                 button
                 component={Link}
                 to="/delivered-sales-record"
                 sx={{
-                  display: "flex", 
+                  display: "flex",
                   alignItems: "center",
                   padding: "10px 20px",
-                  borderRadius: "4px", 
+                  borderRadius: "4px",
                   margin: "4px 0",
                   transition: "background-color 0.3s, transform 0.2s",
                   "&:hover": {
@@ -1027,7 +1027,61 @@ const MenuBar = ({ toggleDrawer }) => {
               </ListItem>
             )}
 
-            {role !== "Finance" && role !== "Operations" && (
+            {role === "Assets Management" && (
+              <ListItem
+                button
+                component={Link}
+                to="/add-new-asset" 
+                sx={{
+                  display: "flex",
+                  alignItems: "center",
+                  padding: "10px 20px", 
+                  borderRadius: "4px", 
+                  margin: "4px 0",
+                  transition: "background-color 0.3s, transform 0.2s",
+                  "&:hover": {
+                    backgroundColor: "#e0f7fa",
+                    color: "#007aff",
+                    transform: "scale(1.02)",
+                  },
+                }}
+                onClick={toggleDrawer}
+              >
+                <Inventory2Icon sx={{ fontSize: 20, marginRight: "12px" }} />
+                <Typography variant="body1" style={{ fontSize: "14px" }}>
+                  Add New Assets
+                </Typography>
+              </ListItem>
+            )} 
+
+            {role === "Assets Management" && (
+              <ListItem
+                button
+                component={Link}
+                to="/AssetAllotment" 
+                sx={{
+                  display: "flex",
+                  alignItems: "center",
+                  padding: "10px 20px", 
+                  borderRadius: "4px", 
+                  margin: "4px 0",
+                  transition: "background-color 0.3s, transform 0.2s",
+                  "&:hover": {
+                    backgroundColor: "#e0f7fa",
+                    color: "#007aff",
+                    transform: "scale(1.02)",
+                  }, 
+                }} 
+                onClick={toggleDrawer}
+              >
+                <Inventory2Icon sx={{ fontSize: 20, marginRight: "12px" }} />
+                <Typography variant="body1" style={{ fontSize: "14px" }}>
+                  Asset Allotment
+                </Typography>
+              </ListItem>
+            )}
+
+            {role !== "Finance" && role !== "Operations" && role !== "Assets Management" &&(
               <ListItem
                 button
                 onClick={() => handleDropdownClick("leaderboard")}
@@ -1087,90 +1141,100 @@ const MenuBar = ({ toggleDrawer }) => {
               </List>
             </Collapse>
 
-{role === "Manager" && (
-  <>
-    <ListItem
-      button
-      onClick={() => handleDropdownClick("others")}
-      sx={dropdownStyle}
-    >
-      <Box sx={{ display: "flex", alignItems: "center" }}>
-        <FolderIcon sx={{ fontSize: 18, marginRight: "8px" }} />
-        <Typography variant="body1" sx={{ fontSize: "14px" }}>
-          Others
-        </Typography>
-      </Box>
-      {openDropdown.others ? <KeyboardArrowDownIcon /> : <KeyboardArrowRightIcon />}
-    </ListItem>
+            {role === "Manager" && (
+              <>
+                <ListItem
+                  button
+                  onClick={() => handleDropdownClick("others")}
+                  sx={dropdownStyle}
+                >
+                  <Box sx={{ display: "flex", alignItems: "center" }}>
+                    <FolderIcon sx={{ fontSize: 18, marginRight: "8px" }} />
+                    <Typography variant="body1" sx={{ fontSize: "14px" }}>
+                      Others
+                    </Typography>
+                  </Box>
+                  {openDropdown.others ? <KeyboardArrowDownIcon /> : <KeyboardArrowRightIcon />}
+                </ListItem>
 
-    <Collapse in={openDropdown.others} timeout="auto" unmountOnExit>
-      <List sx={nestedListStyle}>
-        <ListItem
-          button
-          component={Link}
-          to="/all-products"
-          onClick={toggleDrawer}
-        >
-          <Typography variant="body2" sx={{ fontSize: "13px" }}>
-            All Products
-          </Typography>
-        </ListItem>
-        <ListItem
-          button
-          component={Link}
-          to="/lead-migration"  
-          onClick={toggleDrawer}
-        >
-          <Typography variant="body2" sx={{ fontSize: "13px" }}>
-            Leads Migrate
-          </Typography>
-        </ListItem>
-        <ListItem
-          button
-          component={Link}
-          to="/diet-template" 
-          onClick={toggleDrawer} 
-        >
-          <Typography variant="body2" sx={{ fontSize: "13px" }}>
-            Diet Plan Builder 
-          </Typography>
-        </ListItem>
-        <ListItem
-          button  
-          component={Link}
-          to="/all-shopify-orders" 
-          onClick={toggleDrawer} 
-        >
-          <Typography variant="body2" sx={{ fontSize: "13px" }}>
-            All Shopify Orders
-          </Typography>
-        </ListItem>
-        <ListItem
-          button 
-          component={Link} 
-          to="/transfer-requests" 
-          onClick={toggleDrawer} 
-        >
-          <Typography variant="body2" sx={{ fontSize: "13px" }}>
-            Lead Transfer Requests
-          </Typography>
-        </ListItem>
-        <ListItem
-          button 
-          component={Link}
-          to="/bulk-data-upload" 
-          onClick={toggleDrawer} 
-        >
-          <Typography variant="body2" sx={{ fontSize: "13px" }}>
-            Bulk data Upload
-          </Typography>
-        </ListItem>
-      </List>
-    </Collapse>
-  </>
-)}
+                <Collapse in={openDropdown.others} timeout="auto" unmountOnExit>
+                  <List sx={nestedListStyle}>
+                    <ListItem
+                      button
+                      component={Link}
+                      to="/schedule-calls"
+                      onClick={toggleDrawer}
+                    >
+                      <Typography variant="body2" sx={{ fontSize: "13px" }}>
+                        Schedule Calls
+                      </Typography>
+                    </ListItem>
+                    <ListItem
+                      button
+                      component={Link}
+                      to="/all-products"
+                      onClick={toggleDrawer}
+                    >
+                      <Typography variant="body2" sx={{ fontSize: "13px" }}>
+                        All Products
+                      </Typography>
+                    </ListItem>
+                    <ListItem
+                      button
+                      component={Link}
+                      to="/lead-migration"
+                      onClick={toggleDrawer}
+                    >
+                      <Typography variant="body2" sx={{ fontSize: "13px" }}>
+                        Leads Migrate
+                      </Typography>
+                    </ListItem>
+                    <ListItem
+                      button
+                      component={Link}
+                      to="/diet-template"
+                      onClick={toggleDrawer}
+                    >
+                      <Typography variant="body2" sx={{ fontSize: "13px" }}>
+                        Diet Plan Builder
+                      </Typography>
+                    </ListItem>
+                    <ListItem
+                      button
+                      component={Link}
+                      to="/all-shopify-orders"
+                      onClick={toggleDrawer}
+                    >
+                      <Typography variant="body2" sx={{ fontSize: "13px" }}>
+                        All Shopify Orders
+                      </Typography>
+                    </ListItem>
+                    <ListItem
+                      button
+                      component={Link}
+                      to="/transfer-requests"
+                      onClick={toggleDrawer}
+                    >
+                      <Typography variant="body2" sx={{ fontSize: "13px" }}>
+                        Lead Transfer Requests
+                      </Typography>
+                    </ListItem>
+                    <ListItem
+                      button
+                      component={Link}
+                      to="/bulk-data-upload"
+                      onClick={toggleDrawer}
+                    >
+                      <Typography variant="body2" sx={{ fontSize: "13px" }}>
+                        Bulk data Upload
+                      </Typography>
+                    </ListItem>
+                  </List>
+                </Collapse>
+              </>
+            )}
 
-            {role !== "Finance" && role !== "Operations" && (
+            {role !== "Finance" && role !== "Operations" && role !== "Assets Management" &&(
               <ListItem
                 button
                 component={Link}

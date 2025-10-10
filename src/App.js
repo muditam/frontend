@@ -54,7 +54,9 @@ import OrderConfirmations from "./components/OrderConfirmations";
 import LeadExpertMigration from "./components/LeadExpertMigration";
 import AssetManager from "./components/AssetManager";
 import ScheduleCall from "./components/ScheduleCallsData";
-import OrderConfirmAnalytics from "./components/OrderConfirmAnalytics";
+import OrderConfirmAnalytics from "./components/OrderConfirmAnalytics";  
+import AssetsManagerRole from "./components/AssetsManagerRole"; 
+import AssetAllotment from "./components/AssetAllotment";
 import "./realtime/IncomingCallSSEBoot";
 
 const App = () => {
@@ -75,8 +77,9 @@ const App = () => {
           <Route path="/pages/Home" element={<ShipwayOrders />} />
           <Route path="/smartflo/call-logs" element={<SmartfloCallLogs />} />
           <Route path="/smartflo/data-analytics" element={<SmartfloDataAnalytics />} />
-          <Route path="/schedule-calls" element={<ScheduleCall />} />
-          <Route path="/assets" element={<AssetManager />} />
+          <Route path="/assets" element={<AssetManager />} /> 
+          <Route path="/add-new-asset" element={<AssetsManagerRole />} /> 
+          <Route path="/AssetAllotment" element={<AssetAllotment />} />
  
           <Route
             path="/"
@@ -417,7 +420,7 @@ const App = () => {
             }
           />
           <Route
-            path="/operations/undelivered" 
+            path="/operations/undelivered"
             element={
               <PrivateRoute>
                 <UndeliveredOrders />
@@ -435,8 +438,16 @@ const App = () => {
           <Route
             path="/order-confirmations/analytics"
             element={
-              <PrivateRoute> 
+              <PrivateRoute>
                 <OrderConfirmAnalytics />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/schedule-calls"
+            element={
+              <PrivateRoute>
+                <ScheduleCall />
               </PrivateRoute>
             }
           />

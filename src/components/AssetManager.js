@@ -429,7 +429,7 @@ function AddEditDialog({ open, onClose, initial, onSaved, allAssets }) {
                     </span>
                   </Tooltip>
                 </Stack>
-              </Paper>
+              </Paper> 
             ))}
             {!!errors.items && <Typography variant="caption" color="error.main">{errors.items}</Typography>}
           </Stack>
@@ -448,7 +448,7 @@ function AddEditDialog({ open, onClose, initial, onSaved, allAssets }) {
       </DialogActions> 
     </Dialog>
   );
-}
+} 
  
 export default function AssetManager() {
   const [page, setPage] = useState(0);
@@ -778,7 +778,7 @@ export default function AssetManager() {
       {/* Add / Edit */}
       <AddEditDialog
         open={addOpen || !!editAsset}
-        onClose={() => { setAddOpen(false); setEditAsset(null); }}
+        onClose={() => { setAddOpen(false); setEditAsset(null); }} 
         initial={editAsset}
         onSaved={onSaved}
         allAssets={items}
