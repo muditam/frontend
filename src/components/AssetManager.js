@@ -27,7 +27,7 @@ function loadLS(key, fallback) {
     return s ? JSON.parse(s) : fallback;
   } catch { return fallback; }
 }
-function saveLS(key, value) {
+function saveLS(key, value) { 
   try { localStorage.setItem(key, JSON.stringify(value)); } catch { }
 }
 

@@ -231,7 +231,7 @@ const NavbarWithSearch = () => {
     } catch (error) {
       console.error("Error fetching Shopify customer details:", error);
     }
-  };
+  }; 
 
   const handleShopifyClickAway = () => {
     setShowCustomerDetails(false);
@@ -259,7 +259,7 @@ const NavbarWithSearch = () => {
 
   const handleDownloadOrders = async () => {
     try {
-      const response = await axios.get(
+      const response = await axios.get( 
         "http://localhost:5001/api/myorders/download",
         { responseType: 'blob' }
       );

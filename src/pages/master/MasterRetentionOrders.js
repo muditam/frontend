@@ -87,12 +87,12 @@ const RetentionOrders = () => {
   };
 
   const fetchRetentionOrders = async () => {
-  try {
+  try { 
     setLoading(true);
-    const response = await axios.get(
-      "https://muditamleads-14f32a10d7f7.herokuapp.com/api/retention-sales/allapi",
+    const response = await axios.get( 
+      "https://muditamleads-14f32a10d7f7.herokuapp.com/api/retention-sales/allapi", 
       {
-        params: { orderCreatedBy: retentionAgents }, 
+        params: { orderCreatedBy: retentionAgents },   
         paramsSerializer: { indexes: false },
       }
     );

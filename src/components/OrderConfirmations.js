@@ -226,6 +226,8 @@ function decrementPendingOnFirstNote(setCounts) {
   setCounts((c) => ({ ...c, PENDING: safeDec(c.PENDING) }));
 }
 
+const START_FROM_ISO = new Date("2025-10-01T00:00:00+05:30").toISOString();
+
 const ASSIGNED_FILTER = {
   ALL: "ALL",
   UNASSIGNED: "UNASSIGNED",
@@ -279,7 +281,7 @@ export default function OrderConfirmations() {
   useEffect(() => {
     setIdentity(getLoggedIn());
   }, []);
-
+ 
   // keep assigned default in sync when role info changes
   useEffect(() => {
     setAssigned((prev) => {
@@ -330,10 +332,10 @@ export default function OrderConfirmations() {
     if (assigned === ASSIGNED_FILTER.UNASSIGNED) return "unassigned";
     if (assigned === ASSIGNED_FILTER.ME && myAgentId) return myAgentId;
     return undefined;
-  }, [assigned, isManager, myAgentId]);
+  }, [assigned, isManager, myAgentId]); 
 
-  const fetchList = useCallback(
-    async (pageZeroBased = 0, limit = rowsPerPage) => {
+  const fetchList = useCallback( 
+    async (pageZeroBased = 0, limit = rowsPerPage) => {  
       try {
         setLoading(true);
         const { data } = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/order-confirmations/list", {
@@ -342,9 +344,10 @@ export default function OrderConfirmations() {
             financial: "pending",
             page: pageZeroBased + 1,
             limit,
-            q: qDebounced,
+            q: qDebounced, 
             channel,
             assigned: assignedParam,
+            startDate: START_FROM_ISO, 
           },
         });
 
@@ -355,7 +358,7 @@ export default function OrderConfirmations() {
         console.error("fetchList error", e);
         setToast({ open: true, severity: "error", msg: "Failed to fetch orders" });
       } finally {
-        setLoading(false);
+        setLoading(false); 
       }
     },
     [qDebounced, rowsPerPage, tab, channel, assignedParam]
@@ -367,7 +370,8 @@ export default function OrderConfirmations() {
         params: {
           q: qDebounced,
           channel,
-          assigned: assignedParam,
+          assigned: assignedParam, 
+          startDate: START_FROM_ISO, 
         },
       });
       if (data?.counts) setCounts(data.counts);
@@ -1577,7 +1581,7 @@ export default function OrderConfirmations() {
               />   
             </Box>  
           </DialogContent>
-          <DialogActions>
+          <DialogActions> 
             <Button onClick={closeConfirmCancel}>No</Button>
             <Button
               color="error"

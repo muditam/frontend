@@ -260,22 +260,21 @@ const RetentionLeads = () => {
 
   const [followupDateAnchorEl, setFollowupDateAnchorEl] = useState(null);
   const [followupDateDraft, setFollowupDateDraft] = useState("");
- 
+
   const remarksBodyRef = useRef(null);
   const [showRemarksMore, setShowRemarksMore] = useState(false);
   const [remarksExpanded, setRemarksExpanded] = useState(false);
 
   const [planRemainingDaysMap, setPlanRemainingDaysMap] = useState({});
- 
+
   const [serverPage, setServerPage] = useState(1);
   const [serverLimit] = useState(50);
   const [serverHasMore, setServerHasMore] = useState(true);
   const [serverTotal, setServerTotal] = useState(0);
- 
-  const [colorFilter, setColorFilter] = useState(undefined);  
-  const [acqYear, setAcqYear] = useState(null);            
-  const [acqMonth, setAcqMonth] = useState(null);        
 
+  const [colorFilter, setColorFilter] = useState(undefined);
+  const [acqYear, setAcqYear] = useState(null);
+  const [acqMonth, setAcqMonth] = useState(null);
 
   const [serverCounts, setServerCounts] = useState({
     all: 0,
@@ -338,8 +337,8 @@ const RetentionLeads = () => {
 
       const resp = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/retentions", {
         params: {
-          fullName: user.fullName, 
-          email: user.email, 
+          fullName: user.fullName,
+          email: user.email,
           page,
           limit: serverLimit,
           retentionStatus: filters.retentionStatus || "All",
@@ -347,7 +346,7 @@ const RetentionLeads = () => {
           ...(serialParam ? { serial: serialParam } : rawSearch ? { search: rawSearch } : {}),
           ...(filters.rtNextFollowupDate ? { followupDate: filters.rtNextFollowupDate } : {}),
           ...(colorFilter !== undefined ? { rowColor: colorFilter } : {}),
-          ...(acqYear && acqMonth ? { acquiredYear: acqYear, acquiredMonth: acqMonth } : {}), 
+          ...(acqYear && acqMonth ? { acquiredYear: acqYear, acquiredMonth: acqMonth } : {}),
         },
       });
 
@@ -532,7 +531,7 @@ const RetentionLeads = () => {
   };
 
   const handleLeadSelect = (idx, id) => {
-    setSelectedLeadId(id); 
+    setSelectedLeadId(id);
     setSelectedLeadIndex(idx);
   }
 
@@ -654,13 +653,13 @@ const RetentionLeads = () => {
     setLeads(updatedLeads);
     setAnchorElColor(null);
     setColorMenuIdx(null);
- 
+
     try {
       await axios.put(
         `https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/${updatedLeads[index]._id}`,
         { rowColor: color }
       );
-    } catch (error) {
+    } catch (error) { 
       console.error("Error updating row color:", error);
     }
   };
@@ -766,7 +765,7 @@ const RetentionLeads = () => {
     setHasMore(true);
 
     fetchRetentionLeadsPage(loggedInUser, 1);
-  }, [loggedInUser, filters.retentionStatus, filters.rtFollowupReminder, filters.name, filters.rtNextFollowupDate, colorFilter, acqYear,  acqMonth]);
+  }, [loggedInUser, filters.retentionStatus, filters.rtFollowupReminder, filters.name, filters.rtNextFollowupDate, colorFilter, acqYear, acqMonth]);
 
   const currentUserName = React.useMemo(() => {
     try {
@@ -852,7 +851,7 @@ const RetentionLeads = () => {
 
     let filtered = [...inputLeads];
 
-    
+
 
     return filtered;
   }
@@ -864,22 +863,22 @@ const RetentionLeads = () => {
   };
 
   const handleSortByColor = (color) => {
-  // color: "#ffdbbb" | "#baddff" | "#bafff5" | "" (No Color)
-  setColorFilter(color);
+    // color: "#ffdbbb" | "#baddff" | "#bafff5" | "" (No Color)
+    setColorFilter(color);
 
-  // reset & refetch page 1 with new server filter
-  setSortMenuAnchorEl(null);
-  setSortSubMenuAnchorEl(null);
-  setActiveSortType(null);
+    // reset & refetch page 1 with new server filter
+    setSortMenuAnchorEl(null);
+    setSortSubMenuAnchorEl(null);
+    setActiveSortType(null);
 
-  setServerPage(1); 
-  setAllLeads([]);
-  setFilteredAllLeads([]);
-  setLeads([]);
-  setServerHasMore(true);
-  setHasMore(true);
-  fetchRetentionLeadsPage(loggedInUser, 1);
-};
+    setServerPage(1);
+    setAllLeads([]);
+    setFilteredAllLeads([]);
+    setLeads([]);
+    setServerHasMore(true);
+    setHasMore(true);
+    fetchRetentionLeadsPage(loggedInUser, 1);
+  };
 
 
   return (
@@ -1096,10 +1095,10 @@ const RetentionLeads = () => {
                 color="primary"
                 badgeContent={
                   orderPlacedFilter === "Acquired In" && dateRangeFilter
-                    ? serverTotal 
+                    ? serverTotal
                     : 0
                 }
-                max={9999} 
+                max={9999}
                 invisible={
                   !(orderPlacedFilter === "Acquired In" && dateRangeFilter && filteredAllLeads.length > 0)
                 }
@@ -1120,7 +1119,6 @@ const RetentionLeads = () => {
                 <SortIcon />
               </IconButton>
             </Tooltip>
-
           </Box>
         </Box>
 
@@ -1239,28 +1237,26 @@ const RetentionLeads = () => {
                     key={month}
                     selected={selectedMonth === month}
                     onClick={() => {
-   const combined = `${month} ${selectedYear}`;
-   setSelectedMonth(month);
-   setDateRangeFilter(combined);
-
-   // NEW: drive server params
-   const monthIndex = [
-     "January","February","March","April","May","June",
-     "July","August","September","October","November","December"
-   ].indexOf(month) + 1;
-   setAcqYear(selectedYear); 
-   setAcqMonth(monthIndex);
-
-   // reset and refetch page 1
-   setServerPage(1);
-   setAllLeads([]);
-   setFilteredAllLeads([]);
-   setLeads([]);
-   setServerHasMore(true);
-   setHasMore(true);
-   setFilterAnchorEl(null);
-   fetchRetentionLeadsPage(loggedInUser, 1);
- }}
+                      const combined = `${month} ${selectedYear}`;
+                      setSelectedMonth(month);
+                      setDateRangeFilter(combined);
+ 
+                      const monthIndex = [
+                        "January", "February", "March", "April", "May", "June",
+                        "July", "August", "September", "October", "November", "December"
+                      ].indexOf(month) + 1;
+                      setAcqYear(selectedYear);
+                      setAcqMonth(monthIndex);
+ 
+                      setServerPage(1);
+                      setAllLeads([]);
+                      setFilteredAllLeads([]);
+                      setLeads([]);
+                      setServerHasMore(true);
+                      setHasMore(true);
+                      setFilterAnchorEl(null);
+                      fetchRetentionLeadsPage(loggedInUser, 1);
+                    }}
                   >
                     {month}
                   </MenuItem>
@@ -1286,10 +1282,8 @@ const RetentionLeads = () => {
           >
             Sort By Color
           </MenuItem>
-
         </Menu>
-
-        {/* Submenu - shows options based on activeSortType */}
+ 
         <Menu
           id={activeSortType === "color" ? "color-submenu" : "reachout-submenu"}
           anchorEl={sortSubMenuAnchorEl}
@@ -1308,7 +1302,7 @@ const RetentionLeads = () => {
               { label: "Good", color: "#ffdbbb" },
               { label: "Very Good", color: "#baddff" },
               { label: "Excellent", color: "#bafff5" },
-              { label: "No Color", color: "" }, 
+              { label: "No Color", color: "" },
             ].map(({ label, color }) => (
               <MenuItem
                 key={label}
@@ -1476,7 +1470,7 @@ const RetentionLeads = () => {
                               if (wanted.has(norm(log?.status))) {
                                 const d = toDateSafe(log?.timestamp);
                                 if (d && (!latest || d > latest)) latest = d;
-                              }
+                              } 
                             }
                             return latest;
                           };
@@ -2143,7 +2137,7 @@ const RetentionLeads = () => {
                     <Box sx={{ px: 2, py: 1 }}>
                       <Typography variant="body2">Reachout Method</Typography>
                       <RadioGroup
-                        value={reachoutMethod}
+                        value={reachoutMethod} 
                         onChange={async (e) => {
                           const method = e.target.value;
                           setReachoutMethod(method);
@@ -2151,7 +2145,7 @@ const RetentionLeads = () => {
                             `https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/${leads[selectedLeadIndex]._id}/reachout-log`,
                             { timestamp: reachoutTimestamp, method }
                           );
-                        }}
+                        }} 
                       >
                         {["WhatsApp", "Call", "Both"].map((opt) => (
                           <FormControlLabel key={opt} value={opt} control={<Radio />} label={opt} />
@@ -2162,9 +2156,9 @@ const RetentionLeads = () => {
                         <>
                           <Typography variant="body2" mt={2}>Disposition</Typography>
                           <Select
-                            size="small"
+                            size="small" 
                             fullWidth
-                            value={reachoutStatus}
+                            value={reachoutStatus}   
                             onChange={async (e) => {
                               const status = e.target.value;
                               setReachoutStatus(status);

@@ -449,18 +449,18 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
       if (filterAgent.length > 0) params.append("assignedTo", filterAgent.join(","));
       if (filterDate) params.append("createdAt", filterDate);
 
-      const url = `https://muditamleads-14f32a10d7f7.herokuapp.com/api/customers/export-csv?${params.toString()}`;   
+      const url = `http://localhost:5001/api/customers/export-csv?${params.toString()}`;    
  
       const link = document.createElement("a");
       link.href = url;
       link.setAttribute("download", "customers.csv");
       document.body.appendChild(link);
-      link.click();
+      link.click(); 
       document.body.removeChild(link);
     } catch (error) {
       console.error("Error triggering CSV download:", error);
       alert("Failed to download CSV.");
-    }
+    } 
   };
 
  

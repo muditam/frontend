@@ -56,7 +56,8 @@ import AssetManager from "./components/AssetManager";
 import ScheduleCall from "./components/ScheduleCallsData";
 import OrderConfirmAnalytics from "./components/OrderConfirmAnalytics";  
 import AssetsManagerRole from "./components/AssetsManagerRole"; 
-import AssetAllotment from "./components/AssetAllotment";
+import AssetAllotment from "./components/AssetAllotment"; 
+import BankReconciliation from "./components/Finance/BankReconciliation";
 import "./realtime/IncomingCallSSEBoot";
 
 const App = () => {
@@ -80,7 +81,8 @@ const App = () => {
           <Route path="/assets" element={<AssetManager />} /> 
           <Route path="/add-new-asset" element={<AssetsManagerRole />} /> 
           <Route path="/AssetAllotment" element={<AssetAllotment />} />
- 
+          <Route path="/BankReconciliation" element={<BankReconciliation />} />
+  
           <Route
             path="/"
             element={

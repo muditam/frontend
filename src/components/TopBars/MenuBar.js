@@ -1081,6 +1081,33 @@ const MenuBar = ({ toggleDrawer }) => {
               </ListItem>
             )}
 
+            {role === "Finance" && (
+              <ListItem
+                button
+                component={Link}
+                to="/BankReconciliation"    
+                sx={{
+                  display: "flex",
+                  alignItems: "center",
+                  padding: "10px 20px", 
+                  borderRadius: "4px", 
+                  margin: "4px 0",
+                  transition: "background-color 0.3s, transform 0.2s",
+                  "&:hover": {
+                    backgroundColor: "#e0f7fa",
+                    color: "#007aff",
+                    transform: "scale(1.02)", 
+                  }, 
+                }} 
+                onClick={toggleDrawer}
+              >
+                <Inventory2Icon sx={{ fontSize: 20, marginRight: "12px" }} />
+                <Typography variant="body1" style={{ fontSize: "14px" }}>
+                  Bank Reconciliation
+                </Typography>
+              </ListItem>
+            )}
+
             {role !== "Finance" && role !== "Operations" && role !== "Assets Management" &&(
               <ListItem
                 button
