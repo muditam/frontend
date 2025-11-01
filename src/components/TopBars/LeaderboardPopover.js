@@ -1,20 +1,28 @@
-import React, { useState, useEffect } from "react";
-import { Popover, Box, Typography, Button, IconButton, Slide } from "@mui/material";
+import React, { useState, useEffect, useMemo } from "react";
+import {
+  Popover,
+  Box,
+  Typography,
+  Button,
+  IconButton,
+  Slide,
+  Menu,
+  MenuItem,
+} from "@mui/material";
 import CardGiftcardIcon from "@mui/icons-material/CardGiftcard";
-import EmojiEventsIcon from "@mui/icons-material/EmojiEvents"; // Trophy
+import EmojiEventsIcon from "@mui/icons-material/EmojiEvents";
+import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 
-
-
-
+// avatar generator
 const getAvatarUrl = (name) =>
-  `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(name)}&backgroundType=gradientLinear&radius=50`;
+  `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(
+    name
+  )}&backgroundType=gradientLinear&radius=50`;
 
+// podium styles
 const podiumColors = [
-  // 1st: Gold (modern, vibrant, soft glow)
   "linear-gradient(180deg,#FFD700 60%,#FFB347 95%)",
-  // 2nd: Platinum/Silver (modern cool)
   "linear-gradient(180deg,#DCE3EB 50%,#A8B2BD 100%)",
-  // 3rd: Rose-bronze
   "linear-gradient(180deg,#E9BFA9 40%,#D88A5B 90%)",
 ];
 
@@ -23,21 +31,21 @@ const podiumGlow = [
   "0 0 28px 0 #d6e0efbb, 0 1px 6px #A8B2BD44",
   "0 0 26px 0 #f1bfa2a5, 0 1px 6px #D88A5B44",
 ];
- 
+
+// promotion helper
 const getPromotionMonthStart = (joiningDate) => {
   if (!joiningDate) return new Date(8640000000000000); // far future
   const jd = new Date(joiningDate);
   if (isNaN(jd)) return new Date(8640000000000000);
   const threshold = new Date(jd);
-  threshold.setDate(threshold.getDate() + 60); // day they cross 60 days
-  return new Date(threshold.getFullYear(), threshold.getMonth() + 1, 1); // next month's 1st
+  threshold.setDate(threshold.getDate() + 60);
+  return new Date(threshold.getFullYear(), threshold.getMonth() + 1, 1);
 };
 
-// Eligible for main leaderboard starting the 1st of the month after 60 days
 const isEligibleForLeaderboard = (joiningDate, today = new Date()) =>
   today >= getPromotionMonthStart(joiningDate);
 
-
+// rank suffix
 const getRankSuffix = (num) => {
   if (num === 1) return "1st";
   if (num === 2) return "2nd";
@@ -55,80 +63,165 @@ const getFirstName = (fullName) => {
   return first || "";
 };
 
-const getPodiumDisplay = (data) => [
-  data[1], // left: 2nd
-  data[0], // center: 1st
-  data[2], // right: 3rd
-];
+const getPodiumDisplay = (data) => [data[1], data[0], data[2]];
+
+// ISO helper
+const toISO = (d) => d.toISOString().split("T")[0];
+
+// 🔹 human date helper: "10 June"
+const formatHumanDate = (iso) => {
+  if (!iso) return "";
+  const d = new Date(iso);
+  return d.toLocaleDateString("en-IN", {
+    day: "numeric",
+    month: "long",
+  });
+};
+
+// build weeks for current month (Mon–Sun) with “carry over first days” rule
+const buildWeeksForCurrentMonth = () => {
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = today.getMonth(); // 0-based
+
+  const firstOfMonth = new Date(year, month, 1);
+  const firstDay = firstOfMonth.getDay(); // 0=Sun,1=Mon,...
+
+  // find first Monday of current month
+  let firstMonday = new Date(firstOfMonth);
+  if (firstDay !== 1) {
+    const toAdd = (8 - firstDay) % 7;
+    firstMonday.setDate(firstMonday.getDate() + toAdd);
+  }
+
+  const weeks = [];
+  let currentStart = new Date(firstMonday);
+  for (let i = 0; i < 5; i++) {
+    const start = new Date(currentStart);
+    const end = new Date(currentStart);
+    end.setDate(end.getDate() + 6); // Mon..Sun
+
+    if (start.getMonth() !== month && i > 0) break;
+
+    weeks.push({
+      label: `Week ${i + 1}`,
+      from: toISO(start),
+      to: toISO(end),
+    });
+
+    currentStart = new Date(currentStart);
+    currentStart.setDate(currentStart.getDate() + 7);
+  }
+
+  return weeks.slice(0, 4);
+};
+
+// build past 6 months including current
+const buildLast6Months = () => {
+  const arr = [];
+  const now = new Date();
+  for (let i = 0; i < 6; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(
+      2,
+      "0"
+    )}`;
+    const label = d.toLocaleString("en-IN", { month: "long", year: "numeric" });
+    const start = new Date(d.getFullYear(), d.getMonth(), 1);
+    const end = new Date(d.getFullYear(), d.getMonth() + 1, 0);
+    arr.push({
+      value,
+      label,
+      from: toISO(start),
+      to: toISO(end),
+    });
+  }
+  return arr;
+};
 
 export default function LeaderboardPopover({ open, anchorEl, onClose }) {
   const [leaderboardData, setLeaderboardData] = useState([]);
   const [loadingLeaderboard, setLoadingLeaderboard] = useState(false);
   const [showGifts, setShowGifts] = useState(false);
-  const [isWeekly, setIsWeekly] = useState(false);
 
-  const giftPrizes = isWeekly
-    ? [
-    ]
-    : [
-      { rank: 1, label: "Gift worth 5000" }, 
-      { rank: 2, label: "Gift worth 3000" },
-      { rank: 3, label: "Gift worth 2000" },
-      { rank: 4, label: "Assured Gift" },
-      { rank: 5, label: "Assured Gift" },
-      { rank: 6, label: "Assured Gift" },
-      { rank: 7, label: "Assured Gift" },
-      { rank: 8, label: "Assured Gift" },
-      { rank: 9, label: "Assured Gift" },
-      { rank: 10, label: "Assured Gift" },
-    ];
+  const weeks = useMemo(() => buildWeeksForCurrentMonth(), []);
+  const months = useMemo(() => buildLast6Months(), []);
 
-  const GIFT_CONDITION_NOTE = isWeekly  
-    ? " "
-    : "Condition: Minimum ₹3,00,000 sales required";
+  const todayISO = toISO(new Date());
+  const defaultWeekIdx =
+    weeks.findIndex((w) => todayISO >= w.from && todayISO <= w.to) !== -1
+      ? weeks.findIndex((w) => todayISO >= w.from && todayISO <= w.to)
+      : 0;
 
+  const [selectedWeekIdx, setSelectedWeekIdx] = useState(defaultWeekIdx);
+  const [selectedMonthIdx, setSelectedMonthIdx] = useState(0);
+  const [weekMenuAnchor, setWeekMenuAnchor] = useState(null);
+  const [monthMenuAnchor, setMonthMenuAnchor] = useState(null);
+  const [viewMode, setViewMode] = useState("weekly");
+
+  const giftPrizes =
+    viewMode === "monthly"
+      ? [
+        { rank: 1, label: "Gift worth 1500" },
+        { rank: 2, label: "Gift worth 1200" },
+        { rank: 3, label: "Gift worth 1000" },
+        { rank: 4, label: "Gift worth 800" },
+        { rank: 5, label: "Gift worth 500" },
+      ]
+      : [
+        { rank: 1, label: "Gift worth 1500" },
+        { rank: 2, label: "Gift worth 1200" },
+        { rank: 3, label: "Gift worth 1000" },
+        { rank: 4, label: "Gift worth 800" },
+        { rank: 5, label: "Gift worth 500" },
+      ];
+
+  const GIFT_CONDITION_NOTE =
+    viewMode === "monthly"
+      ? ""
+      : "";
+
+  // fetch
   useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+
     const fetchLeaderboard = async () => {
       setLoadingLeaderboard(true);
       try {
-        const agentsRes = await fetch("https://muditamleads-14f32a10d7f7.herokuapp.com/api/employees");
+        const agentsRes = await fetch(
+          "https://muditamleads-14f32a10d7f7.herokuapp.com/api/employees"
+        );
         const agentsArr = await agentsRes.json();
 
         const today = new Date();
-         const agents = agentsArr.filter(
-           (emp) =>
-             emp.status === "active" &&
-             (emp.role === "Sales Agent" || emp.role === "Retention Agent") &&
-             emp.joiningDate &&
-             isEligibleForLeaderboard(emp.joiningDate, today)
-         );
+        const agents = agentsArr.filter(
+          (emp) =>
+            emp.status === "active" &&
+            (emp.role === "Sales Agent" || emp.role === "Retention Agent") &&
+            emp.joiningDate &&
+            isEligibleForLeaderboard(emp.joiningDate, today)
+        );
 
-        const now = new Date(); 
-        let fromDate; 
-
-        if (isWeekly) {
-          // Find the most recent Sunday
-          const currentDay = now.getDay(); // Sunday = 0
-          fromDate = new Date(now);
-          fromDate.setDate(now.getDate() - currentDay);
+        let from, to;
+        if (viewMode === "weekly") {
+          const wk = weeks[selectedWeekIdx] || weeks[0];
+          from = wk.from;
+          to = wk.to;
         } else {
-          // Monthly (default): first of the month
-          fromDate = new Date(now.getFullYear(), now.getMonth(), 1);
+          const m = months[selectedMonthIdx] || months[0];
+          from = m.from;
+          to = m.to;
         }
-
-        const from = isWeekly
-          ? fromDate.toISOString().split("T")[0]
-          : `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
-
-        const to = now.toISOString().split("T")[0];
 
         const agentSales = await Promise.all(
           agents.map(async (agent) => {
             try {
               const salesRes = await fetch(
-                `https://muditamleads-14f32a10d7f7.herokuapp.com/api/retention-sales/progress?name=${encodeURIComponent(agent.fullName)}&from=${from}&to=${to}`
+                `https://muditamleads-14f32a10d7f7.herokuapp.com/api/retention-sales/progress?name=${encodeURIComponent(
+                  agent.fullName
+                )}&from=${from}&to=${to}`
               );
-
               const data = await salesRes.json();
               return { name: agent.fullName, sales: data.total || 0 };
             } catch {
@@ -136,19 +229,27 @@ export default function LeaderboardPopover({ open, anchorEl, onClose }) {
             }
           })
         );
-        const filtered = agentSales.filter((a) => a.sales > 0);
-        filtered.sort((a, b) => b.sales - a.sales);
+
+        if (cancelled) return;
+
+        const filtered = agentSales
+          .filter((a) => a.sales > 0)
+          .sort((a, b) => b.sales - a.sales);
         setLeaderboardData(filtered);
       } catch (e) {
-        setLeaderboardData([]);
+        if (!cancelled) setLeaderboardData([]);
+      } finally {
+        if (!cancelled) setLoadingLeaderboard(false);
       }
-      setLoadingLeaderboard(false);
     };
-    if (open) fetchLeaderboard();
-  }, [open, isWeekly]);
+
+    fetchLeaderboard();
+    return () => {
+      cancelled = true;
+    };
+  }, [open, viewMode, selectedWeekIdx, selectedMonthIdx, weeks, months]);
 
   const top3 = leaderboardData.slice(0, 3);
-  const podiumDisplay = getPodiumDisplay(top3);
 
   return (
     <Popover
@@ -169,9 +270,10 @@ export default function LeaderboardPopover({ open, anchorEl, onClose }) {
           minHeight: 685,
           maxHeight: 720,
           boxShadow: "0 10px 32px 0 rgba(16,18,48,0.26)",
-          background: isWeekly
-            ? "	linear-gradient(120deg,#fbe4e4 0%,#f8d1d1 100%)"
-            : "linear-gradient(120deg,#242e4f 0%,#513a6c 100%)",
+          background:
+            viewMode === "weekly"
+              ? "linear-gradient(120deg,#fbe4e4 0%,#f8d1d1 100%)"
+              : "linear-gradient(120deg,#242e4f 0%,#513a6c 100%)",
           color: "#fff",
           p: 0,
           overflow: "visible",
@@ -180,16 +282,22 @@ export default function LeaderboardPopover({ open, anchorEl, onClose }) {
         },
       }}
     >
-
+      {/* LEFT TOP – Week / Month pills with dropdowns */}
       <Box
         sx={{
           position: "absolute",
           top: 25,
           left: 28,
           zIndex: 12,
+          display: "flex",
+          gap: 1,
         }}
       >
+        {/* WEEKLY DROPDOWN */}
         <Box
+          onClick={(e) => {
+            setWeekMenuAnchor(e.currentTarget);
+          }}
           sx={{
             display: "flex",
             alignItems: "center",
@@ -198,46 +306,103 @@ export default function LeaderboardPopover({ open, anchorEl, onClose }) {
             boxShadow: "0 2px 8px #b8b7c288",
             overflow: "hidden",
             border: "2px solid #e0dcf5",
+            cursor: "pointer",
           }}
         >
-          {/* Monthly toggle (M) */}
           <Box
-            onClick={() => setIsWeekly(false)}
             sx={{
               px: 2,
               py: 0.8,
               fontWeight: 700,
               fontSize: 14,
-              color: !isWeekly ? "#fff" : "#7c4dff",
-              background: !isWeekly ? "#7c4dff" : "transparent",
-              cursor: "pointer",
-              transition: "all 0.2s",
-              userSelect: "none",
+              color: viewMode === "weekly" ? "#fff" : "#7c4dff",
+              background: viewMode === "weekly" ? "#7c4dff" : "transparent",
+              display: "flex",
+              alignItems: "center",
+              gap: 0.4,
             }}
           >
-            Monthly
-          </Box>
-
-          {/* Weekly toggle (W) */}
-          <Box
-            onClick={() => setIsWeekly(true)}
-            sx={{
-              px: 2,
-              py: 0.8,
-              fontWeight: 700,
-              fontSize: 14,
-              color: isWeekly ? "#fff" : "#7c4dff",
-              background: isWeekly ? "#7c4dff" : "transparent",
-              cursor: "pointer",
-              transition: "all 0.2s",
-              userSelect: "none",
-            }}
-          >
-            Weekly
+            {weeks[selectedWeekIdx]?.label || "Weekly"}
+            <ExpandMoreIcon sx={{ fontSize: 17 }} />
           </Box>
         </Box>
-      </Box>
+        <Menu
+          anchorEl={weekMenuAnchor}
+          open={Boolean(weekMenuAnchor)}
+          onClose={() => setWeekMenuAnchor(null)}
+          PaperProps={{ sx: { mt: 1 } }}
+        >
+          {weeks.map((w, idx) => (
+            <MenuItem
+              key={w.label}
+              onClick={() => {
+                setSelectedWeekIdx(idx);
+                setViewMode("weekly");
+                setWeekMenuAnchor(null);
+              }}
+              selected={viewMode === "weekly" && selectedWeekIdx === idx}
+            >
+              {/* 🔹 new label style */}
+              {w.label} · {formatHumanDate(w.from)} – {formatHumanDate(w.to)}
+            </MenuItem>
+          ))}
+        </Menu>
 
+        {/* MONTHLY DROPDOWN */}
+        <Box
+          onClick={(e) => {
+            setMonthMenuAnchor(e.currentTarget);
+          }}
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            borderRadius: 10,
+            background: "#fff",
+            boxShadow: "0 2px 8px #b8b7c288",
+            overflow: "hidden",
+            border: "2px solid #e0dcf5",
+            cursor: "pointer",
+          }}
+        >
+          <Box
+            sx={{
+              px: 2,
+              py: 0.8,
+              fontWeight: 700,
+              fontSize: 14,
+              color: viewMode === "monthly" ? "#fff" : "#7c4dff",
+              background: viewMode === "monthly" ? "#7c4dff" : "transparent",
+              display: "flex",
+              alignItems: "center",
+              gap: 0.4,
+              maxWidth: 180,
+            }}
+          >
+            {months[selectedMonthIdx]?.label || "Monthly"}
+            <ExpandMoreIcon sx={{ fontSize: 17 }} />
+          </Box>
+        </Box>
+        <Menu
+          anchorEl={monthMenuAnchor}
+          open={Boolean(monthMenuAnchor)}
+          onClose={() => setMonthMenuAnchor(null)}
+          PaperProps={{ sx: { mt: 1 } }}
+        >
+          {months.map((m, idx) => (
+            <MenuItem
+              key={m.value}
+              onClick={() => {
+                setSelectedMonthIdx(idx);
+                setViewMode("monthly");
+                setMonthMenuAnchor(null);
+              }}
+              selected={viewMode === "monthly" && selectedMonthIdx === idx}
+            >
+              {m.label}
+            </MenuItem>
+          ))}
+        </Menu>
+      </Box>
 
       {/* --- Gift Icon Top Right --- */}
       <Box
@@ -314,7 +479,7 @@ export default function LeaderboardPopover({ open, anchorEl, onClose }) {
               textShadow: "0 2px 8px #beadfd23",
             }}
           >
-            {isWeekly ? "Weekly Rewards" : "Monthly Rewards"}
+            {viewMode === "weekly" ? "Weekly Rewards" : "Monthly Rewards"}
           </Typography>
           <Box
             sx={{
@@ -348,25 +513,28 @@ export default function LeaderboardPopover({ open, anchorEl, onClose }) {
                 sx={{
                   display: "flex",
                   alignItems: "center",
-                  fontWeight: 700, 
+                  fontWeight: 700,
                   fontSize: 17,
                   color: "#594e94",
                   mb: 1.1,
                   pl: 0.1,
                 }}
               >
-                <Box sx={{ flex: 1, color: "#8f63e7" }}>{getRankSuffix(row.rank)}</Box>
+                <Box sx={{ flex: 1, color: "#8f63e7" }}>
+                  {getRankSuffix(row.rank)}
+                </Box>
                 <Box
                   sx={{
                     flex: 1,
                     textAlign: "right",
-                    color: idx === 0
-                      ? "#f3a139"
-                      : idx === 1
-                        ? "#8e96a6"
-                        : idx === 2
-                          ? "#e6985b"
-                          : "#7759c4",
+                    color:
+                      idx === 0
+                        ? "#f3a139"
+                        : idx === 1
+                          ? "#8e96a6"
+                          : idx === 2
+                            ? "#e6985b"
+                            : "#7759c4",
                     fontWeight: 800,
                     letterSpacing: 0.2,
                   }}
@@ -376,15 +544,17 @@ export default function LeaderboardPopover({ open, anchorEl, onClose }) {
               </Box>
             ))}
           </Box>
-          <Box sx={{
-            width: "90%",
-            color: "#7057e6",
-            fontSize: 15.5,
-            textAlign: "center",
-            letterSpacing: 0.13,
-            mb: 4.4,
-            fontWeight: 600,
-          }}>
+          <Box
+            sx={{
+              width: "90%",
+              color: "#7057e6",
+              fontSize: 15.5,
+              textAlign: "center",
+              letterSpacing: 0.13,
+              mb: 4.4,
+              fontWeight: 600,
+            }}
+          >
             {GIFT_CONDITION_NOTE}
           </Box>
           <Button
@@ -409,14 +579,16 @@ export default function LeaderboardPopover({ open, anchorEl, onClose }) {
         </Box>
       </Slide>
 
-      {/* --- LEADERBOARD CONTENT (hide if gifts open) --- */}
-      <Box sx={{
-        p: 2.7,
-        pt: 7.5,
-        opacity: showGifts ? 0.18 : 1,
-        pointerEvents: showGifts ? "none" : "auto",
-        transition: "opacity 0.2s"
-      }}>
+      {/* --- LEADERBOARD CONTENT --- */}
+      <Box
+        sx={{
+          p: 2.7,
+          pt: 7.5,
+          opacity: showGifts ? 0.18 : 1,
+          pointerEvents: showGifts ? "none" : "auto",
+          transition: "opacity 0.2s",
+        }}
+      >
         <Typography
           sx={{
             fontWeight: 900,
@@ -424,12 +596,56 @@ export default function LeaderboardPopover({ open, anchorEl, onClose }) {
             color: "#fff",
             textAlign: "center",
             letterSpacing: 1,
-            mb: 3.5,
+            mb: 1.5,
+            mt: 1,
             textShadow: "0 3px 14px #6958ab99",
           }}
         >
           Leaderboard
         </Typography>
+
+        {/* Small subtext for range (with colored date part) */}
+        <Typography
+          sx={{
+            textAlign: "center",
+            mb: 0.5,
+            mt: 0.5,
+            fontWeight: 500,
+            // outer text color depends on mode
+            color: viewMode === "weekly" ? "#1d6527" : "#ffffff",
+          }}
+        >
+          {viewMode === "weekly" ? (
+            <>
+              {weeks[selectedWeekIdx]?.label}{" "}
+              <Box
+                component="span"
+                sx={{
+                  // date part a bit lighter green
+                  color: "rgba(29, 101, 39, 0.7)",
+                }}
+              >
+                · {formatHumanDate(weeks[selectedWeekIdx]?.from)} –{" "}
+                {formatHumanDate(weeks[selectedWeekIdx]?.to)}
+              </Box>
+            </>
+          ) : (
+            <>
+              {months[selectedMonthIdx]?.label}{" "}
+              <Box
+                component="span"
+                sx={{
+                  // date part a bit lighter white
+                  color: "rgba(255, 255, 255, 0.7)",
+                }}
+              >
+                · {months[selectedMonthIdx]?.from} – {months[selectedMonthIdx]?.to}
+              </Box>
+            </>
+          )}
+        </Typography>
+
+
         {loadingLeaderboard ? (
           <Box sx={{ display: "flex", justifyContent: "center", py: 4 }}>
             <img
@@ -477,12 +693,19 @@ export default function LeaderboardPopover({ open, anchorEl, onClose }) {
                       minWidth: 115,
                     }}
                   >
-                    {/* 1st place trophy */}
-                    <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", mb: 1.1 }}>
+                    {/* name + trophy */}
+                    <Box
+                      sx={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        mb: 1.1,
+                      }}
+                    >
                       <Typography
                         sx={{
                           fontWeight: 800,
-                          color: isWeekly ? "#1d6527" : "#fff",
+                          color: viewMode === "weekly" ? "#1d6527" : "#fff",
                           fontSize: 20,
                           textAlign: "center",
                           letterSpacing: 0.1,
@@ -506,6 +729,7 @@ export default function LeaderboardPopover({ open, anchorEl, onClose }) {
                         />
                       )}
                     </Box>
+                    {/* avatar */}
                     <Box
                       sx={{
                         width: avatarSize,
@@ -525,13 +749,10 @@ export default function LeaderboardPopover({ open, anchorEl, onClose }) {
                         width={avatarSize}
                         height={avatarSize}
                         alt={person.name}
-                        style={{
-                          width: "100%",
-                          height: "100%",
-                          objectFit: "cover",
-                        }}
+                        style={{ width: "100%", height: "100%", objectFit: "cover" }}
                       />
                     </Box>
+                    {/* podium column */}
                     <Box
                       sx={{
                         width: podiumWidth,
@@ -603,6 +824,7 @@ export default function LeaderboardPopover({ open, anchorEl, onClose }) {
                 );
               })}
             </Box>
+
             {/* 4th and onward */}
             <Box
               sx={{
@@ -628,7 +850,6 @@ export default function LeaderboardPopover({ open, anchorEl, onClose }) {
                       idx === 0 ? "0 2px 10px #7f74d18a" : undefined,
                   }}
                 >
-                  {/* Rank Number on the left */}
                   <Box
                     sx={{
                       minWidth: 44,
@@ -642,9 +863,7 @@ export default function LeaderboardPopover({ open, anchorEl, onClose }) {
                       sx={{
                         fontWeight: 900,
                         fontSize: 17,
-                        color: isWeekly
-                          ? "#857310"
-                          : "#f2be53",
+                        color: viewMode === "weekly" ? "#857310" : "#f2be53",
                         textAlign: "right",
                         mr: 0,
                       }}
@@ -652,7 +871,6 @@ export default function LeaderboardPopover({ open, anchorEl, onClose }) {
                       {getRankSuffix(idx + 4)}
                     </Typography>
                   </Box>
-                  {/* Avatar */}
                   <Box sx={{ position: "relative", mr: 1.2 }}>
                     <img
                       src={getAvatarUrl(row.name)}
@@ -667,15 +885,12 @@ export default function LeaderboardPopover({ open, anchorEl, onClose }) {
                       }}
                     />
                   </Box>
-                  {/* First Name */}
                   <Typography
                     sx={{
                       flex: 1,
                       fontWeight: 700,
                       fontSize: 17,
-                      color: isWeekly
-                        ? "#1d6527"
-                        : "#fff",
+                      color: viewMode === "weekly" ? "#1d6527" : "#fff",
                       letterSpacing: 0.02,
                       textShadow: "0 1px 7px #ad99ee15",
                       whiteSpace: "pre-line",
@@ -683,13 +898,10 @@ export default function LeaderboardPopover({ open, anchorEl, onClose }) {
                   >
                     {getFirstName(row.name)}
                   </Typography>
-                  {/* Sales */}
                   <Box
                     sx={{
                       fontWeight: 900,
-                      color: isWeekly
-                        ? "#1d6527"  // Light maroon background
-                        : "#7fffc4",
+                      color: viewMode === "weekly" ? "#1d6527" : "#7fffc4",
                       fontSize: 18,
                       minWidth: 85,
                       textAlign: "right",
@@ -702,6 +914,7 @@ export default function LeaderboardPopover({ open, anchorEl, onClose }) {
             </Box>
           </>
         )}
+
         <Button
           onClick={onClose}
           variant="contained"

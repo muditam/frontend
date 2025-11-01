@@ -631,7 +631,7 @@ export default function OrderConfirmations() {
           reason: "customer",
           email: true,
           restock: true,
-          note: "Cancel Order - via OC UI",
+          note: "Cancel Order - via OC",
           ocCancelReason: ocReason,
         }
       );
@@ -676,8 +676,7 @@ export default function OrderConfirmations() {
       console.error("fetchMyActiveStatus error", e);
     }
   }, [myAgentId]);
-
-  // On mount / when identity resolves, load the authoritative value once
+ 
   useEffect(() => {
     fetchMyActiveStatus();
   }, [fetchMyActiveStatus]);
@@ -796,7 +795,7 @@ export default function OrderConfirmations() {
                             setToast({ open: true, severity: "error", msg: "No agent id found for current user" });
                             return;
                           }
-                          try {
+                          try { 
                             // optimistic
                             setMyActive(checked);
                             sessionStorage.setItem("orderConfirmActive", String(!!checked));

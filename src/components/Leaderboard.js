@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import {
   Box,
   Typography,
@@ -8,20 +8,21 @@ import {
   Slide,
   Grid,
   CircularProgress,
+  Tabs,
+  Tab,
+  FormControl,
+  Select,
+  MenuItem,
 } from "@mui/material";
 import CardGiftcardIcon from "@mui/icons-material/CardGiftcard";
 
+// rewards same as before
 const giftPrizes = [
-  { rank: 1, label: "Gift worth 5000", color: "#f39c12" },
-  { rank: 2, label: "Gift worth 3000", color: "#999" },
-  { rank: 3, label: "Gift worth 2000", color: "#e67e22" },
-  { rank: 4, label: "Assured Gift" },
-  { rank: 5, label: "Assured Gift" },
-  { rank: 6, label: "Assured Gift" },
-  { rank: 7, label: "Assured Gift" },
-  { rank: 8, label: "Assured Gift" },
-  { rank: 9, label: "Assured Gift" },
-  { rank: 10, label: "Assured Gift" },
+  { rank: 1, label: "Gift worth 1500" },
+  { rank: 2, label: "Gift worth 1200" },
+  { rank: 3, label: "Gift worth 1000" },
+  { rank: 4, label: "Gift worth 800" },
+  { rank: 5, label: "Gift worth 500" },
 ];
 
 const getAvatarUrl = (name) =>
@@ -52,18 +53,121 @@ const getPromotionMonthStart = (joiningDate) => {
 const isEligibleForLeaderboard = (joiningDate, today = new Date()) =>
   today >= getPromotionMonthStart(joiningDate);
 
+const getFirstName = (name) => (name ? name.trim().split(" ")[0] : "");
 
-const getFirstName = (name) => name.trim().split(" ")[0];
+// util toISO
+const toISODate = (d) => d.toISOString().split("T")[0];
+
+// display dd/mm/yyyy
+const toDisplay = (iso) => {
+  if (!iso) return "";
+  const d = new Date(iso);
+  const dd = String(d.getDate()).padStart(2, "0");
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const yy = d.getFullYear();
+  return `${dd}/${mm}/${yy}`;
+};
+
+// build last 12 months list for filter
+const buildMonthOptions = () => {
+  const now = new Date();
+  const arr = [];
+  for (let i = 0; i < 12; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    const label = d.toLocaleString("en-IN", {
+      month: "long",
+      year: "numeric",
+    });
+    arr.push({ value, label, year: d.getFullYear(), month: d.getMonth() });
+  }
+  return arr;
+};
+
+// get first and last day for a Y-M
+const getMonthRangeFromValue = (ymValue) => {
+  const [yStr, mStr] = ymValue.split("-");
+  const year = Number(yStr);
+  const month = Number(mStr) - 1; // 0-based
+  const start = new Date(year, month, 1);
+  const end = new Date(year, month + 1, 0); // last day of month
+  return { from: toISODate(start), to: toISODate(end) };
+};
+
+// ------------------------------
+// WEEK BUILDER (with carry-over)
+// ------------------------------
+const getWeeksForCurrentMonth = () => {
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = today.getMonth(); // 0-based
+
+  const firstOfMonth = new Date(year, month, 1);
+  const firstDay = firstOfMonth.getDay(); // 0=Sun,1=Mon...
+
+  // Find first Monday of this month (for week-1 start)
+  let firstMonday = new Date(firstOfMonth);
+  if (firstDay !== 1) {
+    const toAdd = (8 - firstDay) % 7;
+    firstMonday.setDate(firstMonday.getDate() + toAdd);
+  }
+
+  // build week ranges (Mon-Sun)
+  const weeks = [];
+  let currentStart = new Date(firstMonday);
+  for (let i = 0; i < 5; i++) {
+    const start = new Date(currentStart);
+    const end = new Date(currentStart);
+    end.setDate(end.getDate() + 6);
+
+    if (start.getMonth() !== month && i > 0) break;
+
+    weeks.push({
+      label: `Week ${i + 1}`,
+      from: toISODate(start),
+      to: toISODate(end),
+    });
+
+    currentStart = new Date(currentStart);
+    currentStart.setDate(currentStart.getDate() + 7);
+  }
+
+  return weeks.slice(0, 4);
+};
+
+// monthly range: 1st → today (for current month fast path)
+const getCurrentMonthRange = () => {
+  const today = new Date();
+  const start = new Date(today.getFullYear(), today.getMonth(), 1);
+  return {
+    from: toISODate(start),
+    to: toISODate(today),
+  };
+};
 
 const Leaderboard = () => {
   const [data, setData] = useState([]);
   const [showGifts, setShowGifts] = useState(false);
   const [loading, setLoading] = useState(true);
 
+  // 0..3 = Week1..Week4, 4 = Monthly
+  const [activeTab, setActiveTab] = useState(0);
+
+  const [eligibleAgents, setEligibleAgents] = useState([]);
+  const [weeks] = useState(() => getWeeksForCurrentMonth());
+
+  // monthly filter
+  const monthOptions = buildMonthOptions();
+  const currentMonthValue = monthOptions[0]?.value; // e.g. 2025-10
+  const [selectedMonth, setSelectedMonth] = useState(currentMonthValue);
+
+  // 1) fetch employees once
   useEffect(() => {
-    const fetchLeaderboard = async () => {
+    const fetchEmployees = async () => {
       try {
-        const res = await fetch("https://muditamleads-14f32a10d7f7.herokuapp.com/api/employees");
+        const res = await fetch(
+          "https://muditamleads-14f32a10d7f7.herokuapp.com/api/employees"
+        );
         const all = await res.json();
         const today = new Date();
         const agents = all.filter(
@@ -73,42 +177,185 @@ const Leaderboard = () => {
             e.joiningDate &&
             isEligibleForLeaderboard(e.joiningDate, today)
         );
-
-
-        const agentNames = agents.map((a) => a.fullName);
-        const progressRes = await fetch(
-          "https://muditamleads-14f32a10d7f7.herokuapp.com/api/retention-sales/progress-multiple",
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ names: agentNames }),
-          }
-        );
-
-        const salesData = await progressRes.json();
-
-        const withSales = agents.map((agent) => {
-          const match = salesData.find((x) => x.name === agent.fullName);
-          return {
-            name: agent.fullName,
-            sales: match?.total || 0,
-          };
-        });
-
-        const sorted = withSales
-          .filter((x) => x.sales > 0 && x.name.trim() !== "Online Order")
-          .sort((a, b) => b.sales - a.sales);
-
-        setData(sorted);
+        setEligibleAgents(agents);
       } catch (err) {
-        console.error("Error fetching leaderboard", err);
+        console.error("Error fetching employees", err);
+        setEligibleAgents([]);
+      }
+    };
+    fetchEmployees();
+  }, []);
+
+  // helper to load MONTHLY data (CURRENT month – fast path)
+  const loadMonthlyDataCurrent = useCallback(async (agents) => {
+    const agentNames = agents.map((a) => a.fullName);
+    if (!agentNames.length) return [];
+    const progressRes = await fetch(
+      "https://muditamleads-14f32a10d7f7.herokuapp.com/api/retention-sales/progress-multiple",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ names: agentNames }),
+      }
+    );
+    const salesData = await progressRes.json();
+    const withSales = agents.map((agent) => {
+      const match = salesData.find((x) => x.name === agent.fullName);
+      return {
+        name: agent.fullName,
+        sales: match?.total || 0,
+      };
+    });
+    const sorted = withSales
+      .filter((x) => x.sales > 0 && x.name.trim() !== "Online Order")
+      .sort((a, b) => b.sales - a.sales);
+    return sorted;
+  }, []);
+
+  // helper to load MONTHLY data (ANY selected month – per agent)
+  const loadMonthlyDataForMonth = useCallback(
+    async (agents, from, to) => {
+      const rows = await Promise.all(
+        agents.map(async (agent) => {
+          try {
+            const url = new URL(
+              "https://muditamleads-14f32a10d7f7.herokuapp.com/api/retention-sales/progress"
+            );
+            url.searchParams.set("name", agent.fullName);
+            url.searchParams.set("from", from);
+            url.searchParams.set("to", to);
+            const res = await fetch(url.toString());
+            const data = await res.json();
+            return {
+              name: agent.fullName,
+              sales: Number(data?.total || 0),
+            };
+          } catch (err) {
+            return {
+              name: agent.fullName,
+              sales: 0,
+            };
+          }
+        })
+      );
+      return rows
+        .filter((x) => x.sales > 0 && x.name.trim() !== "Online Order")
+        .sort((a, b) => b.sales - a.sales);
+    },
+    []
+  );
+
+  // helper to load WEEKLY data
+  const loadWeeklyData = useCallback(
+    async (agents, from, to) => {
+      const rows = await Promise.all(
+        agents.map(async (agent) => {
+          try {
+            const url = new URL(
+              "https://muditamleads-14f32a10d7f7.herokuapp.com/api/retention-sales/progress"
+            );
+            url.searchParams.set("name", agent.fullName);
+            url.searchParams.set("from", from);
+            url.searchParams.set("to", to);
+            const res = await fetch(url.toString());
+            const data = await res.json();
+            return {
+              name: agent.fullName,
+              sales: Number(data?.total || 0),
+            };
+          } catch (err) {
+            return {
+              name: agent.fullName,
+              sales: 0,
+            };
+          }
+        })
+      );
+
+      return rows
+        .filter((x) => x.sales > 0 && x.name.trim() !== "Online Order")
+        .sort((a, b) => b.sales - a.sales);
+    },
+    []
+  );
+
+  // load data whenever tab / employees / selectedMonth changes
+  useEffect(() => {
+    const run = async () => {
+      if (!eligibleAgents.length) {
+        setData([]);
+        setLoading(false);
+        return;
+      }
+      setLoading(true);
+
+      try {
+        // week tabs
+        if (activeTab >= 0 && activeTab <= 3) {
+          const weekObj = weeks[activeTab];
+          if (!weekObj) {
+            setData([]);
+          } else {
+            const weeklyData = await loadWeeklyData(
+              eligibleAgents,
+              weekObj.from,
+              weekObj.to
+            );
+            setData(weeklyData);
+          }
+        } else {
+          // monthly tab
+          // if selectedMonth is current month → fast path
+          if (selectedMonth === currentMonthValue) {
+            const monthlyData = await loadMonthlyDataCurrent(eligibleAgents);
+            setData(monthlyData);
+          } else {
+            // else fetch per agent using from/to
+            const { from, to } = getMonthRangeFromValue(selectedMonth);
+            const monthlyData = await loadMonthlyDataForMonth(
+              eligibleAgents,
+              from,
+              to
+            );
+            setData(monthlyData);
+          }
+        }
+      } catch (err) {
+        console.error("Error loading leaderboard data:", err);
+        setData([]);
       } finally {
         setLoading(false);
       }
     };
 
-    fetchLeaderboard();
-  }, []);
+    run();
+  }, [
+    activeTab,
+    eligibleAgents,
+    weeks,
+    loadWeeklyData,
+    loadMonthlyDataCurrent,
+    loadMonthlyDataForMonth,
+    selectedMonth,
+    currentMonthValue,
+  ]);
+
+  // current range text (for UI only)
+  const currentRangeText = (() => {
+    if (activeTab >= 0 && activeTab <= 3) {
+      const wk = weeks[activeTab];
+      if (!wk) return "";
+      return `${toDisplay(wk.from)} – ${toDisplay(wk.to)}`;
+    } else {
+      if (selectedMonth === currentMonthValue) {
+        const { from, to } = getCurrentMonthRange();
+        return `${toDisplay(from)} – ${toDisplay(to)}`;
+      } else {
+        const { from, to } = getMonthRangeFromValue(selectedMonth);
+        return `${toDisplay(from)} – ${toDisplay(to)}`;
+      }
+    }
+  })();
 
   const podium = data.slice(0, 3);
   const rest = data.slice(3);
@@ -120,7 +367,15 @@ const Leaderboard = () => {
   ];
 
   return (
-    <Box sx={{ minHeight: "90vh", px: 2, py: 4, position: "relative", bgcolor: "#f8f6ff" }}>
+    <Box
+      sx={{
+        minHeight: "90vh",
+        px: 2,
+        py: 4,
+        position: "relative",
+        bgcolor: "#f8f6ff",
+      }}
+    >
       {/* Gift Button */}
       <IconButton
         onClick={() => setShowGifts(!showGifts)}
@@ -150,11 +405,33 @@ const Leaderboard = () => {
             p: 3,
           }}
         >
-          <Typography variant="h6" fontWeight={800} color="#7c3aed" mb={2} textAlign="center">
+          <Typography
+            variant="h6"
+            fontWeight={800}
+            color="#7c3aed"
+            mb={2}
+            textAlign="center"
+          >
             Leaderboard Rewards
           </Typography>
-          <Box sx={{ bgcolor: "#fff", borderRadius: 3, p: 2, mb: 2, border: "1px solid #e0d7ff" }}>
-            <Box sx={{ display: "flex", justifyContent: "space-between", fontWeight: 600, color: "#7c3aed", mb: 1 }}>
+          <Box
+            sx={{
+              bgcolor: "#fff",
+              borderRadius: 3,
+              p: 2,
+              mb: 2,
+              border: "1px solid #e0d7ff",
+            }}
+          >
+            <Box
+              sx={{
+                display: "flex",
+                justifyContent: "space-between",
+                fontWeight: 600,
+                color: "#7c3aed",
+                mb: 1,
+              }}
+            >
               <span>Rank</span>
               <span>Reward</span>
             </Box>
@@ -174,42 +451,132 @@ const Leaderboard = () => {
               </Box>
             ))}
           </Box>
-          <Typography variant="body2" textAlign="center" color="#7c3aed" fontWeight={500}>
-            Condition: Minimum ₹3,00,000 sales required
-          </Typography>
           <Button
             onClick={() => setShowGifts(false)}
             fullWidth
             variant="contained"
             sx={{ mt: 3, backgroundColor: "#7c3aed", fontWeight: 700 }}
-          > 
+          >
             Close
           </Button>
         </Box>
       </Slide>
 
       {/* Header */}
-      <Typography variant="h4" fontWeight={700} mb={5} textAlign="center" color="#333">
+      <Typography
+        variant="h4"
+        fontWeight={700}
+        mb={2}
+        textAlign="center"
+        color="#333"
+      >
         🏆 Muditam Leaderboard
       </Typography>
 
+      {/* Tabs + Monthly Filter */}
+      <Box
+        display="flex"
+        justifyContent="center"
+        gap={2}
+        alignItems="center"
+        mb={3.5}
+        flexWrap="wrap"
+      >
+        <Tabs
+          value={activeTab}
+          onChange={(_, v) => setActiveTab(v)}
+          variant="scrollable"
+          scrollButtons="auto"
+          sx={{
+            bgcolor: "#fff",
+            borderRadius: 999,
+            px: 1,
+            boxShadow: "0 4px 18px rgba(0,0,0,0.05)",
+          }}
+        >
+          {weeks.map((wk, idx) => (
+            <Tab
+              key={wk.label}
+              label={wk.label}
+              value={idx}
+              sx={{ textTransform: "none", fontWeight: 600, minHeight: 42 }}
+            />
+          ))}
+          <Tab
+            label="Monthly"
+            value={4}
+            sx={{ textTransform: "none", fontWeight: 600, minHeight: 42 }}
+          />
+        </Tabs>
+
+        {/* RIGHT SIDE → Monthly Filter */}
+        <FormControl size="small" sx={{ minWidth: 180 }}>
+          <Select
+            value={selectedMonth}
+            onChange={(e) => {
+              setSelectedMonth(e.target.value);
+              setActiveTab(4); // jump to Monthly tab when month is changed
+            }}
+            sx={{
+              bgcolor: "#fff",
+              borderRadius: 999,
+            }}
+          >
+            {monthOptions.map((m) => (
+              <MenuItem key={m.value} value={m.value}>
+                {m.label}
+              </MenuItem>
+            ))}
+          </Select>
+        </FormControl>
+      </Box>
+
+      {/* date range below */}
+      <Box textAlign="center" mb={2}>
+        <Typography
+          variant="body2"
+          sx={{ mt: 0.5, color: "#6b7280", fontWeight: 500 }}
+        >
+          {activeTab <= 3
+            ? `${weeks[activeTab]?.label || ""} · ${currentRangeText}`
+            : `Monthly · ${currentRangeText}`}
+        </Typography>
+      </Box>
+
       {loading ? (
-        <Box display="flex" justifyContent="center" alignItems="center" minHeight="40vh">
+        <Box
+          display="flex"
+          justifyContent="center"
+          alignItems="center"
+          minHeight="40vh"
+        >
           <CircularProgress size={60} sx={{ color: "#a259ff" }} />
         </Box>
       ) : (
         <>
           {/* Podium */}
-          <Box display="flex" justifyContent="center" alignItems="end" gap={6} mb={5}>
+          <Box
+            display="flex"
+            justifyContent="center"
+            alignItems="end"
+            gap={6}
+            mb={5}
+          >
             {[1, 0, 2].map((i) => {
               const user = podium[i];
-              if (!user) return <Box width={80} />;
+              if (!user) return <Box key={i} width={80} />;
               const { bg, height } = podiumStyles[i];
               return (
                 <Box key={user.name} textAlign="center">
                   <Avatar
                     src={getAvatarUrl(user.name)}
-                    sx={{ width: 70, height: 70, mb: 1, border: "3px solid #fff", boxShadow: 2 }}
+                    sx={{
+                      width: 70,
+                      height: 70,
+                      mb: 1,
+                      border: "3px solid #fff",
+                      boxShadow: 2,
+                    }}
                   />
                   <Box
                     sx={{
@@ -277,13 +644,27 @@ const Leaderboard = () => {
                       boxShadow: 1,
                     }}
                   >
-                    <Typography fontWeight={800} color="#7c3aed" fontSize={18} sx={{ width: 24 }}>
+                    <Typography
+                      fontWeight={800}
+                      color="#7c3aed"
+                      fontSize={18}
+                      sx={{ width: 24 }}
+                    >
                       {getRankSuffix(idx + 4)}
                     </Typography>
-                    <Avatar src={getAvatarUrl(user.name)} sx={{ width: 40, height: 40, mx: 1.5 }} />
+                    <Avatar
+                      src={getAvatarUrl(user.name)}
+                      sx={{ width: 40, height: 40, mx: 1.5 }}
+                    />
                     <Box>
-                      <Typography fontWeight={700}>{getFirstName(user.name)}</Typography>
-                      <Typography fontSize={13} fontWeight={600} color="#4caf50">
+                      <Typography fontWeight={700}>
+                        {getFirstName(user.name)}
+                      </Typography>
+                      <Typography
+                        fontSize={13}
+                        fontWeight={600}
+                        color="#4caf50"
+                      >
                         ₹{Math.round(user.sales).toLocaleString()}
                       </Typography>
                     </Box>

@@ -32,6 +32,7 @@ import {
   Update,
   HighlightOff,
 } from "@mui/icons-material";
+import TotalSalesDrilldown from "../pages/filtered/TotalSalesDrilldown";
 
 // ---------------------------------------------
 // 1) Time-range options for both Dashboard & Shipment
@@ -162,6 +163,7 @@ const ManagerRetentionDashboard = () => {
   const [retentionAgents, setRetentionAgents] = useState([]);
   const [selectedAgent, setSelectedAgent] = useState("");
   const [agentShipmentSummary, setAgentShipmentSummary] = useState([]);
+  const [showTotalSalesDialog, setShowTotalSalesDialog] = useState(false);
 
   const [loading, setLoading] = useState(true);
   const [followupSummary, setFollowupSummary] = useState({
@@ -197,7 +199,7 @@ const ManagerRetentionDashboard = () => {
   const fetchAggregatedSalesData = async (startDate, endDate) => {
     try {
       const res = await axios.get(
-        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/retention-sales/aggregated", 
+        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/retention-sales/aggregated",
         { params: { startDate, endDate } }
       );
       return res.data;
@@ -779,18 +781,23 @@ const ManagerRetentionDashboard = () => {
             >
               {[
                 {
+                  key: "active",
                   label: "Active Customers",
                   value: todaySummary.totalActiveCustomers,
                   icon: <AccountCircle sx={{ fontSize: 20, color: "#fff" }} />,
                   gradient: "linear-gradient(135deg, #64B5F6 30%, #42A5F5 100%)",
+                  onClick: null,
                 },
                 {
+                  key: "salesDone",
                   label: "Sales Done",
                   value: todaySummary.totalSalesDoneToday,
                   icon: <ShoppingCart sx={{ fontSize: 20, color: "#fff" }} />,
                   gradient: "linear-gradient(135deg, #FFCC80 30%, #FFA726 100%)",
+                  onClick: null,
                 },
                 {
+                  key: "totalSales",
                   label: "Total Sales",
                   value:
                     todaySummary.totalSalesAmount !== undefined
@@ -798,8 +805,10 @@ const ManagerRetentionDashboard = () => {
                       : undefined,
                   icon: <CurrencyRupee sx={{ fontSize: 20, color: "#fff" }} />,
                   gradient: "linear-gradient(135deg, #EF9A9A 30%, #E57373 100%)",
+                  onClick: () => setShowTotalSalesDialog(true), // <-- OPEN HERE
                 },
                 {
+                  key: "aov",
                   label: "Average Order Value",
                   value:
                     todaySummary.avgOrderValue !== undefined
@@ -807,10 +816,12 @@ const ManagerRetentionDashboard = () => {
                       : undefined,
                   icon: <CurrencyRupee sx={{ fontSize: 20, color: "#fff" }} />,
                   gradient: "linear-gradient(135deg, #CE93D8 30%, #BA68C8 100%)",
+                  onClick: null,
                 },
-              ].map(({ label, value, icon, gradient }) => (
+              ].map(({ label, value, icon, gradient, onClick, key }) => (
                 <Box
-                  key={label}
+                  key={key}
+                  onClick={onClick || undefined}
                   sx={{
                     p: 2,
                     borderRadius: 2,
@@ -821,7 +832,8 @@ const ManagerRetentionDashboard = () => {
                     transition: "all 0.3s ease",
                     minWidth: 200,
                     height: 120,
-                    "&:hover": { transform: "translateY(2px)" },
+                    cursor: onClick ? "pointer" : "default",
+                    "&:hover": onClick ? { transform: "translateY(2px)" } : undefined,
                   }}
                 >
                   <Box
@@ -849,6 +861,16 @@ const ManagerRetentionDashboard = () => {
               ))}
             </Box>
           </Box>
+
+          <TotalSalesDrilldown
+            open={showTotalSalesDialog}
+            onClose={() => setShowTotalSalesDialog(false)}
+            initialDates={
+              (dashboardRange !== "Custom range")
+                ? getDateRange(dashboardRange)
+                : { startDate: customDashboardStart, endDate: customDashboardEnd }
+            }
+          />
 
           {/* Agent Metrics Table */}
           <Box

@@ -59,7 +59,7 @@ export default function Bloomleader({ open, anchorEl, onClose }) {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(false);
   const [showGifts, setShowGifts] = useState(false); 
-  const [isWeekly, setIsWeekly] = useState(false); 
+  const [isWeekly, setIsWeekly] = useState(true); 
  
   const giftPrizes = isWeekly
     ? [
@@ -175,7 +175,7 @@ export default function Bloomleader({ open, anchorEl, onClose }) {
           borderRadius: 5,
           minWidth: 410,
           maxWidth: 450,
-          minHeight: 685,
+          minHeight: 705,
           maxHeight: 720,
           boxShadow: "0 10px 32px 0 rgba(16,18,48,0.26)",
           background: isWeekly
@@ -209,24 +209,7 @@ export default function Bloomleader({ open, anchorEl, onClose }) {
             border: "2px solid #e0dcf5",
           }}
         >
-          {/* Monthly toggle (M) */}
-          <Box
-            onClick={() => setIsWeekly(false)}
-            sx={{
-              px: 2,
-              py: 0.8,
-              fontWeight: 700,
-              fontSize: 14,
-              color: !isWeekly ? "#fff" : "#7c4dff",
-              background: !isWeekly ? "#7c4dff" : "transparent",
-              cursor: "pointer",
-              transition: "all 0.2s",
-              userSelect: "none",
-            }}
-          >
-            Monthly
-          </Box>
-
+      
           {/* Weekly toggle (W) */}
           <Box
             onClick={() => setIsWeekly(true)}
@@ -243,6 +226,24 @@ export default function Bloomleader({ open, anchorEl, onClose }) {
             }}
           >
             Weekly 
+          </Box>
+
+          {/* Monthly toggle (M) */}
+          <Box
+            onClick={() => setIsWeekly(false)}
+            sx={{
+              px: 2,
+              py: 0.8,
+              fontWeight: 700,
+              fontSize: 14,
+              color: !isWeekly ? "#fff" : "#7c4dff",
+              background: !isWeekly ? "#7c4dff" : "transparent",
+              cursor: "pointer",
+              transition: "all 0.2s",
+              userSelect: "none",
+            }}
+          >
+            Monthly
           </Box>
         </Box>
       </Box>
@@ -378,8 +379,8 @@ export default function Bloomleader({ open, anchorEl, onClose }) {
             fontWeight: 900,
             fontSize: 22,
             textAlign: "center",
-            mb: 3.5,
-            pt: 7.5,
+            mb: 1,
+            pt: 5.5,
             color: "#fff",
             textShadow: "0 3px 14px #6958ab99",
           }}
@@ -504,7 +505,7 @@ export default function Bloomleader({ open, anchorEl, onClose }) {
             </Box>
 
             {/* Remaining */}
-            <Box sx={{ maxHeight: 230, overflowY: "auto", px: 1, pt: 1 }}>
+            <Box sx={{ maxHeight: 220, overflowY: "auto", px: 1, pt: 1 }}>
               {data.slice(3).map((row, idx) => (
                 <Box
                   key={row.name}
