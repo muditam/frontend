@@ -15,8 +15,7 @@ const COLUMNS = [
   { key: "credit", label: "Credit (income)" },
   { key: "balance", label: "Balance" },
   { key: "remark", label: "Remark" },
-  { key: "orderIds", label: "Order Ids" },
-  { key: "remarks3", label: "Remarks -3" },
+  { key: "orderIds", label: "Order Ids" }, 
 ];
 
 const BASE_MIN_W = 140;
@@ -518,8 +517,7 @@ export default function TransactionsTable() {
                 <th key={c.key} className="px-3 py-2 text-left whitespace-nowrap" style={cellMinStyle(c.key)}>
                   {c.label}
                 </th>
-              ))}
-              <th className="px-3 py-2 text-left">Actions <span className="ml-1 text-xs text-gray-500">(auto)</span></th>
+              ))} 
             </tr>
           </thead>
           <tbody>
@@ -565,19 +563,7 @@ export default function TransactionsTable() {
                       );
                     })}
 
-                    {/* Actions */}
-                    <td className="px-3 py-2 flex items-center gap-2">
-                      <button
-                        onClick={() => deleteRow(origIdx)}
-                        className="px-2 py-1 rounded-lg border hover:bg-red-50"
-                        title="Delete row"
-                      >
-                        Delete
-                      </button>
-                      <span className="text-xs opacity-70">
-                        {status === "saving" ? "⏳" : status === "saved" ? "✅" : status === "error" ? "⚠️" : ""}
-                      </span>
-                    </td>
+                    
                   </tr>
                 );
               })

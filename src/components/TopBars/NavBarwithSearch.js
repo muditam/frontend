@@ -546,7 +546,7 @@ const NavbarWithSearch = () => {
             </Box>
           </Box>
 
-          {user?.role !== "Manager" && user?.role !== "Finance" && user?.role !== "Operations" && user?.role !== "Assets Management" && (
+          {user?.role !== "Manager" && user?.role !== "Finance" && user?.role !== "Operations" && user?.role !== "Human Resource" && (
             <Box
               sx={{
                 mx: 2,
@@ -597,7 +597,7 @@ const NavbarWithSearch = () => {
 
           {/* Right side: Icons and LMS Search */}
           <Box sx={{ display: "flex", alignItems: "center" }}>
-            {user?.role !== "Finance" && user?.role !== "Operations" && user?.role !== "Assets Management" && (
+            {user?.role !== "Finance" && user?.role !== "Operations" && user?.role !== "Human Resource" && (
               <IconButton
                 onClick={() => setIncentiveOpen(true)}
                 sx={{
@@ -611,7 +611,7 @@ const NavbarWithSearch = () => {
               </IconButton>
             )}
 
-            {user?.role !== "Finance" && user?.role !== "Operations" && user?.role !== "Assets Management" && (
+            {user?.role !== "Finance" && user?.role !== "Operations" && user?.role !== "Human Resource" && (
               <IconButton
                 onClick={() => setBloomOpen(true)}
                 sx={{
@@ -627,7 +627,7 @@ const NavbarWithSearch = () => {
               </IconButton>
             )}
 
-            {user?.role !== "Finance" && user?.role !== "Operations" && user?.role !== "Assets Management" && (
+            {user?.role !== "Finance" && user?.role !== "Operations" && user?.role !== "Human Resource" && (
               <IconButton
                 ref={leaderboardAnchorRef}
                 onClick={() => setLeaderboardOpen(true)}
@@ -652,7 +652,7 @@ const NavbarWithSearch = () => {
               onClose={() => setLeaderboardOpen(false)}
             />
 
-            {user?.role !== "Finance" && user?.role !== "Operations" && user?.role !== "Assets Management" && (
+            {user?.role !== "Finance" && user?.role !== "Operations" && user?.role !== "Human Resource" && (
               <IconButton
                 color="error"
                 onClick={openBloodTestDialog}
@@ -663,7 +663,7 @@ const NavbarWithSearch = () => {
               </IconButton>
             )}
 
-            {user?.role !== "Finance" && user?.role !== "Operations" && user?.role !== "Assets Management" && (
+            {user?.role !== "Finance" && user?.role !== "Operations" && user?.role !== "Human Resource" && (
               <IconButton
                 onClick={() => setDeliveryDialogOpen(true)}
                 sx={{ mr: 0.5, color: "#fff", borderRadius: "50%", p: 1.1, "&:hover": { bgcolor: "#e0e0e0" } }}

@@ -12,7 +12,10 @@ import {
   TableBody,
   TableContainer,
   Chip,
+  IconButton,
+  Tooltip,
 } from "@mui/material";
+import RefreshIcon from "@mui/icons-material/Refresh";
 import axios from "axios";
 
 export default function SmartfloOverview() {
@@ -28,11 +31,12 @@ export default function SmartfloOverview() {
   });
   const [agents, setAgents] = useState([]);
   const [dateLabel, setDateLabel] = useState("");
+  const [debugInfo, setDebugInfo] = useState(null);
 
   const fetchData = async () => {
     setLoading(true);
     try {
-      // backend always uses today's IST window, so no params
+      // adjust base URL as per your setup
       const { data } = await axios.get(
         "https://muditamleads-14f32a10d7f7.herokuapp.com/api/smartflo/overview"
       );
@@ -47,6 +51,11 @@ export default function SmartfloOverview() {
       });
       setAgents(data?.agents || []);
       setDateLabel(data?.date || "");
+      setDebugInfo({
+        totalFetched: data?.totalFetched,
+        tokensUsed: data?.tokensUsed,
+        debug: data?.debug,
+      });
     } catch (err) {
       console.error(err);
       alert("Failed to load Smartflo overview");
@@ -68,7 +77,16 @@ export default function SmartfloOverview() {
         justifyContent="space-between"
         gap={2}
       >
-        <Typography variant="h6">Smartflo – Call Overview</Typography>
+        <Box display="flex" alignItems="center" gap={1}>
+          <Typography variant="h6">Smartflo – Call Overview</Typography>
+          <Tooltip title="Refresh">
+            <span>
+              <IconButton size="small" onClick={fetchData} disabled={loading}>
+                <RefreshIcon fontSize="small" />
+              </IconButton>
+            </span>
+          </Tooltip>
+        </Box>
         <Chip
           label={
             loading
@@ -83,8 +101,19 @@ export default function SmartfloOverview() {
         />
       </Box>
 
+      {/* Optional tiny debug line so you can see if anything comes at all */}
+      {debugInfo && (
+        <Typography variant="caption" color="text.secondary">
+          Fetched {debugInfo.totalFetched} records from {debugInfo.tokensUsed}{" "}
+          token(s).{" "}
+          {debugInfo.debug?.tokenErrors?.length
+            ? `Token errors: ${JSON.stringify(debugInfo.debug.tokenErrors)}`
+            : ""}
+        </Typography>
+      )}
+
       {/* Top summary cards */}
-      <Grid container spacing={2} mb={2}>
+      <Grid container spacing={2} mb={2} mt={1}>
         <Grid item xs={12} sm={6} md={3}>
           <Paper sx={{ p: 2 }}>
             <Typography variant="body2" color="text.secondary">
@@ -129,7 +158,7 @@ export default function SmartfloOverview() {
         <Grid item xs={12} sm={6} md={3}>
           <Paper sx={{ p: 2 }}>
             <Typography variant="body2" color="text.secondary">
-              Answered outbound
+              Answered Outbound
             </Typography>
             <Typography variant="h5">
               {summary.answeredOutbound.toLocaleString()}
@@ -182,22 +211,34 @@ export default function SmartfloOverview() {
                   <TableRow key={a.agent}>
                     <TableCell>{a.agent}</TableCell>
                     <TableCell align="right">
-                      {a.totalDialled?.toLocaleString?.() ?? a.totalDialled ?? 0}
+                      {a.totalDialled?.toLocaleString?.() ??
+                        a.totalDialled ??
+                        0}
                     </TableCell>
                     <TableCell align="right">
-                      {a.uniqueDialled?.toLocaleString?.() ?? a.uniqueDialled ?? 0}
+                      {a.uniqueDialled?.toLocaleString?.() ??
+                        a.uniqueDialled ??
+                        0}
                     </TableCell>
                     <TableCell align="right">
-                      {a.callsConnected?.toLocaleString?.() ?? a.callsConnected ?? 0}
+                      {a.callsConnected?.toLocaleString?.() ??
+                        a.callsConnected ??
+                        0}
                     </TableCell>
                     <TableCell align="right">
-                      {a.incomingCalls?.toLocaleString?.() ?? a.incomingCalls ?? 0}
+                      {a.incomingCalls?.toLocaleString?.() ??
+                        a.incomingCalls ??
+                        0}
                     </TableCell>
                     <TableCell align="right">
-                      {a.missedCalls?.toLocaleString?.() ?? a.missedCalls ?? 0}
+                      {a.missedCalls?.toLocaleString?.() ??
+                        a.missedCalls ??
+                        0}
                     </TableCell>
                     <TableCell align="right">
-                      {a.avgDuration?.toLocaleString?.() ?? a.avgDuration ?? 0}
+                      {a.avgDuration?.toLocaleString?.() ??
+                        a.avgDuration ??
+                        0}
                     </TableCell>
                   </TableRow>
                 ))}

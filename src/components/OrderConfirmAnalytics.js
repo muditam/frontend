@@ -28,7 +28,7 @@ import CurrencyRupeeIcon from "@mui/icons-material/CurrencyRupee";
 import WorkHistoryOutlinedIcon from "@mui/icons-material/WorkHistoryOutlined";
 import axios from "axios";
 
-const API_BASE = "https://muditamleads-14f32a10d7f7.herokuapp.com"; // unchanged
+const API_BASE = "https://muditamleads-14f32a10d7f7.herokuapp.com"; // unchanged 
 
 // ===== Range helpers (trimmed to 5 options) =====
 const RANGE_OPTS = [

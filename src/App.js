@@ -58,6 +58,16 @@ import OrderConfirmAnalytics from "./components/OrderConfirmAnalytics";
 import AssetsManagerRole from "./components/AssetsManagerRole"; 
 import AssetAllotment from "./components/AssetAllotment"; 
 import BankReconciliation from "./components/Finance/BankReconciliation";
+import BankCapital6389 from "./components/Finance/BankCapital6389";
+import BankAxis3361 from "./components/Finance/BankAxis3361";
+import BankCc1101 from "./components/Finance/BankCc1101";
+import BankYesCcTejasv from "./components/Finance/BankYesCcTejasv";
+import BankYesCcAbhay from "./components/Finance/BankYesCcAbhay";
+import TaskBoard from "./components/Dashboards/TaskBoard";
+import MyReporting from "./components/Dashboards/MyReporting";
+import purchaseRecord from "./components/Finance/PurchaseRecord";
+import paymentRecord from "./components/Finance/paymentRecord";
+import Vendors from "./components/Finance/Vendors";
 import "./realtime/IncomingCallSSEBoot";
 
 const App = () => {
@@ -82,9 +92,19 @@ const App = () => {
           <Route path="/add-new-asset" element={<AssetsManagerRole />} /> 
           <Route path="/AssetAllotment" element={<AssetAllotment />} />
           <Route path="/BankReconciliation" element={<BankReconciliation />} />
-  
+          <Route path="/BankCapital6389" element={<BankCapital6389 />} />
+          <Route path="/BankAxis3361" element={<BankAxis3361 />} />
+          <Route path="/BankCc1101" element={<BankCc1101 />} />
+          <Route path="/BankYesCcTejasv" element={<BankYesCcTejasv />} />
+          <Route path="/BankYesCcAbhay" element={<BankYesCcAbhay />} />
+          <Route path="/task-board" element={<TaskBoard />} />
+          <Route path="/my-reporting" element={<MyReporting />} />
+          <Route path="/purchase-record" element={<purchaseRecord />} />
+          <Route path="/payment-record" element={<paymentRecord />} />
+          <Route path="/vendors" element={<Vendors />} />
+
           <Route
-            path="/"
+            path="/" 
             element={
               <PrivateRoute>
                 <SalesDashboard />
