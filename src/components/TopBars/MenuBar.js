@@ -33,9 +33,9 @@ import Inventory2Icon from "@mui/icons-material/Inventory2";
 import EmailIcon from "@mui/icons-material/Email";
 import PhoneInTalkIcon from "@mui/icons-material/PhoneInTalk";
 import AssignmentReturnedIcon from "@mui/icons-material/AssignmentReturned";
-import CheckBoxIcon from "@mui/icons-material/CheckBox"; 
+import CheckBoxIcon from "@mui/icons-material/CheckBox";
 import DinnerDiningIcon from "@mui/icons-material/DinnerDining";
-import AnalyticsIcon from "@mui/icons-material/Analytics"; 
+import AnalyticsIcon from "@mui/icons-material/Analytics";
 import { Link, useNavigate } from "react-router-dom";
 
 // Put this ABOVE the MenuBar component in the same file, or in its own file and import it
@@ -185,7 +185,7 @@ const MenuBar = ({ toggleDrawer }) => {
           </Typography>
         </ListItem>
 
-        {role !== "Finance" && role !== "Operations" && role !== "Human Resource" &&(
+        {role !== "Finance" && role !== "Operations" && role !== "Human Resource" && (
           <ListItem
             button
             component={Link}
@@ -238,7 +238,7 @@ const MenuBar = ({ toggleDrawer }) => {
           </ListItem>
         )}
 
-        {role !== "Finance" && role !== "Human Resource" &&(
+        {role !== "Finance" && role !== "Human Resource" && (
           <ListItem
             button
             component={Link}
@@ -246,7 +246,7 @@ const MenuBar = ({ toggleDrawer }) => {
             sx={{
               display: "flex",
               alignItems: "center",
-              padding: "10px 20px", 
+              padding: "10px 20px",
               borderRadius: "4px",
               margin: "4px 0",
               transition: "background-color 0.3s, transform 0.2s",
@@ -315,7 +315,7 @@ const MenuBar = ({ toggleDrawer }) => {
           </ListItem>
         )}
 
-        {role !== "Finance" && role !== "Retention Agent" && role !== "Human Resource" &&(
+        {role !== "Finance" && role !== "Retention Agent" && role !== "Human Resource" && (
           <>
             {/* Parent dropdown */}
             <ListItem
@@ -324,7 +324,7 @@ const MenuBar = ({ toggleDrawer }) => {
               sx={dropdownStyle}
             >
               <Box sx={{ display: "flex", alignItems: "center" }}>
-                <ShoppingCartIcon sx={{ fontSize: 18, marginRight: "8px" }} /> 
+                <ShoppingCartIcon sx={{ fontSize: 18, marginRight: "8px" }} />
                 <Typography variant="body1" sx={{ fontSize: "14px" }}>
                   Order Confirmations
                 </Typography>
@@ -782,31 +782,50 @@ const MenuBar = ({ toggleDrawer }) => {
             )}
 
             <ListItem
-          button
-          sx={{
-            display: "flex",
-            alignItems: "center",
-            padding: "10px 20px",
-            borderRadius: "4px",
-            margin: "4px 0",
-            transition: "background-color 0.3s, transform 0.2s",
-            "&:hover": {
-              backgroundColor: "#e0f7fa",
-              color: "#007aff",
-              transform: "scale(1.02)",
-            },
-          }}
-          component={Link}
-          to="/task-board"
-          onClick={toggleDrawer}
-        >
-          <CheckBoxIcon sx={{ marginRight: "12px" }} />
-          <Typography variant="body1" style={{ fontSize: "14px" }}>
-            Task Management
-          </Typography>
-        </ListItem>                                                                                                                                                                                                                                                                                                                                                                                                                                               
+              button
+              onClick={() => handleDropdownClick("taskManager")}
+              sx={dropdownStyle}
+            >
+              <Box sx={{ display: "flex", alignItems: "center" }}>
+                <CheckBoxIcon sx={{ marginRight: "12px" }} />
+                <Typography variant="body1" sx={{ fontSize: "14px" }}>
+                  Task Manager
+                </Typography>
+              </Box>
+              {openDropdown.taskManager ? (
+                <KeyboardArrowDownIcon />
+              ) : (
+                <KeyboardArrowRightIcon />
+              )}
+            </ListItem>
 
-            {role !== "Finance" && role !== "Operations" && role !== "Human Resource" &&(
+            <Collapse in={openDropdown.taskManager} timeout="auto" unmountOnExit>
+              <List sx={nestedListStyle}>
+                <ListItem
+                  button
+                  component={Link}
+                  to="/task-board"
+                  onClick={toggleDrawer}
+                >
+                  <Typography variant="body2" sx={{ fontSize: "13px" }}>
+                    Task Management
+                  </Typography>
+                </ListItem>
+
+                <ListItem
+                  button
+                  component={Link}
+                  to="/my-reporting"
+                  onClick={toggleDrawer}
+                >
+                  <Typography variant="body2" sx={{ fontSize: "13px" }}>
+                    My Reporting
+                  </Typography>
+                </ListItem>
+              </List>
+            </Collapse>
+
+            {role !== "Finance" && role !== "Operations" && role !== "Human Resource" && (
               <>
                 <ListItem
                   button
@@ -862,7 +881,7 @@ const MenuBar = ({ toggleDrawer }) => {
                   sx={menuItemStyle}
                   onClick={toggleDrawer}
                 >
-                  <FactCheckIcon sx={{ fontSize: 18, marginRight: "8px" }} /> 
+                  <FactCheckIcon sx={{ fontSize: 18, marginRight: "8px" }} />
                   <Typography variant="body1" sx={{ fontSize: "14px" }}>
                     Order Summary
                   </Typography>
@@ -1006,7 +1025,7 @@ const MenuBar = ({ toggleDrawer }) => {
                 to="/operations/undelivered" // updated route
                 sx={{
                   display: "flex",
-                  alignItems: "center", 
+                  alignItems: "center",
                   padding: "10px 20px",
                   borderRadius: "4px",
                   margin: "4px 0",
@@ -1026,7 +1045,7 @@ const MenuBar = ({ toggleDrawer }) => {
               </ListItem>
             )}
 
-            {role !== "Finance" && role !== "Operations" && role !== "Human Resource" &&(
+            {role !== "Finance" && role !== "Operations" && role !== "Human Resource" && (
               <ListItem
                 button
                 component={Link}
@@ -1057,12 +1076,12 @@ const MenuBar = ({ toggleDrawer }) => {
               <ListItem
                 button
                 component={Link}
-                to="/add-new-asset" 
+                to="/add-new-asset"
                 sx={{
                   display: "flex",
                   alignItems: "center",
-                  padding: "10px 20px", 
-                  borderRadius: "4px", 
+                  padding: "10px 20px",
+                  borderRadius: "4px",
                   margin: "4px 0",
                   transition: "background-color 0.3s, transform 0.2s",
                   "&:hover": {
@@ -1078,26 +1097,26 @@ const MenuBar = ({ toggleDrawer }) => {
                   Add New Assets
                 </Typography>
               </ListItem>
-            )} 
+            )}
 
             {role === "Human Resource" && (
               <ListItem
                 button
                 component={Link}
-                to="/AssetAllotment" 
+                to="/AssetAllotment"
                 sx={{
                   display: "flex",
                   alignItems: "center",
-                  padding: "10px 20px", 
-                  borderRadius: "4px", 
+                  padding: "10px 20px",
+                  borderRadius: "4px",
                   margin: "4px 0",
                   transition: "background-color 0.3s, transform 0.2s",
                   "&:hover": {
                     backgroundColor: "#e0f7fa",
                     color: "#007aff",
                     transform: "scale(1.02)",
-                  }, 
-                }} 
+                  },
+                }}
                 onClick={toggleDrawer}
               >
                 <Inventory2Icon sx={{ fontSize: 20, marginRight: "12px" }} />
@@ -1111,25 +1130,25 @@ const MenuBar = ({ toggleDrawer }) => {
               <ListItem
                 button
                 component={Link}
-                to="/purchase-record" 
+                to="/purchase-record"
                 sx={{
                   display: "flex",
                   alignItems: "center",
-                  padding: "10px 20px", 
-                  borderRadius: "4px", 
+                  padding: "10px 20px",
+                  borderRadius: "4px",
                   margin: "4px 0",
                   transition: "background-color 0.3s, transform 0.2s",
                   "&:hover": {
                     backgroundColor: "#e0f7fa",
                     color: "#007aff",
                     transform: "scale(1.02)",
-                  }, 
-                }} 
+                  },
+                }}
                 onClick={toggleDrawer}
               >
                 <Inventory2Icon sx={{ fontSize: 20, marginRight: "12px" }} />
                 <Typography variant="body1" style={{ fontSize: "14px" }}>
-                  Payment Records 
+                  Payment Records
                 </Typography>
               </ListItem>
             )}
@@ -1138,25 +1157,25 @@ const MenuBar = ({ toggleDrawer }) => {
               <ListItem
                 button
                 component={Link}
-                to="/payment-record" 
+                to="/payment-record"
                 sx={{
                   display: "flex",
                   alignItems: "center",
-                  padding: "10px 20px", 
-                  borderRadius: "4px", 
+                  padding: "10px 20px",
+                  borderRadius: "4px",
                   margin: "4px 0",
                   transition: "background-color 0.3s, transform 0.2s",
                   "&:hover": {
                     backgroundColor: "#e0f7fa",
                     color: "#007aff",
                     transform: "scale(1.02)",
-                  }, 
-                }} 
+                  },
+                }}
                 onClick={toggleDrawer}
               >
                 <Inventory2Icon sx={{ fontSize: 20, marginRight: "12px" }} />
                 <Typography variant="body1" style={{ fontSize: "14px" }}>
-                  Purchase Records 
+                  Purchase Records
                 </Typography>
               </ListItem>
             )}
@@ -1165,123 +1184,123 @@ const MenuBar = ({ toggleDrawer }) => {
               <ListItem
                 button
                 component={Link}
-                to="/vendors" 
+                to="/vendors"
                 sx={{
                   display: "flex",
                   alignItems: "center",
-                  padding: "10px 20px", 
-                  borderRadius: "4px", 
+                  padding: "10px 20px",
+                  borderRadius: "4px",
                   margin: "4px 0",
                   transition: "background-color 0.3s, transform 0.2s",
                   "&:hover": {
                     backgroundColor: "#e0f7fa",
                     color: "#007aff",
                     transform: "scale(1.02)",
-                  }, 
-                }} 
+                  },
+                }}
                 onClick={toggleDrawer}
               >
                 <Inventory2Icon sx={{ fontSize: 20, marginRight: "12px" }} />
                 <Typography variant="body1" style={{ fontSize: "14px" }}>
-                  My Vendors 
+                  My Vendors
                 </Typography>
               </ListItem>
             )}
 
             {role === "Finance" && (
-  <>
-    <ListItem
-      button
-      onClick={() => handleDropdownClick("bankReconciliation")}
-      sx={dropdownStyle}
-    >
-      <Box sx={{ display: "flex", alignItems: "center" }}>
-        <Inventory2Icon sx={{ fontSize: 20, marginRight: "12px" }} />
-        <Typography variant="body1" sx={{ fontSize: "14px" }}>
-          Bank Reconciliation
-        </Typography>
-      </Box>
-      {openDropdown.bankReconciliation ? (
-        <KeyboardArrowDownIcon />
-      ) : (
-        <KeyboardArrowRightIcon />
-      )}
-    </ListItem>
+              <>
+                <ListItem
+                  button
+                  onClick={() => handleDropdownClick("bankReconciliation")}
+                  sx={dropdownStyle}
+                >
+                  <Box sx={{ display: "flex", alignItems: "center" }}>
+                    <Inventory2Icon sx={{ fontSize: 20, marginRight: "12px" }} />
+                    <Typography variant="body1" sx={{ fontSize: "14px" }}>
+                      Bank Reconciliation
+                    </Typography>
+                  </Box>
+                  {openDropdown.bankReconciliation ? (
+                    <KeyboardArrowDownIcon />
+                  ) : (
+                    <KeyboardArrowRightIcon />
+                  )}
+                </ListItem>
 
-    <Collapse in={openDropdown.bankReconciliation} timeout="auto" unmountOnExit>
-      <List sx={nestedListStyle}>
-        <ListItem
-          button
-          component={Link}
-          to="/BankCapital6389"
-          onClick={toggleDrawer}
-        >
-          <Typography variant="body2" sx={{ fontSize: "13px" }}>
-            Bank - Capital 6389
-          </Typography>
-        </ListItem>
+                <Collapse in={openDropdown.bankReconciliation} timeout="auto" unmountOnExit>
+                  <List sx={nestedListStyle}>
+                    <ListItem
+                      button
+                      component={Link}
+                      to="/BankCapital6389"
+                      onClick={toggleDrawer}
+                    >
+                      <Typography variant="body2" sx={{ fontSize: "13px" }}>
+                        Bank - Capital 6389
+                      </Typography>
+                    </ListItem>
 
-        <ListItem
-          button
-          component={Link}
-          to="/BankAxis3361"
-          onClick={toggleDrawer}
-        >
-          <Typography variant="body2" sx={{ fontSize: "13px" }}>
-            Axis - 3361
-          </Typography>
-        </ListItem>
+                    <ListItem
+                      button
+                      component={Link}
+                      to="/BankAxis3361"
+                      onClick={toggleDrawer}
+                    >
+                      <Typography variant="body2" sx={{ fontSize: "13px" }}>
+                        Axis - 3361
+                      </Typography>
+                    </ListItem>
 
-        <ListItem
-          button
-          component={Link}
-          to="/BankCc1101"
-          onClick={toggleDrawer}
-        >
-          <Typography variant="body2" sx={{ fontSize: "13px" }}>
-            CC 1101
-          </Typography>
-        </ListItem>
+                    <ListItem
+                      button
+                      component={Link}
+                      to="/BankCc1101"
+                      onClick={toggleDrawer}
+                    >
+                      <Typography variant="body2" sx={{ fontSize: "13px" }}>
+                        CC 1101
+                      </Typography>
+                    </ListItem>
 
-        <ListItem
-          button
-          component={Link}
-          to="/BankReconciliation"
-          onClick={toggleDrawer}
-        >
-          <Typography variant="body2" sx={{ fontSize: "13px" }}>
-            SBI Current 8285
-          </Typography>
-        </ListItem>
+                    <ListItem
+                      button
+                      component={Link}
+                      to="/BankReconciliation"
+                      onClick={toggleDrawer}
+                    >
+                      <Typography variant="body2" sx={{ fontSize: "13px" }}>
+                        SBI Current 8285
+                      </Typography>
+                    </ListItem>
 
-        <ListItem
-          button
-          component={Link}
-          to="/BankYesCcTejasv"
-          onClick={toggleDrawer}
-        >
-          <Typography variant="body2" sx={{ fontSize: "13px" }}>
-            Yes CC - Tejasv
-          </Typography>
-        </ListItem>
+                    <ListItem
+                      button
+                      component={Link}
+                      to="/BankYesCcTejasv"
+                      onClick={toggleDrawer}
+                    >
+                      <Typography variant="body2" sx={{ fontSize: "13px" }}>
+                        Yes CC - Tejasv
+                      </Typography>
+                    </ListItem>
 
-        <ListItem
-          button
-          component={Link}
-          to="/BankYesCcAbhay"
-          onClick={toggleDrawer}
-        >
-          <Typography variant="body2" sx={{ fontSize: "13px" }}>
-            Yes CC - Abhay
-          </Typography>
-        </ListItem>
-      </List>
-    </Collapse>
-  </>
-)}
+                    <ListItem
+                      button
+                      component={Link}
+                      to="/BankYesCcAbhay"
+                      onClick={toggleDrawer}
+                    >
+                      <Typography variant="body2" sx={{ fontSize: "13px" }}>
+                        Yes CC - Abhay
+                      </Typography>
+                    </ListItem>
+                  </List>
+                </Collapse>
+              </>
+            )}
 
 
-            {role !== "Finance" && role !== "Operations" && role !== "Human Resource" &&(
+            {role !== "Finance" && role !== "Operations" && role !== "Human Resource" && (
               <ListItem
                 button
                 onClick={() => handleDropdownClick("leaderboard")}
@@ -1434,7 +1453,7 @@ const MenuBar = ({ toggleDrawer }) => {
               </>
             )}
 
-            {role !== "Finance" && role !== "Operations" && role !== "Human Resource" &&(
+            {role !== "Finance" && role !== "Operations" && role !== "Human Resource" && (
               <ListItem
                 button
                 component={Link}
