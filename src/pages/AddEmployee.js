@@ -25,6 +25,7 @@ import {
 import { Visibility, VisibilityOff, WarningAmber, Edit, Delete } from "@mui/icons-material";
 import axios from "axios";
 
+
 const AddEmployee = () => {
   const [employees, setEmployees] = useState([]);
   const [open, setOpen] = useState(false);
@@ -55,13 +56,16 @@ const AddEmployee = () => {
   const [viewInactive, setViewInactive] = useState(false);
   const [allActiveEmployees, setAllActiveEmployees] = useState([]);
 
+
   const roles = ["Manager", "Sales Agent", "Retention Agent", "Finance", "Operations", "Human Resource", "Marketing", "Super Admin", "Developer"];
   const statusOptions = ["active", "inactive"];
   const LANGUAGE_OPTIONS = ["English", "Hindi", "Kannada", "Telugu", "Tamil"];
 
+
   useEffect(() => {
     fetchEmployees();
   }, [viewInactive]);
+
 
   const fetchEmployees = async () => {
     try {
@@ -71,11 +75,15 @@ const AddEmployee = () => {
         .sort((a, b) => a.fullName.localeCompare(b.fullName));
 
 
+
+
       setEmployees(fetchedEmployees);
+
 
       const activeEmployees = response.data
         .filter(emp => emp.status === "active")
         .sort((a, b) => a.fullName.localeCompare(b.fullName));
+
 
       setAllActiveEmployees(activeEmployees);
     } catch (error) {
@@ -83,54 +91,102 @@ const AddEmployee = () => {
     }
   };
 
+
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
     setEmployeeData({ ...employeeData, [name]: type === "checkbox" ? checked : value });
   };
 
-  const validateForm = () => {
-    const { fullName, email, callerId, agentNumber, role, password, confirmPassword, target } = employeeData;
 
-    if (!fullName || !email || !callerId || !agentNumber || !role || (!isEditMode && !password) || target === "") {
-      setError("All fields are required.");
+  const isAgentRole = ["Sales Agent", "Retention Agent"].includes(employeeData.role);
+  const isCoreOnlyRole = ["Manager", "Super Admin"].includes(employeeData.role); // hide everything except name,email,role,passwords
+
+
+  useEffect(() => {
+    const agentRole = ["Sales Agent", "Retention Agent"].includes(employeeData.role);
+    const coreOnly = ["Manager", "Super Admin"].includes(employeeData.role);
+
+
+    setEmployeeData(prev => ({
+      ...prev,
+      // hide TL for Manager/Super Admin
+      teamLeader: coreOnly ? "" : prev.teamLeader,
+      // clear agent-only fields when not agent
+      callerId: agentRole ? prev.callerId : "",
+      agentNumber: agentRole ? prev.agentNumber : "",
+      joiningDate: agentRole ? prev.joiningDate : "",
+      target: agentRole ? prev.target : "",
+      // clear optional fields when core-only role selected
+      languages: coreOnly ? [] : prev.languages,
+      hasTeam: coreOnly ? false : prev.hasTeam,
+      isDoctor: coreOnly ? false : prev.isDoctor,
+    }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [employeeData.role]);
+
+
+  const validateForm = () => {
+    const { fullName, email, role, password, confirmPassword, callerId, agentNumber, target, joiningDate } = employeeData;
+
+
+    if (!fullName || !email || !role || (!isEditMode && !password)) {
+      setError("Full Name, Email, Role, and Password are required.");
       return false;
     }
+
 
     if (!/^[a-zA-Z ]+$/.test(fullName)) {
       setError("Full Name should contain only alphabets and spaces.");
       return false;
     }
 
+
     if (!/^[\w-.]+@([\w-]+\.)+[\w-]{2,4}$/.test(email)) {
       setError("Invalid email format.");
       return false;
     }
 
-    if (!/^[0-9]+$/.test(callerId)) {
-      setError("Contact Number must be a 10-digit number.");
-      return false;
+
+    // only for Sales/Retention
+    if (isAgentRole) {
+      if (!callerId || !agentNumber || target === "" || !joiningDate) {
+        setError("Joining Date, Caller ID, Agent Number and Target are required for agents.");
+        return false;
+      }
+      if (!/^\d+$/.test(callerId)) {
+        setError("Caller ID must be numeric.");
+        return false;
+      }
+      if (!/^\d+$/.test(agentNumber)) {
+        setError("Agent Number must be numeric.");
+        return false;
+      }
+      if (!/^\d+$/.test(String(target))) {
+        setError("Target must be a number.");
+        return false;
+      }
     }
-    if (!/^\d+$/.test(target)) {
-      setError("Target must be a number.");
-      return false;
-    }
+
+
     if (!isEditMode && password.length < 8) {
       setError("Password must be at least 8 characters long.");
       return false;
     }
-
     if (!isEditMode && password !== confirmPassword) {
       setError("Passwords do not match.");
       return false;
     }
 
+
     setError("");
     return true;
   };
 
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!validateForm()) return;
+
 
     try {
       if (isEditMode) {
@@ -165,6 +221,7 @@ const AddEmployee = () => {
     }
   };
 
+
   const handleEdit = (employee) => {
     setEmployeeData({
       fullName: employee.fullName,
@@ -190,6 +247,7 @@ const AddEmployee = () => {
     setOpen(true);
   };
 
+
   const handleDelete = async (id) => {
     try {
       await axios.delete(`https://muditamleads-14f32a10d7f7.herokuapp.com/api/employees/${id}`);
@@ -200,14 +258,17 @@ const AddEmployee = () => {
     }
   };
 
+
   const confirmDelete = (id) => {
     setEmployeeToDelete(id);
     setDeleteDialogOpen(true);
   };
 
+
   const handleToggleViewInactive = () => {
     setViewInactive(!viewInactive);
   };
+
 
   return (
     <Box sx={{ maxWidth: 800, margin: "auto", mt: 5, padding: 3 }}>
@@ -248,6 +309,7 @@ const AddEmployee = () => {
           {viewInactive ? "Hide Inactive Employees" : "View Inactive Employees"}
         </Button>
       </Box>
+
 
       <TableContainer
         component={Paper}
@@ -348,6 +410,7 @@ const AddEmployee = () => {
         </Table>
       </TableContainer>
 
+
       <Dialog
         open={open}
         onClose={() => setOpen(false)}
@@ -377,55 +440,33 @@ const AddEmployee = () => {
         </DialogTitle>
         <DialogContent sx={{ p: 4, backgroundColor: "#f9f9f9" }}>
           <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+            {/* 1 Full Name (required) */}
             <TextField
+              required
               fullWidth
               label="Full Name"
               name="fullName"
               value={employeeData.fullName}
               onChange={handleChange}
               variant="filled"
-              InputProps={{
-                disableUnderline: true,
-                sx: { backgroundColor: "#fff", borderRadius: 1, px: 1 },
-              }}
+              InputLabelProps={{ sx: { "& .MuiFormLabel-asterisk": { color: "error.main" } } }}
+              InputProps={{ disableUnderline: true, sx: { backgroundColor: "#fff", borderRadius: 1, px: 1 } }}
             />
+            {/* 2 Email (required) */}
             <TextField
+              required
               fullWidth
               label="Email"
               name="email"
               value={employeeData.email}
               onChange={handleChange}
               variant="filled"
-              InputProps={{
-                disableUnderline: true,
-                sx: { backgroundColor: "#fff", borderRadius: 1, px: 1 },
-              }}
+              InputLabelProps={{ sx: { "& .MuiFormLabel-asterisk": { color: "error.main" } } }}
+              InputProps={{ disableUnderline: true, sx: { backgroundColor: "#fff", borderRadius: 1, px: 1 } }}
             />
+            {/* 3 Role (required) */}
             <TextField
-              fullWidth
-              label="Caller ID (IVR)"
-              name="callerId"
-              value={employeeData.callerId}
-              onChange={handleChange}
-              variant="filled"
-              InputProps={{
-                disableUnderline: true,
-                sx: { backgroundColor: "#fff", borderRadius: 1, px: 1 },
-              }}
-            />
-            <TextField
-              fullWidth
-              label="Agent Number (IVR)"
-              name="agentNumber"
-              value={employeeData.agentNumber}
-              onChange={handleChange}
-              variant="filled"
-              InputProps={{
-                disableUnderline: true,
-                sx: { backgroundColor: "#fff", borderRadius: 1, px: 1 },
-              }}
-            />
-            <TextField
+              required
               select
               fullWidth
               label="Role"
@@ -433,10 +474,8 @@ const AddEmployee = () => {
               value={employeeData.role}
               onChange={handleChange}
               variant="filled"
-              InputProps={{
-                disableUnderline: true,
-                sx: { backgroundColor: "#fff", borderRadius: 1, px: 1 },
-              }}
+              InputLabelProps={{ sx: { "& .MuiFormLabel-asterisk": { color: "error.main" } } }}
+              InputProps={{ disableUnderline: true, sx: { backgroundColor: "#fff", borderRadius: 1, px: 1 } }}
             >
               {roles.map((role) => (
                 <MenuItem key={role} value={role}>
@@ -445,141 +484,159 @@ const AddEmployee = () => {
               ))}
             </TextField>
 
-            <TextField
-              select
-              fullWidth
-              label="Team Leader"
-              name="teamLeader"
-              value={employeeData.teamLeader}
-              onChange={handleChange}
-              variant="filled"
-              InputProps={{
-                disableUnderline: true,
-                sx: { backgroundColor: "#fff", borderRadius: 1, px: 1 },
-              }}
-            >
-              {allActiveEmployees.map((employee) => (
-                <MenuItem key={employee._id} value={employee._id}>
-                  {employee.fullName}
-                </MenuItem>
-              ))}
-            </TextField>
 
-            <Autocomplete
-              multiple
-              freeSolo
-              options={LANGUAGE_OPTIONS}
-              value={employeeData.languages}
-              onChange={(_, newValue) => { 
-                const unique = [...new Set(newValue.map(v => String(v).trim()))].filter(Boolean);
-                setEmployeeData(prev => ({ ...prev, languages: unique }));
-              }}
-              renderInput={(params) => (
+            {/* Team Leader (hidden for Manager/Super Admin) */}
+            {!isCoreOnlyRole && (
+              employeeData.role !== "Manager" && employeeData.role !== "Super Admin" && (
                 <TextField
-                  {...params}
+                  select
+                  fullWidth
+                  label="Team Leader"
+                  name="teamLeader"
+                  value={employeeData.teamLeader}
+                  onChange={handleChange}
                   variant="filled"
-                  label="Employee Languages" 
-                  placeholder="Type and press Enter (e.g., 'Marathi')"
-                  InputProps={{
-                    ...params.InputProps,
-                    disableUnderline: true,
-                    sx: { backgroundColor: "#fff", borderRadius: 1, px: 1 },
-                  }}
+                  InputProps={{ disableUnderline: true, sx: { backgroundColor: "#fff", borderRadius: 1, px: 1 } }}
+                >
+                  {allActiveEmployees.map((employee) => (
+                    <MenuItem key={employee._id} value={employee._id}>
+                      {employee.fullName}
+                    </MenuItem>
+                  ))}
+                </TextField>
+              )
+            )}
+
+
+            {/* Agent-only fields directly below Team Leader (Sales/Retention only) */}
+            {!isCoreOnlyRole && isAgentRole && (
+              <>
+                <TextField
+                  fullWidth
+                  label="Caller ID (IVR)"
+                  name="callerId"
+                  value={employeeData.callerId}
+                  onChange={handleChange}
+                  variant="filled"
+                  InputProps={{ disableUnderline: true, sx: { backgroundColor: "#fff", borderRadius: 1, px: 1 } }}
                 />
-              )}
-            />
+                <TextField
+                  fullWidth
+                  label="Agent Number (IVR)"
+                  name="agentNumber"
+                  value={employeeData.agentNumber}
+                  onChange={handleChange}
+                  variant="filled"
+                  InputProps={{ disableUnderline: true, sx: { backgroundColor: "#fff", borderRadius: 1, px: 1 } }}
+                />
+                <TextField
+                  fullWidth
+                  label="Joining Date"
+                  name="joiningDate"
+                  type="date"
+                  value={employeeData.joiningDate}
+                  onChange={handleChange}
+                  InputLabelProps={{ shrink: true }}
+                  variant="filled"
+                  InputProps={{ disableUnderline: true, sx: { backgroundColor: "#fff", borderRadius: 1, px: 1 } }}
+                />
+                <TextField
+                  fullWidth
+                  label="Target"
+                  name="target"
+                  type="number"
+                  value={employeeData.target}
+                  onChange={handleChange}
+                  variant="filled"
+                  InputProps={{ disableUnderline: true, sx: { backgroundColor: "#fff", borderRadius: 1, px: 1 } }}
+                />
+              </>
+            )}
 
 
-            {/* Have a Team Checkbox BELOW Role */}
-            <Box sx={{ display: "flex", alignItems: "center", gap: 3, pl: 1, mt: -1, mb: 1 }}>
-              <FormControlLabel
-                control={
-                  <Checkbox
-                    checked={!!employeeData.hasTeam}
-                    onChange={handleChange}
-                    name="hasTeam"
-                    color="primary"
+            {/* Languages */}
+            {!isCoreOnlyRole && (
+              <Autocomplete
+                multiple
+                freeSolo
+                options={LANGUAGE_OPTIONS}
+                value={employeeData.languages}
+                onChange={(_, newValue) => {
+                  const unique = [...new Set(newValue.map(v => String(v).trim()))].filter(Boolean);
+                  setEmployeeData(prev => ({ ...prev, languages: unique }));
+                }}
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    variant="filled"
+                    label="Employee Languages"
+                    placeholder="Type and press Enter"
+                    InputProps={{
+                      ...params.InputProps,
+                      disableUnderline: true,
+                      sx: { backgroundColor: "#fff", borderRadius: 1, px: 1 },
+                    }}
                   />
-                }
-                label="Have a Team?"
+                )}
               />
-              <FormControlLabel
-                control={
-                  <Checkbox
-                    checked={!!employeeData.isDoctor}
-                    onChange={handleChange}
-                    name="isDoctor"
-                    color="primary"
-                  />
-                }
-                label="Is a Doctor"
+            )}
+
+
+            {/* Checkboxes */}
+            {!isCoreOnlyRole && (
+              <Box sx={{ display: "flex", alignItems: "center", gap: 3, pl: 1, mt: -1, mb: 1 }}>
+                <FormControlLabel
+                  control={<Checkbox checked={!!employeeData.hasTeam} onChange={handleChange} name="hasTeam" color="primary" />}
+                  label="Have a Team?"
+                />
+                <FormControlLabel
+                  control={<Checkbox checked={!!employeeData.isDoctor} onChange={handleChange} name="isDoctor" color="primary" />}
+                  label="Is a Doctor"
+                />
+              </Box>
+            )}
+
+
+            {/* Status */}
+            {!isCoreOnlyRole && (
+              <TextField
+                select
+                fullWidth
+                label="Status"
+                name="status"
+                value={employeeData.status}
+                onChange={handleChange}
+                variant="filled"
+                InputProps={{ disableUnderline: true, sx: { backgroundColor: "#fff", borderRadius: 1, px: 1 } }}
+              >
+                {statusOptions.map((status) => (
+                  <MenuItem key={status} value={status}>
+                    {status.charAt(0).toUpperCase() + status.slice(1)}
+                  </MenuItem>
+                ))}
+              </TextField>
+            )}
+
+
+            {/* Async */}
+            {!isCoreOnlyRole && (
+              <TextField
+                fullWidth
+                label="Async"
+                name="async"
+                value={employeeData.async}
+                disabled
+                variant="filled"
+                InputProps={{ disableUnderline: true, sx: { backgroundColor: "#f1f1f1", borderRadius: 1, px: 1 } }}
               />
-            </Box>
+            )}
 
 
-            <TextField
-              fullWidth
-              label="Joining Date"
-              name="joiningDate"
-              type="date"
-              value={employeeData.joiningDate}
-              onChange={handleChange}
-              InputLabelProps={{ shrink: true }}
-              variant="filled"
-              InputProps={{
-                disableUnderline: true,
-                sx: { backgroundColor: "#fff", borderRadius: 1, px: 1 },
-              }}
-            />
-
-            <TextField
-              select
-              fullWidth
-              label="Status"
-              name="status"
-              value={employeeData.status}
-              onChange={handleChange}
-              variant="filled"
-              InputProps={{
-                disableUnderline: true,
-                sx: { backgroundColor: "#fff", borderRadius: 1, px: 1 },
-              }}
-            >
-              {statusOptions.map((status) => (
-                <MenuItem key={status} value={status}>
-                  {status.charAt(0).toUpperCase() + status.slice(1)}
-                </MenuItem>
-              ))}
-            </TextField>
-            {/* Target input just below Status */}
-            <TextField
-              fullWidth
-              label="Target"
-              name="target"
-              type="number"
-              value={employeeData.target}
-              onChange={handleChange}
-              variant="filled"
-              InputProps={{
-                disableUnderline: true,
-                sx: { backgroundColor: "#fff", borderRadius: 1, px: 1 },
-              }}
-            />
-            <TextField
-              fullWidth
-              label="Async"
-              name="async"
-              value={employeeData.async}
-              disabled
-              variant="filled"
-              InputProps={{
-                disableUnderline: true,
-                sx: { backgroundColor: "#f1f1f1", borderRadius: 1, px: 1 },
-              }}
-            />
+            {/* Passwords only when adding (required, red asterisk) */}
             {!isEditMode && (
               <>
                 <TextField
+                  required
                   fullWidth
                   type={showPassword ? "text" : "password"}
                   label="Password"
@@ -587,15 +644,13 @@ const AddEmployee = () => {
                   value={employeeData.password}
                   onChange={handleChange}
                   variant="filled"
+                  InputLabelProps={{ sx: { "& .MuiFormLabel-asterisk": { color: "error.main" } } }}
                   InputProps={{
                     disableUnderline: true,
                     sx: { backgroundColor: "#fff", borderRadius: 1, px: 1 },
                     endAdornment: (
                       <InputAdornment position="end">
-                        <IconButton
-                          onClick={() => setShowPassword(!showPassword)}
-                          edge="end"
-                        >
+                        <IconButton onClick={() => setShowPassword(!showPassword)} edge="end">
                           {showPassword ? <VisibilityOff /> : <Visibility />}
                         </IconButton>
                       </InputAdornment>
@@ -603,6 +658,7 @@ const AddEmployee = () => {
                   }}
                 />
                 <TextField
+                  required
                   fullWidth
                   type={showConfirmPassword ? "text" : "password"}
                   label="Confirm Password"
@@ -610,22 +666,14 @@ const AddEmployee = () => {
                   value={employeeData.confirmPassword}
                   onChange={handleChange}
                   variant="filled"
+                  InputLabelProps={{ sx: { "& .MuiFormLabel-asterisk": { color: "error.main" } } }}
                   InputProps={{
                     disableUnderline: true,
                     sx: { backgroundColor: "#fff", borderRadius: 1, px: 1 },
                     endAdornment: (
                       <InputAdornment position="end">
-                        <IconButton
-                          onClick={() =>
-                            setShowConfirmPassword(!showConfirmPassword)
-                          }
-                          edge="end"
-                        >
-                          {showConfirmPassword ? (
-                            <VisibilityOff />
-                          ) : (
-                            <Visibility />
-                          )}
+                        <IconButton onClick={() => setShowConfirmPassword(!showConfirmPassword)} edge="end">
+                          {showConfirmPassword ? <VisibilityOff /> : <Visibility />}
                         </IconButton>
                       </InputAdornment>
                     ),
@@ -669,6 +717,7 @@ const AddEmployee = () => {
         </DialogActions>
       </Dialog>
 
+
       <Dialog
         open={deleteDialogOpen}
         onClose={() => setDeleteDialogOpen(false)}
@@ -705,4 +754,6 @@ const AddEmployee = () => {
   );
 };
 
+
 export default AddEmployee;
+

@@ -15,6 +15,7 @@ import {
   Stack,
   Autocomplete,
   Alert,
+  Snackbar,
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import EditIcon from "@mui/icons-material/Edit";
@@ -101,6 +102,7 @@ const computeSpentSeconds = (task) => {
   }
   return base;
 };
+
 const getDueColor = (due) => {
   if (!due) return null;
   const now = Date.now();
@@ -110,8 +112,17 @@ const getDueColor = (due) => {
   return "success.main";
 };
 
-// background colour based on age: <5 days = green, 5–10 = orange, >10 = red
+// background colour: overdue -> light red; else based on age
 const getTaskBgColor = (task) => {
+  const now = Date.now();
+
+  if (task.dueDate) {
+    const due = new Date(task.dueDate).getTime();
+    if (due < now && task.status !== COLUMN_IDS.CLOSED) {
+      return "#fde7e9"; // overdue
+    }
+  }
+
   const start = task.assignedDate || task.createdAt;
   if (!start) return "#ffffff";
   const diffMs = Date.now() - new Date(start).getTime();
@@ -128,7 +139,7 @@ const TaskCard = ({ task, index, onEdit, onDelete }) => {
   useEffect(() => {
     if (task.status !== COLUMN_IDS.OPEN) return;
 
-    const id = setInterval(() => setTick((v) => v + 1), 1000);  
+    const id = setInterval(() => setTick((v) => v + 1), 1000);
     return () => clearInterval(id);
   }, [task.status]);
 
@@ -303,13 +314,13 @@ const TaskColumn = ({
   onDeleteTask,
   onDeleteColumn,
   dragHandleProps,
-  isClosedColumn = false,
+  isLimitedColumn = false,
   visibleCount,
   onSeeMore,
   canDeleteColumn,
 }) => {
   const displayTasks =
-    isClosedColumn && typeof visibleCount === "number"
+    isLimitedColumn && typeof visibleCount === "number"
       ? tasks.slice(0, visibleCount)
       : tasks;
 
@@ -409,7 +420,7 @@ const TaskColumn = ({
 
             {provided.placeholder}
 
-            {isClosedColumn &&
+            {isLimitedColumn &&
               tasks.length > (visibleCount || 0) &&
               onSeeMore && (
                 <Button
@@ -423,18 +434,25 @@ const TaskColumn = ({
                     fontSize: 12,
                   }}
                 >
-                  See more...
+                  Show more tasks…
                 </Button>
               )}
 
             <Button
               onClick={() => onAddTask(column.id)}
               sx={{
-                mt: 0.5,
+                mt: 0.75,
                 textTransform: "none",
                 justifyContent: "flex-start",
-                color: "#111",
                 fontSize: 13,
+                borderRadius: 2,
+                px: 1,
+                py: 0.5,
+                bgcolor: "#f3f4f6",
+                color: "#111",
+                "&:hover": {
+                  bgcolor: "#e5e7eb",
+                },
               }}
               startIcon={<AddIcon sx={{ fontSize: 16 }} />}
             >
@@ -459,80 +477,138 @@ const TaskDialog = ({
   error,
 }) => (
   <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
-    <DialogTitle>{editingTask ? "Edit Task" : "Create Task"}</DialogTitle>
-    <DialogContent dividers>
-      <Stack spacing={2} sx={{ mt: 1 }}>
+    <DialogTitle
+      sx={{
+        fontWeight: 700,
+        display: "flex",
+        alignItems: "center",
+        gap: 1,
+      }}
+    >
+      {editingTask ? (
+        <>
+          <EditIcon fontSize="small" />
+          Edit card
+        </>
+      ) : (
+        <>
+          <AddIcon fontSize="small" />
+          Create new card
+        </>
+      )}
+    </DialogTitle>
+
+    <DialogContent
+      dividers
+      sx={{
+        bgcolor: "#fafafa",
+      }}
+    >
+      <Stack spacing={2.5} sx={{ mt: 1 }}>
         {error && (
-          <Alert severity="error" sx={{ mb: 1 }}>
+          <Alert severity="error" sx={{ mb: 0.5 }}>
             {error}
           </Alert>
         )}
-        <TextField
-          label="Title"
-          fullWidth
-          required
-          value={draftTask.title}
-          onChange={(e) => onChangeField("title", e.target.value)}
-        />
+
+        {/* Title & List */}
+        <Stack spacing={1.5}>
+          <TextField
+            label="Title"
+            placeholder="e.g. Follow up with client, design homepage hero..."
+            fullWidth
+            required
+            size="small"
+            value={draftTask.title}
+            onChange={(e) => onChangeField("title", e.target.value)}
+          />
+
+          <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5}>
+            <TextField
+              select
+              label="List"
+              fullWidth
+              size="small"
+              value={draftTask.status}
+              onChange={(e) => onChangeField("status", e.target.value)}
+            >
+              {columns.map((c) => {
+                const disabled =
+                  editingTask &&
+                  editingTask.status === COLUMN_IDS.OPEN &&
+                  c.id === COLUMN_IDS.NEW;
+                return (
+                  <MenuItem key={c.id} value={c.id} disabled={disabled}>
+                    {c.title}
+                  </MenuItem>
+                );
+              })}
+            </TextField>
+
+            <TextField
+              label="Assignee (optional)"
+              fullWidth
+              size="small"
+              placeholder="Who owns this card?"
+              value={draftTask.assigneeName}
+              onChange={(e) => onChangeField("assigneeName", e.target.value)}
+            />
+          </Stack>
+        </Stack>
+
+        {/* Description */}
         <TextField
           label="Description"
           fullWidth
           multiline
-          minRows={3}
+          minRows={2}
+          size="small"
+          placeholder="Add useful context, links, or steps…"
           value={draftTask.description}
           onChange={(e) => onChangeField("description", e.target.value)}
         />
 
-        <TextField
-          label="Attachment image URL"
-          fullWidth
-          value={draftTask.attachmentUrl}
-          onChange={(e) => onChangeField("attachmentUrl", e.target.value)}
-          helperText="Optional – screenshot or design image."
-        />
-
-        <Stack direction="row" spacing={2}>
+        {/* Attachment + Due date */}
+        <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5}>
           <TextField
-            select
-            label="List"
+            label="Attachment image URL"
             fullWidth
-            value={draftTask.status}
-            onChange={(e) => onChangeField("status", e.target.value)}
-          >
-            {columns.map((c) => {
-              const disabled =
-                editingTask &&
-                editingTask.status === COLUMN_IDS.OPEN &&
-                c.id === COLUMN_IDS.NEW;
-              return (
-                <MenuItem key={c.id} value={c.id} disabled={disabled}>
-                  {c.title}
-                </MenuItem>
-              );
-            })}
-          </TextField>
+            size="small"
+            placeholder="https://… (optional)"
+            value={draftTask.attachmentUrl}
+            onChange={(e) => onChangeField("attachmentUrl", e.target.value)}  
+          />
 
           <TextField
             label="Due date"
             type="date"
             fullWidth
+            size="small"
             InputLabelProps={{ shrink: true }}
             value={draftTask.dueDate}
             onChange={(e) => onChangeField("dueDate", e.target.value)}
           />
         </Stack>
-
-        <TextField
-          label="Assignee"
-          fullWidth
-          value={draftTask.assigneeName}
-          onChange={(e) => onChangeField("assigneeName", e.target.value)}
-        />
       </Stack>
     </DialogContent>
-    <DialogActions>
-      <Button onClick={onClose}>Cancel</Button>
-      <Button variant="contained" onClick={onSave}>
+
+    <DialogActions
+      sx={{
+        bgcolor: "#f9fafb",
+        px: 3,
+        py: 1.5,
+        display: "flex",
+        justifyContent: "space-between",
+      }}
+    >
+      <Button onClick={onClose} sx={{ textTransform: "none" }}>
+        Cancel
+      </Button>
+      <Button
+        variant="contained"
+        onClick={onSave}
+        sx={{ textTransform: "none", borderRadius: 999, px: 3 }}
+      >
         {editingTask ? "Save changes" : "Create card"}
       </Button>
     </DialogActions>
@@ -578,13 +654,29 @@ const AssignTaskDialog = ({ open, onClose, onSave, employees, currentUser }) => 
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
-      <DialogTitle>Assign Task</DialogTitle>
-      <DialogContent dividers>
+      <DialogTitle
+        sx={{
+          fontWeight: 700,
+          display: "flex",
+          alignItems: "center",
+          gap: 1,
+        }}
+      >
+        <AssignmentIndIcon fontSize="small" />
+        Assign Task
+      </DialogTitle>
+      <DialogContent
+        dividers
+        sx={{
+          bgcolor: "#fafafa",
+        }}
+      >
         <Stack spacing={2} sx={{ mt: 1 }}>
           <TextField
             label="Title"
             fullWidth
             required
+            size="small"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
           />
@@ -592,7 +684,8 @@ const AssignTaskDialog = ({ open, onClose, onSave, employees, currentUser }) => 
             label="Description"
             fullWidth
             multiline
-            minRows={3}
+            minRows={2}
+            size="small"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
           />
@@ -601,6 +694,7 @@ const AssignTaskDialog = ({ open, onClose, onSave, employees, currentUser }) => 
               label="Due date"
               type="date"
               fullWidth
+              size="small"
               InputLabelProps={{ shrink: true }}
               value={dueDate}
               onChange={(e) => setDueDate(e.target.value)}
@@ -609,6 +703,7 @@ const AssignTaskDialog = ({ open, onClose, onSave, employees, currentUser }) => 
               label="Assigned date"
               type="date"
               fullWidth
+              size="small"
               InputLabelProps={{ shrink: true }}
               value={assignedDate}
               onChange={(e) => setAssignedDate(e.target.value)}
@@ -617,6 +712,7 @@ const AssignTaskDialog = ({ open, onClose, onSave, employees, currentUser }) => 
           <TextField
             label="Assigned by"
             fullWidth
+            size="small"
             value={currentUser?.fullName || currentUser?.name || ""}
             InputProps={{ readOnly: true }}
             helperText="Auto-filled from your account"
@@ -634,13 +730,18 @@ const AssignTaskDialog = ({ open, onClose, onSave, employees, currentUser }) => 
                 {...params}
                 label="Assigned to"
                 required
+                size="small"
                 helperText="Shows active employees"
               />
             )}
           />
         </Stack>
       </DialogContent>
-      <DialogActions>
+      <DialogActions
+        sx={{
+          bgcolor: "#f9fafb",
+        }}
+      >
         <Button onClick={onClose}>Cancel</Button>
         <Button variant="contained" onClick={handleSubmit}>
           Assign
@@ -685,7 +786,18 @@ const TaskBoard = () => {
   const [viewingUserName, setViewingUserName] = useState("");
 
   const [constraintError, setConstraintError] = useState("");
-  const [closedVisibleCount, setClosedVisibleCount] = useState(10);
+
+  // show-more counts for PAUSED + CLOSED
+  const [limitedVisibleCounts, setLimitedVisibleCounts] = useState({
+    [COLUMN_IDS.PAUSED]: 10,
+    [COLUMN_IDS.CLOSED]: 10,
+  });
+
+  const [snackbar, setSnackbar] = useState({
+    open: false,
+    message: "",
+    severity: "success",
+  });
 
   const [currentUser] = useState(() => {
     try {
@@ -701,6 +813,24 @@ const TaskBoard = () => {
     [currentUser]
   );
 
+  const canViewOtherBoards = useMemo(() => {
+    const role =
+      currentUser?.role ||
+      currentUser?.userRole ||
+      currentUser?.roleName ||
+      "";
+    return role === "Manager" || role === "Super Admin";
+  }, [currentUser]);
+
+  const showSnackbar = useCallback((message, severity = "success") => {
+    setSnackbar({ open: true, message, severity });
+  }, []);
+
+  const handleSnackbarClose = useCallback((_, reason) => {
+    if (reason === "clickaway") return;
+    setSnackbar((prev) => ({ ...prev, open: false }));
+  }, []);
+
   // auto-clear constraint errors
   useEffect(() => {
     if (!constraintError) return;
@@ -708,9 +838,12 @@ const TaskBoard = () => {
     return () => clearTimeout(id);
   }, [constraintError]);
 
-  // reset closed visible count when tasks change significantly
+  // reset visible counts when tasks change significantly
   useEffect(() => {
-    setClosedVisibleCount(10);
+    setLimitedVisibleCounts({
+      [COLUMN_IDS.PAUSED]: 10,
+      [COLUMN_IDS.CLOSED]: 10,
+    });
   }, [tasks.length, viewingUserId, showTeamView]);
 
   // initialize viewing to self
@@ -1029,7 +1162,7 @@ const TaskBoard = () => {
             }
           );
         } else {
-          await axios.patch(
+          const { data: updatedTask } = await axios.patch(
             `${API_BASE_URL}/api/tasks/${draggableId}/status`,
             {
               from: sourceColId,
@@ -1037,6 +1170,23 @@ const TaskBoard = () => {
               destIndex,
               userId: ownerKey,
             }
+          );
+
+          // sync timers + status from server
+          setTasks((prev) =>
+            prev.map((t) =>
+              String(t.id) === String(draggableId)
+                ? {
+                    ...t,
+                    status: updatedTask.status || t.status,
+                    totalActiveSeconds:
+                      updatedTask.totalActiveSeconds ?? t.totalActiveSeconds,
+                    activeSince: updatedTask.activeSince || null,
+                    startedAt: updatedTask.startedAt || t.startedAt,
+                    closedAt: updatedTask.closedAt || null,
+                  }
+                : t
+            )
           );
         }
       } catch (e) {
@@ -1162,6 +1312,7 @@ const TaskBoard = () => {
                 : t
             )
           );
+          showSnackbar("Task updated", "success");
         } else {
           tempId = generateId();
           setTasks((prev) => [
@@ -1186,6 +1337,7 @@ const TaskBoard = () => {
               t.id === tempId ? { ...t, id: newId } : t
             )
           );
+          showSnackbar("Task created", "success");
         }
         closeDialog();
       } catch (e) {
@@ -1200,6 +1352,7 @@ const TaskBoard = () => {
       closeDialog,
       columns,
       tasks,
+      showSnackbar,
     ]
   );
 
@@ -1231,11 +1384,12 @@ const TaskBoard = () => {
         setTasks((prev) =>
           prev.filter((t) => t.id !== task.id)
         );
+        showSnackbar("Task deleted", "success");
       } catch (e) {
         console.error("Failed to delete task", e);
       }
     },
-    [viewingUserId, currentUserId]
+    [viewingUserId, currentUserId, showSnackbar]
   );
 
   // list dialog handlers
@@ -1392,6 +1546,8 @@ const TaskBoard = () => {
             )
           );
         }
+
+        showSnackbar("Task assigned", "success");
       } catch (e) {
         console.error("Failed to assign task", e);
         if (tempId && viewingUserId === currentUserId) {
@@ -1401,7 +1557,7 @@ const TaskBoard = () => {
         setAssignDialogOpen(false);
       }
     },
-    [currentUser, currentUserId, viewingUserId]
+    [currentUser, currentUserId, viewingUserId, showSnackbar]
   );
 
   const totalCards = filteredTasks.length;
@@ -1511,70 +1667,71 @@ const TaskBoard = () => {
               {showTeamView ? "Back to My Board" : "My Team Tasks"}
             </Button>
 
-            {!showBoardInline ? (
-              <Button
-                variant="contained"
-                onClick={openInlinePicker}
-                sx={headerBtnSx}
-                startIcon={<VisibilityIcon />}
-              >
-                View Board
-              </Button>
-            ) : (
-              <Box
-                sx={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 1,
-                  px: 1,
-                  py: 0.5,
-                  borderRadius: 999,
-                  border: "1px solid #d1d5db",
-                  bgcolor: "#f3f4f6",
-                  minWidth: { xs: 260, sm: 360 },
-                }}
-              >
-                <Autocomplete
-                  sx={{ flex: 1 }}
-                  size="small"
-                  options={employees}
-                  value={selectedViewer}
-                  onChange={(_, v) => setSelectedViewer(v)}
-                  getOptionLabel={(opt) =>
-                    opt.fullName || opt.name || ""
-                  }
-                  isOptionEqualToValue={(o, v) =>
-                    (o._id || o.id) === (v?._id || v?.id)
-                  }
-                  renderInput={(params) => (
-                    <TextField
-                      {...params}
-                      size="small"
-                      placeholder="Search employee…"
-                    />
-                  )}
-                />
-
-                <IconButton
-                  size="small"
-                  onClick={confirmOpenViewedBoard}
-                  disabled={!selectedViewer}
-                  sx={{ color: "#000" }}
-                  title="Open board"
+            {canViewOtherBoards &&
+              (!showBoardInline ? (
+                <Button
+                  variant="contained"
+                  onClick={openInlinePicker}
+                  sx={headerBtnSx}
+                  startIcon={<VisibilityIcon />}
                 >
-                  <CheckIcon fontSize="small" />
-                </IconButton>
-
-                <IconButton
-                  size="small"
-                  onClick={closeInlinePickerAndRevert}
-                  sx={{ color: "#000" }}
-                  title="Close and revert to my board"
+                  View Board
+                </Button>
+              ) : (
+                <Box
+                  sx={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 1,
+                    px: 1,
+                    py: 0.5,
+                    borderRadius: 999,
+                    border: "1px solid #d1d5db",
+                    bgcolor: "#f3f4f6",
+                    minWidth: { xs: 260, sm: 360 },
+                  }}
                 >
-                  <CloseIcon fontSize="small" />
-                </IconButton>
-              </Box>
-            )}
+                  <Autocomplete
+                    sx={{ flex: 1 }}
+                    size="small"
+                    options={employees}
+                    value={selectedViewer}
+                    onChange={(_, v) => setSelectedViewer(v)}
+                    getOptionLabel={(opt) =>
+                      opt.fullName || opt.name || ""
+                    }
+                    isOptionEqualToValue={(o, v) =>
+                      (o._id || o.id) === (v?._id || v?.id)
+                    }
+                    renderInput={(params) => (
+                      <TextField
+                        {...params}
+                        size="small"
+                        placeholder="Search employee…"
+                      />
+                    )}
+                  />
+
+                  <IconButton
+                    size="small"
+                    onClick={confirmOpenViewedBoard}
+                    disabled={!selectedViewer}
+                    sx={{ color: "#000" }}
+                    title="Open board"
+                  >
+                    <CheckIcon fontSize="small" />
+                  </IconButton>
+
+                  <IconButton
+                    size="small"
+                    onClick={closeInlinePickerAndRevert}
+                    sx={{ color: "#000" }}
+                    title="Close and revert to my board"
+                  >
+                    <CloseIcon fontSize="small" />
+                  </IconButton>
+                </Box>
+              ))}
 
             <Button
               variant="contained"
@@ -1588,8 +1745,15 @@ const TaskBoard = () => {
             <Button
               variant="contained"
               onClick={() => openCreateDialog(COLUMN_IDS.NEW)}
-              sx={headerBtnSx}
               startIcon={<AddIcon />}
+              sx={{
+                textTransform: "none",
+                borderRadius: 999,
+                px: 2.5,
+                bgcolor: "#111827",
+                border: "1px solid #111827",
+                "&:hover": { bgcolor: "#020617" },
+              }}
             >
               New card
             </Button>
@@ -1632,6 +1796,12 @@ const TaskBoard = () => {
                   const isDefaultColumn = Object.values(
                     COLUMN_IDS
                   ).includes(column.id);
+                  const isLimitedColumn =
+                    column.id === COLUMN_IDS.PAUSED ||
+                    column.id === COLUMN_IDS.CLOSED;
+                  const visibleCount =
+                    limitedVisibleCounts[column.id] ?? 10;
+
                   return (
                     <Draggable
                       key={column.id}
@@ -1641,7 +1811,7 @@ const TaskBoard = () => {
                       {(dragProvided) => (
                         <Box
                           ref={dragProvided.innerRef}
-                          {...dragProvided.draggableProps}
+                          {...dragProvided.dragHandleProps}
                           sx={{ display: "flex" }}
                         >
                           <TaskColumn
@@ -1657,14 +1827,20 @@ const TaskBoard = () => {
                             dragHandleProps={
                               dragProvided.dragHandleProps
                             }
-                            isClosedColumn={
-                              column.id === COLUMN_IDS.CLOSED
-                            }
-                            visibleCount={closedVisibleCount}
-                            onSeeMore={() =>
-                              setClosedVisibleCount(
-                                (c) => c + 10
-                              )
+                            isLimitedColumn={isLimitedColumn}
+                            visibleCount={visibleCount}
+                            onSeeMore={
+                              isLimitedColumn
+                                ? () =>
+                                  setLimitedVisibleCounts(
+                                    (prev) => ({
+                                      ...prev,
+                                      [column.id]:
+                                        (prev[column.id] ||
+                                          10) + 10,
+                                    })
+                                  )
+                                : undefined
                             }
                             canDeleteColumn={!isDefaultColumn}
                           />
@@ -1756,6 +1932,22 @@ const TaskBoard = () => {
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* Snackbar */}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={3000}
+        onClose={handleSnackbarClose}
+        anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
+      >
+        <Alert
+          onClose={handleSnackbarClose}
+          severity={snackbar.severity}
+          sx={{ width: "100%" }}
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 };
