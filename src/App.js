@@ -64,10 +64,7 @@ import BankCc1101 from "./components/Finance/BankCc1101";
 import BankYesCcTejasv from "./components/Finance/BankYesCcTejasv";
 import BankYesCcAbhay from "./components/Finance/BankYesCcAbhay";
 import TaskBoard from "./components/Dashboards/TaskBoard";
-import MyReporting from "./components/Dashboards/MyReporting";
-import PurchaseRecord from "./components/Finance/PurchaseRecord";
-import PaymentRecord from "./components/Finance/paymentRecord";
-import Vendors from "./components/Finance/Vendors";
+import MyReporting from "./components/Dashboards/MyReporting"; 
 import "./realtime/IncomingCallSSEBoot";
 
 const App = () => {
@@ -99,9 +96,7 @@ const App = () => {
           <Route path="/BankYesCcAbhay" element={<BankYesCcAbhay />} />
           <Route path="/task-board" element={<TaskBoard />} />
           <Route path="/my-reporting" element={<MyReporting />} />
-          <Route path="/purchase-record" element={<PurchaseRecord />} />
-          <Route path="/payment-record" element={<PaymentRecord />} />
-          <Route path="/vendors" element={<Vendors />} />  
+
 
           <Route
             path="/" 
