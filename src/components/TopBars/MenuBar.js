@@ -159,7 +159,7 @@ const MenuBar = ({ toggleDrawer }) => {
           <UnfoldMoreIcon />
         </ListItem>
 
-
+        {role !== "Marketing" && role !== "Developer" && (
         <ListItem
           button
           sx={{
@@ -184,8 +184,9 @@ const MenuBar = ({ toggleDrawer }) => {
             Home
           </Typography>
         </ListItem>
+        )}
 
-        {role !== "Finance" && role !== "Operations" && role !== "Human Resource" && (
+        {role !== "Finance" && role !== "Operations" && role !== "Human Resource" && role !== "Marketing" && role !== "Developer" && (
           <ListItem
             button
             component={Link}
@@ -211,7 +212,8 @@ const MenuBar = ({ toggleDrawer }) => {
             </Typography>
           </ListItem>
         )}
-        {role !== "Finance" && role !== "Operations" && role !== "Human Resource" && (
+
+        {role !== "Finance" && role !== "Operations" && role !== "Human Resource" && role !== "Marketing" && role !== "Developer" &&(
           <ListItem
             button
             component={Link}
@@ -238,13 +240,13 @@ const MenuBar = ({ toggleDrawer }) => {
           </ListItem>
         )}
 
-        {role !== "Finance" && role !== "Human Resource" && (
+        {role !== "Finance" && role !== "Human Resource" && role !== "Marketing" && role !== "Developer" && (
           <ListItem
             button
             component={Link}
             to="/escalations"
             sx={{
-              display: "flex",
+              display: "flex", 
               alignItems: "center",
               padding: "10px 20px",
               borderRadius: "4px",
@@ -292,7 +294,7 @@ const MenuBar = ({ toggleDrawer }) => {
           </ListItem>
         )}
 
-        {role !== "Finance" && role !== "Operations" && role !== "Human Resource" && (
+        {role !== "Finance" && role !== "Operations" && role !== "Human Resource" && role !== "Marketing" && role !== "Developer" && (
           <ListItem
             button
             component={Link}
@@ -315,7 +317,7 @@ const MenuBar = ({ toggleDrawer }) => {
           </ListItem>
         )}
 
-        {role !== "Finance" && role !== "Retention Agent" && role !== "Human Resource" && (
+        {role !== "Finance" && role !== "Retention Agent" && role !== "Human Resource" && role !== "Marketing" && role !== "Developer" && (
           <>
             {/* Parent dropdown */}
             <ListItem
@@ -366,7 +368,7 @@ const MenuBar = ({ toggleDrawer }) => {
         )}
 
 
-        {role !== "Finance" && role !== "Operations" && role !== "Manager" && role !== "Human Resource" && (
+        {role !== "Finance" && role !== "Operations" && role !== "Manager" && role !== "Human Resource" && role !== "Marketing" && role !== "Developer" &&(
           <ListItem
             button
             component={Link}
@@ -825,7 +827,7 @@ const MenuBar = ({ toggleDrawer }) => {
               </List>
             </Collapse>
 
-            {role !== "Finance" && role !== "Operations" && role !== "Human Resource" && (
+            {role !== "Finance" && role !== "Operations" && role !== "Human Resource" && role !== "Marketing" && role !== "Developer" &&(
               <>
                 <ListItem
                   button
@@ -1045,7 +1047,7 @@ const MenuBar = ({ toggleDrawer }) => {
               </ListItem>
             )}
 
-            {role !== "Finance" && role !== "Operations" && role !== "Human Resource" && (
+            {role !== "Finance" && role !== "Operations" && role !== "Human Resource" && role !== "Marketing" && role !== "Developer" &&(
               <ListItem
                 button
                 component={Link}
@@ -1127,84 +1129,62 @@ const MenuBar = ({ toggleDrawer }) => {
             )}
 
             {role === "Finance" && (
-              <ListItem
-                button
-                component={Link}
-                to="/purchase-record"
-                sx={{
-                  display: "flex",
-                  alignItems: "center",
-                  padding: "10px 20px",
-                  borderRadius: "4px",
-                  margin: "4px 0",
-                  transition: "background-color 0.3s, transform 0.2s",
-                  "&:hover": {
-                    backgroundColor: "#e0f7fa",
-                    color: "#007aff",
-                    transform: "scale(1.02)",
-                  },
-                }}
-                onClick={toggleDrawer}
-              >
-                <Inventory2Icon sx={{ fontSize: 20, marginRight: "12px" }} />
-                <Typography variant="body1" style={{ fontSize: "14px" }}>
-                  Payment Records
-                </Typography>
-              </ListItem>
-            )}
+              <>
+                <ListItem
+                  button
+                  onClick={() => handleDropdownClick("records")}
+                  sx={dropdownStyle}
+                >
+                  <Box sx={{ display: "flex", alignItems: "center" }}>
+                    <AnalyticsIcon sx={{ fontSize: 20, marginRight: "12px" }} />
+                    <Typography variant="body1" sx={{ fontSize: "14px" }}>
+                      Records
+                    </Typography>
+                  </Box>
+                  {openDropdown.records ? (
+                    <KeyboardArrowDownIcon />
+                  ) : (
+                    <KeyboardArrowRightIcon />
+                  )}
+                </ListItem>
 
-            {role === "Finance" && (
-              <ListItem
-                button
-                component={Link}
-                to="/payment-record"
-                sx={{
-                  display: "flex",
-                  alignItems: "center",
-                  padding: "10px 20px",
-                  borderRadius: "4px",
-                  margin: "4px 0",
-                  transition: "background-color 0.3s, transform 0.2s",
-                  "&:hover": {
-                    backgroundColor: "#e0f7fa",
-                    color: "#007aff",
-                    transform: "scale(1.02)",
-                  },
-                }}
-                onClick={toggleDrawer}
-              >
-                <Inventory2Icon sx={{ fontSize: 20, marginRight: "12px" }} />
-                <Typography variant="body1" style={{ fontSize: "14px" }}>
-                  Purchase Records
-                </Typography>
-              </ListItem>
-            )}
+                <Collapse in={openDropdown.records} timeout="auto" unmountOnExit>
+                  <List sx={nestedListStyle}>
+                    <ListItem
+                      button
+                      component={Link}
+                      to="/purchase-record"
+                      onClick={toggleDrawer}
+                    >
+                      <Typography variant="body2" sx={{ fontSize: "13px" }}>
+                        Purchase Records
+                      </Typography>
+                    </ListItem>
 
-            {role === "Finance" && (
-              <ListItem
-                button
-                component={Link}
-                to="/vendors"
-                sx={{
-                  display: "flex",
-                  alignItems: "center",
-                  padding: "10px 20px",
-                  borderRadius: "4px",
-                  margin: "4px 0",
-                  transition: "background-color 0.3s, transform 0.2s",
-                  "&:hover": {
-                    backgroundColor: "#e0f7fa",
-                    color: "#007aff",
-                    transform: "scale(1.02)",
-                  },
-                }}
-                onClick={toggleDrawer}
-              >
-                <Inventory2Icon sx={{ fontSize: 20, marginRight: "12px" }} />
-                <Typography variant="body1" style={{ fontSize: "14px" }}>
-                  My Vendors
-                </Typography>
-              </ListItem>
+                    <ListItem
+                      button
+                      component={Link}
+                      to="/payment-record"
+                      onClick={toggleDrawer}
+                    >
+                      <Typography variant="body2" sx={{ fontSize: "13px" }}>
+                        Payment Records
+                      </Typography>
+                    </ListItem>
+
+                    <ListItem
+                      button
+                      component={Link}
+                      to="/vendors"
+                      onClick={toggleDrawer}
+                    >
+                      <Typography variant="body2" sx={{ fontSize: "13px" }}>
+                        My Vendors
+                      </Typography>
+                    </ListItem>
+                  </List>
+                </Collapse>
+              </>
             )}
 
             {role === "Finance" && (
@@ -1300,7 +1280,7 @@ const MenuBar = ({ toggleDrawer }) => {
             )}
 
 
-            {role !== "Finance" && role !== "Operations" && role !== "Human Resource" && (
+            {role !== "Finance" && role !== "Operations" && role !== "Human Resource" && role !== "Marketing" && role !== "Developer" && (
               <ListItem
                 button
                 onClick={() => handleDropdownClick("leaderboard")}
@@ -1453,7 +1433,7 @@ const MenuBar = ({ toggleDrawer }) => {
               </>
             )}
 
-            {role !== "Finance" && role !== "Operations" && role !== "Human Resource" && (
+            {role !== "Finance" && role !== "Operations" && role !== "Human Resource" && role !== "Marketing" && role !== "Developer" && (
               <ListItem
                 button
                 component={Link}

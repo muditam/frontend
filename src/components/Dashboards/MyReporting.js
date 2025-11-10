@@ -215,7 +215,10 @@ const MyReporting = () => {
     } catch {
       return null;
     }
-  });
+  }); 
+
+  const isManagerOrSuperAdmin =
+  currentUser?.role === "Manager" || currentUser?.role === "Super Admin";
 
   const currentUserId = useMemo(
     () => (currentUser && (currentUser._id || currentUser.id)) || null,
@@ -508,84 +511,85 @@ const MyReporting = () => {
           </Box>
 
           <Stack direction="row" spacing={1} alignItems="center">
-            {!showReportInline ? (
-              <Button
-                variant="contained"
-                onClick={openInlinePicker}
-                sx={headerBtnSx}
-                startIcon={<VisibilityIcon />}
-              >
-                View Report
-              </Button>
-            ) : (
-              <Box
-                sx={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 1,
-                  px: 1,
-                  py: 0.7,
-                  borderRadius: 999,
-                  border: "1px solid #d1d5db",
-                  bgcolor: "#ffffff",
-                  minWidth: { xs: 260, sm: 360 },
-                }}
-              >
-                <Autocomplete
-                  sx={{ flex: 1 }}
-                  size="small"
-                  options={employees}
-                  value={selectedViewer}
-                  onChange={(_, v) => setSelectedViewer(v)}
-                  getOptionLabel={(opt) =>
-                    opt.fullName || opt.name || ""
-                  }
-                  isOptionEqualToValue={(o, v) =>
-                    (o._id || o.id) === (v?._id || v?.id)
-                  }
-                  renderInput={(params) => (
-                    <TextField
-                      {...params}
-                      size="small"
-                      placeholder="Search employee…"
-                    />
-                  )}
-                />
+  {isManagerOrSuperAdmin && (
+    !showReportInline ? (
+      <Button
+        variant="contained"
+        onClick={openInlinePicker}
+        sx={headerBtnSx}
+        startIcon={<VisibilityIcon />}
+      >
+        View Report
+      </Button>
+    ) : (
+      <Box
+        sx={{
+          display: "flex",
+          alignItems: "center",
+          gap: 1,
+          px: 1,
+          py: 0.7,
+          borderRadius: 999,
+          border: "1px solid #d1d5db",
+          bgcolor: "#ffffff",
+          minWidth: { xs: 260, sm: 360 },
+        }}
+      >
+        <Autocomplete
+          sx={{ flex: 1 }}
+          size="small"
+          options={employees}
+          value={selectedViewer}
+          onChange={(_, v) => setSelectedViewer(v)}
+          getOptionLabel={(opt) => opt.fullName || opt.name || ""}
+          isOptionEqualToValue={(o, v) =>
+            (o._id || o.id) === (v?._id || v?.id)
+          }
+          renderInput={(params) => (
+            <TextField
+              {...params}
+              size="small"
+              placeholder="Search employee…"
+            />
+          )}
+        />
 
-                <IconButton
-                  size="small"
-                  onClick={confirmOpenViewedReport}
-                  disabled={!selectedViewer}
-                  sx={{ color: "#0f172a" }}
-                  title="Open report"
-                >
-                  <CheckIcon fontSize="small" />
-                </IconButton>
+        <IconButton
+          size="small"
+          onClick={confirmOpenViewedReport}
+          disabled={!selectedViewer}
+          sx={{ color: "#0f172a" }}
+          title="Open report"
+        >
+          <CheckIcon fontSize="small" />
+        </IconButton>
 
-                <IconButton
-                  size="small"
-                  onClick={closeInlinePickerAndRevert}
-                  sx={{ color: "#6b7280" }}
-                  title="Close and revert to my report"
-                >
-                  <CloseIcon fontSize="small" />
-                </IconButton>
-              </Box>
-            )}
+        <IconButton
+          size="small"
+          onClick={closeInlinePickerAndRevert}
+          sx={{ color: "#6b7280" }}
+          title="Close and revert to my report"
+        >
+          <CloseIcon fontSize="small" />
+        </IconButton>
+      </Box>
+    )
+  )}
 
-            {viewingOwn && (
-              <Chip
-                size="small"
-                icon={<AssignmentIndIcon sx={{ fontSize: 16 }} />}
-                label="My report"
-                sx={{
-                  bgcolor: "#e5e7eb",
-                  color: "#111827",
-                  fontWeight: 500,
-                }}
-              />
-            )}
-          </Stack>
+  {viewingOwn && (
+    <Chip
+      size="small"
+      icon={<AssignmentIndIcon sx={{ fontSize: 16 }} />}
+      label="My report"
+      sx={{
+        bgcolor: "#e5e7eb",
+        color: "#111827",
+        fontWeight: 500,
+      }}
+    />
+  )}
+</Stack>
+
         </Box>
 
         {loadError && (
@@ -979,7 +983,7 @@ const MyReporting = () => {
             )}
           </Box>
         </Paper>
-      </Box> 
+      </Box>  
     </Box>
   );
 };

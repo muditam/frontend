@@ -30,27 +30,45 @@ const LoginPage = () => {
   };
 
   const handleLogin = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    try {
-      // Using userId as email for login
-      const response = await axios.post(
-        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/login", 
-        { email: userId, password } 
-      ); 
-      if (response.status === 200) {
-        sessionStorage.setItem("user", JSON.stringify(response.data.user)); 
-        window.dispatchEvent(new Event("session:user:set")); 
+  e.preventDefault();
+  setLoading(true);
+  setError("");
+
+  try {
+    const response = await axios.post(
+      "http://localhost:5001/api/login",
+      { email: userId, password }
+    );
+
+    if (response.status === 200) {
+      const { user } = response.data;
+
+      // Save user in session
+      sessionStorage.setItem("user", JSON.stringify(user));
+      window.dispatchEvent(new Event("session:user:set"));
+
+      // Get role (string or array-safe)
+      const role = user.role;
+      const hasMarketingOrDevRole = Array.isArray(role)
+        ? role.includes("Marketing") || role.includes("Developer")
+        : role === "Marketing" || role === "Developer";
+
+      // Redirect based on role
+      if (hasMarketingOrDevRole) {
+        navigate("/task-board");
+      } else {
         navigate("/");
       }
-    } catch (err) {
-      setError(
-        err.response?.data?.message || "Login failed. Please try again."
-      );
-    } finally {
-      setLoading(false); // Set loading state to false once the request is done
     }
-  };
+  } catch (err) {
+    setError(
+      err.response?.data?.message || "Login failed. Please try again."
+    );
+  } finally {
+    setLoading(false);
+  }
+};
+
 
   return (
     <Grid container sx={{ minHeight: "90vh" }}>

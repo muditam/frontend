@@ -48,6 +48,8 @@ import pincodeData from "../../LeadConsultation/ProcessTracker/pincodeData";
 import DeliveryStatusChecker from "./DeliveryStatusChecker";
 import LeaderboardPopover from "./LeaderboardPopover";
 import DownloadIcon from '@mui/icons-material/Download';
+import CheckBoxIcon from "@mui/icons-material/CheckBox";
+import AssessmentIcon from "@mui/icons-material/Assessment";
 import { Flower2 } from "lucide-react";
 import Bloomleader from "./Bloomleader";
 
@@ -89,6 +91,18 @@ const NavbarWithSearch = () => {
   const location = useLocation();
 
   const user = JSON.parse(sessionStorage.getItem("user"));
+
+  const taskIconRoles = [
+    "Marketing",
+    "Developer",
+    "Human Resource",
+    "Super Admin",
+    "Finance",
+    "Operations",
+    "Manager",
+  ];
+
+  const showTaskIcons = user && taskIconRoles.includes(user.role);
 
   const openBloodTestDialog = () => {
     setPincode("");
@@ -213,25 +227,25 @@ const NavbarWithSearch = () => {
   const executeShopifySearch = async () => {
     if (!shopifyQuery.trim()) {
       setCustomerData(null);
-      setShowCustomerDetails(false); 
+      setShowCustomerDetails(false);
       return;
     }
 
     try {
       const response = await axios.get(
-        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/shopify/customerDetails", 
+        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/shopify/customerDetails",
         {
-          params: { q: shopifyQuery },  
+          params: { q: shopifyQuery },
         }
       );
-      setCustomerData(response.data.customer); 
+      setCustomerData(response.data.customer);
       setShowCustomerDetails(true);
       setShowOrders(false);
       setShowAllOrders(false);
     } catch (error) {
       console.error("Error fetching Shopify customer details:", error);
     }
-  }; 
+  };
 
   const handleShopifyClickAway = () => {
     setShowCustomerDetails(false);
@@ -259,7 +273,7 @@ const NavbarWithSearch = () => {
 
   const handleDownloadOrders = async () => {
     try {
-      const response = await axios.get( 
+      const response = await axios.get(
         "http://localhost:5001/api/myorders/download",
         { responseType: 'blob' }
       );
@@ -313,204 +327,150 @@ const NavbarWithSearch = () => {
 
 
           {/* Center: Shopify Customer Search Bar */}
-          <Box sx={{ flex: 1, display: "flex", justifyContent: "center" }}>
-            <Box sx={{ position: "relative", width: 300 }}>
-              <ClickAwayListener onClickAway={handleShopifyClickAway}>
-                <div>
-                  <TextField
-                    fullWidth
-                    variant="outlined"
-                    placeholder="Search On Shopify"
-                    value={shopifyQuery}
-                    onChange={handleShopifyInputChange}
-                    sx={{
-                      backgroundColor: "#fff",
-                      borderRadius: 2,
-                      "& .MuiInputBase-input": {
-                        padding: "8px 12px",
-                        ...smallFont,
-                      },
-                    }}
-                    InputProps={{
-                      endAdornment: (
-                        <InputAdornment position="end">
-                          <IconButton
-                            onClick={executeShopifySearch}
-                            sx={{ color: "#1976d2" }}
-                          >
-                            <SearchIcon sx={{ color: "gray" }} />
-                          </IconButton>
-                        </InputAdornment>
-                      ),
-                    }}
-                  />
-                  {showCustomerDetails && (
-                    <List
+
+          {user?.role !== "Human Resource" && user?.role !== "Marketing" && user?.role !== "Developer" && (
+            <Box sx={{ flex: 1, display: "flex", justifyContent: "center" }}>
+              <Box sx={{ position: "relative", width: 300 }}>
+                <ClickAwayListener onClickAway={handleShopifyClickAway}>
+                  <div>
+                    <TextField
+                      fullWidth
+                      variant="outlined"
+                      placeholder="Search On Shopify"
+                      value={shopifyQuery}
+                      onChange={handleShopifyInputChange}
                       sx={{
-                        position: "absolute",
-                        top: "100%",
-                        left: 0,
-                        right: 0,
-                        bgcolor: "#f5f5f5",
-                        border: "1px solid #ccc",
-                        borderRadius: "4px",
-                        maxHeight: 290,
-                        overflowY: "auto",
-                        zIndex: 10,
-                        color: "black",
+                        backgroundColor: "#fff",
+                        borderRadius: 2,
+                        "& .MuiInputBase-input": {
+                          padding: "8px 12px",
+                          ...smallFont,
+                        },
                       }}
-                    >
-                      {customerData ? (
-                        <React.Fragment>
-                          <ListItem
-                            button
-                            onClick={toggleOrders}
-                            sx={{ py: 1, ...smallFont }}
-                          >
-                            <ListItemText
-                              primary={`${customerData.name}`}
-                              secondary={
-                                <>
-                                  <span>
-                                    Total Orders: {customerData.totalOrders} |
-                                    Total Spent: ₹{customerData.totalSpent}
-                                  </span>
-                                  <br />
-                                  <span>
-                                    Last Order:{" "}
-                                    {customerData.lastOrderDate
-                                      ? new Date(
-                                        customerData.lastOrderDate
-                                      ).toLocaleString()
-                                      : "N/A"}{" "}
-                                    | Payment Status:{" "}
-                                    {customerData.lastOrderPaymentStatus ||
-                                      "N/A"}
-                                  </span>
-                                </>
-                              }
-                              primaryTypographyProps={{ style: smallFont }}
-                              secondaryTypographyProps={{ style: smallFont }}
-                            />
-                            {showOrders ? (
-                              <ExpandLessIcon fontSize="small" />
-                            ) : (
-                              <ExpandMoreIcon fontSize="small" />
-                            )}
-                          </ListItem>
-                          <Collapse
-                            in={showOrders}
-                            timeout="auto"
-                            unmountOnExit
-                          >
-                            <List component="div" disablePadding>
-                              {customerData.orders &&
-                                customerData.orders.length > 0 ? (
-                                <>
-                                  {customerData.orders
-                                    .slice(0, 4)
-                                    .map((order) => (
-                                      <ListItem
-                                        key={order.id}
-                                        sx={{ pl: 3, py: 0.5, ...smallFont }}
-                                      >
-                                        <ListItemText
-                                          primary={`Order ${order.name || order.id} | Total Amount: ₹${order.totalAmount || 0}`}
-                                          secondary={
-                                            <>
-                                              <span>
-                                                {new Date(order.created_at).toLocaleString()} | Items: {order.itemCount} | {order.deliveryStatus}
-                                                {" | "}
-                                                Shipment: {order.shipmentStatus ?? "N/A"}
-                                              </span>
-                                              <br />
-                                              {order.lineItems.map((item, idx) => (
-                                                <span key={idx}>
-                                                  {item.title} - {item.variant} (₹{item.amountPaid}){" "}
-                                                </span>
-                                              ))}
-                                              <br />
-                                              <Box
-                                                onClick={() => toggleAddress(order.id)}
-                                                sx={{
-                                                  cursor: "pointer",
-                                                  color: "#1976d2",
-                                                  mt: 1,
-                                                  display: "flex",
-                                                  alignItems: "center",
-                                                }}
-                                              >
-                                                {expandedOrderIds.includes(order.id) ? (
-                                                  <>
-                                                    Show Less Address <ExpandLessIcon fontSize="small" sx={{ ml: 0.5 }} />
-                                                  </>
-                                                ) : (
-                                                  <>
-                                                    Show Address <ExpandMoreIcon fontSize="small" sx={{ ml: 0.5 }} />
-                                                  </>
-                                                )}
-                                              </Box>
-                                              <Collapse in={expandedOrderIds.includes(order.id)} timeout="auto" unmountOnExit>
-                                                <Typography sx={{ mt: 1, ...smallFont }}>
-                                                  {order.shippingAddress || "No shipping address found"}
-                                                </Typography>
-                                              </Collapse>
-                                            </>
-                                          }
-                                          primaryTypographyProps={{
-                                            style: smallFont,
-                                          }}
-                                          secondaryTypographyProps={{
-                                            style: smallFont,
-                                          }}
-                                        />
-                                      </ListItem>
-                                    ))}
-                                  {customerData.orders.length > 4 && (
-                                    <ListItem
-                                      button
-                                      onClick={toggleShowAllOrders}
-                                      sx={{ pl: 3, ...smallFont }}
-                                    >
-                                      <ListItemText
-                                        primary={
-                                          showAllOrders
-                                            ? "Show less orders"
-                                            : `${customerData.orders.length - 4
-                                            } more orders`
-                                        }
-                                      />
-                                    </ListItem>
-                                  )}
-                                  {showAllOrders &&
-                                    customerData.orders
-                                      .slice(4)
+                      InputProps={{
+                        endAdornment: (
+                          <InputAdornment position="end">
+                            <IconButton
+                              onClick={executeShopifySearch}
+                              sx={{ color: "#1976d2" }}
+                            >
+                              <SearchIcon sx={{ color: "gray" }} />
+                            </IconButton>
+                          </InputAdornment>
+                        ),
+                      }}
+                    />
+                    {showCustomerDetails && (
+                      <List
+                        sx={{
+                          position: "absolute",
+                          top: "100%",
+                          left: 0,
+                          right: 0,
+                          bgcolor: "#f5f5f5",
+                          border: "1px solid #ccc",
+                          borderRadius: "4px",
+                          maxHeight: 290,
+                          overflowY: "auto",
+                          zIndex: 10,
+                          color: "black",
+                        }}
+                      >
+                        {customerData ? (
+                          <React.Fragment>
+                            <ListItem
+                              button
+                              onClick={toggleOrders}
+                              sx={{ py: 1, ...smallFont }}
+                            >
+                              <ListItemText
+                                primary={`${customerData.name}`}
+                                secondary={
+                                  <>
+                                    <span>
+                                      Total Orders: {customerData.totalOrders} |
+                                      Total Spent: ₹{customerData.totalSpent}
+                                    </span>
+                                    <br />
+                                    <span>
+                                      Last Order:{" "}
+                                      {customerData.lastOrderDate
+                                        ? new Date(
+                                          customerData.lastOrderDate
+                                        ).toLocaleString()
+                                        : "N/A"}{" "}
+                                      | Payment Status:{" "}
+                                      {customerData.lastOrderPaymentStatus ||
+                                        "N/A"}
+                                    </span>
+                                  </>
+                                }
+                                primaryTypographyProps={{ style: smallFont }}
+                                secondaryTypographyProps={{ style: smallFont }}
+                              />
+                              {showOrders ? (
+                                <ExpandLessIcon fontSize="small" />
+                              ) : (
+                                <ExpandMoreIcon fontSize="small" />
+                              )}
+                            </ListItem>
+                            <Collapse
+                              in={showOrders}
+                              timeout="auto"
+                              unmountOnExit
+                            >
+                              <List component="div" disablePadding>
+                                {customerData.orders &&
+                                  customerData.orders.length > 0 ? (
+                                  <>
+                                    {customerData.orders
+                                      .slice(0, 4)
                                       .map((order) => (
                                         <ListItem
                                           key={order.id}
                                           sx={{ pl: 3, py: 0.5, ...smallFont }}
                                         >
                                           <ListItemText
-                                            primary={`Order ${order.name || order.id}`}
+                                            primary={`Order ${order.name || order.id} | Total Amount: ₹${order.totalAmount || 0}`}
                                             secondary={
                                               <>
                                                 <span>
-                                                  {new Date(
-                                                    order.created_at
-                                                  ).toLocaleString()}{" "}
-                                                  | Items: {order.itemCount} |{" "}
-                                                  {order.deliveryStatus}
+                                                  {new Date(order.created_at).toLocaleString()} | Items: {order.itemCount} | {order.deliveryStatus}
+                                                  {" | "}
+                                                  Shipment: {order.shipmentStatus ?? "N/A"}
                                                 </span>
                                                 <br />
-                                                {order.lineItems.map(
-                                                  (item, idx) => (
-                                                    <span key={idx}>
-                                                      {item.title} -{" "}
-                                                      {item.variant} (
-                                                      {item.amountPaid}){" "}
-                                                    </span>
-                                                  )
-                                                )}
+                                                {order.lineItems.map((item, idx) => (
+                                                  <span key={idx}>
+                                                    {item.title} - {item.variant} (₹{item.amountPaid}){" "}
+                                                  </span>
+                                                ))}
+                                                <br />
+                                                <Box
+                                                  onClick={() => toggleAddress(order.id)}
+                                                  sx={{
+                                                    cursor: "pointer",
+                                                    color: "#1976d2",
+                                                    mt: 1,
+                                                    display: "flex",
+                                                    alignItems: "center",
+                                                  }}
+                                                >
+                                                  {expandedOrderIds.includes(order.id) ? (
+                                                    <>
+                                                      Show Less Address <ExpandLessIcon fontSize="small" sx={{ ml: 0.5 }} />
+                                                    </>
+                                                  ) : (
+                                                    <>
+                                                      Show Address <ExpandMoreIcon fontSize="small" sx={{ ml: 0.5 }} />
+                                                    </>
+                                                  )}
+                                                </Box>
+                                                <Collapse in={expandedOrderIds.includes(order.id)} timeout="auto" unmountOnExit>
+                                                  <Typography sx={{ mt: 1, ...smallFont }}>
+                                                    {order.shippingAddress || "No shipping address found"}
+                                                  </Typography>
+                                                </Collapse>
                                               </>
                                             }
                                             primaryTypographyProps={{
@@ -522,31 +482,88 @@ const NavbarWithSearch = () => {
                                           />
                                         </ListItem>
                                       ))}
-                                </>
-                              ) : (
-                                <ListItem sx={{ pl: 3, py: 1, ...smallFont }}>
-                                  <ListItemText primary="No orders found." />
-                                </ListItem>
-                              )}
-                            </List>
-                          </Collapse>
-                        </React.Fragment>
-                      ) : (
-                        <ListItem>
-                          <ListItemText
-                            primary="Customer does not exist."
-                            sx={smallFont}
-                          />
-                        </ListItem>
-                      )}
-                    </List>
-                  )}
-                </div>
-              </ClickAwayListener>
+                                    {customerData.orders.length > 4 && (
+                                      <ListItem
+                                        button
+                                        onClick={toggleShowAllOrders}
+                                        sx={{ pl: 3, ...smallFont }}
+                                      >
+                                        <ListItemText
+                                          primary={
+                                            showAllOrders
+                                              ? "Show less orders"
+                                              : `${customerData.orders.length - 4
+                                              } more orders`
+                                          }
+                                        />
+                                      </ListItem>
+                                    )}
+                                    {showAllOrders &&
+                                      customerData.orders
+                                        .slice(4)
+                                        .map((order) => (
+                                          <ListItem
+                                            key={order.id}
+                                            sx={{ pl: 3, py: 0.5, ...smallFont }}
+                                          >
+                                            <ListItemText
+                                              primary={`Order ${order.name || order.id}`}
+                                              secondary={
+                                                <>
+                                                  <span>
+                                                    {new Date(
+                                                      order.created_at
+                                                    ).toLocaleString()}{" "}
+                                                    | Items: {order.itemCount} |{" "}
+                                                    {order.deliveryStatus}
+                                                  </span>
+                                                  <br />
+                                                  {order.lineItems.map(
+                                                    (item, idx) => (
+                                                      <span key={idx}>
+                                                        {item.title} -{" "}
+                                                        {item.variant} (
+                                                        {item.amountPaid}){" "}
+                                                      </span>
+                                                    )
+                                                  )}
+                                                </>
+                                              }
+                                              primaryTypographyProps={{
+                                                style: smallFont,
+                                              }}
+                                              secondaryTypographyProps={{
+                                                style: smallFont,
+                                              }}
+                                            />
+                                          </ListItem>
+                                        ))}
+                                  </>
+                                ) : (
+                                  <ListItem sx={{ pl: 3, py: 1, ...smallFont }}>
+                                    <ListItemText primary="No orders found." />
+                                  </ListItem>
+                                )}
+                              </List>
+                            </Collapse>
+                          </React.Fragment>
+                        ) : (
+                          <ListItem>
+                            <ListItemText
+                              primary="Customer does not exist."
+                              sx={smallFont}
+                            />
+                          </ListItem>
+                        )}
+                      </List>
+                    )}
+                  </div>
+                </ClickAwayListener>
+              </Box>
             </Box>
-          </Box>
+          )}
 
-          {user?.role !== "Manager" && user?.role !== "Finance" && user?.role !== "Operations" && user?.role !== "Human Resource" && (
+          {user?.role !== "Manager" && user?.role !== "Finance" && user?.role !== "Operations" && user?.role !== "Human Resource" && user?.role !== "Marketing" && user?.role !== "Developer" && (
             <Box
               sx={{
                 mx: 2,
@@ -597,7 +614,7 @@ const NavbarWithSearch = () => {
 
           {/* Right side: Icons and LMS Search */}
           <Box sx={{ display: "flex", alignItems: "center" }}>
-            {user?.role !== "Finance" && user?.role !== "Operations" && user?.role !== "Human Resource" && (
+            {user?.role !== "Finance" && user?.role !== "Operations" && user?.role !== "Human Resource" && user?.role !== "Marketing" && user?.role !== "Developer" && (
               <IconButton
                 onClick={() => setIncentiveOpen(true)}
                 sx={{
@@ -611,7 +628,7 @@ const NavbarWithSearch = () => {
               </IconButton>
             )}
 
-            {user?.role !== "Finance" && user?.role !== "Operations" && user?.role !== "Human Resource" && (
+            {user?.role !== "Finance" && user?.role !== "Operations" && user?.role !== "Human Resource" && user?.role !== "Marketing" && user?.role !== "Developer" && (
               <IconButton
                 onClick={() => setBloomOpen(true)}
                 sx={{
@@ -627,7 +644,7 @@ const NavbarWithSearch = () => {
               </IconButton>
             )}
 
-            {user?.role !== "Finance" && user?.role !== "Operations" && user?.role !== "Human Resource" && (
+            {user?.role !== "Finance" && user?.role !== "Operations" && user?.role !== "Human Resource" && user?.role !== "Marketing" && user?.role !== "Developer" && (
               <IconButton
                 ref={leaderboardAnchorRef}
                 onClick={() => setLeaderboardOpen(true)}
@@ -652,7 +669,7 @@ const NavbarWithSearch = () => {
               onClose={() => setLeaderboardOpen(false)}
             />
 
-            {user?.role !== "Finance" && user?.role !== "Operations" && user?.role !== "Human Resource" && (
+            {user?.role !== "Finance" && user?.role !== "Operations" && user?.role !== "Human Resource" && user?.role !== "Marketing" && user?.role !== "Developer" && (
               <IconButton
                 color="error"
                 onClick={openBloodTestDialog}
@@ -663,7 +680,7 @@ const NavbarWithSearch = () => {
               </IconButton>
             )}
 
-            {user?.role !== "Finance" && user?.role !== "Operations" && user?.role !== "Human Resource" && (
+            {user?.role !== "Finance" && user?.role !== "Operations" && user?.role !== "Human Resource" && user?.role !== "Marketing" && user?.role !== "Developer" && (
               <IconButton
                 onClick={() => setDeliveryDialogOpen(true)}
                 sx={{ mr: 0.5, color: "#fff", borderRadius: "50%", p: 1.1, "&:hover": { bgcolor: "#e0e0e0" } }}
@@ -696,7 +713,7 @@ const NavbarWithSearch = () => {
             )} */}
 
 
-            {user && location.pathname !== "/login" && (
+            {user && location.pathname !== "/login" && user?.role !== "Human Resource" && user?.role !== "Marketing" && user?.role !== "Developer" && (
               <IconButton
                 color="inherit"
                 onClick={toggleCartDrawer(true)}
@@ -705,64 +722,91 @@ const NavbarWithSearch = () => {
                 <ShoppingCartIcon />
               </IconButton>
             )}
-            <Box sx={{ position: "relative", width: 200, ml: 2 }}>
-              <ClickAwayListener onClickAway={handleClickAway}>
-                <div>
-                  <TextField
-                    fullWidth
-                    variant="outlined"
-                    placeholder="LMS Search"
-                    value={query}
-                    onChange={handleSearch}
-                    sx={{
-                      backgroundColor: "#fff",
-                      borderRadius: 2,
-                      "& .MuiInputBase-input": {
-                        textAlign: "left",
-                        ...smallFont,
-                      },
-                    }}
-                  />
-                  {showResults && results.length > 0 && (
-                    <List
+
+            {showTaskIcons && (
+              <>
+                <IconButton
+                  color="inherit"
+                  onClick={() => navigate("/task-board")}
+                  sx={{ ml: 1, "&:hover": { backgroundColor: "#e0e0e0" } }}
+                  title="Task Manager"
+                >
+                  <CheckBoxIcon />
+                </IconButton>
+
+                <IconButton
+                  color="inherit"
+                  onClick={() => navigate("/my-reporting")}
+                  sx={{ ml: 0.5, "&:hover": { backgroundColor: "#e0e0e0" } }}
+                  title="My Reporting"
+                >
+                  <AssessmentIcon />
+                </IconButton>
+              </>
+            )}
+
+
+
+            {user?.role !== "Human Resource" && user?.role !== "Marketing" && user?.role !== "Developer" && (
+              <Box sx={{ position: "relative", width: 200, ml: 2 }}>
+                <ClickAwayListener onClickAway={handleClickAway}>
+                  <div>
+                    <TextField
+                      fullWidth
+                      variant="outlined"
+                      placeholder="LMS Search"
+                      value={query}
+                      onChange={handleSearch}
                       sx={{
-                        position: "absolute",
-                        top: "100%",
-                        left: 0,
-                        right: 0,
-                        bgcolor: "#f5f5f5",
-                        border: "1px solid #ccc",
-                        borderRadius: "4px",
-                        maxHeight: 200,
-                        overflowY: "auto",
-                        zIndex: 10,
-                        color: "black",
+                        backgroundColor: "#fff",
+                        borderRadius: 2,
+                        "& .MuiInputBase-input": {
+                          textAlign: "left",
+                          ...smallFont,
+                        },
                       }}
-                    >
-                      {results.map((item) => (
-                        <ListItem
-                          key={item._id}
-                          button
-                          onClick={() => {
-                            navigate(`/lead/${item._id}`);
-                            handleClickAway();
-                          }}
-                          sx={{
-                            ...smallFont,
-                            backgroundColor: item.source === "customer" ? "#ffe5e5" : "inherit"
-                          }}
-                        >
-                          <ListItemText
-                            primary={`${item.name || "No Name"} (${item.contactNumber}) (${item.agentAssigned}) [${item.healthExpertAssigned}]${item.hasOpenEscalation ? " ? " : ""}`}
-                            primaryTypographyProps={{ style: smallFont }}
-                          />
-                        </ListItem>
-                      ))}
-                    </List>
-                  )}
-                </div>
-              </ClickAwayListener>
-            </Box>
+                    />
+                    {showResults && results.length > 0 && (
+                      <List
+                        sx={{
+                          position: "absolute",
+                          top: "100%",
+                          left: 0,
+                          right: 0,
+                          bgcolor: "#f5f5f5",
+                          border: "1px solid #ccc",
+                          borderRadius: "4px",
+                          maxHeight: 200,
+                          overflowY: "auto",
+                          zIndex: 10,
+                          color: "black",
+                        }}
+                      >
+                        {results.map((item) => (
+                          <ListItem
+                            key={item._id}
+                            button
+                            onClick={() => {
+                              navigate(`/lead/${item._id}`);
+                              handleClickAway();
+                            }}
+                            sx={{
+                              ...smallFont,
+                              backgroundColor: item.source === "customer" ? "#ffe5e5" : "inherit"
+                            }}
+                          >
+                            <ListItemText
+                              primary={`${item.name || "No Name"} (${item.contactNumber}) (${item.agentAssigned}) [${item.healthExpertAssigned}]${item.hasOpenEscalation ? " ? " : ""}`}
+                              primaryTypographyProps={{ style: smallFont }}
+                            />
+                          </ListItem>
+                        ))}
+                      </List>
+                    )}
+                  </div>
+                </ClickAwayListener>
+              </Box>
+            )}
           </Box>
         </Toolbar>
       </AppBar>

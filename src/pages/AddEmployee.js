@@ -25,7 +25,6 @@ import {
 import { Visibility, VisibilityOff, WarningAmber, Edit, Delete } from "@mui/icons-material";
 import axios from "axios";
 
-
 const AddEmployee = () => {
   const [employees, setEmployees] = useState([]);
   const [open, setOpen] = useState(false);

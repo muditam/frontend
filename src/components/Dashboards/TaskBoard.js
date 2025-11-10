@@ -402,7 +402,7 @@ const TaskColumn = ({
             {displayTasks.length === 0 && !loading && (
               <Typography
                 variant="caption"
-                sx={{ color: "#6b7280", fontSize: 11 }}
+                sx={{ color: "#6b7280", fontSize: 11, mr: 1 }}
               >
                 No cards yet
               </Typography>
@@ -576,7 +576,7 @@ const TaskDialog = ({
             size="small"
             placeholder="https://… (optional)"
             value={draftTask.attachmentUrl}
-            onChange={(e) => onChangeField("attachmentUrl", e.target.value)}  
+            onChange={(e) => onChangeField("attachmentUrl", e.target.value)}
           />
 
           <TextField
@@ -1177,14 +1177,14 @@ const TaskBoard = () => {
             prev.map((t) =>
               String(t.id) === String(draggableId)
                 ? {
-                    ...t,
-                    status: updatedTask.status || t.status,
-                    totalActiveSeconds:
-                      updatedTask.totalActiveSeconds ?? t.totalActiveSeconds,
-                    activeSince: updatedTask.activeSince || null,
-                    startedAt: updatedTask.startedAt || t.startedAt,
-                    closedAt: updatedTask.closedAt || null,
-                  }
+                  ...t,
+                  status: updatedTask.status || t.status,
+                  totalActiveSeconds:
+                    updatedTask.totalActiveSeconds ?? t.totalActiveSeconds,
+                  activeSince: updatedTask.activeSince || null,
+                  startedAt: updatedTask.startedAt || t.startedAt,
+                  closedAt: updatedTask.closedAt || null,
+                }
                 : t
             )
           );
