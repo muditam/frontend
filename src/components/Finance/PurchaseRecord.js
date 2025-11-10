@@ -35,7 +35,7 @@ import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import axios from 'axios';
 
 
-const API_BASE_URL = 'http://localhost:5001';
+const API_BASE_URL = 'https://muditamleads-14f32a10d7f7.herokuapp.com';
 
 
 const PurchaseRecord = () => {
