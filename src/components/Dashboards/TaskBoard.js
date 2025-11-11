@@ -16,6 +16,8 @@ import {
   Autocomplete,
   Alert,
   Snackbar,
+  Checkbox,
+  FormControlLabel,
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import EditIcon from "@mui/icons-material/Edit";
@@ -589,6 +591,37 @@ const TaskDialog = ({
             onChange={(e) => onChangeField("dueDate", e.target.value)}
           />
         </Stack>
+        <Stack
+          direction={{ xs: "column", sm: "row" }}
+          spacing={1.5}
+          alignItems={{ xs: "flex-start", sm: "center" }}
+        >
+          <FormControlLabel
+            control={
+              <Checkbox
+                checked={!!draftTask.recurring}
+                onChange={(e) => onChangeField("recurring", e.target.checked)}
+              />
+            }
+            label="Recurring task"
+            sx={{ m: 0 }}
+          />
+
+          <TextField
+            select
+            label="Repeat"
+            size="small"
+            fullWidth
+            disabled={!draftTask.recurring}
+            value={draftTask.recurringInterval}
+            onChange={(e) => onChangeField("recurringInterval", e.target.value)}
+            sx={{ maxWidth: { sm: 220 } }}
+          >
+            <MenuItem value="DAILY">Daily</MenuItem>
+            <MenuItem value="WEEKLY">Weekly</MenuItem>
+            <MenuItem value="MONTHLY">Monthly</MenuItem>
+          </TextField>
+        </Stack>
       </Stack>
     </DialogContent>
 
@@ -769,6 +802,8 @@ const TaskBoard = () => {
     assigneeName: "",
     dueDate: "",
     attachmentUrl: "",
+    recurring: false,
+    recurringInterval: "DAILY",
   });
   const [dialogError, setDialogError] = useState("");
 
@@ -1210,6 +1245,8 @@ const TaskBoard = () => {
         assigneeName: "",
         dueDate: "",
         attachmentUrl: "",
+        recurring: false,
+        recurringInterval: "DAILY",
       });
       setDialogOpen(true);
     },
@@ -1232,6 +1269,8 @@ const TaskBoard = () => {
       assigneeName: task.assigneeName || "",
       dueDate: task.dueDate ? String(task.dueDate).slice(0, 10) : "",
       attachmentUrl: firstAttachment,
+      recurring: !!task.recurring,
+      recurringInterval: task.recurringInterval || "DAILY",
     });
     setDialogOpen(true);
   }, []);
@@ -1248,6 +1287,8 @@ const TaskBoard = () => {
       assigneeName: "",
       dueDate: "",
       attachmentUrl: "",
+      recurring: false,
+      recurringInterval: "DAILY",
     });
   }, [columns]);
 
@@ -1295,6 +1336,8 @@ const TaskBoard = () => {
           ? new Date(draftTask.dueDate).toISOString()
           : null,
         attachments,
+        recurring: !!draftTask.recurring,
+        recurringInterval: draftTask.recurringInterval || "DAILY",
         userId: ownerKey,
       };
 

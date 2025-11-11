@@ -1361,6 +1361,16 @@ const MenuBar = ({ toggleDrawer }) => {
                     <ListItem
                       button
                       component={Link}
+                      to="/switch-dashboard" 
+                      onClick={toggleDrawer}
+                    >
+                      <Typography variant="body2" sx={{ fontSize: "13px" }}>
+                        Switch Dashboards
+                      </Typography>
+                    </ListItem>
+                    <ListItem
+                      button
+                      component={Link}
                       to="/schedule-calls"
                       onClick={toggleDrawer}
                     >

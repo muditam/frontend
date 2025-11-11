@@ -349,27 +349,20 @@ const handleAddVendor = async () => {
     return;
   }
 
-
   const email = newVendor.email.trim();
   const phone = newVendor.phoneNumber.trim();
   let gst = (newVendor.gstNumber || '').trim().toUpperCase();
-
-
-  // 📱 phone: 10 digits only
+ 
   if (phone && !/^\d{10}$/.test(phone)) {
     showSnackbar('Phone number must be exactly 10 digits.', 'error');
     return;
   }
-
-
-  // 📧 email format
+ 
   if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     showSnackbar('Please enter a valid email address.', 'error');
     return;
   }
-
-
-  // 🧾 GST: required & 15 characters when hasGST = true
+ 
   if (newVendor.hasGST) {
     if (!gst) {
       showSnackbar('Please enter GST number (15 characters).', 'error');
@@ -380,7 +373,7 @@ const handleAddVendor = async () => {
       return;
     }
   } else {
-    gst = ''; // ignore GST if toggle is off
+    gst = '';  
   }
 
 
