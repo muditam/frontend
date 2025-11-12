@@ -69,7 +69,7 @@ import PurchaseRecord from "./components/Finance/PurchaseRecord";
 import PaymentRecords from "./components/Finance/paymentRecord";
 import Vendors from "./components/Finance/Vendors";
 import SwitchDashboard from "./components/Finance/SwitchDashboard";
-import ConfirmedOrder from "./components/OrderConfirmations/ConfirmedOrder";
+import ConfirmedOrder from "./components/OrderConf/ConfirmedOrder";
 import Invoices from "./pages/Invoices";
 import "./realtime/IncomingCallSSEBoot"; 
 
@@ -106,7 +106,7 @@ const App = () => {
           <Route path="/payment-record" element={<PaymentRecords />} />
           <Route path="/vendors" element={<Vendors />} />
           <Route path="/switch-dashboard" element={<SwitchDashboard />} />
-          <Route path="/order-confirmations" element={<ConfirmedOrder />} />
+          <Route path="/only-order-confirmation" element={<ConfirmedOrder />} />
           <Route path="/invoices" element={<Invoices />} />
 
           <Route
