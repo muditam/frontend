@@ -16,8 +16,8 @@ const SalesDashboard = () => {
 
   const [isImpersonating, setIsImpersonating] = useState(false);
   const [revertLoading, setRevertLoading] = useState(false);
-  const [currentUser, setCurrentUser] = useState(null);   // who you are viewing AS
-  const [originalUser, setOriginalUser] = useState(null); // who actually logged in
+  const [currentUser, setCurrentUser] = useState(null);    
+  const [originalUser, setOriginalUser] = useState(null); 
 
 
   const navigate = useNavigate();

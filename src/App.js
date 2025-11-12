@@ -108,7 +108,7 @@ const App = () => {
           <Route path="/switch-dashboard" element={<SwitchDashboard />} />
           <Route path="/only-order-confirmation" element={<ConfirmedOrder />} />
           <Route path="/invoices" element={<Invoices />} />
-
+          
           <Route
             path="/" 
             element={

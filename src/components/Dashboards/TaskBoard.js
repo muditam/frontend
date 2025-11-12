@@ -1143,10 +1143,18 @@ const TaskBoard = () => {
           moved.activeSince = nowIso;
         }
 
+        // OPEN -> any other column: accumulate time instantly then clear
         if (
           moved.status === COLUMN_IDS.OPEN &&
           destColId !== COLUMN_IDS.OPEN
         ) {
+          if (moved.activeSince) {
+            const deltaSec =
+              (Date.now() -
+                new Date(moved.activeSince).getTime()) / 1000;
+            moved.totalActiveSeconds =
+              (moved.totalActiveSeconds || 0) + Math.max(0, deltaSec);
+          }
           moved.activeSince = null;
         }
 
@@ -1212,14 +1220,14 @@ const TaskBoard = () => {
             prev.map((t) =>
               String(t.id) === String(draggableId)
                 ? {
-                  ...t,
-                  status: updatedTask.status || t.status,
-                  totalActiveSeconds:
-                    updatedTask.totalActiveSeconds ?? t.totalActiveSeconds,
-                  activeSince: updatedTask.activeSince || null,
-                  startedAt: updatedTask.startedAt || t.startedAt,
-                  closedAt: updatedTask.closedAt || null,
-                }
+                    ...t,
+                    status: updatedTask.status || t.status,
+                    totalActiveSeconds:
+                      updatedTask.totalActiveSeconds ?? t.totalActiveSeconds,
+                    activeSince: updatedTask.activeSince || null,
+                    startedAt: updatedTask.startedAt || t.startedAt,
+                    closedAt: updatedTask.closedAt || null,
+                  }
                 : t
             )
           );
@@ -1256,7 +1264,7 @@ const TaskBoard = () => {
   const openEditDialog = useCallback((task) => {
     const firstAttachment =
       Array.isArray(task.attachments) &&
-        task.attachments.length > 0
+      task.attachments.length > 0
         ? task.attachments[0]
         : "";
     setEditingTask(task);
@@ -1344,26 +1352,57 @@ const TaskBoard = () => {
       let tempId;
       try {
         if (editingTask) {
-          await axios.put(
+          const { data } = await axios.put(
             `${API_BASE_URL}/api/tasks/${editingTask.id}`,
             payloadForApi
           );
+
+          const updated = {
+            id: String(data.id || data._id || editingTask.id),
+            title: data.title,
+            description: data.description || "",
+            status: data.status,
+            assigneeName: data.assigneeName || "",
+            assigneeId: data.assigneeId || null,
+            assignedByName: data.assignedByName || "",
+            assignedById: data.assignedById || null,
+            assignedDate: data.assignedDate || "",
+            dueDate: data.dueDate || "",
+            attachments: Array.isArray(data.attachments)
+              ? data.attachments
+              : data.attachmentUrl
+              ? [data.attachmentUrl]
+              : [],
+            totalActiveSeconds: data.totalActiveSeconds ?? 0,
+            activeSince: data.activeSince || null,
+            startedAt: data.startedAt || null,
+            closedAt: data.closedAt || null,
+            createdAt: data.createdAt || null,
+            // keep recurring info on client
+            recurring: !!draftTask.recurring,
+            recurringInterval: draftTask.recurringInterval || "DAILY",
+          };
+
           setTasks((prev) =>
             prev.map((t) =>
-              t.id === editingTask.id
-                ? { ...t, ...payloadForApi }
-                : t
+              t.id === editingTask.id ? updated : t
             )
           );
           showSnackbar("Task updated", "success");
         } else {
           tempId = generateId();
+          // optimistic add
           setTasks((prev) => [
             ...prev,
             {
               ...payloadForApi,
               id: tempId,
               startedAt:
+                safeStatus === COLUMN_IDS.OPEN
+                  ? new Date().toISOString()
+                  : null,
+              totalActiveSeconds: 0,
+              activeSince:
                 safeStatus === COLUMN_IDS.OPEN
                   ? new Date().toISOString()
                   : null,
@@ -1374,10 +1413,35 @@ const TaskBoard = () => {
             `${API_BASE_URL}/api/tasks`,
             payloadForApi
           );
-          const newId = String(data.id || data._id || tempId);
+
+          const created = {
+            id: String(data.id || data._id || tempId),
+            title: data.title,
+            description: data.description || "",
+            status: data.status,
+            assigneeName: data.assigneeName || "",
+            assigneeId: data.assigneeId || null,
+            assignedByName: data.assignedByName || "",
+            assignedById: data.assignedById || null,
+            assignedDate: data.assignedDate || "",
+            dueDate: data.dueDate || "",
+            attachments: Array.isArray(data.attachments)
+              ? data.attachments
+              : data.attachmentUrl
+              ? [data.attachmentUrl]
+              : [],
+            totalActiveSeconds: data.totalActiveSeconds ?? 0,
+            activeSince: data.activeSince || null,
+            startedAt: data.startedAt || null,
+            closedAt: data.closedAt || null,
+            createdAt: data.createdAt || null,
+            recurring: !!draftTask.recurring,
+            recurringInterval: draftTask.recurringInterval || "DAILY",
+          };
+
           setTasks((prev) =>
             prev.map((t) =>
-              t.id === tempId ? { ...t, id: newId } : t
+              t.id === tempId ? created : t
             )
           );
           showSnackbar("Task created", "success");
@@ -1875,14 +1939,14 @@ const TaskBoard = () => {
                             onSeeMore={
                               isLimitedColumn
                                 ? () =>
-                                  setLimitedVisibleCounts(
-                                    (prev) => ({
-                                      ...prev,
-                                      [column.id]:
-                                        (prev[column.id] ||
-                                          10) + 10,
-                                    })
-                                  )
+                                    setLimitedVisibleCounts(
+                                      (prev) => ({
+                                        ...prev,
+                                        [column.id]:
+                                          (prev[column.id] ||
+                                            10) + 10,
+                                      })
+                                    )
                                 : undefined
                             }
                             canDeleteColumn={!isDefaultColumn}

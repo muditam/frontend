@@ -20,7 +20,7 @@ import axios from "axios";
 
 
 const API_BASE_URL = "https://muditamleads-14f32a10d7f7.herokuapp.com";
-const ENDPOINT = "/api/order-confirmations/confirmed-order";
+const ENDPOINT = "/api/order-confirmation/confirmed-order";
 
 
 // Map UI -> backend expected values (adjust if your backend accepts 'week'/'month' directly)
