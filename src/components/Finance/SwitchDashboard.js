@@ -1,5 +1,5 @@
 // src/components/Finance/SwitchDashboard.js
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Box,
   Paper,
@@ -21,9 +21,7 @@ import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 
-
-const API_BASE_URL = 'http://localhost:5001';
-
+const API_BASE_URL = 'https://muditamleads-14f32a10d7f7.herokuapp.com';
 
 const SwitchDashboard = () => {
   const [search, setSearch] = useState('');
@@ -37,62 +35,56 @@ const SwitchDashboard = () => {
     severity: 'success',
   });
 
-
   const navigate = useNavigate();
   const hasOriginalUser = !!sessionStorage.getItem('originalUser');
 
-
-  const currentUser = (() => {
+  // Read once and memoize so dependencies stay stable
+  const currentUser = useMemo(() => {
     try {
       return JSON.parse(sessionStorage.getItem('user') || 'null');
     } catch {
       return null;
     }
-  })();
+  }, []);
 
-
-  const storedProfile = (() => {
+  const storedProfile = useMemo(() => {
     try {
       return JSON.parse(localStorage.getItem('userProfile') || '{}');
     } catch {
       return {};
     }
-  })();
-  const loggedInEmployeeId =
-    storedProfile?._id ||
-    storedProfile?.user?._id ||
-    currentUser?._id ||
-    '';
+  }, []);
 
-
-  const [employees, setEmployees] = useState([]);
-  const visibleEmployees = useMemo(
+  const loggedInEmployeeId = useMemo(
     () =>
-      employees.filter(
-        (emp) =>
-          emp?._id !== loggedInEmployeeId &&
-          (currentUser?.email
-            ? (emp?.email || '').toLowerCase() !== currentUser.email.toLowerCase()
-            : true)
-      ),
-    [employees, loggedInEmployeeId, currentUser?.email]
+      storedProfile?._id ||
+      storedProfile?.user?._id ||
+      currentUser?._id ||
+      '',
+    [storedProfile, currentUser]
   );
 
+  // Track the latest request to avoid race conditions
+  const reqStateRef = useRef({ reqId: 0 });
 
-  const fetchEmployees = useCallback(
-    async (term) => {
-      const trimmed = term.trim();
-      if (trimmed.length < 2) {
-        setSelectedEmployee(null);
-        setEmployees([]);
-        return;
-      }
+  // Debounced employee search with cancellation and race protection
+  useEffect(() => {
+    const trimmed = String(search || '').trim();
+    if (!trimmed) {
+      setSelectedEmployee(null);
+      return;
+    }
+    if (trimmed.length < 2) {
+      setSelectedEmployee(null);
+      return;
+    }
 
+    const controller = new AbortController();
+    const thisReqId = ++reqStateRef.current.reqId;
+    setSearchLoading(true);
 
+    const t = setTimeout(async () => {
       try {
-        setSearchLoading(true);
-
-
         const { data } = await axios.get(`${API_BASE_URL}/api/employees`, {
           params: {
             search: trimmed,
@@ -100,12 +92,14 @@ const SwitchDashboard = () => {
             actorEmail: currentUser?.email || '',
           },
           withCredentials: true,
+          signal: controller.signal,
         });
 
+        // Drop if a newer request has completed
+        if (thisReqId !== reqStateRef.current.reqId) return;
 
         const rawList = Array.isArray(data) ? data : [];
         const currentEmail = (currentUser?.email || '').toLowerCase();
-
 
         const filteredList = rawList.filter((emp) => {
           const idMatch =
@@ -115,10 +109,8 @@ const SwitchDashboard = () => {
           return !idMatch && !emailMatch;
         });
 
-
         if (rawList.length && !filteredList.length) {
           setSelectedEmployee(null);
-          setEmployees([]);
           setSnackbar({
             open: true,
             message: 'You are already viewing this account.',
@@ -127,10 +119,7 @@ const SwitchDashboard = () => {
           return;
         }
 
-
         const normalized = trimmed.toLowerCase();
-
-
         const match =
           filteredList.find((emp) =>
             (emp.fullName || '').toLowerCase().includes(normalized)
@@ -142,49 +131,37 @@ const SwitchDashboard = () => {
             (emp.role || '').toLowerCase().includes(normalized)
           );
 
-
-        if (match) {
-          setSelectedEmployee(match);
-        } else {
-          setSelectedEmployee(null);
+        setSelectedEmployee(match || null);
+        if (!match) {
           setSnackbar({
             open: true,
             message: 'No matching employee found',
             severity: 'warning',
           });
         }
-
-
-        setEmployees(filteredList);
       } catch (err) {
+        if (controller.signal.aborted) return;
         setSelectedEmployee(null);
-        setEmployees([]);
         setSnackbar({
           open: true,
-          message: err.response?.data?.message || 'Failed to load employee',
+          message: err?.response?.data?.message || 'Failed to load employee',
           severity: 'error',
         });
       } finally {
-        setSearchLoading(false);
+        if (thisReqId === reqStateRef.current.reqId) {
+          setSearchLoading(false);
+        }
       }
-    },
-    [currentUser, loggedInEmployeeId]
-  );
+    }, 350);
 
-
-  useEffect(() => {
-    if (!search.trim()) {
-      setSelectedEmployee(null);
-      return;
-    }
-    const handler = setTimeout(() => fetchEmployees(search), 300);
-    return () => clearTimeout(handler);
-  }, [search, fetchEmployees]);
-
+    return () => {
+      clearTimeout(t);
+      controller.abort();
+    };
+  }, [search, currentUser?.role, currentUser?.email, loggedInEmployeeId]);
 
   const handleSwitch = async () => {
     if (!selectedEmployee || switching) return;
-
 
     const currentEmail = (currentUser?.email || '').toLowerCase();
     if (
@@ -201,18 +178,14 @@ const SwitchDashboard = () => {
       return;
     }
 
-
     try {
       setSwitching(true);
 
-
       const actor = currentUser;
-
 
       if (actor && !sessionStorage.getItem('originalUser')) {
         sessionStorage.setItem('originalUser', JSON.stringify(actor));
       }
-
 
       const { data } = await axios.post(
         `${API_BASE_URL}/api/employees/impersonate`,
@@ -224,33 +197,32 @@ const SwitchDashboard = () => {
         { withCredentials: true }
       );
 
-
       if (data?.user) {
-        sessionStorage.setItem('user', JSON.stringify(data.user));
+        // Ensure _id is present for rest of app
+        const toStore = { ...data.user, _id: data.user._id || data.user.id };
+        sessionStorage.setItem('user', JSON.stringify(toStore));
         sessionStorage.setItem(
           'switchMeta',
           JSON.stringify({
             actorEmail: actor?.email || null,
-            targetEmail: data.user.email,
-            targetName: data.user.fullName,
+            targetEmail: toStore.email,
+            targetName: toStore.fullName,
             switchedAt: Date.now(),
           })
         );
       }
 
-
       navigate('/', { replace: true });
     } catch (err) {
       setSnackbar({
         open: true,
-        message: err.response?.data?.message || 'Switch failed',
+        message: err?.response?.data?.message || 'Switch failed',
         severity: 'error',
       });
     } finally {
       setSwitching(false);
     }
   };
-
 
   const handleRevert = async () => {
     try {
@@ -261,13 +233,12 @@ const SwitchDashboard = () => {
         { withCredentials: true }
       );
 
-
       if (data?.user) {
-        sessionStorage.setItem('user', JSON.stringify(data.user));
+        const toStore = { ...data.user, _id: data.user._id || data.user.id };
+        sessionStorage.setItem('user', JSON.stringify(toStore));
       }
       sessionStorage.removeItem('originalUser');
       sessionStorage.removeItem('switchMeta');
-
 
       setSnackbar({
         open: true,
@@ -275,19 +246,17 @@ const SwitchDashboard = () => {
         severity: 'success',
       });
 
-
       navigate('/', { replace: true });
     } catch (err) {
       setSnackbar({
         open: true,
-        message: err.response?.data?.message || 'Unable to revert',
+        message: err?.response?.data?.message || 'Unable to revert',
         severity: 'error',
       });
     } finally {
       setReverting(false);
     }
   };
-
 
   return (
     <Box
@@ -352,7 +321,6 @@ const SwitchDashboard = () => {
             </Box>
           </Box>
 
-
           {currentUser?.fullName && (
             <Chip
               size="small"
@@ -365,7 +333,6 @@ const SwitchDashboard = () => {
             />
           )}
         </Box>
-
 
         {/* Impersonation Banner */}
         {hasOriginalUser && (
@@ -405,7 +372,6 @@ const SwitchDashboard = () => {
             </Button>
           </Box>
         )}
-
 
         {/* Content */}
         <Box sx={{ p: 3, bgcolor: '#F9FAFB' }}>
@@ -467,7 +433,6 @@ const SwitchDashboard = () => {
             />
           </Box>
 
-
           <Typography
             variant="caption"
             sx={{ mt: 1, ml: 0.5, display: 'block', color: 'text.secondary' }}
@@ -475,11 +440,9 @@ const SwitchDashboard = () => {
             Tip: type at least 2 characters to search. Click on the employee card to open their dashboard.
           </Typography>
 
-
           <Divider sx={{ my: 3 }} />
 
-
-          {/* Selected employee card – now clickable to switch */}
+          {/* Selected employee card – clickable to switch */}
           {selectedEmployee ? (
             <Paper
               elevation={0}
@@ -574,7 +537,6 @@ const SwitchDashboard = () => {
         </Box>
       </Paper>
 
-
       <Snackbar
         open={snackbar.open}
         autoHideDuration={snackbar.severity === 'error' ? 7000 : 4000}
@@ -594,8 +556,4 @@ const SwitchDashboard = () => {
   );
 };
 
-
 export default SwitchDashboard;
-
-
-

@@ -32,13 +32,11 @@ import axios from 'axios';
 
 const API_BASE_URL = 'https://muditamleads-14f32a10d7f7.herokuapp.com';
 
-
 const PaymentRecords = () => {
   const [records, setRecords] = useState([]);
   const [vendors, setVendors] = useState([]);
   const [editingCell, setEditingCell] = useState({ recordId: null, field: null });
   const originalValues = useRef({});
-
 
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(100);

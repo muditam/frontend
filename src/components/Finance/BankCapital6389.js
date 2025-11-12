@@ -12,7 +12,6 @@ import {
   TableRow,
   CircularProgress,
   TablePagination,
-  Chip,
 } from "@mui/material";
 import CloudUploadIcon from "@mui/icons-material/CloudUpload";
 import axios from "axios";
@@ -25,7 +24,7 @@ const BankCapital6389 = () => {
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
 
-  const [page, setPage] = useState(0); // MUI is 0-based
+  const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(50);
 
   const fetchData = async (pageArg = page, rowsArg = rowsPerPage) => {
@@ -35,15 +34,15 @@ const BankCapital6389 = () => {
         `${API_BASE_URL}/api/bank-reconciliation/capital-6389`,
         {
           params: {
-            page: pageArg + 1, // backend is 1-based
+            page: pageArg + 1,
             limit: rowsArg,
           },
         }
       );
       setRows(data?.data || []);
       setTotal(data?.total || 0);
-      setPage((prev) => pageArg); // keep in sync
-      setRowsPerPage((prev) => rowsArg);
+      setPage(() => pageArg);
+      setRowsPerPage(() => rowsArg);
     } catch (err) {
       console.error("Error fetching Capital 6389 txns:", err);
     } finally {
@@ -74,14 +73,13 @@ const BankCapital6389 = () => {
           },
         }
       );
-      // after upload, reload from first page
       await fetchData(0, rowsPerPage);
     } catch (err) {
       console.error("Upload error:", err);
       alert("Error uploading CSV");
     } finally {
       setUploading(false);
-      event.target.value = ""; // reset input
+      event.target.value = "";
     }
   };
 
@@ -91,7 +89,6 @@ const BankCapital6389 = () => {
 
   const handleChangeRowsPerPage = (event) => {
     const newRowsPerPage = parseInt(event.target.value, 10) || 50;
-    // reset to page 0 when page size changes
     fetchData(0, newRowsPerPage);
   };
 
@@ -100,16 +97,16 @@ const BankCapital6389 = () => {
     return new Date(value).toLocaleDateString("en-IN");
   };
 
+  // show any valid numeric value, hide only null/undefined/NaN
   const formatNumber = (value) => {
-    if (value == null) return "";
-    return Number(value).toLocaleString("en-IN", {
+    if (value === null || value === undefined || value === "") return "";
+    const num = Number(value);
+    if (Number.isNaN(num)) return "";
+    return num.toLocaleString("en-IN", {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     });
   };
-
-  const fromIndex = total === 0 ? 0 : page * rowsPerPage + 1;
-  const toIndex = Math.min(total, (page + 1) * rowsPerPage);
 
   return (
     <Box
@@ -120,7 +117,6 @@ const BankCapital6389 = () => {
         boxSizing: "border-box",
       }}
     >
-      {/* Header card */}
       <Paper
         elevation={0}
         sx={{
@@ -165,7 +161,6 @@ const BankCapital6389 = () => {
         </Button>
       </Paper>
 
-      {/* Table */}
       <Paper
         elevation={0}
         sx={{
@@ -234,15 +229,13 @@ const BankCapital6389 = () => {
                         <TableCell>{row.refNo}</TableCell>
                         <TableCell>{row.branchCode}</TableCell>
                         <TableCell align="right">
-                          {row.debit ? formatNumber(row.debit) : ""}
+                          {formatNumber(row.debit)}
                         </TableCell>
                         <TableCell align="right">
-                          {row.credit ? formatNumber(row.credit) : ""}
+                          {formatNumber(row.credit)}
                         </TableCell>
                         <TableCell align="right">
-                          {row.balance || row.balance === 0
-                            ? formatNumber(row.balance)
-                            : ""}
+                          {formatNumber(row.balance)}
                         </TableCell>
                         <TableCell>{row.remarks}</TableCell>
                       </TableRow>

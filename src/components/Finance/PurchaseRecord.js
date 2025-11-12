@@ -343,69 +343,69 @@ const PurchaseRecord = () => {
 
 
   // 🔹 ADD VENDOR – with validation for email, phone, GST
-const handleAddVendor = async () => {
-  if (!newVendor.name.trim()) {
-    showSnackbar('Please enter a vendor name', 'error');
-    return;
-  }
-
-  const email = newVendor.email.trim();
-  const phone = newVendor.phoneNumber.trim();
-  let gst = (newVendor.gstNumber || '').trim().toUpperCase();
- 
-  if (phone && !/^\d{10}$/.test(phone)) {
-    showSnackbar('Phone number must be exactly 10 digits.', 'error');
-    return;
-  }
- 
-  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    showSnackbar('Please enter a valid email address.', 'error');
-    return;
-  }
- 
-  if (newVendor.hasGST) {
-    if (!gst) {
-      showSnackbar('Please enter GST number (15 characters).', 'error');
+  const handleAddVendor = async () => {
+    if (!newVendor.name.trim()) {
+      showSnackbar('Please enter a vendor name', 'error');
       return;
     }
-    if (gst.length !== 15) {
-      showSnackbar('GST number must be exactly 15 characters.', 'error');
+
+    const email = newVendor.email.trim();
+    const phone = newVendor.phoneNumber.trim();
+    let gst = (newVendor.gstNumber || '').trim().toUpperCase();
+
+    if (phone && !/^\d{10}$/.test(phone)) {
+      showSnackbar('Phone number must be exactly 10 digits.', 'error');
       return;
     }
-  } else {
-    gst = '';  
-  }
+
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      showSnackbar('Please enter a valid email address.', 'error');
+      return;
+    }
+
+    if (newVendor.hasGST) {
+      if (!gst) {
+        showSnackbar('Please enter GST number (15 characters).', 'error');
+        return;
+      }
+      if (gst.length !== 15) {
+        showSnackbar('GST number must be exactly 15 characters.', 'error');
+        return;
+      }
+    } else {
+      gst = '';
+    }
 
 
-  try {
-    const res = await axios.post(`${API_BASE_URL}/api/vendors`, {
-      name: newVendor.name.trim(),
-      email,
-      phoneNumber: phone,
-      hasGST: newVendor.hasGST,
-      gstNumber: gst,
-    });
+    try {
+      const res = await axios.post(`${API_BASE_URL}/api/vendors`, {
+        name: newVendor.name.trim(),
+        email,
+        phoneNumber: phone,
+        hasGST: newVendor.hasGST,
+        gstNumber: gst,
+      });
 
 
-    setVendors((prev) => [...prev, res.data]);
-    setNewVendor({
-      name: '',
-      email: '',
-      phoneNumber: '',
-      hasGST: true,
-      gstNumber: '',
-    });
-    setVendorDialogOpen(false);
-    showSnackbar('Vendor added successfully!', 'success');
-  } catch (e) {
-    console.error('Error adding vendor:', e);
-    const errorMsg =
-      e.response?.data?.message ||
-      e.response?.data?.error ||
-      'Failed to add vendor';
-    showSnackbar(errorMsg, 'error');
-  }
-};
+      setVendors((prev) => [...prev, res.data]);
+      setNewVendor({
+        name: '',
+        email: '',
+        phoneNumber: '',
+        hasGST: true,
+        gstNumber: '',
+      });
+      setVendorDialogOpen(false);
+      showSnackbar('Vendor added successfully!', 'success');
+    } catch (e) {
+      console.error('Error adding vendor:', e);
+      const errorMsg =
+        e.response?.data?.message ||
+        e.response?.data?.error ||
+        'Failed to add vendor';
+      showSnackbar(errorMsg, 'error');
+    }
+  };
 
 
 
@@ -1660,13 +1660,13 @@ const handleAddVendor = async () => {
           {(filters.category ||
             filters.billingGst ||
             filters.vendorSearch) && (
-            <Typography
-              variant="body2"
-              sx={{ color: '#666', ml: 'auto' }}
-            >
-              {Object.values(filters).filter(Boolean).length} filter(s) active
-            </Typography>
-          )}
+              <Typography
+                variant="body2"
+                sx={{ color: '#666', ml: 'auto' }}
+              >
+                {Object.values(filters).filter(Boolean).length} filter(s) active
+              </Typography>
+            )}
         </Box>
       </Paper>
 
@@ -1700,67 +1700,67 @@ const handleAddVendor = async () => {
             </TableHead>
 
 
-         <TableBody>
-  {records.length === 0 ? (
-    <TableRow>
-      <TableCell
-        colSpan={columns.length + 2}
-        align="center"
-        sx={{ py: 5 }}
-      >
-        <Typography variant="body1" color="text.secondary">
-          {showDeleted ? 'No deleted records.' : 'No records found.'}
-        </Typography>
-      </TableCell>
-    </TableRow>
-  ) : (
-    records.map((record, index) => (
-      <TableRow
-        key={record._id}
-        sx={{
-          '&:nth-of-type(odd)': { backgroundColor: '#fafafa' },
-          '&:hover': { backgroundColor: '#f3f4f6' },
-        }}
-      >
-        <TableCell
-          sx={{ padding: '6px 8px', whiteSpace: 'nowrap' }}
-        >
-          {!showDeleted && (
-            <IconButton
-              color="error"
-              onClick={() => handleDelete(record._id)}
-              size="small"
-              sx={{
-                '&:hover': {
-                  backgroundColor: 'rgba(211,47,47,.08)',
-                },
-              }}
-            >
-              <DeleteIcon fontSize="small" />
-            </IconButton>
-          )}
-        </TableCell>
-        <TableCell
-          sx={{
-            padding: '6px 8px',
-            whiteSpace: 'nowrap',
-            fontWeight: 600,
-          }}
-        >
-          {page * rowsPerPage + index + 1}
-        </TableCell>
-        {columns.map((col) => (
-          <TableCell
-            key={col.field}
-            sx={{ padding: '6px 8px', whiteSpace: 'nowrap' }}
-          >
-            {renderCell(record, col.field)}
-          </TableCell>
-        ))}
-      </TableRow>
-    ))
-  )}
-</TableBody>
+            <TableBody>
+              {records.length === 0 ? (
+                <TableRow>
+                  <TableCell
+                    colSpan={columns.length + 2}
+                    align="center"
+                    sx={{ py: 5 }}
+                  >
+                    <Typography variant="body1" color="text.secondary">
+                      {showDeleted ? 'No deleted records.' : 'No records found.'}
+                    </Typography>
+                  </TableCell>
+                </TableRow>
+              ) : (
+                records.map((record, index) => (
+                  <TableRow
+                    key={record._id}
+                    sx={{
+                      '&:nth-of-type(odd)': { backgroundColor: '#fafafa' },
+                      '&:hover': { backgroundColor: '#f3f4f6' },
+                    }}
+                  >
+                    <TableCell
+                      sx={{ padding: '6px 8px', whiteSpace: 'nowrap' }}
+                    >
+                      {!showDeleted && (
+                        <IconButton
+                          color="error"
+                          onClick={() => handleDelete(record._id)}
+                          size="small"
+                          sx={{
+                            '&:hover': {
+                              backgroundColor: 'rgba(211,47,47,.08)',
+                            },
+                          }}
+                        >
+                          <DeleteIcon fontSize="small" />
+                        </IconButton>
+                      )}
+                    </TableCell>
+                    <TableCell
+                      sx={{
+                        padding: '6px 8px',
+                        whiteSpace: 'nowrap',
+                        fontWeight: 600,
+                      }}
+                    >
+                      {page * rowsPerPage + index + 1}
+                    </TableCell>
+                    {columns.map((col) => (
+                      <TableCell
+                        key={col.field}
+                        sx={{ padding: '6px 8px', whiteSpace: 'nowrap' }}
+                      >
+                        {renderCell(record, col.field)}
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
 
 
           </Table>
@@ -1826,298 +1826,298 @@ const handleAddVendor = async () => {
         </DialogContent>
       </Dialog>
 
-    {/* Add vendor dialog */}
-<Dialog
-  open={vendorDialogOpen}
-  onClose={() => setVendorDialogOpen(false)}
-  maxWidth="sm"
-  fullWidth
->
-  <DialogTitle
-    sx={{
-      fontWeight: 700,
-      fontSize: '1.25rem',
-      pb: 1.5,
-    }}
-  >
-    Add New Vendor
-  </DialogTitle>
-
-
-  <DialogContent sx={{ pt: 2.5, pb: 2 }}>
-    {/* Vendor Name */}
-  {/* Vendor Name */}
-    <TextField
-      autoFocus
-      fullWidth
-   
-      placeholder="Enter vendor name..."
-      value={newVendor.name}
-      onChange={(e) =>
-        setNewVendor((prev) => ({ ...prev, name: e.target.value }))
-      }
-      InputLabelProps={{ shrink: true }}
-      sx={{
-        mb: 2.5,
-        '& .MuiOutlinedInput-root': {
-          borderRadius: 2,
-          backgroundColor: '#fafafa',
-          '& fieldset': {
-            borderColor: '#d1d5db',
-            borderWidth: '1.5px',
-          },
-          '&:hover fieldset': {
-            borderColor: '#111827',
-            borderWidth: '1.5px',
-          },
-          '&.Mui-focused fieldset': {
-            borderColor: '#000',
-            borderWidth: '2px',
-          },
-        },
-        '& .MuiOutlinedInput-input': {
-          padding: '14px 14px',
-          fontSize: 14,
-        },
-        '& .MuiInputLabel-root': {
-          fontWeight: 600,
-          color: '#4b5563',
-        },
-        '& .MuiInputLabel-root.Mui-focused': {
-          color: '#000',
-        },
-      }}
-    />
-
-
-    {/* Email + Phone */}
-    <Box sx={{ display: 'flex', gap: 1.5, mb: 2 }}>
-      <TextField
+      {/* Add vendor dialog */}
+      <Dialog
+        open={vendorDialogOpen}
+        onClose={() => setVendorDialogOpen(false)}
+        maxWidth="sm"
         fullWidth
-        label="Email"
-        type="email"
-        placeholder="vendor@example.com"
-        value={newVendor.email}
-        onChange={(e) =>
-          setNewVendor((prev) => ({ ...prev, email: e.target.value }))
-        }
-        sx={{
-          flex: 1,
-          '& .MuiOutlinedInput-root': {
-            borderRadius: 2,
-            backgroundColor: '#fafafa',
-            '& fieldset': {
-              borderColor: '#d1d5db',
-              borderWidth: '1.5px',
-            },
-            '&:hover fieldset': {
-              borderColor: '#111827',
-              borderWidth: '1.5px',
-            },
-            '&.Mui-focused fieldset': {
-              borderColor: '#000',
-              borderWidth: '2px',
-            },
-          },
-          '& .MuiInputLabel-root': {
-            fontWeight: 600,
-            color: '#6b7280',
-          },
-          '& .MuiInputLabel-root.Mui-focused': {
-            color: '#000',
-          },
-        }}
-      />
-
-
-      <TextField
-        fullWidth
-        label="Phone"
-        type="tel"
-        placeholder="+91 98765 43210"
-        value={newVendor.phoneNumber}
-        onChange={(e) =>
-          setNewVendor((prev) => ({
-            ...prev,
-            phoneNumber: e.target.value.replace(/\D/g, ''), // only digits
-          }))
-        }
-        inputProps={{ maxLength: 10 }}
-        sx={{
-          flex: 1,
-          '& .MuiOutlinedInput-root': {
-            borderRadius: 2,
-            backgroundColor: '#fafafa',
-            '& fieldset': {
-              borderColor: '#d1d5db',
-              borderWidth: '1.5px',
-            },
-            '&:hover fieldset': {
-              borderColor: '#111827',
-              borderWidth: '1.5px',
-            },
-            '&.Mui-focused fieldset': {
-              borderColor: '#000',
-              borderWidth: '2px',
-            },
-          },
-          '& .MuiInputLabel-root': {
-            fontWeight: 600,
-            color: '#6b7280',
-          },
-          '& .MuiInputLabel-root.Mui-focused': {
-            color: '#000',
-          },
-        }}
-      />
-    </Box>
-
-
-    {/* GST toggle + GST number (hidden when toggle OFF) */}
-    <Box
-      sx={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 2,
-        mb: 2,
-      }}
-    >
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-        <Switch
-          checked={newVendor.hasGST}
-          onChange={(e) =>
-            setNewVendor((prev) => ({
-              ...prev,
-              hasGST: e.target.checked,
-              gstNumber: e.target.checked ? prev.gstNumber : '',
-            }))
-          }
-          size="small"
-          sx={{
-            '& .MuiSwitch-switchBase.Mui-checked': { color: '#000' },
-            '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': {
-              backgroundColor: '#000',
-            },
-          }}
-        />
-        <Typography variant="body2" sx={{ fontWeight: 600 }}>
-          Have GST
-        </Typography>
-      </Box>
-
-
-      {newVendor.hasGST && (
-        <TextField
-          label="GST Number"
-          placeholder="15AABCU9603R1ZV"
-          value={newVendor.gstNumber}
-          onChange={(e) =>
-            setNewVendor((prev) => ({
-              ...prev,
-              gstNumber: e.target.value.toUpperCase(),
-            }))
-          }
-          inputProps={{ maxLength: 15 }}
-          sx={{
-            minWidth: 220,
-            '& .MuiOutlinedInput-root': {
-              borderRadius: 2,
-              backgroundColor: '#fafafa',
-              '& fieldset': {
-                borderColor: '#d1d5db',
-                borderWidth: '1.5px',
-              },
-              '&:hover fieldset': {
-                borderColor: '#111827',
-                borderWidth: '1.5px',
-              },
-              '&.Mui-focused fieldset': {
-                borderColor: '#000',
-                borderWidth: '2px',
-              },
-            },
-            '& .MuiOutlinedInput-input': {
-              padding: '12px 14px',
-              fontSize: 14,
-            },
-            '& .MuiInputLabel-root': {
-              fontWeight: 600,
-              color: '#6b7280',
-            },
-            '& .MuiInputLabel-root.Mui-focused': {
-              color: '#000',
-            },
-          }}
-        />
-      )}
-    </Box>
-
-
-    {/* Buttons */}
-    <Box
-      sx={{
-        display: 'flex',
-        gap: 1.5,
-        justifyContent: 'flex-end',
-      }}
-    >
-      <Button
-        onClick={() => {
-          setVendorDialogOpen(false);
-          setNewVendor({
-            name: '',
-            email: '',
-            phoneNumber: '',
-            hasGST: true, // keep default ON
-            gstNumber: '',
-          });
-        }}
-        sx={{
-          px: 2.5,
-          py: 0.8,
-          textTransform: 'none',
-          color: '#6b7280',
-          fontWeight: 600,
-          fontSize: '0.9rem',
-          borderRadius: 2,
-          '&:hover': {
-            backgroundColor: '#f3f4f6',
-            color: '#374151',
-          },
-        }}
       >
-        Cancel
-      </Button>
-      <Button
-        variant="contained"
-        onClick={handleAddVendor}
-        disabled={!newVendor.name.trim()}
-        sx={{
-          px: 3.5,
-          py: 0.8,
-          textTransform: 'none',
-          backgroundColor: '#000',
-          color: '#fff',
-          fontWeight: 700,
-          fontSize: '0.9rem',
-          borderRadius: 2,
-          boxShadow: '0 4px 14px rgba(0,0,0,0.25)',
-          '&:hover': {
-            backgroundColor: '#111',
-            boxShadow: '0 6px 20px rgba(0,0,0,0.35)',
-          },
-          '&:disabled': {
-            backgroundColor: '#d1d5db',
-            color: '#9ca3af',
-            boxShadow: 'none',
-          },
-        }}
-      >
-        Add Vendor
-      </Button>
-    </Box>
-  </DialogContent>
-</Dialog>
+        <DialogTitle
+          sx={{
+            fontWeight: 700,
+            fontSize: '1.25rem',
+            pb: 1.5,
+          }}
+        >
+          Add New Vendor
+        </DialogTitle>
+
+
+        <DialogContent sx={{ pt: 2.5, pb: 2 }}>
+          {/* Vendor Name */}
+          {/* Vendor Name */}
+          <TextField
+            autoFocus
+            fullWidth
+
+            placeholder="Enter vendor name..."
+            value={newVendor.name}
+            onChange={(e) =>
+              setNewVendor((prev) => ({ ...prev, name: e.target.value }))
+            }
+            InputLabelProps={{ shrink: true }}
+            sx={{
+              mb: 2.5,
+              '& .MuiOutlinedInput-root': {
+                borderRadius: 2,
+                backgroundColor: '#fafafa',
+                '& fieldset': {
+                  borderColor: '#d1d5db',
+                  borderWidth: '1.5px',
+                },
+                '&:hover fieldset': {
+                  borderColor: '#111827',
+                  borderWidth: '1.5px',
+                },
+                '&.Mui-focused fieldset': {
+                  borderColor: '#000',
+                  borderWidth: '2px',
+                },
+              },
+              '& .MuiOutlinedInput-input': {
+                padding: '14px 14px',
+                fontSize: 14,
+              },
+              '& .MuiInputLabel-root': {
+                fontWeight: 600,
+                color: '#4b5563',
+              },
+              '& .MuiInputLabel-root.Mui-focused': {
+                color: '#000',
+              },
+            }}
+          />
+
+
+          {/* Email + Phone */}
+          <Box sx={{ display: 'flex', gap: 1.5, mb: 2 }}>
+            <TextField
+              fullWidth
+              label="Email"
+              type="email"
+              placeholder="vendor@example.com"
+              value={newVendor.email}
+              onChange={(e) =>
+                setNewVendor((prev) => ({ ...prev, email: e.target.value }))
+              }
+              sx={{
+                flex: 1,
+                '& .MuiOutlinedInput-root': {
+                  borderRadius: 2,
+                  backgroundColor: '#fafafa',
+                  '& fieldset': {
+                    borderColor: '#d1d5db',
+                    borderWidth: '1.5px',
+                  },
+                  '&:hover fieldset': {
+                    borderColor: '#111827',
+                    borderWidth: '1.5px',
+                  },
+                  '&.Mui-focused fieldset': {
+                    borderColor: '#000',
+                    borderWidth: '2px',
+                  },
+                },
+                '& .MuiInputLabel-root': {
+                  fontWeight: 600,
+                  color: '#6b7280',
+                },
+                '& .MuiInputLabel-root.Mui-focused': {
+                  color: '#000',
+                },
+              }}
+            />
+
+
+            <TextField
+              fullWidth
+              label="Phone"
+              type="tel"
+              placeholder="+91 98765 43210"
+              value={newVendor.phoneNumber}
+              onChange={(e) =>
+                setNewVendor((prev) => ({
+                  ...prev,
+                  phoneNumber: e.target.value.replace(/\D/g, ''), // only digits
+                }))
+              }
+              inputProps={{ maxLength: 10 }}
+              sx={{
+                flex: 1,
+                '& .MuiOutlinedInput-root': {
+                  borderRadius: 2,
+                  backgroundColor: '#fafafa',
+                  '& fieldset': {
+                    borderColor: '#d1d5db',
+                    borderWidth: '1.5px',
+                  },
+                  '&:hover fieldset': {
+                    borderColor: '#111827',
+                    borderWidth: '1.5px',
+                  },
+                  '&.Mui-focused fieldset': {
+                    borderColor: '#000',
+                    borderWidth: '2px',
+                  },
+                },
+                '& .MuiInputLabel-root': {
+                  fontWeight: 600,
+                  color: '#6b7280',
+                },
+                '& .MuiInputLabel-root.Mui-focused': {
+                  color: '#000',
+                },
+              }}
+            />
+          </Box>
+
+
+          {/* GST toggle + GST number (hidden when toggle OFF) */}
+          <Box
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 2,
+              mb: 2,
+            }}
+          >
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Switch
+                checked={newVendor.hasGST}
+                onChange={(e) =>
+                  setNewVendor((prev) => ({
+                    ...prev,
+                    hasGST: e.target.checked,
+                    gstNumber: e.target.checked ? prev.gstNumber : '',
+                  }))
+                }
+                size="small"
+                sx={{
+                  '& .MuiSwitch-switchBase.Mui-checked': { color: '#000' },
+                  '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': {
+                    backgroundColor: '#000',
+                  },
+                }}
+              />
+              <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                Have GST
+              </Typography>
+            </Box>
+
+
+            {newVendor.hasGST && (
+              <TextField
+                label="GST Number"
+                placeholder="15AABCU9603R1ZV"
+                value={newVendor.gstNumber}
+                onChange={(e) =>
+                  setNewVendor((prev) => ({
+                    ...prev,
+                    gstNumber: e.target.value.toUpperCase(),
+                  }))
+                }
+                inputProps={{ maxLength: 15 }}
+                sx={{
+                  minWidth: 220,
+                  '& .MuiOutlinedInput-root': {
+                    borderRadius: 2,
+                    backgroundColor: '#fafafa',
+                    '& fieldset': {
+                      borderColor: '#d1d5db',
+                      borderWidth: '1.5px',
+                    },
+                    '&:hover fieldset': {
+                      borderColor: '#111827',
+                      borderWidth: '1.5px',
+                    },
+                    '&.Mui-focused fieldset': {
+                      borderColor: '#000',
+                      borderWidth: '2px',
+                    },
+                  },
+                  '& .MuiOutlinedInput-input': {
+                    padding: '12px 14px',
+                    fontSize: 14,
+                  },
+                  '& .MuiInputLabel-root': {
+                    fontWeight: 600,
+                    color: '#6b7280',
+                  },
+                  '& .MuiInputLabel-root.Mui-focused': {
+                    color: '#000',
+                  },
+                }}
+              />
+            )}
+          </Box>
+
+
+          {/* Buttons */}
+          <Box
+            sx={{
+              display: 'flex',
+              gap: 1.5,
+              justifyContent: 'flex-end',
+            }}
+          >
+            <Button
+              onClick={() => {
+                setVendorDialogOpen(false);
+                setNewVendor({
+                  name: '',
+                  email: '',
+                  phoneNumber: '',
+                  hasGST: true, // keep default ON
+                  gstNumber: '',
+                });
+              }}
+              sx={{
+                px: 2.5,
+                py: 0.8,
+                textTransform: 'none',
+                color: '#6b7280',
+                fontWeight: 600,
+                fontSize: '0.9rem',
+                borderRadius: 2,
+                '&:hover': {
+                  backgroundColor: '#f3f4f6',
+                  color: '#374151',
+                },
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="contained"
+              onClick={handleAddVendor}
+              disabled={!newVendor.name.trim()}
+              sx={{
+                px: 3.5,
+                py: 0.8,
+                textTransform: 'none',
+                backgroundColor: '#000',
+                color: '#fff',
+                fontWeight: 700,
+                fontSize: '0.9rem',
+                borderRadius: 2,
+                boxShadow: '0 4px 14px rgba(0,0,0,0.25)',
+                '&:hover': {
+                  backgroundColor: '#111',
+                  boxShadow: '0 6px 20px rgba(0,0,0,0.35)',
+                },
+                '&:disabled': {
+                  backgroundColor: '#d1d5db',
+                  color: '#9ca3af',
+                  boxShadow: 'none',
+                },
+              }}
+            >
+              Add Vendor
+            </Button>
+          </Box>
+        </DialogContent>
+      </Dialog>
 
 
 
@@ -2125,7 +2125,7 @@ const handleAddVendor = async () => {
       {/* Global Snackbar */}
       <Snackbar
         open={snackbar.open}
-          autoHideDuration={snackbar.severity === 'error' ? 7000 : 4000}
+        autoHideDuration={snackbar.severity === 'error' ? 7000 : 4000}
         onClose={handleSnackbarClose}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
       >
