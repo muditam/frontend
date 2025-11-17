@@ -38,7 +38,7 @@ export default function SmartfloOverview() {
     try {
       // adjust base URL as per your setup
       const { data } = await axios.get(
-        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/smartflo/overview"
+        "http://localhost:5001/api/smartflo/overview"
       );
       setSummary({
         totalCalls: data?.summary?.totalCalls ?? 0,

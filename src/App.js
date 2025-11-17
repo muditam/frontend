@@ -55,8 +55,9 @@ import LeadExpertMigration from "./components/LeadExpertMigration";
 import AssetManager from "./components/AssetManager";
 import ScheduleCall from "./components/ScheduleCallsData";
 import OrderConfirmAnalytics from "./components/OrderConfirmAnalytics";  
-import AssetsManagerRole from "./components/AssetsManagerRole"; 
+import AssetsManagerRole from "./components/AddAsset"; 
 import AssetAllotment from "./components/AssetAllotment"; 
+import MyAssets from "./components/MyAssets";
 import BankReconciliation from "./components/Finance/BankReconciliation";
 import BankCapital6389 from "./components/Finance/BankCapital6389";
 import BankAxis3361 from "./components/Finance/BankAxis3361";
@@ -70,6 +71,10 @@ import PaymentRecords from "./components/Finance/paymentRecord";
 import Vendors from "./components/Finance/Vendors";
 import SwitchDashboard from "./components/Finance/SwitchDashboard";
 import ConfirmedOrder from "./components/OrderConf/ConfirmedOrder";
+import GlobalShopifyOrders from "./International/Shopify/GlobalShopifyOrders";
+import GlobalAbandonedCarts from "./International/Shopify/GlobalAbandonedCarts";
+import GlobalRetentionLeads from "./International/InternationlLeads/GlobalRetentionLeads";
+import GlobalRetentionSales from "./International/InternationlLeads/GlobalRetentionSales";
 import Invoices from "./pages/Invoices";
 import "./realtime/IncomingCallSSEBoot"; 
 
@@ -91,8 +96,9 @@ const App = () => {
           <Route path="/pages/Home" element={<ShipwayOrders />} />
           <Route path="/smartflo/call-logs" element={<SmartfloCallLogs />} />
           <Route path="/smartflo/data-analytics" element={<SmartfloDataAnalytics />} />
-          <Route path="/assets" element={<AssetManager />} /> 
+          <Route path="/assets" element={<AssetManager />} />  
           <Route path="/add-new-asset" element={<AssetsManagerRole />} /> 
+          <Route path="/my-assets" element={<MyAssets />} />
           <Route path="/AssetAllotment" element={<AssetAllotment />} />
           <Route path="/BankReconciliation" element={<BankReconciliation />} />
           <Route path="/BankCapital6389" element={<BankCapital6389 />} />
@@ -108,9 +114,13 @@ const App = () => {
           <Route path="/switch-dashboard" element={<SwitchDashboard />} />
           <Route path="/only-order-confirmation" element={<ConfirmedOrder />} />
           <Route path="/invoices" element={<Invoices />} />
-          
+          <Route path="/global-shopify-orders" element={<GlobalShopifyOrders />} />
+          <Route path="/global-aband" element={<GlobalAbandonedCarts />} />
+          <Route path="/global-retention-leads" element={<GlobalRetentionLeads />} />
+          <Route path="/global-retention-sales" element={<GlobalRetentionSales />} />
+
           <Route
-            path="/" 
+            path="/"
             element={
               <PrivateRoute>
                 <SalesDashboard />

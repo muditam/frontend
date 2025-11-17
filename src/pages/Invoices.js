@@ -1,9 +1,29 @@
 import React, { useEffect, useState } from 'react';
 import {
-  Box, Paper, Typography, Table, TableHead, TableRow, TableCell,
-  TableBody, Button, Select, MenuItem, FormControl, LinearProgress,
-  IconButton, Dialog, DialogTitle, DialogContent, DialogActions, TextField,
-  Snackbar, Alert, Tooltip, TableFooter, TablePagination
+  Box,
+  Paper,
+  Typography,
+  Table,
+  TableHead,
+  TableRow,
+  TableCell,
+  TableBody,
+  Button,
+  Select,
+  MenuItem,
+  FormControl,
+  LinearProgress,
+  IconButton, 
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  TextField,
+  Snackbar,
+  Alert,
+  Tooltip,
+  TableFooter,
+  TablePagination,
 } from '@mui/material';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
@@ -11,7 +31,9 @@ import CloseIcon from '@mui/icons-material/Close';
 import PictureAsPdfOutlinedIcon from '@mui/icons-material/PictureAsPdfOutlined';
 import axios from 'axios';
 
-const API = 'https://muditamleads-14f32a10d7f7.herokuapp.com';
+
+const API = 'http://localhost:5001';
+
 
 const Invoices = () => {
   const [rows, setRows] = useState([]);
@@ -20,8 +42,9 @@ const Invoices = () => {
   const [companyName, setCompanyName] = useState('');
   const [amount, setAmount] = useState('');
   const [file, setFile] = useState(null);
+  const [status, setStatus] = useState('pending'); // 🔹 status state for dialog
   const [open, setOpen] = useState(false);
-  const [toast, setToast] = useState({ open: false, msg: '' }); // success snack
+  const [toast, setToast] = useState({ open: false, msg: '' });
   const [imagePreviewOpen, setImagePreviewOpen] = useState(false);
   const [imagePreviewSrc, setImagePreviewSrc] = useState(null);
   const [imagePreviewName, setImagePreviewName] = useState(null);
@@ -29,14 +52,34 @@ const Invoices = () => {
   const [rowsPerPage, setRowsPerPage] = useState(10);
 
 
+  // ------------- helpers -------------
+  const getStoredUser = () => {
+    try {
+      return JSON.parse(sessionStorage.getItem('user') || 'null');
+    } catch {
+      return null;
+    }
+  };
+
+
   const loadInvoices = async () => {
     try {
       setLoading(true);
       const { data } = await axios.get(`${API}/api/invoices`, {
         withCredentials: true,
-        headers: { 'x-user-json': sessionStorage.getItem('user') } // dev only
+        headers: { 'x-user-json': sessionStorage.getItem('user') }, // dev only
       });
-      setRows(Array.isArray(data) ? data : []);
+
+
+      const safeRows = Array.isArray(data)
+        ? data.map((d) => ({
+            ...d,
+            id: d.id || d._id, // 🔹 normalize id
+          }))
+        : [];
+
+
+      setRows(safeRows);
     } catch (e) {
       console.error('Load invoices failed', e.response?.data || e.message);
       setRows([]);
@@ -46,7 +89,9 @@ const Invoices = () => {
   };
 
 
-  useEffect(() => { loadInvoices(); }, []);
+  useEffect(() => {
+    loadInvoices();
+  }, []);
 
 
   const handleUpload = async () => {
@@ -55,22 +100,36 @@ const Invoices = () => {
       setUploading(true);
       const form = new FormData();
       form.append('file', file);
+
+
       const up = await axios.post(`${API}/api/invoices/upload`, form, {
         withCredentials: true,
-        headers: { 'x-user-json': sessionStorage.getItem('user') } // dev only
+        headers: { 'x-user-json': sessionStorage.getItem('user') },
       });
-      await axios.post(`${API}/api/invoices`, {
-        companyName: companyName.trim(),
-        amount: Number(amount),
-        fileUrl: up.data.fileUrl,
-        originalFilename: file.name
-      }, {
-        withCredentials: true,
-        headers: { 'x-user-json': sessionStorage.getItem('user') }
-      });
+
+
+      await axios.post(
+        `${API}/api/invoices`,
+        {
+          companyName: companyName.trim(),
+          amount: Number(amount),
+          fileUrl: up.data.fileUrl,
+          originalFilename: file.name,
+          status, // 🔹 send status from dialog
+        },
+        {
+          withCredentials: true,
+          headers: { 'x-user-json': sessionStorage.getItem('user') },
+        }
+      );
+
+
       setOpen(false);
-      setCompanyName(''); setAmount(''); setFile(null);
-      setToast({ open: true, msg: 'Invoice saved successfully' }); // show success
+      setCompanyName('');
+      setAmount('');
+      setFile(null);
+      setStatus('pending'); // 🔹 reset for next add
+      setToast({ open: true, msg: 'Invoice saved successfully' });
       loadInvoices();
     } catch (e) {
       console.error('Upload failed:', e.response?.data || e.message);
@@ -80,13 +139,23 @@ const Invoices = () => {
   };
 
 
-  const updateStatus = async (id, status) => {
+  const updateStatus = async (id, newStatus) => {
     try {
-      await axios.patch(`${API}/api/invoices/${id}/status`,
-        { status },
-        { withCredentials: true, headers: { 'x-user-json': sessionStorage.getItem('user') } }
+      await axios.patch(
+        `${API}/api/invoices/${id}/status`,
+        { status: newStatus },
+        {
+          withCredentials: true,
+          headers: { 'x-user-json': sessionStorage.getItem('user') },
+        }
       );
-      setRows(prev => prev.map(r => r.id === id ? { ...r, status } : r));
+
+
+      setRows((prev) =>
+        prev.map((r) =>
+          (r.id || r._id) === id ? { ...r, status: newStatus } : r
+        )
+      );
     } catch (e) {
       console.error('Status update failed', e.response?.data || e.message);
     }
@@ -103,7 +172,6 @@ const Invoices = () => {
   const isPdf = (url) => /\.pdf$/i.test(url || '');
 
 
-  // Add helper to get a readable filename
   const fileNameFrom = (url, originalName) => {
     if (originalName) return originalName;
     try {
@@ -131,10 +199,10 @@ const Invoices = () => {
   };
 
 
-  // Slice rows for current page (client-side pagination)
-  const pagedRows = rowsPerPage > 0
-    ? rows.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
-    : rows;
+  const pagedRows =
+    rowsPerPage > 0
+      ? rows.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
+      : rows;
 
 
   const handleChangePage = (_e, newPage) => setPage(newPage);
@@ -144,37 +212,134 @@ const Invoices = () => {
   };
 
 
+  const currentUser = getStoredUser();
+  const isFinanceUser =
+    currentUser?.role && currentUser.role.toLowerCase() === 'finance';
+
+
   return (
     <Box sx={{ p: 3 }}>
-      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
-        <Typography variant="h6" sx={{ fontWeight: 700 }}>Invoices</Typography>
-        <Button variant="contained" startIcon={<CloudUploadIcon />} onClick={() => setOpen(true)}>
+      {/* Header */}
+      <Box
+        sx={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          mb: 2,
+        }}
+      >
+        <Typography variant="h6" sx={{ fontWeight: 700 }}>
+          Invoices
+        </Typography>
+        <Button
+          variant="contained"
+          startIcon={<CloudUploadIcon />}
+          onClick={() => setOpen(true)}
+        >
           Add Invoice
         </Button>
       </Box>
 
 
-      <Dialog open={open} onClose={() => !uploading && setOpen(false)} fullWidth maxWidth="sm">
+      {/* Add Invoice Dialog */}
+      <Dialog
+        open={open}
+        onClose={() => !uploading && setOpen(false)}
+        fullWidth
+        maxWidth="sm"
+      >
         <DialogTitle>Add Invoice</DialogTitle>
         <DialogContent dividers>
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
-            <TextField label="Company Name" value={companyName} onChange={(e)=>setCompanyName(e.target.value)} fullWidth />
-            <TextField label="Amount" type="number" value={amount} onChange={(e)=>setAmount(e.target.value)} fullWidth />
-            <input type="file" accept="application/pdf,image/*" onChange={(e)=>setFile(e.target.files?.[0]||null)} />
+          <Box
+            sx={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 2,
+              mt: 1,
+            }}
+          >
+            <TextField
+              label="Company Name"
+              value={companyName}
+              onChange={(e) => setCompanyName(e.target.value)}
+              fullWidth
+            />
+
+
+            <TextField
+              label="Amount"
+              type="number"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              fullWidth
+            />
+
+
+            {/* 🔹 Status dropdown inside dialog */}
+            <FormControl fullWidth size="small">
+              <Typography
+                sx={{ mb: 0.5, fontSize: 12, fontWeight: 600 }}
+              >
+                Status
+              </Typography>
+              <Select
+                value={status}
+                onChange={(e) => setStatus(e.target.value)}
+              >
+                <MenuItem value="pending">Pending</MenuItem>
+                <MenuItem value="clear">Clear</MenuItem>
+              </Select>
+            </FormControl>
+
+
+            <input
+              type="file"
+              accept="application/pdf,image/*"
+              onChange={(e) =>
+                setFile(e.target.files?.[0] || null)
+              }
+            />
           </Box>
         </DialogContent>
         <DialogActions>
-          <Button onClick={()=>setOpen(false)} disabled={uploading}>Cancel</Button>
-          <Button onClick={handleUpload} disabled={uploading || !companyName.trim() || !amount || !file} variant="contained">
+          <Button
+            onClick={() => setOpen(false)}
+            disabled={uploading}
+          >
+            Cancel
+          </Button>
+          <Button
+            onClick={handleUpload}
+            disabled={
+              uploading ||
+              !companyName.trim() ||
+              !amount ||
+              !file
+            }
+            variant="contained"
+          >
             {uploading ? 'Saving…' : 'Save'}
           </Button>
         </DialogActions>
       </Dialog>
+
+
+      {/* Table */}
       <Paper sx={{ p: 0 }}>
         {loading && <LinearProgress />}
         <Table size="small" stickyHeader>
           <TableHead>
-            <TableRow sx={{ '& th': { bgcolor: '#f8fafc', fontWeight: 700, textTransform: 'uppercase', fontSize: 12, borderBottom: '2px solid #cbd5e1' } }}>
+            <TableRow
+              sx={{
+                '& th': {
+                  bgcolor: '#f8fafc',
+                  fontWeight: 700,
+                  textTransform: 'uppercase',
+                  fontSize: 12,
+                  borderBottom: '2px solid #cbd5e1',
+                },
+              }}
+            >
               <TableCell sx={{ width: 70 }}>S.No.</TableCell>
               <TableCell>Company Name</TableCell>
               <TableCell>Amount</TableCell>
@@ -182,30 +347,48 @@ const Invoices = () => {
               <TableCell>Status</TableCell>
             </TableRow>
           </TableHead>
+
+
           <TableBody>
             {pagedRows.length === 0 && !loading && (
-              <TableRow><TableCell colSpan={5} align="center">No invoices found</TableCell></TableRow>
+              <TableRow>
+                <TableCell colSpan={5} align="center">
+                  No invoices found
+                </TableCell>
+              </TableRow>
             )}
+
+
             {pagedRows.map((r, idx) => {
-              // use sequential number based on page
               const serial = page * rowsPerPage + idx + 1;
               const fileUrl = r.fileUrl;
               const originalName = r.originalFilename || 'file';
-              const displayUrl = /^https?:\/\//i.test(fileUrl) ? fileUrl : `${API}${fileUrl}`;
+              const displayUrl = /^https?:\/\//i.test(fileUrl)
+                ? fileUrl
+                : `${API}${fileUrl}`;
+              const invoiceId = r.id || r._id;
+              const statusValue = r.status || 'pending';
 
 
               return (
-                <TableRow key={r.id} hover>
+                <TableRow key={invoiceId} hover>
                   <TableCell>{serial}</TableCell>
                   <TableCell>{r.companyName || '-'}</TableCell>
                   <TableCell>{r.amount ?? '-'}</TableCell>
+
+
+                  {/* File / Image / PDF cell */}
                   <TableCell>
-                    {!fileUrl ? '-' : isImage(fileUrl) ? (
+                    {!fileUrl ? (
+                      '-'
+                    ) : isImage(fileUrl) ? (
                       <Box
                         component="img"
                         src={displayUrl}
                         alt={originalName}
-                        onClick={() => openImageDialog(displayUrl, originalName)}
+                        onClick={() =>
+                          openImageDialog(displayUrl, originalName)
+                        }
                         sx={{
                           width: 44,
                           height: 44,
@@ -213,12 +396,15 @@ const Invoices = () => {
                           borderRadius: 1,
                           cursor: 'pointer',
                           border: '1px solid #e2e8f0',
-                          boxShadow: '0 0 0 2px #fff'
+                          boxShadow: '0 0 0 2px #fff',
                         }}
                       />
                     ) : isPdf(fileUrl) ? (
                       (() => {
-                        const fname = fileNameFrom(fileUrl, originalName);
+                        const fname = fileNameFrom(
+                          fileUrl,
+                          originalName
+                        );
                         return (
                           <Tooltip title={fname}>
                             <Button
@@ -229,8 +415,12 @@ const Invoices = () => {
                               size="small"
                               variant="outlined"
                               color="error"
-                              startIcon={<PictureAsPdfOutlinedIcon fontSize="small" />}
-                              endIcon={<OpenInNewIcon fontSize="small" />}
+                              startIcon={
+                                <PictureAsPdfOutlinedIcon fontSize="small" />
+                              }
+                              endIcon={
+                                <OpenInNewIcon fontSize="small" />
+                              }
                               sx={{
                                 textTransform: 'none',
                                 maxWidth: 260,
@@ -257,28 +447,43 @@ const Invoices = () => {
                       </IconButton>
                     )}
                   </TableCell>
+
+
+                  {/* Status cell */}
                   <TableCell>
-                    {JSON.parse(sessionStorage.getItem('user') || 'null')?.role?.toLowerCase() === 'finance' ? (
+                    {isFinanceUser ? (
                       <FormControl size="small">
                         <Select
-                          value={r.status}
-                          onChange={(e)=>updateStatus(r.id, e.target.value)}
+                          value={statusValue}
+                          onChange={(e) =>
+                            updateStatus(invoiceId, e.target.value)
+                          }
                           sx={{ minWidth: 110 }}
                         >
                           <MenuItem value="pending">Pending</MenuItem>
                           <MenuItem value="clear">Clear</MenuItem>
                         </Select>
                       </FormControl>
-                    ) : (r.status || '-')}
+                    ) : (
+                      statusValue
+                    )}
                   </TableCell>
                 </TableRow>
               );
             })}
           </TableBody>
+
+
           <TableFooter>
             <TableRow>
               <TablePagination
-                rowsPerPageOptions={[5, 10, 20, 50, { label: 'All', value: -1 }]}
+                rowsPerPageOptions={[
+                  5,
+                  10,
+                  20,
+                  50,
+                  { label: 'All', value: -1 },
+                ]}
                 colSpan={5}
                 count={rows.length}
                 rowsPerPage={rowsPerPage}
@@ -287,9 +492,10 @@ const Invoices = () => {
                 onRowsPerPageChange={handleChangeRowsPerPage}
                 sx={{
                   borderTop: '1px solid #e2e8f0',
-                  '& .MuiTablePagination-selectLabel, & .MuiTablePagination-displayedRows': {
-                    fontSize: 12
-                  }
+                  '& .MuiTablePagination-selectLabel, & .MuiTablePagination-displayedRows':
+                    {
+                      fontSize: 12,
+                    },
                 }}
               />
             </TableRow>
@@ -305,7 +511,11 @@ const Invoices = () => {
         onClose={handleToastClose}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
       >
-        <Alert onClose={handleToastClose} severity="success" variant="filled">
+        <Alert
+          onClose={handleToastClose}
+          severity="success"
+          variant="filled"
+        >
           {toast.msg || 'Saved successfully'}
         </Alert>
       </Snackbar>
@@ -318,13 +528,22 @@ const Invoices = () => {
         maxWidth="md"
         fullWidth
       >
-        <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <DialogTitle
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+          }}
+        >
           {imagePreviewName}
           <IconButton onClick={closeImageDialog} size="small">
             <CloseIcon fontSize="small" />
           </IconButton>
         </DialogTitle>
-        <DialogContent dividers sx={{ textAlign: 'center', bgcolor: '#0f172a' }}>
+        <DialogContent
+          dividers
+          sx={{ textAlign: 'center', bgcolor: '#0f172a' }}
+        >
           {imagePreviewSrc && (
             <Box
               component="img"
@@ -335,7 +554,7 @@ const Invoices = () => {
                 maxHeight: '70vh',
                 objectFit: 'contain',
                 borderRadius: 1,
-                boxShadow: '0 0 0 2px rgba(255,255,255,0.08)'
+                boxShadow: '0 0 0 2px rgba(255,255,255,0.08)',
               }}
             />
           )}
@@ -350,4 +569,6 @@ const Invoices = () => {
 
 
 export default Invoices;
+
+
 

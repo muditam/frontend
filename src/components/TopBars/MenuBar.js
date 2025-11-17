@@ -159,34 +159,34 @@ const MenuBar = ({ toggleDrawer }) => {
           <UnfoldMoreIcon />
         </ListItem>
 
-        {role !== "Marketing" && role !== "Developer" && (
-        <ListItem
-          button
-          sx={{
-            display: "flex",
-            alignItems: "center",
-            padding: "10px 20px",
-            borderRadius: "4px",
-            margin: "4px 0",
-            transition: "background-color 0.3s, transform 0.2s",
-            "&:hover": {
-              backgroundColor: "#e0f7fa",
-              color: "#007aff",
-              transform: "scale(1.02)",
-            },
-          }}
-          component={Link}
-          to="/"
-          onClick={toggleDrawer}
-        >
-          <HomeIcon sx={{ marginRight: "12px" }} />
-          <Typography variant="body1" style={{ fontSize: "14px" }}>
-            Home
-          </Typography>
-        </ListItem>
+        {role !== "Marketing" && role !== "Developer" && role !== "International Agent" && (
+          <ListItem
+            button
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              padding: "10px 20px",
+              borderRadius: "4px",
+              margin: "4px 0",
+              transition: "background-color 0.3s, transform 0.2s",
+              "&:hover": {
+                backgroundColor: "#e0f7fa",
+                color: "#007aff",
+                transform: "scale(1.02)",
+              },
+            }}
+            component={Link}
+            to="/"
+            onClick={toggleDrawer}
+          >
+            <HomeIcon sx={{ marginRight: "12px" }} />
+            <Typography variant="body1" style={{ fontSize: "14px" }}>
+              Home
+            </Typography>
+          </ListItem>
         )}
 
-        {role !== "Finance" && role !== "Operations" && role !== "Human Resource" && role !== "Marketing" && role !== "Developer" && (
+        {role !== "Finance" && role !== "Operations" && role !== "Human Resource" && role !== "Marketing" && role !== "Developer" && role !== "International Agent" && (
           <ListItem
             button
             component={Link}
@@ -213,7 +213,7 @@ const MenuBar = ({ toggleDrawer }) => {
           </ListItem>
         )}
 
-        {role !== "Finance" && role !== "Operations" && role !== "Human Resource" && role !== "Marketing" && role !== "Developer" &&(
+        {role !== "Finance" && role !== "Operations" && role !== "Human Resource" && role !== "Marketing" && role !== "Developer" && role !== "International Agent" && (
           <ListItem
             button
             component={Link}
@@ -240,13 +240,13 @@ const MenuBar = ({ toggleDrawer }) => {
           </ListItem>
         )}
 
-        {role !== "Finance" && role !== "Human Resource" && role !== "Marketing" && role !== "Developer" && (
+        {role !== "Finance" && role !== "Human Resource" && role !== "Marketing" && role !== "Developer" && role !== "International Agent" && (
           <ListItem
             button
             component={Link}
             to="/escalations"
             sx={{
-              display: "flex", 
+              display: "flex",
               alignItems: "center",
               padding: "10px 20px",
               borderRadius: "4px",
@@ -294,7 +294,7 @@ const MenuBar = ({ toggleDrawer }) => {
           </ListItem>
         )}
 
-        {role !== "Finance" && role !== "Operations" && role !== "Human Resource" && role !== "Marketing" && role !== "Developer" && (
+        {role !== "Finance" && role !== "Operations" && role !== "Human Resource" && role !== "Marketing" && role !== "Developer" && role !== "International Agent" && (
           <ListItem
             button
             component={Link}
@@ -317,7 +317,7 @@ const MenuBar = ({ toggleDrawer }) => {
           </ListItem>
         )}
 
-        {role !== "Finance" && role !== "Retention Agent" && role !== "Human Resource" && role !== "Marketing" && role !== "Developer" && (
+        {role !== "Finance" && role !== "Retention Agent" && role !== "Human Resource" && role !== "Marketing" && role !== "Developer" && role !== "International Agent" && (
           <>
             {/* Parent dropdown */}
             <ListItem
@@ -368,7 +368,7 @@ const MenuBar = ({ toggleDrawer }) => {
         )}
 
 
-        {role !== "Finance" && role !== "Operations" && role !== "Manager" && role !== "Human Resource" && role !== "Marketing" && role !== "Developer" &&(
+        {role !== "Finance" && role !== "Operations" && role !== "Manager" && role !== "Human Resource" && role !== "Marketing" && role !== "Developer" && role !== "International Agent" && (
           <ListItem
             button
             component={Link}
@@ -827,7 +827,7 @@ const MenuBar = ({ toggleDrawer }) => {
               </List>
             </Collapse>
 
-            {role !== "Finance" && role !== "Operations" && role !== "Human Resource" && role !== "Marketing" && role !== "Developer" &&(
+            {role !== "Finance" && role !== "Operations" && role !== "Human Resource" && role !== "Marketing" && role !== "Developer" && role !== "International Agent" && (
               <>
                 <ListItem
                   button
@@ -1047,7 +1047,7 @@ const MenuBar = ({ toggleDrawer }) => {
               </ListItem>
             )}
 
-            {role !== "Finance" && role !== "Operations" && role !== "Human Resource" && role !== "Marketing" && role !== "Developer" &&(
+            {role !== "Finance" && role !== "Operations" && role !== "Human Resource" && role !== "Marketing" && role !== "Developer" && role !== "International Agent" && (
               <ListItem
                 button
                 component={Link}
@@ -1124,6 +1124,21 @@ const MenuBar = ({ toggleDrawer }) => {
                 <Inventory2Icon sx={{ fontSize: 20, marginRight: "12px" }} />
                 <Typography variant="body1" style={{ fontSize: "14px" }}>
                   Asset Allotment
+                </Typography>
+              </ListItem>
+            )}
+
+            {user && (
+              <ListItem
+                button
+                component={Link}
+                to="/my-assets"
+                sx={menuItemStyle}
+                onClick={toggleDrawer}
+              >
+                <Inventory2Icon sx={{ marginRight: "12px" }} />
+                <Typography variant="body1" sx={{ fontSize: "14px" }}>
+                  My Assets
                 </Typography>
               </ListItem>
             )}
@@ -1280,7 +1295,7 @@ const MenuBar = ({ toggleDrawer }) => {
             )}
 
 
-            {role !== "Finance" && role !== "Operations" && role !== "Human Resource" && role !== "Marketing" && role !== "Developer" && (
+            {role !== "Finance" && role !== "Operations" && role !== "Human Resource" && role !== "Marketing" && role !== "Developer" && role !== "International Agent" && (
               <ListItem
                 button
                 onClick={() => handleDropdownClick("leaderboard")}
@@ -1361,7 +1376,7 @@ const MenuBar = ({ toggleDrawer }) => {
                     <ListItem
                       button
                       component={Link}
-                      to="/switch-dashboard" 
+                      to="/switch-dashboard"
                       onClick={toggleDrawer}
                     >
                       <Typography variant="body2" sx={{ fontSize: "13px" }}>
@@ -1443,7 +1458,104 @@ const MenuBar = ({ toggleDrawer }) => {
               </>
             )}
 
-            {role !== "Finance" && role !== "Operations" && role !== "Human Resource" && role !== "Marketing" && role !== "Developer" && (
+            {role === "International Agent" && (
+              <>
+                <ListItem
+                  button
+                  onClick={() => handleDropdownClick("globalShopify")}
+                  sx={dropdownStyle}
+                >
+                  <Box sx={{ display: "flex", alignItems: "center" }}>
+                    <ShoppingCartIcon sx={{ fontSize: 18, marginRight: "8px" }} />
+                    <Typography variant="body1" sx={{ fontSize: "14px" }}>
+                      Global Shopify Orders
+                    </Typography>
+                  </Box>
+                  {openDropdown.globalShopify ? (
+                    <KeyboardArrowDownIcon />
+                  ) : (
+                    <KeyboardArrowRightIcon />
+                  )}
+                </ListItem>
+
+                <Collapse in={openDropdown.globalShopify} timeout="auto" unmountOnExit>
+                  <List sx={nestedListStyle}>
+                    <ListItem
+                      button
+                      component={Link}
+                      to="/global-shopify-orders"
+                      onClick={toggleDrawer}
+                    >
+                      <Typography variant="body2" sx={{ fontSize: "13px" }}>
+                        Shopify Orders
+                      </Typography>
+                    </ListItem>
+
+                    <ListItem
+                      button
+                      component={Link}
+                      to="/global-aband"
+                      onClick={toggleDrawer}
+                    >
+                      <Typography variant="body2" sx={{ fontSize: "13px" }}>
+                        Abandoned Cart
+                      </Typography>
+                    </ListItem>
+                  </List>
+                </Collapse>
+              </>
+            )}
+
+            {role === "International Agent" && (
+              <>
+                <ListItem
+                  button
+                  onClick={() => handleDropdownClick("globalRetention")}
+                  sx={dropdownStyle}
+                >
+                  <Box sx={{ display: "flex", alignItems: "center" }}>
+                    <PersonIcon sx={{ fontSize: 18, marginRight: "8px" }} />
+                    <Typography variant="body1" sx={{ fontSize: "14px" }}>
+                      Global Retention
+                    </Typography>
+                  </Box>
+                  {openDropdown.globalRetention ? (
+                    <KeyboardArrowDownIcon />
+                  ) : (
+                    <KeyboardArrowRightIcon />
+                  )}
+                </ListItem>
+
+                <Collapse in={openDropdown.globalRetention} timeout="auto" unmountOnExit>
+                  <List sx={nestedListStyle}>
+                    <ListItem
+                      button
+                      component={Link}
+                      to="/global-retention-leads"
+                      onClick={toggleDrawer}
+                    >
+                      <Typography variant="body2" sx={{ fontSize: "13px" }}>
+                        Global Retention Leads
+                      </Typography>
+                    </ListItem>
+
+                    <ListItem
+                      button
+                      component={Link}
+                      to="/global-retention-sales"
+                      onClick={toggleDrawer}
+                    >
+                      <Typography variant="body2" sx={{ fontSize: "13px" }}>
+                        Global Retention Sales
+                      </Typography>
+                    </ListItem>
+                  </List>
+                </Collapse>
+              </>
+            )}
+
+
+            {role !== "Finance" && role !== "Operations" && role !== "Human Resource" && role !== "Marketing" && role !== "Developer" && role !== "International Agent" && (
               <ListItem
                 button
                 component={Link}

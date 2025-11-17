@@ -14,6 +14,9 @@ import {
   CircularProgress,
 } from "@mui/material";
 import CloudUploadIcon from "@mui/icons-material/CloudUpload";
+import DownloadIcon from "@mui/icons-material/Download";
+
+const API_BASE = "https://muditamleads-14f32a10d7f7.herokuapp.com";
 
 const RazorpayUpload = () => {
   const [file, setFile] = useState(null);
@@ -28,13 +31,14 @@ const RazorpayUpload = () => {
     setLoading(true);
     try {
       const res = await fetch(
-        `https://muditamleads-14f32a10d7f7.herokuapp.com/api/razorpay/data?page=${pg + 1}&limit=${limit}`
+        `${API_BASE}/api/razorpay/data?page=${pg + 1}&limit=${limit}`
       );
       const json = await res.json();
-      setRecords(json.data);
-      setTotalPages(json.totalPages);
-      setTotalRecords(json.totalRecords);
+      setRecords(json.data || []);
+      setTotalPages(json.totalPages || 1);
+      setTotalRecords(json.totalRecords || 0);
     } catch (err) {
+      console.error(err);
       alert("Failed to fetch data");
     } finally {
       setLoading(false);
@@ -52,17 +56,28 @@ const RazorpayUpload = () => {
 
     setLoading(true);
     try {
-      const res = await fetch("https://muditamleads-14f32a10d7f7.herokuapp.com/api/razorpay/upload", {
+      const res = await fetch(`${API_BASE}/api/razorpay/upload`, {
         method: "POST",
         body: formData,
       });
       const json = await res.json();
-      if (!json.error) fetchRecords(0, rowsPerPage);
-    } catch {
+      if (json.error) {
+        alert(json.error || "Upload failed");
+      } else {
+        alert(json.message || "Upload successful");
+        setPage(0);
+        fetchRecords(0, rowsPerPage);
+      }
+    } catch (err) {
+      console.error(err);
       alert("Upload failed");
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleDownloadSample = () => {
+    window.open(`${API_BASE}/api/razorpay/sample`, "_blank");
   };
 
   return (
@@ -71,15 +86,37 @@ const RazorpayUpload = () => {
         📄 Upload Razorpay Settlement CSV
       </Typography>
 
-      <Box sx={{ display: "flex", gap: 2, mb: 3 }}>
-        <input type="file" accept=".csv" onChange={(e) => setFile(e.target.files[0])} />
+      <Box sx={{ display: "flex", gap: 2, mb: 3, flexWrap: "wrap" }}>
+        <input
+          type="file"
+          accept=".csv"
+          onChange={(e) => setFile(e.target.files?.[0] || null)}
+        />
+
         <Button
           variant="contained"
           startIcon={<CloudUploadIcon />}
           onClick={handleUpload}
-          sx={{ bgcolor: "black", color: "#fff", "&:hover": { bgcolor: "#333" } }}
+          sx={{
+            bgcolor: "black",
+            color: "#fff",
+            "&:hover": { bgcolor: "#333" },
+          }}
         >
           Upload
+        </Button>
+
+        <Button
+          variant="outlined"
+          startIcon={<DownloadIcon />}
+          onClick={handleDownloadSample}
+          sx={{
+            borderColor: "black",
+            color: "black",
+            "&:hover": { borderColor: "#333" },
+          }}
+        >
+          Download Sample CSV
         </Button>
       </Box>
 
@@ -118,28 +155,46 @@ const RazorpayUpload = () => {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {records.map((row, idx) => (
-                  <TableRow key={idx}>
-                    <TableCell>{new Date(row.uploadDate).toLocaleDateString()}</TableCell>
-                    <TableCell>{row.transaction_entity}</TableCell>
-                    <TableCell>{row.entity_id}</TableCell>
-                    <TableCell>₹{row.amount}</TableCell>
-                    <TableCell>{row.currency}</TableCell>
-                    <TableCell>{row.fee}</TableCell>
-                    <TableCell>{row.tax}</TableCell>
-                    <TableCell>{row.debit}</TableCell>
-                    <TableCell>{row.credit}</TableCell>
-                    <TableCell>{row.payment_method}</TableCell>
-                    <TableCell>{row.card_type}</TableCell>
-                    <TableCell>{row.issuer_name}</TableCell>
-                    <TableCell>{row.entity_created_at}</TableCell>
-                    <TableCell>{row.order_id}</TableCell>
-                    <TableCell>{row.settlement_id}</TableCell>
-                    <TableCell>{row.settlement_utr}</TableCell>
-                    <TableCell>{row.settled_at}</TableCell>
-                    <TableCell>{row.settled_by}</TableCell>
+                {records.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={18} align="center">
+                      No records found
+                    </TableCell>
                   </TableRow>
-                ))}
+                ) : (
+                  records.map((row, idx) => (
+                    <TableRow key={row._id || idx}>
+                      <TableCell>
+                        {row.uploadDate
+                          ? new Date(row.uploadDate).toLocaleDateString()
+                          : "-"}
+                      </TableCell>
+                      <TableCell>{row.transaction_entity || "-"}</TableCell>
+                      <TableCell>{row.entity_id || "-"}</TableCell>
+                      <TableCell>
+                        {row.amount != null ? `₹${row.amount}` : "-"}
+                      </TableCell>
+                      <TableCell>{row.currency || "-"}</TableCell>
+                      <TableCell>{row.fee != null ? row.fee : "-"}</TableCell>
+                      <TableCell>{row.tax != null ? row.tax : "-"}</TableCell>
+                      <TableCell>
+                        {row.debit != null ? row.debit : "-"}
+                      </TableCell>
+                      <TableCell>
+                        {row.credit != null ? row.credit : "-"}
+                      </TableCell>
+                      <TableCell>{row.payment_method || "-"}</TableCell>
+                      <TableCell>{row.card_type || "-"}</TableCell>
+                      <TableCell>{row.issuer_name || "-"}</TableCell>
+                      <TableCell>{row.entity_created_at || "-"}</TableCell>
+                      <TableCell>{row.order_id || "-"}</TableCell>
+                      <TableCell>{row.settlement_id || "-"}</TableCell>
+                      <TableCell>{row.settlement_utr || "-"}</TableCell>
+                      <TableCell>{row.settled_at || "-"}</TableCell>
+                      <TableCell>{row.settled_by || "-"}</TableCell>
+                    </TableRow>
+                  ))
+                )}
               </TableBody>
             </Table>
           </TableContainer>

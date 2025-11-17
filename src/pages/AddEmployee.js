@@ -56,7 +56,7 @@ const AddEmployee = () => {
   const [allActiveEmployees, setAllActiveEmployees] = useState([]);
 
 
-  const roles = ["Manager", "Sales Agent", "Retention Agent", "Finance", "Operations", "Human Resource", "Marketing", "Super Admin", "Developer"];
+  const roles = ["Manager", "Sales Agent", "Retention Agent", "Finance", "Operations", "Human Resource", "Marketing", "Super Admin", "Developer", "International Agent" ];
   const statusOptions = ["active", "inactive"];
   const LANGUAGE_OPTIONS = ["English", "Hindi", "Kannada", "Telugu", "Tamil"];
 
@@ -185,7 +185,6 @@ const AddEmployee = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!validateForm()) return;
-
 
     try {
       if (isEditMode) {

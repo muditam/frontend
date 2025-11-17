@@ -35,11 +35,13 @@ import {
 import UploadIcon from "@mui/icons-material/Upload";
 import CloseIcon from "@mui/icons-material/Close";
 import AddIcon from "@mui/icons-material/Add";
+import ImageIcon from "@mui/icons-material/Image";
 import axios from "axios";
 
-const API_BASE = 
-  process.env.REACT_APP_API_BASE ||
-  "https://muditamleads-14f32a10d7f7.herokuapp.com";
+
+const API_BASE =
+  process.env.REACT_APP_API_BASE || "https://muditamleads-14f32a10d7f7.herokuapp.com";
+
 
 // Asset types
 const ASSET_OPTIONS = [
@@ -48,13 +50,14 @@ const ASSET_OPTIONS = [
   "Charger",
   "HeadPhone",
   "Keyboard",
-  "Monitor", 
+  "Monitor",
   "NeckBand",
   "Phone",
   "Battery",
   "RAM",
   "Hard Disk",
 ];
+
 
 // Company options mapped by asset name (type-ahead still allowed)
 const COMPANY_MAP = {
@@ -71,17 +74,49 @@ const COMPANY_MAP = {
   "Hard Disk": ["Seagate", "WD", "Toshiba", "Samsung"],
 };
 
+
+const fmtDateTime = (d) => {
+  if (!d) return "-";
+  const dt = new Date(d);
+  if (Number.isNaN(dt.getTime())) return "-";
+  return dt.toLocaleString();
+};
+
+
+const fmtDateInput = (d) => {
+  const dt = d ? new Date(d) : new Date();
+  if (Number.isNaN(dt.getTime())) return "";
+  const yyyy = dt.getFullYear();
+  const mm = String(dt.getMonth() + 1).padStart(2, "0");
+  const dd = String(dt.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+};
+const fmtTimeInput = (d) => {
+  const dt = d ? new Date(d) : new Date();
+  if (Number.isNaN(dt.getTime())) return "";
+  const hh = String(dt.getHours()).padStart(2, "0");
+  const mm = String(dt.getMinutes()).padStart(2, "0");
+  return `${hh}:${mm}`;
+};
+
+
 export default function AssetAllotment() {
   const [employees, setEmployees] = useState([]);
   const [allotments, setAllotments] = useState([]);
   const [loadingEmployees, setLoadingEmployees] = useState(true);
   const [loadingAllotments, setLoadingAllotments] = useState(true);
+  const [collectSubmitting, setCollectSubmitting] = useState(false);
+
+
+
 
   const [snack, setSnack] = useState(null);
   const [submitting, setSubmitting] = useState(false);
 
-  // Dialog open/close
+
+  // Dialog open/close (add allotment)
   const [openForm, setOpenForm] = useState(false);
+
 
   const initialForm = {
     employeeId: "",
@@ -89,14 +124,40 @@ export default function AssetAllotment() {
     company: "",
     model: "",
     assetCode: "",
-    allotmentImageUrls: [], // <-- only array now
+    allotmentImageUrls: [], // only array now
   };
+
 
   const [form, setForm] = useState(initialForm);
 
-  // hold multiple File objects
+
+  // Image gallery dialog (for viewing images from table)
+  const [gallery, setGallery] = useState({
+    open: false,
+    images: [],
+    title: "",
+  });
+
+
+  // hold multiple File objects for ADD dialog
   const [files, setFiles] = useState([]); // Array<File>
   const [isDragging, setIsDragging] = useState(false);
+
+
+  // --------- Collect dialog state ----------
+  const [collectDialog, setCollectDialog] = useState({
+    open: false,
+    allotment: null,
+  });
+  const [collectForm, setCollectForm] = useState({
+    returnedAt: "",
+    returnedTime: "",
+    notes: "",
+  });
+  const [collectFiles, setCollectFiles] = useState([]); // new images at collection time
+  const [isCollectDragging, setIsCollectDragging] = useState(false);
+  const [collectObjectUrls, setCollectObjectUrls] = useState([]);
+
 
   // Load employees
   const fetchEmployees = async () => {
@@ -112,6 +173,7 @@ export default function AssetAllotment() {
     }
   };
 
+
   // Load allotments
   const fetchAllotments = async () => {
     setLoadingAllotments(true);
@@ -126,10 +188,12 @@ export default function AssetAllotment() {
     }
   };
 
+
   useEffect(() => {
     fetchEmployees();
     fetchAllotments();
   }, []);
+
 
   // Company options depend on assetName, but allow free typing
   const companyOptions = useMemo(() => {
@@ -138,7 +202,8 @@ export default function AssetAllotment() {
     return v && !base.includes(v) ? [v, ...base] : base;
   }, [form.assetName, form.company]);
 
-  // Validation
+
+  // Validation for ADD
   const validate = () => {
     const errs = {};
     if (!form.employeeId) errs.employeeId = "Select employee";
@@ -149,28 +214,29 @@ export default function AssetAllotment() {
     return errs;
   };
 
+
   const [errs, setErrs] = useState({});
 
-  // Upload multiple images to Wasabi via backend
-  const uploadAllotmentImages = async () => {
-    if (!files?.length) return [];
+
+  // Generic image upload helper to Wasabi via backend
+  const uploadImagesToWasabi = async (fileList, prefix) => {
+    if (!fileList?.length) return [];
     const fd = new FormData();
-    for (const f of files) fd.append("files", f);
-    fd.append(
-      "prefix",
-      `allotments/${(form.assetName || "asset").replace(/\s+/g, "_").toLowerCase()}`
-    );
+    for (const f of fileList) fd.append("files", f);
+    fd.append("prefix", prefix || "allotments/asset");
     const { data } = await axios.post(`${API_BASE}/api/assets/upload`, fd, {
       headers: { "Content-Type": "multipart/form-data" },
     });
-    const urls = data?.urls || [];
-    return urls;
+    return data?.urls || [];
   };
 
+
+  // --- ADD Allotment submit ---
   const onSubmit = async () => {
     const e = validate();
     setErrs(e);
     if (Object.keys(e).length) return;
+
 
     setSubmitting(true);
     try {
@@ -179,10 +245,17 @@ export default function AssetAllotment() {
         ? [...form.allotmentImageUrls]
         : [];
 
+
       if (files?.length) {
-        const uploaded = await uploadAllotmentImages();
+        const uploaded = await uploadImagesToWasabi(
+          files,
+          `allotments/${(form.assetName || "asset")
+            .replace(/\s+/g, "_")
+            .toLowerCase()}`
+        );
         urls = [...urls, ...uploaded];
       }
+
 
       const payload = {
         employeeId: form.employeeId,
@@ -190,11 +263,13 @@ export default function AssetAllotment() {
         company: form.company.trim(),
         model: form.model.trim(),
         assetCode: form.assetCode.trim(),
-        allotmentImageUrls: urls, // <-- send only the array
+        allotmentImageUrls: urls,
       };
+
 
       await axios.post(`${API_BASE}/api/asset-allotments`, payload);
       setSnack({ severity: "success", msg: "Asset allotted" });
+
 
       // reset form and close dialog
       setForm(initialForm);
@@ -210,6 +285,7 @@ export default function AssetAllotment() {
     }
   };
 
+
   const onOpenForm = () => {
     setErrs({});
     setForm(initialForm);
@@ -217,17 +293,20 @@ export default function AssetAllotment() {
     setOpenForm(true);
   };
 
+
   const onCloseForm = () => {
     if (submitting) return;
     setOpenForm(false);
   };
+
 
   const employeeOptions = employees.map((e) => ({
     id: e._id,
     label: `${e.fullName}`,
   }));
 
-  // Helpers for previews (Object URLs)
+
+  // Helpers for previews (Object URLs) - ADD dialog
   const [objectUrls, setObjectUrls] = useState([]);
   useEffect(() => {
     objectUrls.forEach((u) => URL.revokeObjectURL(u));
@@ -237,11 +316,13 @@ export default function AssetAllotment() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [files]);
 
+
   const removeFileAt = (idx) => {
     setFiles((prev) => prev.filter((_, i) => i !== idx));
   };
 
-  // Drag & drop handlers for the dropzone
+
+  // Drag & drop handlers for ADD dropzone
   const onDragOver = (e) => {
     e.preventDefault();
     setIsDragging(true);
@@ -256,6 +337,198 @@ export default function AssetAllotment() {
     if (selected.length) setFiles((prev) => [...prev, ...selected]);
   };
 
+
+  // ---------- Collect dialog helpers ----------
+
+
+  // open collect dialog for specific allotment
+  const openCollectDialog = (allot) => {
+    setCollectDialog({ open: true, allotment: allot });
+    setCollectForm({
+      returnedAt: fmtDateInput(new Date()),
+      returnedTime: fmtTimeInput(new Date()),
+      notes: allot?.notes || "",
+    });
+    setCollectFiles([]);
+    setCollectObjectUrls([]);
+    setIsCollectDragging(false);
+  };
+
+
+  const closeCollectDialog = () => {
+    setCollectDialog({ open: false, allotment: null });
+    setCollectFiles([]);
+    setCollectObjectUrls([]);
+  };
+
+
+  // Preview URLs for collectFiles
+  useEffect(() => {
+    collectObjectUrls.forEach((u) => URL.revokeObjectURL(u));
+    const urls = (collectFiles || []).map((f) => URL.createObjectURL(f));
+    setCollectObjectUrls(urls);
+    return () => urls.forEach((u) => URL.revokeObjectURL(u));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [collectFiles]);
+
+
+  const removeCollectFileAt = (idx) => {
+    setCollectFiles((prev) => prev.filter((_, i) => i !== idx));
+  };
+
+
+  // dropzone handlers for collect dialog
+  const onCollectDragOver = (e) => {
+    e.preventDefault();
+    setIsCollectDragging(true);
+  };
+  const onCollectDragLeave = () => setIsCollectDragging(false);
+  const onCollectDrop = (e) => {
+    e.preventDefault();
+    setIsCollectDragging(false);
+    const selected = Array.from(e.dataTransfer.files || []).filter((f) =>
+      f.type.startsWith("image/")
+    );
+    if (selected.length) setCollectFiles((prev) => [...prev, ...selected]);
+  };
+const handleCollectSubmit = async () => {
+  if (!collectDialog.allotment || collectSubmitting) return;
+
+
+  const id = collectDialog.allotment._id;
+
+
+  // 1️⃣ Date check (already there)
+  if (!collectForm.returnedAt) {
+    setSnack({ severity: "error", msg: "Please select collection date" });
+    return;
+  }
+
+
+  // 2️⃣ Ensure at least one collection image
+  if (!collectFiles.length) {
+    setSnack({
+      severity: "error",
+      msg: "Please upload at least one collection image",
+    });
+    return;
+  }
+    if (!collectForm.notes || !collectForm.notes.trim()) {
+    setSnack({
+      severity: "error",
+      msg: "Please enter remarks (damage / OK / notes)",
+    });
+    return;
+  }
+
+
+  setCollectSubmitting(true);
+
+
+  try {
+    // 3️⃣ Upload new images (collection photos)
+    let returnUrls = [];
+    if (collectFiles.length) {
+      returnUrls = await uploadImagesToWasabi(
+        collectFiles,
+        `returns/${(collectDialog.allotment.assetCode || "asset")
+          .replace(/\s+/g, "_")
+          .toLowerCase()}`
+      );
+    }
+
+
+    let combinedReturnedAt = collectForm.returnedAt;
+    if (collectForm.returnedTime) {
+      combinedReturnedAt = `${collectForm.returnedAt}T${collectForm.returnedTime}`;
+    }
+
+
+    const payload = {
+      returnedAt: combinedReturnedAt,
+      notes: collectForm.notes || "",
+      returnImageUrls: returnUrls,
+    };
+
+
+    // 🔹 IMPORTANT: use result of PATCH instead of refetching all allotments
+    const { data: updated } = await axios.patch(
+      `${API_BASE}/api/asset-allotments/${id}/collect`,
+      payload
+    );
+
+
+    // 🔹 Update localStorage inventory (same as before)
+    try {
+      const LS_KEY = "org_hw_assets_v2";
+      const assetCode = collectDialog.allotment.assetCode;
+      const raw = localStorage.getItem(LS_KEY);
+
+
+      if (raw && assetCode) {
+        const assets = JSON.parse(raw);
+
+
+        const idx = assets.findIndex(
+          (a) => a.assetCode && a.assetCode === assetCode
+        );
+
+
+        if (idx >= 0) {
+          assets[idx] = {
+            ...assets[idx],
+            allocatedTo: "",
+            employeeId: "",
+            issuedDate: "",
+            updatedAt: new Date().toISOString(),
+          };
+
+
+          localStorage.setItem(LS_KEY, JSON.stringify(assets));
+        }
+      }
+    } catch (e) {
+      console.error("Failed to update Asset Inventory after collect:", e);
+    }
+
+
+    // 🔹 Directly update state instead of fetchAllotments()
+    setAllotments((prev) =>
+      prev.map((a) => (a._id === updated._id ? updated : a))
+    );
+
+
+    setSnack({ severity: "success", msg: "Asset collected" });
+    closeCollectDialog();
+  } catch (err) {
+    console.error(err);
+    const msg = err?.response?.data?.message || "Failed to collect asset";
+    setSnack({ severity: "error", msg });
+  } finally {
+    setCollectSubmitting(false);
+  }
+};
+
+
+
+
+
+
+  const activeAllotments = allotments.filter((a) => a.status !== "returned");
+
+
+  // --- Main images for side-by-side comparison in Collect Dialog ---
+  const mainOldImage =
+    collectDialog.allotment &&
+    Array.isArray(collectDialog.allotment.allotmentImageUrls) &&
+    collectDialog.allotment.allotmentImageUrls.length
+      ? collectDialog.allotment.allotmentImageUrls[0]
+      : null;
+
+
+  const mainNewImage = collectObjectUrls.length ? collectObjectUrls[0] : null;
+
+
   return (
     <Box p={{ xs: 1.5, md: 3 }}>
       <Card elevation={3} sx={{ borderRadius: 3 }}>
@@ -263,7 +536,7 @@ export default function AssetAllotment() {
           title={
             <Stack direction="row" alignItems="center" gap={1}>
               <Typography variant="h6">Asset Allotment</Typography>
-              <Chip label={`${allotments.length} allotted`} size="small" />
+              <Chip label={`${activeAllotments.length} allotted`} size="small" />
             </Stack>
           }
           action={
@@ -280,18 +553,24 @@ export default function AssetAllotment() {
           }
         />
 
+
         <CardContent sx={{ pt: 1 }}>
           <Typography variant="overline" sx={{ color: "text.secondary" }}>
             Recent Allotments
           </Typography>
           <Divider sx={{ mb: 1.5 }} />
 
+
           {loadingAllotments ? (
             <Stack alignItems="center" py={4}>
               <CircularProgress />
             </Stack>
           ) : (
-            <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 2 }}>
+            <TableContainer
+              component={Paper}
+              variant="outlined"
+              sx={{ borderRadius: 2 }}
+            >
               <Table size="small" stickyHeader>
                 <TableHead>
                   <TableRow>
@@ -300,22 +579,37 @@ export default function AssetAllotment() {
                     <TableCell sx={{ fontWeight: 700 }}>Company</TableCell>
                     <TableCell sx={{ fontWeight: 700 }}>Model</TableCell>
                     <TableCell sx={{ fontWeight: 700 }}>Asset Code</TableCell>
-                    <TableCell sx={{ fontWeight: 700, minWidth: 220 }}>Images</TableCell>
-                    <TableCell sx={{ fontWeight: 700 }}>Allotted At</TableCell>
+                    <TableCell sx={{ fontWeight: 700, minWidth: 220 }}>
+                      Images
+                    </TableCell>
+                    <TableCell sx={{ fontWeight: 700 }}>Allotted</TableCell>
+                    <TableCell sx={{ fontWeight: 700 }}>Collect</TableCell>
                   </TableRow>
                 </TableHead>
+
+
                 <TableBody>
-                  {allotments.length === 0 ? (
+                  {activeAllotments.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={7} align="center">
+                      <TableCell colSpan={8} align="center">
                         <Typography variant="body2" sx={{ opacity: 0.7 }}>
                           No allotments yet.
                         </Typography>
                       </TableCell>
                     </TableRow>
                   ) : (
-                    allotments.map((a) => {
-                      const imgs = Array.isArray(a.allotmentImageUrls) ? a.allotmentImageUrls : [];
+                    activeAllotments.map((a) => {
+                      const imgs = Array.isArray(a.allotmentImageUrls)
+                        ? a.allotmentImageUrls
+                        : [];
+                      const firstImgs = imgs.slice(0, 4);
+                      const moreCount =
+                        imgs.length > 4 ? imgs.length - 4 : 0;
+
+
+                      const isReturned = a.status === "returned";
+
+
                       return (
                         <TableRow key={a._id} hover>
                           <TableCell>
@@ -330,7 +624,8 @@ export default function AssetAllotment() {
                             <code>{a.assetCode}</code>
                           </TableCell>
 
-                          {/* Images (all) */}
+
+                          {/* Images column */}
                           <TableCell>
                             {imgs.length ? (
                               <Stack spacing={0.5}>
@@ -341,33 +636,108 @@ export default function AssetAllotment() {
                                   useFlexGap
                                   sx={{ alignItems: "center" }}
                                 >
-                                  {imgs.map((url, i) => (
-                                    <Tooltip key={i} title={`Image ${i + 1}`}>
-                                      <a href={url} target="_blank" rel="noreferrer">
-                                        <Avatar
-                                          src={url}
-                                          alt={`img-${i}`}
-                                          sx={{ width: 28, height: 28 }}
-                                          variant="rounded"
-                                        />
-                                      </a>
-                                    </Tooltip>
-                                  ))}
+                                {firstImgs.map((url, i) => (
+  <Tooltip key={i} title="Click to open in new tab">
+    <Box
+      component="a"
+      href={url}
+      target="_blank"
+      rel="noopener noreferrer"
+      sx={{ display: "inline-block" }}
+    >
+      <Avatar
+        src={url}
+        alt={`img-${i}`}
+        sx={{
+          width: 28,
+          height: 28,
+          cursor: "zoom-in",
+          borderRadius: 1,
+        }}
+        variant="rounded"
+      />
+    </Box>
+  </Tooltip>
+))}
+{moreCount > 0 && (
+  <Chip
+    size="small"
+    variant="outlined"
+    label={`+${moreCount} more`}
+    onClick={() =>
+      setGallery({
+        open: true,
+        images: imgs,
+        title: a.assetCode
+          ? `Images • ${a.assetCode}`
+          : "Images",
+      })
+    }
+    sx={{ cursor: "pointer" }}
+  />
+)}
+
+
+                                  {moreCount > 0 && (
+                                    <Chip
+                                      size="small"
+                                      variant="outlined"
+                                      label={`+${moreCount} more`}
+                                    />
+                                  )}
                                 </Stack>
                                 <Chip
                                   size="small"
                                   variant="outlined"
-                                  label={`${imgs.length} image${imgs.length > 1 ? "s" : ""}`}
+                                  label={`${imgs.length} image${
+                                    imgs.length > 1 ? "s" : ""
+                                  }`}
                                   sx={{ alignSelf: "flex-start" }}
                                 />
                               </Stack>
                             ) : (
-                              "-"
+                              <Stack
+                                direction="row"
+                                spacing={0.5}
+                                alignItems="center"
+                                sx={{ color: "text.disabled" }}
+                              >
+                                <ImageIcon fontSize="small" />
+                                <Typography variant="caption">
+                                  No images
+                                </Typography>
+                              </Stack>
                             )}
                           </TableCell>
 
+
+                          {/* Allotted / Collected info */}
                           <TableCell>
-                            {a.allottedAt ? new Date(a.allottedAt).toLocaleString() : "-"}
+                            <Typography variant="body2">
+                              Allotted: {fmtDateTime(a.allottedAt)}
+                            </Typography>
+                            {isReturned && (
+                              <Typography
+                                variant="caption"
+                                color="text.secondary"
+                              >
+                                Collected: {fmtDateTime(a.returnedAt)}
+                              </Typography>
+                            )}
+                          </TableCell>
+
+
+                          {/* Collect column */}
+                          <TableCell>
+                            <Button
+                              variant={isReturned ? "outlined" : "contained"}
+                              size="small"
+                              color={isReturned ? "success" : "primary"}
+                              disabled={isReturned}
+                              onClick={() => openCollectDialog(a)}
+                            >
+                              {isReturned ? "Collected" : "Collect"}
+                            </Button>
                           </TableCell>
                         </TableRow>
                       );
@@ -380,7 +750,8 @@ export default function AssetAllotment() {
         </CardContent>
       </Card>
 
-      {/* —————————— Dialog —————————— */}
+
+      {/* —————————— Add Allotment Dialog —————————— */}
       <Dialog
         open={openForm}
         onClose={onCloseForm}
@@ -400,115 +771,126 @@ export default function AssetAllotment() {
           </Stack>
         </DialogTitle>
 
+
         <DialogContent dividers sx={{ pt: 2 }}>
-          <Typography variant="overline" sx={{ color: "text.secondary" }}>
-            Details
-          </Typography>
-          <Grid container spacing={1.5} sx={{ mb: 1 }}>
-            {/* Row 1 */}
-            <Grid item xs={12} md={4}>
+          {/* Employee & asset details */}
+          <Grid container spacing={1.5} sx={{ mb: 2 }}>
+            <Grid item xs={12} md={6}>
               <Autocomplete
+                size="small"
                 options={employeeOptions}
-                value={employeeOptions.find((o) => o.id === form.employeeId) || null}
+                value={
+                  employeeOptions.find((e) => e.id === form.employeeId) || null
+                }
                 onChange={(_, val) =>
                   setForm((f) => ({ ...f, employeeId: val?.id || "" }))
                 }
-                loading={loadingEmployees}
                 renderInput={(params) => (
                   <TextField
                     {...params}
                     label="Employee"
-                    size="small"
                     error={!!errs.employeeId}
                     helperText={errs.employeeId}
-                    placeholder="Search employee"
+                    fullWidth
                   />
                 )}
               />
             </Grid>
 
-            <Grid item xs={12} md={4}>
+
+            <Grid item xs={12} md={6}>
               <Autocomplete
+                size="small"
                 freeSolo
                 options={ASSET_OPTIONS}
-                value={form.assetName || ""}
-                onChange={(_, v) => setForm((f) => ({ ...f, assetName: v || "" }))}
-                onInputChange={(_, v) => setForm((f) => ({ ...f, assetName: v || "" }))}
+                value={form.assetName}
+                onChange={(_, val) =>
+                  setForm((f) => ({ ...f, assetName: val || "" }))
+                }
+                onInputChange={(_, val) =>
+                  setForm((f) => ({ ...f, assetName: val }))
+                }
                 renderInput={(params) => (
                   <TextField
                     {...params}
-                    label="Asset Name"
-                    size="small"
+                    label="Asset"
                     error={!!errs.assetName}
                     helperText={errs.assetName}
-                    placeholder="e.g., Laptop"
+                    fullWidth
                   />
                 )}
               />
             </Grid>
 
+
             <Grid item xs={12} md={4}>
               <Autocomplete
+                size="small"
                 freeSolo
                 options={companyOptions}
-                value={form.company || ""}
-                onChange={(_, v) => setForm((f) => ({ ...f, company: v || "" }))}
-                onInputChange={(_, v) => setForm((f) => ({ ...f, company: v || "" }))}
+                value={form.company}
+                onChange={(_, val) =>
+                  setForm((f) => ({ ...f, company: val || "" }))
+                }
+                onInputChange={(_, val) =>
+                  setForm((f) => ({ ...f, company: val }))
+                }
                 renderInput={(params) => (
                   <TextField
                     {...params}
                     label="Company"
-                    size="small"
                     error={!!errs.company}
                     helperText={errs.company}
-                    placeholder="e.g., Dell"
+                    fullWidth
                   />
                 )}
               />
             </Grid>
 
-            {/* Row 2 */}
-            <Grid item xs={12} md={6}>
+
+            <Grid item xs={12} md={4}>
               <TextField
                 label="Model"
                 size="small"
                 value={form.model}
-                onChange={(e) => setForm((f) => ({ ...f, model: e.target.value }))}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, model: e.target.value }))
+                }
                 error={!!errs.model}
                 helperText={errs.model}
-                placeholder="e.g., ThinkPad T14 Gen 3"
                 fullWidth
               />
             </Grid>
 
-            <Grid item xs={12} md={6}>
+
+            <Grid item xs={12} md={4}>
               <TextField
                 label="Asset Code"
                 size="small"
                 value={form.assetCode}
-                onChange={(e) => setForm((f) => ({ ...f, assetCode: e.target.value }))}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, assetCode: e.target.value }))
+                }
                 error={!!errs.assetCode}
                 helperText={errs.assetCode}
-                placeholder="e.g., LP-0001"
-                inputProps={{ style: { fontFamily: "monospace", letterSpacing: 0.5 } }}
                 fullWidth
               />
             </Grid>
           </Grid>
 
+
           <Divider sx={{ my: 2 }} />
 
+
           <Typography variant="overline" sx={{ color: "text.secondary" }}>
-            Allotment Images
+            Allotment Photos
           </Typography>
 
-          {/* Dropzone */}
+
+          {/* Add dialog dropzone */}
           <Box
-            onDragOver={(e) => {
-              e.preventDefault();
-              setIsDragging(true);
-            }}
-            onDragLeave={() => setIsDragging(false)}
+            onDragOver={onDragOver}
+            onDragLeave={onDragLeave}
             onDrop={onDrop}
             sx={{
               mt: 0.5,
@@ -524,14 +906,13 @@ export default function AssetAllotment() {
             <Stack spacing={1} alignItems="center" justifyContent="center">
               <UploadIcon />
               <Typography variant="body2" sx={{ opacity: 0.9 }}>
-                Drag & drop images here or
+                Drag & drop allotment images here or
               </Typography>
               <Button
                 component="label"
                 variant="outlined"
                 size="small"
                 startIcon={<UploadIcon />}
-                disabled={submitting}
               >
                 Choose Images
                 <input
@@ -546,55 +927,22 @@ export default function AssetAllotment() {
                 />
               </Button>
               <Typography variant="caption" sx={{ color: "text.secondary" }}>
-                Up to 10 images · PNG/JPG/WebP
+                Add images taken at allotment time
               </Typography>
             </Stack>
           </Box>
 
-          {/* Previews */}
-          <Stack direction="row" gap={1} flexWrap="wrap" sx={{ mt: 1.5 }}>
-            {/* Existing URLs */}
-            {Array.isArray(form.allotmentImageUrls) &&
-              form.allotmentImageUrls.map((url, i) => (
-                <Badge
-                  key={`existing-${i}`}
-                  overlap="circular"
-                  anchorOrigin={{ vertical: "top", horizontal: "right" }}
-                  badgeContent={
-                    <Tooltip title="Remove from list">
-                      <IconButton
-                        size="small"
-                        onClick={() =>
-                          setForm((f) => ({
-                            ...f,
-                            allotmentImageUrls: f.allotmentImageUrls.filter((_, idx) => idx !== i),
-                          }))
-                        }
-                        sx={{
-                          bgcolor: "background.paper",
-                          boxShadow: 1,
-                          "&:hover": { bgcolor: "grey.100" },
-                        }}
-                      >
-                        <CloseIcon fontSize="inherit" />
-                      </IconButton>
-                    </Tooltip>
-                  }
-                >
-                  <Avatar
-                    src={url}
-                    variant="rounded"
-                    sx={{ width: 64, height: 64, borderRadius: 2 }}
-                  />
-                </Badge>
-              ))}
 
-            {/* New local files */}
+          {/* Thumbnails for allotment images */}
+          <Stack direction="row" gap={1} flexWrap="wrap" sx={{ mt: 1.5 }}>
             {objectUrls.map((url, idx) => (
               <Badge
-                key={`file-${idx}`}
+                key={`allot-${idx}`}
                 overlap="circular"
-                anchorOrigin={{ vertical: "top", horizontal: "right" }}
+                anchorOrigin={{
+                  vertical: "top",
+                  horizontal: "right",
+                }}
                 badgeContent={
                   <Tooltip title="Remove">
                     <IconButton
@@ -619,25 +967,8 @@ export default function AssetAllotment() {
               </Badge>
             ))}
           </Stack>
-
-          {(files.length > 0 || form.allotmentImageUrls.length > 0) && (
-            <Stack direction="row" alignItems="center" gap={1} sx={{ mt: 1 }}>
-              <Chip
-                size="small"
-                label={`Selected: ${files.length + (form.allotmentImageUrls?.length || 0)}`}
-              />
-              {!!files.length && (
-                <Button
-                  size="small"
-                  onClick={() => setFiles([])}
-                  sx={{ textTransform: "none" }}
-                >
-                  Clear new files
-                </Button>
-              )}
-            </Stack>
-          )}
         </DialogContent>
+
 
         <DialogActions sx={{ px: 3, py: 2 }}>
           <Button onClick={onCloseForm} disabled={submitting}>
@@ -654,6 +985,469 @@ export default function AssetAllotment() {
         </DialogActions>
       </Dialog>
 
+
+      {/* —————————— Collect Dialog —————————— */}
+      <Dialog
+        open={collectDialog.open}
+        onClose={closeCollectDialog}
+        fullWidth
+        maxWidth="md"
+        PaperProps={{ sx: { borderRadius: 3 } }}
+      >
+        <DialogTitle sx={{ pb: 1.5 }}>
+          <Stack spacing={0.5}>
+            <Typography variant="h6">
+              Collect Asset
+              {collectDialog.allotment?.assetCode
+                ? ` • ${collectDialog.allotment.assetCode}`
+                : ""}
+            </Typography>
+            {collectDialog.allotment && (
+              <Typography variant="body2" color="text.secondary">
+                Allotted on:{" "}
+                {fmtDateTime(collectDialog.allotment.allottedAt)}
+              </Typography>
+            )}
+          </Stack>
+        </DialogTitle>
+
+
+        <DialogContent dividers sx={{ pt: 2 }}>
+          {/* Asset details in collect dialog */}
+          {collectDialog.allotment && (
+            <>
+              <Typography variant="overline" sx={{ color: "text.secondary" }}>
+                Asset Details
+              </Typography>
+              <Grid container spacing={1.5} sx={{ mb: 2 }}>
+                <Grid item xs={12} md={3}>
+                  <TextField
+                    label="Asset"
+                    size="small"
+                    value={collectDialog.allotment.name || ""}
+                    InputProps={{ readOnly: true }}
+                    fullWidth
+                  />
+                </Grid>
+                <Grid item xs={12} md={3}>
+                  <TextField
+                    label="Company"
+                    size="small"
+                    value={collectDialog.allotment.company || ""}
+                    InputProps={{ readOnly: true }}
+                    fullWidth
+                  />
+                </Grid>
+                <Grid item xs={12} md={3}>
+                  <TextField
+                    label="Model"
+                    size="small"
+                    value={collectDialog.allotment.model || ""}
+                    InputProps={{ readOnly: true }}
+                    fullWidth
+                  />
+                </Grid>
+                <Grid item xs={12} md={3}>
+                  <TextField
+                    label="Asset Code"
+                    size="small"
+                    value={collectDialog.allotment.assetCode || ""}
+                    InputProps={{ readOnly: true }}
+                    fullWidth
+                  />
+                </Grid>
+              </Grid>
+
+
+              <Divider sx={{ my: 2 }} />
+            </>
+          )}
+
+
+          {/* Dates & remark */}
+          <Grid container spacing={1.5} sx={{ mb: 2 }}>
+            <Grid item xs={12} md={3}>
+              <TextField
+                label="Collection Date"
+                type="date"
+                value={collectForm.returnedAt}
+                onChange={(e) =>
+                  setCollectForm((f) => ({
+                    ...f,
+                    returnedAt: e.target.value,
+                  }))
+                }
+                InputLabelProps={{ shrink: true }}
+                size="small"
+                fullWidth
+              />
+            </Grid>
+
+
+            <Grid item xs={12} md={3}>
+              <TextField
+                label="Collection Time"
+                type="time"
+                value={collectForm.returnedTime}
+                onChange={(e) =>
+                  setCollectForm((f) => ({
+                    ...f,
+                    returnedTime: e.target.value,
+                  }))
+                }
+                InputLabelProps={{ shrink: true }}
+                size="small"
+                fullWidth
+              />
+            </Grid>
+
+
+            <Grid item xs={12} md={6}>
+              <TextField
+                label="Remarks (damage / OK / notes)"
+                multiline
+                minRows={2}
+                value={collectForm.notes}
+                onChange={(e) =>
+                  setCollectForm((f) => ({ ...f, notes: e.target.value }))
+                }
+                fullWidth
+                 required
+              />
+            </Grid>
+          </Grid>
+{/* 🔹 Big comparison: Old vs New side-by-side */}
+{(mainOldImage || mainNewImage) && (
+  <>
+    <Divider sx={{ my: 2 }} />
+    <Typography variant="overline" sx={{ color: "text.secondary" }}>
+      Compare (Old vs New)
+    </Typography>
+
+
+    <Grid container spacing={2} sx={{ mt: 1, mb: 2 }}>
+      {/* OLD IMAGE */}
+      <Grid item xs={12} md={6}>
+        <Paper
+          variant="outlined"
+          sx={{
+            p: 1,
+            borderRadius: 2,
+            minHeight: 220,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            bgcolor: "background.default",
+          }}
+        >
+          {mainOldImage ? (
+            // 🔹 Clickable: opens full image in new tab
+            <Box
+              component="a"
+              href={mainOldImage}
+              target="_blank"
+              rel="noopener noreferrer"
+              sx={{ display: "inline-block" }}
+            >
+              <img
+                src={mainOldImage}
+                alt="old-asset"
+                style={{
+                  maxWidth: "100%",
+                  maxHeight: 260,
+                  objectFit: "contain",
+                  display: "block",
+                  cursor: "zoom-in",
+                }}
+              />
+            </Box>
+          ) : (
+            <Typography variant="caption" color="text.disabled">
+              No old image available
+            </Typography>
+          )}
+        </Paper>
+        <Typography
+          variant="caption"
+          color="text.secondary"
+          sx={{ mt: 0.5, display: "block", textAlign: "center" }}
+        >
+          OLD (at allotment time) – click image to open in new tab
+        </Typography>
+      </Grid>
+
+
+      {/* NEW IMAGE */}
+      <Grid item xs={12} md={6}>
+        <Paper
+          variant="outlined"
+          sx={{
+            p: 1,
+            borderRadius: 2,
+            minHeight: 220,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            bgcolor: "background.default",
+          }}
+        >
+          {mainNewImage ? (
+            // 🔹 Clickable: opens full image in new tab
+            <Box
+              component="a"
+              href={mainNewImage}
+              target="_blank"
+              rel="noopener noreferrer"
+              sx={{ display: "inline-block" }}
+            >
+              <img
+                src={mainNewImage}
+                alt="new-asset"
+                style={{
+                  maxWidth: "100%",
+                  maxHeight: 260,
+                  objectFit: "contain",
+                  display: "block",
+                  cursor: "zoom-in",
+                }}
+              />
+            </Box>
+          ) : (
+            <Typography variant="caption" color="text.disabled">
+              No new image selected yet
+            </Typography>
+          )}
+        </Paper>
+        <Typography
+          variant="caption"
+          color="text.secondary"
+          sx={{ mt: 0.5, display: "block", textAlign: "center" }}
+        >
+          NEW (at collection time) – click image to open in new tab
+        </Typography>
+      </Grid>
+    </Grid>
+  </>
+)}
+
+
+
+
+          <Divider sx={{ my: 2 }} />
+
+
+          {/* Old photos thumbnails */}
+          <Typography variant="overline" sx={{ color: "text.secondary" }}>
+            Old Photos (all allotment images)
+          </Typography>
+          <Stack direction="row" gap={1} flexWrap="wrap" sx={{ mt: 1, mb: 2 }}>
+            {collectDialog.allotment &&
+            Array.isArray(collectDialog.allotment.allotmentImageUrls) &&
+            collectDialog.allotment.allotmentImageUrls.length ? (
+              collectDialog.allotment.allotmentImageUrls.map((url, idx) => (
+                <Avatar
+                  key={idx}
+                  src={url}
+                  variant="rounded"
+                  sx={{
+                    width: 64,
+                    height: 64,
+                    borderRadius: 2,
+                    border: "1px solid",
+                    borderColor: "divider",
+                  }}
+                />
+              ))
+            ) : (
+              <Stack
+                direction="row"
+                spacing={0.5}
+                alignItems="center"
+                sx={{ color: "text.disabled" }}
+              >
+                <ImageIcon fontSize="small" />
+                <Typography variant="caption">
+                  No old images stored
+                </Typography>
+              </Stack>
+            )}
+          </Stack>
+
+
+          <Divider sx={{ my: 2 }} />
+
+
+          {/* New photos upload */}
+          <Typography variant="overline" sx={{ color: "text.secondary" }}>
+            New Photos (at collection time)
+          </Typography>
+
+
+          <Box
+            onDragOver={onCollectDragOver}
+            onDragLeave={onCollectDragLeave}
+            onDrop={onCollectDrop}
+            sx={{
+              mt: 0.5,
+              p: 2,
+              border: "2px dashed",
+              borderColor: isCollectDragging ? "primary.main" : "divider",
+              borderRadius: 2,
+              bgcolor: isCollectDragging ? "action.hover" : "background.paper",
+              transition: "all .15s ease",
+              textAlign: "center",
+            }}
+          >
+            <Stack spacing={1} alignItems="center" justifyContent="center">
+              <UploadIcon />
+              <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                Drag & drop collection images here or
+              </Typography>
+              <Button
+                component="label"
+                variant="outlined"
+                size="small"
+                startIcon={<UploadIcon />}
+              >
+                Choose Images
+                <input
+                  type="file"
+                  accept="image/*"
+                  hidden
+                  multiple
+                  onChange={(e) => {
+                    const selected = Array.from(e.target.files || []);
+                    setCollectFiles((prev) => [...prev, ...selected]);
+                  }}
+                />
+              </Button>
+              <Typography variant="caption" sx={{ color: "text.secondary" }}>
+                Add damage / condition photos
+              </Typography>
+            </Stack>
+          </Box>
+
+
+          <Stack direction="row" gap={1} flexWrap="wrap" sx={{ mt: 1.5 }}>
+            {collectObjectUrls.map((url, idx) => (
+              <Badge
+                key={`collect-${idx}`}
+                overlap="circular"
+                anchorOrigin={{
+                  vertical: "top",
+                  horizontal: "right",
+                }}
+                badgeContent={
+                  <Tooltip title="Remove">
+                    <IconButton
+                      size="small"
+                      onClick={() => removeCollectFileAt(idx)}
+                      sx={{
+                        bgcolor: "background.paper",
+                        boxShadow: 1,
+                        "&:hover": { bgcolor: "grey.100" },
+                      }}
+                    >
+                      <CloseIcon fontSize="inherit" />
+                    </IconButton>
+                  </Tooltip>
+                }
+              >
+                <Avatar
+                  src={url}
+                  variant="rounded"
+                  sx={{ width: 64, height: 64, borderRadius: 2 }}
+                />
+              </Badge>
+            ))}
+          </Stack>
+        </DialogContent>
+
+
+       <DialogActions sx={{ px: 3, py: 2 }}>
+  <Button onClick={closeCollectDialog} disabled={collectSubmitting}>
+    Cancel
+  </Button>
+  <Button
+    variant="contained"
+    color="primary"
+    onClick={handleCollectSubmit}
+    disabled={collectSubmitting}
+  >
+    {collectSubmitting ? "Saving…" : "Mark as Collected"}
+  </Button>
+</DialogActions>
+      </Dialog>
+
+
+      {/* —————————— Image Gallery Dialog —————————— */}
+      <Dialog
+        open={gallery.open}
+        onClose={() => setGallery((g) => ({ ...g, open: false }))}
+        fullWidth
+        maxWidth="md"
+      >
+        <DialogTitle sx={{ fontWeight: 800 }}>
+          {gallery.title || "Images"}
+        </DialogTitle>
+
+
+        <DialogContent dividers sx={{ p: 2.5 }}>
+          {gallery.images && gallery.images.length ? (
+            <Box
+              sx={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))",
+                gap: 1.5,
+              }}
+            >
+              {gallery.images.map((src, idx) => (
+                <Paper
+                  key={idx}
+                  variant="outlined"
+                  sx={{
+                    p: 0.5,
+                    borderRadius: 2,
+                    overflow: "hidden",
+                  }}
+                >
+                  <img
+                    src={src}
+                    alt={`asset-img-${idx}`}
+                    style={{
+                      width: "100%",
+                      height: 180,
+                      objectFit: "cover",
+                      display: "block",
+                    }}
+                  />
+                </Paper>
+              ))}
+            </Box>
+          ) : (
+            <Stack
+              alignItems="center"
+              spacing={1}
+              sx={{ color: "text.secondary", py: 6 }}
+            >
+              <ImageIcon fontSize="large" />
+              <Typography variant="body2">No images to show.</Typography>
+            </Stack>
+          )}
+        </DialogContent>
+
+
+        <DialogActions sx={{ p: 1.5 }}>
+          <Button
+            onClick={() => setGallery((g) => ({ ...g, open: false }))}
+            variant="contained"
+          >
+            Close
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+
       <Snackbar
         open={!!snack}
         autoHideDuration={2500}
@@ -661,7 +1455,11 @@ export default function AssetAllotment() {
         anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
       >
         {snack ? (
-          <Alert onClose={() => setSnack(null)} severity={snack.severity} variant="filled">
+          <Alert
+            onClose={() => setSnack(null)}
+            severity={snack.severity}
+            variant="filled"
+          >
             {snack.msg}
           </Alert>
         ) : null}
@@ -669,3 +1467,6 @@ export default function AssetAllotment() {
     </Box>
   );
 }
+
+
+
