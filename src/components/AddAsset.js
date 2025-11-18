@@ -318,7 +318,8 @@ function AddEditDialog({ open, onClose, initial, onSaved, allAssets }) {
           ],
         }
       : null;
-    setForm(
+
+    const baseForm =
       seed2 || {
         assetCode: "",
         items: [{ type: "Laptop", brand: "", model: "" }],
@@ -326,8 +327,18 @@ function AddEditDialog({ open, onClose, initial, onSaved, allAssets }) {
         allocatedTo: "",
         employeeId: "",
         issuedDate: "",
-      }
-    );
+      };
+
+    setForm({
+      ...baseForm,
+      // 👇 IMPORTANT: show existing URLs from DB if no `images` array
+      images:
+        Array.isArray(baseForm.images) && baseForm.images.length
+          ? baseForm.images
+          : Array.isArray(baseForm.imageUrls)
+          ? baseForm.imageUrls
+          : [],
+    });
     setErrors({});
   }, [initial, open]);
 
@@ -412,127 +423,75 @@ function AddEditDialog({ open, onClose, initial, onSaved, allAssets }) {
   const save = async () => {
     if (!validate()) return;
 
-    setSaving(true); // ✅ start loading
+    setSaving(true); // start loading
     try {
-      // 1) Read existing list from localStorage
-      let assets = [];
-      try {
-        const raw = localStorage.getItem("org_hw_assets_v2");
-        assets = raw ? JSON.parse(raw) : [];
-      } catch {
-        assets = [];
+      const mainItem = form.items[0] || {};
+
+      const name = mainItem.type || "Asset";
+      const brand = mainItem.brand || "";
+      const model = mainItem.model || "NA";
+      const company = brand || "NA"; // backend needs company
+
+      // 1) Upload images to Wasabi (if any)
+      let imageUrls = [];
+      if (form.images && form.images.length) {
+        const fd = new FormData();
+        form.images.forEach((src, idx) => {
+          const file = dataURLToFile(
+            src,
+            `${form.assetCode || "asset"}-${idx + 1}.png`
+          );
+          if (file) fd.append("files", file);
+        });
+        fd.append(
+          "prefix",
+          `asset-inventory/${(form.assetCode || "asset")
+            .replace(/[^a-z0-9_-]/gi, "_")
+            .toLowerCase()}`
+        );
+
+        const uploadRes = await axios.post(
+          `${API_BASE_URL}/api/assets/upload`,
+          fd,
+          {
+            headers: { "Content-Type": "multipart/form-data" },
+          }
+        );
+
+        imageUrls = Array.isArray(uploadRes.data?.urls)
+          ? uploadRes.data.urls
+          : [];
       }
 
-      let nextAssets = [...assets];
+      // 2) Build payload exactly as backend expects
+      const payload = {
+        name,
+        company,
+        brand,
+        model,
+        assetCode: form.assetCode.trim(),
+        imageUrls,
+        allottedTo: form.allocatedTo?.trim() || "",
+        emp_id: form.employeeId?.trim() || "",
+      };
 
-      // 2) Apply same logic as before (update / insert)
+      // 3) Create / Update in DB
       if (initial?._id) {
-        const idx = nextAssets.findIndex((a) => a._id === initial._id);
-        if (idx >= 0) {
-          const { type, brand, model, ...rest } = form;
-          nextAssets[idx] = {
-            ...nextAssets[idx],
-            ...rest,
-            updatedAt: new Date().toISOString(),
-          };
-        }
+        await axios.put(`${API_BASE_URL}/api/assets/${initial._id}`, payload);
       } else {
-        const _id =
-          window.crypto?.randomUUID?.() ||
-          (window.crypto?.getRandomValues
-            ? window.crypto.getRandomValues(new Uint32Array(1))[0].toString(16)
-            : String(Date.now()));
-
-        const doc = {
-          _id,
-          ...form,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        };
-        delete doc.type;
-        delete doc.brand;
-        delete doc.model;
-        nextAssets.unshift(doc);
+        await axios.post(`${API_BASE_URL}/api/assets`, payload);
       }
 
-      // 3) Save back to localStorage (old behaviour)
-      try {
-        localStorage.setItem("org_hw_assets_v2", JSON.stringify(nextAssets));
-      } catch (e) {
-        console.error("localStorage save error", e);
-      }
+      // 4) Refresh list from DB in parent
+      onSaved?.();
 
-      // 4) Sync to DB + upload to Wasabi
-      try {
-        const mainItem = form.items[0] || {};
-
-        const name = mainItem.type || "Asset";
-        const brand = mainItem.brand || "";
-        const model = mainItem.model || "NA";
-        const company = brand || "NA"; // backend needs company
-
-        // 4a) upload images from DataURL to Wasabi (if any)
-        let imageUrls = [];
-        if (form.images && form.images.length) {
-          const fd = new FormData();
-          form.images.forEach((src, idx) => {
-            const file = dataURLToFile(
-              src,
-              `${form.assetCode || "asset"}-${idx + 1}.png`
-            );
-            if (file) fd.append("files", file);
-          });
-          fd.append(
-            "prefix",
-            `asset-inventory/${(form.assetCode || "asset")
-              .replace(/[^a-z0-9_-]/gi, "_")
-              .toLowerCase()}`
-          );
-
-          const uploadRes = await axios.post(
-            `${API_BASE_URL}/api/assets/upload`,
-            fd,
-            {
-              headers: { "Content-Type": "multipart/form-data" },
-            }
-          );
-
-          imageUrls = Array.isArray(uploadRes.data?.urls)
-            ? uploadRes.data.urls
-            : [];
-        }
-
-        // 4b) Build payload exactly as backend wants
-        const payload = {
-          name,
-          company,
-          brand,
-          model,
-          assetCode: form.assetCode.trim(),
-          imageUrls,
-          allottedTo: form.allocatedTo?.trim() || "",
-          emp_id: form.employeeId?.trim() || "",
-        };
-
-        if (initial?._id) {
-          await axios.put(
-            `${API_BASE_URL}/api/assets/${initial._id}`,
-            payload
-          );
-        } else {
-          await axios.post(`${API_BASE_URL}/api/assets`, payload);
-        }
-
-        // ✅ DB is now updated → refresh from server (same onSaved as before)
-        onSaved?.();
-      } catch (err) {
-        console.error("Save asset API error:", err);
-        // UI still has localStorage copy even if API fails
-      }
-
+      // 5) Close dialog
       onClose?.();
+    } catch (err) {
+      console.error("Save asset API error:", err);
+      // If API fails, we don't touch local UI; just show in console / snack from parent if needed
     } finally {
-      setSaving(false); // ✅ stop loading
+      setSaving(false); // stop loading
     }
   };
 
@@ -1176,20 +1135,14 @@ const fetchAssets = async () => {
       const existing = items.find((a) => a._id === assetId);
       if (!existing) return;
 
-      // 1️⃣ Update local state + localStorage (same as before)
-      setItems((prev) => {
-        const next = prev.map((a) =>
+      // 1️⃣ Update local state only (no localStorage)
+      setItems((prev) =>
+        prev.map((a) =>
           a._id === assetId
             ? { ...a, ...payload, updatedAt: new Date().toISOString() }
             : a
-        );
-        try {
-          localStorage.setItem("org_hw_assets_v2", JSON.stringify(next));
-        } catch (e) {
-          console.error("localStorage save error:", e);
-        }
-        return next;
-      });
+        )
+      );
 
       // 2️⃣ ALSO sync assignment into DB (Assets collection)
       try {
@@ -1215,7 +1168,6 @@ const fetchAssets = async () => {
           model,
           assetCode: existing.assetCode,
           imageUrls,
-          // 👇 fields backend already knows from AddEditDialog
           allottedTo: payload.allocatedTo?.trim() || "",
           emp_id: payload.employeeId?.trim() || "",
           issuedDate: payload.issuedDate || "",
@@ -1250,7 +1202,7 @@ const fetchAssets = async () => {
         }
       }
 
-      // 4️⃣ If we found a matching Employee, create an entry in Asset Allotment (same as before)
+      // 4️⃣ If we found a matching Employee, create an entry in Asset Allotment
       if (employeeMongoId) {
         const updatedAsset = { ...existing, ...payload };
 
