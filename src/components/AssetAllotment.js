@@ -31,11 +31,15 @@ import {
   DialogActions,
   Chip,
   Badge,
+  InputAdornment,
+  TablePagination,
 } from "@mui/material";
 import UploadIcon from "@mui/icons-material/Upload";
 import CloseIcon from "@mui/icons-material/Close";
 import AddIcon from "@mui/icons-material/Add";
 import ImageIcon from "@mui/icons-material/Image";
+import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
+import PersonIcon from "@mui/icons-material/Person";
 import axios from "axios";
 
 
@@ -108,8 +112,6 @@ export default function AssetAllotment() {
   const [collectSubmitting, setCollectSubmitting] = useState(false);
 
 
-
-
   const [snack, setSnack] = useState(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -157,6 +159,16 @@ export default function AssetAllotment() {
   const [collectFiles, setCollectFiles] = useState([]); // new images at collection time
   const [isCollectDragging, setIsCollectDragging] = useState(false);
   const [collectObjectUrls, setCollectObjectUrls] = useState([]);
+
+
+  const [search, setSearch] = useState("");
+
+
+  const [employeeFilter, setEmployeeFilter] = useState(null);
+
+
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(20);
 
 
   // Load employees
@@ -391,14 +403,16 @@ export default function AssetAllotment() {
     );
     if (selected.length) setCollectFiles((prev) => [...prev, ...selected]);
   };
-const handleCollectSubmit = async () => {
+
+
+ const handleCollectSubmit = async () => {
   if (!collectDialog.allotment || collectSubmitting) return;
 
 
   const id = collectDialog.allotment._id;
 
 
-  // 1️⃣ Date check (already there)
+  // 1️⃣ Date check
   if (!collectForm.returnedAt) {
     setSnack({ severity: "error", msg: "Please select collection date" });
     return;
@@ -413,7 +427,7 @@ const handleCollectSubmit = async () => {
     });
     return;
   }
-    if (!collectForm.notes || !collectForm.notes.trim()) {
+  if (!collectForm.notes || !collectForm.notes.trim()) {
     setSnack({
       severity: "error",
       msg: "Please enter remarks (damage / OK / notes)",
@@ -451,7 +465,7 @@ const handleCollectSubmit = async () => {
     };
 
 
-    // 🔹 IMPORTANT: use result of PATCH instead of refetching all allotments
+    // 🔹 PATCH allotment → status becomes "returned"
     const { data: updated } = await axios.patch(
       `${API_BASE}/api/asset-allotments/${id}/collect`,
       payload
@@ -492,7 +506,55 @@ const handleCollectSubmit = async () => {
     }
 
 
-    // 🔹 Directly update state instead of fetchAllotments()
+    // 🔹 NEW: also clear assignment in Assets collection (DB)
+    try {
+      const assetCode = collectDialog.allotment.assetCode;
+      if (assetCode) {
+        // get all assets and find by assetCode
+        const resAssets = await axios.get(`${API_BASE}/api/assets`);
+        const assetsList = Array.isArray(resAssets.data)
+          ? resAssets.data
+          : [];
+
+
+        const assetDoc = assetsList.find(
+          (a) =>
+            a.assetCode &&
+            a.assetCode.trim().toLowerCase() ===
+              assetCode.trim().toLowerCase()
+        );
+
+
+        if (assetDoc && assetDoc._id) {
+          const clearPayload = {
+            // keep existing master details
+            name: assetDoc.name || "",
+            company: assetDoc.company || "",
+            model: assetDoc.model || "",
+            brand: assetDoc.brand || "",
+            assetCode: assetDoc.assetCode,
+            imageUrls: Array.isArray(assetDoc.imageUrls)
+              ? assetDoc.imageUrls
+              : [],
+            // 👇 clear assignment
+            allottedTo: "",
+            emp_id: "",
+          };
+
+
+          await axios.put(
+            `${API_BASE}/api/assets/${assetDoc._id}`,
+            clearPayload
+          );
+        }
+      }
+    } catch (e) {
+      console.error("Failed to clear asset assignment in DB on collect:", e);
+      // no toast here, main collect still succeeds
+    }
+
+
+    // 🔹 Update allotments state (active list will drop this because status=returned)
     setAllotments((prev) =>
       prev.map((a) => (a._id === updated._id ? updated : a))
     );
@@ -512,12 +574,69 @@ const handleCollectSubmit = async () => {
 
 
 
-
-
   const activeAllotments = allotments.filter((a) => a.status !== "returned");
 
 
-  // --- Main images for side-by-side comparison in Collect Dialog ---
+  // Active employees for filter
+  const activeEmployees = useMemo(() => {
+    const active = employees.filter(
+      (e) => e.isActive || e.active || e.status === "Active"
+    );
+    return active.length ? active : employees;
+  }, [employees]);
+
+
+  // Filtered allotments based on search + employeeFilter
+  const filteredActiveAllotments = useMemo(() => {
+    let list = activeAllotments;
+
+
+    const q = search.trim().toLowerCase();
+    if (q) {
+      list = list.filter((a) => {
+        const empName = (a.employee?.fullName || "").toLowerCase();
+        const assetName = (a.name || "").toLowerCase();
+        const company = (a.company || "").toLowerCase();
+        const model = (a.model || "").toLowerCase();
+        const code = (a.assetCode || "").toLowerCase();
+
+
+        const hay = [empName, assetName, company, model, code].join(" ");
+        return hay.includes(q);
+      });
+    }
+
+
+    if (employeeFilter) {
+      const fId = employeeFilter._id;
+      const fName = (employeeFilter.fullName || "").trim().toLowerCase();
+
+
+      list = list.filter((a) => {
+        const emp = a.employee || {};
+        const empId = emp._id;
+        const empName = (emp.fullName || "").trim().toLowerCase();
+
+
+        if (fId && empId) return empId === fId;
+        if (fName && empName) return empName === fName;
+        return false;
+      });
+    }
+
+
+    return list;
+  }, [activeAllotments, search, employeeFilter]);
+
+
+  // Paginated list
+  const pagedAllotments = useMemo(() => {
+    const start = page * rowsPerPage;
+    return filteredActiveAllotments.slice(start, start + rowsPerPage);
+  }, [filteredActiveAllotments, page, rowsPerPage]);
+
+
+  // Main images for side-by-side comparison in Collect Dialog
   const mainOldImage =
     collectDialog.allotment &&
     Array.isArray(collectDialog.allotment.allotmentImageUrls) &&
@@ -539,8 +658,47 @@ const handleCollectSubmit = async () => {
               <Chip label={`${activeAllotments.length} allotted`} size="small" />
             </Stack>
           }
+          // ✅ Employee filter moved to the right of heading (and count), plus Add Allotment button
           action={
-            <Stack direction="row" gap={1}>
+            <Stack
+              direction={{ xs: "column", md: "row" }}
+              spacing={1}
+              alignItems={{ xs: "stretch", md: "center" }}
+            >
+              <Autocomplete
+                size="small"
+                options={activeEmployees}
+                getOptionLabel={(option) => option?.fullName || ""}
+                isOptionEqualToValue={(opt, val) =>
+                  !!val && opt._id === val._id
+                }
+                value={employeeFilter}
+                onChange={(_, newValue) => {
+                  setEmployeeFilter(newValue);
+                  setPage(0);
+                }}
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    label="Filter by Employee"
+                    InputProps={{
+                      ...params.InputProps,
+                      startAdornment: (
+                        <>
+                          <InputAdornment position="start">
+                            <PersonIcon />
+                          </InputAdornment>
+                          {params.InputProps.startAdornment}
+                        </>
+                      ),
+                    }}
+                  />
+                )}
+                disabled={loadingEmployees}
+                sx={{ minWidth: 220 }}
+              />
+
+
               <Button
                 variant="contained"
                 startIcon={<AddIcon />}
@@ -566,186 +724,216 @@ const handleCollectSubmit = async () => {
               <CircularProgress />
             </Stack>
           ) : (
-            <TableContainer
-              component={Paper}
-              variant="outlined"
-              sx={{ borderRadius: 2 }}
-            >
-              <Table size="small" stickyHeader>
-                <TableHead>
-                  <TableRow>
-                    <TableCell sx={{ fontWeight: 700 }}>Employee</TableCell>
-                    <TableCell sx={{ fontWeight: 700 }}>Asset</TableCell>
-                    <TableCell sx={{ fontWeight: 700 }}>Company</TableCell>
-                    <TableCell sx={{ fontWeight: 700 }}>Model</TableCell>
-                    <TableCell sx={{ fontWeight: 700 }}>Asset Code</TableCell>
-                    <TableCell sx={{ fontWeight: 700, minWidth: 220 }}>
-                      Images
-                    </TableCell>
-                    <TableCell sx={{ fontWeight: 700 }}>Allotted</TableCell>
-                    <TableCell sx={{ fontWeight: 700 }}>Collect</TableCell>
-                  </TableRow>
-                </TableHead>
-
-
-                <TableBody>
-                  {activeAllotments.length === 0 ? (
+            <>
+              <TableContainer
+                component={Paper}
+                variant="outlined"
+                sx={{ borderRadius: 2 }}
+              >
+                <Table size="small" stickyHeader>
+                  <TableHead>
                     <TableRow>
-                      <TableCell colSpan={8} align="center">
-                        <Typography variant="body2" sx={{ opacity: 0.7 }}>
-                          No allotments yet.
-                        </Typography>
+                      <TableCell sx={{ fontWeight: 700 }}>Employee</TableCell>
+                      <TableCell sx={{ fontWeight: 700 }}>Asset</TableCell>
+                      <TableCell sx={{ fontWeight: 700 }}>Company</TableCell>
+                      <TableCell sx={{ fontWeight: 700 }}>Model</TableCell>
+                      <TableCell sx={{ fontWeight: 700 }}>Asset Code</TableCell>
+                      <TableCell sx={{ fontWeight: 700, minWidth: 220 }}>
+                        Images
                       </TableCell>
+                      <TableCell sx={{ fontWeight: 700 }}>Allotted</TableCell>
+                      <TableCell sx={{ fontWeight: 700 }}>Collect</TableCell>
                     </TableRow>
-                  ) : (
-                    activeAllotments.map((a) => {
-                      const imgs = Array.isArray(a.allotmentImageUrls)
-                        ? a.allotmentImageUrls
-                        : [];
-                      const firstImgs = imgs.slice(0, 4);
-                      const moreCount =
-                        imgs.length > 4 ? imgs.length - 4 : 0;
+                  </TableHead>
 
 
-                      const isReturned = a.status === "returned";
+                  <TableBody>
+                    {activeAllotments.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={8} align="center">
+                          <Typography variant="body2" sx={{ opacity: 0.7 }}>
+                            No allotments yet.
+                          </Typography>
+                        </TableCell>
+                      </TableRow>
+                    ) : !pagedAllotments.length ? (
+                      <TableRow>
+                        <TableCell colSpan={8} align="center">
+                          <Typography variant="body2" sx={{ opacity: 0.7 }}>
+                            No allotments match your filters.
+                          </Typography>
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      pagedAllotments.map((a) => {
+                        const imgs = Array.isArray(a.allotmentImageUrls)
+                          ? a.allotmentImageUrls
+                          : [];
+                        const firstImgs = imgs.slice(0, 4);
+                        const moreCount =
+                          imgs.length > 4 ? imgs.length - 4 : 0;
 
 
-                      return (
-                        <TableRow key={a._id} hover>
-                          <TableCell>
-                            <Typography variant="body2" fontWeight={700}>
-                              {a.employee?.fullName || "-"}
-                            </Typography>
-                          </TableCell>
-                          <TableCell>{a.name}</TableCell>
-                          <TableCell>{a.company}</TableCell>
-                          <TableCell>{a.model}</TableCell>
-                          <TableCell>
-                            <code>{a.assetCode}</code>
-                          </TableCell>
+                        const isReturned = a.status === "returned";
 
 
-                          {/* Images column */}
-                          <TableCell>
-                            {imgs.length ? (
-                              <Stack spacing={0.5}>
+                        return (
+                          <TableRow key={a._id} hover>
+                            <TableCell>
+                              <Typography variant="body2" fontWeight={700}>
+                                {a.employee?.fullName || "-"}
+                              </Typography>
+                            </TableCell>
+                            <TableCell>{a.name}</TableCell>
+                            <TableCell>{a.company}</TableCell>
+                            <TableCell>{a.model}</TableCell>
+                            <TableCell>
+                              <code>{a.assetCode}</code>
+                            </TableCell>
+
+
+                            {/* Images column */}
+                            <TableCell>
+                              {imgs.length ? (
+                                <Stack spacing={0.5}>
+                                  <Stack
+                                    direction="row"
+                                    gap={0.5}
+                                    flexWrap="wrap"
+                                    useFlexGap
+                                    sx={{ alignItems: "center" }}
+                                  >
+                                    {firstImgs.map((url, i) => (
+                                      <Tooltip
+                                        key={i}
+                                        title="Click to open in new tab"
+                                      >
+                                        <Box
+                                          component="a"
+                                          href={url}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          sx={{ display: "inline-block" }}
+                                        >
+                                          <Avatar
+                                            src={url}
+                                            alt={`img-${i}`}
+                                            sx={{
+                                              width: 28,
+                                              height: 28,
+                                              cursor: "zoom-in",
+                                              borderRadius: 1,
+                                            }}
+                                            variant="rounded"
+                                          />
+                                        </Box>
+                                      </Tooltip>
+                                    ))}
+                                    {moreCount > 0 && (
+                                      <Chip
+                                        size="small"
+                                        variant="outlined"
+                                        label={`+${moreCount} more`}
+                                        onClick={() =>
+                                          setGallery({
+                                            open: true,
+                                            images: imgs,
+                                            title: a.assetCode
+                                              ? `Images • ${a.assetCode}`
+                                              : "Images",
+                                          })
+                                        }
+                                        sx={{ cursor: "pointer" }}
+                                      />
+                                    )}
+
+
+                                    {moreCount > 0 && (
+                                      <Chip
+                                        size="small"
+                                        variant="outlined"
+                                        label={`+${moreCount} more`}
+                                      />
+                                    )}
+                                  </Stack>
+                                  <Chip
+                                    size="small"
+                                    variant="outlined"
+                                    label={`${imgs.length} image${
+                                      imgs.length > 1 ? "s" : ""
+                                    }`}
+                                    sx={{ alignSelf: "flex-start" }}
+                                  />
+                                </Stack>
+                              ) : (
                                 <Stack
                                   direction="row"
-                                  gap={0.5}
-                                  flexWrap="wrap"
-                                  useFlexGap
-                                  sx={{ alignItems: "center" }}
+                                  spacing={0.5}
+                                  alignItems="center"
+                                  sx={{ color: "text.disabled" }}
                                 >
-                                {firstImgs.map((url, i) => (
-  <Tooltip key={i} title="Click to open in new tab">
-    <Box
-      component="a"
-      href={url}
-      target="_blank"
-      rel="noopener noreferrer"
-      sx={{ display: "inline-block" }}
-    >
-      <Avatar
-        src={url}
-        alt={`img-${i}`}
-        sx={{
-          width: 28,
-          height: 28,
-          cursor: "zoom-in",
-          borderRadius: 1,
-        }}
-        variant="rounded"
-      />
-    </Box>
-  </Tooltip>
-))}
-{moreCount > 0 && (
-  <Chip
-    size="small"
-    variant="outlined"
-    label={`+${moreCount} more`}
-    onClick={() =>
-      setGallery({
-        open: true,
-        images: imgs,
-        title: a.assetCode
-          ? `Images • ${a.assetCode}`
-          : "Images",
-      })
-    }
-    sx={{ cursor: "pointer" }}
-  />
-)}
-
-
-                                  {moreCount > 0 && (
-                                    <Chip
-                                      size="small"
-                                      variant="outlined"
-                                      label={`+${moreCount} more`}
-                                    />
-                                  )}
+                                  <ImageIcon fontSize="small" />
+                                  <Typography variant="caption">
+                                    No images
+                                  </Typography>
                                 </Stack>
-                                <Chip
-                                  size="small"
-                                  variant="outlined"
-                                  label={`${imgs.length} image${
-                                    imgs.length > 1 ? "s" : ""
-                                  }`}
-                                  sx={{ alignSelf: "flex-start" }}
-                                />
-                              </Stack>
-                            ) : (
-                              <Stack
-                                direction="row"
-                                spacing={0.5}
-                                alignItems="center"
-                                sx={{ color: "text.disabled" }}
-                              >
-                                <ImageIcon fontSize="small" />
-                                <Typography variant="caption">
-                                  No images
-                                </Typography>
-                              </Stack>
-                            )}
-                          </TableCell>
+                              )}
+                            </TableCell>
 
 
-                          {/* Allotted / Collected info */}
-                          <TableCell>
-                            <Typography variant="body2">
-                              Allotted: {fmtDateTime(a.allottedAt)}
-                            </Typography>
-                            {isReturned && (
-                              <Typography
-                                variant="caption"
-                                color="text.secondary"
-                              >
-                                Collected: {fmtDateTime(a.returnedAt)}
+                            {/* Allotted / Collected info */}
+                            <TableCell>
+                              <Typography variant="body2">
+                                Allotted: {fmtDateTime(a.allottedAt)}
                               </Typography>
-                            )}
-                          </TableCell>
+                              {isReturned && (
+                                <Typography
+                                  variant="caption"
+                                  color="text.secondary"
+                                >
+                                  Collected: {fmtDateTime(a.returnedAt)}
+                                </Typography>
+                              )}
+                            </TableCell>
 
 
-                          {/* Collect column */}
-                          <TableCell>
-                            <Button
-                              variant={isReturned ? "outlined" : "contained"}
-                              size="small"
-                              color={isReturned ? "success" : "primary"}
-                              disabled={isReturned}
-                              onClick={() => openCollectDialog(a)}
-                            >
-                              {isReturned ? "Collected" : "Collect"}
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })
-                  )}
-                </TableBody>
-              </Table>
-            </TableContainer>
+                            {/* Collect column */}
+                            <TableCell>
+                              <Button
+                                variant={isReturned ? "outlined" : "contained"}
+                                size="small"
+                                color={isReturned ? "success" : "primary"}
+                                disabled={isReturned}
+                                onClick={() => openCollectDialog(a)}
+                              >
+                                {isReturned ? "Collected" : "Collect"}
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })
+                    )}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+
+
+              <Divider />
+
+
+              <TablePagination
+                component="div"
+                count={filteredActiveAllotments.length}
+                page={page}
+                onPageChange={(_, p) => setPage(p)}
+                rowsPerPage={rowsPerPage}
+                onRowsPerPageChange={(e) => {
+                  setRowsPerPage(parseInt(e.target.value, 10));
+                  setPage(0);
+                }}
+                rowsPerPageOptions={[10, 20, 50]}
+              />
+            </>
           )}
         </CardContent>
       </Card>
@@ -1112,125 +1300,126 @@ const handleCollectSubmit = async () => {
                   setCollectForm((f) => ({ ...f, notes: e.target.value }))
                 }
                 fullWidth
-                 required
+                required
               />
             </Grid>
           </Grid>
-{/* 🔹 Big comparison: Old vs New side-by-side */}
-{(mainOldImage || mainNewImage) && (
-  <>
-    <Divider sx={{ my: 2 }} />
-    <Typography variant="overline" sx={{ color: "text.secondary" }}>
-      Compare (Old vs New)
-    </Typography>
 
 
-    <Grid container spacing={2} sx={{ mt: 1, mb: 2 }}>
-      {/* OLD IMAGE */}
-      <Grid item xs={12} md={6}>
-        <Paper
-          variant="outlined"
-          sx={{
-            p: 1,
-            borderRadius: 2,
-            minHeight: 220,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            bgcolor: "background.default",
-          }}
-        >
-          {mainOldImage ? (
-            // 🔹 Clickable: opens full image in new tab
-            <Box
-              component="a"
-              href={mainOldImage}
-              target="_blank"
-              rel="noopener noreferrer"
-              sx={{ display: "inline-block" }}
-            >
-              <img
-                src={mainOldImage}
-                alt="old-asset"
-                style={{
-                  maxWidth: "100%",
-                  maxHeight: 260,
-                  objectFit: "contain",
-                  display: "block",
-                  cursor: "zoom-in",
-                }}
-              />
-            </Box>
-          ) : (
-            <Typography variant="caption" color="text.disabled">
-              No old image available
-            </Typography>
+          {/* Big comparison: Old vs New side-by-side */}
+          {(mainOldImage || mainNewImage) && (
+            <>
+              <Divider sx={{ my: 2 }} />
+              <Typography
+                variant="overline"
+                sx={{ color: "text.secondary" }}
+              >
+                Compare (Old vs New)
+              </Typography>
+
+
+              <Grid container spacing={2} sx={{ mt: 1, mb: 2 }}>
+                {/* OLD IMAGE */}
+                <Grid item xs={12} md={6}>
+                  <Paper
+                    variant="outlined"
+                    sx={{
+                      p: 1,
+                      borderRadius: 2,
+                      minHeight: 220,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      bgcolor: "background.default",
+                    }}
+                  >
+                    {mainOldImage ? (
+                      <Box
+                        component="a"
+                        href={mainOldImage}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        sx={{ display: "inline-block" }}
+                      >
+                        <img
+                          src={mainOldImage}
+                          alt="old-asset"
+                          style={{
+                            maxWidth: "100%",
+                            maxHeight: 260,
+                            objectFit: "contain",
+                            display: "block",
+                            cursor: "zoom-in",
+                          }}
+                        />
+                      </Box>
+                    ) : (
+                      <Typography variant="caption" color="text.disabled">
+                        No old image available
+                      </Typography>
+                    )}
+                  </Paper>
+                  <Typography
+                    variant="caption"
+                    color="text.secondary"
+                    sx={{ mt: 0.5, display: "block", textAlign: "center" }}
+                  >
+                    OLD (at allotment time) – click image to open in new tab
+                  </Typography>
+                </Grid>
+
+
+                {/* NEW IMAGE */}
+                <Grid item xs={12} md={6}>
+                  <Paper
+                    variant="outlined"
+                    sx={{
+                      p: 1,
+                      borderRadius: 2,
+                      minHeight: 220,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      bgcolor: "background.default",
+                    }}
+                  >
+                    {mainNewImage ? (
+                      <Box
+                        component="a"
+                        href={mainNewImage}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        sx={{ display: "inline-block" }}
+                      >
+                        <img
+                          src={mainNewImage}
+                          alt="new-asset"
+                          style={{
+                            maxWidth: "100%",
+                            maxHeight: 260,
+                            objectFit: "contain",
+                            display: "block",
+                            cursor: "zoom-in",
+                          }}
+                        />
+                      </Box>
+                    ) : (
+                      <Typography variant="caption" color="text.disabled">
+                        No new image selected yet
+                      </Typography>
+                    )}
+                  </Paper>
+                  <Typography
+                    variant="caption"
+                    color="text.secondary"
+                    sx={{ mt: 0.5, display: "block", textAlign: "center" }}
+                  >
+                    NEW (at collection time) – click image to open in new tab
+                  </Typography>
+                </Grid>
+              </Grid>
+            </>
           )}
-        </Paper>
-        <Typography
-          variant="caption"
-          color="text.secondary"
-          sx={{ mt: 0.5, display: "block", textAlign: "center" }}
-        >
-          OLD (at allotment time) – click image to open in new tab
-        </Typography>
-      </Grid>
-
-
-      {/* NEW IMAGE */}
-      <Grid item xs={12} md={6}>
-        <Paper
-          variant="outlined"
-          sx={{
-            p: 1,
-            borderRadius: 2,
-            minHeight: 220,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            bgcolor: "background.default",
-          }}
-        >
-          {mainNewImage ? (
-            // 🔹 Clickable: opens full image in new tab
-            <Box
-              component="a"
-              href={mainNewImage}
-              target="_blank"
-              rel="noopener noreferrer"
-              sx={{ display: "inline-block" }}
-            >
-              <img
-                src={mainNewImage}
-                alt="new-asset"
-                style={{
-                  maxWidth: "100%",
-                  maxHeight: 260,
-                  objectFit: "contain",
-                  display: "block",
-                  cursor: "zoom-in",
-                }}
-              />
-            </Box>
-          ) : (
-            <Typography variant="caption" color="text.disabled">
-              No new image selected yet
-            </Typography>
-          )}
-        </Paper>
-        <Typography
-          variant="caption"
-          color="text.secondary"
-          sx={{ mt: 0.5, display: "block", textAlign: "center" }}
-        >
-          NEW (at collection time) – click image to open in new tab
-        </Typography>
-      </Grid>
-    </Grid>
-  </>
-)}
-
-
 
 
           <Divider sx={{ my: 2 }} />
@@ -1364,19 +1553,19 @@ const handleCollectSubmit = async () => {
         </DialogContent>
 
 
-       <DialogActions sx={{ px: 3, py: 2 }}>
-  <Button onClick={closeCollectDialog} disabled={collectSubmitting}>
-    Cancel
-  </Button>
-  <Button
-    variant="contained"
-    color="primary"
-    onClick={handleCollectSubmit}
-    disabled={collectSubmitting}
-  >
-    {collectSubmitting ? "Saving…" : "Mark as Collected"}
-  </Button>
-</DialogActions>
+        <DialogActions sx={{ px: 3, py: 2 }}>
+          <Button onClick={closeCollectDialog} disabled={collectSubmitting}>
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            color="primary"
+            onClick={handleCollectSubmit}
+            disabled={collectSubmitting}
+          >
+            {collectSubmitting ? "Saving…" : "Mark as Collected"}
+          </Button>
+        </DialogActions>
       </Dialog>
 
 
@@ -1467,6 +1656,4 @@ const handleCollectSubmit = async () => {
     </Box>
   );
 }
-
-
 

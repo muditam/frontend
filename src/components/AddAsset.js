@@ -73,7 +73,7 @@ const BRANDS = [
   "Zebronics",
 ];
 
-const API_BASE_URL = "https://muditamleads-14f32a10d7f7.herokuapp.com"; // change if needed
+const API_BASE_URL = "https://muditamleads-14f32a10d7f7.herokuapp.com";  
 
 const fmtDate = (d) => {
   if (!d) return "—";
@@ -816,6 +816,13 @@ function AssignDialog({
     </Dialog>
   );
 }
+// 👇 put this above `return (` inside the map callback
+// const isAssigned = !!(
+//   a.allocatedTo ||
+//   a.allottedTo ||   // from DB
+//   a.employeeId ||
+//   a.emp_id          // from DB
+// );
 
 /* ------------------------ Main Component ------------------------ */
 export default function AssetsManagerRole() {
@@ -880,25 +887,40 @@ export default function AssetsManagerRole() {
     };
     fetchEmployees();
   }, []);
+// 👇 put this above `return (` inside the map callback
+// const isAssigned = !!(
+//   a.allocatedTo ||
+//   a.allottedTo ||   // from DB
+//   a.employeeId ||
+//   a.emp_id          // from DB
+// );
 
-  // Fetch assets from DB
-  const fetchAssets = async () => {
-    try {
-      setLoadingAssets(true);
-      const res = await axios.get(`${API_BASE_URL}/api/assets`);
-      const data = Array.isArray(res.data) ? res.data : [];
-      setItems(data);
-    } catch (err) {
-      console.error("Failed to fetch assets", err);
-      setSnack({
-        open: true,
-        msg: "Failed to load assets from server",
-        severity: "error",
-      });
-    } finally {
-      setLoadingAssets(false);
-    }
-  };
+const fetchAssets = async () => {
+  try {
+    setLoadingAssets(true);
+    const res = await axios.get(`${API_BASE_URL}/api/assets`);
+    const data = Array.isArray(res.data) ? res.data : [];
+
+    const mapped = data.map((a) => ({
+      ...a,
+      allocatedTo: a.allocatedTo || a.allottedTo || "",
+      employeeId: a.employeeId || a.emp_id || "",
+    }));
+
+    setItems(mapped);
+  } catch (err) {
+    console.error("Failed to fetch assets", err);
+    setSnack({
+      open: true,
+      msg: "Failed to load assets from server",
+      severity: "error",
+    });
+  } finally {
+    setLoadingAssets(false);
+  }
+};
+
+
 
   useEffect(() => {
     fetchAssets();
@@ -1154,7 +1176,7 @@ export default function AssetsManagerRole() {
       const existing = items.find((a) => a._id === assetId);
       if (!existing) return;
 
-      // 1️⃣ Update localStorage + state (OLD BEHAVIOUR – unchanged)
+      // 1️⃣ Update local state + localStorage (same as before)
       setItems((prev) => {
         const next = prev.map((a) =>
           a._id === assetId
@@ -1169,7 +1191,45 @@ export default function AssetsManagerRole() {
         return next;
       });
 
-      // 2️⃣ Map allocatedTo (employee name) -> Employee Mongo _id
+      // 2️⃣ ALSO sync assignment into DB (Assets collection)
+      try {
+        // Build same kind of payload that AddEditDialog uses
+        const itemsArr = getItemsArr(existing);
+        const first = itemsArr[0] || {};
+
+        const name = existing.name || first.type || "Asset";
+        const brand = existing.brand || first.brand || "";
+        const model = existing.model || first.model || "NA";
+        const company = existing.company || brand || "NA";
+
+        const imageUrls = Array.isArray(existing.imageUrls)
+          ? existing.imageUrls
+          : Array.isArray(existing.images)
+          ? existing.images
+          : [];
+
+        const assignPayload = {
+          name,
+          company,
+          brand,
+          model,
+          assetCode: existing.assetCode,
+          imageUrls,
+          // 👇 fields backend already knows from AddEditDialog
+          allottedTo: payload.allocatedTo?.trim() || "",
+          emp_id: payload.employeeId?.trim() || "",
+          issuedDate: payload.issuedDate || "",
+        };
+
+        await axios.put(
+          `${API_BASE_URL}/api/assets/${assetId}`,
+          assignPayload
+        );
+      } catch (e) {
+        console.error("Failed to sync assignment to DB", e);
+      }
+
+      // 3️⃣ Map allocatedTo (employee name) -> Employee Mongo _id (for allotment)
       let employeeMongoId = null;
       if (payload.allocatedTo) {
         try {
@@ -1190,33 +1250,30 @@ export default function AssetsManagerRole() {
         }
       }
 
-      // 3️⃣ If we found a matching Employee, create an entry in Asset Allotment
+      // 4️⃣ If we found a matching Employee, create an entry in Asset Allotment (same as before)
       if (employeeMongoId) {
         const updatedAsset = { ...existing, ...payload };
 
-        const itemsArr = getItemsArr(updatedAsset);
-        const first = itemsArr[0] || {};
+        const itemsArr2 = getItemsArr(updatedAsset);
+        const first2 = itemsArr2[0] || {};
 
-        // prefer DB imageUrls, else local images array
         const baseImgs = Array.isArray(updatedAsset.imageUrls)
           ? updatedAsset.imageUrls
           : Array.isArray(updatedAsset.images)
           ? updatedAsset.images
           : [];
 
-        // 🔒 Make sure required fields are NEVER empty
-        const name = first.type || updatedAsset.name || "Asset";
-        const company = first.brand || updatedAsset.company || "NA";
-        const model = first.model || updatedAsset.model || "NA";
+        const name2 = first2.type || updatedAsset.name || "Asset";
+        const company2 = first2.brand || updatedAsset.company || "NA";
+        const model2 = first2.model || updatedAsset.model || "NA";
 
         const allotmentPayload = {
           employeeId: employeeMongoId, // Mongo _id
-          name, // required
-          company, // required
-          model, // required
-          assetCode: updatedAsset.assetCode, // required
+          name: name2,
+          company: company2,
+          model: model2,
+          assetCode: updatedAsset.assetCode,
           allotmentImageUrls: baseImgs,
-          // your manual code like MA001 – stored separately in allotment
           employeeCode:
             (payload.employeeId || updatedAsset.employeeId || "").trim(),
         };
@@ -1245,6 +1302,7 @@ export default function AssetsManagerRole() {
       });
     }
   };
+
 
   return (
     <Box sx={{ p: { xs: 1.5, md: 2.5 } }}>
@@ -1504,7 +1562,12 @@ export default function AssetsManagerRole() {
 
                 const first3Imgs = imgs.slice(0, 3);
                 const moreImgs = Math.max(imgs.length - 3, 0);
-
+const isAssigned = !!(
+    a.allocatedTo ||
+    a.allottedTo ||
+    a.employeeId ||
+    a.emp_id
+  );
                 return (
                   <TableRow
                     key={a._id}
@@ -1619,71 +1682,50 @@ export default function AssetsManagerRole() {
                       )}
                     </TableCell>
 
-                    <TableCell>
-                      <Stack spacing={0.5}>
-                        {!a.allocatedTo ? (
-                          <Button
-                            size="small"
-                            variant="contained"
-                            onClick={() => setAssignAsset(a)}
-                          >
-                            Assign
-                          </Button>
-                        ) : (
-                          <Typography
-                            variant="body2"
-                            sx={{ fontWeight: 600 }}
-                          >
-                            Assigned
-                          </Typography>
-                        )}
+  <TableCell>
+  <Stack spacing={0.5}>
+    {!isAssigned ? (
+      <Button
+        size="small"
+        variant="contained"
+        onClick={() => setAssignAsset(a)}
+      >
+        Assign
+      </Button>
+    ) : (
+      <Typography variant="body2" sx={{ fontWeight: 600 }}>
+        Assigned
+      </Typography>
+    )}
 
-                        {a.allocatedTo && (
-                          <Stack spacing={0.25}>
-                            <Stack
-                              direction="row"
-                              spacing={0.5}
-                              alignItems="center"
-                            >
-                              <PersonIcon fontSize="small" color="primary" />
-                              <Typography
-                                variant="body2"
-                                sx={{ fontWeight: 600 }}
-                              >
-                                {a.allocatedTo}
-                              </Typography>
-                            </Stack>
-                            {a.employeeId && (
-                              <Stack
-                                direction="row"
-                                spacing={0.5}
-                                alignItems="center"
-                              >
-                                <BadgeIcon
-                                  fontSize="small"
-                                  sx={{ fontSize: 14 }}
-                                  color="action"
-                                />
-                                <Typography
-                                  variant="caption"
-                                  color="text.secondary"
-                                >
-                                  {a.employeeId}
-                                </Typography>
-                              </Stack>
-                            )}
-                            {a.issuedDate && (
-                              <Typography
-                                variant="caption"
-                                color="text.secondary"
-                              >
-                                Issued: {fmtDate(a.issuedDate)}
-                              </Typography>
-                            )}
-                          </Stack>
-                        )}
-                      </Stack>
-                    </TableCell>
+    {isAssigned && (
+      <Stack spacing={0.25}>
+        <Stack direction="row" spacing={0.5} alignItems="center">
+          <PersonIcon fontSize="small" color="primary" />
+          <Typography variant="body2" sx={{ fontWeight: 600 }}>
+            {a.allocatedTo || a.allottedTo || "-"}
+          </Typography>
+        </Stack>
+
+        {(a.employeeId || a.emp_id) && (
+          <Stack direction="row" spacing={0.5} alignItems="center">
+            <BadgeIcon fontSize="small" sx={{ fontSize: 14 }} color="action" />
+            <Typography variant="caption" color="text.secondary">
+              {a.employeeId || a.emp_id}
+            </Typography>
+          </Stack>
+        )}
+
+        {a.issuedDate && (
+          <Typography variant="caption" color="text.secondary">
+            Issued: {fmtDate(a.issuedDate)}
+          </Typography>
+        )}
+      </Stack>
+    )}
+  </Stack>
+</TableCell>
+
 
                     <TableCell>
                       <Button
@@ -2165,5 +2207,3 @@ export default function AssetsManagerRole() {
     </Box>
   );
 }
-
-
