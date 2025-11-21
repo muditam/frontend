@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Box,
   Paper,
@@ -125,6 +125,15 @@ const copyToClipboard = async (text, onDone) => {
     onDone?.(false);
   }
 };
+// NEW — create a single-day start/end range
+const makeDateRange = (d) => {
+  if (!d) return {};
+
+  const start = new Date(`${d}T00:00:00+05:30`).toISOString();
+  const end   = new Date(`${d}T23:59:59+05:30`).toISOString();
+
+  return { startDate: start, endDate: end };
+};
 
 const telHref = (num) => (num ? `tel:${num}` : undefined);
 
@@ -225,19 +234,28 @@ function moveStatusCount(setCounts, prevStatus, newStatus) {
 function decrementPendingOnFirstNote(setCounts) {
   setCounts((c) => ({ ...c, PENDING: safeDec(c.PENDING) }));
 }
-
 const START_FROM_ISO = new Date("2025-10-01T00:00:00+05:30").toISOString();
+const START_DATE_DEFAULT = "2025-11-01";
 
 const ASSIGNED_FILTER = {
   ALL: "ALL",
   UNASSIGNED: "UNASSIGNED",
   ME: "ME",
 };
+const getTodayDateStr = () => {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, "0");
+  const d = String(now.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`; // yyyy-mm-dd
+};
+
 
 export default function OrderConfirmations() {
   const [{ id: myAgentId, fullName: myFullName, roles }, setIdentity] = useState(getLoggedIn());
   const isManager = useMemo(() => roles.includes("manager"), [roles]);
   const isOperations = useMemo(() => roles.includes("operations"), [roles]);
+const [filterDate, setFilterDate] = useState(getTodayDateStr());
 
   const [items, setItems] = useState([]);
   const [tab, setTab] = useState("ALL");
@@ -326,59 +344,121 @@ export default function OrderConfirmations() {
     }
   }, [myAgentId]);
 
-  const assignedParam = useMemo(() => {
-    if (!isManager && myAgentId) return myAgentId;
+// 👇 LIST API ke liye (tab ka effect yaha hai)
+const assignedParamForList = useMemo(() => {
+  // ALL_CNP tab → backend ko "ALL" bhejo so that sab CNP dikhen
+  if (tab === "ALL_CNP") return "ALL";
 
-    if (assigned === ASSIGNED_FILTER.UNASSIGNED) return "unassigned";
-    if (assigned === ASSIGNED_FILTER.ME && myAgentId) return myAgentId;
-    return undefined;
-  }, [assigned, isManager, myAgentId]); 
+  // non-manager → hamesha khud ke id
+  if (!isManager && myAgentId) return myAgentId;
 
-  const fetchList = useCallback( 
-    async (pageZeroBased = 0, limit = rowsPerPage) => {  
-      try {
-        setLoading(true);
-        const { data } = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/order-confirmations/list", {
+  // manager ke liye dropdown
+  if (assigned === ASSIGNED_FILTER.UNASSIGNED) return "unassigned";
+  if (assigned === ASSIGNED_FILTER.ME && myAgentId) return myAgentId;
+  if (assigned === ASSIGNED_FILTER.ALL) return "ALL";
+
+  return undefined;
+}, [tab, assigned, isManager, myAgentId]);
+
+// LIST ke liye final param (ALL_CNP tab pe null bhej rahe ho)
+const assignedParamFinal = tab === "ALL_CNP" ? null : assignedParamForList;
+
+// 👇 COUNTS API ke liye (sirf dropdown / role, TAB ka yaha koi role nahi)
+const assignedParamForCounts = useMemo(() => {
+  // non-manager → always self
+  if (!isManager && myAgentId) return myAgentId;
+
+  if (assigned === ASSIGNED_FILTER.UNASSIGNED) return "unassigned";
+  if (assigned === ASSIGNED_FILTER.ME && myAgentId) return myAgentId;
+  if (assigned === ASSIGNED_FILTER.ALL) return "ALL";
+
+  return undefined;
+}, [assigned, isManager, myAgentId]);
+
+const fetchList = useCallback(
+  async (pageZeroBased = 0, limit = rowsPerPage) => {
+    try {
+      setLoading(true);
+
+      // 🎯 Exact single-day range from filterDate
+      const { startDate, endDate } = makeDateRange(filterDate);
+
+      const { data } = await axios.get(
+        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/order-confirmations/list",
+        {
           params: {
             tab,
             financial: "pending",
             page: pageZeroBased + 1,
             limit,
-            q: qDebounced, 
+            q: qDebounced,
             channel,
-            assigned: assignedParam,
-            startDate: START_FROM_ISO, 
+            assigned: assignedParamFinal,
+            startDate,
+            endDate,
           },
-        });
+        }
+      );
 
-        const rows = data?.items || [];
-        setTotal(typeof data?.total === "number" ? data.total : rows.length);
-        setItems(rows);
-      } catch (e) {
-        console.error("fetchList error", e);
-        setToast({ open: true, severity: "error", msg: "Failed to fetch orders" });
-      } finally {
-        setLoading(false); 
-      }
-    },
-    [qDebounced, rowsPerPage, tab, channel, assignedParam]
-  );
-
-  const fetchCounts = useCallback(async () => {
-    try {
-      const { data } = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/order-confirmations/counts", {
-        params: {
-          q: qDebounced,
-          channel,
-          assigned: assignedParam, 
-          startDate: START_FROM_ISO, 
-        },
+      const rows = data?.items || [];
+      setTotal(data?.total || rows.length);
+      setItems(rows);
+    } catch (err) {
+      console.error("fetchList error", err);
+      setToast({
+        open: true,
+        severity: "error",
+        msg: "Failed to fetch orders",
       });
-      if (data?.counts) setCounts(data.counts);
-    } catch (e) {
-      console.error("fetchCounts error", e);
+    } finally {
+      setLoading(false);
     }
-  }, [qDebounced, channel, assignedParam]);
+  },
+  [qDebounced, rowsPerPage, tab, channel, assignedParamFinal, filterDate]
+);
+const fetchCounts = useCallback(async () => {
+  try {
+    const { startDate, endDate } = makeDateRange(filterDate);
+
+    const params = {
+      q: qDebounced,
+      channel,
+      startDate,
+      endDate,
+    };
+
+    // For counts → assigned filter is used ONLY for personal buckets
+    // Never apply assigned filter for CNP or ALL_CNP (special tabs)
+    if (tab !== "CNP" && tab !== "ALL_CNP") {
+      params.assigned = assignedParamForCounts;
+    }
+
+    const { data } = await axios.get(
+      "https://muditamleads-14f32a10d7f7.herokuapp.com/api/order-confirmations/counts",
+      { params }
+    );
+
+    if (data?.counts) {
+      setCounts({
+        ALL: data.counts.ALL || 0,
+        PENDING: data.counts.PENDING || 0,
+        CNP: data.counts.CNP || 0,           // ✔ Personal CNP
+        ORDER_CONFIRMED: data.counts.ORDER_CONFIRMED || 0,
+        CALL_BACK_LATER: data.counts.CALL_BACK_LATER || 0,
+        CANCEL_ORDER: data.counts.CANCEL_ORDER || 0,
+        ALL_CNP: data.counts.ALL_CNP || 0,   // ✔ Global CNP
+      });
+    }
+  } catch (err) {
+    console.error("fetchCounts error:", err);
+  }
+}, [
+  qDebounced,
+  channel,
+  filterDate,
+  assignedParamForCounts,
+  tab // important for CNP / ALL_CNP refresh
+]);
 
   const fetchTodayConfirmedCount = useCallback(async () => {
     try {
@@ -459,11 +539,12 @@ export default function OrderConfirmations() {
     fetchCounts();
   }, [fetchCounts]);
 
-  useEffect(() => {
-    setPage(0);
-    fetchList(0, rowsPerPage);
-    setExpandedId(null);
-  }, [tab, qDebounced, channel, assignedParam]);
+useEffect(() => {
+  setPage(0);
+  fetchList(0, rowsPerPage);
+  setExpandedId(null);
+}, [tab, qDebounced, channel, assignedParamFinal, filterDate, rowsPerPage, fetchList]);
+
 
   useEffect(() => {
     fetchTodayConfirmedCount();
@@ -870,69 +951,63 @@ export default function OrderConfirmations() {
               </Stack>
             </Stack>
 
-            <Box
-              sx={{
-                display: "flex",
-                alignItems: "center",
-                gap: 1.5,
-                borderBottom: 1,
-                borderColor: "divider",
-                // stack on very small screens
-                flexWrap: { xs: "wrap", sm: "nowrap" },
-              }}
-            >
-              <Tabs
-                value={tab}
-                onChange={(_e, v) => setTab(v)}
-                variant="scrollable"
-                scrollButtons="auto"
-                sx={{ flex: 1, minHeight: 48 }}
-              >
-                <Tab value="ALL" label={`All (${counts.ALL || 0})`} />
-                <Tab value="PENDING" label={`Pending (${counts.PENDING || 0})`} />
-                <Tab value="CNP" label={`CNP (${counts.CNP || 0})`} />
-                <Tab value="ORDER_CONFIRMED" label={`Confirmed (${counts.ORDER_CONFIRMED || 0})`} />
-                <Tab value="CALL_BACK_LATER" label={`Call Back (${counts.CALL_BACK_LATER || 0})`} />
-                <Tab value="CANCEL_ORDER" label={`Cancel (${counts.CANCEL_ORDER || 0})`} />
-              </Tabs>
+          <Box
+  sx={{
+    display: "flex",
+    alignItems: "center",
+    gap: 1.5,
+    borderBottom: 1,
+    borderColor: "divider",
+    flexWrap: { xs: "wrap", sm: "nowrap" },
+  }}
+>
+  <Tabs
+    value={tab}
+    onChange={(_e, v) => setTab(v)}
+    variant="scrollable"
+    scrollButtons="auto"
+    sx={{ flex: 1, minHeight: 48 }}
+  >
+    <Tab value="ALL" label={`All (${counts.ALL || 0})`} />
+    <Tab value="PENDING" label={`Pending (${counts.PENDING || 0})`} />
+    <Tab value="CNP" label={`CNP (${counts.CNP || 0})`} />
+    <Tab value="ORDER_CONFIRMED" label={`Confirmed (${counts.ORDER_CONFIRMED || 0})`} />
+    <Tab value="CALL_BACK_LATER" label={`Call Back (${counts.CALL_BACK_LATER || 0})`} />
+    <Tab value="CANCEL_ORDER" label={`Cancel (${counts.CANCEL_ORDER || 0})`} />
+    <Tab value="ALL_CNP" label={`All CNPs (${counts.ALL_CNP || 0})`} />
+  </Tabs>
 
-              {/* Search box pinned to the right */}
-              <TextField
-                size="small"
-                placeholder="Search order # or phone…"
-                value={q}
-                onChange={(e) => setQ(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    // immediate refresh; debounced will also kick in
-                    setPage(0);
-                    fetchList(0, rowsPerPage);
-                  }
-                }}
-                sx={{
-                  width: { xs: "100%", sm: 280 },
-                  my: { xs: 1, sm: 0 },
-                }}
-                InputProps={{
-                  startAdornment: (
-                    <SearchIcon sx={{ mr: 1, opacity: 0.7 }} fontSize="small" />
-                  ),
-                  endAdornment: q ? (
-                    <IconButton
-                      aria-label="Clear search"
-                      size="small"
-                      onClick={() => {
-                        setQ("");
-                        setPage(0);
-                        fetchList(0, rowsPerPage);
-                      }}
-                    >
-                      <CloseRoundedIcon fontSize="small" />
-                    </IconButton>
-                  ) : null,
-                }}
-              />
-            </Box>
+  {/* Date filter */}
+  <TextField
+    type="date"
+    size="small"
+    value={filterDate}
+    onChange={(e) => {
+      setFilterDate(e.target.value);
+      setPage(0);
+      fetchList(0, rowsPerPage);
+    }}
+    sx={{ width: 150 }}
+  />
+
+  {/* Search box – now to the RIGHT of date */}
+  <TextField
+    size="small"
+    placeholder="Search order # or phone..."
+    value={q}
+    onChange={(e) => setQ(e.target.value)}
+    InputProps={{
+      startAdornment: (
+        <SearchIcon
+          fontSize="small"
+          sx={{ mr: 1, color: "text.secondary" }}
+        />
+      ),
+    }}
+    sx={{ width: 240 }}
+  />
+</Box>
+
           </Stack>
         </Paper>
 
@@ -1725,9 +1800,10 @@ export default function OrderConfirmations() {
               {payDlg.generating ? "Generating…" : "Generate & Share"}
             </Button>
           </DialogActions>
-        </Dialog>
+        </Dialog> 
       </Box>
     </ThemeProvider>
   );
 }
+
 

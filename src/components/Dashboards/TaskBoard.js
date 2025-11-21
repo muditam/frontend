@@ -980,6 +980,10 @@ const TaskBoard = () => {
             activeSince: t.activeSince || null,
             startedAt: t.startedAt || null,
             createdAt: t.createdAt || null,
+
+            recurring: !!t.recurring,
+            recurringInterval: t.recurringInterval || "DAILY",
+            lastRecurringAt: t.lastRecurringAt || null, 
           };
         });
 

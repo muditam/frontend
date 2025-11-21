@@ -30,44 +30,44 @@ const LoginPage = () => {
   };
 
   const handleLogin = async (e) => {
-  e.preventDefault();
-  setLoading(true);
-  setError("");
+    e.preventDefault();
+    setLoading(true);
+    setError("");
 
-  try {
-    const response = await axios.post(
-      "https://muditamleads-14f32a10d7f7.herokuapp.com/api/login",
-      { email: userId, password }
-    );
+    try {
+      const response = await axios.post(
+        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/login",
+        { email: userId, password }
+      );
 
-    if (response.status === 200) {
-      const { user } = response.data;
+      if (response.status === 200) {
+        const { user } = response.data;
 
-      // Save user in session
-      sessionStorage.setItem("user", JSON.stringify(user));
-      window.dispatchEvent(new Event("session:user:set"));
+        // Save user in session
+        sessionStorage.setItem("user", JSON.stringify(user));
+        window.dispatchEvent(new Event("session:user:set"));
 
-      // Get role (string or array-safe)
-      const role = user.role;
-      const hasMarketingOrDevRole = Array.isArray(role)
-        ? role.includes("Marketing") || role.includes("Developer")
-        : role === "Marketing" || role === "Developer";
+        // Get role (string or array-safe)
+        const role = user.role;
+        const hasMarketingOrDevRole = Array.isArray(role)
+          ? role.includes("Marketing") || role.includes("Developer")
+          : role === "Marketing" || role === "Developer";
 
-      // Redirect based on role
-      if (hasMarketingOrDevRole) {
-        navigate("/task-board");
-      } else {
-        navigate("/");
+        // Redirect based on role
+        if (hasMarketingOrDevRole) {
+          navigate("/task-board");
+        } else {
+          navigate("/");
+        }
       }
+    } catch (err) {
+      setError(
+        err.response?.data?.message || "Login failed. Please try again."
+      );
+    } finally {
+      setLoading(false);
     }
-  } catch (err) {
-    setError(
-      err.response?.data?.message || "Login failed. Please try again."
-    );
-  } finally {
-    setLoading(false);
-  }
-};
+  };
 
 
   return (
@@ -105,7 +105,7 @@ const LoginPage = () => {
         >
           <Typewriter
             words={[
-              `“Focus on solving the customer's problems,\nand sales will follow automatically.”`,
+              `“Solve problems. Deliver value.\nEverything else follows.”`,
             ]}
             loop={false}
             cursor
@@ -184,13 +184,13 @@ const LoginPage = () => {
                 paddingLeft: "16px",
               },
               "& .MuiInputLabel-root.Mui-focused, & .MuiInputLabel-root.MuiFormLabel-filled":
-                {
-                  top: 0,
-                  color: "black",
-                  transform: "translateY(-50%) translateX(8px)",
-                  paddingLeft: "8px",
-                  fontSize: "0.75rem",
-                },
+              {
+                top: 0,
+                color: "black",
+                transform: "translateY(-50%) translateX(8px)",
+                paddingLeft: "8px",
+                fontSize: "0.75rem",
+              },
               "& .MuiOutlinedInput-root": {
                 "& input": {
                   padding: "8px !important",
@@ -217,13 +217,13 @@ const LoginPage = () => {
                 paddingLeft: "16px",
               },
               "& .MuiInputLabel-root.Mui-focused, & .MuiInputLabel-root.MuiFormLabel-filled":
-                {
-                  top: 0,
-                  color: "black",
-                  transform: "translateY(-50%) translateX(8px)",
-                  paddingLeft: "8px",
-                  fontSize: "0.75rem",
-                },
+              {
+                top: 0,
+                color: "black",
+                transform: "translateY(-50%) translateX(8px)",
+                paddingLeft: "8px",
+                fontSize: "0.75rem",
+              },
               "& .MuiOutlinedInput-root": {
                 "& input": {
                   padding: "8px !important",
@@ -277,7 +277,7 @@ const LoginPage = () => {
                 color: "red",
                 fontSize: "0.9rem",
                 marginTop: "6px",
-                textAlign: "center", 
+                textAlign: "center",
               }}
             >
               <ErrorOutlineIcon

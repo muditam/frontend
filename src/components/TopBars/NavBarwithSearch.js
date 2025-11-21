@@ -34,20 +34,19 @@ import SearchIcon from "@mui/icons-material/Search";
 import axios from "axios";
 import MenuBar from "./MenuBar";
 import { useNavigate, useLocation } from "react-router-dom";
-import Notifications from "../Notifications";
 import StickyNote2Icon from "@mui/icons-material/StickyNote2";
 import CartDrawer from "../../ShopifyOrders/CartDrawer";
 import EmojiEventsIcon from "@mui/icons-material/EmojiEvents";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import ExpandLessIcon from "@mui/icons-material/ExpandLess";
-import CloseIcon from '@mui/icons-material/Close';
+import CloseIcon from "@mui/icons-material/Close";
 import RocketLaunchIcon from "@mui/icons-material/RocketLaunch";
 import LocalShippingIcon from "@mui/icons-material/LocalShipping";
 import { Syringe } from "lucide-react";
 import pincodeData from "../../LeadConsultation/ProcessTracker/pincodeData";
 import DeliveryStatusChecker from "./DeliveryStatusChecker";
 import LeaderboardPopover from "./LeaderboardPopover";
-import DownloadIcon from '@mui/icons-material/Download';
+import DownloadIcon from "@mui/icons-material/Download";
 import CheckBoxIcon from "@mui/icons-material/CheckBox";
 import AssessmentIcon from "@mui/icons-material/Assessment";
 import { Flower2 } from "lucide-react";
@@ -57,10 +56,10 @@ const SlideDown = React.forwardRef(function Transition(props, ref) {
   return <Slide direction="down" ref={ref} {...props} />;
 });
 
-
 const getAvatarUrl = (name) =>
-  `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(name)}&backgroundType=gradientLinear&radius=50`;
-
+  `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(
+    name
+  )}&backgroundType=gradientLinear&radius=50`;
 
 const NavbarWithSearch = () => {
   const [query, setQuery] = useState("");
@@ -86,23 +85,14 @@ const NavbarWithSearch = () => {
   const [deliveryDialogOpen, setDeliveryDialogOpen] = useState(false);
   const [bloomOpen, setBloomOpen] = useState(false);
 
-
   const navigate = useNavigate();
   const location = useLocation();
 
   const user = JSON.parse(sessionStorage.getItem("user"));
 
-  const taskIconRoles = [
-    "Marketing",
-    "Developer",
-    "Human Resource",
-    "Super Admin",
-    "Finance",
-    "Operations",
-    "Manager",
-  ];
-
-  const showTaskIcons = user && taskIconRoles.includes(user.role);
+  // 🔐 Navbar permissions
+  const navPerms = user?.permissions?.navbar || {};
+const canNav = (key) => !!navPerms[key];
 
   const openBloodTestDialog = () => {
     setPincode("");
@@ -275,35 +265,39 @@ const NavbarWithSearch = () => {
     try {
       const response = await axios.get(
         "http://localhost:5001/api/myorders/download",
-        { responseType: 'blob' }
+        { responseType: "blob" }
       );
 
       // Create a URL and trigger download
       const url = window.URL.createObjectURL(new Blob([response.data]));
-      const link = document.createElement('a');
+      const link = document.createElement("a");
       link.href = url;
-      link.setAttribute('download', 'myorders.csv');
+      link.setAttribute("download", "myorders.csv");
       document.body.appendChild(link);
       link.click();
       link.remove();
       window.URL.revokeObjectURL(url);
     } catch (error) {
-      alert('Error downloading orders. Please try again.');
+      alert("Error downloading orders. Please try again.");
       console.error(error);
     }
   };
 
-
   const toggleCartDrawer = (open) => () => setCartDrawerOpen(open);
 
   const smallFont = { fontSize: "0.8rem" };
+
+  // Task icons permissions
+  const showTaskBoardIcon = canNav("taskBoardIcon", false);
+  const showMyReportingIcon = canNav("myReportingIcon", false);
+  const showTaskIcons = showTaskBoardIcon || showMyReportingIcon;
 
   return (
     <>
       <AppBar
         position="static"
         sx={{
-          backgroundColor: "#000000", // Dark Blue
+          backgroundColor: "#000000",
         }}
       >
         <Toolbar sx={{ display: "flex", justifyContent: "space-between" }}>
@@ -325,10 +319,8 @@ const NavbarWithSearch = () => {
             />
           </Box>
 
-
           {/* Center: Shopify Customer Search Bar */}
-
-          {user?.role !== "Human Resource" && user?.role !== "Marketing" && user?.role !== "Developer" && (
+          {user && canNav("shopifySearch") && (
             <Box sx={{ flex: 1, display: "flex", justifyContent: "center" }}>
               <Box sx={{ position: "relative", width: 300 }}>
                 <ClickAwayListener onClickAway={handleShopifyClickAway}>
@@ -388,16 +380,17 @@ const NavbarWithSearch = () => {
                                 secondary={
                                   <>
                                     <span>
-                                      Total Orders: {customerData.totalOrders} |
-                                      Total Spent: ₹{customerData.totalSpent}
+                                      Total Orders:{" "}
+                                      {customerData.totalOrders} | Total
+                                      Spent: ₹{customerData.totalSpent}
                                     </span>
                                     <br />
                                     <span>
                                       Last Order:{" "}
                                       {customerData.lastOrderDate
                                         ? new Date(
-                                          customerData.lastOrderDate
-                                        ).toLocaleString()
+                                            customerData.lastOrderDate
+                                          ).toLocaleString()
                                         : "N/A"}{" "}
                                       | Payment Status:{" "}
                                       {customerData.lastOrderPaymentStatus ||
@@ -421,7 +414,7 @@ const NavbarWithSearch = () => {
                             >
                               <List component="div" disablePadding>
                                 {customerData.orders &&
-                                  customerData.orders.length > 0 ? (
+                                customerData.orders.length > 0 ? (
                                   <>
                                     {customerData.orders
                                       .slice(0, 4)
@@ -431,23 +424,39 @@ const NavbarWithSearch = () => {
                                           sx={{ pl: 3, py: 0.5, ...smallFont }}
                                         >
                                           <ListItemText
-                                            primary={`Order ${order.name || order.id} | Total Amount: ₹${order.totalAmount || 0}`}
+                                            primary={`Order ${
+                                              order.name || order.id
+                                            } | Total Amount: ₹${
+                                              order.totalAmount || 0
+                                            }`}
                                             secondary={
                                               <>
                                                 <span>
-                                                  {new Date(order.created_at).toLocaleString()} | Items: {order.itemCount} | {order.deliveryStatus}
+                                                  {new Date(
+                                                    order.created_at
+                                                  ).toLocaleString()}{" "}
+                                                  | Items: {order.itemCount} |{" "}
+                                                  {order.deliveryStatus}{" "}
                                                   {" | "}
-                                                  Shipment: {order.shipmentStatus ?? "N/A"}
+                                                  Shipment:{" "}
+                                                  {order.shipmentStatus ??
+                                                    "N/A"}
                                                 </span>
                                                 <br />
-                                                {order.lineItems.map((item, idx) => (
-                                                  <span key={idx}>
-                                                    {item.title} - {item.variant} (₹{item.amountPaid}){" "}
-                                                  </span>
-                                                ))}
+                                                {order.lineItems.map(
+                                                  (item, idx) => (
+                                                    <span key={idx}>
+                                                      {item.title} -{" "}
+                                                      {item.variant} (₹
+                                                      {item.amountPaid}){" "}
+                                                    </span>
+                                                  )
+                                                )}
                                                 <br />
                                                 <Box
-                                                  onClick={() => toggleAddress(order.id)}
+                                                  onClick={() =>
+                                                    toggleAddress(order.id)
+                                                  }
                                                   sx={{
                                                     cursor: "pointer",
                                                     color: "#1976d2",
@@ -456,19 +465,41 @@ const NavbarWithSearch = () => {
                                                     alignItems: "center",
                                                   }}
                                                 >
-                                                  {expandedOrderIds.includes(order.id) ? (
+                                                  {expandedOrderIds.includes(
+                                                    order.id
+                                                  ) ? (
                                                     <>
-                                                      Show Less Address <ExpandLessIcon fontSize="small" sx={{ ml: 0.5 }} />
+                                                      Show Less Address{" "}
+                                                      <ExpandLessIcon
+                                                        fontSize="small"
+                                                        sx={{ ml: 0.5 }}
+                                                      />
                                                     </>
                                                   ) : (
                                                     <>
-                                                      Show Address <ExpandMoreIcon fontSize="small" sx={{ ml: 0.5 }} />
+                                                      Show Address{" "}
+                                                      <ExpandMoreIcon
+                                                        fontSize="small"
+                                                        sx={{ ml: 0.5 }}
+                                                      />
                                                     </>
                                                   )}
                                                 </Box>
-                                                <Collapse in={expandedOrderIds.includes(order.id)} timeout="auto" unmountOnExit>
-                                                  <Typography sx={{ mt: 1, ...smallFont }}>
-                                                    {order.shippingAddress || "No shipping address found"}
+                                                <Collapse
+                                                  in={expandedOrderIds.includes(
+                                                    order.id
+                                                  )}
+                                                  timeout="auto"
+                                                  unmountOnExit
+                                                >
+                                                  <Typography
+                                                    sx={{
+                                                      mt: 1,
+                                                      ...smallFont,
+                                                    }}
+                                                  >
+                                                    {order.shippingAddress ||
+                                                      "No shipping address found"}
                                                   </Typography>
                                                 </Collapse>
                                               </>
@@ -492,8 +523,10 @@ const NavbarWithSearch = () => {
                                           primary={
                                             showAllOrders
                                               ? "Show less orders"
-                                              : `${customerData.orders.length - 4
-                                              } more orders`
+                                              : `${
+                                                  customerData.orders.length -
+                                                  4
+                                                } more orders`
                                           }
                                         />
                                       </ListItem>
@@ -507,7 +540,9 @@ const NavbarWithSearch = () => {
                                             sx={{ pl: 3, py: 0.5, ...smallFont }}
                                           >
                                             <ListItemText
-                                              primary={`Order ${order.name || order.id}`}
+                                              primary={`Order ${
+                                                order.name || order.id
+                                              }`}
                                               secondary={
                                                 <>
                                                   <span>
@@ -540,7 +575,9 @@ const NavbarWithSearch = () => {
                                         ))}
                                   </>
                                 ) : (
-                                  <ListItem sx={{ pl: 3, py: 1, ...smallFont }}>
+                                  <ListItem
+                                    sx={{ pl: 3, py: 1, ...smallFont }}
+                                  >
                                     <ListItemText primary="No orders found." />
                                   </ListItem>
                                 )}
@@ -563,7 +600,8 @@ const NavbarWithSearch = () => {
             </Box>
           )}
 
-          {user?.role !== "Manager" && user?.role !== "Finance" && user?.role !== "Operations" && user?.role !== "Human Resource" && user?.role !== "Marketing" && user?.role !== "Developer" && (
+          {/* DRR + Target block */}
+          {user && canNav("drrPanel") && (
             <Box
               sx={{
                 mx: 2,
@@ -584,15 +622,27 @@ const NavbarWithSearch = () => {
                   fontWeight: 500,
                   letterSpacing: "0.5px",
                   display: "flex",
-                  alignItems: "center"
+                  alignItems: "center",
                 }}
               >
                 DRR:
-                <span style={{ marginLeft: 5, color: "#19d444", fontWeight: 700 }}>
-                  {dailySalesRequired > 0 ? `₹${dailySalesRequired}` : "₹0"}
+                <span
+                  style={{
+                    marginLeft: 5,
+                    color: "#19d444",
+                    fontWeight: 700,
+                  }}
+                >
+                  {dailySalesRequired > 0
+                    ? `₹${dailySalesRequired}`
+                    : "₹0"}
                 </span>
               </Typography>
-              <Divider orientation="vertical" flexItem sx={{ mx: 1, borderColor: "#444" }} />
+              <Divider
+                orientation="vertical"
+                flexItem
+                sx={{ mx: 1, borderColor: "#444" }}
+              />
               <Typography
                 variant="caption"
                 sx={{
@@ -601,12 +651,20 @@ const NavbarWithSearch = () => {
                   fontWeight: 500,
                   letterSpacing: "0.5px",
                   display: "flex",
-                  alignItems: "center"
+                  alignItems: "center",
                 }}
               >
                 Target: ({salesProgress} / {target}){" "}
-                <span style={{ marginLeft: 8, color: "#f7c942", fontWeight: 700 }}>
-                  {target > 0 ? `${Math.round((salesProgress / target) * 100)}%` : "0%"}
+                <span
+                  style={{
+                    marginLeft: 8,
+                    color: "#f7c942",
+                    fontWeight: 700,
+                  }}
+                >
+                  {target > 0
+                    ? `${Math.round((salesProgress / target) * 100)}%`
+                    : "0%"}
                 </span>
               </Typography>
             </Box>
@@ -614,13 +672,13 @@ const NavbarWithSearch = () => {
 
           {/* Right side: Icons and LMS Search */}
           <Box sx={{ display: "flex", alignItems: "center" }}>
-            {user?.role !== "Finance" && user?.role !== "Operations" && user?.role !== "Human Resource" && user?.role !== "Marketing" && user?.role !== "Developer" && (
+            {user && canNav("incentiveIcon") && (
               <IconButton
                 onClick={() => setIncentiveOpen(true)}
                 sx={{
                   mr: 1,
                   color: "#fff",
-                  "&:hover": { color: "#fff", bgcolor: "#e0e0e0" }
+                  "&:hover": { color: "#fff", bgcolor: "#e0e0e0" },
                 }}
                 title="View Incentive Structure"
               >
@@ -628,7 +686,7 @@ const NavbarWithSearch = () => {
               </IconButton>
             )}
 
-            {user?.role !== "Finance" && user?.role !== "Operations" && user?.role !== "Human Resource" && user?.role !== "Marketing" && user?.role !== "Developer" && (
+            {user && canNav("bloomIcon") && (
               <IconButton
                 onClick={() => setBloomOpen(true)}
                 sx={{
@@ -636,7 +694,7 @@ const NavbarWithSearch = () => {
                   color: "#fff",
                   borderRadius: "50%",
                   p: 1.1,
-                  "&:hover": { bgcolor: "#fff", color: "#e0e0e0" }
+                  "&:hover": { bgcolor: "#fff", color: "#e0e0e0" },
                 }}
                 title="View Bloom Leaderboard"
               >
@@ -644,7 +702,7 @@ const NavbarWithSearch = () => {
               </IconButton>
             )}
 
-            {user?.role !== "Finance" && user?.role !== "Operations" && user?.role !== "Human Resource" && user?.role !== "Marketing" && user?.role !== "Developer" && (
+            {user && canNav("leaderboardIcon") && (
               <IconButton
                 ref={leaderboardAnchorRef}
                 onClick={() => setLeaderboardOpen(true)}
@@ -653,7 +711,7 @@ const NavbarWithSearch = () => {
                   color: "#fff",
                   borderRadius: "50%",
                   p: 1.1,
-                  "&:hover": { bgcolor: "#fff", color: "#e0e0e0" }
+                  "&:hover": { bgcolor: "#fff", color: "#e0e0e0" },
                 }}
                 title="View Leaderboard"
               >
@@ -661,7 +719,11 @@ const NavbarWithSearch = () => {
               </IconButton>
             )}
 
-            <Bloomleader open={bloomOpen} anchorEl={leaderboardAnchorRef.current} onClose={() => setBloomOpen(false)} />
+            <Bloomleader
+              open={bloomOpen}
+              anchorEl={leaderboardAnchorRef.current}
+              onClose={() => setBloomOpen(false)}
+            />
 
             <LeaderboardPopover
               open={leaderboardOpen}
@@ -669,51 +731,55 @@ const NavbarWithSearch = () => {
               onClose={() => setLeaderboardOpen(false)}
             />
 
-            {user?.role !== "Finance" && user?.role !== "Operations" && user?.role !== "Human Resource" && user?.role !== "Marketing" && user?.role !== "Developer" && (
+            {user && canNav("bloodTestIcon") && (
               <IconButton
                 color="error"
                 onClick={openBloodTestDialog}
-                sx={{ mr: 0.5, color: "#fff", borderRadius: "50%", p: 1.1, "&:hover": { bgcolor: "#e0e0e0" } }}
+                sx={{
+                  mr: 0.5,
+                  color: "#fff",
+                  borderRadius: "50%",
+                  p: 1.1,
+                  "&:hover": { bgcolor: "#e0e0e0" },
+                }}
                 title="Blood Test Pincode Check"
               >
                 <Syringe />
               </IconButton>
             )}
 
-            {user?.role !== "Finance" && user?.role !== "Operations" && user?.role !== "Human Resource" && user?.role !== "Marketing" && user?.role !== "Developer" && (
+            {user && canNav("deliveryStatusIcon") && (
               <IconButton
                 onClick={() => setDeliveryDialogOpen(true)}
-                sx={{ mr: 0.5, color: "#fff", borderRadius: "50%", p: 1.1, "&:hover": { bgcolor: "#e0e0e0" } }}
+                sx={{
+                  mr: 0.5,
+                  color: "#fff",
+                  borderRadius: "50%",
+                  p: 1.1,
+                  "&:hover": { bgcolor: "#e0e0e0" },
+                }}
                 title="Delivery Status Checker"
               >
                 <LocalShippingIcon />
               </IconButton>
             )}
 
-            {/* <IconButton
-              sx={{
-                mr: 1,
-                color: "#fff",
-                "&:hover": { color: "#fff", bgcolor: "#e0e0e0" } 
-              }}
-              title="Download All Orders (CSV)" 
-              onClick={handleDownloadOrders} 
-            >
-              <DownloadIcon />
-            </IconButton>   */}
-
-
-            {/* {user && ( 
+            {/* Example: Download Orders (if you ever want permission control) */}
+            {/* {user && canNav("downloadOrders") && (
               <IconButton
-                onClick={() => navigate("/my-templates")}
-                sx={{ mr: 0.5, "&:hover": { backgroundColor: "#e0e0e0" } }}
+                sx={{
+                  mr: 1,
+                  color: "#fff",
+                  "&:hover": { color: "#fff", bgcolor: "#e0e0e0" }
+                }}
+                title="Download All Orders (CSV)" 
+                onClick={handleDownloadOrders} 
               >
-                <StickyNote2Icon sx={{ color: "white" }} />
+                <DownloadIcon />
               </IconButton>
             )} */}
 
-
-            {user && location.pathname !== "/login" && user?.role !== "Human Resource" && user?.role !== "Marketing" && user?.role !== "Developer" && (
+            {user && canNav("cartIcon") && (
               <IconButton
                 color="inherit"
                 onClick={toggleCartDrawer(true)}
@@ -723,31 +789,39 @@ const NavbarWithSearch = () => {
               </IconButton>
             )}
 
-            {showTaskIcons && (
+            {user && showTaskIcons && (
               <>
-                <IconButton
-                  color="inherit"
-                  onClick={() => navigate("/task-board")}
-                  sx={{ ml: 1, "&:hover": { backgroundColor: "#e0e0e0" } }}
-                  title="Task Manager"
-                >
-                  <CheckBoxIcon />
-                </IconButton>
+                {showTaskBoardIcon && (
+                  <IconButton
+                    color="inherit"
+                    onClick={() => navigate("/task-board")}
+                    sx={{
+                      ml: 1,
+                      "&:hover": { backgroundColor: "#e0e0e0" },
+                    }}
+                    title="Task Manager"
+                  >
+                    <CheckBoxIcon />
+                  </IconButton>
+                )}
 
-                <IconButton
-                  color="inherit"
-                  onClick={() => navigate("/my-reporting")}
-                  sx={{ ml: 0.5, "&:hover": { backgroundColor: "#e0e0e0" } }}
-                  title="My Reporting"
-                >
-                  <AssessmentIcon />
-                </IconButton>
+                {showMyReportingIcon && (
+                  <IconButton
+                    color="inherit"
+                    onClick={() => navigate("/my-reporting")}
+                    sx={{
+                      ml: 0.5,
+                      "&:hover": { backgroundColor: "#e0e0e0" },
+                    }}
+                    title="My Reporting"
+                  >
+                    <AssessmentIcon />
+                  </IconButton>
+                )}
               </>
             )}
 
-
-
-            {user?.role !== "Human Resource" && user?.role !== "Marketing" && user?.role !== "Developer" && (
+            {user && canNav("lmsSearch") && (
               <Box sx={{ position: "relative", width: 200, ml: 2 }}>
                 <ClickAwayListener onClickAway={handleClickAway}>
                   <div>
@@ -792,11 +866,20 @@ const NavbarWithSearch = () => {
                             }}
                             sx={{
                               ...smallFont,
-                              backgroundColor: item.source === "customer" ? "#ffe5e5" : "inherit"
+                              backgroundColor:
+                                item.source === "customer"
+                                  ? "#ffe5e5"
+                                  : "inherit",
                             }}
                           >
                             <ListItemText
-                              primary={`${item.name || "No Name"} (${item.contactNumber}) (${item.agentAssigned}) [${item.healthExpertAssigned}]${item.hasOpenEscalation ? " ? " : ""}`}
+                              primary={`${item.name || "No Name"} (${
+                                item.contactNumber
+                              }) (${item.agentAssigned}) [${
+                                item.healthExpertAssigned
+                              }]${
+                                item.hasOpenEscalation ? " ? " : ""
+                              }`}
                               primaryTypographyProps={{ style: smallFont }}
                             />
                           </ListItem>
@@ -811,6 +894,7 @@ const NavbarWithSearch = () => {
         </Toolbar>
       </AppBar>
 
+      {/* Delivery Status Dialog */}
       <Dialog
         open={deliveryDialogOpen}
         onClose={() => setDeliveryDialogOpen(false)}
@@ -825,10 +909,13 @@ const NavbarWithSearch = () => {
         }}
       >
         <DialogContent>
-          <DeliveryStatusChecker onClose={() => setDeliveryDialogOpen(false)} />
+          <DeliveryStatusChecker
+            onClose={() => setDeliveryDialogOpen(false)}
+          />
         </DialogContent>
       </Dialog>
 
+      {/* Blood Test Dialog */}
       <Dialog
         open={bloodTestDialog}
         onClose={closeBloodTestDialog}
@@ -841,7 +928,7 @@ const NavbarWithSearch = () => {
             p: 0,
             background: "#fff",
             boxShadow: "0 6px 24px 0 rgba(110,49,49,0.12)",
-            position: 'relative',
+            position: "relative",
           },
         }}
       >
@@ -850,10 +937,10 @@ const NavbarWithSearch = () => {
           aria-label="close"
           onClick={closeBloodTestDialog}
           sx={{
-            position: 'absolute',
+            position: "absolute",
             right: 10,
             top: 10,
-            color: '#333',
+            color: "#333",
             zIndex: 10,
           }}
         >
@@ -881,7 +968,12 @@ const NavbarWithSearch = () => {
             Blood Test Availability
           </DialogTitle>
           <Box
-            sx={{ height: 3, borderRadius: "20px", backgroundColor: "#FFD700", width: "90%" }}
+            sx={{
+              height: 3,
+              borderRadius: "20px",
+              backgroundColor: "#FFD700",
+              width: "90%",
+            }}
           />
         </Box>
         <DialogContent sx={{ pt: 1 }}>
@@ -914,13 +1006,14 @@ const NavbarWithSearch = () => {
                 fontSize: "0.85rem",
                 paddingLeft: "8px",
               },
-              "& .MuiInputLabel-root.Mui-focused, & .MuiInputLabel-root.MuiFormLabel-filled": {
-                top: 0,
-                color: "gray",
-                transform: "translateY(-50%) translateX(8px)",
-                paddingLeft: "8px",
-                fontSize: "0.75rem",
-              },
+              "& .MuiInputLabel-root.Mui-focused, & .MuiInputLabel-root.MuiFormLabel-filled":
+                {
+                  top: 0,
+                  color: "gray",
+                  transform: "translateY(-50%) translateX(8px)",
+                  paddingLeft: "8px",
+                  fontSize: "0.75rem",
+                },
               "& .MuiOutlinedInput-root": {
                 "& input": {
                   padding: "8px !important",
@@ -933,7 +1026,13 @@ const NavbarWithSearch = () => {
           <Button
             variant="contained"
             fullWidth
-            sx={{ mt: 1, borderRadius: 1.5, backgroundColor: "black", color: "white", mb: 2 }}
+            sx={{
+              mt: 1,
+              borderRadius: 1.5,
+              backgroundColor: "black",
+              color: "white",
+              mb: 2,
+            }}
             onClick={checkLabs}
             size="medium"
           >
@@ -950,17 +1049,36 @@ const NavbarWithSearch = () => {
               }}
             >
               {availableLabs.length === 0 ? (
-                <Typography color="error" sx={{ fontWeight: 500, fontSize: "15px" }}>
+                <Typography
+                  color="error"
+                  sx={{ fontWeight: 500, fontSize: "15px" }}
+                >
                   No labs available for this pincode.
                 </Typography>
               ) : (
                 <>
-                  <Typography sx={{ fontWeight: 500, color: "#222", fontSize: "15px" }}>
-                    Available Lab{availableLabs.length > 1 ? "s" : ""}:
+                  <Typography
+                    sx={{
+                      fontWeight: 500,
+                      color: "#222",
+                      fontSize: "15px",
+                    }}
+                  >
+                    Available Lab
+                    {availableLabs.length > 1 ? "s" : ""}:
                   </Typography>
-                  <Grid container spacing={1} sx={{ mt: 0.5, width: "100%", justifyContent: "center", display: "flex" }}>
+                  <Grid
+                    container
+                    spacing={1}
+                    sx={{
+                      mt: 0.5,
+                      width: "100%",
+                      justifyContent: "center",
+                      display: "flex",
+                    }}
+                  >
                     {availableLabs.map((lab, idx) => (
-                      <Grid item xs={3.5} key={lab} >
+                      <Grid item xs={3.5} key={lab}>
                         <Chip
                           label={lab}
                           sx={{
@@ -981,6 +1099,7 @@ const NavbarWithSearch = () => {
         </DialogContent>
       </Dialog>
 
+      {/* Incentive Dialog */}
       <Dialog
         open={incentiveOpen}
         TransitionComponent={SlideDown}
@@ -1007,7 +1126,13 @@ const NavbarWithSearch = () => {
           Incentive Structure
         </DialogTitle>
         <Box
-          sx={{ height: 3, borderRadius: "20px", backgroundColor: "#FFD700", ml: 2, mr: 2 }}
+          sx={{
+            height: 3,
+            borderRadius: "20px",
+            backgroundColor: "#FFD700",
+            ml: 2,
+            mr: 2,
+          }}
         />
         <DialogContent>
           <Table>
