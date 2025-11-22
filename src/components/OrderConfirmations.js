@@ -1,4 +1,4 @@
- import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Box,
   Paper,
@@ -70,6 +70,7 @@ const TAB_MAP = {
   ORDER_CONFIRMED: { value: "ORDER_CONFIRMED", label: "Order Confirmed" },
   CALL_BACK_LATER: { value: "CALL_BACK_LATER", label: "Call Back Later" },
   CANCEL_ORDER: { value: "CANCEL_ORDER", label: "Cancel Order" },
+  ALL_CNPS: { value: "CNP", label: "All CNPs" },
 };
 
 const LANGUAGE_OPTIONS = ["English", "Hindi", "Malayalam", "Kannada", "Telugu", "Marathi"];
@@ -124,15 +125,6 @@ const copyToClipboard = async (text, onDone) => {
   } catch {
     onDone?.(false);
   }
-};
-// NEW — create a single-day start/end range
-const makeDateRange = (d) => {
-  if (!d) return {};
-
-  const start = new Date(`${d}T00:00:00+05:30`).toISOString();
-  const end   = new Date(`${d}T23:59:59+05:30`).toISOString();
-
-  return { startDate: start, endDate: end };
 };
 
 const telHref = (num) => (num ? `tel:${num}` : undefined);
@@ -234,28 +226,19 @@ function moveStatusCount(setCounts, prevStatus, newStatus) {
 function decrementPendingOnFirstNote(setCounts) {
   setCounts((c) => ({ ...c, PENDING: safeDec(c.PENDING) }));
 }
+
 const START_FROM_ISO = new Date("2025-10-01T00:00:00+05:30").toISOString();
-const START_DATE_DEFAULT = "2025-11-01";
 
 const ASSIGNED_FILTER = {
   ALL: "ALL",
   UNASSIGNED: "UNASSIGNED",
   ME: "ME",
 };
-const getTodayDateStr = () => {
-  const now = new Date();
-  const y = now.getFullYear();
-  const m = String(now.getMonth() + 1).padStart(2, "0");
-  const d = String(now.getDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`; // yyyy-mm-dd
-};
-
 
 export default function OrderConfirmations() {
   const [{ id: myAgentId, fullName: myFullName, roles }, setIdentity] = useState(getLoggedIn());
   const isManager = useMemo(() => roles.includes("manager"), [roles]);
   const isOperations = useMemo(() => roles.includes("operations"), [roles]);
-const [filterDate, setFilterDate] = useState(getTodayDateStr());
 
   const [items, setItems] = useState([]);
   const [tab, setTab] = useState("ALL");
@@ -283,7 +266,10 @@ const [filterDate, setFilterDate] = useState(getTodayDateStr());
     ORDER_CONFIRMED: 0,
     CALL_BACK_LATER: 0,
     CANCEL_ORDER: 0,
+    ALL_CNPS: 0,
   });
+
+  const [allCnpDate, setAllCnpDate] = useState("");
 
   const [assigned, setAssigned] = useState(() => (isManager ? ASSIGNED_FILTER.ALL : ASSIGNED_FILTER.ME));
 
@@ -299,7 +285,7 @@ const [filterDate, setFilterDate] = useState(getTodayDateStr());
   useEffect(() => {
     setIdentity(getLoggedIn());
   }, []);
- 
+
   // keep assigned default in sync when role info changes
   useEffect(() => {
     setAssigned((prev) => {
@@ -344,121 +330,80 @@ const [filterDate, setFilterDate] = useState(getTodayDateStr());
     }
   }, [myAgentId]);
 
-// 👇 LIST API ke liye (tab ka effect yaha hai)
-const assignedParamForList = useMemo(() => {
-  // ALL_CNP tab → backend ko "ALL" bhejo so that sab CNP dikhen
-  if (tab === "ALL_CNP") return "ALL";
+  const assignedParam = useMemo(() => {
+    if (!isManager && myAgentId) return myAgentId;
 
-  // non-manager → hamesha khud ke id
-  if (!isManager && myAgentId) return myAgentId;
+    if (assigned === ASSIGNED_FILTER.UNASSIGNED) return "unassigned";
+    if (assigned === ASSIGNED_FILTER.ME && myAgentId) return myAgentId;
+    return undefined;
+  }, [assigned, isManager, myAgentId]);
 
-  // manager ke liye dropdown
-  if (assigned === ASSIGNED_FILTER.UNASSIGNED) return "unassigned";
-  if (assigned === ASSIGNED_FILTER.ME && myAgentId) return myAgentId;
-  if (assigned === ASSIGNED_FILTER.ALL) return "ALL";
+  const fetchList = useCallback(
+    async (pageZeroBased = 0, limit = rowsPerPage) => {
+      try {
+        setLoading(true);
 
-  return undefined;
-}, [tab, assigned, isManager, myAgentId]);
+        const params = {
+          tab,
+          financial: "pending",
+          page: pageZeroBased + 1,
+          limit,
+          q: qDebounced,
+          channel,
+        };
 
-// LIST ke liye final param (ALL_CNP tab pe null bhej rahe ho)
-const assignedParamFinal = tab === "ALL_CNP" ? null : assignedParamForList;
+        if (tab === "ALL_CNPS") {
+          // Show ALL CNPs for all agents; backend already enforces "after 1 Nov"
+          if (allCnpDate) params.allCnpDate = allCnpDate; // single-day filter for All CNPs only
+        } else {
+          // Normal tabs keep existing behaviour (agent scoping + global start date)
+          if (assignedParam) params.assigned = assignedParam;
+          params.startDate = START_FROM_ISO;
+        }
 
-// 👇 COUNTS API ke liye (sirf dropdown / role, TAB ka yaha koi role nahi)
-const assignedParamForCounts = useMemo(() => {
-  // non-manager → always self
-  if (!isManager && myAgentId) return myAgentId;
+        const { data } = await axios.get(
+          "https://muditamleads-14f32a10d7f7.herokuapp.com/api/order-confirmations/list",
+          { params }
+        );
 
-  if (assigned === ASSIGNED_FILTER.UNASSIGNED) return "unassigned";
-  if (assigned === ASSIGNED_FILTER.ME && myAgentId) return myAgentId;
-  if (assigned === ASSIGNED_FILTER.ALL) return "ALL";
+        const rows = data?.items || [];
+        setTotal(typeof data?.total === "number" ? data.total : rows.length);
+        setItems(rows);
+      } catch (e) {
+        console.error("fetchList error", e);
+        setToast({ open: true, severity: "error", msg: "Failed to fetch orders" });
+      } finally {
+        setLoading(false);
+      }
+    },
+    [qDebounced, rowsPerPage, tab, channel, assignedParam, allCnpDate]
+  );
 
-  return undefined;
-}, [assigned, isManager, myAgentId]);
 
-const fetchList = useCallback(
-  async (pageZeroBased = 0, limit = rowsPerPage) => {
+  const fetchCounts = useCallback(async () => {
     try {
-      setLoading(true);
+      const params = {
+        q: qDebounced,
+        channel,
+        assigned: assignedParam,
+        startDate: START_FROM_ISO,
+      };
 
-      // 🎯 Exact single-day range from filterDate
-      const { startDate, endDate } = makeDateRange(filterDate);
+      // Let backend compute ALL_CNPS using this date (only for All CNPs)
+      if (allCnpDate) {
+        params.allCnpDate = allCnpDate;
+      }
 
       const { data } = await axios.get(
-        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/order-confirmations/list",
-        {
-          params: {
-            tab,
-            financial: "pending",
-            page: pageZeroBased + 1,
-            limit,
-            q: qDebounced,
-            channel,
-            assigned: assignedParamFinal,
-            startDate,
-            endDate,
-          },
-        }
+        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/order-confirmations/counts",
+        { params }
       );
-
-      const rows = data?.items || [];
-      setTotal(data?.total || rows.length);
-      setItems(rows);
-    } catch (err) {
-      console.error("fetchList error", err);
-      setToast({
-        open: true,
-        severity: "error",
-        msg: "Failed to fetch orders",
-      });
-    } finally {
-      setLoading(false);
+      if (data?.counts) setCounts(data.counts);
+    } catch (e) {
+      console.error("fetchCounts error", e);
     }
-  },
-  [qDebounced, rowsPerPage, tab, channel, assignedParamFinal, filterDate]
-);
-const fetchCounts = useCallback(async () => {
-  try {
-    const { startDate, endDate } = makeDateRange(filterDate);
+  }, [qDebounced, channel, assignedParam, allCnpDate]);
 
-    const params = {
-      q: qDebounced,
-      channel,
-      startDate,
-      endDate,
-    };
-
-    // For counts → assigned filter is used ONLY for personal buckets
-    // Never apply assigned filter for CNP or ALL_CNP (special tabs)
-    if (tab !== "CNP" && tab !== "ALL_CNP") {
-      params.assigned = assignedParamForCounts;
-    }
-
-    const { data } = await axios.get(
-      "https://muditamleads-14f32a10d7f7.herokuapp.com/api/order-confirmations/counts",
-      { params }
-    );
-
-    if (data?.counts) {
-      setCounts({
-        ALL: data.counts.ALL || 0,
-        PENDING: data.counts.PENDING || 0,
-        CNP: data.counts.CNP || 0,           // ✔ Personal CNP
-        ORDER_CONFIRMED: data.counts.ORDER_CONFIRMED || 0,
-        CALL_BACK_LATER: data.counts.CALL_BACK_LATER || 0,
-        CANCEL_ORDER: data.counts.CANCEL_ORDER || 0,
-        ALL_CNP: data.counts.ALL_CNP || 0,   // ✔ Global CNP
-      });
-    }
-  } catch (err) {
-    console.error("fetchCounts error:", err);
-  }
-}, [
-  qDebounced,
-  channel,
-  filterDate,
-  assignedParamForCounts,
-  tab // important for CNP / ALL_CNP refresh
-]);
 
   const fetchTodayConfirmedCount = useCallback(async () => {
     try {
@@ -539,12 +484,11 @@ const fetchCounts = useCallback(async () => {
     fetchCounts();
   }, [fetchCounts]);
 
-useEffect(() => {
-  setPage(0);
-  fetchList(0, rowsPerPage);
-  setExpandedId(null);
-}, [tab, qDebounced, channel, assignedParamFinal, filterDate, rowsPerPage, fetchList]);
-
+  useEffect(() => {
+    setPage(0);
+    fetchList(0, rowsPerPage);
+    setExpandedId(null);
+  }, [tab, qDebounced, channel, assignedParam, allCnpDate]);
 
   useEffect(() => {
     fetchTodayConfirmedCount();
@@ -757,7 +701,7 @@ useEffect(() => {
       console.error("fetchMyActiveStatus error", e);
     }
   }, [myAgentId]);
- 
+
   useEffect(() => {
     fetchMyActiveStatus();
   }, [fetchMyActiveStatus]);
@@ -876,7 +820,7 @@ useEffect(() => {
                             setToast({ open: true, severity: "error", msg: "No agent id found for current user" });
                             return;
                           }
-                          try { 
+                          try {
                             // optimistic
                             setMyActive(checked);
                             sessionStorage.setItem("orderConfirmActive", String(!!checked));
@@ -951,63 +895,84 @@ useEffect(() => {
               </Stack>
             </Stack>
 
-          <Box
-  sx={{
-    display: "flex",
-    alignItems: "center",
-    gap: 1.5,
-    borderBottom: 1,
-    borderColor: "divider",
-    flexWrap: { xs: "wrap", sm: "nowrap" },
-  }}
->
-  <Tabs
-    value={tab}
-    onChange={(_e, v) => setTab(v)}
-    variant="scrollable"
-    scrollButtons="auto"
-    sx={{ flex: 1, minHeight: 48 }}
-  >
-    <Tab value="ALL" label={`All (${counts.ALL || 0})`} />
-    <Tab value="PENDING" label={`Pending (${counts.PENDING || 0})`} />
-    <Tab value="CNP" label={`CNP (${counts.CNP || 0})`} />
-    <Tab value="ORDER_CONFIRMED" label={`Confirmed (${counts.ORDER_CONFIRMED || 0})`} />
-    <Tab value="CALL_BACK_LATER" label={`Call Back (${counts.CALL_BACK_LATER || 0})`} />
-    <Tab value="CANCEL_ORDER" label={`Cancel (${counts.CANCEL_ORDER || 0})`} />
-    <Tab value="ALL_CNP" label={`All CNPs (${counts.ALL_CNP || 0})`} />
-  </Tabs>
+            <Box
+              sx={{
+                display: "flex",
+                alignItems: "center",
+                gap: 1.5,
+                borderBottom: 1,
+                borderColor: "divider",
+                // stack on very small screens
+                flexWrap: { xs: "wrap", sm: "nowrap" },
+              }}
+            >
+              <Tabs
+                value={tab}
+                onChange={(_e, v) => setTab(v)}
+                variant="scrollable"
+                scrollButtons="auto"
+                sx={{ flex: 1, minHeight: 48 }}
+              >
+                <Tab value="ALL" label={`All (${counts.ALL || 0})`} />
+                <Tab value="PENDING" label={`Pending (${counts.PENDING || 0})`} />
+                <Tab value="CNP" label={`CNP (${counts.CNP || 0})`} />
+                <Tab value="ORDER_CONFIRMED" label={`Confirmed (${counts.ORDER_CONFIRMED || 0})`} />
+                <Tab value="CALL_BACK_LATER" label={`Call Back (${counts.CALL_BACK_LATER || 0})`} />
+                <Tab value="CANCEL_ORDER" label={`Cancel (${counts.CANCEL_ORDER || 0})`} />
+                <Tab value="ALL_CNPS" label={`All CNPs (${counts.ALL_CNPS || 0})`} />
+              </Tabs>
 
-  {/* Date filter */}
-  <TextField
-    type="date"
-    size="small"
-    value={filterDate}
-    onChange={(e) => {
-      setFilterDate(e.target.value);
-      setPage(0);
-      fetchList(0, rowsPerPage);
-    }}
-    sx={{ width: 150 }}
-  />
+              <TextField
+                label="All CNPs Date"
+                type="date"
+                size="small"
+                value={allCnpDate}
+                onChange={(e) => setAllCnpDate(e.target.value)}
+                InputLabelProps={{ shrink: true }}
+                sx={{
+                  width: 170,
+                  my: { xs: 1, sm: 0 },
+                }}
+                disabled={tab !== "ALL_CNPS"}
+              />
 
-  {/* Search box – now to the RIGHT of date */}
-  <TextField
-    size="small"
-    placeholder="Search order # or phone..."
-    value={q}
-    onChange={(e) => setQ(e.target.value)}
-    InputProps={{
-      startAdornment: (
-        <SearchIcon
-          fontSize="small"
-          sx={{ mr: 1, color: "text.secondary" }}
-        />
-      ),
-    }}
-    sx={{ width: 240 }}
-  />
-</Box>
-
+              {/* Search box pinned to the right */}
+              <TextField
+                size="small"
+                placeholder="Search order # or phone…"
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    // immediate refresh; debounced will also kick in
+                    setPage(0);
+                    fetchList(0, rowsPerPage);
+                  }
+                }}
+                sx={{
+                  width: { xs: "100%", sm: 280 },
+                  my: { xs: 1, sm: 0 },
+                }}
+                InputProps={{
+                  startAdornment: (
+                    <SearchIcon sx={{ mr: 1, opacity: 0.7 }} fontSize="small" />
+                  ),
+                  endAdornment: q ? (
+                    <IconButton
+                      aria-label="Clear search"
+                      size="small"
+                      onClick={() => {
+                        setQ("");
+                        setPage(0);
+                        fetchList(0, rowsPerPage);
+                      }}
+                    >
+                      <CloseRoundedIcon fontSize="small" />
+                    </IconButton>
+                  ) : null,
+                }}
+              />
+            </Box>
           </Stack>
         </Paper>
 
@@ -1637,7 +1602,7 @@ useEffect(() => {
             {toast.msg}
           </Alert>
         </Snackbar>
- 
+
         <Dialog open={confirmCancel.open} onClose={closeConfirmCancel} maxWidth="xs" fullWidth>
           <DialogTitle>Cancel this order?</DialogTitle>
           <DialogContent dividers>
@@ -1646,16 +1611,16 @@ useEffect(() => {
             </Typography>
 
             <Box sx={{ mt: 2 }}>
-              <TextField 
-                label="Reason" 
+              <TextField
+                label="Reason"
                 placeholder="e.g., Customer requested cancellation"
                 value={confirmCancel.reason}
                 onChange={(e) => setConfirmCancel((s) => ({ ...s, reason: e.target.value }))}
                 fullWidth
-              />   
-            </Box>  
+              />
+            </Box>
           </DialogContent>
-          <DialogActions> 
+          <DialogActions>
             <Button onClick={closeConfirmCancel}>No</Button>
             <Button
               color="error"
@@ -1800,10 +1765,8 @@ useEffect(() => {
               {payDlg.generating ? "Generating…" : "Generate & Share"}
             </Button>
           </DialogActions>
-        </Dialog> 
+        </Dialog>
       </Box>
     </ThemeProvider>
   );
 }
-
-
