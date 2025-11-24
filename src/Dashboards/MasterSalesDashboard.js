@@ -340,40 +340,6 @@ const ManagerSalesDashboard = () => {
     [selectedAgent]
   );
 
-  const fetchUnassignedDeliveredCount = useCallback(async () => {
-    try {
-      const res = await axios.get(
-        "http://localhost:5001/api/orders-un/unassigned-delivered-count"
-      );
-      setUnassignedDeliveredCount(res.data?.count ?? 0);
-    } catch (error) {
-      console.error("Error fetching unassigned delivered count:", error);
-      setUnassignedDeliveredCount(0);
-    }
-  }, []);
-
-  const loadUnassignedPage = async (page = 1) => {
-    setUnassignedLoading(true);
-    try {
-      const res = await axios.get(`http://localhost:5001/api/orders-un/unassigned-delivered`, {
-        params: { page, limit: 50, sortBy: "last_updated_at", sortOrder: "desc" },
-      });
-      setUnassignedRows(res.data?.data || []);
-      setUnassignedPage(res.data?.page || page);
-      setUnassignedTotal(res.data?.total || 0);
-    } catch (e) {
-      console.error("Error loading unassigned list:", e);
-      setUnassignedRows([]);
-    } finally {
-      setUnassignedLoading(false);
-    }
-  };
-
-  const openUnassignedList = async () => {
-    await loadUnassignedPage(1);
-    setUnassignedOpen(true);
-  };
-
 
 
   // Combined table fetch
@@ -473,10 +439,6 @@ const ManagerSalesDashboard = () => {
     fetchLeadSourceData,
     fetchShipmentData,
   ]);
-
-  useEffect(() => {
-    fetchUnassignedDeliveredCount();
-  }, [fetchUnassignedDeliveredCount]);
 
 
   // Handler for Sales Done card click to open popup
@@ -603,35 +565,7 @@ const ManagerSalesDashboard = () => {
   return (
     <Box sx={{ padding: 3, position: "relative" }}>
       {/* Dashboard Title */}
-      <Box
-        sx={{ position: "absolute", top: 12, right: 12, zIndex: 2 }}
-      >
-        <Paper
-          onClick={openUnassignedList}
-          sx={{
-            px: 2.5,
-            py: 1.25, 
-            borderRadius: 2,
-            backgroundColor: "#FFF7ED",
-            border: "1px solid #FFEDD5",
-            boxShadow: "0px 3px 10px rgba(0,0,0,0.04)",
-            minWidth: 240,
-            textAlign: "center", 
-            cursor: "pointer",
-          }}
-        >
-          <Typography variant="subtitle2" sx={{ color: "#9A3412" }}>
-            Unassigned Delivered Orders
-          </Typography>
-          <Typography variant="h6" fontWeight="bold" sx={{ color: "#7C2D12" }}>
-            {unassignedDeliveredCount !== undefined ? (
-              unassignedDeliveredCount
-            ) : (
-              <CircularProgress size={16} />
-            )}
-          </Typography>
-        </Paper>
-      </Box>
+       
 
       <Typography
         variant="h4"
@@ -1231,72 +1165,6 @@ const ManagerSalesDashboard = () => {
           </Paper>
         </>
       )}
-
-      <Dialog
-  open={unassignedOpen}
-  onClose={() => setUnassignedOpen(false)}
-  maxWidth="md"
-  fullWidth
->
-  <DialogTitle>Unassigned Delivered Orders</DialogTitle>
-  <DialogContent dividers>
-    {unassignedLoading ? (
-      <Box sx={{ display: "flex", justifyContent: "center", py: 4 }}>
-        <CircularProgress size={24} />
-      </Box>
-    ) : (
-      <Table size="small">
-        <TableHead>
-          <TableRow>
-            <TableCell>Order ID</TableCell>
-            <TableCell>Shipment Status</TableCell>
-            <TableCell>Contact Number</TableCell>
-          </TableRow>
-        </TableHead>
-        <TableBody>
-          {unassignedRows.length === 0 ? (
-            <TableRow>
-              <TableCell colSpan={3} align="center">
-                No data
-              </TableCell>
-            </TableRow>
-          ) : (
-            unassignedRows.map((r, i) => (
-              <TableRow key={`${r.order_id}-${i}`}>
-                <TableCell>{r.order_id}</TableCell>
-                <TableCell>{r.shipment_status}</TableCell>
-                <TableCell>{r.contact_number}</TableCell>
-              </TableRow>
-            ))
-          )}
-        </TableBody>
-      </Table>
-    )}
-  </DialogContent>
-  <DialogActions sx={{ justifyContent: "space-between", px: 2 }}> 
-    <Typography variant="body2" color="text.secondary">
-      Page {unassignedPage} • Total {unassignedTotal}
-    </Typography>
-    <Box sx={{ display: "flex", gap: 1 }}>
-      <Button
-        onClick={() => loadUnassignedPage(Math.max(1, unassignedPage - 1))} 
-        disabled={unassignedLoading || unassignedPage <= 1}
-        variant="outlined"
-      >
-        Prev
-      </Button>
-      <Button
-        onClick={() => loadUnassignedPage(unassignedPage + 1)}
-        disabled={unassignedLoading || unassignedRows.length === 0 || (unassignedPage * 50) >= unassignedTotal}
-        variant="contained"
-      >
-        Next
-      </Button>
-      <Button onClick={() => setUnassignedOpen(false)}>Close</Button>
-    </Box>
-  </DialogActions>
-</Dialog>
-
 
 
       {/* -------------------- LEAD SOURCE SUMMARY -------------------- */}

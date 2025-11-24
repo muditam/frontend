@@ -209,6 +209,52 @@ const MenuBar = ({ toggleDrawer }) => {
           </ListItem>
         )}
 
+        {user && can("invoices") && (
+          <ListItem
+            button
+            component={Link}
+            sx={menuItemStyle}
+            to="/invoices"
+            onClick={toggleDrawer}
+          >
+            <DescriptionIcon sx={{ marginRight: "12px" }} />
+            <Typography variant="body1" style={{ fontSize: "14px" }}>
+              Invoices
+            </Typography>
+          </ListItem>
+        )}
+
+        {user && can("accessManagement") && (
+          <ListItem
+            button
+            component={Link}
+            sx={menuItemStyle}
+            to="/access-management"
+            onClick={toggleDrawer}
+          >
+            <AssignmentIcon sx={{ marginRight: "12px" }} />
+            <Typography variant="body1" style={{ fontSize: "14px" }}>
+              Access Management
+            </Typography>
+          </ListItem>
+        )}
+
+        {user && can("adminAccessRequests") && (
+          <ListItem
+            button
+            component={Link}
+            sx={menuItemStyle}
+            to="/admin-requests-admin"
+            onClick={toggleDrawer}
+          >
+            <AssignmentIcon sx={{ marginRight: "12px" }} />
+            <Typography variant="body1" style={{ fontSize: "14px" }}>
+              Admin Access Requests
+            </Typography>
+          </ListItem>
+        )}
+
+
         {user && can("consultation") && (
           <ListItem
             button
@@ -324,6 +370,21 @@ const MenuBar = ({ toggleDrawer }) => {
               </List>
             </Collapse>
           </>
+        )}
+
+        {user && can("unassignedDeliveredOrders") && (
+          <ListItem
+            button
+            component={Link}
+            sx={menuItemStyle}
+            to="/unassigned-delivered-orders"
+            onClick={toggleDrawer}
+          >
+            <LocalShippingIcon sx={{ marginRight: "12px" }} />
+            <Typography variant="body1" style={{ fontSize: "14px" }}>
+              Admin Access Requests
+            </Typography>
+          </ListItem>
         )}
 
         {/* My RTOs */}
@@ -981,6 +1042,22 @@ const MenuBar = ({ toggleDrawer }) => {
             </Typography>
           </ListItem>
         )}
+
+        {user && can("opsOnlyOrderConfirmation") && (
+          <ListItem
+            button
+            component={Link}
+            to="/only-order-confirmation"
+            sx={menuItemStyle}
+            onClick={toggleDrawer}
+          >
+            <FactCheckIcon sx={{ fontSize: 20, marginRight: "12px" }} />
+            <Typography variant="body1" style={{ fontSize: "14px" }}>
+              Only Order Confirmation
+            </Typography>
+          </ListItem>
+        )}
+
 
         {user && can("deliveredSalesRecord") && (
           <ListItem

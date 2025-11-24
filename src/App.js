@@ -75,7 +75,10 @@ import GlobalShopifyOrders from "./International/Shopify/GlobalShopifyOrders";
 import GlobalAbandonedCarts from "./International/Shopify/GlobalAbandonedCarts";
 import GlobalRetentionLeads from "./International/InternationlLeads/GlobalRetentionLeads";
 import GlobalRetentionSales from "./International/InternationlLeads/GlobalRetentionSales";
+import AccessManagement from "./components/AccessManagement"; 
+import AdminAccessRequests from "./components/AdminAccessRequests";
 import Invoices from "./pages/Invoices";
+import UnassignedDeliveredOrders from "./components/UnassignedDeliveredOrders";
 import "./realtime/IncomingCallSSEBoot"; 
 
 const App = () => {
@@ -118,6 +121,9 @@ const App = () => {
           <Route path="/global-aband" element={<GlobalAbandonedCarts />} />
           <Route path="/global-retention-leads" element={<GlobalRetentionLeads />} />
           <Route path="/global-retention-sales" element={<GlobalRetentionSales />} />
+          <Route path="/access-management" element={<AccessManagement />} />
+          <Route path="/admin-requests-admin" element={<AdminAccessRequests />} />
+          <Route path="/unassigned-delivered-orders" element={<UnassignedDeliveredOrders />} />
 
           <Route
             path="/"

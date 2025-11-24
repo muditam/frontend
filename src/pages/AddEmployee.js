@@ -48,6 +48,11 @@ const DEFAULT_PERMISSIONS = {
     myAssets: true,
     myGrowthPlan: true,
 
+    invoices: true,
+    accessManagement: true,
+    adminAccessRequests: true,
+    deliveredSalesRecord: true,
+
     // Order confirmations & abandoned
     orderConfirmationsMenu: true,
     orderConfirmationPage: true,
@@ -66,6 +71,7 @@ const DEFAULT_PERMISSIONS = {
     lostAcquisition: true,
     lostRetention: true,
     onlineOrders: true,
+    unassignedDeliveredOrders: true,
 
     // Sales Agent section
     salesAgentMenu: true,
@@ -116,6 +122,7 @@ const DEFAULT_PERMISSIONS = {
     opsUndeliveredOrders: true,
     opsRtoDelivered: true,
     opsEmailUndelivered: true,
+    opsOnlyOrderConfirmation: true,
 
     // HR / Assets
     hrAddNewAssets: true,
@@ -513,8 +520,8 @@ const AddEmployee = () => {
   };
 
   const filteredEmployees = roleFilter
-  ? employees.filter((emp) => emp.role === roleFilter)
-  : employees;
+    ? employees.filter((emp) => emp.role === roleFilter)
+    : employees;
 
 
   return (
@@ -527,65 +534,65 @@ const AddEmployee = () => {
         Employee Management
       </Typography>
       <Box
-  sx={{
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    mb: 2,
-  }}
->
-  <Box sx={{ display: "flex", gap: 2 }}>
-    <Button
-      variant="contained"
-      color="primary"
-      onClick={() => {
-        setIsEditMode(false);
-        setEmployeeData({
-          fullName: "",
-          email: "",
-          callerId: "",
-          agentNumber: "",
-          role: "",
-          password: "",
-          confirmPassword: "",
-          async: 1,
-          status: "active",
-          target: "",
-          hasTeam: false,
-          isDoctor: false,
-          teamLeader: "",
-          joiningDate: "",
-          languages: [],
-          permissions: { ...DEFAULT_PERMISSIONS },
-        });
-        setOpen(true);
-      }}
-    >
-      Add Employee
-    </Button>
+        sx={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          mb: 2,
+        }}
+      >
+        <Box sx={{ display: "flex", gap: 2 }}>
+          <Button
+            variant="contained"
+            color="primary"
+            onClick={() => {
+              setIsEditMode(false);
+              setEmployeeData({
+                fullName: "",
+                email: "",
+                callerId: "",
+                agentNumber: "",
+                role: "",
+                password: "",
+                confirmPassword: "",
+                async: 1,
+                status: "active",
+                target: "",
+                hasTeam: false,
+                isDoctor: false,
+                teamLeader: "",
+                joiningDate: "",
+                languages: [],
+                permissions: { ...DEFAULT_PERMISSIONS },
+              });
+              setOpen(true);
+            }}
+          >
+            Add Employee
+          </Button>
 
-    {/* 👇 Filter by Role – left side of View Inactive button */}
-    <TextField
-      select
-      size="small"
-      label="Filter by Role"
-      value={roleFilter}
-      onChange={(e) => setRoleFilter(e.target.value)}
-      sx={{ minWidth: 200 }}
-    >
-      <MenuItem value="">All Roles</MenuItem>
-      {availableRoles.map((role) => (
-        <MenuItem key={role} value={role}>
-          {role}
-        </MenuItem>
-      ))}
-    </TextField>
-  </Box>
+          {/* 👇 Filter by Role – left side of View Inactive button */}
+          <TextField
+            select
+            size="small"
+            label="Filter by Role"
+            value={roleFilter}
+            onChange={(e) => setRoleFilter(e.target.value)}
+            sx={{ minWidth: 200 }}
+          >
+            <MenuItem value="">All Roles</MenuItem>
+            {availableRoles.map((role) => (
+              <MenuItem key={role} value={role}>
+                {role}
+              </MenuItem>
+            ))}
+          </TextField>
+        </Box>
 
-  <Button variant="outlined" onClick={handleToggleViewInactive}>
-    {viewInactive ? "Hide Inactive Employees" : "View Inactive Employees"}
-  </Button>
-</Box>
+        <Button variant="outlined" onClick={handleToggleViewInactive}>
+          {viewInactive ? "Hide Inactive Employees" : "View Inactive Employees"}
+        </Button>
+      </Box>
 
 
       <TableContainer
@@ -1159,6 +1166,10 @@ const AddEmployee = () => {
                   ["myRTOs", "MY RTOs"],
                   ["myAssets", "My Assets"],
                   ["myGrowthPlan", "Growth At Muditam"],
+                  ["invoices", "Invoices"],
+                  ["accessManagement", "Access Management"],
+                  ["adminAccessRequests", "Admin Access Requests"],
+                  ["deliveredSalesRecord", "Delivered Sales Record"],
                 ].map(([key, label]) => (
                   <FormControlLabel
                     key={key}
@@ -1187,6 +1198,7 @@ const AddEmployee = () => {
                   ["orderConfirmationPage", "Order Confirmation Page"],
                   ["orderAnalyticsPage", "Order Analytics Page"],
                   ["onlineOrders", "Online Orders"],
+                  ["unassignedDeliveredOrders", "Unassigned Delivered Orders"],
                 ].map(([key, label]) => (
                   <FormControlLabel
                     key={key}
@@ -1358,6 +1370,7 @@ const AddEmployee = () => {
                   ["opsUndeliveredOrders", "Ops: Undelivered Orders"],
                   ["opsRtoDelivered", "Ops: RTO Delivered"],
                   ["opsEmailUndelivered", "Ops: Email Undelivered"],
+                  ["opsOnlyOrderConfirmation", "Ops: Only Order Confirmation"],
                   ["hrAddNewAssets", "HR: Add New Assets"],
                   ["hrAssetAllotment", "HR: Asset Allotment"],
                   ["leaderboardMenu", "Leaderboard Menu"],

@@ -18,6 +18,7 @@ import {
   Snackbar,
   Checkbox,
   FormControlLabel,
+  CircularProgress,
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import EditIcon from "@mui/icons-material/Edit";
@@ -477,6 +478,7 @@ const TaskDialog = ({
   onChangeField,
   onSave,
   error,
+  saving,
 }) => (
   <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
     <DialogTitle
@@ -634,14 +636,25 @@ const TaskDialog = ({
         justifyContent: "space-between",
       }}
     >
-      <Button onClick={onClose} sx={{ textTransform: "none" }}>
+      <Button
+        onClick={onClose}
+        sx={{ textTransform: "none" }}
+        disabled={saving}
+      >
         Cancel
       </Button>
       <Button
         variant="contained"
         onClick={onSave}
+        disabled={saving}
         sx={{ textTransform: "none", borderRadius: 999, px: 3 }}
       >
+        {saving && (
+          <CircularProgress
+            size={18}
+            sx={{ mr: 1, color: "white" }}
+          />
+        )}
         {editingTask ? "Save changes" : "Create card"}
       </Button>
     </DialogActions>
@@ -649,7 +662,7 @@ const TaskDialog = ({
 );
 
 // ---------- Assign Task Dialog ----------
-const AssignTaskDialog = ({ open, onClose, onSave, employees, currentUser }) => {
+const AssignTaskDialog = ({ open, onClose, onSave, employees, currentUser, assigning, }) => {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [dueDate, setDueDate] = useState("");
@@ -775,8 +788,20 @@ const AssignTaskDialog = ({ open, onClose, onSave, employees, currentUser }) => 
           bgcolor: "#f9fafb",
         }}
       >
-        <Button onClick={onClose}>Cancel</Button>
-        <Button variant="contained" onClick={handleSubmit}>
+        <Button onClick={onClose} disabled={assigning}>
+          Cancel
+        </Button>
+        <Button
+          variant="contained"
+          onClick={handleSubmit}
+          disabled={assigning}
+        >
+          {assigning && (
+            <CircularProgress
+              size={18}
+              sx={{ mr: 1, color: "white" }}
+            />
+          )}
           Assign
         </Button>
       </DialogActions>
@@ -807,11 +832,15 @@ const TaskBoard = () => {
   });
   const [dialogError, setDialogError] = useState("");
 
+  const [savingTask, setSavingTask] = useState(false);
+
   const [listDialogOpen, setListDialogOpen] = useState(false);
   const [newListTitle, setNewListTitle] = useState("");
 
   const [assignDialogOpen, setAssignDialogOpen] = useState(false);
   const [employees, setEmployees] = useState([]);
+
+  const [assigningTask, setAssigningTask] = useState(false);
 
   const [showTeamView, setShowTeamView] = useState(false);
   const [showBoardInline, setShowBoardInline] = useState(false);
@@ -983,7 +1012,7 @@ const TaskBoard = () => {
 
             recurring: !!t.recurring,
             recurringInterval: t.recurringInterval || "DAILY",
-            lastRecurringAt: t.lastRecurringAt || null, 
+            lastRecurringAt: t.lastRecurringAt || null,
           };
         });
 
@@ -1224,14 +1253,14 @@ const TaskBoard = () => {
             prev.map((t) =>
               String(t.id) === String(draggableId)
                 ? {
-                    ...t,
-                    status: updatedTask.status || t.status,
-                    totalActiveSeconds:
-                      updatedTask.totalActiveSeconds ?? t.totalActiveSeconds,
-                    activeSince: updatedTask.activeSince || null,
-                    startedAt: updatedTask.startedAt || t.startedAt,
-                    closedAt: updatedTask.closedAt || null,
-                  }
+                  ...t,
+                  status: updatedTask.status || t.status,
+                  totalActiveSeconds:
+                    updatedTask.totalActiveSeconds ?? t.totalActiveSeconds,
+                  activeSince: updatedTask.activeSince || null,
+                  startedAt: updatedTask.startedAt || t.startedAt,
+                  closedAt: updatedTask.closedAt || null,
+                }
                 : t
             )
           );
@@ -1268,7 +1297,7 @@ const TaskBoard = () => {
   const openEditDialog = useCallback((task) => {
     const firstAttachment =
       Array.isArray(task.attachments) &&
-      task.attachments.length > 0
+        task.attachments.length > 0
         ? task.attachments[0]
         : "";
     setEditingTask(task);
@@ -1354,6 +1383,7 @@ const TaskBoard = () => {
       };
 
       let tempId;
+      setSavingTask(true);        // ⬅️ start loader
       try {
         if (editingTask) {
           const { data } = await axios.put(
@@ -1375,8 +1405,8 @@ const TaskBoard = () => {
             attachments: Array.isArray(data.attachments)
               ? data.attachments
               : data.attachmentUrl
-              ? [data.attachmentUrl]
-              : [],
+                ? [data.attachmentUrl]
+                : [],
             totalActiveSeconds: data.totalActiveSeconds ?? 0,
             activeSince: data.activeSince || null,
             startedAt: data.startedAt || null,
@@ -1432,8 +1462,8 @@ const TaskBoard = () => {
             attachments: Array.isArray(data.attachments)
               ? data.attachments
               : data.attachmentUrl
-              ? [data.attachmentUrl]
-              : [],
+                ? [data.attachmentUrl]
+                : [],
             totalActiveSeconds: data.totalActiveSeconds ?? 0,
             activeSince: data.activeSince || null,
             startedAt: data.startedAt || null,
@@ -1453,6 +1483,8 @@ const TaskBoard = () => {
         closeDialog();
       } catch (e) {
         console.error("Failed to save task", e);
+      } finally {
+        setSavingTask(false);     // ⬅️ stop loader
       }
     },
     [
@@ -1466,6 +1498,7 @@ const TaskBoard = () => {
       showSnackbar,
     ]
   );
+
 
   const handleDeleteTask = useCallback(
     async (task) => {
@@ -1604,72 +1637,75 @@ const TaskBoard = () => {
   const closeAssignDialog = () => setAssignDialogOpen(false);
 
   const handleAssignSave = useCallback(
-    async (assignPayload) => {
-      const assigneeId = assignPayload.assigneeId;
-      const managerId = currentUserId;
-      if (!assigneeId || !managerId) return;
+  async (assignPayload) => {
+    const assigneeId = assignPayload.assigneeId;
+    const managerId = currentUserId;
+    if (!assigneeId || !managerId) return;
 
-      const baseTask = {
-        title: assignPayload.title,
-        description: assignPayload.description || "",
-        status: assignPayload.status || COLUMN_IDS.NEW,
-        assigneeId,
-        assigneeName: assignPayload.assigneeName || "",
-        assignedById: managerId,
-        assignedByName:
-          assignPayload.assignedByName ||
-          currentUser?.fullName ||
-          currentUser?.name ||
-          "",
-        assignedDate:
-          assignPayload.assignedDate || new Date().toISOString(),
-        dueDate: assignPayload.dueDate || null,
-        attachments: [],
-      };
+    const baseTask = {
+      title: assignPayload.title,
+      description: assignPayload.description || "",
+      status: assignPayload.status || COLUMN_IDS.NEW,
+      assigneeId,
+      assigneeName: assignPayload.assigneeName || "",
+      assignedById: managerId,
+      assignedByName:
+        assignPayload.assignedByName ||
+        currentUser?.fullName ||
+        currentUser?.name ||
+        "",
+      assignedDate:
+        assignPayload.assignedDate || new Date().toISOString(),
+      dueDate: assignPayload.dueDate || null,
+      attachments: [],
+    };
 
-      let tempId;
-      try {
-        // on employee's board
-        await axios.post(`${API_BASE_URL}/api/tasks`, {
-          ...baseTask,
-          userId: assigneeId,
-        });
+    let tempId;
+    setAssigningTask(true);          // ⬅️ start loader
+    try {
+      // on employee's board
+      await axios.post(`${API_BASE_URL}/api/tasks`, {
+        ...baseTask,
+        userId: assigneeId,
+      });
 
-        // on manager's board
-        tempId = generateId();
-        if (viewingUserId === managerId) {
-          setTasks((prev) => [
-            ...prev,
-            { ...baseTask, userId: managerId, id: tempId },
-          ]);
-        }
-
-        const { data } = await axios.post(`${API_BASE_URL}/api/tasks`, {
-          ...baseTask,
-          userId: managerId,
-        });
-        const newId = String(data.id || data._id || tempId);
-
-        if (viewingUserId === managerId) {
-          setTasks((prev) =>
-            prev.map((t) =>
-              t.id === tempId ? { ...t, id: newId } : t
-            )
-          );
-        }
-
-        showSnackbar("Task assigned", "success");
-      } catch (e) {
-        console.error("Failed to assign task", e);
-        if (tempId && viewingUserId === currentUserId) {
-          setTasks((prev) => prev.filter((t) => t.id !== tempId));
-        }
-      } finally {
-        setAssignDialogOpen(false);
+      // on manager's board
+      tempId = generateId();
+      if (viewingUserId === managerId) {
+        setTasks((prev) => [
+          ...prev,
+          { ...baseTask, userId: managerId, id: tempId },
+        ]);
       }
-    },
-    [currentUser, currentUserId, viewingUserId, showSnackbar]
-  );
+
+      const { data } = await axios.post(`${API_BASE_URL}/api/tasks`, {
+        ...baseTask,
+        userId: managerId,
+      });
+      const newId = String(data.id || data._id || tempId);
+
+      if (viewingUserId === managerId) {
+        setTasks((prev) =>
+          prev.map((t) =>
+            t.id === tempId ? { ...t, id: newId } : t
+          )
+        );
+      }
+
+      showSnackbar("Task assigned", "success");
+    } catch (e) {
+      console.error("Failed to assign task", e);
+      if (tempId && viewingUserId === currentUserId) {
+        setTasks((prev) => prev.filter((t) => t.id !== tempId));
+      }
+    } finally {
+      setAssigningTask(false);       // ⬅️ stop loader
+      setAssignDialogOpen(false);
+    }
+  },
+  [currentUser, currentUserId, viewingUserId, showSnackbar]
+);
+
 
   const totalCards = filteredTasks.length;
 
@@ -1943,14 +1979,14 @@ const TaskBoard = () => {
                             onSeeMore={
                               isLimitedColumn
                                 ? () =>
-                                    setLimitedVisibleCounts(
-                                      (prev) => ({
-                                        ...prev,
-                                        [column.id]:
-                                          (prev[column.id] ||
-                                            10) + 10,
-                                      })
-                                    )
+                                  setLimitedVisibleCounts(
+                                    (prev) => ({
+                                      ...prev,
+                                      [column.id]:
+                                        (prev[column.id] ||
+                                          10) + 10,
+                                    })
+                                  )
                                 : undefined
                             }
                             canDeleteColumn={!isDefaultColumn}
@@ -2010,6 +2046,7 @@ const TaskBoard = () => {
         onChangeField={handleDraftChange}
         onSave={handleSaveTask}
         error={dialogError}
+        saving={savingTask} 
       />
 
       <AssignTaskDialog
@@ -2018,6 +2055,7 @@ const TaskBoard = () => {
         onSave={handleAssignSave}
         employees={employees}
         currentUser={currentUser}
+        assigning={assigningTask}
       />
 
       <Dialog
