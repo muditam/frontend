@@ -1,13 +1,10 @@
-import React, { useEffect, useMemo, useState, useRef } from "react";
+import React, { useEffect, useMemo, useState, useCallback,   useRef } from "react";
 import {
   Box,
   Paper,
   Stack,
   Typography,
   TextField,
-  FormControl,
-  InputLabel,
-  Select,
   MenuItem,
   Button,
   IconButton,
@@ -56,7 +53,6 @@ const TYPES = [
   "NeckBand",
 ];
 
-// 🔹 New: common brands for dropdown (still allows custom)
 const BRANDS = [
   "HP",
   "Dell",
@@ -73,7 +69,7 @@ const BRANDS = [
   "Zebronics",
 ];
 
-const API_BASE_URL = "https://muditamleads-14f32a10d7f7.herokuapp.com";  
+const API_BASE_URL = "https://muditamleads-14f32a10d7f7.herokuapp.com";
 
 const fmtDate = (d) => {
   if (!d) return "—";
@@ -118,6 +114,12 @@ function SectionHeader({ title, subtitle, right, sx }) {
 
 /* ------------------------ Gallery Dialog ------------------------ */
 function ImageGalleryDialog({ open, onClose, images = [], title = "Images" }) {
+  const handleOpen = (e, src) => {
+    e.stopPropagation();
+    if (!src) return;
+    window.open(src, "_blank", "noopener,noreferrer");
+  };
+
   return (
     <Dialog open={open} onClose={onClose} fullWidth maxWidth="md">
       <DialogTitle sx={{ fontWeight: 800 }}>{title}</DialogTitle>
@@ -134,11 +136,21 @@ function ImageGalleryDialog({ open, onClose, images = [], title = "Images" }) {
               <Paper
                 key={idx}
                 variant="outlined"
-                sx={{ p: 0.5, borderRadius: 2, overflow: "hidden" }}
+                onClick={(e) => handleOpen(e, src)}
+                sx={{
+                  p: 0.5,
+                  borderRadius: 2,
+                  overflow: "hidden",
+                  cursor: "pointer",
+                  "&:hover": {
+                    boxShadow: 3,
+                  },
+                }}
               >
                 <img
                   src={src}
                   alt={`asset-img-${idx}`}
+                  loading="lazy"
                   style={{
                     width: "100%",
                     height: 160,
@@ -168,6 +180,7 @@ function ImageGalleryDialog({ open, onClose, images = [], title = "Images" }) {
     </Dialog>
   );
 }
+
 
 /* ------------------------ Drag & Drop Upload ------------------------ */
 function Uploader({ images = [], onPick, onRemove }) {
@@ -234,22 +247,30 @@ function Uploader({ images = [], onPick, onRemove }) {
           }}
         >
           {images.map((src, idx) => (
-            <Box
-              key={idx}
-              sx={{
-                position: "relative",
-                border: "1px solid",
-                borderColor: "divider",
-                borderRadius: 1,
-                overflow: "hidden",
-                height: 90,
-              }}
-            >
-              <img
-                alt={`asset-${idx}`}
-                src={src}
-                style={{ width: "100%", height: "100%", objectFit: "cover" }}
-              />
+      <Box
+    key={idx}
+    sx={{
+      position: "relative",
+      border: "1px solid",
+      borderColor: "divider",
+      borderRadius: 1,
+      overflow: "hidden",
+      height: 90,
+    }}
+  >
+    <img
+      src={getThumb(src)}
+      alt={`asset-${idx}`}
+      loading="lazy"
+      decoding="async"
+      style={{
+        width: "100%",
+        height: "100%",
+        objectFit: "cover",
+        display: "block",
+      }}
+    />
+
               <IconButton
                 size="small"
                 onClick={() => onRemove(idx)}
@@ -271,99 +292,98 @@ function Uploader({ images = [], onPick, onRemove }) {
   );
 }
 
+/* ------------------------ Add / Edit Dialog ------------------------ */
 function AddEditDialog({ open, onClose, initial, onSaved, allAssets }) {
-  const seed = initial?.items?.length
-    ? initial
-    : initial
-    ? {
-        ...initial,
-        items: [
-          {
-            type: initial.type || "Laptop",
-            brand: initial.brand || "",
-            model: initial.model || "",
-          },
-        ],
-      }
-    : null;
+  const [form, setForm] = useState(() => ({
+    assetCode: "",
+    items: [{ type: "Laptop", brand: "", model: "" }],
+    imagesExisting: [],
+    allocatedTo: "",
+    employeeId: "",
+    issuedDate: "",
+  }));
 
-  const [form, setForm] = useState(
-    () =>
-      seed || {
-        assetCode: "",
-        items: [{ type: "Laptop", brand: "", model: "" }],
-        images: [],
-        // keep assignment fields hidden so we don't lose them when editing
-        allocatedTo: "",
-        employeeId: "",
-        issuedDate: "",
-      }
-  );
+  const [newFiles, setNewFiles] = useState([]); // File[]
+  const [newPreviews, setNewPreviews] = useState([]); // object URLs
 
   const [errors, setErrors] = useState({});
-  const [saving, setSaving] = useState(false); // ✅ new
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    const seed2 = initial?.items?.length
-      ? initial
-      : initial
-      ? {
-          ...initial,
-          items: [
-            {
-              type: initial.type || "Laptop",
-              brand: initial.brand || "",
-              model: initial.model || "",
-            },
-          ],
-        }
-      : null;
+    const itemsFromInitial = initial?.items?.length
+      ? initial.items
+      : [
+          {
+            type: initial?.type || "Laptop",
+            brand: initial?.brand || "",
+            model: initial?.model || "",
+          },
+        ];
 
-    const baseForm =
-      seed2 || {
-        assetCode: "",
-        items: [{ type: "Laptop", brand: "", model: "" }],
-        images: [],
-        allocatedTo: "",
-        employeeId: "",
-        issuedDate: "",
-      };
+    const existingUrls =
+      (Array.isArray(initial?.imageUrls) && initial.imageUrls.length
+        ? initial.imageUrls
+        : Array.isArray(initial?.images)
+        ? initial.images
+        : []) || [];
 
     setForm({
-      ...baseForm,
-      // 👇 IMPORTANT: show existing URLs from DB if no `images` array
-      images:
-        Array.isArray(baseForm.images) && baseForm.images.length
-          ? baseForm.images
-          : Array.isArray(baseForm.imageUrls)
-          ? baseForm.imageUrls
-          : [],
+      assetCode: initial?.assetCode || "",
+      items: itemsFromInitial,
+      imagesExisting: existingUrls,
+      allocatedTo: initial?.allocatedTo || initial?.allottedTo || "",
+      employeeId: initial?.employeeId || initial?.emp_id || "",
+      issuedDate: initial?.issuedDate || "",
     });
+
     setErrors({});
+    setNewFiles([]);
+
+    newPreviews.forEach((u) => URL.revokeObjectURL(u));
+    setNewPreviews([]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initial, open]);
 
   const onPickImages = async (files) => {
     const arr = Array.from(files || []);
-    const readers = arr.map(
-      (f) =>
-        new Promise((resolve) => {
-          const fr = new FileReader();
-          fr.onload = () => resolve(fr.result);
-          fr.readAsDataURL(f);
-        })
-    );
-    const dataUrls = await Promise.all(readers);
-    setForm((prev) => ({
-      ...prev,
-      images: [...(prev.images || []), ...dataUrls],
-    }));
+    if (!arr.length) return;
+
+    setNewFiles((prev) => [...prev, ...arr]);
+
+    const previews = arr.map((f) => URL.createObjectURL(f));
+    setNewPreviews((prev) => [...prev, ...previews]);
   };
 
   const removeImage = (idx) => {
-    setForm((prev) => ({
-      ...prev,
-      images: prev.images.filter((_, i) => i !== idx),
-    }));
+    setForm((prev) => {
+      const ex = prev.imagesExisting;
+      if (idx < ex.length) {
+        return {
+          ...prev,
+          imagesExisting: ex.filter((_, i) => i !== idx),
+        };
+      }
+      return prev;
+    });
+
+    setNewFiles((prev) => {
+      const existingCount = form.imagesExisting.length;
+      if (idx >= existingCount) {
+        const removeIndex = idx - existingCount;
+        return prev.filter((_, i) => i !== removeIndex);
+      }
+      return prev;
+    });
+
+    setNewPreviews((prev) => {
+      const existingCount = form.imagesExisting.length;
+      if (idx >= existingCount) {
+        const removeIndex = idx - existingCount;
+        URL.revokeObjectURL(prev[removeIndex]);
+        return prev.filter((_, i) => i !== removeIndex);
+      }
+      return prev;
+    });
   };
 
   const addItem = () =>
@@ -374,75 +394,50 @@ function AddEditDialog({ open, onClose, initial, onSaved, allAssets }) {
 
   const removeItem = (idx) =>
     setForm((prev) => {
-      const next = prev.items.filter((_, i) => i !== idx);
+      const filtered = prev.items.filter((_, i) => i !== idx);
       return {
         ...prev,
-        items: next.length ? next : [{ type: "Laptop", brand: "", model: "" }],
+        items: filtered.length
+          ? filtered
+          : [{ type: "Laptop", brand: "", model: "" }],
       };
     });
 
   const patchItem = (idx, patch) =>
     setForm((prev) => {
-      const next = [...prev.items];
-      next[idx] = { ...next[idx], ...patch };
-      return { ...prev, items: next };
+      const arr = [...prev.items];
+      arr[idx] = { ...arr[idx], ...patch };
+      return { ...prev, items: arr };
     });
 
   const validate = () => {
     const e = {};
     if (!form.assetCode.trim()) e.assetCode = "Asset Code is required";
-    const assetCodeTaken = allAssets.some(
+
+    const duplicate = allAssets.some(
       (a) =>
         (initial?._id ? a._id !== initial._id : true) &&
-        a.assetCode.trim().toLowerCase() ===
+        a.assetCode?.trim().toLowerCase() ===
           form.assetCode.trim().toLowerCase()
     );
-    if (form.assetCode && assetCodeTaken)
-      e.assetCode = "This Asset Code is already in use";
-    if (!form.items?.length) e.items = "Add at least one item";
-    if (form.items?.some((it) => !it?.type))
-      e.items = "Each item must have a Type";
+    if (duplicate) e.assetCode = "This Asset Code is already in use";
+
+    if (!form.items.length) e.items = "Add at least one item";
+
     setErrors(e);
     return Object.keys(e).length === 0;
   };
 
-  // helper: convert dataURL -> File for Wasabi upload
-  const dataURLToFile = (dataUrl, filename) => {
-    if (!dataUrl.startsWith("data:")) return null;
-    const [meta, content] = dataUrl.split(",");
-    const mimeMatch = meta.match(/data:(.*?);base64/);
-    const mime = mimeMatch ? mimeMatch[1] : "image/png";
-    const binary = window.atob(content);
-    const len = binary.length;
-    const u8 = new Uint8Array(len);
-    for (let i = 0; i < len; i++) u8[i] = binary.charCodeAt(i);
-    return new File([u8], filename, { type: mime });
-  };
-
-  // ✅ uses localStorage directly (no loadLS / saveLS / LS_KEY)
   const save = async () => {
     if (!validate()) return;
 
-    setSaving(true); // start loading
+    setSaving(true);
     try {
-      const mainItem = form.items[0] || {};
-
-      const name = mainItem.type || "Asset";
-      const brand = mainItem.brand || "";
-      const model = mainItem.model || "NA";
-      const company = brand || "NA"; // backend needs company
-
-      // 1) Upload images to Wasabi (if any)
-      let imageUrls = [];
-      if (form.images && form.images.length) {
+      // 1) Upload NEW files only (fast)
+      let uploadedUrls = [];
+      if (newFiles.length) {
         const fd = new FormData();
-        form.images.forEach((src, idx) => {
-          const file = dataURLToFile(
-            src,
-            `${form.assetCode || "asset"}-${idx + 1}.png`
-          );
-          if (file) fd.append("files", file);
-        });
+        newFiles.forEach((f) => fd.append("files", f));
         fd.append(
           "prefix",
           `asset-inventory/${(form.assetCode || "asset")
@@ -450,20 +445,25 @@ function AddEditDialog({ open, onClose, initial, onSaved, allAssets }) {
             .toLowerCase()}`
         );
 
-        const uploadRes = await axios.post(
+        const res = await axios.post(
           `${API_BASE_URL}/api/assets/upload`,
           fd,
-          {
-            headers: { "Content-Type": "multipart/form-data" },
-          }
+          { headers: { "Content-Type": "multipart/form-data" } }
         );
 
-        imageUrls = Array.isArray(uploadRes.data?.urls)
-          ? uploadRes.data.urls
-          : [];
+        uploadedUrls = Array.isArray(res.data?.urls) ? res.data.urls : [];
       }
 
-      // 2) Build payload exactly as backend expects
+      // 2) Combine existing + uploaded
+      const imageUrls = [...(form.imagesExisting || []), ...uploadedUrls];
+
+      // 3) Build payload (same structure as backend expects)
+      const first = form.items[0] || {};
+      const name = first.type || "Asset";
+      const brand = first.brand || "";
+      const model = first.model || "NA";
+      const company = brand || "NA";
+
       const payload = {
         name,
         company,
@@ -473,27 +473,28 @@ function AddEditDialog({ open, onClose, initial, onSaved, allAssets }) {
         imageUrls,
         allottedTo: form.allocatedTo?.trim() || "",
         emp_id: form.employeeId?.trim() || "",
+        issuedDate: form.issuedDate || "",
       };
 
-      // 3) Create / Update in DB
       if (initial?._id) {
         await axios.put(`${API_BASE_URL}/api/assets/${initial._id}`, payload);
       } else {
         await axios.post(`${API_BASE_URL}/api/assets`, payload);
       }
 
-      // 4) Refresh list from DB in parent
       onSaved?.();
-
-      // 5) Close dialog
       onClose?.();
     } catch (err) {
       console.error("Save asset API error:", err);
-      // If API fails, we don't touch local UI; just show in console / snack from parent if needed
     } finally {
-      setSaving(false); // stop loading
+      setSaving(false);
     }
   };
+
+  const combinedImages = useMemo(
+    () => [...(form.imagesExisting || []), ...(newPreviews || [])],
+    [form.imagesExisting, newPreviews]
+  );
 
   return (
     <Dialog
@@ -508,7 +509,6 @@ function AddEditDialog({ open, onClose, initial, onSaved, allAssets }) {
       </DialogTitle>
 
       <DialogContent dividers sx={{ p: { xs: 2, sm: 2.5 } }}>
-        {/* Asset Details (inventory only) */}
         <Paper variant="outlined" sx={{ p: 2, borderRadius: 2, mb: 1.5 }}>
           <Stack
             direction={{ xs: "column", md: "row" }}
@@ -529,7 +529,6 @@ function AddEditDialog({ open, onClose, initial, onSaved, allAssets }) {
           </Stack>
         </Paper>
 
-        {/* Items */}
         <Paper variant="outlined" sx={{ p: 2, borderRadius: 2, mb: 1.5 }}>
           <SectionHeader
             title="Asset Items"
@@ -563,24 +562,28 @@ function AddEditDialog({ open, onClose, initial, onSaved, allAssets }) {
                   spacing={1}
                   alignItems={{ md: "center" }}
                 >
-                  <FormControl fullWidth sx={{ minWidth: 180 }}>
-                    <InputLabel>Type</InputLabel>
-                    <Select
-                      label="Type"
-                      value={it.type}
-                      onChange={(e) =>
-                        patchItem(idx, { type: e.target.value })
-                      }
-                    >
-                      {TYPES.map((t) => (
-                        <MenuItem key={t} value={t}>
-                          {t}
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
+                  {/* TYPE NOW AS AUTOCOMPLETE WITH FREE INPUT + OPTIONS */}
+                  <Autocomplete
+                    fullWidth
+                    size="small"
+                    freeSolo
+                    options={TYPES}
+                    value={it.type || ""}
+                    onChange={(_e, newValue) =>
+                      patchItem(idx, { type: newValue || "" })
+                    }
+                    onInputChange={(_e, newInput) =>
+                      patchItem(idx, { type: newInput || "" })
+                    }
+                    renderInput={(params) => (
+                      <TextField
+                        {...params}
+                        label="Type"
+                        placeholder="e.g., Laptop"
+                      />
+                    )}
+                  />
 
-                  {/* Brand as dropdown + free text (Autocomplete) */}
                   <Autocomplete
                     fullWidth
                     size="small"
@@ -606,7 +609,9 @@ function AddEditDialog({ open, onClose, initial, onSaved, allAssets }) {
                     label="Model"
                     placeholder="e.g., Latitude 5440"
                     value={it.model}
-                    onChange={(e) => patchItem(idx, { model: e.target.value })}
+                    onChange={(e) =>
+                      patchItem(idx, { model: e.target.value })
+                    }
                     fullWidth
                   />
                   <Tooltip title="Remove item">
@@ -631,11 +636,10 @@ function AddEditDialog({ open, onClose, initial, onSaved, allAssets }) {
           </Stack>
         </Paper>
 
-        {/* Images */}
         <Paper variant="outlined" sx={{ p: 2, borderRadius: 2 }}>
           <SectionHeader title="Images" />
           <Uploader
-            images={form.images}
+            images={combinedImages}
             onPick={onPickImages}
             onRemove={removeImage}
           />
@@ -653,6 +657,7 @@ function AddEditDialog({ open, onClose, initial, onSaved, allAssets }) {
     </Dialog>
   );
 }
+
 /* ------------------------ Assign Dialog (per row) ------------------------ */
 function AssignDialog({
   open,
@@ -671,8 +676,8 @@ function AssignDialog({
   useEffect(() => {
     if (asset) {
       setForm({
-        allocatedTo: asset.allocatedTo || "",
-        employeeId: asset.employeeId || "",
+        allocatedTo: asset.allocatedTo || asset.allottedTo || "",
+        employeeId: asset.employeeId || asset.emp_id || "",
         issuedDate: asset.issuedDate ? asset.issuedDate.slice(0, 10) : "",
       });
     }
@@ -775,25 +780,43 @@ function AssignDialog({
     </Dialog>
   );
 }
-// 👇 put this above `return (` inside the map callback
-// const isAssigned = !!(
-//   a.allocatedTo ||
-//   a.allottedTo ||   // from DB
-//   a.employeeId ||
-//   a.emp_id          // from DB
-// );
+const getThumb = (url) => {
+  if (!url) return "";
+
+  // 🔹 Do NOT touch local URLs (blob:, data:)
+  if (url.startsWith("blob:") || url.startsWith("data:")) {
+    return url;
+  }
+
+  // 🔹 Only add params for real HTTP(S) URLs
+  const sep = url.includes("?") ? "&" : "?";
+  return `${url}${sep}width=150&quality=70`;
+};
+
+
+
+
 
 /* ------------------------ Main Component ------------------------ */
 export default function AssetsManagerRole() {
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(20);
 
-  const [items, setItems] = useState([]); // from DB now
+  const [items, setItems] = useState([]);
+ const [total, setTotal] = useState(0);
+ const [stats, setStats] = useState({
+  all: 0,
+  assigned: 0,
+  unassigned: 0,
+  faulty: 0,
+});
+
   const [loadingAssets, setLoadingAssets] = useState(false);
 
   const [addOpen, setAddOpen] = useState(false);
   const [editAsset, setEditAsset] = useState(null);
   const [assignAsset, setAssignAsset] = useState(null);
+
 
   const [snack, setSnack] = useState({
     open: false,
@@ -830,7 +853,6 @@ export default function AssetsManagerRole() {
   const [faultyRemark, setFaultyRemark] = useState("");
   const [faultyError, setFaultyError] = useState("");
 
-  // Fetch employees once
   useEffect(() => {
     const fetchEmployees = async () => {
       try {
@@ -846,19 +868,32 @@ export default function AssetsManagerRole() {
     };
     fetchEmployees();
   }, []);
-// 👇 put this above `return (` inside the map callback
-// const isAssigned = !!(
-//   a.allocatedTo ||
-//   a.allottedTo ||   // from DB
-//   a.employeeId ||
-//   a.emp_id          // from DB
-// );
 
-const fetchAssets = async () => {
+const fetchAssets = useCallback(async () => {
   try {
     setLoadingAssets(true);
-    const res = await axios.get(`${API_BASE_URL}/api/assets`);
-    const data = Array.isArray(res.data) ? res.data : [];
+
+    const params = {
+      page: page + 1, // backend is 1-based
+      limit: rowsPerPage,
+      q: q || undefined,
+      type: typeFilter || undefined,
+      assigned: assignedFilter || undefined,
+    };
+
+    if (employeeFilter) {
+      params.employeeName = employeeFilter.name || undefined;
+      params.employeeId = employeeFilter.employeeId || undefined;
+    }
+
+    const res = await axios.get(`${API_BASE_URL}/api/assets`, { params });
+
+    // Support both new {items,total} and old [array] shape for safety
+    const data = Array.isArray(res.data?.items)
+      ? res.data.items
+      : Array.isArray(res.data)
+      ? res.data
+      : [];
 
     const mapped = data.map((a) => ({
       ...a,
@@ -867,6 +902,10 @@ const fetchAssets = async () => {
     }));
 
     setItems(mapped);
+
+    const backendTotal =
+      typeof res.data?.total === "number" ? res.data.total : mapped.length;
+    setTotal(backendTotal);
   } catch (err) {
     console.error("Failed to fetch assets", err);
     setSnack({
@@ -877,13 +916,51 @@ const fetchAssets = async () => {
   } finally {
     setLoadingAssets(false);
   }
-};
+}, [page, rowsPerPage, q, typeFilter, employeeFilter, assignedFilter]);;
 
 
 
-  useEffect(() => {
-    fetchAssets();
-  }, []);
+useEffect(() => {
+  fetchAssets();
+}, [fetchAssets]);
+// useEffect(() => {
+//   setPage(0);
+//   fetchAssets();
+// }, [q, typeFilter, employeeFilter, assignedFilter]);
+const fetchStats = useCallback(async () => {
+  try {
+    const params = {
+      q: q || undefined,
+      type: typeFilter || undefined,
+    };
+
+    if (employeeFilter) {
+      params.employeeName = employeeFilter.name || undefined;
+      params.employeeId = employeeFilter.employeeId || undefined;
+    }
+
+    const res = await axios.get(`${API_BASE_URL}/api/assets/stats`, {
+      params,
+    });
+
+    const { total, assigned, unassigned, faulty } = res.data || {};
+
+    setStats({
+      all: typeof total === "number" ? total : 0,
+      assigned: typeof assigned === "number" ? assigned : 0,
+      unassigned: typeof unassigned === "number" ? unassigned : 0,
+      faulty: typeof faulty === "number" ? faulty : 0,
+    });
+  } catch (err) {
+    console.error("Failed to fetch asset stats", err);
+    // no snackbar needed; not critical for table
+  }
+}, [q, typeFilter, employeeFilter]);
+
+useEffect(() => {
+  fetchStats();
+}, [fetchStats]);
+
 
   const getItemsArr = (a) => {
     if (Array.isArray(a.items) && a.items.length) return a.items;
@@ -903,7 +980,6 @@ const fetchAssets = async () => {
     ];
   };
 
-  // active employees (for filter)
   const activeEmployees = useMemo(() => {
     const active = employeeList.filter(
       (e) => e.isActive || e.active || e.status === "Active"
@@ -911,80 +987,16 @@ const fetchAssets = async () => {
     return active.length ? active : employeeList;
   }, [employeeList]);
 
-  const totalAssigned = useMemo(
-    () => items.filter((a) => a.allocatedTo || a.employeeId).length,
-    [items]
-  );
-  const totalFaulty = useMemo(
-    () => items.filter((a) => !!a.isFaulty).length,
-    [items]
-  );
-  const totalUnassigned = useMemo(
-    () => items.filter((a) => !a.allocatedTo && !a.employeeId).length,
-    [items]
-  );
+ 
 
-  const filtered = useMemo(() => {
-    const needle = q.trim().toLowerCase();
 
-    let arr =
-      assignedFilter === "FAULTY"
-        ? items.filter((a) => !!a.isFaulty)
-        : items.filter((a) => !a.isFaulty);
 
-    if (needle) {
-      arr = arr.filter((a) => {
-        const allItems = getItemsArr(a);
-        const hay = [
-          a.assetCode,
-          a.allocatedTo,
-          a.employeeId,
-          ...allItems.map((x) => x?.type || ""),
-          ...allItems.map((x) => x?.brand || ""),
-          ...allItems.map((x) => x?.model || ""),
-        ]
-          .join(" ")
-          .toLowerCase();
-        return hay.includes(needle);
-      });
-    }
 
-    if (typeFilter) {
-      const t = typeFilter.trim().toLowerCase();
-      arr = arr.filter((a) =>
-        getItemsArr(a).some(
-          (it) => (it.type || "").trim().toLowerCase() === t
-        )
-      );
-    }
+const paged = items;
+const totalItems = total;
 
-    if (employeeFilter) {
-      const fName = (employeeFilter.name || "").trim().toLowerCase();
-      const fId = (employeeFilter.employeeId || "").trim().toLowerCase();
 
-      arr = arr.filter((a) => {
-        const aName = (a.allocatedTo || "").trim().toLowerCase();
-        const aId = (a.employeeId || "").trim().toLowerCase();
-        const nameMatch = fName && aName === fName;
-        const idMatch = fId && aId === fId;
-        return nameMatch || idMatch;
-      });
-    }
 
-    if (assignedFilter === "ASSIGNED") {
-      arr = arr.filter((a) => a.allocatedTo || a.employeeId);
-    } else if (assignedFilter === "UNASSIGNED") {
-      arr = arr.filter((a) => !a.allocatedTo && !a.employeeId);
-    }
-
-    return arr;
-  }, [items, q, typeFilter, employeeFilter, assignedFilter]);
-
-  const total = filtered.length;
-  const paged = useMemo(() => {
-    const start = page * rowsPerPage;
-    return filtered.slice(start, start + rowsPerPage);
-  }, [filtered, page, rowsPerPage]);
 
   const onSaved = () => {
     fetchAssets();
@@ -1026,7 +1038,6 @@ const fetchAssets = async () => {
         payload
       );
 
-      // Use server response so DB + UI are in sync (keeps old behaviour, just more accurate)
       setItems((prev) =>
         prev.map((a) =>
           a._id === assetId
@@ -1068,7 +1079,6 @@ const fetchAssets = async () => {
     return Array.from(map.entries());
   };
 
-  // History dialog – same as before, using assetCode
   const openHistoryDialog = async (asset) => {
     if (!asset?.assetCode) return;
 
@@ -1135,7 +1145,6 @@ const fetchAssets = async () => {
       const existing = items.find((a) => a._id === assetId);
       if (!existing) return;
 
-      // 1️⃣ Update local state only (no localStorage)
       setItems((prev) =>
         prev.map((a) =>
           a._id === assetId
@@ -1144,9 +1153,7 @@ const fetchAssets = async () => {
         )
       );
 
-      // 2️⃣ ALSO sync assignment into DB (Assets collection)
       try {
-        // Build same kind of payload that AddEditDialog uses
         const itemsArr = getItemsArr(existing);
         const first = itemsArr[0] || {};
 
@@ -1181,7 +1188,6 @@ const fetchAssets = async () => {
         console.error("Failed to sync assignment to DB", e);
       }
 
-      // 3️⃣ Map allocatedTo (employee name) -> Employee Mongo _id (for allotment)
       let employeeMongoId = null;
       if (payload.allocatedTo) {
         try {
@@ -1202,7 +1208,6 @@ const fetchAssets = async () => {
         }
       }
 
-      // 4️⃣ If we found a matching Employee, create an entry in Asset Allotment
       if (employeeMongoId) {
         const updatedAsset = { ...existing, ...payload };
 
@@ -1220,7 +1225,7 @@ const fetchAssets = async () => {
         const model2 = first2.model || updatedAsset.model || "NA";
 
         const allotmentPayload = {
-          employeeId: employeeMongoId, // Mongo _id
+          employeeId: employeeMongoId,
           name: name2,
           company: company2,
           model: model2,
@@ -1255,10 +1260,8 @@ const fetchAssets = async () => {
     }
   };
 
-
   return (
     <Box sx={{ p: { xs: 1.5, md: 2.5 } }}>
-      {/* Header / Controls */}
       <Paper
         elevation={0}
         sx={{
@@ -1293,7 +1296,6 @@ const fetchAssets = async () => {
             </Button>
           </Stack>
 
-          {/* Filters row */}
           <Stack
             direction={{ xs: "column", md: "row" }}
             spacing={1.25}
@@ -1401,62 +1403,56 @@ const fetchAssets = async () => {
                 justifyContent: { xs: "flex-start", md: "flex-end" },
               }}
             >
-              <Chip
-                label={`All (${items.length})`}
-                size="small"
-                clickable
-                color={assignedFilter === "ALL" ? "primary" : "default"}
-                variant={assignedFilter === "ALL" ? "filled" : "outlined"}
-                onClick={() => {
-                  setAssignedFilter("ALL");
-                  setPage(0);
-                }}
-              />
-              <Chip
-                label={`Assigned (${totalAssigned})`}
-                size="small"
-                clickable
-                color={assignedFilter === "ASSIGNED" ? "primary" : "default"}
-                variant={
-                  assignedFilter === "ASSIGNED" ? "filled" : "outlined"
-                }
-                onClick={() => {
-                  setAssignedFilter("ASSIGNED");
-                  setPage(0);
-                }}
-              />
-              <Chip
-                label={`Unassigned (${totalUnassigned})`}
-                size="small"
-                clickable
-                color={
-                  assignedFilter === "UNASSIGNED" ? "primary" : "default"
-                }
-                variant={
-                  assignedFilter === "UNASSIGNED" ? "filled" : "outlined"
-                }
-                onClick={() => {
-                  setAssignedFilter("UNASSIGNED");
-                  setPage(0);
-                }}
-              />
-              <Chip
-                label={`Faulty (${totalFaulty})`}
-                size="small"
-                clickable
-                color={assignedFilter === "FAULTY" ? "primary" : "default"}
-                variant={assignedFilter === "FAULTY" ? "filled" : "outlined"}
-                onClick={() => {
-                  setAssignedFilter("FAULTY");
-                  setPage(0);
-                }}
-              />
+   <Chip
+  label={`All (${stats.all})`}
+  size="small"
+  clickable
+  color={assignedFilter === "ALL" ? "primary" : "default"}
+  variant={assignedFilter === "ALL" ? "filled" : "outlined"}
+  onClick={() => {
+    setAssignedFilter("ALL");
+    setPage(0);
+  }}
+/>
+<Chip
+  label={`Assigned (${stats.assigned})`}
+  size="small"
+  clickable
+  color={assignedFilter === "ASSIGNED" ? "primary" : "default"}
+  variant={assignedFilter === "ASSIGNED" ? "filled" : "outlined"}
+  onClick={() => {
+    setAssignedFilter("ASSIGNED");
+    setPage(0);
+  }}
+/>
+<Chip
+  label={`Unassigned (${stats.unassigned})`}
+  size="small"
+  clickable
+  color={assignedFilter === "UNASSIGNED" ? "primary" : "default"}
+  variant={assignedFilter === "UNASSIGNED" ? "filled" : "outlined"}
+  onClick={() => {
+    setAssignedFilter("UNASSIGNED");
+    setPage(0);
+  }}
+/>
+<Chip
+  label={`Faulty (${stats.faulty})`}
+  size="small"
+  clickable
+  color={assignedFilter === "FAULTY" ? "primary" : "default"}
+  variant={assignedFilter === "FAULTY" ? "filled" : "outlined"}
+  onClick={() => {
+    setAssignedFilter("FAULTY");
+    setPage(0);
+  }}
+/>
+
             </Stack>
           </Stack>
         </Stack>
       </Paper>
 
-      {/* Table */}
       <TableContainer
         component={Paper}
         variant="outlined"
@@ -1481,7 +1477,13 @@ const fetchAssets = async () => {
               <TableCell sx={{ width: 180 }}>Asset Code</TableCell>
               <TableCell sx={{ width: 180 }}>Types</TableCell>
               <TableCell sx={{ width: 320 }}>Model</TableCell>
-              <TableCell sx={{ width: 200 }}>Images</TableCell>
+<TableCell sx={{ width: 200 }}>
+  Images
+  <Typography variant="caption" color="text.secondary" component="div">
+   
+  </Typography>
+</TableCell>
+
               <TableCell sx={{ width: 220 }}>Assign</TableCell>
               <TableCell sx={{ width: 140 }}>History</TableCell>
               <TableCell sx={{ width: 180 }}>Faulty</TableCell>
@@ -1500,8 +1502,7 @@ const fetchAssets = async () => {
                 </TableCell>
               </TableRow>
             ) : (
-              paged.map((a) => {
-                // prefer "images"; if empty, fall back to "imageUrls" from DB
+                items.map((a)=> {
                 const imgs =
                   Array.isArray(a.images) && a.images.length
                     ? a.images
@@ -1514,12 +1515,14 @@ const fetchAssets = async () => {
 
                 const first3Imgs = imgs.slice(0, 3);
                 const moreImgs = Math.max(imgs.length - 3, 0);
-const isAssigned = !!(
-    a.allocatedTo ||
-    a.allottedTo ||
-    a.employeeId ||
-    a.emp_id
-  );
+
+                const isAssigned = !!(
+                  a.allocatedTo ||
+                  a.allottedTo ||
+                  a.employeeId ||
+                  a.emp_id
+                );
+
                 return (
                   <TableRow
                     key={a._id}
@@ -1571,113 +1574,96 @@ const isAssigned = !!(
                       </Stack>
                     </TableCell>
 
-                    <TableCell>
-                      {imgs.length ? (
-                        <Stack direction="row" spacing={1} alignItems="center">
-                          {first3Imgs.map((src, idx) => (
-                            <Tooltip
-                              key={`${a._id}-${idx}`}
-                              title="Click to open in new tab"
-                            >
-                              <Avatar
-                                variant="rounded"
-                                src={src}
-                                sx={{
-                                  width: 34,
-                                  height: 34,
-                                  border: "1px solid",
-                                  borderColor: "divider",
-                                  cursor: "pointer",
-                                }}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  window.open(
-                                    src,
-                                    "_blank",
-                                    "noopener,noreferrer"
-                                  );
-                                }}
-                              />
-                            </Tooltip>
-                          ))}
-
-                          {moreImgs > 0 && (
-                            <Badge badgeContent={`+${moreImgs}`} color="primary">
-                              <Avatar
-                                variant="rounded"
-                                sx={{
-                                  width: 34,
-                                  height: 34,
-                                  border: "1px dashed",
-                                  borderColor: "divider",
-                                  bgcolor: "background.paper",
-                                  cursor: "pointer",
-                                  fontSize: 12,
-                                }}
-                                onClick={() =>
-                                  setGallery({
-                                    open: true,
-                                    images: imgs,
-                                    title: `${a.assetCode} • Images`,
-                                  })
-                                }
-                              >
-                                <ImageIcon fontSize="small" />
-                              </Avatar>
-                            </Badge>
-                          )}
-                        </Stack>
-                      ) : (
-                        <Typography variant="caption" color="text.secondary">
-                          No images
-                        </Typography>
-                      )}
-                    </TableCell>
-
-  <TableCell>
-  <Stack spacing={0.5}>
-    {!isAssigned ? (
-      <Button
-        size="small"
-        variant="contained"
-        onClick={() => setAssignAsset(a)}
-      >
-        Assign
-      </Button>
-    ) : (
-      <Typography variant="body2" sx={{ fontWeight: 600 }}>
-        Assigned
-      </Typography>
-    )}
-
-    {isAssigned && (
-      <Stack spacing={0.25}>
-        <Stack direction="row" spacing={0.5} alignItems="center">
-          <PersonIcon fontSize="small" color="primary" />
-          <Typography variant="body2" sx={{ fontWeight: 600 }}>
-            {a.allocatedTo || a.allottedTo || "-"}
-          </Typography>
-        </Stack>
-
-        {(a.employeeId || a.emp_id) && (
-          <Stack direction="row" spacing={0.5} alignItems="center">
-            <BadgeIcon fontSize="small" sx={{ fontSize: 14 }} color="action" />
-            <Typography variant="caption" color="text.secondary">
-              {a.employeeId || a.emp_id}
-            </Typography>
-          </Stack>
-        )}
-
-        {a.issuedDate && (
-          <Typography variant="caption" color="text.secondary">
-            Issued: {fmtDate(a.issuedDate)}
-          </Typography>
-        )}
-      </Stack>
-    )}
-  </Stack>
+           <TableCell>
+  {imgs.length ? (
+    <Button
+      size="small"
+      variant="outlined"
+      onClick={() =>
+        setGallery({
+          open: true,
+          images: imgs,
+          title: `${a.assetCode} • Images`,
+        })
+      }
+    >
+      View Images ({imgs.length})
+    </Button>
+  ) : (
+    <Typography variant="caption" color="text.secondary">
+      No images
+    </Typography>
+  )}
 </TableCell>
 
+
+                    <TableCell>
+                      <Stack spacing={0.5}>
+                        {!isAssigned ? (
+                          <Button
+                            size="small"
+                            variant="contained"
+                            onClick={() => setAssignAsset(a)}
+                          >
+                            Assign
+                          </Button>
+                        ) : (
+                          <Typography
+                            variant="body2"
+                            sx={{ fontWeight: 600 }}
+                          >
+                            Assigned
+                          </Typography>
+                        )}
+
+                        {isAssigned && (
+                          <Stack spacing={0.25}>
+                            <Stack
+                              direction="row"
+                              spacing={0.5}
+                              alignItems="center"
+                            >
+                              <PersonIcon fontSize="small" color="primary" />
+                              <Typography
+                                variant="body2"
+                                sx={{ fontWeight: 600 }}
+                              >
+                                {a.allocatedTo || a.allottedTo || "-"}
+                              </Typography>
+                            </Stack>
+
+                            {(a.employeeId || a.emp_id) && (
+                              <Stack
+                                direction="row"
+                                spacing={0.5}
+                                alignItems="center"
+                              >
+                                <BadgeIcon
+                                  fontSize="small"
+                                  sx={{ fontSize: 14 }}
+                                  color="action"
+                                />
+                                <Typography
+                                  variant="caption"
+                                  color="text.secondary"
+                                >
+                                  {a.employeeId || a.emp_id}
+                                </Typography>
+                              </Stack>
+                            )}
+
+                            {a.issuedDate && (
+                              <Typography
+                                variant="caption"
+                                color="text.secondary"
+                              >
+                                Issued: {fmtDate(a.issuedDate)}
+                              </Typography>
+                            )}
+                          </Stack>
+                        )}
+                      </Stack>
+                    </TableCell>
 
                     <TableCell>
                       <Button
@@ -1696,7 +1682,6 @@ const isAssigned = !!(
                           checked={!!a.isFaulty}
                           onChange={(_, v) => {
                             if (v) {
-                              // turning ON -> open dialog, remark required
                               setFaultyDialog({
                                 open: true,
                                 asset: a,
@@ -1705,7 +1690,6 @@ const isAssigned = !!(
                               setFaultyRemark("");
                               setFaultyError("");
                             } else {
-                              // turning OFF -> no remark required
                               toggleFaulty(a._id, false);
                             }
                           }}
@@ -1749,7 +1733,7 @@ const isAssigned = !!(
               })
             )}
 
-            {!loadingAssets && !paged.length && (
+          {!loadingAssets && !items.length &&(
               <TableRow>
                 <TableCell colSpan={8} align="center" sx={{ py: 8 }}>
                   <Stack
@@ -1771,22 +1755,23 @@ const isAssigned = !!(
 
         <Divider />
 
-        <TablePagination
-          component="div"
-          count={total}
-          page={page}
-          onPageChange={(_, p) => setPage(p)}
-          rowsPerPage={rowsPerPage}
-          onRowsPerPageChange={(e) => {
-            setRowsPerPage(parseInt(e.target.value, 10));
-            setPage(0);
-          }}
-          rowsPerPageOptions={[10, 20, 50]}
-          sx={{ px: 2 }}
-        />
+<TablePagination
+  component="div"
+  count={total}
+  page={page}
+  rowsPerPage={rowsPerPage}
+  onPageChange={(_, p) => {
+    setPage(p);         // effect will trigger fetchAssets
+  }}
+  onRowsPerPageChange={(e) => {
+    setRowsPerPage(parseInt(e.target.value, 10));
+    setPage(0);
+  }}
+/>
+
+
       </TableContainer>
 
-      {/* Add / Edit */}
       <AddEditDialog
         open={addOpen || !!editAsset}
         onClose={() => {
@@ -1798,7 +1783,6 @@ const isAssigned = !!(
         allAssets={items}
       />
 
-      {/* Assign */}
       <AssignDialog
         open={!!assignAsset}
         onClose={() => setAssignAsset(null)}
@@ -1808,7 +1792,6 @@ const isAssigned = !!(
         onSaveAssign={handleAssignSave}
       />
 
-      {/* Gallery */}
       <ImageGalleryDialog
         open={gallery.open}
         images={gallery.images}
@@ -1816,7 +1799,6 @@ const isAssigned = !!(
         onClose={() => setGallery({ open: false, images: [], title: "" })}
       />
 
-      {/* History Dialog */}
       <Dialog
         open={historyDialog.open}
         onClose={closeHistoryDialog}
@@ -1988,29 +1970,38 @@ const isAssigned = !!(
                               ? h.allotmentImageUrls
                               : []
                             ).length ? (
-                              h.allotmentImageUrls.map((url, i) => (
-                                <Avatar
-                                  key={`a-${i}`}
-                                  src={url}
-                                  variant="rounded"
-                                  sx={{
-                                    width: 40,
-                                    height: 40,
-                                    borderRadius: 1.5,
-                                    mr: 0.5,
-                                    mb: 0.5,
-                                    cursor: "pointer",
-                                  }}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    window.open(
-                                      url,
-                                      "_blank",
-                                      "noopener,noreferrer"
-                                    );
-                                  }}
-                                />
-                              ))
+   h.allotmentImageUrls.map((url, i) => (
+  <Box
+    key={i}
+    sx={{
+      width: 40,
+      height: 40,
+      borderRadius: 1.5,
+      overflow: "hidden",
+      mr: 0.5,
+      mb: 0.5,
+    }}
+  >
+    <img
+      src={getThumb(url)}
+      alt="assign-img"
+      loading="lazy"
+      decoding="async"
+      style={{
+        width: "100%",
+        height: "100%",
+        objectFit: "cover",
+        display: "block",
+        cursor: "pointer",
+      }}
+      onClick={(e) => {
+        e.stopPropagation();
+        window.open(url, "_blank", "noopener,noreferrer");
+      }}
+    />
+  </Box>
+))
+
                             ) : (
                               <Typography
                                 variant="caption"
@@ -2044,6 +2035,7 @@ const isAssigned = !!(
                                   key={`r-${i}`}
                                   src={url}
                                   variant="rounded"
+                                  imgProps={{ loading: "lazy" }}
                                   sx={{
                                     width: 40,
                                     height: 40,
@@ -2096,7 +2088,6 @@ const isAssigned = !!(
         </Alert>
       </Snackbar>
 
-      {/* Faulty Remark Dialog */}
       <Dialog
         open={faultyDialog.open}
         onClose={() =>
@@ -2159,3 +2150,5 @@ const isAssigned = !!(
     </Box>
   );
 }
+
+

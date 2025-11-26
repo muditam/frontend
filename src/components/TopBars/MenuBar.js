@@ -33,6 +33,7 @@ import EmailIcon from "@mui/icons-material/Email";
 import PhoneInTalkIcon from "@mui/icons-material/PhoneInTalk";
 import AssignmentReturnedIcon from "@mui/icons-material/AssignmentReturned";
 import CheckBoxIcon from "@mui/icons-material/CheckBox";
+import ReceiptLongIcon from "@mui/icons-material/ReceiptLong"; 
 import AnalyticsIcon from "@mui/icons-material/Analytics";
 import { Link, useNavigate } from "react-router-dom";
 
@@ -217,7 +218,7 @@ const MenuBar = ({ toggleDrawer }) => {
             to="/invoices"
             onClick={toggleDrawer}
           >
-            <DescriptionIcon sx={{ marginRight: "12px" }} />
+            <ReceiptLongIcon sx={{ marginRight: "12px" }} />
             <Typography variant="body1" style={{ fontSize: "14px" }}>
               Invoices
             </Typography>
@@ -382,7 +383,7 @@ const MenuBar = ({ toggleDrawer }) => {
           >
             <LocalShippingIcon sx={{ marginRight: "12px" }} />
             <Typography variant="body1" style={{ fontSize: "14px" }}>
-              Admin Access Requests
+              Unassigned Delivered Orders
             </Typography>
           </ListItem>
         )}

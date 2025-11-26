@@ -331,8 +331,8 @@ const TaskColumn = ({
     <Paper
       elevation={1}
       sx={{
-        minWidth: 260,
-        maxWidth: 260,
+        minWidth: 290,
+        maxWidth: 290,
         mr: 2,
         borderRadius: 3,
         bgcolor: "#ffffff",
@@ -662,7 +662,15 @@ const TaskDialog = ({
 );
 
 // ---------- Assign Task Dialog ----------
-const AssignTaskDialog = ({ open, onClose, onSave, employees, currentUser, assigning, }) => {
+// ---------- Assign Task Dialog ----------
+const AssignTaskDialog = ({
+  open,
+  onClose,
+  onSave,
+  employees,
+  currentUser,
+  assigning,
+}) => {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [dueDate, setDueDate] = useState("");
@@ -671,6 +679,10 @@ const AssignTaskDialog = ({ open, onClose, onSave, employees, currentUser, assig
   );
   const [assignee, setAssignee] = useState(null);
 
+  // 🔁 NEW: recurring state
+  const [recurring, setRecurring] = useState(false);
+  const [recurringInterval, setRecurringInterval] = useState("DAILY");
+
   useEffect(() => {
     if (open) {
       setTitle("");
@@ -678,6 +690,8 @@ const AssignTaskDialog = ({ open, onClose, onSave, employees, currentUser, assig
       setDueDate("");
       setAssignedDate(new Date().toISOString().slice(0, 10));
       setAssignee(null);
+      setRecurring(false);              // reset
+      setRecurringInterval("DAILY");    // reset
     }
   }, [open]);
 
@@ -695,6 +709,9 @@ const AssignTaskDialog = ({ open, onClose, onSave, employees, currentUser, assig
       assignedById: currentUser?._id || currentUser?.id,
       assignedByName: currentUser?.fullName || currentUser?.name || "",
       status: COLUMN_IDS.NEW,
+      // 🔁 pass recurring fields
+      recurring,
+      recurringInterval,
     });
   };
 
@@ -755,6 +772,7 @@ const AssignTaskDialog = ({ open, onClose, onSave, employees, currentUser, assig
               onChange={(e) => setAssignedDate(e.target.value)}
             />
           </Stack>
+
           <TextField
             label="Assigned by"
             fullWidth
@@ -763,6 +781,7 @@ const AssignTaskDialog = ({ open, onClose, onSave, employees, currentUser, assig
             InputProps={{ readOnly: true }}
             helperText="Auto-filled from your account"
           />
+
           <Autocomplete
             options={employees}
             getOptionLabel={(opt) => opt.fullName || opt.name || ""}
@@ -781,6 +800,39 @@ const AssignTaskDialog = ({ open, onClose, onSave, employees, currentUser, assig
               />
             )}
           />
+
+          {/* 🔁 Recurring controls – same UX as Create Task */}
+          <Stack
+            direction={{ xs: "column", sm: "row" }}
+            spacing={1.5}
+            alignItems={{ xs: "flex-start", sm: "center" }}
+          >
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={recurring}
+                  onChange={(e) => setRecurring(e.target.checked)}
+                />
+              }
+              label="Recurring task"
+              sx={{ m: 0 }}
+            />
+
+            <TextField
+              select
+              label="Repeat"
+              size="small"
+              fullWidth
+              disabled={!recurring}
+              value={recurringInterval}
+              onChange={(e) => setRecurringInterval(e.target.value)}
+              sx={{ maxWidth: { sm: 220 } }}
+            >
+              <MenuItem value="DAILY">Daily</MenuItem>
+              <MenuItem value="WEEKLY">Weekly</MenuItem>
+              <MenuItem value="MONTHLY">Monthly</MenuItem>
+            </TextField>
+          </Stack>
         </Stack>
       </DialogContent>
       <DialogActions
@@ -808,6 +860,7 @@ const AssignTaskDialog = ({ open, onClose, onSave, employees, currentUser, assig
     </Dialog>
   );
 };
+
 
 // ================= MAIN COMPONENT =================
 
@@ -1642,26 +1695,41 @@ const TaskBoard = () => {
     const managerId = currentUserId;
     if (!assigneeId || !managerId) return;
 
+    // 🔁 pull recurring info from payload
+    const {
+      title,
+      description,
+      status,
+      assigneeName,
+      assignedByName,
+      assignedDate,
+      dueDate,
+      recurring,
+      recurringInterval,
+    } = assignPayload;
+
     const baseTask = {
-      title: assignPayload.title,
-      description: assignPayload.description || "",
-      status: assignPayload.status || COLUMN_IDS.NEW,
+      title,
+      description: description || "",
+      status: status || COLUMN_IDS.NEW,
       assigneeId,
-      assigneeName: assignPayload.assigneeName || "",
+      assigneeName: assigneeName || "",
       assignedById: managerId,
       assignedByName:
-        assignPayload.assignedByName ||
+        assignedByName ||
         currentUser?.fullName ||
         currentUser?.name ||
         "",
-      assignedDate:
-        assignPayload.assignedDate || new Date().toISOString(),
-      dueDate: assignPayload.dueDate || null,
+      assignedDate: assignedDate || new Date().toISOString(),
+      dueDate: dueDate || null,
       attachments: [],
+      // 🔁 Recurring fields – SAME as create task flow
+      recurring: !!recurring,
+      recurringInterval: recurringInterval || "DAILY",
     };
 
     let tempId;
-    setAssigningTask(true);          // ⬅️ start loader
+    setAssigningTask(true); // ⬅️ start loader
     try {
       // on employee's board
       await axios.post(`${API_BASE_URL}/api/tasks`, {
@@ -1686,9 +1754,7 @@ const TaskBoard = () => {
 
       if (viewingUserId === managerId) {
         setTasks((prev) =>
-          prev.map((t) =>
-            t.id === tempId ? { ...t, id: newId } : t
-          )
+          prev.map((t) => (t.id === tempId ? { ...t, id: newId } : t))
         );
       }
 
@@ -1699,13 +1765,12 @@ const TaskBoard = () => {
         setTasks((prev) => prev.filter((t) => t.id !== tempId));
       }
     } finally {
-      setAssigningTask(false);       // ⬅️ stop loader
+      setAssigningTask(false); // ⬅️ stop loader
       setAssignDialogOpen(false);
     }
   },
   [currentUser, currentUserId, viewingUserId, showSnackbar]
 );
-
 
   const totalCards = filteredTasks.length;
 
@@ -2002,8 +2067,8 @@ const TaskBoard = () => {
                 <Paper
                   elevation={0}
                   sx={{
-                    minWidth: 260,
-                    maxWidth: 260,
+                    minWidth: 290,
+                    maxWidth: 290,
                     borderRadius: 3,
                     bgcolor: "#ffffff",
                     color: "#111",

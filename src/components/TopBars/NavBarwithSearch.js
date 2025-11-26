@@ -763,10 +763,9 @@ const canNav = (key) => !!navPerms[key];
                 <LocalShippingIcon />
               </IconButton>
             )}
-
-            {/* Example: Download Orders (if you ever want permission control) */}
-            {/* {user && canNav("downloadOrders") && (
-              <IconButton
+ 
+             
+              {/* <IconButton
                 sx={{
                   mr: 1,
                   color: "#fff",
@@ -776,8 +775,8 @@ const canNav = (key) => !!navPerms[key];
                 onClick={handleDownloadOrders} 
               >
                 <DownloadIcon />
-              </IconButton>
-            )} */}
+              </IconButton> */}
+            
 
             {user && canNav("cartIcon") && (
               <IconButton

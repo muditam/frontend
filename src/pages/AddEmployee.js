@@ -270,11 +270,15 @@ const AddEmployee = () => {
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
-    setEmployeeData({
-      ...employeeData,
-      [name]: type === "checkbox" ? checked : value,
-    });
+
+    const newValue = type === "checkbox" ? checked : value;
+
+    setEmployeeData((prev) => ({
+      ...prev,
+      [name]: newValue,
+    }));
   };
+
 
   const isAgentRole = ["Sales Agent", "Retention Agent"].includes(
     employeeData.role
@@ -306,7 +310,6 @@ const AddEmployee = () => {
 
   const validateForm = () => {
     const {
-      fullName,
       email,
       role,
       password,
@@ -317,12 +320,16 @@ const AddEmployee = () => {
       joiningDate,
     } = employeeData;
 
-    if (!fullName || !email || !role || (!isEditMode && !password)) {
+    // 🔹 Always work with trimmed name
+    const fullNameTrimmed = (employeeData.fullName || "").trim();
+
+    if (!fullNameTrimmed || !email || !role || (!isEditMode && !password)) {
       setError("Full Name, Email, Role, and Password are required.");
       return false;
     }
 
-    if (!/^[a-zA-Z ]+$/.test(fullName)) {
+    // 🔹 Validate trimmed name (allows spaces in between)
+    if (!/^[a-zA-Z ]+$/.test(fullNameTrimmed)) {
       setError("Full Name should contain only alphabets and spaces.");
       return false;
     }
@@ -367,20 +374,29 @@ const AddEmployee = () => {
     return true;
   };
 
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!validateForm()) return;
+
+    const fullNameTrimmed = (employeeData.fullName || "").trim();
+
+    // 🔹 Ensure clean name before sending
+    const payload = {
+      ...employeeData,
+      fullName: fullNameTrimmed,
+    };
 
     try {
       if (isEditMode) {
         await axios.put(
           `https://muditamleads-14f32a10d7f7.herokuapp.com/api/employees/${currentEmployeeId}`,
-          employeeData
+          payload
         );
       } else {
         await axios.post(
           "https://muditamleads-14f32a10d7f7.herokuapp.com/api/employees",
-          employeeData
+          payload
         );
       }
       fetchEmployees();
@@ -408,6 +424,7 @@ const AddEmployee = () => {
       setError("Error occurred while saving employee data.");
     }
   };
+
 
   const handleEdit = (employee) => {
     setEmployeeData({

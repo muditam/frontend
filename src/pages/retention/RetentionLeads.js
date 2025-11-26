@@ -659,7 +659,7 @@ const RetentionLeads = () => {
         `https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/${updatedLeads[index]._id}`,
         { rowColor: color }
       );
-    } catch (error) { 
+    } catch (error) {
       console.error("Error updating row color:", error);
     }
   };
@@ -1240,14 +1240,14 @@ const RetentionLeads = () => {
                       const combined = `${month} ${selectedYear}`;
                       setSelectedMonth(month);
                       setDateRangeFilter(combined);
- 
+
                       const monthIndex = [
                         "January", "February", "March", "April", "May", "June",
                         "July", "August", "September", "October", "November", "December"
                       ].indexOf(month) + 1;
                       setAcqYear(selectedYear);
                       setAcqMonth(monthIndex);
- 
+
                       setServerPage(1);
                       setAllLeads([]);
                       setFilteredAllLeads([]);
@@ -1283,7 +1283,7 @@ const RetentionLeads = () => {
             Sort By Color
           </MenuItem>
         </Menu>
- 
+
         <Menu
           id={activeSortType === "color" ? "color-submenu" : "reachout-submenu"}
           anchorEl={sortSubMenuAnchorEl}
@@ -1470,7 +1470,7 @@ const RetentionLeads = () => {
                               if (wanted.has(norm(log?.status))) {
                                 const d = toDateSafe(log?.timestamp);
                                 if (d && (!latest || d > latest)) latest = d;
-                              } 
+                              }
                             }
                             return latest;
                           };
@@ -1915,6 +1915,22 @@ const RetentionLeads = () => {
                         >
                           Order
                         </Button>
+
+                        <TextField
+                          label="Alternate Number"
+                          size="small"
+                          value={leads[selectedLeadIndex]?.alternativeNumber || ""}
+                          onChange={(e) => handleInputChange(e, selectedLeadIndex, "alternativeNumber")}
+                          sx={{
+                            minWidth: 170,
+                            "& .MuiOutlinedInput-root": {
+                              borderRadius: 999,
+                              "& .MuiOutlinedInput-notchedOutline": { borderColor: "#E6E8EC" },
+                              "&:hover .MuiOutlinedInput-notchedOutline": { borderColor: "#DDE1E6" },
+                            },
+                          }}
+                          InputLabelProps={{ shrink: true }}
+                        />
                       </Stack>
                     </Box>
 
@@ -2137,7 +2153,7 @@ const RetentionLeads = () => {
                     <Box sx={{ px: 2, py: 1 }}>
                       <Typography variant="body2">Reachout Method</Typography>
                       <RadioGroup
-                        value={reachoutMethod} 
+                        value={reachoutMethod}
                         onChange={async (e) => {
                           const method = e.target.value;
                           setReachoutMethod(method);
@@ -2145,7 +2161,7 @@ const RetentionLeads = () => {
                             `https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/${leads[selectedLeadIndex]._id}/reachout-log`,
                             { timestamp: reachoutTimestamp, method }
                           );
-                        }} 
+                        }}
                       >
                         {["WhatsApp", "Call", "Both"].map((opt) => (
                           <FormControlLabel key={opt} value={opt} control={<Radio />} label={opt} />
@@ -2156,9 +2172,9 @@ const RetentionLeads = () => {
                         <>
                           <Typography variant="body2" mt={2}>Disposition</Typography>
                           <Select
-                            size="small" 
+                            size="small"
                             fullWidth
-                            value={reachoutStatus}   
+                            value={reachoutStatus}
                             onChange={async (e) => {
                               const status = e.target.value;
                               setReachoutStatus(status);
