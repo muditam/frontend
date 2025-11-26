@@ -52,6 +52,7 @@ const ASSET_OPTIONS = [
   "Laptop",
   "Mouse",
   "Charger",
+  "CPU",
   "HeadPhone",
   "Keyboard",
   "Monitor",
@@ -67,6 +68,7 @@ const ASSET_OPTIONS = [
 const COMPANY_MAP = {
   Laptop: ["Dell", "Acer", "HP", "Lenovo", "Asus", "Apple"],
   Mouse: ["Logitech", "Dell", "HP", "Razer"],
+  CPU: ["Intel", "MAC"],
   Keyboard: ["Logitech", "Dell", "HP", "Keychron"],
   HeadPhone: ["Sony", "JBL", "Boat", "Sennheiser"],
   Monitor: ["Dell", "Samsung", "LG", "Acer", "HP"],
