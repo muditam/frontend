@@ -61,6 +61,7 @@ const ASSET_OPTIONS = [
   "Battery",
   "RAM",
   "Hard Disk",
+  "Others",
 ];
 
 
@@ -78,6 +79,7 @@ const COMPANY_MAP = {
   Battery: ["Duracell", "Energizer", "Amaron", "Exide"],
   RAM: ["Corsair", "Kingston", "Crucial", "G.Skill"],
   "Hard Disk": ["Seagate", "WD", "Toshiba", "Samsung"],
+  Others: ["Dongle", "Others"],
 };
 
 

@@ -92,7 +92,7 @@ const NavbarWithSearch = () => {
 
   // 🔐 Navbar permissions
   const navPerms = user?.permissions?.navbar || {};
-const canNav = (key) => !!navPerms[key];
+  const canNav = (key) => !!navPerms[key];
 
   const openBloodTestDialog = () => {
     setPincode("");
@@ -389,8 +389,8 @@ const canNav = (key) => !!navPerms[key];
                                       Last Order:{" "}
                                       {customerData.lastOrderDate
                                         ? new Date(
-                                            customerData.lastOrderDate
-                                          ).toLocaleString()
+                                          customerData.lastOrderDate
+                                        ).toLocaleString()
                                         : "N/A"}{" "}
                                       | Payment Status:{" "}
                                       {customerData.lastOrderPaymentStatus ||
@@ -414,7 +414,7 @@ const canNav = (key) => !!navPerms[key];
                             >
                               <List component="div" disablePadding>
                                 {customerData.orders &&
-                                customerData.orders.length > 0 ? (
+                                  customerData.orders.length > 0 ? (
                                   <>
                                     {customerData.orders
                                       .slice(0, 4)
@@ -424,11 +424,9 @@ const canNav = (key) => !!navPerms[key];
                                           sx={{ pl: 3, py: 0.5, ...smallFont }}
                                         >
                                           <ListItemText
-                                            primary={`Order ${
-                                              order.name || order.id
-                                            } | Total Amount: ₹${
-                                              order.totalAmount || 0
-                                            }`}
+                                            primary={`Order ${order.name || order.id
+                                              } | Total Amount: ₹${order.totalAmount || 0
+                                              }`}
                                             secondary={
                                               <>
                                                 <span>
@@ -523,10 +521,9 @@ const canNav = (key) => !!navPerms[key];
                                           primary={
                                             showAllOrders
                                               ? "Show less orders"
-                                              : `${
-                                                  customerData.orders.length -
-                                                  4
-                                                } more orders`
+                                              : `${customerData.orders.length -
+                                              4
+                                              } more orders`
                                           }
                                         />
                                       </ListItem>
@@ -540,9 +537,8 @@ const canNav = (key) => !!navPerms[key];
                                             sx={{ pl: 3, py: 0.5, ...smallFont }}
                                           >
                                             <ListItemText
-                                              primary={`Order ${
-                                                order.name || order.id
-                                              }`}
+                                              primary={`Order ${order.name || order.id
+                                                }`}
                                               secondary={
                                                 <>
                                                   <span>
@@ -608,7 +604,7 @@ const canNav = (key) => !!navPerms[key];
                 p: 1,
                 bgcolor: "#000",
                 borderRadius: 2,
-                minWidth: 140,
+                minWidth: 130,
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
@@ -633,16 +629,16 @@ const canNav = (key) => !!navPerms[key];
                     fontWeight: 700,
                   }}
                 >
-                  {dailySalesRequired > 0
-                    ? `₹${dailySalesRequired}`
-                    : "₹0"}
+                  {dailySalesRequired > 0 ? `₹${dailySalesRequired}` : "₹0"}
                 </span>
               </Typography>
+
               <Divider
                 orientation="vertical"
                 flexItem
                 sx={{ mx: 1, borderColor: "#444" }}
               />
+
               <Typography
                 variant="caption"
                 sx={{
@@ -654,7 +650,7 @@ const canNav = (key) => !!navPerms[key];
                   alignItems: "center",
                 }}
               >
-                Target: ({salesProgress} / {target}){" "}
+                Target: ({salesProgress}/{target})
                 <span
                   style={{
                     marginLeft: 8,
@@ -663,7 +659,7 @@ const canNav = (key) => !!navPerms[key];
                   }}
                 >
                   {target > 0
-                    ? `${Math.round((salesProgress / target) * 100)}%`
+                    ? `${Math.floor((salesProgress / target) * 100)}%`
                     : "0%"}
                 </span>
               </Typography>
@@ -763,9 +759,9 @@ const canNav = (key) => !!navPerms[key];
                 <LocalShippingIcon />
               </IconButton>
             )}
- 
-             
-              {/* <IconButton
+
+
+            {/* <IconButton
                 sx={{
                   mr: 1,
                   color: "#fff",
@@ -776,7 +772,7 @@ const canNav = (key) => !!navPerms[key];
               >
                 <DownloadIcon />
               </IconButton> */}
-            
+
 
             {user && canNav("cartIcon") && (
               <IconButton
@@ -872,13 +868,10 @@ const canNav = (key) => !!navPerms[key];
                             }}
                           >
                             <ListItemText
-                              primary={`${item.name || "No Name"} (${
-                                item.contactNumber
-                              }) (${item.agentAssigned}) [${
-                                item.healthExpertAssigned
-                              }]${
-                                item.hasOpenEscalation ? " ? " : ""
-                              }`}
+                              primary={`${item.name || "No Name"} (${item.contactNumber
+                                }) (${item.agentAssigned}) [${item.healthExpertAssigned
+                                }]${item.hasOpenEscalation ? " ? " : ""
+                                }`}
                               primaryTypographyProps={{ style: smallFont }}
                             />
                           </ListItem>
@@ -1006,13 +999,13 @@ const canNav = (key) => !!navPerms[key];
                 paddingLeft: "8px",
               },
               "& .MuiInputLabel-root.Mui-focused, & .MuiInputLabel-root.MuiFormLabel-filled":
-                {
-                  top: 0,
-                  color: "gray",
-                  transform: "translateY(-50%) translateX(8px)",
-                  paddingLeft: "8px",
-                  fontSize: "0.75rem",
-                },
+              {
+                top: 0,
+                color: "gray",
+                transform: "translateY(-50%) translateX(8px)",
+                paddingLeft: "8px",
+                fontSize: "0.75rem",
+              },
               "& .MuiOutlinedInput-root": {
                 "& input": {
                   padding: "8px !important",

@@ -55,6 +55,7 @@ const TYPES = [
   "Keyboard",
   "Monitor",
   "NeckBand",
+  "Others",
 ];
 
 // 🔹 New: common brands for dropdown (still allows custom)
