@@ -296,6 +296,18 @@ export default function OrderConfirmations() {
 
   const isConfirmedTab = tab === "ORDER_CONFIRMED";
 
+  const visibleItems = useMemo(
+    () =>
+      isConfirmedTab
+        ? items.filter((row) => {
+          const tracking = row?.shipping?.tracking_number;
+          return !tracking || String(tracking).trim() === "";
+        })
+        : items,
+    [items, isConfirmedTab]
+  );
+
+
   // Payment dialog state
   const [payDlg, setPayDlg] = useState({
     open: false,
@@ -774,6 +786,10 @@ export default function OrderConfirmations() {
     } catch { }
   };
 
+  const visibleTotal = useMemo(() => {
+    return isConfirmedTab ? visibleItems.length : total;
+  }, [isConfirmedTab, visibleItems, total]);
+
   return (
     <ThemeProvider theme={theme}>
       <Box>
@@ -916,7 +932,14 @@ export default function OrderConfirmations() {
                 <Tab value="ALL" label={`All (${counts.ALL || 0})`} />
                 <Tab value="PENDING" label={`Pending (${counts.PENDING || 0})`} />
                 <Tab value="CNP" label={`CNP (${counts.CNP || 0})`} />
-                <Tab value="ORDER_CONFIRMED" label={`Confirmed (${counts.ORDER_CONFIRMED || 0})`} />
+                <Tab
+                  value="ORDER_CONFIRMED"
+                  label={
+                    isConfirmedTab
+                      ? `Confirmed (${visibleItems.length})`
+                      : `Confirmed (${counts.ORDER_CONFIRMED || 0})`
+                  }
+                />
                 <Tab value="CALL_BACK_LATER" label={`Call Back (${counts.CALL_BACK_LATER || 0})`} />
                 <Tab value="CANCEL_ORDER" label={`Cancel (${counts.CANCEL_ORDER || 0})`} />
                 <Tab value="ALL_CNPS" label={`All CNPs (${counts.ALL_CNPS || 0})`} />
@@ -998,7 +1021,7 @@ export default function OrderConfirmations() {
             </TableHead>
 
             <TableBody>
-              {items.map((row, idx) => {
+              {visibleItems.map((row, idx) => {
                 const ops = row.orderConfirmOps || {};
                 const rowSaving = !!savingRow[row._id];
                 const isOpen = expandedId === row._id;
@@ -1182,9 +1205,12 @@ export default function OrderConfirmations() {
                         <Stack spacing={0.5}>
                           {isConfirmedTab ? (
                             <>
-                              {renderReadOnlyCallStatus(ops.callStatus)}
+                              <Chip size="small" label="Order Confirmed" color="success" />
+
                               <Typography variant="caption" sx={{ opacity: 0.7 }}>
-                                {ops.callStatusUpdatedAt ? `Updated: ${formatDateTime(ops.callStatusUpdatedAt)}` : "Not updated yet"}
+                                {ops.callStatusUpdatedAt
+                                  ? `Updated: ${formatDateTime(ops.callStatusUpdatedAt)}`
+                                  : "Not updated yet"}
                               </Typography>
                             </>
                           ) : (
@@ -1573,7 +1599,7 @@ export default function OrderConfirmations() {
           {/* Pagination */}
           <TablePagination
             component="div"
-            count={total}
+            count={visibleTotal}
             page={page}
             onPageChange={(_e, newPage) => {
               setPage(newPage);
