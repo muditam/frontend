@@ -99,9 +99,6 @@ const App = () => {
           <Route path="/pages/Home" element={<ShipwayOrders />} />
           <Route path="/smartflo/call-logs" element={<SmartfloCallLogs />} />
           <Route path="/smartflo/data-analytics" element={<SmartfloDataAnalytics />} />
-          <Route path="/assets" element={<AssetManager />} />  
-          <Route path="/add-new-asset" element={<AssetsManagerRole />} /> 
-          <Route path="/my-assets" element={<MyAssets />} />
           <Route path="/AssetAllotment" element={<AssetAllotment />} />
           <Route path="/BankReconciliation" element={<BankReconciliation />} />
           <Route path="/BankCapital6389" element={<BankCapital6389 />} />
@@ -109,21 +106,9 @@ const App = () => {
           <Route path="/BankCc1101" element={<BankCc1101 />} />
           <Route path="/BankYesCcTejasv" element={<BankYesCcTejasv />} />
           <Route path="/BankYesCcAbhay" element={<BankYesCcAbhay />} />
-          <Route path="/task-board" element={<TaskBoard />} />
-          <Route path="/my-reporting" element={<MyReporting />} />
           <Route path="/purchase-record" element={<PurchaseRecord />} />
           <Route path="/payment-record" element={<PaymentRecords />} />
           <Route path="/vendors" element={<Vendors />} />
-          <Route path="/switch-dashboard" element={<SwitchDashboard />} />
-          <Route path="/only-order-confirmation" element={<ConfirmedOrder />} />
-          <Route path="/invoices" element={<Invoices />} />
-          <Route path="/global-shopify-orders" element={<GlobalShopifyOrders />} />
-          <Route path="/global-aband" element={<GlobalAbandonedCarts />} />
-          <Route path="/global-retention-leads" element={<GlobalRetentionLeads />} />
-          <Route path="/global-retention-sales" element={<GlobalRetentionSales />} />
-          <Route path="/access-management" element={<AccessManagement />} />
-          <Route path="/admin-requests-admin" element={<AdminAccessRequests />} />
-          <Route path="/unassigned-delivered-orders" element={<UnassignedDeliveredOrders />} />
 
           <Route
             path="/"
@@ -494,6 +479,126 @@ const App = () => {
                 <ScheduleCall />
               </PrivateRoute>
             }
+          />
+          <Route 
+            path="/global-shopify-orders" 
+            element={
+              <PrivateRoute>
+            <GlobalShopifyOrders />
+            </PrivateRoute>
+            } 
+          />
+          <Route 
+            path="/global-aband" 
+            element={
+              <PrivateRoute>
+                <GlobalAbandonedCarts />
+              </PrivateRoute>
+            } 
+          />
+          <Route 
+            path="/global-retention-leads" 
+            element={
+              <PrivateRoute>
+                <GlobalRetentionLeads />
+              </PrivateRoute>
+            } 
+          />
+          <Route 
+            path="/global-retention-sales" 
+            element={
+              <PrivateRoute>
+                <GlobalRetentionSales />
+              </PrivateRoute>
+            } 
+          />
+          <Route 
+            path="/access-management" 
+            element={
+              <PrivateRoute>
+                <AccessManagement />
+              </PrivateRoute>
+            } 
+          />
+          <Route 
+            path="/admin-requests-admin" 
+            element={
+              <PrivateRoute>
+                <AdminAccessRequests />
+              </PrivateRoute>
+            } 
+          />
+          <Route 
+            path="/unassigned-delivered-orders" 
+            element={
+              <PrivateRoute>
+                <UnassignedDeliveredOrders />
+              </PrivateRoute>
+            } 
+          />
+          <Route 
+            path="/switch-dashboard" 
+            element={
+              <PrivateRoute>
+                <SwitchDashboard />
+              </PrivateRoute>
+            } 
+          />
+          <Route 
+            path="/only-order-confirmation" 
+            element={
+              <PrivateRoute>
+                <ConfirmedOrder />
+              </PrivateRoute>
+            } 
+          />
+          <Route 
+            path="/invoices" 
+            element={
+              <PrivateRoute>
+                <Invoices />
+              </PrivateRoute>
+            } 
+          />
+          <Route 
+            path="/task-board" 
+            element={
+              <PrivateRoute>
+                <TaskBoard />
+              </PrivateRoute>
+            } 
+          />
+          <Route 
+            path="/my-reporting" 
+            element={
+              <PrivateRoute>
+                <MyReporting />
+              </PrivateRoute>
+            } 
+          />
+          <Route 
+            path="/assets" 
+            element={
+              <PrivateRoute>
+                <AssetManager />
+              </PrivateRoute>
+            } 
+          />
+          <Route 
+            path="/add-new-asset" 
+            element={
+              <PrivateRoute>
+                <AssetsManagerRole />
+              </PrivateRoute>
+            } 
+          />
+          <Route 
+            path="/my-assets" 
+            element={
+              <PrivateRoute>
+                <MyAssets />
+              </PrivateRoute>
+            } 
           />
         </Routes>
       </div>

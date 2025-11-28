@@ -165,6 +165,8 @@ const ManagerRetentionDashboard = () => {
   const [agentShipmentSummary, setAgentShipmentSummary] = useState([]);
   const [showTotalSalesDialog, setShowTotalSalesDialog] = useState(false);
 
+  const [codSummary, setCodSummary] = useState([]);
+
   const [loading, setLoading] = useState(true);
   const [followupSummary, setFollowupSummary] = useState({
     totalNoFollowupSet: 0,
@@ -425,6 +427,26 @@ const ManagerRetentionDashboard = () => {
   };
 
   // ---------------------------------------------
+  // Fetch COD vs Prepaid Summary
+  // ---------------------------------------------
+  const fetchCodPrepaidSummary = async (startDate, endDate) => {
+    setLoading(true);
+    try {
+      const res = await axios.get(
+        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/retention-sales/cod-prepaid-summary",
+        { params: { startDate, endDate } }
+      );
+      setCodSummary(res.data);
+    } catch (err) {
+      console.error("Error fetching COD vs Prepaid Summary:", err);
+      setCodSummary([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+
+  // ---------------------------------------------
   // 9) Handlers for Range Changes
   // ---------------------------------------------
   const handleDashboardRangeChange = async (e) => {
@@ -437,6 +459,8 @@ const ManagerRetentionDashboard = () => {
         await fetchDashboardDataRange(startDate, endDate);
       } else if (selectedSummary === "Reached Out Log Summary") {
         await fetchReachoutLogsCounts(startDate, endDate);
+      } else if (selectedSummary === "COD vs Prepaid Summary") {
+        await fetchCodPrepaidSummary(startDate, endDate);
       }
 
       setCustomDashboardStart("");
@@ -451,6 +475,8 @@ const ManagerRetentionDashboard = () => {
       await fetchDashboardDataRange(customDashboardStart, customDashboardEnd);
     } else if (selectedSummary === "Reached Out Log Summary") {
       await fetchReachoutLogsCounts(customDashboardStart, customDashboardEnd);
+    } else if (selectedSummary === "COD vs Prepaid Summary") {
+      await fetchCodPrepaidSummary(customDashboardStart, customDashboardEnd);
     }
   };
 
@@ -499,7 +525,15 @@ const ManagerRetentionDashboard = () => {
         await fetchReachoutLogsCounts(startDate, endDate);
       } else if (selectedSummary === "Followup Summary") {
         await fetchFollowupSummary();
+      } else if (selectedSummary === "COD vs Prepaid Summary") {
+        const { startDate, endDate } =
+          dashboardRange !== "Custom range"
+            ? getDateRange(dashboardRange)
+            : { startDate: customDashboardStart, endDate: customDashboardEnd };
+
+        await fetchCodPrepaidSummary(startDate, endDate);
       }
+
     };
 
 
@@ -600,11 +634,15 @@ const ManagerRetentionDashboard = () => {
             <MenuItem value="Reached Out Log Summary">
               <Typography variant="body2">Reached Out Log Summary</Typography>
             </MenuItem>
+            <MenuItem value="COD vs Prepaid Summary">
+              <Typography variant="body2">COD vs Prepaid Summary</Typography>
+            </MenuItem>
           </Select>
         </FormControl>
 
         {(selectedSummary === "Agent's Summary" ||
-          selectedSummary === "Reached Out Log Summary") && (
+          selectedSummary === "Reached Out Log Summary" ||
+          selectedSummary === "COD vs Prepaid Summary") && (
             <>
               <TextField
                 select
@@ -1573,6 +1611,128 @@ const ManagerRetentionDashboard = () => {
                     <TableRow>
                       <TableCell
                         colSpan={5}
+                        align="center"
+                        sx={{ padding: "12px", color: "#888", fontStyle: "italic" }}
+                      >
+                        No data found.
+                      </TableCell>
+                    </TableRow>
+                  )
+                )}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </>
+      )}
+
+      {selectedSummary === "COD vs Prepaid Summary" && (
+        <>
+          <Typography
+            variant="h6"
+            fontWeight="bold"
+            sx={{ textAlign: "center", color: "#000", marginBottom: 2 }}
+          >
+            COD vs Prepaid Summary
+          </Typography>
+
+          <TableContainer
+            sx={{
+              borderRadius: 2,
+              boxShadow: "0px 2px 8px rgba(0,0,0,0.08)",
+              overflowX: "auto",
+              maxWidth: "1000px",
+              margin: "0 auto",
+            }}
+            component={Paper}
+          >
+            <Table>
+              <TableHead>
+                <TableRow
+                  sx={{
+                    background: "linear-gradient(135deg, #64B5F6 30%, #42A5F5 100%)",
+                  }}
+                >
+                  {[
+                    "Agent Name",
+                    "Total Orders",
+                    "COD Orders",
+                    "Prepaid Orders",
+                    "COD %",
+                    "Prepaid %",
+                  ].map((header) => (
+                    <TableCell
+                      key={header}
+                      sx={{
+                        fontWeight: "bold",
+                        textAlign: "center",
+                        color: "#fff",
+                        fontSize: "14px",
+                        padding: "10px",
+                      }}
+                    >
+                      {header}
+                    </TableCell>
+                  ))}
+                </TableRow>
+              </TableHead>
+
+              {loading && (
+                <TableBody>
+                  <TableRow>
+                    <TableCell colSpan={6} sx={{ padding: 0 }}>
+                      <LinearProgress
+                        variant="indeterminate"
+                        sx={{ width: "100%", height: "3px" }}
+                      />
+                    </TableCell>
+                  </TableRow>
+                </TableBody>
+              )}
+
+              <TableBody>
+                {!loading && codSummary.length > 0 ? (
+                  codSummary.map((agent, idx) => (
+                    <TableRow
+                      key={idx}
+                      sx={{
+                        backgroundColor: idx % 2 === 0 ? "#F9FAFB" : "#FFFFFF",
+                        "&:hover": { backgroundColor: "#E3F2FD", transition: "0.3s" },
+                      }}
+                    >
+                      <TableCell sx={{ textAlign: "center", fontWeight: 500 }}>
+                        {agent.agentName}
+                      </TableCell>
+
+                      <TableCell sx={{ textAlign: "center" }}>
+                        {agent.totalOrders}
+                      </TableCell>
+
+                      <TableCell sx={{ textAlign: "center" }}>
+                        {agent.codOrders}
+                      </TableCell>
+
+                      <TableCell sx={{ textAlign: "center" }}>
+                        {agent.prepaidOrders}
+                      </TableCell>
+
+                      <TableCell sx={{ textAlign: "center" }}>
+                        {agent.totalOrders > 0
+                          ? ((agent.codOrders / agent.totalOrders) * 100).toFixed(1) + "%"
+                          : "0%"}
+                      </TableCell>
+
+                      <TableCell sx={{ textAlign: "center" }}>
+                        {agent.totalOrders > 0
+                          ? ((agent.prepaidOrders / agent.totalOrders) * 100).toFixed(1) + "%"
+                          : "0%"}
+                      </TableCell>
+                    </TableRow>
+                  ))
+                ) : (
+                  !loading && (
+                    <TableRow>
+                      <TableCell
+                        colSpan={6}
                         align="center"
                         sx={{ padding: "12px", color: "#888", fontStyle: "italic" }}
                       >

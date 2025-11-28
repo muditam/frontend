@@ -186,18 +186,13 @@ const ManagerSalesDashboard = () => {
   const [orderIdsPopupOpen, setOrderIdsPopupOpen] = useState(false);
   const [orderIds, setOrderIds] = useState("");
 
-  const [unassignedOpen, setUnassignedOpen] = useState(false);
-  const [unassignedRows, setUnassignedRows] = useState([]);
-  const [unassignedPage, setUnassignedPage] = useState(1);
-  const [unassignedTotal, setUnassignedTotal] = useState(0);
-  const [unassignedLoading, setUnassignedLoading] = useState(false);
-
+  const [codPrepaidStats, setCodPrepaidStats] = useState([]);
 
   // On mount, fetch user & agents
   useEffect(() => {
     const loggedInUser = JSON.parse(sessionStorage.getItem("user"));
     if (loggedInUser?.role === "Manager") {
-      setUser(loggedInUser); 
+      setUser(loggedInUser);
       fetchAgents();
     }
   }, []);
@@ -251,7 +246,7 @@ const ManagerSalesDashboard = () => {
         openLeads: overall.openLeads,
         leadsAssigned: overall.leadsAssigned,
         salesDone,
-        conversionRate, 
+        conversionRate,
         totalSales,
         avgOrderValue,
       });
@@ -340,6 +335,26 @@ const ManagerSalesDashboard = () => {
     [selectedAgent]
   );
 
+  const fetchCODvsPrepaidData = useCallback(
+    async (startDate, endDate) => {
+      setLoading(true);
+      try {
+        const params = { startDate, endDate };
+        const response = await axios.get(
+          "https://muditamleads-14f32a10d7f7.herokuapp.com/api/cod-prepaid-summary",
+          { params }
+        );
+
+        setCodPrepaidStats(response.data || []);
+      } catch (error) {
+        console.error("Error fetching COD vs Prepaid summary:", error);
+        setCodPrepaidStats([]);
+      } finally {
+        setLoading(false);
+      }
+    },
+    []
+  );
 
 
   // Combined table fetch
@@ -359,6 +374,9 @@ const ManagerSalesDashboard = () => {
             break;
           case "Shipment Summary":
             await fetchShipmentData(startDate, endDate);
+            break;
+          case "COD vs Prepaid Summary":
+            await fetchCODvsPrepaidData(startDate, endDate);
             break;
           default:
             console.warn("Unknown table selected");
@@ -565,7 +583,7 @@ const ManagerSalesDashboard = () => {
   return (
     <Box sx={{ padding: 3, position: "relative" }}>
       {/* Dashboard Title */}
-       
+
 
       <Typography
         variant="h4"
@@ -633,16 +651,18 @@ const ManagerSalesDashboard = () => {
             <MenuItem value="Lead Source Summary">
               <Typography variant="body2">Lead Source Summary</Typography>
             </MenuItem>
-            {/* NEW SHIPMENT SUMMARY OPTION */}
             <MenuItem value="Shipment Summary">
               <Typography variant="body2">All Shipment Summary</Typography>
+            </MenuItem>
+            <MenuItem value="COD vs Prepaid Summary">
+              <Typography variant="body2">COD vs Prepaid Summary</Typography>
             </MenuItem>
           </Select>
         </FormControl>
 
 
         {/* Time range dropdown (shared by all summaries) */}
-        {["Sales Summary", "Lead Source Summary", "Shipment Summary"].includes(
+        {["Sales Summary", "Lead Source Summary", "Shipment Summary", "COD vs Prepaid Summary"].includes(
           selectedSummary
         ) && (
             <>
@@ -1425,6 +1445,134 @@ const ManagerSalesDashboard = () => {
         </Box>
       )}
 
+      {selectedSummary === "COD vs Prepaid Summary" && (
+        <Box
+          sx={{
+            padding: 2,
+            marginTop: 3,
+            backgroundColor: "#FFFFFF",
+            borderRadius: 2,
+            boxShadow: "0px 4px 12px rgba(0, 0, 0, 0.1)",
+            maxWidth: "900px",
+            margin: "0 auto",
+          }}
+        >
+          <Typography
+            variant="h5"
+            fontWeight="bold"
+            sx={{ textAlign: "center", color: "#333", marginBottom: 3 }}
+          >
+            COD vs Prepaid Summary
+          </Typography>
+
+          {/* Agent Filter */}
+          <Box
+            sx={{
+              display: "flex",
+              gap: 2,
+              marginBottom: 2,
+              justifyContent: "center",
+            }}
+          >
+            <FormControl sx={{ width: "30%" }}>
+              <Select
+                value={selectedAgent}
+                onChange={(e) => setSelectedAgent(e.target.value)}
+                defaultValue="All Agents"
+                sx={{ backgroundColor: "#F9F9F9", borderRadius: 1 }}
+              >
+                {agents.map((agent) => (
+                  <MenuItem key={agent} value={agent}>
+                    {agent}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          </Box>
+
+          <TableContainer
+            sx={{ borderRadius: 2, boxShadow: 1, overflowX: "auto" }}
+            component={Paper}
+          >
+            <Table>
+              <TableHead>
+                <TableRow
+                  sx={{
+                    backgroundColor: "#F0F4FF",
+                    borderBottom: "1px solid #E0E0E0",
+                  }}
+                >
+                  {[
+                    "Agent Name",
+                    "Total Orders",
+                    "COD Orders",
+                    "Prepaid Orders",
+                    "COD %",
+                    "Prepaid %",
+                  ].map((head) => (
+                    <TableCell
+                      key={head}
+                      sx={{
+                        fontWeight: "bold",
+                        textAlign: "center",
+                        color: "#333",
+                        fontSize: "14px",
+                        padding: "8px",
+                      }}
+                    >
+                      {head}
+                    </TableCell>
+                  ))}
+                </TableRow>
+              </TableHead>
+
+              <TableBody>
+                {tableLoading && (
+                  <TableRow>
+                    <TableCell colSpan={6} sx={{ padding: 0 }}>
+                      <LinearProgress sx={{ width: "100%", height: "1px" }} />
+                    </TableCell>
+                  </TableRow>
+                )}
+
+                {!tableLoading && codPrepaidStats.length > 0 ? (
+                  codPrepaidStats.map((row, index) => (
+                    <TableRow
+                      key={row.agentName}
+                      sx={{
+                        backgroundColor: index % 2 === 0 ? "#FFFFFF" : "#F9F9F9",
+                        "&:hover": {
+                          backgroundColor: "#F1F3F5",
+                          transition: "0.3s",
+                        },
+                      }}
+                    >
+                      <TableCell sx={{ padding: "8px" }}>{row.agentName}</TableCell>
+                      <TableCell align="center">{row.totalOrders}</TableCell>
+                      <TableCell align="center">{row.codOrders}</TableCell>
+                      <TableCell align="center">{row.prepaidOrders}</TableCell>
+                      <TableCell align="center">
+                        {row.codPercentage}%
+                      </TableCell>
+                      <TableCell align="center">
+                        {row.prepaidPercentage}%
+                      </TableCell>
+                    </TableRow>
+                  ))
+                ) : (
+                  !tableLoading && (
+                    <TableRow>
+                      <TableCell colSpan={6} align="center" sx={{ padding: "8px" }}>
+                        No data available
+                      </TableCell>
+                    </TableRow>
+                  )
+                )}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </Box>
+      )}
 
       {/* Sales Done Order IDs Popup Dialog */}
       <Dialog
