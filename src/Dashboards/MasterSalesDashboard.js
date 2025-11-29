@@ -1446,133 +1446,192 @@ const ManagerSalesDashboard = () => {
       )}
 
       {selectedSummary === "COD vs Prepaid Summary" && (
-        <Box
-          sx={{
-            padding: 2,
-            marginTop: 3,
-            backgroundColor: "#FFFFFF",
-            borderRadius: 2,
-            boxShadow: "0px 4px 12px rgba(0, 0, 0, 0.1)",
-            maxWidth: "900px",
-            margin: "0 auto",
-          }}
-        >
-          <Typography
-            variant="h5"
-            fontWeight="bold"
-            sx={{ textAlign: "center", color: "#333", marginBottom: 3 }}
-          >
-            COD vs Prepaid Summary
-          </Typography>
+  <Box
+    sx={{
+      padding: 2,
+      marginTop: 3,
+      backgroundColor: "#FFFFFF",
+      borderRadius: 2,
+      boxShadow: "0px 4px 12px rgba(0, 0, 0, 0.1)",
+      maxWidth: "900px",
+      margin: "0 auto",
+    }}
+  >
+    <Typography
+      variant="h5"
+      fontWeight="bold"
+      sx={{ textAlign: "center", color: "#333", marginBottom: 3 }}
+    >
+      COD vs Prepaid Summary
+    </Typography>
 
-          {/* Agent Filter */}
-          <Box
+    {/* Agent Filter */}
+    <Box
+      sx={{
+        display: "flex",
+        gap: 2,
+        marginBottom: 2,
+        justifyContent: "center",
+      }}
+    >
+      <FormControl sx={{ width: "30%" }}>
+        <Select
+          value={selectedAgent}
+          onChange={(e) => setSelectedAgent(e.target.value)}
+          defaultValue="All Agents"
+          sx={{ backgroundColor: "#F9F9F9", borderRadius: 1 }}
+        >
+          {agents.map((agent) => (
+            <MenuItem key={agent} value={agent}>
+              {agent}
+            </MenuItem>
+          ))}
+        </Select>
+      </FormControl>
+    </Box>
+
+    <TableContainer
+      sx={{ borderRadius: 2, boxShadow: 1, overflowX: "auto" }}
+      component={Paper}
+    >
+      <Table>
+        <TableHead>
+          <TableRow
             sx={{
-              display: "flex",
-              gap: 2,
-              marginBottom: 2,
-              justifyContent: "center",
+              backgroundColor: "#F0F4FF",
+              borderBottom: "1px solid #E0E0E0",
             }}
           >
-            <FormControl sx={{ width: "30%" }}>
-              <Select
-                value={selectedAgent}
-                onChange={(e) => setSelectedAgent(e.target.value)}
-                defaultValue="All Agents"
-                sx={{ backgroundColor: "#F9F9F9", borderRadius: 1 }}
+            {[
+              "Agent Name",
+              "Total Orders",
+              "COD Orders",
+              "Prepaid Orders",
+              "COD %",
+              "Prepaid %",
+            ].map((head) => (
+              <TableCell
+                key={head}
+                sx={{
+                  fontWeight: "bold",
+                  textAlign: "center",
+                  color: "#333",
+                  fontSize: "14px",
+                  padding: "8px",
+                }}
               >
-                {agents.map((agent) => (
-                  <MenuItem key={agent} value={agent}>
-                    {agent}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-          </Box>
+                {head}
+              </TableCell>
+            ))}
+          </TableRow>
+        </TableHead>
 
-          <TableContainer
-            sx={{ borderRadius: 2, boxShadow: 1, overflowX: "auto" }}
-            component={Paper}
-          >
-            <Table>
-              <TableHead>
+        {/* ---------- TOTAL ROW (Correct Format) ---------- */}
+        {!tableLoading && codPrepaidStats.length > 0 && (
+          <TableBody>
+            {(() => {
+              const totalOrders = codPrepaidStats.reduce(
+                (acc, a) => acc + (a.totalOrders || 0),
+                0
+              );
+              const totalCOD = codPrepaidStats.reduce(
+                (acc, a) => acc + (a.codOrders || 0),
+                0
+              );
+              const totalPrepaid = codPrepaidStats.reduce(
+                (acc, a) => acc + (a.prepaidOrders || 0),
+                0
+              );
+
+              const codPercent =
+                totalOrders > 0 ? ((totalCOD / totalOrders) * 100).toFixed(1) : "0.0";
+
+              const prepaidPercent =
+                totalOrders > 0
+                  ? ((totalPrepaid / totalOrders) * 100).toFixed(1)
+                  : "0.0";
+
+              return (
                 <TableRow
                   sx={{
-                    backgroundColor: "#F0F4FF",
-                    borderBottom: "1px solid #E0E0E0",
+                    backgroundColor: "#E8F4FF",
+                    "&:hover": { backgroundColor: "#E8F4FF" },
                   }}
                 >
-                  {[
-                    "Agent Name",
-                    "Total Orders",
-                    "COD Orders",
-                    "Prepaid Orders",
-                    "COD %",
-                    "Prepaid %",
-                  ].map((head) => (
-                    <TableCell
-                      key={head}
-                      sx={{
-                        fontWeight: "bold",
-                        textAlign: "center",
-                        color: "#333",
-                        fontSize: "14px",
-                        padding: "8px",
-                      }}
-                    >
-                      {head}
-                    </TableCell>
-                  ))}
+                  <TableCell sx={{ textAlign: "center", fontWeight: 700 }}>
+                    TOTAL
+                  </TableCell>
+
+                  <TableCell sx={{ textAlign: "center", fontWeight: 600 }}>
+                    {totalOrders}
+                  </TableCell>
+
+                  <TableCell sx={{ textAlign: "center", fontWeight: 600 }}>
+                    {totalCOD}
+                  </TableCell>
+
+                  <TableCell sx={{ textAlign: "center", fontWeight: 600 }}>
+                    {totalPrepaid}
+                  </TableCell>
+
+                  <TableCell sx={{ textAlign: "center", fontWeight: 600 }}>
+                    {codPercent}%
+                  </TableCell>
+
+                  <TableCell sx={{ textAlign: "center", fontWeight: 600 }}>
+                    {prepaidPercent}%
+                  </TableCell>
                 </TableRow>
-              </TableHead>
+              );
+            })()}
+          </TableBody>
+        )}
 
-              <TableBody>
-                {tableLoading && (
-                  <TableRow>
-                    <TableCell colSpan={6} sx={{ padding: 0 }}>
-                      <LinearProgress sx={{ width: "100%", height: "1px" }} />
-                    </TableCell>
-                  </TableRow>
-                )}
+        {/* ---------- DATA ROWS ---------- */}
+        <TableBody>
+          {tableLoading && (
+            <TableRow>
+              <TableCell colSpan={6} sx={{ padding: 0 }}>
+                <LinearProgress sx={{ width: "100%", height: "1px" }} />
+              </TableCell>
+            </TableRow>
+          )}
 
-                {!tableLoading && codPrepaidStats.length > 0 ? (
-                  codPrepaidStats.map((row, index) => (
-                    <TableRow
-                      key={row.agentName}
-                      sx={{
-                        backgroundColor: index % 2 === 0 ? "#FFFFFF" : "#F9F9F9",
-                        "&:hover": {
-                          backgroundColor: "#F1F3F5",
-                          transition: "0.3s",
-                        },
-                      }}
-                    >
-                      <TableCell sx={{ padding: "8px" }}>{row.agentName}</TableCell>
-                      <TableCell align="center">{row.totalOrders}</TableCell>
-                      <TableCell align="center">{row.codOrders}</TableCell>
-                      <TableCell align="center">{row.prepaidOrders}</TableCell>
-                      <TableCell align="center">
-                        {row.codPercentage}%
-                      </TableCell>
-                      <TableCell align="center">
-                        {row.prepaidPercentage}%
-                      </TableCell>
-                    </TableRow>
-                  ))
-                ) : (
-                  !tableLoading && (
-                    <TableRow>
-                      <TableCell colSpan={6} align="center" sx={{ padding: "8px" }}>
-                        No data available
-                      </TableCell>
-                    </TableRow>
-                  )
-                )}
-              </TableBody>
-            </Table>
-          </TableContainer>
-        </Box>
-      )}
+          {!tableLoading && codPrepaidStats.length > 0 ? (
+            codPrepaidStats.map((row, index) => (
+              <TableRow
+                key={row.agentName}
+                sx={{
+                  backgroundColor: index % 2 === 0 ? "#FFFFFF" : "#F9F9F9",
+                  "&:hover": {
+                    backgroundColor: "#F1F3F5",
+                    transition: "0.3s",
+                  },
+                }}
+              >
+                <TableCell sx={{ padding: "8px" }}>{row.agentName}</TableCell>
+                <TableCell align="center">{row.totalOrders}</TableCell>
+                <TableCell align="center">{row.codOrders}</TableCell>
+                <TableCell align="center">{row.prepaidOrders}</TableCell>
+                <TableCell align="center">{row.codPercentage}%</TableCell>
+                <TableCell align="center">{row.prepaidPercentage}%</TableCell>
+              </TableRow>
+            ))
+          ) : (
+            !tableLoading && (
+              <TableRow>
+                <TableCell colSpan={6} align="center" sx={{ padding: "8px" }}>
+                  No data available
+                </TableCell>
+              </TableRow>
+            )
+          )}
+        </TableBody>
+      </Table>
+    </TableContainer>
+  </Box>
+)}
+
 
       {/* Sales Done Order IDs Popup Dialog */}
       <Dialog

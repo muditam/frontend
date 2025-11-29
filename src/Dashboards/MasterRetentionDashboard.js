@@ -1626,126 +1626,196 @@ const ManagerRetentionDashboard = () => {
       )}
 
       {selectedSummary === "COD vs Prepaid Summary" && (
-        <>
-          <Typography
-            variant="h6"
-            fontWeight="bold"
-            sx={{ textAlign: "center", color: "#000", marginBottom: 2 }}
-          >
-            COD vs Prepaid Summary
-          </Typography>
+  <>
+    <Typography
+      variant="h6"
+      fontWeight="bold"
+      sx={{ textAlign: "center", color: "#000", marginBottom: 2 }}
+    >
+      COD vs Prepaid Summary
+    </Typography>
 
-          <TableContainer
+    <TableContainer
+      sx={{
+        borderRadius: 2,
+        boxShadow: "0px 2px 8px rgba(0,0,0,0.08)",
+        overflowX: "auto",
+        maxWidth: "1000px",
+        margin: "0 auto",
+      }}
+      component={Paper}
+    >
+      <Table>
+        <TableHead>
+          <TableRow
             sx={{
-              borderRadius: 2,
-              boxShadow: "0px 2px 8px rgba(0,0,0,0.08)",
-              overflowX: "auto",
-              maxWidth: "1000px",
-              margin: "0 auto",
+              background: "linear-gradient(135deg, #64B5F6 30%, #42A5F5 100%)",
             }}
-            component={Paper}
           >
-            <Table>
-              <TableHead>
+            {[
+              "Agent Name",
+              "Total Orders",
+              "COD Orders",
+              "Prepaid Orders",
+              "COD %",
+              "Prepaid %",
+            ].map((header) => (
+              <TableCell
+                key={header}
+                sx={{
+                  fontWeight: "bold",
+                  textAlign: "center",
+                  color: "#fff",
+                  fontSize: "14px",
+                  padding: "10px",
+                }}
+              >
+                {header}
+              </TableCell>
+            ))}
+          </TableRow>
+        </TableHead>
+
+        {/* ---------- TOTAL ROW (Corrected % formula) ---------- */}
+
+        {!loading && codSummary.length > 0 && (
+          <TableBody>
+            {(() => {
+              const totalOrders = codSummary.reduce(
+                (acc, a) => acc + (a.totalOrders || 0),
+                0
+              );
+              const totalCOD = codSummary.reduce(
+                (acc, a) => acc + (a.codOrders || 0),
+                0
+              );
+              const totalPrepaid = codSummary.reduce(
+                (acc, a) => acc + (a.prepaidOrders || 0),
+                0
+              );
+
+              const totalCODPercent =
+                totalOrders > 0
+                  ? ((totalCOD / totalOrders) * 100).toFixed(1)
+                  : "0.0";
+
+              const totalPrepaidPercent =
+                totalOrders > 0
+                  ? ((totalPrepaid / totalOrders) * 100).toFixed(1)
+                  : "0.0";
+
+              return (
                 <TableRow
                   sx={{
-                    background: "linear-gradient(135deg, #64B5F6 30%, #42A5F5 100%)",
+                    backgroundColor: "#E8F4FF",
+                    "&:hover": { backgroundColor: "#E8F4FF" },
                   }}
                 >
-                  {[
-                    "Agent Name",
-                    "Total Orders",
-                    "COD Orders",
-                    "Prepaid Orders",
-                    "COD %",
-                    "Prepaid %",
-                  ].map((header) => (
-                    <TableCell
-                      key={header}
-                      sx={{
-                        fontWeight: "bold",
-                        textAlign: "center",
-                        color: "#fff",
-                        fontSize: "14px",
-                        padding: "10px",
-                      }}
-                    >
-                      {header}
-                    </TableCell>
-                  ))}
+                  <TableCell sx={{ textAlign: "center", fontWeight: 700 }}>
+                    TOTAL
+                  </TableCell>
+
+                  <TableCell sx={{ textAlign: "center", fontWeight: 600 }}>
+                    {totalOrders}
+                  </TableCell>
+
+                  <TableCell sx={{ textAlign: "center", fontWeight: 600 }}>
+                    {totalCOD}
+                  </TableCell>
+
+                  <TableCell sx={{ textAlign: "center", fontWeight: 600 }}>
+                    {totalPrepaid}
+                  </TableCell>
+
+                  <TableCell sx={{ textAlign: "center", fontWeight: 600 }}>
+                    {totalCODPercent}%
+                  </TableCell>
+
+                  <TableCell sx={{ textAlign: "center", fontWeight: 600 }}>
+                    {totalPrepaidPercent}%
+                  </TableCell>
                 </TableRow>
-              </TableHead>
+              );
+            })()}
+          </TableBody>
+        )}
 
-              {loading && (
-                <TableBody>
-                  <TableRow>
-                    <TableCell colSpan={6} sx={{ padding: 0 }}>
-                      <LinearProgress
-                        variant="indeterminate"
-                        sx={{ width: "100%", height: "3px" }}
-                      />
-                    </TableCell>
-                  </TableRow>
-                </TableBody>
-              )}
+        {/* -------------------- LOADING ROW -------------------- */}
+        {loading && (
+          <TableBody>
+            <TableRow>
+              <TableCell colSpan={6} sx={{ padding: 0 }}>
+                <LinearProgress
+                  variant="indeterminate"
+                  sx={{ width: "100%", height: "3px" }}
+                />
+              </TableCell>
+            </TableRow>
+          </TableBody>
+        )}
 
-              <TableBody>
-                {!loading && codSummary.length > 0 ? (
-                  codSummary.map((agent, idx) => (
-                    <TableRow
-                      key={idx}
-                      sx={{
-                        backgroundColor: idx % 2 === 0 ? "#F9FAFB" : "#FFFFFF",
-                        "&:hover": { backgroundColor: "#E3F2FD", transition: "0.3s" },
-                      }}
-                    >
-                      <TableCell sx={{ textAlign: "center", fontWeight: 500 }}>
-                        {agent.agentName}
-                      </TableCell>
+        {/* -------------------- AGENT ROWS -------------------- */}
+        <TableBody>
+          {!loading && codSummary.length > 0 ? (
+            codSummary.map((agent, idx) => (
+              <TableRow
+                key={idx}
+                sx={{
+                  backgroundColor: idx % 2 === 0 ? "#F9FAFB" : "#FFFFFF",
+                  "&:hover": { backgroundColor: "#E3F2FD", transition: "0.3s" },
+                }}
+              >
+                <TableCell sx={{ textAlign: "center", fontWeight: 500 }}>
+                  {agent.agentName}
+                </TableCell>
 
-                      <TableCell sx={{ textAlign: "center" }}>
-                        {agent.totalOrders}
-                      </TableCell>
+                <TableCell sx={{ textAlign: "center" }}>
+                  {agent.totalOrders}
+                </TableCell>
 
-                      <TableCell sx={{ textAlign: "center" }}>
-                        {agent.codOrders}
-                      </TableCell>
+                <TableCell sx={{ textAlign: "center" }}>
+                  {agent.codOrders}
+                </TableCell>
 
-                      <TableCell sx={{ textAlign: "center" }}>
-                        {agent.prepaidOrders}
-                      </TableCell>
+                <TableCell sx={{ textAlign: "center" }}>
+                  {agent.prepaidOrders}
+                </TableCell>
 
-                      <TableCell sx={{ textAlign: "center" }}>
-                        {agent.totalOrders > 0
-                          ? ((agent.codOrders / agent.totalOrders) * 100).toFixed(1) + "%"
-                          : "0%"}
-                      </TableCell>
+                <TableCell sx={{ textAlign: "center" }}>
+                  {agent.totalOrders > 0
+                    ? ((agent.codOrders / agent.totalOrders) * 100).toFixed(1) +
+                      "%"
+                    : "0%"}
+                </TableCell>
 
-                      <TableCell sx={{ textAlign: "center" }}>
-                        {agent.totalOrders > 0
-                          ? ((agent.prepaidOrders / agent.totalOrders) * 100).toFixed(1) + "%"
-                          : "0%"}
-                      </TableCell>
-                    </TableRow>
-                  ))
-                ) : (
-                  !loading && (
-                    <TableRow>
-                      <TableCell
-                        colSpan={6}
-                        align="center"
-                        sx={{ padding: "12px", color: "#888", fontStyle: "italic" }}
-                      >
-                        No data found.
-                      </TableCell>
-                    </TableRow>
-                  )
-                )}
-              </TableBody>
-            </Table>
-          </TableContainer>
-        </>
-      )}
+                <TableCell sx={{ textAlign: "center" }}>
+                  {agent.totalOrders > 0
+                    ? (
+                        (agent.prepaidOrders / agent.totalOrders) *
+                        100
+                      ).toFixed(1) + "%"
+                    : "0%"}
+                </TableCell>
+              </TableRow>
+            ))
+          ) : (
+            !loading && (
+              <TableRow>
+                <TableCell
+                  colSpan={6}
+                  align="center"
+                  sx={{ padding: "12px", color: "#888", fontStyle: "italic" }}
+                >
+                  No data found.
+                </TableCell>
+              </TableRow>
+            )
+          )}
+        </TableBody>
+      </Table>
+    </TableContainer>
+  </>
+)}
     </Box>
   );
 };

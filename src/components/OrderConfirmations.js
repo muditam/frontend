@@ -296,16 +296,28 @@ export default function OrderConfirmations() {
 
   const isConfirmedTab = tab === "ORDER_CONFIRMED";
 
-  const visibleItems = useMemo(
-    () =>
-      isConfirmedTab
-        ? items.filter((row) => {
-          const tracking = row?.shipping?.tracking_number;
-          return !tracking || String(tracking).trim() === "";
-        })
-        : items,
-    [items, isConfirmedTab]
-  );
+  const allFilteredItems = useMemo(() => {
+  if (!isConfirmedTab) return items;
+
+  return items.filter((row) => {
+    const tracking = row?.shipping?.tracking_number;
+    return !tracking || String(tracking).trim() === "";
+  });
+}, [items, isConfirmedTab]);
+
+// Step 2: apply pagination on filtered rows
+const visibleItems = useMemo(() => {
+  if (!isConfirmedTab) return items; // normal tabs use backend pagination
+
+  const start = page * rowsPerPage;
+  const end = start + rowsPerPage;
+  return allFilteredItems.slice(start, end);
+}, [allFilteredItems, isConfirmedTab, page, rowsPerPage]);
+
+// Step 3: correct count
+const visibleTotal = useMemo(() => {
+  return isConfirmedTab ? allFilteredItems.length : total;
+}, [isConfirmedTab, allFilteredItems, total]);
 
 
   // Payment dialog state
@@ -358,8 +370,8 @@ export default function OrderConfirmations() {
         const params = {
           tab,
           financial: "pending",
-          page: pageZeroBased + 1,
-          limit,
+          page: isConfirmedTab ? 1 : pageZeroBased + 1,
+          limit: isConfirmedTab ? 5000 : limit,
           q: qDebounced,
           channel,
         };
@@ -498,9 +510,9 @@ export default function OrderConfirmations() {
 
   useEffect(() => {
     setPage(0);
-    fetchList(0, rowsPerPage);
+    fetchList(0, isConfirmedTab ? 5000 : rowsPerPage);
     setExpandedId(null);
-  }, [tab, qDebounced, channel, assignedParam, allCnpDate]);
+  }, [tab, qDebounced, channel, assignedParam, allCnpDate, isConfirmedTab]);
 
   useEffect(() => {
     fetchTodayConfirmedCount();
@@ -786,10 +798,6 @@ export default function OrderConfirmations() {
     } catch { }
   };
 
-  const visibleTotal = useMemo(() => {
-    return isConfirmedTab ? visibleItems.length : total;
-  }, [isConfirmedTab, visibleItems, total]);
-
   return (
     <ThemeProvider theme={theme}>
       <Box>
@@ -936,7 +944,7 @@ export default function OrderConfirmations() {
                   value="ORDER_CONFIRMED"
                   label={
                     isConfirmedTab
-                      ? `Confirmed (${visibleItems.length})`
+                      ? `Confirmed (${visibleTotal})`
                       : `Confirmed (${counts.ORDER_CONFIRMED || 0})`
                   }
                 />
@@ -1603,7 +1611,7 @@ export default function OrderConfirmations() {
             page={page}
             onPageChange={(_e, newPage) => {
               setPage(newPage);
-              fetchList(newPage, rowsPerPage);
+              if (!isConfirmedTab) fetchList(newPage, rowsPerPage);
             }}
             rowsPerPage={rowsPerPage}
             onRowsPerPageChange={(e) => {
