@@ -1175,6 +1175,12 @@ const NavbarWithSearch = () => {
             <TableBody>
               {[
                 {
+                  slab: "1.5L – 2L ( Only during probation)",
+                  rate: "1%",
+                  monthly: "1,500 – 2,000",
+                  annual: "18,000 – 24,000",
+                },
+                {
                   slab: "2L – 3L",
                   rate: "1.50%",
                   monthly: "3,000 – 4,500",
