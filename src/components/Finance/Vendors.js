@@ -1,855 +1,452 @@
-// src/pages/Vendors.js
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useEffect, useState } from "react";
 import {
-    Box,
-    Paper,
-    Typography,
-    Button,
-    Table,
-    TableBody,
-    TableCell,
-    TableContainer,
-    TableHead,
-    TableRow,
-    TablePagination,
-    TextField,
-    Switch,
-    CircularProgress,
-    InputAdornment,
-    Snackbar,
-    Alert,
-} from '@mui/material';
-import {
-    Sync as SyncIcon,
-    Search as SearchIcon,
-    Clear as ClearIcon,
-} from '@mui/icons-material';
-import axios from 'axios';
+  Box,
+  Paper,
+  Typography,
+  Table,
+  TableHead,
+  TableRow,
+  TableCell,
+  TableBody,
+  IconButton,
+  Button,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  TextField,
+  Switch,
+  Snackbar,
+  Alert,
+  Stack,
+} from "@mui/material";
 
 
-const API_BASE_URL = 'https://muditamleads-14f32a10d7f7.herokuapp.com';
+import AddIcon from "@mui/icons-material/Add";
+import EditIcon from "@mui/icons-material/Edit";
+import CloseIcon from "@mui/icons-material/Close";
 
 
-const Vendors = () => {
-    const [vendors, setVendors] = useState([]);
-    const [editingCell, setEditingCell] = useState({
-        vendorId: null,
-        field: null,
-    });
-    const originalValues = useRef({});
+const API = "https://muditamleads-14f32a10d7f7.herokuapp.com/api/purchase-records/vendors";
+function validateVendorForm(form, showSnackbar) {
+  // --- Phone Number: 10 digits only ---
+  if (form.phoneNumber && !/^\d{10}$/.test(form.phoneNumber)) {
+    showSnackbar("Phone number must be exactly 10 digits", "warning");
+    return false;
+  }
 
 
-    const [page, setPage] = useState(0);
-    const [rowsPerPage, setRowsPerPage] = useState(100);
-    const [total, setTotal] = useState(0);
+  // --- GST Number: 15 characters (alphanumeric) ---
+  if (form.hasGST && form.gstNumber.trim() !== "") {
+    if (!/^[A-Z0-9]{15}$/.test(form.gstNumber.trim().toUpperCase())) {
+      showSnackbar("GST Number must be 15 characters (A-Z, 0-9)", "warning");
+      return false;
+    }
+  }
 
 
-    const [syncing, setSyncing] = useState(false);
-    const [loading, setLoading] = useState(false);
-    const [searchTerm, setSearchTerm] = useState('');
+  return true;
+}
 
 
-    const [snackbar, setSnackbar] = useState({
-        open: false,
-        message: '',
-        severity: 'error',
-    });
 
 
-    const showError = (message) => {
-        setSnackbar({ open: true, message, severity: 'error' });
-    };
+export default function VendorList() {
+  const [vendors, setVendors] = useState([]);
+  const [filtered, setFiltered] = useState([]);
 
 
-    const showSuccess = (message) => {
-        setSnackbar({ open: true, message, severity: 'success' });
-    };
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [isEdit, setIsEdit] = useState(false);
 
 
-    // simple validators
-    const isValidPhone = (phone) => !phone || /^\d{10}$/.test(phone.trim());
+  const [search, setSearch] = useState("");
 
 
-    const isValidEmail = (email) =>
-        !email || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
+  const [form, setForm] = useState({
+    name: "",
+    email: "",
+    phoneNumber: "",
+    hasGST: true,
+    gstNumber: "",
+  });
 
 
-    useEffect(() => {
-        fetchVendors();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [page, rowsPerPage, searchTerm]);
+  const [editId, setEditId] = useState(null);
 
 
-    const fetchVendors = async () => {
-        setLoading(true);
-        try {
-            const params = {
-                page: page + 1,
-                limit: rowsPerPage,
-            };
+  const [snackbar, setSnackbar] = useState({
+    open: false,
+    message: "",
+    severity: "info",
+  });
 
 
-            const res = await axios.get(`${API_BASE_URL}/api/vendors`, { params });
+  const showSnackbar = (msg, severity = "info") =>
+    setSnackbar({ open: true, message: msg, severity });
 
 
-            let vendorsList = [];
-            let totalCount = 0;
+  const closeSnackbar = () =>
+    setSnackbar((prev) => ({ ...prev, open: false }));
 
 
-            if (res.data.vendors && Array.isArray(res.data.vendors)) {
-                vendorsList = res.data.vendors;
-                totalCount = res.data.total || res.data.vendors.length;
-            } else if (Array.isArray(res.data)) {
-                vendorsList = res.data;
-                totalCount = res.data.length;
-            }
+  // ---------------------- Fetch Vendors ----------------------
+  useEffect(() => {
+    fetchVendors();
+  }, []);
 
 
-            if (searchTerm.trim()) {
-                const searchLower = searchTerm.toLowerCase().trim();
-                vendorsList = vendorsList.filter(
-                    (vendor) =>
-                        vendor.name?.toLowerCase().includes(searchLower) ||
-                        vendor.phoneNumber?.toLowerCase().includes(searchLower) ||
-                        vendor.email?.toLowerCase().includes(searchLower) ||
-                        vendor.gstNumber?.toLowerCase().includes(searchLower)
-                );
-                totalCount = vendorsList.length;
-            }
+  async function fetchVendors() {
+    try {
+      const res = await fetch(`${API}?limit=5000`);
+      const data = await res.json();
 
 
-            setVendors(vendorsList);
-            setTotal(totalCount);
-        } catch (e) {
-            console.error('Fetch vendors error:', e);
-            showError(
-                'Failed to fetch vendors: ' +
-                (e.response?.data?.error || e.message || 'Unknown error')
-            );
-            setVendors([]);
-            setTotal(0);
-        } finally {
-            setLoading(false);
-        }
-    };
+      const list = data.vendors || [];
+      const sorted = list.sort(
+        (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
+      );
 
 
-    const handleSyncVendors = async () => {
-        if (
-            !window.confirm(
-                'Sync vendors from purchase records?\n\nThis will create vendor entries for all unique party names found in purchase records.'
-            )
+      setVendors(sorted);
+      setFiltered(sorted);
+    } catch (err) {
+      console.error(err);
+      showSnackbar("Failed to fetch vendors", "error");
+    }
+  }
+
+
+  // ---------------------- Search Filter ----------------------
+  useEffect(() => {
+    if (!search.trim()) {
+      setFiltered(vendors);
+    } else {
+      const q = search.toLowerCase();
+      setFiltered(
+        vendors.filter(
+          (v) =>
+            v.name.toLowerCase().includes(q) ||
+            (v.email || "").toLowerCase().includes(q) ||
+            (v.phoneNumber || "").includes(q)
         )
-            return;
+      );
+    }
+  }, [search, vendors]);
 
 
-        setSyncing(true);
-        try {
-            const res = await axios.post(
-                `${API_BASE_URL}/api/vendors/sync-from-purchases`
-            );
-
-
-            showSuccess(
-                `Vendor Sync Complete! New: ${res.data.syncedCount}, Already existed: ${res.data.skippedCount}, Total unique: ${res.data.total}`
-            );
-
-
-            setSearchTerm('');
-            setPage(0);
-            await fetchVendors();
-        } catch (e) {
-            console.error('Sync vendors error:', e);
-            showError(
-                'Failed to sync vendors: ' +
-                (e.response?.data?.error || e.message || 'Unknown error')
-            );
-        } finally {
-            setSyncing(false);
-        }
-    };
-
-
-    const handleFieldChange = (id, field, value) => {
-        if (!originalValues.current[`${id}-${field}`]) {
-            const vendor = vendors.find((v) => v._id === id);
-            if (vendor) {
-                originalValues.current[`${id}-${field}`] = vendor[field];
-            }
-        }
-
-
-        setEditingCell({ vendorId: id, field });
-
-
-        setVendors((prev) =>
-            prev.map((v) => (v._id === id ? { ...v, [field]: value } : v))
-        );
-    };
-
-
-    const handleFieldBlur = async (vendorId, field, rawValue) => {
-        setEditingCell({ vendorId: null, field: null });
-
-
-        const currentVendor = vendors.find((v) => v._id === vendorId);
-
-
-        let value = rawValue;
-        const key = `${vendorId}-${field}`;
-        const originalValue = originalValues.current[key];
-        delete originalValues.current[key];
-
-
-        // PHONE VALIDATION
-        if (field === 'phoneNumber') {
-            if (!isValidPhone(value)) {
-                showError('Phone number must be exactly 10 digits (only numbers).');
-                setVendors((prev) =>
-                    prev.map((v) =>
-                        v._id === vendorId ? { ...v, phoneNumber: originalValue || '' } : v
-                    )
-                );
-                return;
-            }
-            value = value.trim();
-        }
-
-
-        // EMAIL VALIDATION
-        if (field === 'email') {
-            if (!isValidEmail(value)) {
-                showError('Invalid email format.');
-                setVendors((prev) =>
-                    prev.map((v) =>
-                        v._id === vendorId ? { ...v, email: originalValue || '' } : v
-                    )
-                );
-                return;
-            }
-            value = value.trim();
-        }
-
-
-        // GST NUMBER VALIDATION
-        if (field === 'gstNumber') {
-            value = (value || '').toUpperCase().trim();
-
-
-            if (currentVendor?.hasGST) {
-                if (!value) {
-                    showError('GST number is required when GST is enabled.');
-                    setVendors((prev) =>
-                        prev.map((v) =>
-                            v._id === vendorId ? { ...v, gstNumber: originalValue || '' } : v
-                        )
-                    );
-                    return;
-                }
-                if (value.length !== 15) {
-                    showError('GST number must be exactly 15 characters.');
-                    setVendors((prev) =>
-                        prev.map((v) =>
-                            v._id === vendorId ? { ...v, gstNumber: originalValue || '' } : v
-                        )
-                    );
-                    return;
-                }
-            } else {
-                if (value) {
-                    showError('Enable GST for this vendor to set GST number.');
-                    setVendors((prev) =>
-                        prev.map((v) =>
-                            v._id === vendorId ? { ...v, gstNumber: originalValue || '' } : v
-                        )
-                    );
-                    return;
-                }
-            }
-        }
-
-
-        // HAS GST TOGGLE – allow turning ON first, then filling GST
-        if (field === 'hasGST') {
-            const newHasGST = !!value;
-            const gst = (currentVendor?.gstNumber || '').toUpperCase().trim();
-
-
-            if (newHasGST) {
-                // turning ON: just update UI, don't hit backend yet
-                // (GST will be validated & saved when gstNumber field blurs)
-                setVendors((prev) =>
-                    prev.map((v) =>
-                        v._id === vendorId ? { ...v, hasGST: true } : v
-                    )
-                );
-                return;
-            } else {
-                // turning OFF: clear GST and save both fields
-                value = false;
-                setVendors((prev) =>
-                    prev.map((v) =>
-                        v._id === vendorId ? { ...v, hasGST: false, gstNumber: '' } : v
-                    )
-                );
-            }
-        }
-
-
-        if (originalValue === value) return;
-
-
-        try {
-            const payload = { [field]: value };
-
-
-            // keep GST / hasGST consistent in payload
-            if (field === 'hasGST') {
-                payload.hasGST = !!value;
-                if (!value) {
-                    payload.gstNumber = '';
-                }
-            }
-
-
-            if (field === 'gstNumber') {
-                payload.gstNumber = value;
-                // if GST toggle is ON in UI, make sure backend also hasGST = true
-                if (currentVendor?.hasGST) {
-                    payload.hasGST = true;
-                }
-            }
-
-
-            const res = await axios.patch(
-                `${API_BASE_URL}/api/vendors/${vendorId}`,
-                payload
-            );
-
-
-            const updated = res.data;
-            setVendors((prev) =>
-                prev.map((v) => (v._id === vendorId ? updated : v))
-            );
-        } catch (e) {
-            console.error('Save vendor failed:', e);
-
-
-            const errorMsg =
-                e.response?.data?.message ||
-                e.response?.data?.error ||
-                'Failed to save vendor';
-            showError(errorMsg);
-
-
-            // revert changed value
-            setVendors((prev) =>
-                prev.map((v) =>
-                    v._id === vendorId ? { ...v, [field]: originalValue } : v
-                )
-            );
-        }
-    };
-
-
-
-
-
-
-    const handleChangePage = (_e, newPage) => setPage(newPage);
-    const handleChangeRowsPerPage = (e) => {
-        setRowsPerPage(parseInt(e.target.value, 10));
-        setPage(0);
-    };
-
-
-    const handleSearchChange = (e) => {
-        setSearchTerm(e.target.value);
-        setPage(0);
-    };
-
-
-    const handleClearSearch = () => {
-        setSearchTerm('');
-        setPage(0);
-    };
-
-
-    // ---------- STYLES ----------
-    const headerCellSx = {
-        backgroundColor: '#111827',
-        color: '#f9fafb',
-        fontWeight: 700,
-        fontSize: 13,
-        whiteSpace: 'nowrap',
-        padding: '8px 10px',
-        borderBottom: '1px solid #e5e7eb',
-    };
-
-
-    const inputBorderSx = {
-        '& .MuiOutlinedInput-root': {
-            '& fieldset': { borderColor: '#d4d4d4' },
-            '&:hover fieldset': { borderColor: '#000' },
-            '&.Mui-focused fieldset': { borderColor: '#000' },
-        },
-        '& .MuiInputBase-input': {
-            paddingTop: 0.4,
-            paddingBottom: 0.4,
-            fontSize: 13,
-        },
-    };
-
-
-    const renderCell = (vendor, field) => {
-        const isEditing =
-            editingCell.vendorId === vendor._id && editingCell.field === field;
-
-
-        switch (field) {
-            case 'name':
-                return (
-                    <Typography
-                        sx={{ fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap' }}
-                    >
-                        {vendor.name}
-                    </Typography>
-                );
-
-
-            case 'phoneNumber':
-                return (
-                    <TextField
-                        type="text"
-                        size="small"
-                        value={vendor.phoneNumber || ''}
-                        onChange={(e) =>
-                            handleFieldChange(vendor._id, 'phoneNumber', e.target.value)
-                        }
-                        onBlur={(e) =>
-                            handleFieldBlur(vendor._id, 'phoneNumber', e.target.value)
-                        }
-                        onFocus={() =>
-                            setEditingCell({ vendorId: vendor._id, field: 'phoneNumber' })
-                        }
-                        placeholder="Enter phone"
-                        fullWidth
-                        sx={{
-                            minWidth: 140,
-                            ...inputBorderSx,
-                            backgroundColor: isEditing ? '#fffef0' : 'transparent',
-                        }}
-                    />
-                );
-
-
-            case 'email':
-                return (
-                    <TextField
-                        type="email"
-                        size="small"
-                        value={vendor.email || ''}
-                        onChange={(e) =>
-                            handleFieldChange(vendor._id, 'email', e.target.value)
-                        }
-                        onBlur={(e) =>
-                            handleFieldBlur(vendor._id, 'email', e.target.value)
-                        }
-                        onFocus={() =>
-                            setEditingCell({ vendorId: vendor._id, field: 'email' })
-                        }
-                        placeholder="Enter email"
-                        fullWidth
-                        sx={{
-                            minWidth: 180,
-                            ...inputBorderSx,
-                            backgroundColor: isEditing ? '#fffef0' : 'transparent',
-                        }}
-                    />
-                );
-
-
-            case 'hasGST':
-                return (
-                    <Box
-                        sx={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                        }}
-                    >
-                        <Switch
-                            checked={vendor.hasGST || false}
-                            onChange={(e) => {
-                                const newValue = e.target.checked;
-                                handleFieldChange(vendor._id, 'hasGST', newValue);
-                                handleFieldBlur(vendor._id, 'hasGST', newValue);
-                            }}
-                            size="small"
-                            sx={{
-                                '& .MuiSwitch-switchBase.Mui-checked': {
-                                    color: '#000',
-                                },
-                                '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': {
-                                    backgroundColor: '#000',
-                                },
-                            }}
-                        />
-                    </Box>
-                );
-
-
-            case 'gstNumber':
-                return (
-                    <TextField
-                        type="text"
-                        size="small"
-                        value={vendor.gstNumber || ''}
-                        onChange={(e) =>
-                            handleFieldChange(
-                                vendor._id,
-                                'gstNumber',
-                                e.target.value.toUpperCase()
-                            )
-                        }
-                        onBlur={(e) =>
-                            handleFieldBlur(
-                                vendor._id,
-                                'gstNumber',
-                                e.target.value.toUpperCase()
-                            )
-                        }
-                        onFocus={() =>
-                            setEditingCell({ vendorId: vendor._id, field: 'gstNumber' })
-                        }
-                        placeholder="Enter GST number"
-                        disabled={!vendor.hasGST}
-                        fullWidth
-                        sx={{
-                            minWidth: 180,
-                            ...inputBorderSx,
-                            backgroundColor: isEditing ? '#fffef0' : 'transparent',
-                            '& .MuiInputBase-input.Mui-disabled': {
-                                backgroundColor: '#f5f5f5',
-                                cursor: 'not-allowed',
-                            },
-                        }}
-                    />
-                );
-
-
-            default:
-                return null;
-        }
-    };
-
-
-    const columns = [
-        { field: 'name', label: 'Vendor Name' },
-        { field: 'phoneNumber', label: 'Phone Number' },
-        { field: 'email', label: 'Email' },
-        { field: 'hasGST', label: 'GST' },
-        { field: 'gstNumber', label: 'GST Number' },
-    ];
-
-
-    return (
-        <Box
-            sx={{
-                px: 2.5,
-                pt: 1.5,
-                pb: 2.5,
-                backgroundColor: '#f3f4f6',
-                minHeight: '100vh',
-            }}
+  // ---------------------- Reset Form ----------------------
+  function resetForm() {
+    setForm({
+      name: "",
+      email: "",
+      phoneNumber: "",
+      hasGST: true,
+      gstNumber: "",
+    });
+    setEditId(null);
+    setIsEdit(false);
+  }
+
+
+  // ---------------------- Add Vendor ----------------------
+  async function handleAddVendor() {
+    if (!form.name.trim()) {
+      return showSnackbar("Vendor name is required", "warning");
+    }
+      if (!validateVendorForm(form, showSnackbar)) return;
+
+
+    try {
+      const res = await fetch(API, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
+
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Failed");
+
+
+      const updated = [data.vendor, ...vendors];
+      setVendors(updated);
+      setFiltered(updated);
+
+
+      showSnackbar("Vendor added successfully", "success");
+
+
+      setDialogOpen(false);
+      resetForm();
+    } catch (err) {
+      console.error(err);
+      showSnackbar("Failed to add vendor", "error");
+    }
+  }
+
+
+  // ---------------------- Open Edit Dialog ----------------------
+  function openEditDialog(v) {
+    setIsEdit(true);
+    setEditId(v._id);
+    setForm({
+      name: v.name,
+      email: v.email || "",
+      phoneNumber: v.phoneNumber || "",
+      hasGST: v.hasGST,
+      gstNumber: v.gstNumber || "",
+    });
+    setDialogOpen(true);
+  }
+
+
+  // ---------------------- SAVE EDIT ----------------------
+  async function handleUpdateVendor() {
+    try {
+      const res = await fetch(`${API}/${editId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
+
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Failed");
+     
+  if (!validateVendorForm(form, showSnackbar)) return;
+
+
+      const updatedList = vendors.map((v) =>
+        v._id === editId ? data.vendor : v
+      );
+
+
+      setVendors(updatedList);
+      setFiltered(updatedList);
+
+
+      showSnackbar("Vendor updated successfully", "success");
+
+
+      setDialogOpen(false);
+      resetForm();
+    } catch (err) {
+      console.error(err);
+      showSnackbar("Failed to update vendor", "error");
+    }
+  }
+
+
+  // ---------------------- UI ----------------------
+  return (
+    <Box sx={{ px: 3, py: 2, background: "#f5f6f8", minHeight: "100vh" }}>
+      {/* HEADER */}
+      <Paper
+        elevation={0}
+        sx={{
+          px: 3,
+          py: 2,
+          mb: 2,
+          borderRadius: 2,
+          border: "1px solid #e5e7eb",
+          background: "#fff",
+        }}
+      >
+        <Stack
+          direction="row"
+          justifyContent="space-between"
+          alignItems="center"
         >
-            <Paper
-                sx={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    mb: 1,
-                    px: 2.4,
-                    py: 1.6,
-                    borderRadius: 2,
-                    border: '1px solid #e5e7eb',
-                    backgroundColor: '#ffffff',
-                }}
+          <Typography variant="h6" sx={{ fontWeight: 700 }}>
+            Vendor List
+          </Typography>
+
+
+          <Stack direction="row" spacing={2}>
+            <TextField
+              placeholder="Search..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              size="small"
+              sx={{ width: 260 }}
+            />
+
+
+            <Button
+              variant="contained"
+              startIcon={<AddIcon />}
+              onClick={() => {
+                resetForm();
+                setDialogOpen(true);
+              }}
+              sx={{
+                background: "#000",
+                textTransform: "none",
+                borderRadius: 1.3,
+                "&:hover": { background: "#222" },
+              }}
             >
-                <Box>
-                    <Typography
-                        variant="h6"
-                        sx={{
-                            fontWeight: 800,
-                            color: '#111827',
-                            letterSpacing: '.25px',
-                        }}
-                    >
-                        My Vendors
-                    </Typography>
-                    <Typography variant="body2" sx={{ mt: 0.3, color: '#6b7280' }} />
-                </Box>
+              Add Vendor
+            </Button>
+          </Stack>
+        </Stack>
+      </Paper>
 
 
-                <Box sx={{ display: 'flex', gap: 1.2, alignItems: 'center' }}>
-                    <Button
-                        variant="outlined"
-                        startIcon={
-                            syncing ? <CircularProgress size={16} /> : <SyncIcon />
-                        }
-                        onClick={handleSyncVendors}
-                        disabled={syncing}
-                        sx={{
-                            px: 2.6,
-                            py: 1,
-                            textTransform: 'none',
-                            fontWeight: 700,
-                            fontSize: '0.88rem',
-                            borderRadius: '999px',
-                            borderColor: '#000',
-                            color: '#000',
-                            '&:hover': {
-                                borderColor: '#000',
-                                backgroundColor: 'rgba(0,0,0,0.05)',
-                            },
-                            '&:disabled': {
-                                borderColor: '#ccc',
-                                color: '#999',
-                            },
-                        }}
-                    >
-                        {syncing ? 'Syncing...' : 'Sync from Purchases'}
-                    </Button>
-                </Box>
-            </Paper>
+      {/* TABLE */}
+      <Paper sx={{ borderRadius: 2, border: "1px solid #e5e7eb" }}>
+        <Table>
+          <TableHead>
+            <TableRow sx={{ background: "#111827" }}>
+              <TableCell sx={{ color: "#fff" }}>S.No.</TableCell>
+              <TableCell sx={{ color: "#fff" }}>Name</TableCell>
+              <TableCell sx={{ color: "#fff" }}>Email</TableCell>
+              <TableCell sx={{ color: "#fff" }}>Phone</TableCell>
+              <TableCell sx={{ color: "#fff" }}>GST</TableCell>
+              <TableCell sx={{ color: "#fff" }}>GST Number</TableCell>
+              <TableCell sx={{ color: "#fff" }}>Action</TableCell>
+            </TableRow>
+          </TableHead>
 
 
-            {/* SEARCH BAR */}
-            <Paper
-                sx={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    mb: 1,
-                    px: 2,
-                    py: 1.2,
-                    borderRadius: 2,
-                    border: '1px solid #e5e7eb',
-                    backgroundColor: '#ffffff',
-                }}
-            >
-                <TextField
-                    placeholder="Search by vendor name, phone, email, or GST number..."
-                    value={searchTerm}
-                    onChange={handleSearchChange}
-                    size="small"
-                    fullWidth
-                    sx={{
-                        '& .MuiOutlinedInput-root': {
-                            '& fieldset': { borderColor: '#e5e7eb' },
-                            '&:hover fieldset': { borderColor: '#000' },
-                            '&.Mui-focused fieldset': { borderColor: '#000' },
-                        },
-                    }}
-                    InputProps={{
-                        startAdornment: (
-                            <InputAdornment position="start">
-                                <SearchIcon sx={{ color: '#6b7280' }} />
-                            </InputAdornment>
-                        ),
-                        endAdornment:
-                            searchTerm && (
-                                <InputAdornment position="end">
-                                    <Button
-                                        size="small"
-                                        onClick={handleClearSearch}
-                                        sx={{
-                                            minWidth: 'auto',
-                                            p: 0.5,
-                                            color: '#6b7280',
-                                            '&:hover': {
-                                                backgroundColor: 'rgba(0,0,0,0.05)',
-                                            },
-                                        }}
-                                    >
-                                        <ClearIcon fontSize="small" />
-                                    </Button>
-                                </InputAdornment>
-                            ),
-                    }}
+          <TableBody>
+            {filtered.map((v, idx) => (
+              <TableRow key={v._id}>
+                <TableCell>{idx + 1}</TableCell>
+                <TableCell>{v.name}</TableCell>
+                <TableCell>{v.email || "-"}</TableCell>
+                <TableCell>{v.phoneNumber || "-"}</TableCell>
+                <TableCell>{v.hasGST ? "Yes" : "No"}</TableCell>
+                <TableCell>{v.gstNumber || "-"}</TableCell>
+
+
+                <TableCell>
+                  <IconButton onClick={() => openEditDialog(v)}>
+                    <EditIcon />
+                  </IconButton>
+                </TableCell>
+              </TableRow>
+            ))}
+
+
+            {filtered.length === 0 && (
+              <TableRow>
+                <TableCell colSpan={7} align="center" sx={{ py: 5 }}>
+                  No vendors found.
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
+      </Paper>
+
+
+      {/* ADD / EDIT VENDOR DIALOG */}
+      <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle sx={{ fontWeight: 700 }}>
+          {isEdit ? "Edit Vendor" : "Add Vendor"}
+        </DialogTitle>
+
+
+        <DialogContent>
+          <Stack spacing={2} mt={1}>
+            <TextField
+              label="Vendor Name *"
+              fullWidth
+              value={form.name}
+              onChange={(e) =>
+                setForm((p) => ({ ...p, name: e.target.value }))
+              }
+            />
+
+
+            <Stack direction="row" spacing={2}>
+              <TextField
+                label="Email"
+                fullWidth
+                value={form.email}
+                onChange={(e) =>
+                  setForm((p) => ({ ...p, email: e.target.value }))
+                }
+              />
+
+
+              <TextField
+                label="Phone"
+                fullWidth
+                value={form.phoneNumber}
+                inputProps={{ maxLength: 10 }}
+                onChange={(e) =>
+                  setForm((p) => ({
+                    ...p,
+                    phoneNumber: e.target.value.replace(/\D/g, ""),
+                  }))
+                }
+              />
+            </Stack>
+
+
+            <Stack spacing={1}>
+              <Stack direction="row" spacing={1} alignItems="center">
+                <Switch
+                  checked={form.hasGST}
+                  onChange={(e) =>
+                    setForm((p) => ({ ...p, hasGST: e.target.checked }))
+                  }
                 />
-                {searchTerm && (
-                    <Typography
-                        variant="body2"
-                        sx={{ ml: 2, color: '#6b7280', whiteSpace: 'nowrap' }}
-                    >
-                        {total} result{total !== 1 ? 's' : ''}
-                    </Typography>
-                )}
-            </Paper>
+                <Typography>Has GST?</Typography>
+              </Stack>
 
 
-            <Box
-                sx={{
-                    mt: 1,
-                    borderRadius: 2,
-                    border: '1px solid #e5e7eb',
-                    boxShadow: '0 6px 16px rgba(0,0,0,0.05)',
-                    backgroundColor: '#ffffff',
-                    overflow: 'hidden',
-                }}
-            >
-                {loading ? (
-                    <Box sx={{ display: 'flex', justifyContent: 'center', py: 10 }}>
-                        <CircularProgress />
-                    </Box>
-                ) : (
-                    <>
-                        <TableContainer
-                            sx={{
-                                maxHeight: 'calc(100vh - 310px)',
-                            }}
-                        >
-                            <Table stickyHeader size="small">
-                                <TableHead>
-                                    <TableRow>
-                                        <TableCell sx={headerCellSx}>S.No.</TableCell>
-                                        {columns.map((col) => (
-                                            <TableCell key={col.field} sx={headerCellSx}>
-                                                {col.label}
-                                            </TableCell>
-                                        ))}
-                                    </TableRow>
-                                </TableHead>
+              {form.hasGST && (
+                <TextField
+                  label="GST Number"
+                  fullWidth
+                  value={form.gstNumber}
+                  inputProps={{ maxLength: 15 }}
+                  onChange={(e) =>
+                    setForm((p) => ({
+                      ...p,
+                      gstNumber: e.target.value.toUpperCase(),
+                    }))
+                  }
+                />
+              )}
+            </Stack>
+          </Stack>
+        </DialogContent>
 
 
-                                <TableBody>
-                                    {vendors.length === 0 ? (
-                                        <TableRow>
-                                            <TableCell
-                                                colSpan={columns.length + 1}
-                                                align="center"
-                                                sx={{ py: 5 }}
-                                            >
-                                                <Typography
-                                                    variant="body1"
-                                                    color="text.secondary"
-                                                    sx={{ mb: 2 }}
-                                                >
-                                                    {searchTerm
-                                                        ? `No vendors found matching "${searchTerm}"`
-                                                        : 'No vendors found.'}
-                                                </Typography>
-                                                {!searchTerm && (
-                                                    <Typography
-                                                        variant="body2"
-                                                        color="text.secondary"
-                                                    >
-                                                        Click "Sync from Purchases" to import vendors from
-                                                        purchase records
-                                                        <br />
-                                                        or add vendors from other parts of the app.
-                                                    </Typography>
-                                                )}
-                                            </TableCell>
-                                        </TableRow>
-                                    ) : (
-                                        vendors.map((vendor, index) => (
-                                            <TableRow
-                                                key={vendor._id}
-                                                sx={{
-                                                    '&:nth-of-type(odd)': {
-                                                        backgroundColor: '#fafafa',
-                                                    },
-                                                    '&:hover': { backgroundColor: '#f3f4f6' },
-                                                }}
-                                            >
-                                                <TableCell
-                                                    sx={{
-                                                        padding: '6px 8px',
-                                                        whiteSpace: 'nowrap',
-                                                        fontWeight: 600,
-                                                    }}
-                                                >
-                                                    {page * rowsPerPage + index + 1}
-                                                </TableCell>
-                                                {columns.map((col) => (
-                                                    <TableCell
-                                                        key={col.field}
-                                                        sx={{
-                                                            padding: '6px 8px',
-                                                            whiteSpace: 'nowrap',
-                                                        }}
-                                                    >
-                                                        {renderCell(vendor, col.field)}
-                                                    </TableCell>
-                                                ))}
-                                            </TableRow>
-                                        ))
-                                    )}
-                                </TableBody>
-                            </Table>
-                        </TableContainer>
+        <DialogActions sx={{ p: 2 }}>
+          <Button onClick={() => setDialogOpen(false)}>Cancel</Button>
 
 
-                        <TablePagination
-                            component="div"
-                            count={total}
-                            page={page}
-                            onPageChange={handleChangePage}
-                            rowsPerPage={rowsPerPage}
-                            onRowsPerPageChange={handleChangeRowsPerPage}
-                            rowsPerPageOptions={[10, 25, 50, 100]}
-                            sx={{
-                                borderTop: '1px solid #e5e7eb',
-                                '& .MuiTablePagination-toolbar': {
-                                    justifyContent: 'flex-end',
-                                    minHeight: 40,
-                                    color: '#111',
-                                },
-                                '& .MuiTablePagination-spacer': {
-                                    flex: '0 0 0',
-                                },
-                                '& .MuiIconButton-root': {
-                                    color: '#000',
-                                    '&:hover': {
-                                        backgroundColor: 'rgba(0,0,0,.05)',
-                                    },
-                                },
-                                '& .MuiTablePagination-select': {
-                                    color: '#000',
-                                },
-                            }}
-                        />
-                    </>
-                )}
-            </Box>
+          <Button
+            variant="contained"
+            sx={{ background: "#000", "&:hover": { background: "#222" } }}
+            onClick={isEdit ? handleUpdateVendor : handleAddVendor}
+          >
+            {isEdit ? "Update" : "Save"}
+          </Button>
+        </DialogActions>
+      </Dialog>
 
 
-            <Snackbar
-                open={snackbar.open}
-                autoHideDuration={snackbar.severity === 'error' ? 5000 : 4000} // 5s for validation errors
-                onClose={(_, reason) => {
-                    if (reason === 'clickaway') return; // don't close too fast on outside click
-                    setSnackbar((s) => ({ ...s, open: false }));
-                }}
-                anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-            >
-                <Alert
-                    severity={snackbar.severity}
-                    variant="filled"
-                    onClose={() => setSnackbar((s) => ({ ...s, open: false }))}
-                    sx={{ width: '100%' }}
-                >
-                    {snackbar.message}
-                </Alert>
-            </Snackbar>
-
-
-        </Box>
-    );
-};
-
-export default Vendors;
+      {/* SNACKBAR */}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={4000}
+        onClose={closeSnackbar}
+        anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
+      >
+        <Alert severity={snackbar.severity} variant="filled">
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
+    </Box>
+  );
+}
 
 
 

@@ -67,7 +67,7 @@ import BankYesCcAbhay from "./components/Finance/BankYesCcAbhay";
 import TaskBoard from "./components/Dashboards/TaskBoard";
 import MyReporting from "./components/Dashboards/MyReporting";
 import PurchaseRecord from "./components/Finance/PurchaseRecord";
-import PaymentRecords from "./components/Finance/paymentRecord";
+import PaymentRecords from "./components/Finance/PaymentRecords";
 import Vendors from "./components/Finance/Vendors";
 import SwitchDashboard from "./components/Finance/SwitchDashboard";
 import ConfirmedOrder from "./components/OrderConf/ConfirmedOrder";

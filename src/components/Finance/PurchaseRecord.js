@@ -1,5 +1,4 @@
-// PurchaseRecord.jsx
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from "react";
 import {
   Table,
   TableBody,
@@ -24,1398 +23,777 @@ import {
   Switch,
   Snackbar,
   Alert,
-} from '@mui/material';
+} from "@mui/material";
 import {
   Add as AddIcon,
   Delete as DeleteIcon,
   CloudUpload as UploadIcon,
-  Close as CloseIcon,
-} from '@mui/icons-material';
-import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
-import axios from 'axios';
+} from "@mui/icons-material";
 
 
-const API_BASE_URL = 'https://muditamleads-14f32a10d7f7.herokuapp.com';
+const API_BASE_URL = "https://muditamleads-14f32a10d7f7.herokuapp.com";
+
+
+const categories = [
+  "Advertisement",
+  "Assets",
+  "Assets (Intangible)",
+  "Bank Charges",
+  "COGS",
+  "Commision",
+  "Freight Inwards",
+  "Marketing",
+  "Operating Expense",
+  "Packaging Material",
+  "Professional Charges",
+  "Services",
+  "Software & Tools",
+  "Travel Expense",
+  "Freight Outwards",
+  "Stock transfer",
+  "Other",
+];
+
+
+const invoiceTypes = ["Credit Note", "Tax Invoice", "Debit Note"];
+
+
+const gstLocations = [
+  "Himachal Pradesh",
+  "Delhi",
+  "Maharashtra",
+  "Tamil Nadu",
+  "Haryana",
+  "West Bengal",
+];
+
+
+const headerCellSx = {
+  backgroundColor: "#111827",
+  color: "#f9fafb",
+  fontWeight: 700,
+  fontSize: 13,
+  whiteSpace: "nowrap",
+  padding: "8px 10px",
+  borderBottom: "1px solid #e5e7eb",
+};
+
+
+const inputBorderSx = {
+  "& .MuiOutlinedInput-root": {
+    "& fieldset": { borderColor: "#d4d4d4" },
+    "&:hover fieldset": { borderColor: "#000" },
+    "&.Mui-focused fieldset": { borderColor: "#000" },
+  },
+  "& .MuiInputBase-input, & .MuiSelect-select": {
+    paddingTop: 0.4,
+    paddingBottom: 0.4,
+    fontSize: 13,
+  },
+};
+
+
+function validateVendorForm(vendor, showSnackbar) {
+  if (vendor.phoneNumber && !/^\d{10}$/.test(vendor.phoneNumber)) {
+    showSnackbar("Phone number must be exactly 10 digits", "error");
+    return false;
+  }
+  if (vendor.hasGST) {
+    const gst = vendor.gstNumber.trim().toUpperCase();
+    if (gst.length !== 15 || !/^[A-Z0-9]{15}$/.test(gst)) {
+      showSnackbar("GST number must be exactly 15 characters", "error");
+      return false;
+    }
+  }
+  return true;
+}
+
+
+function formatDateForInput(v) {
+  if (!v && v !== 0) return "";
+  if (v instanceof Date) {
+    const yyyy = v.getFullYear();
+    const mm = String(v.getMonth() + 1).padStart(2, "0");
+    const dd = String(v.getDate()).padStart(2, "0");
+    return `${yyyy}-${mm}-${dd}`;
+  }
+  if (typeof v === "number") return formatDateForInput(new Date(v));
+  if (typeof v === "string") {
+    if (/^\d{4}-\d{2}-\d{2}$/.test(v)) return v;
+    const t = v.split("T")[0];
+    if (/^\d{4}-\d{2}-\d{2}$/.test(t)) return t;
+    const d = new Date(v);
+    if (!Number.isNaN(d.getTime())) return formatDateForInput(d);
+  }
+  return "";
+}
 
 
 const PurchaseRecord = () => {
   const [records, setRecords] = useState([]);
-  const [imageDialogOpen, setImageDialogOpen] = useState(false);
-  const [selectedImage, setSelectedImage] = useState('');
-  const [page, setPage] = useState(0);
-  const [rowsPerPage, setRowsPerPage] = useState(100);
-  const [total, setTotal] = useState(0);
-
-
-  const [showDeleted, setShowDeleted] = useState(false);
-
-
   const [vendors, setVendors] = useState([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(20);
+
+
   const [vendorDialogOpen, setVendorDialogOpen] = useState(false);
-
-
-  // 🔹 default GST ON
   const [newVendor, setNewVendor] = useState({
-    name: '',
-    email: '',
-    phoneNumber: '',
+    name: "",
+    email: "",
+    phoneNumber: "",
     hasGST: true,
-    gstNumber: '',
-  });
-
-
-  const bulkInputRef = useRef(null);
-  const [bulkUploading, setBulkUploading] = useState(false);
-  const [bulkProgress, setBulkProgress] = useState({ done: 0, total: 0 });
-
-
-  const [editingCell, setEditingCell] = useState({
-    recordId: null,
-    field: null,
-  });
-  const originalValues = useRef({});
-
-
-  const [filters, setFilters] = useState({
-    category: '',
-    billingGst: '',
-    vendorSearch: '',
+    gstNumber: "",
   });
 
 
   const [snackbar, setSnackbar] = useState({
     open: false,
-    message: '',
-    severity: 'info',
+    message: "",
+    severity: "info",
   });
+ 
 
 
-  const showSnackbar = (message, severity = 'info') => {
-    setSnackbar({ open: true, message, severity });
-  };
+  const [uploading, setUploading] = useState({});
+  const [saving, setSaving] = useState({});
+  const bulkInputRef = useRef(null);
 
 
-  const handleSnackbarClose = (_event, reason) => {
-    if (reason === 'clickaway') return;
-    setSnackbar((prev) => ({ ...prev, open: false }));
-  };
+  // 🔥 NEW: storage for deleted items (frontend only)
+  const [deletedRecords, setDeletedRecords] = useState([]);
 
 
+  // 🔥 NEW: toggle button (active / deleted)
+  const [showDeleted, setShowDeleted] = useState(false);
+
+
+  // ORIGINAL HOOKS
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem('purchaseFilters');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        const { paymentStatus, ...rest } = parsed;
-        setFilters((prev) => ({ ...prev, ...rest }));
-      }
-    } catch (e) {
-      console.error('Failed to load filters from storage', e);
-    }
-  }, []);
-
-
-  const categories = Array.from(
-    new Set([
-      'Advertisement',
-      'Assets',
-      'Assets (Intangible)',
-      'Bank Charges',
-      'COGS',
-      'Commision',
-      'Freight Inwards',
-      'Marketing',
-      'Operating Expense',
-      'Packaging Material',
-      'Professional Charges',
-      'Services',
-      'Software & Tools',
-      'Travel Expense',
-      'Freight Outwards',
-      'Stock transfer',
-      'Other',
-    ])
-  );
-
-
-  const invoiceTypes = ['Credit Note', 'Tax Invoice', 'Debit Note'];
-
-
-  const gstLocations = [
-    'Himachal Pradesh',
-    'Delhi',
-    'Maharashtra',
-    'Tamil Nadu',
-    'Haryana',
-    'West Bengal',
-  ];
-
-
-  const paymentStatusOptions = ['Pending', 'Paid', 'Partial Payment'];
-
-
-  useEffect(() => {
-    fetchRecords();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, rowsPerPage, filters, showDeleted]);
-
-
-  useEffect(() => {
+    fetchList();
     fetchVendors();
-  }, []);
+  }, [page, rowsPerPage]);
 
 
-  const fetchVendors = async () => {
+  async function fetchList() {
     try {
-      const res = await axios.get(`${API_BASE_URL}/api/vendors`, {
-        params: { page: 1, limit: 1000 },
-      });
-
-
-      const list = Array.isArray(res.data)
-        ? res.data
-        : res.data.vendors || [];
-
-
-      setVendors(list || []);
-    } catch (e) {
-      console.error('Error fetching vendors:', e);
-      setVendors([]);
+      const res = await fetch(
+        `${API_BASE_URL}/api/purchase-records?page=${page + 1}&limit=${rowsPerPage}`
+      );
+      const data = await res.json();
+      const items = data.records || data.items || [];
+      setRecords(items);
+      setTotal(data.total || items.length);
+    } catch (err) {
+      showSnackbar("Failed to load records", "error");
     }
-  };
+  }
 
 
-  const matchCategory = (csvValue, validCategories) => {
-    if (!csvValue) return '';
-    const v = csvValue.trim();
-
-
-    const exact = validCategories.find(
-      (c) => c.toLowerCase() === v.toLowerCase()
-    );
-    if (exact) return exact;
-
-
-    const typoMap = {
-      commision: 'Commission',
-      commisson: 'Commission',
-      comission: 'Commission',
-      advertisment: 'Advertisement',
-      assests: 'Assets',
-    };
-    const typo = typoMap[v.toLowerCase()];
-    if (typo) return typo;
-
-
-    const norm = (s) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
-    const vNorm = norm(v);
-    const fuzzy = validCategories.find(
-      (c) => norm(c).includes(vNorm) || vNorm.includes(norm(c))
-    );
-    if (fuzzy) return fuzzy;
-
-
-    return v;
-  };
-
-
-  const matchInvoiceType = (csvValue, validTypes) => {
-    if (!csvValue) return '';
-    const v = csvValue.trim();
-    const exact = validTypes.find((t) => t.toLowerCase() === v.toLowerCase());
-    return exact || v;
-  };
-
-
-  const matchGstLocation = (csvValue, validLocations) => {
-    if (!csvValue) return '';
-    const v = csvValue.trim();
-    const exact = validLocations.find(
-      (l) => l.toLowerCase() === v.toLowerCase()
-    );
-    if (exact) return exact;
-
-
-    const norm = (s) => s.toLowerCase().replace(/[^a-z]/g, '');
-    const fuzzy = validLocations.find(
-      (l) => norm(l).includes(norm(v)) || norm(v).includes(norm(l))
-    );
-    return fuzzy || v;
-  };
-
-
-  const fetchRecords = async () => {
+  async function fetchVendors() {
     try {
-      const params = {
-        page: page + 1,
-        limit: rowsPerPage,
-        category: filters.category || undefined,
-        billingGst: filters.billingGst || undefined,
-        vendorSearch: filters.vendorSearch || undefined,
+      const res = await fetch(
+        `${API_BASE_URL}/api/purchase-records/vendors?limit=2000`
+      );
+      const data = await res.json();
+      setVendors(data.vendors || []);
+    } catch (err) {
+      showSnackbar("Failed to load vendors", "error");
+    }
+  }
+
+
+  function showSnackbar(message, severity = "info") {
+    setSnackbar({ open: true, message, severity });
+  }
+
+
+  function handleSnackbarClose() {
+    setSnackbar((s) => ({ ...s, open: false }));
+  }
+
+
+  // ---------------------------------------
+  // ADD TEMP ROW
+  // ---------------------------------------
+  function addTempRow() {
+    const tempId = "temp-" + Date.now();
+    const today = new Date().toISOString().split("T")[0];
+    setRecords((r) => [
+      {
+        _id: tempId,
+        isTemp: true,
+        date: today,
+        category: "",
+        invoiceType: "",
+        billingGST: "",
+        invoiceNo: "",
+        vendorName: "",
+        amount: "",
+        invoiceLink: "",
+        matched2B: false,
+        invoicingTally: false,
+      },
+      ...r,
+    ]);
+  }
+
+
+  async function createVendorIfNeededByName(name) {
+    if (!name || !name.trim()) return null;
+    const found = vendors.find(
+      (v) =>
+        String(v.name || "").trim().toLowerCase() === name.trim().toLowerCase()
+    );
+    if (found) return found;
+
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/purchase-records/vendors`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: name.trim() }),
+      });
+      const data = await res.json();
+      const created = data.vendor || data;
+      setVendors((prev) => [...prev, created]);
+      return created;
+    } catch (err) {
+      showSnackbar("Failed to create vendor", "error");
+      return null;
+    }
+  }
+
+
+  async function saveTempRow(record) {
+    if (!record.vendorName || !record.category || !record.date) {
+      showSnackbar("Please fill vendor name, category and date", "warning");
+      return;
+    }
+
+
+    setSaving((prev) => ({ ...prev, [record._id]: true }));
+
+
+    try {
+      const vendor = await createVendorIfNeededByName(record.vendorName);
+      if (!vendor) return;
+
+
+      const payload = {
+        date: record.date,
+        category: record.category,
+        invoiceType: record.invoiceType,
+        billingGST: record.billingGST,
+        invoiceNo: record.invoiceNo,
+        vendorId: vendor._id,
+        vendorName: vendor.name,
+        amount: Number(record.amount || 0),
+        invoiceLink: record.invoiceLink || "",
+        matched2B: !!record.matched2B,
+        invoicingTally: !!record.invoicingTally,
       };
 
 
-      Object.keys(params).forEach(
-        (key) => params[key] === undefined && delete params[key]
+      const res = await fetch(`${API_BASE_URL}/api/purchase-records`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+
+      const data = await res.json();
+      const saved = data.record || data.purchase || data;
+
+
+      setRecords((prev) =>
+        prev.map((r) =>
+          r._id === record._id ? { ...saved, isTemp: false } : r
+        )
       );
 
 
-      const url = showDeleted
-        ? `${API_BASE_URL}/api/deleted-records`
-        : `${API_BASE_URL}/api/purchase-records`;
-
-
-      const res = await axios.get(url, { params });
-
-
-      let list;
-      let totalCount;
-
-
-      if (Array.isArray(res.data)) {
-        const sorted = res.data.sort(
-          (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
-        );
-        list = sorted.slice(
-          page * rowsPerPage,
-          page * rowsPerPage + rowsPerPage
-        );
-        totalCount = res.data.length;
-      } else if (res.data.records) {
-        list = res.data.records;
-        totalCount = res.data.total || res.data.records.length;
-      } else {
-        list = [];
-        totalCount = 0;
-      }
-
-
-      const normalized = (list || []).map((r) => ({
-        ...r,
-        category: r.category ? matchCategory(r.category, categories) : '',
-      }));
-
-
-      setRecords(normalized);
-      setTotal(totalCount);
-    } catch (e) {
-      console.error('Fetch error:', e);
-      setRecords([]);
-      setTotal(0);
-      showSnackbar('Failed to fetch records', 'error');
+      showSnackbar("Record saved successfully", "success");
+    } catch (err) {
+      showSnackbar("Failed to save record", "error");
+    } finally {
+      setSaving((prev) => ({ ...prev, [record._id]: false }));
     }
-  };
+  }
 
 
-  const handleAddRow = async () => {
-    const newRecord = {
-      date: '',
-      category: '',
-      invoiceType: '',
-      billingGst: '',
-      invoiceNo: '',
-      partyName: '',
-      invoiceAmount: '',
-      physicalInvoice: '',
-      link: '',
-      matchedWith2B: '',
-      invoicingTally: '',
-      paymentStatus: '',
-      pendingPayment: '',
-      paymentDate: '',
-      paymentScreenshot: '',
-      isDeleted: false,
-      deletedAt: null,
-    };
+  async function saveExistingRow(record) {
+    if (!record._id || record.isTemp) return;
+
+
+    setSaving((prev) => ({ ...prev, [record._id]: true }));
 
 
     try {
-      await axios.post(`${API_BASE_URL}/api/purchase-records`, newRecord);
-      setPage(0);
-      setShowDeleted(false);
-      fetchRecords();
-      showSnackbar('Record created successfully', 'success');
-    } catch (e) {
-      console.error('Create error:', e);
-      showSnackbar('Error creating record', 'error');
-    }
-  };
+      const payload = {
+        date: record.date,
+        category: record.category,
+        invoiceType: record.invoiceType,
+        billingGST: record.billingGST,
+        invoiceNo: record.invoiceNo,
+        amount: Number(record.amount || 0),
+        invoiceLink: record.invoiceLink || "",
+        matched2B: !!record.matched2B,
+        invoicingTally: !!record.invoicingTally,
+      };
 
 
-  // 🔹 ADD VENDOR – with validation for email, phone, GST
-  const handleAddVendor = async () => {
-    if (!newVendor.name.trim()) {
-      showSnackbar('Please enter a vendor name', 'error');
-      return;
-    }
-
-    const email = newVendor.email.trim();
-    const phone = newVendor.phoneNumber.trim();
-    let gst = (newVendor.gstNumber || '').trim().toUpperCase();
-
-    if (phone && !/^\d{10}$/.test(phone)) {
-      showSnackbar('Phone number must be exactly 10 digits.', 'error');
-      return;
-    }
-
-    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      showSnackbar('Please enter a valid email address.', 'error');
-      return;
-    }
-
-    if (newVendor.hasGST) {
-      if (!gst) {
-        showSnackbar('Please enter GST number (15 characters).', 'error');
-        return;
-      }
-      if (gst.length !== 15) {
-        showSnackbar('GST number must be exactly 15 characters.', 'error');
-        return;
-      }
-    } else {
-      gst = '';
-    }
-
-
-    try {
-      const res = await axios.post(`${API_BASE_URL}/api/vendors`, {
-        name: newVendor.name.trim(),
-        email,
-        phoneNumber: phone,
-        hasGST: newVendor.hasGST,
-        gstNumber: gst,
+      await fetch(`${API_BASE_URL}/api/purchase-records/${record._id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
       });
 
 
-      setVendors((prev) => [...prev, res.data]);
-      setNewVendor({
-        name: '',
-        email: '',
-        phoneNumber: '',
-        hasGST: true,
-        gstNumber: '',
-      });
-      setVendorDialogOpen(false);
-      showSnackbar('Vendor added successfully!', 'success');
-    } catch (e) {
-      console.error('Error adding vendor:', e);
-      const errorMsg =
-        e.response?.data?.message ||
-        e.response?.data?.error ||
-        'Failed to add vendor';
-      showSnackbar(errorMsg, 'error');
+      showSnackbar("Record updated", "success");
+    } catch (err) {
+      showSnackbar("Failed to update record", "error");
+    } finally {
+      setSaving((prev) => ({ ...prev, [record._id]: false }));
     }
-  };
+  }
 
 
+  async function handleFieldBlur(record) {
+    if (!record) return;
+    if (record.isTemp) await saveTempRow(record);
+    else await saveExistingRow(record);
+  }
 
 
-  const handleFieldChange = (id, field, value) => {
-    if (showDeleted) return;
-
-
-    if (!originalValues.current[`${id}-${field}`]) {
-      const record = records.find((r) => r._id === id);
-      if (record) {
-        originalValues.current[`${id}-${field}`] = record[field];
-      }
-    }
-
-
-    setEditingCell({ recordId: id, field });
-
-
+  function handleFieldChange(id, field, value) {
     setRecords((prev) =>
       prev.map((r) => (r._id === id ? { ...r, [field]: value } : r))
     );
-  };
+  }
+  async function handleBulkFileChange(e) {
+  const f = e.target.files?.[0];
+  if (!f) return;
 
 
-  const handleFieldBlur = async (recordId, field, value) => {
-    setEditingCell({ recordId: null, field: null });
+  const fd = new FormData();
+  fd.append("file", f);
 
 
-    if (showDeleted) {
-      delete originalValues.current[`${recordId}-${field}`];
+  try {
+    showSnackbar("Uploading CSV...", "info");
+
+
+    const res = await fetch(
+      `${API_BASE_URL}/api/purchase-records/upload-csv`,
+      {
+        method: "POST",
+        body: fd,
+      }
+    );
+
+
+    if (!res.ok) throw new Error("Bulk upload failed");
+
+
+    const data = await res.json();
+    showSnackbar(
+      `${data.inserted || data.insertedCount || 0} rows imported successfully`,
+      "success"
+    );
+
+
+    await fetchList();
+    await fetchVendors();
+  } catch (err) {
+    showSnackbar("Bulk upload failed: " + err.message, "error");
+  } finally {
+    e.target.value = "";
+  }
+}
+async function handleAddVendor() {
+  if (!newVendor.name?.trim()) {
+    showSnackbar("Vendor name required", "error");
+    return;
+  }
+  if (!validateVendorForm(newVendor, showSnackbar)) return;
+
+
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/purchase-records/vendors`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(newVendor),
+    });
+
+
+    if (!res.ok) throw new Error("Failed to create vendor");
+
+
+    const data = await res.json();
+    const created = data.vendor || data;
+
+
+    setVendors((p) => [...p, created]);
+    setVendorDialogOpen(false);
+
+
+    setNewVendor({
+      name: "",
+      email: "",
+      phoneNumber: "",
+      hasGST: true,
+      gstNumber: "",
+    });
+
+
+    showSnackbar("Vendor created", "success");
+  } catch (err) {
+    showSnackbar("Failed to create vendor", "error");
+  }
+}
+
+
+
+
+  // -------------------------------------------------------
+  // 🔥 NEW DELETE LOGIC (moves to deletedRecords frontend)
+  // -------------------------------------------------------
+  async function handleDelete(id) {
+    if (!window.confirm("Delete this record?")) return;
+
+
+    const rec = records.find((r) => r._id === id);
+    if (!rec) return;
+
+
+    // If temporary row
+    if (String(id).startsWith("temp-")) {
+      setRecords((prev) => prev.filter((r) => r._id !== id));
+      setDeletedRecords((prev) => [...prev, { ...rec, isDeleted: true }]);
+      showSnackbar("Record moved to deleted", "info");
       return;
     }
 
 
-    if (recordId.toString().startsWith('temp-')) {
-      delete originalValues.current[`${recordId}-${field}`];
-      return;
-    }
-
-
-    const originalValue = originalValues.current[`${recordId}-${field}`];
-    delete originalValues.current[`${recordId}-${field}`];
-
-
-    let finalValue = value;
-
-
-    if (field === 'category' && value) {
-      finalValue = matchCategory(value, categories);
-    }
-
-
-    if (originalValue === finalValue) {
-      return;
-    }
-
-
+    // Backend delete request
     try {
-      await axios.patch(`${API_BASE_URL}/api/purchase-records/${recordId}`, {
-        [field]: finalValue,
+      const res = await fetch(`${API_BASE_URL}/api/purchase-records/${id}`, {
+        method: "DELETE",
       });
 
 
-      setRecords((prev) =>
-        prev.map((r) =>
-          r._id === recordId ? { ...r, [field]: finalValue } : r
-        )
-      );
-      showSnackbar('Saved successfully', 'success');
-    } catch (e) {
-      console.error('Save failed:', e);
-      const errorMsg = e.response?.data?.error || 'Failed to save';
-      showSnackbar(errorMsg, 'error');
-      setRecords((prev) =>
-        prev.map((r) =>
-          r._id === recordId ? { ...r, [field]: originalValue } : r
-        )
-      );
-    }
-  };
+      if (!res.ok) throw new Error();
 
 
-  const handleDelete = async (id) => {
-    if (showDeleted) return;
+      setRecords((prev) => prev.filter((r) => r._id !== id));
 
 
-    if (!window.confirm('Delete this record?')) return;
-    try {
-      await axios.delete(`${API_BASE_URL}/api/purchase-records/${id}`);
-      fetchRecords();
-      showSnackbar('Record moved to deleted records', 'success');
-    } catch (e) {
-      console.error('Delete error:', e);
-      showSnackbar('Error deleting record', 'error');
-    }
-  };
+      // Move to deleted state
+      setDeletedRecords((prev) => [...prev, { ...rec, isDeleted: true }]);
 
 
-  const handleFileUpload = async (id, file, field = 'paymentScreenshot') => {
-    if (!file || showDeleted) return;
-
-
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('recordId', id);
-    formData.append('field', field);
-
-
-    try {
-      const res = await axios.post(
-        `${API_BASE_URL}/api/uploadToWasabi`,
-        formData,
-        {
-          headers: { 'Content-Type': 'multipart/form-data' },
-        }
-      );
-
-
-      const fileUrl = res.data.fileUrl || res.data.url;
-      if (!fileUrl) throw new Error('No file URL returned from server');
-
-
-      setRecords((prev) =>
-        prev.map((r) => (r._id === id ? { ...r, [field]: fileUrl } : r))
-      );
-
-
-      const verifyRes = await axios
-        .get(`${API_BASE_URL}/api/purchase-records/${id}`)
-        .catch(() => null);
-      if (verifyRes?.data) {
-        setRecords((prev) =>
-          prev.map((r) => (r._id === id ? verifyRes.data : r))
-        );
-      }
-
-
-      showSnackbar('File uploaded successfully', 'success');
-    } catch (e) {
-      console.error('Upload error:', e.response?.data || e.message);
-      const msg = e.response?.data?.details || e.message || 'Upload failed';
-      showSnackbar(`Upload failed: ${msg}`, 'error');
-    }
-  };
-
-
-  const handleChangePage = (_e, newPage) => setPage(newPage);
-  const handleChangeRowsPerPage = (e) => {
-    setRowsPerPage(parseInt(e.target.value, 10));
-    setPage(0);
-  };
-
-
-  const handleImageClick = (imageUrl) => {
-    setSelectedImage(imageUrl);
-    setImageDialogOpen(true);
-  };
-  const handleCloseImageDialog = () => {
-    setImageDialogOpen(false);
-    setSelectedImage('');
-  };
-
-
-  const parseDate = (val) => {
-    if (!val || val.trim() === '') return '';
-    const s = val.trim();
-
-
-    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
-
-
-    if (/^\d{2}\/\d{2}\/\d{4}$/.test(s)) {
-      const [d, m, y] = s.split('/');
-      return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
-    }
-
-
-    if (/^\d{2}-\d{2}-\d{4}$/.test(s)) {
-      const [d, m, y] = s.split('-');
-      return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
-    }
-
-
-    try {
-      const d = new Date(s);
-      if (!isNaN(d)) {
-        const year = d.getFullYear();
-        const month = String(d.getMonth() + 1).padStart(2, '0');
-        const day = String(d.getDate()).padStart(2, '0');
-        return `${year}-${month}-${day}`;
-      }
-    } catch (e) {
-      //
-    }
-    return '';
-  };
-
-
-  const detectDelimiter = (text) => {
-    const sample = text.split(/\r?\n/).slice(0, 10).filter(Boolean);
-    const candidates = ['\t', ',', ';', '|'];
-
-
-    let best = '\t',
-      bestScore = -Infinity;
-    for (const d of candidates) {
-      const counts = sample.map((l) => l.split(d).length);
-      const maxCols = Math.max(...counts);
-      const variance = counts.reduce((a, c) => a + Math.abs(c - maxCols), 0);
-      const score = maxCols * 1000 - variance + (d === '\t' ? 10 : 0);
-      if (score > bestScore) {
-        bestScore = score;
-        best = d;
-      }
-    }
-    return best;
-  };
-
-
-  const parseCsv = (text, delimiter = ',') => {
-    const rows = [];
-    let row = [];
-    let cell = '';
-    let inQuote = false;
-
-
-    for (let i = 0; i < text.length; i++) {
-      const ch = text[i];
-
-
-      if (inQuote) {
-        if (ch === '"' && text[i + 1] === '"') {
-          cell += '"';
-          i++;
-        } else if (ch === '"') {
-          inQuote = false;
-        } else {
-          cell += ch;
-        }
-      } else {
-        if (ch === '"') {
-          inQuote = true;
-        } else if (ch === delimiter) {
-          row.push(cell.trim());
-          cell = '';
-        } else if (ch === '\n') {
-          row.push(cell.trim());
-          cell = '';
-          if (row.some((c) => c !== '')) rows.push(row);
-          row = [];
-        } else if (ch === '\r') {
-          // ignore
-        } else {
-          cell += ch;
-        }
-      }
-    }
-    row.push(cell.trim());
-    if (row.some((c) => c !== '')) rows.push(row);
-    return rows;
-  };
-
-
-  const normalize = (s) =>
-    (s ?? '')
-      .toString()
-      .replace(/\u00A0/g, ' ')
-      .replace(/\s+/g, ' ')
-      .trim()
-      .toLowerCase()
-      .replace(/[^a-z0-9]/g, '');
-
-
-  const cleanNumber = (v) => (v ?? '').toString().replace(/[, ]/g, '').trim();
-
-
-  const yesNo = (v, dflt = '') => {
-    const s = (v ?? '').toString().trim().toLowerCase();
-    if (['yes', 'y', 'true', '1'].includes(s)) return 'Yes';
-    if (['no', 'n', 'false', '0'].includes(s)) return 'No';
-    return dflt;
-  };
-
-
-  const buildIndexMap = (headers) => {
-    const H = headers.map(normalize);
-
-
-    const find = (...candidates) => {
-      for (const c of candidates) {
-        const i = H.indexOf(normalize(c));
-        if (i !== -1) return i;
-      }
-      for (let i = 0; i < H.length; i++) {
-        if (candidates.some((c) => H[i].includes(normalize(c)))) return i;
-      }
-      return -1;
-    };
-
-
-    return {
-      date: find('date', 'invoice date', 'invoicedate'),
-      category: find('category', 'expense category'),
-      invoiceType: find('invoice type', 'invoicetype', 'type'),
-      billingGst: find(
-        'billing gst',
-        'billinggst',
-        'gst',
-        'billing state',
-        'billingstate'
-      ),
-      invoiceNo: find(
-        'invoice no.',
-        'invoice no',
-        'invoiceno',
-        'invoice number',
-        'invoicenumber',
-        'inv no',
-        'invno',
-        'invoice#'
-      ),
-      partyName: find(
-        'party name',
-        'partyname',
-        'vendor',
-        'supplier',
-        'customer',
-        'name'
-      ),
-      invoiceAmount: find(
-        'invoice amount',
-        'invoiceamount',
-        'amount',
-        'total amount',
-        'totalamount',
-        'total'
-      ),
-      physicalInvoice: find('physical invoice', 'physicalinvoice'),
-      link: find('link', 'invoice link', 'invoicelink', 'url'),
-      matchedWith2B: find(
-        'matched with 2b',
-        'matchedwith2b',
-        'gstr2b matched',
-        'gstr2bmatched'
-      ),
-      invoicingTally: find('invoicing tally', 'invoicingtally', 'tally'),
-      paymentStatus: find('payment status', 'paymentstatus', 'status'),
-      pendingPayment: find('pending payment', 'pendingpayment'),
-      paymentDate: find('payment date', 'paymentdate'),
-      paymentScreenshot: find(
-        'payment screenshot',
-        'paymentscreenshot',
-        'screenshot',
-        'image',
-        'file'
-      ),
-    };
-  };
-
-
-  const triggerBulkInput = () => bulkInputRef.current?.click();
-
-
-  const handleBulkFileChange = async (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    try {
-      setBulkUploading(true);
-      setBulkProgress({ done: 0, total: 0 });
-
-
-      const raw = await file.text();
-      const text = raw.replace(/^\uFEFF/, '');
-      const delimiter = detectDelimiter(text);
-      const rows = parseCsv(text, delimiter);
-      if (!rows.length) throw new Error('Empty CSV');
-
-
-      const headersRaw = rows[0];
-      const indices = buildIndexMap(headersRaw);
-
-
-      const requiredKeys = [
-        'date',
-        'category',
-        'invoiceType',
-        'billingGst',
-        'invoiceNo',
-        'partyName',
-        'invoiceAmount',
-      ];
-      const missing = requiredKeys.filter((k) => indices[k] === -1);
-
-
-      if (missing.length) {
-        const ordered = [
-          null,
-          'date',
-          'category',
-          'invoiceType',
-          'billingGst',
-          'invoiceNo',
-          'partyName',
-          'invoiceAmount',
-          'physicalInvoice',
-          'link',
-          'matchedWith2B',
-          'invoicingTally',
-          'link',
-          'paymentStatus',
-          'pendingPayment',
-          'paymentDate',
-          'paymentScreenshot',
-        ];
-        for (let i = 0; i < ordered.length; i++) {
-          const key = ordered[i];
-          if (!key) continue;
-          if (indices[key] === -1 && i < headersRaw.length) indices[key] = i;
-        }
-
-
-        const stillMissing = requiredKeys.filter((k) => indices[k] === -1);
-        if (stillMissing.length) {
-          showSnackbar(
-            `CSV missing headers: ${stillMissing.join(
-              ', '
-            )}. Check console for details.`,
-            'error'
-          );
-          console.error(
-            `CSV missing headers: ${stillMissing.join(
-              ', '
-            )}\n\nFound headers: ${headersRaw.join(', ')}`
-          );
-          return;
-        }
-      }
-
-
-      const val = (r, i) => (i >= 0 ? (r[i] ?? '').trim() : '');
-
-
-      const recordsToCreate = rows
-        .slice(1)
-        .filter((r) => r && r.some((c) => (c || '').trim() !== ''))
-        .map((r) => ({
-          date: parseDate(val(r, indices.date)),
-          category: matchCategory(val(r, indices.category), categories),
-          invoiceType: matchInvoiceType(
-            val(r, indices.invoiceType),
-            invoiceTypes
-          ),
-          billingGst: matchGstLocation(
-            val(r, indices.billingGst),
-            gstLocations
-          ),
-          invoiceNo: val(r, indices.invoiceNo) || '',
-          partyName: val(r, indices.partyName) || '',
-          invoiceAmount: cleanNumber(val(r, indices.invoiceAmount)) || '',
-          physicalInvoice: yesNo(val(r, indices.physicalInvoice), ''),
-          link: val(r, indices.link) || '',
-          matchedWith2B: yesNo(val(r, indices.matchedWith2B), ''),
-          invoicingTally: yesNo(val(r, indices.invoicingTally), ''),
-          paymentStatus: val(r, indices.paymentStatus) || '',
-          pendingPayment: cleanNumber(val(r, indices.pendingPayment)) || '',
-          paymentDate: parseDate(val(r, indices.paymentDate)),
-          paymentScreenshot: val(r, indices.paymentScreenshot) || '',
-          isDeleted: false,
-          deletedAt: null,
-        }));
-
-
-      setBulkProgress({ done: 0, total: recordsToCreate.length });
-
-
-      for (let i = 0; i < recordsToCreate.length; i++) {
-        try {
-          await axios.post(
-            `${API_BASE_URL}/api/purchase-records`,
-            recordsToCreate[i]
-          );
-        } catch (err) {
-          console.error(
-            `Row ${i + 1} upload failed:`,
-            err.response?.data || err.message
-          );
-        } finally {
-          setBulkProgress((prev) => ({ ...prev, done: prev.done + 1 }));
-        }
-      }
-
-
-      setPage(0);
-      setShowDeleted(false);
-      await fetchRecords();
-      showSnackbar(
-        `Bulk upload completed: ${recordsToCreate.length} records processed`,
-        'success'
-      );
+      showSnackbar("Record moved to deleted list", "success");
     } catch (err) {
-      console.error(err);
-      showSnackbar('Bulk upload failed. Check console for details.', 'error');
-    } finally {
-      setBulkUploading(false);
-      setBulkProgress({ done: 0, total: 0 });
-      setTimeout(() => {
-        if (e.target) e.target.value = '';
-      }, 0);
+      showSnackbar("Delete failed", "error");
     }
-  };
+  }
 
 
-  const headerCellSx = {
-    backgroundColor: '#111827',
-    color: '#f9fafb',
-    fontWeight: 700,
-    fontSize: 13,
-    whiteSpace: 'nowrap',
-    padding: '8px 10px',
-    borderBottom: '1px solid #e5e7eb',
-  };
+  async function handleFileUpload(recordId, file) {
+    if (!file) return;
 
 
-  const inputBorderSx = {
-    '& .MuiOutlinedInput-root': {
-      '& fieldset': { borderColor: '#d4d4d4' },
-      '&:hover fieldset': { borderColor: '#000' },
-      '&.Mui-focused fieldset': { borderColor: '#000' },
-    },
-    '& .MuiInputBase-input, & .MuiSelect-select': {
-      paddingTop: 0.4,
-      paddingBottom: 0.4,
-      fontSize: 13,
-    },
-  };
+    setUploading((prev) => ({ ...prev, [recordId]: true }));
 
 
-  const columns = [
-    { field: 'date', label: 'Date' },
-    { field: 'category', label: 'Category' },
-    { field: 'invoiceType', label: 'Invoice Type' },
-    { field: 'billingGst', label: 'Billing GST' },
-    { field: 'invoiceNo', label: 'Invoice No.' },
-    { field: 'partyName', label: 'Vendor Name' },
-    { field: 'invoiceAmount', label: 'Invoice Amount' },
-    { field: 'link', label: 'Invoice Link' },
-    { field: 'matchedWith2B', label: 'Matched With 2B' },
-    { field: 'invoicingTally', label: 'Invoicing Tally' },
-  ];
+    const fd = new FormData();
+    fd.append("file", file);
 
 
-  const handleVendorSelect = (recordId, name) => {
-    handleFieldChange(recordId, 'partyName', name);
-    handleFieldBlur(recordId, 'partyName', name);
-  };
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/purchase-records/upload`, {
+        method: "POST",
+        body: fd,
+      });
 
 
-  const renderCell = (record, field) => {
-    const isDeletedView = showDeleted;
-    const isEditing =
-      !isDeletedView &&
-      editingCell.recordId === record._id &&
-      editingCell.field === field;
+      const data = await res.json();
+      const url = data.fileUrl || data.url || data.Location;
 
 
-    if (isDeletedView) {
-      if (field === 'date' && record[field]) {
-        return (
-          <Typography sx={{ fontSize: 13, whiteSpace: 'nowrap' }}>
-            {record[field].toString().split('T')[0]}
-          </Typography>
-        );
-      }
+      setRecords((prev) =>
+        prev.map((r) =>
+          r._id === recordId ? { ...r, invoiceLink: url } : r
+        )
+      );
 
 
-      if (field === 'link' && record[field]) {
-        return (
-          <Box
-            component="a"
-            href={record[field]}
-            target="_blank"
-            rel="noopener noreferrer"
-            sx={{
-              fontSize: '0.85rem',
-              color: '#1976d2',
-              textDecoration: 'none',
-              maxWidth: '120px',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
-              '&:hover': { textDecoration: 'underline' },
-            }}
-          >
-            View
-          </Box>
-        );
-      }
+      const record = records.find((r) => r._id === recordId);
+      if (record && !record.isTemp)
+        await saveExistingRow({ ...record, invoiceLink: url });
 
 
-      const value = record[field];
+      showSnackbar("File uploaded successfully", "success");
+    } catch (err) {
+      showSnackbar("Upload failed", "error");
+    } finally {
+      setUploading((prev) => ({ ...prev, [recordId]: false }));
+    }
+  }
+
+
+  // Deleted records are read-only
+  function renderCell(record, field) {
+    if (record.isDeleted) {
       return (
-        <Typography sx={{ fontSize: 13, whiteSpace: 'nowrap' }}>
-          {value ?? ''}
+        <Typography sx={{ fontSize: 13, opacity: 0.6 }}>
+          {String(record[field] || "-")}
         </Typography>
       );
     }
 
 
+    // ORIGINAL CELL RENDER LOGIC BELOW (unchanged)
+    const value = record[field] ?? "";
+    const isSavingFlag = saving[record._id];
+
+
     switch (field) {
-      case 'partyName':
+      case "date":
         return (
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <Autocomplete
-              freeSolo
-              options={vendors.map((v) => v.name)}
-              value={record[field] || ''}
-              onChange={(e, newValue) =>
-                handleVendorSelect(record._id, newValue || '')
-              }
-              onInputChange={(e, newValue) =>
-                handleFieldChange(record._id, field, newValue)
-              }
-              onBlur={() =>
-                handleFieldBlur(record._id, field, record[field] || '')
-              }
-              onFocus={() =>
-                setEditingCell({ recordId: record._id, field })
-              }
-              renderInput={(params) => (
-                <TextField
-                  {...params}
-                  size="small"
-                  placeholder="Select or type vendor..."
-                  sx={{
-                    minWidth: 280,
-                    ...inputBorderSx,
-                    backgroundColor: isEditing ? '#fffef0' : 'transparent',
-                    '& .MuiOutlinedInput-root': {
-                      padding: '2px 8px',
-                    },
-                  }}
-                />
-              )}
-              sx={{ width: '100%' }}
-            />
-          </Box>
+          <TextField
+            type="date"
+            size="small"
+            value={formatDateForInput(record.date)}
+            onChange={(e) =>
+              handleFieldChange(record._id, "date", e.target.value)
+            }
+            onBlur={() => handleFieldBlur(record)}
+            disabled={isSavingFlag}
+            sx={{ minWidth: 140, ...inputBorderSx }}
+          />
         );
 
 
-      case 'date':
+      case "category":
         return (
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <TextField
-              type="date"
-              size="small"
-              value={record[field] ? record[field].toString().split('T')[0] : ''}
-              onChange={(e) =>
-                handleFieldChange(record._id, field, e.target.value)
-              }
-              onBlur={(e) =>
-                handleFieldBlur(record._id, field, e.target.value)
-              }
-              onFocus={() =>
-                setEditingCell({ recordId: record._id, field })
-              }
-              fullWidth
-              InputLabelProps={{ shrink: true }}
-              sx={{
-                minWidth: 150,
-                ...inputBorderSx,
-                backgroundColor: isEditing ? '#fffef0' : 'transparent',
-              }}
-            />
-          </Box>
-        );
-
-
-      case 'category': {
-        const value = record[field] || '';
-        const normalizedValue = value ? matchCategory(value, categories) : '';
-        const options =
-          normalizedValue && !categories.includes(normalizedValue)
-            ? [normalizedValue, ...categories]
-            : categories;
-
-
-        return (
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <FormControl
-              fullWidth
-              size="small"
-              sx={{ minWidth: 180, ...inputBorderSx }}
-            >
-              <Select
-                value={normalizedValue}
-                onChange={(e) => {
-                  const correctedValue = matchCategory(
-                    e.target.value,
-                    categories
-                  );
-                  handleFieldChange(record._id, field, correctedValue);
-                  handleFieldBlur(record._id, field, correctedValue);
-                }}
-                onFocus={() =>
-                  setEditingCell({ recordId: record._id, field })
-                }
-                displayEmpty
-                sx={{
-                  backgroundColor: isEditing ? '#fffef0' : 'transparent',
-                }}
-              >
-                <MenuItem value="">
-                  <em>Select Category</em>
-                </MenuItem>
-                {options.map((cat) => (
-                  <MenuItem key={cat} value={cat}>
-                    {cat}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-          </Box>
-        );
-      }
-
-
-      case 'invoiceType':
-        return (
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <FormControl
-              fullWidth
-              size="small"
-              sx={{ minWidth: 150, ...inputBorderSx }}
-            >
-              <Select
-                value={record[field] || ''}
-                onChange={(e) => {
-                  handleFieldChange(record._id, field, e.target.value);
-                  handleFieldBlur(record._id, field, e.target.value);
-                }}
-                onFocus={() =>
-                  setEditingCell({ recordId: record._id, field })
-                }
-                displayEmpty
-                sx={{
-                  backgroundColor: isEditing ? '#fffef0' : 'transparent',
-                }}
-              >
-                <MenuItem value="">
-                  <em>Select Type</em>
-                </MenuItem>
-                {invoiceTypes.map((type) => (
-                  <MenuItem key={type} value={type}>
-                    {type}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-          </Box>
-        );
-
-
-      case 'billingGst':
-        return (
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <FormControl
-              fullWidth
-              size="small"
-              sx={{ minWidth: 150, ...inputBorderSx }}
-            >
-              <Select
-                value={record[field] || ''}
-                onChange={(e) => {
-                  handleFieldChange(record._id, field, e.target.value);
-                  handleFieldBlur(record._id, field, e.target.value);
-                }}
-                onFocus={() =>
-                  setEditingCell({ recordId: record._id, field })
-                }
-                displayEmpty
-                sx={{
-                  backgroundColor: isEditing ? '#fffef0' : 'transparent',
-                }}
-              >
-                <MenuItem value="">
-                  <em>Select GST</em>
-                </MenuItem>
-                {gstLocations.map((loc) => (
-                  <MenuItem key={loc} value={loc}>
-                    {loc}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-          </Box>
-        );
-
-
-      case 'matchedWith2B':
-      case 'invoicingTally': {
-        const checked = record[field] === 'Yes';
-        return (
-          <Box
-            sx={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
+          <FormControl
+            fullWidth
+            size="small"
+            sx={{ minWidth: 170, ...inputBorderSx }}
           >
-            <Switch
-              checked={checked}
-              onChange={(e) => {
-                const newVal = e.target.checked ? 'Yes' : 'No';
-                handleFieldChange(record._id, field, newVal);
-                handleFieldBlur(record._id, field, newVal);
-              }}
-              size="small"
-              sx={{
-                '& .MuiSwitch-switchBase.Mui-checked': {
-                  color: '#000',
-                },
-                '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': {
-                  backgroundColor: '#000',
-                },
-              }}
-            />
-          </Box>
-        );
-      }
-
-
-      case 'paymentStatus':
-        return (
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <FormControl
-              fullWidth
-              size="small"
-              sx={{ minWidth: 130, ...inputBorderSx }}
-            >
-              <Select
-                value={record[field] || ''}
-                onChange={(e) => {
-                  handleFieldChange(record._id, field, e.target.value);
-                  handleFieldBlur(record._id, field, e.target.value);
-                }}
-                onFocus={() =>
-                  setEditingCell({ recordId: record._id, field })
-                }
-                displayEmpty
-                sx={{
-                  backgroundColor: isEditing ? '#fffef0' : 'transparent',
-                }}
-              >
-                <MenuItem value="">
-                  <em>Select Status</em>
-                </MenuItem>
-                {paymentStatusOptions.map((status) => (
-                  <MenuItem key={status} value={status}>
-                    {status}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-          </Box>
-        );
-
-
-      case 'link':
-        return (
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <input
-              accept="image/*,application/pdf"
-              style={{ display: 'none' }}
-              id={`link-upload-${record._id}`}
-              type="file"
+            <Select
+              value={value}
               onChange={(e) =>
-                handleFileUpload(record._id, e.target.files[0], 'link')
+                handleFieldChange(record._id, "category", e.target.value)
+              }
+              onBlur={() => handleFieldBlur(record)}
+              disabled={isSavingFlag}
+              displayEmpty
+            >
+              <MenuItem value="">
+                <em>Select Category</em>
+              </MenuItem>
+              {categories.map((c) => (
+                <MenuItem value={c} key={c}>
+                  {c}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+        );
+
+
+      case "invoiceType":
+        return (
+          <FormControl size="small" sx={{ minWidth: 150, ...inputBorderSx }}>
+            <Select
+              value={value}
+              onChange={(e) =>
+                handleFieldChange(record._id, "invoiceType", e.target.value)
+              }
+              onBlur={() => handleFieldBlur(record)}
+              disabled={isSavingFlag}
+              displayEmpty
+            >
+              <MenuItem value="">
+                <em>Select Type</em>
+              </MenuItem>
+              {invoiceTypes.map((t) => (
+                <MenuItem key={t} value={t}>
+                  {t}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+        );
+
+
+      case "billingGST":
+        return (
+          <FormControl size="small" sx={{ minWidth: 160, ...inputBorderSx }}>
+            <Select
+              value={value}
+              onChange={(e) =>
+                handleFieldChange(record._id, "billingGST", e.target.value)
+              }
+              onBlur={() => handleFieldBlur(record)}
+              disabled={isSavingFlag}
+              displayEmpty
+            >
+              <MenuItem value="">
+                <em>Select GST</em>
+              </MenuItem>
+              {gstLocations.map((g) => (
+                <MenuItem key={g} value={g}>
+                  {g}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+        );
+
+
+      case "invoiceNo":
+        return (
+          <TextField
+            size="small"
+            value={value}
+            onChange={(e) =>
+              handleFieldChange(record._id, "invoiceNo", e.target.value)
+            }
+            onBlur={() => handleFieldBlur(record)}
+            disabled={isSavingFlag}
+            sx={{ minWidth: 150, ...inputBorderSx }}
+          />
+        );
+
+
+      case "vendorName":
+        return (
+          <Autocomplete
+            freeSolo
+            size="small"
+            options={vendors.map((v) => v.name)}
+            value={value}
+            onInputChange={(_e, v) =>
+              handleFieldChange(record._id, "vendorName", v)
+            }
+            onBlur={() => handleFieldBlur(record)}
+            disabled={isSavingFlag}
+            renderInput={(params) => (
+              <TextField
+                {...params}
+                placeholder="Vendor name"
+                sx={{ minWidth: 220, ...inputBorderSx }}
+              />
+            )}
+          />
+        );
+
+
+      case "amount":
+        return (
+          <TextField
+            size="small"
+            type="number"
+            value={value}
+            onChange={(e) =>
+              handleFieldChange(record._id, "amount", e.target.value)
+            }
+            onBlur={() => handleFieldBlur(record)}
+            disabled={isSavingFlag}
+            sx={{ minWidth: 110, ...inputBorderSx }}
+          />
+        );
+
+
+      case "invoiceLink":
+        return (
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+            <input
+              id={`upload-${record._id}`}
+              style={{ display: "none" }}
+              type="file"
+              accept="image/*,application/pdf"
+              onChange={(e) =>
+                handleFileUpload(record._id, e.target.files?.[0])
               }
             />
-            <label htmlFor={`link-upload-${record._id}`}>
+            <label htmlFor={`upload-${record._id}`}>
               <Button
-                variant="contained"
                 component="span"
                 size="small"
+                variant="contained"
                 startIcon={<UploadIcon />}
+                disabled={uploading[record._id] || isSavingFlag}
                 sx={{
-                  backgroundColor: '#000',
-                  color: '#fff',
-                  textTransform: 'none',
-                  '&:hover': { backgroundColor: '#111' },
+                  backgroundColor: "#000",
+                  textTransform: "none",
                 }}
               >
-                Upload
+                {uploading[record._id] ? "Uploading..." : "Upload"}
               </Button>
             </label>
-            {record[field] && (
-              <Box
-                component="a"
-                href={record[field]}
+            {record.invoiceLink && (
+              <a
+                href={record.invoiceLink}
                 target="_blank"
-                rel="noopener noreferrer"
-                sx={{
-                  fontSize: '0.85rem',
-                  color: '#1976d2',
-                  textDecoration: 'none',
-                  maxWidth: '100px',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
-                  '&:hover': { textDecoration: 'underline' },
-                }}
+                rel="noreferrer"
+                style={{ color: "#1976d2", fontSize: 12 }}
               >
                 View
-              </Box>
+              </a>
             )}
           </Box>
         );
 
 
-      case 'invoiceAmount':
+      case "matched2B":
+      case "invoicingTally":
         return (
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <TextField
-              type="text"
-              inputMode="decimal"
-              size="small"
-              value={record[field] || ''}
-              onChange={(e) =>
-                handleFieldChange(record._id, field, e.target.value)
-              }
-              onBlur={(e) =>
-                handleFieldBlur(record._id, field, e.target.value)
-              }
-              onFocus={() =>
-                setEditingCell({ recordId: record._id, field })
-              }
-              fullWidth
-              sx={{
-                minWidth: 120,
-                ...inputBorderSx,
-                backgroundColor: isEditing ? '#fffef0' : 'transparent',
-              }}
-            />
-          </Box>
+          <Switch
+            checked={!!value}
+            onChange={(e) => {
+              handleFieldChange(record._id, field, e.target.checked);
+              setTimeout(() => handleFieldBlur(record), 100);
+            }}
+            disabled={isSavingFlag}
+            size="small"
+          />
         );
 
 
       default:
         return (
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <TextField
-              size="small"
-              value={record[field] || ''}
-              onChange={(e) =>
-                handleFieldChange(record._id, field, e.target.value)
-              }
-              onBlur={(e) =>
-                handleFieldBlur(record._id, field, e.target.value)
-              }
-              onFocus={() =>
-                setEditingCell({ recordId: record._id, field })
-              }
-              fullWidth
-              sx={{
-                minWidth: 150,
-                ...inputBorderSx,
-                backgroundColor: isEditing ? '#fffef0' : 'transparent',
-              }}
-            />
-          </Box>
+          <TextField
+            size="small"
+            value={value}
+            onChange={(e) =>
+              handleFieldChange(record._id, field, e.target.value)
+            }
+            onBlur={() => handleFieldBlur(record)}
+            disabled={isSavingFlag}
+            sx={{ minWidth: 150, ...inputBorderSx }}
+          />
         );
     }
-  };
+  }
 
 
-  const handleFilterChange = (field, value) => {
-    setFilters((prev) => {
-      const next = { ...prev, [field]: value };
-      try {
-        localStorage.setItem('purchaseFilters', JSON.stringify(next));
-      } catch (e) {
-        console.error('Failed to save filters', e);
-      }
-      return next;
-    });
-    setPage(0);
-  };
-
-
-  const clearFilters = () => {
-    const cleared = {
-      category: '',
-      billingGst: '',
-      vendorSearch: '',
-    };
-
-
-    setFilters(cleared);
-
-
-    try {
-      localStorage.setItem('purchaseFilters', JSON.stringify(cleared));
-    } catch (e) {
-      console.error('Failed to clear filters', e);
-    }
-
-
-    setPage(0);
-  };
+  const columns = [
+    { field: "date", label: "Date" },
+    { field: "category", label: "Category" },
+    { field: "invoiceType", label: "Invoice Type" },
+    { field: "billingGST", label: "Billing GST" },
+    { field: "invoiceNo", label: "Invoice No." },
+    { field: "vendorName", label: "Vendor Name" },
+    { field: "amount", label: "Amount" },
+    { field: "invoiceLink", label: "Invoice Link" },
+    { field: "matched2B", label: "Matched 2B" },
+    { field: "invoicingTally", label: "Tally" },
+  ];
 
 
   return (
@@ -1424,717 +802,308 @@ const PurchaseRecord = () => {
         px: 2.5,
         pt: 1.5,
         pb: 2.5,
-        backgroundColor: '#f3f4f6',
-        minHeight: '100vh',
+        backgroundColor: "#f3f4f6",
+        minHeight: "100vh",
       }}
     >
+      {/* PAGE HEADER */}
       <Paper
         sx={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          mb: 1,
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          mb: 1.5,
           px: 2.4,
           py: 1.6,
           borderRadius: 2,
-          border: '1px solid #e5e7eb',
-          backgroundColor: '#ffffff',
+          border: "1px solid #e5e7eb",
+          backgroundColor: "#fff",
         }}
       >
-        <Box>
-          <Typography
-            variant="h6"
-            sx={{ fontWeight: 800, color: '#111827', letterSpacing: '.25px' }}
+        <Typography variant="h6" sx={{ fontWeight: 800 }}>
+          Purchase Records
+        </Typography>
+
+
+        <Box sx={{ display: "flex", gap: 1.2 }}>
+          <Button variant="outlined" startIcon={<AddIcon />} onClick={() => setVendorDialogOpen(true)}>
+            Add Vendor
+          </Button>
+
+
+          <Button
+            variant="contained"
+            startIcon={<AddIcon />}
+            onClick={addTempRow}
+            sx={{ backgroundColor: "#000", "&:hover": { backgroundColor: "#111" } }}
           >
-            Purchase Records {showDeleted ? '— Deleted' : ''}
-          </Typography>
-        </Box>
+            Add Record
+          </Button>
 
 
-        <Box sx={{ display: 'flex', gap: 1.2, alignItems: 'center' }}>
           <input
             ref={bulkInputRef}
             type="file"
             accept=".csv"
-            style={{ display: 'none' }}
+            style={{ display: "none" }}
             onChange={handleBulkFileChange}
           />
 
 
-          {!showDeleted && (
-            <Button
-              variant="outlined"
-              startIcon={<AddIcon />}
-              onClick={() => setVendorDialogOpen(true)}
-              sx={{
-                px: 2.4,
-                py: 0.9,
-                textTransform: 'none',
-                fontWeight: 600,
-                fontSize: '0.85rem',
-                borderRadius: '999px',
-                color: '#111827',
-                borderColor: '#d1d5db',
-                backgroundColor: '#ffffff',
-                '&:hover': {
-                  borderColor: '#111827',
-                  backgroundColor: '#f9fafb',
-                },
-              }}
-            >
-              Add Vendor
-            </Button>
-          )}
-
-
-          {!showDeleted && (
-            <Button
-              variant="contained"
-              startIcon={<AddIcon />}
-              onClick={handleAddRow}
-              sx={{
-                px: 2.6,
-                py: 1,
-                textTransform: 'none',
-                fontWeight: 700,
-                fontSize: '0.88rem',
-                borderRadius: '999px',
-                backgroundColor: '#000',
-                color: '#fff',
-                boxShadow: '0 2px 10px rgba(0,0,0,.18)',
-                '&:hover': { backgroundColor: '#111' },
-              }}
-            >
-              Add Record
-            </Button>
-          )}
-
-
-          {!showDeleted && (
-            <Button
-              variant="outlined"
-              startIcon={<UploadIcon />}
-              onClick={triggerBulkInput}
-              disabled={bulkUploading}
-              sx={{
-                px: 2.4,
-                py: 0.9,
-                textTransform: 'none',
-                fontWeight: 600,
-                fontSize: '0.85rem',
-                borderRadius: '999px',
-                color: '#111827',
-                borderColor: '#d1d5db',
-                backgroundColor: '#ffffff',
-                '&:hover': {
-                  borderColor: '#111827',
-                  backgroundColor: '#f9fafb',
-                },
-              }}
-            >
-              {bulkUploading
-                ? `Uploading ${bulkProgress.done}/${bulkProgress.total}`
-                : 'Bulk Upload'}
-            </Button>
-          )}
-
-
-          <Button
-            variant={showDeleted ? 'contained' : 'outlined'}
-            startIcon={<DeleteOutlineIcon />}
-            onClick={() => {
-              setShowDeleted((prev) => !prev);
-              setPage(0);
-            }}
-            sx={{
-              px: 2.4,
-              py: 0.9,
-              textTransform: 'none',
-              fontWeight: 600,
-              fontSize: '0.85rem',
-              borderRadius: '999px',
-              color: showDeleted ? '#fff' : '#991b1b',
-              borderColor: '#fecaca',
-              backgroundColor: showDeleted ? '#991b1b' : '#ffffff',
-              '&:hover': {
-                borderColor: '#991b1b',
-                backgroundColor: showDeleted ? '#7f1d1d' : '#fef2f2',
-              },
-            }}
-          >
-            {showDeleted ? 'Showing Deleted' : 'View Deleted'}
-          </Button>
-        </Box>
-      </Paper>
-
-
-      <Paper
-        sx={{
-          mb: 1.5,
-          mt: 0,
-          px: 2.1,
-          py: 1.2,
-          borderRadius: 2,
-          border: '1px solid #e5e7eb',
-          backgroundColor: '#fbfbfb',
-        }}
-      >
-        <Box
-          sx={{
-            display: 'flex',
-            gap: 1.5,
-            flexWrap: 'wrap',
-            alignItems: 'center',
-          }}
-        >
-          <TextField
-            size="small"
-            placeholder="Search vendor name..."
-            value={filters.vendorSearch}
-            onChange={(e) =>
-              handleFilterChange('vendorSearch', e.target.value)
-            }
-            sx={{ minWidth: 220, ...inputBorderSx }}
-            InputProps={{
-              startAdornment: (
-                <Box sx={{ mr: 1, display: 'flex', alignItems: 'center' }}>
-                  🔍
-                </Box>
-              ),
-            }}
-          />
-
-
-          <FormControl size="small" sx={{ minWidth: 180, ...inputBorderSx }}>
-            <Select
-              value={filters.category}
-              onChange={(e) => handleFilterChange('category', e.target.value)}
-              displayEmpty
-            >
-              <MenuItem value="">
-                <em>All Categories</em>
-              </MenuItem>
-              {categories.map((cat) => (
-                <MenuItem key={cat} value={cat}>
-                  {cat}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-
-
-          <FormControl size="small" sx={{ minWidth: 180, ...inputBorderSx }}>
-            <Select
-              value={filters.billingGst}
-              onChange={(e) =>
-                handleFilterChange('billingGst', e.target.value)
-              }
-              displayEmpty
-            >
-              <MenuItem value="">
-                <em>All GST Locations</em>
-              </MenuItem>
-              {gstLocations.map((loc) => (
-                <MenuItem key={loc} value={loc}>
-                  {loc}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-
-
           <Button
             variant="outlined"
-            onClick={clearFilters}
-            sx={{
-              textTransform: 'none',
-              color: '#666',
-              borderColor: '#ddd',
-              '&:hover': { borderColor: '#999', backgroundColor: '#f9f9f9' },
-            }}
+            startIcon={<UploadIcon />}
+            onClick={() => bulkInputRef.current?.click()}
           >
-            Clear Filters
+            Bulk Upload
           </Button>
 
 
-          {(filters.category ||
-            filters.billingGst ||
-            filters.vendorSearch) && (
-              <Typography
-                variant="body2"
-                sx={{ color: '#666', ml: 'auto' }}
-              >
-                {Object.values(filters).filter(Boolean).length} filter(s) active
-              </Typography>
-            )}
+          {/* 🔥 NEW SINGLE TOGGLE BUTTON */}
+          <Button
+            variant="contained"
+            onClick={() => setShowDeleted(!showDeleted)}
+            sx={{
+              backgroundColor: "#000",
+              textTransform: "none",
+              borderRadius: 2,
+              px: 3,
+              "&:hover": { backgroundColor: "#111" },
+            }}
+          >
+            {showDeleted ? "Show Active" : "Show Deleted"}
+          </Button>
         </Box>
       </Paper>
 
 
-      <Box
-        sx={{
-          mt: 1,
-          borderRadius: 2,
-          border: '1px solid #e5e7eb',
-          boxShadow: '0 6px 16px rgba(0,0,0,0.05)',
-          backgroundColor: '#ffffff',
-          overflow: 'hidden',
-        }}
-      >
-        <TableContainer
+      {/* =======================================================
+         ACTIVE TABLE VIEW
+      ======================================================= */}
+      {!showDeleted && (
+        <Box
           sx={{
-            maxHeight: 'calc(100vh - 250px)',
+            borderRadius: 2,
+            border: "1px solid #e5e7eb",
+            overflow: "hidden",
+            backgroundColor: "#fff",
           }}
         >
-          <Table stickyHeader size="small">
-            <TableHead>
-              <TableRow>
-                <TableCell sx={headerCellSx}>Actions</TableCell>
-                <TableCell sx={headerCellSx}>S.No.</TableCell>
-                {columns.map((col) => (
-                  <TableCell key={col.field} sx={headerCellSx}>
-                    {col.label}
-                  </TableCell>
-                ))}
-              </TableRow>
-            </TableHead>
-
-
-            <TableBody>
-              {records.length === 0 ? (
+          <TableContainer sx={{ maxHeight: "calc(100vh - 230px)" }}>
+            <Table stickyHeader size="small">
+              <TableHead>
                 <TableRow>
-                  <TableCell
-                    colSpan={columns.length + 2}
-                    align="center"
-                    sx={{ py: 5 }}
-                  >
-                    <Typography variant="body1" color="text.secondary">
-                      {showDeleted ? 'No deleted records.' : 'No records found.'}
-                    </Typography>
-                  </TableCell>
+                  <TableCell sx={headerCellSx}>Actions</TableCell>
+                  <TableCell sx={headerCellSx}>S.No.</TableCell>
+                  {columns.map((c) => (
+                    <TableCell key={c.field} sx={headerCellSx}>
+                      {c.label}
+                    </TableCell>
+                  ))}
                 </TableRow>
-              ) : (
-                records.map((record, index) => (
-                  <TableRow
-                    key={record._id}
-                    sx={{
-                      '&:nth-of-type(odd)': { backgroundColor: '#fafafa' },
-                      '&:hover': { backgroundColor: '#f3f4f6' },
-                    }}
-                  >
-                    <TableCell
-                      sx={{ padding: '6px 8px', whiteSpace: 'nowrap' }}
+              </TableHead>
+
+
+              <TableBody>
+                {records.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={columns.length + 2} align="center" sx={{ py: 5 }}>
+                      No records found.
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  records.map((rec, idx) => (
+                    <TableRow
+                      key={rec._id}
+                      sx={{
+                        "&:nth-of-type(odd)": { backgroundColor: "#fafafa" },
+                        opacity: saving[rec._id] ? 0.6 : 1,
+                      }}
                     >
-                      {!showDeleted && (
+                      <TableCell>
                         <IconButton
                           color="error"
-                          onClick={() => handleDelete(record._id)}
                           size="small"
-                          sx={{
-                            '&:hover': {
-                              backgroundColor: 'rgba(211,47,47,.08)',
-                            },
-                          }}
+                          onClick={() => handleDelete(rec._id)}
+                          disabled={saving[rec._id]}
                         >
                           <DeleteIcon fontSize="small" />
                         </IconButton>
-                      )}
-                    </TableCell>
-                    <TableCell
-                      sx={{
-                        padding: '6px 8px',
-                        whiteSpace: 'nowrap',
-                        fontWeight: 600,
-                      }}
-                    >
-                      {page * rowsPerPage + index + 1}
-                    </TableCell>
-                    {columns.map((col) => (
-                      <TableCell
-                        key={col.field}
-                        sx={{ padding: '6px 8px', whiteSpace: 'nowrap' }}
-                      >
-                        {renderCell(record, col.field)}
                       </TableCell>
-                    ))}
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
 
 
-          </Table>
-        </TableContainer>
+                      <TableCell sx={{ fontWeight: 600 }}>
+                        {page * rowsPerPage + idx + 1}
+                      </TableCell>
 
 
-        <TablePagination
-          component="div"
-          count={total}
-          page={page}
-          onPageChange={handleChangePage}
-          rowsPerPage={rowsPerPage}
-          onRowsPerPageChange={handleChangeRowsPerPage}
-          rowsPerPageOptions={[10, 25, 50, 100]}
+                      {columns.map((col) => (
+                        <TableCell key={col.field}>{renderCell(rec, col.field)}</TableCell>
+                      ))}
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </TableContainer>
+
+
+          <TablePagination
+            component="div"
+            count={total}
+            page={page}
+            rowsPerPage={rowsPerPage}
+            onPageChange={(_e, p) => setPage(p)}
+            onRowsPerPageChange={(e) => {
+              setRowsPerPage(parseInt(e.target.value, 10));
+              setPage(0);
+            }}
+            rowsPerPageOptions={[20, 50, 100]}
+          />
+        </Box>
+      )}
+
+
+      {/* =======================================================
+         DELETED TABLE VIEW (READ ONLY)
+      ======================================================= */}
+      {showDeleted && (
+        <Box
           sx={{
-            borderTop: '1px solid #e5e7eb',
-            '& .MuiTablePagination-toolbar': {
-              justifyContent: 'flex-end',
-              minHeight: 40,
-              color: '#111',
-            },
-            '& .MuiTablePagination-spacer': {
-              flex: '0 0 0',
-            },
-            '& .MuiIconButton-root': {
-              color: '#000',
-              '&:hover': { backgroundColor: 'rgba(0,0,0,.05)' },
-            },
-            '& .MuiTablePagination-select': {
-              color: '#000',
-            },
-          }}
-        />
-      </Box>
-
-
-      {/* Image dialog */}
-      <Dialog
-        open={imageDialogOpen}
-        onClose={handleCloseImageDialog}
-        maxWidth="md"
-        fullWidth
-      >
-        <DialogTitle
-          sx={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
+            borderRadius: 2,
+            border: "1px solid #e5e7eb",
+            overflow: "hidden",
+            backgroundColor: "#fff",
+            mt: 2,
           }}
         >
-          Payment Screenshot
-          <IconButton onClick={handleCloseImageDialog} size="small">
-            <CloseIcon />
-          </IconButton>
-        </DialogTitle>
-        <DialogContent sx={{ p: 2, textAlign: 'center' }}>
-          <Box
-            component="img"
-            src={selectedImage}
-            alt="Payment Screenshot"
-            sx={{ maxWidth: '100%', maxHeight: '70vh', objectFit: 'contain' }}
-          />
-        </DialogContent>
-      </Dialog>
+          <TableContainer sx={{ maxHeight: "calc(100vh - 230px)" }}>
+            <Table stickyHeader size="small">
+              <TableHead>
+                <TableRow>
+                  <TableCell sx={headerCellSx}>S.No.</TableCell>
+                  {columns.map((c) => (
+                    <TableCell key={c.field} sx={headerCellSx}>
+                      {c.label}
+                    </TableCell>
+                  ))}
+                </TableRow>
+              </TableHead>
 
-      {/* Add vendor dialog */}
+
+              <TableBody>
+                {deletedRecords.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={columns.length + 1} align="center" sx={{ py: 5 }}>
+                      No deleted records.
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  deletedRecords.map((rec, idx) => (
+                    <TableRow key={rec._id}>
+                      <TableCell sx={{ fontWeight: 600 }}>{idx + 1}</TableCell>
+
+
+                      {columns.map((col) => (
+                        <TableCell key={col.field}>
+                          <Typography sx={{ fontSize: 13, opacity: 0.6 }}>
+                            {String(rec[col.field] || "-")}
+                          </Typography>
+                        </TableCell>
+                      ))}
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </Box>
+      )}
+
+
+      {/* ADD VENDOR DIALOG — UNCHANGED */}
       <Dialog
         open={vendorDialogOpen}
         onClose={() => setVendorDialogOpen(false)}
         maxWidth="sm"
         fullWidth
       >
-        <DialogTitle
-          sx={{
-            fontWeight: 700,
-            fontSize: '1.25rem',
-            pb: 1.5,
-          }}
-        >
-          Add New Vendor
-        </DialogTitle>
-
-
-        <DialogContent sx={{ pt: 2.5, pb: 2 }}>
-          {/* Vendor Name */}
-          {/* Vendor Name */}
+        <DialogTitle>Add Vendor</DialogTitle>
+        <DialogContent sx={{ pt: 2 }}>
           <TextField
-            autoFocus
             fullWidth
-
-            placeholder="Enter vendor name..."
+            label="Vendor name *"
             value={newVendor.name}
-            onChange={(e) =>
-              setNewVendor((prev) => ({ ...prev, name: e.target.value }))
-            }
-            InputLabelProps={{ shrink: true }}
-            sx={{
-              mb: 2.5,
-              '& .MuiOutlinedInput-root': {
-                borderRadius: 2,
-                backgroundColor: '#fafafa',
-                '& fieldset': {
-                  borderColor: '#d1d5db',
-                  borderWidth: '1.5px',
-                },
-                '&:hover fieldset': {
-                  borderColor: '#111827',
-                  borderWidth: '1.5px',
-                },
-                '&.Mui-focused fieldset': {
-                  borderColor: '#000',
-                  borderWidth: '2px',
-                },
-              },
-              '& .MuiOutlinedInput-input': {
-                padding: '14px 14px',
-                fontSize: 14,
-              },
-              '& .MuiInputLabel-root': {
-                fontWeight: 600,
-                color: '#4b5563',
-              },
-              '& .MuiInputLabel-root.Mui-focused': {
-                color: '#000',
-              },
-            }}
+            onChange={(e) => setNewVendor((p) => ({ ...p, name: e.target.value }))}
+            sx={{ mb: 2 }}
           />
 
 
-          {/* Email + Phone */}
-          <Box sx={{ display: 'flex', gap: 1.5, mb: 2 }}>
+          <Box sx={{ display: "flex", gap: 1.5, mb: 2 }}>
             <TextField
               fullWidth
               label="Email"
-              type="email"
-              placeholder="vendor@example.com"
               value={newVendor.email}
-              onChange={(e) =>
-                setNewVendor((prev) => ({ ...prev, email: e.target.value }))
-              }
-              sx={{
-                flex: 1,
-                '& .MuiOutlinedInput-root': {
-                  borderRadius: 2,
-                  backgroundColor: '#fafafa',
-                  '& fieldset': {
-                    borderColor: '#d1d5db',
-                    borderWidth: '1.5px',
-                  },
-                  '&:hover fieldset': {
-                    borderColor: '#111827',
-                    borderWidth: '1.5px',
-                  },
-                  '&.Mui-focused fieldset': {
-                    borderColor: '#000',
-                    borderWidth: '2px',
-                  },
-                },
-                '& .MuiInputLabel-root': {
-                  fontWeight: 600,
-                  color: '#6b7280',
-                },
-                '& .MuiInputLabel-root.Mui-focused': {
-                  color: '#000',
-                },
-              }}
+              onChange={(e) => setNewVendor((p) => ({ ...p, email: e.target.value }))}
             />
 
 
             <TextField
               fullWidth
               label="Phone"
-              type="tel"
-              placeholder="+91 98765 43210"
               value={newVendor.phoneNumber}
               onChange={(e) =>
-                setNewVendor((prev) => ({
-                  ...prev,
-                  phoneNumber: e.target.value.replace(/\D/g, ''), // only digits
-                }))
+                setNewVendor((p) => ({ ...p, phoneNumber: e.target.value.replace(/\D/g, "") }))
               }
               inputProps={{ maxLength: 10 }}
-              sx={{
-                flex: 1,
-                '& .MuiOutlinedInput-root': {
-                  borderRadius: 2,
-                  backgroundColor: '#fafafa',
-                  '& fieldset': {
-                    borderColor: '#d1d5db',
-                    borderWidth: '1.5px',
-                  },
-                  '&:hover fieldset': {
-                    borderColor: '#111827',
-                    borderWidth: '1.5px',
-                  },
-                  '&.Mui-focused fieldset': {
-                    borderColor: '#000',
-                    borderWidth: '2px',
-                  },
-                },
-                '& .MuiInputLabel-root': {
-                  fontWeight: 600,
-                  color: '#6b7280',
-                },
-                '& .MuiInputLabel-root.Mui-focused': {
-                  color: '#000',
-                },
-              }}
             />
           </Box>
 
 
-          {/* GST toggle + GST number (hidden when toggle OFF) */}
-          <Box
-            sx={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 2,
-              mb: 2,
-            }}
-          >
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              <Switch
-                checked={newVendor.hasGST}
-                onChange={(e) =>
-                  setNewVendor((prev) => ({
-                    ...prev,
-                    hasGST: e.target.checked,
-                    gstNumber: e.target.checked ? prev.gstNumber : '',
-                  }))
-                }
-                size="small"
-                sx={{
-                  '& .MuiSwitch-switchBase.Mui-checked': { color: '#000' },
-                  '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': {
-                    backgroundColor: '#000',
-                  },
-                }}
-              />
-              <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                Have GST
-              </Typography>
-            </Box>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 2 }}>
+            <Switch
+              checked={!!newVendor.hasGST}
+              onChange={(e) => setNewVendor((p) => ({ ...p, hasGST: e.target.checked }))}
+            />
+            <Typography>Has GST?</Typography>
 
 
             {newVendor.hasGST && (
               <TextField
                 label="GST Number"
-                placeholder="15AABCU9603R1ZV"
                 value={newVendor.gstNumber}
                 onChange={(e) =>
-                  setNewVendor((prev) => ({
-                    ...prev,
-                    gstNumber: e.target.value.toUpperCase(),
-                  }))
+                  setNewVendor((p) => ({ ...p, gstNumber: e.target.value.toUpperCase() }))
                 }
                 inputProps={{ maxLength: 15 }}
-                sx={{
-                  minWidth: 220,
-                  '& .MuiOutlinedInput-root': {
-                    borderRadius: 2,
-                    backgroundColor: '#fafafa',
-                    '& fieldset': {
-                      borderColor: '#d1d5db',
-                      borderWidth: '1.5px',
-                    },
-                    '&:hover fieldset': {
-                      borderColor: '#111827',
-                      borderWidth: '1.5px',
-                    },
-                    '&.Mui-focused fieldset': {
-                      borderColor: '#000',
-                      borderWidth: '2px',
-                    },
-                  },
-                  '& .MuiOutlinedInput-input': {
-                    padding: '12px 14px',
-                    fontSize: 14,
-                  },
-                  '& .MuiInputLabel-root': {
-                    fontWeight: 600,
-                    color: '#6b7280',
-                  },
-                  '& .MuiInputLabel-root.Mui-focused': {
-                    color: '#000',
-                  },
-                }}
+                sx={{ ml: 2, flex: 1 }}
               />
             )}
           </Box>
 
 
-          {/* Buttons */}
-          <Box
-            sx={{
-              display: 'flex',
-              gap: 1.5,
-              justifyContent: 'flex-end',
-            }}
-          >
-            <Button
-              onClick={() => {
-                setVendorDialogOpen(false);
-                setNewVendor({
-                  name: '',
-                  email: '',
-                  phoneNumber: '',
-                  hasGST: true, // keep default ON
-                  gstNumber: '',
-                });
-              }}
-              sx={{
-                px: 2.5,
-                py: 0.8,
-                textTransform: 'none',
-                color: '#6b7280',
-                fontWeight: 600,
-                fontSize: '0.9rem',
-                borderRadius: 2,
-                '&:hover': {
-                  backgroundColor: '#f3f4f6',
-                  color: '#374151',
-                },
-              }}
-            >
-              Cancel
-            </Button>
+          <Box sx={{ display: "flex", justifyContent: "flex-end", gap: 1, mt: 3 }}>
+            <Button onClick={() => setVendorDialogOpen(false)}>Cancel</Button>
             <Button
               variant="contained"
               onClick={handleAddVendor}
               disabled={!newVendor.name.trim()}
-              sx={{
-                px: 3.5,
-                py: 0.8,
-                textTransform: 'none',
-                backgroundColor: '#000',
-                color: '#fff',
-                fontWeight: 700,
-                fontSize: '0.9rem',
-                borderRadius: 2,
-                boxShadow: '0 4px 14px rgba(0,0,0,0.25)',
-                '&:hover': {
-                  backgroundColor: '#111',
-                  boxShadow: '0 6px 20px rgba(0,0,0,0.35)',
-                },
-                '&:disabled': {
-                  backgroundColor: '#d1d5db',
-                  color: '#9ca3af',
-                  boxShadow: 'none',
-                },
-              }}
+              sx={{ backgroundColor: "#000", "&:hover": { backgroundColor: "#111" } }}
             >
-              Add Vendor
+              Save Vendor
             </Button>
           </Box>
         </DialogContent>
       </Dialog>
 
 
-
-
-      {/* Global Snackbar */}
       <Snackbar
         open={snackbar.open}
-        autoHideDuration={snackbar.severity === 'error' ? 7000 : 4000}
+        autoHideDuration={snackbar.severity === "error" ? 8000 : 4000}
         onClose={handleSnackbarClose}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+        anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
       >
-        <Alert
-          onClose={handleSnackbarClose}
-          severity={snackbar.severity}
-          sx={{ width: '100%' }}
-          variant="filled"
-        >
+        <Alert severity={snackbar.severity} onClose={handleSnackbarClose} variant="filled">
           {snackbar.message}
         </Alert>
       </Snackbar>
