@@ -47,6 +47,7 @@ const DEFAULT_PERMISSIONS = {
     myRTOs: true,
     myAssets: true,
     myGrowthPlan: true,
+    allAnalytics: true,
 
     invoices: true,
     accessManagement: true,
@@ -1183,6 +1184,7 @@ const AddEmployee = () => {
                   ["myRTOs", "MY RTOs"],
                   ["myAssets", "My Assets"],
                   ["myGrowthPlan", "Growth At Muditam"],
+                  ["allAnalytics", "All Analytics"],
                   ["invoices", "Invoices"],
                   ["accessManagement", "Access Management"],
                   ["adminAccessRequests", "Admin Access Requests"],

@@ -1973,23 +1973,47 @@ const RetentionLeads = () => {
 
                       <FormControl size="small" sx={{ minWidth: 130 }}>
                         <InputLabel>Retention Status</InputLabel>
+
                         <Select
                           label="Retention Status"
                           value={leads[selectedLeadIndex]?.retentionStatus || ""}
-                          onChange={(e) => handleInputChange(e, selectedLeadIndex, "retentionStatus")}
+                          onChange={(e) => {
+                            const last = leads[selectedLeadIndex]?.lastOrderDate;
+                            const days = getDaysSince(last);
+
+                            if (e.target.value === "Lost" && days < 60) {
+                              alert(`Cannot mark Lost. Last order was ${days} days ago. 
+You can mark Lost only after 60 days.`);
+                              return;
+                            }
+
+                            handleInputChange(e, selectedLeadIndex, "retentionStatus");
+                          }}
                           sx={{
                             borderRadius: 999,
                             "& .MuiOutlinedInput-notchedOutline": { borderColor: "#E6E8EC" },
                             "&:hover .MuiOutlinedInput-notchedOutline": { borderColor: "#DDE1E6" },
                           }}
                         >
-                          {["Active", "Lost"].map((status) => (
-                            <MenuItem key={status} value={status}>
-                              {status}
-                            </MenuItem>
-                          ))}
+                          <MenuItem value="Active">Active</MenuItem>
+
+                          <MenuItem
+                            value="Lost"
+                            disabled={(() => {
+                              const last = leads[selectedLeadIndex]?.lastOrderDate;
+                              const days = getDaysSince(last);
+                              return days < 60;
+                            })()}
+                          >
+                            Lost {(() => {
+                              const last = leads[selectedLeadIndex]?.lastOrderDate;
+                              const days = getDaysSince(last);
+                              return days < 60 ? ` (after ${60 - days} days)` : "";
+                            })()}
+                          </MenuItem>
                         </Select>
                       </FormControl>
+
 
                       {/* Follow-up Status */}
                       <FormControl size="small" sx={{ minWidth: 160 }}>

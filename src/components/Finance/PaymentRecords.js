@@ -23,17 +23,15 @@ import {
   CircularProgress,
 } from "@mui/material";
 
-
 import {
   Add as AddIcon,
   CloudUpload as UploadIcon,
   Close as CloseIcon,
 } from "@mui/icons-material";
 
-
 import axios from "axios";
-const API_BASE_URL = "https://muditamleads-14f32a10d7f7.herokuapp.com";
 
+const API_BASE_URL = "https://muditamleads-14f32a10d7f7.herokuapp.com";
 
 export default function PaymentRecords() {
   const [records, setRecords] = useState([]);
@@ -42,14 +40,11 @@ export default function PaymentRecords() {
   const [rowsPerPage, setRowsPerPage] = useState(50);
   const [total, setTotal] = useState(0);
 
-
   const [editableRowId, setEditableRowId] = useState(null);
-
 
   const [imageDialogOpen, setImageDialogOpen] = useState(false);
   const [selectedImage, setSelectedImage] = useState("");
   const [uploadingId, setUploadingId] = useState(null);
-
 
   const [snackbar, setSnackbar] = useState({
     open: false,
@@ -57,20 +52,16 @@ export default function PaymentRecords() {
     severity: "success",
   });
 
-
   const showSnackbar = (m, s = "success") =>
     setSnackbar({ open: true, message: m, severity: s });
 
-
   const handleCloseSnackbar = () =>
     setSnackbar((p) => ({ ...p, open: false }));
-
 
   /* ---------------- FETCH VENDORS ---------------- */
   useEffect(() => {
     fetchVendors();
   }, []);
-
 
   async function fetchVendors() {
     try {
@@ -81,19 +72,16 @@ export default function PaymentRecords() {
     }
   }
 
-
   /* ---------------- FETCH PAYMENT RECORDS ---------------- */
   useEffect(() => {
     fetchRecords();
   }, [page, rowsPerPage]);
-
 
   async function fetchRecords() {
     try {
       const res = await axios.get(`${API_BASE_URL}/api/payment-records`, {
         params: { page: page + 1, limit: rowsPerPage },
       });
-
 
       setRecords(res.data.records || []);
       setTotal(res.data.total || 0);
@@ -103,15 +91,12 @@ export default function PaymentRecords() {
     }
   }
 
-
   /* ---------------- ADD NEW TEMP ROW ---------------- */
   function handleAddRow() {
     const tempId = "temp-" + Date.now();
     const today = new Date().toISOString().split("T")[0];
 
-
     setEditableRowId(tempId);
-
 
     const temp = {
       _id: tempId,
@@ -123,15 +108,15 @@ export default function PaymentRecords() {
       isTemp: true,
     };
 
-
     setRecords((prev) => [temp, ...prev]);
   }
 
-
   /* ---------------- SAVE TEMP ROW ---------------- */
   async function saveTempRow(record) {
-    if (!record.vendorName || !record.date || !record.amountPaid) return;
-
+    if (!record.vendorName || !record.date || !record.amountPaid) {
+      showSnackbar("Fill vendor, date & amount", "warning");
+      return;
+    }
 
     try {
       const res = await axios.post(`${API_BASE_URL}/api/payment-records`, {
@@ -140,9 +125,7 @@ export default function PaymentRecords() {
         amountPaid: record.amountPaid,
       });
 
-
       const saved = res.data;
-
 
       setRecords((prev) =>
         prev.map((r) =>
@@ -150,14 +133,12 @@ export default function PaymentRecords() {
         )
       );
 
-
       setEditableRowId(null);
       showSnackbar("Payment saved");
     } catch (err) {
       showSnackbar("Failed to save payment", "error");
     }
   }
-
 
   /* ---------------- SAVE EXISTING ROW ---------------- */
   async function saveExistingRow(record) {
@@ -171,9 +152,7 @@ export default function PaymentRecords() {
         }
       );
 
-
       const updated = res.data;
-
 
       setRecords((prev) =>
         prev.map((r) => (r._id === record._id ? updated : r))
@@ -183,7 +162,6 @@ export default function PaymentRecords() {
     }
   }
 
-
   /* ---------------- CHANGE FIELD ---------------- */
   const handleFieldChange = (id, field, value) => {
     setRecords((prev) =>
@@ -191,12 +169,10 @@ export default function PaymentRecords() {
     );
   };
 
-
   /* ---------------- ON BLUR ---------------- */
   const handleFieldBlur = async (id) => {
     const record = records.find((r) => r._id === id);
     if (!record) return;
-
 
     if (record.isTemp) {
       await saveTempRow(record);
@@ -205,28 +181,22 @@ export default function PaymentRecords() {
     }
   };
 
-
   /* ---------------- UPLOAD SCREENSHOT ---------------- */
   const handleFileUpload = async (id, file) => {
     if (!file) return;
 
-
     const record = records.find((r) => r._id === id);
     if (!record) return;
-
 
     if (record.isTemp) {
       showSnackbar("Save row first before uploading screenshot.", "warning");
       return;
     }
 
-
     setUploadingId(id);
-
 
     const formData = new FormData();
     formData.append("file", file);
-
 
     try {
       const res = await axios.post(
@@ -235,23 +205,18 @@ export default function PaymentRecords() {
         { headers: { "Content-Type": "multipart/form-data" } }
       );
 
-
       const fileUrl = res.data.fileUrl;
-
 
       const patchRes = await axios.patch(
         `${API_BASE_URL}/api/payment-records/${id}`,
         { screenshot: fileUrl }
       );
 
-
       const updated = patchRes.data;
-
 
       setRecords((prev) =>
         prev.map((r) => (r._id === id ? updated : r))
       );
-
 
       showSnackbar("Screenshot uploaded");
     } catch (err) {
@@ -261,15 +226,12 @@ export default function PaymentRecords() {
     }
   };
 
-
   /* ---------------- RENDER CELLS ---------------- */
   const renderCell = (r, field) => {
     const isLocked = r._id !== editableRowId;
     const isUploading = uploadingId === r._id;
 
-
     switch (field) {
-      /* ---------- DATE ---------- */
       case "date":
         return (
           <TextField
@@ -287,8 +249,6 @@ export default function PaymentRecords() {
           />
         );
 
-
-      /* ---------- VENDOR ---------- */
       case "vendorName":
         return (
           <Autocomplete
@@ -307,8 +267,6 @@ export default function PaymentRecords() {
           />
         );
 
-
-      /* ---------- AMOUNT PAID ---------- */
       case "amountPaid":
         return (
           <TextField
@@ -324,8 +282,6 @@ export default function PaymentRecords() {
           />
         );
 
-
-      /* ---------- DUE ---------- */
       case "amountDue":
         return (
           <Tooltip title="Due amount snapshot on payment date">
@@ -341,8 +297,6 @@ export default function PaymentRecords() {
           </Tooltip>
         );
 
-
-      /* ---------- SCREENSHOT ---------- */
       case "screenshot":
         return (
           <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
@@ -354,8 +308,6 @@ export default function PaymentRecords() {
               onChange={(e) => handleFileUpload(r._id, e.target.files?.[0])}
             />
 
-
-            {/* Upload Button */}
             <label htmlFor={`ss-${r._id}`}>
               <Button
                 component="span"
@@ -382,16 +334,12 @@ export default function PaymentRecords() {
               </Button>
             </label>
 
-
-            {/* Uploading Text */}
             {isUploading && (
               <Typography sx={{ fontSize: 12, opacity: 0.7 }}>
                 Uploading…
               </Typography>
             )}
 
-
-            {/* Preview Thumbnail */}
             {r.screenshot && !isUploading && (
               <img
                 src={r.screenshot}
@@ -412,17 +360,13 @@ export default function PaymentRecords() {
           </Box>
         );
 
-
       default:
         return null;
     }
   };
 
-
-  /* ---------------- MAIN UI ---------------- */
   return (
     <Box sx={{ p: 3, background: "#f5f6f8", minHeight: "100vh" }}>
-      {/* HEADER */}
       <Paper
         sx={{
           p: 2.5,
@@ -443,7 +387,6 @@ export default function PaymentRecords() {
           Payment Records
         </Typography>
 
-
         <Button
           variant="contained"
           startIcon={<AddIcon />}
@@ -461,8 +404,6 @@ export default function PaymentRecords() {
         </Button>
       </Paper>
 
-
-      {/* TABLE */}
       <Paper
         sx={{
           borderRadius: 2,
@@ -494,29 +435,25 @@ export default function PaymentRecords() {
               </TableRow>
             </TableHead>
 
-
             <TableBody>
               {records.map((r, idx) => (
-               <TableRow
-  key={r._id}
-  sx={{
-    backgroundColor: "#fff",
-    borderBottom: "1px solid #e5e7eb",
-    "&:nth-of-type(odd)": {
-      backgroundColor: "#f8fafc",
-    },
-    "&:hover": {
-      backgroundColor: "#f1f5f9",
-      transition: "0.2s",
-    },
-  }}
->
-
-
+                <TableRow
+                  key={r._id}
+                  sx={{
+                    backgroundColor: "#fff",
+                    borderBottom: "1px solid #e5e7eb",
+                    "&:nth-of-type(odd)": {
+                      backgroundColor: "#f8fafc",
+                    },
+                    "&:hover": {
+                      backgroundColor: "#f1f5f9",
+                      transition: "0.2s",
+                    },
+                  }}
+                >
                   <TableCell sx={{ fontWeight: 600 }}>
                     {page * rowsPerPage + idx + 1}
                   </TableCell>
-
 
                   <TableCell>{renderCell(r, "date")}</TableCell>
                   <TableCell>{renderCell(r, "vendorName")}</TableCell>
@@ -529,8 +466,6 @@ export default function PaymentRecords() {
           </Table>
         </TableContainer>
 
-
-        {/* PAGINATION */}
         <TablePagination
           component="div"
           count={total}
@@ -544,8 +479,6 @@ export default function PaymentRecords() {
         />
       </Paper>
 
-
-      {/* SCREENSHOT DIALOG */}
       <Dialog
         open={imageDialogOpen}
         onClose={() => setImageDialogOpen(false)}
@@ -567,7 +500,6 @@ export default function PaymentRecords() {
           </IconButton>
         </DialogTitle>
 
-
         <DialogContent sx={{ p: 2 }}>
           <img
             src={selectedImage}
@@ -581,8 +513,6 @@ export default function PaymentRecords() {
         </DialogContent>
       </Dialog>
 
-
-      {/* SNACKBAR */}
       <Snackbar
         open={snackbar.open}
         autoHideDuration={2500}
@@ -596,6 +526,3 @@ export default function PaymentRecords() {
     </Box>
   );
 }
-
-
-

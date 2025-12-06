@@ -1,3 +1,4 @@
+// src/pages/PurchaseRecord.jsx
 import React, { useEffect, useRef, useState } from "react";
 import {
   Table,
@@ -30,9 +31,7 @@ import {
   CloudUpload as UploadIcon,
 } from "@mui/icons-material";
 
-
 const API_BASE_URL = "https://muditamleads-14f32a10d7f7.herokuapp.com";
-
 
 const categories = [
   "Advertisement",
@@ -54,9 +53,7 @@ const categories = [
   "Other",
 ];
 
-
 const invoiceTypes = ["Credit Note", "Tax Invoice", "Debit Note"];
-
 
 const gstLocations = [
   "Himachal Pradesh",
@@ -67,7 +64,6 @@ const gstLocations = [
   "West Bengal",
 ];
 
-
 const headerCellSx = {
   backgroundColor: "#111827",
   color: "#f9fafb",
@@ -77,7 +73,6 @@ const headerCellSx = {
   padding: "8px 10px",
   borderBottom: "1px solid #e5e7eb",
 };
-
 
 const inputBorderSx = {
   "& .MuiOutlinedInput-root": {
@@ -91,7 +86,6 @@ const inputBorderSx = {
     fontSize: 13,
   },
 };
-
 
 function validateVendorForm(vendor, showSnackbar) {
   if (vendor.phoneNumber && !/^\d{10}$/.test(vendor.phoneNumber)) {
@@ -107,7 +101,6 @@ function validateVendorForm(vendor, showSnackbar) {
   }
   return true;
 }
-
 
 function formatDateForInput(v) {
   if (!v && v !== 0) return "";
@@ -128,14 +121,12 @@ function formatDateForInput(v) {
   return "";
 }
 
-
 const PurchaseRecord = () => {
   const [records, setRecords] = useState([]);
   const [vendors, setVendors] = useState([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(20);
-
 
   const [vendorDialogOpen, setVendorDialogOpen] = useState(false);
   const [newVendor, setNewVendor] = useState({
@@ -146,34 +137,23 @@ const PurchaseRecord = () => {
     gstNumber: "",
   });
 
-
   const [snackbar, setSnackbar] = useState({
     open: false,
     message: "",
     severity: "info",
   });
- 
-
 
   const [uploading, setUploading] = useState({});
   const [saving, setSaving] = useState({});
   const bulkInputRef = useRef(null);
 
-
-  // 🔥 NEW: storage for deleted items (frontend only)
   const [deletedRecords, setDeletedRecords] = useState([]);
-
-
-  // 🔥 NEW: toggle button (active / deleted)
   const [showDeleted, setShowDeleted] = useState(false);
 
-
-  // ORIGINAL HOOKS
   useEffect(() => {
     fetchList();
     fetchVendors();
   }, [page, rowsPerPage]);
-
 
   async function fetchList() {
     try {
@@ -189,7 +169,6 @@ const PurchaseRecord = () => {
     }
   }
 
-
   async function fetchVendors() {
     try {
       const res = await fetch(
@@ -202,20 +181,14 @@ const PurchaseRecord = () => {
     }
   }
 
-
   function showSnackbar(message, severity = "info") {
     setSnackbar({ open: true, message, severity });
   }
-
 
   function handleSnackbarClose() {
     setSnackbar((s) => ({ ...s, open: false }));
   }
 
-
-  // ---------------------------------------
-  // ADD TEMP ROW
-  // ---------------------------------------
   function addTempRow() {
     const tempId = "temp-" + Date.now();
     const today = new Date().toISOString().split("T")[0];
@@ -238,7 +211,6 @@ const PurchaseRecord = () => {
     ]);
   }
 
-
   async function createVendorIfNeededByName(name) {
     if (!name || !name.trim()) return null;
     const found = vendors.find(
@@ -246,7 +218,6 @@ const PurchaseRecord = () => {
         String(v.name || "").trim().toLowerCase() === name.trim().toLowerCase()
     );
     if (found) return found;
-
 
     try {
       const res = await fetch(`${API_BASE_URL}/api/purchase-records/vendors`, {
@@ -264,21 +235,25 @@ const PurchaseRecord = () => {
     }
   }
 
-
   async function saveTempRow(record) {
-    if (!record.vendorName || !record.category || !record.date) {
-      showSnackbar("Please fill vendor name, category and date", "warning");
+    if (
+      !record.vendorName ||
+      !record.category ||
+      !record.date ||
+      !record.invoiceNo
+    ) {
+      showSnackbar(
+        "Please fill Date, Category, Vendor Name & Invoice No",
+        "warning"
+      );
       return;
     }
 
-
     setSaving((prev) => ({ ...prev, [record._id]: true }));
-
 
     try {
       const vendor = await createVendorIfNeededByName(record.vendorName);
       if (!vendor) return;
-
 
       const payload = {
         date: record.date,
@@ -294,17 +269,18 @@ const PurchaseRecord = () => {
         invoicingTally: !!record.invoicingTally,
       };
 
-
       const res = await fetch(`${API_BASE_URL}/api/purchase-records`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
 
-
       const data = await res.json();
-      const saved = data.record || data.purchase || data;
+      if (!res.ok) {
+        throw new Error(data.message || "Failed to save");
+      }
 
+      const saved = data.record || data.purchase || data;
 
       setRecords((prev) =>
         prev.map((r) =>
@@ -312,22 +288,34 @@ const PurchaseRecord = () => {
         )
       );
 
-
       showSnackbar("Record saved successfully", "success");
     } catch (err) {
-      showSnackbar("Failed to save record", "error");
+      showSnackbar(
+        "Failed to save record: " + (err.message || "Unknown error"),
+        "error"
+      );
     } finally {
       setSaving((prev) => ({ ...prev, [record._id]: false }));
     }
   }
 
-
   async function saveExistingRow(record) {
+    if (
+      !record.date ||
+      !record.category ||
+      !record.vendorName ||
+      !record.invoiceNo
+    ) {
+      showSnackbar(
+        "Date, Category, Vendor Name & Invoice No are required",
+        "warning"
+      );
+      return;
+    }
+
     if (!record._id || record.isTemp) return;
 
-
     setSaving((prev) => ({ ...prev, [record._id]: true }));
-
 
     try {
       const payload = {
@@ -342,22 +330,27 @@ const PurchaseRecord = () => {
         invoicingTally: !!record.invoicingTally,
       };
 
-
-      await fetch(`${API_BASE_URL}/api/purchase-records/${record._id}`, {
+      const res = await fetch(`${API_BASE_URL}/api/purchase-records/${record._id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
 
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.message || "Failed to update");
+      }
 
       showSnackbar("Record updated", "success");
     } catch (err) {
-      showSnackbar("Failed to update record", "error");
+      showSnackbar(
+        "Failed to update record: " + (err.message || "Unknown error"),
+        "error"
+      );
     } finally {
       setSaving((prev) => ({ ...prev, [record._id]: false }));
     }
   }
-
 
   async function handleFieldBlur(record) {
     if (!record) return;
@@ -365,109 +358,89 @@ const PurchaseRecord = () => {
     else await saveExistingRow(record);
   }
 
-
   function handleFieldChange(id, field, value) {
     setRecords((prev) =>
       prev.map((r) => (r._id === id ? { ...r, [field]: value } : r))
     );
   }
+
   async function handleBulkFileChange(e) {
-  const f = e.target.files?.[0];
-  if (!f) return;
+    const f = e.target.files?.[0];
+    if (!f) return;
 
+    const fd = new FormData();
+    fd.append("file", f);
 
-  const fd = new FormData();
-  fd.append("file", f);
+    try {
+      showSnackbar("Uploading CSV...", "info");
 
+      const res = await fetch(
+        `${API_BASE_URL}/api/purchase-records/upload-csv`,
+        {
+          method: "POST",
+          body: fd,
+        }
+      );
 
-  try {
-    showSnackbar("Uploading CSV...", "info");
+      if (!res.ok) throw new Error("Bulk upload failed");
 
+      const data = await res.json();
+      showSnackbar(
+        `${data.inserted || data.insertedCount || 0} rows imported successfully`,
+        "success"
+      );
 
-    const res = await fetch(
-      `${API_BASE_URL}/api/purchase-records/upload-csv`,
-      {
+      await fetchList();
+      await fetchVendors();
+    } catch (err) {
+      showSnackbar("Bulk upload failed: " + err.message, "error");
+    } finally {
+      e.target.value = "";
+    }
+  }
+
+  async function handleAddVendor() {
+    if (!newVendor.name?.trim()) {
+      showSnackbar("Vendor name required", "error");
+      return;
+    }
+    if (!validateVendorForm(newVendor, showSnackbar)) return;
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/purchase-records/vendors`, {
         method: "POST",
-        body: fd,
-      }
-    );
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(newVendor),
+      });
 
+      if (!res.ok) throw new Error("Failed to create vendor");
 
-    if (!res.ok) throw new Error("Bulk upload failed");
+      const data = await res.json();
+      const created = data.vendor || data;
 
+      setVendors((p) => [...p, created]);
+      setVendorDialogOpen(false);
 
-    const data = await res.json();
-    showSnackbar(
-      `${data.inserted || data.insertedCount || 0} rows imported successfully`,
-      "success"
-    );
+      setNewVendor({
+        name: "",
+        email: "",
+        phoneNumber: "",
+        hasGST: true,
+        gstNumber: "",
+      });
 
-
-    await fetchList();
-    await fetchVendors();
-  } catch (err) {
-    showSnackbar("Bulk upload failed: " + err.message, "error");
-  } finally {
-    e.target.value = "";
+      showSnackbar("Vendor created", "success");
+    } catch (err) {
+      showSnackbar("Failed to create vendor", "error");
+    }
   }
-}
-async function handleAddVendor() {
-  if (!newVendor.name?.trim()) {
-    showSnackbar("Vendor name required", "error");
-    return;
-  }
-  if (!validateVendorForm(newVendor, showSnackbar)) return;
 
-
-  try {
-    const res = await fetch(`${API_BASE_URL}/api/purchase-records/vendors`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(newVendor),
-    });
-
-
-    if (!res.ok) throw new Error("Failed to create vendor");
-
-
-    const data = await res.json();
-    const created = data.vendor || data;
-
-
-    setVendors((p) => [...p, created]);
-    setVendorDialogOpen(false);
-
-
-    setNewVendor({
-      name: "",
-      email: "",
-      phoneNumber: "",
-      hasGST: true,
-      gstNumber: "",
-    });
-
-
-    showSnackbar("Vendor created", "success");
-  } catch (err) {
-    showSnackbar("Failed to create vendor", "error");
-  }
-}
-
-
-
-
-  // -------------------------------------------------------
-  // 🔥 NEW DELETE LOGIC (moves to deletedRecords frontend)
-  // -------------------------------------------------------
   async function handleDelete(id) {
     if (!window.confirm("Delete this record?")) return;
-
 
     const rec = records.find((r) => r._id === id);
     if (!rec) return;
 
-
-    // If temporary row
     if (String(id).startsWith("temp-")) {
       setRecords((prev) => prev.filter((r) => r._id !== id));
       setDeletedRecords((prev) => [...prev, { ...rec, isDeleted: true }]);
@@ -475,23 +448,15 @@ async function handleAddVendor() {
       return;
     }
 
-
-    // Backend delete request
     try {
       const res = await fetch(`${API_BASE_URL}/api/purchase-records/${id}`, {
         method: "DELETE",
       });
 
-
       if (!res.ok) throw new Error();
 
-
       setRecords((prev) => prev.filter((r) => r._id !== id));
-
-
-      // Move to deleted state
       setDeletedRecords((prev) => [...prev, { ...rec, isDeleted: true }]);
-
 
       showSnackbar("Record moved to deleted list", "success");
     } catch (err) {
@@ -499,17 +464,13 @@ async function handleAddVendor() {
     }
   }
 
-
   async function handleFileUpload(recordId, file) {
     if (!file) return;
 
-
     setUploading((prev) => ({ ...prev, [recordId]: true }));
-
 
     const fd = new FormData();
     fd.append("file", file);
-
 
     try {
       const res = await fetch(`${API_BASE_URL}/api/purchase-records/upload`, {
@@ -517,10 +478,8 @@ async function handleAddVendor() {
         body: fd,
       });
 
-
       const data = await res.json();
       const url = data.fileUrl || data.url || data.Location;
-
 
       setRecords((prev) =>
         prev.map((r) =>
@@ -528,11 +487,9 @@ async function handleAddVendor() {
         )
       );
 
-
       const record = records.find((r) => r._id === recordId);
       if (record && !record.isTemp)
         await saveExistingRow({ ...record, invoiceLink: url });
-
 
       showSnackbar("File uploaded successfully", "success");
     } catch (err) {
@@ -542,8 +499,6 @@ async function handleAddVendor() {
     }
   }
 
-
-  // Deleted records are read-only
   function renderCell(record, field) {
     if (record.isDeleted) {
       return (
@@ -553,11 +508,8 @@ async function handleAddVendor() {
       );
     }
 
-
-    // ORIGINAL CELL RENDER LOGIC BELOW (unchanged)
     const value = record[field] ?? "";
     const isSavingFlag = saving[record._id];
-
 
     switch (field) {
       case "date":
@@ -574,7 +526,6 @@ async function handleAddVendor() {
             sx={{ minWidth: 140, ...inputBorderSx }}
           />
         );
-
 
       case "category":
         return (
@@ -604,7 +555,6 @@ async function handleAddVendor() {
           </FormControl>
         );
 
-
       case "invoiceType":
         return (
           <FormControl size="small" sx={{ minWidth: 150, ...inputBorderSx }}>
@@ -628,7 +578,6 @@ async function handleAddVendor() {
             </Select>
           </FormControl>
         );
-
 
       case "billingGST":
         return (
@@ -654,7 +603,6 @@ async function handleAddVendor() {
           </FormControl>
         );
 
-
       case "invoiceNo":
         return (
           <TextField
@@ -668,7 +616,6 @@ async function handleAddVendor() {
             sx={{ minWidth: 150, ...inputBorderSx }}
           />
         );
-
 
       case "vendorName":
         return (
@@ -692,7 +639,6 @@ async function handleAddVendor() {
           />
         );
 
-
       case "amount":
         return (
           <TextField
@@ -707,7 +653,6 @@ async function handleAddVendor() {
             sx={{ minWidth: 110, ...inputBorderSx }}
           />
         );
-
 
       case "invoiceLink":
         return (
@@ -749,7 +694,6 @@ async function handleAddVendor() {
           </Box>
         );
 
-
       case "matched2B":
       case "invoicingTally":
         return (
@@ -763,7 +707,6 @@ async function handleAddVendor() {
             size="small"
           />
         );
-
 
       default:
         return (
@@ -781,7 +724,6 @@ async function handleAddVendor() {
     }
   }
 
-
   const columns = [
     { field: "date", label: "Date" },
     { field: "category", label: "Category" },
@@ -795,7 +737,6 @@ async function handleAddVendor() {
     { field: "invoicingTally", label: "Tally" },
   ];
 
-
   return (
     <Box
       sx={{
@@ -806,7 +747,6 @@ async function handleAddVendor() {
         minHeight: "100vh",
       }}
     >
-      {/* PAGE HEADER */}
       <Paper
         sx={{
           display: "flex",
@@ -824,12 +764,14 @@ async function handleAddVendor() {
           Purchase Records
         </Typography>
 
-
         <Box sx={{ display: "flex", gap: 1.2 }}>
-          <Button variant="outlined" startIcon={<AddIcon />} onClick={() => setVendorDialogOpen(true)}>
+          <Button
+            variant="outlined"
+            startIcon={<AddIcon />}
+            onClick={() => setVendorDialogOpen(true)}
+          >
             Add Vendor
           </Button>
-
 
           <Button
             variant="contained"
@@ -840,7 +782,6 @@ async function handleAddVendor() {
             Add Record
           </Button>
 
-
           <input
             ref={bulkInputRef}
             type="file"
@@ -848,7 +789,6 @@ async function handleAddVendor() {
             style={{ display: "none" }}
             onChange={handleBulkFileChange}
           />
-
 
           <Button
             variant="outlined"
@@ -858,8 +798,6 @@ async function handleAddVendor() {
             Bulk Upload
           </Button>
 
-
-          {/* 🔥 NEW SINGLE TOGGLE BUTTON */}
           <Button
             variant="contained"
             onClick={() => setShowDeleted(!showDeleted)}
@@ -876,10 +814,6 @@ async function handleAddVendor() {
         </Box>
       </Paper>
 
-
-      {/* =======================================================
-         ACTIVE TABLE VIEW
-      ======================================================= */}
       {!showDeleted && (
         <Box
           sx={{
@@ -903,11 +837,14 @@ async function handleAddVendor() {
                 </TableRow>
               </TableHead>
 
-
               <TableBody>
                 {records.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={columns.length + 2} align="center" sx={{ py: 5 }}>
+                    <TableCell
+                      colSpan={columns.length + 2}
+                      align="center"
+                      sx={{ py: 5 }}
+                    >
                       No records found.
                     </TableCell>
                   </TableRow>
@@ -931,14 +868,14 @@ async function handleAddVendor() {
                         </IconButton>
                       </TableCell>
 
-
                       <TableCell sx={{ fontWeight: 600 }}>
                         {page * rowsPerPage + idx + 1}
                       </TableCell>
 
-
                       {columns.map((col) => (
-                        <TableCell key={col.field}>{renderCell(rec, col.field)}</TableCell>
+                        <TableCell key={col.field}>
+                          {renderCell(rec, col.field)}
+                        </TableCell>
                       ))}
                     </TableRow>
                   ))
@@ -946,7 +883,6 @@ async function handleAddVendor() {
               </TableBody>
             </Table>
           </TableContainer>
-
 
           <TablePagination
             component="div"
@@ -963,10 +899,6 @@ async function handleAddVendor() {
         </Box>
       )}
 
-
-      {/* =======================================================
-         DELETED TABLE VIEW (READ ONLY)
-      ======================================================= */}
       {showDeleted && (
         <Box
           sx={{
@@ -990,11 +922,14 @@ async function handleAddVendor() {
                 </TableRow>
               </TableHead>
 
-
               <TableBody>
                 {deletedRecords.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={columns.length + 1} align="center" sx={{ py: 5 }}>
+                    <TableCell
+                      colSpan={columns.length + 1}
+                      align="center"
+                      sx={{ py: 5 }}
+                    >
                       No deleted records.
                     </TableCell>
                   </TableRow>
@@ -1002,7 +937,6 @@ async function handleAddVendor() {
                   deletedRecords.map((rec, idx) => (
                     <TableRow key={rec._id}>
                       <TableCell sx={{ fontWeight: 600 }}>{idx + 1}</TableCell>
-
 
                       {columns.map((col) => (
                         <TableCell key={col.field}>
@@ -1020,8 +954,6 @@ async function handleAddVendor() {
         </Box>
       )}
 
-
-      {/* ADD VENDOR DIALOG — UNCHANGED */}
       <Dialog
         open={vendorDialogOpen}
         onClose={() => setVendorDialogOpen(false)}
@@ -1034,53 +966,60 @@ async function handleAddVendor() {
             fullWidth
             label="Vendor name *"
             value={newVendor.name}
-            onChange={(e) => setNewVendor((p) => ({ ...p, name: e.target.value }))}
+            onChange={(e) =>
+              setNewVendor((p) => ({ ...p, name: e.target.value }))
+            }
             sx={{ mb: 2 }}
           />
-
 
           <Box sx={{ display: "flex", gap: 1.5, mb: 2 }}>
             <TextField
               fullWidth
               label="Email"
               value={newVendor.email}
-              onChange={(e) => setNewVendor((p) => ({ ...p, email: e.target.value }))}
+              onChange={(e) =>
+                setNewVendor((p) => ({ ...p, email: e.target.value }))
+              }
             />
-
 
             <TextField
               fullWidth
               label="Phone"
               value={newVendor.phoneNumber}
               onChange={(e) =>
-                setNewVendor((p) => ({ ...p, phoneNumber: e.target.value.replace(/\D/g, "") }))
+                setNewVendor((p) => ({
+                  ...p,
+                  phoneNumber: e.target.value.replace(/\D/g, ""),
+                }))
               }
               inputProps={{ maxLength: 10 }}
             />
           </Box>
 
-
           <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 2 }}>
             <Switch
               checked={!!newVendor.hasGST}
-              onChange={(e) => setNewVendor((p) => ({ ...p, hasGST: e.target.checked }))}
+              onChange={(e) =>
+                setNewVendor((p) => ({ ...p, hasGST: e.target.checked }))
+              }
             />
             <Typography>Has GST?</Typography>
-
 
             {newVendor.hasGST && (
               <TextField
                 label="GST Number"
                 value={newVendor.gstNumber}
                 onChange={(e) =>
-                  setNewVendor((p) => ({ ...p, gstNumber: e.target.value.toUpperCase() }))
+                  setNewVendor((p) => ({
+                    ...p,
+                    gstNumber: e.target.value.toUpperCase(),
+                  }))
                 }
                 inputProps={{ maxLength: 15 }}
                 sx={{ ml: 2, flex: 1 }}
               />
             )}
           </Box>
-
 
           <Box sx={{ display: "flex", justifyContent: "flex-end", gap: 1, mt: 3 }}>
             <Button onClick={() => setVendorDialogOpen(false)}>Cancel</Button>
@@ -1096,14 +1035,17 @@ async function handleAddVendor() {
         </DialogContent>
       </Dialog>
 
-
       <Snackbar
         open={snackbar.open}
         autoHideDuration={snackbar.severity === "error" ? 8000 : 4000}
         onClose={handleSnackbarClose}
         anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
       >
-        <Alert severity={snackbar.severity} onClose={handleSnackbarClose} variant="filled">
+        <Alert
+          severity={snackbar.severity}
+          onClose={handleSnackbarClose}
+          variant="filled"
+        >
           {snackbar.message}
         </Alert>
       </Snackbar>
@@ -1111,8 +1053,4 @@ async function handleAddVendor() {
   );
 };
 
-
 export default PurchaseRecord;
-
-
-

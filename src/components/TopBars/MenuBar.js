@@ -35,6 +35,7 @@ import AssignmentReturnedIcon from "@mui/icons-material/AssignmentReturned";
 import CheckBoxIcon from "@mui/icons-material/CheckBox";
 import ReceiptLongIcon from "@mui/icons-material/ReceiptLong"; 
 import AnalyticsIcon from "@mui/icons-material/Analytics";
+import QueryStatsIcon from "@mui/icons-material/QueryStats";
 import { Link, useNavigate } from "react-router-dom";
 
 // Optional custom icon (unused in logic, just kept as you had)
@@ -811,6 +812,21 @@ const MenuBar = ({ toggleDrawer }) => {
               </List>
             </Collapse>
           </>
+        )}
+
+        {user && can("allAnalytics") && (
+          <ListItem
+            button
+            component={Link}
+            to="/super-admin-analytics"
+            sx={menuItemStyle}
+            onClick={toggleDrawer}
+          >
+            <QueryStatsIcon sx={{ fontSize: 24, marginRight: "12px" }} />
+            <Typography variant="body1" style={{ fontSize: "14px" }}>
+              All Analytics
+            </Typography>
+          </ListItem>
         )}
 
         {/* Finance-related menus */}
