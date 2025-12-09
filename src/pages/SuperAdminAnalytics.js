@@ -34,8 +34,10 @@ import CustomerCohortHeatmap from "./CustomerCohortHeatmap";
 import ArrowDropUpIcon from "@mui/icons-material/ArrowDropUp";
 import ArrowDropDownIcon from "@mui/icons-material/ArrowDropDown";
 import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
- 
- 
+
+
+
+// Recharts
 import {
     PieChart,
     Pie,
@@ -53,7 +55,8 @@ import {
     AreaChart,
     Area,
 } from "recharts";
- 
+
+// ===== ADD THESE HELPER FUNCTIONS AT THE TOP OF THE FILE (before SuperAdminAnalytics function) =====
 
 function isSingleDay(start, end) {
     if (!start || !end) return false;
@@ -94,8 +97,10 @@ function getSmartTicks(dataLength, isSingle) {
     }
     return [];
 }
- 
+
+// ------------------- DATE RANGE -------------------
 const RANGE_OPTIONS = ["Today", "Yesterday", "Last 7 Days", "Last 30 Days", "Custom Range"];
+// unified funnel theme (dark → light)
 const COMMON_COLORS = ['#2C5F6F', '#3A8F9F', '#5FB8A8', '#80CBC4'];
 
 
@@ -403,8 +408,7 @@ function OrdersVsFulfilledCard({ total, fulfilled }) {
         </Card>
     );
 }
-// ------------------- TOTAL ORDERS CHART (Updated) -------------------
-// ------------------- NEW TOTAL ORDERS CHART COMPONENT -------------------
+
 
 
 function EscalationCard({ open = 0, closed = 0 }) {
@@ -478,7 +482,7 @@ function CallsInOutCard({ incoming = 0, outgoing = 0 }) {
     );
 }
 function LeadsOverviewCard({ totalLeads = 0, followUpDue = 0, noConsult = 0 }) {
-    // Prepare pie chart data
+
     const pieData = [
         { name: "Total Leads", value: totalLeads },
         { name: "Follow-up Due", value: followUpDue },
@@ -574,10 +578,7 @@ function LeadsOverviewDonut({ totalLeads = 0, followUpDue = 0, noConsult = 0 }) 
     );
 }
 
-// ============================================
-// FRONTEND: Replace AverageOrderValueCard component
-// Find and replace the ENTIRE AverageOrderValueCard function
-// ============================================
+
 
 function AverageOrderValueCard({
     apiBase,
@@ -606,6 +607,8 @@ function AverageOrderValueCard({
     // ============================================
     // AGGREGATE DATA FOR LARGE DATE RANGES
     // ============================================
+    // In the AverageOrderValueCard component, update the aggregateData function:
+
     const aggregateData = (points, days) => {
         if (days <= 31) return points;
 
@@ -613,13 +616,20 @@ function AverageOrderValueCard({
             const weeks = [];
             for (let i = 0; i < points.length; i += 7) {
                 const chunk = points.slice(i, i + 7);
-                const avgCurrent = chunk.reduce((s, p) => s + p.current, 0) / chunk.length;
-                const avgPrev = chunk.reduce((s, p) => s + p.previous, 0) / chunk.length;
+                const validCurrent = chunk.filter(p => p.current > 0);
+                const validPrev = chunk.filter(p => p.previous > 0);
+
+                const avgCurrent = validCurrent.length > 0
+                    ? validCurrent.reduce((s, p) => s + p.current, 0) / validCurrent.length
+                    : 0;
+                const avgPrev = validPrev.length > 0
+                    ? validPrev.reduce((s, p) => s + p.previous, 0) / validPrev.length
+                    : 0;
 
                 weeks.push({
                     label: chunk[0].label,
                     current: Number(avgCurrent.toFixed(2)),
-                    previous: Number(avgPrev.toFixed(2)),
+                    previous: avgPrev > 0 ? Number(avgPrev.toFixed(2)) : null,  // 🔥 Set to null if 0
                 });
             }
             return weeks;
@@ -627,21 +637,22 @@ function AverageOrderValueCard({
 
         const months = {};
         points.forEach(p => {
-            const monthKey = p.label.slice(0, 7); // YYYY-MM
+            const monthKey = p.label.slice(0, 7);
             if (!months[monthKey]) {
                 months[monthKey] = { current: [], previous: [] };
             }
             months[monthKey].current.push(p.current);
-            months[monthKey].previous.push(p.previous);
+            if (p.previous > 0) months[monthKey].previous.push(p.previous);  // 🔥 Only valid values
         });
 
         return Object.entries(months).map(([month, data]) => ({
             label: month,
             current: Number((data.current.reduce((s, v) => s + v, 0) / data.current.length).toFixed(2)),
-            previous: Number((data.previous.reduce((s, v) => s + v, 0) / data.previous.length).toFixed(2)),
+            previous: data.previous.length > 0
+                ? Number((data.previous.reduce((s, v) => s + v, 0) / data.previous.length).toFixed(2))
+                : null,  // 🔥 Set to null if no valid data
         }));
     };
-
     // ============================================
     // FETCH AOV WITH COMPARISON
     // ============================================
@@ -870,9 +881,11 @@ function AverageOrderValueCard({
                                 dataKey="label"
                                 tick={{ fontSize: 11 }}
                                 tickFormatter={(value) => {
+                                    if (!value) return "";     // prevents INVALID DATE
                                     const isSingle = start === end;
                                     return isSingle ? formatHourlyLabel(value) : formatDateLabel(value);
                                 }}
+
                                 interval={series.length > 5 ? Math.floor(series.length / 3) - 1 : 0}
                             />
                             <YAxis tickFormatter={(v) => `₹${v}`} tick={{ fontSize: 11 }} />
@@ -995,22 +1008,40 @@ function LostCustomersCard({ lost }) {
     );
 }
 
+
+
 function OrdersFunnelCard({ data }) {
 
-    // 🔥 FIXED: Use correct property names from funnelStats
-    const funnelData = [
-        { name: 'Total Orders', value: data?.totalOrders || 0 },
-        { name: 'Fulfilled', value: data?.fulfilled || 0 },
-        { name: 'Delivered', value: data?.delivered || 0 },  // ✅ This should show 161
-        { name: 'RTO', value: data?.rto || 0 }
-    ];
+    console.log('🔍 Funnel received data:', data); // Debug log
 
-    // Colors from dark → light
-    const colors = ['#2C5F6F', '#3A8F9F', '#5FB8A8', '#80CBC4'];
+    // 🔥 FIXED: Map data to show Fulfilled → Delivered → RTO funnel
+    const funnelData = [
+        {
+            name: 'Total Orders',
+            value: data?.totalOrders || 0,
+            color: '#2C5F6F'
+        },
+        {
+            name: 'Fulfilled',
+            value: data?.fulfilled?.count || 0,
+            color: '#3A8F9F'
+        },
+        {
+            name: 'Delivered',
+            value: data?.delivered?.count || 0,
+            color: '#5FB8A8'
+        },
+        {
+            name: 'RTO',
+            value: data?.rto?.count || 0,
+            color: '#80CBC4'
+        }
+    ];
 
     const calculatePercentage = (index) => {
         const maxValue = funnelData[0]?.value || 1;
-        return ((funnelData[index].value / maxValue) * 100).toFixed(1);
+        const percentage = ((funnelData[index].value / maxValue) * 100).toFixed(1);
+        return percentage === 'NaN' ? '0' : percentage;
     };
 
     const formatLabel = (name, value, width) => {
@@ -1057,25 +1088,35 @@ function OrdersFunnelCard({ data }) {
 
                         const label = formatLabel(item.name, item.value, avgWidth);
                         const fontSize = avgWidth > 150 ? 14 : 12;
+                        const percentage = calculatePercentage(index);
 
                         return (
                             <g key={index}>
+                                {/* Trapezoid Shape */}
                                 <path
                                     d={`M ${leftX} ${y}
                       L ${rightX} ${y}
                       L ${bottomRightX} ${y + height}
                       L ${bottomLeftX} ${y + height} Z`}
-                                    fill={colors[index]}
+                                    fill={item.color}
                                     opacity="0.9"
+                                    stroke="white"
+                                    strokeWidth="2"
                                 />
 
+                                {/* Text Label */}
                                 {label.split ? (
                                     <>
                                         <text
                                             x="150"
                                             y={y + height / 2 - 10}
                                             textAnchor="middle"
-                                            style={{ fontSize, fontWeight: 700, fill: '#000' }}
+                                            style={{
+                                                fontSize,
+                                                fontWeight: 700,
+                                                fill: '#000',
+                                                fontFamily: 'Arial, sans-serif'
+                                            }}
                                         >
                                             {label.line1}
                                         </text>
@@ -1083,7 +1124,12 @@ function OrdersFunnelCard({ data }) {
                                             x="150"
                                             y={y + height / 2 + 5}
                                             textAnchor="middle"
-                                            style={{ fontSize, fontWeight: 700, fill: '#000' }}
+                                            style={{
+                                                fontSize,
+                                                fontWeight: 700,
+                                                fill: '#000',
+                                                fontFamily: 'Arial, sans-serif'
+                                            }}
                                         >
                                             {label.line2}
                                         </text>
@@ -1093,7 +1139,12 @@ function OrdersFunnelCard({ data }) {
                                         x="150"
                                         y={y + height / 2 - 2}
                                         textAnchor="middle"
-                                        style={{ fontSize, fontWeight: 700, fill: '#000' }}
+                                        style={{
+                                            fontSize,
+                                            fontWeight: 700,
+                                            fill: '#000',
+                                            fontFamily: 'Arial, sans-serif'
+                                        }}
                                     >
                                         {label.text}
                                     </text>
@@ -1104,14 +1155,53 @@ function OrdersFunnelCard({ data }) {
                                     x="150"
                                     y={y + height / 2 + (label.split ? 20 : 16)}
                                     textAnchor="middle"
-                                    style={{ fontSize: 12, fill: '#000', opacity: 0.7 }}
+                                    style={{
+                                        fontSize: 12,
+                                        fill: '#000',
+                                        opacity: 0.7,
+                                        fontFamily: 'Arial, sans-serif',
+                                        fontWeight: 600
+                                    }}
                                 >
-                                    {calculatePercentage(index)}%
+                                    {percentage}%
                                 </text>
                             </g>
                         );
                     })}
                 </svg>
+            </Box>
+
+            {/* Legend with Breakdown */}
+            <Box sx={{ mt: 3, p: 2, bgcolor: '#F5F5F5', borderRadius: 2 }}>
+                <Grid container spacing={2}>
+                    {funnelData.map((item, i) => (
+                        <Grid item xs={6} sm={3} key={i}>
+                            <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
+                                <Box
+                                    sx={{
+                                        width: 12,
+                                        height: 12,
+                                        borderRadius: '2px',
+                                        bgcolor: item.color,
+                                        mt: 0.5,
+                                        flexShrink: 0
+                                    }}
+                                />
+                                <Box sx={{ flex: 1 }}>
+                                    <Typography sx={{ fontSize: 11, color: 'text.secondary', fontWeight: 500 }}>
+                                        {item.name}
+                                    </Typography>
+                                    <Typography sx={{ fontSize: 14, fontWeight: 700 }}>
+                                        {item.value.toLocaleString()}
+                                    </Typography>
+                                    <Typography sx={{ fontSize: 10, color: '#666' }}>
+                                        {calculatePercentage(i)}%
+                                    </Typography>
+                                </Box>
+                            </Box>
+                        </Grid>
+                    ))}
+                </Grid>
             </Box>
         </Card>
     );
@@ -1338,11 +1428,9 @@ export default function SuperAdminAnalytics() {
 
     const [funnelStats, setFunnelStats] = useState({
         totalOrders: 0,
-        confirmedOrders: 0,
-        delivered: 0,
-        codDelivered: 0,
-        rto: 0,
-        ndr: 0,
+        fulfilled: { count: 0, percentage: 0 },
+        delivered: { count: 0, percentage: 0 },
+        rto: { count: 0, percentage: 0 }
     });
     const [customerStats, setCustomerStats] = useState({
         totalCustomers: 0,
@@ -1443,6 +1531,10 @@ export default function SuperAdminAnalytics() {
         preset === "Custom Range" && customStart && customEnd
             ? { start: customStart, end: customEnd }
             : getRange(preset);
+    // ============================================
+    // 🔧 CORRECTED loadAnalytics FUNCTION
+    // ============================================
+    // Find your loadAnalytics function and REPLACE the funnel section
 
     const loadAnalytics = async () => {
         try {
@@ -1466,8 +1558,16 @@ export default function SuperAdminAnalytics() {
             const rtoRes = await axios.get(`${API}/api/super-admin/analytics/rto`, { params: { start, end } });
             setRtoStats(rtoRes.data || { rto: 0, rtoDelivered: 0 });
 
-            const ovRes = await axios.get(`${API}/api/super-admin/analytics/orders-vs-fulfilled`, { params: { start, end } });
+            // 🔥 GET ORDERS VS FULFILLED
+            const ovRes = await axios.get(`${API}/api/super-admin/analytics/orders-vs-fulfilled`, {
+                params: { start, end }
+            });
             setOrderVsConfirmed(ovRes.data || {});
+
+            // ✅ CORRECT: Store entire API response directly
+            // The API now returns: { totalOrders, fulfilled, delivered, rto }
+            setFunnelStats(ovRes.data || {});
+            console.log('✅ Funnel Stats:', ovRes.data);
 
             const dietRes = await axios.get(`${API}/api/super-admin/analytics/diet-plans`, { params: { start, end } });
             setDietStats(dietRes.data || { totalDietPlans: 0 });
@@ -1493,24 +1593,17 @@ export default function SuperAdminAnalytics() {
             const custRes = await axios.get(`${API}/api/super-admin/analytics/customer-stats`, { params: { start, end } });
             setCustomerStats(custRes.data || {});
 
-            const totalRto = (rtoRes.data.rto || 0) + (rtoRes.data.rtoDelivered || 0);
-            setFunnelStats({
-                totalOrders: orderRes.data.total || 0,
-                fulfilled: ovRes.data.fulfilled || 0,
-                delivered: delRes.data.delivered || 0,
-                rto: totalRto
-            });
             const payRes = await axios.get(`${API}/api/super-admin/analytics/payment-mode-stats`, {
                 params: { start, end }
             });
             setPaymentStats(payRes.data);
+
             const salesRes = await axios.get(`${API}/api/super-admin/analytics/sales-per-day`, {
                 params: { start, end }
             });
 
             // Sum total sales from all days
             const totalSales = salesRes.data.reduce((sum, d) => sum + d.totalSales, 0);
-
             setSalesStats({ totalSales });
 
             // -------------------- ORDER TREND --------------------
@@ -1519,10 +1612,9 @@ export default function SuperAdminAnalytics() {
             const trendRes = await axios.get(
                 `${API}/api/super-admin/analytics/orders-over-time`,
                 {
-                    params: { start, end, filter: orderFilter }   // ⭐ ADD THIS
+                    params: { start, end, filter: orderFilter }
                 }
             );
-
 
             setOrderTrendData(trendRes.data.trend || []);
             setOrderTrendSummary({
@@ -1579,7 +1671,14 @@ export default function SuperAdminAnalytics() {
                         }
                     }
                 );
-                setOrderTrendData(trendRes.data.trend || []);
+
+                // 🔥 FIX: Filter out zero/null comparison data points
+                const processedData = (trendRes.data.trend || []).map(point => ({
+                    ...point,
+                    previous: point.previous && point.previous > 0 ? point.previous : null
+                }));
+
+                setOrderTrendData(processedData);
                 setOrderTrendSummary({
                     total: trendRes.data.total || 0,
                     comparison: trendRes.data.comparison || null
@@ -1953,6 +2052,8 @@ export default function SuperAdminAnalytics() {
                         useCustomCompare={useCustomCompare}
                     />
                 </Grid>
+
+
                 <Grid item xs={12} md={6}>
                     {/* Total Orders Trend */}
                     <Card sx={{ p: 3, borderRadius: 3 }}>
@@ -1975,27 +2076,53 @@ export default function SuperAdminAnalytics() {
                             <Skeleton height={40} width={140} />
                         ) : (
                             <Box>
-                                <Typography sx={{ fontSize: 32, fontWeight: 900 }}>
-                                    {orderTrendSummary.total}
-                                    {compareStart && compareEnd && (
-                                        <Typography
-                                            component="span"
-                                            sx={{
-                                                ml: 2,
-                                                fontSize: 14,
-                                                color: "text.secondary",
-                                                fontWeight: 600,
-                                            }}
-                                        >
-                                            vs {orderTrendSummary.comparison?.total || 0}
-                                        </Typography>
+                                <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+                                    <Typography sx={{ fontSize: 32, fontWeight: 900 }}>
+                                        {orderTrendSummary.total}
+                                    </Typography>
+
+                                    {/* 🔥 ADD COMPARISON PERCENTAGE BADGE */}
+                                    {compareStart && compareEnd && orderTrendSummary.comparison?.total && (
+                                        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                                            <Box
+                                                sx={{
+                                                    display: "flex",
+                                                    alignItems: "center",
+                                                    gap: 0.5,
+                                                    px: 1.5,
+                                                    py: 0.6,
+                                                    borderRadius: "20px",
+                                                    bgcolor: orderTrendSummary.percentChange >= 0 ? "#E8F5E9" : "#FFEBEE",
+                                                    border: orderTrendSummary.percentChange >= 0 ? "1px solid #4CAF50" : "1px solid #F44336"
+                                                }}
+                                            >
+                                                {orderTrendSummary.percentChange >= 0 ? (
+                                                    <ArrowDropUpIcon sx={{ color: "#2e7d32", fontSize: 20 }} />
+                                                ) : (
+                                                    <ArrowDropDownIcon sx={{ color: "#d32f2f", fontSize: 20 }} />
+                                                )}
+                                                <Typography
+                                                    sx={{
+                                                        fontSize: 14,
+                                                        fontWeight: 700,
+                                                        color: orderTrendSummary.percentChange >= 0 ? "#2e7d32" : "#d32f2f"
+                                                    }}
+                                                >
+                                                    {Math.abs(orderTrendSummary.percentChange).toFixed(2)}%
+                                                </Typography>
+                                            </Box>
+
+                                            <Typography sx={{ fontSize: 12, color: "text.secondary", fontWeight: 600 }}>
+                                                vs {orderTrendSummary.comparison.total}
+                                            </Typography>
+                                        </Box>
                                     )}
-                                </Typography>
+                                </Box>
                             </Box>
                         )}
 
                         <Typography sx={{ fontSize: 13, mt: 1, opacity: 0.7 }}>
-                            Orders Over Time {compareStart && compareEnd && `(${compareStart} vs ${start})`}
+                            Orders Over Time {compareStart && compareEnd && `(${start} vs ${compareStart})`}
                         </Typography>
 
                         {orderTrendLoading ? (
@@ -2060,8 +2187,8 @@ export default function SuperAdminAnalytics() {
                                         activeDot={{ r: 6 }}
                                     />
 
-                                    {/* Comparison Period Line */}
-                                    {orderTrendData.some(d => d.previous > 0) && (
+                                    {/* Comparison Period Line - Clean with connectNulls */}
+                                    {orderTrendData.some(d => d.previous !== null && d.previous > 0) && (
                                         <Line
                                             type="monotone"
                                             dataKey="previous"
@@ -2071,6 +2198,7 @@ export default function SuperAdminAnalytics() {
                                             dot={false}
                                             activeDot={{ r: 6 }}
                                             strokeDasharray="5 5"
+                                            connectNulls={true}  // 🔥 Connects valid points, skips nulls
                                         />
                                     )}
                                 </LineChart>
@@ -2079,16 +2207,19 @@ export default function SuperAdminAnalytics() {
                     </Card>
                 </Grid>
 
-                {/* ========================== ROW 2 ========================== */}
+
                 <Grid item xs={12} md={6}>
-                    {/* Orders Funnel */}
+
                     <OrdersFunnelCard data={funnelStats} />
                 </Grid>
 
                 <Grid item xs={12} md={6}>
-                    {/* Customer Trends */}
+
+
+
+
                     <Card sx={{ p: 3, ...cardStyle }}>
-                        {/* ---------- Customer Trend Header ---------- */}
+
                         <Stack
                             direction="row"
                             justifyContent="space-between"
@@ -2166,76 +2297,194 @@ export default function SuperAdminAnalytics() {
                                 </Typography>
                             </Box>
                         ) : (
-                            <ResponsiveContainer width="100%" height={320}>
-                                <LineChart data={customerTrendData}>
-                                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                                    <XAxis
-                                        dataKey="date"
-                                        tick={{ fontSize: 12 }}
-                                        tickFormatter={(value) => {
-                                            const isSingle = isSingleDay(start, end);
-                                            return isSingle
-                                                ? formatHourlyLabel(value)
-                                                : formatDateLabel(value);
-                                        }}
-                                        interval={
-                                            customerTrendData.length > 5
-                                                ? Math.floor(customerTrendData.length / 3) - 1
-                                                : 0
-                                        }
-                                    />
-                                    <YAxis tick={{ fontSize: 12 }} />
+                            <Box>
+                                <ResponsiveContainer width="100%" height={340}>
+                                    <LineChart data={customerTrendData}>
+                                        <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                                        <XAxis
+                                            dataKey="date"
+                                            tick={{ fontSize: 11 }}
+                                            tickFormatter={(value) => {
+                                                const isSingle = isSingleDay(start, end);
+                                                return isSingle
+                                                    ? formatHourlyLabel(value)
+                                                    : formatDateLabel(value);
+                                            }}
+                                            interval={
+                                                customerTrendData.length > 5
+                                                    ? Math.floor(customerTrendData.length / 3) - 1
+                                                    : 0
+                                            }
+                                        />
+                                        <YAxis tick={{ fontSize: 11 }} />
 
-                                    <Tooltip />
+                                        <Tooltip
+                                            content={({ active, payload, label }) => {
+                                                if (!active || !payload || payload.length === 0) return null;
+
+                                                return (
+                                                    <div
+                                                        style={{
+                                                            background: "white",
+                                                            padding: "12px",
+                                                            borderRadius: "8px",
+                                                            boxShadow: "0 2px 10px rgba(0,0,0,0.15)",
+                                                            border: "1px solid #e0e0e0",
+                                                            minWidth: "200px"
+                                                        }}
+                                                    >
+                                                        <strong style={{ fontSize: "12px", color: "#333" }}>
+                                                            {label}
+                                                        </strong>
+
+                                                        {payload.map((entry, i) => {
+                                                            let label = entry.name;
+                                                            if (entry.name === "newCustomers") {
+                                                                label = start === end ? "New (Today)" : "New Customers";
+                                                            } else if (entry.name === "compareNewCustomers") {
+                                                                label = compareStart === compareEnd ? "New (Comparison)" : "New (Compare)";
+                                                            }
+
+                                                            return (
+                                                                <div
+                                                                    key={i}
+                                                                    style={{
+                                                                        color: entry.color,
+                                                                        marginTop: "6px",
+                                                                        fontSize: "12px",
+                                                                        fontWeight: 600,
+                                                                        display: "flex",
+                                                                        justifyContent: "space-between",
+                                                                        gap: "20px"
+                                                                    }}
+                                                                >
+                                                                    <span>{label}:</span>
+                                                                    <strong>{entry.value?.toLocaleString() || 0}</strong>
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                );
+                                            }}
+                                        />
+
+                                        <Legend
+                                            formatter={(value) => {
+                                                if (value === "newCustomers") return `New (${start})`;
+                                                if (value === "compareNewCustomers") return `New (${compareStart})`;
+                                                if (value === "active") return "Active";
+                                                if (value === "lost") return "Lost";
+                                                return value;
+                                            }}
+                                            wrapperStyle={{ paddingTop: "10px" }}
+                                        />
+
+                                        {/* NEW CUSTOMERS LINE */}
+                                        {visibleLines.newCustomers && (
+                                            <Line
+                                                dataKey="newCustomers"
+                                                stroke={COMMON_COLORS[0]}
+                                                strokeWidth={3}
+                                                dot={{ r: 4, fill: COMMON_COLORS[0] }}
+                                                name="newCustomers"
+                                            />
+                                        )}
+
+                                        {/* COMPARE NEW CUSTOMERS LINE */}
+                                        {visibleLines.newCustomers &&
+                                            compareStart &&
+                                            compareEnd &&
+                                            customerTrendData.some((d) => d.compareNewCustomers > 0) && (
+                                                <Line
+                                                    dataKey="compareNewCustomers"
+                                                    stroke={COMMON_COLORS[1]}
+                                                    strokeWidth={3}
+                                                    strokeDasharray="5 5"
+                                                    dot={{ r: 4, fill: COMMON_COLORS[1] }}
+                                                    name="compareNewCustomers"
+                                                />
+                                            )}
+
+                                        {/* ACTIVE CUSTOMERS LINE */}
+                                        {visibleLines.active && (
+                                            <Line
+                                                dataKey="active"
+                                                stroke={COMMON_COLORS[1]}
+                                                strokeWidth={3}
+                                                dot={{ r: 4, fill: COMMON_COLORS[1] }}
+                                                name="active"
+                                            />
+                                        )}
+
+                                        {/* LOST CUSTOMERS LINE */}
+                                        {visibleLines.lost && (
+                                            <Line
+                                                dataKey="lost"
+                                                stroke={COMMON_COLORS[3]}
+                                                strokeWidth={3}
+                                                dot={{ r: 4, fill: COMMON_COLORS[3] }}
+                                                name="lost"
+                                            />
+                                        )}
+                                    </LineChart>
+                                </ResponsiveContainer>
+
+                                {/* Summary Stats Below Chart */}
+                                <Box
+                                    sx={{
+                                        mt: 3,
+                                        p: 2,
+                                        bgcolor: "#F5F5F5",
+                                        borderRadius: "8px",
+                                        display: "grid",
+                                        gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr 1fr" },
+                                        gap: 2
+                                    }}
+                                >
                                     {visibleLines.newCustomers && (
-                                        <Line
-                                            dataKey="newCustomers"
-                                            stroke={COMMON_COLORS[0]}
-                                            strokeWidth={2.5}
-                                            dot={{ r: 3 }}
-                                            name={start}
-                                        />
+                                        <Box sx={{ textAlign: "center" }}>
+                                            <Typography sx={{ fontSize: 11, color: "text.secondary", fontWeight: 600 }}>
+                                                Total New
+                                            </Typography>
+                                            <Typography sx={{ fontSize: 18, fontWeight: 700, color: COMMON_COLORS[0] }}>
+                                                {customerTrendData.reduce((sum, d) => sum + (d.newCustomers || 0), 0).toLocaleString()}
+                                            </Typography>
+                                        </Box>
                                     )}
-                                    {visibleLines.newCustomers && compareStart && compareEnd && customerTrendData.some(d => d.compareNewCustomers > 0) && (
-                                        <Line
-                                            dataKey="compareNewCustomers"
-                                            stroke={COMMON_COLORS[1]}
-                                            strokeWidth={2.5}
-                                            dot={{ r: 3 }}
-                                            strokeDasharray="5 5"
-                                            name={compareStart}
-                                        />
-                                    )}
+
                                     {visibleLines.active && (
-                                        <Line
-                                            dataKey="active"
-                                            stroke={COMMON_COLORS[1]}
-                                            strokeWidth={2.5}
-                                            dot={{ r: 3 }}
-                                        />
+                                        <Box sx={{ textAlign: "center" }}>
+                                            <Typography sx={{ fontSize: 11, color: "text.secondary", fontWeight: 600 }}>
+                                                Total Active
+                                            </Typography>
+                                            <Typography sx={{ fontSize: 18, fontWeight: 700, color: COMMON_COLORS[1] }}>
+                                                {customerTrendData.reduce((sum, d) => sum + (d.active || 0), 0).toLocaleString()}
+                                            </Typography>
+                                        </Box>
                                     )}
+
                                     {visibleLines.lost && (
-                                        <Line
-                                            dataKey="lost"
-                                            stroke={COMMON_COLORS[3]}
-                                            strokeWidth={2.5}
-                                            dot={{ r: 3 }}
-                                        />
+                                        <Box sx={{ textAlign: "center" }}>
+                                            <Typography sx={{ fontSize: 11, color: "text.secondary", fontWeight: 600 }}>
+                                                Total Lost
+                                            </Typography>
+                                            <Typography sx={{ fontSize: 18, fontWeight: 700, color: COMMON_COLORS[3] }}>
+                                                {customerTrendData.reduce((sum, d) => sum + (d.lost || 0), 0).toLocaleString()}
+                                            </Typography>
+                                        </Box>
                                     )}
-                                </LineChart>
-                            </ResponsiveContainer>
+                                </Box>
+                            </Box>
                         )}
                     </Card>
                 </Grid>
 
-                {/* ========================== ROW 3 ========================== */}
                 <Grid item xs={12}>
-                    {/* Your existing RIGHT SIDE CARDS section */}
-                    {/** Keep your Orders Split, Customer Mix, etc. EXACT SAME **/}
+
                 </Grid>
                 <Grid container spacing={3} sx={{ mb: 4 }}>
 
-                    {/* Leads Overview */}
+
                     <Grid item xs={12} sm={6} md={3}>
                         <Card sx={{ p: 3, ...cardStyle }}>
                             <LeadsOverviewDonut
@@ -2246,7 +2495,6 @@ export default function SuperAdminAnalytics() {
                         </Card>
                     </Grid>
 
-                    {/* Orders Split */}
                     <Grid item xs={12} sm={6} md={3}>
                         <Card sx={{ p: 3, ...cardStyle }}>
                             <OrdersSplitPie
@@ -2256,7 +2504,7 @@ export default function SuperAdminAnalytics() {
                         </Card>
                     </Grid>
 
-                    {/* First vs Returning */}
+
                     <Grid item xs={12} sm={6} md={3}>
                         <Card sx={{ p: 3, ...cardStyle }}>
                             <FirstReturningDonut
@@ -2266,7 +2514,6 @@ export default function SuperAdminAnalytics() {
                         </Card>
                     </Grid>
 
-                    {/* Escalation Donut */}
                     <Grid item xs={12} sm={6} md={3}>
                         <Card sx={{ p: 3, ...cardStyle }}>
                             <EscalationDonut
@@ -2278,7 +2525,7 @@ export default function SuperAdminAnalytics() {
 
                 </Grid>
 
-                {/* ========================== ROW 4 ========================== */}
+
                 <Grid item xs={12}>
                     <CustomerCohortHeatmap />
                 </Grid>
@@ -2287,7 +2534,6 @@ export default function SuperAdminAnalytics() {
 
 
 
-            {/* --- DIALOG FOR AGENTS (KEPT SAME) --- */}
             <Dialog open={deliveredOpen} onClose={() => setDeliveredOpen(false)} maxWidth="sm" fullWidth>
                 <DialogTitle sx={{ fontWeight: 700 }}>Delivered Sales Per Agent</DialogTitle>
                 <DialogContent dividers sx={{ p: 2 }}>

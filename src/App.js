@@ -66,9 +66,9 @@ import BankYesCcTejasv from "./components/Finance/BankYesCcTejasv";
 import BankYesCcAbhay from "./components/Finance/BankYesCcAbhay";
 import TaskBoard from "./components/Dashboards/TaskBoard";
 import MyReporting from "./components/Dashboards/MyReporting";
-import PurchaseRecord from "./components/Finance/PurchaseRecord";
-import PaymentRecords from "./components/Finance/PaymentRecords";
-import Vendors from "./components/Finance/Vendors";
+import PurchaseRecord from "./components/Finance/PurchaseRecordsPage"; 
+import PaymentRecords from "./components/Finance/PaymentRecordsPage";
+import Vendors from "./components/Finance/VendorPage";
 import SwitchDashboard from "./components/Finance/SwitchDashboard";
 import ConfirmedOrder from "./components/OrderConf/ConfirmedOrder";
 import GlobalShopifyOrders from "./International/Shopify/GlobalShopifyOrders";
@@ -107,7 +107,7 @@ const App = () => {
           <Route path="/BankCc1101" element={<BankCc1101 />} />
           <Route path="/BankYesCcTejasv" element={<BankYesCcTejasv />} />
           <Route path="/BankYesCcAbhay" element={<BankYesCcAbhay />} />
-          <Route path="/purchase-record" element={<PurchaseRecord />} />
+          <Route path="/purchase-record" element={<PurchaseRecord />} /> 
           <Route path="/payment-record" element={<PaymentRecords />} />
           <Route path="/vendors" element={<Vendors />} />
           <Route path="/super-admin-analytics" element={<SuperAdminAnalytics />} />
