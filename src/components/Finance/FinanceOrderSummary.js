@@ -39,9 +39,8 @@ const getDateRange = (filter) => {
 
   switch (filter) {
     case "This week": {
-      // Week starts on Monday
-      const dow = now.day(); // 0 = Sunday, 1 = Monday, ...
-      const daysFromMonday = dow === 0 ? 6 : dow - 1; // if Sunday, go back 6 days
+      const dow = now.day();
+      const daysFromMonday = dow === 0 ? 6 : dow - 1;
       const start = now.subtract(daysFromMonday, "day").startOf("day");
       const end = now.endOf("day");
       return {
@@ -58,7 +57,6 @@ const getDateRange = (filter) => {
       };
     }
     case "Last 15 days": {
-      // Including today → last 15 calendar days
       const start = now.subtract(14, "day").startOf("day");
       const end = now.endOf("day");
       return {
@@ -81,17 +79,16 @@ const FinanceOrderSummary = () => {
   const [page, setPage] = useState(0);
   const [totalCount, setTotalCount] = useState(0);
 
-  // rows per page (sent to backend)
   const [rowsPerPage, setRowsPerPage] = useState(DEFAULT_ROWS_PER_PAGE);
 
-  // Default: This month
+  // Default filter
   const [selectedFilter, setSelectedFilter] = useState("This month");
   const [error, setError] = useState("");
 
-  // Open / Closed filter (client-side per page)
-  const [statusFilter, setStatusFilter] = useState("ALL"); // ALL | open | closed
+  // Open / Closed filter (client-side)
+  const [statusFilter, setStatusFilter] = useState("ALL");
 
-  // Custom date filter state (YYYY-MM-DD)
+  // Custom date range state
   const [customStart, setCustomStart] = useState("");
   const [customEnd, setCustomEnd] = useState("");
   const [activeCustomRange, setActiveCustomRange] = useState({
@@ -99,32 +96,30 @@ const FinanceOrderSummary = () => {
     end: null,
   });
 
-  // On mount + when filter changes (non-Custom), reload from page 1
+  // Fetch when filter changes (except Custom)
   useEffect(() => {
     if (selectedFilter === "Custom") {
-      // For Custom we wait until user hits "Get"
       setLoading(false);
       return;
     }
+
     setPage(0);
     fetchFinanceOrders(1);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedFilter, rowsPerPage]);
 
-  // pageNumber: 1-based
-  // explicitStart / explicitEnd: "YYYY-MM-DD" if provided (used for Custom)
+  // Fetch function
   const fetchFinanceOrders = async (pageNumber, explicitStart, explicitEnd) => {
     setLoading(true);
-    setError("");
 
     const params = {
       page: pageNumber,
-      limit: rowsPerPage, // 🔹 always send current rowsPerPage to backend
+      limit: rowsPerPage,
     };
 
-    if (explicitStart || explicitEnd) {
-      if (explicitStart) params.startDate = explicitStart;
-      if (explicitEnd) params.endDate = explicitEnd;
+    // Apply explicit custom range OR preset filter
+    if (explicitStart && explicitEnd) {
+      params.startDate = explicitStart;
+      params.endDate = explicitEnd;
     } else {
       const range = getDateRange(selectedFilter);
       if (range.start && range.end) {
@@ -134,17 +129,16 @@ const FinanceOrderSummary = () => {
     }
 
     try {
-      const res = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/finance/orders", {
-        params,
-      });
+      const res = await axios.get(
+        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/finance/orders",
+        { params }
+      );
 
       setOrders(res.data.orders || []);
       setTotalCount(res.data.totalCount || 0);
     } catch (err) {
-      console.error("Error fetching finance orders:", err);
-      setError("Couldn't load orders. Check your server logs and network tab.");
-      setOrders([]);
-      setTotalCount(0);
+      console.error("Error fetching orders:", err);
+      setError("Failed to load orders.");
     } finally {
       setLoading(false);
     }
@@ -154,26 +148,19 @@ const FinanceOrderSummary = () => {
     const pageNumber = newPage + 1;
     setPage(newPage);
 
-    // Re-fetch using the same filter / range and the new page
     if (
       selectedFilter === "Custom" &&
       activeCustomRange.start &&
       activeCustomRange.end
     ) {
-      fetchFinanceOrders(
-        pageNumber,
-        activeCustomRange.start,
-        activeCustomRange.end
-      );
+      fetchFinanceOrders(pageNumber, activeCustomRange.start, activeCustomRange.end);
     } else {
       fetchFinanceOrders(pageNumber);
     }
   };
 
   const handleChangeRowsPerPage = (event) => {
-    const newLimit =
-      parseInt(event.target.value, 10) || DEFAULT_ROWS_PER_PAGE;
-
+    const newLimit = parseInt(event.target.value, 10) || DEFAULT_ROWS_PER_PAGE;
     setRowsPerPage(newLimit);
     setPage(0);
 
@@ -198,78 +185,71 @@ const FinanceOrderSummary = () => {
   };
 
   const handleApplyCustomRange = () => {
-    setError("");
-
     if (!customStart || !customEnd) {
-      setError("Please select both start and end date for Custom range.");
+      setError("Please select both start and end date.");
       return;
     }
 
-    // customStart / customEnd are already "YYYY-MM-DD"
     const start = customStart;
     const end = customEnd;
 
+    setError("");
     setActiveCustomRange({ start, end });
     setPage(0);
+
     fetchFinanceOrders(1, start, end);
   };
 
   const handleRefresh = async () => {
     try {
       setRefreshing(true);
-      setError("");
 
-      await axios.post("https://muditamleads-14f32a10d7f7.herokuapp.com/api/finance/refresh-shopify");
+      await axios.post(
+        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/finance/refresh-shopify"
+      );
 
       setPage(0);
+
       if (
         selectedFilter === "Custom" &&
         activeCustomRange.start &&
         activeCustomRange.end
       ) {
-        await fetchFinanceOrders(
-          1,
-          activeCustomRange.start,
-          activeCustomRange.end
-        );
-      } else if (selectedFilter !== "Custom") {
-        await fetchFinanceOrders(1);
+        fetchFinanceOrders(1, activeCustomRange.start, activeCustomRange.end);
       } else {
-        setLoading(false);
+        fetchFinanceOrders(1);
       }
-    } catch (e) {
-      console.error("Refresh error:", e);
-      setError("Refresh failed. Verify your backend URL and env vars.");
+    } catch (err) {
+      console.error("Refresh failed:", err);
+      setError("Refresh failed.");
     } finally {
       setRefreshing(false);
     }
   };
 
-  // 🔁 Prepare rows: reverse chronological + status filter (per page)
+  // Prepare rows (client side filter + sort)
   const preparedRows = orders
     .map((order, originalIndex) => ({ order, originalIndex }))
     .sort((a, b) => {
-      const da = a.order.orderDate || a.order.createdAt;
-      const db = b.order.orderDate || b.order.createdAt;
-      const va = da ? new Date(da).getTime() : 0;
-      const vb = db ? new Date(db).getTime() : 0;
-      return vb - va; // 🔹 reverse chronological (newest first)
+      const da = a.order.orderDate;
+      const db = b.order.orderDate;
+      return new Date(db) - new Date(da); // newest first
     })
     .filter(({ order }) => {
       if (statusFilter === "ALL") return true;
-      const status = order.customOrderStatus || "open";
-      return status === statusFilter;
+      return order.customOrderStatus === statusFilter;
     });
 
   return (
     <Box sx={{ p: 3 }}>
+      {/* Header */}
       <Stack
         direction="row"
         justifyContent="space-between"
         alignItems="center"
         sx={{ mb: 2 }}
       >
-        <Typography variant="h5" sx={{ fontWeight: "bold", color: "black" }}>
+        <Typography variant="h5" sx={{ fontWeight: "bold" }}>
           Finance Order Summary
         </Typography>
 
@@ -283,29 +263,29 @@ const FinanceOrderSummary = () => {
         </Button>
       </Stack>
 
+      {/* Filters */}
       <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 2 }}>
         <FormControl size="small">
           <InputLabel>Date Filter</InputLabel>
           <Select
             value={selectedFilter}
-            onChange={(e) => handleFilterChange(e.target.value)}
             label="Date Filter"
+            onChange={(e) => handleFilterChange(e.target.value)}
           >
-            {DATE_FILTERS.map((label) => (
-              <MenuItem key={label} value={label}>
-                {label}
+            {DATE_FILTERS.map((opt) => (
+              <MenuItem key={opt} value={opt}>
+                {opt}
               </MenuItem>
             ))}
           </Select>
         </FormControl>
 
-        {/* 🔹 Open/Closed filter */}
         <FormControl size="small">
           <InputLabel>Status</InputLabel>
           <Select
             value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
             label="Status"
+            onChange={(e) => setStatusFilter(e.target.value)}
           >
             <MenuItem value="ALL">All</MenuItem>
             <MenuItem value="open">Open</MenuItem>
@@ -314,30 +294,28 @@ const FinanceOrderSummary = () => {
         </FormControl>
       </Stack>
 
-      {/* Custom date range UI */}
+      {/* Custom Date Inputs */}
       {selectedFilter === "Custom" && (
         <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 2 }}>
           <TextField
-            label="Start date"
             type="date"
+            label="Start"
             size="small"
             InputLabelProps={{ shrink: true }}
             value={customStart}
             onChange={(e) => setCustomStart(e.target.value)}
           />
+
           <TextField
-            label="End date"
             type="date"
+            label="End"
             size="small"
             InputLabelProps={{ shrink: true }}
             value={customEnd}
             onChange={(e) => setCustomEnd(e.target.value)}
           />
-          <Button
-            variant="contained"
-            sx={{ textTransform: "none" }}
-            onClick={handleApplyCustomRange}
-          >
+
+          <Button variant="contained" onClick={handleApplyCustomRange}>
             Get
           </Button>
         </Stack>
@@ -349,31 +327,23 @@ const FinanceOrderSummary = () => {
         </Alert>
       )}
 
+      {/* Table */}
       {loading ? (
-        <Box sx={{ display: "flex", justifyContent: "center", mt: 5 }}>
-          <CircularProgress color="inherit" />
+        <Box sx={{ textAlign: "center", mt: 5 }}>
+          <CircularProgress />
         </Box>
       ) : preparedRows.length === 0 ? (
         <Paper sx={{ p: 3, textAlign: "center" }}>
-          <Typography variant="body1" sx={{ mb: 1 }}>
-            No orders match the current filter.
-          </Typography>
-          <Typography
-            variant="body2"
-            sx={{ mb: 2, color: "text.secondary" }}
-          >
-            Try switching the date filter, status filter, or selecting a
-            different custom range.
-          </Typography>
+          <Typography>No orders found for the selected filter.</Typography>
         </Paper>
       ) : (
         <>
           <TableContainer component={Paper}>
-            <Table sx={{ minWidth: 1300 }} size="small">
+            <Table size="small" sx={{ minWidth: 1300 }}>
               <TableHead sx={{ backgroundColor: "#000" }}>
                 <TableRow>
                   {[
-                    "Date", // Order Date
+                    "Date",
                     "Order Name",
                     "Order Tracking ID",
                     "Billing Name",
@@ -399,45 +369,42 @@ const FinanceOrderSummary = () => {
                   ))}
                 </TableRow>
               </TableHead>
+
               <TableBody>
                 {preparedRows.map(({ order, originalIndex }) => {
-                  const orderDate = order.orderDate || order.createdAt;
+                  const orderDate = order.orderDate;
 
                   return (
-                    <TableRow key={order.orderName || originalIndex}>
-                      {/* Date column – Order Date */}
+                    <TableRow key={order.orderName}>
                       <TableCell>
                         {orderDate
                           ? new Date(orderDate).toLocaleDateString()
                           : "--"}
                       </TableCell>
 
-                      {/* Order Name + Order Date on right side */}
                       <TableCell>
-                        {order.orderName}
-                        {orderDate && (
-                          <span
-                            style={{
-                              marginLeft: 8,
-                              fontSize: 11,
-                              color: "#666",
-                            }}
-                          >
-                            ({new Date(orderDate).toLocaleDateString()})
-                          </span>
-                        )}
+                        {order.orderName}{" "}
+                        <span style={{ fontSize: 11, color: "#666" }}>
+                          ({new Date(orderDate).toLocaleDateString()})
+                        </span>
                       </TableCell>
 
                       <TableCell>{order.trackingId || "--"}</TableCell>
+
                       <TableCell>
-                        {order.billingName}{" "}
-                        {order.phone ? `- ${order.phone}` : ""}
+                        {order.billingName} {order.phone ? `- ${order.phone}` : ""}
                       </TableCell>
+
                       <TableCell>{order.financialStatus || "--"}</TableCell>
+
                       <TableCell>{order.paymentMethod || "--"}</TableCell>
-                      <TableCell>₹{order.totalPrice ?? 0}</TableCell>
-                      <TableCell>{order.utr || ""}</TableCell>
+
+                      <TableCell>₹{order.totalPrice}</TableCell>
+
+                      <TableCell>{order.utr || "--"}</TableCell>
+
                       <TableCell>{order.lmsNote || "--"}</TableCell>
+
                       <TableCell>{order.courierPartner || "--"}</TableCell>
 
                       <TableCell>{order.shipmentStatus || "--"}</TableCell>
@@ -445,7 +412,7 @@ const FinanceOrderSummary = () => {
                       <TableCell>
                         <FormControl size="small" fullWidth>
                           <Select
-                            value={order.customOrderStatus || "open"}
+                            value={order.customOrderStatus}
                             onChange={(e) => {
                               const updated = [...orders];
                               updated[originalIndex].customOrderStatus =
@@ -460,15 +427,17 @@ const FinanceOrderSummary = () => {
                       </TableCell>
 
                       <TableCell>₹{order.partialPayment || 0}</TableCell>
+
                       <TableCell>
                         {order.deliveredDate
-                          ? new Date(
-                              order.deliveredDate
-                            ).toLocaleDateString()
+                          ? new Date(order.deliveredDate).toLocaleDateString()
                           : "--"}
                       </TableCell>
+
                       <TableCell>₹{order.totalReceived || 0}</TableCell>
+
                       <TableCell>₹{order.remainingAmount || 0}</TableCell>
+
                       <TableCell>
                         <TextField
                           size="small"
@@ -481,11 +450,12 @@ const FinanceOrderSummary = () => {
                           }}
                         />
                       </TableCell>
+
                       <TableCell>
                         <TextField
                           size="small"
                           type="date"
-                          value={order.settlementDate || ""} // backend: "YYYY-MM-DD"
+                          value={order.settlementDate || ""}
                           onChange={(e) => {
                             const updated = [...orders];
                             updated[originalIndex].settlementDate =
@@ -494,6 +464,7 @@ const FinanceOrderSummary = () => {
                           }}
                         />
                       </TableCell>
+
                       <TableCell>
                         <TextField
                           size="small"
@@ -512,14 +483,15 @@ const FinanceOrderSummary = () => {
             </Table>
           </TableContainer>
 
+          {/* Pagination */}
           <TablePagination
             component="div"
-            count={totalCount}              // total from backend
+            count={totalCount}
             page={page}
-            onPageChange={handleChangePage}
             rowsPerPage={rowsPerPage}
+            onPageChange={handleChangePage}
             onRowsPerPageChange={handleChangeRowsPerPage}
-            rowsPerPageOptions={[25, 50, 100]} // 🔹 rows-per-page dropdown
+            rowsPerPageOptions={[25, 50, 100]}
           />
         </>
       )}
