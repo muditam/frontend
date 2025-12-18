@@ -57,7 +57,12 @@ const timeRangeOptions = [
 // ---------------------------------------------
 // 2) Helper: convert Date => YYYY-MM-DD
 // ---------------------------------------------
-const toISODate = (d) => d.toISOString().split("T")[0];
+const toISODate = (d) => {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
 
 // ---------------------------------------------
 // 3) Helper: compute start/end date from a range

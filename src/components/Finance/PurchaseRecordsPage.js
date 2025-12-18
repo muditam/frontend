@@ -308,7 +308,7 @@ const PurchaseRecordsPage = () => {
         invoiceNo: "",
         vendorId: null,
         vendorName: "",
-        amount: 0,
+        amount: "",
         invoiceUrl: "",
         matched2B: false,
         tally: false,
@@ -550,7 +550,7 @@ const PurchaseRecordsPage = () => {
         <Button
           variant="contained"
           startIcon={<AddIcon />}
-          onClick={handleAddRecordInline} // ✅ now adds inline row instead of dialog
+          onClick={handleAddRecordInline}
         >
           Add Record
         </Button>
@@ -584,9 +584,9 @@ const PurchaseRecordsPage = () => {
                 <TableCell>Category</TableCell>
                 <TableCell>Invoice Type</TableCell>
                 <TableCell>Billing GST</TableCell>
-                <TableCell>Invoice No.</TableCell>
-                <TableCell>Vendor Name</TableCell>
-                <TableCell align="right">Amount</TableCell>
+                <TableCell sx={{ minWidth: 160 }}>Invoice No.</TableCell>
+                <TableCell sx={{ minWidth: 220 }}>Vendor Name</TableCell>
+                <TableCell sx={{ minWidth: 160 }} align="right">Amount</TableCell>
                 <TableCell>Invoice Link</TableCell>
                 <TableCell>Matched 2B</TableCell>
                 <TableCell>Tally</TableCell>
@@ -763,17 +763,14 @@ const PurchaseRecordsPage = () => {
                       </TableCell>
 
                       {/* Invoice No. */}
-                      <TableCell>
+                      <TableCell sx={{ minWidth: 160 }}>
                         {isNew && !isDeleted ? (
                           <TextField
                             size="small"
+                            fullWidth
                             value={row.invoiceNo || ""}
                             onChange={(e) =>
-                              handleInlineFieldChange(
-                                row,
-                                "invoiceNo",
-                                e.target.value
-                              )
+                              handleInlineFieldChange(row, "invoiceNo", e.target.value)
                             }
                           />
                         ) : (
@@ -781,30 +778,24 @@ const PurchaseRecordsPage = () => {
                         )}
                       </TableCell>
 
+
                       {/* Vendor Name */}
-                      <TableCell>
+                      <TableCell sx={{ minWidth: 220 }}>
                         {isNew && !isDeleted ? (
                           <Autocomplete
-                            fullWidth
                             size="small"
                             options={vendors}
-                            getOptionLabel={(option) =>
-                              option?.name || ""
-                            }
+                            getOptionLabel={(option) => option?.name || ""}
                             value={vendorObj || null}
                             onChange={(_e, newVal) => {
                               handleInlineFieldChange(row, "vendorId", newVal?._id || null);
-                              handleInlineFieldChange(
-                                row,
-                                "vendorName",
-                                newVal?.name || ""
-                              );
+                              handleInlineFieldChange(row, "vendorName", newVal?.name || "");
                             }}
                             renderInput={(params) => (
                               <TextField
                                 {...params}
-                                label="Vendor"
                                 placeholder="Select vendor"
+                                fullWidth
                               />
                             )}
                           />
@@ -813,11 +804,12 @@ const PurchaseRecordsPage = () => {
                         )}
                       </TableCell>
 
-                      {/* Amount */}
-                      <TableCell align="right">
+
+                      <TableCell sx={{ minWidth: 140 }} align="right">
                         {isNew && !isDeleted ? (
                           <TextField
                             size="small"
+                            fullWidth
                             type="number"
                             value={row.amount ?? ""}
                             onChange={(e) =>
@@ -827,6 +819,23 @@ const PurchaseRecordsPage = () => {
                                 Number(e.target.value || 0)
                               )
                             }
+                            inputProps={{
+                              inputMode: "numeric",
+                              pattern: "[0-9]*",
+                            }}
+                            sx={{
+                              "& input[type=number]": {
+                                MozAppearance: "textfield",
+                              },
+                              "& input[type=number]::-webkit-outer-spin-button": {
+                                WebkitAppearance: "none",
+                                margin: 0,
+                              },
+                              "& input[type=number]::-webkit-inner-spin-button": {
+                                WebkitAppearance: "none",
+                                margin: 0,
+                              },
+                            }}
                           />
                         ) : row.amount != null ? (
                           row.amount.toLocaleString()
@@ -834,6 +843,8 @@ const PurchaseRecordsPage = () => {
                           "-"
                         )}
                       </TableCell>
+
+
 
                       {/* Invoice Link + Upload */}
                       <TableCell>

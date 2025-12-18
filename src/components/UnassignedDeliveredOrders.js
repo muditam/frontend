@@ -1,4 +1,5 @@
-// src/pages/UnassignedDeliveredOrders.jsx
+
+
 import React, { useCallback, useEffect, useState, useMemo } from "react";
 import {
   Box,
@@ -18,38 +19,77 @@ import {
 } from "@mui/material";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import axios from "axios";
+import Autocomplete from "@mui/material/Autocomplete";
+import TextField from "@mui/material/TextField";
 
- 
+
 const API_BASE_URL = "https://muditamleads-14f32a10d7f7.herokuapp.com";
 const START_DATE = "2025-01-01";
 
 
-/* ----------------------- NORMALIZER (UI) ------------------------ */
-function normalizeTo10(str = "") {
-  const digits = String(str).replace(/\D/g, "");
-  if (digits.length === 10) return digits;
-  if (digits.length === 12 && digits.startsWith("91")) return digits.slice(-10);
-  return digits.slice(-10) || "";
+function formatDate(d) {
+  if (!d) return "-";
+  const date = new Date(d);
+  return isNaN(date)
+    ? "-"
+    : date.toLocaleDateString("en-IN", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    });
 }
 
 
-/* ---------------------- MEMOIZED ROW COMPONENT ---------------------- */
-const MemoRow = React.memo(function Row({ row }) {
+function normalizeTo10(str = "") {
+  const digits = String(str).replace(/\D/g, "");
+  return digits.length >= 10 ? digits.slice(-10) : "";
+}
+function normalizeStrict10(str = "") {
+  const digits = String(str).replace(/\D/g, "");
+  return digits.length === 10 ? digits : null;
+}
+
+
+const MemoRow = React.memo(function Row({ row, employees, onAssign }) {
   return (
     <TableRow>
       <TableCell>{row.order_id}</TableCell>
-           <TableCell>{row.full_name || "-"}</TableCell>
+      <TableCell>{formatDate(row.order_date)}</TableCell>
+      <TableCell>{row.full_name || "-"}</TableCell>
       <TableCell>{row.shipment_status}</TableCell>
-      <TableCell>{normalizeTo10(row.contact_number)}</TableCell>
+      <TableCell>{normalizeStrict10(row.contact_number)}</TableCell>
+
+
+      <TableCell sx={{ minWidth: 260 }}>
+        <Autocomplete
+          size="small"
+          options={employees}
+          getOptionLabel={(o) => o.fullName}
+          sx={{ width: "50%" }}
+          onChange={(e, val) => {
+            if (!val) return;
+            onAssign(row, val);   // ✅ correct
+          }}
+          renderInput={(params) => (
+            <TextField {...params} label="Assign Employee" />
+          )}
+        />
+      </TableCell>
     </TableRow>
   );
 });
+
+
+
+
 
 
 export default function UnassignedDeliveredOrders() {
   const [rows, setRows] = useState([]);
   const [total, setTotal] = useState(0);
   const [count, setCount] = useState(null);
+
+
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(50);
 
@@ -57,9 +97,11 @@ export default function UnassignedDeliveredOrders() {
   const [loading, setLoading] = useState(false);
   const [loadingCount, setLoadingCount] = useState(false);
   const [error, setError] = useState("");
+  const [employees, setEmployees] = useState([]);
 
 
-  /* ------------------- FETCH COUNT (FAST) ------------------- */
+
+
   const fetchCount = useCallback(async () => {
     try {
       setLoadingCount(true);
@@ -76,77 +118,108 @@ export default function UnassignedDeliveredOrders() {
   }, []);
 
 
-  /* ------------------- FETCH LIST (FAST + STABLE) ------------------- */
   const fetchList = useCallback(
-    async (currentPage = page, limit = rowsPerPage) => {
-      try {
-        setLoading(true);
-        setError("");
-
-
-        const res = await axios.get(
-          `${API_BASE_URL}/api/orders-un/unassigned-delivered`,
-          {
-            params: {
-              page: currentPage + 1,
-              limit,
-              startDate: START_DATE,
-            },
-          }
-        );
-
-
-        setRows(res.data.data || []);
-        setTotal(res.data.total || 0);
-      } catch (err) {
-        console.error("List error:", err);
-        setError("Unable to load data.");
-      } finally {
-        setLoading(false);
-      }
+    async (pageNo = page, limit = rowsPerPage, force = false) => {
+      const res = await axios.get(
+        `${API_BASE_URL}/api/orders-un/unassigned-delivered`,
+        {
+          params: {
+            page: pageNo + 1,
+            limit,
+            startDate: START_DATE,
+            refresh: force ? "1" : undefined,
+          },
+        }
+      );
+      setRows(res.data.data || []);
     },
     [page, rowsPerPage]
   );
 
 
-  /* ------------------- INITIAL LOAD ------------------- */
-  useEffect(() => {
-    fetchList(0, rowsPerPage);
-    fetchCount();
+  const handleAssign = async (row, employee) => {
+    try {
+      await axios.post(
+        `${API_BASE_URL}/api/orders-un/update-lead-from-unassigned`,
+        {
+          name: row.full_name,
+          contactNumber: row.contact_number,
+          orderId: row.order_id,
+          orderDate: row.order_date,
+          assignedName: employee.fullName,
+        }
+      );
+
+
+      setRows(prev =>
+        prev.filter(r => r.contact_number !== row.contact_number)
+      );
+
+
+      setCount(prev => (prev !== null ? prev - 1 : prev));
+    } catch (err) {
+      console.error("Assignment failed", err);
+    }
+  };
+
+
+
+
+
+
+  const fetchEmployees = useCallback(async () => {
+    try {
+      const res = await axios.get(`${API_BASE_URL}/api/employees`);
+      setEmployees(
+        (res.data || []).filter(e =>
+          e.status === "active" &&
+          e.role?.toLowerCase().includes("retention")
+        )
+      );
+
+
+    } catch (err) {
+      console.error("Employee fetch failed", err);
+    }
   }, []);
 
 
-  /* ------------------- MEMOIZED ROWS ------------------- */
-  const memoizedRows = useMemo(() => rows, [rows]);
-
-
-  /* ------------------- PAGE CHANGE ------------------- */
-  const handleChangePage = useCallback(
-    (event, newPage) => {
-      setPage(newPage);
-      fetchList(newPage, rowsPerPage);
-    },
-    [rowsPerPage, fetchList]
-  );
-
-
-  /* ------------------- ROW-PER-PAGE CHANGE ------------------- */
-  const handleChangeRowsPerPage = useCallback(
-    (event) => {
-      const newLimit = parseInt(event.target.value, 10);
-      setRowsPerPage(newLimit);
-      setPage(0);
-      fetchList(0, newLimit);
-    },
-    [fetchList]
-  );
-
-
-  /* ------------------- REFRESH ------------------- */
-  const handleRefresh = useCallback(() => {
+  useEffect(() => {
     fetchList(0, rowsPerPage);
     fetchCount();
-  }, [rowsPerPage]);
+    fetchEmployees();
+  }, []);
+
+
+  const handleChangePage = (e, newPage) => {
+    setPage(newPage);
+    fetchList(newPage, rowsPerPage);
+  };
+
+
+  const handleChangeRowsPerPage = (e) => {
+    const newLimit = parseInt(e.target.value, 10);
+    setRowsPerPage(newLimit);
+    setPage(0);
+    fetchList(0, newLimit);
+  };
+
+
+  const handleRefresh = () => {
+    setPage(0);
+    fetchList(0, rowsPerPage);
+    fetchCount(true);
+  };
+
+
+  const memoizedRows = useMemo(() => {
+    return rows.filter((row) => {
+      const n = normalizeStrict10(row.contact_number);
+      return Boolean(n);
+    });
+  }, [rows]);
+
+
 
 
   return (
@@ -180,9 +253,8 @@ export default function UnassignedDeliveredOrders() {
         </Stack>
 
 
-        {/* ------------ LOADING ------------ */}
         {loading ? (
-          <Box justifyContent="center" alignItems="center" py={5} display="flex">
+          <Box display="flex" justifyContent="center" py={5}>
             <CircularProgress />
           </Box>
         ) : error ? (
@@ -193,33 +265,39 @@ export default function UnassignedDeliveredOrders() {
           </Typography>
         ) : (
           <>
-            {/* ------------ TABLE ------------ */}
             <TableContainer>
               <Table size="small">
                 <TableHead>
                   <TableRow>
                     <TableCell sx={{ fontWeight: 600 }}>Order ID</TableCell>
-                       <TableCell sx={{ fontWeight: 600 }}>Name</TableCell>
-                    <TableCell sx={{ fontWeight: 600 }}>Shipment Status</TableCell>
-                    <TableCell sx={{ fontWeight: 600 }}>Contact Number</TableCell>
+                    <TableCell sx={{ fontWeight: 600 }}>Order Date</TableCell>
+                    <TableCell sx={{ fontWeight: 600 }}>Name</TableCell>
+                    <TableCell sx={{ fontWeight: 600 }}>
+                      Shipment Status
+                    </TableCell>
+                    <TableCell sx={{ fontWeight: 600 }}>
+                      Contact Number
+                    </TableCell>
+                    <TableCell sx={{ fontWeight: 600 }}>
+                      Assigned To
+                    </TableCell>
                   </TableRow>
                 </TableHead>
 
 
                 <TableBody>
                   {memoizedRows.map((row, idx) => (
-                    <MemoRow key={`${row.order_id}-${idx}`} row={row} />
-                   
+                    <MemoRow key={`${row.order_id}-${idx}`} row={row} employees={employees}
+                      onAssign={handleAssign} />
                   ))}
                 </TableBody>
               </Table>
             </TableContainer>
 
 
-            {/* ---------- PAGINATION ---------- */}
             <TablePagination
               component="div"
-              count={total}
+              count={count ?? memoizedRows.length}
               page={page}
               rowsPerPage={rowsPerPage}
               onPageChange={handleChangePage}

@@ -2011,6 +2011,7 @@ You can mark Lost only after 60 days.`);
                               return days < 60 ? ` (after ${60 - days} days)` : "";
                             })()}
                           </MenuItem>
+                          <MenuItem value="No-Call">No-Call</MenuItem>
                         </Select>
                       </FormControl>
 

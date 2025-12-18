@@ -70,13 +70,24 @@ function titleToCode(title) {
 
 function shipmentColor(status) {
   const s = (status || "").toLowerCase();
+
   if (!s || s === "-" || s === "—") return "default";
-  if (s.includes("delivered") && !s.includes("rto")) return "success";
-  if (s.includes("in transit") || s.includes("ofd") || s.includes("out for")) return "info";
+ 
+  if (s.includes("undelivered") || s.includes("failed")) return "error";
+  if (s.includes("cancel")) return "error";
   if (s.includes("rto")) return "warning";
-  if (s.includes("undelivered") || s.includes("cancel")) return "error";
+  
+  if (s.includes("in transit") || s.includes("ofd") || s.includes("out for")) {
+    return "info";
+  }
+ 
+  if (s === "delivered" || s.endsWith(" delivered")) {
+    return "success";
+  }
+
   return "default";
 }
+
 
 function sanitizeHE(s) {
   return String(s || "").replace(/"/g, "").trim();

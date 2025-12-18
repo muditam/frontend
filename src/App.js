@@ -80,6 +80,8 @@ import AdminAccessRequests from "./components/AdminAccessRequests";
 import Invoices from "./pages/Invoices";
 import UnassignedDeliveredOrders from "./components/UnassignedDeliveredOrders";
 import SuperAdminAnalytics from "./pages/SuperAdminAnalytics";
+import UtmLinkGenerator from "./components/TopBars/UtmLinkGenerator";
+import AbandonedAnalyticsPage from "./pages/AbandonedAnalytics";
 import "./realtime/IncomingCallSSEBoot"; 
 
 const App = () => {
@@ -111,6 +113,8 @@ const App = () => {
           <Route path="/payment-record" element={<PaymentRecords />} />
           <Route path="/vendors" element={<Vendors />} />
           <Route path="/super-admin-analytics" element={<SuperAdminAnalytics />} />
+          <Route path="/utm-link-generator" element={<UtmLinkGenerator />} />
+          <Route path="/abandoned-analytics" element={<AbandonedAnalyticsPage />} />
 
           <Route
             path="/"

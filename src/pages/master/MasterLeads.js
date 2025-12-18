@@ -916,7 +916,7 @@ const LeadTable = () => {
                   "Others",
                 ],
               },
-              { key: "retentionStatus", options: ["Active", "Lost"], label:"Retention Status" },
+              { key: "retentionStatus", options: ["Active", "Lost", "No-Call"], label:"Retention Status" },
               {
                 key: "enquiryFor",
                 label:"Enquiery For",
@@ -1557,7 +1557,7 @@ const LeadTable = () => {
                         handleInputChange(e, index, "retentionStatus")
                       }
                     >
-                      {["Active", "Lost"].map((status) => (
+                      {["Active", "Lost", "No-Call"].map((status) => (
                         <MenuItem key={status} value={status}>
                           {status}
                         </MenuItem>

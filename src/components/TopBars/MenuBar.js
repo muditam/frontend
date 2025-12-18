@@ -33,7 +33,7 @@ import EmailIcon from "@mui/icons-material/Email";
 import PhoneInTalkIcon from "@mui/icons-material/PhoneInTalk";
 import AssignmentReturnedIcon from "@mui/icons-material/AssignmentReturned";
 import CheckBoxIcon from "@mui/icons-material/CheckBox";
-import ReceiptLongIcon from "@mui/icons-material/ReceiptLong"; 
+import ReceiptLongIcon from "@mui/icons-material/ReceiptLong";
 import AnalyticsIcon from "@mui/icons-material/Analytics";
 import QueryStatsIcon from "@mui/icons-material/QueryStats";
 import { Link, useNavigate } from "react-router-dom";
@@ -814,19 +814,56 @@ const MenuBar = ({ toggleDrawer }) => {
           </>
         )}
 
-        {user && can("allAnalytics") && (
-          <ListItem
-            button
-            component={Link}
-            to="/super-admin-analytics"
-            sx={menuItemStyle}
-            onClick={toggleDrawer}
-          >
-            <QueryStatsIcon sx={{ fontSize: 24, marginRight: "12px" }} />
-            <Typography variant="body1" style={{ fontSize: "14px" }}>
-              All Analytics
-            </Typography>
-          </ListItem>
+        {user && can("allAnalyticsMenu") && (
+          <>
+            <ListItem
+              button
+              onClick={() => handleDropdownClick("analytics")}
+              sx={dropdownStyle}
+            >
+              <Box sx={{ display: "flex", alignItems: "center" }}>
+                <QueryStatsIcon sx={{ fontSize: 22, marginRight: "12px" }} />
+                <Typography variant="body1" sx={{ fontSize: "14px" }}>
+                  Analytics
+                </Typography>
+              </Box>
+              {openDropdown.analytics ? (
+                <KeyboardArrowDownIcon />
+              ) : (
+                <KeyboardArrowRightIcon />
+              )}
+            </ListItem>
+
+            <Collapse in={openDropdown.analytics} timeout="auto" unmountOnExit>
+              <List sx={nestedListStyle}>
+                {can("superAdminAnalytics") && (
+                  <ListItem
+                    button
+                    component={Link}
+                    to="/super-admin-analytics"
+                    onClick={toggleDrawer}
+                  >
+                    <Typography variant="body2" sx={{ fontSize: "13px" }}>
+                      Super Admin Analytics
+                    </Typography>
+                  </ListItem>
+                )}
+
+                {can("abandonedAnalytics") && (
+                  <ListItem
+                    button
+                    component={Link}
+                    to="/abandoned-analytics"
+                    onClick={toggleDrawer}
+                  >
+                    <Typography variant="body2" sx={{ fontSize: "13px" }}>
+                      Abandoned Analytics
+                    </Typography>
+                  </ListItem>
+                )}
+              </List>
+            </Collapse>
+          </>
         )}
 
         {/* Finance-related menus */}

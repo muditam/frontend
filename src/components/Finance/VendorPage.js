@@ -23,6 +23,7 @@ import {
   Tooltip,
   Checkbox,
   FormControlLabel,
+  MenuItem,
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import DeleteIcon from "@mui/icons-material/Delete";
@@ -31,16 +32,15 @@ import axios from "axios";
 const VendorRecordsPage = () => {
   const [vendors, setVendors] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
+  const [selectedVendor, setSelectedVendor] = useState("ALL");
 
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
 
-  // pagination
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
 
-  // dialog state
   const [openAddVendor, setOpenAddVendor] = useState(false);
 
   const [vendorForm, setVendorForm] = useState({
@@ -51,9 +51,9 @@ const VendorRecordsPage = () => {
     gstNumber: "",
   });
 
-  // --------------------------------
+  // -----------------------------
   // LOAD VENDORS
-  // --------------------------------
+  // -----------------------------
   useEffect(() => {
     loadVendors();
   }, []);
@@ -61,7 +61,9 @@ const VendorRecordsPage = () => {
   const loadVendors = async () => {
     try {
       setLoading(true);
-      const res = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/vendors");
+      const res = await axios.get(
+        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/vendors"
+      );
       setVendors(res.data || []);
     } catch (err) {
       console.error(err);
@@ -71,25 +73,41 @@ const VendorRecordsPage = () => {
     }
   };
 
-  // --------------------------------
-  // FILTER BY SEARCH
-  // --------------------------------
+  // -----------------------------
+  // VENDOR FILTER OPTIONS
+  // -----------------------------
+  const vendorNameOptions = useMemo(() => {
+    const names = vendors.map((v) => v.name).filter(Boolean);
+    return ["ALL", ...Array.from(new Set(names))];
+  }, [vendors]);
+
+  // -----------------------------
+  // FILTERED DATA (Vendor + Search)
+  // -----------------------------
   const filteredVendors = useMemo(() => {
-    if (!searchTerm.trim()) return vendors;
+    let data = vendors;
 
-    const term = searchTerm.toLowerCase();
-    return vendors.filter(
-      (v) =>
-        v.name.toLowerCase().includes(term) ||
-        (v.email || "").toLowerCase().includes(term) ||
-        (v.phone || "").toLowerCase().includes(term) ||
-        (v.gstNumber || "").toLowerCase().includes(term)
-    );
-  }, [searchTerm, vendors]);
+    if (selectedVendor !== "ALL") {
+      data = data.filter((v) => v.name === selectedVendor);
+    }
 
-  // --------------------------------
+    if (searchTerm.trim()) {
+      const term = searchTerm.toLowerCase();
+      data = data.filter(
+        (v) =>
+          v.name.toLowerCase().includes(term) ||
+          (v.email || "").toLowerCase().includes(term) ||
+          (v.phone || "").toLowerCase().includes(term) ||
+          (v.gstNumber || "").toLowerCase().includes(term)
+      );
+    }
+
+    return data;
+  }, [vendors, searchTerm, selectedVendor]);
+
+  // -----------------------------
   // PAGINATION
-  // --------------------------------
+  // -----------------------------
   const handleChangePage = (_e, newPage) => setPage(newPage);
 
   const handleChangeRowsPerPage = (e) => {
@@ -102,9 +120,9 @@ const VendorRecordsPage = () => {
     return filteredVendors.slice(start, start + rowsPerPage);
   }, [filteredVendors, page, rowsPerPage]);
 
-  // --------------------------------
+  // -----------------------------
   // ADD VENDOR
-  // --------------------------------
+  // -----------------------------
   const resetVendorForm = () => {
     setVendorForm({
       name: "",
@@ -122,7 +140,10 @@ const VendorRecordsPage = () => {
     }
 
     try {
-      const res = await axios.post("https://muditamleads-14f32a10d7f7.herokuapp.com/api/vendors", vendorForm);
+      const res = await axios.post(
+        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/vendors",
+        vendorForm
+      );
       setVendors((prev) => [res.data, ...prev]);
       setSuccessMsg("Vendor added successfully");
       setOpenAddVendor(false);
@@ -133,18 +154,19 @@ const VendorRecordsPage = () => {
     }
   };
 
-  // --------------------------------
+  // -----------------------------
   // DELETE VENDOR
-  // --------------------------------
+  // -----------------------------
   const handleDeleteVendor = async (vendor) => {
     const yes = window.confirm(`Delete vendor "${vendor.name}"?`);
     if (!yes) return;
 
     try {
-      await axios.delete(`https://muditamleads-14f32a10d7f7.herokuapp.com/api/vendors/${vendor._id}`);
+      await axios.delete(
+        `https://muditamleads-14f32a10d7f7.herokuapp.com/api/vendors/${vendor._id}`
+      );
 
       setVendors((prev) => prev.filter((v) => v._id !== vendor._id));
-
       setSuccessMsg("Vendor deleted");
     } catch (err) {
       console.error(err);
@@ -152,16 +174,16 @@ const VendorRecordsPage = () => {
     }
   };
 
-  // --------------------------------
+  // -----------------------------
   // RENDER
-  // --------------------------------
+  // -----------------------------
   return (
     <Box p={3}>
       <Typography variant="h5" mb={2}>
         Vendors
       </Typography>
 
-      {/* UPDATED TOP BAR */}
+      {/* TOP BAR */}
       <Stack
         direction="row"
         spacing={2}
@@ -169,17 +191,34 @@ const VendorRecordsPage = () => {
         alignItems="center"
         justifyContent="space-between"
       >
-        {/* Search Bar - normal width */}
-        <TextField
-          label="Search Vendor"
-          variant="outlined"
-          size="small"
-          sx={{ width: 250 }}
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-        />
+        <Stack direction="row" spacing={2}>
+          <TextField
+            label="Search Vendor"
+            size="small"
+            sx={{ width: 250 }}
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
 
-        {/* Add Vendor Button - Right Side */}
+          <TextField
+            select
+            label="Filter by Vendor"
+            size="small"
+            sx={{ width: 220 }}
+            value={selectedVendor}
+            onChange={(e) => {
+              setSelectedVendor(e.target.value);
+              setPage(0);
+            }}
+          >
+            {vendorNameOptions.map((name) => (
+              <MenuItem key={name} value={name}>
+                {name === "ALL" ? "All Vendors" : name}
+              </MenuItem>
+            ))}
+          </TextField>
+        </Stack>
+
         <Button
           variant="contained"
           startIcon={<AddIcon />}
@@ -189,6 +228,7 @@ const VendorRecordsPage = () => {
         </Button>
       </Stack>
 
+      {/* TABLE */}
       <Card>
         <TableContainer>
           <Table size="small">
@@ -222,34 +262,26 @@ const VendorRecordsPage = () => {
               )}
 
               {!loading &&
-                paginatedVendors.map((row, i) => {
-                  const serial = page * rowsPerPage + i + 1;
-
-                  return (
-                    <TableRow key={row._id}>
-                      <TableCell>{serial}</TableCell>
-                      <TableCell>{row.name}</TableCell>
-                      <TableCell>{row.email || "-"}</TableCell>
-                      <TableCell>{row.phone || "-"}</TableCell>
-
-                      {/* GST YES/NO */}
-                      <TableCell>{row.hasGST ? "Yes" : "No"}</TableCell>
-
-                      <TableCell>{row.gstNumber || "-"}</TableCell>
-
-                      <TableCell>
-                        <Tooltip title="Delete Vendor">
-                          <IconButton
-                            size="small"
-                            onClick={() => handleDeleteVendor(row)}
-                          >
-                            <DeleteIcon color="error" fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
+                paginatedVendors.map((row, i) => (
+                  <TableRow key={row._id}>
+                    <TableCell>{page * rowsPerPage + i + 1}</TableCell>
+                    <TableCell>{row.name}</TableCell>
+                    <TableCell>{row.email || "-"}</TableCell>
+                    <TableCell>{row.phone || "-"}</TableCell>
+                    <TableCell>{row.hasGST ? "Yes" : "No"}</TableCell>
+                    <TableCell>{row.gstNumber || "-"}</TableCell>
+                    <TableCell>
+                      <Tooltip title="Delete Vendor">
+                        <IconButton
+                          size="small"
+                          onClick={() => handleDeleteVendor(row)}
+                        >
+                          <DeleteIcon color="error" fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                    </TableCell>
+                  </TableRow>
+                ))}
             </TableBody>
           </Table>
         </TableContainer>
@@ -266,14 +298,8 @@ const VendorRecordsPage = () => {
       </Card>
 
       {/* ADD VENDOR DIALOG */}
-      <Dialog
-        open={openAddVendor}
-        onClose={() => setOpenAddVendor(false)}
-        maxWidth="sm"
-        fullWidth
-      >
+      <Dialog open={openAddVendor} onClose={() => setOpenAddVendor(false)} maxWidth="sm" fullWidth>
         <DialogTitle>Add Vendor</DialogTitle>
-
         <DialogContent dividers>
           <Stack spacing={2}>
             <TextField
@@ -285,7 +311,6 @@ const VendorRecordsPage = () => {
               required
               fullWidth
             />
-
             <TextField
               label="Email"
               value={vendorForm.email}
@@ -294,7 +319,6 @@ const VendorRecordsPage = () => {
               }
               fullWidth
             />
-
             <TextField
               label="Phone"
               value={vendorForm.phone}
@@ -303,8 +327,6 @@ const VendorRecordsPage = () => {
               }
               fullWidth
             />
-
-            {/* Updated GST Input */}
             <FormControlLabel
               control={
                 <Checkbox
@@ -320,7 +342,6 @@ const VendorRecordsPage = () => {
               }
               label="Has GST"
             />
-
             <TextField
               label="GST Number"
               value={vendorForm.gstNumber}
@@ -330,8 +351,8 @@ const VendorRecordsPage = () => {
                   gstNumber: e.target.value,
                 }))
               }
-              fullWidth
               disabled={!vendorForm.hasGST}
+              fullWidth
             />
           </Stack>
         </DialogContent>
@@ -345,24 +366,12 @@ const VendorRecordsPage = () => {
       </Dialog>
 
       {/* SNACKBARS */}
-      <Snackbar
-        open={!!errorMsg}
-        autoHideDuration={4000}
-        onClose={() => setErrorMsg("")}
-      >
-        <Alert severity="error" onClose={() => setErrorMsg("")}>
-          {errorMsg}
-        </Alert>
+      <Snackbar open={!!errorMsg} autoHideDuration={4000} onClose={() => setErrorMsg("")}>
+        <Alert severity="error">{errorMsg}</Alert>
       </Snackbar>
 
-      <Snackbar
-        open={!!successMsg}
-        autoHideDuration={3000}
-        onClose={() => setSuccessMsg("")}
-      >
-        <Alert severity="success" onClose={() => setSuccessMsg("")}>
-          {successMsg}
-        </Alert>
+      <Snackbar open={!!successMsg} autoHideDuration={3000} onClose={() => setSuccessMsg("")}>
+        <Alert severity="success">{successMsg}</Alert>
       </Snackbar>
     </Box>
   );
