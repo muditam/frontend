@@ -38,143 +38,144 @@ import axios from "axios";
 const DEFAULT_PERMISSIONS = {
   menubar: {
     // Core (visible in MenuBar)
-    home: true,
-    myTemplates: true,
-    consultation: true,
-    escalations: true,
-    team: true,
-    abandonedCart: true,
-    myRTOs: true,
-    myAssets: true,
-    myGrowthPlan: true,
+    home: false,
+    myTemplates: false,
+    consultation: false,
+    escalations: false,
+    team: false,
+    abandonedCart: false,
+    myRTOs: false,
+    myAssets: false,
+    myGrowthPlan: false,
     allAnalyticsMenu: false,
     superAdminAnalytics: false,
     abandonedAnalytics: false,
 
-    invoices: true,
-    accessManagement: true,
-    adminAccessRequests: true,
-    deliveredSalesRecord: true,
+    invoices: false,
+    accessManagement: false,
+    adminAccessRequests: false,
+    deliveredSalesRecord: false,
 
     // Order confirmations & abandoned
-    orderConfirmationsMenu: true,
-    orderConfirmationPage: true,
-    orderAnalyticsPage: true,
+    orderConfirmationsMenu: false,
+    orderConfirmationPage: false,
+    orderAnalyticsPage: false,
 
     // Manager / Master Data
-    addEmployee: true,
+    addEmployee: false,
 
-    masterDataMenu: true,
-    masterAllLeads: true,
-    masterRetentionLeads: true,
-    masterRetentionOrders: true,
-    masterNewOrders: true,
-    masterDuplicates: true,
-    lostDataMenu: true,
-    lostAcquisition: true,
-    lostRetention: true,
-    onlineOrders: true,
-    unassignedDeliveredOrders: true,
+    masterDataMenu: false,
+    masterAllLeads: false,
+    masterRetentionLeads: false,
+    masterRetentionOrders: false,
+    masterNewOrders: false,
+    masterDuplicates: false,
+    lostDataMenu: false,
+    lostAcquisition: false,
+    lostRetention: false,
+    onlineOrders: false,
+    unassignedDeliveredOrders: false,
 
     // Sales Agent section
-    salesAgentMenu: true,
-    salesMyLeads: true,
-    salesMySales: true,
+    salesAgentMenu: false,
+    salesMyLeads: false,
+    salesMySales: false,
 
     // Retention Agent section
-    retentionAgentMenu: true,
-    retentionLeads: true,
-    retentionSales: true,
+    retentionAgentMenu: false,
+    retentionLeads: false,
+    retentionSales: false,
 
     // Task Manager
-    taskManagerMenu: true,
-    taskBoard: true,
-    myReporting: true,
+    taskManagerMenu: false,
+    taskBoard: false,
+    myReporting: false,
 
     // Smartflo
-    smartfloMenu: true,
-    smartfloCallLogs: true,
-    smartfloDataAnalytics: true,
+    smartfloMenu: false,
+    smartfloCallLogs: false,
+    smartfloDataAnalytics: false,
 
     // Finance – Orders / Remittance / Records
-    financeOrderSummary: true,
-    financePrepaidRemittanceMenu: true,
-    financePrepaidRazorpay: true,
-    financePrepaidPhonePe: true,
-    financePrepaidEasebuzz: true,
-    financePrepaidBankTransfer: true,
-    financeRtoSheet: true,
-    financeCodRemittanceMenu: true,
-    financeCodBluedart: true,
-    financeCodDTDC: true,
-    financeCodDelhivery: true,
-    financeCodShiprocket: true,
-    financeRecordsMenu: true,
-    financePurchaseRecords: true,
-    financePaymentRecords: true,
-    financeVendors: true,
-    financeBankReconciliationMenu: true,
-    bankCapital6389: true,
-    bankAxis3361: true,
-    bankCc1101: true,
-    bankSbi8285: true,
-    bankYesCcTejasv: true,
-    bankYesCcAbhay: true,
+    financeOrderSummary: false,
+    financePrepaidRemittanceMenu: false,
+    financePrepaidRazorpay: false,
+    financePrepaidPhonePe: false,
+    financePrepaidEasebuzz: false,
+    financePrepaidBankTransfer: false,
+    financeRtoSheet: false,
+    financeCodRemittanceMenu: false,
+    financeCodBluedart: false,
+    financeCodDTDC: false,
+    financeCodDelhivery: false,
+    financeCodShiprocket: false,
+    financeRecordsMenu: false,
+    financePurchaseRecords: false,
+    financePaymentRecords: false,
+    financeVendors: false,
+    financeBankReconciliationMenu: false,
+    bankCapital6389: false,
+    bankAxis3361: false,
+    bankCc1101: false,
+    bankSbi8285: false,
+    bankYesCcTejasv: false,
+    bankYesCcAbhay: false,
 
     // Operations
-    opsUndeliveredOrders: true,
-    opsRtoDelivered: true,
-    opsEmailUndelivered: true,
-    opsOnlyOrderConfirmation: true,
+    opsUndeliveredOrders: false,
+    opsRtoDelivered: false,
+    opsEmailUndelivered: false,
+    opsOnlyOrderConfirmation: false,
 
     // HR / Assets
-    hrAddNewAssets: true,
-    hrAssetAllotment: true,
+    hrAddNewAssets: false,
+    hrAssetAllotment: false,
 
     // Leaderboard
-    leaderboardMenu: true,
-    leaderboardAll: true,
-    leaderboardBloom: true,
+    leaderboardMenu: false,
+    leaderboardAll: false,
+    leaderboardBloom: false,
 
     // Others (Manager)
-    othersMenu: true,
-    othersSwitchDashboards: true,
-    othersScheduleCalls: true,
-    othersAllProducts: true,
-    othersLeadMigration: true,
-    othersDietTemplate: true,
-    othersAllShopifyOrders: true,
-    othersTransferRequests: true,
-    othersBulkDataUpload: true,
+    othersMenu: false,
+    othersSwitchDashboards: false,
+    othersScheduleCalls: false,
+    othersAllProducts: false,
+    othersLeadMigration: false,
+    othersDietTemplate: false,
+    othersAllShopifyOrders: false,
+    othersTransferRequests: false,
+    othersBulkDataUpload: false,
+    othersIncentiveCreation: false,
 
     // International Agent
-    globalShopifyMenu: true,
-    globalShopifyOrders: true,
-    globalAbandonedCart: true,
-    globalRetentionMenu: true,
-    globalRetentionLeads: true,
-    globalRetentionSales: true,
+    globalShopifyMenu: false,
+    globalShopifyOrders: false,
+    globalAbandonedCart: false,
+    globalRetentionMenu: false,
+    globalRetentionLeads: false,
+    globalRetentionSales: false,
   },
 
   navbar: {
     // Topbar center (matches NavbarWithSearch canNav keys)
-    shopifySearch: true,
-    drrPanel: true, // controls DRR + Target block
+    shopifySearch: false,
+    drrPanel: false, // controls DRR + Target block
 
     // Topbar icons (left of LMS search)
-    incentiveIcon: true,
-    bloomIcon: true,
-    leaderboardIcon: true,
-    bloodTestIcon: true,
-    deliveryStatusIcon: true,
-    cartIcon: true,
+    incentiveIcon: false,
+    bloomIcon: false,
+    leaderboardIcon: false,
+    bloodTestIcon: false,
+    deliveryStatusIcon: false,
+    cartIcon: false,
 
     // Task shortcuts (for managers/others)
-    taskBoardIcon: true,
-    myReportingIcon: true,
+    taskBoardIcon: false,
+    myReportingIcon: false,
 
     // Right search
-    lmsSearch: true,
+    lmsSearch: false,
   },
 };
 
@@ -203,7 +204,7 @@ const AddEmployee = () => {
     teamLeader: "",
     joiningDate: "",
     languages: [],
-    permissions: { ...DEFAULT_PERMISSIONS }, // NEW
+    permissions: { ...DEFAULT_PERMISSIONS },  
   });
   const [error, setError] = useState("");
   const [viewInactive, setViewInactive] = useState(false);
@@ -286,7 +287,7 @@ const AddEmployee = () => {
   const isAgentRole = ["Sales Agent", "Retention Agent"].includes(
     employeeData.role
   );
-  const isCoreOnlyRole = ["Manager", "Super Admin"].includes(employeeData.role); // hide everything except name,email,role,passwords
+  const isCoreOnlyRole = ["Manager", "Super Admin"].includes(employeeData.role);  
 
   useEffect(() => {
     const agentRole = ["Sales Agent", "Retention Agent"].includes(
@@ -1401,6 +1402,7 @@ const AddEmployee = () => {
                   ["leaderboardBloom", "Bloom Leaderboard"],
                   ["othersMenu", "Others Menu"],
                   ["othersSwitchDashboards", "Switch Dashboards"],
+                  ["othersIncentiveCreation", "Incentive Creation"],
                   ["othersScheduleCalls", "Schedule Calls"],
                   ["othersAllProducts", "All Products"],
                   ["othersLeadMigration", "Leads Migrate"],

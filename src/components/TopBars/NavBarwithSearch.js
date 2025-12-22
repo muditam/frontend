@@ -778,16 +778,14 @@ const NavbarWithSearch = () => {
                 <DownloadIcon />
               </IconButton> */}
 
-            <IconButton
-  color="inherit"
-  onClick={(e) => setNotifAnchorEl(e.currentTarget)}
->
-  <Badge badgeContent={unreadCount} color="error">
-    <NotificationsIcon />
-  </Badge>
-</IconButton>
-
-
+            {/* <IconButton
+              color="inherit"
+              onClick={(e) => setNotifAnchorEl(e.currentTarget)}
+            >
+              <Badge badgeContent={unreadCount} color="error">
+                <NotificationsIcon />
+              </Badge>
+            </IconButton> */}
 
             {user && canNav("cartIcon") && (
               <IconButton
@@ -902,11 +900,11 @@ const NavbarWithSearch = () => {
       </AppBar>
 
       <TaskNotifications
-  anchorEl={notifAnchorEl}
-  onClose={() => setNotifAnchorEl(null)}
-  user={user}
-  onUnreadChange={setUnreadCount}
-/>
+        anchorEl={notifAnchorEl}
+        onClose={() => setNotifAnchorEl(null)}
+        user={user}
+        onUnreadChange={setUnreadCount}
+      />
 
       {/* Delivery Status Dialog */}
       <Dialog

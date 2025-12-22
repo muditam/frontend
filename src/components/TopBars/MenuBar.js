@@ -1440,6 +1440,19 @@ const MenuBar = ({ toggleDrawer }) => {
                   </ListItem>
                 )}
 
+                {can("othersIncentiveCreation") && (
+                  <ListItem
+                    button
+                    component={Link}
+                    to="/incentive-creation"
+                    onClick={toggleDrawer}
+                  >
+                    <Typography variant="body2" sx={{ fontSize: "13px" }}>
+                      Incentive Creation
+                    </Typography>
+                  </ListItem>
+                )}
+
                 {can("othersScheduleCalls") && (
                   <ListItem
                     button

@@ -82,6 +82,7 @@ import UnassignedDeliveredOrders from "./components/UnassignedDeliveredOrders";
 import SuperAdminAnalytics from "./pages/SuperAdminAnalytics";
 import UtmLinkGenerator from "./components/TopBars/UtmLinkGenerator";
 import AbandonedAnalyticsPage from "./pages/AbandonedAnalytics";
+import IncentiveCreation from "./components/TopBars/IncentiveCreation";
 import "./realtime/IncomingCallSSEBoot"; 
 
 const App = () => {
@@ -115,6 +116,7 @@ const App = () => {
           <Route path="/super-admin-analytics" element={<SuperAdminAnalytics />} />
           <Route path="/utm-link-generator" element={<UtmLinkGenerator />} />
           <Route path="/abandoned-analytics" element={<AbandonedAnalyticsPage />} />
+          <Route path="/incentive-creation" element={<IncentiveCreation />} />
 
           <Route
             path="/"
