@@ -54,6 +54,7 @@ import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import SpaIcon from "@mui/icons-material/Spa";
 import LanguageIcon from "@mui/icons-material/Language";
 import PlaceIcon from "@mui/icons-material/Place";
+import PhoneDisabledIcon from "@mui/icons-material/PhoneDisabled";
 
 import CreateDietPlanPopup from "./CreateDietPlanPopup";
 
@@ -280,6 +281,7 @@ const RetentionLeads = () => {
     all: 0,
     active: 0,
     lost: 0,
+    nocall: 0,
     followups: { missed: 0, notset: 0, today: 0, tomorrow: 0, later: 0 },
   });
 
@@ -918,64 +920,94 @@ const RetentionLeads = () => {
             borderBottom: "1px solid #ddd",
           }}
         >
-          <Stack direction="row" spacing={2}>
-            {[
-              {
-                label: "All",
-                value: "All",
-                count: serverCounts.all,
-              },
-              {
-                label: "Active",
-                value: "Active",
-                count: serverCounts.active,
-              },
-              {
-                label: "Lost",
-                value: "Lost",
-                count: serverCounts.lost,
-              },
-            ].map(({ label, value, count }) => {
-              const isSelected = filters.retentionStatus === value;
+          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <Stack direction="row" spacing={2}>
+              {[
+                {
+                  label: "All",
+                  value: "All",
+                  count: serverCounts.all,
+                },
+                {
+                  label: "Active",
+                  value: "Active",
+                  count: serverCounts.active,
+                },
+                {
+                  label: "Lost",
+                  value: "Lost",
+                  count: serverCounts.lost,
+                },
+              ].map(({ label, value, count }) => {
+                const isSelected = filters.retentionStatus === value;
 
-              return (
-                <Button
-                  key={label}
-                  variant={isSelected ? "contained" : "outlined"}
-                  onClick={() =>
-                    setFilters((prev) => ({
-                      ...prev,
-                      retentionStatus: value,
-                      rtFollowupReminder: null,
-                    }))
-                  }
-                  size="small"
-                  sx={{
-                    textTransform: "none",
-                    borderRadius: "4px",
-                    fontSize: "0.75rem",
-                    fontWeight: 500,
-                    color: isSelected ? "#fff" : "black",
-                    borderColor: "black",
-                    backgroundColor: isSelected ? "black" : "transparent",
-                    "&:hover": {
-                      backgroundColor: isSelected ? "#222" : "#f5f5f5",
-                    },
-                  }}
+                return (
+                  <Button
+                    key={label}
+                    variant={isSelected ? "contained" : "outlined"}
+                    onClick={() =>
+                      setFilters((prev) => ({
+                        ...prev,
+                        retentionStatus: value,
+                        rtFollowupReminder: null,
+                      }))
+                    }
+                    size="small"
+                    sx={{
+                      textTransform: "none",
+                      borderRadius: "4px",
+                      fontSize: "0.75rem",
+                      fontWeight: 500,
+                      color: isSelected ? "#fff" : "black",
+                      borderColor: "black",
+                      backgroundColor: isSelected ? "black" : "transparent",
+                      "&:hover": {
+                        backgroundColor: isSelected ? "#222" : "#f5f5f5",
+                      },
+                    }}
+                  >
+                    <Box sx={{ display: "flex", alignItems: "center" }}>
+                      <Typography>{label}</Typography>
+                      <Typography
+                        variant="caption"
+                        sx={{ fontSize: "0.65rem", opacity: 0.7 }}
+                      >
+                        ({count})
+                      </Typography>
+                    </Box>
+                  </Button>
+                );
+              })}
+            </Stack>
+
+            <Tooltip title="No Call">
+              <IconButton
+                size="small"
+                onClick={() =>
+                  setFilters((prev) => ({
+                    ...prev,
+                    retentionStatus: "No-Call",
+                    rtFollowupReminder: null,
+                  }))
+                }
+                sx={{
+                  ml: 1,
+                  border: "1px solid #111",
+                  borderRadius: 1,
+                  bgcolor: filters.retentionStatus === "No-Call" ? "rgba(0,0,0,0.08)" : "transparent",
+                }}
+              >
+                <Badge
+                  badgeContent={serverCounts.nocall || 0}
+                  color="error"
+                  overlap="circular"
+                  anchorOrigin={{ vertical: "top", horizontal: "right" }}
                 >
-                  <Box sx={{ display: "flex", alignItems: "center" }}>
-                    <Typography>{label}</Typography>
-                    <Typography
-                      variant="caption"
-                      sx={{ fontSize: "0.65rem", opacity: 0.7 }}
-                    >
-                      ({count})
-                    </Typography>
-                  </Box>
-                </Button>
-              );
-            })}
-          </Stack>
+                  <PhoneDisabledIcon fontSize="small" />
+                </Badge>
+              </IconButton>
+            </Tooltip>
+          </Box>
 
           <Stack direction="row" spacing={1} mt={1}>
             {[

@@ -83,6 +83,8 @@ import SuperAdminAnalytics from "./pages/SuperAdminAnalytics";
 import UtmLinkGenerator from "./components/TopBars/UtmLinkGenerator";
 import AbandonedAnalyticsPage from "./pages/AbandonedAnalytics";
 import IncentiveCreation from "./components/TopBars/IncentiveCreation";
+import WhatsAppUI from "./whatsaap/WhatsAppUI"
+import TemplatePanel from "./whatsaap/TemplatesPanel"
 import "./realtime/IncomingCallSSEBoot"; 
 
 const App = () => {
@@ -117,6 +119,8 @@ const App = () => {
           <Route path="/utm-link-generator" element={<UtmLinkGenerator />} />
           <Route path="/abandoned-analytics" element={<AbandonedAnalyticsPage />} />
           <Route path="/incentive-creation" element={<IncentiveCreation />} />
+          <Route path="/whatsaap/chat" element={<WhatsAppUI />} />
+          <Route path="/template/chat" element={<TemplatePanel />} />
 
           <Route
             path="/"
