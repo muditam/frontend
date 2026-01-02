@@ -150,7 +150,14 @@ const VendorRecordsPage = () => {
       resetVendorForm();
     } catch (err) {
       console.error(err);
-      setErrorMsg("Failed to add vendor");
+      const status = err?.response?.status;
+      const msg = err?.response?.data?.error;
+
+      if (status === 409) {
+        setErrorMsg(msg || "GST number already exists");
+      } else {
+        setErrorMsg("Failed to add vendor");
+      }
     }
   };
 

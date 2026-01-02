@@ -23,14 +23,12 @@ import SearchIcon from "@mui/icons-material/Search";
 import AddIcon from "@mui/icons-material/Add";
 import RefreshIcon from "@mui/icons-material/Refresh";
 
-const API_BASE =
-  (typeof import.meta !== "undefined" && import.meta.env?.VITE_API_BASE_URL) ||
-  process.env.REACT_APP_API_BASE_URL ||
-  "http://localhost:5001";
+const API_BASE = "http://localhost:5001";
 
 function digitsOnly(v = "") {
   return String(v || "").replace(/\D/g, "");
 }
+
 function phoneLabel(v = "") {
   const p = digitsOnly(v);
   return p.length >= 10 ? p.slice(-10) : p;
@@ -71,6 +69,7 @@ function formatTime(ts) {
   if (Number.isNaN(d.getTime())) return "";
   return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
+
 function formatLastActive(ts) {
   if (!ts) return "—";
   const d = new Date(ts);
@@ -80,18 +79,27 @@ function formatLastActive(ts) {
 
 function statusChipProps(statusRaw) {
   const s = String(statusRaw || "").toUpperCase();
-  if (s.includes("APPROV"))
-    return { label: "APPROVED", sx: { bgcolor: "#e7fbf2", color: "#1b7f4b" } };
-  if (s.includes("REJECT"))
-    return { label: "REJECTED", sx: { bgcolor: "#ffeceb", color: "#b42318" } };
+  if (s.includes("APPROV")) return { label: "APPROVED", sx: { bgcolor: "#e7fbf2", color: "#1b7f4b" } };
+  if (s.includes("REJECT")) return { label: "REJECTED", sx: { bgcolor: "#ffeceb", color: "#b42318" } };
   if (s.includes("PEND") || s.includes("SUBMIT") || s.includes("REVIEW"))
     return { label: "PENDING", sx: { bgcolor: "#fff3dc", color: "#a15c07" } };
   return { label: s || "UNKNOWN", sx: { bgcolor: "#f4f6f8", color: "#344054" } };
 }
 
-// Extract variable indices from body: "Hi {{1}} ... {{3}}" => [1,3]
-function extractVarIndices(body = "") {
-  const text = String(body || "");
+function pickBodyTextFromTemplate(tpl) {
+  if (!tpl) return "";
+  if (tpl.body) return String(tpl.body || "");
+  const comps =
+    (Array.isArray(tpl.components) && tpl.components) ||
+    (Array.isArray(tpl.raw360?.components) && tpl.raw360.components) ||
+    (Array.isArray(tpl.raw360?.template?.components) && tpl.raw360.template.components) ||
+    [];
+  const body = comps.find((c) => String(c?.type || "").toUpperCase() === "BODY");
+  return String(body?.text || "");
+}
+
+function extractVarIndexes(bodyText = "") {
+  const text = String(bodyText || "");
   const set = new Set();
   for (const m of text.matchAll(/{{\s*(\d+)\s*}}/g)) {
     const n = Number(m[1] || 0);
@@ -100,13 +108,15 @@ function extractVarIndices(body = "") {
   return Array.from(set).sort((a, b) => a - b);
 }
 
-// Replace {{n}} in preview with value or keep {{n}}
-function renderPreviewText(body, valuesMap) {
-  return String(body || "").replace(/{{\s*(\d+)\s*}}/g, (match, num) => {
-    const n = Number(num || 0);
-    const v = valuesMap?.[n];
-    return v && String(v).trim() ? String(v) : match;
-  });
+function applyVarsToBody(bodyText = "", varsMap = {}) {
+  let out = String(bodyText || "");
+  for (const [k, v] of Object.entries(varsMap)) {
+    const idx = Number(k);
+    if (!idx) continue;
+    const safe = String(v ?? "");
+    out = out.replace(new RegExp(`{{\\s*${idx}\\s*}}`, "g"), safe || `{{${idx}}}`);
+  }
+  return out;
 }
 
 export default function WhatsAppUI() {
@@ -133,8 +143,9 @@ export default function WhatsAppUI() {
   const [creatingChat, setCreatingChat] = useState(false);
   const [newChatError, setNewChatError] = useState("");
 
-  // variable inputs for selected template
-  const [varValues, setVarValues] = useState({}); // {1:"A",2:"B"}
+  // variables UI state: { "1": "value", "2": "value" }
+  const [tplVars, setTplVars] = useState({});
+
   const bottomRef = useRef(null);
 
   const filteredConversations = useMemo(() => {
@@ -151,8 +162,9 @@ export default function WhatsAppUI() {
     try {
       const data = (await api(`/api/whatsapp/conversations`)) || [];
       setConversations(Array.isArray(data) ? data : []);
-      if (selectPhone) setActiveChat({ phone: selectPhone });
-      else if (!activeChat?.phone && Array.isArray(data) && data.length) {
+      if (selectPhone) {
+        setActiveChat({ phone: selectPhone });
+      } else if (!activeChat?.phone && Array.isArray(data) && data.length) {
         setActiveChat({ phone: digitsOnly(data[0].phone) });
       }
     } catch (e) {
@@ -182,9 +194,10 @@ export default function WhatsAppUI() {
   const fetchTemplates = async () => {
     setLoadingTemplates(true);
     try {
-      const data = await api(`/api/whatsapp/templates`);
+      const data = await api(`/api/whatsapp/templates`); // this should map to whatsappTemplates.routes.js (GET "/")
       setTemplates(Array.isArray(data) ? data : data?.templates || []);
     } catch (e) {
+      console.error("Fetch templates failed:", e);
       setTemplates([]);
     } finally {
       setLoadingTemplates(false);
@@ -208,7 +221,12 @@ export default function WhatsAppUI() {
     const p = digitsOnly(activeChat?.phone);
     if (!p) return;
 
-    const id = setInterval(() => refreshMessages(p), 5000);
+    const id = setInterval(() => {
+      refreshMessages(p);
+      // optional: refresh conversations every 10s
+      // refreshConversations();
+    }, 3000);
+
     return () => clearInterval(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeChat?.phone]);
@@ -243,6 +261,7 @@ export default function WhatsAppUI() {
         method: "POST",
         body: JSON.stringify({ to, text }),
       });
+
       await refreshMessages(to);
       await refreshConversations(to);
     } catch (e) {
@@ -264,28 +283,40 @@ export default function WhatsAppUI() {
     });
   }, [templates]);
 
-  const selectedBody = String(selectedTemplate?.body || "");
-  const varIdx = useMemo(() => extractVarIndices(selectedBody), [selectedBody]);
-
-  // Reset variables when template changes
+  // When template changes -> build vars
   useEffect(() => {
-    setVarValues({});
-  }, [selectedTemplate?.name]);
+    const body = pickBodyTextFromTemplate(selectedTemplate);
+    const idxs = extractVarIndexes(body);
+    const next = {};
+    idxs.forEach((i) => (next[String(i)] = ""));
+    setTplVars(next);
+  }, [selectedTemplate]);
+
+  const previewBody = useMemo(() => {
+    const body = pickBodyTextFromTemplate(selectedTemplate);
+    return applyVarsToBody(body, tplVars);
+  }, [selectedTemplate, tplVars]);
 
   const startNewChatWithTemplate = async () => {
     const to = digitsOnly(newChatPhone);
     const templateName = String(selectedTemplate?.name || "").trim();
+    const body = pickBodyTextFromTemplate(selectedTemplate);
+    const idxs = extractVarIndexes(body);
 
-    if (!to) return setNewChatError("Enter a valid phone number (10 digits or 91xxxxxxxxxx).");
+    if (!to) return setNewChatError("Enter phone (10 digits or 91xxxxxxxxxx).");
     if (!templateName) return setNewChatError("Select a template.");
+    if (!body) return setNewChatError("Template body missing in DB. Run templates sync.");
 
-    // build params array in order
-    const params = varIdx.map((n) => String(varValues?.[n] || "").trim());
+    // Build parameters in order 1..max
+    const maxIdx = idxs.length ? Math.max(...idxs) : 0;
+    const params = [];
+    for (let i = 1; i <= maxIdx; i++) {
+      params.push(String(tplVars[String(i)] || "").trim());
+    }
 
-    // validate
-    const missing = varIdx.find((n, i) => !params[i]);
-    if (missing) {
-      return setNewChatError(`Please fill {{${missing}}}.`);
+    // require all vars filled
+    if (maxIdx > 0 && params.some((x) => !x)) {
+      return setNewChatError("Please fill all template variables before sending.");
     }
 
     setNewChatError("");
@@ -297,7 +328,7 @@ export default function WhatsAppUI() {
         body: JSON.stringify({
           to,
           templateName,
-          language: selectedTemplate?.language || "en",
+          language: "en",
           parameters: params,
         }),
       });
@@ -305,37 +336,43 @@ export default function WhatsAppUI() {
       setNewChatOpen(false);
       setNewChatPhone("");
       setSelectedTemplate(null);
-      setVarValues({});
+      setTplVars({});
 
       await refreshConversations(to);
       await refreshMessages(to);
       setActiveChat({ phone: to });
     } catch (e) {
-      // show provider error if available
-      const provider = e?.data?.providerError ? JSON.stringify(e.data.providerError) : "";
-      setNewChatError(`${e.message || "Failed"}${provider ? ` — ${provider}` : ""}`);
+      // show server/provider debug if available
+      const provider = e?.data?.providerError;
+      setNewChatError(
+        provider
+          ? `${e.message} | Provider: ${JSON.stringify(provider)}`
+          : e.message || "Failed to start chat"
+      );
     } finally {
       setCreatingChat(false);
     }
   };
-
-  const previewText = useMemo(() => {
-    return renderPreviewText(selectedBody, varValues);
-  }, [selectedBody, varValues]);
 
   return (
     <Box height="100vh" display="flex" bgcolor="#ece5dd">
       {/* LEFT SIDEBAR */}
       <Box width={360} bgcolor="#fff" display="flex" flexDirection="column" borderRight="1px solid #ddd">
         <Box px={2} py={1.5} display="flex" alignItems="center" justifyContent="space-between">
-          <Typography fontWeight={700} fontSize={18}>WhatsApp</Typography>
+          <Typography fontWeight={700} fontSize={18}>
+            WhatsApp
+          </Typography>
+
           <Stack direction="row" spacing={1}>
             <IconButton size="small" onClick={() => setNewChatOpen(true)} title="New chat">
               <AddIcon fontSize="small" />
             </IconButton>
             <IconButton
               size="small"
-              onClick={() => { refreshConversations(); fetchTemplates(); }}
+              onClick={() => {
+                refreshConversations();
+                fetchTemplates();
+              }}
               title="Refresh"
               disabled={loadingChats}
             >
@@ -365,9 +402,15 @@ export default function WhatsAppUI() {
 
         <Box flex={1} overflow="auto">
           {loadingChats ? (
-            <Stack alignItems="center" mt={4}><CircularProgress size={24} /></Stack>
+            <Stack alignItems="center" mt={4}>
+              <CircularProgress size={24} />
+            </Stack>
           ) : errorChats ? (
-            <Box px={2} py={2}><Typography color="error" fontSize={13}>{errorChats}</Typography></Box>
+            <Box px={2} py={2}>
+              <Typography color="error" fontSize={13}>
+                {errorChats}
+              </Typography>
+            </Box>
           ) : (
             <>
               {canShowQuickChat && (
@@ -377,15 +420,20 @@ export default function WhatsAppUI() {
                   onClick={() => openChat(digitsOnly(search))}
                   sx={{
                     cursor: "pointer",
-                    bgcolor: phoneLabel(activeChat?.phone) === phoneLabel(search) ? "#f0f2f5" : "transparent",
+                    bgcolor:
+                      phoneLabel(activeChat?.phone) === phoneLabel(search) ? "#f0f2f5" : "transparent",
                     "&:hover": { bgcolor: "#f5f5f5" },
                   }}
                 >
                   <Stack direction="row" spacing={2} alignItems="center">
                     <Avatar>{phoneLabel(search).slice(-2)}</Avatar>
                     <Box flex={1}>
-                      <Typography fontSize={14} fontWeight={600}>Chat with {phoneLabel(search)}</Typography>
-                      <Typography fontSize={12} color="text.secondary">Open chat</Typography>
+                      <Typography fontSize={14} fontWeight={600}>
+                        Chat with {phoneLabel(search)}
+                      </Typography>
+                      <Typography fontSize={12} color="text.secondary">
+                        Open chat
+                      </Typography>
                     </Box>
                     <Chip size="small" label="Open" />
                   </Stack>
@@ -409,7 +457,9 @@ export default function WhatsAppUI() {
                     <Stack direction="row" spacing={2} alignItems="center">
                       <Avatar>{phoneLabel(chat.phone).slice(-2)}</Avatar>
                       <Box>
-                        <Typography fontSize={14} fontWeight={600}>{phoneLabel(chat.phone)}</Typography>
+                        <Typography fontSize={14} fontWeight={600}>
+                          {phoneLabel(chat.phone)}
+                        </Typography>
                         <Typography fontSize={12} color="text.secondary">
                           Last active: {formatLastActive(chat.lastMessageAt)}
                         </Typography>
@@ -421,7 +471,9 @@ export default function WhatsAppUI() {
 
               {!filteredConversations.length && !canShowQuickChat && (
                 <Box px={2} py={2}>
-                  <Typography fontSize={13} color="text.secondary">No conversations found.</Typography>
+                  <Typography fontSize={13} color="text.secondary">
+                    No conversations found. (Webhook must receive messages to create chats.)
+                  </Typography>
                 </Box>
               )}
             </>
@@ -437,6 +489,7 @@ export default function WhatsAppUI() {
               <Avatar>{phoneLabel(activeChat?.phone).slice(-2) || "—"}</Avatar>
               <Typography fontWeight={700}>{phoneLabel(activeChat?.phone) || "Select a chat"}</Typography>
             </Stack>
+
             <Button size="small" variant="outlined" onClick={() => setNewChatOpen(true)} startIcon={<AddIcon />}>
               New Chat
             </Button>
@@ -454,9 +507,15 @@ export default function WhatsAppUI() {
               <Typography color="text.secondary">Select a chat from left</Typography>
             </Stack>
           ) : loadingMessages ? (
-            <Stack alignItems="center" mt={4}><CircularProgress size={24} /></Stack>
+            <Stack alignItems="center" mt={4}>
+              <CircularProgress size={24} />
+            </Stack>
           ) : errorMessages ? (
-            <Box px={1} py={1}><Typography color="error" fontSize={13}>{errorMessages}</Typography></Box>
+            <Box px={1} py={1}>
+              <Typography color="error" fontSize={13}>
+                {errorMessages}
+              </Typography>
+            </Box>
           ) : (
             <Stack spacing={1}>
               {messages.map((msg) => {
@@ -473,7 +532,9 @@ export default function WhatsAppUI() {
                         border: "1px solid rgba(0,0,0,0.06)",
                       }}
                     >
-                      <Typography fontSize={14} whiteSpace="pre-wrap">{msg.text || ""}</Typography>
+                      <Typography fontSize={14} whiteSpace="pre-wrap">
+                        {msg.text || ""}
+                      </Typography>
                       <Typography fontSize={10} textAlign="right" color="text.secondary">
                         {formatTime(msg.timestamp)}
                       </Typography>
@@ -504,7 +565,7 @@ export default function WhatsAppUI() {
         </Box>
       </Box>
 
-      {/* TEMPLATE SEND DIALOG (Screenshot-like) */}
+      {/* New Chat Dialog (Screenshot-style) */}
       <Dialog
         open={newChatOpen}
         onClose={() => (creatingChat ? null : setNewChatOpen(false))}
@@ -512,166 +573,149 @@ export default function WhatsAppUI() {
         fullWidth
         onEntered={() => fetchTemplates()}
       >
-        <DialogTitle sx={{ pb: 1 }}>
-          <Stack spacing={1}>
-            <Typography fontWeight={800}>Send Template</Typography>
-            <TextField
-              fullWidth
-              size="small"
-              placeholder="Search Template"
-              value={""}
-              sx={{ display: "none" }}
-            />
-          </Stack>
-        </DialogTitle>
+        <DialogTitle>Start New Chat (Template)</DialogTitle>
 
         <DialogContent>
-          <Stack spacing={2}>
+          <Stack spacing={2} pt={1}>
             {newChatError ? (
               <Typography color="error" fontSize={13}>
                 {newChatError}
               </Typography>
             ) : null}
 
-            <Stack direction="row" spacing={2}>
-              <TextField
-                label="Phone (10 digits or 91xxxxxxxxxx)"
-                size="small"
-                value={newChatPhone}
-                onChange={(e) => setNewChatPhone(e.target.value)}
-                placeholder="e.g. 9694638351 or 919694638351"
-                inputProps={{ inputMode: "numeric" }}
-                disabled={creatingChat}
-                sx={{ width: 280 }}
-              />
+            <TextField
+              label="Phone (10 digits or 91xxxxxxxxxx)"
+              size="small"
+              value={newChatPhone}
+              onChange={(e) => setNewChatPhone(e.target.value)}
+              placeholder="e.g. 9694638351 or 919694638351"
+              inputProps={{ inputMode: "numeric" }}
+              disabled={creatingChat}
+            />
 
-              <Autocomplete
-                loading={loadingTemplates}
-                options={templateOptions}
-                value={selectedTemplate}
-                onChange={(e, val) => setSelectedTemplate(val)}
-                getOptionLabel={(opt) => String(opt?.name || "")}
-                isOptionEqualToValue={(a, b) => String(a?.name) === String(b?.name)}
-                renderOption={(props, opt) => {
-                  const st = statusChipProps(opt?.status);
-                  return (
-                    <li {...props} key={opt?._id || opt?.name}>
-                      <Stack direction="row" spacing={1} alignItems="center" sx={{ width: "100%" }}>
-                        <Typography sx={{ flex: 1 }} fontWeight={700} noWrap>
-                          {opt?.name}
-                        </Typography>
-                        <Chip size="small" label={st.label} sx={st.sx} />
-                      </Stack>
-                    </li>
-                  );
-                }}
-                renderInput={(params) => (
-                  <TextField {...params} label="Template" size="small" placeholder="Type to search templates" />
-                )}
-                disabled={creatingChat}
-                sx={{ flex: 1 }}
-              />
-            </Stack>
+            <Autocomplete
+              loading={loadingTemplates}
+              options={templateOptions}
+              value={selectedTemplate}
+              onChange={(e, val) => setSelectedTemplate(val)}
+              getOptionLabel={(opt) => String(opt?.name || "")}
+              isOptionEqualToValue={(a, b) => String(a?.name) === String(b?.name)}
+              renderOption={(props, opt) => {
+                const st = statusChipProps(opt?.status);
+                return (
+                  <li {...props} key={opt?._id || opt?.name}>
+                    <Stack direction="row" spacing={1} alignItems="center" sx={{ width: "100%" }}>
+                      <Typography sx={{ flex: 1 }} fontWeight={700} noWrap>
+                        {opt?.name}
+                      </Typography>
+                      <Chip size="small" label={st.label} sx={st.sx} />
+                    </Stack>
+                  </li>
+                );
+              }}
+              renderInput={(params) => (
+                <TextField {...params} label="Search Template" size="small" placeholder="Search Template" />
+              )}
+              disabled={creatingChat}
+            />
 
-            <Divider />
+            {/* Preview + Inputs */}
+            <Box display="flex" gap={3} mt={1}>
+              {/* LEFT: preview bubble */}
+              <Box flex={1} minWidth={280}>
+                <Typography fontWeight={700} mb={1}>
+                  Template Body (Preview)
+                </Typography>
 
-            <Stack direction="row" spacing={3} alignItems="stretch">
-              {/* LEFT: Preview bubble */}
-              <Box sx={{ width: 360 }}>
-                <Paper
-                  elevation={0}
+                <Box
                   sx={{
-                    p: 2,
                     bgcolor: "#e7f6f2",
                     borderRadius: 2,
+                    p: 2,
                     border: "1px solid rgba(0,0,0,0.08)",
-                    minHeight: 220,
+                    maxWidth: 360,
                   }}
                 >
-                  <Typography fontWeight={800} mb={1}>
-                    Muditam
-                  </Typography>
                   <Typography fontSize={14} whiteSpace="pre-wrap">
-                    {selectedTemplate
-                      ? (previewText || selectedBody || "")
-                      : "Select a template to preview"}
+                    {previewBody || "Select a template to preview"}
                   </Typography>
+                </Box>
 
-                  <Box mt={2}>
-                    <Button variant="outlined" fullWidth disabled>
-                      Button Preview
-                    </Button>
-                  </Box>
-                </Paper>
-
-                {selectedTemplate?.body ? (
-                  <Typography mt={1} fontSize={12} color="text.secondary">
-                    BODY: {selectedTemplate.body}
-                  </Typography>
-                ) : selectedTemplate ? (
+                {!pickBodyTextFromTemplate(selectedTemplate) && selectedTemplate ? (
                   <Typography mt={1} fontSize={12} color="error">
-                    Body text not available in DB for this template. (Fix sync to store BODY text.)
+                    Body text not available in DB for this template. Fix sync to store BODY text.
                   </Typography>
                 ) : null}
               </Box>
 
-              {/* RIGHT: Input variables */}
-              <Box sx={{ flex: 1 }}>
-                <Typography fontWeight={800} fontSize={16} mb={1}>
+              {/* RIGHT: variable inputs */}
+              <Box flex={1} minWidth={320}>
+                <Typography fontWeight={700} mb={1}>
                   Input Variables
                 </Typography>
-                <Typography fontSize={12} color="text.secondary" mb={2}>
-                  Body
-                </Typography>
 
-                {!selectedTemplate ? (
+                {selectedTemplate ? (
+                  (() => {
+                    const body = pickBodyTextFromTemplate(selectedTemplate);
+                    const idxs = extractVarIndexes(body);
+
+                    if (!body) {
+                      return (
+                        <Typography fontSize={13} color="text.secondary">
+                          No body found for this template.
+                        </Typography>
+                      );
+                    }
+
+                    if (!idxs.length) {
+                      return (
+                        <Typography fontSize={13} color="text.secondary">
+                          No input variables detected in body.
+                        </Typography>
+                      );
+                    }
+
+                    return (
+                      <Stack spacing={1.5}>
+                        <Typography fontSize={12} color="text.secondary">
+                          Body
+                        </Typography>
+                        {idxs.map((i) => (
+                          <TextField
+                            key={i}
+                            size="small"
+                            placeholder="Enter Variable"
+                            value={tplVars[String(i)] || ""}
+                            onChange={(e) =>
+                              setTplVars((prev) => ({ ...prev, [String(i)]: e.target.value }))
+                            }
+                            InputProps={{
+                              startAdornment: (
+                                <InputAdornment position="start">{`{{${i}}}`}</InputAdornment>
+                              ),
+                            }}
+                            disabled={creatingChat}
+                          />
+                        ))}
+                      </Stack>
+                    );
+                  })()
+                ) : (
                   <Typography fontSize={13} color="text.secondary">
                     Select a template to see variables.
                   </Typography>
-                ) : varIdx.length === 0 ? (
-                  <Typography fontSize={13} color="text.secondary">
-                    No variables detected in body.
-                  </Typography>
-                ) : (
-                  <Stack spacing={1.5}>
-                    {varIdx.map((n) => (
-                      <TextField
-                        key={n}
-                        size="small"
-                        placeholder="Enter Variable"
-                        value={varValues?.[n] || ""}
-                        onChange={(e) =>
-                          setVarValues((prev) => ({ ...prev, [n]: e.target.value }))
-                        }
-                        InputProps={{
-                          startAdornment: (
-                            <InputAdornment position="start">
-                              <Typography fontWeight={800} sx={{ minWidth: 52 }}>
-                                {`{{${n}}}`}
-                              </Typography>
-                            </InputAdornment>
-                          ),
-                        }}
-                      />
-                    ))}
-                  </Stack>
                 )}
               </Box>
-            </Stack>
+            </Box>
           </Stack>
         </DialogContent>
 
-        <DialogActions sx={{ p: 2 }}>
+        <DialogActions>
           <Button onClick={() => setNewChatOpen(false)} disabled={creatingChat}>
             Cancel
           </Button>
-          <Button
-            variant="contained"
-            onClick={startNewChatWithTemplate}
-            disabled={creatingChat || !selectedTemplate}
-            sx={{ minWidth: 140 }}
-          >
-            {creatingChat ? "Sending..." : "SEND"}
+          <Button variant="contained" onClick={startNewChatWithTemplate} disabled={creatingChat}>
+            {creatingChat ? "Sending..." : "Send"}
           </Button>
         </DialogActions>
       </Dialog>

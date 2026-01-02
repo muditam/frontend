@@ -91,6 +91,25 @@ function sortRecordsByDateDesc(list) {
   });
 }
 
+function toReadableDate(value) {
+  if (!value) return "-";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return String(value); // fallback if weird string
+  return d.toLocaleDateString("en-IN", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  }); // e.g. 02 Jan 2026
+}
+
+function toInputDate(value) {
+  if (!value) return todayISO();
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return todayISO();
+  return d.toISOString().slice(0, 10); // yyyy-mm-dd for <input type="date">
+}
+
+
 // -----------------------------
 // MAIN COMPONENT
 // -----------------------------
@@ -157,7 +176,7 @@ const PurchaseRecordsPage = () => {
       try {
         setLoading(true);
         const [recordsRes, vendorsRes] = await Promise.all([
-          axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/purchase-records"),
+          axios.get("https://localhost:5001/api/purchase-records"),
           axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/vendors"),
         ]);
         const recs = recordsRes.data || [];
@@ -291,13 +310,17 @@ const PurchaseRecordsPage = () => {
       resetVendorForm();
     } catch (err) {
       console.error(err);
-      setErrorMsg("Failed to save vendor");
+      const status = err?.response?.status;
+      const msg = err?.response?.data?.error;
+
+      if (status === 409) {
+        setErrorMsg(msg || "GST number already exists");
+      } else {
+        setErrorMsg("Failed to save vendor");
+      }
     }
   };
 
-  // -----------------------------
-  // ADD RECORD (INLINE ROW)  ✅
-  // -----------------------------
   const handleAddRecordInline = async () => {
     try {
       const payload = {
@@ -653,24 +676,17 @@ const PurchaseRecordsPage = () => {
                           <TextField
                             type="date"
                             size="small"
-                            value={
-                              row.date
-                                ? row.date.slice(0, 10)
-                                : todayISO()
-                            }
+                            value={toInputDate(row.date)}
                             onChange={(e) =>
-                              handleInlineFieldChange(
-                                row,
-                                "date",
-                                e.target.value
-                              )
+                              handleInlineFieldChange(row, "date", e.target.value)
                             }
                             InputLabelProps={{ shrink: true }}
                           />
                         ) : (
-                          row.date || "-"
+                          toReadableDate(row.date)
                         )}
                       </TableCell>
+
 
                       {/* Category */}
                       <TableCell>
