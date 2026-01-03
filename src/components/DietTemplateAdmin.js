@@ -24,6 +24,17 @@ const defaultWeeklyTimes = () => ({
   Dinner: "7:00–8:00 PM",
 });
 
+const MONTHLY_ORDER = [
+  "Early Morning",
+  "Breakfast",
+  "Mid Morning",
+  "Lunch",
+  "Evening Snack",
+  "Dinner",
+  "Bed Time",
+];
+
+
 const emptyFortnight = () =>
   MEALS.reduce((acc, meal) => {
     acc[meal] = Array(FORTNIGHT_DAYS).fill("");
@@ -32,10 +43,13 @@ const emptyFortnight = () =>
 
 // ▶ Monthly default WITHOUT Mid-Morning Snack
 const defaultMonthly = () => ({
+  "Early Morning": { title: "Early Morning Options (Select any one)", time: "5am-6am", options: [""], },
   Breakfast: { title: "Breakfast Options (Select any one)", time: "8am-9am", options: [""] },
+  "Mid Morning": { title: "Mid Morning Options (Select any one)", time: "11am-12pm", options: [""], },
   Lunch: { title: "Lunch Options (Select any one)", time: "1pm-2pm", options: [""] },
   "Evening Snack": { title: "Evening Snack Options (Select any one)", time: "4pm-5pm", options: [""] },
   Dinner: { title: "Dinner Options (Select any one)", time: "7pm-8pm", options: [""] },
+  "Bed Time": { title: "Bed Time Options (Select any one)", time: "8:30pm", options: [""], },
 });
 
 export default function DietTemplatesAdmin() {
@@ -224,7 +238,7 @@ export default function DietTemplatesAdmin() {
     } else {
       const m = row.body?.monthly || defaultMonthly();
       const clean = defaultMonthly();
-      ["Breakfast", "Lunch", "Evening Snack", "Dinner"].forEach(slot => {
+      ["Early Morning", "Breakfast", "Mid Morning", "Lunch", "Evening Snack", "Dinner", "Bed Time",].forEach(slot => {
         if (m[slot]) clean[slot] = {
           title: m[slot].title || clean[slot].title,
           time: m[slot].time || clean[slot].time,
@@ -477,7 +491,7 @@ export default function DietTemplatesAdmin() {
             </Box>
           ) : (
             <>
-              {Object.keys(monthly).map((slot) => {
+              {MONTHLY_ORDER.map((slot) => {
                 const s = monthly[slot];
                 return (
                   <Paper key={slot} variant="outlined" sx={{ p: 2, mb: 2, borderRadius: 2, borderColor: "#00000022" }}>
@@ -587,7 +601,7 @@ export default function DietTemplatesAdmin() {
                 </Box>
               ) : (
                 <Stack spacing={2}>
-                  {["Breakfast", "Lunch", "Evening Snack", "Dinner"].map(slot => {
+                  {["Early Morning", "Breakfast", "Mid Morning", "Lunch", "Evening Snack", "Dinner", "Bed Time",].map(slot => {
                     const s = selectedRow.body?.monthly?.[slot];
                     if (!s) return null;
                     return (

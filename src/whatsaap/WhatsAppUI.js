@@ -299,36 +299,27 @@ export default function WhatsAppUI() {
 
   const startNewChatWithTemplate = async () => {
     const to = digitsOnly(newChatPhone);
-    const templateName = String(selectedTemplate?.name || "").trim();
+    if (!to) return setNewChatError("Enter phone number");
+
+    if (!selectedTemplate) return setNewChatError("Select a template");
+
     const body = pickBodyTextFromTemplate(selectedTemplate);
     const idxs = extractVarIndexes(body);
+    const params = idxs.map((i) => tplVars[String(i)]?.trim());
 
-    if (!to) return setNewChatError("Enter phone (10 digits or 91xxxxxxxxxx).");
-    if (!templateName) return setNewChatError("Select a template.");
-    if (!body) return setNewChatError("Template body missing in DB. Run templates sync.");
-
-    // Build parameters in order 1..max
-    const maxIdx = idxs.length ? Math.max(...idxs) : 0;
-    const params = [];
-    for (let i = 1; i <= maxIdx; i++) {
-      params.push(String(tplVars[String(i)] || "").trim());
+    if (params.some((v) => !v)) {
+      return setNewChatError("Fill all template variables");
     }
 
-    // require all vars filled
-    if (maxIdx > 0 && params.some((x) => !x)) {
-      return setNewChatError("Please fill all template variables before sending.");
-    }
-
-    setNewChatError("");
     setCreatingChat(true);
+    setNewChatError("");
 
     try {
       await api(`/api/whatsapp/send-template`, {
         method: "POST",
         body: JSON.stringify({
           to,
-          templateName,
-          language: "en",
+          templateName: selectedTemplate.name,
           parameters: params,
         }),
       });
@@ -342,17 +333,13 @@ export default function WhatsAppUI() {
       await refreshMessages(to);
       setActiveChat({ phone: to });
     } catch (e) {
-      // show server/provider debug if available
-      const provider = e?.data?.providerError;
-      setNewChatError(
-        provider
-          ? `${e.message} | Provider: ${JSON.stringify(provider)}`
-          : e.message || "Failed to start chat"
-      );
+      setNewChatError(e.message || "Failed to send template");
     } finally {
       setCreatingChat(false);
     }
   };
+
+
 
   return (
     <Box height="100vh" display="flex" bgcolor="#ece5dd">

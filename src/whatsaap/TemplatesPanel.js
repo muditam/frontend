@@ -35,9 +35,6 @@ import DownloadRoundedIcon from "@mui/icons-material/DownloadRounded";
 const API_BASE = process.env.REACT_APP_API_BASE_URL || "http://localhost:5001";
 const ACCENT = "#0aa59a";
 
-/* =========================
-   Utils
-========================= */
 function safeJson(res) {
   return res.json().catch(() => null);
 }
@@ -94,14 +91,14 @@ function statusChipStyles(statusRaw) {
 }
 
 function getTemplatePreviewText(t) {
-  // tries common shapes
   if (t?.preview) return String(t.preview);
   if (t?.body) return String(t.body);
+
   const comps = t?.components;
   if (Array.isArray(comps)) {
-    const bodyComp =
-      comps.find((c) => String(c?.type || "").toUpperCase() === "BODY") ||
-      comps.find((c) => String(c?.type || "").toUpperCase() === "body");
+    const bodyComp = comps.find(
+      (c) => String(c?.type || "").toUpperCase() === "BODY"
+    );
     if (bodyComp?.text) return String(bodyComp.text);
   }
   return "";
@@ -157,9 +154,6 @@ function CounterLabel({ label, count, max }) {
   );
 }
 
-/* =========================
-   Component
-========================= */
 export default function TemplatesPanel() {
   const [mode, setMode] = useState("list"); // list | create
 
@@ -193,7 +187,9 @@ export default function TemplatesPanel() {
   const filtered = useMemo(() => {
     const s = search.trim().toLowerCase();
     if (!s) return templates;
-    return templates.filter((t) => String(t.name || "").toLowerCase().includes(s));
+    return templates.filter((t) =>
+      String(t.name || "").toLowerCase().includes(s)
+    );
   }, [templates, search]);
 
   const canSend = useMemo(
@@ -220,38 +216,31 @@ export default function TemplatesPanel() {
 
   async function fetchTemplates({ silent = false } = {}) {
     if (!silent) setLoading(true);
-    const controller = new AbortController();
-    const signal = controller.signal;
 
     try {
       const res = await fetch(`${API_BASE}/api/whatsapp/templates`, {
         credentials: "include",
-        signal,
       });
-      const data = await safeJson(res);
-      setTemplates(Array.isArray(data) ? data : []);
 
-      // if backend returns meta sync info (optional), consume it safely
-      // supported shapes (optional):
-      // { templates: [...], meta: { lastSyncAt, inSync } }
-      if (data?.templates && Array.isArray(data.templates)) {
-        setTemplates(data.templates);
-        if (data?.meta?.lastSyncAt) setLastSync(data.meta.lastSyncAt);
-        if (typeof data?.meta?.inSync === "boolean") setInSync(data.meta.inSync);
-      }
+      const data = await safeJson(res);
+
+      const list = Array.isArray(data?.templates) ? data.templates : [];
+      setTemplates(list);
+
+      if (data?.meta?.lastSyncAt) setLastSync(data.meta.lastSyncAt);
+      if (typeof data?.meta?.inSync === "boolean") setInSync(data.meta.inSync);
     } catch (e) {
       if (!silent) console.error("Fetch templates failed", e);
       if (!silent) setTemplates([]);
     } finally {
       if (!silent) setLoading(false);
     }
-
-    return () => controller.abort();
   }
 
   async function syncTemplates() {
     setSyncing(true);
     setInSync(false);
+
     try {
       const res = await fetch(`${API_BASE}/api/whatsapp/templates/sync`, {
         method: "POST",
@@ -261,11 +250,11 @@ export default function TemplatesPanel() {
 
       const data = await safeJson(res);
 
-      // optional: backend can return lastSyncAt/inSync
-      if (data?.lastSyncAt) setLastSync(data.lastSyncAt);
-      if (typeof data?.inSync === "boolean") setInSync(data.inSync);
+      if (data?.meta?.lastSyncAt) setLastSync(data.meta.lastSyncAt);
+      if (typeof data?.meta?.inSync === "boolean") setInSync(data.meta.inSync);
       else setInSync(true);
 
+      // refresh list from mongo
       await fetchTemplates({ silent: true });
     } catch (e) {
       console.error("Sync failed", e);
@@ -281,7 +270,6 @@ export default function TemplatesPanel() {
 
     if (!window.confirm(`Delete template "${t.name}"?`)) return;
 
-    // optimistic remove
     setTemplates((prev) => prev.filter((x) => (x?._id || x?.id) !== id));
 
     try {
@@ -290,10 +278,7 @@ export default function TemplatesPanel() {
         credentials: "include",
       });
 
-      if (!res.ok) {
-        // rollback on failure
-        await fetchTemplates({ silent: true });
-      }
+      if (!res.ok) await fetchTemplates({ silent: true });
     } catch (e) {
       console.error("Delete failed", e);
       await fetchTemplates({ silent: true });
@@ -336,7 +321,6 @@ export default function TemplatesPanel() {
     setSending(true);
     try {
       const cleanName = onlyAllowedTemplateName(name);
-
       const components = [];
 
       if (headerType === "TEXT") {
@@ -353,10 +337,11 @@ export default function TemplatesPanel() {
       }
 
       if (headerType === "MEDIA") {
-        // backend should convert example to what 360dialog expects (public URL handle etc) if needed
         components.push({
           type: "HEADER",
-          format: mediaType, // DOCUMENT | VIDEO | IMAGE
+          format: mediaType,
+          // NOTE: 360dialog usually expects a real uploaded handle or URL.
+          // For now we pass it through; backend will still store it.
           example: sampleFilename ? { header_handle: [sampleFilename] } : undefined,
         });
       }
@@ -395,9 +380,11 @@ export default function TemplatesPanel() {
         body: JSON.stringify(payload),
       });
 
+      const out = await safeJson(res);
+
       if (!res.ok) {
-        const err = await safeJson(res);
-        console.error("Create failed:", err);
+        console.error("Create failed:", out);
+        alert(out?.error?.message || out?.error || "Template create failed");
         return;
       }
 
@@ -405,12 +392,12 @@ export default function TemplatesPanel() {
       setMode("list");
     } catch (e) {
       console.error("Send for approval error", e);
+      alert("Template create failed (network/server error)");
     } finally {
       setSending(false);
     }
   }
 
-  // initial fetch + lightweight polling for status updates (list only)
   useEffect(() => {
     fetchTemplates();
     const id = setInterval(() => {
@@ -420,9 +407,6 @@ export default function TemplatesPanel() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode]);
 
-  /* =========================
-     Preview computed
-  ========================= */
   const previewBody = useMemo(
     () => replaceVarsForPreview(body, sampleVars),
     [body, sampleVars]
@@ -430,8 +414,7 @@ export default function TemplatesPanel() {
 
   const previewHeaderText = useMemo(() => {
     if (headerType !== "TEXT") return "";
-    const t = (sampleHeaderText || headerText || "").trim();
-    return t;
+    return (sampleHeaderText || headerText || "").trim();
   }, [headerType, headerText, sampleHeaderText]);
 
   const HeaderMediaIcon = useMemo(() => {
@@ -440,20 +423,10 @@ export default function TemplatesPanel() {
     return <DescriptionIcon fontSize="small" />;
   }, [mediaType]);
 
-  /* =========================
-     LIST VIEW
-  ========================= */
   if (mode === "list") {
     return (
       <Box sx={{ p: 2 }}>
-        {/* Top bar */}
-        <Stack
-          direction="row"
-          alignItems="center"
-          justifyContent="space-between"
-          sx={{ gap: 2 }}
-        >
-          {/* Search */}
+        <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ gap: 2 }}>
           <Box sx={{ width: 320, maxWidth: "100%" }}>
             <TextField
               fullWidth
@@ -468,13 +441,10 @@ export default function TemplatesPanel() {
                   </Box>
                 ),
               }}
-              sx={{
-                "& .MuiOutlinedInput-root": { borderRadius: 2, bgcolor: "#fff" },
-              }}
+              sx={{ "& .MuiOutlinedInput-root": { borderRadius: 2, bgcolor: "#fff" } }}
             />
           </Box>
 
-          {/* Right actions */}
           <Stack direction="row" alignItems="center" spacing={1}>
             <Typography fontSize={12} color="text.secondary" sx={{ mr: 1 }}>
               Last Meta sync: {lastSync ? fmtTime(lastSync) : "--:--:--"}
@@ -512,19 +482,13 @@ export default function TemplatesPanel() {
             <Button
               variant="contained"
               onClick={openCreate}
-              sx={{
-                borderRadius: 2,
-                px: 2,
-                bgcolor: "#11A4B8",
-                "&:hover": { bgcolor: "#0f92a4" },
-              }}
+              sx={{ borderRadius: 2, px: 2, bgcolor: "#11A4B8", "&:hover": { bgcolor: "#0f92a4" } }}
             >
               Add template
             </Button>
           </Stack>
         </Stack>
 
-        {/* Header row */}
         <Box sx={{ mt: 3 }}>
           <Box
             sx={{
@@ -543,13 +507,12 @@ export default function TemplatesPanel() {
             <Box>CATEGORY</Box>
             <Box>PREVIEW</Box>
             <Box>STATUS</Box>
-            <Box>LANGUAGES</Box>
+            <Box>LANGUAGE</Box>
             <Box />
           </Box>
 
           <Divider />
 
-          {/* Rows */}
           {loading ? (
             <Stack alignItems="center" mt={4}>
               <CircularProgress size={22} />
@@ -563,11 +526,11 @@ export default function TemplatesPanel() {
               {filtered.map((t) => {
                 const preview = getTemplatePreviewText(t);
                 const st = statusChipStyles(t.status);
-                const lang = (t.language || t.languages?.[0] || "en").toUpperCase();
+                const lang = (t.language || "en").toUpperCase();
 
                 return (
                   <Paper
-                    key={t._id || t.id || t.name}
+                    key={t._id || t.name}
                     elevation={0}
                     sx={{
                       border: "1px solid #EEF2F6",
@@ -590,7 +553,9 @@ export default function TemplatesPanel() {
                       </Typography>
 
                       <Typography sx={{ color: "#101828" }}>
-                        {t.category ? String(t.category)[0] + String(t.category).slice(1).toLowerCase() : "—"}
+                        {t.category
+                          ? String(t.category)[0] + String(t.category).slice(1).toLowerCase()
+                          : "—"}
                       </Typography>
 
                       <Typography sx={{ color: "#101828" }} noWrap>
@@ -622,16 +587,12 @@ export default function TemplatesPanel() {
                         }}
                       />
 
-                      {/* ONLY ONE ACTION: DELETE */}
                       <Box sx={{ display: "flex", justifyContent: "flex-end" }}>
                         <Tooltip title="Delete">
                           <IconButton
                             onClick={() => deleteTemplate(t)}
                             size="small"
-                            sx={{
-                              color: "#667085",
-                              "&:hover": { bgcolor: "rgba(0,0,0,0.04)" },
-                            }}
+                            sx={{ color: "#667085", "&:hover": { bgcolor: "rgba(0,0,0,0.04)" } }}
                           >
                             <DeleteOutlineIcon fontSize="small" />
                           </IconButton>
@@ -648,12 +609,9 @@ export default function TemplatesPanel() {
     );
   }
 
-  /* =========================
-     CREATE VIEW
-  ========================= */
+  // CREATE VIEW (same UI, no change besides backend compatibility)
   return (
     <Box sx={{ p: 2 }}>
-      {/* Header row */}
       <Stack direction="row" alignItems="center" justifyContent="space-between">
         <Stack direction="row" spacing={1} alignItems="center">
           <IconButton onClick={backToList}>
@@ -664,7 +622,6 @@ export default function TemplatesPanel() {
           </Typography>
         </Stack>
 
-        {/* Add Sample button top-right */}
         <Button
           variant="outlined"
           onClick={() => setSampleOpen(true)}
@@ -682,10 +639,8 @@ export default function TemplatesPanel() {
       </Stack>
 
       <Grid container spacing={2} sx={{ mt: 1 }}>
-        {/* LEFT: Form */}
         <Grid item xs={12} md={7}>
           <Stack spacing={2}>
-            {/* Category */}
             <Paper elevation={0} sx={{ border: "1px solid #e6e6e6", borderRadius: 2, p: 2, bgcolor: "#fff" }}>
               <Typography fontWeight={800} fontSize={14}>
                 Category <span style={{ color: "#d32f2f" }}>*</span>
@@ -722,7 +677,6 @@ export default function TemplatesPanel() {
               </Grid>
             </Paper>
 
-            {/* Name */}
             <Paper elevation={0} sx={{ border: "1px solid #e6e6e6", borderRadius: 2, p: 2, bgcolor: "#fff" }}>
               <CounterLabel
                 label={
@@ -747,7 +701,6 @@ export default function TemplatesPanel() {
               />
             </Paper>
 
-            {/* Header */}
             <Paper elevation={0} sx={{ border: "1px solid #e6e6e6", borderRadius: 2, p: 2, bgcolor: "#fff" }}>
               <Typography fontWeight={800} fontSize={14}>
                 Header (optional)
@@ -784,34 +737,18 @@ export default function TemplatesPanel() {
               {headerType === "MEDIA" ? (
                 <Grid container spacing={1.25} sx={{ mt: 1.25 }}>
                   <Grid item xs={12} sm={4}>
-                    <Tile
-                      selected={mediaType === "DOCUMENT"}
-                      onClick={() => setMediaType("DOCUMENT")}
-                      icon={<DescriptionIcon fontSize="small" />}
-                      title="Document"
-                    />
+                    <Tile selected={mediaType === "DOCUMENT"} onClick={() => setMediaType("DOCUMENT")} icon={<DescriptionIcon fontSize="small" />} title="Document" />
                   </Grid>
                   <Grid item xs={12} sm={4}>
-                    <Tile
-                      selected={mediaType === "VIDEO"}
-                      onClick={() => setMediaType("VIDEO")}
-                      icon={<VideocamIcon fontSize="small" />}
-                      title="Video"
-                    />
+                    <Tile selected={mediaType === "VIDEO"} onClick={() => setMediaType("VIDEO")} icon={<VideocamIcon fontSize="small" />} title="Video" />
                   </Grid>
                   <Grid item xs={12} sm={4}>
-                    <Tile
-                      selected={mediaType === "IMAGE"}
-                      onClick={() => setMediaType("IMAGE")}
-                      icon={<ImageIcon fontSize="small" />}
-                      title="Image"
-                    />
+                    <Tile selected={mediaType === "IMAGE"} onClick={() => setMediaType("IMAGE")} icon={<ImageIcon fontSize="small" />} title="Image" />
                   </Grid>
                 </Grid>
               ) : null}
             </Paper>
 
-            {/* Body */}
             <Paper elevation={0} sx={{ border: "1px solid #e6e6e6", borderRadius: 2, p: 2, bgcolor: "#fff" }}>
               <CounterLabel
                 label={
@@ -838,17 +775,12 @@ export default function TemplatesPanel() {
               />
 
               <Stack direction="row" alignItems="center" justifyContent="flex-end" sx={{ mt: 1 }}>
-                <Button
-                  variant="text"
-                  onClick={addNextVariable}
-                  sx={{ color: ACCENT, fontWeight: 900 }}
-                >
+                <Button variant="text" onClick={addNextVariable} sx={{ color: ACCENT, fontWeight: 900 }}>
                   + Add variable
                 </Button>
               </Stack>
             </Paper>
 
-            {/* Footer */}
             <Paper elevation={0} sx={{ border: "1px solid #e6e6e6", borderRadius: 2, p: 2, bgcolor: "#fff" }}>
               <CounterLabel label="Footer (optional)" count={footer.length} max={60} />
               <TextField
@@ -861,7 +793,6 @@ export default function TemplatesPanel() {
               />
             </Paper>
 
-            {/* Actions */}
             <Stack direction="row" spacing={1} justifyContent="flex-end">
               <Button variant="outlined" onClick={backToList} disabled={sending}>
                 Cancel
@@ -871,11 +802,7 @@ export default function TemplatesPanel() {
                 onClick={sendForApproval}
                 disabled={!canSend || sending}
                 startIcon={<AddIcon />}
-                sx={{
-                  bgcolor: ACCENT,
-                  "&:hover": { bgcolor: "#078a82" },
-                  fontWeight: 900,
-                }}
+                sx={{ bgcolor: ACCENT, "&:hover": { bgcolor: "#078a82" }, fontWeight: 900 }}
               >
                 {sending ? "Sending..." : "Create & send for approval"}
               </Button>
@@ -883,7 +810,6 @@ export default function TemplatesPanel() {
           </Stack>
         </Grid>
 
-        {/* RIGHT: Phone Preview */}
         <Grid item xs={12} md={5}>
           <Box
             sx={{
@@ -923,16 +849,7 @@ export default function TemplatesPanel() {
                 }}
               />
 
-              <Box
-                sx={{
-                  height: 58,
-                  bgcolor: ACCENT,
-                  color: "#fff",
-                  display: "flex",
-                  alignItems: "center",
-                  px: 1.5,
-                }}
-              >
+              <Box sx={{ height: 58, bgcolor: ACCENT, color: "#fff", display: "flex", alignItems: "center", px: 1.5 }}>
                 <Typography fontWeight={900} fontSize={14}>
                   Muditam
                 </Typography>
@@ -949,30 +866,10 @@ export default function TemplatesPanel() {
                   backgroundSize: "18px 18px",
                 }}
               >
-                <Box
-                  sx={{
-                    maxWidth: "92%",
-                    ml: "auto",
-                    bgcolor: "#dcf8c6",
-                    borderRadius: 2,
-                    p: 1.1,
-                    boxShadow: "0 1px 0 rgba(0,0,0,.06)",
-                  }}
-                >
-                  {/* Header preview */}
+                <Box sx={{ maxWidth: "92%", ml: "auto", bgcolor: "#dcf8c6", borderRadius: 2, p: 1.1, boxShadow: "0 1px 0 rgba(0,0,0,.06)" }}>
                   {headerType === "MEDIA" ? (
                     mediaType === "DOCUMENT" ? (
-                      <Stack
-                        direction="row"
-                        alignItems="center"
-                        spacing={1}
-                        sx={{
-                          p: 0.75,
-                          borderRadius: 1.5,
-                          bgcolor: "rgba(255,255,255,.6)",
-                          mb: 0.75,
-                        }}
-                      >
+                      <Stack direction="row" alignItems="center" spacing={1} sx={{ p: 0.75, borderRadius: 1.5, bgcolor: "rgba(255,255,255,.6)", mb: 0.75 }}>
                         {HeaderMediaIcon}
                         <Box sx={{ flex: 1, minWidth: 0 }}>
                           <Typography fontSize={12} fontWeight={900} noWrap>
@@ -982,50 +879,15 @@ export default function TemplatesPanel() {
                             {mediaType}
                           </Typography>
                         </Box>
-                        <Box
-                          sx={{
-                            width: 26,
-                            height: 26,
-                            borderRadius: 999,
-                            bgcolor: "#fff",
-                            display: "grid",
-                            placeItems: "center",
-                            border: "1px solid rgba(0,0,0,.12)",
-                          }}
-                        >
+                        <Box sx={{ width: 26, height: 26, borderRadius: 999, bgcolor: "#fff", display: "grid", placeItems: "center", border: "1px solid rgba(0,0,0,.12)" }}>
                           <DownloadRoundedIcon sx={{ fontSize: 18 }} />
                         </Box>
                       </Stack>
                     ) : (
-                      <Box
-                        sx={{
-                          borderRadius: 1.5,
-                          bgcolor: "rgba(255,255,255,.6)",
-                          mb: 0.75,
-                          overflow: "hidden",
-                          border: "1px solid rgba(0,0,0,.06)",
-                        }}
-                      >
-                        <Box
-                          sx={{
-                            height: 120,
-                            display: "grid",
-                            placeItems: "center",
-                            bgcolor: "rgba(0,0,0,.06)",
-                            position: "relative",
-                          }}
-                        >
+                      <Box sx={{ borderRadius: 1.5, bgcolor: "rgba(255,255,255,.6)", mb: 0.75, overflow: "hidden", border: "1px solid rgba(0,0,0,.06)" }}>
+                        <Box sx={{ height: 120, display: "grid", placeItems: "center", bgcolor: "rgba(0,0,0,.06)", position: "relative" }}>
                           {mediaType === "VIDEO" ? (
-                            <Box
-                              sx={{
-                                width: 44,
-                                height: 44,
-                                borderRadius: 999,
-                                bgcolor: "rgba(0,0,0,.35)",
-                                display: "grid",
-                                placeItems: "center",
-                              }}
-                            >
+                            <Box sx={{ width: 44, height: 44, borderRadius: 999, bgcolor: "rgba(0,0,0,.35)", display: "grid", placeItems: "center" }}>
                               <PlayArrowRoundedIcon sx={{ color: "#fff", fontSize: 28 }} />
                             </Box>
                           ) : (
@@ -1066,38 +928,9 @@ export default function TemplatesPanel() {
                 </Box>
               </Box>
 
-              <Box
-                sx={{
-                  height: 56,
-                  bgcolor: "#f0f2f5",
-                  borderTop: "1px solid rgba(0,0,0,.08)",
-                  display: "flex",
-                  alignItems: "center",
-                  px: 1,
-                  gap: 1,
-                }}
-              >
-                <Box
-                  sx={{
-                    flex: 1,
-                    height: 36,
-                    borderRadius: 999,
-                    bgcolor: "#fff",
-                    border: "1px solid rgba(0,0,0,.08)",
-                  }}
-                />
-                <Box
-                  sx={{
-                    width: 36,
-                    height: 36,
-                    borderRadius: 999,
-                    bgcolor: ACCENT,
-                    color: "#fff",
-                    display: "grid",
-                    placeItems: "center",
-                    fontWeight: 900,
-                  }}
-                >
+              <Box sx={{ height: 56, bgcolor: "#f0f2f5", borderTop: "1px solid rgba(0,0,0,.08)", display: "flex", alignItems: "center", px: 1, gap: 1 }}>
+                <Box sx={{ flex: 1, height: 36, borderRadius: 999, bgcolor: "#fff", border: "1px solid rgba(0,0,0,.08)" }} />
+                <Box sx={{ width: 36, height: 36, borderRadius: 999, bgcolor: ACCENT, color: "#fff", display: "grid", placeItems: "center", fontWeight: 900 }}>
                   ➤
                 </Box>
               </Box>
@@ -1106,21 +939,8 @@ export default function TemplatesPanel() {
         </Grid>
       </Grid>
 
-      {/* =========================
-          Add Sample Modal
-      ========================== */}
       <Dialog open={Boolean(sampleOpen)} onClose={() => setSampleOpen(false)} fullWidth maxWidth="md">
-        <Box
-          sx={{
-            bgcolor: ACCENT,
-            color: "#fff",
-            px: 2,
-            py: 1.25,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-          }}
-        >
+        <Box sx={{ bgcolor: ACCENT, color: "#fff", px: 2, py: 1.25, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <Typography fontWeight={900}>Add Sample Content</Typography>
           <IconButton onClick={() => setSampleOpen(false)} sx={{ color: "#fff" }}>
             <CloseIcon />
@@ -1129,11 +949,9 @@ export default function TemplatesPanel() {
 
         <DialogContent dividers sx={{ bgcolor: "#fff" }}>
           <Grid container spacing={2}>
-            {/* left */}
             <Grid item xs={12} md={8}>
               <Typography fontSize={12} color="text.secondary" sx={{ mb: 2 }}>
-                To help us understand what kind of message you want to send, provide sample content examples.
-                Do not include real customer information.
+                Provide sample content examples. Do not include real customer information.
               </Typography>
 
               <Typography fontWeight={900} fontSize={13} sx={{ mb: 1 }}>
@@ -1165,29 +983,13 @@ export default function TemplatesPanel() {
                   <Button
                     variant="outlined"
                     component="label"
-                    sx={{
-                      borderColor: "#cfeeed",
-                      color: ACCENT,
-                      fontWeight: 900,
-                      borderRadius: 999,
-                      textTransform: "none",
-                    }}
+                    sx={{ borderColor: "#cfeeed", color: ACCENT, fontWeight: 900, borderRadius: 999, textTransform: "none" }}
                   >
-                    {mediaType === "DOCUMENT"
-                      ? "Choose PDF file"
-                      : mediaType === "VIDEO"
-                      ? "Choose video"
-                      : "Choose image"}
+                    {mediaType === "DOCUMENT" ? "Choose PDF file" : mediaType === "VIDEO" ? "Choose video" : "Choose image"}
                     <input
                       hidden
                       type="file"
-                      accept={
-                        mediaType === "DOCUMENT"
-                          ? "application/pdf"
-                          : mediaType === "VIDEO"
-                          ? "video/*"
-                          : "image/*"
-                      }
+                      accept={mediaType === "DOCUMENT" ? "application/pdf" : mediaType === "VIDEO" ? "video/*" : "image/*"}
                       onChange={(e) => {
                         const f = e.target.files?.[0];
                         if (!f) return;
@@ -1197,17 +999,13 @@ export default function TemplatesPanel() {
                   </Button>
 
                   <Typography fontSize={12} color="text.secondary" noWrap>
-                    {sampleFilename ? sampleFilename : "No document chosen"}
+                    {sampleFilename ? sampleFilename : "No file chosen"}
                   </Typography>
                 </Stack>
               ) : null}
 
               <Typography fontWeight={900} fontSize={13} sx={{ mb: 1 }}>
                 Body
-              </Typography>
-
-              <Typography fontSize={12} sx={{ mb: 1, color: "#111" }}>
-                {body ? body : <span style={{ color: "#888" }}>Start typing Body to add variables like {"{{1}}"}</span>}
               </Typography>
 
               <Stack spacing={1}>
@@ -1223,21 +1021,13 @@ export default function TemplatesPanel() {
                         <Chip
                           label={`{{${n}}}`}
                           size="small"
-                          sx={{
-                            bgcolor: "#eef7f6",
-                            color: ACCENT,
-                            fontWeight: 900,
-                            borderRadius: 1,
-                            minWidth: 56,
-                          }}
+                          sx={{ bgcolor: "#eef7f6", color: ACCENT, fontWeight: 900, borderRadius: 1, minWidth: 56 }}
                         />
                         <TextField
                           fullWidth
                           size="small"
                           value={sampleVars[k] ?? ""}
-                          onChange={(e) =>
-                            setSampleVars((m) => ({ ...m, [k]: e.target.value }))
-                          }
+                          onChange={(e) => setSampleVars((m) => ({ ...m, [k]: e.target.value }))}
                           placeholder="Enter sample content"
                         />
                       </Stack>
@@ -1247,57 +1037,17 @@ export default function TemplatesPanel() {
               </Stack>
             </Grid>
 
-            {/* right mini preview */}
             <Grid item xs={12} md={4}>
-              <Paper
-                elevation={0}
-                sx={{
-                  border: "1px solid #e6e6e6",
-                  borderRadius: 2,
-                  p: 2,
-                  bgcolor: "#fbfbfb",
-                }}
-              >
+              <Paper elevation={0} sx={{ border: "1px solid #e6e6e6", borderRadius: 2, p: 2, bgcolor: "#fbfbfb" }}>
                 <Typography fontWeight={900} fontSize={13} sx={{ mb: 1 }}>
                   Preview
                 </Typography>
 
-                <Box
-                  sx={{
-                    border: "1px solid #e6e6e6",
-                    borderRadius: 2,
-                    bgcolor: "#f0f2f5",
-                    p: 1.25,
-                  }}
-                >
-                  <Box
-                    sx={{
-                      maxWidth: "100%",
-                      ml: "auto",
-                      bgcolor: "#dcf8c6",
-                      borderRadius: 2,
-                      p: 1,
-                    }}
-                  >
-                    {headerType === "MEDIA" ? (
-                      <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 0.75 }}>
-                        {HeaderMediaIcon}
-                        <Typography fontSize={12} fontWeight={900} noWrap sx={{ flex: 1 }}>
-                          {sampleFilename || (mediaType === "DOCUMENT" ? "Document.pdf" : mediaType === "VIDEO" ? "Video" : "Image")}
-                        </Typography>
-                      </Stack>
-                    ) : null}
-
-                    {headerType === "TEXT" && (sampleHeaderText || headerText) ? (
-                      <Typography fontSize={12} fontWeight={900} sx={{ mb: 0.5 }}>
-                        {(sampleHeaderText || headerText).trim()}
-                      </Typography>
-                    ) : null}
-
+                <Box sx={{ border: "1px solid #e6e6e6", borderRadius: 2, bgcolor: "#f0f2f5", p: 1.25 }}>
+                  <Box sx={{ maxWidth: "100%", ml: "auto", bgcolor: "#dcf8c6", borderRadius: 2, p: 1 }}>
                     <Typography fontSize={12} sx={{ whiteSpace: "pre-wrap" }}>
                       {replaceVarsForPreview(body, sampleVars) || " "}
                     </Typography>
-
                     <Stack direction="row" justifyContent="flex-end" sx={{ mt: 0.75 }}>
                       <Typography fontSize={10} color="text.secondary">
                         {fmtTime(Date.now())}
@@ -1315,13 +1065,7 @@ export default function TemplatesPanel() {
           <Button
             variant="contained"
             onClick={() => setSampleOpen(false)}
-            sx={{
-              bgcolor: ACCENT,
-              "&:hover": { bgcolor: "#078a82" },
-              borderRadius: 999,
-              px: 2.5,
-              fontWeight: 900,
-            }}
+            sx={{ bgcolor: ACCENT, "&:hover": { bgcolor: "#078a82" }, borderRadius: 999, px: 2.5, fontWeight: 900 }}
           >
             Done
           </Button>

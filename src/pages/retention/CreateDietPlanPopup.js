@@ -48,7 +48,7 @@ const WEEKLY_TYPE = "weekly-14";
 const MONTHLY_TYPE = "monthly-options";
  
 const mealsOrder = ["Breakfast", "Lunch", "Snacks", "Dinner"];
-const monthlySlotOrder = ["Breakfast", "Lunch", "Evening Snack", "Dinner"];
+const monthlySlotOrder = ["Early Morning", "Breakfast", "Mid Morning", "Lunch", "Evening Snack", "Dinner", "Bed Time",];
 
 const FORTNIGHT_DAYS = 14;
 
