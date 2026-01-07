@@ -30,6 +30,7 @@ import ErrorOutlineIcon from "@mui/icons-material/ErrorOutline";
 import LocalShippingIcon from "@mui/icons-material/LocalShipping";
 import Inventory2Icon from "@mui/icons-material/Inventory2";
 import EmailIcon from "@mui/icons-material/Email";
+import WhatsAppIcon from "@mui/icons-material/WhatsApp";
 import PhoneInTalkIcon from "@mui/icons-material/PhoneInTalk";
 import AssignmentReturnedIcon from "@mui/icons-material/AssignmentReturned";
 import CheckBoxIcon from "@mui/icons-material/CheckBox";
@@ -268,6 +269,21 @@ const MenuBar = ({ toggleDrawer }) => {
             <ChatBubbleIcon sx={{ marginRight: "12px" }} />
             <Typography variant="body1" style={{ fontSize: "14px" }}>
               Consultation
+            </Typography>
+          </ListItem>
+        )}
+
+        {user && can("whatsaapChats") && (
+          <ListItem
+            button
+            component={Link}
+            sx={menuItemStyle}
+            to="/whatsaap/chat"
+            onClick={toggleDrawer}
+          >
+            <WhatsAppIcon sx={{ marginRight: "12px" }} />
+            <Typography variant="body1" style={{ fontSize: "14px" }}>
+              Whatsaap Chats
             </Typography>
           </ListItem>
         )}
@@ -1471,6 +1487,19 @@ const MenuBar = ({ toggleDrawer }) => {
                     button
                     component={Link}
                     to="/all-products"
+                    onClick={toggleDrawer}
+                  >
+                    <Typography variant="body2" sx={{ fontSize: "13px" }}>
+                      All Products
+                    </Typography>
+                  </ListItem>
+                )}
+
+                {can("otherswhatsaaptemplates") && (
+                  <ListItem
+                    button
+                    component={Link}
+                    to="/template/chat"
                     onClick={toggleDrawer}
                   >
                     <Typography variant="body2" sx={{ fontSize: "13px" }}>

@@ -32,7 +32,7 @@ import CloseIcon from "@mui/icons-material/Close";
 import PlayArrowRoundedIcon from "@mui/icons-material/PlayArrowRounded";
 import DownloadRoundedIcon from "@mui/icons-material/DownloadRounded";
 
-const API_BASE = process.env.REACT_APP_API_BASE_URL || "http://localhost:5001";
+const API_BASE = "https://muditamleads-14f32a10d7f7.herokuapp.com";
 const ACCENT = "#0aa59a";
 
 function safeJson(res) {

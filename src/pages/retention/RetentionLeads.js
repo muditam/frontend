@@ -54,9 +54,11 @@ import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import SpaIcon from "@mui/icons-material/Spa";
 import LanguageIcon from "@mui/icons-material/Language";
 import PlaceIcon from "@mui/icons-material/Place";
+import WhatsAppIcon from "@mui/icons-material/WhatsApp";
 import PhoneDisabledIcon from "@mui/icons-material/PhoneDisabled";
 
 import CreateDietPlanPopup from "./CreateDietPlanPopup";
+import WhatsAppChatDialog from "./WhatsAppChatDialog";
 
 const getDaysSince = (startDate, endDate = new Date()) => {
   if (!startDate) return null;
@@ -199,6 +201,8 @@ const RetentionLeads = () => {
   const [logsModalOpen, setLogsModalOpen] = useState(false);
   const [logsData, setLogsData] = useState([]);
   const [selectedConditions, setSelectedConditions] = useState([]);
+  const [waOpen, setWaOpen] = useState(false);
+
 
   const [noteDraft, setNoteDraft] = useState("");
 
@@ -1738,6 +1742,22 @@ const RetentionLeads = () => {
                         Call
                       </Button>
 
+                      <Tooltip title="Send WhatsApp">
+                        <IconButton
+                          onClick={() => setWaOpen(true)}
+                          disableRipple
+                          sx={{
+                            p: 0.25,
+                            ml: 0.25,
+                            color: "#25D366",
+                            "&:hover": { bgcolor: "transparent" },
+                          }}
+                        >
+                          <WhatsAppIcon sx={{ fontSize: 28 }} />
+                        </IconButton>
+                      </Tooltip>
+
+
                       <Button
                         size="small"
                         onClick={(e) => {
@@ -2547,6 +2567,37 @@ You can mark Lost only after 60 days.`);
               <RetentionFollowUp contactNumber={leads[selectedLeadIndex]?.contactNumber} />
 
               <CohortDataCustomer contactNumber={leads[selectedLeadIndex]?.contactNumber} />
+
+              <WhatsAppChatDialog
+                open={waOpen}
+                onClose={() => setWaOpen(false)}
+                phone={leads[selectedLeadIndex]?.contactNumber || ""}
+                leadId={leads[selectedLeadIndex]?._id}
+                leadName={leads[selectedLeadIndex]?.name || ""}
+                currentUserName={currentUserName}
+                onSavePrivateNote={async (text) => {
+                  const lead = leads[selectedLeadIndex];
+                  if (!lead?._id) return;
+
+                  const entry = {
+                    date: new Date().toISOString(),
+                    value: `[PRIVATE] ${text}`,
+                    by: currentUserName,
+                  };
+
+                  const nextSubcells = [...(lead.rtSubcells || []), entry];
+ 
+                  setLeads((prev) => {
+                    const copy = [...prev];
+                    copy[selectedLeadIndex] = { ...copy[selectedLeadIndex], rtSubcells: nextSubcells };
+                    return copy;
+                  }); 
+                  
+                  await axios.put(`${"https://muditamleads-14f32a10d7f7.herokuapp.com"}/api/leads/${lead._id}`, {
+                    rtSubcells: nextSubcells,
+                  });
+                }}
+              />
 
             </Box>
 

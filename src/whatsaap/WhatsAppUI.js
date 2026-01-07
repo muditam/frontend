@@ -23,8 +23,11 @@ import SearchIcon from "@mui/icons-material/Search";
 import AddIcon from "@mui/icons-material/Add";
 import RefreshIcon from "@mui/icons-material/Refresh";
 
-const API_BASE = "http://localhost:5001";
+const API_BASE = "https://muditamleads-14f32a10d7f7.herokuapp.com";
 
+/* -----------------------------
+   Helpers
+------------------------------ */
 function digitsOnly(v = "") {
   return String(v || "").replace(/\D/g, "");
 }
@@ -119,9 +122,37 @@ function applyVarsToBody(bodyText = "", varsMap = {}) {
   return out;
 }
 
+function msgKey(m) {
+  return m?.waId || m?._id || `${m?.direction || "X"}_${m?.timestamp || ""}_${m?.text || ""}`;
+}
+
+/* -----------------------------
+   Name helpers
+------------------------------ */
+function nameInitials(name = "") {
+  const parts = String(name || "").trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return "?";
+  if (parts.length === 1) return (parts[0][0] || "?").toUpperCase();
+  return `${(parts[0][0] || "").toUpperCase()}${(parts[parts.length - 1][0] || "").toUpperCase()}`;
+}
+
+function chatDisplayName(chat) {
+  // backend should send displayName, else fallback to phone
+  return chat?.displayName || phoneLabel(chat?.phone);
+}
+
+function assignedToText(chat) {
+  // backend should send assignedToLabel
+  return `Assigned To: ${chat?.assignedToLabel || "—"}`;
+}
+
+/* =========================================================
+   Component
+========================================================= */
 export default function WhatsAppUI() {
   const [conversations, setConversations] = useState([]);
   const [activeChat, setActiveChat] = useState(null);
+
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
 
@@ -132,21 +163,39 @@ export default function WhatsAppUI() {
   const [errorChats, setErrorChats] = useState("");
   const [errorMessages, setErrorMessages] = useState("");
 
-  // templates
   const [templates, setTemplates] = useState([]);
   const [loadingTemplates, setLoadingTemplates] = useState(false);
 
-  // New chat dialog
   const [newChatOpen, setNewChatOpen] = useState(false);
   const [newChatPhone, setNewChatPhone] = useState("");
   const [selectedTemplate, setSelectedTemplate] = useState(null);
   const [creatingChat, setCreatingChat] = useState(false);
   const [newChatError, setNewChatError] = useState("");
+  const [sessionExpired, setSessionExpired] = useState(false);
 
-  // variables UI state: { "1": "value", "2": "value" }
   const [tplVars, setTplVars] = useState({});
 
   const bottomRef = useRef(null);
+  const prevLenRef = useRef(0);
+  const pollingRef = useRef(false);
+
+  const activePhoneDigits = useMemo(() => digitsOnly(activeChat?.phone), [activeChat?.phone]);
+
+  const activeConversation = useMemo(() => {
+    if (!activeChat?.phone) return null;
+    const p = phoneLabel(activeChat.phone);
+    return conversations.find((c) => phoneLabel(c.phone) === p) || null;
+  }, [activeChat?.phone, conversations]);
+
+  // Chatbox title format: Name(number)
+  const activeHeaderTitle = useMemo(() => {
+    if (!activeChat?.phone) return "Select a chat";
+    const name = activeConversation ? chatDisplayName(activeConversation) : phoneLabel(activeChat.phone);
+    const num = phoneLabel(activeChat.phone);
+    // if name already equals number, don't duplicate
+    if (!name || name === num) return num || "—";
+    return `${name} (${num})`;
+  }, [activeChat?.phone, activeConversation]);
 
   const filteredConversations = useMemo(() => {
     const s = phoneLabel(search);
@@ -156,28 +205,53 @@ export default function WhatsAppUI() {
 
   const canShowQuickChat = useMemo(() => phoneLabel(search).length === 10, [search]);
 
+  /* -----------------------------
+     Fetch: Conversations
+  ------------------------------ */
   const refreshConversations = async (selectPhone = null) => {
-    setErrorChats("");
-    setLoadingChats(true);
-    try {
-      const data = (await api(`/api/whatsapp/conversations`)) || [];
-      setConversations(Array.isArray(data) ? data : []);
-      if (selectPhone) {
-        setActiveChat({ phone: selectPhone });
-      } else if (!activeChat?.phone && Array.isArray(data) && data.length) {
-        setActiveChat({ phone: digitsOnly(data[0].phone) });
-      }
-    } catch (e) {
-      setErrorChats(e.message || "Failed to load conversations");
-      setConversations([]);
-    } finally {
-      setLoadingChats(false);
-    }
-  };
+  setErrorChats("");
+  setLoadingChats(true);
+  try {
+    // 1. Fetch the user object from session storage
+    const sessionData = sessionStorage.getItem("user");
+    const userObj = sessionData ? JSON.parse(sessionData) : null;
 
-  const refreshMessages = async (phoneAnyDigits) => {
+    // 2. Extract fullName and role
+    const userName = userObj?.fullName || ""; 
+    const userRole = userObj?.role || "";
+
+    // 3. Pass these to the API as query parameters
+    // Encode parameters to handle spaces in names (e.g., "Asha Kaushik")
+    const queryParams = new URLSearchParams({
+      role: userRole,
+      userName: userName
+    }).toString();
+
+    const data = (await api(`/api/whatsapp/conversations?${queryParams}`)) || [];
+    const list = Array.isArray(data) ? data : [];
+    
+    setConversations(list);
+
+    if (selectPhone) {
+      setActiveChat({ phone: selectPhone });
+    } else if (!activeChat?.phone && list.length) {
+      setActiveChat({ phone: digitsOnly(list[0].phone) });
+    }
+  } catch (e) {
+    setErrorChats(e.message || "Failed to load conversations");
+    setConversations([]);
+  } finally {
+    setLoadingChats(false);
+  }
+};
+
+  /* -----------------------------
+     Fetch: Messages
+  ------------------------------ */
+  const loadMessagesInitial = async (phoneAnyDigits) => {
     const q = digitsOnly(phoneAnyDigits);
     if (!q) return;
+
     setErrorMessages("");
     setLoadingMessages(true);
     try {
@@ -191,10 +265,46 @@ export default function WhatsAppUI() {
     }
   };
 
+  const pollMessagesAppend = async (phoneAnyDigits) => {
+    const q = digitsOnly(phoneAnyDigits);
+    if (!q) return;
+    if (pollingRef.current) return;
+    pollingRef.current = true;
+
+    try {
+      const data = (await api(`/api/whatsapp/messages?phone=${encodeURIComponent(q)}`)) || [];
+      if (!Array.isArray(data)) return;
+
+      setMessages((prev) => {
+        if (!prev.length) return data;
+
+        const seen = new Set(prev.map((m) => msgKey(m)));
+        const toAdd = [];
+
+        for (const m of data) {
+          const k = msgKey(m);
+          if (!seen.has(k)) {
+            toAdd.push(m);
+            seen.add(k);
+          }
+        }
+
+        return toAdd.length ? [...prev, ...toAdd] : prev;
+      });
+    } catch (e) {
+      // silent on polling errors
+    } finally {
+      pollingRef.current = false;
+    }
+  };
+
+  /* -----------------------------
+     Templates
+  ------------------------------ */
   const fetchTemplates = async () => {
     setLoadingTemplates(true);
     try {
-      const data = await api(`/api/whatsapp/templates`); // this should map to whatsappTemplates.routes.js (GET "/")
+      const data = await api(`/api/whatsapp/templates`);
       setTemplates(Array.isArray(data) ? data : data?.templates || []);
     } catch (e) {
       console.error("Fetch templates failed:", e);
@@ -204,42 +314,96 @@ export default function WhatsAppUI() {
     }
   };
 
+  /* -----------------------------
+     Initial boot
+  ------------------------------ */
   useEffect(() => {
     refreshConversations();
     fetchTemplates();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  /* -----------------------------
+     When active chat changes
+  ------------------------------ */
   useEffect(() => {
-    const p = digitsOnly(activeChat?.phone);
-    if (!p) return;
-    refreshMessages(p);
+    if (!activePhoneDigits) return;
+    setSessionExpired(false);
+    setErrorMessages("");
+    setMessages([]);
+    loadMessagesInitial(activePhoneDigits);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeChat?.phone]);
+  }, [activePhoneDigits]);
 
+  /* -----------------------------
+     Polling
+  ------------------------------ */
   useEffect(() => {
-    const p = digitsOnly(activeChat?.phone);
-    if (!p) return;
-
+    if (!activePhoneDigits) return;
     const id = setInterval(() => {
-      refreshMessages(p);
-      // optional: refresh conversations every 10s
-      // refreshConversations();
-    }, 3000);
-
+      pollMessagesAppend(activePhoneDigits);
+    }, 8000);
     return () => clearInterval(id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeChat?.phone]);
+  }, [activePhoneDigits]);
 
+  /* -----------------------------
+     Auto-scroll only when new arrives
+  ------------------------------ */
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (messages.length > prevLenRef.current) {
+      bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
+    prevLenRef.current = messages.length;
+  }, [messages.length]);
+
+  /* -----------------------------
+     Session reset when inbound arrives
+  ------------------------------ */
+  useEffect(() => {
+    if (messages.some((m) => m.direction === "INBOUND")) {
+      setSessionExpired(false);
+    }
   }, [messages]);
 
+  /* -----------------------------
+     UI actions
+  ------------------------------ */
   const openChat = (phone) => {
     const p = digitsOnly(phone);
     if (!p) return;
     setActiveChat({ phone: p });
     setSearch("");
+  };
+
+  const updateConversationPreviewLocal = (phoneDigits, lastMessageText) => {
+    const nowIso = new Date().toISOString();
+
+    setConversations((prev) => {
+      const pLabel = phoneLabel(phoneDigits);
+      const idx = prev.findIndex((c) => phoneLabel(c.phone) === pLabel);
+
+      if (idx === -1) {
+        return [
+          {
+            phone: phoneDigits,
+            lastMessageAt: nowIso,
+            lastMessageText: lastMessageText?.slice?.(0, 200) || "",
+          },
+          ...prev,
+        ];
+      }
+
+      const next = [...prev];
+      next[idx] = {
+        ...next[idx],
+        phone: next[idx].phone || phoneDigits,
+        lastMessageAt: nowIso,
+        lastMessageText: lastMessageText?.slice?.(0, 200) || next[idx].lastMessageText || "",
+      };
+
+      const [item] = next.splice(idx, 1);
+      return [item, ...next];
+    });
   };
 
   const sendText = async () => {
@@ -253,8 +417,10 @@ export default function WhatsAppUI() {
       text,
       timestamp: new Date().toISOString(),
     };
+
     setMessages((prev) => [...prev, optimistic]);
     setInput("");
+    updateConversationPreviewLocal(to, text);
 
     try {
       await api(`/api/whatsapp/send-text`, {
@@ -262,12 +428,17 @@ export default function WhatsAppUI() {
         body: JSON.stringify({ to, text }),
       });
 
-      await refreshMessages(to);
-      await refreshConversations(to);
+      await pollMessagesAppend(to);
     } catch (e) {
       setMessages((prev) => prev.filter((m) => m._id !== optimistic._id));
       setInput(text);
-      setErrorMessages(e.message || "Send failed");
+
+      if (e.data?.code === "SESSION_EXPIRED") {
+        setSessionExpired(true);
+        setErrorMessages("Session expired. Please send a template message.");
+      } else {
+        setErrorMessages(e.message || "Send failed");
+      }
     }
   };
 
@@ -283,7 +454,6 @@ export default function WhatsAppUI() {
     });
   }, [templates]);
 
-  // When template changes -> build vars
   useEffect(() => {
     const body = pickBodyTextFromTemplate(selectedTemplate);
     const idxs = extractVarIndexes(body);
@@ -300,16 +470,13 @@ export default function WhatsAppUI() {
   const startNewChatWithTemplate = async () => {
     const to = digitsOnly(newChatPhone);
     if (!to) return setNewChatError("Enter phone number");
-
     if (!selectedTemplate) return setNewChatError("Select a template");
 
     const body = pickBodyTextFromTemplate(selectedTemplate);
     const idxs = extractVarIndexes(body);
     const params = idxs.map((i) => tplVars[String(i)]?.trim());
 
-    if (params.some((v) => !v)) {
-      return setNewChatError("Fill all template variables");
-    }
+    if (params.some((v) => !v)) return setNewChatError("Fill all template variables");
 
     setCreatingChat(true);
     setNewChatError("");
@@ -329,9 +496,10 @@ export default function WhatsAppUI() {
       setSelectedTemplate(null);
       setTplVars({});
 
-      await refreshConversations(to);
-      await refreshMessages(to);
+      updateConversationPreviewLocal(to, `[TEMPLATE] ${selectedTemplate.name}`);
+
       setActiveChat({ phone: to });
+      await loadMessagesInitial(to);
     } catch (e) {
       setNewChatError(e.message || "Failed to send template");
     } finally {
@@ -339,10 +507,11 @@ export default function WhatsAppUI() {
     }
   };
 
-
-
+  /* =========================================================
+     Render
+  ========================================================= */
   return (
-    <Box height="100vh" display="flex" bgcolor="#ece5dd">
+    <Box height="93vh" display="flex" bgcolor="#ece5dd">
       {/* LEFT SIDEBAR */}
       <Box width={360} bgcolor="#fff" display="flex" flexDirection="column" borderRight="1px solid #ddd">
         <Box px={2} py={1.5} display="flex" alignItems="center" justifyContent="space-between">
@@ -354,6 +523,7 @@ export default function WhatsAppUI() {
             <IconButton size="small" onClick={() => setNewChatOpen(true)} title="New chat">
               <AddIcon fontSize="small" />
             </IconButton>
+
             <IconButton
               size="small"
               onClick={() => {
@@ -407,8 +577,7 @@ export default function WhatsAppUI() {
                   onClick={() => openChat(digitsOnly(search))}
                   sx={{
                     cursor: "pointer",
-                    bgcolor:
-                      phoneLabel(activeChat?.phone) === phoneLabel(search) ? "#f0f2f5" : "transparent",
+                    bgcolor: phoneLabel(activeChat?.phone) === phoneLabel(search) ? "#f0f2f5" : "transparent",
                     "&:hover": { bgcolor: "#f5f5f5" },
                   }}
                 >
@@ -429,6 +598,7 @@ export default function WhatsAppUI() {
 
               {filteredConversations.map((chat) => {
                 const isActive = phoneLabel(activeChat?.phone) === phoneLabel(chat.phone);
+
                 return (
                   <Box
                     key={chat._id || chat.phone}
@@ -442,12 +612,19 @@ export default function WhatsAppUI() {
                     }}
                   >
                     <Stack direction="row" spacing={2} alignItems="center">
-                      <Avatar>{phoneLabel(chat.phone).slice(-2)}</Avatar>
-                      <Box>
-                        <Typography fontSize={14} fontWeight={600}>
-                          {phoneLabel(chat.phone)}
+                      <Avatar>{nameInitials(chatDisplayName(chat))}</Avatar>
+
+                      <Box flex={1} minWidth={0}>
+                        <Typography fontSize={14} fontWeight={600} noWrap>
+                          {chatDisplayName(chat)}
                         </Typography>
-                        <Typography fontSize={12} color="text.secondary">
+
+                        {/* KEEP Assigned To in conversations list */}
+                        <Typography fontSize={12} color="text.secondary" noWrap>
+                          {assignedToText(chat)}
+                        </Typography>
+
+                        <Typography fontSize={11} color="text.secondary" noWrap>
                           Last active: {formatLastActive(chat.lastMessageAt)}
                         </Typography>
                       </Box>
@@ -473,13 +650,18 @@ export default function WhatsAppUI() {
         <Box px={2} py={1.5} bgcolor="#f0f2f5" borderBottom="1px solid #ddd">
           <Stack direction="row" spacing={2} alignItems="center" justifyContent="space-between">
             <Stack direction="row" spacing={2} alignItems="center">
-              <Avatar>{phoneLabel(activeChat?.phone).slice(-2) || "—"}</Avatar>
-              <Typography fontWeight={700}>{phoneLabel(activeChat?.phone) || "Select a chat"}</Typography>
+              <Avatar>
+                {activeConversation
+                  ? nameInitials(chatDisplayName(activeConversation))
+                  : phoneLabel(activeChat?.phone).slice(-2) || "—"}
+              </Avatar>
+
+              <Box>
+                {/* ✅ Chatbox title: Name(number) */}
+                <Typography fontWeight={700}>{activeHeaderTitle}</Typography>
+              </Box>
             </Stack>
 
-            <Button size="small" variant="outlined" onClick={() => setNewChatOpen(true)} startIcon={<AddIcon />}>
-              New Chat
-            </Button>
           </Stack>
         </Box>
 
@@ -508,7 +690,7 @@ export default function WhatsAppUI() {
               {messages.map((msg) => {
                 const isOutbound = msg.direction === "OUTBOUND";
                 return (
-                  <Box key={msg._id} alignSelf={isOutbound ? "flex-end" : "flex-start"}>
+                  <Box key={msgKey(msg)} alignSelf={isOutbound ? "flex-end" : "flex-start"}>
                     <Paper
                       elevation={0}
                       sx={{
@@ -539,20 +721,20 @@ export default function WhatsAppUI() {
             <TextField
               fullWidth
               size="small"
-              placeholder="Type a message"
+              placeholder={sessionExpired ? "Session expired. Send a template to reopen chat" : "Type a message"}
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && sendText()}
-              disabled={!activeChat?.phone}
+              disabled={!activeChat?.phone || sessionExpired}
             />
-            <IconButton color="primary" onClick={sendText} disabled={!activeChat?.phone || !input.trim()}>
+            <IconButton color="primary" onClick={sendText} disabled={!activeChat?.phone || !input.trim() || sessionExpired}>
               <SendIcon />
             </IconButton>
           </Stack>
         </Box>
       </Box>
 
-      {/* New Chat Dialog (Screenshot-style) */}
+      {/* New Chat Dialog */}
       <Dialog
         open={newChatOpen}
         onClose={() => (creatingChat ? null : setNewChatOpen(false))}
@@ -600,15 +782,11 @@ export default function WhatsAppUI() {
                   </li>
                 );
               }}
-              renderInput={(params) => (
-                <TextField {...params} label="Search Template" size="small" placeholder="Search Template" />
-              )}
+              renderInput={(params) => <TextField {...params} label="Search Template" size="small" placeholder="Search Template" />}
               disabled={creatingChat}
             />
 
-            {/* Preview + Inputs */}
             <Box display="flex" gap={3} mt={1}>
-              {/* LEFT: preview bubble */}
               <Box flex={1} minWidth={280}>
                 <Typography fontWeight={700} mb={1}>
                   Template Body (Preview)
@@ -635,7 +813,6 @@ export default function WhatsAppUI() {
                 ) : null}
               </Box>
 
-              {/* RIGHT: variable inputs */}
               <Box flex={1} minWidth={320}>
                 <Typography fontWeight={700} mb={1}>
                   Input Variables
@@ -673,13 +850,9 @@ export default function WhatsAppUI() {
                             size="small"
                             placeholder="Enter Variable"
                             value={tplVars[String(i)] || ""}
-                            onChange={(e) =>
-                              setTplVars((prev) => ({ ...prev, [String(i)]: e.target.value }))
-                            }
+                            onChange={(e) => setTplVars((prev) => ({ ...prev, [String(i)]: e.target.value }))}
                             InputProps={{
-                              startAdornment: (
-                                <InputAdornment position="start">{`{{${i}}}`}</InputAdornment>
-                              ),
+                              startAdornment: <InputAdornment position="start">{`{{${i}}}`}</InputAdornment>,
                             }}
                             disabled={creatingChat}
                           />

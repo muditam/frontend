@@ -176,7 +176,7 @@ const PurchaseRecordsPage = () => {
       try {
         setLoading(true);
         const [recordsRes, vendorsRes] = await Promise.all([
-          axios.get("https://localhost:5001/api/purchase-records"),
+          axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/purchase-records"),
           axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/vendors"),
         ]);
         const recs = recordsRes.data || [];
