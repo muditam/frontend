@@ -1,4 +1,5 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+// src/whatsapp/WhatsAppUI.jsx
+import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import {
   Box,
   Stack,
@@ -22,6 +23,7 @@ import SendIcon from "@mui/icons-material/Send";
 import SearchIcon from "@mui/icons-material/Search";
 import AddIcon from "@mui/icons-material/Add";
 import RefreshIcon from "@mui/icons-material/Refresh";
+import { io } from "socket.io-client";
 
 const API_BASE = "https://muditamleads-14f32a10d7f7.herokuapp.com";
 
@@ -31,10 +33,12 @@ const API_BASE = "https://muditamleads-14f32a10d7f7.herokuapp.com";
 function digitsOnly(v = "") {
   return String(v || "").replace(/\D/g, "");
 }
-
 function phoneLabel(v = "") {
   const p = digitsOnly(v);
   return p.length >= 10 ? p.slice(-10) : p;
+}
+function roomForPhone10(p10) {
+  return `wa:${String(p10 || "").slice(-10)}`;
 }
 
 async function api(path, options = {}) {
@@ -72,7 +76,6 @@ function formatTime(ts) {
   if (Number.isNaN(d.getTime())) return "";
   return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
-
 function formatLastActive(ts) {
   if (!ts) return "—";
   const d = new Date(ts);
@@ -82,8 +85,10 @@ function formatLastActive(ts) {
 
 function statusChipProps(statusRaw) {
   const s = String(statusRaw || "").toUpperCase();
-  if (s.includes("APPROV")) return { label: "APPROVED", sx: { bgcolor: "#e7fbf2", color: "#1b7f4b" } };
-  if (s.includes("REJECT")) return { label: "REJECTED", sx: { bgcolor: "#ffeceb", color: "#b42318" } };
+  if (s.includes("APPROV"))
+    return { label: "APPROVED", sx: { bgcolor: "#e7fbf2", color: "#1b7f4b" } };
+  if (s.includes("REJECT"))
+    return { label: "REJECTED", sx: { bgcolor: "#ffeceb", color: "#b42318" } };
   if (s.includes("PEND") || s.includes("SUBMIT") || s.includes("REVIEW"))
     return { label: "PENDING", sx: { bgcolor: "#fff3dc", color: "#a15c07" } };
   return { label: s || "UNKNOWN", sx: { bgcolor: "#f4f6f8", color: "#344054" } };
@@ -130,20 +135,50 @@ function msgKey(m) {
    Name helpers
 ------------------------------ */
 function nameInitials(name = "") {
-  const parts = String(name || "").trim().split(/\s+/).filter(Boolean);
+  const parts = String(name || "")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
   if (!parts.length) return "?";
   if (parts.length === 1) return (parts[0][0] || "?").toUpperCase();
   return `${(parts[0][0] || "").toUpperCase()}${(parts[parts.length - 1][0] || "").toUpperCase()}`;
 }
-
 function chatDisplayName(chat) {
-  // backend should send displayName, else fallback to phone
   return chat?.displayName || phoneLabel(chat?.phone);
 }
-
 function assignedToText(chat) {
-  // backend should send assignedToLabel
   return `Assigned To: ${chat?.assignedToLabel || "—"}`;
+}
+
+/* -----------------------------
+   Unread badge (WhatsApp-like)
+------------------------------ */
+function UnreadBadge({ count }) {
+  const n = Number(count || 0);
+  if (!n) return null;
+  const label = n > 99 ? "99+" : String(n);
+  return (
+    <Box
+      sx={{
+        ml: 1,
+        minWidth: 22,
+        height: 22,
+        px: 0.75,
+        borderRadius: 999,
+        bgcolor: "#25D366",
+        color: "#fff",
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        fontSize: 12,
+        fontWeight: 900,
+        lineHeight: 1,
+        flexShrink: 0,
+      }}
+    >
+      {label}
+    </Box>
+  );
 }
 
 /* =========================================================
@@ -177,9 +212,19 @@ export default function WhatsAppUI() {
 
   const bottomRef = useRef(null);
   const prevLenRef = useRef(0);
-  const pollingRef = useRef(false);
+
+  // WhatsApp-like scroll behavior
+  const isNearBottomRef = useRef(true);
+
+  // "Unread highlight" cutoff
+  const openedCutoffRef = useRef(0);
+
+  // Socket
+  const socketRef = useRef(null);
+  const joinedRoomRef = useRef(null);
 
   const activePhoneDigits = useMemo(() => digitsOnly(activeChat?.phone), [activeChat?.phone]);
+  const activePhone10 = useMemo(() => phoneLabel(activeChat?.phone), [activeChat?.phone]);
 
   const activeConversation = useMemo(() => {
     if (!activeChat?.phone) return null;
@@ -187,68 +232,80 @@ export default function WhatsAppUI() {
     return conversations.find((c) => phoneLabel(c.phone) === p) || null;
   }, [activeChat?.phone, conversations]);
 
-  // Chatbox title format: Name(number)
   const activeHeaderTitle = useMemo(() => {
     if (!activeChat?.phone) return "Select a chat";
     const name = activeConversation ? chatDisplayName(activeConversation) : phoneLabel(activeChat.phone);
     const num = phoneLabel(activeChat.phone);
-    // if name already equals number, don't duplicate
     if (!name || name === num) return num || "—";
     return `${name} (${num})`;
   }, [activeChat?.phone, activeConversation]);
 
   const filteredConversations = useMemo(() => {
-    const s = phoneLabel(search);
-    if (!s) return conversations;
-    return conversations.filter((c) => phoneLabel(c.phone).includes(s));
+    const s10 = phoneLabel(search);
+    const q = String(search || "").trim().toLowerCase();
+    if (!q) return conversations;
+    return conversations.filter((c) => {
+      const p = phoneLabel(c.phone);
+      const nm = String(c.displayName || "").toLowerCase();
+      return p.includes(s10) || nm.includes(q);
+    });
   }, [conversations, search]);
 
   const canShowQuickChat = useMemo(() => phoneLabel(search).length === 10, [search]);
 
+  const sortedConversations = useMemo(() => {
+    const list = filteredConversations.slice();
+    list.sort((a, b) => {
+      const au = Number(a?.unreadCount || 0) > 0 ? 1 : 0;
+      const bu = Number(b?.unreadCount || 0) > 0 ? 1 : 0;
+      if (au !== bu) return bu - au;
+      const at = new Date(a?.lastMessageAt || 0).getTime();
+      const bt = new Date(b?.lastMessageAt || 0).getTime();
+      return bt - at;
+    });
+    return list;
+  }, [filteredConversations]);
+
   /* -----------------------------
-     Fetch: Conversations
+     Fetch: Conversations (no interval)
   ------------------------------ */
-  const refreshConversations = async (selectPhone = null) => {
-  setErrorChats("");
-  setLoadingChats(true);
-  try {
-    // 1. Fetch the user object from session storage
-    const sessionData = sessionStorage.getItem("user");
-    const userObj = sessionData ? JSON.parse(sessionData) : null;
+  const refreshConversations = useCallback(async (selectPhone = null, { silent = false } = {}) => {
+    setErrorChats("");
+    if (!silent) setLoadingChats(true);
 
-    // 2. Extract fullName and role
-    const userName = userObj?.fullName || ""; 
-    const userRole = userObj?.role || "";
+    try {
+      const sessionData = sessionStorage.getItem("user");
+      const userObj = sessionData ? JSON.parse(sessionData) : null;
 
-    // 3. Pass these to the API as query parameters
-    // Encode parameters to handle spaces in names (e.g., "Asha Kaushik")
-    const queryParams = new URLSearchParams({
-      role: userRole,
-      userName: userName
-    }).toString();
+      const userName = userObj?.fullName || "";
+      const userRole = userObj?.role || "";
 
-    const data = (await api(`/api/whatsapp/conversations?${queryParams}`)) || [];
-    const list = Array.isArray(data) ? data : [];
-    
-    setConversations(list);
+      const queryParams = new URLSearchParams({ role: userRole, userName }).toString();
+      const data = (await api(`/api/whatsapp/conversations?${queryParams}`)) || [];
+      const list = Array.isArray(data) ? data : [];
 
-    if (selectPhone) {
-      setActiveChat({ phone: selectPhone });
-    } else if (!activeChat?.phone && list.length) {
-      setActiveChat({ phone: digitsOnly(list[0].phone) });
+      setConversations((prev) => {
+        // prevent “refresh flicker” if same data
+        const prevKey = prev.map((c) => `${phoneLabel(c.phone)}:${c.lastMessageAt}:${c.unreadCount}`).join("|");
+        const nextKey = list.map((c) => `${phoneLabel(c.phone)}:${c.lastMessageAt}:${c.unreadCount}`).join("|");
+        if (prevKey === nextKey) return prev;
+        return list;
+      });
+
+      if (selectPhone) setActiveChat({ phone: selectPhone });
+      else if (!activeChat?.phone && list.length) setActiveChat({ phone: digitsOnly(list[0].phone) });
+    } catch (e) {
+      setErrorChats(e.message || "Failed to load conversations");
+      if (!silent) setConversations([]);
+    } finally {
+      if (!silent) setLoadingChats(false);
     }
-  } catch (e) {
-    setErrorChats(e.message || "Failed to load conversations");
-    setConversations([]);
-  } finally {
-    setLoadingChats(false);
-  }
-};
+  }, [activeChat?.phone]);
 
   /* -----------------------------
-     Fetch: Messages
+     Fetch: Messages (only on open)
   ------------------------------ */
-  const loadMessagesInitial = async (phoneAnyDigits) => {
+  const loadMessagesInitial = useCallback(async (phoneAnyDigits) => {
     const q = digitsOnly(phoneAnyDigits);
     if (!q) return;
 
@@ -263,45 +320,12 @@ export default function WhatsAppUI() {
     } finally {
       setLoadingMessages(false);
     }
-  };
-
-  const pollMessagesAppend = async (phoneAnyDigits) => {
-    const q = digitsOnly(phoneAnyDigits);
-    if (!q) return;
-    if (pollingRef.current) return;
-    pollingRef.current = true;
-
-    try {
-      const data = (await api(`/api/whatsapp/messages?phone=${encodeURIComponent(q)}`)) || [];
-      if (!Array.isArray(data)) return;
-
-      setMessages((prev) => {
-        if (!prev.length) return data;
-
-        const seen = new Set(prev.map((m) => msgKey(m)));
-        const toAdd = [];
-
-        for (const m of data) {
-          const k = msgKey(m);
-          if (!seen.has(k)) {
-            toAdd.push(m);
-            seen.add(k);
-          }
-        }
-
-        return toAdd.length ? [...prev, ...toAdd] : prev;
-      });
-    } catch (e) {
-      // silent on polling errors
-    } finally {
-      pollingRef.current = false;
-    }
-  };
+  }, []);
 
   /* -----------------------------
      Templates
   ------------------------------ */
-  const fetchTemplates = async () => {
+  const fetchTemplates = useCallback(async () => {
     setLoadingTemplates(true);
     try {
       const data = await api(`/api/whatsapp/templates`);
@@ -312,19 +336,163 @@ export default function WhatsAppUI() {
     } finally {
       setLoadingTemplates(false);
     }
-  };
+  }, []);
 
   /* -----------------------------
-     Initial boot
+     Mark read (optimistic)
+  ------------------------------ */
+  const markConversationRead = useCallback(async (phoneDigits, { optimisticOnly = false } = {}) => {
+    const p10 = phoneLabel(phoneDigits);
+    const nowIso = new Date().toISOString();
+
+    setConversations((prev) =>
+      prev.map((c) =>
+        phoneLabel(c.phone) === p10 ? { ...c, unreadCount: 0, lastReadAt: nowIso } : c
+      )
+    );
+
+    if (optimisticOnly) return;
+
+    try {
+      await api(`/api/whatsapp/conversations/mark-read`, {
+        method: "POST",
+        body: JSON.stringify({ phone: phoneDigits }),
+      });
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  /* -----------------------------
+     Boot: initial fetch
   ------------------------------ */
   useEffect(() => {
-    refreshConversations();
+    refreshConversations(null, { silent: false });
     fetchTemplates();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   /* -----------------------------
-     When active chat changes
+     Socket: connect once
+  ------------------------------ */
+  useEffect(() => {
+    const s = io(API_BASE, {
+      withCredentials: true,
+      transports: ["websocket"],
+    });
+    socketRef.current = s;
+
+    return () => {
+      try {
+        s.disconnect();
+      } catch {}
+      socketRef.current = null;
+      joinedRoomRef.current = null;
+    };
+  }, []);
+
+  /* -----------------------------
+     Socket: join/leave room on active chat change
+  ------------------------------ */
+  useEffect(() => {
+    const s = socketRef.current;
+    if (!s) return;
+
+    const p10 = activePhone10;
+    const nextRoom = p10 ? roomForPhone10(p10) : null;
+
+    // leave previous
+    if (joinedRoomRef.current && joinedRoomRef.current !== nextRoom) {
+      s.emit("wa:leave", { phone10: joinedRoomRef.current.replace("wa:", "") });
+      joinedRoomRef.current = null;
+    }
+
+    // join new
+    if (nextRoom && joinedRoomRef.current !== nextRoom) {
+      s.emit("wa:join", { phone10: p10 });
+      joinedRoomRef.current = nextRoom;
+    }
+  }, [activePhone10]);
+
+  /* -----------------------------
+     Socket: listeners
+  ------------------------------ */
+  useEffect(() => {
+    const s = socketRef.current;
+    if (!s) return;
+
+    const onMessage = (msg) => {
+      // message belongs to active chat?
+      const msgP10 = phoneLabel(msg?.to || msg?.from);
+      if (!activePhone10 || msgP10 !== activePhone10) {
+        // still update sidebar preview + unread counts via conversation patch events ideally
+        // but if backend doesn't send patch, do minimal here:
+        setConversations((prev) => {
+          const idx = prev.findIndex((c) => phoneLabel(c.phone) === msgP10);
+          if (idx === -1) return prev;
+          const next = [...prev];
+          const existing = next[idx];
+          const isInbound = msg?.direction === "INBOUND";
+          next[idx] = {
+            ...existing,
+            lastMessageAt: msg?.timestamp || new Date().toISOString(),
+            lastMessageText: String(msg?.text || "").slice(0, 200),
+            unreadCount: isInbound ? Number(existing?.unreadCount || 0) + 1 : existing?.unreadCount || 0,
+          };
+          return next;
+        });
+        return;
+      }
+
+      // append message
+      setMessages((prev) => {
+        const seen = new Set(prev.map((m) => msgKey(m)));
+        const k = msgKey(msg);
+        if (seen.has(k)) return prev;
+        return [...prev, msg];
+      });
+
+      // if inbound and open chat -> mark read
+      if (msg?.direction === "INBOUND") {
+        markConversationRead(activePhone10, { optimisticOnly: false });
+      }
+
+      // update preview
+      setConversations((prev) =>
+        prev.map((c) =>
+          phoneLabel(c.phone) === activePhone10
+            ? {
+                ...c,
+                lastMessageAt: msg?.timestamp || new Date().toISOString(),
+                lastMessageText: String(msg?.text || "").slice(0, 200),
+              }
+            : c
+        )
+      );
+    };
+
+    const onStatus = ({ waId, status }) => {
+      setMessages((prev) => prev.map((m) => (m.waId === waId ? { ...m, status } : m)));
+    };
+
+    const onConversation = ({ phone, patch }) => {
+      const p10 = phoneLabel(phone);
+      setConversations((prev) => prev.map((c) => (phoneLabel(c.phone) === p10 ? { ...c, ...patch } : c)));
+    };
+
+    s.on("wa:message", onMessage);
+    s.on("wa:status", onStatus);
+    s.on("wa:conversation", onConversation);
+
+    return () => {
+      s.off("wa:message", onMessage);
+      s.off("wa:status", onStatus);
+      s.off("wa:conversation", onConversation);
+    };
+  }, [activePhone10, markConversationRead]);
+
+  /* -----------------------------
+     When active chat changes: load messages once
   ------------------------------ */
   useEffect(() => {
     if (!activePhoneDigits) return;
@@ -332,38 +500,33 @@ export default function WhatsAppUI() {
     setErrorMessages("");
     setMessages([]);
     loadMessagesInitial(activePhoneDigits);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activePhoneDigits]);
+  }, [activePhoneDigits, loadMessagesInitial]);
 
   /* -----------------------------
-     Polling
+     Auto-scroll only when new arrives AND user near bottom
   ------------------------------ */
   useEffect(() => {
-    if (!activePhoneDigits) return;
-    const id = setInterval(() => {
-      pollMessagesAppend(activePhoneDigits);
-    }, 8000);
-    return () => clearInterval(id);
-  }, [activePhoneDigits]);
-
-  /* -----------------------------
-     Auto-scroll only when new arrives
-  ------------------------------ */
-  useEffect(() => {
-    if (messages.length > prevLenRef.current) {
+    if (messages.length > prevLenRef.current && isNearBottomRef.current) {
       bottomRef.current?.scrollIntoView({ behavior: "smooth" });
     }
     prevLenRef.current = messages.length;
   }, [messages.length]);
 
+  const onChatScroll = (e) => {
+    const el = e.currentTarget;
+    const distance = el.scrollHeight - el.scrollTop - el.clientHeight;
+    isNearBottomRef.current = distance < 120;
+  };
+
   /* -----------------------------
-     Session reset when inbound arrives
+     Mark read after initial load (open chat)
   ------------------------------ */
   useEffect(() => {
-    if (messages.some((m) => m.direction === "INBOUND")) {
-      setSessionExpired(false);
-    }
-  }, [messages]);
+    if (!activePhoneDigits) return;
+    if (loadingMessages) return;
+    const unread = Number(activeConversation?.unreadCount || 0);
+    if (unread > 0) markConversationRead(activePhoneDigits);
+  }, [activePhoneDigits, loadingMessages, activeConversation?.unreadCount, markConversationRead]);
 
   /* -----------------------------
      UI actions
@@ -371,13 +534,16 @@ export default function WhatsAppUI() {
   const openChat = (phone) => {
     const p = digitsOnly(phone);
     if (!p) return;
+
+    const conv = conversations.find((c) => phoneLabel(c.phone) === phoneLabel(p));
+    openedCutoffRef.current = conv?.lastReadAt ? new Date(conv.lastReadAt).getTime() : 0;
+
     setActiveChat({ phone: p });
     setSearch("");
   };
 
   const updateConversationPreviewLocal = (phoneDigits, lastMessageText) => {
     const nowIso = new Date().toISOString();
-
     setConversations((prev) => {
       const pLabel = phoneLabel(phoneDigits);
       const idx = prev.findIndex((c) => phoneLabel(c.phone) === pLabel);
@@ -388,6 +554,7 @@ export default function WhatsAppUI() {
             phone: phoneDigits,
             lastMessageAt: nowIso,
             lastMessageText: lastMessageText?.slice?.(0, 200) || "",
+            unreadCount: 0,
           },
           ...prev,
         ];
@@ -416,6 +583,7 @@ export default function WhatsAppUI() {
       direction: "OUTBOUND",
       text,
       timestamp: new Date().toISOString(),
+      status: "sent",
     };
 
     setMessages((prev) => [...prev, optimistic]);
@@ -428,7 +596,9 @@ export default function WhatsAppUI() {
         body: JSON.stringify({ to, text }),
       });
 
-      await pollMessagesAppend(to);
+      // No polling needed. Backend emits wa:message and/or wa:conversation patch.
+      // If provider response isn't pushing immediately, do ONE silent sync:
+      refreshConversations(null, { silent: true });
     } catch (e) {
       setMessages((prev) => prev.filter((m) => m._id !== optimistic._id));
       setInput(text);
@@ -475,7 +645,6 @@ export default function WhatsAppUI() {
     const body = pickBodyTextFromTemplate(selectedTemplate);
     const idxs = extractVarIndexes(body);
     const params = idxs.map((i) => tplVars[String(i)]?.trim());
-
     if (params.some((v) => !v)) return setNewChatError("Fill all template variables");
 
     setCreatingChat(true);
@@ -497,9 +666,13 @@ export default function WhatsAppUI() {
       setTplVars({});
 
       updateConversationPreviewLocal(to, `[TEMPLATE] ${selectedTemplate.name}`);
-
       setActiveChat({ phone: to });
+
+      // load once
       await loadMessagesInitial(to);
+
+      // sidebar refresh (silent)
+      refreshConversations(null, { silent: true });
     } catch (e) {
       setNewChatError(e.message || "Failed to send template");
     } finally {
@@ -527,7 +700,7 @@ export default function WhatsAppUI() {
             <IconButton
               size="small"
               onClick={() => {
-                refreshConversations();
+                refreshConversations(null, { silent: false });
                 fetchTemplates();
               }}
               title="Refresh"
@@ -596,8 +769,9 @@ export default function WhatsAppUI() {
                 </Box>
               )}
 
-              {filteredConversations.map((chat) => {
+              {sortedConversations.map((chat) => {
                 const isActive = phoneLabel(activeChat?.phone) === phoneLabel(chat.phone);
+                const unread = Number(chat?.unreadCount || 0);
 
                 return (
                   <Box
@@ -615,12 +789,19 @@ export default function WhatsAppUI() {
                       <Avatar>{nameInitials(chatDisplayName(chat))}</Avatar>
 
                       <Box flex={1} minWidth={0}>
-                        <Typography fontSize={14} fontWeight={600} noWrap>
-                          {chatDisplayName(chat)}
-                        </Typography>
+                        <Stack direction="row" alignItems="center" justifyContent="space-between" gap={1}>
+                          <Typography fontSize={14} fontWeight={unread > 0 ? 900 : 600} noWrap>
+                            {chatDisplayName(chat)}
+                          </Typography>
+                          <UnreadBadge count={unread} />
+                        </Stack>
 
-                        {/* KEEP Assigned To in conversations list */}
-                        <Typography fontSize={12} color="text.secondary" noWrap>
+                        <Typography
+                          fontSize={12}
+                          color="text.secondary"
+                          noWrap
+                          sx={{ fontWeight: unread > 0 ? 800 : 400 }}
+                        >
                           {assignedToText(chat)}
                         </Typography>
 
@@ -633,7 +814,7 @@ export default function WhatsAppUI() {
                 );
               })}
 
-              {!filteredConversations.length && !canShowQuickChat && (
+              {!sortedConversations.length && !canShowQuickChat && (
                 <Box px={2} py={2}>
                   <Typography fontSize={13} color="text.secondary">
                     No conversations found. (Webhook must receive messages to create chats.)
@@ -657,11 +838,9 @@ export default function WhatsAppUI() {
               </Avatar>
 
               <Box>
-                {/* ✅ Chatbox title: Name(number) */}
                 <Typography fontWeight={700}>{activeHeaderTitle}</Typography>
               </Box>
             </Stack>
-
           </Stack>
         </Box>
 
@@ -669,6 +848,7 @@ export default function WhatsAppUI() {
           flex={1}
           p={2}
           overflow="auto"
+          onScroll={onChatScroll}
           sx={{ backgroundImage: "url('https://web.whatsapp.com/img/bg-chat-tile-light.png')" }}
         >
           {!activeChat?.phone ? (
@@ -689,6 +869,10 @@ export default function WhatsAppUI() {
             <Stack spacing={1}>
               {messages.map((msg) => {
                 const isOutbound = msg.direction === "OUTBOUND";
+                const cutoff = openedCutoffRef.current || 0;
+                const ts = new Date(msg.timestamp || 0).getTime();
+                const wasUnread = !isOutbound && cutoff && ts > cutoff;
+
                 return (
                   <Box key={msgKey(msg)} alignSelf={isOutbound ? "flex-end" : "flex-start"}>
                     <Paper
@@ -698,12 +882,15 @@ export default function WhatsAppUI() {
                         py: 1,
                         maxWidth: 520,
                         bgcolor: isOutbound ? "#dcf8c6" : "#fff",
-                        border: "1px solid rgba(0,0,0,0.06)",
+                        border: wasUnread
+                          ? "1px solid rgba(37,211,102,0.65)"
+                          : "1px solid rgba(0,0,0,0.06)",
                       }}
                     >
-                      <Typography fontSize={14} whiteSpace="pre-wrap">
+                      <Typography fontSize={14} whiteSpace="pre-wrap" sx={{ fontWeight: wasUnread ? 800 : 400 }}>
                         {msg.text || ""}
                       </Typography>
+
                       <Typography fontSize={10} textAlign="right" color="text.secondary">
                         {formatTime(msg.timestamp)}
                       </Typography>
@@ -782,7 +969,9 @@ export default function WhatsAppUI() {
                   </li>
                 );
               }}
-              renderInput={(params) => <TextField {...params} label="Search Template" size="small" placeholder="Search Template" />}
+              renderInput={(params) => (
+                <TextField {...params} label="Search Template" size="small" placeholder="Search Template" />
+              )}
               disabled={creatingChat}
             />
 
@@ -850,7 +1039,12 @@ export default function WhatsAppUI() {
                             size="small"
                             placeholder="Enter Variable"
                             value={tplVars[String(i)] || ""}
-                            onChange={(e) => setTplVars((prev) => ({ ...prev, [String(i)]: e.target.value }))}
+                            onChange={(e) =>
+                              setTplVars((prev) => ({
+                                ...prev,
+                                [String(i)]: e.target.value,
+                              }))
+                            }
                             InputProps={{
                               startAdornment: <InputAdornment position="start">{`{{${i}}}`}</InputAdornment>,
                             }}

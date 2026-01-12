@@ -40,17 +40,17 @@ const emptyFortnight = () =>
     acc[meal] = Array(FORTNIGHT_DAYS).fill("");
     return acc;
   }, {});
-
-// ▶ Monthly default WITHOUT Mid-Morning Snack
+ 
 const defaultMonthly = () => ({
-  "Early Morning": { title: "Early Morning Options (Select any one)", time: "5am-6am", options: [""], },
-  Breakfast: { title: "Breakfast Options (Select any one)", time: "8am-9am", options: [""] },
-  "Mid Morning": { title: "Mid Morning Options (Select any one)", time: "11am-12pm", options: [""], },
-  Lunch: { title: "Lunch Options (Select any one)", time: "1pm-2pm", options: [""] },
-  "Evening Snack": { title: "Evening Snack Options (Select any one)", time: "4pm-5pm", options: [""] },
-  Dinner: { title: "Dinner Options (Select any one)", time: "7pm-8pm", options: [""] },
-  "Bed Time": { title: "Bed Time Options (Select any one)", time: "8:30pm", options: [""], },
+  "Early Morning": { title: "Early Morning Options (Select any one)", time: "5am-6am", options: ["-"] },
+  Breakfast: { title: "Breakfast Options (Select any one)", time: "8am-9am", options: ["-"] },
+  "Mid Morning": { title: "Mid Morning Options (Select any one)", time: "11am-12pm", options: ["-"] },
+  Lunch: { title: "Lunch Options (Select any one)", time: "1pm-2pm", options: ["-"] },
+  "Evening Snack": { title: "Evening Snack Options (Select any one)", time: "4pm-5pm", options: ["-"] },
+  Dinner: { title: "Dinner Options (Select any one)", time: "7pm-8pm", options: ["-"] },
+  "Bed Time": { title: "Bed Time Options (Select any one)", time: "8:30pm", options: ["-"] },
 });
+
 
 export default function DietTemplatesAdmin() {
   const [rows, setRows] = useState([]);
@@ -150,17 +150,19 @@ export default function DietTemplatesAdmin() {
     });
   };
   const addMonthlyOption = (slot) => {
-    setMonthly(prev => {
-      const list = [...prev[slot].options, ""];
-      return { ...prev, [slot]: { ...prev[slot], options: list } };
-    });
-  };
-  const removeMonthlyOption = (slot, idx) => {
-    setMonthly(prev => {
-      const list = prev[slot].options.filter((_, i) => i !== idx);
-      return { ...prev, [slot]: { ...prev[slot], options: list } };
-    });
-  };
+  setMonthly(prev => {
+    const list = [...(prev[slot].options || []), "-"];
+    return { ...prev, [slot]: { ...prev[slot], options: list } };
+  });
+};
+const removeMonthlyOption = (slot, idx) => {
+  setMonthly(prev => {
+    const current = prev[slot].options || [];
+    if (current.length <= 1) return prev;  
+    const list = current.filter((_, i) => i !== idx);
+    return { ...prev, [slot]: { ...prev[slot], options: list } };
+  });
+};
 
   const body = useMemo(() => {
     return formType === "weekly-14"
@@ -515,7 +517,7 @@ export default function DietTemplatesAdmin() {
                         <Stack key={idx} direction="row" spacing={1} alignItems="center" sx={{ mb: 1 }}>
                           <Tooltip title="Remove option">
                             <span>
-                              <IconButton size="small" onClick={() => removeMonthlyOption(slot, idx)} sx={{ color: "black" }} aria-label={`Delete option ${idx + 1}`}>
+                              <IconButton size="small" disabled={(s.options?.length || 0) <= 1} onClick={() => removeMonthlyOption(slot, idx)} sx={{ color: "black" }} aria-label={`Delete option ${idx + 1}`}>
                                 <DeleteIcon fontSize="small" />
                               </IconButton>
                             </span>

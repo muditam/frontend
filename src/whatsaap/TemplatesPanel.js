@@ -35,9 +35,21 @@ import DownloadRoundedIcon from "@mui/icons-material/DownloadRounded";
 const API_BASE = "https://muditamleads-14f32a10d7f7.herokuapp.com";
 const ACCENT = "#0aa59a";
 
-function safeJson(res) {
-  return res.json().catch(() => null);
+async function safeJson(res) {
+  const text = await res.text();
+  try {
+    return JSON.parse(text);
+  } catch {
+    console.error(
+      "Non-JSON response:",
+      res.status,
+      res.headers.get("content-type"),
+      text.slice(0, 200)
+    );
+    return null;
+  }
 }
+
 
 function onlyAllowedTemplateName(v) {
   return (v || "")
@@ -219,19 +231,34 @@ export default function TemplatesPanel() {
 
     try {
       const res = await fetch(`${API_BASE}/api/whatsapp/templates`, {
-        credentials: "include",
+        // ✅ IMPORTANT: try without cookies first
+        credentials: "omit",
+        headers: { Accept: "application/json" },
       });
 
       const data = await safeJson(res);
 
-      const list = Array.isArray(data?.templates) ? data.templates : [];
+      if (!res.ok) {
+        console.error("Templates API failed:", res.status, data);
+        setTemplates([]);
+        return;
+      }
+
+      const list = Array.isArray(data)
+        ? data
+        : Array.isArray(data?.templates)
+          ? data.templates
+          : [];
+
       setTemplates(list);
 
-      if (data?.meta?.lastSyncAt) setLastSync(data.meta.lastSyncAt);
-      if (typeof data?.meta?.inSync === "boolean") setInSync(data.meta.inSync);
+      // meta only exists when backend returns object shape
+      const meta = !Array.isArray(data) ? data?.meta : null;
+      if (meta?.lastSyncAt) setLastSync(meta.lastSyncAt);
+      if (typeof meta?.inSync === "boolean") setInSync(meta.inSync);
     } catch (e) {
-      if (!silent) console.error("Fetch templates failed", e);
-      if (!silent) setTemplates([]);
+      console.error("Fetch templates failed", e);
+      setTemplates([]);
     } finally {
       if (!silent) setLoading(false);
     }
@@ -244,8 +271,8 @@ export default function TemplatesPanel() {
     try {
       const res = await fetch(`${API_BASE}/api/whatsapp/templates/sync`, {
         method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
+        credentials: "omit",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
       });
 
       const data = await safeJson(res);
@@ -275,7 +302,8 @@ export default function TemplatesPanel() {
     try {
       const res = await fetch(`${API_BASE}/api/whatsapp/templates/${id}`, {
         method: "DELETE",
-        credentials: "include",
+        credentials: "omit",
+        headers: { Accept: "application/json" },
       });
 
       if (!res.ok) await fetchTemplates({ silent: true });
@@ -352,13 +380,13 @@ export default function TemplatesPanel() {
         example:
           bodyVars.length > 0
             ? {
-                body_text: [
-                  bodyVars.map((n) => {
-                    const v = sampleVars[String(n)];
-                    return v && String(v).trim() ? String(v) : `sample_${n}`;
-                  }),
-                ],
-              }
+              body_text: [
+                bodyVars.map((n) => {
+                  const v = sampleVars[String(n)];
+                  return v && String(v).trim() ? String(v) : `sample_${n}`;
+                }),
+              ],
+            }
             : undefined,
       });
 
@@ -375,8 +403,8 @@ export default function TemplatesPanel() {
 
       const res = await fetch(`${API_BASE}/api/whatsapp/templates`, {
         method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
+        credentials: "omit",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
         body: JSON.stringify(payload),
       });
 
