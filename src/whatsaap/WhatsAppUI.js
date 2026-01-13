@@ -250,6 +250,19 @@ function MessageTicks({ status }) {
   return null;
 }
 
+/* -----------------------------
+   Customer phone resolver (CRITICAL)
+   - OUTBOUND: customer is "to"
+   - INBOUND:  customer is "from"
+------------------------------ */
+function customerPhoneFromMsg(msg) {
+  const dir = String(msg?.direction || "").toUpperCase();
+  if (dir === "OUTBOUND") return msg?.to || "";
+  if (dir === "INBOUND") return msg?.from || "";
+  // fallback
+  return msg?.phone || msg?.to || msg?.from || "";
+}
+
 /* =========================================================
    Component
 ========================================================= */
@@ -383,12 +396,12 @@ export default function WhatsAppUI() {
   );
 
   /* -----------------------------
-     Core: Upsert conversation from a message
+     Core: Upsert conversation from a message (customer-based)
   ------------------------------ */
   const upsertConversationFromMessage = useCallback(
     (msg) => {
-      const msgPhone = msg?.phone || msg?.from || msg?.to || "";
-      const p10 = phone10(msgPhone);
+      const customerPhone = customerPhoneFromMsg(msg);
+      const p10 = phone10(customerPhone);
       if (!p10) return;
 
       const isInbound = String(msg?.direction || "").toUpperCase() === "INBOUND";
@@ -411,7 +424,7 @@ export default function WhatsAppUI() {
         if (idx === -1) {
           return [
             {
-              phone: msgPhone,
+              phone: customerPhone,
               displayName: "",
               assignedToLabel: "",
               lastMessageAt: nowIso,
@@ -436,10 +449,11 @@ export default function WhatsAppUI() {
 
         next[idx] = {
           ...existing,
+          phone: existing?.phone || customerPhone,
           lastMessageAt: nowIso,
           lastMessageText: lastText || existing?.lastMessageText || "",
           unreadCount: newUnread,
-          lastReadAt: (isActive || forceRead) ? (pending?.iso || nowIso) : existing?.lastReadAt,
+          lastReadAt: isActive || forceRead ? (pending?.iso || nowIso) : existing?.lastReadAt,
         };
 
         const [item] = next.splice(idx, 1);
@@ -464,7 +478,7 @@ export default function WhatsAppUI() {
         const data = (await api(`/api/whatsapp/conversations?${queryParams}`)) || [];
         const serverList = Array.isArray(data) ? data : [];
 
-        // IMPORTANT: keep “read” sticky for a short window, so server refresh doesn't revert unreadCount
+        // keep “read” sticky for a short window
         const now = Date.now();
         const list = serverList.map((c) => {
           const p10 = phone10(c.phone);
@@ -540,10 +554,8 @@ export default function WhatsAppUI() {
 
     const nowIso = new Date().toISOString();
 
-    // sticky local
     pendingReadRef.current.set(p10, { at: Date.now(), iso: nowIso });
 
-    // optimistic UI
     setConversations((prev) =>
       prev.map((c) => (phone10(c.phone) === p10 ? { ...c, unreadCount: 0, lastReadAt: nowIso } : c))
     );
@@ -556,7 +568,7 @@ export default function WhatsAppUI() {
         body: JSON.stringify({ phone }),
       });
     } catch {
-      // ignore (still keep local sticky)
+      // ignore
     }
   }, []);
 
@@ -590,7 +602,6 @@ export default function WhatsAppUI() {
     const onConnect = () => {
       setSocketStatus("connected");
       refreshConversations(null, { silent: true });
-      // if chat already selected, join immediately
       if (activeP10) {
         s.emit("wa:join", { phone10: activeP10 });
         joinedRoomRef.current = roomForPhone10(activeP10);
@@ -613,7 +624,6 @@ export default function WhatsAppUI() {
       socketRef.current = null;
       joinedRoomRef.current = null;
     };
-    // NOTE: activeP10 is used inside onConnect for auto join
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [refreshConversations]);
 
@@ -640,6 +650,7 @@ export default function WhatsAppUI() {
 
   /* -----------------------------
      Socket: listeners (payload-shape safe)
+     ✅ FIX: Always use customer phone (never business phone)
   ------------------------------ */
   useEffect(() => {
     const s = socketRef.current;
@@ -649,7 +660,7 @@ export default function WhatsAppUI() {
     const resolveP10FromPayload = (payload, msg) => {
       const p10FromPayload = phone10(payload?.phone10 || payload?.phone || "");
       if (p10FromPayload) return p10FromPayload;
-      return phone10(msg?.phone || msg?.from || msg?.to || "");
+      return phone10(customerPhoneFromMsg(msg));
     };
 
     const onMessage = (payload) => {
@@ -659,9 +670,11 @@ export default function WhatsAppUI() {
       const p10 = resolveP10FromPayload(payload, msg);
       if (!p10) return;
 
+      // enforce "phone" as customer phone (so all local code works)
+      const customerPhone = customerPhoneFromMsg(msg);
       const normalizedMsg = {
         ...msg,
-        phone: msg?.phone || msg?.from || msg?.to || p10,
+        phone: customerPhone || p10,
       };
 
       upsertConversationFromMessage(normalizedMsg);
@@ -677,12 +690,6 @@ export default function WhatsAppUI() {
         if (String(normalizedMsg?.direction || "").toUpperCase() === "INBOUND") {
           markConversationRead(activeDigits, { optimisticOnly: false });
         }
-      }
-
-      if (payload?.windowExpiresAt) {
-        setConversations((prev) =>
-          prev.map((c) => (phone10(c.phone) === p10 ? { ...c, windowExpiresAt: payload.windowExpiresAt } : c))
-        );
       }
     };
 
@@ -704,7 +711,26 @@ export default function WhatsAppUI() {
       const patch = payload?.patch ? payload.patch : payload;
       if (!patch) return;
 
-      setConversations((prev) => prev.map((c) => (phone10(c.phone) === p10 ? { ...c, ...patch } : c)));
+      setConversations((prev) =>
+        prev.map((c) => {
+          if (phone10(c.phone) !== p10) return c;
+
+          // support delta form (old servers) AND absolute form (new server)
+          const delta = Number(patch?.unreadCountDelta || 0);
+          const hasAbsolute = typeof patch?.unreadCount === "number";
+
+          const nextUnread = hasAbsolute ? patch.unreadCount : Math.max(0, Number(c.unreadCount || 0) + delta);
+
+          const cleanedPatch = { ...patch };
+          delete cleanedPatch.unreadCountDelta;
+
+          return {
+            ...c,
+            ...cleanedPatch,
+            unreadCount: nextUnread,
+          };
+        })
+      );
     };
 
     s.on("wa:message", onMessage);
@@ -857,6 +883,7 @@ export default function WhatsAppUI() {
       timestamp: new Date().toISOString(),
       status: "sent",
       to,
+      phone: to,
       media: {
         url: "",
         mime: file.type || "application/octet-stream",
@@ -1429,7 +1456,11 @@ export default function WhatsAppUI() {
 
               <Tooltip title={sessionExpired ? "Send template to reopen session" : "Attachment (≤ 5MB)"}>
                 <span>
-                  <IconButton size="small" disabled={!activeChat?.phone} onClick={() => fileRef.current?.click()}>
+                  <IconButton
+                    size="small"
+                    disabled={!activeChat?.phone || sessionExpired}
+                    onClick={() => fileRef.current?.click()}
+                  >
                     <AttachFileIcon fontSize="small" />
                   </IconButton>
                 </span>
