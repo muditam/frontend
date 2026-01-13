@@ -14,18 +14,35 @@ import {
   Dialog,
   DialogTitle,
   DialogContent,
-  DialogActions,
   InputAdornment,
   Chip,
   Autocomplete,
+  Menu,
+  MenuItem,
+  Tooltip,
 } from "@mui/material";
+
 import SendIcon from "@mui/icons-material/Send";
 import SearchIcon from "@mui/icons-material/Search";
 import AddIcon from "@mui/icons-material/Add";
 import RefreshIcon from "@mui/icons-material/Refresh";
+
+import FlashOnIcon from "@mui/icons-material/FlashOn";
+import ViewListIcon from "@mui/icons-material/ViewList";
+import InsertEmoticonIcon from "@mui/icons-material/InsertEmoticon";
+import AttachFileIcon from "@mui/icons-material/AttachFile";
+import AutoFixHighIcon from "@mui/icons-material/AutoFixHigh";
+import AutorenewIcon from "@mui/icons-material/Autorenew";
+
+import DoneIcon from "@mui/icons-material/Done";
+import DoneAllIcon from "@mui/icons-material/DoneAll";
+
 import { io } from "socket.io-client";
 
 const API_BASE = "https://muditamleads-14f32a10d7f7.herokuapp.com";
+
+// toggle this if you want to see socket events
+const DEBUG_SOCKET = false;
 
 /* -----------------------------
    Helpers
@@ -33,7 +50,7 @@ const API_BASE = "https://muditamleads-14f32a10d7f7.herokuapp.com";
 function digitsOnly(v = "") {
   return String(v || "").replace(/\D/g, "");
 }
-function phoneLabel(v = "") {
+function phone10(v = "") {
   const p = digitsOnly(v);
   return p.length >= 10 ? p.slice(-10) : p;
 }
@@ -50,6 +67,31 @@ async function api(path, options = {}) {
       "Content-Type": "application/json",
       ...(options.headers || {}),
     },
+  });
+
+  const text = await res.text();
+  let data = null;
+  try {
+    data = text ? JSON.parse(text) : null;
+  } catch {
+    data = null;
+  }
+
+  if (!res.ok) {
+    const msg = data?.message || `Request failed: ${res.status}`;
+    const err = new Error(msg);
+    err.status = res.status;
+    err.data = data;
+    throw err;
+  }
+  return data;
+}
+
+async function apiForm(path, formData) {
+  const res = await fetch(`${API_BASE}${path}`, {
+    method: "POST",
+    credentials: "include",
+    body: formData,
   });
 
   const text = await res.text();
@@ -97,6 +139,7 @@ function statusChipProps(statusRaw) {
 function pickBodyTextFromTemplate(tpl) {
   if (!tpl) return "";
   if (tpl.body) return String(tpl.body || "");
+  if (tpl.bodyText) return String(tpl.bodyText || "");
   const comps =
     (Array.isArray(tpl.components) && tpl.components) ||
     (Array.isArray(tpl.raw360?.components) && tpl.raw360.components) ||
@@ -144,14 +187,14 @@ function nameInitials(name = "") {
   return `${(parts[0][0] || "").toUpperCase()}${(parts[parts.length - 1][0] || "").toUpperCase()}`;
 }
 function chatDisplayName(chat) {
-  return chat?.displayName || phoneLabel(chat?.phone);
+  return chat?.displayName || phone10(chat?.phone);
 }
 function assignedToText(chat) {
   return `Assigned To: ${chat?.assignedToLabel || "—"}`;
 }
 
 /* -----------------------------
-   Unread badge (WhatsApp-like)
+   Unread badge
 ------------------------------ */
 function UnreadBadge({ count }) {
   const n = Number(count || 0);
@@ -179,6 +222,32 @@ function UnreadBadge({ count }) {
       {label}
     </Box>
   );
+}
+
+/* -----------------------------
+   Ticks
+------------------------------ */
+function normalizeStatus(s) {
+  const v = String(s || "").toLowerCase().trim();
+  if (["read", "seen"].includes(v)) return "read";
+  if (["delivered", "deliver", "received"].includes(v)) return "delivered";
+  if (["sent"].includes(v)) return "sent";
+  if (["failed", "error"].includes(v)) return "failed";
+  return v;
+}
+function MessageTicks({ status }) {
+  const st = normalizeStatus(status);
+  if (st === "read") return <DoneAllIcon sx={{ fontSize: 14, ml: 0.5, color: "#1DA1F2" }} />;
+  if (st === "delivered")
+    return <DoneAllIcon sx={{ fontSize: 14, ml: 0.5, color: "rgba(0,0,0,0.55)" }} />;
+  if (st === "sent") return <DoneIcon sx={{ fontSize: 14, ml: 0.5, color: "rgba(0,0,0,0.55)" }} />;
+  if (st === "failed")
+    return (
+      <Typography component="span" sx={{ fontSize: 12, color: "error.main", ml: 0.5, fontWeight: 900 }}>
+        !
+      </Typography>
+    );
+  return null;
 }
 
 /* =========================================================
@@ -210,48 +279,75 @@ export default function WhatsAppUI() {
 
   const [tplVars, setTplVars] = useState({});
 
+  const [socketStatus, setSocketStatus] = useState("disconnected");
+
   const bottomRef = useRef(null);
   const prevLenRef = useRef(0);
 
-  // WhatsApp-like scroll behavior
   const isNearBottomRef = useRef(true);
-
-  // "Unread highlight" cutoff
   const openedCutoffRef = useRef(0);
 
-  // Socket
   const socketRef = useRef(null);
   const joinedRoomRef = useRef(null);
 
-  const activePhoneDigits = useMemo(() => digitsOnly(activeChat?.phone), [activeChat?.phone]);
-  const activePhone10 = useMemo(() => phoneLabel(activeChat?.phone), [activeChat?.phone]);
+  // IMPORTANT: keeps local “read” sticky so refreshConversations doesn’t re-add unread
+  const pendingReadRef = useRef(new Map()); // phone10 -> { at:number, iso:string }
+
+  // bottom composer menus
+  const [quickAnchor, setQuickAnchor] = useState(null);
+  const [tplAnchor, setTplAnchor] = useState(null);
+  const [emojiAnchor, setEmojiAnchor] = useState(null);
+
+  const fileRef = useRef(null);
+
+  const [tplComposeOpen, setTplComposeOpen] = useState(false);
+  const [activeTplForSend, setActiveTplForSend] = useState(null);
+  const [tplSendVars, setTplSendVars] = useState({});
+
+  const [helpWriteLoading, setHelpWriteLoading] = useState(false);
+
+  const [rephraseOpen, setRephraseOpen] = useState(false);
+  const [rephraseStyle, setRephraseStyle] = useState("professional");
+  const [rephraseLoading, setRephraseLoading] = useState(false);
+
+  const activeDigits = useMemo(() => digitsOnly(activeChat?.phone), [activeChat?.phone]);
+  const activeP10 = useMemo(() => phone10(activeChat?.phone), [activeChat?.phone]);
+
+  const sessionUser = useMemo(() => {
+    try {
+      const raw = sessionStorage.getItem("user");
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
+    }
+  }, []);
+
+  const agentName = useMemo(() => sessionUser?.fullName || "", [sessionUser?.fullName]);
 
   const activeConversation = useMemo(() => {
-    if (!activeChat?.phone) return null;
-    const p = phoneLabel(activeChat.phone);
-    return conversations.find((c) => phoneLabel(c.phone) === p) || null;
-  }, [activeChat?.phone, conversations]);
+    if (!activeP10) return null;
+    return conversations.find((c) => phone10(c.phone) === activeP10) || null;
+  }, [activeP10, conversations]);
 
   const activeHeaderTitle = useMemo(() => {
-    if (!activeChat?.phone) return "Select a chat";
-    const name = activeConversation ? chatDisplayName(activeConversation) : phoneLabel(activeChat.phone);
-    const num = phoneLabel(activeChat.phone);
-    if (!name || name === num) return num || "—";
-    return `${name} (${num})`;
-  }, [activeChat?.phone, activeConversation]);
+    if (!activeP10) return "Select a chat";
+    const name = activeConversation ? chatDisplayName(activeConversation) : activeP10;
+    if (!name || name === activeP10) return activeP10 || "—";
+    return `${name} (${activeP10})`;
+  }, [activeP10, activeConversation]);
 
   const filteredConversations = useMemo(() => {
-    const s10 = phoneLabel(search);
     const q = String(search || "").trim().toLowerCase();
+    const s10 = phone10(search);
     if (!q) return conversations;
     return conversations.filter((c) => {
-      const p = phoneLabel(c.phone);
+      const p = phone10(c.phone);
       const nm = String(c.displayName || "").toLowerCase();
       return p.includes(s10) || nm.includes(q);
     });
   }, [conversations, search]);
 
-  const canShowQuickChat = useMemo(() => phoneLabel(search).length === 10, [search]);
+  const canShowQuickChat = useMemo(() => phone10(search).length === 10, [search]);
 
   const sortedConversations = useMemo(() => {
     const list = filteredConversations.slice();
@@ -259,6 +355,7 @@ export default function WhatsAppUI() {
       const au = Number(a?.unreadCount || 0) > 0 ? 1 : 0;
       const bu = Number(b?.unreadCount || 0) > 0 ? 1 : 0;
       if (au !== bu) return bu - au;
+
       const at = new Date(a?.lastMessageAt || 0).getTime();
       const bt = new Date(b?.lastMessageAt || 0).getTime();
       return bt - at;
@@ -267,43 +364,133 @@ export default function WhatsAppUI() {
   }, [filteredConversations]);
 
   /* -----------------------------
-     Fetch: Conversations (no interval)
+     Quick replies / emojis
   ------------------------------ */
-  const refreshConversations = useCallback(async (selectPhone = null, { silent = false } = {}) => {
-    setErrorChats("");
-    if (!silent) setLoadingChats(true);
+  const QUICK_REPLIES = useMemo(
+    () => [
+      "Hi! How are you doing today?",
+      "Just checking in for your follow-up 😊",
+      "Can I call you in 10 minutes?",
+      "Please share your latest reports if available.",
+      "Thank you! I’m here if you need anything.",
+    ],
+    []
+  );
 
-    try {
-      const sessionData = sessionStorage.getItem("user");
-      const userObj = sessionData ? JSON.parse(sessionData) : null;
-
-      const userName = userObj?.fullName || "";
-      const userRole = userObj?.role || "";
-
-      const queryParams = new URLSearchParams({ role: userRole, userName }).toString();
-      const data = (await api(`/api/whatsapp/conversations?${queryParams}`)) || [];
-      const list = Array.isArray(data) ? data : [];
-
-      setConversations((prev) => {
-        // prevent “refresh flicker” if same data
-        const prevKey = prev.map((c) => `${phoneLabel(c.phone)}:${c.lastMessageAt}:${c.unreadCount}`).join("|");
-        const nextKey = list.map((c) => `${phoneLabel(c.phone)}:${c.lastMessageAt}:${c.unreadCount}`).join("|");
-        if (prevKey === nextKey) return prev;
-        return list;
-      });
-
-      if (selectPhone) setActiveChat({ phone: selectPhone });
-      else if (!activeChat?.phone && list.length) setActiveChat({ phone: digitsOnly(list[0].phone) });
-    } catch (e) {
-      setErrorChats(e.message || "Failed to load conversations");
-      if (!silent) setConversations([]);
-    } finally {
-      if (!silent) setLoadingChats(false);
-    }
-  }, [activeChat?.phone]);
+  const EMOJIS = useMemo(
+    () => ["😊", "😂", "🙏", "👍", "❤️", "🔥", "😄", "😅", "😇", "🤝", "😎", "🥳", "😢", "😡", "✅", "✨"],
+    []
+  );
 
   /* -----------------------------
-     Fetch: Messages (only on open)
+     Core: Upsert conversation from a message
+  ------------------------------ */
+  const upsertConversationFromMessage = useCallback(
+    (msg) => {
+      const msgPhone = msg?.phone || msg?.from || msg?.to || "";
+      const p10 = phone10(msgPhone);
+      if (!p10) return;
+
+      const isInbound = String(msg?.direction || "").toUpperCase() === "INBOUND";
+      const isActive = activeP10 && p10 === activeP10;
+
+      const nowIso = msg?.timestamp || new Date().toISOString();
+      const lastText =
+        msg?.media?.url
+          ? msg?.type === "image"
+            ? "📷 Photo"
+            : "📎 Attachment"
+          : String(msg?.text || "").slice(0, 200);
+
+      setConversations((prev) => {
+        const idx = prev.findIndex((c) => phone10(c.phone) === p10);
+
+        const pending = pendingReadRef.current.get(p10);
+        const forceRead = pending && Date.now() - pending.at < 30_000;
+
+        if (idx === -1) {
+          return [
+            {
+              phone: msgPhone,
+              displayName: "",
+              assignedToLabel: "",
+              lastMessageAt: nowIso,
+              lastMessageText: lastText,
+              unreadCount: isInbound && !isActive && !forceRead ? 1 : 0,
+              lastReadAt: isActive || forceRead ? (pending?.iso || nowIso) : null,
+            },
+            ...prev,
+          ];
+        }
+
+        const next = [...prev];
+        const existing = next[idx];
+
+        const newUnread = forceRead
+          ? 0
+          : isInbound
+          ? isActive
+            ? 0
+            : Number(existing?.unreadCount || 0) + 1
+          : Number(existing?.unreadCount || 0);
+
+        next[idx] = {
+          ...existing,
+          lastMessageAt: nowIso,
+          lastMessageText: lastText || existing?.lastMessageText || "",
+          unreadCount: newUnread,
+          lastReadAt: (isActive || forceRead) ? (pending?.iso || nowIso) : existing?.lastReadAt,
+        };
+
+        const [item] = next.splice(idx, 1);
+        return [item, ...next];
+      });
+    },
+    [activeP10]
+  );
+
+  /* -----------------------------
+     Fetch: Conversations
+  ------------------------------ */
+  const refreshConversations = useCallback(
+    async (selectPhone = null, { silent = false } = {}) => {
+      setErrorChats("");
+      if (!silent) setLoadingChats(true);
+
+      try {
+        const userName = sessionUser?.fullName || "";
+        const userRole = sessionUser?.role || "";
+        const queryParams = new URLSearchParams({ role: userRole, userName }).toString();
+        const data = (await api(`/api/whatsapp/conversations?${queryParams}`)) || [];
+        const serverList = Array.isArray(data) ? data : [];
+
+        // IMPORTANT: keep “read” sticky for a short window, so server refresh doesn't revert unreadCount
+        const now = Date.now();
+        const list = serverList.map((c) => {
+          const p10 = phone10(c.phone);
+          const pending = pendingReadRef.current.get(p10);
+          if (pending && now - pending.at < 30_000) {
+            return { ...c, unreadCount: 0, lastReadAt: pending.iso || c.lastReadAt };
+          }
+          return c;
+        });
+
+        setConversations(list);
+
+        if (selectPhone) setActiveChat({ phone: selectPhone });
+        else if (!activeChat?.phone && list.length) setActiveChat({ phone: digitsOnly(list[0].phone) });
+      } catch (e) {
+        setErrorChats(e.message || "Failed to load conversations");
+        if (!silent) setConversations([]);
+      } finally {
+        if (!silent) setLoadingChats(false);
+      }
+    },
+    [activeChat?.phone, sessionUser?.fullName, sessionUser?.role]
+  );
+
+  /* -----------------------------
+     Fetch: Messages
   ------------------------------ */
   const loadMessagesInitial = useCallback(async (phoneAnyDigits) => {
     const q = digitsOnly(phoneAnyDigits);
@@ -338,17 +525,27 @@ export default function WhatsAppUI() {
     }
   }, []);
 
+  const allTemplates = useMemo(() => {
+    const list = Array.isArray(templates) ? templates : [];
+    return list;
+  }, [templates]);
+
   /* -----------------------------
-     Mark read (optimistic)
+     Mark read (UI + backend) + sticky local
   ------------------------------ */
   const markConversationRead = useCallback(async (phoneDigits, { optimisticOnly = false } = {}) => {
-    const p10 = phoneLabel(phoneDigits);
+    const phone = digitsOnly(phoneDigits);
+    const p10 = phone10(phoneDigits);
+    if (!p10) return;
+
     const nowIso = new Date().toISOString();
 
+    // sticky local
+    pendingReadRef.current.set(p10, { at: Date.now(), iso: nowIso });
+
+    // optimistic UI
     setConversations((prev) =>
-      prev.map((c) =>
-        phoneLabel(c.phone) === p10 ? { ...c, unreadCount: 0, lastReadAt: nowIso } : c
-      )
+      prev.map((c) => (phone10(c.phone) === p10 ? { ...c, unreadCount: 0, lastReadAt: nowIso } : c))
     );
 
     if (optimisticOnly) return;
@@ -356,15 +553,15 @@ export default function WhatsAppUI() {
     try {
       await api(`/api/whatsapp/conversations/mark-read`, {
         method: "POST",
-        body: JSON.stringify({ phone: phoneDigits }),
+        body: JSON.stringify({ phone }),
       });
     } catch {
-      // ignore
+      // ignore (still keep local sticky)
     }
   }, []);
 
   /* -----------------------------
-     Boot: initial fetch
+     Boot
   ------------------------------ */
   useEffect(() => {
     refreshConversations(null, { silent: false });
@@ -378,106 +575,136 @@ export default function WhatsAppUI() {
   useEffect(() => {
     const s = io(API_BASE, {
       withCredentials: true,
-      transports: ["websocket"],
+      transports: ["websocket", "polling"],
+      reconnection: true,
+      reconnectionAttempts: Infinity,
+      reconnectionDelay: 800,
     });
+
     socketRef.current = s;
+
+    if (DEBUG_SOCKET) {
+      s.onAny((event, ...args) => console.log("[socket]", event, args));
+    }
+
+    const onConnect = () => {
+      setSocketStatus("connected");
+      refreshConversations(null, { silent: true });
+      // if chat already selected, join immediately
+      if (activeP10) {
+        s.emit("wa:join", { phone10: activeP10 });
+        joinedRoomRef.current = roomForPhone10(activeP10);
+      }
+    };
+    const onDisconnect = () => setSocketStatus("disconnected");
+    const onError = () => setSocketStatus("error");
+
+    s.on("connect", onConnect);
+    s.on("disconnect", onDisconnect);
+    s.on("connect_error", onError);
 
     return () => {
       try {
+        s.off("connect", onConnect);
+        s.off("disconnect", onDisconnect);
+        s.off("connect_error", onError);
         s.disconnect();
       } catch {}
       socketRef.current = null;
       joinedRoomRef.current = null;
     };
-  }, []);
+    // NOTE: activeP10 is used inside onConnect for auto join
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshConversations]);
 
   /* -----------------------------
-     Socket: join/leave room on active chat change
+     Socket: join/leave room
   ------------------------------ */
   useEffect(() => {
     const s = socketRef.current;
     if (!s) return;
 
-    const p10 = activePhone10;
-    const nextRoom = p10 ? roomForPhone10(p10) : null;
+    const nextRoom = activeP10 ? roomForPhone10(activeP10) : null;
 
-    // leave previous
     if (joinedRoomRef.current && joinedRoomRef.current !== nextRoom) {
-      s.emit("wa:leave", { phone10: joinedRoomRef.current.replace("wa:", "") });
+      const oldPhone10 = joinedRoomRef.current.replace("wa:", "");
+      s.emit("wa:leave", { phone10: oldPhone10 });
       joinedRoomRef.current = null;
     }
 
-    // join new
     if (nextRoom && joinedRoomRef.current !== nextRoom) {
-      s.emit("wa:join", { phone10: p10 });
+      s.emit("wa:join", { phone10: activeP10 });
       joinedRoomRef.current = nextRoom;
     }
-  }, [activePhone10]);
+  }, [activeP10]);
 
   /* -----------------------------
-     Socket: listeners
+     Socket: listeners (payload-shape safe)
   ------------------------------ */
   useEffect(() => {
     const s = socketRef.current;
     if (!s) return;
 
-    const onMessage = (msg) => {
-      // message belongs to active chat?
-      const msgP10 = phoneLabel(msg?.to || msg?.from);
-      if (!activePhone10 || msgP10 !== activePhone10) {
-        // still update sidebar preview + unread counts via conversation patch events ideally
-        // but if backend doesn't send patch, do minimal here:
-        setConversations((prev) => {
-          const idx = prev.findIndex((c) => phoneLabel(c.phone) === msgP10);
-          if (idx === -1) return prev;
-          const next = [...prev];
-          const existing = next[idx];
-          const isInbound = msg?.direction === "INBOUND";
-          next[idx] = {
-            ...existing,
-            lastMessageAt: msg?.timestamp || new Date().toISOString(),
-            lastMessageText: String(msg?.text || "").slice(0, 200),
-            unreadCount: isInbound ? Number(existing?.unreadCount || 0) + 1 : existing?.unreadCount || 0,
-          };
-          return next;
-        });
-        return;
-      }
-
-      // append message
-      setMessages((prev) => {
-        const seen = new Set(prev.map((m) => msgKey(m)));
-        const k = msgKey(msg);
-        if (seen.has(k)) return prev;
-        return [...prev, msg];
-      });
-
-      // if inbound and open chat -> mark read
-      if (msg?.direction === "INBOUND") {
-        markConversationRead(activePhone10, { optimisticOnly: false });
-      }
-
-      // update preview
-      setConversations((prev) =>
-        prev.map((c) =>
-          phoneLabel(c.phone) === activePhone10
-            ? {
-                ...c,
-                lastMessageAt: msg?.timestamp || new Date().toISOString(),
-                lastMessageText: String(msg?.text || "").slice(0, 200),
-              }
-            : c
-        )
-      );
+    const unwrapMessage = (payload) => payload?.message || payload?.msg || payload;
+    const resolveP10FromPayload = (payload, msg) => {
+      const p10FromPayload = phone10(payload?.phone10 || payload?.phone || "");
+      if (p10FromPayload) return p10FromPayload;
+      return phone10(msg?.phone || msg?.from || msg?.to || "");
     };
 
-    const onStatus = ({ waId, status }) => {
+    const onMessage = (payload) => {
+      const msg = unwrapMessage(payload);
+      if (!msg) return;
+
+      const p10 = resolveP10FromPayload(payload, msg);
+      if (!p10) return;
+
+      const normalizedMsg = {
+        ...msg,
+        phone: msg?.phone || msg?.from || msg?.to || p10,
+      };
+
+      upsertConversationFromMessage(normalizedMsg);
+
+      if (activeP10 && p10 === activeP10) {
+        setMessages((prev) => {
+          const seen = new Set(prev.map((m) => msgKey(m)));
+          const k = msgKey(normalizedMsg);
+          if (seen.has(k)) return prev;
+          return [...prev, normalizedMsg];
+        });
+
+        if (String(normalizedMsg?.direction || "").toUpperCase() === "INBOUND") {
+          markConversationRead(activeDigits, { optimisticOnly: false });
+        }
+      }
+
+      if (payload?.windowExpiresAt) {
+        setConversations((prev) =>
+          prev.map((c) => (phone10(c.phone) === p10 ? { ...c, windowExpiresAt: payload.windowExpiresAt } : c))
+        );
+      }
+    };
+
+    const onStatus = (payload) => {
+      const waId = payload?.waId || payload?.id;
+      const status = payload?.status;
+      const p10 = phone10(payload?.phone10 || payload?.phone || "");
+      if (!waId || !status) return;
+
+      if (p10 && activeP10 && p10 !== activeP10) return;
+
       setMessages((prev) => prev.map((m) => (m.waId === waId ? { ...m, status } : m)));
     };
 
-    const onConversation = ({ phone, patch }) => {
-      const p10 = phoneLabel(phone);
-      setConversations((prev) => prev.map((c) => (phoneLabel(c.phone) === p10 ? { ...c, ...patch } : c)));
+    const onConversation = (payload) => {
+      const p10 = phone10(payload?.phone10 || payload?.phone || "");
+      if (!p10) return;
+
+      const patch = payload?.patch ? payload.patch : payload;
+      if (!patch) return;
+
+      setConversations((prev) => prev.map((c) => (phone10(c.phone) === p10 ? { ...c, ...patch } : c)));
     };
 
     s.on("wa:message", onMessage);
@@ -489,21 +716,28 @@ export default function WhatsAppUI() {
       s.off("wa:status", onStatus);
       s.off("wa:conversation", onConversation);
     };
-  }, [activePhone10, markConversationRead]);
+  }, [activeP10, activeDigits, markConversationRead, upsertConversationFromMessage]);
 
   /* -----------------------------
-     When active chat changes: load messages once
+     When active chat changes: load + mark read
   ------------------------------ */
   useEffect(() => {
-    if (!activePhoneDigits) return;
+    if (!activeDigits) return;
+
     setSessionExpired(false);
     setErrorMessages("");
     setMessages([]);
-    loadMessagesInitial(activePhoneDigits);
-  }, [activePhoneDigits, loadMessagesInitial]);
+
+    openedCutoffRef.current = Date.now();
+    markConversationRead(activeDigits, { optimisticOnly: false });
+
+    loadMessagesInitial(activeDigits).finally(() => {
+      markConversationRead(activeDigits, { optimisticOnly: false });
+    });
+  }, [activeDigits, loadMessagesInitial, markConversationRead]);
 
   /* -----------------------------
-     Auto-scroll only when new arrives AND user near bottom
+     Auto-scroll only when near bottom
   ------------------------------ */
   useEffect(() => {
     if (messages.length > prevLenRef.current && isNearBottomRef.current) {
@@ -519,34 +753,25 @@ export default function WhatsAppUI() {
   };
 
   /* -----------------------------
-     Mark read after initial load (open chat)
-  ------------------------------ */
-  useEffect(() => {
-    if (!activePhoneDigits) return;
-    if (loadingMessages) return;
-    const unread = Number(activeConversation?.unreadCount || 0);
-    if (unread > 0) markConversationRead(activePhoneDigits);
-  }, [activePhoneDigits, loadingMessages, activeConversation?.unreadCount, markConversationRead]);
-
-  /* -----------------------------
-     UI actions
+     Open chat
   ------------------------------ */
   const openChat = (phone) => {
     const p = digitsOnly(phone);
     if (!p) return;
 
-    const conv = conversations.find((c) => phoneLabel(c.phone) === phoneLabel(p));
-    openedCutoffRef.current = conv?.lastReadAt ? new Date(conv.lastReadAt).getTime() : 0;
-
+    openedCutoffRef.current = Date.now();
     setActiveChat({ phone: p });
     setSearch("");
+
+    markConversationRead(p, { optimisticOnly: false });
   };
 
   const updateConversationPreviewLocal = (phoneDigits, lastMessageText) => {
     const nowIso = new Date().toISOString();
+    const p10 = phone10(phoneDigits);
+
     setConversations((prev) => {
-      const pLabel = phoneLabel(phoneDigits);
-      const idx = prev.findIndex((c) => phoneLabel(c.phone) === pLabel);
+      const idx = prev.findIndex((c) => phone10(c.phone) === p10);
 
       if (idx === -1) {
         return [
@@ -563,7 +788,6 @@ export default function WhatsAppUI() {
       const next = [...prev];
       next[idx] = {
         ...next[idx],
-        phone: next[idx].phone || phoneDigits,
         lastMessageAt: nowIso,
         lastMessageText: lastMessageText?.slice?.(0, 200) || next[idx].lastMessageText || "",
       };
@@ -584,6 +808,8 @@ export default function WhatsAppUI() {
       text,
       timestamp: new Date().toISOString(),
       status: "sent",
+      to,
+      phone: to,
     };
 
     setMessages((prev) => [...prev, optimistic]);
@@ -595,9 +821,6 @@ export default function WhatsAppUI() {
         method: "POST",
         body: JSON.stringify({ to, text }),
       });
-
-      // No polling needed. Backend emits wa:message and/or wa:conversation patch.
-      // If provider response isn't pushing immediately, do ONE silent sync:
       refreshConversations(null, { silent: true });
     } catch (e) {
       setMessages((prev) => prev.filter((m) => m._id !== optimistic._id));
@@ -612,6 +835,192 @@ export default function WhatsAppUI() {
     }
   };
 
+  /* -----------------------------
+     Attachments
+------------------------------ */
+  const onPickFile = async (file) => {
+    if (!file) return;
+    if (!activeChat?.phone) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      setErrorMessages("Max attachment size is 5MB.");
+      return;
+    }
+
+    const to = digitsOnly(activeChat.phone);
+
+    const optimistic = {
+      _id: `tmp_file_${Date.now()}`,
+      direction: "OUTBOUND",
+      text: "",
+      type: "document",
+      timestamp: new Date().toISOString(),
+      status: "sent",
+      to,
+      media: {
+        url: "",
+        mime: file.type || "application/octet-stream",
+        filename: file.name,
+      },
+    };
+
+    setMessages((prev) => [...prev, optimistic]);
+    updateConversationPreviewLocal(to, `📎 ${file.name}`);
+
+    try {
+      const fd = new FormData();
+      fd.append("to", to);
+      fd.append("file", file);
+
+      await apiForm(`/api/whatsapp/send-media`, fd);
+
+      await loadMessagesInitial(to);
+      refreshConversations(null, { silent: true });
+    } catch (e) {
+      setMessages((prev) => prev.filter((m) => m._id !== optimistic._id));
+      setErrorMessages(e.message || "Failed to send attachment.");
+    } finally {
+      if (fileRef.current) fileRef.current.value = "";
+    }
+  };
+
+  const insertEmoji = (emo) => setInput((t) => `${t}${emo}`);
+
+  /* -----------------------------
+     Templates: send from chat
+  ------------------------------ */
+  const openTemplateComposer = (tpl) => {
+    const body = pickBodyTextFromTemplate(tpl);
+    const idxs = extractVarIndexes(body);
+
+    const initial = {};
+    idxs.forEach((i) => (initial[String(i)] = ""));
+
+    setActiveTplForSend(tpl);
+    setTplSendVars(initial);
+    setTplComposeOpen(true);
+  };
+
+  const tplSendPreview = useMemo(() => {
+    const body = pickBodyTextFromTemplate(activeTplForSend);
+    return applyVarsToBody(body, tplSendVars);
+  }, [activeTplForSend, tplSendVars]);
+
+  const sendTemplateFromChat = async () => {
+    if (!activeTplForSend) return;
+    const to = digitsOnly(activeChat?.phone);
+    if (!to) return;
+
+    const body = pickBodyTextFromTemplate(activeTplForSend);
+    const idxs = extractVarIndexes(body);
+    const params = idxs.map((i) => String(tplSendVars[String(i)] || "").trim());
+    if (params.some((v) => !v)) {
+      setErrorMessages("Fill all template variables.");
+      return;
+    }
+
+    try {
+      await api(`/api/whatsapp/send-template`, {
+        method: "POST",
+        body: JSON.stringify({
+          to,
+          templateName: activeTplForSend.name,
+          parameters: params,
+          renderedText: tplSendPreview || "",
+        }),
+      });
+
+      setTplComposeOpen(false);
+      setActiveTplForSend(null);
+      setTplSendVars({});
+
+      refreshConversations(null, { silent: true });
+      await loadMessagesInitial(to);
+      setSessionExpired(false);
+      setErrorMessages("");
+    } catch (e) {
+      setErrorMessages(e.message || "Failed to send template.");
+    }
+  };
+
+  /* -----------------------------
+     Help me write (AI)
+  ------------------------------ */
+  const helpMeWrite = async () => {
+    if (!activeP10) return;
+    setHelpWriteLoading(true);
+
+    try {
+      const lastInbound = [...(messages || [])]
+        .reverse()
+        .find((m) => String(m.direction || "").toUpperCase() !== "OUTBOUND");
+
+      const goal = lastInbound?.text
+        ? `Reply to the customer's last message: "${String(lastInbound.text).slice(0, 220)}"`
+        : "Write a helpful next message to the customer based on the conversation.";
+
+      const r = await api(`/api/whatsapp/help-me-write`, {
+        method: "POST",
+        body: JSON.stringify({
+          phone: activeP10,
+          leadName: activeConversation?.displayName || "",
+          agentName: agentName || "",
+          goal,
+          tone: "friendly, professional, concise, Hinglish allowed",
+          maxMessages: 35,
+        }),
+      });
+
+      const suggestion = String(r?.suggestion || "").trim();
+      if (!suggestion) {
+        setErrorMessages("AI did not return a message.");
+        return;
+      }
+      setInput(suggestion);
+    } catch (e) {
+      setErrorMessages(e.message || "Help me write failed.");
+    } finally {
+      setHelpWriteLoading(false);
+    }
+  };
+
+  /* -----------------------------
+     Rephrase
+  ------------------------------ */
+  const openRephraseDialog = () => {
+    if (!input.trim()) return;
+    setRephraseStyle("professional");
+    setRephraseOpen(true);
+  };
+
+  const doRephrase = async () => {
+    const original = input.trim();
+    if (!original) return;
+    setRephraseLoading(true);
+
+    try {
+      const r = await api(`/api/whatsapp/rephrase`, {
+        method: "POST",
+        body: JSON.stringify({ text: original, style: rephraseStyle }),
+      });
+
+      const out = String(r?.result || r?.rephrased || "").trim();
+      if (!out) {
+        setErrorMessages("AI did not return rephrased text.");
+        return;
+      }
+      setInput(out);
+      setRephraseOpen(false);
+    } catch (e) {
+      setErrorMessages(e.message || "Rephrase failed.");
+    } finally {
+      setRephraseLoading(false);
+    }
+  };
+
+  /* -----------------------------
+     New Chat: template options
+  ------------------------------ */
   const templateOptions = useMemo(() => {
     const list = Array.isArray(templates) ? templates : [];
     return list.sort((a, b) => {
@@ -657,6 +1066,7 @@ export default function WhatsAppUI() {
           to,
           templateName: selectedTemplate.name,
           parameters: params,
+          renderedText: previewBody || "",
         }),
       });
 
@@ -668,16 +1078,62 @@ export default function WhatsAppUI() {
       updateConversationPreviewLocal(to, `[TEMPLATE] ${selectedTemplate.name}`);
       setActiveChat({ phone: to });
 
-      // load once
       await loadMessagesInitial(to);
-
-      // sidebar refresh (silent)
       refreshConversations(null, { silent: true });
+      setSessionExpired(false);
     } catch (e) {
       setNewChatError(e.message || "Failed to send template");
     } finally {
       setCreatingChat(false);
     }
+  };
+
+  /* -----------------------------
+     Render media inside messages
+  ------------------------------ */
+  const renderMedia = (m) => {
+    const url = m?.media?.url || m?.mediaUrl || "";
+    const mime = m?.media?.mime || m?.mime || "";
+    const filename = m?.media?.filename || m?.filename || "attachment";
+    if (!url) return null;
+
+    const isImg = mime.startsWith("image/") || /\.(png|jpg|jpeg|webp|gif)$/i.test(url);
+    if (isImg) {
+      return (
+        <Box sx={{ mt: 0.75 }}>
+          <Box
+            component="img"
+            src={url}
+            alt="attachment"
+            sx={{
+              width: 220,
+              maxWidth: "100%",
+              borderRadius: 1.5,
+              border: "1px solid #e5e5e5",
+              display: "block",
+              cursor: "pointer",
+            }}
+            onLoad={() => {
+              if (isNearBottomRef.current) bottomRef.current?.scrollIntoView({ behavior: "auto" });
+            }}
+            onClick={() => window.open(url, "_blank", "noopener,noreferrer")}
+          />
+        </Box>
+      );
+    }
+
+    return (
+      <Box sx={{ mt: 0.75 }}>
+        <Button
+          size="small"
+          variant="outlined"
+          onClick={() => window.open(url, "_blank", "noopener,noreferrer")}
+          sx={{ textTransform: "none" }}
+        >
+          Open {filename}
+        </Button>
+      </Box>
+    );
   };
 
   /* =========================================================
@@ -688,9 +1144,21 @@ export default function WhatsAppUI() {
       {/* LEFT SIDEBAR */}
       <Box width={360} bgcolor="#fff" display="flex" flexDirection="column" borderRight="1px solid #ddd">
         <Box px={2} py={1.5} display="flex" alignItems="center" justifyContent="space-between">
-          <Typography fontWeight={700} fontSize={18}>
-            WhatsApp
-          </Typography>
+          <Stack direction="row" spacing={1} alignItems="center">
+            <Typography fontWeight={700} fontSize={18}>
+              WhatsApp
+            </Typography>
+            <Chip
+              size="small"
+              label={socketStatus}
+              sx={{
+                height: 20,
+                fontSize: 11,
+                bgcolor:
+                  socketStatus === "connected" ? "#e7fbf2" : socketStatus === "error" ? "#ffeceb" : "#f2f4f7",
+              }}
+            />
+          </Stack>
 
           <Stack direction="row" spacing={1}>
             <IconButton size="small" onClick={() => setNewChatOpen(true)} title="New chat">
@@ -750,15 +1218,15 @@ export default function WhatsAppUI() {
                   onClick={() => openChat(digitsOnly(search))}
                   sx={{
                     cursor: "pointer",
-                    bgcolor: phoneLabel(activeChat?.phone) === phoneLabel(search) ? "#f0f2f5" : "transparent",
+                    bgcolor: phone10(activeChat?.phone) === phone10(search) ? "#f0f2f5" : "transparent",
                     "&:hover": { bgcolor: "#f5f5f5" },
                   }}
                 >
                   <Stack direction="row" spacing={2} alignItems="center">
-                    <Avatar>{phoneLabel(search).slice(-2)}</Avatar>
+                    <Avatar>{phone10(search).slice(-2)}</Avatar>
                     <Box flex={1}>
                       <Typography fontSize={14} fontWeight={600}>
-                        Chat with {phoneLabel(search)}
+                        Chat with {phone10(search)}
                       </Typography>
                       <Typography fontSize={12} color="text.secondary">
                         Open chat
@@ -770,7 +1238,7 @@ export default function WhatsAppUI() {
               )}
 
               {sortedConversations.map((chat) => {
-                const isActive = phoneLabel(activeChat?.phone) === phoneLabel(chat.phone);
+                const isActive = phone10(activeChat?.phone) === phone10(chat.phone);
                 const unread = Number(chat?.unreadCount || 0);
 
                 return (
@@ -828,22 +1296,24 @@ export default function WhatsAppUI() {
 
       {/* CHAT WINDOW */}
       <Box flex={1} display="flex" flexDirection="column">
-        <Box px={2} py={1.5} bgcolor="#f0f2f5" borderBottom="1px solid #ddd">
+        {/* Header */}
+        <Box px={2} py={1.25} bgcolor="#f0f2f5" borderBottom="1px solid #ddd">
           <Stack direction="row" spacing={2} alignItems="center" justifyContent="space-between">
             <Stack direction="row" spacing={2} alignItems="center">
               <Avatar>
-                {activeConversation
-                  ? nameInitials(chatDisplayName(activeConversation))
-                  : phoneLabel(activeChat?.phone).slice(-2) || "—"}
+                {activeConversation ? nameInitials(chatDisplayName(activeConversation)) : activeP10?.slice(-2) || "—"}
               </Avatar>
-
               <Box>
-                <Typography fontWeight={700}>{activeHeaderTitle}</Typography>
+                <Typography fontWeight={800}>{activeHeaderTitle}</Typography>
+                <Typography fontSize={12} color="text.secondary">
+                  {activeConversation?.assignedToLabel ? assignedToText(activeConversation) : ""}
+                </Typography>
               </Box>
             </Stack>
           </Stack>
         </Box>
 
+        {/* Messages */}
         <Box
           flex={1}
           p={2}
@@ -868,10 +1338,13 @@ export default function WhatsAppUI() {
           ) : (
             <Stack spacing={1}>
               {messages.map((msg) => {
-                const isOutbound = msg.direction === "OUTBOUND";
+                const isOutbound = String(msg.direction || "").toUpperCase() === "OUTBOUND";
                 const cutoff = openedCutoffRef.current || 0;
-                const ts = new Date(msg.timestamp || 0).getTime();
+                const ts = new Date(msg.timestamp || msg.createdAt || 0).getTime();
                 const wasUnread = !isOutbound && cutoff && ts > cutoff;
+
+                const bubbleText = msg?.text || "";
+                const hasMedia = !!(msg?.media?.url || msg?.mediaUrl);
 
                 return (
                   <Box key={msgKey(msg)} alignSelf={isOutbound ? "flex-end" : "flex-start"}>
@@ -882,18 +1355,23 @@ export default function WhatsAppUI() {
                         py: 1,
                         maxWidth: 520,
                         bgcolor: isOutbound ? "#dcf8c6" : "#fff",
-                        border: wasUnread
-                          ? "1px solid rgba(37,211,102,0.65)"
-                          : "1px solid rgba(0,0,0,0.06)",
+                        border: wasUnread ? "1px solid rgba(37,211,102,0.65)" : "1px solid rgba(0,0,0,0.06)",
                       }}
                     >
-                      <Typography fontSize={14} whiteSpace="pre-wrap" sx={{ fontWeight: wasUnread ? 800 : 400 }}>
-                        {msg.text || ""}
-                      </Typography>
+                      {!!bubbleText && (
+                        <Typography fontSize={14} whiteSpace="pre-wrap" sx={{ fontWeight: wasUnread ? 800 : 400 }}>
+                          {bubbleText}
+                        </Typography>
+                      )}
 
-                      <Typography fontSize={10} textAlign="right" color="text.secondary">
-                        {formatTime(msg.timestamp)}
-                      </Typography>
+                      {hasMedia ? renderMedia(msg) : null}
+
+                      <Box sx={{ display: "flex", justifyContent: "flex-end", alignItems: "center" }}>
+                        <Typography fontSize={10} textAlign="right" color="text.secondary">
+                          {formatTime(msg.timestamp || msg.createdAt)}
+                        </Typography>
+                        {isOutbound ? <MessageTicks status={msg.status} /> : null}
+                      </Box>
                     </Paper>
                   </Box>
                 );
@@ -903,22 +1381,308 @@ export default function WhatsAppUI() {
           )}
         </Box>
 
-        <Box p={1.5} bgcolor="#f0f2f5">
-          <Stack direction="row" spacing={1}>
+        {/* Composer */}
+        <Box p={1.25} bgcolor="#f0f2f5" borderTop="1px solid rgba(0,0,0,0.06)">
+          <Stack direction="row" spacing={1} alignItems="flex-end">
             <TextField
               fullWidth
               size="small"
               placeholder={sessionExpired ? "Session expired. Send a template to reopen chat" : "Type a message"}
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && sendText()}
+              onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && sendText()}
               disabled={!activeChat?.phone || sessionExpired}
+              multiline
+              minRows={1}
+              maxRows={4}
             />
             <IconButton color="primary" onClick={sendText} disabled={!activeChat?.phone || !input.trim() || sessionExpired}>
               <SendIcon />
             </IconButton>
           </Stack>
+
+          <Stack direction="row" spacing={0.5} alignItems="center" justifyContent="space-between" mt={1}>
+            <Stack direction="row" spacing={0.5} alignItems="center">
+              <Tooltip title="Quick Replies">
+                <span>
+                  <IconButton size="small" disabled={!activeChat?.phone} onClick={(e) => setQuickAnchor(e.currentTarget)}>
+                    <FlashOnIcon fontSize="small" />
+                  </IconButton>
+                </span>
+              </Tooltip>
+
+              <Tooltip title="Templates">
+                <span>
+                  <IconButton size="small" disabled={!activeChat?.phone} onClick={(e) => setTplAnchor(e.currentTarget)}>
+                    <ViewListIcon fontSize="small" />
+                  </IconButton>
+                </span>
+              </Tooltip>
+
+              <Tooltip title="Emoji">
+                <span>
+                  <IconButton size="small" disabled={!activeChat?.phone} onClick={(e) => setEmojiAnchor(e.currentTarget)}>
+                    <InsertEmoticonIcon fontSize="small" />
+                  </IconButton>
+                </span>
+              </Tooltip>
+
+              <Tooltip title={sessionExpired ? "Send template to reopen session" : "Attachment (≤ 5MB)"}>
+                <span>
+                  <IconButton size="small" disabled={!activeChat?.phone} onClick={() => fileRef.current?.click()}>
+                    <AttachFileIcon fontSize="small" />
+                  </IconButton>
+                </span>
+              </Tooltip>
+
+              <input ref={fileRef} type="file" hidden onChange={(e) => onPickFile(e.target.files?.[0])} />
+            </Stack>
+
+            <Stack direction="row" spacing={1} alignItems="center">
+              <Tooltip title="Help me write (AI)">
+                <span>
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    disabled={!activeChat?.phone || helpWriteLoading}
+                    onClick={helpMeWrite}
+                    startIcon={helpWriteLoading ? <CircularProgress size={14} /> : <AutoFixHighIcon />}
+                    sx={{ textTransform: "none", fontWeight: 900 }}
+                  >
+                    Help me write
+                  </Button>
+                </span>
+              </Tooltip>
+
+              <Tooltip title="Rephrase current text">
+                <span>
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    disabled={!activeChat?.phone || !input.trim()}
+                    onClick={openRephraseDialog}
+                    startIcon={<AutorenewIcon />}
+                    sx={{ textTransform: "none", fontWeight: 900 }}
+                  >
+                    Rephrase
+                  </Button>
+                </span>
+              </Tooltip>
+            </Stack>
+          </Stack>
         </Box>
+
+        {/* Quick replies menu */}
+        <Menu anchorEl={quickAnchor} open={Boolean(quickAnchor)} onClose={() => setQuickAnchor(null)}>
+          {QUICK_REPLIES.map((q) => (
+            <MenuItem
+              key={q}
+              onClick={() => {
+                setInput((t) => (t ? t + "\n" + q : q));
+                setQuickAnchor(null);
+              }}
+            >
+              {q}
+            </MenuItem>
+          ))}
+        </Menu>
+
+        {/* Templates menu */}
+        <Menu
+          anchorEl={tplAnchor}
+          open={Boolean(tplAnchor)}
+          onClose={() => setTplAnchor(null)}
+          PaperProps={{ sx: { maxHeight: 360, width: 360 } }}
+        >
+          {loadingTemplates ? (
+            <MenuItem disabled>Loading…</MenuItem>
+          ) : allTemplates.length === 0 ? (
+            <MenuItem disabled>No templates found</MenuItem>
+          ) : (
+            allTemplates.map((t) => (
+              <MenuItem
+                key={t._id || t.name}
+                onClick={() => {
+                  setTplAnchor(null);
+                  openTemplateComposer(t);
+                }}
+              >
+                <Box sx={{ minWidth: 0 }}>
+                  <Typography sx={{ fontWeight: 900 }} noWrap>
+                    {t.name}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary" noWrap>
+                    {t.language || "en"} · {t.status || ""}
+                  </Typography>
+                </Box>
+              </MenuItem>
+            ))
+          )}
+        </Menu>
+
+        {/* Emoji picker */}
+        <Menu anchorEl={emojiAnchor} open={Boolean(emojiAnchor)} onClose={() => setEmojiAnchor(null)} PaperProps={{ sx: { p: 1 } }}>
+          <Box sx={{ display: "grid", gridTemplateColumns: "repeat(8, 1fr)", gap: 0.5 }}>
+            {EMOJIS.map((e) => (
+              <IconButton
+                key={e}
+                size="small"
+                onClick={() => {
+                  insertEmoji(e);
+                  setEmojiAnchor(null);
+                }}
+              >
+                <Typography>{e}</Typography>
+              </IconButton>
+            ))}
+          </Box>
+        </Menu>
+
+        {/* Rephrase Dialog */}
+        <Dialog open={rephraseOpen} onClose={() => setRephraseOpen(false)} fullWidth maxWidth="xs">
+          <DialogTitle sx={{ fontWeight: 900 }}>Rephrase</DialogTitle>
+          <DialogContent dividers>
+            <Typography variant="body2" sx={{ mb: 1.25 }} color="text.secondary">
+              Choose a style and we’ll rephrase your current message.
+            </Typography>
+            <Box sx={{ display: "grid", gap: 1 }}>
+              {[
+                { key: "simple", label: "Simple" },
+                { key: "professional", label: "Professional" },
+                { key: "friendly", label: "Friendly" },
+                { key: "empathetic", label: "Empathetic" },
+              ].map((opt) => (
+                <Button
+                  key={opt.key}
+                  variant={rephraseStyle === opt.key ? "contained" : "outlined"}
+                  onClick={() => setRephraseStyle(opt.key)}
+                  sx={{ justifyContent: "flex-start", textTransform: "none", fontWeight: 900 }}
+                >
+                  {opt.label}
+                </Button>
+              ))}
+            </Box>
+
+            <Paper
+              variant="outlined"
+              sx={{
+                mt: 2,
+                p: 1.25,
+                borderRadius: 2,
+                bgcolor: "#FAFAFA",
+                whiteSpace: "pre-wrap",
+                fontSize: 13,
+                lineHeight: 1.4,
+              }}
+            >
+              {input.trim() || "—"}
+            </Paper>
+          </DialogContent>
+
+          <Box sx={{ p: 1.25, display: "flex", justifyContent: "flex-end", gap: 1 }}>
+            <Button
+              variant="outlined"
+              onClick={() => setRephraseOpen(false)}
+              sx={{ textTransform: "none" }}
+              disabled={rephraseLoading}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="contained"
+              onClick={doRephrase}
+              sx={{ textTransform: "none" }}
+              disabled={rephraseLoading}
+              startIcon={rephraseLoading ? <CircularProgress size={14} /> : null}
+            >
+              Rephrase
+            </Button>
+          </Box>
+        </Dialog>
+
+        {/* Template Composer Dialog */}
+        <Dialog open={tplComposeOpen} onClose={() => setTplComposeOpen(false)} fullWidth maxWidth="sm">
+          <DialogTitle sx={{ fontWeight: 900 }}>Template Preview</DialogTitle>
+          <DialogContent dividers>
+            <Box sx={{ mb: 1 }}>
+              <Typography sx={{ fontWeight: 900 }} noWrap>
+                {activeTplForSend?.name || "—"}
+              </Typography>
+              <Typography variant="caption" color="text.secondary">
+                Language: {activeTplForSend?.language || "en"} · Status: {activeTplForSend?.status || "—"}
+              </Typography>
+            </Box>
+
+            <Box sx={{ mt: 2 }}>
+              <Typography sx={{ fontWeight: 900, mb: 1 }}>Variables</Typography>
+              {(() => {
+                const body = pickBodyTextFromTemplate(activeTplForSend);
+                const idxs = extractVarIndexes(body);
+
+                if (!activeTplForSend) return null;
+                if (!body) {
+                  return (
+                    <Typography variant="body2" color="text.secondary">
+                      No body found for this template.
+                    </Typography>
+                  );
+                }
+                if (!idxs.length) {
+                  return (
+                    <Typography variant="body2" color="text.secondary">
+                      No variables detected in this template.
+                    </Typography>
+                  );
+                }
+
+                return (
+                  <Box sx={{ display: "grid", gap: 1 }}>
+                    {idxs.map((i) => (
+                      <TextField
+                        key={i}
+                        size="small"
+                        label={`{{${i}}}`}
+                        value={tplSendVars[String(i)] || ""}
+                        onChange={(e) =>
+                          setTplSendVars((prev) => ({
+                            ...prev,
+                            [String(i)]: e.target.value,
+                          }))
+                        }
+                      />
+                    ))}
+                  </Box>
+                );
+              })()}
+            </Box>
+
+            <Box sx={{ mt: 2 }}>
+              <Typography sx={{ fontWeight: 900, mb: 1 }}>Preview</Typography>
+              <Paper
+                variant="outlined"
+                sx={{
+                  p: 1.25,
+                  borderRadius: 2,
+                  bgcolor: "#FAFAFA",
+                  whiteSpace: "pre-wrap",
+                  fontSize: 13,
+                  lineHeight: 1.4,
+                }}
+              >
+                {tplSendPreview || "—"}
+              </Paper>
+            </Box>
+          </DialogContent>
+
+          <Box sx={{ p: 1.25, display: "flex", justifyContent: "flex-end", gap: 1 }}>
+            <Button variant="outlined" onClick={() => setTplComposeOpen(false)} sx={{ textTransform: "none" }}>
+              Cancel
+            </Button>
+            <Button variant="contained" onClick={sendTemplateFromChat} sx={{ textTransform: "none" }} disabled={!activeChat?.phone}>
+              Send Template
+            </Button>
+          </Box>
+        </Dialog>
       </Box>
 
       {/* New Chat Dialog */}
@@ -1064,14 +1828,14 @@ export default function WhatsAppUI() {
           </Stack>
         </DialogContent>
 
-        <DialogActions>
+        <Box sx={{ p: 2, display: "flex", justifyContent: "flex-end", gap: 1 }}>
           <Button onClick={() => setNewChatOpen(false)} disabled={creatingChat}>
             Cancel
           </Button>
           <Button variant="contained" onClick={startNewChatWithTemplate} disabled={creatingChat}>
             {creatingChat ? "Sending..." : "Send"}
           </Button>
-        </DialogActions>
+        </Box>
       </Dialog>
     </Box>
   );

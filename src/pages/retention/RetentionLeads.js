@@ -1245,7 +1245,7 @@ const RetentionLeads = () => {
               </Typography>
 
               {!selectedYear ? (
-                [2023, 2024, 2025].map((year) => (
+                [2023, 2024, 2025, 2026].map((year) => (
                   <MenuItem
                     key={year}
                     selected={selectedYear === year}
