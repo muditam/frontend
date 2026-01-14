@@ -22,6 +22,7 @@ import {
   Tooltip,
 } from "@mui/material";
 
+import { useLocation, useNavigate } from "react-router-dom";
 import SendIcon from "@mui/icons-material/Send";
 import SearchIcon from "@mui/icons-material/Search";
 import AddIcon from "@mui/icons-material/Add";
@@ -170,8 +171,16 @@ function applyVarsToBody(bodyText = "", varsMap = {}) {
   return out;
 }
 
+// ✅ IMPORTANT: include media id/url in key so media messages don't collide when text is empty
 function msgKey(m) {
-  return m?.waId || m?._id || `${m?.direction || "X"}_${m?.timestamp || ""}_${m?.text || ""}`;
+  return (
+    m?.waId ||
+    m?._id ||
+    m?.id ||
+    `${m?.direction || "X"}_${m?.timestamp || m?.createdAt || ""}_${m?.text || ""}_${m?.media?.id || ""}_${
+      m?.media?.url || ""
+    }`
+  );
 }
 
 /* -----------------------------
@@ -263,14 +272,40 @@ function customerPhoneFromMsg(msg) {
   return msg?.phone || msg?.to || msg?.from || "";
 }
 
-/* =========================================================
-   Component
-========================================================= */
+/* -----------------------------
+   Media helpers (UPDATED)
+------------------------------ */
+function mediaUrlFromMsg(m) {
+  return m?.media?.url || m?.mediaUrl || "";
+}
+function mediaMimeFromMsg(m) {
+  return m?.media?.mime || m?.mime || "";
+}
+function mediaFilenameFromMsg(m) {
+  return m?.media?.filename || m?.filename || "attachment";
+}
+function detectMediaKind({ url = "", mime = "", fallbackType = "" }) {
+  const u = String(url || "");
+  const m = String(mime || "").toLowerCase();
+  const t = String(fallbackType || "").toLowerCase();
+
+  const byMime = (prefix) => m.startsWith(prefix);
+
+  if (byMime("image/") || /\.(png|jpg|jpeg|webp|gif)$/i.test(u) || t === "image" || t === "sticker") return "image";
+  if (byMime("video/") || /\.(mp4|webm|mov|mkv)$/i.test(u) || t === "video") return "video";
+  if (byMime("audio/") || /\.(mp3|wav|ogg|m4a)$/i.test(u) || t === "audio") return "audio";
+  if (m === "application/pdf" || /\.pdf$/i.test(u)) return "pdf";
+  return "file";
+}
+
 export default function WhatsAppUI() {
   const [conversations, setConversations] = useState([]);
   const [activeChat, setActiveChat] = useState(null);
 
   const [messages, setMessages] = useState([]);
+
+  // ✅ Draft per chat (phone10 -> draft text)
+  const [drafts, setDrafts] = useState({});
   const [input, setInput] = useState("");
 
   const [loadingChats, setLoadingChats] = useState(true);
@@ -326,6 +361,44 @@ export default function WhatsAppUI() {
   const activeDigits = useMemo(() => digitsOnly(activeChat?.phone), [activeChat?.phone]);
   const activeP10 = useMemo(() => phone10(activeChat?.phone), [activeChat?.phone]);
 
+  // ✅ attachment blob URL tracking (UPDATED)
+  const blobUrlsRef = useRef(new Set());
+  const rememberBlobUrl = (u) => {
+    if (!u) return;
+    if (String(u).startsWith("blob:")) blobUrlsRef.current.add(u);
+  };
+  const revokeAllBlobUrls = () => {
+    try {
+      blobUrlsRef.current.forEach((u) => {
+        try {
+          URL.revokeObjectURL(u);
+        } catch {}
+      });
+      blobUrlsRef.current.clear();
+    } catch {}
+  };
+  useEffect(() => {
+    return () => {
+      revokeAllBlobUrls();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // ✅ draft helpers
+  const setDraftFor = useCallback((p10, value) => {
+    if (!p10) return;
+    setDrafts((prev) => ({ ...prev, [p10]: String(value ?? "") }));
+  }, []);
+  const clearDraftFor = useCallback((p10) => {
+    if (!p10) return;
+    setDrafts((prev) => {
+      if (!prev[p10]) return prev;
+      const next = { ...prev };
+      delete next[p10];
+      return next;
+    });
+  }, []);
+
   const sessionUser = useMemo(() => {
     try {
       const raw = sessionStorage.getItem("user");
@@ -334,6 +407,18 @@ export default function WhatsAppUI() {
       return null;
     }
   }, []);
+
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  // deep-link: /whatsaap/chat?phone=...
+  const urlPhone = useMemo(() => {
+    const p = new URLSearchParams(location.search).get("phone") || "";
+    return digitsOnly(p);
+  }, [location.search]);
+
+  // prevent repeat-open loop
+  const lastUrlOpenedRef = useRef("");
 
   const agentName = useMemo(() => sessionUser?.fullName || "", [sessionUser?.fullName]);
 
@@ -408,10 +493,18 @@ export default function WhatsAppUI() {
       const isActive = activeP10 && p10 === activeP10;
 
       const nowIso = msg?.timestamp || new Date().toISOString();
+
+      const url = mediaUrlFromMsg(msg);
+      const mime = mediaMimeFromMsg(msg);
+      const kind = detectMediaKind({ url, mime, fallbackType: msg?.type });
       const lastText =
-        msg?.media?.url
-          ? msg?.type === "image"
+        url
+          ? kind === "image"
             ? "📷 Photo"
+            : kind === "video"
+            ? "🎥 Video"
+            : kind === "audio"
+            ? "🎙️ Audio"
             : "📎 Attachment"
           : String(msg?.text || "").slice(0, 200);
 
@@ -603,7 +696,7 @@ export default function WhatsAppUI() {
       setSocketStatus("connected");
       refreshConversations(null, { silent: true });
       if (activeP10) {
-        s.emit("wa:join", { phone10: activeP10 });
+        s.emit("wa:join", { phone: activeP10 });
         joinedRoomRef.current = roomForPhone10(activeP10);
       }
     };
@@ -638,19 +731,18 @@ export default function WhatsAppUI() {
 
     if (joinedRoomRef.current && joinedRoomRef.current !== nextRoom) {
       const oldPhone10 = joinedRoomRef.current.replace("wa:", "");
-      s.emit("wa:leave", { phone10: oldPhone10 });
+      s.emit("wa:leave", { phone: oldPhone10 });
       joinedRoomRef.current = null;
     }
 
     if (nextRoom && joinedRoomRef.current !== nextRoom) {
-      s.emit("wa:join", { phone10: activeP10 });
+      s.emit("wa:join", { phone: activeP10 });
       joinedRoomRef.current = nextRoom;
     }
   }, [activeP10]);
 
   /* -----------------------------
      Socket: listeners (payload-shape safe)
-     ✅ FIX: Always use customer phone (never business phone)
   ------------------------------ */
   useEffect(() => {
     const s = socketRef.current;
@@ -670,7 +762,6 @@ export default function WhatsAppUI() {
       const p10 = resolveP10FromPayload(payload, msg);
       if (!p10) return;
 
-      // enforce "phone" as customer phone (so all local code works)
       const customerPhone = customerPhoneFromMsg(msg);
       const normalizedMsg = {
         ...msg,
@@ -715,7 +806,6 @@ export default function WhatsAppUI() {
         prev.map((c) => {
           if (phone10(c.phone) !== p10) return c;
 
-          // support delta form (old servers) AND absolute form (new server)
           const delta = Number(patch?.unreadCountDelta || 0);
           const hasAbsolute = typeof patch?.unreadCount === "number";
 
@@ -747,6 +837,16 @@ export default function WhatsAppUI() {
   /* -----------------------------
      When active chat changes: load + mark read
   ------------------------------ */
+  useEffect(() => {
+    if (activeP10) {
+      const d = drafts[activeP10] || "";
+      setInput(d);
+    } else {
+      setInput("");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeP10]);
+
   useEffect(() => {
     if (!activeDigits) return;
 
@@ -785,6 +885,11 @@ export default function WhatsAppUI() {
     const p = digitsOnly(phone);
     if (!p) return;
 
+    const nextUrl = `/whatsaap/chat?phone=${encodeURIComponent(p)}`;
+   if (location.search !== `?phone=${encodeURIComponent(p)}`) {
+     navigate(nextUrl, { replace: true });
+   }
+
     openedCutoffRef.current = Date.now();
     setActiveChat({ phone: p });
     setSearch("");
@@ -792,6 +897,16 @@ export default function WhatsAppUI() {
     markConversationRead(p, { optimisticOnly: false });
   };
 
+  useEffect(() => {
+   const p = digitsOnly(urlPhone);
+    if (!p) return;
+ 
+    if (lastUrlOpenedRef.current === p) return;
+    lastUrlOpenedRef.current = p;
+ 
+    openChat(p); 
+  }, [urlPhone]);
+  
   const updateConversationPreviewLocal = (phoneDigits, lastMessageText) => {
     const nowIso = new Date().toISOString();
     const p10 = phone10(phoneDigits);
@@ -828,6 +943,8 @@ export default function WhatsAppUI() {
     const text = input.trim();
     if (!to || !text) return;
 
+    const p10 = phone10(to);
+
     const optimistic = {
       _id: `tmp_${Date.now()}`,
       direction: "OUTBOUND",
@@ -839,7 +956,11 @@ export default function WhatsAppUI() {
     };
 
     setMessages((prev) => [...prev, optimistic]);
+
+    // ✅ clear draft for THIS chat only
     setInput("");
+    clearDraftFor(p10);
+
     updateConversationPreviewLocal(to, text);
 
     try {
@@ -849,8 +970,12 @@ export default function WhatsAppUI() {
       });
       refreshConversations(null, { silent: true });
     } catch (e) {
+      // remove optimistic
       setMessages((prev) => prev.filter((m) => m._id !== optimistic._id));
+
+      // ✅ restore draft for THIS chat
       setInput(text);
+      setDraftFor(p10, text);
 
       if (e.data?.code === "SESSION_EXPIRED") {
         setSessionExpired(true);
@@ -862,7 +987,9 @@ export default function WhatsAppUI() {
   };
 
   /* -----------------------------
-     Attachments
+     Attachments (UPDATED)
+     - optimistic preview via blob URL for image/video/audio
+     - better optimistic type detection
 ------------------------------ */
   const onPickFile = async (file) => {
     if (!file) return;
@@ -875,24 +1002,50 @@ export default function WhatsAppUI() {
 
     const to = digitsOnly(activeChat.phone);
 
+    const mime = file.type || "application/octet-stream";
+    const urlBlob =
+      mime.startsWith("image/") || mime.startsWith("video/") || mime.startsWith("audio/")
+        ? URL.createObjectURL(file)
+        : "";
+
+    if (urlBlob) rememberBlobUrl(urlBlob);
+
+    const optimisticType = mime.startsWith("image/")
+      ? "image"
+      : mime.startsWith("video/")
+      ? "video"
+      : mime.startsWith("audio/")
+      ? "audio"
+      : "document";
+
     const optimistic = {
       _id: `tmp_file_${Date.now()}`,
       direction: "OUTBOUND",
       text: "",
-      type: "document",
+      type: optimisticType,
       timestamp: new Date().toISOString(),
       status: "sent",
       to,
       phone: to,
       media: {
-        url: "",
-        mime: file.type || "application/octet-stream",
+        url: urlBlob || "",
+        mime,
         filename: file.name,
       },
     };
 
     setMessages((prev) => [...prev, optimistic]);
-    updateConversationPreviewLocal(to, `📎 ${file.name}`);
+
+    const previewLabel =
+      optimisticType === "image"
+        ? "📷 Photo"
+        : optimisticType === "video"
+        ? "🎥 Video"
+        : optimisticType === "audio"
+        ? "🎙️ Audio"
+        : `📎 ${file.name}`;
+
+    updateConversationPreviewLocal(to, previewLabel);
 
     try {
       const fd = new FormData();
@@ -911,7 +1064,13 @@ export default function WhatsAppUI() {
     }
   };
 
-  const insertEmoji = (emo) => setInput((t) => `${t}${emo}`);
+  const insertEmoji = (emo) => {
+    setInput((t) => {
+      const next = `${t}${emo}`;
+      if (activeP10) setDraftFor(activeP10, next);
+      return next;
+    });
+  };
 
   /* -----------------------------
      Templates: send from chat
@@ -1003,7 +1162,9 @@ export default function WhatsAppUI() {
         setErrorMessages("AI did not return a message.");
         return;
       }
+
       setInput(suggestion);
+      setDraftFor(activeP10, suggestion);
     } catch (e) {
       setErrorMessages(e.message || "Help me write failed.");
     } finally {
@@ -1036,7 +1197,9 @@ export default function WhatsAppUI() {
         setErrorMessages("AI did not return rephrased text.");
         return;
       }
+
       setInput(out);
+      if (activeP10) setDraftFor(activeP10, out);
       setRephraseOpen(false);
     } catch (e) {
       setErrorMessages(e.message || "Rephrase failed.");
@@ -1116,22 +1279,24 @@ export default function WhatsAppUI() {
   };
 
   /* -----------------------------
-     Render media inside messages
+     Render media inside messages (UPDATED)
   ------------------------------ */
   const renderMedia = (m) => {
-    const url = m?.media?.url || m?.mediaUrl || "";
-    const mime = m?.media?.mime || m?.mime || "";
-    const filename = m?.media?.filename || m?.filename || "attachment";
+    const url = mediaUrlFromMsg(m);
+    const mime = mediaMimeFromMsg(m);
+    const filename = mediaFilenameFromMsg(m);
     if (!url) return null;
 
-    const isImg = mime.startsWith("image/") || /\.(png|jpg|jpeg|webp|gif)$/i.test(url);
-    if (isImg) {
+    const kind = detectMediaKind({ url, mime, fallbackType: m?.type });
+
+    if (kind === "image") {
       return (
         <Box sx={{ mt: 0.75 }}>
           <Box
             component="img"
             src={url}
-            alt="attachment"
+            alt={filename || "attachment"}
+            loading="lazy"
             sx={{
               width: 220,
               maxWidth: "100%",
@@ -1143,12 +1308,93 @@ export default function WhatsAppUI() {
             onLoad={() => {
               if (isNearBottomRef.current) bottomRef.current?.scrollIntoView({ behavior: "auto" });
             }}
+            onError={() => {
+              // fallback: do nothing; user can still open link button below if needed
+            }}
             onClick={() => window.open(url, "_blank", "noopener,noreferrer")}
           />
         </Box>
       );
     }
 
+    if (kind === "video") {
+      return (
+        <Box sx={{ mt: 0.75 }}>
+          <Box
+            component="video"
+            src={url}
+            controls
+            playsInline
+            preload="metadata"
+            sx={{
+              width: 280,
+              maxWidth: "100%",
+              borderRadius: 1.5,
+              border: "1px solid #e5e5e5",
+              display: "block",
+              backgroundColor: "#000",
+            }}
+            onLoadedMetadata={() => {
+              if (isNearBottomRef.current) bottomRef.current?.scrollIntoView({ behavior: "auto" });
+            }}
+          />
+          <Box sx={{ mt: 0.5, display: "flex", justifyContent: "flex-end" }}>
+            <Button
+              size="small"
+              variant="outlined"
+              onClick={() => window.open(url, "_blank", "noopener,noreferrer")}
+              sx={{ textTransform: "none" }}
+            >
+              Open video
+            </Button>
+          </Box>
+        </Box>
+      );
+    }
+
+    if (kind === "audio") {
+      return (
+        <Box sx={{ mt: 0.75 }}>
+          <Box
+            component="audio"
+            src={url}
+            controls
+            preload="metadata"
+            sx={{ width: 280, maxWidth: "100%" }}
+            onLoadedMetadata={() => {
+              if (isNearBottomRef.current) bottomRef.current?.scrollIntoView({ behavior: "auto" });
+            }}
+          />
+          <Box sx={{ mt: 0.5, display: "flex", justifyContent: "flex-end" }}>
+            <Button
+              size="small"
+              variant="outlined"
+              onClick={() => window.open(url, "_blank", "noopener,noreferrer")}
+              sx={{ textTransform: "none" }}
+            >
+              Open audio
+            </Button>
+          </Box>
+        </Box>
+      );
+    }
+
+    if (kind === "pdf") {
+      return (
+        <Box sx={{ mt: 0.75 }}>
+          <Button
+            size="small"
+            variant="outlined"
+            onClick={() => window.open(url, "_blank", "noopener,noreferrer")}
+            sx={{ textTransform: "none" }}
+          >
+            Open PDF{filename ? `: ${filename}` : ""}
+          </Button>
+        </Box>
+      );
+    }
+
+    // generic file
     return (
       <Box sx={{ mt: 0.75 }}>
         <Button
@@ -1371,7 +1617,7 @@ export default function WhatsAppUI() {
                 const wasUnread = !isOutbound && cutoff && ts > cutoff;
 
                 const bubbleText = msg?.text || "";
-                const hasMedia = !!(msg?.media?.url || msg?.mediaUrl);
+                const hasMedia = !!mediaUrlFromMsg(msg);
 
                 return (
                   <Box key={msgKey(msg)} alignSelf={isOutbound ? "flex-end" : "flex-start"}>
@@ -1416,14 +1662,27 @@ export default function WhatsAppUI() {
               size="small"
               placeholder={sessionExpired ? "Session expired. Send a template to reopen chat" : "Type a message"}
               value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && sendText()}
+              onChange={(e) => {
+                const val = e.target.value;
+                setInput(val);
+                if (activeP10) setDraftFor(activeP10, val);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  sendText();
+                }
+              }}
               disabled={!activeChat?.phone || sessionExpired}
               multiline
               minRows={1}
               maxRows={4}
             />
-            <IconButton color="primary" onClick={sendText} disabled={!activeChat?.phone || !input.trim() || sessionExpired}>
+            <IconButton
+              color="primary"
+              onClick={sendText}
+              disabled={!activeChat?.phone || !input.trim() || sessionExpired}
+            >
               <SendIcon />
             </IconButton>
           </Stack>
@@ -1509,7 +1768,11 @@ export default function WhatsAppUI() {
             <MenuItem
               key={q}
               onClick={() => {
-                setInput((t) => (t ? t + "\n" + q : q));
+                setInput((t) => {
+                  const next = t ? t + "\n" + q : q;
+                  if (activeP10) setDraftFor(activeP10, next);
+                  return next;
+                });
                 setQuickAnchor(null);
               }}
             >
@@ -1552,7 +1815,12 @@ export default function WhatsAppUI() {
         </Menu>
 
         {/* Emoji picker */}
-        <Menu anchorEl={emojiAnchor} open={Boolean(emojiAnchor)} onClose={() => setEmojiAnchor(null)} PaperProps={{ sx: { p: 1 } }}>
+        <Menu
+          anchorEl={emojiAnchor}
+          open={Boolean(emojiAnchor)}
+          onClose={() => setEmojiAnchor(null)}
+          PaperProps={{ sx: { p: 1 } }}
+        >
           <Box sx={{ display: "grid", gridTemplateColumns: "repeat(8, 1fr)", gap: 0.5 }}>
             {EMOJIS.map((e) => (
               <IconButton
@@ -1709,7 +1977,12 @@ export default function WhatsAppUI() {
             <Button variant="outlined" onClick={() => setTplComposeOpen(false)} sx={{ textTransform: "none" }}>
               Cancel
             </Button>
-            <Button variant="contained" onClick={sendTemplateFromChat} sx={{ textTransform: "none" }} disabled={!activeChat?.phone}>
+            <Button
+              variant="contained"
+              onClick={sendTemplateFromChat}
+              sx={{ textTransform: "none" }}
+              disabled={!activeChat?.phone}
+            >
               Send Template
             </Button>
           </Box>
