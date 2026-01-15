@@ -110,7 +110,10 @@ export default function WhatsAppNotification() {
 
   // room join tracking
   const joinedRoomsRef = useRef(new Set()); // Set<phone10>
-  const convMapRef = useRef(new Map()); // Map<phone10, { displayName, phoneDigits }>
+  const convMapRef = useRef(new Map()); // Map<phone10, { displayName, phoneDigits, unreadCount? }>
+
+  const lastToastRef = useRef({}); // { [p10]: { ts, lastKey } }
+  const refreshTimerRef = useRef(null);
 
   const [toast, setToast] = useState(null);
 
@@ -123,10 +126,8 @@ export default function WhatsAppNotification() {
     }
   }, []);
 
-  const myName = useMemo(
-    () => String(sessionUser?.fullName || "").trim().toLowerCase(),
-    [sessionUser?.fullName]
-  );
+  const myNameRaw = useMemo(() => String(sessionUser?.fullName || "").trim(), [sessionUser?.fullName]);
+  const myName = useMemo(() => myNameRaw.toLowerCase(), [myNameRaw]);
   const myRole = useMemo(() => String(sessionUser?.role || ""), [sessionUser?.role]);
 
   // auto-hide toast
@@ -137,11 +138,11 @@ export default function WhatsAppNotification() {
   }, [toast]);
 
   const refreshAndJoinMyRooms = useCallback(async () => {
-    if (!myName) return;
+    if (!myNameRaw) return;
 
     const query = new URLSearchParams({
       role: myRole || "",
-      userName: sessionUser?.fullName || "",
+      userName: myNameRaw || "",
     }).toString();
 
     const data = (await apiGet(`/api/whatsapp/conversations?${query}`)) || [];
@@ -160,6 +161,7 @@ export default function WhatsAppNotification() {
       nextMap.set(p10, {
         displayName: c?.displayName || p10,
         phoneDigits: digitsOnly(c?.phone) || p10,
+        unreadCount: Number(c?.unreadCount || 0),
       });
     });
     convMapRef.current = nextMap;
@@ -169,24 +171,26 @@ export default function WhatsAppNotification() {
 
     const nextSet = new Set(Array.from(nextMap.keys()));
 
+    // ✅ JOIN newly added
     for (const p10 of nextSet) {
       if (joinedRoomsRef.current.has(p10)) continue;
-      s.emit("wa:join", { phone: p10 });
+      s.emit("wa:join", { phone: p10 }); // backend expects last10 in room
       joinedRoomsRef.current.add(p10);
     }
 
+    // ✅ LEAVE removed
     for (const p10 of Array.from(joinedRoomsRef.current)) {
       if (nextSet.has(p10)) continue;
       s.emit("wa:leave", { phone: p10 });
       joinedRoomsRef.current.delete(p10);
     }
-  }, [myName, myRole, sessionUser?.fullName]);
+  }, [myName, myNameRaw, myRole]);
 
   /* -----------------------------
      Socket connect
   ------------------------------ */
   useEffect(() => {
-    if (!myName) return;
+    if (!myNameRaw) return;
 
     const s = io(API_BASE, {
       withCredentials: true,
@@ -200,6 +204,20 @@ export default function WhatsAppNotification() {
 
     const onConnect = () => {
       refreshAndJoinMyRooms().catch(() => {});
+    };
+
+    const showToast = ({ p10, phoneDigits, title, subtitle, ts }) => {
+      // ✅ don't show popup if already open on that chat
+      if (isChatAlreadyOpenFor(phoneDigits || p10)) return;
+
+      // ✅ debounce per-chat
+      const key = `${title}||${subtitle}`;
+      const prev = lastToastRef.current[p10];
+      if (prev && prev.lastKey === key && Date.now() - prev.ts < 1500) return;
+      lastToastRef.current[p10] = { ts: Date.now(), lastKey: key };
+
+      playDing();
+      setToast({ p10, phoneDigits, title, subtitle, ts });
     };
 
     const onMessage = (payload) => {
@@ -226,61 +244,85 @@ export default function WhatsAppNotification() {
           ? "📷 Photo received"
           : msg?.type === "video"
           ? "🎥 Video received"
+          : msg?.type === "audio"
+          ? "🎙️ Audio received"
           : "📎 Attachment received"
         : String(msg?.text || "").trim().slice(0, 140) || "New message received";
 
       const phoneDigits = meta?.phoneDigits || digitsOnly(customerPhone) || p10;
 
-      // ✅ don't show popup if already open on that chat
-      if (isChatAlreadyOpenFor(phoneDigits)) return;
-
-      // ✅ de-dupe + 🔔 play sound only if we show toast
-      setToast((prev) => {
-        const sameChat = prev?.p10 === p10;
-        const sameText = (prev?.subtitle || "") === subtitle;
-        const tooSoon = prev?.ts && Date.now() - prev.ts < 1500;
-        if (sameChat && sameText && tooSoon) return prev;
-
-        playDing();
-
-        return {
-          p10,
-          phoneDigits,
-          title,
-          subtitle,
-          ts: Date.now(),
-        };
+      showToast({
+        p10,
+        phoneDigits,
+        title,
+        subtitle,
+        ts: Date.now(),
       });
+    };
+
+    // optional: if your backend emits conversation patches, refresh map to keep assignments accurate
+    const onConversation = (payload) => {
+      const p10 = phone10(payload?.phone10 || payload?.phone || "");
+      if (!p10) return;
+
+      // If assignment changed, safest is to refresh & rejoin rooms.
+      // (Also helps when a manager reassigns chat to me while I'm online)
+      refreshAndJoinMyRooms().catch(() => {});
     };
 
     s.on("connect", onConnect);
     s.on("wa:message", onMessage);
+    s.on("wa:conversation", onConversation);
 
-    const interval = setInterval(() => {
+    // periodic refresh (keeps room membership in sync)
+    refreshTimerRef.current = setInterval(() => {
       refreshAndJoinMyRooms().catch(() => {});
     }, 60_000);
 
     return () => {
-      clearInterval(interval);
+      try {
+        if (refreshTimerRef.current) clearInterval(refreshTimerRef.current);
+      } catch {}
+      refreshTimerRef.current = null;
+
       try {
         s.off("connect", onConnect);
         s.off("wa:message", onMessage);
-        for (const p10 of Array.from(joinedRoomsRef.current)) s.emit("wa:leave", { phone: p10 });
+        s.off("wa:conversation", onConversation);
+
+        for (const p10 of Array.from(joinedRoomsRef.current)) {
+          s.emit("wa:leave", { phone: p10 });
+        }
         joinedRoomsRef.current.clear();
+
         s.disconnect();
       } catch {}
+
       socketRef.current = null;
     };
-  }, [myName, refreshAndJoinMyRooms]);
+  }, [myNameRaw, refreshAndJoinMyRooms]);
 
-  if (!myName) return null;
+  if (!myNameRaw) return null;
 
-  const openChat = () => {
+  const openChat = async () => {
     if (!toast) return;
     const p = toast.phoneDigits || toast.p10;
+
+    // optional: clear unread immediately so list updates fast (your chat screen also calls this)
+    try {
+      await fetch(`${API_BASE}/api/whatsapp/conversations/mark-read`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone: p }),
+      });
+    } catch {}
+
     navigate(`/whatsaap/chat?phone=${encodeURIComponent(p)}`);
     setToast(null);
   };
+
+  const dismiss = () => setToast(null);
 
   return (
     <Box
@@ -291,7 +333,7 @@ export default function WhatsAppNotification() {
         zIndex: 2500,
         width: 380,
         maxWidth: "calc(100vw - 36px)",
-        pointerEvents: "none", // only card is clickable
+        pointerEvents: "none",
       }}
     >
       <Slide direction="left" in={Boolean(toast)} mountOnEnter unmountOnExit>
@@ -379,7 +421,7 @@ export default function WhatsAppNotification() {
                       <Button
                         size="small"
                         variant="outlined"
-                        onClick={() => setToast(null)}
+                        onClick={dismiss}
                         sx={{
                           textTransform: "none",
                           borderRadius: 999,
@@ -396,12 +438,12 @@ export default function WhatsAppNotification() {
 
                   <IconButton
                     size="small"
-                    onClick={() => setToast(null)}
+                    onClick={dismiss}
                     sx={{
                       mt: -0.25,
                       color: "rgba(0,0,0,0.55)",
                       "&:hover": { color: "rgba(0,0,0,0.8)" },
-                    }}
+                  }}
                   >
                     <CloseIcon fontSize="small" />
                   </IconButton>
@@ -438,4 +480,4 @@ export default function WhatsAppNotification() {
       </Slide>
     </Box>
   );
-} 
+}

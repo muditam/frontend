@@ -40,7 +40,13 @@ import DoneAllIcon from "@mui/icons-material/DoneAll";
 
 import { io } from "socket.io-client";
 
-const API_BASE = "https://muditamleads-14f32a10d7f7.herokuapp.com";
+/**
+ * ✅ IMPORTANT
+ * - In production, keep API_BASE as your backend origin
+ * - Use credentials: "include" / withCredentials: true everywhere (already done)
+ */
+const API_BASE =
+  process.env.REACT_APP_API_BASE || "https://muditamleads-14f32a10d7f7.herokuapp.com";
 
 // toggle this if you want to see socket events
 const DEBUG_SOCKET = false;
@@ -273,7 +279,7 @@ function customerPhoneFromMsg(msg) {
 }
 
 /* -----------------------------
-   Media helpers (UPDATED)
+   Media helpers
 ------------------------------ */
 function mediaUrlFromMsg(m) {
   return m?.media?.url || m?.mediaUrl || "";
@@ -301,7 +307,6 @@ function detectMediaKind({ url = "", mime = "", fallbackType = "" }) {
 export default function WhatsAppUI() {
   const [conversations, setConversations] = useState([]);
   const [activeChat, setActiveChat] = useState(null);
-
   const [messages, setMessages] = useState([]);
 
   // ✅ Draft per chat (phone10 -> draft text)
@@ -361,7 +366,15 @@ export default function WhatsAppUI() {
   const activeDigits = useMemo(() => digitsOnly(activeChat?.phone), [activeChat?.phone]);
   const activeP10 = useMemo(() => phone10(activeChat?.phone), [activeChat?.phone]);
 
-  // ✅ attachment blob URL tracking (UPDATED)
+  // refs to avoid reconnecting socket when active changes
+  const activeP10Ref = useRef("");
+  const activeDigitsRef = useRef("");
+  useEffect(() => {
+    activeP10Ref.current = activeP10 || "";
+    activeDigitsRef.current = activeDigits || "";
+  }, [activeP10, activeDigits]);
+
+  // ✅ attachment blob URL tracking
   const blobUrlsRef = useRef(new Set());
   const rememberBlobUrl = (u) => {
     if (!u) return;
@@ -483,78 +496,75 @@ export default function WhatsAppUI() {
   /* -----------------------------
      Core: Upsert conversation from a message (customer-based)
   ------------------------------ */
-  const upsertConversationFromMessage = useCallback(
-    (msg) => {
-      const customerPhone = customerPhoneFromMsg(msg);
-      const p10 = phone10(customerPhone);
-      if (!p10) return;
+  const upsertConversationFromMessage = useCallback((msg) => {
+    const customerPhone = customerPhoneFromMsg(msg);
+    const p10 = phone10(customerPhone);
+    if (!p10) return;
 
-      const isInbound = String(msg?.direction || "").toUpperCase() === "INBOUND";
-      const isActive = activeP10 && p10 === activeP10;
+    const isInbound = String(msg?.direction || "").toUpperCase() === "INBOUND";
+    const isActive = activeP10Ref.current && p10 === activeP10Ref.current;
 
-      const nowIso = msg?.timestamp || new Date().toISOString();
+    const nowIso = msg?.timestamp || new Date().toISOString();
 
-      const url = mediaUrlFromMsg(msg);
-      const mime = mediaMimeFromMsg(msg);
-      const kind = detectMediaKind({ url, mime, fallbackType: msg?.type });
-      const lastText =
-        url
-          ? kind === "image"
-            ? "📷 Photo"
-            : kind === "video"
-            ? "🎥 Video"
-            : kind === "audio"
-            ? "🎙️ Audio"
-            : "📎 Attachment"
-          : String(msg?.text || "").slice(0, 200);
+    const url = mediaUrlFromMsg(msg);
+    const mime = mediaMimeFromMsg(msg);
+    const kind = detectMediaKind({ url, mime, fallbackType: msg?.type });
+    const lastText =
+      url
+        ? kind === "image"
+          ? "📷 Photo"
+          : kind === "video"
+          ? "🎥 Video"
+          : kind === "audio"
+          ? "🎙️ Audio"
+          : "📎 Attachment"
+        : String(msg?.text || "").slice(0, 200);
 
-      setConversations((prev) => {
-        const idx = prev.findIndex((c) => phone10(c.phone) === p10);
+    setConversations((prev) => {
+      const idx = prev.findIndex((c) => phone10(c.phone) === p10);
 
-        const pending = pendingReadRef.current.get(p10);
-        const forceRead = pending && Date.now() - pending.at < 30_000;
+      const pending = pendingReadRef.current.get(p10);
+      const forceRead = pending && Date.now() - pending.at < 30_000;
 
-        if (idx === -1) {
-          return [
-            {
-              phone: customerPhone,
-              displayName: "",
-              assignedToLabel: "",
-              lastMessageAt: nowIso,
-              lastMessageText: lastText,
-              unreadCount: isInbound && !isActive && !forceRead ? 1 : 0,
-              lastReadAt: isActive || forceRead ? (pending?.iso || nowIso) : null,
-            },
-            ...prev,
-          ];
-        }
+      if (idx === -1) {
+        return [
+          {
+            phone: customerPhone,
+            displayName: "",
+            assignedToLabel: "",
+            lastMessageAt: nowIso,
+            lastMessageText: lastText,
+            unreadCount: isInbound && !isActive && !forceRead ? 1 : 0,
+            lastReadAt: isActive || forceRead ? (pending?.iso || nowIso) : null,
+          },
+          ...prev,
+        ];
+      }
 
-        const next = [...prev];
-        const existing = next[idx];
+      const next = [...prev];
+      const existing = next[idx];
 
-        const newUnread = forceRead
+      const newUnread = forceRead
+        ? 0
+        : isInbound
+        ? isActive
           ? 0
-          : isInbound
-          ? isActive
-            ? 0
-            : Number(existing?.unreadCount || 0) + 1
-          : Number(existing?.unreadCount || 0);
+          : Number(existing?.unreadCount || 0) + 1
+        : Number(existing?.unreadCount || 0);
 
-        next[idx] = {
-          ...existing,
-          phone: existing?.phone || customerPhone,
-          lastMessageAt: nowIso,
-          lastMessageText: lastText || existing?.lastMessageText || "",
-          unreadCount: newUnread,
-          lastReadAt: isActive || forceRead ? (pending?.iso || nowIso) : existing?.lastReadAt,
-        };
+      next[idx] = {
+        ...existing,
+        phone: existing?.phone || customerPhone,
+        lastMessageAt: nowIso,
+        lastMessageText: lastText || existing?.lastMessageText || "",
+        unreadCount: newUnread,
+        lastReadAt: isActive || forceRead ? (pending?.iso || nowIso) : existing?.lastReadAt,
+      };
 
-        const [item] = next.splice(idx, 1);
-        return [item, ...next];
-      });
-    },
-    [activeP10]
-  );
+      const [item] = next.splice(idx, 1);
+      return [item, ...next];
+    });
+  }, []);
 
   /* -----------------------------
      Fetch: Conversations
@@ -675,7 +685,7 @@ export default function WhatsAppUI() {
   }, []);
 
   /* -----------------------------
-     Socket: connect once
+     Socket: connect ONCE (stable)
   ------------------------------ */
   useEffect(() => {
     const s = io(API_BASE, {
@@ -695,9 +705,11 @@ export default function WhatsAppUI() {
     const onConnect = () => {
       setSocketStatus("connected");
       refreshConversations(null, { silent: true });
-      if (activeP10) {
-        s.emit("wa:join", { phone: activeP10 });
-        joinedRoomRef.current = roomForPhone10(activeP10);
+
+      const p10 = activeP10Ref.current;
+      if (p10) {
+        s.emit("wa:join", { phone: p10 });
+        joinedRoomRef.current = roomForPhone10(p10);
       }
     };
     const onDisconnect = () => setSocketStatus("disconnected");
@@ -718,16 +730,17 @@ export default function WhatsAppUI() {
       joinedRoomRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [refreshConversations]);
+  }, []); // ✅ connect once
 
   /* -----------------------------
-     Socket: join/leave room
+     Socket: join/leave room (on active chat change)
   ------------------------------ */
   useEffect(() => {
     const s = socketRef.current;
     if (!s) return;
 
-    const nextRoom = activeP10 ? roomForPhone10(activeP10) : null;
+    const p10 = activeP10;
+    const nextRoom = p10 ? roomForPhone10(p10) : null;
 
     if (joinedRoomRef.current && joinedRoomRef.current !== nextRoom) {
       const oldPhone10 = joinedRoomRef.current.replace("wa:", "");
@@ -736,7 +749,7 @@ export default function WhatsAppUI() {
     }
 
     if (nextRoom && joinedRoomRef.current !== nextRoom) {
-      s.emit("wa:join", { phone: activeP10 });
+      s.emit("wa:join", { phone: p10 });
       joinedRoomRef.current = nextRoom;
     }
   }, [activeP10]);
@@ -770,7 +783,8 @@ export default function WhatsAppUI() {
 
       upsertConversationFromMessage(normalizedMsg);
 
-      if (activeP10 && p10 === activeP10) {
+      const activeNow = activeP10Ref.current;
+      if (activeNow && p10 === activeNow) {
         setMessages((prev) => {
           const seen = new Set(prev.map((m) => msgKey(m)));
           const k = msgKey(normalizedMsg);
@@ -779,7 +793,8 @@ export default function WhatsAppUI() {
         });
 
         if (String(normalizedMsg?.direction || "").toUpperCase() === "INBOUND") {
-          markConversationRead(activeDigits, { optimisticOnly: false });
+          const ad = activeDigitsRef.current;
+          if (ad) markConversationRead(ad, { optimisticOnly: false });
         }
       }
     };
@@ -790,7 +805,8 @@ export default function WhatsAppUI() {
       const p10 = phone10(payload?.phone10 || payload?.phone || "");
       if (!waId || !status) return;
 
-      if (p10 && activeP10 && p10 !== activeP10) return;
+      const activeNow = activeP10Ref.current;
+      if (p10 && activeNow && p10 !== activeNow) return;
 
       setMessages((prev) => prev.map((m) => (m.waId === waId ? { ...m, status } : m)));
     };
@@ -832,10 +848,10 @@ export default function WhatsAppUI() {
       s.off("wa:status", onStatus);
       s.off("wa:conversation", onConversation);
     };
-  }, [activeP10, activeDigits, markConversationRead, upsertConversationFromMessage]);
+  }, [markConversationRead, upsertConversationFromMessage]);
 
   /* -----------------------------
-     When active chat changes: load + mark read
+     When active chat changes: load draft into input
   ------------------------------ */
   useEffect(() => {
     if (activeP10) {
@@ -847,6 +863,9 @@ export default function WhatsAppUI() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeP10]);
 
+  /* -----------------------------
+     When active chat changes: load messages + mark read
+  ------------------------------ */
   useEffect(() => {
     if (!activeDigits) return;
 
@@ -881,32 +900,38 @@ export default function WhatsAppUI() {
   /* -----------------------------
      Open chat
   ------------------------------ */
-  const openChat = (phone) => {
-    const p = digitsOnly(phone);
-    if (!p) return;
+  const openChat = useCallback(
+    (phone) => {
+      const p = digitsOnly(phone);
+      if (!p) return;
 
-    const nextUrl = `/whatsaap/chat?phone=${encodeURIComponent(p)}`;
-   if (location.search !== `?phone=${encodeURIComponent(p)}`) {
-     navigate(nextUrl, { replace: true });
-   }
+      const nextSearch = `?phone=${encodeURIComponent(p)}`;
+      const nextUrl = `/whatsaap/chat${nextSearch}`;
 
-    openedCutoffRef.current = Date.now();
-    setActiveChat({ phone: p });
-    setSearch("");
+      // avoid unnecessary navigation (prevents loops)
+      if (location.search !== nextSearch) {
+        navigate(nextUrl, { replace: true });
+      }
 
-    markConversationRead(p, { optimisticOnly: false });
-  };
+      openedCutoffRef.current = Date.now();
+      setActiveChat({ phone: p });
+      setSearch("");
+
+      markConversationRead(p, { optimisticOnly: false });
+    },
+    [location.search, markConversationRead, navigate]
+  );
 
   useEffect(() => {
-   const p = digitsOnly(urlPhone);
+    const p = digitsOnly(urlPhone);
     if (!p) return;
- 
+
     if (lastUrlOpenedRef.current === p) return;
     lastUrlOpenedRef.current = p;
- 
-    openChat(p); 
-  }, [urlPhone]);
-  
+
+    openChat(p);
+  }, [openChat, urlPhone]);
+
   const updateConversationPreviewLocal = (phoneDigits, lastMessageText) => {
     const nowIso = new Date().toISOString();
     const p10 = phone10(phoneDigits);
@@ -987,7 +1012,7 @@ export default function WhatsAppUI() {
   };
 
   /* -----------------------------
-     Attachments (UPDATED)
+     Attachments
      - optimistic preview via blob URL for image/video/audio
      - better optimistic type detection
 ------------------------------ */
@@ -1279,7 +1304,7 @@ export default function WhatsAppUI() {
   };
 
   /* -----------------------------
-     Render media inside messages (UPDATED)
+     Render media inside messages
   ------------------------------ */
   const renderMedia = (m) => {
     const url = mediaUrlFromMsg(m);
@@ -1307,9 +1332,6 @@ export default function WhatsAppUI() {
             }}
             onLoad={() => {
               if (isNearBottomRef.current) bottomRef.current?.scrollIntoView({ behavior: "auto" });
-            }}
-            onError={() => {
-              // fallback: do nothing; user can still open link button below if needed
             }}
             onClick={() => window.open(url, "_blank", "noopener,noreferrer")}
           />
@@ -2143,4 +2165,4 @@ export default function WhatsAppUI() {
       </Dialog>
     </Box>
   );
-}
+} 
