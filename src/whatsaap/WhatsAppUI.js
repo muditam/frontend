@@ -40,20 +40,11 @@ import DoneAllIcon from "@mui/icons-material/DoneAll";
 
 import { io } from "socket.io-client";
 
-/**
- * ✅ IMPORTANT
- * - In production, keep API_BASE as your backend origin
- * - Use credentials: "include" / withCredentials: true everywhere (already done)
- */
-const API_BASE =
-  process.env.REACT_APP_API_BASE || "https://muditamleads-14f32a10d7f7.herokuapp.com";
+const API_BASE = "https://muditamleads-14f32a10d7f7.herokuapp.com";
 
 // toggle this if you want to see socket events
 const DEBUG_SOCKET = false;
 
-/* -----------------------------
-   Helpers
------------------------------- */
 function digitsOnly(v = "") {
   return String(v || "").replace(/\D/g, "");
 }
@@ -143,6 +134,14 @@ function statusChipProps(statusRaw) {
   return { label: s || "UNKNOWN", sx: { bgcolor: "#f4f6f8", color: "#344054" } };
 }
 
+function normalizeToWa(toAny = "") {
+  const d = digitsOnly(toAny);
+  if (!d) return "";
+  // If user typed 10 digits, assume India and prefix 91
+  if (d.length === 10) return `91${d}`;
+  return d; // already includes country code
+}
+
 function pickBodyTextFromTemplate(tpl) {
   if (!tpl) return "";
   if (tpl.body) return String(tpl.body || "");
@@ -187,6 +186,40 @@ function msgKey(m) {
       m?.media?.url || ""
     }`
   );
+}
+
+/* -----------------------------
+   Templates filters / header media detection
+------------------------------ */
+function isUtilityTemplate(t) {
+  const cat = t?.category || t?.raw360?.category || t?.raw360?.template?.category || "";
+  return String(cat).toUpperCase() === "UTILITY";
+}
+
+function isApprovedTemplate(t) {
+  const st = String(t?.status || t?.raw360?.status || "").toUpperCase();
+  return st.includes("APPROV");
+}
+
+function getHeaderMediaFormat(tpl) {
+  if (!tpl) return "";
+  const comps =
+    (Array.isArray(tpl.components) && tpl.components) ||
+    (Array.isArray(tpl.raw360?.components) && tpl.raw360.components) ||
+    (Array.isArray(tpl.raw360?.template?.components) && tpl.raw360.template.components) ||
+    [];
+  const header = comps.find((c) => String(c?.type || "").toUpperCase() === "HEADER");
+  const format = String(header?.format || "").toUpperCase(); // IMAGE / VIDEO / DOCUMENT / TEXT
+  if (["IMAGE", "VIDEO", "DOCUMENT"].includes(format)) return format;
+  return "";
+}
+
+function acceptForHeaderFormat(fmt) {
+  const f = String(fmt || "").toUpperCase();
+  if (f === "IMAGE") return "image/*";
+  if (f === "VIDEO") return "video/*";
+  if (f === "DOCUMENT") return ".pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,application/pdf";
+  return "*/*";
 }
 
 /* -----------------------------
@@ -357,11 +390,26 @@ export default function WhatsAppUI() {
   const [activeTplForSend, setActiveTplForSend] = useState(null);
   const [tplSendVars, setTplSendVars] = useState({});
 
+  // ✅ NEW: template header attachment (chat template dialog)
+  const [tplHeaderFormat, setTplHeaderFormat] = useState("");
+  const [tplHeaderFile, setTplHeaderFile] = useState(null);
+
   const [helpWriteLoading, setHelpWriteLoading] = useState(false);
 
   const [rephraseOpen, setRephraseOpen] = useState(false);
   const [rephraseStyle, setRephraseStyle] = useState("professional");
   const [rephraseLoading, setRephraseLoading] = useState(false);
+
+  // ✅ NEW: new chat header attachment
+  const [newHeaderFormat, setNewHeaderFormat] = useState("");
+  const [newHeaderFile, setNewHeaderFile] = useState(null);
+
+  // ✅ NEW: session countdown tick
+  const [nowTick, setNowTick] = useState(Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNowTick(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
 
   const activeDigits = useMemo(() => digitsOnly(activeChat?.phone), [activeChat?.phone]);
   const activeP10 = useMemo(() => phone10(activeChat?.phone), [activeChat?.phone]);
@@ -439,6 +487,34 @@ export default function WhatsAppUI() {
     if (!activeP10) return null;
     return conversations.find((c) => phone10(c.phone) === activeP10) || null;
   }, [activeP10, conversations]);
+
+  // ✅ NEW: session info (remaining time)
+  const sessionInfo = useMemo(() => {
+    const exp = activeConversation?.windowExpiresAt ? new Date(activeConversation.windowExpiresAt).getTime() : 0;
+    if (!exp) return { has: false, expired: false, msLeft: 0, label: "—" };
+
+    const msLeft = exp - nowTick;
+    const expired = msLeft <= 0;
+
+    const s = Math.max(0, Math.floor(msLeft / 1000));
+    const hh = String(Math.floor(s / 3600)).padStart(2, "0");
+    const mm = String(Math.floor((s % 3600) / 60)).padStart(2, "0");
+    const ss = String(s % 60).padStart(2, "0");
+
+    return {
+      has: true,
+      expired,
+      msLeft,
+      label: expired ? "Session expired" : `Session ends in ${hh}:${mm}:${ss}`,
+    };
+  }, [activeConversation?.windowExpiresAt, nowTick]);
+
+  // keep sessionExpired in sync with windowExpiresAt (UI + server errors)
+  useEffect(() => {
+    if (!activeChat?.phone) return;
+    if (!sessionInfo.has) return;
+    setSessionExpired(sessionInfo.expired);
+  }, [activeChat?.phone, sessionInfo.has, sessionInfo.expired]);
 
   const activeHeaderTitle = useMemo(() => {
     if (!activeP10) return "Select a chat";
@@ -642,9 +718,10 @@ export default function WhatsAppUI() {
     }
   }, []);
 
-  const allTemplates = useMemo(() => {
+  // ✅ ONLY UTILITY + APPROVED templates (prevents send errors)
+  const approvedUtilityTemplates = useMemo(() => {
     const list = Array.isArray(templates) ? templates : [];
-    return list;
+    return list.filter((t) => isUtilityTemplate(t) && isApprovedTemplate(t));
   }, [templates]);
 
   /* -----------------------------
@@ -964,9 +1041,10 @@ export default function WhatsAppUI() {
   };
 
   const sendText = async () => {
-    const to = digitsOnly(activeChat?.phone);
+    const to = normalizeToWa(activeChat?.phone);
     const text = input.trim();
     if (!to || !text) return;
+    if (sessionExpired) return; 
 
     const p10 = phone10(to);
 
@@ -1013,19 +1091,18 @@ export default function WhatsAppUI() {
 
   /* -----------------------------
      Attachments
-     - optimistic preview via blob URL for image/video/audio
-     - better optimistic type detection
 ------------------------------ */
   const onPickFile = async (file) => {
     if (!file) return;
     if (!activeChat?.phone) return;
+    if (sessionExpired) return;
 
     if (file.size > 5 * 1024 * 1024) {
       setErrorMessages("Max attachment size is 5MB.");
       return;
     }
 
-    const to = digitsOnly(activeChat.phone);
+    const to = normalizeToWa(activeChat.phone);
 
     const mime = file.type || "application/octet-stream";
     const urlBlob =
@@ -1098,9 +1175,26 @@ export default function WhatsAppUI() {
   };
 
   /* -----------------------------
+     Templates: upload header media (backend later)
+  ------------------------------ */
+  async function uploadTemplateHeaderMedia(file) {
+    const fd = new FormData();
+    fd.append("file", file);
+    // backend should return { mediaId }
+    return apiForm(`/api/whatsapp/upload-template-media`, fd);
+  }
+
+  /* -----------------------------
      Templates: send from chat
   ------------------------------ */
   const openTemplateComposer = (tpl) => {
+    if (!tpl) return;
+    // ✅ guard: only approved templates can be sent
+    if (!isApprovedTemplate(tpl)) {
+      setErrorMessages("This template is not APPROVED yet. Please use an APPROVED template.");
+      return;
+    }
+
     const body = pickBodyTextFromTemplate(tpl);
     const idxs = extractVarIndexes(body);
 
@@ -1109,6 +1203,11 @@ export default function WhatsAppUI() {
 
     setActiveTplForSend(tpl);
     setTplSendVars(initial);
+
+    const fmt = getHeaderMediaFormat(tpl);
+    setTplHeaderFormat(fmt);
+    setTplHeaderFile(null);
+
     setTplComposeOpen(true);
   };
 
@@ -1119,7 +1218,7 @@ export default function WhatsAppUI() {
 
   const sendTemplateFromChat = async () => {
     if (!activeTplForSend) return;
-    const to = digitsOnly(activeChat?.phone);
+    const to = normalizeToWa(activeChat?.phone);
     if (!to) return;
 
     const body = pickBodyTextFromTemplate(activeTplForSend);
@@ -1128,6 +1227,31 @@ export default function WhatsAppUI() {
     if (params.some((v) => !v)) {
       setErrorMessages("Fill all template variables.");
       return;
+    }
+ 
+    let headerMedia = null;
+    if (tplHeaderFormat) {
+      if (!tplHeaderFile) {
+        setErrorMessages("This template requires a header attachment. Please choose a file.");
+        return;
+      }
+      if (tplHeaderFile.size > 5 * 1024 * 1024) {
+        setErrorMessages("Max attachment size is 5MB.");
+        return;
+      }
+
+      try {
+        const up = await uploadTemplateHeaderMedia(tplHeaderFile);
+        const mediaId = up?.mediaId || up?.id;
+        if (!mediaId) {
+          setErrorMessages("Upload failed: no mediaId returned.");
+          return;
+        }
+        headerMedia = { format: tplHeaderFormat, id: mediaId };
+      } catch (e) {
+        setErrorMessages(e.message || "Failed to upload header attachment.");
+        return;
+      }
     }
 
     try {
@@ -1138,12 +1262,15 @@ export default function WhatsAppUI() {
           templateName: activeTplForSend.name,
           parameters: params,
           renderedText: tplSendPreview || "",
+          headerMedia, // ✅ NEW
         }),
       });
 
       setTplComposeOpen(false);
       setActiveTplForSend(null);
       setTplSendVars({});
+      setTplHeaderFormat("");
+      setTplHeaderFile(null);
 
       refreshConversations(null, { silent: true });
       await loadMessagesInitial(to);
@@ -1159,6 +1286,8 @@ export default function WhatsAppUI() {
   ------------------------------ */
   const helpMeWrite = async () => {
     if (!activeP10) return;
+    if (sessionExpired) return;
+
     setHelpWriteLoading(true);
 
     try {
@@ -1202,6 +1331,7 @@ export default function WhatsAppUI() {
   ------------------------------ */
   const openRephraseDialog = () => {
     if (!input.trim()) return;
+    if (sessionExpired) return;
     setRephraseStyle("professional");
     setRephraseOpen(true);
   };
@@ -1234,18 +1364,13 @@ export default function WhatsAppUI() {
   };
 
   /* -----------------------------
-     New Chat: template options
+     New Chat: template options (UTILITY + APPROVED only)
   ------------------------------ */
   const templateOptions = useMemo(() => {
     const list = Array.isArray(templates) ? templates : [];
-    return list.sort((a, b) => {
-      const as = String(a?.status || "").toUpperCase();
-      const bs = String(b?.status || "").toUpperCase();
-      const aApproved = as.includes("APPROV") ? 1 : 0;
-      const bApproved = bs.includes("APPROV") ? 1 : 0;
-      if (aApproved !== bApproved) return bApproved - aApproved;
-      return String(a?.name || "").localeCompare(String(b?.name || ""));
-    });
+    return list
+      .filter((t) => isUtilityTemplate(t) && isApprovedTemplate(t))
+      .sort((a, b) => String(a?.name || "").localeCompare(String(b?.name || "")));
   }, [templates]);
 
   useEffect(() => {
@@ -1254,6 +1379,10 @@ export default function WhatsAppUI() {
     const next = {};
     idxs.forEach((i) => (next[String(i)] = ""));
     setTplVars(next);
+
+    const fmt = getHeaderMediaFormat(selectedTemplate);
+    setNewHeaderFormat(fmt);
+    setNewHeaderFile(null);
   }, [selectedTemplate]);
 
   const previewBody = useMemo(() => {
@@ -1271,6 +1400,21 @@ export default function WhatsAppUI() {
     const params = idxs.map((i) => tplVars[String(i)]?.trim());
     if (params.some((v) => !v)) return setNewChatError("Fill all template variables");
 
+    let headerMedia = null;
+    if (newHeaderFormat) {
+      if (!newHeaderFile) return setNewChatError("This template requires a header attachment. Please choose a file.");
+      if (newHeaderFile.size > 5 * 1024 * 1024) return setNewChatError("Max attachment size is 5MB.");
+
+      try {
+        const up = await uploadTemplateHeaderMedia(newHeaderFile);
+        const mediaId = up?.mediaId || up?.id;
+        if (!mediaId) return setNewChatError("Upload failed: no mediaId returned.");
+        headerMedia = { format: newHeaderFormat, id: mediaId };
+      } catch (e) {
+        return setNewChatError(e.message || "Failed to upload header attachment.");
+      }
+    }
+
     setCreatingChat(true);
     setNewChatError("");
 
@@ -1282,6 +1426,7 @@ export default function WhatsAppUI() {
           templateName: selectedTemplate.name,
           parameters: params,
           renderedText: previewBody || "",
+          headerMedia, // ✅ NEW
         }),
       });
 
@@ -1289,6 +1434,8 @@ export default function WhatsAppUI() {
       setNewChatPhone("");
       setSelectedTemplate(null);
       setTplVars({});
+      setNewHeaderFormat("");
+      setNewHeaderFile(null);
 
       updateConversationPreviewLocal(to, `[TEMPLATE] ${selectedTemplate.name}`);
       setActiveChat({ phone: to });
@@ -1430,6 +1577,10 @@ export default function WhatsAppUI() {
       </Box>
     );
   };
+
+  // ✅ convenience flags for UI gating
+  const hasActiveChat = !!activeChat?.phone;
+  const expiredMode = hasActiveChat && sessionExpired; // session expired UX
 
   /* =========================================================
      Render
@@ -1603,6 +1754,20 @@ export default function WhatsAppUI() {
                 <Typography fontSize={12} color="text.secondary">
                   {activeConversation?.assignedToLabel ? assignedToText(activeConversation) : ""}
                 </Typography>
+
+                {/* ✅ NEW: remaining time at top */}
+                {activeChat?.phone && sessionInfo.has ? (
+                  <Typography
+                    fontSize={12}
+                    sx={{
+                      mt: 0.25,
+                      fontWeight: 900,
+                      color: sessionInfo.expired ? "error.main" : "text.secondary",
+                    }}
+                  >
+                    {sessionInfo.label}
+                  </Typography>
+                ) : null}
               </Box>
             </Stack>
           </Stack>
@@ -1682,7 +1847,7 @@ export default function WhatsAppUI() {
             <TextField
               fullWidth
               size="small"
-              placeholder={sessionExpired ? "Session expired. Send a template to reopen chat" : "Type a message"}
+              placeholder={expiredMode ? "Session expired. Send a template to reopen chat" : "Type a message"}
               value={input}
               onChange={(e) => {
                 const val = e.target.value;
@@ -1690,98 +1855,121 @@ export default function WhatsAppUI() {
                 if (activeP10) setDraftFor(activeP10, val);
               }}
               onKeyDown={(e) => {
+                if (expiredMode) return;
                 if (e.key === "Enter" && !e.shiftKey) {
                   e.preventDefault();
                   sendText();
                 }
               }}
-              disabled={!activeChat?.phone || sessionExpired}
+              disabled={!hasActiveChat || expiredMode}
               multiline
               minRows={1}
               maxRows={4}
+              // ✅ Session expired: template icon INSIDE input on right side
+              InputProps={{
+                endAdornment: expiredMode ? (
+                  <InputAdornment position="end">
+                    <Tooltip title="Send template to reopen session">
+                      <span>
+                        <IconButton
+                          size="small"
+                          onClick={(e) => setTplAnchor(e.currentTarget)}
+                          disabled={!hasActiveChat}
+                        >
+                          <ViewListIcon fontSize="small" />
+                        </IconButton>
+                      </span>
+                    </Tooltip>
+                  </InputAdornment>
+                ) : null,
+              }}
             />
-            <IconButton
-              color="primary"
-              onClick={sendText}
-              disabled={!activeChat?.phone || !input.trim() || sessionExpired}
-            >
+
+            {/* Send button hidden/disabled in expired mode */}
+            <IconButton color="primary" onClick={sendText} disabled={!hasActiveChat || !input.trim() || expiredMode}>
               <SendIcon />
             </IconButton>
           </Stack>
 
-          <Stack direction="row" spacing={0.5} alignItems="center" justifyContent="space-between" mt={1}>
-            <Stack direction="row" spacing={0.5} alignItems="center">
-              <Tooltip title="Quick Replies">
-                <span>
-                  <IconButton size="small" disabled={!activeChat?.phone} onClick={(e) => setQuickAnchor(e.currentTarget)}>
-                    <FlashOnIcon fontSize="small" />
-                  </IconButton>
-                </span>
-              </Tooltip>
+          {/* ✅ expired mode hint */}
+          {expiredMode ? (
+            <Typography sx={{ mt: 0.75 }} fontSize={12} color="error" fontWeight={900}>
+              Session expired — send a template (icon inside input) to reopen the 24h window.
+            </Typography>
+          ) : null}
 
-              <Tooltip title="Templates">
-                <span>
-                  <IconButton size="small" disabled={!activeChat?.phone} onClick={(e) => setTplAnchor(e.currentTarget)}>
-                    <ViewListIcon fontSize="small" />
-                  </IconButton>
-                </span>
-              </Tooltip>
+          {/* Actions row (HIDE when session expired) */}
+          {!expiredMode ? (
+            <Stack direction="row" spacing={0.5} alignItems="center" justifyContent="space-between" mt={1}>
+              <Stack direction="row" spacing={0.5} alignItems="center">
+                <Tooltip title="Quick Replies">
+                  <span>
+                    <IconButton size="small" disabled={!hasActiveChat} onClick={(e) => setQuickAnchor(e.currentTarget)}>
+                      <FlashOnIcon fontSize="small" />
+                    </IconButton>
+                  </span>
+                </Tooltip>
 
-              <Tooltip title="Emoji">
-                <span>
-                  <IconButton size="small" disabled={!activeChat?.phone} onClick={(e) => setEmojiAnchor(e.currentTarget)}>
-                    <InsertEmoticonIcon fontSize="small" />
-                  </IconButton>
-                </span>
-              </Tooltip>
+                <Tooltip title="Templates (UTILITY + APPROVED)">
+                  <span>
+                    <IconButton size="small" disabled={!hasActiveChat} onClick={(e) => setTplAnchor(e.currentTarget)}>
+                      <ViewListIcon fontSize="small" />
+                    </IconButton>
+                  </span>
+                </Tooltip>
 
-              <Tooltip title={sessionExpired ? "Send template to reopen session" : "Attachment (≤ 5MB)"}>
-                <span>
-                  <IconButton
-                    size="small"
-                    disabled={!activeChat?.phone || sessionExpired}
-                    onClick={() => fileRef.current?.click()}
-                  >
-                    <AttachFileIcon fontSize="small" />
-                  </IconButton>
-                </span>
-              </Tooltip>
+                <Tooltip title="Emoji">
+                  <span>
+                    <IconButton size="small" disabled={!hasActiveChat} onClick={(e) => setEmojiAnchor(e.currentTarget)}>
+                      <InsertEmoticonIcon fontSize="small" />
+                    </IconButton>
+                  </span>
+                </Tooltip>
 
-              <input ref={fileRef} type="file" hidden onChange={(e) => onPickFile(e.target.files?.[0])} />
+                <Tooltip title="Attachment (≤ 5MB)">
+                  <span>
+                    <IconButton size="small" disabled={!hasActiveChat} onClick={() => fileRef.current?.click()}>
+                      <AttachFileIcon fontSize="small" />
+                    </IconButton>
+                  </span>
+                </Tooltip>
+
+                <input ref={fileRef} type="file" hidden onChange={(e) => onPickFile(e.target.files?.[0])} />
+              </Stack>
+
+              <Stack direction="row" spacing={1} alignItems="center">
+                <Tooltip title="Help me write (AI)">
+                  <span>
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      disabled={!hasActiveChat || helpWriteLoading}
+                      onClick={helpMeWrite}
+                      startIcon={helpWriteLoading ? <CircularProgress size={14} /> : <AutoFixHighIcon />}
+                      sx={{ textTransform: "none", fontWeight: 900 }}
+                    >
+                      Help me write
+                    </Button>
+                  </span>
+                </Tooltip>
+
+                <Tooltip title="Rephrase current text">
+                  <span>
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      disabled={!hasActiveChat || !input.trim()}
+                      onClick={openRephraseDialog}
+                      startIcon={<AutorenewIcon />}
+                      sx={{ textTransform: "none", fontWeight: 900 }}
+                    >
+                      Rephrase
+                    </Button>
+                  </span>
+                </Tooltip>
+              </Stack>
             </Stack>
-
-            <Stack direction="row" spacing={1} alignItems="center">
-              <Tooltip title="Help me write (AI)">
-                <span>
-                  <Button
-                    size="small"
-                    variant="outlined"
-                    disabled={!activeChat?.phone || helpWriteLoading}
-                    onClick={helpMeWrite}
-                    startIcon={helpWriteLoading ? <CircularProgress size={14} /> : <AutoFixHighIcon />}
-                    sx={{ textTransform: "none", fontWeight: 900 }}
-                  >
-                    Help me write
-                  </Button>
-                </span>
-              </Tooltip>
-
-              <Tooltip title="Rephrase current text">
-                <span>
-                  <Button
-                    size="small"
-                    variant="outlined"
-                    disabled={!activeChat?.phone || !input.trim()}
-                    onClick={openRephraseDialog}
-                    startIcon={<AutorenewIcon />}
-                    sx={{ textTransform: "none", fontWeight: 900 }}
-                  >
-                    Rephrase
-                  </Button>
-                </span>
-              </Tooltip>
-            </Stack>
-          </Stack>
+          ) : null}
         </Box>
 
         {/* Quick replies menu */}
@@ -1803,7 +1991,7 @@ export default function WhatsAppUI() {
           ))}
         </Menu>
 
-        {/* Templates menu */}
+        {/* Templates menu (UTILITY + APPROVED only) */}
         <Menu
           anchorEl={tplAnchor}
           open={Boolean(tplAnchor)}
@@ -1812,10 +2000,10 @@ export default function WhatsAppUI() {
         >
           {loadingTemplates ? (
             <MenuItem disabled>Loading…</MenuItem>
-          ) : allTemplates.length === 0 ? (
-            <MenuItem disabled>No templates found</MenuItem>
+          ) : approvedUtilityTemplates.length === 0 ? (
+            <MenuItem disabled>No APPROVED UTILITY templates found</MenuItem>
           ) : (
-            allTemplates.map((t) => (
+            approvedUtilityTemplates.map((t) => (
               <MenuItem
                 key={t._id || t.name}
                 onClick={() => {
@@ -1837,12 +2025,7 @@ export default function WhatsAppUI() {
         </Menu>
 
         {/* Emoji picker */}
-        <Menu
-          anchorEl={emojiAnchor}
-          open={Boolean(emojiAnchor)}
-          onClose={() => setEmojiAnchor(null)}
-          PaperProps={{ sx: { p: 1 } }}
-        >
+        <Menu anchorEl={emojiAnchor} open={Boolean(emojiAnchor)} onClose={() => setEmojiAnchor(null)} PaperProps={{ sx: { p: 1 } }}>
           <Box sx={{ display: "grid", gridTemplateColumns: "repeat(8, 1fr)", gap: 0.5 }}>
             {EMOJIS.map((e) => (
               <IconButton
@@ -1901,12 +2084,7 @@ export default function WhatsAppUI() {
           </DialogContent>
 
           <Box sx={{ p: 1.25, display: "flex", justifyContent: "flex-end", gap: 1 }}>
-            <Button
-              variant="outlined"
-              onClick={() => setRephraseOpen(false)}
-              sx={{ textTransform: "none" }}
-              disabled={rephraseLoading}
-            >
+            <Button variant="outlined" onClick={() => setRephraseOpen(false)} sx={{ textTransform: "none" }} disabled={rephraseLoading}>
               Cancel
             </Button>
             <Button
@@ -1922,7 +2100,15 @@ export default function WhatsAppUI() {
         </Dialog>
 
         {/* Template Composer Dialog */}
-        <Dialog open={tplComposeOpen} onClose={() => setTplComposeOpen(false)} fullWidth maxWidth="sm">
+        <Dialog
+          open={tplComposeOpen}
+          onClose={() => {
+            setTplComposeOpen(false);
+            setTplHeaderFile(null);
+          }}
+          fullWidth
+          maxWidth="sm"
+        >
           <DialogTitle sx={{ fontWeight: 900 }}>Template Preview</DialogTitle>
           <DialogContent dividers>
             <Box sx={{ mb: 1 }}>
@@ -1933,6 +2119,51 @@ export default function WhatsAppUI() {
                 Language: {activeTplForSend?.language || "en"} · Status: {activeTplForSend?.status || "—"}
               </Typography>
             </Box>
+
+            {/* ✅ header attachment section (when template requires it) */}
+            {tplHeaderFormat ? (
+              <Box sx={{ mt: 1.5 }}>
+                <Typography sx={{ fontWeight: 900, mb: 1 }}>
+                  Header Attachment ({tplHeaderFormat})
+                </Typography>
+
+                <Stack direction="row" spacing={1} alignItems="center">
+                  <Button variant="outlined" component="label" sx={{ textTransform: "none", fontWeight: 900 }}>
+                    Choose file
+                    <input
+                      type="file"
+                      hidden
+                      accept={acceptForHeaderFormat(tplHeaderFormat)}
+                      onChange={(e) => {
+                        const f = e.target.files?.[0];
+                        if (!f) return;
+                        if (f.size > 5 * 1024 * 1024) {
+                          setErrorMessages("Max attachment size is 5MB.");
+                          return;
+                        }
+                        setTplHeaderFile(f);
+                      }}
+                    />
+                  </Button>
+
+                  <Typography fontSize={13} color="text.secondary" noWrap sx={{ maxWidth: 340 }}>
+                    {tplHeaderFile ? tplHeaderFile.name : "No file selected"}
+                  </Typography>
+
+                  {tplHeaderFile ? (
+                    <Button size="small" onClick={() => setTplHeaderFile(null)} sx={{ textTransform: "none" }}>
+                      Remove
+                    </Button>
+                  ) : null}
+                </Stack>
+
+                {!tplHeaderFile ? (
+                  <Typography sx={{ mt: 0.75 }} fontSize={12} color="error">
+                    This template needs a header attachment.
+                  </Typography>
+                ) : null}
+              </Box>
+            ) : null}
 
             <Box sx={{ mt: 2 }}>
               <Typography sx={{ fontWeight: 900, mb: 1 }}>Variables</Typography>
@@ -2003,7 +2234,7 @@ export default function WhatsAppUI() {
               variant="contained"
               onClick={sendTemplateFromChat}
               sx={{ textTransform: "none" }}
-              disabled={!activeChat?.phone}
+              disabled={!hasActiveChat || (tplHeaderFormat ? !tplHeaderFile : false)}
             >
               Send Template
             </Button>
@@ -2060,10 +2291,66 @@ export default function WhatsAppUI() {
                 );
               }}
               renderInput={(params) => (
-                <TextField {...params} label="Search Template" size="small" placeholder="Search Template" />
+                <TextField
+                  {...params}
+                  label="Search Template (UTILITY + APPROVED)"
+                  size="small"
+                  placeholder="Search Template"
+                />
               )}
               disabled={creatingChat}
             />
+
+            {/* header attachment for New Chat */}
+            {newHeaderFormat ? (
+              <Box>
+                <Typography fontWeight={900} mb={1}>
+                  Header Attachment ({newHeaderFormat})
+                </Typography>
+                <Stack direction="row" spacing={1} alignItems="center">
+                  <Button
+                    variant="outlined"
+                    component="label"
+                    sx={{ textTransform: "none", fontWeight: 900 }}
+                    disabled={creatingChat}
+                  >
+                    Choose file
+                    <input
+                      type="file"
+                      hidden
+                      accept={acceptForHeaderFormat(newHeaderFormat)}
+                      onChange={(e) => {
+                        const f = e.target.files?.[0];
+                        if (!f) return;
+                        if (f.size > 5 * 1024 * 1024) {
+                          setNewChatError("Max attachment size is 5MB.");
+                          return;
+                        }
+                        setNewHeaderFile(f);
+                      }}
+                    />
+                  </Button>
+                  <Typography fontSize={13} color="text.secondary" noWrap sx={{ maxWidth: 420 }}>
+                    {newHeaderFile ? newHeaderFile.name : "No file selected"}
+                  </Typography>
+                  {newHeaderFile ? (
+                    <Button
+                      size="small"
+                      onClick={() => setNewHeaderFile(null)}
+                      sx={{ textTransform: "none" }}
+                      disabled={creatingChat}
+                    >
+                      Remove
+                    </Button>
+                  ) : null}
+                </Stack>
+                {!newHeaderFile ? (
+                  <Typography mt={0.75} fontSize={12} color="error">
+                    This template needs a header attachment.
+                  </Typography>
+                ) : null}
+              </Box>
+            ) : null}
 
             <Box display="flex" gap={3} mt={1}>
               <Box flex={1} minWidth={280}>
@@ -2158,11 +2445,15 @@ export default function WhatsAppUI() {
           <Button onClick={() => setNewChatOpen(false)} disabled={creatingChat}>
             Cancel
           </Button>
-          <Button variant="contained" onClick={startNewChatWithTemplate} disabled={creatingChat}>
+          <Button
+            variant="contained"
+            onClick={startNewChatWithTemplate}
+            disabled={creatingChat || (newHeaderFormat ? !newHeaderFile : false)}
+          >
             {creatingChat ? "Sending..." : "Send"}
           </Button>
         </Box>
       </Dialog>
     </Box>
   );
-} 
+}

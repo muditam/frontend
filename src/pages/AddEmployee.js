@@ -34,6 +34,7 @@ import {
 } from "@mui/icons-material";
 import axios from "axios";
 
+
 // === DEFAULT PERMISSIONS (Menubar + Navbar) ===
 const DEFAULT_PERMISSIONS = {
   menubar: {
@@ -52,18 +53,22 @@ const DEFAULT_PERMISSIONS = {
     abandonedAnalytics: false,
     whatsaapChats: false,
 
+
     invoices: false,
     accessManagement: false,
     adminAccessRequests: false,
     deliveredSalesRecord: false,
+
 
     // Order confirmations & abandoned
     orderConfirmationsMenu: false,
     orderConfirmationPage: false,
     orderAnalyticsPage: false,
 
+
     // Manager / Master Data
     addEmployee: false,
+
 
     masterDataMenu: false,
     masterAllLeads: false,
@@ -77,25 +82,30 @@ const DEFAULT_PERMISSIONS = {
     onlineOrders: false,
     unassignedDeliveredOrders: false,
 
+
     // Sales Agent section
     salesAgentMenu: false,
     salesMyLeads: false,
     salesMySales: false,
+
 
     // Retention Agent section
     retentionAgentMenu: false,
     retentionLeads: false,
     retentionSales: false,
 
+
     // Task Manager
     taskManagerMenu: false,
     taskBoard: false,
     myReporting: false,
 
+
     // Smartflo
     smartfloMenu: false,
     smartfloCallLogs: false,
     smartfloDataAnalytics: false,
+
 
     // Finance – Orders / Remittance / Records
     financeOrderSummary: false,
@@ -122,20 +132,24 @@ const DEFAULT_PERMISSIONS = {
     bankYesCcTejasv: false,
     bankYesCcAbhay: false,
 
+
     // Operations
     opsUndeliveredOrders: false,
     opsRtoDelivered: false,
     opsEmailUndelivered: false,
     opsOnlyOrderConfirmation: false,
 
+
     // HR / Assets
     hrAddNewAssets: false,
     hrAssetAllotment: false,
+
 
     // Leaderboard
     leaderboardMenu: false,
     leaderboardAll: false,
     leaderboardBloom: false,
+
 
     // Others (Manager)
     othersMenu: false,
@@ -150,6 +164,7 @@ const DEFAULT_PERMISSIONS = {
     othersBulkDataUpload: false,
     othersIncentiveCreation: false,
 
+
     // International Agent
     globalShopifyMenu: false,
     globalShopifyOrders: false,
@@ -159,10 +174,12 @@ const DEFAULT_PERMISSIONS = {
     globalRetentionSales: false,
   },
 
+
   navbar: {
     // Topbar center (matches NavbarWithSearch canNav keys)
     shopifySearch: false,
     drrPanel: false, // controls DRR + Target block
+
 
     // Topbar icons (left of LMS search)
     incentiveIcon: false,
@@ -172,14 +189,17 @@ const DEFAULT_PERMISSIONS = {
     deliveryStatusIcon: false,
     cartIcon: false,
 
+
     // Task shortcuts (for managers/others)
     taskBoardIcon: false,
     myReportingIcon: false,
+
 
     // Right search
     lmsSearch: false,
   },
 };
+
 
 const AddEmployee = () => {
   const [employees, setEmployees] = useState([]);
@@ -212,15 +232,18 @@ const AddEmployee = () => {
   const [viewInactive, setViewInactive] = useState(false);
   const [allActiveEmployees, setAllActiveEmployees] = useState([]);
 
+
   // Permission dialog state
   const [permissionDialogOpen, setPermissionDialogOpen] = useState(false);
   const [permissionEmployee, setPermissionEmployee] = useState(null);
   const [roleFilter, setRoleFilter] = useState("");
   const [availableRoles, setAvailableRoles] = useState([]);
 
+
   const [permissionValues, setPermissionValues] = useState({
     ...DEFAULT_PERMISSIONS,
   });
+
 
   const roles = [
     "Manager",
@@ -237,15 +260,18 @@ const AddEmployee = () => {
   const statusOptions = ["active", "inactive"];
   const LANGUAGE_OPTIONS = ["English", "Hindi", "Kannada", "Telugu", "Tamil"];
 
+
   useEffect(() => {
     fetchEmployees();
   }, [viewInactive]);
+
 
   const fetchEmployees = async () => {
     try {
       const response = await axios.get(
         "https://muditamleads-14f32a10d7f7.herokuapp.com/api/employees"
       );
+
 
       const uniqueRoles = [
         ...new Set(
@@ -256,17 +282,21 @@ const AddEmployee = () => {
       ].sort();
       setAvailableRoles(uniqueRoles);
 
+
       const fetchedEmployees = response.data
         .filter((emp) =>
           viewInactive ? emp.status === "inactive" : emp.status === "active"
         )
         .sort((a, b) => a.fullName.localeCompare(b.fullName));
 
+
       setEmployees(fetchedEmployees);
+
 
       const activeEmployees = response.data
         .filter((emp) => emp.status === "active")
         .sort((a, b) => a.fullName.localeCompare(b.fullName));
+
 
       setAllActiveEmployees(activeEmployees);
     } catch (error) {
@@ -274,10 +304,13 @@ const AddEmployee = () => {
     }
   };
 
+
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
 
+
     const newValue = type === "checkbox" ? checked : value;
+
 
     setEmployeeData((prev) => ({
       ...prev,
@@ -286,16 +319,20 @@ const AddEmployee = () => {
   };
 
 
+
+
   const isAgentRole = ["Sales Agent", "Retention Agent"].includes(
     employeeData.role
   );
   const isCoreOnlyRole = ["Manager", "Super Admin"].includes(employeeData.role);  
+
 
   useEffect(() => {
     const agentRole = ["Sales Agent", "Retention Agent"].includes(
       employeeData.role
     );
     const coreOnly = ["Manager", "Super Admin"].includes(employeeData.role);
+
 
     setEmployeeData((prev) => ({
       ...prev,
@@ -314,6 +351,7 @@ const AddEmployee = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [employeeData.role]);
 
+
   const validateForm = () => {
     const {
       email,
@@ -326,13 +364,16 @@ const AddEmployee = () => {
       joiningDate,
     } = employeeData;
 
+
     // 🔹 Always work with trimmed name
     const fullNameTrimmed = (employeeData.fullName || "").trim();
+
 
     if (!fullNameTrimmed || !email || !role || (!isEditMode && !password)) {
       setError("Full Name, Email, Role, and Password are required.");
       return false;
     }
+
 
     // 🔹 Validate trimmed name (allows spaces in between)
     if (!/^[a-zA-Z ]+$/.test(fullNameTrimmed)) {
@@ -340,10 +381,12 @@ const AddEmployee = () => {
       return false;
     }
 
+
     if (!/^[\w-.]+@([\w-]+\.)+[\w-]{2,4}$/.test(email)) {
       setError("Invalid email format.");
       return false;
     }
+
 
     // only for Sales/Retention
     if (isAgentRole) {
@@ -367,6 +410,7 @@ const AddEmployee = () => {
       }
     }
 
+
     if (!isEditMode && password.length < 8) {
       setError("Password must be at least 8 characters long.");
       return false;
@@ -376,62 +420,121 @@ const AddEmployee = () => {
       return false;
     }
 
+
     setError("");
     return true;
   };
 
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!validateForm()) return;
 
-    const fullNameTrimmed = (employeeData.fullName || "").trim();
 
-    // 🔹 Ensure clean name before sending
-    const payload = {
-      ...employeeData,
-      fullName: fullNameTrimmed,
-    };
+const handleSubmit = async (e) => {
+  e.preventDefault();
+  if (!validateForm()) return;
+
+
+  const fullNameTrimmed = (employeeData.fullName || "").trim();
+  const payload = { ...employeeData, fullName: fullNameTrimmed };
+
+
+const getActorName = () => {
+  // 1) direct keys
+  const direct =
+    localStorage.getItem("fullName") ||
+    localStorage.getItem("name") ||
+    localStorage.getItem("userName") ||
+    localStorage.getItem("email");
+
+
+  if (direct && direct !== "undefined" && direct !== "null") return direct;
+
+
+  // 2) scan all keys for JSON user object
+  for (const k of Object.keys(localStorage)) {
+    const raw = localStorage.getItem(k);
+    if (!raw) continue;
+
 
     try {
-      if (isEditMode) {
-        await axios.put(
-          `https://muditamleads-14f32a10d7f7.herokuapp.com/api/employees/${currentEmployeeId}`,
-          payload
-        );
-      } else {
-        await axios.post(
-          "https://muditamleads-14f32a10d7f7.herokuapp.com/api/employees",
-          payload
-        );
-      }
-      fetchEmployees();
-      setOpen(false);
-      setEmployeeData({
-        fullName: "",
-        email: "",
-        callerId: "",
-        agentNumber: "",
-        role: "",
-        password: "",
-        confirmPassword: "",
-        async: 1,
-        status: "active",
-        target: "",
-        hasTeam: false,
-        isDoctor: false,
-        teamLeader: "",
-        joiningDate: "",
-        languages: [],
-        permissions: { ...DEFAULT_PERMISSIONS }, // reset
-      });
-    } catch (error) {
-      console.error("Error submitting employee data:", error);
-      setError("Error occurred while saving employee data.");
+      const obj = JSON.parse(raw);
+
+
+      const name =
+        obj?.fullName ||
+        obj?.name ||
+        obj?.user?.fullName ||
+        obj?.user?.name ||
+        obj?.employee?.fullName ||
+        obj?.employee?.name;
+
+
+      const email =
+        obj?.email || obj?.user?.email || obj?.employee?.email;
+
+
+      if (name) return name;
+      if (email) return email;
+    } catch (e) {
+      // ignore non-json
     }
+  }
+
+
+  return "Unknown";
+};
+
+
+const actorName = getActorName();
+console.log("[AUDIT] Sending x-agent-name:", actorName);
+
+
+
+
+  // (Optional: see what’s being sent)
+  console.log("[AUDIT] Sending x-agent-name:", actorName);
+
+
+  const axiosConfig = {
+    withCredentials: true,
+    headers: { "x-agent-name": actorName },
   };
 
 
+  try {
+    if (isEditMode) {
+      await axios.put(
+        `https://muditamleads-14f32a10d7f7.herokuapp.com/api/employees/${currentEmployeeId}`,
+        payload,
+        axiosConfig
+      );
+    } else {
+      await axios.post(
+        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/employees",
+        payload,
+        axiosConfig
+      );
+    }
+
+
+    fetchEmployees();
+    setOpen(false);
+    // ... reset form ...
+  } catch (error) {
+    console.error("Error submitting employee data:", error);
+
+
+    if (error.response?.status === 403) {
+      setError("Access Denied: Only Managers can perform this action.");
+    } else if (error.response?.status === 401) {
+      setError("Please login to continue.");
+    } else {
+      setError(
+        error.response?.data?.message ||
+          "Error occurred while saving employee data."
+      );
+    }
+  }
+};
   const handleEdit = (employee) => {
     setEmployeeData({
       fullName: employee.fullName,
@@ -469,10 +572,12 @@ const AddEmployee = () => {
     setOpen(true);
   };
 
+
   const handleDelete = async (id) => {
     try {
       await axios.delete(
-        `https://muditamleads-14f32a10d7f7.herokuapp.com/api/employees/${id}`
+        `https://muditamleads-14f32a10d7f7.herokuapp.com/api/employees/${id}`,
+          { withCredentials: true }
       );
       fetchEmployees();
       setDeleteDialogOpen(false);
@@ -481,14 +586,17 @@ const AddEmployee = () => {
     }
   };
 
+
   const confirmDelete = (id) => {
     setEmployeeToDelete(id);
     setDeleteDialogOpen(true);
   };
 
+
   const handleToggleViewInactive = () => {
     setViewInactive(!viewInactive);
   };
+
 
   // Permission dialog handlers
   const openPermissionDialog = (employee) => {
@@ -505,15 +613,18 @@ const AddEmployee = () => {
       }
       : { ...DEFAULT_PERMISSIONS };
 
+
     setPermissionEmployee(employee);
     setPermissionValues(perms);
     setPermissionDialogOpen(true);
   };
 
+
   const closePermissionDialog = () => {
     setPermissionDialogOpen(false);
     setPermissionEmployee(null);
   };
+
 
   const handlePermissionToggle = (section, key) => {
     setPermissionValues((prev) => ({
@@ -525,15 +636,15 @@ const AddEmployee = () => {
     }));
   };
 
+
   const handleSavePermissions = async () => {
     if (!permissionEmployee?._id) return;
     try {
-      await axios.put(
-        `https://muditamleads-14f32a10d7f7.herokuapp.com/api/employees/${permissionEmployee._id}`,
-        {
-          permissions: permissionValues,
-        }
-      );
+  await axios.put(
+  `https://muditamleads-14f32a10d7f7.herokuapp.com/api/employees/${permissionEmployee._id}`,
+  { permissions: permissionValues },
+  { withCredentials: true } // 🔥 REQUIRED
+);
       await fetchEmployees();
       closePermissionDialog();
     } catch (error) {
@@ -542,9 +653,12 @@ const AddEmployee = () => {
     }
   };
 
+
   const filteredEmployees = roleFilter
     ? employees.filter((emp) => emp.role === roleFilter)
     : employees;
+
+
 
 
   return (
@@ -594,6 +708,7 @@ const AddEmployee = () => {
             Add Employee
           </Button>
 
+
           {/* 👇 Filter by Role – left side of View Inactive button */}
           <TextField
             select
@@ -612,10 +727,13 @@ const AddEmployee = () => {
           </TextField>
         </Box>
 
+
         <Button variant="outlined" onClick={handleToggleViewInactive}>
           {viewInactive ? "Hide Inactive Employees" : "View Inactive Employees"}
         </Button>
       </Box>
+
+
 
 
       <TableContainer
@@ -731,6 +849,7 @@ const AddEmployee = () => {
         </Table>
       </TableContainer>
 
+
       {/* Add / Edit Employee Dialog */}
       <Dialog open={open} onClose={() => setOpen(false)} fullWidth maxWidth="sm">
         <DialogTitle
@@ -815,6 +934,7 @@ const AddEmployee = () => {
               ))}
             </TextField>
 
+
             {/* Team Leader (hidden for Manager/Super Admin) */}
             {!isCoreOnlyRole &&
               employeeData.role !== "Manager" &&
@@ -839,6 +959,7 @@ const AddEmployee = () => {
                   ))}
                 </TextField>
               )}
+
 
             {/* Agent-only fields directly below Team Leader (Sales/Retention only) */}
             {!isCoreOnlyRole && isAgentRole && (
@@ -897,6 +1018,7 @@ const AddEmployee = () => {
               </>
             )}
 
+
             {/* Languages */}
             {!isCoreOnlyRole && (
               <Autocomplete
@@ -930,6 +1052,7 @@ const AddEmployee = () => {
                 )}
               />
             )}
+
 
             {/* Checkboxes */}
             {!isCoreOnlyRole && (
@@ -968,6 +1091,7 @@ const AddEmployee = () => {
               </Box>
             )}
 
+
             {/* Status */}
             {!isCoreOnlyRole && (
               <TextField
@@ -991,6 +1115,7 @@ const AddEmployee = () => {
               </TextField>
             )}
 
+
             {/* Async */}
             {!isCoreOnlyRole && (
               <TextField
@@ -1010,6 +1135,7 @@ const AddEmployee = () => {
                 }}
               />
             )}
+
 
             {/* Passwords only when adding (required, red asterisk) */}
             {!isEditMode && (
@@ -1112,6 +1238,7 @@ const AddEmployee = () => {
         </DialogActions>
       </Dialog>
 
+
       {/* Delete Confirmation Dialog */}
       <Dialog
         open={deleteDialogOpen}
@@ -1146,6 +1273,7 @@ const AddEmployee = () => {
         </DialogActions>
       </Dialog>
 
+
       {/* Permission Dialog */}
       <Dialog
         open={permissionDialogOpen}
@@ -1174,6 +1302,7 @@ const AddEmployee = () => {
                 Sidebar (MenuBar)
               </Typography>
               <Divider sx={{ mb: 1 }} />
+
 
               <Typography variant="caption" sx={{ fontWeight: 600 }}>
                 Core
@@ -1213,6 +1342,7 @@ const AddEmployee = () => {
                 ))}
               </Box>
 
+
               <Typography
                 variant="caption"
                 sx={{ fontWeight: 600, mt: 1 }}
@@ -1241,6 +1371,7 @@ const AddEmployee = () => {
                   />
                 ))}
               </Box>
+
 
               <Typography
                 variant="caption"
@@ -1276,6 +1407,7 @@ const AddEmployee = () => {
                 ))}
               </Box>
 
+
               <Typography
                 variant="caption"
                 sx={{ fontWeight: 600, mt: 1 }}
@@ -1306,6 +1438,7 @@ const AddEmployee = () => {
                 ))}
               </Box>
 
+
               <Typography
                 variant="caption"
                 sx={{ fontWeight: 600, mt: 1 }}
@@ -1335,6 +1468,7 @@ const AddEmployee = () => {
                   />
                 ))}
               </Box>
+
 
               <Typography
                 variant="caption"
@@ -1382,6 +1516,7 @@ const AddEmployee = () => {
                   />
                 ))}
               </Box>
+
 
               <Typography
                 variant="caption"
@@ -1434,6 +1569,7 @@ const AddEmployee = () => {
               </Box>
             </Grid>
 
+
             {/* RIGHT: Navbar permissions */}
             <Grid item xs={12} md={6}>
               <Typography
@@ -1443,6 +1579,7 @@ const AddEmployee = () => {
                 Topbar (Navbar)
               </Typography>
               <Divider sx={{ mb: 1 }} />
+
 
               <Typography variant="caption" sx={{ fontWeight: 600 }}>
                 Center Search & Target
@@ -1466,6 +1603,7 @@ const AddEmployee = () => {
                   />
                 ))}
               </Box>
+
 
               <Typography
                 variant="caption"
@@ -1497,6 +1635,7 @@ const AddEmployee = () => {
                 ))}
               </Box>
 
+
               <Typography
                 variant="caption"
                 sx={{ fontWeight: 600, mt: 1 }}
@@ -1522,6 +1661,7 @@ const AddEmployee = () => {
                   />
                 ))}
               </Box>
+
 
               <Typography
                 variant="caption"
@@ -1557,5 +1697,7 @@ const AddEmployee = () => {
     </Box>
   );
 };
-
 export default AddEmployee;
+
+
+
