@@ -55,7 +55,6 @@ const TYPES = [
   "Keyboard",
   "Monitor",
   "NeckBand",
-  "Others",
 ];
 
 // 🔹 New: common brands for dropdown (still allows custom)
@@ -75,7 +74,7 @@ const BRANDS = [
   "Zebronics",
 ];
 
-const API_BASE_URL = "https://muditamleads-14f32a10d7f7.herokuapp.com";  
+const API_BASE_URL = "https://muditamleads-14f32a10d7f7.herokuapp.com"; // change if needed
 
 const fmtDate = (d) => {
   if (!d) return "—";
@@ -89,8 +88,83 @@ const fmtDate = (d) => {
     return "—";
   }
 };
+function LazyImage({ src, alt, style, onClick, placeholder = true, eager = false, loadOnClick = false  }) {
+  const [loaded, setLoaded] = useState(false);
+  const [error, setError] = useState(false);
+  const [inView, setInView] = useState(eager);
+  const imgRef = useRef(null);
+  const observerRef = useRef(null);
 
-/* ------------------------ Section Header ------------------------ */
+  useEffect(() => {
+    if (eager) {
+      setInView(true);
+      return;
+    }
+
+    const container = imgRef.current?.parentElement;
+    if (!container) return;
+
+    // Check if already loaded from cache
+    const imgEl = imgRef.current;
+    if (imgEl?.complete && imgEl.naturalHeight !== 0) {
+      setLoaded(true);
+      setInView(true);
+      return;
+    }
+
+    // Intersection Observer with margin for preloading
+    observerRef.current = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setInView(true);
+          observerRef.current?.disconnect();
+        }
+      },
+      {
+        rootMargin: '200px', // Start loading 200px BEFORE entering viewport
+        threshold: 0.01
+      }
+    );
+
+    observerRef.current.observe(container);
+
+    return () => {
+      observerRef.current?.disconnect();
+    };
+  }, [src, eager]);
+
+  return (
+<Box
+  sx={{ width: "100%", height: "100%" }}
+  onClick={(e) => {
+    if (loadOnClick && !inView) {
+      e.stopPropagation();
+      setInView(true);      // 👈 LOAD IMAGE ON CLICK
+      return;
+    }
+    onClick?.(e);
+  }}
+>
+  {inView && (
+    <img
+      ref={imgRef}
+      src={src}
+      alt={alt}
+      onLoad={() => setLoaded(true)}
+      onError={() => setError(true)}
+      style={{
+        ...style,
+        opacity: loaded ? 1 : 0,
+        transition: "opacity 0.2s ease",
+        display: "block",
+      }}
+    />
+  )}
+</Box>
+
+  );
+}
+
 function SectionHeader({ title, subtitle, right, sx }) {
   return (
     <Stack
@@ -138,16 +212,23 @@ function ImageGalleryDialog({ open, onClose, images = [], title = "Images" }) {
                 variant="outlined"
                 sx={{ p: 0.5, borderRadius: 2, overflow: "hidden" }}
               >
-                <img
-                  src={src}
-                  alt={`asset-img-${idx}`}
-                  style={{
-                    width: "100%",
-                    height: 160,
-                    objectFit: "cover",
-                    display: "block",
-                  }}
-                />
+<LazyImage
+  src={src}
+  alt={`asset-img-${idx}`}
+  eager={true}
+  style={{
+    width: "100%",
+    height: 160,
+    objectFit: "cover",
+    display: "block",
+    cursor: "zoom-in",
+  }}
+  onClick={(e) => {
+    e.stopPropagation();
+    window.open(src, "_blank", "noopener,noreferrer");
+  }}
+/>
+
               </Paper>
             ))}
           </Box>
@@ -913,74 +994,79 @@ const fetchAssets = async () => {
     return active.length ? active : employeeList;
   }, [employeeList]);
 
-  const totalAssigned = useMemo(
-    () => items.filter((a) => a.allocatedTo || a.employeeId).length,
-    [items]
-  );
-  const totalFaulty = useMemo(
-    () => items.filter((a) => !!a.isFaulty).length,
-    [items]
-  );
-  const totalUnassigned = useMemo(
-    () => items.filter((a) => !a.allocatedTo && !a.employeeId).length,
-    [items]
-  );
+const totalAssigned = useMemo(
+  () => items.filter((a) => !a.isFaulty && (a.allocatedTo || a.employeeId)).length,
+  [items]
+);
+const totalFaulty = useMemo(
+  () => items.filter((a) => !!a.isFaulty).length,
+  [items]
+);
+const totalUnassigned = useMemo(
+  () => items.filter((a) => !a.isFaulty && !a.allocatedTo && !a.employeeId).length,
+  [items]
+);
 
-  const filtered = useMemo(() => {
-    const needle = q.trim().toLowerCase();
+ const filtered = useMemo(() => {
+  const needle = q.trim().toLowerCase();
 
-    let arr =
-      assignedFilter === "FAULTY"
-        ? items.filter((a) => !!a.isFaulty)
-        : items.filter((a) => !a.isFaulty);
+  // 🔹 FIX: Handle filter logic correctly
+  let arr;
+  if (assignedFilter === "FAULTY") {
+    arr = items.filter((a) => !!a.isFaulty);
+  } else if (assignedFilter === "ALL") {
+    arr = items; // ← Show ALL items including faulty
+  } else {
+    arr = items.filter((a) => !a.isFaulty); // ← For ASSIGNED/UNASSIGNED, exclude faulty
+  }
 
-    if (needle) {
-      arr = arr.filter((a) => {
-        const allItems = getItemsArr(a);
-        const hay = [
-          a.assetCode,
-          a.allocatedTo,
-          a.employeeId,
-          ...allItems.map((x) => x?.type || ""),
-          ...allItems.map((x) => x?.brand || ""),
-          ...allItems.map((x) => x?.model || ""),
-        ]
-          .join(" ")
-          .toLowerCase();
-        return hay.includes(needle);
-      });
-    }
+  if (needle) {
+    arr = arr.filter((a) => {
+      const allItems = getItemsArr(a);
+      const hay = [
+        a.assetCode,
+        a.allocatedTo,
+        a.employeeId,
+        ...allItems.map((x) => x?.type || ""),
+        ...allItems.map((x) => x?.brand || ""),
+        ...allItems.map((x) => x?.model || ""),
+      ]
+        .join(" ")
+        .toLowerCase();
+      return hay.includes(needle);
+    });
+  }
 
-    if (typeFilter) {
-      const t = typeFilter.trim().toLowerCase();
-      arr = arr.filter((a) =>
-        getItemsArr(a).some(
-          (it) => (it.type || "").trim().toLowerCase() === t
-        )
-      );
-    }
+  if (typeFilter) {
+    const t = typeFilter.trim().toLowerCase();
+    arr = arr.filter((a) =>
+      getItemsArr(a).some(
+        (it) => (it.type || "").trim().toLowerCase() === t
+      )
+    );
+  }
 
-    if (employeeFilter) {
-      const fName = (employeeFilter.name || "").trim().toLowerCase();
-      const fId = (employeeFilter.employeeId || "").trim().toLowerCase();
+  if (employeeFilter) {
+    const fName = (employeeFilter.name || "").trim().toLowerCase();
+    const fId = (employeeFilter.employeeId || "").trim().toLowerCase();
 
-      arr = arr.filter((a) => {
-        const aName = (a.allocatedTo || "").trim().toLowerCase();
-        const aId = (a.employeeId || "").trim().toLowerCase();
-        const nameMatch = fName && aName === fName;
-        const idMatch = fId && aId === fId;
-        return nameMatch || idMatch;
-      });
-    }
+    arr = arr.filter((a) => {
+      const aName = (a.allocatedTo || "").trim().toLowerCase();
+      const aId = (a.employeeId || "").trim().toLowerCase();
+      const nameMatch = fName && aName === fName;
+      const idMatch = fId && aId === fId;
+      return nameMatch || idMatch;
+    });
+  }
 
-    if (assignedFilter === "ASSIGNED") {
-      arr = arr.filter((a) => a.allocatedTo || a.employeeId);
-    } else if (assignedFilter === "UNASSIGNED") {
-      arr = arr.filter((a) => !a.allocatedTo && !a.employeeId);
-    }
+  if (assignedFilter === "ASSIGNED") {
+    arr = arr.filter((a) => a.allocatedTo || a.employeeId);
+  } else if (assignedFilter === "UNASSIGNED") {
+    arr = arr.filter((a) => !a.allocatedTo && !a.employeeId);
+  }
 
-    return arr;
-  }, [items, q, typeFilter, employeeFilter, assignedFilter]);
+  return arr;
+}, [items, q, typeFilter, employeeFilter, assignedFilter]);
 
   const total = filtered.length;
   const paged = useMemo(() => {
@@ -1480,16 +1566,14 @@ const fetchAssets = async () => {
                 },
               }}
             >
-              <TableCell sx={{ width: 180 }}>Asset Code</TableCell>
-              <TableCell sx={{ width: 180 }}>Types</TableCell>
-              <TableCell sx={{ width: 320 }}>Model</TableCell>
-              <TableCell sx={{ width: 200 }}>Images</TableCell>
-              <TableCell sx={{ width: 220 }}>Assign</TableCell>
-              <TableCell sx={{ width: 140 }}>History</TableCell>
-              <TableCell sx={{ width: 180 }}>Faulty</TableCell>
-              <TableCell align="right" sx={{ width: 120 }}>
-                Actions
-              </TableCell>
+         <TableCell sx={{ width: 120 }}>Asset Code</TableCell>
+<TableCell sx={{ width: 120 }}>Types</TableCell>
+<TableCell sx={{ width: 180 }}>Model</TableCell>
+<TableCell sx={{ width: 180 }}>Images</TableCell>
+<TableCell sx={{ width: 180 }}>Assign</TableCell>
+<TableCell sx={{ width: 100 }}>History</TableCell>
+<TableCell sx={{ width: 220 }}>Faulty</TableCell>
+<TableCell align="right" sx={{ width: 100 }}>Actions</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
@@ -1552,56 +1636,64 @@ const isAssigned = !!(
                       </Stack>
                     </TableCell>
 
-                    <TableCell>
-                      <Stack spacing={0.25}>
-                        {allItems.slice(0, 3).map((it, idx) => (
-                          <Typography
-                            key={`${a._id}-model-${idx}`}
-                            variant="body2"
-                          >
-                            {it.model || "—"}
-                          </Typography>
-                        ))}
-                        {allItems.length > 3 && (
-                          <Typography
-                            variant="caption"
-                            color="text.secondary"
-                          >
-                            +{allItems.length - 3} more
-                          </Typography>
-                        )}
-                      </Stack>
-                    </TableCell>
+             <TableCell sx={{ maxWidth: 180 }}>
+  <Stack spacing={0.25}>
+    {allItems.slice(0, 3).map((it, idx) => (
+      <Typography
+        key={`${a._id}-model-${idx}`}
+        variant="body2"
+        sx={{
+          whiteSpace: "normal",
+          wordBreak: "break-word",
+          lineHeight: 1.4,
+        }}
+      >
+        {it.model || "—"}
+      </Typography>
+    ))}
+    {allItems.length > 3 && (
+      <Typography
+        variant="caption"
+        color="text.secondary"
+      >
+        +{allItems.length - 3} more
+      </Typography>
+    )}
+  </Stack>
+</TableCell>
 
                     <TableCell>
                       {imgs.length ? (
                         <Stack direction="row" spacing={1} alignItems="center">
-                          {first3Imgs.map((src, idx) => (
-                            <Tooltip
-                              key={`${a._id}-${idx}`}
-                              title="Click to open in new tab"
-                            >
-                              <Avatar
-                                variant="rounded"
-                                src={src}
-                                sx={{
-                                  width: 34,
-                                  height: 34,
-                                  border: "1px solid",
-                                  borderColor: "divider",
-                                  cursor: "pointer",
-                                }}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  window.open(
-                                    src,
-                                    "_blank",
-                                    "noopener,noreferrer"
-                                  );
-                                }}
-                              />
-                            </Tooltip>
-                          ))}
+                      {first3Imgs.map((src, idx) => (
+  <Tooltip
+    key={`${a._id}-${idx}`}
+    title="Click to open in new tab"
+  >
+    <Avatar
+      variant="rounded"
+      sx={{
+        width: 34,
+        height: 34,
+        border: "1px solid",
+        borderColor: "divider",
+        cursor: "pointer",
+        bgcolor: "action.hover",  // ← ADD this
+      }}
+    >
+      <LazyImage
+        src={src}
+        alt={`thumb-${idx}`}
+        style={{ width: "100%", height: "100%", objectFit: "cover" }}
+        placeholder={false}
+        onClick={(e) => {
+          e.stopPropagation();
+          window.open(src, "_blank", "noopener,noreferrer");
+        }}
+      />
+    </Avatar>
+  </Tooltip>
+))}
 
                           {moreImgs > 0 && (
                             <Badge badgeContent={`+${moreImgs}`} color="primary">
@@ -1692,47 +1784,52 @@ const isAssigned = !!(
                       </Button>
                     </TableCell>
 
-                    <TableCell>
-                      <Stack direction="row" spacing={1} alignItems="center">
-                        <Switch
-                          checked={!!a.isFaulty}
-                          onChange={(_, v) => {
-                            if (v) {
-                              // turning ON -> open dialog, remark required
-                              setFaultyDialog({
-                                open: true,
-                                asset: a,
-                                value: true,
-                              });
-                              setFaultyRemark("");
-                              setFaultyError("");
-                            } else {
-                              // turning OFF -> no remark required
-                              toggleFaulty(a._id, false);
-                            }
-                          }}
-                          size="small"
-                        />
-                        <Typography variant="caption">
-                          {a.isFaulty ? "Marked Faulty" : "OK"}
-                        </Typography>
+                 <TableCell sx={{ maxWidth: 220 }}>
+  <Stack spacing={0.5}>
+    <Stack direction="row" spacing={1} alignItems="center">
+      <Switch
+        checked={!!a.isFaulty}
+        onChange={(_, v) => {
+          if (v) {
+            setFaultyDialog({
+              open: true,
+              asset: a,
+              value: true,
+            });
+            setFaultyRemark("");
+            setFaultyError("");
+          } else {
+            toggleFaulty(a._id, false);
+          }
+        }}
+        size="small"
+      />
+      <Typography variant="caption" sx={{ fontWeight: 600 }}>
+        {a.isFaulty ? "Marked Faulty" : "OK"}
+      </Typography>
+    </Stack>
 
-                        {a.isFaulty && a.faultyRemark && (
-                          <Tooltip title={a.faultyRemark}>
-                            <Typography
-                              variant="caption"
-                              sx={{
-                                color: "error.main",
-                                whiteSpace: "normal",
-                                wordBreak: "break-word",
-                              }}
-                            >
-                              {a.faultyRemark}
-                            </Typography>
-                          </Tooltip>
-                        )}
-                      </Stack>
-                    </TableCell>
+    {a.isFaulty && a.faultyRemark && (
+      <Tooltip title={a.faultyRemark} placement="top">
+        <Typography
+          variant="caption"
+          sx={{
+            color: "error.main",
+            display: "-webkit-box",
+            WebkitLineClamp: 2,
+            WebkitBoxOrient: "vertical",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            lineHeight: 1.4,
+            cursor: "help",
+          }}
+        >
+          {a.faultyRemark}
+        </Typography>
+      </Tooltip>
+    )}
+  </Stack>
+</TableCell>
 
                     <TableCell align="right">
                       <Tooltip title="Edit">
@@ -1990,29 +2087,32 @@ const isAssigned = !!(
                               ? h.allotmentImageUrls
                               : []
                             ).length ? (
-                              h.allotmentImageUrls.map((url, i) => (
-                                <Avatar
-                                  key={`a-${i}`}
-                                  src={url}
-                                  variant="rounded"
-                                  sx={{
-                                    width: 40,
-                                    height: 40,
-                                    borderRadius: 1.5,
-                                    mr: 0.5,
-                                    mb: 0.5,
-                                    cursor: "pointer",
-                                  }}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    window.open(
-                                      url,
-                                      "_blank",
-                                      "noopener,noreferrer"
-                                    );
-                                  }}
-                                />
-                              ))
+                             h.allotmentImageUrls.map((url, i) => (
+  <Avatar
+    key={`a-${i}`}
+    variant="rounded"
+    sx={{
+      width: 40,
+      height: 40,
+      borderRadius: 1.5,
+      mr: 0.5,
+      mb: 0.5,
+      cursor: "pointer",
+      bgcolor: "action.hover",  // ← ADD this
+    }}
+  >
+    <LazyImage
+      src={url}
+      alt={`allotment-${i}`}
+      style={{ width: "100%", height: "100%", objectFit: "cover" }}
+      placeholder={false}
+      onClick={(e) => {
+        e.stopPropagation();
+        window.open(url, "_blank", "noopener,noreferrer");
+      }}
+    />
+  </Avatar>
+))
                             ) : (
                               <Typography
                                 variant="caption"
@@ -2041,29 +2141,32 @@ const isAssigned = !!(
                               ? h.returnImageUrls
                               : []
                             ).length ? (
-                              h.returnImageUrls.map((url, i) => (
-                                <Avatar
-                                  key={`r-${i}`}
-                                  src={url}
-                                  variant="rounded"
-                                  sx={{
-                                    width: 40,
-                                    height: 40,
-                                    borderRadius: 1.5,
-                                    mr: 0.5,
-                                    mb: 0.5,
-                                    cursor: "pointer",
-                                  }}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    window.open(
-                                      url,
-                                      "_blank",
-                                      "noopener,noreferrer"
-                                    );
-                                  }}
-                                />
-                              ))
+                             h.returnImageUrls.map((url, i) => (
+  <Avatar
+    key={`r-${i}`}
+    variant="rounded"
+    sx={{
+      width: 40,
+      height: 40,
+      borderRadius: 1.5,
+      mr: 0.5,
+      mb: 0.5,
+      cursor: "pointer",
+      bgcolor: "action.hover",  // ← ADD this
+    }}
+  >
+    <LazyImage
+      src={url}
+      alt={`return-${i}`}
+      style={{ width: "100%", height: "100%", objectFit: "cover" }}
+      placeholder={false}
+      onClick={(e) => {
+        e.stopPropagation();
+        window.open(url, "_blank", "noopener,noreferrer");
+      }}
+    />
+  </Avatar>
+))
                             ) : (
                               <Typography
                                 variant="caption"
@@ -2161,3 +2264,6 @@ const isAssigned = !!(
     </Box>
   );
 }
+
+
+

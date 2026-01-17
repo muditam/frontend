@@ -18,57 +18,68 @@ import {
   IconButton,
   Tooltip,
   Link as MuiLink,
+  Grid,
+  Paper,
+  Chip,
+  Avatar,
 } from "@mui/material";
+
 
 import Autocomplete from "@mui/material/Autocomplete";
 import CloudUploadIcon from "@mui/icons-material/CloudUpload";
 import AddIcon from "@mui/icons-material/Add";
 import DeleteIcon from "@mui/icons-material/Delete";
 import SaveIcon from "@mui/icons-material/Save";
+import CloseIcon from "@mui/icons-material/Close";
+import VisibilityIcon from "@mui/icons-material/Visibility";
+import AccountBalanceWalletIcon from "@mui/icons-material/AccountBalanceWallet";
+
 
 import axios from "axios";
 
-// --------------------------
+
+// --- Helpers ---
 function todayISO() {
   return new Date().toISOString().slice(0, 10);
 }
 
+
 function sortPayments(list) {
   return [...list].sort((a, b) => new Date(b.date) - new Date(a.date));
 }
-// --------------------------
+
 
 const PaymentRecordsPage = () => {
   const [payments, setPayments] = useState([]);
   const [vendors, setVendors] = useState([]);
-
   const [newRow, setNewRow] = useState(null);
-  const [uploadingScreenshot, setUploadingScreenshot] = useState(false);
+  const [duePreview, setDuePreview] = useState(null);
 
+
+
+
+  const [uploadingScreenshot, setUploadingScreenshot] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
 
-  // Pagination
+
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
 
-  // ------------------------------------------------------------
-  // LOAD DATA
-  // ------------------------------------------------------------
+
   useEffect(() => {
     loadData();
   }, []);
 
+
   async function loadData() {
     try {
       setLoading(true);
-
       const [payRes, vendorRes] = await Promise.all([
         axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/payment-records"),
         axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/vendors"),
       ]);
-
       setPayments(sortPayments(payRes.data || []));
       setVendors(vendorRes.data || []);
     } catch (err) {
@@ -78,19 +89,41 @@ const PaymentRecordsPage = () => {
     }
   }
 
-  const visiblePayments = useMemo(
-    () => payments.filter((p) => !p.isDeleted),
-    [payments]
-  );
+
+  const visiblePayments = useMemo(() => payments.filter((p) => !p.isDeleted), [payments]);
+
+
+const stats = useMemo(() => {
+  const totalPaid = visiblePayments.reduce((sum, p) => sum + (Number(p.amountPaid) || 0), 0);
+
+
+
+
+  const latestByVendor = new Map();
+  for (const p of visiblePayments) {
+    const vendorKey = String(p.vendorId || p.vendorName || "").trim().toLowerCase();
+    if (!vendorKey) continue;
+    if (!latestByVendor.has(vendorKey)) {
+      latestByVendor.set(vendorKey, Number(p.due) || 0);
+    }
+  }
+
+
+  const totalDue = Array.from(latestByVendor.values()).reduce((a, b) => a + (Number(b) || 0), 0);
+
+
+  return { totalPaid, totalDue };
+}, [visiblePayments]);
+
+
+
 
   const paginated = useMemo(() => {
     const start = page * rowsPerPage;
     return visiblePayments.slice(start, start + rowsPerPage);
   }, [visiblePayments, page, rowsPerPage]);
 
-  // ------------------------------------------------------------
-  // ADD NEW ROW
-  // ------------------------------------------------------------
+
   const handleAddNewRow = () => {
     setNewRow({
       date: todayISO(),
@@ -98,17 +131,42 @@ const PaymentRecordsPage = () => {
       vendorName: "",
       amountPaid: "",
       screenshotUrl: "",
-      due: "-", // will be calculated AFTER save
+      due: "-",
     });
   };
+  useEffect(() => {
+  let t = null;
 
-  // ------------------------------------------------------------
-  // SAVE ROW
-  // ------------------------------------------------------------
+
+  async function calc() {
+    if (!newRow?.vendorId || !newRow?.date) return setDuePreview(null);
+
+
+    const amt = Number(newRow.amountPaid || 0);
+
+
+    try {
+      const res = await axios.get(
+        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/payment-records/calc-due",
+        { params: { vendorId: newRow.vendorId, date: newRow.date, amountPaid: amt } }
+      );
+      setDuePreview(res.data?.due ?? null);
+    } catch (e) {
+      setDuePreview(null);
+    }
+  }
+  t = setTimeout(calc, 250);
+  return () => clearTimeout(t);
+}, [newRow?.vendorId, newRow?.date, newRow?.amountPaid]);
+
+
+
+
   const handleSaveRow = async () => {
     if (!newRow.vendorId) return setErrorMsg("Vendor is required");
     if (!newRow.amountPaid || Number(newRow.amountPaid) <= 0)
       return setErrorMsg("Amount must be greater than 0");
+
 
     try {
       const payload = {
@@ -119,308 +177,232 @@ const PaymentRecordsPage = () => {
         screenshotUrl: newRow.screenshotUrl,
       };
 
+
       const res = await axios.post("https://muditamleads-14f32a10d7f7.herokuapp.com/api/payment-records", payload);
-
-      const saved = res.data;
-
-      // Insert and re-sort
-      setPayments((prev) => sortPayments([saved, ...prev]));
-
-      // Remove editable row
+      setPayments((prev) => sortPayments([res.data, ...prev]));
       setNewRow(null);
-      setSuccessMsg("Payment saved");
+      setSuccessMsg("Payment recorded successfully");
     } catch (err) {
       setErrorMsg("Failed to save payment");
     }
   };
 
-  // ------------------------------------------------------------
-  // DELETE ROW
-  // ------------------------------------------------------------
+
   const handleDeleteRow = async (row) => {
     if (!window.confirm("Delete this record?")) return;
-
     try {
       await axios.delete(`https://muditamleads-14f32a10d7f7.herokuapp.com/api/payment-records/${row._id}`);
-
-      setPayments((prev) =>
-        prev.map((p) =>
-          p._id === row._id ? { ...p, isDeleted: true } : p
-        )
-      );
-
+      setPayments((prev) => prev.map((p) => (p._id === row._id ? { ...p, isDeleted: true } : p)));
       setSuccessMsg("Record deleted");
     } catch (err) {
       setErrorMsg("Delete failed");
     }
   };
 
-  // ------------------------------------------------------------
-  // UPLOAD SCREENSHOT
-  // ------------------------------------------------------------
+
   const handleScreenshotUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
     try {
       setUploadingScreenshot(true);
-
       const fd = new FormData();
       fd.append("file", file);
-
-      const res = await axios.post("https://muditamleads-14f32a10d7f7.herokuapp.com/api/payment-records/upload-screenshot", fd, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
-
-      setNewRow((prev) => ({
-        ...prev,
-        screenshotUrl: res.data.url,
-      }));
-
-      setSuccessMsg("Screenshot uploaded");
+      const res = await axios.post("https://muditamleads-14f32a10d7f7.herokuapp.com/api/payment-records/upload-screenshot", fd);
+      setNewRow((prev) => ({ ...prev, screenshotUrl: res.data.url }));
+      setSuccessMsg("Upload successful");
     } catch (err) {
       setErrorMsg("Upload failed");
     } finally {
       setUploadingScreenshot(false);
-      e.target.value = "";
     }
   };
 
-  // ------------------------------------------------------------
-  // FORMATTERS
-  // ------------------------------------------------------------
-  const formatCurrency = (v) =>
-    v == null ? "-" : Number(v).toLocaleString("en-IN");
 
-  const formatDate = (v) =>
-    new Date(v).toLocaleDateString("en-IN", {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-    });
+  const formatCurrency = (v) => (v == null ? "0" : Number(v).toLocaleString("en-IN"));
+  const formatDate = (v) => new Date(v).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
 
-  // ------------------------------------------------------------
-  // RENDER UI
-  // ------------------------------------------------------------
+
   return (
-    <Box p={3}>
-      <Typography variant="h5" mb={2}>
-        Payment Records
-      </Typography>
+    <Box p={4} sx={{ backgroundColor: "#f4f6f8", minHeight: "100vh" }}>
+      {/* HEADER */}
+      <Stack direction="row" justifyContent="space-between" alignItems="center" mb={4}>
+        <Box>
+          <Typography variant="h4" fontWeight="800" color="#1A2027">
+            Payments & Invoices
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            Manage your vendor disbursements and track outstanding balances
+          </Typography>
+        </Box>
+        <Button
+          variant="contained"
+          startIcon={<AddIcon />}
+          onClick={handleAddNewRow}
+          disabled={!!newRow}
+          sx={{ borderRadius: "8px", textTransform: "none", fontWeight: "bold", px: 3 }}
+        >
+          Record Payment
+        </Button>
+      </Stack>
 
-      {/* TOP BUTTON */}
-      <Button
-        variant="contained"
-        startIcon={<AddIcon />}
-        onClick={handleAddNewRow}
-        disabled={!!newRow}
-        sx={{ mb: 2 }}
-      >
-        Add Payment
-      </Button>
 
-      <Card>
+      {/* SUMMARY DASHBOARD */}
+      <Grid container spacing={3} mb={4}>
+        <Grid item xs={12} md={4}>
+          <Paper elevation={0} sx={{ p: 3, borderRadius: 3, border: "1px solid #e0e4e8", display: 'flex', alignItems: 'center', gap: 2 }}>
+            <Avatar sx={{ bgcolor: "#e3f2fd", color: "#1976d2" }}><AccountBalanceWalletIcon /></Avatar>
+            <Box>
+                <Typography variant="caption" fontWeight="bold" color="text.secondary">TOTAL PAID</Typography>
+                <Typography variant="h5" fontWeight="bold">₹{formatCurrency(stats.totalPaid)}</Typography>
+            </Box>
+          </Paper>
+        </Grid>
+        <Grid item xs={12} md={4}>
+          <Paper elevation={0} sx={{ p: 3, borderRadius: 3, border: "1px solid #e0e4e8", display: 'flex', alignItems: 'center', gap: 2 }}>
+            <Avatar sx={{ bgcolor: "#fff4e5", color: "#ed6c02" }}><AccountBalanceWalletIcon /></Avatar>
+            <Box>
+                <Typography variant="caption" fontWeight="bold" color="text.secondary">TOTAL OUTSTANDING</Typography>
+                <Typography variant="h5" fontWeight="bold" color="error.main">₹{formatCurrency(stats.totalDue)}</Typography>
+            </Box>
+          </Paper>
+        </Grid>
+        <Grid item xs={12} md={4}>
+          <Paper elevation={0} sx={{ p: 3, borderRadius: 3, border: "1px solid #e0e4e8", display: 'flex', alignItems: 'center', gap: 2 }}>
+            <Avatar sx={{ bgcolor: "#f3e5f5", color: "#9c27b0" }}><AddIcon /></Avatar>
+            <Box>
+                <Typography variant="caption" fontWeight="bold" color="text.secondary">TOTAL VENDORS</Typography>
+                <Typography variant="h5" fontWeight="bold">{vendors.length}</Typography>
+            </Box>
+          </Paper>
+        </Grid>
+      </Grid>
+
+
+      <Card elevation={0} sx={{ borderRadius: 3, border: "1px solid #e0e4e8", overflow: "hidden" }}>
         <TableContainer>
-          <Table size="small">
-            <TableHead>
+          <Table size="medium">
+            <TableHead sx={{ backgroundColor: "#F8F9FA" }}>
               <TableRow>
-                <TableCell>S.No.</TableCell>
-                <TableCell>Date</TableCell>
-                <TableCell>Vendor</TableCell>
-                <TableCell align="right">Amount Paid</TableCell>
-                <TableCell align="right">Due</TableCell>
-                <TableCell>Screenshot</TableCell>
-                <TableCell align="center">Actions</TableCell>
+                <TableCell sx={{ fontWeight: "bold", color: "#5C6B7A" }}>#</TableCell>
+                <TableCell sx={{ fontWeight: "bold", color: "#5C6B7A" }}>DATE</TableCell>
+                <TableCell sx={{ fontWeight: "bold", color: "#5C6B7A" }}>VENDOR NAME</TableCell>
+                <TableCell align="right" sx={{ fontWeight: "bold", color: "#5C6B7A" }}>AMOUNT PAID</TableCell>
+                <TableCell align="right" sx={{ fontWeight: "bold", color: "#5C6B7A" }}>DUE BALANCE</TableCell>
+                <TableCell align="center" sx={{ fontWeight: "bold", color: "#5C6B7A" }}>RECEIPT</TableCell>
+                <TableCell align="center" sx={{ fontWeight: "bold", color: "#5C6B7A" }}>ACTIONS</TableCell>
               </TableRow>
             </TableHead>
 
-            <TableBody>
-              {/* ---------------------------------------------------------
-                  NEW EDITABLE ROW
-              --------------------------------------------------------- */}
-              {newRow && (
-                <TableRow>
-                  <TableCell>-</TableCell>
 
-                  {/* Date */}
+            <TableBody>
+              {/* INLINE NEW ROW */}
+              {newRow && (
+                <TableRow sx={{ backgroundColor: "#f0f7ff" }}>
+                  <TableCell>-</TableCell>
                   <TableCell>
                     <TextField
                       type="date"
                       size="small"
+                      variant="outlined"
                       value={newRow.date}
-                      onChange={(e) =>
-                        setNewRow((prev) => ({
-                          ...prev,
-                          date: e.target.value,
-                        }))
-                      }
+                      onChange={(e) => setNewRow({ ...newRow, date: e.target.value })}
+                      sx={{ backgroundColor: "#fff" }}
                     />
                   </TableCell>
-
-                  {/* Vendor */}
                   <TableCell>
                     <Autocomplete
-                      fullWidth
                       size="small"
                       options={vendors}
                       getOptionLabel={(o) => o.name}
-                      onChange={(_e, v) =>
-                        setNewRow((prev) => ({
-                          ...prev,
-                          vendorId: v?._id || null,
-                          vendorName: v?.name || "",
-                        }))
-                      }
-                      renderInput={(params) => (
-                        <TextField {...params} placeholder="Select Vendor" />
-                      )}
+                      onChange={(_, v) => setNewRow({ ...newRow, vendorId: v?._id || null, vendorName: v?.name || "" })}
+                      renderInput={(params) => <TextField {...params} placeholder="Select Vendor" sx={{ backgroundColor: "#fff" }} />}
                     />
                   </TableCell>
-
-                  {/* Amount Paid */}
                   <TableCell align="right">
                     <TextField
                       size="small"
                       type="number"
+                      placeholder="0.00"
                       value={newRow.amountPaid}
-                      onChange={(e) =>
-                        setNewRow((prev) => ({
-                          ...prev,
-                          amountPaid: e.target.value,
-                        }))
-                      }
+                      onChange={(e) => setNewRow({ ...newRow, amountPaid: e.target.value })}
+                      sx={{ backgroundColor: "#fff", width: '120px' }}
                     />
                   </TableCell>
-
-                  {/* Due will come from backend after save */}
-                  <TableCell align="right">-</TableCell>
-
-                  {/* Screenshot */}
-                  <TableCell>
-                    <input
-                      type="file"
-                      hidden
-                      id="upload-file"
-                      accept="image/*,.pdf"
-                      onChange={handleScreenshotUpload}
-                    />
-                    <label htmlFor="upload-file">
-                      <Button
-                        size="small"
-                        variant="outlined"
-                        startIcon={<CloudUploadIcon />}
-                        component="span"
-                        disabled={uploadingScreenshot}
-                      >
-                        Upload
-                      </Button>
+                  <TableCell align="right" sx={{ color: "text.disabled" }}>Calculated...</TableCell>
+                  <TableCell align="center">
+                    <input type="file" hidden id="inline-upload" onChange={handleScreenshotUpload} />
+                    <label htmlFor="inline-upload">
+                      <IconButton component="span" color="primary" disabled={uploadingScreenshot}>
+                        <CloudUploadIcon />
+                      </IconButton>
                     </label>
-
-                    {newRow.screenshotUrl && (
-                      <MuiLink
-                        href={newRow.screenshotUrl}
-                        target="_blank"
-                        sx={{ ml: 1 }}
-                      >
-                        View
-                      </MuiLink>
-                    )}
                   </TableCell>
-
-                  {/* ACTIONS */}
                   <TableCell align="center">
                     <Stack direction="row" spacing={1} justifyContent="center">
-                      <Tooltip title="Save Payment">
-                        <IconButton color="success" onClick={handleSaveRow}>
-                          <SaveIcon />
-                        </IconButton>
-                      </Tooltip>
-
-                      <Tooltip title="Cancel">
-                        <IconButton onClick={() => setNewRow(null)}>
-                          <DeleteIcon color="error" />
-                        </IconButton>
-                      </Tooltip>
+                      <IconButton color="success" onClick={handleSaveRow}><SaveIcon /></IconButton>
+                      <IconButton color="error" onClick={() => setNewRow(null)}><CloseIcon /></IconButton>
                     </Stack>
                   </TableCell>
                 </TableRow>
               )}
 
-              {/* ---------------------------------------------------------
-                  EXISTING NON-EDITABLE ROWS
-              --------------------------------------------------------- */}
+
+              {/* DATA ROWS */}
               {paginated.map((row, index) => (
-                <TableRow key={row._id}>
+                <TableRow key={row._id} hover sx={{ '&:last-child td, &:last-child th': { border: 0 } }}>
                   <TableCell>{page * rowsPerPage + index + 1}</TableCell>
-                  <TableCell>{formatDate(row.date)}</TableCell>
-                  <TableCell>{row.vendorName}</TableCell>
-                  <TableCell align="right">
+                  <TableCell sx={{ color: "#5C6B7A" }}>{formatDate(row.date)}</TableCell>
+                  <TableCell sx={{ fontWeight: "600" }}>{row.vendorName}</TableCell>
+                  <TableCell align="right" sx={{ fontWeight: "bold", color: "#2e7d32" }}>
                     ₹ {formatCurrency(row.amountPaid)}
                   </TableCell>
                   <TableCell align="right">
-                    ₹ {formatCurrency(row.due)}
+                    <Chip
+                        label={`₹${formatCurrency(row.due)}`}
+                        size="small"
+                        variant="outlined"
+                        color={row.due > 0 ? "error" : "default"}
+                        sx={{ fontWeight: "bold", borderRadius: "6px" }}
+                    />
                   </TableCell>
-
-                  <TableCell>
-                    {row.screenshotUrl ? (
-                      <MuiLink href={row.screenshotUrl} target="_blank">
-                        View
-                      </MuiLink>
-                    ) : (
-                      "-"
-                    )}
-                  </TableCell>
-
                   <TableCell align="center">
-                    <IconButton onClick={() => handleDeleteRow(row)}>
-                      <DeleteIcon color="error" />
+                    {row.screenshotUrl ? (
+                      <IconButton component={MuiLink} href={row.screenshotUrl} target="_blank" size="small" color="primary">
+                        <VisibilityIcon fontSize="small" />
+                      </IconButton>
+                    ) : "-"}
+                  </TableCell>
+                  <TableCell align="center">
+                    <IconButton onClick={() => handleDeleteRow(row)} size="small">
+                      <DeleteIcon color="error" fontSize="small" />
                     </IconButton>
                   </TableCell>
                 </TableRow>
               ))}
-
-              {!loading && paginated.length === 0 && !newRow && (
-                <TableRow>
-                  <TableCell colSpan={7} align="center">
-                    No records found
-                  </TableCell>
-                </TableRow>
-              )}
             </TableBody>
           </Table>
         </TableContainer>
-
-        {/* PAGINATION */}
         <TablePagination
           component="div"
           count={visiblePayments.length}
           page={page}
-          onPageChange={(_e, newPage) => setPage(newPage)}
+          onPageChange={(_, p) => setPage(p)}
           rowsPerPage={rowsPerPage}
-          onRowsPerPageChange={(e) =>
-            setRowsPerPage(parseInt(e.target.value, 10))
-          }
+          onRowsPerPageChange={(e) => setRowsPerPage(parseInt(e.target.value, 10))}
         />
       </Card>
 
-      {/* Snackbars */}
-      <Snackbar
-        open={!!errorMsg}
-        autoHideDuration={4000}
-        onClose={() => setErrorMsg("")}
-      >
-        <Alert severity="error">{errorMsg}</Alert>
-      </Snackbar>
 
-      <Snackbar
-        open={!!successMsg}
-        autoHideDuration={2500}
-        onClose={() => setSuccessMsg("")}
-      >
-        <Alert severity="success">{successMsg}</Alert>
+      <Snackbar open={!!errorMsg} autoHideDuration={4000} onClose={() => setErrorMsg("")} anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}>
+        <Alert severity="error" variant="filled">{errorMsg}</Alert>
+      </Snackbar>
+      <Snackbar open={!!successMsg} autoHideDuration={2500} onClose={() => setSuccessMsg("")} anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}>
+        <Alert severity="success" variant="filled">{successMsg}</Alert>
       </Snackbar>
     </Box>
   );
 };
 
+
 export default PaymentRecordsPage;
+

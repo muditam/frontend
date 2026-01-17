@@ -87,6 +87,7 @@ import WhatsAppUI from "./whatsaap/WhatsAppUI"
 import TemplatePanel from "./whatsaap/TemplatesPanel"
 import "./realtime/IncomingCallSSEBoot"; 
 import WhatsAppNotification from "./whatsaap/WhatsAppNotification";
+import ManagerRoute from "./components/ManagerRoute";
 
 const App = () => {
   return (
@@ -185,7 +186,9 @@ const App = () => {
             path="/add-employee"
             element={
               <PrivateRoute>
-                <AddEmployee />
+                <ManagerRoute>
+                  <AddEmployee />
+                </ManagerRoute>
               </PrivateRoute>
             }
           />

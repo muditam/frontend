@@ -1,44 +1,53 @@
 // src/components/Finance/SwitchDashboard.js
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Box,
   Paper,
   Typography,
   TextField,
   Button,
-  CircularProgress,
   Snackbar,
   Alert,
-  IconButton,
   Divider,
   Chip,
   Avatar,
+  Autocomplete,
+  Stack,
+  Fade
 } from '@mui/material';
 import SwitchAccountIcon from '@mui/icons-material/SwitchAccount';
-import CloseIcon from '@mui/icons-material/Close';
 import PersonOutlineIcon from '@mui/icons-material/PersonOutline';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 
+
 const API_BASE_URL = 'https://muditamleads-14f32a10d7f7.herokuapp.com';
+const dicebearAvatar = (seed = "Somya") =>
+  `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(
+    seed || "Somya"
+  )}&backgroundType=gradientLinear&radius=50`;
+
+
+
 
 const SwitchDashboard = () => {
-  const [search, setSearch] = useState('');
   const [selectedEmployee, setSelectedEmployee] = useState(null);
-  const [searchLoading, setSearchLoading] = useState(false);
   const [switching, setSwitching] = useState(false);
   const [reverting, setReverting] = useState(false);
+  const [allEmployees, setAllEmployees] = useState([]);
+  const [loadingList, setLoadingList] = useState(true);
   const [snackbar, setSnackbar] = useState({
     open: false,
     message: '',
     severity: 'success',
   });
 
+
   const navigate = useNavigate();
   const hasOriginalUser = !!sessionStorage.getItem('originalUser');
 
-  // Read once and memoize so dependencies stay stable
+
   const currentUser = useMemo(() => {
     try {
       return JSON.parse(sessionStorage.getItem('user') || 'null');
@@ -46,6 +55,7 @@ const SwitchDashboard = () => {
       return null;
     }
   }, []);
+
 
   const storedProfile = useMemo(() => {
     try {
@@ -55,138 +65,43 @@ const SwitchDashboard = () => {
     }
   }, []);
 
+
   const loggedInEmployeeId = useMemo(
-    () =>
-      storedProfile?._id ||
-      storedProfile?.user?._id ||
-      currentUser?._id ||
-      '',
+    () => storedProfile?._id || storedProfile?.user?._id || currentUser?._id || '',
     [storedProfile, currentUser]
   );
 
-  // Track the latest request to avoid race conditions
-  const reqStateRef = useRef({ reqId: 0 });
 
-  // Debounced employee search with cancellation and race protection
   useEffect(() => {
-    const trimmed = String(search || '').trim();
-    if (!trimmed) {
-      setSelectedEmployee(null);
-      return;
-    }
-    if (trimmed.length < 2) {
-      setSelectedEmployee(null);
-      return;
-    }
-
-    const controller = new AbortController();
-    const thisReqId = ++reqStateRef.current.reqId;
-    setSearchLoading(true);
-
-    const t = setTimeout(async () => {
+    const loadEmployees = async () => {
       try {
         const { data } = await axios.get(`${API_BASE_URL}/api/employees`, {
-          params: {
-            search: trimmed,
-            actorRole: currentUser?.role || '',
-            actorEmail: currentUser?.email || '',
-          },
+          params: { all: true, actorRole: currentUser?.role || "" },
           withCredentials: true,
-          signal: controller.signal,
         });
-
-        // Drop if a newer request has completed
-        if (thisReqId !== reqStateRef.current.reqId) return;
-
-        const rawList = Array.isArray(data) ? data : [];
-        const currentEmail = (currentUser?.email || '').toLowerCase();
-
-        const filteredList = rawList.filter((emp) => {
-          const idMatch =
-            loggedInEmployeeId && emp?._id === loggedInEmployeeId;
-          const emailMatch =
-            currentEmail && (emp?.email || '').toLowerCase() === currentEmail;
-          return !idMatch && !emailMatch;
-        });
-
-        if (rawList.length && !filteredList.length) {
-          setSelectedEmployee(null);
-          setSnackbar({
-            open: true,
-            message: 'You are already viewing this account.',
-            severity: 'info',
-          });
-          return;
-        }
-
-        const normalized = trimmed.toLowerCase();
-        const match =
-          filteredList.find((emp) =>
-            (emp.fullName || '').toLowerCase().includes(normalized)
-          ) ||
-          filteredList.find((emp) =>
-            (emp.email || '').toLowerCase().includes(normalized)
-          ) ||
-          filteredList.find((emp) =>
-            (emp.role || '').toLowerCase().includes(normalized)
-          );
-
-        setSelectedEmployee(match || null);
-        if (!match) {
-          setSnackbar({
-            open: true,
-            message: 'No matching employee found',
-            severity: 'warning',
-          });
-        }
+        const currentEmail = (currentUser?.email || "").toLowerCase();
+        const filtered = (data || []).filter((emp) =>
+          (emp.email || "").toLowerCase() !== currentEmail && emp._id !== loggedInEmployeeId
+        );
+        setAllEmployees(filtered);
       } catch (err) {
-        if (controller.signal.aborted) return;
-        setSelectedEmployee(null);
-        setSnackbar({
-          open: true,
-          message: err?.response?.data?.message || 'Failed to load employee',
-          severity: 'error',
-        });
+        console.error("Failed loading employees:", err);
       } finally {
-        if (thisReqId === reqStateRef.current.reqId) {
-          setSearchLoading(false);
-        }
+        setLoadingList(false);
       }
-    }, 350);
-
-    return () => {
-      clearTimeout(t);
-      controller.abort();
     };
-  }, [search, currentUser?.role, currentUser?.email, loggedInEmployeeId]);
+    loadEmployees();
+  }, [currentUser, loggedInEmployeeId]);
+
 
   const handleSwitch = async () => {
     if (!selectedEmployee || switching) return;
-
-    const currentEmail = (currentUser?.email || '').toLowerCase();
-    if (
-      (loggedInEmployeeId && selectedEmployee._id === loggedInEmployeeId) ||
-      (currentEmail &&
-        (selectedEmployee.email || '').toLowerCase() === currentEmail)
-    ) {
-      setSnackbar({
-        open: true,
-        message: 'You are already viewing this account.',
-        severity: 'info',
-      });
-      setSelectedEmployee(null);
-      return;
-    }
-
     try {
       setSwitching(true);
-
       const actor = currentUser;
-
       if (actor && !sessionStorage.getItem('originalUser')) {
         sessionStorage.setItem('originalUser', JSON.stringify(actor));
       }
-
       const { data } = await axios.post(
         `${API_BASE_URL}/api/employees/impersonate`,
         {
@@ -196,359 +111,313 @@ const SwitchDashboard = () => {
         },
         { withCredentials: true }
       );
-
       if (data?.user) {
-        // Ensure _id is present for rest of app
         const toStore = { ...data.user, _id: data.user._id || data.user.id };
         sessionStorage.setItem('user', JSON.stringify(toStore));
-        sessionStorage.setItem(
-          'switchMeta',
-          JSON.stringify({
-            actorEmail: actor?.email || null,
-            targetEmail: toStore.email,
-            targetName: toStore.fullName,
-            switchedAt: Date.now(),
-          })
-        );
+        sessionStorage.setItem('switchMeta', JSON.stringify({
+          targetName: toStore.fullName,
+          switchedAt: Date.now(),
+        }));
       }
-
       navigate('/', { replace: true });
     } catch (err) {
-      setSnackbar({
-        open: true,
-        message: err?.response?.data?.message || 'Switch failed',
-        severity: 'error',
-      });
+      setSnackbar({ open: true, message: 'Switch failed', severity: 'error' });
     } finally {
       setSwitching(false);
     }
   };
 
+
   const handleRevert = async () => {
     try {
       setReverting(true);
-      const { data } = await axios.post(
-        `${API_BASE_URL}/api/employees/revert`,
-        {},
-        { withCredentials: true }
-      );
-
+      const { data } = await axios.post(`${API_BASE_URL}/api/employees/revert`, {}, { withCredentials: true });
       if (data?.user) {
-        const toStore = { ...data.user, _id: data.user._id || data.user.id };
-        sessionStorage.setItem('user', JSON.stringify(toStore));
+        sessionStorage.setItem('user', JSON.stringify({ ...data.user, _id: data.user._id || data.user.id }));
       }
       sessionStorage.removeItem('originalUser');
       sessionStorage.removeItem('switchMeta');
-
-      setSnackbar({
-        open: true,
-        message: 'Returned to your own dashboard',
-        severity: 'success',
-      });
-
       navigate('/', { replace: true });
     } catch (err) {
-      setSnackbar({
-        open: true,
-        message: err?.response?.data?.message || 'Unable to revert',
-        severity: 'error',
-      });
+      setSnackbar({ open: true, message: 'Unable to revert', severity: 'error' });
     } finally {
       setReverting(false);
     }
   };
 
+
   return (
     <Box
       sx={{
-        minHeight: '100vh',
-        bgcolor: 'linear-gradient(135deg, #0f172a 0%, #1e293b 40%, #020617 100%)',
-        background:
-          'radial-gradient(circle at top left, #1d4ed8 0, transparent 55%), radial-gradient(circle at bottom right, #0ea5e9 0, transparent 55%), #020617',
+        minHeight: '93vh',
+        bgcolor: '#f4f4f5', // Light gray background
         display: 'flex',
         alignItems: 'flex-start',
         justifyContent: 'center',
-        py: 6,
+        pt: { xs: 4, md: 10 },
         px: 2,
       }}
     >
       <Paper
-        elevation={6}
+        elevation={0}
         sx={{
           width: '100%',
-          maxWidth: 900,
+          maxWidth: 600, // Reduced overall paper width
           borderRadius: 3,
           overflow: 'hidden',
+          bgcolor: '#ffffff',
+          border: '1px solid #e4e4e7',
+          boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)',
         }}
       >
-        {/* Header */}
-        <Box
-          sx={{
-            px: 3,
-            py: 2.5,
-            bgcolor: 'rgba(15,23,42,0.97)',
-            color: 'white',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: 2,
-          }}
-        >
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-            <Box
-              sx={{
-                width: 40,
-                height: 40,
-                borderRadius: '999px',
-                bgcolor: 'rgba(148,163,184,0.18)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <SwitchAccountIcon />
-            </Box>
-            <Box>
-              <Typography variant="h6" sx={{ fontWeight: 700 }}>
-                Switch Dashboard
-              </Typography>
-              <Typography
-                variant="body2"
-                sx={{ color: 'rgba(226,232,240,0.8)', mt: 0.3 }}
-              >
-                Quickly view any employee&apos;s dashboard without logging out.
-              </Typography>
-            </Box>
-          </Box>
-
-          {currentUser?.fullName && (
+        {/* Header - High Contrast Black */}
+        <Box sx={{ p: 3, bgcolor: '#09090b', color: '#ffffff' }}>
+          <Stack direction="row" justifyContent="space-between" alignItems="center">
+            <Stack direction="row" spacing={2} alignItems="center">
+              <Avatar sx={{ bgcolor: '#ffffff', color: '#09090b', width: 36, height: 36 }}>
+                <SwitchAccountIcon fontSize="small" />
+              </Avatar>
+              <Box>
+                <Typography variant="subtitle1" sx={{ fontWeight: 800, lineHeight: 1.2 }}>
+                  Account Switcher
+                </Typography>
+                <Typography variant="caption" sx={{ color: '#a1a1aa' }}>
+                  Select an account to view their workspace
+                </Typography>
+              </Box>
+            </Stack>
             <Chip
+              label={`Admin: ${currentUser?.fullName?.split(' ')[0] || 'User'}`}
               size="small"
-              label={`Logged in as: ${currentUser.fullName}`}
-              sx={{
-                bgcolor: 'rgba(15,118,110,0.15)',
-                color: '#a5f3fc',
-                borderRadius: 999,
-              }}
+              sx={{ bgcolor: '#27272a', color: '#ffffff', fontWeight: 600, fontSize: 11 }}
             />
-          )}
+          </Stack>
         </Box>
 
-        {/* Impersonation Banner */}
+
+        {/* Impersonation Banner - Warning Style */}
         {hasOriginalUser && (
-          <Box
-            sx={{
-              px: 3,
-              py: 1.5,
-              bgcolor: '#FEF3C7',
-              borderBottom: '1px solid #FCD34D',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: 2,
-            }}
-          >
-            <Typography sx={{ fontSize: 14, color: '#92400E' }}>
-              You are currently impersonating another user. You can safely
-              return to your own account at any time.
+          <Box sx={{ px: 3, py: 1.5, bgcolor: '#fafafa', borderBottom: '1px solid #e4e4e7', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <Typography sx={{ fontSize: 12, color: '#52525b', fontWeight: 600 }}>
+              Viewing Mode Active
             </Typography>
             <Button
-              size="small"
               variant="outlined"
+              size="small"
               onClick={handleRevert}
               disabled={reverting}
-              startIcon={<ArrowBackIcon fontSize="small" />}
-              sx={{
-                textTransform: 'none',
-                borderColor: '#92400E',
-                color: '#92400E',
-                '&:hover': {
-                  borderColor: '#78350F',
-                  bgcolor: 'rgba(250,204,21,0.2)',
-                },
-              }}
+              startIcon={<ArrowBackIcon sx={{ fontSize: '14px !important' }} />}
+              sx={{ textTransform: 'none', color: '#09090b', borderColor: '#09090b', '&:hover': { bgcolor: '#f4f4f5', borderColor: '#000' }, fontWeight: 700, borderRadius: 1.5, fontSize: 11 }}
             >
-              {reverting ? 'Returning…' : 'Back to my account'}
+              Exit
             </Button>
           </Box>
         )}
 
-        {/* Content */}
-        <Box sx={{ p: 3, bgcolor: '#F9FAFB' }}>
-          {/* Search row */}
-          <Box
-            sx={{
-              display: 'flex',
-              flexWrap: 'wrap',
-              gap: 1.5,
-              alignItems: 'center',
-            }}
-          >
-            <TextField
-              placeholder="Search employee by name, email, or role…"
-              value={search}
-              onChange={(e) => {
-                setSearch(e.target.value);
-                setSelectedEmployee(null);
-              }}
-              fullWidth
-              size="medium"
-              variant="outlined"
-              InputProps={{
-                startAdornment: (
-                  <PersonOutlineIcon
-                    sx={{ mr: 1, color: 'text.secondary', fontSize: 20 }}
-                  />
-                ),
-                endAdornment: (
-                  <>
-                    {searchLoading && (
-                      <CircularProgress
-                        size={18}
-                        sx={{ mr: 1, color: 'text.secondary' }}
-                      />
-                    )}
-                    {search && (
-                      <IconButton
-                        size="small"
-                        onClick={() => {
-                          setSearch('');
-                          setSelectedEmployee(null);
-                        }}
-                      >
-                        <CloseIcon fontSize="small" />
-                      </IconButton>
-                    )}
-                  </>
-                ),
-              }}
-              sx={{
-                maxWidth: 480,
-                bgcolor: 'white',
-                borderRadius: 2,
-                '& .MuiOutlinedInput-root': {
-                  borderRadius: 2,
-                },
-              }}
-            />
+
+        {/* Search Content - Focused and Narrow */}
+        <Box sx={{ p: 4, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+          <Box sx={{ width: '100%', maxWidth: 420 }}> {/* Strictly reduced width for search area */}
+            <Typography variant="caption" sx={{ color: '#71717a', fontWeight: 800, mb: 1, display: 'block', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+              Find Employee
+            </Typography>
+          <Autocomplete
+  fullWidth
+  options={allEmployees}
+  loading={loadingList}
+  value={selectedEmployee}
+  isOptionEqualToValue={(opt, val) => opt?._id === val?._id}
+  getOptionLabel={(option) => option?.fullName || option?.email || ""}
+  onChange={(e, value) => setSelectedEmployee(value || null)}
+  renderOption={(props, option) => (
+    <Box
+      component="li"
+      {...props}
+      sx={{
+        display: "flex",
+        alignItems: "center",
+        gap: 1.5,
+        py: 1,
+      }}
+    >
+      <Avatar
+        src={dicebearAvatar(option?.fullName || option?.email || "Somya")}
+        sx={{ width: 34, height: 34, borderRadius: 2 }}
+        imgProps={{ referrerPolicy: "no-referrer" }}
+      />
+      <Box sx={{ minWidth: 0 }}>
+        <Typography variant="body2" sx={{ fontWeight: 800 }} noWrap>
+          {option.fullName}
+        </Typography>
+        <Typography variant="caption" sx={{ color: "#71717a" }} noWrap>
+          {option.email}
+        </Typography>
+      </Box>
+      <Box sx={{ flex: 1 }} />
+      <Chip
+        label={option.role}
+        size="small"
+        sx={{
+          height: 20,
+          fontSize: 10,
+          fontWeight: 800,
+          bgcolor: "#f4f4f5",
+        }}
+      />
+    </Box>
+  )}
+  renderInput={(params) => (
+    <TextField
+      {...params}
+      placeholder="Search name..."
+      size="small"
+      InputProps={{
+        ...params.InputProps,
+        startAdornment: (
+          <>
+            <PersonOutlineIcon sx={{ mr: 1, color: "#a1a1aa", fontSize: 20 }} />
+            {params.InputProps.startAdornment}
+          </>
+        ),
+      }}
+      sx={{
+        "& .MuiOutlinedInput-root": {
+          bgcolor: "#ffffff",
+          borderRadius: 2,
+          "& fieldset": { borderColor: "#e4e4e7" },
+          "&:hover fieldset": { borderColor: "#71717a" },
+          "&.Mui-focused fieldset": {
+            borderColor: "#09090b",
+            borderWidth: "1px",
+          },
+        },
+      }}
+    />
+  )}
+/>
+
+
           </Box>
 
-          <Typography
-            variant="caption"
-            sx={{ mt: 1, ml: 0.5, display: 'block', color: 'text.secondary' }}
-          >
-            Tip: type at least 2 characters to search. Click on the employee card to open their dashboard.
-          </Typography>
 
-          <Divider sx={{ my: 3 }} />
-
-          {/* Selected employee card – clickable to switch */}
-          {selectedEmployee ? (
-            <Paper
-              elevation={0}
-              onClick={() => !switching && handleSwitch()}
-              sx={{
-                p: 2.5,
-                borderRadius: 2,
-                border: '1px solid #E5E7EB',
-                bgcolor: 'white',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 2,
-                cursor: switching ? 'not-allowed' : 'pointer',
-                transition:
-                  'background-color 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease, transform 0.08s ease',
-                '&:hover': !switching && {
-                  boxShadow: 3,
-                  borderColor: '#BFDBFE',
-                  bgcolor: '#EFF6FF',
-                  transform: 'translateY(-1px)',
-                },
-              }}
-            >
-              <Avatar
-                sx={{
-                  width: 48,
-                  height: 48,
-                  bgcolor: '#3B82F6',
-                  fontWeight: 600,
-                }}
-              >
-                {(selectedEmployee.fullName || '?')
-                  .charAt(0)
-                  .toUpperCase()}
-              </Avatar>
-              <Box sx={{ flex: 1, minWidth: 0 }}>
-                <Typography sx={{ fontWeight: 600, fontSize: 16 }}>
-                  {selectedEmployee.fullName || 'Unknown'}
-                </Typography>
-                <Typography
-                  sx={{ fontSize: 14, color: 'text.secondary', mt: 0.2 }}
+          {/* Action Card */}
+          <Box sx={{ width: '100%', maxWidth: 420, mt: 4 }}>
+            {selectedEmployee ? (
+              <Fade in={true}>
+                <Paper
+                  variant="outlined"
+                  sx={{
+                    p: 2.5,
+                    borderRadius: 3,
+                    bgcolor: '#ffffff',
+                    borderColor: '#e4e4e7',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    textAlign: 'center',
+                    transition: '0.2s',
+                    '&:hover': { borderColor: '#09090b' },
+                  }}
                 >
-                  {selectedEmployee.email}
+                <Box
+  sx={{
+    width: "100%",
+    borderRadius: 2.5,
+    p: 2,
+    mb: 2,
+    background:
+      "linear-gradient(135deg, rgba(9,9,11,1) 0%, rgba(39,39,42,1) 60%, rgba(9,9,11,1) 100%)",
+    display: "flex",
+    alignItems: "center",
+    gap: 2,
+  }}
+>
+  <Avatar
+    src={dicebearAvatar(selectedEmployee?.fullName || "Somya")}
+    sx={{
+      width: 64,
+      height: 64,
+      borderRadius: 3,
+      bgcolor: "#fff",
+      border: "2px solid rgba(255,255,255,0.25)",
+      boxShadow: "0 10px 22px rgba(0,0,0,0.25)",
+    }}
+    imgProps={{ referrerPolicy: "no-referrer" }}
+  />
+  <Box sx={{ minWidth: 0 }}>
+    <Typography sx={{ fontWeight: 900, color: "#fff", lineHeight: 1.1 }} noWrap>
+      {selectedEmployee.fullName}
+    </Typography>
+    <Typography sx={{ fontSize: 12, color: "rgba(255,255,255,0.75)" }} noWrap>
+      {selectedEmployee.email}
+    </Typography>
+
+
+    <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
+      <Chip
+        label={selectedEmployee.role}
+        size="small"
+        sx={{ height: 20, fontSize: 10, fontWeight: 800, bgcolor: "#ffffff", color: "#09090b" }}
+      />
+      <Chip
+        label="Active"
+        size="small"
+        sx={{ height: 20, fontSize: 10, fontWeight: 900, bgcolor: "#22c55e", color: "#052e16" }}
+      />
+    </Stack>
+  </Box>
+</Box>            
+                  <Typography variant="subtitle1" sx={{ fontWeight: 800, color: '#09090b' }}>
+                    {selectedEmployee.fullName}
+                  </Typography>
+                  <Typography variant="caption" sx={{ color: '#71717a', mb: 2 }}>
+                    {selectedEmployee.email}
+                  </Typography>
+                 
+                  <Stack direction="row" spacing={1} sx={{ mb: 3 }}>
+                    <Chip label={selectedEmployee.role} size="small" sx={{ height: 20, fontSize: 10, fontWeight: 700, bgcolor: '#f4f4f5' }} />
+                    <Chip label="Active" size="small" sx={{ height: 20, fontSize: 10, fontWeight: 700, bgcolor: '#f0fdf4', color: '#166534' }} />
+                  </Stack>
+
+
+                  <Button
+                    fullWidth
+                    variant="contained"
+                    disabled={switching}
+                    onClick={() => !switching && handleSwitch()}
+                    sx={{
+                      bgcolor: '#09090b',
+                      color: '#ffffff',
+                      fontWeight: 800,
+                      borderRadius: 2,
+                      textTransform: 'none',
+                      py: 1,
+                      '&:hover': { bgcolor: '#27272a' }
+                    }}
+                  >
+                    {switching ? 'Switching...' : 'Switch Now'}
+                  </Button>
+                </Paper>
+              </Fade>
+            ) : (
+              <Box sx={{ py: 4, textAlign: 'center', border: '1px dashed #e4e4e7', borderRadius: 3 }}>
+                <Typography variant="caption" sx={{ color: '#a1a1aa', fontWeight: 600 }}>
+                  Selected employee details will appear here
                 </Typography>
-                <Box sx={{ mt: 1, display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                  <Chip
-                    size="small"
-                    label={selectedEmployee.role || 'Role: N/A'}
-                    sx={{ bgcolor: '#EFF6FF', color: '#1D4ED8' }}
-                  />
-                  {selectedEmployee.status && (
-                    <Chip
-                      size="small"
-                      label={`Status: ${selectedEmployee.status}`}
-                      sx={{ bgcolor: '#ECFDF3', color: '#15803D' }}
-                    />
-                  )}
-                </Box>
               </Box>
-              <Box
-                sx={{
-                  textAlign: 'right',
-                  fontSize: 12,
-                  color: 'text.secondary',
-                }}
-              >
-                <Typography sx={{ fontSize: 12 }}>
-                  Click to switch into this account.
-                </Typography>
-                <Typography sx={{ fontSize: 12 }}>
-                  Your original account is preserved.
-                </Typography>
-              </Box>
-            </Paper>
-          ) : (
-            <Box
-              sx={{
-                p: 3,
-                borderRadius: 2,
-                border: '1px dashed #D1D5DB',
-                bgcolor: '#F3F4F6',
-                textAlign: 'center',
-                color: 'text.secondary',
-              }}
-            >
-              <Typography variant="body2">
-                Start typing above to search for an employee. Their details will
-                appear here once selected.
-              </Typography>
-            </Box>
-          )}
+            )}
+          </Box>
         </Box>
       </Paper>
 
+
       <Snackbar
         open={snackbar.open}
-        autoHideDuration={snackbar.severity === 'error' ? 7000 : 4000}
+        autoHideDuration={4000}
         onClose={() => setSnackbar((s) => ({ ...s, open: false }))}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
       >
-        <Alert
-          onClose={() => setSnackbar((s) => ({ ...s, open: false }))}
-          severity={snackbar.severity}
-          variant="filled"
-          sx={{ width: '100%' }}
-        >
+        <Alert severity={snackbar.severity} variant="filled" sx={{ borderRadius: 2, bgcolor: '#09090b' }}>
           {snackbar.message}
         </Alert>
       </Snackbar>
@@ -556,4 +425,6 @@ const SwitchDashboard = () => {
   );
 };
 
+
 export default SwitchDashboard;
+

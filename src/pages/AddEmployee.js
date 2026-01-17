@@ -226,7 +226,7 @@ const AddEmployee = () => {
     teamLeader: "",
     joiningDate: "",
     languages: [],
-    permissions: { ...DEFAULT_PERMISSIONS },  
+    permissions: { ...DEFAULT_PERMISSIONS },
   });
   const [error, setError] = useState("");
   const [viewInactive, setViewInactive] = useState(false);
@@ -317,14 +317,10 @@ const AddEmployee = () => {
       [name]: newValue,
     }));
   };
-
-
-
-
   const isAgentRole = ["Sales Agent", "Retention Agent"].includes(
     employeeData.role
   );
-  const isCoreOnlyRole = ["Manager", "Super Admin"].includes(employeeData.role);  
+  const isCoreOnlyRole = ["Manager", "Super Admin"].includes(employeeData.role);
 
 
   useEffect(() => {
@@ -336,19 +332,19 @@ const AddEmployee = () => {
 
     setEmployeeData((prev) => ({
       ...prev,
-      // hide TL for Manager/Super Admin
       teamLeader: coreOnly ? "" : prev.teamLeader,
-      // clear agent-only fields when not agent
       callerId: agentRole ? prev.callerId : "",
       agentNumber: agentRole ? prev.agentNumber : "",
       joiningDate: agentRole ? prev.joiningDate : "",
       target: agentRole ? prev.target : "",
-      // clear optional fields when core-only role selected
+
+
       languages: coreOnly ? [] : prev.languages,
       hasTeam: coreOnly ? false : prev.hasTeam,
       isDoctor: coreOnly ? false : prev.isDoctor,
     }));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+
+
   }, [employeeData.role]);
 
 
@@ -365,7 +361,6 @@ const AddEmployee = () => {
     } = employeeData;
 
 
-    // 🔹 Always work with trimmed name
     const fullNameTrimmed = (employeeData.fullName || "").trim();
 
 
@@ -375,7 +370,6 @@ const AddEmployee = () => {
     }
 
 
-    // 🔹 Validate trimmed name (allows spaces in between)
     if (!/^[a-zA-Z ]+$/.test(fullNameTrimmed)) {
       setError("Full Name should contain only alphabets and spaces.");
       return false;
@@ -388,7 +382,6 @@ const AddEmployee = () => {
     }
 
 
-    // only for Sales/Retention
     if (isAgentRole) {
       if (!callerId || !agentNumber || target === "" || !joiningDate) {
         setError(
@@ -428,113 +421,109 @@ const AddEmployee = () => {
 
 
 
-const handleSubmit = async (e) => {
-  e.preventDefault();
-  if (!validateForm()) return;
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!validateForm()) return;
 
 
-  const fullNameTrimmed = (employeeData.fullName || "").trim();
-  const payload = { ...employeeData, fullName: fullNameTrimmed };
+    const fullNameTrimmed = (employeeData.fullName || "").trim();
+    const payload = { ...employeeData, fullName: fullNameTrimmed };
 
 
-const getActorName = () => {
-  // 1) direct keys
-  const direct =
-    localStorage.getItem("fullName") ||
-    localStorage.getItem("name") ||
-    localStorage.getItem("userName") ||
-    localStorage.getItem("email");
+    const getActorName = () => {
+      const readFrom = (storage) => {
+        // 1) direct common keys
+        const direct =
+          storage.getItem("fullName") ||
+          storage.getItem("name") ||
+          storage.getItem("userName") ||
+          storage.getItem("email");
 
+        if (direct && direct !== "undefined" && direct !== "null") return direct;
 
-  if (direct && direct !== "undefined" && direct !== "null") return direct;
+        // 2) scan all keys for JSON user object
+        for (const k of Object.keys(storage)) {
+          const raw = storage.getItem(k);
+          if (!raw) continue;
 
+          try {
+            const obj = JSON.parse(raw);
 
-  // 2) scan all keys for JSON user object
-  for (const k of Object.keys(localStorage)) {
-    const raw = localStorage.getItem(k);
-    if (!raw) continue;
+            const name =
+              obj?.fullName ||
+              obj?.name ||
+              obj?.user?.fullName ||
+              obj?.user?.name ||
+              obj?.employee?.fullName ||
+              obj?.employee?.name;
+
+            const email =
+              obj?.email || obj?.user?.email || obj?.employee?.email;
+
+            if (name) return name;
+            if (email) return email;
+          } catch (e) {
+            // ignore non-json
+          }
+        }
+
+        return "";
+      };
+
+      // ✅ sessionStorage first (what you want)
+      const fromSession = readFrom(sessionStorage);
+      if (fromSession) return fromSession;
+
+      // optional fallback
+      const fromLocal = readFrom(localStorage);
+      if (fromLocal) return fromLocal;
+
+      return "Unknown";
+    };
+
+    const actorName = getActorName(); 
+
+    const axiosConfig = {
+      withCredentials: true,
+      headers: { "x-agent-name": actorName },
+    };
 
 
     try {
-      const obj = JSON.parse(raw);
+      if (isEditMode) {
+        await axios.put(
+          `https://muditamleads-14f32a10d7f7.herokuapp.com/api/employees/${currentEmployeeId}`,
+          payload,
+          axiosConfig
+        );
+      } else {
+        await axios.post(
+          "https://muditamleads-14f32a10d7f7.herokuapp.com/api/employees",
+          payload,
+          axiosConfig
+        );
+      }
 
 
-      const name =
-        obj?.fullName ||
-        obj?.name ||
-        obj?.user?.fullName ||
-        obj?.user?.name ||
-        obj?.employee?.fullName ||
-        obj?.employee?.name;
+      fetchEmployees();
+      setOpen(false);
+      // ... reset form ...
+    } catch (error) {
+      console.error("Error submitting employee data:", error);
 
 
-      const email =
-        obj?.email || obj?.user?.email || obj?.employee?.email;
-
-
-      if (name) return name;
-      if (email) return email;
-    } catch (e) {
-      // ignore non-json
-    }
-  }
-
-
-  return "Unknown";
-};
-
-
-const actorName = getActorName();
-console.log("[AUDIT] Sending x-agent-name:", actorName);
-
-
-
-
-  // (Optional: see what’s being sent)
-  console.log("[AUDIT] Sending x-agent-name:", actorName);
-
-
-  const axiosConfig = {
-    withCredentials: true,
-    headers: { "x-agent-name": actorName },
-  };
-
-
-  try {
-    if (isEditMode) {
-      await axios.put(
-        `https://muditamleads-14f32a10d7f7.herokuapp.com/api/employees/${currentEmployeeId}`,
-        payload,
-        axiosConfig
-      );
-    } else {
-      await axios.post(
-        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/employees",
-        payload,
-        axiosConfig
-      );
-    }
-
-
-    fetchEmployees();
-    setOpen(false);
-    // ... reset form ...
-  } catch (error) {
-    console.error("Error submitting employee data:", error);
-
-
-    if (error.response?.status === 403) {
-      setError("Access Denied: Only Managers can perform this action.");
-    } else if (error.response?.status === 401) {
-      setError("Please login to continue.");
-    } else {
-      setError(
-        error.response?.data?.message ||
+      if (error.response?.status === 403) {
+        setError("Access Denied: Only Managers can perform this action.");
+      } else if (error.response?.status === 401) {
+        setError("Please login to continue.");
+      } else {
+        setError(
+          error.response?.data?.message ||
           "Error occurred while saving employee data."
-      );
+        );
+      }
     }
-  }
-};
+  };
   const handleEdit = (employee) => {
     setEmployeeData({
       fullName: employee.fullName,
@@ -577,7 +566,7 @@ console.log("[AUDIT] Sending x-agent-name:", actorName);
     try {
       await axios.delete(
         `https://muditamleads-14f32a10d7f7.herokuapp.com/api/employees/${id}`,
-          { withCredentials: true }
+        { withCredentials: true }
       );
       fetchEmployees();
       setDeleteDialogOpen(false);
@@ -640,11 +629,11 @@ console.log("[AUDIT] Sending x-agent-name:", actorName);
   const handleSavePermissions = async () => {
     if (!permissionEmployee?._id) return;
     try {
-  await axios.put(
-  `https://muditamleads-14f32a10d7f7.herokuapp.com/api/employees/${permissionEmployee._id}`,
-  { permissions: permissionValues },
-  { withCredentials: true } // 🔥 REQUIRED
-);
+      await axios.put(
+        `https://muditamleads-14f32a10d7f7.herokuapp.com/api/employees/${permissionEmployee._id}`,
+        { permissions: permissionValues },
+        { withCredentials: true }
+      );
       await fetchEmployees();
       closePermissionDialog();
     } catch (error) {
@@ -935,7 +924,6 @@ console.log("[AUDIT] Sending x-agent-name:", actorName);
             </TextField>
 
 
-            {/* Team Leader (hidden for Manager/Super Admin) */}
             {!isCoreOnlyRole &&
               employeeData.role !== "Manager" &&
               employeeData.role !== "Super Admin" && (
@@ -961,7 +949,6 @@ console.log("[AUDIT] Sending x-agent-name:", actorName);
               )}
 
 
-            {/* Agent-only fields directly below Team Leader (Sales/Retention only) */}
             {!isCoreOnlyRole && isAgentRole && (
               <>
                 <TextField
@@ -1137,7 +1124,6 @@ console.log("[AUDIT] Sending x-agent-name:", actorName);
             )}
 
 
-            {/* Passwords only when adding (required, red asterisk) */}
             {!isEditMode && (
               <>
                 <TextField
