@@ -1,122 +1,412 @@
-import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
-import { io } from "socket.io-client";
-
+// src/whatsapp/WhatsAppInboxWidget.jsx
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Box,
-  Paper,
-  Stack,
+  Badge,
+  Fab,
+  Popover,
   Typography,
-  Avatar,
-  Button,
   IconButton,
-  Slide,
-  Fade,
+  Divider,
+  List,
+  ListItemButton,
+  ListItemText,
+  ListItemAvatar,
+  Avatar,
+  Chip,
+  Button,
+  CircularProgress,
+  Paper,
+  TextField,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  MenuItem,
+  Tooltip,
 } from "@mui/material";
-import CloseIcon from "@mui/icons-material/Close";
 import WhatsAppIcon from "@mui/icons-material/WhatsApp";
+import CloseIcon from "@mui/icons-material/Close";
+import ArrowBackIcon from "@mui/icons-material/ArrowBack";
+import OpenInNewIcon from "@mui/icons-material/OpenInNew";
+import RefreshIcon from "@mui/icons-material/Refresh";
+import SendIcon from "@mui/icons-material/Send";
+import DoneIcon from "@mui/icons-material/Done";
+import DoneAllIcon from "@mui/icons-material/DoneAll";
+import axios from "axios";
+import { io } from "socket.io-client";
 
+// ✅ Keep same base you already use
 const API_BASE = "https://muditamleads-14f32a10d7f7.herokuapp.com";
+const SOCKET_URL = API_BASE;
 
-/* -----------------------------
-   Helpers
------------------------------- */
-function digitsOnly(v = "") {
-  return String(v || "").replace(/\D/g, "");
+// ✅ Allowed roles only
+const ALLOWED_ROLES = new Set(["Manager", "Sales Agent", "Retention Agent"]);
+
+const digitsOnly = (v = "") => String(v || "").replace(/\D/g, "");
+const last10 = (v = "") => digitsOnly(v).slice(-10);
+const roomForPhone10 = (p10) => `wa:${String(p10 || "").slice(-10)}`;
+
+/* --------------------
+   Tick helper
+--------------------- */
+function normalizeStatus(s) {
+  const v = String(s || "").toLowerCase().trim();
+  if (["read", "seen"].includes(v)) return "read";
+  if (["delivered", "deliver", "received"].includes(v)) return "delivered";
+  if (["sent"].includes(v)) return "sent";
+  if (["failed", "error"].includes(v)) return "failed";
+  return v;
 }
-function phone10(v = "") {
-  const p = digitsOnly(v);
-  return p.length >= 10 ? p.slice(-10) : p;
+function MessageTicks({ status }) {
+  const st = normalizeStatus(status);
+  if (st === "read") return <DoneAllIcon sx={{ fontSize: 16, ml: 0.5, color: "#1DA1F2" }} />;
+  if (st === "delivered") return <DoneAllIcon sx={{ fontSize: 16, ml: 0.5, color: "rgba(0,0,0,0.55)" }} />;
+  if (st === "failed") return <DoneIcon sx={{ fontSize: 16, ml: 0.5, color: "#d32f2f" }} />;
+  return <DoneIcon sx={{ fontSize: 16, ml: 0.5, color: "rgba(0,0,0,0.55)" }} />;
 }
-function roomForPhone10(p10) {
-  return `wa:${String(p10 || "").slice(-10)}`;
+
+/* --------------------
+   Message helpers
+--------------------- */
+function getMsgKey(m) {
+  return m?.waId || m?._id || null;
 }
-function initials(name = "") {
-  const parts = String(name || "")
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean);
-  if (!parts.length) return "?";
-  if (parts.length === 1) return (parts[0][0] || "?").toUpperCase();
-  return `${(parts[0][0] || "").toUpperCase()}${(parts[parts.length - 1][0] || "").toUpperCase()}`;
+function getMsgTime(m) {
+  const t = m?.timestamp || m?.createdAt;
+  const ms = t ? new Date(t).getTime() : 0;
+  return Number.isFinite(ms) ? ms : 0;
 }
-function timeLabel(ts) {
-  try {
-    return new Date(ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-  } catch {
-    return "";
+function sortMessagesAsc(list) {
+  const arr = Array.isArray(list) ? list.slice() : [];
+  arr.sort((a, b) => getMsgTime(a) - getMsgTime(b)); // ✅ old -> new
+  return arr;
+}
+function upsertMessage(prev, incoming) {
+  if (!incoming) return prev;
+  const key = getMsgKey(incoming);
+  let next = prev;
+
+  if (!key) {
+    next = [...prev, incoming];
+  } else {
+    const idx = prev.findIndex((x) => getMsgKey(x) === key);
+    if (idx >= 0) {
+      next = prev.slice();
+      next[idx] = { ...prev[idx], ...incoming };
+    } else {
+      next = [...prev, incoming];
+    }
   }
+
+  return sortMessagesAsc(next);
 }
 
-// customer phone resolver: OUTBOUND => to, INBOUND => from
-function customerPhoneFromMsg(msg) {
-  const dir = String(msg?.direction || "").toUpperCase();
-  if (dir === "OUTBOUND") return msg?.to || "";
-  if (dir === "INBOUND") return msg?.from || "";
-  return msg?.phone || msg?.to || msg?.from || "";
+/* --------------------
+   Media URL fix
+--------------------- */
+function isProviderUrl(url = "") {
+  return /360dialog\.io|graph\.facebook\.com|lookaside\.facebook\.com|fbcdn\.net|facebook\.com/i.test(
+    String(url || "")
+  );
 }
 
-function isChatAlreadyOpenFor(phoneDigitsOrP10) {
-  try {
-    const path = window.location.pathname || "";
-    if (!path.startsWith("/whatsaap/chat")) return false;
+function buildProxyUrl(mediaId = "") {
+  const id = String(mediaId || "").trim();
+  if (!id) return "";
+  return `${API_BASE}/api/whatsapp/media-proxy/${encodeURIComponent(id)}`;
+}
 
-    const qs = new URLSearchParams(window.location.search || "");
-    const openPhone = qs.get("phone") || "";
-    const openP10 = phone10(openPhone);
-    const targetP10 = phone10(phoneDigitsOrP10);
-    return !!openP10 && !!targetP10 && openP10 === targetP10;
-  } catch {
-    return false;
+function getSafeMediaUrl(m) {
+  const media = m?.media || null;
+  if (!media) return "";
+
+  const id = String(media?.id || "").trim();
+  const url = String(media?.url || "").trim();
+
+  if (!url && id) return buildProxyUrl(id);
+  if (url && isProviderUrl(url) && id) return buildProxyUrl(id);
+
+  return url || (id ? buildProxyUrl(id) : "");
+}
+
+function getMediaMime(m) {
+  return (
+    m?.media?.mime ||
+    m?.media?.mimetype ||
+    m?.mime ||
+    m?.mediaMime ||
+    m?.raw?.audio?.mime_type ||
+    m?.raw?.voice?.mime_type ||
+    m?.raw?.mime_type ||
+    ""
+  );
+}
+
+function isSafariBrowser() {
+  if (typeof navigator === "undefined") return false;
+  const ua = navigator.userAgent || "";
+  return /safari/i.test(ua) && !/chrome|chromium|android/i.test(ua);
+}
+
+/* --------------------
+   Media renderer (with blob support)
+--------------------- */
+function renderMedia(m, blobUrlByMediaId = {}) {
+  const safeUrl = getSafeMediaUrl(m);
+  const mediaId = String(m?.media?.id || "").trim();
+  const filename = String(m?.media?.filename || "").toLowerCase();
+  const msgType = String(m?.type || "").toLowerCase();
+  const mimeRaw = getMediaMime(m);
+  const mime = String(mimeRaw || "").toLowerCase();
+
+  // If we still don't have anything
+  if (!safeUrl) {
+    if (mediaId) {
+      return (
+        <Box sx={{ mt: 0.75 }}>
+          <Button
+            size="small"
+            variant="outlined"
+            onClick={() => window.open(buildProxyUrl(mediaId), "_blank", "noopener,noreferrer")}
+            sx={{ textTransform: "none" }}
+          >
+            Open attachment
+          </Button>
+        </Box>
+      );
+    }
+    return null;
   }
-}
 
-// 🔔 tiny safe ding (placeholder). For best reliability/quality, replace with /public wav/mp3 later.
-function playDing() {
-  try {
-    const audio = new Audio(
-      "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAIlYAAESsAAACABAAZGF0YQAAAAA="
+  // ✅ if we pre-fetched a blob for this media, use it
+  const effectiveUrl = mediaId && blobUrlByMediaId[mediaId] ? blobUrlByMediaId[mediaId] : safeUrl;
+
+  const isImg =
+    msgType === "image" ||
+    mime.startsWith("image/") ||
+    /\.(png|jpg|jpeg|webp|gif)$/i.test(effectiveUrl) ||
+    /\.(png|jpg|jpeg|webp|gif)$/i.test(filename);
+
+  const isAudio =
+    msgType === "audio" ||
+    msgType === "voice" ||
+    msgType === "ptt" ||
+    mime.startsWith("audio/") ||
+    mime.includes("ogg") ||
+    /\.(mp3|wav|ogg|opus|m4a)$/i.test(effectiveUrl) ||
+    /\.(mp3|wav|ogg|opus|m4a)$/i.test(filename);
+
+  const isVideo =
+    msgType === "video" ||
+    mime.startsWith("video/") ||
+    /\.(mp4|webm|mov)$/i.test(effectiveUrl) ||
+    /\.(mp4|webm|mov)$/i.test(filename);
+
+  const isPdf = mime.includes("pdf") || /\.pdf$/i.test(effectiveUrl) || /\.pdf$/i.test(filename);
+
+  if (isImg) {
+    return (
+      <Box sx={{ mt: 0.75 }}>
+        <Box
+          component="img"
+          src={effectiveUrl}
+          alt="attachment"
+          sx={{
+            width: 220,
+            maxWidth: "100%",
+            borderRadius: 1.5,
+            border: "1px solid #e5e5e5",
+            display: "block",
+            cursor: "pointer",
+          }}
+          onClick={() => window.open(effectiveUrl, "_blank", "noopener,noreferrer")}
+        />
+      </Box>
     );
-    audio.volume = 0.7;
-    audio.play().catch(() => {});
-  } catch {}
-}
-
-async function apiGet(path) {
-  const res = await fetch(`${API_BASE}${path}`, {
-    credentials: "include",
-    cache: "no-store",
-    headers: { "Content-Type": "application/json" },
-  });
-
-  const text = await res.text();
-  let data = null;
-  try {
-    data = text ? JSON.parse(text) : null;
-  } catch {
-    data = null;
   }
 
-  if (!res.ok) throw new Error(data?.message || `Request failed: ${res.status}`);
-  return data;
+  const safari = isSafariBrowser();
+  const looksLikeOggOpus =
+    mime.includes("ogg") ||
+    mime.includes("opus") ||
+    /\.ogg|\.opus/i.test(filename) ||
+    /\.ogg|\.opus/i.test(effectiveUrl);
+
+  if (isAudio) {
+    if (safari && looksLikeOggOpus) {
+      return (
+        <Box sx={{ mt: 0.75 }}>
+          <Typography variant="caption" color="text.secondary">
+            Safari can’t play this voice note format (ogg/opus).
+          </Typography>
+          <Box sx={{ mt: 0.5 }}>
+            <Button
+              size="small"
+              variant="outlined"
+              onClick={() => window.open(effectiveUrl, "_blank", "noopener,noreferrer")}
+              sx={{ textTransform: "none" }}
+            >
+              Open audio
+            </Button>
+          </Box>
+        </Box>
+      );
+    }
+
+    const typeAttr = mimeRaw && !/octet-stream/i.test(mimeRaw) ? mimeRaw : undefined;
+
+    return (
+      <Box sx={{ mt: 0.75 }}>
+        <audio
+          key={effectiveUrl} // ✅ forces reload when url changes (blob created later)
+          controls
+          preload="metadata"
+          style={{ width: "260px", maxWidth: "100%" }}
+          onError={(e) =>
+            console.warn("AUDIO_ERROR", e?.currentTarget?.error, { src: effectiveUrl, mediaId, mimeRaw })
+          }
+        >
+          <source src={effectiveUrl} type={typeAttr} />
+          Your browser does not support audio playback.
+        </audio>
+      </Box>
+    );
+  }
+
+  if (isVideo) {
+    return (
+      <Box sx={{ mt: 0.75 }}>
+        <video
+          controls
+          preload="metadata"
+          src={effectiveUrl}
+          style={{
+            width: "260px",
+            maxWidth: "100%",
+            borderRadius: "10px",
+            border: "1px solid #e5e5e5",
+          }}
+        />
+      </Box>
+    );
+  }
+
+  return (
+    <Box sx={{ mt: 0.75 }}>
+      <Button
+        size="small"
+        variant="outlined"
+        onClick={() => window.open(effectiveUrl, "_blank", "noopener,noreferrer")}
+        sx={{ textTransform: "none" }}
+      >
+        {isPdf ? "Open PDF" : "Open attachment"}
+      </Button>
+    </Box>
+  );
 }
 
-/* =========================================================
-   Component
-========================================================= */
-export default function WhatsAppNotification() {
-  const navigate = useNavigate();
+/* --------------------
+   UI helpers
+--------------------- */
+function initials(nameOrPhone = "") {
+  const s = String(nameOrPhone || "").trim();
+  if (!s) return "U";
+  if (/^\d+$/.test(s)) return s.slice(-2);
+  const parts = s.split(/\s+/).filter(Boolean);
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[1][0]).toUpperCase();
+}
+function fmtTime(d) {
+  if (!d) return "";
+  const dt = new Date(d);
+  return dt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+function fmtRelative(d) {
+  if (!d) return "";
+  const ms = Date.now() - new Date(d).getTime();
+  const m = Math.floor(ms / 60000);
+  if (m < 1) return "now";
+  if (m < 60) return `${m}m`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h`;
+  const dd = Math.floor(h / 24);
+  return `${dd}d`;
+}
+
+// Detect template params like {{1}}, {{2}} ...
+function detectParamCountFromText(tplBody = "") {
+  const s = String(tplBody || "");
+  const matches = s.match(/\{\{\s*(\d+)\s*\}\}/g) || [];
+  let max = 0;
+  for (const m of matches) {
+    const n = Number(String(m).replace(/[^\d]/g, ""));
+    if (Number.isFinite(n)) max = Math.max(max, n);
+  }
+  return max;
+}
+function renderTemplatePreview(body = "", params = []) {
+  let out = String(body || "");
+  params.forEach((v, idx) => {
+    const i = idx + 1;
+    const re = new RegExp(`\\{\\{\\s*${i}\\s*\\}\\}`, "g");
+    out = out.replace(re, String(v || ""));
+  });
+  return out;
+}
+
+/**
+ * Props:
+ * - onOpenChat?: (phone10) => void
+ */
+export default function WhatsAppInboxWidget({ onOpenChat }) {
+  const fabRef = useRef(null);
   const socketRef = useRef(null);
+  const joinedRoomsRef = useRef(new Set());
+  const messagesEndRef = useRef(null);
+  const chatScrollRef = useRef(null);
 
-  // room join tracking
-  const joinedRoomsRef = useRef(new Set()); // Set<phone10>
-  const convMapRef = useRef(new Map()); // Map<phone10, { displayName, phoneDigits, unreadCount? }>
+  const [anchorEl, setAnchorEl] = useState(null);
+  const open = Boolean(anchorEl);
 
-  const lastToastRef = useRef({}); // { [p10]: { ts, lastKey } }
-  const refreshTimerRef = useRef(null);
+  const [loading, setLoading] = useState(false);
+  const [convos, setConvos] = useState([]);
 
-  const [toast, setToast] = useState(null);
+  const [view, setView] = useState("list"); // "list" | "chat"
+  const [active, setActive] = useState(null);
+  const [chatLoading, setChatLoading] = useState(false);
+  const [messages, setMessages] = useState([]);
 
+  // composer
+  const [draft, setDraft] = useState("");
+  const [sending, setSending] = useState(false);
+
+  // templates
+  const [tplLoading, setTplLoading] = useState(false);
+  const [templates, setTemplates] = useState([]);
+  const [tplDialogOpen, setTplDialogOpen] = useState(false);
+  const [tplSelected, setTplSelected] = useState("");
+  const [tplParamCount, setTplParamCount] = useState(0);
+  const [tplParams, setTplParams] = useState([]);
+  const [tplBodyPreview, setTplBodyPreview] = useState("");
+
+  // ✅ Blob URLs for protected media-proxy (fixes 0:00/0:00 voice notes)
+  const [blobUrlByMediaId, setBlobUrlByMediaId] = useState({}); // { [mediaId]: objectUrl }
+
+  const clearBlobUrls = useCallback(() => {
+    setBlobUrlByMediaId((prev) => {
+      try {
+        Object.values(prev || {}).forEach((u) => {
+          try {
+            URL.revokeObjectURL(u);
+          } catch {}
+        });
+      } catch {}
+      return {};
+    });
+  }, []);
+
+  // ✅ login session user
   const sessionUser = useMemo(() => {
     try {
       const raw = sessionStorage.getItem("user");
@@ -128,356 +418,766 @@ export default function WhatsAppNotification() {
 
   const myNameRaw = useMemo(() => String(sessionUser?.fullName || "").trim(), [sessionUser?.fullName]);
   const myName = useMemo(() => myNameRaw.toLowerCase(), [myNameRaw]);
-  const myRole = useMemo(() => String(sessionUser?.role || ""), [sessionUser?.role]);
+  const myRole = useMemo(() => String(sessionUser?.role || "").trim(), [sessionUser?.role]);
 
-  // auto-hide toast
-  useEffect(() => {
-    if (!toast) return;
-    const t = setTimeout(() => setToast(null), 7000);
-    return () => clearTimeout(t);
-  }, [toast]);
+  const allowed = useMemo(() => {
+    if (!myNameRaw) return false;
+    if (!ALLOWED_ROLES.has(myRole)) return false;
+    return true;
+  }, [myNameRaw, myRole]);
 
-  const refreshAndJoinMyRooms = useCallback(async () => {
-    if (!myNameRaw) return;
+  const phone10Active = useMemo(() => last10(active?.phone || ""), [active]);
 
-    const query = new URLSearchParams({
-      role: myRole || "",
-      userName: myNameRaw || "",
-    }).toString();
+  const totalUnread = useMemo(() => {
+    return (convos || []).reduce((sum, c) => sum + (Number(c?.unreadCount) || 0), 0);
+  }, [convos]);
 
-    const data = (await apiGet(`/api/whatsapp/conversations?${query}`)) || [];
-    const list = Array.isArray(data) ? data : [];
+  // ✅ Manager sees all chats; agents see only assigned-to-me
+  const visibleConvos = useMemo(() => {
+    const list = Array.isArray(convos) ? convos.slice() : [];
+    if (myRole === "Manager") return list;
 
-    // Only chats assigned to me (extra enforce)
-    const mine = list.filter((c) => {
+    return list.filter((c) => {
       const assigned = String(c?.assignedToLabel || "").trim().toLowerCase();
       return assigned && assigned === myName;
     });
+  }, [convos, myRole, myName]);
 
-    const nextMap = new Map();
-    mine.forEach((c) => {
-      const p10 = phone10(c?.phone);
-      if (!p10) return;
-      nextMap.set(p10, {
-        displayName: c?.displayName || p10,
-        phoneDigits: digitsOnly(c?.phone) || p10,
-        unreadCount: Number(c?.unreadCount || 0),
-      });
+  const sortedConvos = useMemo(() => {
+    const list = Array.isArray(visibleConvos) ? visibleConvos.slice() : [];
+    list.sort((a, b) => {
+      const au = Number(a?.unreadCount) || 0;
+      const bu = Number(b?.unreadCount) || 0;
+      if (au !== bu) return bu - au;
+      const at = a?.lastMessageAt ? new Date(a.lastMessageAt).getTime() : 0;
+      const bt = b?.lastMessageAt ? new Date(b.lastMessageAt).getTime() : 0;
+      return bt - at;
     });
-    convMapRef.current = nextMap;
+    return list;
+  }, [visibleConvos]);
 
-    const s = socketRef.current;
-    if (!s) return;
-
-    const nextSet = new Set(Array.from(nextMap.keys()));
-
-    // ✅ JOIN newly added
-    for (const p10 of nextSet) {
-      if (joinedRoomsRef.current.has(p10)) continue;
-      s.emit("wa:join", { phone: p10 }); // backend expects last10 in room
-      joinedRoomsRef.current.add(p10);
-    }
-
-    // ✅ LEAVE removed
-    for (const p10 of Array.from(joinedRoomsRef.current)) {
-      if (nextSet.has(p10)) continue;
-      s.emit("wa:leave", { phone: p10 });
-      joinedRoomsRef.current.delete(p10);
-    }
-  }, [myName, myNameRaw, myRole]);
-
-  /* -----------------------------
-     Socket connect
-  ------------------------------ */
-  useEffect(() => {
+  const fetchConversations = useCallback(async () => {
     if (!myNameRaw) return;
-
-    const s = io(API_BASE, {
-      withCredentials: true,
-      transports: ["websocket", "polling"],
-      reconnection: true,
-      reconnectionAttempts: Infinity,
-      reconnectionDelay: 800,
-    });
-
-    socketRef.current = s;
-
-    const onConnect = () => {
-      refreshAndJoinMyRooms().catch(() => {});
-    };
-
-    const showToast = ({ p10, phoneDigits, title, subtitle, ts }) => {
-      // ✅ don't show popup if already open on that chat
-      if (isChatAlreadyOpenFor(phoneDigits || p10)) return;
-
-      // ✅ debounce per-chat
-      const key = `${title}||${subtitle}`;
-      const prev = lastToastRef.current[p10];
-      if (prev && prev.lastKey === key && Date.now() - prev.ts < 1500) return;
-      lastToastRef.current[p10] = { ts: Date.now(), lastKey: key };
-
-      playDing();
-      setToast({ p10, phoneDigits, title, subtitle, ts });
-    };
-
-    const onMessage = (payload) => {
-      const msg = payload?.message || payload?.msg || payload;
-      if (!msg) return;
-
-      // only inbound
-      const isInbound = String(msg?.direction || "").toUpperCase() === "INBOUND";
-      if (!isInbound) return;
-
-      const customerPhone = customerPhoneFromMsg(msg);
-      const p10 = phone10(customerPhone);
-      if (!p10) return;
-
-      // only if in my rooms
-      if (!joinedRoomsRef.current.has(p10)) return;
-
-      const meta = convMapRef.current.get(p10);
-      const title = meta?.displayName || p10;
-
-      const hasMedia = !!msg?.media?.url;
-      const subtitle = hasMedia
-        ? msg?.type === "image"
-          ? "📷 Photo received"
-          : msg?.type === "video"
-          ? "🎥 Video received"
-          : msg?.type === "audio"
-          ? "🎙️ Audio received"
-          : "📎 Attachment received"
-        : String(msg?.text || "").trim().slice(0, 140) || "New message received";
-
-      const phoneDigits = meta?.phoneDigits || digitsOnly(customerPhone) || p10;
-
-      showToast({
-        p10,
-        phoneDigits,
-        title,
-        subtitle,
-        ts: Date.now(),
+    setLoading(true);
+    try {
+      const r = await axios.get(`${API_BASE}/api/whatsapp/conversations`, {
+        withCredentials: true,
+        params: { role: myRole || "", userName: myNameRaw || "" },
       });
-    };
+      const list = Array.isArray(r.data) ? r.data : [];
+      setConvos(list);
+    } finally {
+      setLoading(false);
+    }
+  }, [myNameRaw, myRole]);
 
-    // optional: if your backend emits conversation patches, refresh map to keep assignments accurate
-    const onConversation = (payload) => {
-      const p10 = phone10(payload?.phone10 || payload?.phone || "");
-      if (!p10) return;
+  const fetchMessages = useCallback(async (p10) => {
+    if (!p10) return;
+    setChatLoading(true);
+    try {
+      const r = await axios.get(`${API_BASE}/api/whatsapp/messages`, {
+        withCredentials: true,
+        params: { phone: p10 },
+      });
+      const list = Array.isArray(r.data) ? r.data : [];
+      setMessages(sortMessagesAsc(list));
+    } finally {
+      setChatLoading(false);
+    }
+  }, []);
 
-      // If assignment changed, safest is to refresh & rejoin rooms.
-      // (Also helps when a manager reassigns chat to me while I'm online)
-      refreshAndJoinMyRooms().catch(() => {});
-    };
+  const markRead = useCallback(async (p10) => {
+    if (!p10) return;
+    setConvos((prev) =>
+      prev.map((c) => (last10(c?.phone) === p10 ? { ...c, unreadCount: 0, lastReadAt: new Date() } : c))
+    );
+    try {
+      await axios.post(`${API_BASE}/api/whatsapp/conversations/mark-read`, { phone: p10 }, { withCredentials: true });
+    } catch {}
+  }, []);
 
-    s.on("connect", onConnect);
-    s.on("wa:message", onMessage);
-    s.on("wa:conversation", onConversation);
+  const scrollToBottom = useCallback((smooth = false) => {
+    try {
+      const el = chatScrollRef.current;
+      if (!el) return;
+      el.scrollTo({ top: el.scrollHeight, behavior: smooth ? "smooth" : "auto" });
+    } catch {
+      try {
+        messagesEndRef.current?.scrollIntoView({ behavior: smooth ? "smooth" : "auto" });
+      } catch {}
+    }
+  }, []);
 
-    // periodic refresh (keeps room membership in sync)
-    refreshTimerRef.current = setInterval(() => {
-      refreshAndJoinMyRooms().catch(() => {});
-    }, 60_000);
+  // ✅ Prefetch audio blobs from protected media-proxy WITH credentials
+  useEffect(() => {
+    let cancelled = false;
+
+    async function prefetchAudioBlobs() {
+      const list = Array.isArray(messages) ? messages : [];
+
+      for (const m of list) {
+        const mediaId = String(m?.media?.id || "").trim();
+        if (!mediaId) continue;
+        if (blobUrlByMediaId[mediaId]) continue;
+
+        const msgType = String(m?.type || "").toLowerCase();
+        const mime = String(getMediaMime(m) || "").toLowerCase();
+        const filename = String(m?.media?.filename || "").toLowerCase();
+
+        const isAudio =
+          msgType === "audio" ||
+          msgType === "voice" ||
+          msgType === "ptt" ||
+          mime.startsWith("audio/") ||
+          mime.includes("ogg") ||
+          /\.(mp3|wav|ogg|opus|m4a)$/i.test(filename);
+
+        if (!isAudio) continue;
+
+        const safeUrl = getSafeMediaUrl(m);
+        if (!safeUrl) continue;
+
+        // only needed for proxy URLs (often protected by session)
+        if (!safeUrl.includes("/api/whatsapp/media-proxy/")) continue;
+
+        try {
+          const res = await fetch(safeUrl, { credentials: "include" });
+          if (!res.ok) continue;
+
+          const blob = await res.blob();
+          const objUrl = URL.createObjectURL(blob);
+
+          if (cancelled) {
+            try {
+              URL.revokeObjectURL(objUrl);
+            } catch {}
+            continue;
+          }
+
+          setBlobUrlByMediaId((prev) => (prev[mediaId] ? prev : { ...prev, [mediaId]: objUrl }));
+        } catch {
+          // ignore
+        }
+      }
+    }
+
+    prefetchAudioBlobs();
 
     return () => {
-      try {
-        if (refreshTimerRef.current) clearInterval(refreshTimerRef.current);
-      } catch {}
-      refreshTimerRef.current = null;
-
-      try {
-        s.off("connect", onConnect);
-        s.off("wa:message", onMessage);
-        s.off("wa:conversation", onConversation);
-
-        for (const p10 of Array.from(joinedRoomsRef.current)) {
-          s.emit("wa:leave", { phone: p10 });
-        }
-        joinedRoomsRef.current.clear();
-
-        s.disconnect();
-      } catch {}
-
-      socketRef.current = null;
+      cancelled = true;
     };
-  }, [myNameRaw, refreshAndJoinMyRooms]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messages]); // keep simple
 
-  if (!myNameRaw) return null;
+  // ✅ socket setup (once)
+  useEffect(() => {
+    if (!allowed) return;
+    if (socketRef.current) return;
 
-  const openChat = async () => {
-    if (!toast) return;
-    const p = toast.phoneDigits || toast.p10;
+    socketRef.current = io(SOCKET_URL, {
+      transports: ["websocket", "polling"],
+      withCredentials: true,
+      reconnection: true,
+      reconnectionAttempts: 10,
+      reconnectionDelayMax: 2000,
+    });
 
-    // optional: clear unread immediately so list updates fast (your chat screen also calls this)
-    try {
-      await fetch(`${API_BASE}/api/whatsapp/conversations/mark-read`, {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone: p }),
+    const socket = socketRef.current;
+
+    const onWaConversation = (payload) => {
+      const p10 = payload?.phone10;
+      const patch = payload?.patch || {};
+      if (!p10) return;
+
+      setConvos((prev) => {
+        const idx = prev.findIndex((c) => last10(c?.phone) === p10);
+        if (idx < 0) return prev;
+        const next = prev.slice();
+        next[idx] = { ...next[idx], ...patch };
+        return next;
       });
-    } catch {}
+    };
 
-    navigate(`/whatsaap/chat?phone=${encodeURIComponent(p)}`);
-    setToast(null);
+    const onWaMessage = (payload) => {
+      const msg = payload?.message || payload;
+      const p10 = payload?.phone10 || last10(msg?.from) || last10(msg?.to) || "";
+      if (!p10) return;
+
+      setConvos((prev) => {
+        const idx = prev.findIndex((c) => last10(c?.phone) === p10);
+        if (idx < 0) return prev;
+        const next = prev.slice();
+        next[idx] = {
+          ...next[idx],
+          lastMessageAt: msg?.timestamp || msg?.createdAt || new Date(),
+          lastMessageText: String(msg?.text || "").slice(0, 200) || next[idx]?.lastMessageText,
+          lastInboundAt:
+            msg?.direction?.toUpperCase?.() === "INBOUND" ? (msg?.timestamp || new Date()) : next[idx]?.lastInboundAt,
+        };
+        return next;
+      });
+
+      if (phone10Active && p10 === phone10Active) {
+        setMessages((prev) => upsertMessage(prev, msg));
+        setTimeout(() => scrollToBottom(true), 0);
+      }
+    };
+
+    socket.on("wa:conversation", onWaConversation);
+    socket.on("wa:message", onWaMessage);
+
+    return () => {
+      socket.off("wa:conversation", onWaConversation);
+      socket.off("wa:message", onWaMessage);
+    };
+  }, [allowed, phone10Active, scrollToBottom]);
+
+  // ✅ join rooms for visible convos
+  useEffect(() => {
+    const socket = socketRef.current;
+    if (!socket || !socket.connected) return;
+
+    const desired = new Set((visibleConvos || []).map((c) => last10(c?.phone)).filter(Boolean));
+
+    for (const p10 of desired) {
+      const room = roomForPhone10(p10);
+      if (!joinedRoomsRef.current.has(room)) {
+        socket.emit("wa:join", { phone10: p10, userName: myNameRaw || "" });
+        joinedRoomsRef.current.add(room);
+      }
+    }
+
+    for (const room of Array.from(joinedRoomsRef.current)) {
+      const p10 = room.replace(/^wa:/, "");
+      if (!desired.has(p10)) {
+        socket.emit("wa:leave", { phone10: p10 });
+        joinedRoomsRef.current.delete(room);
+      }
+    }
+  }, [visibleConvos, myNameRaw]);
+
+  // ✅ initial load + periodic refresh
+  useEffect(() => {
+    if (!allowed) return;
+    fetchConversations();
+    const t = setInterval(fetchConversations, 25000);
+    return () => clearInterval(t);
+  }, [allowed, fetchConversations]);
+
+  const handleOpen = () => setAnchorEl(fabRef.current);
+
+  const handleClose = () => {
+    setAnchorEl(null);
+    setView("list");
+    setActive(null);
+    setMessages([]);
+    setDraft("");
+    clearBlobUrls(); // ✅ important
   };
 
-  const dismiss = () => setToast(null);
+  const openChatInline = async (c) => {
+    clearBlobUrls(); // ✅ reset blobs when switching chat
+    setActive(c);
+    setView("chat");
+    const p10 = last10(c?.phone);
+    await fetchMessages(p10);
+    await markRead(p10);
+    setTimeout(() => scrollToBottom(false), 60);
+  };
+
+  const openFullChat = useCallback(() => {
+    const p10 = phone10Active;
+    if (!p10) return;
+
+    if (typeof onOpenChat === "function") {
+      onOpenChat(p10);
+      return;
+    }
+
+    const url = `/whatsaap/chat?phone=${encodeURIComponent(p10)}`;
+    window.open(url, "_blank", "noopener,noreferrer");
+  }, [onOpenChat, phone10Active]);
+
+  /* --------------------
+     Sending message
+--------------------- */
+  const sendText = useCallback(async () => {
+    const p10 = phone10Active;
+    const text = String(draft || "").trim();
+    if (!p10 || !text) return;
+
+    setSending(true);
+    try {
+      const optimistic = {
+        _id: `optimistic_${Date.now()}`,
+        waId: null,
+        direction: "OUTBOUND",
+        type: "text",
+        text,
+        status: "sent",
+        timestamp: new Date(),
+      };
+      setMessages((prev) => upsertMessage(prev, optimistic));
+      setDraft("");
+      setTimeout(() => scrollToBottom(true), 0);
+
+      await axios.post(`${API_BASE}/api/whatsapp/send-text`, { to: p10, text }, { withCredentials: true });
+    } catch (e) {
+      setMessages((prev) => {
+        const next = prev.slice();
+        for (let i = next.length - 1; i >= 0; i--) {
+          if (String(next[i]?._id || "").startsWith("optimistic_")) {
+            next[i] = { ...next[i], status: "failed" };
+            break;
+          }
+        }
+        return next;
+      });
+    } finally {
+      setSending(false);
+    }
+  }, [draft, phone10Active, scrollToBottom]);
+
+  /* --------------------
+     Templates
+--------------------- */
+  const loadTemplates = useCallback(async () => {
+    setTplLoading(true);
+    try {
+      const r = await axios.get(`${API_BASE}/api/whatsapp/templates`, { withCredentials: true });
+      const list = Array.isArray(r.data) ? r.data : [];
+      setTemplates(list);
+    } finally {
+      setTplLoading(false);
+    }
+  }, []);
+
+  const openTemplateDialog = useCallback(async () => {
+    if (!templates.length) await loadTemplates();
+    setTplSelected("");
+    setTplParamCount(0);
+    setTplParams([]);
+    setTplBodyPreview("");
+    setTplDialogOpen(true);
+  }, [templates.length, loadTemplates]);
+
+  const selectedTemplateObj = useMemo(() => {
+    const name = String(tplSelected || "");
+    return templates.find((t) => String(t?.name || "") === name) || null;
+  }, [templates, tplSelected]);
+
+  useEffect(() => {
+    if (!selectedTemplateObj) return;
+    const body = selectedTemplateObj?.body || selectedTemplateObj?.components?.body || "";
+    const count = detectParamCountFromText(body);
+    setTplParamCount(count);
+    setTplParams(Array.from({ length: count }, () => ""));
+    setTplBodyPreview(renderTemplatePreview(body, Array.from({ length: count }, () => "")));
+  }, [selectedTemplateObj]);
+
+  useEffect(() => {
+    if (!selectedTemplateObj) return;
+    const body = selectedTemplateObj?.body || selectedTemplateObj?.components?.body || "";
+    setTplBodyPreview(renderTemplatePreview(body, tplParams));
+  }, [tplParams, selectedTemplateObj]);
+
+  const sendTemplate = useCallback(async () => {
+    const p10 = phone10Active;
+    if (!p10) return;
+    if (!tplSelected) return;
+
+    const params = (tplParams || []).map((x) => String(x || "").trim());
+    if (tplParamCount > 0 && params.some((x) => !x)) return;
+
+    setSending(true);
+    try {
+      const optimistic = {
+        _id: `optimistic_tpl_${Date.now()}`,
+        waId: null,
+        direction: "OUTBOUND",
+        type: "template",
+        text: tplBodyPreview ? String(tplBodyPreview).slice(0, 4000) : `Template: ${tplSelected}`,
+        status: "sent",
+        timestamp: new Date(),
+      };
+      setMessages((prev) => upsertMessage(prev, optimistic));
+      setTimeout(() => scrollToBottom(true), 0);
+
+      await axios.post(
+        `${API_BASE}/api/whatsapp/send-template`,
+        { to: p10, templateName: tplSelected, parameters: params, renderedText: tplBodyPreview || "" },
+        { withCredentials: true }
+      );
+
+      setTplDialogOpen(false);
+    } catch (e) {
+      setMessages((prev) => {
+        const next = prev.slice();
+        for (let i = next.length - 1; i >= 0; i--) {
+          if (String(next[i]?._id || "").startsWith("optimistic_tpl_")) {
+            next[i] = { ...next[i], status: "failed" };
+            break;
+          }
+        }
+        return next;
+      });
+    } finally {
+      setSending(false);
+    }
+  }, [phone10Active, tplSelected, tplParams, tplParamCount, tplBodyPreview, scrollToBottom]);
+
+  if (!allowed) return null;
 
   return (
-    <Box
-      sx={{
-        position: "fixed",
-        right: 18,
-        bottom: 18,
-        zIndex: 2500,
-        width: 380,
-        maxWidth: "calc(100vw - 36px)",
-        pointerEvents: "none",
-      }}
-    >
-      <Slide direction="left" in={Boolean(toast)} mountOnEnter unmountOnExit>
-        <Box sx={{ pointerEvents: "auto" }}>
-          <Fade in={Boolean(toast)} timeout={180}>
-            <Paper
-              elevation={10}
-              sx={{
-                overflow: "hidden",
-                borderRadius: 4,
-                border: "1px solid rgba(0,0,0,0.10)",
-                bgcolor: "#fff",
-                boxShadow: "0 18px 40px rgba(0,0,0,0.18)",
-                transform: "translateZ(0)",
-                "&:hover": { boxShadow: "0 22px 54px rgba(0,0,0,0.22)" },
+    <>
+      {/* ✅ Floating WhatsApp icon ALWAYS (for allowed roles) */}
+      <Box sx={{ position: "fixed", right: 22, bottom: 22, zIndex: 4000 }}>
+        <Badge
+          badgeContent={totalUnread}
+          color="error"
+          overlap="circular"
+          sx={{
+            "& .MuiBadge-badge": {
+              zIndex: 5000,
+              fontWeight: 900,
+              boxShadow: "0 6px 14px rgba(0,0,0,0.25)",
+            },
+          }}
+        >
+          <Fab
+            ref={fabRef}
+            onClick={open ? handleClose : handleOpen}
+            sx={{
+              bgcolor: "#25D366",
+              "&:hover": { bgcolor: "#1FB85A" },
+              boxShadow: "0 14px 28px rgba(0,0,0,0.22)",
+            }}
+          >
+            <WhatsAppIcon sx={{ color: "#fff" }} />
+          </Fab>
+        </Badge>
+      </Box>
+
+      {/* ✅ Popover */}
+      <Popover
+        open={open}
+        anchorEl={anchorEl}
+        onClose={handleClose}
+        anchorOrigin={{ vertical: "top", horizontal: "left" }}
+        transformOrigin={{ vertical: "bottom", horizontal: "right" }}
+        PaperProps={{
+          sx: {
+            width: 390,
+            maxWidth: "92vw",
+            height: 560,
+            borderRadius: 2.5,
+            overflow: "hidden",
+            boxShadow: "0 10px 30px rgba(0,0,0,0.18)",
+          },
+        }}
+      >
+        {/* Header */}
+        <Box sx={{ px: 1.25, py: 1.1, display: "flex", alignItems: "center", gap: 1, bgcolor: "#fff" }}>
+          {view === "chat" ? (
+            <IconButton
+              size="small"
+              onClick={() => {
+                setView("list");
+                setActive(null);
+                setMessages([]);
+                setDraft("");
+                clearBlobUrls();
               }}
             >
-              {/* Top accent bar */}
-              <Box
-                sx={{
-                  height: 4,
-                  background: "linear-gradient(90deg, #25D366 0%, #128C7E 60%, #075E54 100%)",
-                }}
-              />
+              <ArrowBackIcon />
+            </IconButton>
+          ) : null}
 
-              <Box sx={{ p: 1.25 }}>
-                <Stack direction="row" spacing={1.25} alignItems="flex-start">
-                  <Avatar
-                    sx={{
-                      width: 40,
-                      height: 40,
-                      bgcolor: "rgba(18,140,126,0.12)",
-                      color: "#075E54",
-                      fontWeight: 900,
-                    }}
-                  >
-                    {initials(toast?.title || "")}
-                  </Avatar>
+          <Box sx={{ minWidth: 0, flex: 1, display: "flex", alignItems: "center", gap: 1 }}>
+            <Typography sx={{ fontWeight: 900 }} noWrap>
+              {view === "chat" ? (active?.displayName || phone10Active || "Chat") : "Messages"}
+            </Typography>
 
-                  <Box sx={{ flex: 1, minWidth: 0 }}>
-                    <Stack direction="row" alignItems="center" justifyContent="space-between" gap={1}>
-                      <Stack direction="row" spacing={0.75} alignItems="center" sx={{ minWidth: 0 }}>
-                        <WhatsAppIcon sx={{ fontSize: 18, color: "#25D366" }} />
-                        <Typography sx={{ fontWeight: 950 }} noWrap>
-                          {toast?.title || "New WhatsApp message"}
-                        </Typography>
-                      </Stack>
+            {view === "list" ? (
+              <Chip size="small" color="error" label={totalUnread} sx={{ height: 20, fontWeight: 900, borderRadius: 999 }} />
+            ) : null}
+          </Box>
 
-                      <Typography sx={{ fontSize: 11, color: "text.secondary", flexShrink: 0 }}>
-                        {toast?.ts ? timeLabel(toast.ts) : ""}
-                      </Typography>
-                    </Stack>
+          {view === "chat" ? (
+            <Tooltip title="Open chat">
+              <IconButton size="small" onClick={openFullChat}>
+                <OpenInNewIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          ) : null}
 
-                    <Typography
-                      sx={{
-                        mt: 0.35,
-                        fontSize: 13,
-                        color: "text.secondary",
-                        display: "-webkit-box",
-                        WebkitLineClamp: 2,
-                        WebkitBoxOrient: "vertical",
-                        overflow: "hidden",
-                      }}
-                    >
-                      {toast?.subtitle || "New message received"}
-                    </Typography>
+          <IconButton size="small" onClick={fetchConversations} disabled={loading}>
+            {loading ? <CircularProgress size={16} /> : <RefreshIcon fontSize="small" />}
+          </IconButton>
 
-                    <Stack direction="row" spacing={1} sx={{ mt: 1.1 }}>
-                      <Button
-                        size="small"
-                        variant="contained"
-                        onClick={openChat}
+          <IconButton size="small" onClick={handleClose}>
+            <CloseIcon fontSize="small" />
+          </IconButton>
+        </Box>
+
+        <Divider />
+
+        {/* Body */}
+        <Box sx={{ height: "calc(560px - 56px)", bgcolor: "#F7F7F7", overflow: "hidden" }}>
+          {view === "list" ? (
+            <Box sx={{ height: "100%", overflowY: "auto" }}>
+              {loading && !sortedConvos.length ? (
+                <Box sx={{ display: "flex", justifyContent: "center", py: 6 }}>
+                  <CircularProgress size={24} />
+                </Box>
+              ) : sortedConvos.length === 0 ? (
+                <Typography color="text.secondary" align="center" sx={{ py: 6 }}>
+                  {myRole === "Manager" ? "No conversations." : "No assigned conversations."}
+                </Typography>
+              ) : (
+                <List disablePadding>
+                  {sortedConvos.map((c) => {
+                    const p10 = last10(c?.phone);
+                    const unread = Number(c?.unreadCount) || 0;
+                    const title = c?.displayName || p10 || "Customer";
+                    const sub = c?.lastMessageText || "—";
+                    const rel = fmtRelative(c?.lastMessageAt);
+
+                    return (
+                      <ListItemButton
+                        key={c?._id || p10}
+                        onClick={() => openChatInline(c)}
                         sx={{
-                          textTransform: "none",
-                          fontWeight: 950,
-                          borderRadius: 999,
-                          px: 1.5,
-                          bgcolor: "#25D366",
-                          "&:hover": { bgcolor: "#1fb85a" },
+                          px: 1.25,
+                          py: 1,
+                          bgcolor: "#FFFFFF",
+                          borderBottom: "1px solid #eee",
                         }}
                       >
-                        Open chat
-                      </Button>
+                        <ListItemAvatar>
+                          <Avatar sx={{ bgcolor: "rgba(18,140,126,0.14)", color: "#075E54", fontWeight: 900 }}>
+                            {initials(title)}
+                          </Avatar>
+                        </ListItemAvatar>
 
-                      <Button
-                        size="small"
-                        variant="outlined"
-                        onClick={dismiss}
-                        sx={{
-                          textTransform: "none",
-                          borderRadius: 999,
-                          px: 1.4,
-                          borderColor: "rgba(0,0,0,0.18)",
-                          color: "rgba(0,0,0,0.75)",
-                          "&:hover": { borderColor: "rgba(0,0,0,0.28)" },
-                        }}
-                      >
-                        Dismiss
-                      </Button>
-                    </Stack>
-                  </Box>
+                        <ListItemText
+                          primary={
+                            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                              <Typography sx={{ fontWeight: 900 }} noWrap>
+                                {title}
+                              </Typography>
 
-                  <IconButton
-                    size="small"
-                    onClick={dismiss}
-                    sx={{
-                      mt: -0.25,
-                      color: "rgba(0,0,0,0.55)",
-                      "&:hover": { color: "rgba(0,0,0,0.8)" },
-                  }}
-                  >
-                    <CloseIcon fontSize="small" />
-                  </IconButton>
-                </Stack>
+                              <Box sx={{ ml: "auto", display: "flex", alignItems: "center", gap: 1 }}>
+                                {rel ? (
+                                  <Typography variant="caption" color="text.secondary">
+                                    {rel}
+                                  </Typography>
+                                ) : null}
 
-                {/* Auto-dismiss progress bar (7s) */}
-                <Box
-                  sx={{
-                    mt: 1.25,
-                    height: 3,
-                    borderRadius: 999,
-                    bgcolor: "rgba(0,0,0,0.06)",
-                    overflow: "hidden",
-                  }}
-                >
-                  <Box
-                    sx={{
-                      height: "100%",
-                      width: "100%",
-                      bgcolor: "#25D366",
-                      transformOrigin: "left",
-                      animation: "wa_toast_progress 7s linear forwards",
-                      "@keyframes wa_toast_progress": {
-                        from: { transform: "scaleX(1)" },
-                        to: { transform: "scaleX(0)" },
-                      },
-                    }}
-                  />
+                                {unread ? (
+                                  <Box sx={{ width: 10, height: 10, borderRadius: 999, bgcolor: "#1976d2" }} />
+                                ) : null}
+                              </Box>
+                            </Box>
+                          }
+                          secondary={
+                            <Typography variant="body2" color="text.secondary" noWrap>
+                              {sub}
+                            </Typography>
+                          }
+                        />
+                      </ListItemButton>
+                    );
+                  })}
+                </List>
+              )}
+            </Box>
+          ) : (
+            // ✅ Chat view inside popover
+            <Box sx={{ height: "100%", display: "flex", flexDirection: "column" }}>
+              {/* sub header */}
+              <Box sx={{ px: 1.25, py: 1, bgcolor: "#fff", borderBottom: "1px solid #eee" }}>
+                <Box sx={{ display: "flex", gap: 1, alignItems: "center" }}>
+                  <Typography variant="caption" color="text.secondary" sx={{ ml: "auto" }}>
+                    {phone10Active || ""}
+                  </Typography>
                 </Box>
               </Box>
-            </Paper>
-          </Fade>
+
+              {/* messages */}
+              <Box ref={chatScrollRef} sx={{ flex: 1, overflowY: "auto", p: 1.25 }}>
+                {chatLoading ? (
+                  <Box sx={{ display: "flex", justifyContent: "center", py: 6 }}>
+                    <CircularProgress size={24} />
+                  </Box>
+                ) : (messages || []).length === 0 ? (
+                  <Typography color="text.secondary" align="center" sx={{ py: 6 }}>
+                    No messages.
+                  </Typography>
+                ) : (
+                  (messages || []).map((m) => {
+                    const outbound = String(m?.direction || "").toUpperCase() === "OUTBOUND";
+                    const time = fmtTime(m?.timestamp || m?.createdAt);
+
+                    return (
+                      <Box
+                        key={m?._id || m?.waId || Math.random()}
+                        sx={{ display: "flex", justifyContent: outbound ? "flex-end" : "flex-start", mb: 1 }}
+                      >
+                        <Paper
+                          elevation={0}
+                          sx={{
+                            maxWidth: "85%",
+                            px: 1.25,
+                            py: 0.75,
+                            borderRadius: 2,
+                            bgcolor: outbound ? "#DCF8C6" : "#FFFFFF",
+                            border: "1px solid #EAEAEA",
+                          }}
+                        >
+                          {!!m?.text && (
+                            <Typography sx={{ fontSize: 13, whiteSpace: "pre-wrap" }}>{m.text}</Typography>
+                          )}
+                          {renderMedia(m, blobUrlByMediaId)}
+                          <Box
+                            sx={{
+                              mt: 0.5,
+                              display: "flex",
+                              justifyContent: "flex-end",
+                              alignItems: "center",
+                              gap: 0.25,
+                            }}
+                          >
+                            <Typography variant="caption" sx={{ opacity: 0.65 }}>
+                              {time}
+                            </Typography>
+                            {outbound ? <MessageTicks status={m?.status} /> : null}
+                          </Box>
+                        </Paper>
+                      </Box>
+                    );
+                  })
+                )}
+                <div ref={messagesEndRef} />
+              </Box>
+
+              {/* composer */}
+              <Box sx={{ p: 1, bgcolor: "#fff", borderTop: "1px solid #eee" }}>
+                <Box sx={{ display: "flex", gap: 1 }}>
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    onClick={openTemplateDialog}
+                    disabled={!phone10Active || sending}
+                    sx={{ textTransform: "none", fontWeight: 900, borderRadius: 2, whiteSpace: "nowrap" }}
+                  >
+                    Template
+                  </Button>
+
+                  <TextField
+                    value={draft}
+                    onChange={(e) => setDraft(e.target.value)}
+                    placeholder="Type a message"
+                    size="small"
+                    fullWidth
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && !e.shiftKey) {
+                        e.preventDefault();
+                        sendText();
+                      }
+                    }}
+                  />
+
+                  <IconButton onClick={sendText} disabled={!phone10Active || sending || !String(draft || "").trim()}>
+                    <SendIcon />
+                  </IconButton>
+                </Box>
+              </Box>
+            </Box>
+          )}
         </Box>
-      </Slide>
-    </Box>
+      </Popover>
+
+      {/* Template dialog */}
+      <Dialog open={tplDialogOpen} onClose={() => setTplDialogOpen(false)} fullWidth maxWidth="sm">
+        <DialogTitle sx={{ fontWeight: 900 }}>Send template</DialogTitle>
+        <DialogContent dividers>
+          {tplLoading ? (
+            <Box sx={{ display: "flex", justifyContent: "center", py: 4 }}>
+              <CircularProgress size={22} />
+            </Box>
+          ) : (
+            <>
+              <TextField
+                select
+                fullWidth
+                label="Template"
+                value={tplSelected}
+                onChange={(e) => setTplSelected(e.target.value)}
+                sx={{ mt: 1 }}
+              >
+                {(templates || [])
+                  .slice()
+                  .sort((a, b) => String(a?.name || "").localeCompare(String(b?.name || "")))
+                  .map((t) => (
+                    <MenuItem key={t?._id || t?.name} value={t?.name}>
+                      {t?.name}
+                    </MenuItem>
+                  ))}
+              </TextField>
+
+              {tplSelected && tplParamCount > 0 ? (
+                <Box sx={{ mt: 2 }}>
+                  <Typography variant="subtitle2" sx={{ fontWeight: 900, mb: 1 }}>
+                    Parameters
+                  </Typography>
+                  {Array.from({ length: tplParamCount }).map((_, idx) => (
+                    <TextField
+                      key={idx}
+                      fullWidth
+                      label={`{{${idx + 1}}}`}
+                      value={tplParams[idx] || ""}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        setTplParams((prev) => {
+                          const next = prev.slice();
+                          next[idx] = v;
+                          return next;
+                        });
+                      }}
+                      sx={{ mb: 1.25 }}
+                    />
+                  ))}
+                </Box>
+              ) : null}
+
+              {tplSelected ? (
+                <Box sx={{ mt: 2 }}>
+                  <Typography variant="subtitle2" sx={{ fontWeight: 900, mb: 1 }}>
+                    Preview
+                  </Typography>
+                  <Paper variant="outlined" sx={{ p: 1.25, borderRadius: 2, bgcolor: "#fafafa" }}>
+                    <Typography sx={{ fontSize: 13, whiteSpace: "pre-wrap" }}>{tplBodyPreview || "—"}</Typography>
+                  </Paper>
+                </Box>
+              ) : null}
+            </>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setTplDialogOpen(false)} sx={{ textTransform: "none" }}>
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            onClick={sendTemplate}
+            disabled={!tplSelected || sending || (tplParamCount > 0 && (tplParams || []).some((x) => !String(x || "").trim()))}
+            sx={{ textTransform: "none", fontWeight: 900, bgcolor: "#25D366", "&:hover": { bgcolor: "#1fb85a" } }}
+          >
+            Send
+          </Button>
+        </DialogActions>
+      </Dialog>
+    </>
   );
 }

@@ -29,7 +29,7 @@ import {
 } from "@mui/material";
 import RefreshIcon from "@mui/icons-material/Refresh";
 
-const API_BASE = process.env.REACT_APP_API_BASE || "https://muditamleads-14f32a10d7f7.herokuapp.com";
+const API_BASE = "https://muditamleads-14f32a10d7f7.herokuapp.com";
 const EMPLOYEES_URL = 
   "https://muditamleads-14f32a10d7f7.herokuapp.com/api/employees?role=Retention%20Agent";
 

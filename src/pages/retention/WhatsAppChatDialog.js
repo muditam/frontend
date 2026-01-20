@@ -1,3 +1,4 @@
+// src/whatsapp/WhatsAppChatDrawer.jsx
 import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import {
   Box,
@@ -30,6 +31,8 @@ import DoneAllIcon from "@mui/icons-material/DoneAll";
 import AutoFixHighIcon from "@mui/icons-material/AutoFixHigh";
 import AutorenewIcon from "@mui/icons-material/Autorenew";
 import ShoppingCartIcon from "@mui/icons-material/ShoppingCart";
+import RefreshIcon from "@mui/icons-material/Refresh";
+import AddIcon from "@mui/icons-material/Add";
 import axios from "axios";
 import { io } from "socket.io-client";
 
@@ -111,6 +114,13 @@ function applyTemplateVars(bodyText, vars) {
     const v = vars?.[i];
     return v != null && String(v).trim() !== "" ? String(v) : `{{${num}}}`;
   });
+}
+function getHeaderMediaFormatFromTemplate(tpl) {
+  const comps = Array.isArray(tpl?.components) ? tpl.components : [];
+  const header = comps.find((c) => String(c?.type || "").toUpperCase() === "HEADER");
+  const fmt = String(header?.format || "").toUpperCase();
+  if (["IMAGE", "VIDEO", "DOCUMENT"].includes(fmt)) return fmt;
+  return "";
 }
 
 // --------------------
@@ -199,8 +209,12 @@ export default function WhatsAppChatDrawer({
   const [messages, setMessages] = useState([]);
   const [templates, setTemplates] = useState([]);
   const [text, setText] = useState("");
-  const [windowExpiresAt, setWindowExpiresAt] = useState(null);
+
+  // ✅ IMPORTANT: use lastInboundAt for session gating (NOT windowExpiresAt)
+  const [lastInboundAt, setLastInboundAt] = useState(null);
+  const [windowExpiresAt, setWindowExpiresAt] = useState(null); // still keep for display/debug if needed
   const [tick, setTick] = useState(0);
+
   const [quickAnchor, setQuickAnchor] = useState(null);
   const [tplAnchor, setTplAnchor] = useState(null);
   const [emojiAnchor, setEmojiAnchor] = useState(null);
@@ -220,18 +234,36 @@ export default function WhatsAppChatDrawer({
   const socketRef = useRef(null);
   const joinedPhoneRef = useRef(null);
 
-  // ✅ Scroll control refs
   const didInitialScrollRef = useRef(false);
   const stickToBottomRef = useRef(true);
 
   const phone10 = useMemo(() => last10(phone), [phone]);
 
-  const remainingMs = useMemo(() => {
-    if (!windowExpiresAt) return null;
-    return new Date(windowExpiresAt).getTime() - Date.now();
-  }, [windowExpiresAt, tick]);
+  const inboundExpiryMs = useMemo(() => {
+    if (lastInboundAt) {
+      const t = new Date(lastInboundAt).getTime();
+      if (Number.isFinite(t) && t > 0) return t + 24 * 60 * 60 * 1000;
+    }
 
-  const sessionActive = remainingMs != null && remainingMs > 0;
+    if (windowExpiresAt) {
+      const w = new Date(windowExpiresAt).getTime();
+      if (Number.isFinite(w) && w > 0) return w;
+    }
+
+    return null;
+  }, [lastInboundAt, windowExpiresAt]);
+
+  const remainingMs = useMemo(() => {
+    if (!inboundExpiryMs) return null;
+    return inboundExpiryMs - Date.now();
+  }, [inboundExpiryMs, tick]);
+
+  const canSendFreeform = useMemo(() => {
+    if (!remainingMs && remainingMs !== 0) return false;
+    return remainingMs > 0;
+  }, [remainingMs]);
+
+  const templateOnlyMode = !privateMode && !canSendFreeform;
 
   const QUICK_REPLIES = useMemo(
     () => [
@@ -254,11 +286,16 @@ export default function WhatsAppChatDrawer({
   const [activeTemplate, setActiveTemplate] = useState(null);
   const [tplVars, setTplVars] = useState([]);
 
+  // ✅ Header media (attachment) support for templates
+  const [tplHeaderFmt, setTplHeaderFmt] = useState("");
+  const [tplHeaderFile, setTplHeaderFile] = useState(null);
+  const [tplHeaderUploadLoading, setTplHeaderUploadLoading] = useState(false);
+  const [tplHeaderMediaId, setTplHeaderMediaId] = useState("");
+
   const scrollToBottomSoon = useCallback((behavior = "auto") => {
     const el = listRef.current;
     if (!el) return;
 
-    // run multiple times (drawer transition + images can change height)
     const doScroll = () => {
       try {
         el.scrollTo({ top: el.scrollHeight, behavior });
@@ -272,7 +309,6 @@ export default function WhatsAppChatDrawer({
       requestAnimationFrame(doScroll);
     });
 
-    // extra safety after layout settles
     setTimeout(doScroll, 120);
     setTimeout(doScroll, 320);
   }, []);
@@ -281,13 +317,28 @@ export default function WhatsAppChatDrawer({
     const res = await axios.get(`${API_BASE}/api/whatsapp/conversations`);
     const list = Array.isArray(res.data) ? res.data : [];
     const found = list.find((c) => last10(c.phone) === phone10);
-    setWindowExpiresAt(found?.windowExpiresAt || null);
-  };
 
+    // ✅ only set if value exists (don’t nuke state)
+    if (found?.windowExpiresAt) setWindowExpiresAt(found.windowExpiresAt);
+
+    if (found?.lastInboundAt) {
+      setLastInboundAt(found.lastInboundAt);
+    }
+    // else: keep existing lastInboundAt (from messages/socket)
+  };
   const fetchMessages = async () => {
     if (!phone10) return;
     const res = await axios.get(`${API_BASE}/api/whatsapp/messages`, { params: { phone: phone10 } });
-    setMessages(Array.isArray(res.data) ? res.data : []);
+
+    const list = Array.isArray(res.data) ? res.data : [];
+    setMessages(list);
+
+    const lastInbound = [...list].reverse().find(
+      (m) => String(m.direction || "").toUpperCase() !== "OUTBOUND"
+    );
+    if (lastInbound?.timestamp || lastInbound?.createdAt) {
+      setLastInboundAt(lastInbound.timestamp || lastInbound.createdAt);
+    }
   };
 
   const fetchTemplates = async () => {
@@ -302,6 +353,11 @@ export default function WhatsAppChatDrawer({
       await Promise.all([fetchConversationMeta(), fetchMessages(), fetchTemplates()]);
     } finally {
       setLoading(false);
+      // drawer open + data refreshed -> go bottom
+      if (open) {
+        stickToBottomRef.current = true;
+        scrollToBottomSoon("auto");
+      }
     }
   };
 
@@ -312,7 +368,7 @@ export default function WhatsAppChatDrawer({
 
     if (!socketRef.current) {
       socketRef.current = io(SOCKET_URL, {
-        transports: ["websocket"],
+        transports: ["websocket", "polling"],
         withCredentials: true,
         reconnection: true,
         reconnectionAttempts: 10,
@@ -339,7 +395,6 @@ export default function WhatsAppChatDrawer({
       if (p10 && p10 !== phone10) return;
 
       setMessages((prev) => upsertMessage(prev, msg));
-      if (payload?.windowExpiresAt) setWindowExpiresAt(payload.windowExpiresAt);
 
       // if user is at bottom, keep them at bottom on new incoming
       if (stickToBottomRef.current) {
@@ -356,10 +411,16 @@ export default function WhatsAppChatDrawer({
       setMessages((prev) => prev.map((m) => (m?.waId === waId ? { ...m, status } : m)));
     };
 
+    // ✅ backend emits { phone10, patch } (not windowExpiresAt at root)
     const onWaConversation = (payload) => {
       const p10 = payload?.phone10;
       if (p10 && p10 !== phone10) return;
-      if (payload?.windowExpiresAt) setWindowExpiresAt(payload.windowExpiresAt);
+
+      const patch = payload?.patch || payload || {};
+      if (patch?.windowExpiresAt) setWindowExpiresAt(patch.windowExpiresAt);
+      if (patch?.lastInboundAt) setLastInboundAt(patch.lastInboundAt);
+
+      // if customer replied, allow free-form again (computed from lastInboundAt)
     };
 
     socket.on("connect", onConnect);
@@ -394,14 +455,20 @@ export default function WhatsAppChatDrawer({
   useEffect(() => {
     if (!open) return;
 
-    didInitialScrollRef.current = false; // reset initial scroll for every open
+    didInitialScrollRef.current = false;
     stickToBottomRef.current = true;
 
     setText("");
     setPrivateMode(false);
+
     setTplComposeOpen(false);
     setActiveTemplate(null);
     setTplVars([]);
+
+    setTplHeaderFmt("");
+    setTplHeaderFile(null);
+    setTplHeaderMediaId("");
+    setTplHeaderUploadLoading(false);
 
     refreshAll();
 
@@ -436,7 +503,6 @@ export default function WhatsAppChatDrawer({
       map.get(k).push(m);
     });
 
-    // keep chronological days (oldest day first) -> newest day last
     const keys = Array.from(map.keys()).sort((a, b) => a.localeCompare(b));
 
     return keys.map((k) => ({
@@ -448,7 +514,7 @@ export default function WhatsAppChatDrawer({
     }));
   }, [messages]);
 
-  // ✅ Initial auto-scroll to bottom after first render of messages (and only once per open)
+  // ✅ Initial auto-scroll to bottom after first render of messages (once per open)
   useEffect(() => {
     if (!open) return;
     if (loading) return;
@@ -470,10 +536,16 @@ export default function WhatsAppChatDrawer({
       return;
     }
 
+    // ✅ hard gate on frontend (only allow if user replied within 24h)
+    if (!canSendFreeform) {
+      alert("WhatsApp session expired. You can only send templates until customer replies.");
+      return;
+    }
+
     try {
       await axios.post(`${API_BASE}/api/whatsapp/send-text`, { to: phone10, text: body });
       setText("");
-      stickToBottomRef.current = true; // after sending, stick to bottom
+      stickToBottomRef.current = true;
       scrollToBottomSoon("auto");
       await refreshAll();
     } catch (e) {
@@ -483,19 +555,25 @@ export default function WhatsAppChatDrawer({
     }
   };
 
-  const sendTemplate = async (tpl, vars = [], renderedPreview = "") => {
+  const sendTemplate = async (tpl, vars = [], renderedPreview = "", header = null) => {
     try {
       await axios.post(`${API_BASE}/api/whatsapp/send-template`, {
         to: phone10,
         templateName: tpl.name,
         parameters: (vars || []).map((x) => String(x ?? "")),
         renderedText: renderedPreview || "",
+        ...(header ? { headerMedia: header } : {}),
       });
+
       stickToBottomRef.current = true;
       scrollToBottomSoon("auto");
       await refreshAll();
+
+      // ✅ IMPORTANT: even after sending template, keep template-only mode
+      // until we receive an inbound message (lastInboundAt updates).
     } catch (e) {
-      alert("Template send failed.");
+      const msg = e?.response?.data?.message || "Template send failed.";
+      alert(msg);
     }
   };
 
@@ -509,6 +587,12 @@ export default function WhatsAppChatDrawer({
       alert("Attachments are disabled in Private Reply.");
       return;
     }
+    // ✅ if template-only mode, hide attachments anyway; extra guard
+    if (templateOnlyMode) {
+      alert("Session expired. Attachments are disabled. Send a template instead.");
+      return;
+    }
+
     try {
       const fd = new FormData();
       fd.append("to", phone10);
@@ -531,9 +615,17 @@ export default function WhatsAppChatDrawer({
   const openTemplateComposer = (tpl) => {
     const bodyText = extractTemplateBodyText(tpl);
     const count = extractPlaceholderCount(bodyText);
+
     setActiveTemplate(tpl);
     setTplVars(Array.from({ length: count }, () => ""));
     setTplComposeOpen(true);
+
+    // ✅ header attachment config
+    const fmt = getHeaderMediaFormatFromTemplate(tpl);
+    setTplHeaderFmt(fmt);
+    setTplHeaderFile(null);
+    setTplHeaderMediaId("");
+    setTplHeaderUploadLoading(false);
   };
 
   const templateBodyText = useMemo(() => extractTemplateBodyText(activeTemplate), [activeTemplate]);
@@ -545,49 +637,133 @@ export default function WhatsAppChatDrawer({
   }, [activeTemplate, templateBodyText, tplVars]);
 
   const renderMedia = (m) => {
-    const url = m?.media?.url || m?.mediaUrl || "";
-    const mime = m?.media?.mime || m?.mime || "";
-    if (!url) return null;
+  const mediaId = m?.media?.id || "";
+  const rawUrl = m?.media?.url || m?.mediaUrl || "";
 
-    const isImg = mime.startsWith("image/") || /\.(png|jpg|jpeg|webp|gif)$/i.test(url);
-    if (isImg) {
-      return (
-        <Box sx={{ mt: 0.75 }}>
-          <Box
-            component="img"
-            src={url}
-            alt="attachment"
-            sx={{
-              width: 220,
-              maxWidth: "100%",
-              borderRadius: 1.5,
-              border: "1px solid #e5e5e5",
-              display: "block",
-              cursor: "pointer",
-            }}
-            onLoad={() => {
-              // images load later -> height changes, keep bottom if needed
-              if (stickToBottomRef.current) scrollToBottomSoon("auto");
-            }}
-            onClick={() => window.open(url, "_blank", "noopener,noreferrer")}
-          />
-        </Box>
-      );
-    }
+  const isProviderUrl =
+  /360dialog\.io|graph\.facebook\.com|lookaside\.facebook\.com/i.test(rawUrl);
 
+const url =
+  (!rawUrl || isProviderUrl)
+    ? (mediaId ? `${API_BASE}/api/whatsapp/media-proxy/${mediaId}` : "")
+    : rawUrl;
+
+  if (!url) return null;
+
+  const rawMime =
+    m?.media?.mime ||
+    m?.media?.mimetype ||
+    m?.mime ||
+    m?.mediaMime ||
+    "";
+
+  const mime = String(rawMime).toLowerCase();
+
+  const msgType = String(
+    m?.type || m?.messageType || m?.media?.type || m?.mediaType || ""
+  ).toLowerCase();
+
+  const filename = String(m?.media?.filename || m?.filename || "").toLowerCase();
+
+  const isImg =
+    msgType === "image" ||
+    mime.startsWith("image/") ||
+    /\.(png|jpg|jpeg|webp|gif)$/i.test(url) ||
+    /\.(png|jpg|jpeg|webp|gif)$/i.test(filename);
+
+  const isAudio =
+    msgType === "audio" ||
+    msgType === "voice" ||
+    msgType === "ptt" ||
+    mime.startsWith("audio/") ||
+    mime.startsWith("application/ogg") || 
+    mime.includes("ogg") ||
+    /\.(mp3|wav|ogg|opus|m4a)$/i.test(url) ||
+    /\.(mp3|wav|ogg|opus|m4a)$/i.test(filename);
+
+  const isVideo =
+    msgType === "video" ||
+    mime.startsWith("video/") ||
+    /\.(mp4|webm|mov)$/i.test(url) ||
+    /\.(mp4|webm|mov)$/i.test(filename);
+
+  const isPdf =
+    mime.includes("pdf") ||
+    /\.pdf$/i.test(url) ||
+    /\.pdf$/i.test(filename);
+
+  if (isImg) {
     return (
       <Box sx={{ mt: 0.75 }}>
-        <Button
-          size="small"
-          variant="outlined"
+        <Box
+          component="img"
+          src={url}
+          alt="attachment"
+          sx={{
+            width: 220,
+            maxWidth: "100%",
+            borderRadius: 1.5,
+            border: "1px solid #e5e5e5",
+            display: "block",
+            cursor: "pointer",
+          }}
+          onLoad={() => stickToBottomRef.current && scrollToBottomSoon("auto")}
           onClick={() => window.open(url, "_blank", "noopener,noreferrer")}
-          sx={{ textTransform: "none" }}
-        >
-          Open attachment
-        </Button>
+        />
       </Box>
     );
-  };
+  }
+
+  if (isAudio) {
+  const typeAttr = mime && mime !== "application/octet-stream" ? mime : undefined;
+
+  return (
+    <Box sx={{ mt: 0.75 }}>
+      <audio
+        controls
+        preload="none"
+        style={{ width: "260px", maxWidth: "100%" }}
+        onLoadedMetadata={() => stickToBottomRef.current && scrollToBottomSoon("auto")}
+      >
+        <source src={url} type={typeAttr} />
+      </audio>
+    </Box>
+  );
+}
+
+  if (isVideo) {
+    return (
+      <Box sx={{ mt: 0.75 }}>
+        <video
+          controls
+          preload="metadata"
+          src={url}
+          style={{
+            width: "260px",
+            maxWidth: "100%",
+            borderRadius: "10px",
+            border: "1px solid #e5e5e5",
+          }}
+          onLoadedMetadata={() => stickToBottomRef.current && scrollToBottomSoon("auto")}
+        />
+      </Box>
+    );
+  }
+
+  return (
+    <Box sx={{ mt: 0.75 }}>
+      <Button
+        size="small"
+        variant="outlined"
+        onClick={() => window.open(url, "_blank", "noopener,noreferrer")}
+        sx={{ textTransform: "none" }}
+      >
+        {isPdf ? "Open PDF" : "Open attachment"}
+      </Button>
+    </Box>
+  );
+};
+
 
   // ✅ Help me write
   const helpMeWrite = async () => {
@@ -596,6 +772,11 @@ export default function WhatsAppChatDrawer({
       alert("Help me write is disabled in Private Reply.");
       return;
     }
+    if (templateOnlyMode) {
+      alert("Session expired. You can only send templates until customer replies.");
+      return;
+    }
+
     setHelpWriteLoading(true);
     try {
       const lastInbound = [...(messages || [])]
@@ -632,6 +813,10 @@ export default function WhatsAppChatDrawer({
       alert("Rephrase is disabled in Private Reply.");
       return;
     }
+    if (templateOnlyMode) {
+      alert("Session expired. You can only send templates until customer replies.");
+      return;
+    }
     if (!text.trim()) {
       alert("Type something first to rephrase.");
       return;
@@ -663,6 +848,44 @@ export default function WhatsAppChatDrawer({
     }
   };
 
+  // ✅ Upload header media for template attachments
+  const uploadTemplateHeaderMedia = async (file) => {
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      alert("Max header media size is 5MB.");
+      return;
+    }
+    setTplHeaderUploadLoading(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+
+      const r = await axios.post(`${API_BASE}/api/whatsapp/upload-template-media`, fd, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+
+      const mediaId = String(r?.data?.mediaId || "").trim();
+      if (!mediaId) {
+        alert("Upload succeeded but mediaId missing.");
+        return;
+      }
+      setTplHeaderMediaId(mediaId);
+    } catch (e) {
+      const msg = e?.response?.data?.message || "Header upload failed.";
+      alert(msg);
+    } finally {
+      setTplHeaderUploadLoading(false);
+    }
+  };
+
+  const bannerText = useMemo(() => {
+    if (privateMode) return "Private Reply mode (internal note)";
+    if (canSendFreeform && remainingMs != null) {
+      return `Whatsapp Conversation window will close in ${fmtRemaining(remainingMs)}`;
+    }
+    return "Whatsapp session expired. Only templates are allowed until customer replies.";
+  }, [privateMode, canSendFreeform, remainingMs]);
+
   return (
     <>
       {/* ✅ Cart drawer sits to the LEFT of chat drawer */}
@@ -679,7 +902,6 @@ export default function WhatsAppChatDrawer({
         open={open}
         onClose={onClose}
         ModalProps={{ keepMounted: true }}
-        // ✅ IMPORTANT: onEntered ensures scroll after Drawer transition completes
         SlideProps={{
           onEntered: () => {
             stickToBottomRef.current = true;
@@ -708,11 +930,26 @@ export default function WhatsAppChatDrawer({
           </Box>
 
           <Box sx={{ ml: "auto", display: "flex", alignItems: "center", gap: 0.5 }}>
+            <Tooltip title="Refresh chat">
+              <span>
+                <IconButton
+                  onClick={async () => {
+                    stickToBottomRef.current = true;
+                    await refreshAll();
+                  }}
+                  disabled={loading}
+                >
+                  {loading ? <CircularProgress size={18} /> : <RefreshIcon />}
+                </IconButton>
+              </span>
+            </Tooltip>
+
             <Tooltip title="Cart / Order">
               <IconButton onClick={() => setCartOpen(true)}>
                 <ShoppingCartIcon />
               </IconButton>
             </Tooltip>
+
             <IconButton onClick={onClose}>
               <CloseIcon />
             </IconButton>
@@ -732,11 +969,7 @@ export default function WhatsAppChatDrawer({
             gap: 1,
           }}
         >
-          <Typography sx={{ fontSize: 13, fontWeight: 700, color: "#7A5B00" }}>
-            {sessionActive
-              ? `Whatsapp Conversation window will close in ${fmtRemaining(remainingMs)}`
-              : "Whatsapp session expired. Use a template message."}
-          </Typography>
+          <Typography sx={{ fontSize: 13, fontWeight: 700, color: "#7A5B00" }}>{bannerText}</Typography>
         </Box>
 
         {/* Messages */}
@@ -763,9 +996,7 @@ export default function WhatsAppChatDrawer({
                       bgcolor: "#FFFFFF",
                     }}
                   >
-                    <Typography sx={{ fontSize: 12, fontWeight: 800, color: "#444" }}>
-                      {g.label}
-                    </Typography>
+                    <Typography sx={{ fontSize: 12, fontWeight: 800, color: "#444" }}>{g.label}</Typography>
                   </Paper>
                 </Box>
 
@@ -823,113 +1054,128 @@ export default function WhatsAppChatDrawer({
 
         <Divider />
 
-        {/* Composer */}
-        <Box sx={{ p: 1.5, bgcolor: "#FFF" }}>
-          {privateMode ? (
-            <Box sx={{ mb: 1 }}>
-              <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 0.75 }}>
-                <Typography sx={{ fontSize: 13, fontWeight: 800, color: "#222" }}>
-                  Reply Privately:
-                </Typography>
-                <Chip
-                  label="Private Reply"
-                  onDelete={() => setPrivateMode(false)}
-                  variant="outlined"
-                  sx={{ fontWeight: 800 }}
-                />
+        {/* ✅ Composer (SESSION EXPIRED => hide everything, show only Send Template button) */}
+        {templateOnlyMode ? (
+          <Box sx={{ p: 1.5, bgcolor: "#FFF" }}>
+            <Button
+              fullWidth
+              variant="contained"
+              startIcon={<AddIcon />}
+              onClick={(e) => setTplAnchor(e.currentTarget)}
+              sx={{ textTransform: "none", borderRadius: 1.25, fontWeight: 900, py: 1.1 }}
+            >
+              Send Template
+            </Button>
+            <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 1 }}>
+              Free-form messages will unlock after the customer replies.
+            </Typography>
+          </Box>
+        ) : (
+          <Box sx={{ p: 1.5, bgcolor: "#FFF" }}>
+            {privateMode ? (
+              <Box sx={{ mb: 1 }}>
+                <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 0.75 }}>
+                  <Typography sx={{ fontSize: 13, fontWeight: 800, color: "#222" }}>Reply Privately:</Typography>
+                  <Chip
+                    label="Private Reply"
+                    onDelete={() => setPrivateMode(false)}
+                    variant="outlined"
+                    sx={{ fontWeight: 800 }}
+                  />
+                </Box>
+              </Box>
+            ) : null}
+
+            <TextField
+              fullWidth
+              placeholder={privateMode ? "Type your private reply here" : "Type your message here"}
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              multiline
+              minRows={2}
+              sx={{ "& .MuiOutlinedInput-root": { borderRadius: 1.5 } }}
+            />
+
+            <Box sx={{ mt: 1, display: "flex", alignItems: "center", gap: 0.75, flexWrap: "wrap" }}>
+              <Button
+                variant="outlined"
+                size="small"
+                onClick={() => setPrivateMode((v) => !v)}
+                sx={{ textTransform: "none", borderRadius: 1, fontWeight: 800 }}
+              >
+                Private Reply
+              </Button>
+
+              <Tooltip title="Quick Replies">
+                <IconButton size="small" onClick={(e) => setQuickAnchor(e.currentTarget)}>
+                  <FlashOnIcon />
+                </IconButton>
+              </Tooltip>
+
+              <Tooltip title="Templates (UTILITY only)">
+                <IconButton size="small" onClick={(e) => setTplAnchor(e.currentTarget)}>
+                  <ViewListIcon />
+                </IconButton>
+              </Tooltip>
+
+              <Tooltip title={privateMode ? "Disabled in Private Reply" : "Attachment (≤ 5MB)"}>
+                <span>
+                  <IconButton size="small" disabled={privateMode} onClick={() => fileRef.current?.click()}>
+                    <AttachFileIcon />
+                  </IconButton>
+                </span>
+              </Tooltip>
+              <input ref={fileRef} type="file" hidden onChange={(e) => onPickFile(e.target.files?.[0])} />
+
+              <Tooltip title="Emojis">
+                <IconButton size="small" onClick={(e) => setEmojiAnchor(e.currentTarget)}>
+                  <InsertEmoticonIcon />
+                </IconButton>
+              </Tooltip>
+
+              <Tooltip title={privateMode ? "Disabled in Private Reply" : "Help me write (AI)"}>
+                <span>
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    disabled={privateMode || helpWriteLoading}
+                    onClick={helpMeWrite}
+                    startIcon={helpWriteLoading ? <CircularProgress size={14} /> : <AutoFixHighIcon />}
+                    sx={{ textTransform: "none", borderRadius: 1, fontWeight: 900 }}
+                  >
+                    Help me write
+                  </Button>
+                </span>
+              </Tooltip>
+
+              <Tooltip title={privateMode ? "Disabled in Private Reply" : "Rephrase your current text"}>
+                <span>
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    disabled={privateMode || !text.trim()}
+                    onClick={openRephraseDialog}
+                    startIcon={<AutorenewIcon />}
+                    sx={{ textTransform: "none", borderRadius: 1, fontWeight: 900 }}
+                  >
+                    Rephrase
+                  </Button>
+                </span>
+              </Tooltip>
+
+              <Box sx={{ ml: "auto" }}>
+                <Button
+                  variant="contained"
+                  onClick={sendText}
+                  disabled={!text.trim()}
+                  sx={{ textTransform: "none", borderRadius: 1, px: 2 }}
+                >
+                  Send
+                </Button>
               </Box>
             </Box>
-          ) : null}
-
-          <TextField
-            fullWidth
-            placeholder={privateMode ? "Type your private reply here" : "Type your message here"}
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            multiline
-            minRows={2}
-            sx={{ "& .MuiOutlinedInput-root": { borderRadius: 1.5 } }}
-          />
-
-          <Box sx={{ mt: 1, display: "flex", alignItems: "center", gap: 0.75, flexWrap: "wrap" }}>
-            <Button
-              variant="outlined"
-              size="small"
-              onClick={() => setPrivateMode((v) => !v)}
-              sx={{ textTransform: "none", borderRadius: 1, fontWeight: 800 }}
-            >
-              Private Reply
-            </Button>
-
-            <Tooltip title="Quick Replies">
-              <IconButton size="small" onClick={(e) => setQuickAnchor(e.currentTarget)}>
-                <FlashOnIcon />
-              </IconButton>
-            </Tooltip>
-
-            <Tooltip title="Templates (UTILITY only)">
-              <IconButton size="small" onClick={(e) => setTplAnchor(e.currentTarget)}>
-                <ViewListIcon />
-              </IconButton>
-            </Tooltip>
-
-            <Tooltip title={privateMode ? "Disabled in Private Reply" : "Attachment (≤ 5MB)"}>
-              <span>
-                <IconButton size="small" disabled={privateMode} onClick={() => fileRef.current?.click()}>
-                  <AttachFileIcon />
-                </IconButton>
-              </span>
-            </Tooltip>
-            <input ref={fileRef} type="file" hidden onChange={(e) => onPickFile(e.target.files?.[0])} />
-
-            <Tooltip title="Emojis">
-              <IconButton size="small" onClick={(e) => setEmojiAnchor(e.currentTarget)}>
-                <InsertEmoticonIcon />
-              </IconButton>
-            </Tooltip>
-
-            <Tooltip title={privateMode ? "Disabled in Private Reply" : "Help me write (AI)"}>
-              <span>
-                <Button
-                  size="small"
-                  variant="outlined"
-                  disabled={privateMode || helpWriteLoading}
-                  onClick={helpMeWrite}
-                  startIcon={helpWriteLoading ? <CircularProgress size={14} /> : <AutoFixHighIcon />}
-                  sx={{ textTransform: "none", borderRadius: 1, fontWeight: 900 }}
-                >
-                  Help me write
-                </Button>
-              </span>
-            </Tooltip>
-
-            <Tooltip title={privateMode ? "Disabled in Private Reply" : "Rephrase your current text"}>
-              <span>
-                <Button
-                  size="small"
-                  variant="outlined"
-                  disabled={privateMode || !text.trim()}
-                  onClick={openRephraseDialog}
-                  startIcon={<AutorenewIcon />}
-                  sx={{ textTransform: "none", borderRadius: 1, fontWeight: 900 }}
-                >
-                  Rephrase
-                </Button>
-              </span>
-            </Tooltip>
-
-            <Box sx={{ ml: "auto" }}>
-              <Button
-                variant="contained"
-                onClick={sendText}
-                disabled={!text.trim()}
-                sx={{ textTransform: "none", borderRadius: 1, px: 2 }}
-              >
-                Send
-              </Button>
-            </Box>
           </Box>
-        </Box>
+        )}
 
         {/* Quick replies */}
         <Menu anchorEl={quickAnchor} open={Boolean(quickAnchor)} onClose={() => setQuickAnchor(null)}>
@@ -951,29 +1197,42 @@ export default function WhatsAppChatDrawer({
           anchorEl={tplAnchor}
           open={Boolean(tplAnchor)}
           onClose={() => setTplAnchor(null)}
-          PaperProps={{ sx: { maxHeight: 360, width: 360 } }}
+          PaperProps={{ sx: { maxHeight: 360, width: 380 } }}
         >
           {utilityTemplates.length === 0 ? (
             <MenuItem disabled>No UTILITY templates found</MenuItem>
           ) : (
-            utilityTemplates.map((t) => (
-              <MenuItem
-                key={t._id || t.name}
-                onClick={() => {
-                  setTplAnchor(null);
-                  openTemplateComposer(t);
-                }}
-              >
-                <Box sx={{ minWidth: 0 }}>
-                  <Typography sx={{ fontWeight: 800 }} noWrap>
-                    {t.name}
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary" noWrap>
-                    {t.language || "en"} · {t.status || ""}
-                  </Typography>
-                </Box>
-              </MenuItem>
-            ))
+            utilityTemplates.map((t) => {
+              const needsHeader = !!getHeaderMediaFormatFromTemplate(t);
+              return (
+                <MenuItem
+                  key={t._id || t.name}
+                  onClick={() => {
+                    setTplAnchor(null);
+                    openTemplateComposer(t);
+                  }}
+                >
+                  <Box sx={{ minWidth: 0, width: "100%" }}>
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                      <Typography sx={{ fontWeight: 800 }} noWrap>
+                        {t.name}
+                      </Typography>
+                      {needsHeader ? (
+                        <Chip
+                          size="small"
+                          label="Attachment"
+                          variant="outlined"
+                          sx={{ ml: "auto", fontWeight: 800 }}
+                        />
+                      ) : null}
+                    </Box>
+                    <Typography variant="caption" color="text.secondary" noWrap>
+                      {t.language || "en"} · {t.status || ""}
+                    </Typography>
+                  </Box>
+                </MenuItem>
+              );
+            })
           )}
         </Menu>
 
@@ -1062,7 +1321,7 @@ export default function WhatsAppChatDrawer({
           </Box>
         </Dialog>
 
-        {/* Template Composer */}
+        {/* ✅ Template Composer (with attachment support if HEADER IMAGE/VIDEO/DOCUMENT) */}
         <Dialog open={tplComposeOpen} onClose={() => setTplComposeOpen(false)} fullWidth maxWidth="sm">
           <DialogTitle sx={{ display: "flex", alignItems: "center", gap: 1 }}>
             <Typography sx={{ fontWeight: 900 }}>Template Preview</Typography>
@@ -1082,6 +1341,68 @@ export default function WhatsAppChatDrawer({
                 Language: {activeTemplate?.language || "en"} · Status: {activeTemplate?.status || "—"}
               </Typography>
             </Box>
+
+            {/* ✅ Attachment (Header media) section */}
+            {tplHeaderFmt ? (
+              <Box sx={{ mt: 2 }}>
+                <Typography sx={{ fontWeight: 900, mb: 1 }}>
+                  Attachment required (HEADER {tplHeaderFmt})
+                </Typography>
+
+                <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
+                  <Button
+                    variant="outlined"
+                    component="label"
+                    sx={{ textTransform: "none", fontWeight: 900 }}
+                    disabled={tplHeaderUploadLoading}
+                  >
+                    Choose file
+                    <input
+                      type="file"
+                      hidden
+                      accept={
+                        tplHeaderFmt === "IMAGE"
+                          ? "image/*"
+                          : tplHeaderFmt === "VIDEO"
+                            ? "video/*"
+                            : tplHeaderFmt === "DOCUMENT"
+                              ? ".pdf,.doc,.docx,.png,.jpg,.jpeg"
+                              : "*/*"
+                      }
+                      onChange={(e) => {
+                        const f = e.target.files?.[0] || null;
+                        setTplHeaderFile(f);
+                        setTplHeaderMediaId("");
+                      }}
+                    />
+                  </Button>
+
+                  <Typography variant="body2" sx={{ color: "text.secondary" }}>
+                    {tplHeaderFile ? tplHeaderFile.name : "No file selected"}
+                  </Typography>
+
+                  <Button
+                    variant="contained"
+                    onClick={() => uploadTemplateHeaderMedia(tplHeaderFile)}
+                    disabled={!tplHeaderFile || tplHeaderUploadLoading}
+                    startIcon={tplHeaderUploadLoading ? <CircularProgress size={14} /> : null}
+                    sx={{ textTransform: "none", fontWeight: 900 }}
+                  >
+                    Upload
+                  </Button>
+
+                  {tplHeaderMediaId ? (
+                    <Chip label="Uploaded" color="success" size="small" sx={{ fontWeight: 900 }} />
+                  ) : null}
+                </Box>
+
+                {!tplHeaderMediaId ? (
+                  <Typography variant="caption" sx={{ display: "block", mt: 1 }} color="text.secondary">
+                    Upload is required before sending this template.
+                  </Typography>
+                ) : null}
+              </Box>
+            ) : null}
 
             <Box sx={{ mt: 2 }}>
               <Typography sx={{ fontWeight: 900, mb: 1 }}>Variables</Typography>
@@ -1137,10 +1458,22 @@ export default function WhatsAppChatDrawer({
               variant="contained"
               onClick={async () => {
                 if (!activeTemplate) return;
-                await sendTemplate(activeTemplate, tplVars, templatePreview);
+
+                // ✅ if header required, must have uploaded media id
+                if (tplHeaderFmt && !tplHeaderMediaId) {
+                  alert(`This template requires a HEADER ${tplHeaderFmt} attachment. Please upload first.`);
+                  return;
+                }
+
+                const headerMedia =
+                  tplHeaderFmt && tplHeaderMediaId
+                    ? { format: tplHeaderFmt, id: tplHeaderMediaId, filename: tplHeaderFile?.name || "" }
+                    : null;
+
+                await sendTemplate(activeTemplate, tplVars, templatePreview, headerMedia);
                 setTplComposeOpen(false);
               }}
-              sx={{ textTransform: "none" }}
+              sx={{ textTransform: "none", fontWeight: 900 }}
             >
               Send Template
             </Button>
