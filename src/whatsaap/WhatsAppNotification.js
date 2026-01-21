@@ -1,5 +1,6 @@
 // src/whatsapp/WhatsAppInboxWidget.jsx
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useLocation } from "react-router-dom";
 import {
   Box,
   Badge,
@@ -48,6 +49,29 @@ const last10 = (v = "") => digitsOnly(v).slice(-10);
 const roomForPhone10 = (p10) => `wa:${String(p10 || "").slice(-10)}`;
 
 /* --------------------
+   Auth storage helpers (FIX)
+--------------------- */
+function safeJsonParse(raw) {
+  try {
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+function readUserFromStorage() {
+  const raw = sessionStorage.getItem("user") || localStorage.getItem("user");
+  return safeJsonParse(raw);
+}
+function userSig(u) {
+  if (!u) return "";
+  const id = u.id || u._id || "";
+  const email = u.email || "";
+  const name = u.fullName || "";
+  const role = u.role || "";
+  return `${id}|${email}|${name}|${role}`;
+}
+
+/* --------------------
    Tick helper
 --------------------- */
 function normalizeStatus(s) {
@@ -79,7 +103,7 @@ function getMsgTime(m) {
 }
 function sortMessagesAsc(list) {
   const arr = Array.isArray(list) ? list.slice() : [];
-  arr.sort((a, b) => getMsgTime(a) - getMsgTime(b)); // ✅ old -> new
+  arr.sort((a, b) => getMsgTime(a) - getMsgTime(b));
   return arr;
 }
 function upsertMessage(prev, incoming) {
@@ -106,17 +130,13 @@ function upsertMessage(prev, incoming) {
    Media URL fix
 --------------------- */
 function isProviderUrl(url = "") {
-  return /360dialog\.io|graph\.facebook\.com|lookaside\.facebook\.com|fbcdn\.net|facebook\.com/i.test(
-    String(url || "")
-  );
+  return /360dialog\.io|graph\.facebook\.com|lookaside\.facebook\.com|fbcdn\.net|facebook\.com/i.test(String(url || ""));
 }
-
 function buildProxyUrl(mediaId = "") {
   const id = String(mediaId || "").trim();
   if (!id) return "";
   return `${API_BASE}/api/whatsapp/media-proxy/${encodeURIComponent(id)}`;
 }
-
 function getSafeMediaUrl(m) {
   const media = m?.media || null;
   if (!media) return "";
@@ -129,7 +149,6 @@ function getSafeMediaUrl(m) {
 
   return url || (id ? buildProxyUrl(id) : "");
 }
-
 function getMediaMime(m) {
   return (
     m?.media?.mime ||
@@ -142,7 +161,6 @@ function getMediaMime(m) {
     ""
   );
 }
-
 function isSafariBrowser() {
   if (typeof navigator === "undefined") return false;
   const ua = navigator.userAgent || "";
@@ -160,7 +178,6 @@ function renderMedia(m, blobUrlByMediaId = {}) {
   const mimeRaw = getMediaMime(m);
   const mime = String(mimeRaw || "").toLowerCase();
 
-  // If we still don't have anything
   if (!safeUrl) {
     if (mediaId) {
       return (
@@ -179,7 +196,6 @@ function renderMedia(m, blobUrlByMediaId = {}) {
     return null;
   }
 
-  // ✅ if we pre-fetched a blob for this media, use it
   const effectiveUrl = mediaId && blobUrlByMediaId[mediaId] ? blobUrlByMediaId[mediaId] : safeUrl;
 
   const isImg =
@@ -259,13 +275,11 @@ function renderMedia(m, blobUrlByMediaId = {}) {
     return (
       <Box sx={{ mt: 0.75 }}>
         <audio
-          key={effectiveUrl} // ✅ forces reload when url changes (blob created later)
+          key={effectiveUrl}
           controls
           preload="metadata"
           style={{ width: "260px", maxWidth: "100%" }}
-          onError={(e) =>
-            console.warn("AUDIO_ERROR", e?.currentTarget?.error, { src: effectiveUrl, mediaId, mimeRaw })
-          }
+          onError={(e) => console.warn("AUDIO_ERROR", e?.currentTarget?.error, { src: effectiveUrl, mediaId, mimeRaw })}
         >
           <source src={effectiveUrl} type={typeAttr} />
           Your browser does not support audio playback.
@@ -333,8 +347,6 @@ function fmtRelative(d) {
   const dd = Math.floor(h / 24);
   return `${dd}d`;
 }
-
-// Detect template params like {{1}}, {{2}} ...
 function detectParamCountFromText(tplBody = "") {
   const s = String(tplBody || "");
   const matches = s.match(/\{\{\s*(\d+)\s*\}\}/g) || [];
@@ -355,11 +367,10 @@ function renderTemplatePreview(body = "", params = []) {
   return out;
 }
 
-/**
- * Props:
- * - onOpenChat?: (phone10) => void
- */
 export default function WhatsAppInboxWidget({ onOpenChat }) {
+  const location = useLocation();
+  const isLoginRoute = useMemo(() => location?.pathname === "/login", [location?.pathname]);
+
   const fabRef = useRef(null);
   const socketRef = useRef(null);
   const joinedRoomsRef = useRef(new Set());
@@ -391,7 +402,7 @@ export default function WhatsAppInboxWidget({ onOpenChat }) {
   const [tplBodyPreview, setTplBodyPreview] = useState("");
 
   // ✅ Blob URLs for protected media-proxy (fixes 0:00/0:00 voice notes)
-  const [blobUrlByMediaId, setBlobUrlByMediaId] = useState({}); // { [mediaId]: objectUrl }
+  const [blobUrlByMediaId, setBlobUrlByMediaId] = useState({});
 
   const clearBlobUrls = useCallback(() => {
     setBlobUrlByMediaId((prev) => {
@@ -406,14 +417,32 @@ export default function WhatsAppInboxWidget({ onOpenChat }) {
     });
   }, []);
 
-  // ✅ login session user
-  const sessionUser = useMemo(() => {
-    try {
-      const raw = sessionStorage.getItem("user");
-      return raw ? JSON.parse(raw) : null;
-    } catch {
-      return null;
-    }
+  /* --------------------
+     Session user (auto updates after login)
+  --------------------- */
+  const [sessionUser, setSessionUser] = useState(() => readUserFromStorage());
+
+  useEffect(() => {
+    let alive = true;
+
+    const sync = () => {
+      if (!alive) return;
+      const next = readUserFromStorage();
+      setSessionUser((prev) => (userSig(prev) === userSig(next) ? prev : next));
+    };
+
+    sync();
+    window.addEventListener("storage", sync);
+    window.addEventListener("muditam:user-changed", sync);
+
+    const t = setInterval(sync, 1200);
+
+    return () => {
+      alive = false;
+      window.removeEventListener("storage", sync);
+      window.removeEventListener("muditam:user-changed", sync);
+      clearInterval(t);
+    };
   }, []);
 
   const myNameRaw = useMemo(() => String(sessionUser?.fullName || "").trim(), [sessionUser?.fullName]);
@@ -426,13 +455,27 @@ export default function WhatsAppInboxWidget({ onOpenChat }) {
     return true;
   }, [myNameRaw, myRole]);
 
+  // ✅ hide widget on /login AND when not logged-in/allowed
+  const shouldShowWidget = useMemo(() => !isLoginRoute && allowed, [isLoginRoute, allowed]);
+
+  // if route becomes /login (or user logs out), force close popover
+  useEffect(() => {
+    if (!shouldShowWidget) {
+      setAnchorEl(null);
+      setView("list");
+      setActive(null);
+      setMessages([]);
+      setDraft("");
+      clearBlobUrls();
+    }
+  }, [shouldShowWidget, clearBlobUrls]);
+
   const phone10Active = useMemo(() => last10(active?.phone || ""), [active]);
 
   const totalUnread = useMemo(() => {
     return (convos || []).reduce((sum, c) => sum + (Number(c?.unreadCount) || 0), 0);
   }, [convos]);
 
-  // ✅ Manager sees all chats; agents see only assigned-to-me
   const visibleConvos = useMemo(() => {
     const list = Array.isArray(convos) ? convos.slice() : [];
     if (myRole === "Manager") return list;
@@ -457,7 +500,7 @@ export default function WhatsAppInboxWidget({ onOpenChat }) {
   }, [visibleConvos]);
 
   const fetchConversations = useCallback(async () => {
-    if (!myNameRaw) return;
+    if (!shouldShowWidget) return;
     setLoading(true);
     try {
       const r = await axios.get(`${API_BASE}/api/whatsapp/conversations`, {
@@ -469,32 +512,41 @@ export default function WhatsAppInboxWidget({ onOpenChat }) {
     } finally {
       setLoading(false);
     }
-  }, [myNameRaw, myRole]);
+  }, [shouldShowWidget, myNameRaw, myRole]);
 
-  const fetchMessages = useCallback(async (p10) => {
-    if (!p10) return;
-    setChatLoading(true);
-    try {
-      const r = await axios.get(`${API_BASE}/api/whatsapp/messages`, {
-        withCredentials: true,
-        params: { phone: p10 },
-      });
-      const list = Array.isArray(r.data) ? r.data : [];
-      setMessages(sortMessagesAsc(list));
-    } finally {
-      setChatLoading(false);
-    }
-  }, []);
+  const fetchMessages = useCallback(
+    async (p10) => {
+      if (!shouldShowWidget) return;
+      if (!p10) return;
+      setChatLoading(true);
+      try {
+        const r = await axios.get(`${API_BASE}/api/whatsapp/messages`, {
+          withCredentials: true,
+          params: { phone: p10 },
+        });
+        const list = Array.isArray(r.data) ? r.data : [];
+        setMessages(sortMessagesAsc(list));
+      } finally {
+        setChatLoading(false);
+      }
+    },
+    [shouldShowWidget]
+  );
 
-  const markRead = useCallback(async (p10) => {
-    if (!p10) return;
-    setConvos((prev) =>
-      prev.map((c) => (last10(c?.phone) === p10 ? { ...c, unreadCount: 0, lastReadAt: new Date() } : c))
-    );
-    try {
-      await axios.post(`${API_BASE}/api/whatsapp/conversations/mark-read`, { phone: p10 }, { withCredentials: true });
-    } catch {}
-  }, []);
+  const markRead = useCallback(
+    async (p10) => {
+      if (!shouldShowWidget) return;
+      if (!p10) return;
+
+      setConvos((prev) =>
+        prev.map((c) => (last10(c?.phone) === p10 ? { ...c, unreadCount: 0, lastReadAt: new Date() } : c))
+      );
+      try {
+        await axios.post(`${API_BASE}/api/whatsapp/conversations/mark-read`, { phone: p10 }, { withCredentials: true });
+      } catch {}
+    },
+    [shouldShowWidget]
+  );
 
   const scrollToBottom = useCallback((smooth = false) => {
     try {
@@ -510,6 +562,7 @@ export default function WhatsAppInboxWidget({ onOpenChat }) {
 
   // ✅ Prefetch audio blobs from protected media-proxy WITH credentials
   useEffect(() => {
+    if (!shouldShowWidget) return;
     let cancelled = false;
 
     async function prefetchAudioBlobs() {
@@ -536,8 +589,6 @@ export default function WhatsAppInboxWidget({ onOpenChat }) {
 
         const safeUrl = getSafeMediaUrl(m);
         if (!safeUrl) continue;
-
-        // only needed for proxy URLs (often protected by session)
         if (!safeUrl.includes("/api/whatsapp/media-proxy/")) continue;
 
         try {
@@ -555,23 +606,20 @@ export default function WhatsAppInboxWidget({ onOpenChat }) {
           }
 
           setBlobUrlByMediaId((prev) => (prev[mediaId] ? prev : { ...prev, [mediaId]: objUrl }));
-        } catch {
-          // ignore
-        }
+        } catch {}
       }
     }
 
     prefetchAudioBlobs();
-
     return () => {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [messages]); // keep simple
+  }, [shouldShowWidget, messages]);
 
   // ✅ socket setup (once)
   useEffect(() => {
-    if (!allowed) return;
+    if (!shouldShowWidget) return;
     if (socketRef.current) return;
 
     socketRef.current = io(SOCKET_URL, {
@@ -630,11 +678,12 @@ export default function WhatsAppInboxWidget({ onOpenChat }) {
       socket.off("wa:conversation", onWaConversation);
       socket.off("wa:message", onWaMessage);
     };
-  }, [allowed, phone10Active, scrollToBottom]);
+  }, [shouldShowWidget, phone10Active, scrollToBottom]);
 
   // ✅ join rooms for visible convos
   useEffect(() => {
     const socket = socketRef.current;
+    if (!shouldShowWidget) return;
     if (!socket || !socket.connected) return;
 
     const desired = new Set((visibleConvos || []).map((c) => last10(c?.phone)).filter(Boolean));
@@ -654,15 +703,15 @@ export default function WhatsAppInboxWidget({ onOpenChat }) {
         joinedRoomsRef.current.delete(room);
       }
     }
-  }, [visibleConvos, myNameRaw]);
+  }, [shouldShowWidget, visibleConvos, myNameRaw]);
 
   // ✅ initial load + periodic refresh
   useEffect(() => {
-    if (!allowed) return;
+    if (!shouldShowWidget) return;
     fetchConversations();
     const t = setInterval(fetchConversations, 25000);
     return () => clearInterval(t);
-  }, [allowed, fetchConversations]);
+  }, [shouldShowWidget, fetchConversations]);
 
   const handleOpen = () => setAnchorEl(fabRef.current);
 
@@ -672,11 +721,12 @@ export default function WhatsAppInboxWidget({ onOpenChat }) {
     setActive(null);
     setMessages([]);
     setDraft("");
-    clearBlobUrls(); // ✅ important
+    clearBlobUrls();
   };
 
   const openChatInline = async (c) => {
-    clearBlobUrls(); // ✅ reset blobs when switching chat
+    if (!shouldShowWidget) return;
+    clearBlobUrls();
     setActive(c);
     setView("chat");
     const p10 = last10(c?.phone);
@@ -700,8 +750,9 @@ export default function WhatsAppInboxWidget({ onOpenChat }) {
 
   /* --------------------
      Sending message
---------------------- */
+  --------------------- */
   const sendText = useCallback(async () => {
+    if (!shouldShowWidget) return;
     const p10 = phone10Active;
     const text = String(draft || "").trim();
     if (!p10 || !text) return;
@@ -736,12 +787,13 @@ export default function WhatsAppInboxWidget({ onOpenChat }) {
     } finally {
       setSending(false);
     }
-  }, [draft, phone10Active, scrollToBottom]);
+  }, [shouldShowWidget, draft, phone10Active, scrollToBottom]);
 
   /* --------------------
      Templates
---------------------- */
+  --------------------- */
   const loadTemplates = useCallback(async () => {
+    if (!shouldShowWidget) return;
     setTplLoading(true);
     try {
       const r = await axios.get(`${API_BASE}/api/whatsapp/templates`, { withCredentials: true });
@@ -750,16 +802,17 @@ export default function WhatsAppInboxWidget({ onOpenChat }) {
     } finally {
       setTplLoading(false);
     }
-  }, []);
+  }, [shouldShowWidget]);
 
   const openTemplateDialog = useCallback(async () => {
+    if (!shouldShowWidget) return;
     if (!templates.length) await loadTemplates();
     setTplSelected("");
     setTplParamCount(0);
     setTplParams([]);
     setTplBodyPreview("");
     setTplDialogOpen(true);
-  }, [templates.length, loadTemplates]);
+  }, [shouldShowWidget, templates.length, loadTemplates]);
 
   const selectedTemplateObj = useMemo(() => {
     const name = String(tplSelected || "");
@@ -782,6 +835,7 @@ export default function WhatsAppInboxWidget({ onOpenChat }) {
   }, [tplParams, selectedTemplateObj]);
 
   const sendTemplate = useCallback(async () => {
+    if (!shouldShowWidget) return;
     const p10 = phone10Active;
     if (!p10) return;
     if (!tplSelected) return;
@@ -824,13 +878,14 @@ export default function WhatsAppInboxWidget({ onOpenChat }) {
     } finally {
       setSending(false);
     }
-  }, [phone10Active, tplSelected, tplParams, tplParamCount, tplBodyPreview, scrollToBottom]);
+  }, [shouldShowWidget, phone10Active, tplSelected, tplParams, tplParamCount, tplBodyPreview, scrollToBottom]);
 
-  if (!allowed) return null;
+  // ✅ IMPORTANT: do NOT render anything on /login, and show only after login/allowed
+  if (!shouldShowWidget) return null;
 
   return (
     <>
-      {/* ✅ Floating WhatsApp icon ALWAYS (for allowed roles) */}
+      {/* ✅ Floating WhatsApp icon ONLY after login (not on /login) */}
       <Box sx={{ position: "fixed", right: 22, bottom: 22, zIndex: 4000 }}>
         <Badge
           badgeContent={totalUnread}
@@ -974,9 +1029,7 @@ export default function WhatsAppInboxWidget({ onOpenChat }) {
                                   </Typography>
                                 ) : null}
 
-                                {unread ? (
-                                  <Box sx={{ width: 10, height: 10, borderRadius: 999, bgcolor: "#1976d2" }} />
-                                ) : null}
+                                {unread ? <Box sx={{ width: 10, height: 10, borderRadius: 999, bgcolor: "#1976d2" }} /> : null}
                               </Box>
                             </Box>
                           }
@@ -993,9 +1046,7 @@ export default function WhatsAppInboxWidget({ onOpenChat }) {
               )}
             </Box>
           ) : (
-            // ✅ Chat view inside popover
             <Box sx={{ height: "100%", display: "flex", flexDirection: "column" }}>
-              {/* sub header */}
               <Box sx={{ px: 1.25, py: 1, bgcolor: "#fff", borderBottom: "1px solid #eee" }}>
                 <Box sx={{ display: "flex", gap: 1, alignItems: "center" }}>
                   <Typography variant="caption" color="text.secondary" sx={{ ml: "auto" }}>
@@ -1004,7 +1055,6 @@ export default function WhatsAppInboxWidget({ onOpenChat }) {
                 </Box>
               </Box>
 
-              {/* messages */}
               <Box ref={chatScrollRef} sx={{ flex: 1, overflowY: "auto", p: 1.25 }}>
                 {chatLoading ? (
                   <Box sx={{ display: "flex", justifyContent: "center", py: 6 }}>
@@ -1035,19 +1085,9 @@ export default function WhatsAppInboxWidget({ onOpenChat }) {
                             border: "1px solid #EAEAEA",
                           }}
                         >
-                          {!!m?.text && (
-                            <Typography sx={{ fontSize: 13, whiteSpace: "pre-wrap" }}>{m.text}</Typography>
-                          )}
+                          {!!m?.text && <Typography sx={{ fontSize: 13, whiteSpace: "pre-wrap" }}>{m.text}</Typography>}
                           {renderMedia(m, blobUrlByMediaId)}
-                          <Box
-                            sx={{
-                              mt: 0.5,
-                              display: "flex",
-                              justifyContent: "flex-end",
-                              alignItems: "center",
-                              gap: 0.25,
-                            }}
-                          >
+                          <Box sx={{ mt: 0.5, display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 0.25 }}>
                             <Typography variant="caption" sx={{ opacity: 0.65 }}>
                               {time}
                             </Typography>
@@ -1061,7 +1101,6 @@ export default function WhatsAppInboxWidget({ onOpenChat }) {
                 <div ref={messagesEndRef} />
               </Box>
 
-              {/* composer */}
               <Box sx={{ p: 1, bgcolor: "#fff", borderTop: "1px solid #eee" }}>
                 <Box sx={{ display: "flex", gap: 1 }}>
                   <Button
