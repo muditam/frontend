@@ -636,17 +636,28 @@ export default function WhatsAppChatDrawer({
     return "";
   }, [activeTemplate, templateBodyText, tplVars]);
 
+  function absolutizeUrl(url = "") {
+  const u = String(url || "").trim();
+  if (!u) return "";
+  if (/^https?:\/\//i.test(u)) return u;          
+  if (u.startsWith("/")) return `${API_BASE}${u}`; // relative -> API_BASE
+  return `${API_BASE}/${u}`;
+}
+
+function isProviderUrl(url = "") {
+  return /360dialog\.io|graph\.facebook\.com|lookaside\.facebook\.com|fbcdn\.net|facebook\.com/i.test(String(url || ""));
+}
+
   const renderMedia = (m) => {
-  const mediaId = m?.media?.id || "";
-  const rawUrl = m?.media?.url || m?.mediaUrl || "";
-
-  const isProviderUrl =
-  /360dialog\.io|graph\.facebook\.com|lookaside\.facebook\.com/i.test(rawUrl);
-
-const url =
-  (!rawUrl || isProviderUrl)
-    ? (mediaId ? `${API_BASE}/api/whatsapp/media-proxy/${mediaId}` : "")
-    : rawUrl;
+  const mediaId = String(m?.media?.id || "").trim();
+  const rawUrl = String(m?.media?.url || m?.mediaUrl || "").trim();
+ 
+  const absRawUrl = rawUrl ? absolutizeUrl(rawUrl) : "";
+ 
+  const url =
+    (!absRawUrl || isProviderUrl(absRawUrl))
+      ? (mediaId ? `${API_BASE}/api/whatsapp/media-proxy/${encodeURIComponent(mediaId)}` : "")
+      : absRawUrl;
 
   if (!url) return null;
 

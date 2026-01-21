@@ -41,6 +41,10 @@ import { io } from "socket.io-client";
 const API_BASE = "https://muditamleads-14f32a10d7f7.herokuapp.com";
 const SOCKET_URL = API_BASE;
 
+// 🔔 Notification sound URL
+const NOTIF_SOUND_URL =
+  "https://cdn.shopify.com/s/files/1/0734/7155/7942/files/new-notification-014-363678.mp3?v=1769002522";
+
 // ✅ Allowed roles only
 const ALLOWED_ROLES = new Set(["Manager", "Sales Agent", "Retention Agent"]);
 
@@ -137,6 +141,15 @@ function buildProxyUrl(mediaId = "") {
   if (!id) return "";
   return `${API_BASE}/api/whatsapp/media-proxy/${encodeURIComponent(id)}`;
 }
+
+function absolutizeUrl(url = "") {
+  const u = String(url || "").trim();
+  if (!u) return "";
+  if (/^https?:\/\//i.test(u)) return u; // already absolute
+  if (u.startsWith("/")) return `${API_BASE}${u}`;
+  return `${API_BASE}/${u}`;
+}
+
 function getSafeMediaUrl(m) {
   const media = m?.media || null;
   if (!media) return "";
@@ -145,10 +158,14 @@ function getSafeMediaUrl(m) {
   const url = String(media?.url || "").trim();
 
   if (!url && id) return buildProxyUrl(id);
+
+  // if provider url, use proxy
   if (url && isProviderUrl(url) && id) return buildProxyUrl(id);
 
-  return url || (id ? buildProxyUrl(id) : "");
+  // ✅ IMPORTANT: if backend gave "/api/..." make it absolute
+  return absolutizeUrl(url) || (id ? buildProxyUrl(id) : "");
 }
+
 function getMediaMime(m) {
   return (
     m?.media?.mime ||
@@ -404,6 +421,51 @@ export default function WhatsAppInboxWidget({ onOpenChat }) {
   // ✅ Blob URLs for protected media-proxy (fixes 0:00/0:00 voice notes)
   const [blobUrlByMediaId, setBlobUrlByMediaId] = useState({});
 
+  // 🔔 Notification sound refs (autoplay-friendly)
+  const notifAudioRef = useRef(null);
+  const notifReadyRef = useRef(false);
+  const lastNotifKeyRef = useRef("");
+
+  const prepareNotifAudio = useCallback(() => {
+    if (notifReadyRef.current) return;
+    try {
+      const a = new Audio(NOTIF_SOUND_URL);
+      a.preload = "auto";
+      a.volume = 0.9;
+      notifAudioRef.current = a;
+      notifReadyRef.current = true;
+    } catch {}
+  }, []);
+
+  const playNotif = useCallback((key = "") => {
+    const a = notifAudioRef.current;
+    if (!a) return;
+
+    if (key && lastNotifKeyRef.current === key) return;
+    lastNotifKeyRef.current = key || "";
+
+    try {
+      a.pause();
+      a.currentTime = 0;
+      const p = a.play();
+      if (p?.catch) p.catch(() => {}); // ignore autoplay block errors
+    } catch {}
+  }, []);
+
+  // ✅ Prime audio on first user interaction anywhere (better than only on widget open)
+  useEffect(() => {
+    if (!document?.addEventListener) return;
+    const onFirstUserGesture = () => prepareNotifAudio();
+    document.addEventListener("pointerdown", onFirstUserGesture, { once: true, passive: true });
+    document.addEventListener("keydown", onFirstUserGesture, { once: true, passive: true });
+    return () => {
+      try {
+        document.removeEventListener("pointerdown", onFirstUserGesture);
+        document.removeEventListener("keydown", onFirstUserGesture);
+      } catch {}
+    };
+  }, [prepareNotifAudio]);
+
   const clearBlobUrls = useCallback(() => {
     setBlobUrlByMediaId((prev) => {
       try {
@@ -651,6 +713,15 @@ export default function WhatsAppInboxWidget({ onOpenChat }) {
       const p10 = payload?.phone10 || last10(msg?.from) || last10(msg?.to) || "";
       if (!p10) return;
 
+      // 🔔 play notification tone for INBOUND messages
+      const isInbound = String(msg?.direction || "").toUpperCase() === "INBOUND";
+      if (isInbound) {
+        const key = msg?.waId || msg?._id || `${p10}-${msg?.timestamp || msg?.createdAt || Date.now()}`;
+        // ensure audio prepared (in case first gesture didn't happen)
+        prepareNotifAudio();
+        playNotif(key);
+      }
+
       setConvos((prev) => {
         const idx = prev.findIndex((c) => last10(c?.phone) === p10);
         if (idx < 0) return prev;
@@ -678,7 +749,7 @@ export default function WhatsAppInboxWidget({ onOpenChat }) {
       socket.off("wa:conversation", onWaConversation);
       socket.off("wa:message", onWaMessage);
     };
-  }, [shouldShowWidget, phone10Active, scrollToBottom]);
+  }, [shouldShowWidget, phone10Active, scrollToBottom, prepareNotifAudio, playNotif]);
 
   // ✅ join rooms for visible convos
   useEffect(() => {
@@ -713,7 +784,11 @@ export default function WhatsAppInboxWidget({ onOpenChat }) {
     return () => clearInterval(t);
   }, [shouldShowWidget, fetchConversations]);
 
-  const handleOpen = () => setAnchorEl(fabRef.current);
+  const handleOpen = () => {
+    // ✅ unlock sound on user gesture
+    prepareNotifAudio();
+    setAnchorEl(fabRef.current);
+  };
 
   const handleClose = () => {
     setAnchorEl(null);
@@ -954,7 +1029,12 @@ export default function WhatsAppInboxWidget({ onOpenChat }) {
             </Typography>
 
             {view === "list" ? (
-              <Chip size="small" color="error" label={totalUnread} sx={{ height: 20, fontWeight: 900, borderRadius: 999 }} />
+              <Chip
+                size="small"
+                color="error"
+                label={totalUnread}
+                sx={{ height: 20, fontWeight: 900, borderRadius: 999 }}
+              />
             ) : null}
           </Box>
 
@@ -1029,7 +1109,9 @@ export default function WhatsAppInboxWidget({ onOpenChat }) {
                                   </Typography>
                                 ) : null}
 
-                                {unread ? <Box sx={{ width: 10, height: 10, borderRadius: 999, bgcolor: "#1976d2" }} /> : null}
+                                {unread ? (
+                                  <Box sx={{ width: 10, height: 10, borderRadius: 999, bgcolor: "#1976d2" }} />
+                                ) : null}
                               </Box>
                             </Box>
                           }
