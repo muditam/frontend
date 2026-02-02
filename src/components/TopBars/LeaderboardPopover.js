@@ -12,26 +12,22 @@ import {
 import CardGiftcardIcon from "@mui/icons-material/CardGiftcard";
 import EmojiEventsIcon from "@mui/icons-material/EmojiEvents";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
-
 // avatar generator
 const getAvatarUrl = (name) =>
   `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(
     name
   )}&backgroundType=gradientLinear&radius=50`;
-
 // podium styles
 const podiumColors = [
   "linear-gradient(180deg,#FFD700 60%,#FFB347 95%)",
   "linear-gradient(180deg,#DCE3EB 50%,#A8B2BD 100%)",
   "linear-gradient(180deg,#E9BFA9 40%,#D88A5B 90%)",
 ];
-
 const podiumGlow = [
   "0 0 32px 0 #ffe17e99, 0 1px 6px #ffd70044",
   "0 0 28px 0 #d6e0efbb, 0 1px 6px #A8B2BD44",
   "0 0 26px 0 #f1bfa2a5, 0 1px 6px #D88A5B44",
 ];
-
 // promotion helper
 const getPromotionMonthStart = (joiningDate) => {
   if (!joiningDate) return new Date(8640000000000000); // far future
@@ -41,10 +37,8 @@ const getPromotionMonthStart = (joiningDate) => {
   threshold.setDate(threshold.getDate() + 60);
   return new Date(threshold.getFullYear(), threshold.getMonth() + 1, 1);
 };
-
 const isEligibleForLeaderboard = (joiningDate, today = new Date()) =>
   today >= getPromotionMonthStart(joiningDate);
-
 // rank suffix
 const getRankSuffix = (num) => {
   if (num === 1) return "1st";
@@ -55,19 +49,20 @@ const getRankSuffix = (num) => {
   if (num % 10 === 3 && num !== 13) return `${num}rd`;
   return `${num}th`;
 };
-
 const getFirstName = (fullName) => {
   if (!fullName) return "";
   const trimmed = fullName.trim();
   const first = trimmed.split(" ").find((part) => part.length > 0);
   return first || "";
 };
-
 const getPodiumDisplay = (data) => [data[1], data[0], data[2]];
-
 // ISO helper
 const toISO = (d) => d.toISOString().split("T")[0];
-
+// ISO helper with timezone adjustment
+const toISODateLocal = (d) => {
+  const tzOffset = d.getTimezoneOffset() * 60000;
+  return new Date(d.getTime() - tzOffset).toISOString().slice(0, 10);
+};
 // 🔹 human date helper: "10 June"
 const formatHumanDate = (iso) => {
   if (!iso) return "";
@@ -78,43 +73,46 @@ const formatHumanDate = (iso) => {
   });
 };
 
-// build weeks for current month (Mon–Sun) with “carry over first days” rule
-const buildWeeksForCurrentMonth = () => {
-  const today = new Date();
-  const year = today.getFullYear();
-  const month = today.getMonth(); // 0-based
 
-  const firstOfMonth = new Date(year, month, 1);
-  const firstDay = firstOfMonth.getDay(); // 0=Sun,1=Mon,...
-
-  // find first Monday of current month
-  let firstMonday = new Date(firstOfMonth);
-  if (firstDay !== 1) {
-    const toAdd = (8 - firstDay) % 7;
-    firstMonday.setDate(firstMonday.getDate() + toAdd);
-  }
-
-  const weeks = [];
-  let currentStart = new Date(firstMonday);
-  for (let i = 0; i < 5; i++) {
-    const start = new Date(currentStart);
-    const end = new Date(currentStart);
-    end.setDate(end.getDate() + 6); // Mon..Sun
-
-    if (start.getMonth() !== month && i > 0) break;
-
-    weeks.push({
-      label: `Week ${i + 1}`,
-      from: toISO(start),
-      to: toISO(end),
-    });
-
-    currentStart = new Date(currentStart);
-    currentStart.setDate(currentStart.getDate() + 7);
-  }
-
-  return weeks.slice(0, 4);
+// 🔹 FIXED: Helper to get start of week (Sunday = 0)
+const startOfWeek = (date) => {
+  const d = new Date(date);
+  const day = d.getDay(); // 0=Sunday, 1=Monday, ..., 6=Saturday
+  // Move back to the previous Sunday (if not already Sunday)
+  d.setDate(d.getDate() - day);
+  return d;
 };
+
+
+// 🔹 FIXED: Build weeks for a given month (Sunday–Saturday)
+const buildWeeksForMonth = (year, month) => {
+  const firstOfMonth = new Date(year, month, 1);
+  const lastOfMonth = new Date(year, month + 1, 0);
+ 
+  // Start from the Sunday of the week containing the 1st of the month
+  let cursor = startOfWeek(firstOfMonth);
+  const weeks = [];
+  let idx = 1;
+ 
+  // Continue building weeks until we've covered the entire month
+  while (cursor <= lastOfMonth) {
+    const start = new Date(cursor);
+    const end = new Date(cursor);
+    end.setDate(end.getDate() + 6); // Sunday to Saturday = 7 days
+   
+    weeks.push({
+      label: `Week ${idx++}`,
+      from: toISODateLocal(start),
+      to: toISODateLocal(end),
+    });
+   
+    // Move to next Sunday
+    cursor.setDate(cursor.getDate() + 7);
+  }
+ 
+  return weeks;
+};
+
 
 // build past 6 months including current
 const buildLast6Months = () => {
@@ -138,27 +136,33 @@ const buildLast6Months = () => {
   }
   return arr;
 };
-
 export default function LeaderboardPopover({ open, anchorEl, onClose }) {
   const [leaderboardData, setLeaderboardData] = useState([]);
   const [loadingLeaderboard, setLoadingLeaderboard] = useState(false);
   const [showGifts, setShowGifts] = useState(false);
-
-  const weeks = useMemo(() => buildWeeksForCurrentMonth(), []);
   const months = useMemo(() => buildLast6Months(), []);
-
+  const [selectedMonthIdx, setSelectedMonthIdx] = useState(0);
+  // Build weeks based on the selected month
+  const weeks = useMemo(() => {
+    const selectedMonth = months[selectedMonthIdx];
+    if (!selectedMonth) {
+      // Fallback to current month if no month selected
+      const today = new Date();
+      return buildWeeksForMonth(today.getFullYear(), today.getMonth());
+    }
+    // Parse year and month from the selected month value (format: "YYYY-MM")
+    const [year, month] = selectedMonth.value.split('-').map(Number);
+    return buildWeeksForMonth(year, month - 1); // month - 1 because Date object months are 0-indexed
+  }, [selectedMonthIdx, months]);
   const todayISO = toISO(new Date());
   const defaultWeekIdx =
     weeks.findIndex((w) => todayISO >= w.from && todayISO <= w.to) !== -1
       ? weeks.findIndex((w) => todayISO >= w.from && todayISO <= w.to)
       : 0;
-
   const [selectedWeekIdx, setSelectedWeekIdx] = useState(defaultWeekIdx);
-  const [selectedMonthIdx, setSelectedMonthIdx] = useState(0);
   const [weekMenuAnchor, setWeekMenuAnchor] = useState(null);
   const [monthMenuAnchor, setMonthMenuAnchor] = useState(null);
   const [viewMode, setViewMode] = useState("weekly");
-
   const giftPrizes =
     viewMode === "monthly"
       ? [
@@ -175,17 +179,14 @@ export default function LeaderboardPopover({ open, anchorEl, onClose }) {
         { rank: 4, label: "Gift worth 800" },
         { rank: 5, label: "Gift worth 500" },
       ];
-
   const GIFT_CONDITION_NOTE =
     viewMode === "monthly"
       ? ""
       : "";
-
   // fetch
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
-
     const fetchLeaderboard = async () => {
       setLoadingLeaderboard(true);
       try {
@@ -193,7 +194,6 @@ export default function LeaderboardPopover({ open, anchorEl, onClose }) {
           "https://muditamleads-14f32a10d7f7.herokuapp.com/api/employees"
         );
         const agentsArr = await agentsRes.json();
-
         const today = new Date();
         const agents = agentsArr.filter(
           (emp) =>
@@ -202,7 +202,6 @@ export default function LeaderboardPopover({ open, anchorEl, onClose }) {
             emp.joiningDate &&
             isEligibleForLeaderboard(emp.joiningDate, today)
         );
-
         let from, to;
         if (viewMode === "weekly") {
           const wk = weeks[selectedWeekIdx] || weeks[0];
@@ -213,7 +212,6 @@ export default function LeaderboardPopover({ open, anchorEl, onClose }) {
           from = m.from;
           to = m.to;
         }
-
         const agentSales = await Promise.all(
           agents.map(async (agent) => {
             try {
@@ -229,9 +227,7 @@ export default function LeaderboardPopover({ open, anchorEl, onClose }) {
             }
           })
         );
-
         if (cancelled) return;
-
         const filtered = agentSales
           .filter((a) => a.sales > 0)
           .sort((a, b) => b.sales - a.sales);
@@ -242,15 +238,12 @@ export default function LeaderboardPopover({ open, anchorEl, onClose }) {
         if (!cancelled) setLoadingLeaderboard(false);
       }
     };
-
     fetchLeaderboard();
     return () => {
       cancelled = true;
     };
   }, [open, viewMode, selectedWeekIdx, selectedMonthIdx, weeks, months]);
-
   const top3 = leaderboardData.slice(0, 3);
-
   return (
     <Popover
       open={open}
@@ -347,7 +340,6 @@ export default function LeaderboardPopover({ open, anchorEl, onClose }) {
             </MenuItem>
           ))}
         </Menu>
-
         {/* MONTHLY DROPDOWN */}
         <Box
           onClick={(e) => {
@@ -403,7 +395,6 @@ export default function LeaderboardPopover({ open, anchorEl, onClose }) {
           ))}
         </Menu>
       </Box>
-
       {/* --- Gift Icon Top Right --- */}
       <Box
         sx={{
@@ -444,7 +435,6 @@ export default function LeaderboardPopover({ open, anchorEl, onClose }) {
           <CardGiftcardIcon sx={{ fontSize: 31 }} />
         </IconButton>
       </Box>
-
       {/* --- GIFT PANEL (Slide in) --- */}
       <Slide direction="left" in={showGifts} mountOnEnter unmountOnExit>
         <Box
@@ -578,7 +568,6 @@ export default function LeaderboardPopover({ open, anchorEl, onClose }) {
           </Button>
         </Box>
       </Slide>
-
       {/* --- LEADERBOARD CONTENT --- */}
       <Box
         sx={{
@@ -603,7 +592,6 @@ export default function LeaderboardPopover({ open, anchorEl, onClose }) {
         >
           Leaderboard
         </Typography>
-
         {/* Small subtext for range (with colored date part) */}
         <Typography
           sx={{
@@ -679,7 +667,6 @@ export default function LeaderboardPopover({ open, anchorEl, onClose }) {
                 const podiumHeight = rank === 1 ? 140 : rank === 2 ? 105 : 90;
                 const podiumWidth = 85;
                 const avatarSize = 92;
-
                 if (!person) return <Box key={i} sx={{ flex: 1 }} />;
                 return (
                   <Box
@@ -824,7 +811,6 @@ export default function LeaderboardPopover({ open, anchorEl, onClose }) {
                 );
               })}
             </Box>
-
             {/* 4th and onward */}
             <Box
               sx={{
@@ -914,7 +900,6 @@ export default function LeaderboardPopover({ open, anchorEl, onClose }) {
             </Box>
           </>
         )}
-
         <Button
           onClick={onClose}
           variant="contained"
@@ -939,3 +924,4 @@ export default function LeaderboardPopover({ open, anchorEl, onClose }) {
     </Popover>
   );
 }
+

@@ -961,7 +961,7 @@ export default function WhatsAppInboxWidget({ onOpenChat }) {
   return (
     <>
       {/* ✅ Floating WhatsApp icon ONLY after login (not on /login) */}
-      <Box sx={{ position: "fixed", right: 22, bottom: 22, zIndex: 4000 }}>
+      <Box sx={{ position: "fixed", right: 22, bottom: 68, zIndex: 4000 }}>
         <Badge
           badgeContent={totalUnread}
           color="error"

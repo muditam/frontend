@@ -24,7 +24,7 @@ import TextField from "@mui/material/TextField";
 
 
 const API_BASE_URL = "https://muditamleads-14f32a10d7f7.herokuapp.com";
-const START_DATE = "2025-01-01";
+const START_DATE = "2025-11-01";
 
 
 function formatDate(d) {

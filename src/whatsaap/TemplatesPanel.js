@@ -474,9 +474,7 @@ export default function TemplatesPanel() {
           </Box>
 
           <Stack direction="row" alignItems="center" spacing={1}>
-            <Typography fontSize={12} color="text.secondary" sx={{ mr: 1 }}>
-              Last Meta sync: {lastSync ? fmtTime(lastSync) : "--:--:--"}
-            </Typography>
+            
 
             <Chip
               label={inSync ? "In sync" : "Out of sync"}

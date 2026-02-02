@@ -36,6 +36,7 @@ import AssignmentReturnedIcon from "@mui/icons-material/AssignmentReturned";
 import CheckBoxIcon from "@mui/icons-material/CheckBox";
 import ReceiptLongIcon from "@mui/icons-material/ReceiptLong";
 import AnalyticsIcon from "@mui/icons-material/Analytics";
+import AssignmentTurnedInIcon from "@mui/icons-material/AssignmentTurnedIn";
 import QueryStatsIcon from "@mui/icons-material/QueryStats";
 import { Link, useNavigate } from "react-router-dom";
 
@@ -1121,7 +1122,7 @@ const MenuBar = ({ toggleDrawer }) => {
             sx={menuItemStyle}
             onClick={toggleDrawer}
           >
-            <FactCheckIcon sx={{ fontSize: 20, marginRight: "12px" }} />
+            <AssignmentTurnedInIcon sx={{ fontSize: 20, marginRight: "12px" }} />
             <Typography variant="body1" style={{ fontSize: "14px" }}>
               Only Order Confirmation
             </Typography>
@@ -1503,7 +1504,7 @@ const MenuBar = ({ toggleDrawer }) => {
                     onClick={toggleDrawer}
                   >
                     <Typography variant="body2" sx={{ fontSize: "13px" }}>
-                      All Products
+                      Whatsaap Templates
                     </Typography>
                   </ListItem>
                 )}

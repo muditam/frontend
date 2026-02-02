@@ -47,7 +47,7 @@ const PRODUCT_ABBREV = {
   "Diabetes Management Kit": "Kit",
   "Core Essentials": "CE",
   "Omega Fuel": "OF",
-  "Nerve FIx": "NF",
+  "Nerve Fix": "NF",
 };
 const PRODUCT_ABBREV_NORM = Object.fromEntries(
   Object.entries(PRODUCT_ABBREV).map(([k, v]) => [k.toLowerCase().trim().replace(/\s+/g, " "), v])
