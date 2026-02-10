@@ -21,14 +21,17 @@ import {
   CircularProgress,
   TablePagination,
   InputAdornment,
-  Checkbox, ListItemText, Tooltip,
+  Checkbox,
+  ListItemText,
+  Tooltip,
 } from "@mui/material";
 import { Close, Delete as DeleteIcon, WarningAmber } from "@mui/icons-material";
 import axios from "axios";
 
 
 const statusOptions = ["Open", "In Progress", "Closed"];
-const reasonOptions = ["Order not received/delayed", "Fake delivery remark", "Urgent delivery Needed", "Wrong product received", "Partial order received", "Asking for refund/replacement", "Order RTO but need it", "Delivery Boy Issue", "Payment Issue", "Others"];
+const reasonOptions = ["Delivery Issues", "Product Related Issues", "Refund"];
+
 
 const productOptions = [
   { code: "KJF", label: "KJF" },
@@ -46,8 +49,6 @@ const productOptions = [
   { code: "Glucometer", label: "Glucometer" },
   { code: "Blood test", label: "Blood test" },
 ];
-
-
 const EscalationsPage = () => {
   const [openForm, setOpenForm] = useState(false);
   const [openFileDialog, setOpenFileDialog] = useState(false);
@@ -66,7 +67,6 @@ const EscalationsPage = () => {
   const [orderIdError, setOrderIdError] = useState(false);
   const [orderIdErrorMsg, setOrderIdErrorMsg] = useState("");
   const [reasonFilter, setReasonFilter] = useState("");
-
   const [formData, setFormData] = useState({
     date: "",
     orderId: "",
@@ -84,13 +84,14 @@ const EscalationsPage = () => {
     products: [],
   });
 
-  const BACKEND_URL = "https://muditamleads-14f32a10d7f7.herokuapp.com/api";
 
+  const BACKEND_URL = "https://muditamleads-14f32a10d7f7.herokuapp.com/api";
   const allowedAssignees = useMemo(() => {
     return employees
       .filter((emp) => allowedRolesForAssign.includes(emp.role))
       .sort((a, b) => a.fullName.localeCompare(b.fullName));
   }, [employees]);
+
 
   useEffect(() => {
     fetchEmployees();
@@ -110,15 +111,16 @@ const EscalationsPage = () => {
 
   const fetchEscalations = async (pageIdx = page, rpp = rowsPerPage, closedOnly = showClosedOnly) => {
     try {
-      const statusParam = closedOnly ? 'Closed' : 'Open,In Progress';
+      const statusParam = closedOnly ? "Closed" : "Open,In Progress";
       const params = {
-        page: pageIdx + 1,     // API is 1-based
+        page: pageIdx + 1,
         limit: rpp,
         status: statusParam,
-        sortBy: 'createdAt',
-        order: 'desc',
+        sortBy: "createdAt",
+        order: "desc",
       };
-      if (reasonFilter) params.reason = reasonFilter;  // <— NEW
+      if (reasonFilter) params.reason = reasonFilter;
+
 
       const response = await axios.get(`${BACKEND_URL}/escalations`, { params });
       setEscalations(response.data.data);
@@ -130,11 +132,10 @@ const EscalationsPage = () => {
     }
   };
 
-  // load on mount + whenever page/size/filter changes
+
   useEffect(() => {
     setInitialLoading(true);
     fetchEscalations(page, rowsPerPage, showClosedOnly);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, rowsPerPage, showClosedOnly, reasonFilter]);
 
 
@@ -159,13 +160,11 @@ const EscalationsPage = () => {
   const handleChange = (e) => {
     const { name, value } = e.target;
     if (name === "products") {
-      // MUI multiple select returns an array of values
       setFormData((fd) => ({ ...fd, products: value }));
       return;
     }
     if (name === "orderId") {
       const v = String(value || "");
-      // If user includes any '#' or starts with '#MA' -> show inline error
       if (/#/i.test(v) || /^\s*#\s*ma/i.test(v)) {
         setOrderIdError(true);
         setOrderIdErrorMsg("Add order id without #MA");
@@ -196,10 +195,15 @@ const EscalationsPage = () => {
     });
   };
 
+
   const user = useMemo(() => {
-    try { return JSON.parse(sessionStorage.getItem("user")); }
-    catch { return null; }
+    try {
+      return JSON.parse(sessionStorage.getItem("user"));
+    } catch {
+      return null;
+    }
   }, []);
+
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -209,7 +213,6 @@ const EscalationsPage = () => {
         setLoading(false);
         return;
       }
-      // Optional: ensure there are some digits
       const digits = String(formData.orderId || "").replace(/\D/g, "");
       if (!digits) {
         setOrderIdError(true);
@@ -231,12 +234,15 @@ const EscalationsPage = () => {
         form.append("attachedFiles", file);
       });
 
+
       await axios.post(`${BACKEND_URL}/escalations`, form, {
         headers: { "Content-Type": "multipart/form-data" },
       });
 
+
       setOpenForm(false);
       fetchEscalations();
+
 
       setFormData({
         date: "",
@@ -258,10 +264,7 @@ const EscalationsPage = () => {
       setOrderIdErrorMsg("");
     } catch (error) {
       console.error("Failed to submit escalation", error);
-      const msg =
-        error?.response?.data?.error ||
-        error?.message ||
-        "";
+      const msg = error?.response?.data?.error || error?.message || "";
       if (/without\s*#MA/i.test(msg)) {
         setOrderIdError(true);
         setOrderIdErrorMsg("Add order id without #MA");
@@ -270,15 +273,16 @@ const EscalationsPage = () => {
     setLoading(false);
   };
 
+
   const updateLocalEscalation = (id, patch) => {
-    setEscalations((prev) =>
-      prev.map((e) => (e._id === id ? { ...e, ...patch } : e))
-    ); 
+    setEscalations((prev) => prev.map((e) => (e._id === id ? { ...e, ...patch } : e)));
   };
+
 
   const handleEditCell = async (id, field, value) => {
     const current = escalations.find((e) => e._id === id);
     if (!current) return;
+
 
     const next = {
       status: field === "status" ? value : current.status,
@@ -287,20 +291,19 @@ const EscalationsPage = () => {
       resolvedDate: field === "resolvedDate" ? value : current.resolvedDate,
     };
 
-    // Optimistic UI update
+
     updateLocalEscalation(id, next);
 
-    // Adjust filter immediately if needed
+
     if (showClosedOnly && next.status !== "Closed") {
       setShowClosedOnly(false);
     }
 
+
     try {
       await axios.put(`${BACKEND_URL}/escalations/${id}`, next);
-      // Success: nothing else to do (we already updated UI)
     } catch (err) {
       console.error("Failed to update escalation", err);
-      // Roll back on failure
       updateLocalEscalation(id, {
         status: current.status,
         assignedTo: current.assignedTo,
@@ -311,25 +314,11 @@ const EscalationsPage = () => {
   };
 
 
-  const calculateTimeDifference = (escalationDate) => {
-    const now = new Date();
-    const date = new Date(escalationDate);
-    const timeDifference = now - date;
-
-
-    // Difference in hours and days
-    const hoursDifference = timeDifference / (1000 * 3600); // Convert to hours
-    const daysDifference = timeDifference / (1000 * 3600 * 24); // Convert to days
-
-
-    return { hoursDifference, daysDifference };
-  };
-
-
   const handleOpenFile = (fileUrl) => {
     setFileToView(fileUrl);
     setOpenFileDialog(true);
   };
+
 
   return (
     <Box sx={{ padding: 3, bgcolor: "#fff", borderRadius: 2 }}>
@@ -357,13 +346,15 @@ const EscalationsPage = () => {
 
 
         <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
-          {/* NEW: Reason filter */}
           <TextField
             select
             size="small"
             label=""
             value={reasonFilter}
-            onChange={(e) => { setReasonFilter(e.target.value); setPage(0); }}
+            onChange={(e) => {
+              setReasonFilter(e.target.value);
+              setPage(0);
+            }}
             sx={{ minWidth: 240, bgcolor: "#fff" }}
             SelectProps={{ displayEmpty: true }}
           >
@@ -377,6 +368,7 @@ const EscalationsPage = () => {
             ))}
           </TextField>
 
+
           <Button
             variant={showClosedOnly ? "contained" : "outlined"}
             sx={{
@@ -389,13 +381,9 @@ const EscalationsPage = () => {
           </Button>
         </Box>
       </Box>
-      {/* Add New Escalation Form Dialog */}
-      <Dialog
-        open={openForm}
-        onClose={() => setOpenForm(false)}
-        maxWidth="sm"
-        fullWidth
-      >
+
+
+      <Dialog open={openForm} onClose={() => setOpenForm(false)} maxWidth="sm" fullWidth>
         <DialogTitle
           sx={{
             backgroundColor: "transparent",
@@ -459,9 +447,7 @@ const EscalationsPage = () => {
                 InputProps={{
                   disableUnderline: true,
                   sx: { backgroundColor: "#fff", borderRadius: 1, px: 1 },
-                  startAdornment: (
-                    <InputAdornment position="start">#MA</InputAdornment>
-                  ),
+                  startAdornment: <InputAdornment position="start">#MA</InputAdornment>,
                 }}
                 InputLabelProps={{
                   sx: {
@@ -471,6 +457,7 @@ const EscalationsPage = () => {
                   },
                 }}
               />
+
 
               <TextField
                 label="Name"
@@ -533,13 +520,9 @@ const EscalationsPage = () => {
                 }}
                 InputLabelProps={{
                   sx: {
-                    color: "rgba(0,0,0,0.6)", // default label color
-                    "&.Mui-focused": {
-                      color: "gray", // label color when focused
-                    },
-                    "&.MuiInputLabel-shrink": {
-                      color: "gray", // label color when shrunk (input filled)
-                    },
+                    color: "rgba(0,0,0,0.6)",
+                    "&.Mui-focused": { color: "gray" },
+                    "&.MuiInputLabel-shrink": { color: "gray" },
                   },
                 }}
               >
@@ -577,7 +560,6 @@ const EscalationsPage = () => {
               </TextField>
             </Box>
             <Box sx={{ display: "flex", gap: 2 }}>
-              {/* Amount */}
               <TextField
                 label="Amount"
                 name="amount"
@@ -601,7 +583,7 @@ const EscalationsPage = () => {
                 }}
               />
 
-              {/* Products (multi-select with checkboxes) */}
+
               <TextField
                 select
                 label="Products"
@@ -635,7 +617,6 @@ const EscalationsPage = () => {
                 {productOptions.map((opt) => (
                   <MenuItem key={opt.code} value={opt.code}>
                     <Checkbox checked={formData.products.indexOf(opt.code) > -1} />
-                    {/* Show short code prominently; full name as helper text/tooltip */}
                     <ListItemText
                       primary={
                         <Tooltip title={opt.label} placement="right">
@@ -664,13 +645,9 @@ const EscalationsPage = () => {
               }}
               InputLabelProps={{
                 sx: {
-                  color: "rgba(0,0,0,0.6)", // default label color
-                  "&.Mui-focused": {
-                    color: "gray", // label color when focused
-                  },
-                  "&.MuiInputLabel-shrink": {
-                    color: "gray", // label color when shrunk (input filled)
-                  },
+                  color: "rgba(0,0,0,0.6)",
+                  "&.Mui-focused": { color: "gray" },
+                  "&.MuiInputLabel-shrink": { color: "gray" },
                 },
               }}
             />
@@ -717,9 +694,7 @@ const EscalationsPage = () => {
             )}
 
 
-            <DialogActions
-              sx={{ px: 0, display: "flex", justifyContent: "space-between" }}
-            >
+            <DialogActions sx={{ px: 0, display: "flex", justifyContent: "space-between" }}>
               <Button
                 onClick={() => setOpenForm(false)}
                 disabled={loading}
@@ -733,9 +708,7 @@ const EscalationsPage = () => {
                 type="submit"
                 disabled={loading}
                 startIcon={
-                  loading ? (
-                    <CircularProgress size={20} color="inherit" />
-                  ) : null
+                  loading ? <CircularProgress size={20} color="inherit" /> : null
                 }
                 variant="contained"
                 sx={{ borderRadius: 1, px: 2, background: "black" }}
@@ -748,7 +721,6 @@ const EscalationsPage = () => {
       </Dialog>
 
 
-      {/* Escalations Table */}
       <TableContainer
         component={Paper}
         sx={{
@@ -813,17 +785,18 @@ const EscalationsPage = () => {
               </TableRow>
             ) : (
               escalations.map((esc, index) => {
-                // use createdAt as fallback if date is missing/strings are messy
                 const baseDate = esc.date ? new Date(esc.date) : new Date(esc.createdAt);
                 const now = new Date();
                 const hoursDifference = (now - baseDate) / (1000 * 3600);
                 const daysDifference = hoursDifference / 24;
+
 
                 let backgroundColor = "transparent";
                 if (esc.status !== "Closed") {
                   if (daysDifference > 3) backgroundColor = "lightcoral";
                   else if (hoursDifference > 48) backgroundColor = "orange";
                 }
+
 
                 return (
                   <TableRow
@@ -841,35 +814,53 @@ const EscalationsPage = () => {
                     </TableCell>
                     <TableCell align="center">{esc.date}</TableCell>
                     <TableCell align="center">{esc.orderId}</TableCell>
+
+
                     <TableCell align="center">
                       {esc.trackingId ? (
-                        <a
-                          href={`https://track.shipway.com/t/${encodeURIComponent(esc.trackingId)}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          style={{ color: "black", textDecoration: "underline" }}
-                        >
-                          {esc.trackingId}
-                        </a>
+                        <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0.5 }}>
+                          <a
+                            href={`https://track.shipway.com/t/${encodeURIComponent(esc.trackingId)}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{ color: "black", textDecoration: "underline", fontWeight: 500 }}
+                          >
+                            {esc.trackingId}
+                          </a>
+                          {esc.shipmentStatus && (
+                            <Typography
+                              variant="caption"
+                              sx={{
+                                color: "#333", // Darker for better clarity
+                                fontSize: "0.75rem",
+                                fontWeight: "bold", // Bold as requested
+                                fontStyle: "normal", // Removed italic to fix blurriness
+                              }}
+                            >
+                              ({esc.shipmentStatus})
+                            </Typography>
+                          )}
+                        </Box>
                       ) : (
                         "-"
                       )}
                     </TableCell>
+
+
                     <TableCell align="center">{esc.name}</TableCell>
                     <TableCell align="center">{esc.contactNumber}</TableCell>
                     <TableCell align="center">{esc.agentName}</TableCell>
                     <TableCell align="center">{esc.amount ?? "-"}</TableCell>
                     <TableCell align="center">
-                      {Array.isArray(esc.products) && esc.products.length > 0
-                        ? (
-                          <Box sx={{ display: "inline-flex", gap: 0.5, flexWrap: "wrap", justifyContent: "center" }}>
-                            {esc.products.map((p, i) => (
-                              <Chip key={`${esc._id}-p-${i}`} label={p} size="small" sx={{ bgcolor: "#000", color: "#fff" }} />
-                            ))}
-                          </Box>
-                        )
-                        : "-"
-                      }
+                      {Array.isArray(esc.products) && esc.products.length > 0 ? (
+                        <Box sx={{ display: "inline-flex", gap: 0.5, flexWrap: "wrap", justifyContent: "center" }}>
+                          {esc.products.map((p, i) => (
+                            <Chip key={`${esc._id}-p-${i}`} label={p} size="small" sx={{ bgcolor: "#000", color: "#fff" }} />
+                          ))}
+                        </Box>
+                      ) : (
+                        "-"
+                      )}
                     </TableCell>
                     <TableCell align="center">{esc.reason || "-"}</TableCell>
                     <TableCell
@@ -883,8 +874,7 @@ const EscalationsPage = () => {
                       {esc.query.match(/.{1,100}/g)?.join("\n")}
                     </TableCell>
                     <TableCell align="center" sx={{ whiteSpace: "nowrap" }}>
-                      {esc.attachedFileUrls &&
-                        esc.attachedFileUrls.length > 0 ? (
+                      {esc.attachedFileUrls && esc.attachedFileUrls.length > 0 ? (
                         esc.attachedFileUrls.map((url, idx) => (
                           <Button
                             key={idx}
@@ -904,26 +894,20 @@ const EscalationsPage = () => {
                           </Button>
                         ))
                       ) : (
-                        <Typography
-                          variant="body2"
-                          sx={{ fontStyle: "italic", color: "text.secondary" }}
-                        >
+                        <Typography variant="body2" sx={{ fontStyle: "italic", color: "text.secondary" }}>
                           No File
                         </Typography>
                       )}
                     </TableCell>
 
 
-                    {/* Editable only for Manager */}
                     <TableCell align="center">
                       {user?.role === "Manager" || user?.role === "Operations" ? (
                         <TextField
                           select
                           size="small"
                           value={esc.status}
-                          onChange={(e) =>
-                            handleEditCell(esc._id, "status", e.target.value)
-                          }
+                          onChange={(e) => handleEditCell(esc._id, "status", e.target.value)}
                           sx={{ minWidth: 100 }}
                         >
                           {statusOptions.map((opt) => (
@@ -942,13 +926,7 @@ const EscalationsPage = () => {
                           select
                           size="small"
                           value={esc.assignedTo}
-                          onChange={(e) =>
-                            handleEditCell(
-                              esc._id,
-                              "assignedTo",
-                              e.target.value
-                            )
-                          }
+                          onChange={(e) => handleEditCell(esc._id, "assignedTo", e.target.value)}
                           sx={{ minWidth: 130 }}
                         >
                           {allowedAssignees.map((emp) => (
@@ -961,6 +939,7 @@ const EscalationsPage = () => {
                         esc.assignedTo
                       )}
                     </TableCell>
+
 
                     <TableCell sx={{ minWidth: 350 }}>
                       {user?.role === "Manager" || user?.role === "Operations" ? (
@@ -992,13 +971,7 @@ const EscalationsPage = () => {
                           type="date"
                           size="small"
                           value={esc.resolvedDate || ""}
-                          onChange={(e) =>
-                            handleEditCell(
-                              esc._id,
-                              "resolvedDate",
-                              e.target.value
-                            )
-                          }
+                          onChange={(e) => handleEditCell(esc._id, "resolvedDate", e.target.value)}
                           InputLabelProps={{ shrink: true }}
                           sx={{ minWidth: 180 }}
                         />
@@ -1030,21 +1003,20 @@ const EscalationsPage = () => {
         </Table>
         <TablePagination
           component="div"
-          count={totalCount}                 // <— use server count
+          count={totalCount}
           page={page}
           onPageChange={(e, newPage) => setPage(newPage)}
           rowsPerPage={rowsPerPage}
-          onRowsPerPageChange={(e) => { setRowsPerPage(parseInt(e.target.value, 10)); setPage(0); }}
+          onRowsPerPageChange={(e) => {
+            setRowsPerPage(parseInt(e.target.value, 10));
+            setPage(0);
+          }}
           rowsPerPageOptions={[25, 50, 100, 200]}
         />
       </TableContainer>
 
-      <Dialog
-        open={deleteDialogOpen}
-        onClose={handleCancelDelete}
-        maxWidth="xs"
-        fullWidth
-      >
+
+      <Dialog open={deleteDialogOpen} onClose={handleCancelDelete} maxWidth="xs" fullWidth>
         <DialogTitle>
           <Box display="flex" alignItems="center" gap={1} color="error.main">
             <WarningAmber fontSize="medium" />
@@ -1052,32 +1024,20 @@ const EscalationsPage = () => {
           </Box>
         </DialogTitle>
         <DialogContent>
-          <Typography>
-            Are you sure you want to delete this escalation?
-          </Typography>
+          <Typography>Are you sure you want to delete this escalation?</Typography>
         </DialogContent>
         <DialogActions sx={{ justifyContent: "space-between", px: 2, pb: 1 }}>
-          <Button onClick={handleCancelDelete} color="black">
+          <button onClick={handleCancelDelete} style={{ background: 'none', border: 'none', color: 'black', cursor: 'pointer' }}>
             Cancel
-          </Button>
-          <Button
-            onClick={handleConfirmDelete}
-            color="error"
-            variant="contained"
-          >
+          </button>
+          <Button onClick={handleConfirmDelete} color="error" variant="contained">
             Delete
           </Button>
         </DialogActions>
       </Dialog>
 
 
-      {/* File Preview Dialog */}
-      <Dialog
-        open={openFileDialog}
-        onClose={() => setOpenFileDialog(false)}
-        maxWidth="md"
-        fullWidth
-      >
+      <Dialog open={openFileDialog} onClose={() => setOpenFileDialog(false)} maxWidth="md" fullWidth>
         <DialogTitle sx={{ fontWeight: "bold", color: "black" }}>
           File Preview
           <IconButton
@@ -1114,3 +1074,4 @@ const EscalationsPage = () => {
 
 
 export default EscalationsPage;
+
