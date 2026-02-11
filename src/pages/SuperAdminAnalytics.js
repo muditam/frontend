@@ -1012,8 +1012,6 @@ function LostCustomersCard({ lost }) {
 
 function OrdersFunnelCard({ data }) {
 
-    console.log('🔍 Funnel received data:', data); // Debug log
-
     // 🔥 FIXED: Map data to show Fulfilled → Delivered → RTO funnel
     const funnelData = [
         {
@@ -1566,8 +1564,7 @@ export default function SuperAdminAnalytics() {
 
             // ✅ CORRECT: Store entire API response directly
             // The API now returns: { totalOrders, fulfilled, delivered, rto }
-            setFunnelStats(ovRes.data || {});
-            console.log('✅ Funnel Stats:', ovRes.data);
+            setFunnelStats(ovRes.data || {}); 
 
             const dietRes = await axios.get(`${API}/api/super-admin/analytics/diet-plans`, { params: { start, end } });
             setDietStats(dietRes.data || { totalDietPlans: 0 });

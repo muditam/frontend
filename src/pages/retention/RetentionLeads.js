@@ -817,13 +817,11 @@ const RetentionLeads = () => {
         async: 1,
         agent_number: agentNumber.toString().trim(),
         caller_id: callerId.toString().trim(),
-      };
-      console.log("Sending API Request to Backend:", requestBody);
+      }; 
       const response = await axios.post(
         "https://muditamleads-14f32a10d7f7.herokuapp.com/api/click_to_call",
         requestBody
-      );
-      console.log("Backend Response:", response.data);
+      ); 
       if (response.data.status === "success") {
         setCallingMessage(`Successfully called ${contactNumber}`);
       } else {

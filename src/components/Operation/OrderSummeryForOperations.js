@@ -49,7 +49,7 @@ const REMARK_OPTIONS = [
 const getStatusColor = (status) => {
   const s = status?.toLowerCase() || "";
   if (s.includes("delivered")) return "success";
-  if (s.includes("out for delivery")) return "info"; // This is usually blue
+  if (s.includes("out for delivery")) return "info";
   if (s.includes("rto") || s.includes("fail")) return "error";
   if (s.includes("pick")) return "secondary";
   return "default";
@@ -70,7 +70,7 @@ const UndeliveredOrders = () => {
   const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(false);
   const [callingMessage, setCallingMessage] = useState("");
-  const [viewTab, setViewTab] = useState(0);
+  const [viewTab, setViewTab] = useState(0); // 0 = Pending, 1 = Processed
   const [employees, setEmployees] = useState([]);
 
 
@@ -93,9 +93,12 @@ const UndeliveredOrders = () => {
   }, []);
 
 
+  // ✅ FIX: fetchOrders now sends viewTab to backend for server-side filtering
   const fetchOrders = useCallback(async () => {
     setLoading(true);
     try {
+      const viewTabParam = viewTab === 0 ? 'pending' : 'processed';
+     
       const res = await axios.get(`${API_BASE}/api/operations/undelivered-orders`, {
         params: {
           page: page + 1,
@@ -104,43 +107,37 @@ const UndeliveredOrders = () => {
           carrier: selectedCarrier || undefined,
           startDate: startDate || undefined,
           endDate: endDate || undefined,
+          viewTab: viewTabParam, // ✅ Send to backend
+          selectedAgent: viewTab === 1 ? (selectedAgent || undefined) : undefined, // ✅ Only for processed tab
         },
       });
+     
       setOrders(res.data.orders || []);
       setTotalCount(res.data.totalCount || 0);
       setStatusCounts(res.data.statusCounts || []);
       setCarriers(res.data.carriers || []);
     } catch (err) {
       console.error("Failed to fetch orders:", err);
+      setCallingMessage("Error loading orders");
+      setTimeout(() => setCallingMessage(""), 3000);
     } finally {
       setLoading(false);
     }
-  }, [page, limit, selectedStatus, selectedCarrier, startDate, endDate]);
+  }, [page, limit, selectedStatus, selectedCarrier, startDate, endDate, viewTab, selectedAgent]);
 
 
   useEffect(() => { fetchOrders(); }, [fetchOrders]);
   useEffect(() => { fetchEmployees(); }, [fetchEmployees]);
-  useEffect(() => { setPage(0); }, [viewTab]);
-  useEffect(() => { setPage(0); }, [selectedStatus, selectedCarrier, startDate, endDate, selectedAgent]);
+ 
+  // ✅ FIX: Reset page when filters or viewTab change
+  useEffect(() => {
+    setPage(0);
+  }, [viewTab, selectedStatus, selectedCarrier, startDate, endDate, selectedAgent]);
 
 
-  const visibleOrders = useMemo(() => {
-    const hasRemark = (o) => String(o.opsRemark || "").trim().length > 0;
-    let filtered = viewTab === 0
-      ? orders.filter((o) => !hasRemark(o))
-      : orders.filter((o) => hasRemark(o));
-
-
-    if (viewTab === 1 && selectedAgent) {
-      filtered = filtered.filter((o) => String(o.assignedAgentId || "") === selectedAgent);
-    }
-
-
-    return filtered;
-  }, [orders, viewTab, selectedAgent]);
-
-
-  const visibleCount = useMemo(() => visibleOrders.length, [visibleOrders]);
+  // ✅ REMOVED: Client-side filtering - now done on server
+  const visibleOrders = orders; // All filtering is server-side now
+  const visibleCount = totalCount; // Use server-provided count
 
 
   const patchLocalByOrderId = useCallback((order_id, patch) => {
@@ -148,29 +145,58 @@ const UndeliveredOrders = () => {
   }, []);
 
 
+  // ✅ FIX: saveOpsMeta now uses the new PATCH endpoint
   const saveOpsMeta = useCallback(async (order, patch) => {
-    return axios.patch(`${API_BASE}/api/orders/ops-meta/by-order-id`, {
-      order_id: order.order_id,
-      ...patch,
-    });
+    try {
+      const response = await axios.patch(`${API_BASE}/api/operations/ops-meta/by-order-id`, {
+        order_id: order.order_id,
+        ...patch,
+      });
+      return response.data;
+    } catch (error) {
+      console.error("Failed to save ops metadata:", error);
+      throw error;
+    }
   }, []);
 
 
+  // ✅ FIX: handleRemarkChange with proper error handling and refetch
   const handleRemarkChange = useCallback(
     async (order, value) => {
       const remark = String(value || "").trim();
+     
+      // Optimistic update
       patchLocalByOrderId(order.order_id, {
         opsRemark: remark,
-        assignedAgentId: null,
         last_updated_at: new Date().toISOString(),
       });
 
 
       try {
-        await saveOpsMeta(order, { opsRemark: remark, assignedAgentId: null });
-        if (remark) { setViewTab(1); setPage(0); } else { setViewTab(0); setPage(0); }
+        await saveOpsMeta(order, {
+          opsRemark: remark,
+          // ✅ FIX: Don't clear assignedAgentId when setting remark
+        });
+       
+        setCallingMessage(`Remark ${remark ? 'saved' : 'removed'} successfully`);
+        setTimeout(() => setCallingMessage(""), 2000);
+       
+        // ✅ FIX: Refetch to update the list properly
+        if (remark) {
+          // Moving to processed - switch tab after save
+          setTimeout(() => {
+            setViewTab(1);
+            setPage(0);
+          }, 500);
+        } else {
+          // Clearing remark - refetch current view
+          fetchOrders();
+        }
       } catch (e) {
         console.error("Failed to save remark", e);
+        setCallingMessage("Error saving remark");
+        setTimeout(() => setCallingMessage(""), 3000);
+        // Revert optimistic update
         fetchOrders();
       }
     },
@@ -178,13 +204,25 @@ const UndeliveredOrders = () => {
   );
 
 
+  // ✅ FIX: handleAssignAgent with proper error handling
   const handleAssignAgent = useCallback(async (order, agentId) => {
     const assignedAgentId = agentId ? String(agentId) : null;
-    patchLocalByOrderId(order.order_id, { assignedAgentId, last_updated_at: new Date().toISOString() });
+   
+    // Optimistic update
+    patchLocalByOrderId(order.order_id, {
+      assignedAgentId,
+      last_updated_at: new Date().toISOString()
+    });
+   
     try {
       await saveOpsMeta(order, { assignedAgentId });
+      setCallingMessage("Agent assigned successfully");
+      setTimeout(() => setCallingMessage(""), 2000);
     } catch (e) {
       console.error("Failed to assign agent", e);
+      setCallingMessage("Error assigning agent");
+      setTimeout(() => setCallingMessage(""), 3000);
+      // Revert optimistic update
       fetchOrders();
     }
   }, [patchLocalByOrderId, saveOpsMeta, fetchOrders]);
@@ -194,10 +232,22 @@ const UndeliveredOrders = () => {
     setCallingMessage(`Initiating call to ${contactNumber}...`);
     try {
       const loggedInUser = JSON.parse(sessionStorage.getItem("user"));
-      if (!loggedInUser) { setCallingMessage("Error: User not logged in."); return; }
+      if (!loggedInUser) {
+        setCallingMessage("Error: User not logged in.");
+        setTimeout(() => setCallingMessage(""), 3000);
+        return;
+      }
+     
       const agentNumber = loggedInUser.phone || loggedInUser.agentNumber || "";
       const callerId = process.env.REACT_APP_CALLER_ID || "";
-      const requestBody = { destination_number: contactNumber, async: 1, agent_number: agentNumber.toString().trim(), caller_id: callerId.toString().trim() };
+     
+      const requestBody = {
+        destination_number: contactNumber,
+        async: 1,
+        agent_number: agentNumber.toString().trim(),
+        caller_id: callerId.toString().trim()
+      };
+     
       const response = await axios.post(`${API_BASE}/api/click_to_call`, requestBody);
       setCallingMessage(response.data.status === "success" ? `Connected to ${contactNumber}` : "Call failed.");
     } catch (error) {
@@ -210,10 +260,24 @@ const UndeliveredOrders = () => {
   const handleExportCSV = useCallback(() => {
     try {
       const getAgentName = (agentId) => {
+        if (!agentId) return "Unassigned";
         const agent = employees.find(e => e._id === agentId);
         return agent ? agent.fullName : "Unassigned";
       };
-      const headers = ["Order ID", "Customer Name", "Contact Number", "Tracking Number", "Carrier", "Shipment Status", "Order Date", "Ops Remark", "Assigned Agent", "Last Updated"];
+     
+      const headers = [
+        "Order ID",
+        "Customer Name",
+        "Contact Number",
+        "Tracking Number",
+        "Carrier",
+        "Shipment Status",
+        "Order Date",
+        "Ops Remark",
+        "Assigned Agent",
+        "Last Updated"
+      ];
+     
       const rows = visibleOrders.map(order => [
         order.order_id || "",
         order.full_name || "",
@@ -226,20 +290,28 @@ const UndeliveredOrders = () => {
         getAgentName(order.assignedAgentId),
         order.last_updated_at ? dayjs(order.last_updated_at).format("DD/MM/YYYY HH:mm") : ""
       ]);
-      const csvContent = [headers.join(","), ...rows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(","))].join("\n");
+     
+      const csvContent = [
+        headers.join(","),
+        ...rows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(","))
+      ].join("\n");
+     
       const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
       const link = document.createElement("a");
       const url = URL.createObjectURL(blob);
       const fileName = `processed_orders_${dayjs().format("YYYY-MM-DD_HH-mm")}.csv`;
+     
       link.setAttribute("href", url);
       link.setAttribute("download", fileName);
       link.style.visibility = "hidden";
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
+     
       setCallingMessage(`Exported ${visibleOrders.length} orders to ${fileName}`);
       setTimeout(() => setCallingMessage(""), 3000);
     } catch (error) {
+      console.error("Export error:", error);
       setCallingMessage("Error exporting CSV file");
       setTimeout(() => setCallingMessage(""), 3000);
     }
@@ -279,7 +351,11 @@ const UndeliveredOrders = () => {
           <Box sx={{ bgcolor: "#fff", borderRadius: 2, p: 0.5, boxShadow: "0 2px 4px rgba(0,0,0,0.05)" }}>
             <Tabs
               value={viewTab}
-              onChange={(e, v) => { setViewTab(v); setPage(0); setSelectedAgent(""); }}
+              onChange={(e, v) => {
+                setViewTab(v);
+                setPage(0);
+                setSelectedAgent("");
+              }}
               sx={{ minHeight: 40, "& .MuiTab-root": { minHeight: 40, px: 3, fontWeight: 600, textTransform: "none" } }}
             >
               <Tab label="Pending" />
@@ -301,16 +377,48 @@ const UndeliveredOrders = () => {
       <Card sx={{ p: 2, mb: 3, borderRadius: 3, boxShadow: "0 4px 20px rgba(0,0,0,0.05)" }}>
         <Stack spacing={2}>
           <Stack direction="row" spacing={2} flexWrap="wrap" alignItems="center">
-            <TextField label="Start Date" type="date" size="small" InputLabelProps={{ shrink: true }} value={startDate} onChange={(e) => setStartDate(e.target.value)} sx={{ width: 180 }} />
-            <TextField label="End Date" type="date" size="small" InputLabelProps={{ shrink: true }} value={endDate} onChange={(e) => setEndDate(e.target.value)} sx={{ width: 180 }} />
-            <TextField select label="Carrier" size="small" value={selectedCarrier} onChange={(e) => setSelectedCarrier(e.target.value)} sx={{ minWidth: 200 }} InputProps={{ startAdornment: <ShippingIcon sx={{ mr: 1, color: "action.active" }} fontSize="small" /> }}>
+            <TextField
+              label="Start Date"
+              type="date"
+              size="small"
+              InputLabelProps={{ shrink: true }}
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              sx={{ width: 180 }}
+            />
+            <TextField
+              label="End Date"
+              type="date"
+              size="small"
+              InputLabelProps={{ shrink: true }}
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+              sx={{ width: 180 }}
+            />
+            <TextField
+              select
+              label="Carrier"
+              size="small"
+              value={selectedCarrier}
+              onChange={(e) => setSelectedCarrier(e.target.value)}
+              sx={{ minWidth: 200 }}
+              InputProps={{ startAdornment: <ShippingIcon sx={{ mr: 1, color: "action.active" }} fontSize="small" /> }}
+            >
               <MenuItem value="">All Carriers</MenuItem>
               {carriers.map((c) => <MenuItem key={c} value={c}>{c}</MenuItem>)}
             </TextField>
 
 
             {viewTab === 1 && (
-              <TextField select label="Assigned Agent" size="small" value={selectedAgent} onChange={(e) => setSelectedAgent(e.target.value)} sx={{ minWidth: 220 }} InputProps={{ startAdornment: <PersonIcon sx={{ mr: 1, color: "action.active" }} fontSize="small" /> }}>
+              <TextField
+                select
+                label="Assigned Agent"
+                size="small"
+                value={selectedAgent}
+                onChange={(e) => setSelectedAgent(e.target.value)}
+                sx={{ minWidth: 220 }}
+                InputProps={{ startAdornment: <PersonIcon sx={{ mr: 1, color: "action.active" }} fontSize="small" /> }}
+              >
                 <MenuItem value="">All Agents</MenuItem>
                 <MenuItem value="unassigned">Unassigned</MenuItem>
                 {assignableAgents.map((agent) => (
@@ -320,15 +428,27 @@ const UndeliveredOrders = () => {
             )}
            
             <Box sx={{ flexGrow: 1 }} />
-            <Button startIcon={<RefreshIcon />} onClick={() => { setSelectedCarrier(""); setSelectedStatus(""); setSelectedAgent(""); setStartDate(""); setEndDate(""); setPage(0); }} variant="outlined" color="inherit" sx={{ borderRadius: 2, textTransform: "none" }}>Reset</Button>
+            <Button
+              startIcon={<RefreshIcon />}
+              onClick={() => {
+                setSelectedCarrier("");
+                setSelectedStatus("");
+                setSelectedAgent("");
+                setStartDate("");
+                setEndDate("");
+                setPage(0);
+              }}
+              variant="outlined"
+              color="inherit"
+              sx={{ borderRadius: 2, textTransform: "none" }}
+            >
+              Reset
+            </Button>
           </Stack>
-
 
           <Divider />
 
-
           <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-            {/* ✅ ALL ORDERS CHIP: Updated to Black Background */}
             <Chip
               label={`All Orders (${totalAll})`}
               onClick={() => setSelectedStatus("")}
@@ -338,7 +458,6 @@ const UndeliveredOrders = () => {
                 ...( !selectedStatus && { bgcolor: "black", color: "white", "&:hover": { bgcolor: "#333" } })
               }}
             />
-            {/* ✅ STATUS FILTER CHIPS: Updated to Black Background when active */}
             {statusCounts.map((s) => (
               <Chip
                 key={s.shipment_status}
@@ -373,7 +492,7 @@ const UndeliveredOrders = () => {
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={11} align="center" sx={{ py: 10 }}>
+                  <TableCell colSpan={viewTab === 1 ? 11 : 10} align="center" sx={{ py: 10 }}>
                     <CircularProgress size={30} thickness={5} />
                     <Typography sx={{ mt: 2 }} color="text.secondary">Fetching data...</Typography>
                   </TableCell>
@@ -388,7 +507,11 @@ const UndeliveredOrders = () => {
                         <Typography variant="body2">{order.contact_number || "-"}</Typography>
                         {order.contact_number && (
                           <Tooltip title="Call Customer">
-                            <IconButton size="small" onClick={() => handleCallIconClick(order.contact_number)} sx={{ bgcolor: "#f0fdf4", "&:hover": { bgcolor: "#dcfce7" } }}>
+                            <IconButton
+                              size="small"
+                              onClick={() => handleCallIconClick(order.contact_number)}
+                              sx={{ bgcolor: "#f0fdf4", "&:hover": { bgcolor: "#dcfce7" } }}
+                            >
                               <PhoneIcon fontSize="inherit" sx={{ color: "#16a34a" }} />
                             </IconButton>
                           </Tooltip>
@@ -397,14 +520,18 @@ const UndeliveredOrders = () => {
                     </TableCell>
                     <TableCell>
                       {order.tracking_number ? (
-                        <Typography component="a" href={`https://track.shipway.com/t/${order.tracking_number}`} target="_blank" sx={{ color: "primary.main", textDecoration: "none", fontWeight: 500, "&:hover": { textDecoration: "underline" } }}>
+                        <Typography
+                          component="a"
+                          href={`https://track.shipway.com/t/${order.tracking_number}`}
+                          target="_blank"
+                          sx={{ color: "primary.main", textDecoration: "none", fontWeight: 500, "&:hover": { textDecoration: "underline" } }}
+                        >
                           {order.tracking_number}
                         </Typography>
                       ) : "-"}
                     </TableCell>
                     <TableCell>{order.carrier_title || "-"}</TableCell>
                     <TableCell>
-                      {/* ✅ TABLE CHIP: Updated 'info' status to Black/White */}
                       <Chip
                         label={order.shipment_status}
                         size="small"
@@ -416,40 +543,70 @@ const UndeliveredOrders = () => {
                         }}
                       />
                     </TableCell>
-                    <TableCell sx={{ whiteSpace: "nowrap" }}>{order.order_date ? dayjs(order.order_date).format("DD MMM, YYYY") : "-"}</TableCell>
+                    <TableCell sx={{ whiteSpace: "nowrap" }}>
+                      {order.order_date ? dayjs(order.order_date).format("DD MMM, YYYY") : "-"}
+                    </TableCell>
                     <TableCell sx={{ minWidth: 200 }}>
-                      <TextField select fullWidth size="small" value={order.opsRemark || ""} onChange={(e) => handleRemarkChange(order, e.target.value)} sx={{ "& .MuiOutlinedInput-root": { borderRadius: 2 } }}>
+                      <TextField
+                        select
+                        fullWidth
+                        size="small"
+                        value={order.opsRemark || ""}
+                        onChange={(e) => handleRemarkChange(order, e.target.value)}
+                        sx={{ "& .MuiOutlinedInput-root": { borderRadius: 2 } }}
+                      >
                         <MenuItem value=""><em>None</em></MenuItem>
                         {REMARK_OPTIONS.map((r) => <MenuItem key={r} value={r}>{r}</MenuItem>)}
                       </TextField>
                     </TableCell>
                     {viewTab === 1 && (
                       <TableCell sx={{ minWidth: 220 }}>
-                        <TextField select fullWidth size="small" value={order.assignedAgentId || order.agentId || ""} onChange={(e) => handleAssignAgent(order, e.target.value)} sx={{ "& .MuiOutlinedInput-root": { borderRadius: 2 } }}>
+                        <TextField
+                          select
+                          fullWidth
+                          size="small"
+                          value={order.assignedAgentId || ""}
+                          onChange={(e) => handleAssignAgent(order, e.target.value)}
+                          sx={{ "& .MuiOutlinedInput-root": { borderRadius: 2 } }}
+                        >
                           <MenuItem value=""><em>Unassigned</em></MenuItem>
                           {assignableAgents.map((a) => (
-                            <MenuItem key={a._id} value={a._id}>{a.fullName} <Typography variant="caption" sx={{ ml: 1, color: "text.disabled" }}>({a.role})</Typography></MenuItem>
+                            <MenuItem key={a._id} value={a._id}>
+                              {a.fullName} <Typography variant="caption" sx={{ ml: 1, color: "text.disabled" }}>({a.role})</Typography>
+                            </MenuItem>
                           ))}
                         </TextField>
                       </TableCell>
                     )}
-                    <TableCell sx={{ color: "text.secondary", fontSize: "0.8rem" }}>{order.last_updated_at ? dayjs(order.last_updated_at).format("DD/MM/YY HH:mm") : "-"}</TableCell>
+                    <TableCell sx={{ color: "text.secondary", fontSize: "0.8rem" }}>
+                      {order.last_updated_at ? dayjs(order.last_updated_at).format("DD/MM/YY HH:mm") : "-"}
+                    </TableCell>
                   </TableRow>
                 ))
               ) : (
-                <TableRow><TableCell colSpan={11} align="center" sx={{ py: 8 }}><Typography color="text.secondary">No matching orders found.</Typography></TableCell></TableRow>
+                <TableRow>
+                  <TableCell colSpan={viewTab === 1 ? 11 : 10} align="center" sx={{ py: 8 }}>
+                    <Typography color="text.secondary">No matching orders found.</Typography>
+                  </TableCell>
+                </TableRow>
               )}
             </TableBody>
           </Table>
         </TableContainer>
 
-
-        <TablePagination component="div" count={visibleCount} page={page} onPageChange={(e, newPage) => setPage(newPage)} rowsPerPage={limit} onRowsPerPageChange={(e) => { setLimit(parseInt(e.target.value, 10)); setPage(0); }} rowsPerPageOptions={[25, 50, 100]} sx={{ borderTop: "1px solid #f1f3f5" }} />
+        <TablePagination
+          component="div"
+          count={visibleCount}
+          page={page}
+          onPageChange={(e, newPage) => setPage(newPage)}
+          rowsPerPage={limit}
+          onRowsPerPageChange={(e) => { setLimit(parseInt(e.target.value, 10)); setPage(0); }}
+          rowsPerPageOptions={[25, 50, 100]}
+          sx={{ borderTop: "1px solid #f1f3f5" }}
+        />
       </Paper>
     </Box>
   );
 };
 
-
 export default UndeliveredOrders;
-
