@@ -1360,6 +1360,20 @@ const MenuBar = ({ toggleDrawer }) => {
                     </Typography>
                   </ListItem>
                 )}
+
+                {can("bankKotak") && (
+                  <ListItem
+                    button
+                    component={Link}
+                    to="/BankKotak"
+                    onClick={toggleDrawer}
+                  >
+                    <Typography variant="body2" sx={{ fontSize: "13px" }}>
+                      Bank - Kotak
+                    </Typography>
+                  </ListItem>
+                )}
+
               </List>
             </Collapse>
           </>

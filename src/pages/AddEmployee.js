@@ -131,6 +131,7 @@ const DEFAULT_PERMISSIONS = {
     bankSbi8285: false,
     bankYesCcTejasv: false,
     bankYesCcAbhay: false,
+    bankKotak: false,
 
 
     // Operations
@@ -1487,6 +1488,7 @@ const AddEmployee = () => {
                   ["bankSbi8285", "SBI Current 8285"],
                   ["bankYesCcTejasv", "Yes CC - Tejasv"],
                   ["bankYesCcAbhay", "Yes CC - Abhay"],
+                  ["bankKotak", "Bank - Kotak"],
                 ].map(([key, label]) => (
                   <FormControlLabel
                     key={key}

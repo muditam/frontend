@@ -22,6 +22,8 @@ import {
   Tab,
   Divider,
   Card,
+  Autocomplete,
+  Badge,
 } from "@mui/material";
 import {
   Phone as PhoneIcon,
@@ -29,6 +31,7 @@ import {
   LocalShipping as ShippingIcon,
   FileDownload as DownloadIcon,
   Person as PersonIcon,
+  ShoppingBag as OrderIcon,
 } from "@mui/icons-material";
 import axios from "axios";
 import dayjs from "dayjs";
@@ -36,13 +39,20 @@ import dayjs from "dayjs";
 
 const API_BASE = "https://muditamleads-14f32a10d7f7.herokuapp.com";
 
-
-const REMARK_OPTIONS = [
-  "Ringing",
-  "Fake Remark",
-  "Hold",
-  "Consignee don't want to order",
-];
+ 
+const REMARK_OPTIONS = {
+  "Out for Delivery": [
+    "Ringing",
+    "Ready to Receive",
+    "Hold",
+  ],
+  default: [
+    "Ringing",
+    "Fake Remark",
+    "Hold",
+    "Consignee don't want to order",
+  ],
+};
 
 
 // Helper for status chip colors
@@ -62,7 +72,7 @@ const UndeliveredOrders = () => {
   const [carriers, setCarriers] = useState([]);
   const [selectedStatus, setSelectedStatus] = useState("");
   const [selectedCarrier, setSelectedCarrier] = useState("");
-  const [selectedAgent, setSelectedAgent] = useState("");
+  const [selectedAgent, setSelectedAgent] = useState(null);
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [page, setPage] = useState(0);
@@ -70,15 +80,15 @@ const UndeliveredOrders = () => {
   const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(false);
   const [callingMessage, setCallingMessage] = useState("");
-  const [viewTab, setViewTab] = useState(0); // 0 = Pending, 1 = Processed
+  const [viewTab, setViewTab] = useState(0);  
   const [employees, setEmployees] = useState([]);
-
-
+  const [orderCounts, setOrderCounts] = useState({});  
+  const [phoneToAgentMap, setPhoneToAgentMap] = useState({});  
+ 
   const assignableAgents = useMemo(() => {
     return (employees || []).filter((e) => {
-      const role = String(e.role || "").toLowerCase();
       const status = String(e.status || "active").toLowerCase();
-      return status === "active" && (role.includes("sales") || role.includes("retention"));
+      return status === "active";
     });
   }, [employees]);
 
@@ -87,13 +97,31 @@ const UndeliveredOrders = () => {
     try {
       const res = await axios.get(`${API_BASE}/api/employees`);
       setEmployees(res.data || []);
+      
+      const phoneMap = {};
+      (res.data || []).forEach(emp => {
+        if (emp.phone && emp.status?.toLowerCase() === "active") {
+          phoneMap[emp.phone] = emp._id;
+        }
+      });
+      setPhoneToAgentMap(phoneMap);
     } catch (e) {
       console.error("Failed to fetch employees", e);
     }
   }, []);
 
 
-  // ✅ FIX: fetchOrders now sends viewTab to backend for server-side filtering
+  // ✅ Fetch order counts for each contact number
+  const fetchOrderCounts = useCallback(async () => {
+    try {
+      const res = await axios.get(`${API_BASE}/api/operations/order-counts`);
+      setOrderCounts(res.data || {});
+    } catch (e) {
+      console.error("Failed to fetch order counts", e);
+    }
+  }, []);
+
+
   const fetchOrders = useCallback(async () => {
     setLoading(true);
     try {
@@ -107,8 +135,8 @@ const UndeliveredOrders = () => {
           carrier: selectedCarrier || undefined,
           startDate: startDate || undefined,
           endDate: endDate || undefined,
-          viewTab: viewTabParam, // ✅ Send to backend
-          selectedAgent: viewTab === 1 ? (selectedAgent || undefined) : undefined, // ✅ Only for processed tab
+          viewTab: viewTabParam,
+          selectedAgent: viewTab === 1 ? (selectedAgent?._id || undefined) : undefined,
         },
       });
      
@@ -128,16 +156,15 @@ const UndeliveredOrders = () => {
 
   useEffect(() => { fetchOrders(); }, [fetchOrders]);
   useEffect(() => { fetchEmployees(); }, [fetchEmployees]);
+  useEffect(() => { fetchOrderCounts(); }, [fetchOrderCounts]); // ✅ Fetch order counts
  
-  // ✅ FIX: Reset page when filters or viewTab change
   useEffect(() => {
     setPage(0);
   }, [viewTab, selectedStatus, selectedCarrier, startDate, endDate, selectedAgent]);
 
 
-  // ✅ REMOVED: Client-side filtering - now done on server
-  const visibleOrders = orders; // All filtering is server-side now
-  const visibleCount = totalCount; // Use server-provided count
+  const visibleOrders = orders;
+  const visibleCount = totalCount;
 
 
   const patchLocalByOrderId = useCallback((order_id, patch) => {
@@ -145,7 +172,6 @@ const UndeliveredOrders = () => {
   }, []);
 
 
-  // ✅ FIX: saveOpsMeta now uses the new PATCH endpoint
   const saveOpsMeta = useCallback(async (order, patch) => {
     try {
       const response = await axios.patch(`${API_BASE}/api/operations/ops-meta/by-order-id`, {
@@ -160,7 +186,7 @@ const UndeliveredOrders = () => {
   }, []);
 
 
-  // ✅ FIX: handleRemarkChange with proper error handling and refetch
+  // ✅ handleRemarkChange with auto-fill agent and NO auto-navigation
   const handleRemarkChange = useCallback(
     async (order, value) => {
       const remark = String(value || "").trim();
@@ -173,42 +199,38 @@ const UndeliveredOrders = () => {
 
 
       try {
-        await saveOpsMeta(order, {
-          opsRemark: remark,
-          // ✅ FIX: Don't clear assignedAgentId when setting remark
-        });
+        // ✅ Auto-fill agent based on phone mapping
+        let agentPatch = { opsRemark: remark };
+       
+        if (remark && !order.assignedAgentId && order.contact_number) {
+          const mappedAgentId = phoneToAgentMap[order.contact_number];
+          if (mappedAgentId) {
+            agentPatch.assignedAgentId = mappedAgentId;
+            patchLocalByOrderId(order.order_id, { assignedAgentId: mappedAgentId });
+          }
+        }
+       
+        await saveOpsMeta(order, agentPatch);
        
         setCallingMessage(`Remark ${remark ? 'saved' : 'removed'} successfully`);
         setTimeout(() => setCallingMessage(""), 2000);
        
-        // ✅ FIX: Refetch to update the list properly
-        if (remark) {
-          // Moving to processed - switch tab after save
-          setTimeout(() => {
-            setViewTab(1);
-            setPage(0);
-          }, 500);
-        } else {
-          // Clearing remark - refetch current view
-          fetchOrders();
-        }
+        // ✅ NO AUTO-NAVIGATION - just refetch
+        fetchOrders();
       } catch (e) {
         console.error("Failed to save remark", e);
         setCallingMessage("Error saving remark");
         setTimeout(() => setCallingMessage(""), 3000);
-        // Revert optimistic update
         fetchOrders();
       }
     },
-    [patchLocalByOrderId, saveOpsMeta, fetchOrders]
+    [patchLocalByOrderId, saveOpsMeta, fetchOrders, phoneToAgentMap]
   );
 
 
-  // ✅ FIX: handleAssignAgent with proper error handling
-  const handleAssignAgent = useCallback(async (order, agentId) => {
-    const assignedAgentId = agentId ? String(agentId) : null;
+  const handleAssignAgent = useCallback(async (order, agent) => {
+    const assignedAgentId = agent?._id || null;
    
-    // Optimistic update
     patchLocalByOrderId(order.order_id, {
       assignedAgentId,
       last_updated_at: new Date().toISOString()
@@ -222,7 +244,6 @@ const UndeliveredOrders = () => {
       console.error("Failed to assign agent", e);
       setCallingMessage("Error assigning agent");
       setTimeout(() => setCallingMessage(""), 3000);
-      // Revert optimistic update
       fetchOrders();
     }
   }, [patchLocalByOrderId, saveOpsMeta, fetchOrders]);
@@ -318,6 +339,42 @@ const UndeliveredOrders = () => {
   }, [visibleOrders, employees]);
 
 
+  // ✅ IMPROVED: Get remark options based on shipment status (very flexible matching)
+  const getRemarkOptions = useCallback((shipmentStatus) => {
+    // Normalize the status string for comparison
+    const normalizedStatus = String(shipmentStatus || "")
+      .toLowerCase()
+      .trim()
+      .replace(/\s+/g, ' '); // Replace multiple spaces with single space
+   
+    // Check various possible formats of "Out for Delivery"
+    const isOutForDelivery =
+      normalizedStatus === "out for delivery" ||
+      normalizedStatus.includes("out for delivery") ||
+      normalizedStatus === "outfordelivery" ||
+      normalizedStatus.includes("ofd");
+   
+    console.log("🔍 Status Check:", {
+      original: shipmentStatus,
+      normalized: normalizedStatus,
+      isOutForDelivery: isOutForDelivery,
+      options: isOutForDelivery ? "3 options (OFD)" : "4 options (default)"
+    });
+   
+    if (isOutForDelivery) {
+      return REMARK_OPTIONS["Out for Delivery"];
+    }
+   
+    return REMARK_OPTIONS.default;
+  }, []);
+
+
+  // ✅ Get assigned agent object
+  const getAssignedAgent = (agentId) => {
+    return assignableAgents.find(a => a._id === agentId) || null;
+  };
+
+
   const totalAll = statusCounts.reduce((acc, s) => acc + (s.count || 0), 0);
 
 
@@ -328,9 +385,7 @@ const UndeliveredOrders = () => {
           <Typography variant="h4" sx={{ fontWeight: 800, color: "#1a2027" }}>
             Undelivered Orders
           </Typography>
-          <Typography variant="body2" color="text.secondary">
-            Manage and track orders requiring operational intervention.
-          </Typography>
+     
         </Box>
        
         <Stack direction="row" spacing={2} alignItems="center">
@@ -354,7 +409,7 @@ const UndeliveredOrders = () => {
               onChange={(e, v) => {
                 setViewTab(v);
                 setPage(0);
-                setSelectedAgent("");
+                setSelectedAgent(null);
               }}
               sx={{ minHeight: 40, "& .MuiTab-root": { minHeight: 40, px: 3, fontWeight: 600, textTransform: "none" } }}
             >
@@ -410,21 +465,30 @@ const UndeliveredOrders = () => {
 
 
             {viewTab === 1 && (
-              <TextField
-                select
-                label="Assigned Agent"
+              <Autocomplete
                 size="small"
                 value={selectedAgent}
-                onChange={(e) => setSelectedAgent(e.target.value)}
-                sx={{ minWidth: 220 }}
-                InputProps={{ startAdornment: <PersonIcon sx={{ mr: 1, color: "action.active" }} fontSize="small" /> }}
-              >
-                <MenuItem value="">All Agents</MenuItem>
-                <MenuItem value="unassigned">Unassigned</MenuItem>
-                {assignableAgents.map((agent) => (
-                  <MenuItem key={agent._id} value={agent._id}>{agent.fullName}</MenuItem>
-                ))}
-              </TextField>
+                onChange={(e, newValue) => setSelectedAgent(newValue)}
+                options={[{ _id: "unassigned", fullName: "Unassigned" }, ...assignableAgents]}
+                getOptionLabel={(option) => option.fullName || ""}
+                isOptionEqualToValue={(option, value) => option._id === value._id}
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    label="Assigned Agent"
+                    InputProps={{
+                      ...params.InputProps,
+                      startAdornment: (
+                        <>
+                          <PersonIcon sx={{ mr: 1, ml: 1, color: "action.active" }} fontSize="small" />
+                          {params.InputProps.startAdornment}
+                        </>
+                      ),
+                    }}
+                  />
+                )}
+                sx={{ minWidth: 250 }}
+              />
             )}
            
             <Box sx={{ flexGrow: 1 }} />
@@ -433,7 +497,7 @@ const UndeliveredOrders = () => {
               onClick={() => {
                 setSelectedCarrier("");
                 setSelectedStatus("");
-                setSelectedAgent("");
+                setSelectedAgent(null);
                 setStartDate("");
                 setEndDate("");
                 setPage(0);
@@ -446,7 +510,9 @@ const UndeliveredOrders = () => {
             </Button>
           </Stack>
 
+
           <Divider />
+
 
           <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
             <Chip
@@ -492,100 +558,149 @@ const UndeliveredOrders = () => {
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={viewTab === 1 ? 11 : 10} align="center" sx={{ py: 10 }}>
+                  <TableCell colSpan={viewTab === 1 ? 10 : 9} align="center" sx={{ py: 10 }}>
                     <CircularProgress size={30} thickness={5} />
                     <Typography sx={{ mt: 2 }} color="text.secondary">Fetching data...</Typography>
                   </TableCell>
                 </TableRow>
               ) : visibleOrders.length > 0 ? (
-                visibleOrders.map((order) => (
-                  <TableRow key={order.order_id} hover sx={{ "&:last-child td, &:last-child th": { border: 0 } }}>
-                    <TableCell sx={{ fontWeight: 600 }}>#{order.order_id}</TableCell>
-                    <TableCell><Typography variant="body2" sx={{ fontWeight: 500 }}>{order.full_name}</Typography></TableCell>
-                    <TableCell>
-                      <Stack direction="row" alignItems="center" spacing={1}>
-                        <Typography variant="body2">{order.contact_number || "-"}</Typography>
-                        {order.contact_number && (
-                          <Tooltip title="Call Customer">
-                            <IconButton
-                              size="small"
-                              onClick={() => handleCallIconClick(order.contact_number)}
-                              sx={{ bgcolor: "#f0fdf4", "&:hover": { bgcolor: "#dcfce7" } }}
+                visibleOrders.map((order) => {
+                  const orderCount = orderCounts[order.contact_number] || 0;
+                  return (
+                    <TableRow key={order.order_id} hover sx={{ "&:last-child td, &:last-child th": { border: 0 } }}>
+                      <TableCell sx={{ fontWeight: 600 }}>#{order.order_id}</TableCell>
+                      <TableCell>
+                        {/* ✅ Customer name with order count chip */}
+                        <Stack direction="row" alignItems="center" spacing={1}>
+                          <Typography variant="body2" sx={{ fontWeight: 500 }}>{order.full_name}</Typography>
+                          {orderCount > 1 && (
+                            <Tooltip title={`Customer has ${orderCount} total orders`}>
+                              <Chip
+                                icon={<OrderIcon sx={{ fontSize: "0.9rem" }} />}
+                                label={orderCount}
+                                size="small"
+                                sx={{
+                                  height: 20,
+                                  bgcolor: "#e3f2fd",
+                                  color: "#1976d2",
+                                  fontWeight: 700,
+                                  fontSize: "0.7rem",
+                                  "& .MuiChip-icon": { ml: 0.5 }
+                                }}
+                              />
+                            </Tooltip>
+                          )}
+                        </Stack>
+                      </TableCell>
+                      <TableCell>
+                        <Stack direction="row" alignItems="center" spacing={1}>
+                          <Typography variant="body2">{order.contact_number || "-"}</Typography>
+                          {order.contact_number && (
+                            <Tooltip title="Call Customer">
+                              <IconButton
+                                size="small"
+                                onClick={() => handleCallIconClick(order.contact_number)}
+                                sx={{ bgcolor: "#f0fdf4", "&:hover": { bgcolor: "#dcfce7" } }}
+                              >
+                                <PhoneIcon fontSize="inherit" sx={{ color: "#16a34a" }} />
+                              </IconButton>
+                            </Tooltip>
+                          )}
+                        </Stack>
+                      </TableCell>
+                      <TableCell>
+                        {/* ✅ Tracking number with shipment status below in processed tab */}
+                        {order.tracking_number ? (
+                          <Box>
+                            <Typography
+                              component="a"
+                              href={`https://track.shipway.com/t/${order.tracking_number}`}
+                              target="_blank"
+                              sx={{ color: "primary.main", textDecoration: "none", fontWeight: 500, "&:hover": { textDecoration: "underline" } }}
                             >
-                              <PhoneIcon fontSize="inherit" sx={{ color: "#16a34a" }} />
-                            </IconButton>
-                          </Tooltip>
-                        )}
-                      </Stack>
-                    </TableCell>
-                    <TableCell>
-                      {order.tracking_number ? (
-                        <Typography
-                          component="a"
-                          href={`https://track.shipway.com/t/${order.tracking_number}`}
-                          target="_blank"
-                          sx={{ color: "primary.main", textDecoration: "none", fontWeight: 500, "&:hover": { textDecoration: "underline" } }}
-                        >
-                          {order.tracking_number}
-                        </Typography>
-                      ) : "-"}
-                    </TableCell>
-                    <TableCell>{order.carrier_title || "-"}</TableCell>
-                    <TableCell>
-                      <Chip
-                        label={order.shipment_status}
-                        size="small"
-                        color={getStatusColor(order.shipment_status)}
-                        sx={{
-                          fontWeight: 600,
-                          fontSize: "0.75rem",
-                          ...(getStatusColor(order.shipment_status) === "info" && { bgcolor: "black", color: "white" })
-                        }}
-                      />
-                    </TableCell>
-                    <TableCell sx={{ whiteSpace: "nowrap" }}>
-                      {order.order_date ? dayjs(order.order_date).format("DD MMM, YYYY") : "-"}
-                    </TableCell>
-                    <TableCell sx={{ minWidth: 200 }}>
-                      <TextField
-                        select
-                        fullWidth
-                        size="small"
-                        value={order.opsRemark || ""}
-                        onChange={(e) => handleRemarkChange(order, e.target.value)}
-                        sx={{ "& .MuiOutlinedInput-root": { borderRadius: 2 } }}
-                      >
-                        <MenuItem value=""><em>None</em></MenuItem>
-                        {REMARK_OPTIONS.map((r) => <MenuItem key={r} value={r}>{r}</MenuItem>)}
-                      </TextField>
-                    </TableCell>
-                    {viewTab === 1 && (
-                      <TableCell sx={{ minWidth: 220 }}>
+                              {order.tracking_number}
+                            </Typography>
+                            {viewTab === 1 && (
+                              <Typography variant="caption" sx={{ display: "block", color: "text.secondary", mt: 0.5 }}>
+                                ({order.shipment_status})
+                              </Typography>
+                            )}
+                          </Box>
+                        ) : "-"}
+                      </TableCell>
+                      <TableCell>{order.carrier_title || "-"}</TableCell>
+                      <TableCell>
+                        <Chip
+                          label={order.shipment_status}
+                          size="small"
+                          color={getStatusColor(order.shipment_status)}
+                          sx={{
+                            fontWeight: 600,
+                            fontSize: "0.75rem",
+                            ...(getStatusColor(order.shipment_status) === "info" && { bgcolor: "black", color: "white" })
+                          }}
+                        />
+                      </TableCell>
+                      <TableCell sx={{ whiteSpace: "nowrap" }}>
+                        {order.order_date ? dayjs(order.order_date).format("DD MMM, YYYY") : "-"}
+                      </TableCell>
+                      <TableCell sx={{ minWidth: 200 }}>
+                        {/* ✅ Dynamic remark options based on shipment status */}
                         <TextField
                           select
                           fullWidth
                           size="small"
-                          value={order.assignedAgentId || ""}
-                          onChange={(e) => handleAssignAgent(order, e.target.value)}
+                          value={order.opsRemark || ""}
+                          onChange={(e) => handleRemarkChange(order, e.target.value)}
                           sx={{ "& .MuiOutlinedInput-root": { borderRadius: 2 } }}
                         >
-                          <MenuItem value=""><em>Unassigned</em></MenuItem>
-                          {assignableAgents.map((a) => (
-                            <MenuItem key={a._id} value={a._id}>
-                              {a.fullName} <Typography variant="caption" sx={{ ml: 1, color: "text.disabled" }}>({a.role})</Typography>
-                            </MenuItem>
+                          <MenuItem value=""><em>None</em></MenuItem>
+                          {getRemarkOptions(order.shipment_status).map((r) => (
+                            <MenuItem key={r} value={r}>{r}</MenuItem>
                           ))}
                         </TextField>
                       </TableCell>
-                    )}
-                    <TableCell sx={{ color: "text.secondary", fontSize: "0.8rem" }}>
-                      {order.last_updated_at ? dayjs(order.last_updated_at).format("DD/MM/YY HH:mm") : "-"}
-                    </TableCell>
-                  </TableRow>
-                ))
+                      {viewTab === 1 && (
+                        <TableCell sx={{ minWidth: 250 }}>
+                          {/* ✅ Autocomplete for agent assignment */}
+                          <Autocomplete
+                            size="small"
+                            value={getAssignedAgent(order.assignedAgentId)}
+                            onChange={(e, newValue) => handleAssignAgent(order, newValue)}
+                            options={assignableAgents}
+                            getOptionLabel={(option) => option.fullName || ""}
+                            isOptionEqualToValue={(option, value) => option._id === value?._id}
+                            renderInput={(params) => (
+                              <TextField
+                                {...params}
+                                placeholder="Unassigned"
+                                sx={{ "& .MuiOutlinedInput-root": { borderRadius: 2 } }}
+                              />
+                            )}
+                            renderOption={(props, option) => (
+                              <li {...props}>
+                                <Stack direction="row" spacing={1} alignItems="center">
+                                  <Typography variant="body2">{option.fullName}</Typography>
+                                  {option.role && (
+                                    <Typography variant="caption" sx={{ color: "text.disabled" }}>
+                                      ({option.role})
+                                    </Typography>
+                                  )}
+                                </Stack>
+                              </li>
+                            )}
+                          />
+                        </TableCell>
+                      )}
+                      <TableCell sx={{ color: "text.secondary", fontSize: "0.8rem" }}>
+                        {order.last_updated_at ? dayjs(order.last_updated_at).format("DD/MM/YY HH:mm") : "-"}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })
               ) : (
                 <TableRow>
-                  <TableCell colSpan={viewTab === 1 ? 11 : 10} align="center" sx={{ py: 8 }}>
+                  <TableCell colSpan={viewTab === 1 ? 10 : 9} align="center" sx={{ py: 8 }}>
                     <Typography color="text.secondary">No matching orders found.</Typography>
                   </TableCell>
                 </TableRow>
@@ -593,6 +708,7 @@ const UndeliveredOrders = () => {
             </TableBody>
           </Table>
         </TableContainer>
+
 
         <TablePagination
           component="div"
@@ -609,4 +725,6 @@ const UndeliveredOrders = () => {
   );
 };
 
+
 export default UndeliveredOrders;
+

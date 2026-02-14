@@ -12,27 +12,62 @@ import {
   Paper,
   CircularProgress,
   TablePagination,
+  TextField,
 } from "@mui/material";
 import CloudUploadIcon from "@mui/icons-material/CloudUpload";
+
+const API_BASE = "https://muditamleads-14f32a10d7f7.herokuapp.com";
 
 const DelhiveryUpload = () => {
   const [file, setFile] = useState(null);
   const [records, setRecords] = useState([]);
   const [loading, setLoading] = useState(false);
+
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(50);
   const [totalCount, setTotalCount] = useState(0);
 
-  const fetchData = async (pageNum = 0, limit = rowsPerPage) => {
+  // filters
+  const [q, setQ] = useState("");
+  const [uploadMin, setUploadMin] = useState("");
+  const [uploadMax, setUploadMax] = useState("");
+  const [settledMin, setSettledMin] = useState("");
+  const [settledMax, setSettledMax] = useState("");
+  const [amountMin, setAmountMin] = useState("");
+  const [amountMax, setAmountMax] = useState("");
+
+  const fmt = (n) => (n == null ? "" : `₹${Number(n).toLocaleString("en-IN")}`);
+  const fmtDate = (d) => {
+    if (!d) return "";
+    const dt = new Date(d);
+    return Number.isNaN(dt.getTime()) ? "" : dt.toLocaleDateString("en-IN");
+  };
+
+  const buildUrl = (pageNum = page, limit = rowsPerPage) => {
+    const params = new URLSearchParams();
+    params.set("page", String(pageNum + 1));
+    params.set("limit", String(limit));
+
+    if (q.trim()) params.set("q", q.trim());
+    if (uploadMin) params.set("uploadMin", uploadMin);
+    if (uploadMax) params.set("uploadMax", uploadMax);
+    if (settledMin) params.set("settledMin", settledMin);
+    if (settledMax) params.set("settledMax", settledMax);
+    if (amountMin !== "") params.set("amountMin", amountMin);
+    if (amountMax !== "") params.set("amountMax", amountMax);
+
+    return `${API_BASE}/api/delhivery/data?${params.toString()}`;
+  };
+
+  const fetchData = async (pageNum = page, limit = rowsPerPage) => {
     setLoading(true);
     try {
-      const res = await fetch(
-        `https://muditamleads-14f32a10d7f7.herokuapp.com/api/delhivery/data?page=${pageNum + 1}&limit=${limit}`
-      );
+      const res = await fetch(buildUrl(pageNum, limit));
       const json = await res.json();
       setRecords(json.data || []);
       setTotalCount(json.totalCount || 0);
-    } catch {
+    } catch (e) {
+      console.error(e);
       alert("Failed to fetch data");
     } finally {
       setLoading(false);
@@ -41,9 +76,10 @@ const DelhiveryUpload = () => {
 
   useEffect(() => {
     fetchData(page, rowsPerPage);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, rowsPerPage]);
 
-  const handleFileChange = (e) => setFile(e.target.files[0]);
+  const handleFileChange = (e) => setFile(e.target.files?.[0] || null);
 
   const handleUpload = async () => {
     if (!file) return alert("Please select a CSV file.");
@@ -53,7 +89,7 @@ const DelhiveryUpload = () => {
 
     setLoading(true);
     try {
-      const res = await fetch("https://muditamleads-14f32a10d7f7.herokuapp.com/api/delhivery/upload", {
+      const res = await fetch(`${API_BASE}/api/delhivery/upload`, {
         method: "POST",
         body: formData,
       });
@@ -61,36 +97,155 @@ const DelhiveryUpload = () => {
       const json = await res.json();
       if (json.error) {
         alert(json.error);
-      } else { 
+      } else {
+        alert(`Upload successful (${json.inserted || 0} rows)`);
         setPage(0);
         fetchData(0, rowsPerPage);
       }
-    } catch { 
+    } catch (e) {
+      console.error(e);
+      alert("Upload failed");
     } finally {
       setLoading(false);
     }
   };
 
-  // simple INR formatter
-  const fmt = (n) => (n == null ? "" : `₹${Number(n).toLocaleString("en-IN")}`);
+  const applyFilters = () => {
+    setPage(0);
+    fetchData(0, rowsPerPage);
+  };
+
+  const clearFilters = () => {
+    setQ("");
+    setUploadMin("");
+    setUploadMax("");
+    setSettledMin("");
+    setSettledMax("");
+    setAmountMin("");
+    setAmountMax("");
+    setPage(0);
+    fetchData(0, rowsPerPage);
+  };
 
   return (
     <Box sx={{ p: 3 }}>
-      <Typography variant="h5" fontWeight="bold" sx={{ color: "black", mb: 3 }}>
-        🚚 Upload Delhivery Settlement CSV
+      <Typography variant="h5" fontWeight="bold" sx={{ color: "black", mb: 2 }}>
+        🚚 Delhivery Settlement Upload
       </Typography>
 
-      <Box sx={{ display: "flex", gap: 2, mb: 3 }}>
-        <input type="file" accept=".csv" onChange={handleFileChange} />
-        <Button
-          variant="contained"
-          startIcon={<CloudUploadIcon />}
-          onClick={handleUpload}
-          sx={{ bgcolor: "black", color: "#fff", "&:hover": { bgcolor: "#333" } }}
-        >
-          Upload
+      {/* Upload */}
+      <Paper
+        elevation={0}
+        sx={{
+          p: 2,
+          mb: 2,
+          border: "1px solid #e0e3ef",
+          borderRadius: 2,
+          display: "flex",
+          gap: 2,
+          alignItems: "center",
+          justifyContent: "space-between",
+          flexWrap: "wrap",
+        }}
+      >
+        <Box sx={{ display: "flex", gap: 2, alignItems: "center", flexWrap: "wrap" }}>
+          <input type="file" accept=".csv" onChange={handleFileChange} />
+          <Button
+            variant="contained"
+            startIcon={<CloudUploadIcon />}
+            onClick={handleUpload}
+            disabled={loading}
+            sx={{ bgcolor: "black", color: "#fff", "&:hover": { bgcolor: "#333" } }}
+          >
+            Upload
+          </Button>
+        </Box>
+
+        <Typography sx={{ color: "#555", fontSize: 13 }}>
+          Total: <b>{totalCount.toLocaleString("en-IN")}</b>
+        </Typography>
+      </Paper>
+
+      {/* Filters (NO color) */}
+      <Paper
+        elevation={0}
+        sx={{
+          p: 2,
+          mb: 2,
+          border: "1px solid #e0e3ef",
+          borderRadius: 2,
+          display: "flex",
+          gap: 1.5,
+          alignItems: "center",
+          flexWrap: "wrap",
+        }}
+      >
+        <TextField
+          size="small"
+          label="Search (AWB / Order / UTR)"
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          sx={{ minWidth: 260 }}
+        />
+
+        <TextField
+          size="small"
+          label="Upload From"
+          type="date"
+          value={uploadMin}
+          onChange={(e) => setUploadMin(e.target.value)}
+          InputLabelProps={{ shrink: true }}
+        />
+        <TextField
+          size="small"
+          label="Upload To"
+          type="date"
+          value={uploadMax}
+          onChange={(e) => setUploadMax(e.target.value)}
+          InputLabelProps={{ shrink: true }}
+        />
+
+        <TextField
+          size="small"
+          label="Settled From"
+          type="date"
+          value={settledMin}
+          onChange={(e) => setSettledMin(e.target.value)}
+          InputLabelProps={{ shrink: true }}
+        />
+        <TextField
+          size="small"
+          label="Settled To"
+          type="date"
+          value={settledMax}
+          onChange={(e) => setSettledMax(e.target.value)}
+          InputLabelProps={{ shrink: true }}
+        />
+
+        <TextField
+          size="small"
+          label="Amount Min"
+          type="number"
+          value={amountMin}
+          onChange={(e) => setAmountMin(e.target.value)}
+          sx={{ width: 130 }}
+        />
+        <TextField
+          size="small"
+          label="Amount Max"
+          type="number"
+          value={amountMax}
+          onChange={(e) => setAmountMax(e.target.value)}
+          sx={{ width: 130 }}
+        />
+
+        <Button variant="outlined" onClick={applyFilters} sx={{ textTransform: "none" }}>
+          Apply
         </Button>
-      </Box>
+        <Button variant="text" onClick={clearFilters} sx={{ textTransform: "none" }}>
+          Clear
+        </Button>
+      </Paper>
 
       {loading ? (
         <CircularProgress />
@@ -100,33 +255,35 @@ const DelhiveryUpload = () => {
             <Table size="small">
               <TableHead sx={{ backgroundColor: "black" }}>
                 <TableRow>
-                  {[
-                    "Upload Date",
-                    "AWB No",
-                    "Order ID",
-                    "Amount",
-                    "UTR No",
-                    "Settled Date",
-                  ].map((head) => (
-                    <TableCell key={head} sx={{ color: "#fff", fontWeight: 600 }}>
-                      {head}
-                    </TableCell>
-                  ))}
+                  {["Upload Date", "AWB No", "Order ID", "Amount", "UTR No", "Settled Date"].map(
+                    (head) => (
+                      <TableCell key={head} sx={{ color: "#fff", fontWeight: 600 }}>
+                        {head}
+                      </TableCell>
+                    )
+                  )}
                 </TableRow>
               </TableHead>
+
               <TableBody>
                 {records.map((row, idx) => (
-                  <TableRow key={row._id || idx}>
-                    <TableCell>
-                      {row.uploadDate ? new Date(row.uploadDate).toLocaleDateString() : ""}
-                    </TableCell>
+                  <TableRow key={row._id || idx} hover>
+                    <TableCell>{fmtDate(row.uploadDate)}</TableCell>
                     <TableCell>{row.awbNo}</TableCell>
                     <TableCell>{row.orderId}</TableCell>
                     <TableCell>{fmt(row.amount)}</TableCell>
                     <TableCell>{row.utrNo}</TableCell>
-                    <TableCell>{row.settledDate}</TableCell>
+                    <TableCell>{fmtDate(row.settledDate)}</TableCell>
                   </TableRow>
                 ))}
+
+                {records.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={6} align="center">
+                      No data found for current filters.
+                    </TableCell>
+                  </TableRow>
+                )}
               </TableBody>
             </Table>
           </TableContainer>
@@ -141,7 +298,7 @@ const DelhiveryUpload = () => {
               setRowsPerPage(parseInt(e.target.value, 10));
               setPage(0);
             }}
-            rowsPerPageOptions={[10, 30, 50, 100]}
+            rowsPerPageOptions={[10, 30, 50, 100, 200]}
             sx={{ mt: 2 }}
           />
         </>

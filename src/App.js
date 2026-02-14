@@ -64,6 +64,7 @@ import BankAxis3361 from "./components/Finance/BankAxis3361";
 import BankCc1101 from "./components/Finance/BankCc1101";
 import BankYesCcTejasv from "./components/Finance/BankYesCcTejasv";
 import BankYesCcAbhay from "./components/Finance/BankYesCcAbhay";
+import BankKotak from "./components/Finance/BankKotak";
 import TaskBoard from "./components/Dashboards/TaskBoard";
 import MyReporting from "./components/Dashboards/MyReporting";
 import PurchaseRecord from "./components/Finance/PurchaseRecordsPage"; 
@@ -79,8 +80,7 @@ import AccessManagement from "./components/AccessManagement";
 import AdminAccessRequests from "./components/AdminAccessRequests";
 import Invoices from "./pages/Invoices";
 import UnassignedDeliveredOrders from "./components/UnassignedDeliveredOrders";
-import SuperAdminAnalytics from "./pages/SuperAdminAnalytics";
-import UtmLinkGenerator from "./components/TopBars/UtmLinkGenerator";
+import SuperAdminAnalytics from "./pages/SuperAdminAnalytics"; 
 import AbandonedAnalyticsPage from "./pages/AbandonedAnalytics";
 import IncentiveCreation from "./components/TopBars/IncentiveCreation";
 import WhatsAppUI from "./whatsaap/WhatsAppUI"
@@ -115,11 +115,11 @@ const App = () => {
           <Route path="/BankCc1101" element={<BankCc1101 />} />
           <Route path="/BankYesCcTejasv" element={<BankYesCcTejasv />} />
           <Route path="/BankYesCcAbhay" element={<BankYesCcAbhay />} />
-          <Route path="/purchase-record" element={<PurchaseRecord />} /> 
+          <Route path="/BankKotak" element={<BankKotak />} />
+          <Route path="/purchase-record" element={<PurchaseRecord />} />
           <Route path="/payment-record" element={<PaymentRecords />} />
           <Route path="/vendors" element={<Vendors />} />
-          <Route path="/super-admin-analytics" element={<SuperAdminAnalytics />} />
-          <Route path="/utm-link-generator" element={<UtmLinkGenerator />} />
+          <Route path="/super-admin-analytics" element={<SuperAdminAnalytics />} /> 
           <Route path="/abandoned-analytics" element={<AbandonedAnalyticsPage />} />
           <Route path="/incentive-creation" element={<IncentiveCreation />} />
           <Route path="/whatsaap/chat" element={<WhatsAppUI />} />

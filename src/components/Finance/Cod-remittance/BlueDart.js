@@ -12,27 +12,68 @@ import {
   Paper,
   TablePagination,
   CircularProgress,
+  TextField,
 } from "@mui/material";
 import CloudUploadIcon from "@mui/icons-material/CloudUpload";
+
+const API_BASE = "https://muditamleads-14f32a10d7f7.herokuapp.com";
 
 const BluedartUpload = () => {
   const [file, setFile] = useState(null);
   const [records, setRecords] = useState([]);
   const [loading, setLoading] = useState(false);
+
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(50);
   const [total, setTotal] = useState(0);
 
-  const fetchData = async (pageNum = 0, limit = rowsPerPage) => {
+  // filters
+  const [q, setQ] = useState("");
+  const [portal, setPortal] = useState("");
+  const [uploadMin, setUploadMin] = useState("");
+  const [uploadMax, setUploadMax] = useState("");
+  const [settledMin, setSettledMin] = useState("");
+  const [settledMax, setSettledMax] = useState("");
+  const [amountMin, setAmountMin] = useState("");
+  const [amountMax, setAmountMax] = useState("");
+
+  const fmtINR = (n) => (n == null ? "" : `₹${Number(n).toLocaleString("en-IN")}`);
+
+  const fmtDate = (d) => {
+    if (!d) return "";
+    const dt = new Date(d);
+    return Number.isNaN(dt.getTime()) ? "" : dt.toLocaleDateString("en-IN");
+  };
+
+  const buildUrl = (pageNum = 0, limit = rowsPerPage) => {
+    const params = new URLSearchParams();
+    params.set("page", String(pageNum + 1));
+    params.set("limit", String(limit));
+
+    if (q.trim()) params.set("q", q.trim());
+    if (portal.trim()) params.set("portal", portal.trim());
+
+    if (uploadMin) params.set("uploadMin", uploadMin);
+    if (uploadMax) params.set("uploadMax", uploadMax);
+
+    if (settledMin) params.set("settledMin", settledMin);
+    if (settledMax) params.set("settledMax", settledMax);
+
+    if (amountMin !== "") params.set("amountMin", amountMin);
+    if (amountMax !== "") params.set("amountMax", amountMax);
+
+    return `${API_BASE}/api/bluedart/data?${params.toString()}`;
+  };
+
+  const fetchData = async (pageNum = page, limit = rowsPerPage) => {
     setLoading(true);
     try {
-      const res = await fetch(
-        `https://muditamleads-14f32a10d7f7.herokuapp.com/api/bluedart/data?page=${pageNum + 1}&limit=${limit}`
-      );
+      const res = await fetch(buildUrl(pageNum, limit));
       const json = await res.json();
       setRecords(json.data || []);
       setTotal(json.totalCount || 0);
-    } catch {
+    } catch (e) {
+      console.error(e);
       alert("Failed to fetch data");
     } finally {
       setLoading(false);
@@ -51,7 +92,7 @@ const BluedartUpload = () => {
 
     setLoading(true);
     try {
-      const res = await fetch("https://muditamleads-14f32a10d7f7.herokuapp.com/api/bluedart/upload", {
+      const res = await fetch(`${API_BASE}/api/bluedart/upload`, {
         method: "POST",
         body: formData,
       });
@@ -70,8 +111,18 @@ const BluedartUpload = () => {
     }
   };
 
-  const fmtINR = (n) =>
-    n == null ? "" : `₹${Number(n).toLocaleString("en-IN")}`;
+  const clearFilters = () => {
+    setQ("");
+    setPortal("");
+    setUploadMin("");
+    setUploadMax("");
+    setSettledMin("");
+    setSettledMax("");
+    setAmountMin("");
+    setAmountMax("");
+    setPage(0);
+    fetchData(0, rowsPerPage);
+  };
 
   return (
     <Box sx={{ p: 3 }}>
@@ -79,17 +130,133 @@ const BluedartUpload = () => {
         📦 Bluedart Settlement Upload
       </Typography>
 
-      <Box sx={{ display: "flex", gap: 2, mb: 3 }}>
-        <input type="file" accept=".csv" onChange={(e) => setFile(e.target.files[0])} />
+      {/* Upload row */}
+      <Paper
+        elevation={0}
+        sx={{
+          p: 2,
+          mb: 2,
+          border: "1px solid #e0e3ef",
+          borderRadius: 2,
+          display: "flex",
+          gap: 2,
+          alignItems: "center",
+          flexWrap: "wrap",
+          justifyContent: "space-between",
+        }}
+      >
+        <Box sx={{ display: "flex", gap: 2, alignItems: "center", flexWrap: "wrap" }}>
+          <input type="file" accept=".csv" onChange={(e) => setFile(e.target.files?.[0] || null)} />
+          <Button
+            variant="contained"
+            startIcon={<CloudUploadIcon />}
+            onClick={handleUpload}
+            disabled={loading}
+            sx={{ bgcolor: "black", color: "#fff", "&:hover": { bgcolor: "#222" } }}
+          >
+            Upload
+          </Button>
+        </Box>
+
+        <Typography sx={{ color: "#555", fontSize: 13 }}>
+          Total: <b>{total.toLocaleString("en-IN")}</b>
+        </Typography>
+      </Paper>
+
+      {/* Filters row (NO color controls) */}
+      <Paper
+        elevation={0}
+        sx={{
+          p: 2,
+          mb: 2,
+          border: "1px solid #e0e3ef",
+          borderRadius: 2,
+          display: "flex",
+          gap: 1.5,
+          alignItems: "center",
+          flexWrap: "wrap",
+        }}
+      >
+        <TextField
+          size="small"
+          label="Search (AWB / Order / Portal / UTR)"
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          sx={{ minWidth: 280 }}
+        />
+        <TextField
+          size="small"
+          label="Portal"
+          value={portal}
+          onChange={(e) => setPortal(e.target.value)}
+          sx={{ minWidth: 180 }}
+        />
+
+        <TextField
+          size="small"
+          label="Upload From"
+          type="date"
+          value={uploadMin}
+          onChange={(e) => setUploadMin(e.target.value)}
+          InputLabelProps={{ shrink: true }}
+        />
+        <TextField
+          size="small"
+          label="Upload To"
+          type="date"
+          value={uploadMax}
+          onChange={(e) => setUploadMax(e.target.value)}
+          InputLabelProps={{ shrink: true }}
+        />
+
+        <TextField
+          size="small"
+          label="Settled From"
+          type="date"
+          value={settledMin}
+          onChange={(e) => setSettledMin(e.target.value)}
+          InputLabelProps={{ shrink: true }}
+        />
+        <TextField
+          size="small"
+          label="Settled To"
+          type="date"
+          value={settledMax}
+          onChange={(e) => setSettledMax(e.target.value)}
+          InputLabelProps={{ shrink: true }}
+        />
+
+        <TextField
+          size="small"
+          label="Amount Min"
+          type="number"
+          value={amountMin}
+          onChange={(e) => setAmountMin(e.target.value)}
+          sx={{ width: 130 }}
+        />
+        <TextField
+          size="small"
+          label="Amount Max"
+          type="number"
+          value={amountMax}
+          onChange={(e) => setAmountMax(e.target.value)}
+          sx={{ width: 130 }}
+        />
+
         <Button
-          variant="contained"
-          startIcon={<CloudUploadIcon />}
-          onClick={handleUpload}
-          sx={{ bgcolor: "black", color: "#fff", "&:hover": { bgcolor: "#222" } }}
+          variant="outlined"
+          onClick={() => {
+            setPage(0);
+            fetchData(0, rowsPerPage);
+          }}
+          sx={{ textTransform: "none" }}
         >
-          Upload
+          Apply
         </Button>
-      </Box>
+        <Button variant="text" onClick={clearFilters} sx={{ textTransform: "none" }}>
+          Clear
+        </Button>
+      </Paper>
 
       {loading ? (
         <CircularProgress />
@@ -116,22 +283,29 @@ const BluedartUpload = () => {
                   ))}
                 </TableRow>
               </TableHead>
+
               <TableBody>
                 {records.map((row, idx) => (
-                  <TableRow key={row._id || idx}>
-                    <TableCell>
-                      {row.uploadDate ? new Date(row.uploadDate).toLocaleDateString() : ""}
-                    </TableCell>
+                  <TableRow key={row._id || idx} hover>
+                    <TableCell>{fmtDate(row.uploadDate)}</TableCell>
                     <TableCell>{row.awbNo}</TableCell>
-                    <TableCell>{row.dpuDate}</TableCell>
-                    <TableCell>{row.processDate}</TableCell>
+                    <TableCell>{fmtDate(row.dpuDate)}</TableCell>
+                    <TableCell>{fmtDate(row.processDate)}</TableCell>
                     <TableCell>{row.orderId}</TableCell>
                     <TableCell>{row.portalName}</TableCell>
                     <TableCell>{fmtINR(row.customerPayAmt)}</TableCell>
                     <TableCell>{row.utr}</TableCell>
-                    <TableCell>{row.settledDate}</TableCell>
+                    <TableCell>{fmtDate(row.settledDate)}</TableCell>
                   </TableRow>
                 ))}
+
+                {records.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={9} align="center">
+                      No data found for current filters.
+                    </TableCell>
+                  </TableRow>
+                )}
               </TableBody>
             </Table>
           </TableContainer>
@@ -146,7 +320,7 @@ const BluedartUpload = () => {
               setRowsPerPage(parseInt(e.target.value, 10));
               setPage(0);
             }}
-            rowsPerPageOptions={[10, 30, 50, 100]}
+            rowsPerPageOptions={[10, 30, 50, 100, 200]}
             sx={{ mt: 2 }}
           />
         </>

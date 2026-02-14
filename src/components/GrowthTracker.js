@@ -11,11 +11,11 @@ import {
   TableContainer,
   TableRow,
   Paper,
+  Divider,
 } from "@mui/material";
 import dayjs from "dayjs";
 import duration from "dayjs/plugin/duration";
 dayjs.extend(duration);
-
 
 // Fixed hike amounts for each slab except the first
 const hikeAmounts = [
@@ -29,18 +29,161 @@ const hikeAmounts = [
   9000, // 8th slab
 ];
 
+// Policy tables (same info as images)
+const incrementPolicy6m = [
+  { category: "Below Expectation", achievement: "< ₹12L", recommendation: "No increment" },
+  { category: "Meets Expectation", achievement: "₹12–15L", recommendation: "10% increment" },
+  { category: "Exceeds Expectation", achievement: "₹15–18L", recommendation: "15% increment" },
+  { category: "Outstanding", achievement: "₹18L+", recommendation: "20% increment + role upgrade" },
+];
+
+const incrementPolicy12m = [
+  { category: "Below Expectation", achievement: "< ₹18L", recommendation: "No increment" },
+  { category: "Meets Expectation", achievement: "₹18–25L", recommendation: "6–10% increment" },
+  { category: "Exceeds Expectation", achievement: "₹25–30L", recommendation: "10–15% increment" },
+  { category: "Outstanding", achievement: "₹30L+", recommendation: "15–20% increment + role upgrade" },
+];
+
+// ✅ More natural “embedded policy block” (not like pasted image)
+function InlinePolicyTable({ title, rows }) {
+  return (
+    <Box
+      sx={{
+        mt: 1.3,
+        borderRadius: 2.5,
+        border: "1px solid #e9ecef",
+        background: "#fafbfc",
+        overflow: "hidden",
+      }}
+    >
+      {/* Header bar */}
+      <Box
+        sx={{
+          px: 1.5,
+          py: 1.1,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 1,
+          background: "#fff",
+        }}
+      >
+        <Typography sx={{ fontWeight: 900, fontSize: 12.8, color: "#111" }}>
+          {title}
+        </Typography>
+        <Typography
+          sx={{
+            fontWeight: 800,
+            fontSize: 11,
+            color: "#444",
+            border: "1px solid #e6e6e6",
+            px: 1,
+            py: 0.35,
+            borderRadius: 999,
+            background: "#fafafa",
+            whiteSpace: "nowrap",
+          }}
+        >
+          Policy
+        </Typography>
+      </Box>
+
+      <Divider />
+
+      {/* table */}
+      <Box sx={{ overflowX: "auto" }}>
+        <Table size="small" sx={{ minWidth: 520 }}>
+          <TableHead>
+            <TableRow>
+              <TableCell
+                sx={{
+                  fontWeight: 900,
+                  fontSize: 11.5,
+                  color: "#555",
+                  py: 1,
+                  background: "#f5f7fb",
+                  borderBottom: "1px solid #e9ecef",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                Category
+              </TableCell>
+              <TableCell
+                sx={{
+                  fontWeight: 900,
+                  fontSize: 11.5,
+                  color: "#555",
+                  py: 1,
+                  background: "#f5f7fb",
+                  borderBottom: "1px solid #e9ecef",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                Achievement
+              </TableCell>
+              <TableCell
+                sx={{
+                  fontWeight: 900,
+                  fontSize: 11.5,
+                  color: "#555",
+                  py: 1,
+                  background: "#f5f7fb",
+                  borderBottom: "1px solid #e9ecef",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                Recommendation
+              </TableCell>
+            </TableRow>
+          </TableHead>
+
+          <TableBody>
+            {rows.map((r, i) => (
+              <TableRow
+                key={i}
+                sx={{
+                  "& td": { borderBottom: "1px solid #eef1f5" },
+                  background: i % 2 === 0 ? "#ffffff" : "#fbfcfe",
+                }}
+              >
+                <TableCell sx={{ fontWeight: 800, fontSize: 12.2, py: 1 }}>
+                  {r.category}
+                </TableCell>
+                <TableCell sx={{ fontWeight: 800, fontSize: 12.2, py: 1 }}>
+                  {r.achievement}
+                </TableCell>
+                <TableCell
+                  sx={{
+                    fontWeight: 800,
+                    fontSize: 12.2,
+                    py: 1,
+                    color: "#111",
+                    whiteSpace: "normal",
+                  }}
+                >
+                  {r.recommendation}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </Box>
+    </Box>
+  );
+}
 
 // Slab definitions
 const slabs = [
   // Year 1
   {
     responsibilities: "Junior Dietitian/Sales Agent",
-    targets: "Maintain average of 3 Lakhs for 6 Months to move to next slab",
+    targets: "Maintain average of 2 Lakhs for 6 Months to move to next slab",
   },
   {
     responsibilities: "Junior Dietitian/Sales Agent",
-    targets: "Maintain average of 5 Lakhs for 6 Months to move to next slab",
+    targets: "Maintain average of 4 Lakhs for 6 Months to move to next slab",
   },
+
   // Year 2
   {
     responsibilities:
@@ -54,6 +197,7 @@ const slabs = [
     targets:
       "Self targets + Team targets. Maintain 5 Lakhs for 6 Months to move to next slab",
   },
+
   // Year 3
   {
     responsibilities:
@@ -67,6 +211,7 @@ const slabs = [
     targets:
       "Achieve Team Targets & contribute in Team Strategy, Team Training, New Process Development & Team Hiring",
   },
+
   // Year 4
   {
     responsibilities:
@@ -82,18 +227,15 @@ const slabs = [
   },
 ];
 
-
 const bonuses = [50000, 75000, 125000, 150000]; // 1st-4th years (fixed)
 const years = ["Year 1", "Year 2", "Year 3", "Year 4"];
 
-
 const yearColors = [
-  "#FFF9DF", // Year 1 (pale yellow)
-  "#E9F1FF", // Year 2 (pale blue)
-  "#FFF0F0", // Year 3 (pale pink)
-  "#EAFBF0", // Year 4 (pale green)
+  "#FFF9DF",
+  "#E9F1FF",
+  "#FFF0F0",
+  "#EAFBF0",
 ];
-
 
 function getTenure(joinDate) {
   const now = dayjs();
@@ -107,13 +249,11 @@ function getTenure(joinDate) {
   return tenure.trim();
 }
 
-
 function getSlabDates(joiningDate, idx) {
   const start = dayjs(joiningDate).add(idx * 6, "month");
   const end = start.add(6, "month").subtract(1, "day");
   return `${start.format("MMM YYYY")} - ${end.format("MMM YYYY")}`;
 }
-
 
 export default function GrowthTracker() {
   const [joiningSalary, setJoiningSalary] = useState("");
@@ -121,14 +261,13 @@ export default function GrowthTracker() {
   const [showTable, setShowTable] = useState(false);
   const [error, setError] = useState("");
 
-
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!joiningSalary || !joiningDate) {
       setError("Please enter both joining date and salary.");
       return;
     }
-    if (isNaN(Number(joiningSalary)) || Number(joiningSalary) < 8000) { 
+    if (isNaN(Number(joiningSalary)) || Number(joiningSalary) < 8000) {
       setError("Enter a valid salary (minimum ₹8,000).");
       return;
     }
@@ -136,18 +275,12 @@ export default function GrowthTracker() {
     setError("");
   };
 
-
-  // --- Salary calculation logic ---
   const getSalaryForSlab = (base, idx) => {
     let salary = Number(base);
-    for (let i = 1; i <= idx; ++i) {
-      salary += hikeAmounts[i];
-    }
+    for (let i = 1; i <= idx; ++i) salary += hikeAmounts[i];
     return Math.round(salary);
   };
 
-
-  // Hike % calculation for this slab vs previous
   const getHikePercent = (base, idx) => {
     if (idx === 0) return "--";
     const prevSalary = getSalaryForSlab(base, idx - 1);
@@ -156,8 +289,6 @@ export default function GrowthTracker() {
     return `${hike.toFixed(2)}%`;
   };
 
-
-  // Package for a year (2 slabs)
   const getYearlyPackage = (base, yearIdx) => {
     const a = getSalaryForSlab(base, yearIdx * 2);
     const b = getSalaryForSlab(base, yearIdx * 2 + 1);
@@ -165,21 +296,12 @@ export default function GrowthTracker() {
     return a * 6 + b * 6 + bonus;
   };
 
+  const isMergedCell = (idx) => idx % 2 === 0;
 
-  function isMergedCell(idx) {
-    return idx % 2 === 0;
-  }
-  function isCellHidden(idx) {
-    return idx % 2 === 1;
-  }
-
-
-  // Row background for the year (applied on both slabs of each year)
   const getRowSx = (idx) => ({
     background: yearColors[Math.floor(idx / 2)],
     "&:last-child td, &:last-child th": { border: 0 },
   });
-
 
   return (
     <Box sx={{ maxWidth: "100vw", mx: "auto", mt: 5, p: 1 }}>
@@ -207,7 +329,6 @@ export default function GrowthTracker() {
         </>
       )}
 
-
       {!showTable ? (
         <Box
           sx={{
@@ -217,7 +338,6 @@ export default function GrowthTracker() {
             flexDirection: "column",
             gap: 2,
             mt: 5,
-           
           }}
           component="form"
           onSubmit={handleSubmit}
@@ -233,7 +353,7 @@ export default function GrowthTracker() {
               backgroundColor: "#fff",
               boxShadow: "0px 4px 12px rgba(0,0,0,0.1)",
               width: 550,
-              p:2
+              p: 2,
             }}
           >
             <Typography
@@ -245,6 +365,7 @@ export default function GrowthTracker() {
             >
               Growth Calculator
             </Typography>
+
             <Box
               sx={{
                 height: 3,
@@ -255,6 +376,7 @@ export default function GrowthTracker() {
                 mb: 3,
               }}
             />
+
             <TextField
               label="Joining Date"
               type="date"
@@ -267,24 +389,12 @@ export default function GrowthTracker() {
                 background: "#fafbfc",
                 borderRadius: 2,
                 "& .MuiInputBase-input": { padding: "10px 12px" },
-                "& .MuiInputLabel-root.Mui-focused, & .MuiInputLabel-root.MuiFormLabel-filled":
-                  {
-                    top: 0,
-                    color: "gray",
-                    transform: "translateY(-50%) translateX(8px)",
-                    paddingLeft: "8px",
-                    fontSize: "0.80rem",
-                  },
                 "& .MuiOutlinedInput-root": {
-                  "& input": { padding: "10px !important" },
-                  "&.Mui-focused fieldset": {
-                    borderColor: "black",
-                    borderStyle: "dashed",
-                  },
                   "&:hover fieldset": { borderColor: "black" },
                 },
               }}
             />
+
             <TextField
               label="Joining Salary (per month)"
               type="number"
@@ -292,44 +402,18 @@ export default function GrowthTracker() {
               value={joiningSalary}
               onChange={(e) => setJoiningSalary(e.target.value)}
               inputProps={{ min: 8000, step: 500 }}
-              variant="outlined"
               sx={{
                 width: 500,
-               
                 background: "#fafbfc",
                 borderRadius: 2,
-
-
-                "& .MuiInputLabel-root": {
-                  top: "50%",
-                  transform: "translateY(-50%)",
-                  transition: "all 0.2s ease-in-out",
-                  fontSize: "0.85rem",
-                  paddingLeft: "8px",
-                },
-                "& .MuiInputLabel-root.Mui-focused, & .MuiInputLabel-root.MuiFormLabel-filled":
-                  {
-                    top: 0,
-                    color: "gray",
-                    transform: "translateY(-50%) translateX(8px)",
-                    paddingLeft: "8px",
-                    fontSize: "0.75rem",
-                  },
                 "& .MuiOutlinedInput-root": {
-                  "& input": {
-                    padding: "10px !important",
-                  },
-                  "&.Mui-focused fieldset": {
-                    borderColor: "black",
-                    borderStyle: "dashed",
-                  },
                   "&:hover fieldset": { borderColor: "black" },
                 },
               }}
             />
+
             <Button
               type="submit"
-              size="small"
               variant="contained"
               sx={{
                 bgcolor: "#111",
@@ -349,22 +433,13 @@ export default function GrowthTracker() {
       ) : (
         <Box>
           <Box sx={{ display: "flex", justifyContent: "center", mb: 1 }}>
-            <Typography
-              sx={{
-                fontWeight: 800,
-                color: "#111",
-                fontSize: 19,
-                textAlign: "center",
-                letterSpacing: 0.2,
-              }}
-            >
+            <Typography sx={{ fontWeight: 800, color: "#111", fontSize: 19 }}>
               Tenure with Muditam:&nbsp;
               <span style={{ color: "#1976d2" }}>
                 {joiningDate ? getTenure(joiningDate) : "--"}
               </span>
             </Typography>
           </Box>
-
 
           <TableContainer
             component={Paper}
@@ -382,157 +457,57 @@ export default function GrowthTracker() {
             <Table sx={{ minWidth: 1450, background: "#fff" }}>
               <TableHead>
                 <TableRow>
-                  <TableCell
-                    sx={{
-                      fontWeight: 900,
-                      background: "#111",
-                      color: "#fff",
-                      fontSize: 17,
-                      letterSpacing: 1,
-                      borderTopLeftRadius: 8,
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    Year
-                  </TableCell>
-                  <TableCell
-                    sx={{
-                      fontWeight: 900,
-                      background: "#111",
-                      color: "#fff",
-                      fontSize: 17,
-                      letterSpacing: 1,
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    Tenure/Slab
-                  </TableCell>
-                  <TableCell
-                    sx={{
-                      fontWeight: 900,
-                      background: "#111",
-                      color: "#fff",
-                      fontSize: 17,
-                      letterSpacing: 1,
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    Hike
-                  </TableCell>
-                  <TableCell
-                    sx={{
-                      fontWeight: 900,
-                      background: "#111",
-                      color: "#fff",
-                      fontSize: 17,
-                      letterSpacing: 1,
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    Fixed Salary
-                  </TableCell>
-                  <TableCell
-                    sx={{
-                      fontWeight: 900,
-                      background: "#111",
-                      color: "#fff",
-                      fontSize: 17,
-                      letterSpacing: 1,
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    6 Months Total
-                  </TableCell>
-                  <TableCell
-                    sx={{
-                      fontWeight: 900,
-                      background: "#111",
-                      color: "#fff",
-                      fontSize: 17,
-                      letterSpacing: 1,
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    Yearly Bonus
-                  </TableCell>
-                  <TableCell
-                    sx={{
-                      fontWeight: 900,
-                      background: "#111",
-                      color: "#fff",
-                      fontSize: 17,
-                      letterSpacing: 1,
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    Package
-                  </TableCell>
-                  <TableCell
-                    sx={{
-                      fontWeight: 900,
-                      background: "#111",
-                      color: "#fff",
-                      fontSize: 17,
-                      letterSpacing: 1,
-                      borderTopRightRadius: 8,
-                      minWidth: 190,
-                      whiteSpace: "pre-line",
-                    }}
-                  >
-                    Responsibilities
-                  </TableCell>
-                  <TableCell
-                    sx={{
-                      fontWeight: 900,
-                      background: "#111",
-                      color: "#fff",
-                      fontSize: 17,
-                      letterSpacing: 1,
-                      minWidth: 220,
-                      whiteSpace: "pre-line",
-                    }}
-                  >
-                    Targets
-                  </TableCell>
+                  {[
+                    { label: "Year", sx: { borderTopLeftRadius: 8 } },
+                    { label: "Tenure/Slab" },
+                    { label: "Hike" },
+                    { label: "Fixed Salary" },
+                    { label: "6 Months Total" },
+                    { label: "Yearly Bonus" },
+                    { label: "Package" },
+                    { label: "Responsibilities", sx: { minWidth: 190, whiteSpace: "pre-line" } },
+                    { label: "Targets", sx: { minWidth: 560, whiteSpace: "pre-line", borderTopRightRadius: 8 } },
+                  ].map((c) => (
+                    <TableCell
+                      key={c.label}
+                      sx={{
+                        fontWeight: 900,
+                        background: "#111",
+                        color: "#fff",
+                        fontSize: 17,
+                        letterSpacing: 1,
+                        whiteSpace: "nowrap",
+                        ...(c.sx || {}),
+                      }}
+                    >
+                      {c.label}
+                    </TableCell>
+                  ))}
                 </TableRow>
               </TableHead>
+
               <TableBody>
                 {slabs.map((slab, idx) => {
                   const hike = getHikePercent(joiningSalary, idx);
                   const salary = getSalaryForSlab(joiningSalary, idx);
                   const total = Math.round(salary * 6);
                   const yearIdx = Math.floor(idx / 2);
-                  const bonus =
-                    isMergedCell(idx) && bonuses[yearIdx]
-                      ? `₹${bonuses[yearIdx].toLocaleString()}`
-                      : isCellHidden(idx)
-                      ? null
-                      : "";
-                  const pkg = isMergedCell(idx)
-                    ? `₹${getYearlyPackage(
-                        joiningSalary,
-                        yearIdx
-                      ).toLocaleString()}`
-                    : isCellHidden(idx)
-                    ? null
-                    : "";
-                  const year = isMergedCell(idx)
-                    ? years[yearIdx]
-                    : isCellHidden(idx)
-                    ? null
-                    : "";
 
+                  const year = isMergedCell(idx) ? years[yearIdx] : null;
+                  const bonus = isMergedCell(idx) ? `₹${bonuses[yearIdx].toLocaleString()}` : null;
+                  const pkg = isMergedCell(idx)
+                    ? `₹${getYearlyPackage(joiningSalary, yearIdx).toLocaleString()}`
+                    : null;
 
                   return (
                     <TableRow key={idx} sx={getRowSx(idx)}>
-                      {isMergedCell(idx) ? (
+                      {isMergedCell(idx) && (
                         <TableCell
                           rowSpan={2}
                           sx={{
                             fontWeight: 800,
                             fontSize: 15.5,
                             py: 2,
-                            whiteSpace: "pre-line",
                             color: "#17181a",
                             textAlign: "center",
                             minWidth: 90,
@@ -540,20 +515,16 @@ export default function GrowthTracker() {
                         >
                           {year}
                         </TableCell>
-                      ) : null}
-                      <TableCell
-                        sx={{
-                          fontWeight: 700,
-                          fontSize: 15,
-                          whiteSpace: "pre-line",
-                        }}
-                      >
+                      )}
+
+                      <TableCell sx={{ fontWeight: 700, fontSize: 15 }}>
                         {joiningDate ? getSlabDates(joiningDate, idx) : ""}
                         <br />
                         <span style={{ color: "#1976d2", fontSize: 12 }}>
                           {`Slab ${idx + 1}`}
                         </span>
                       </TableCell>
+
                       <TableCell
                         sx={{
                           fontWeight: 600,
@@ -564,13 +535,16 @@ export default function GrowthTracker() {
                       >
                         {hike}
                       </TableCell>
+
                       <TableCell sx={{ fontWeight: 600, fontSize: 15 }}>
                         ₹{salary.toLocaleString()}
                       </TableCell>
+
                       <TableCell sx={{ fontWeight: 600, fontSize: 15 }}>
                         ₹{total.toLocaleString()}
                       </TableCell>
-                      {isMergedCell(idx) ? (
+
+                      {isMergedCell(idx) && (
                         <TableCell
                           rowSpan={2}
                           sx={{
@@ -583,8 +557,9 @@ export default function GrowthTracker() {
                         >
                           {bonus}
                         </TableCell>
-                      ) : null}
-                      {isMergedCell(idx) ? (
+                      )}
+
+                      {isMergedCell(idx) && (
                         <TableCell
                           rowSpan={2}
                           sx={{
@@ -597,8 +572,9 @@ export default function GrowthTracker() {
                         >
                           {pkg}
                         </TableCell>
-                      ) : null}
-                      {isMergedCell(idx) ? (
+                      )}
+
+                      {isMergedCell(idx) && (
                         <TableCell
                           rowSpan={2}
                           sx={{
@@ -611,16 +587,24 @@ export default function GrowthTracker() {
                         >
                           {slab.responsibilities}
                         </TableCell>
-                      ) : null}
-                      <TableCell
-                        sx={{
-                          fontWeight: 600,
-                          fontSize: 15,
-                          whiteSpace: "pre-line",
-                          minWidth: 210,
-                        }}
-                      >
+                      )}
+
+                      <TableCell sx={{ fontWeight: 600, fontSize: 15, minWidth: 560 }}>
                         {slab.targets}
+
+                        {idx === 0 && (
+                          <InlinePolicyTable
+                            title="Increment Policy for Health Experts (6 months)"
+                            rows={incrementPolicy6m}
+                          />
+                        )}
+
+                        {idx === 1 && (
+                          <InlinePolicyTable
+                            title="Increment Policy for Health Experts (12 months)"
+                            rows={incrementPolicy12m}
+                          />
+                        )}
                       </TableCell>
                     </TableRow>
                   );
@@ -629,33 +613,17 @@ export default function GrowthTracker() {
             </Table>
           </TableContainer>
 
-
-          <Box
-            mt={2.5}
-            mb={3}
-            sx={{ maxWidth: 1250, mx: "auto", color: "#ab3709" }}
-          >
-            <Typography
-              variant="body2"
-              sx={{
-                fontWeight: 600,
-                fontSize: 15,
-                whiteSpace: "pre-line",
-              }}
-            >
-              <b>Terms:</b> If not achieved in 6 months, extra months will be
-              given to complete the target. However, the target for the extra
-              months will also be added, but only 50% of the extra period target
-              will be counted towards the requirement. The candidate must
-              complete the target to move to the next slab.
+          <Box mt={2.5} mb={3} sx={{ maxWidth: 1250, mx: "auto", color: "#ab3709" }}>
+            <Typography variant="body2" sx={{ fontWeight: 600, fontSize: 15, whiteSpace: "pre-line" }}>
+              <b>Terms:</b> If not achieved in 6 months, extra months will be given to complete the target.
+              However, the target for the extra months will also be added, but only 50% of the extra period
+              target will be counted towards the requirement.
               {"\n"}
               <span style={{ color: "#333" }}>
-                Yearly Bonus: Employees can avail the yearly bonus only if they
-                achieve their yearly targets.
+                Yearly Bonus: Employees can avail the yearly bonus only if they achieve their yearly targets.
               </span>
             </Typography>
           </Box>
-
 
           <Box sx={{ display: "flex", justifyContent: "center" }}>
             <Button
@@ -677,6 +645,7 @@ export default function GrowthTracker() {
           </Box>
         </Box>
       )}
+
       {error && (
         <Typography color="error" textAlign="center" mt={2}>
           {error}
@@ -685,6 +654,3 @@ export default function GrowthTracker() {
     </Box>
   );
 }
-
-
-

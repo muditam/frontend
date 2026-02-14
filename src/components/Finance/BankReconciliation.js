@@ -2,12 +2,12 @@
 import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import TablePagination from "@mui/material/TablePagination";
 
-const API_BASE = "https://muditamleads-14f32a10d7f7.herokuapp.com";
+const API_BASE = "http://localhost:5001";
 
-/** Columns */
+/** Columns (Updated order: Transaction Date, then Value Date) */
 const COLUMNS = [
-  { key: "valueDate1", label: "Value Date" },
-  { key: "valueDate2", label: "Value Date" },
+  { key: "valueDate2", label: "Transaction Date" }, // txnDate
+  { key: "valueDate1", label: "Value Date" }, // valueDate
   { key: "description", label: "Description" },
   { key: "refNo", label: "Ref No./Cheque No." },
   { key: "branchCode", label: "Branch Code" },
@@ -15,12 +15,12 @@ const COLUMNS = [
   { key: "credit", label: "Credit (income)" },
   { key: "balance", label: "Balance" },
   { key: "remark", label: "Remark" },
-  { key: "orderIds", label: "Order Ids" }, 
+  { key: "orderIds", label: "Order Ids" },
 ];
 
 const BASE_MIN_W = 140;
-const REFNO_MIN_W = BASE_MIN_W * 2;  // 280
-const DESC_MIN_W = BASE_MIN_W * 4;   // 560
+const REFNO_MIN_W = BASE_MIN_W * 2; // 280
+const DESC_MIN_W = BASE_MIN_W * 4; // 560
 const cellMinStyle = (key) =>
   key === "description"
     ? { minWidth: `${DESC_MIN_W}px` }
@@ -50,8 +50,8 @@ const toDateInputValue = (v) => {
 
 const mapBackendToFe = (item) => ({
   _id: item._id,
-  valueDate1: item.valueDate ? toDateInputValue(item.valueDate) : "",
-  valueDate2: item.txnDate ? toDateInputValue(item.txnDate) : "",
+  valueDate1: item.valueDate ? toDateInputValue(item.valueDate) : "", // Value Date
+  valueDate2: item.txnDate ? toDateInputValue(item.txnDate) : "", // Transaction Date
   description: item.description ?? "",
   refNo: item.refNoChequeNo ?? "",
   branchCode: item.branchCode ?? "",
@@ -61,7 +61,7 @@ const mapBackendToFe = (item) => ({
   remark: item.remark ?? "",
   orderIds: item.orderIds ?? "",
   remarks3: item.remarks3 ?? "",
-  __bg: item.rowColor ?? "", // persisted color
+  __bg: item.rowColor ?? "",
 });
 
 const mapFeToBackend = (row) => ({
@@ -80,18 +80,10 @@ const mapFeToBackend = (row) => ({
 });
 
 /* ------------- EditableCell component (per-cell draft) ------------- */
-function EditableCell({
-  valueFromServer,
-  type,
-  placeholder,
-  onCommit,         // (finalValue) => Promise|void
-  onKeyDown,        // keyboard nav
-  inputRef,
-}) {
+function EditableCell({ valueFromServer, type, placeholder, onCommit, onKeyDown, inputRef }) {
   const [focused, setFocused] = useState(false);
   const [localValue, setLocalValue] = useState(valueFromServer ?? "");
 
-  // When server value changes, only update if NOT focused (avoid overwriting draft)
   useEffect(() => {
     if (!focused) setLocalValue(valueFromServer ?? "");
   }, [valueFromServer, focused]);
@@ -105,7 +97,7 @@ function EditableCell({
       onFocus={() => setFocused(true)}
       onBlur={async () => {
         setFocused(false);
-        await onCommit(localValue); // save on blur
+        await onCommit(localValue);
       }}
       onKeyDown={onKeyDown}
       className="w-full px-2 py-1 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-200"
@@ -117,14 +109,12 @@ function EditableCell({
 
 /* ---------------- component ---------------- */
 export default function TransactionsTable() {
-  // server-backed pagination
-  const [serverRows, setServerRows] = useState([]); // FE shape for current page
+  const [serverRows, setServerRows] = useState([]);
   const [total, setTotal] = useState(0);
 
   const [page, setPage] = useState(0); // MUI 0-based
-  const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [rowsPerPage, setRowsPerPage] = useState(250); // ✅ default 250
 
-  // selection (store ORIGINAL indices of serverRows)
   const [selected, setSelected] = useState(new Set());
 
   // Filters
@@ -134,11 +124,14 @@ export default function TransactionsTable() {
   const [remarksFilter, setRemarksFilter] = useState("");
   const [amountMin, setAmountMin] = useState("");
   const [amountMax, setAmountMax] = useState("");
+  const [yearFilter, setYearFilter] = useState(""); // ✅ year filter
 
-  // saving status by row (for small chip)
-  const savingStateRef = useRef(new Map()); // origIdx -> 'idle'|'saving'|'saved'|'error'
+  const savingStateRef = useRef(new Map());
   const [, force] = useState(0);
-  const setRowStatus = (idx, st) => { savingStateRef.current.set(idx, st); force((n) => n + 1); };
+  const setRowStatus = (idx, st) => {
+    savingStateRef.current.set(idx, st);
+    force((n) => n + 1);
+  };
   const rowStatus = (idx) => savingStateRef.current.get(idx) || "idle";
 
   const buildQuery = useCallback(() => {
@@ -178,7 +171,6 @@ export default function TransactionsTable() {
   const visibleIndex = useMemo(() => serverRows.map((_, i) => i), [serverRows]);
   const rowsToRender = useMemo(() => visibleIndex.map((i) => serverRows[i]), [visibleIndex, serverRows]);
 
-  /** Save a single row (full payload) */
   const saveRow = async (origIdx, payloadOverride = null) => {
     try {
       setRowStatus(origIdx, "saving");
@@ -207,7 +199,6 @@ export default function TransactionsTable() {
 
       setServerRows((prev) => {
         const next = [...prev];
-        // merge server-normalized item, preserve existing __bg until server echoes rowColor
         const merged = { ...next[origIdx], ...mapBackendToFe(json.item) };
         if (payload.rowColor !== undefined && payload.rowColor !== merged.__bg) {
           merged.__bg = payload.rowColor || "";
@@ -226,7 +217,6 @@ export default function TransactionsTable() {
     }
   };
 
-  /** Commit a single cell (only that field) */
   const commitCell = async (origIdx, key, finalValue) => {
     const full = { ...serverRows[origIdx], [key]: finalValue };
     setServerRows((prev) => {
@@ -237,33 +227,22 @@ export default function TransactionsTable() {
     await saveRow(origIdx, mapFeToBackend(full));
   };
 
+  const inputsGridRef = useRef({});
+  const setInputRef = (r, c) => (el) => {
+    inputsGridRef.current[`${r}-${c}`] = el;
+  };
+  const focusCell = (r, c) => {
+    const el = inputsGridRef.current[`${r}-${c}`];
+    if (el) el.focus();
+  };
+
   const addRow = () => {
     setServerRows((prev) => [{ ...EMPTY_ROW() }, ...prev]);
     setPage(0);
-    // focus first editable cell quickly
     setTimeout(() => focusCell(0, 2), 0);
   };
 
-  const deleteRow = async (origIdx) => {
-    const row = serverRows[origIdx];
-    if (row?._id) {
-      try {
-        const resp = await fetch(`${API_BASE}/api/bank-entries/${row._id}`, { method: "DELETE" });
-        const json = await resp.json();
-        if (!json.ok) throw new Error(json.error || "Delete failed");
-      } catch (e) {
-        console.error(e);
-      }
-    }
-    setServerRows((prev) => prev.filter((_, i) => i !== origIdx));
-    setSelected((prev) => {
-      const n = new Set(prev);
-      n.delete(origIdx);
-      return n;
-    });
-  };
-
-  // Upload to server so it persists across refresh
+  // Upload
   const fileInputRef = useRef(null);
   const triggerUpload = () => fileInputRef.current?.click();
   const handleFile = async (file) => {
@@ -286,17 +265,8 @@ export default function TransactionsTable() {
     e.target.value = "";
   };
 
-  // keyboard grid nav
-  const inputsGridRef = useRef({});
-  const setInputRef = (r, c) => (el) => {
-    inputsGridRef.current[`${r}-${c}`] = el;
-  };
-  const focusCell = (r, c) => {
-    const el = inputsGridRef.current[`${r}-${c}`];
-    if (el) el.focus();
-  };
   const onKeyDown = (e, r, c) => {
-    const lastColIdx = COLUMNS.length - 1 + 2; // +2 for checkbox and row number columns
+    const lastColIdx = COLUMNS.length - 1 + 2;
     if (e.key === "Enter") {
       e.preventDefault();
       if (e.shiftKey) focusCell(Math.max(0, r - 1), c);
@@ -316,7 +286,6 @@ export default function TransactionsTable() {
     }
   };
 
-  // selection helpers (use ORIGINAL indices)
   const toggleRow = (origIdx) => {
     setSelected((prev) => {
       const n = new Set(prev);
@@ -332,13 +301,12 @@ export default function TransactionsTable() {
   const allSelected = visibleIndex.length > 0 && selected.size === visibleIndex.length;
   const someSelected = selected.size > 0 && !allSelected;
 
-  // apply lighter colors & persist
-  const LIGHT_GREEN = "#DCFCE7"; // tailwind emerald-100
-  const LIGHT_RED = "#FEE2E2";   // tailwind red-100
+  const LIGHT_GREEN = "#DCFCE7";
+  const LIGHT_RED = "#FEE2E2";
 
   const saveRowColor = async (origIdx, hex) => {
     const row = serverRows[origIdx];
-    if (!row?._id) return; // skip unsaved rows
+    if (!row?._id) return;
     try {
       const resp = await fetch(`${API_BASE}/api/bank-entries/${row._id}`, {
         method: "PUT",
@@ -370,21 +338,24 @@ export default function TransactionsTable() {
   };
   const clearRowColor = () => applyRowColor("");
 
+  // ✅ Year dropdown behavior: selecting a year sets dateMin/dateMax (doesn't auto-fetch)
+  const onYearChange = (e) => {
+    const y = e.target.value;
+    setYearFilter(y);
+    if (!y) return;
+    setDateMin(`${y}-01-01`);
+    setDateMax(`${y}-12-31`);
+  };
+
   // pagination
   const handleChangePage = (_e, newPage) => setPage(newPage);
-  const handleChangeRowsPerPage = (e) => { setRowsPerPage(parseInt(e.target.value, 10)); setPage(0); };
-
-  const StatusChip = ({ status }) => {
-    const map = { idle: "", saving: "⏳", saved: "✅", error: "⚠️" };
-    return <span className="text-xs opacity-70">{map[status] || ""}</span>;
+  const handleChangeRowsPerPage = (e) => {
+    setRowsPerPage(parseInt(e.target.value, 10));
+    setPage(0);
   };
+
   const Swatch = ({ color, onClick, title }) => (
-    <button
-      onClick={onClick}
-      title={title}
-      className="w-7 h-7 rounded-md border shadow-sm"
-      style={{ background: color }}
-    />
+    <button onClick={onClick} title={title} className="w-7 h-7 rounded-md border shadow-sm" style={{ background: color }} />
   );
 
   return (
@@ -392,40 +363,39 @@ export default function TransactionsTable() {
       {/* Toolbar */}
       <div className="flex items-center justify-between gap-4 mb-3 flex-wrap">
         <div className="flex items-center gap-2">
-          <button
-            onClick={addRow}
-            className="px-3 py-2 rounded-lg border hover:bg-gray-50"
-            title="Add a new row (at top)"
-          >
+          <button onClick={addRow} className="px-3 py-2 rounded-lg border hover:bg-gray-50" title="Add a new row (at top)">
             + Add Row
           </button>
 
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".xlsx,.xls,.csv"
-            className="hidden"
-            onChange={onFileChange}
-          />
-          <button
-            onClick={triggerUpload}
-            className="px-3 py-2 rounded-lg border hover:bg-gray-50"
-            title="Upload Sheet (CSV/XLSX)"
-          >
+          <input ref={fileInputRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={onFileChange} />
+          <button onClick={triggerUpload} className="px-3 py-2 rounded-lg border hover:bg-gray-50" title="Upload Sheet (CSV/XLSX)">
             📄 Upload Sheet
           </button>
 
-          {/* Color controls (lighter shades) */}
+          {/* Color controls + Year filter (right side of color filter) */}
           <div className="flex items-center gap-2 ml-2">
             <Swatch color={LIGHT_GREEN} onClick={() => applyRowColor(LIGHT_GREEN)} title="Apply to selected" />
             <Swatch color={LIGHT_RED} onClick={() => applyRowColor(LIGHT_RED)} title="Apply to selected" />
-            <button
-              onClick={clearRowColor}
-              className="px-2 py-1 rounded-lg border hover:bg-gray-50"
-              title="Clear color from selected rows"
-            >
+            <button onClick={clearRowColor} className="px-2 py-1 rounded-lg border hover:bg-gray-50" title="Clear color from selected rows">
               ⟲
             </button>
+
+            {/* ✅ Year filter */}
+            <div className="flex items-center gap-2 ml-2">
+              <span className="text-sm text-gray-600">Year</span>
+              <select
+                value={yearFilter}
+                onChange={onYearChange}
+                className="px-2 py-1 border rounded-lg bg-white"
+                title="Filter by year (sets From/To dates)"
+              >
+                <option value="">All</option>
+                <option value="2023">2023</option>
+                <option value="2024">2024</option>
+                <option value="2025">2025</option>
+                <option value="2026">2026</option>
+              </select>
+            </div>
           </div>
         </div>
 
@@ -433,19 +403,9 @@ export default function TransactionsTable() {
         <div className="flex items-center gap-2 flex-wrap">
           <div className="flex items-center gap-1">
             <span className="text-sm text-gray-600">From</span>
-            <input
-              type="date"
-              value={dateMin}
-              onChange={(e) => setDateMin(e.target.value)}
-              className="px-2 py-1 border rounded-lg"
-            />
+            <input type="date" value={dateMin} onChange={(e) => setDateMin(e.target.value)} className="px-2 py-1 border rounded-lg" />
             <span className="text-sm text-gray-600">To</span>
-            <input
-              type="date"
-              value={dateMax}
-              onChange={(e) => setDateMax(e.target.value)}
-              className="px-2 py-1 border rounded-lg"
-            />
+            <input type="date" value={dateMax} onChange={(e) => setDateMax(e.target.value)} className="px-2 py-1 border rounded-lg" />
           </div>
 
           <input
@@ -462,23 +422,14 @@ export default function TransactionsTable() {
             onChange={(e) => setRemarksFilter(e.target.value)}
             className="px-2 py-1 border rounded-lg min-w-[200px]"
           />
-          <input
-            type="number"
-            placeholder="Amount min"
-            value={amountMin}
-            onChange={(e) => setAmountMin(e.target.value)}
-            className="px-2 py-1 border rounded-lg w-28"
-          />
-          <input
-            type="number"
-            placeholder="Amount max"
-            value={amountMax}
-            onChange={(e) => setAmountMax(e.target.value)}
-            className="px-2 py-1 border rounded-lg w-28"
-          />
+          <input type="number" placeholder="Amount min" value={amountMin} onChange={(e) => setAmountMin(e.target.value)} className="px-2 py-1 border rounded-lg w-28" />
+          <input type="number" placeholder="Amount max" value={amountMax} onChange={(e) => setAmountMax(e.target.value)} className="px-2 py-1 border rounded-lg w-28" />
 
           <button
-            onClick={() => { setPage(0); fetchPage().catch((e) => console.error(e)); }}
+            onClick={() => {
+              setPage(0);
+              fetchPage().catch((e) => console.error(e));
+            }}
             className="px-3 py-2 rounded-lg border hover:bg-gray-50"
             title="Apply server filters"
           >
@@ -486,8 +437,14 @@ export default function TransactionsTable() {
           </button>
           <button
             onClick={() => {
-              setDateMin(""); setDateMax(""); setDescFilter(""); setRemarksFilter("");
-              setAmountMin(""); setAmountMax(""); setPage(0);
+              setYearFilter("");
+              setDateMin("");
+              setDateMax("");
+              setDescFilter("");
+              setRemarksFilter("");
+              setAmountMin("");
+              setAmountMax("");
+              setPage(0);
               fetchPage().catch((e) => console.error(e));
             }}
             className="px-3 py-2 rounded-lg border hover:bg-gray-50"
@@ -503,21 +460,23 @@ export default function TransactionsTable() {
         <table className="w-full text-sm">
           <thead className="bg-gray-50 sticky top-0 z-10">
             <tr>
-              {/* Select-all */}
               <th className="px-3 py-2 text-left sticky left-0 bg-gray-50">
                 <input
                   type="checkbox"
                   checked={allSelected}
-                  ref={(el) => { if (el) el.indeterminate = someSelected; }}
+                  ref={(el) => {
+                    if (el) el.indeterminate = someSelected;
+                  }}
                   onChange={(e) => toggleAll(e.target.checked)}
                 />
               </th>
               <th className="px-3 py-2 text-left">#</th>
+
               {COLUMNS.map((c) => (
                 <th key={c.key} className="px-3 py-2 text-left whitespace-nowrap" style={cellMinStyle(c.key)}>
                   {c.label}
                 </th>
-              ))} 
+              ))}
             </tr>
           </thead>
           <tbody>
@@ -530,30 +489,24 @@ export default function TransactionsTable() {
             ) : (
               rowsToRender.map((row, rIdx) => {
                 const origIdx = visibleIndex[rIdx];
-                const status = rowStatus(origIdx);
                 const isChecked = selected.has(origIdx);
 
                 return (
                   <tr key={row._id || `local-${origIdx}`} className="border-t" style={{ background: row.__bg || "" }}>
-                    {/* checkbox */}
                     <td className="px-3 py-2 sticky left-0 bg-white">
                       <input type="checkbox" checked={isChecked} onChange={() => toggleRow(origIdx)} />
                     </td>
 
-                    {/* # */}
-                    <td className="px-3 py-2 sticky left-0 bg-white">
-                      {page * rowsPerPage + rIdx + 1}
-                    </td>
+                    <td className="px-3 py-2 sticky left-0 bg-white">{page * rowsPerPage + rIdx + 1}</td>
 
-                    {/* cells */}
                     {COLUMNS.map((c, cIdx) => {
                       const isDate = c.key === "valueDate1" || c.key === "valueDate2";
-                      const gridColIndex = cIdx + 2; // +2 for checkbox + #
+                      const gridColIndex = cIdx + 2;
                       return (
                         <td key={c.key} className="px-2 py-2" style={cellMinStyle(c.key)}>
                           <EditableCell
                             inputRef={setInputRef(rIdx, gridColIndex)}
-                            type={isDate ? "date" : (["debit","credit","balance"].includes(c.key) ? "number" : "text")}
+                            type={isDate ? "date" : ["debit", "credit", "balance"].includes(c.key) ? "number" : "text"}
                             valueFromServer={row[c.key] ?? ""}
                             placeholder={c.label}
                             onCommit={(finalValue) => commitCell(origIdx, c.key, finalValue)}
@@ -562,8 +515,6 @@ export default function TransactionsTable() {
                         </td>
                       );
                     })}
-
-                    
                   </tr>
                 );
               })
@@ -578,9 +529,9 @@ export default function TransactionsTable() {
           component="div"
           count={total}
           page={page}
-          onPageChange={(_e, newPage) => setPage(newPage)}
+          onPageChange={handleChangePage}
           rowsPerPage={rowsPerPage}
-          onRowsPerPageChange={(e) => { setRowsPerPage(parseInt(e.target.value, 10)); setPage(0); }}
+          onRowsPerPageChange={handleChangeRowsPerPage}
           rowsPerPageOptions={[10, 25, 50, 100, 250, 500]}
           labelRowsPerPage="Rows per page:"
           showFirstButton
@@ -590,4 +541,3 @@ export default function TransactionsTable() {
     </div>
   );
 }
-
