@@ -207,15 +207,14 @@ const TeamPage = ({ managerId: managerIdProp }) => {
       {/* Header Section */}
       <Stack direction={{ xs: "column", md: "row" }} justifyContent="space-between" alignItems="flex-start" spacing={2} mb={4}>
         <Box>
-          <Typography variant="h4" sx={{ color: "#1e293b", fontWeight: 800, mb: 0.5 }}>Team Management</Typography>
-          <Typography sx={{ color: "#64748b", fontWeight: 500 }}>Track real-time agent performance.</Typography>
+          <Typography variant="h4" sx={{ color: "#1e293b", fontWeight: 800, mb: 0.5 }}>Team Management</Typography> 
         </Box>
 
 
         <Stack direction="row" spacing={2}>
           <TextField
             select
-            value={filterLeader}
+            value={filterLeader} 
             onChange={(e) => setFilterLeader(e.target.value)}
             SelectProps={{ native: true }}
             size="small"

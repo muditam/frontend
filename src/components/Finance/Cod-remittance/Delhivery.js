@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from "react";
+// DelhiveryUpload.jsx
+import React, { useEffect, useRef, useState } from "react";
 import {
   Box,
   Button,
@@ -20,8 +21,15 @@ const API_BASE = "https://muditamleads-14f32a10d7f7.herokuapp.com";
 
 const DelhiveryUpload = () => {
   const [file, setFile] = useState(null);
+  const fileInputRef = useRef(null); // ✅ clear filename UI
+
   const [records, setRecords] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(false); // ✅ table fetch loading
+
+  // ✅ separate action loaders (prevent double click)
+  const [uploading, setUploading] = useState(false);
+  const [deletingLast, setDeletingLast] = useState(false);
+  const [downloadingSample, setDownloadingSample] = useState(false);
 
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(50);
@@ -36,7 +44,7 @@ const DelhiveryUpload = () => {
   const [amountMin, setAmountMin] = useState("");
   const [amountMax, setAmountMax] = useState("");
 
-  const fmt = (n) => (n == null ? "" : `₹${Number(n).toLocaleString("en-IN")}`);
+  const fmt = (n) => (n == null || n === "" ? "" : `₹${Number(n).toLocaleString("en-IN")}`);
   const fmtDate = (d) => {
     if (!d) return "";
     const dt = new Date(d);
@@ -79,15 +87,21 @@ const DelhiveryUpload = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, rowsPerPage]);
 
+  const clearSelectedFile = () => {
+    setFile(null);
+    if (fileInputRef.current) fileInputRef.current.value = ""; // ✅ clears filename UI
+  };
+
   const handleFileChange = (e) => setFile(e.target.files?.[0] || null);
 
   const handleUpload = async () => {
+    if (uploading) return;
     if (!file) return alert("Please select a CSV file.");
 
     const formData = new FormData();
     formData.append("file", file);
 
-    setLoading(true);
+    setUploading(true);
     try {
       const res = await fetch(`${API_BASE}/api/delhivery/upload`, {
         method: "POST",
@@ -99,6 +113,7 @@ const DelhiveryUpload = () => {
         alert(json.error);
       } else {
         alert(`Upload successful (${json.inserted || 0} rows)`);
+        clearSelectedFile(); // ✅ clear file after OK
         setPage(0);
         fetchData(0, rowsPerPage);
       }
@@ -106,8 +121,49 @@ const DelhiveryUpload = () => {
       console.error(e);
       alert("Upload failed");
     } finally {
-      setLoading(false);
+      setUploading(false);
     }
+  };
+
+  // ✅ Delete last uploaded batch
+  const handleDeleteLastUpload = async () => {
+    if (deletingLast) return;
+
+    const yes = window.confirm(
+      "Delete LAST uploaded batch? This will remove the most recent uploaded file data."
+    );
+    if (!yes) return;
+
+    setDeletingLast(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/delhivery/delete-last-upload`, {
+        method: "DELETE",
+      });
+      const json = await res.json();
+
+      if (json.error) {
+        alert(json.error);
+      } else {
+        alert(`Deleted: ${json.deleted || 0} rows`);
+        setPage(0);
+        fetchData(0, rowsPerPage);
+      }
+    } catch (e) {
+      console.error(e);
+      alert("Delete failed");
+    } finally {
+      setDeletingLast(false);
+    }
+  };
+
+  // ✅ Download sample CSV
+  const handleDownloadSample = () => {
+    if (downloadingSample) return;
+    setDownloadingSample(true);
+
+    window.open(`${API_BASE}/api/delhivery/sample`, "_blank");
+
+    setTimeout(() => setDownloadingSample(false), 600);
   };
 
   const applyFilters = () => {
@@ -126,6 +182,8 @@ const DelhiveryUpload = () => {
     setPage(0);
     fetchData(0, rowsPerPage);
   };
+
+  const anyActionLoading = uploading || deletingLast || downloadingSample;
 
   return (
     <Box sx={{ p: 3 }}>
@@ -148,25 +206,70 @@ const DelhiveryUpload = () => {
           flexWrap: "wrap",
         }}
       >
+        {/* ✅ LEFT: file + upload */}
         <Box sx={{ display: "flex", gap: 2, alignItems: "center", flexWrap: "wrap" }}>
-          <input type="file" accept=".csv" onChange={handleFileChange} />
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".csv"
+            onChange={handleFileChange}
+            disabled={uploading}
+            onClick={(e) => {
+              // ✅ allow selecting same file again
+              e.target.value = null;
+            }}
+          />
+
           <Button
             variant="contained"
-            startIcon={<CloudUploadIcon />}
+            startIcon={
+              uploading ? <CircularProgress size={18} sx={{ color: "#fff" }} /> : <CloudUploadIcon />
+            }
             onClick={handleUpload}
-            disabled={loading}
-            sx={{ bgcolor: "black", color: "#fff", "&:hover": { bgcolor: "#333" } }}
+            disabled={uploading || !file}
+            sx={{ bgcolor: "black", color: "#fff", "&:hover": { bgcolor: "#333" }, minWidth: 120 }}
           >
-            Upload
+            {uploading ? "Uploading..." : "Upload"}
           </Button>
         </Box>
 
-        <Typography sx={{ color: "#555", fontSize: 13 }}>
-          Total: <b>{totalCount.toLocaleString("en-IN")}</b>
-        </Typography>
+        {/* ✅ RIGHT: Total + Delete + Sample */}
+        <Box
+          sx={{
+            display: "flex",
+            gap: 1.5,
+            alignItems: "center",
+            flexWrap: "wrap",
+            justifyContent: "flex-end",
+          }}
+        >
+          <Typography sx={{ color: "#555", fontSize: 13 }}>
+            Total: <b>{totalCount.toLocaleString("en-IN")}</b>
+          </Typography>
+
+          <Button
+            variant="outlined"
+            onClick={handleDeleteLastUpload}
+            disabled={deletingLast}
+            startIcon={deletingLast ? <CircularProgress size={16} /> : null}
+            sx={{ textTransform: "none" }}
+          >
+            {deletingLast ? "Deleting..." : "Delete Last Upload"}
+          </Button>
+
+          <Button
+            variant="text"
+            onClick={handleDownloadSample}
+            disabled={downloadingSample}
+            startIcon={downloadingSample ? <CircularProgress size={16} /> : null}
+            sx={{ textTransform: "none" }}
+          >
+            {downloadingSample ? "Preparing..." : "Download Sample CSV"}
+          </Button>
+        </Box>
       </Paper>
 
-      {/* Filters (NO color) */}
+      {/* Filters */}
       <Paper
         elevation={0}
         sx={{
@@ -239,10 +342,20 @@ const DelhiveryUpload = () => {
           sx={{ width: 130 }}
         />
 
-        <Button variant="outlined" onClick={applyFilters} sx={{ textTransform: "none" }}>
+        <Button
+          variant="outlined"
+          onClick={applyFilters}
+          disabled={anyActionLoading}
+          sx={{ textTransform: "none" }}
+        >
           Apply
         </Button>
-        <Button variant="text" onClick={clearFilters} sx={{ textTransform: "none" }}>
+        <Button
+          variant="text"
+          onClick={clearFilters}
+          disabled={anyActionLoading}
+          sx={{ textTransform: "none" }}
+        >
           Clear
         </Button>
       </Paper>

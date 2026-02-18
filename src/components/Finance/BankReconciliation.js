@@ -2,7 +2,7 @@
 import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import TablePagination from "@mui/material/TablePagination";
 
-const API_BASE = "http://localhost:5001";
+const API_BASE = "https://muditamleads-14f32a10d7f7.herokuapp.com";
 
 /** Columns (Updated order: Transaction Date, then Value Date) */
 const COLUMNS = [

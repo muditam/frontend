@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from "react";
+// DtdcUpload.jsx
+import React, { useEffect, useRef, useState } from "react";
 import {
   Box,
   Button,
@@ -20,8 +21,17 @@ const API_BASE = "https://muditamleads-14f32a10d7f7.herokuapp.com";
 
 const DtdcUpload = () => {
   const [file, setFile] = useState(null);
+  const fileInputRef = useRef(null); // ✅ to clear input UI text
+
   const [records, setRecords] = useState([]);
+
+  // ✅ keep table fetch loading separate from actions
   const [loading, setLoading] = useState(false);
+
+  // ✅ prevent double click for actions
+  const [uploading, setUploading] = useState(false);
+  const [deletingLast, setDeletingLast] = useState(false);
+  const [downloadingSample, setDownloadingSample] = useState(false);
 
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(50);
@@ -108,13 +118,19 @@ const DtdcUpload = () => {
 
   const handleFileChange = (e) => setFile(e.target.files?.[0] || null);
 
+  const clearSelectedFile = () => {
+    setFile(null);
+    if (fileInputRef.current) fileInputRef.current.value = ""; // ✅ clears "filename" shown
+  };
+
   const handleUpload = async () => {
+    if (uploading) return;
     if (!file) return alert("Please select a CSV file.");
 
     const formData = new FormData();
     formData.append("file", file);
 
-    setLoading(true);
+    setUploading(true);
     try {
       const res = await fetch(`${API_BASE}/api/dtdc/upload`, {
         method: "POST",
@@ -125,15 +141,58 @@ const DtdcUpload = () => {
       if (json.error) {
         alert(json.error);
       } else {
+        // ✅ alert blocks until OK is clicked
         alert(`Upload successful (${json.inserted || 0} rows)`);
+
+        // ✅ after OK: clear file state + input UI text
+        clearSelectedFile();
+
         setPage(0);
         fetchData(0, rowsPerPage);
       }
     } catch (err) {
       alert("Upload failed");
     } finally {
-      setLoading(false);
+      setUploading(false);
     }
+  };
+
+  const handleDeleteLastUpload = async () => {
+    if (deletingLast) return;
+
+    const yes = window.confirm(
+      "Delete LAST uploaded batch? This will remove the most recent uploaded file data."
+    );
+    if (!yes) return;
+
+    setDeletingLast(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/dtdc/delete-last-upload`, {
+        method: "DELETE",
+      });
+      const json = await res.json();
+
+      if (json.error) {
+        alert(json.error);
+      } else {
+        alert(`Deleted: ${json.deleted || 0} rows`);
+        setPage(0);
+        fetchData(0, rowsPerPage);
+      }
+    } catch (e) {
+      alert("Delete failed");
+    } finally {
+      setDeletingLast(false);
+    }
+  };
+
+  const handleDownloadSample = () => {
+    if (downloadingSample) return;
+    setDownloadingSample(true);
+
+    window.open(`${API_BASE}/api/dtdc/sample`, "_blank");
+
+    setTimeout(() => setDownloadingSample(false), 600);
   };
 
   const applyFilters = () => {
@@ -188,25 +247,74 @@ const DtdcUpload = () => {
           flexWrap: "wrap",
         }}
       >
+        {/* ✅ LEFT */}
         <Box sx={{ display: "flex", gap: 2, alignItems: "center", flexWrap: "wrap" }}>
-          <input type="file" accept=".csv" onChange={handleFileChange} />
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".csv"
+            disabled={uploading}
+            onClick={(e) => {
+              // ✅ allows selecting same file again (triggers onChange)
+              e.target.value = null;
+            }}
+            onChange={handleFileChange}
+          />
+
           <Button
             variant="contained"
-            startIcon={<CloudUploadIcon />}
+            startIcon={
+              uploading ? (
+                <CircularProgress size={18} sx={{ color: "#fff" }} />
+              ) : (
+                <CloudUploadIcon />
+              )
+            }
             onClick={handleUpload}
-            disabled={loading}
-            sx={{ bgcolor: "black", color: "#fff", "&:hover": { bgcolor: "#333" } }}
+            disabled={uploading || !file}
+            sx={{ bgcolor: "black", color: "#fff", "&:hover": { bgcolor: "#333" }, minWidth: 120 }}
           >
-            Upload
+            {uploading ? "Uploading..." : "Upload"}
           </Button>
         </Box>
 
-        <Typography sx={{ color: "#555", fontSize: 13 }}>
-          Total: <b>{totalCount.toLocaleString("en-IN")}</b>
-        </Typography>
+        {/* ✅ RIGHT (Total + Delete + Sample) */}
+        <Box
+          sx={{
+            display: "flex",
+            gap: 1.5,
+            alignItems: "center",
+            flexWrap: "wrap",
+            justifyContent: "flex-end",
+          }}
+        >
+          <Typography sx={{ color: "#555", fontSize: 13 }}>
+            Total: <b>{totalCount.toLocaleString("en-IN")}</b>
+          </Typography>
+
+          <Button
+            variant="outlined"
+            onClick={handleDeleteLastUpload}
+            disabled={deletingLast}
+            startIcon={deletingLast ? <CircularProgress size={16} /> : null}
+            sx={{ textTransform: "none" }}
+          >
+            {deletingLast ? "Deleting..." : "Delete Last Upload"}
+          </Button>
+
+          <Button
+            variant="text"
+            onClick={handleDownloadSample}
+            disabled={downloadingSample}
+            startIcon={downloadingSample ? <CircularProgress size={16} /> : null}
+            sx={{ textTransform: "none" }}
+          >
+            {downloadingSample ? "Preparing..." : "Download Sample CSV"}
+          </Button>
+        </Box>
       </Paper>
 
-      {/* Filters (NO color filters) */}
+      {/* Filters */}
       <Paper
         elevation={0}
         sx={{
@@ -222,19 +330,11 @@ const DtdcUpload = () => {
       >
         <TextField
           size="small"
-          label="Search (CN / Ref / UTR / Status)"
+          label="Search (CN / Ref / UTR)"
           value={q}
           onChange={(e) => setQ(e.target.value)}
           sx={{ minWidth: 280 }}
-        />
-
-        <TextField
-          size="small"
-          label="Status contains"
-          value={status}
-          onChange={(e) => setStatus(e.target.value)}
-          sx={{ minWidth: 200 }}
-        />
+        /> 
 
         <TextField
           size="small"
