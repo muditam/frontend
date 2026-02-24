@@ -737,15 +737,12 @@ function AverageOrderValueCard({
   start,
   end,
   aovStats,
-  compareMode,
   compareStart,
   compareEnd,
-  useCustomCompare,
 }) {
   const [scope, setScope] = useState("combined");
   const [loading, setLoading] = useState(false);
   const [series, setSeries] = useState([]);
-
   const [summary, setSummary] = useState({
     currentAOV: 0,
     previousAOV: 0,
@@ -754,60 +751,83 @@ function AverageOrderValueCard({
     previousRange: null,
   });
 
-  const hasComparison = compareStart && compareEnd;
+  const hasComparison = !!(compareStart && compareEnd);
+  const isSingle = isSingleDay(start, end);
 
-  // ============================================
-  // AGGREGATE DATA FOR LARGE DATE RANGES
-  // ============================================
-// In the AverageOrderValueCard component, update the aggregateData function:
+  const safeDateLabel = (v) => {
+    // if backend already returns "Feb 12" etc, keep it
+    if (!v) return "";
+    if (String(v).includes("-")) return formatDateLabel(String(v)); // YYYY-MM-DD
+    return String(v);
+  };
 
-const aggregateData = (points, days) => {
-  if (days <= 31) return points;
+  // ✅ show all days for <= 14 points; single-day show ~6-8 labels max
+  const getXAxisInterval = (len) => {
+    if (!len) return 0;
 
-  if (days <= 90) {
-    const weeks = [];
-    for (let i = 0; i < points.length; i += 7) {
-      const chunk = points.slice(i, i + 7);
-      const validCurrent = chunk.filter(p => p.current > 0);
-      const validPrev = chunk.filter(p => p.previous > 0);
-      
-      const avgCurrent = validCurrent.length > 0 
-        ? validCurrent.reduce((s, p) => s + p.current, 0) / validCurrent.length 
-        : 0;
-      const avgPrev = validPrev.length > 0 
-        ? validPrev.reduce((s, p) => s + p.previous, 0) / validPrev.length 
-        : 0;
-      
-      weeks.push({
-        label: chunk[0].label,
-        current: Number(avgCurrent.toFixed(2)),
-        previous: avgPrev > 0 ? Number(avgPrev.toFixed(2)) : null,  // 🔥 Set to null if 0
-      });
+    // Single day (hourly)
+    if (isSingle) {
+      if (len <= 8) return 0; // small dataset
+      // keep around 7 labels
+      return Math.max(0, Math.ceil(len / 7) - 1);
     }
-    return weeks;
-  }
 
-  const months = {};
-  points.forEach(p => {
-    const monthKey = p.label.slice(0, 7);
-    if (!months[monthKey]) {
-      months[monthKey] = { current: [], previous: [] };
+    // Multi day
+    if (len <= 14) return 0; // ✅ last 7/14 days => show ALL ticks
+    return Math.max(0, Math.ceil(len / 8) - 1); // longer ranges => reduce clutter
+  };
+
+  const aggregateData = (points, days) => {
+    if (days <= 31) return points;
+
+    if (days <= 90) {
+      const weeks = [];
+      for (let i = 0; i < points.length; i += 7) {
+        const chunk = points.slice(i, i + 7);
+        const validCurrent = chunk.filter((p) => p.current > 0);
+        const validPrev = chunk.filter((p) => p.previous > 0);
+
+        const avgCurrent =
+          validCurrent.length > 0
+            ? validCurrent.reduce((s, p) => s + p.current, 0) / validCurrent.length
+            : 0;
+
+        const avgPrev =
+          validPrev.length > 0
+            ? validPrev.reduce((s, p) => s + p.previous, 0) / validPrev.length
+            : 0;
+
+        weeks.push({
+          label: chunk[0]?.label,
+          current: Number(avgCurrent.toFixed(2)),
+          previous: avgPrev > 0 ? Number(avgPrev.toFixed(2)) : null,
+        });
+      }
+      return weeks;
     }
-    months[monthKey].current.push(p.current);
-    if (p.previous > 0) months[monthKey].previous.push(p.previous);  // 🔥 Only valid values
-  });
 
-  return Object.entries(months).map(([month, data]) => ({
-    label: month,
-    current: Number((data.current.reduce((s, v) => s + v, 0) / data.current.length).toFixed(2)),
-    previous: data.previous.length > 0 
-      ? Number((data.previous.reduce((s, v) => s + v, 0) / data.previous.length).toFixed(2))
-      : null,  // 🔥 Set to null if no valid data
-  }));
-};
-  // ============================================
-  // FETCH AOV WITH COMPARISON
-  // ============================================
+    const months = {};
+    points.forEach((p) => {
+      const monthKey = String(p.label || "").slice(0, 7);
+      if (!months[monthKey]) months[monthKey] = { current: [], previous: [] };
+      months[monthKey].current.push(p.current);
+      if (p.previous > 0) months[monthKey].previous.push(p.previous);
+    });
+
+    return Object.entries(months).map(([month, data]) => ({
+      label: month,
+      current: Number(
+        (data.current.reduce((s, v) => s + v, 0) / data.current.length).toFixed(2)
+      ),
+      previous:
+        data.previous.length > 0
+          ? Number(
+              (data.previous.reduce((s, v) => s + v, 0) / data.previous.length).toFixed(2)
+            )
+          : null,
+    }));
+  };
+
   useEffect(() => {
     if (!start || !end) return;
 
@@ -815,47 +835,43 @@ const aggregateData = (points, days) => {
       try {
         setLoading(true);
 
-        const params = { start, end, scope };
+        const params = {
+          start,
+          end,
+          scope,
+          compareMode: hasComparison ? "custom" : "none",
+          customCompareStart: compareStart,
+          customCompareEnd: compareEnd,
+        };
 
-        // 🔥 KEY FIX: Send comparison dates properly
-        if (hasComparison) {
-          params.compareMode = "custom";
-          params.customCompareStart = compareStart;
-          params.customCompareEnd = compareEnd;
-        } else {
-          params.compareMode = "none";
-        }
-
-        const res = await axios.get(
-          `${apiBase}/api/super-admin/analytics/aov-over-time`,
-          { params }
-        );
+        const res = await axios.get(`${apiBase}/api/super-admin/analytics/aov-over-time`, {
+          params,
+        });
 
         const { current, previous, points } = res.data || {};
-
-        const currentAOV = current?.aov || 0;
-        const previousAOV = previous?.aov || 0;
-
-        const changePct =
-          previousAOV > 0
-            ? ((currentAOV - previousAOV) / previousAOV) * 100
-            : 0;
+        const curAOV = current?.aov || 0;
+        const prevAOV = previous?.aov || 0;
 
         setSummary({
-          currentAOV,
-          previousAOV,
-          changePct,
+          currentAOV: curAOV,
+          previousAOV: prevAOV,
+          changePct: prevAOV > 0 ? ((curAOV - prevAOV) / prevAOV) * 100 : 0,
           currentRange: current?.range || { start, end },
           previousRange: previous?.range || null,
         });
 
-        const dayCount = Math.ceil(
-          (new Date(end) - new Date(start)) / (1000 * 60 * 60 * 24)
-        );
-        
-        const aggregated = aggregateData(points || [], dayCount);
-        setSeries(aggregated);
+        const dayCount =
+          Math.ceil((new Date(end) - new Date(start)) / (1000 * 60 * 60 * 24)) + 1;
 
+        const aggregated = aggregateData(points || [], dayCount);
+
+        // ✅ normalize label for x-axis formatting
+        const normalized = (aggregated || []).map((p) => ({
+          ...p,
+          label: p.label,
+        }));
+
+        setSeries(normalized);
       } catch (err) {
         console.error("AOV fetch error:", err);
         setSeries([]);
@@ -865,60 +881,10 @@ const aggregateData = (points, days) => {
     };
 
     fetchAOV();
-  }, [
-    apiBase,
-    start,
-    end,
-    scope,
-    compareStart,  // 🔥 ADD THIS
-    compareEnd,    // 🔥 ADD THIS
-    hasComparison, // 🔥 ADD THIS
-  ]);
+  }, [apiBase, start, end, scope, compareStart, compareEnd, hasComparison]);
 
-  // ============================================
-  // HELPERS
-  // ============================================
   const fmtAOV = (v) =>
-    `₹${v.toLocaleString("en-IN", { minimumFractionDigits: 2 })}`;
-
-  const fmtDate = (d) => {
-    if (!d) return "";
-    return new Date(d).toLocaleDateString("en-IN", {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-    });
-  };
-
-  const buildPill = (label, color) => (
-    <Box
-      sx={{
-        display: "inline-flex",
-        alignItems: "center",
-        gap: 1,
-        borderRadius: "20px",
-        px: 1.6,
-        py: 0.8,
-        bgcolor: `${color}22`,
-        border: `1px solid ${color}55`,
-      }}
-    >
-      <Box
-        sx={{
-          width: 10,
-          height: 10,
-          borderRadius: "50%",
-          bgcolor: color,
-        }}
-      />
-      <Typography sx={{ fontSize: 12, fontWeight: 600 }}>
-        {label}
-      </Typography>
-    </Box>
-  );
-
-  const { currentAOV, previousAOV, changePct, currentRange, previousRange } =
-    summary;
+    `₹${Number(v || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
   const scopeStats = {
     online: aovStats?.online || { aov: 0, orders: 0 },
@@ -928,26 +894,28 @@ const aggregateData = (points, days) => {
 
   const renderScopeValue = (value) => {
     const s = scopeStats[value] || scopeStats.combined;
-    return `${value[0].toUpperCase() + value.slice(1)} – ₹${s.aov.toLocaleString(
+    return `${value[0].toUpperCase() + value.slice(1)} – ₹${Number(s.aov || 0).toLocaleString(
       "en-IN"
     )} · ${s.orders} orders`;
   };
 
-  // ============================================
-  // UI RENDER
-  // ============================================
-  return (
-    <Card sx={{ p: 3, borderRadius: 4, height: 430, display: "flex", flexDirection: "column" }}>
+  const xInterval = getXAxisInterval(series.length);
 
+  return (
+    <Card
+      sx={{
+        p: 3,
+        borderRadius: 4,
+        height: 430,
+        display: "flex",
+        flexDirection: "column",
+        boxShadow: "0px 4px 20px rgba(0,0,0,0.05)",
+        background: "#fff",
+      }}
+    >
       {/* HEADER */}
-      <Box
-        sx={{
-          display: "flex",
-          justifyContent: "space-between",
-          mb: 2,
-        }}
-      >
-        <Typography sx={{ fontSize: 22, fontWeight: 700 }}>
+      <Box sx={{ display: "flex", justifyContent: "space-between", mb: 2, alignItems: "center" }}>
+        <Typography sx={{ fontSize: 20, fontWeight: 700, color: "#1B2559" }}>
           Average Order Value
         </Typography>
 
@@ -956,6 +924,7 @@ const aggregateData = (points, days) => {
             value={scope}
             onChange={(e) => setScope(e.target.value)}
             renderValue={renderScopeValue}
+            sx={{ borderRadius: 2, fontSize: 13 }}
           >
             <MenuItem value="combined">{renderScopeValue("combined")}</MenuItem>
             <MenuItem value="online">{renderScopeValue("online")}</MenuItem>
@@ -964,169 +933,105 @@ const aggregateData = (points, days) => {
         </FormControl>
       </Box>
 
-      {/* BIG NUMBER + PERCENT */}
-      <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 2 }}>
-        <Typography sx={{ fontSize: 32, fontWeight: 800 }}>
-          {fmtAOV(currentAOV)}
+      {/* BIG NUMBER */}
+      <Box sx={{ display: "flex", alignItems: "baseline", gap: 1.5, mb: 1 }}>
+        <Typography sx={{ fontSize: 30, fontWeight: 800, color: "#1B2559" }}>
+          {fmtAOV(summary.currentAOV)}
         </Typography>
 
-        {hasComparison && previousAOV > 0 ? (
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-            <Typography
-              sx={{
-                fontSize: 16,
-                fontWeight: 700,
-                color: changePct >= 0 ? "green" : "red",
-              }}
-            >
-              {changePct >= 0 ? "▲" : "▼"} {Math.abs(changePct).toFixed(2)}%
-            </Typography>
-            <Typography sx={{ fontSize: 12, color: "text.secondary" }}>
-              vs {fmtAOV(previousAOV)}
-            </Typography>
-          </Box>
-        ) : null}
+        {hasComparison && summary.previousAOV > 0 && (
+          <Typography
+            sx={{
+              fontSize: 14,
+              fontWeight: 700,
+              color: summary.changePct >= 0 ? "#05cd99" : "#ee5d50",
+            }}
+          >
+            {summary.changePct >= 0 ? "▲" : "▼"} {Math.abs(summary.changePct).toFixed(2)}%
+          </Typography>
+        )}
       </Box>
 
-      {/* BEAUTIFUL DATE PILLS */}
-      {hasComparison && previousRange && (
-        <Box sx={{ display: "flex", gap: 1.5, mb: 2, flexWrap: "wrap" }}>
-          {buildPill(
-            currentRange?.start === currentRange?.end
-              ? fmtDate(currentRange?.start)
-              : `${fmtDate(currentRange?.start)} – ${fmtDate(currentRange?.end)}`,
-            "#2e7d32"
-          )}
-          {buildPill(
-            previousRange?.start === previousRange?.end
-              ? fmtDate(previousRange?.start)
-              : `${fmtDate(previousRange?.start)} – ${fmtDate(previousRange?.end)}`,
-            "#fbc02d"
-          )}
-        </Box>
-      )}
-
-      <Typography
-        sx={{
-          fontSize: 12,
-          color: "text.secondary",
-          mb: 1,
-          textTransform: "uppercase",
-        }}
-      >
-        Average order value over time
-      </Typography>
-
       {/* CHART */}
-      <Box sx={{ height: 250, flex: 1 }}>
+      <Box sx={{ height: 250, flex: 1, mt: 2 }}>
         {loading ? (
-          <Skeleton height={220} />
-        ) : series.length === 0 ? (
-          <Box sx={{ textAlign: "center", py: 10 }}>
-            <Typography color="text.secondary">No data available</Typography>
-          </Box>
+          <Skeleton variant="rectangular" height="100%" sx={{ borderRadius: 2 }} />
         ) : (
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={series}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-              <XAxis 
-                dataKey="label" 
-                tick={{ fontSize: 11 }}
-             tickFormatter={(value) => {
-  if (!value) return "";     // prevents INVALID DATE
-  const isSingle = start === end;
-  return isSingle ? formatHourlyLabel(value) : formatDateLabel(value);
-}}
+            <AreaChart
+              data={series}
+              margin={{ top: 10, right: 12, left: 10, bottom: 28 }} // ✅ avoids clipping
+            >
+              <defs>
+                <linearGradient id="colorAov" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#3182ce" stopOpacity={0.3} />
+                  <stop offset="95%" stopColor="#3182ce" stopOpacity={0} />
+                </linearGradient>
+              </defs>
 
-                interval={series.length > 5 ? Math.floor(series.length / 3) - 1 : 0}
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F1F1F1" />
+
+              <XAxis
+                dataKey="label"
+                interval={xInterval} // ✅ shows all dates for 7 days; reduces for hourly
+                height={38}
+                tickMargin={10}
+                axisLine={false}
+                tickLine={false}
+                tick={{ fontSize: 11, fill: "#475569", fontWeight: 600 }} // ✅ darker visible
+                tickFormatter={(v) => (isSingle ? formatHourlyLabel(String(v)) : safeDateLabel(v))}
               />
-              <YAxis tickFormatter={(v) => `₹${v}`} tick={{ fontSize: 11 }} />
+
+              <YAxis
+                width={56} // ✅ prevents y-axis cut
+                tickMargin={10}
+                axisLine={false}
+                tickLine={false}
+                tick={{ fontSize: 11, fill: "#475569", fontWeight: 600 }}
+                tickFormatter={(v) => `₹${Math.round(v || 0).toLocaleString("en-IN")}`}
+              />
 
               <Tooltip
-                content={({ active, payload, label }) => {
-                  if (!active || !payload || payload.length === 0) return null;
-
-                  const isSingle = start === end;
-
-                  return (
-                    <div
-                      style={{
-                        background: "white",
-                        padding: "10px",
-                        borderRadius: "8px",
-                        boxShadow: "0 2px 10px rgba(0,0,0,0.15)"
-                      }}
-                    >
-                      <strong>{isSingle ? formatHourlyLabel(label) : formatDateLabel(label)}</strong>
-
-                      {payload.map((entry, i) => (
-                        <div key={i} style={{ color: entry.color, marginTop: 4 }}>
-                          <span style={{ fontWeight: 600 }}>
-                            {entry.name === "current" 
-                              ? (currentRange?.start === currentRange?.end 
-                                  ? fmtDate(currentRange?.start)
-                                  : `${fmtDate(currentRange?.start)} – ${fmtDate(currentRange?.end)}`)
-                              : (previousRange?.start === previousRange?.end
-                                  ? fmtDate(previousRange?.start)
-                                  : `${fmtDate(previousRange?.start)} – ${fmtDate(previousRange?.end)}`)
-                            }
-                          </span>
-                          : ₹{entry.value.toLocaleString("en-IN", { maximumFractionDigits: 2 })}
-                        </div>
-                      ))}
-                    </div>
-                  );
+                contentStyle={{
+                  borderRadius: "10px",
+                  border: "none",
+                  boxShadow: "0px 4px 20px rgba(0,0,0,0.1)",
                 }}
+                labelFormatter={(lbl) =>
+                  isSingle ? formatHourlyLabel(String(lbl)) : safeDateLabel(lbl)
+                }
+                formatter={(value) => [fmtAOV(value), "AOV"]}
               />
 
-              <Legend
-                formatter={(value) => {
-                  if (value === "current") {
-                    if (!currentRange) return "Current Period";
-                    if (currentRange.start === currentRange.end) {
-                      return fmtDate(currentRange.start);
-                    }
-                    return `${fmtDate(currentRange.start)} – ${fmtDate(currentRange.end)}`;
-                  }
-
-                  if (value === "previous") {
-                    if (!previousRange) return "Previous Period";
-                    if (previousRange.start === previousRange.end) {
-                      return fmtDate(previousRange.start);
-                    }
-                    return `${fmtDate(previousRange.start)} – ${fmtDate(previousRange.end)}`;
-                  }
-                  return value;
-                }}
-              />
-
-              <Line
+              <Area
                 type="monotone"
                 dataKey="current"
-                name="current"
-                stroke={COMMON_COLORS[0]} 
-                strokeWidth={2}
-                dot={{ r: 3 }}
+                stroke="#3182ce"
+                strokeWidth={3}
+                fillOpacity={1}
+                fill="url(#colorAov)"
               />
 
               {hasComparison && (
-                <Line
+                <Area
                   type="monotone"
                   dataKey="previous"
-                  name="previous"
-                  stroke={COMMON_COLORS[1]} 
+                  stroke="#fbc02d"
                   strokeWidth={2}
-                  dot={{ r: 3 }}
+                  fill="transparent"
                   strokeDasharray="5 5"
+                  connectNulls
                 />
               )}
-            </LineChart>
+            </AreaChart>
           </ResponsiveContainer>
         )}
       </Box>
     </Card>
   );
 }
+
+
 function TotalCustomersCard({ total }) {
   return (
     <Card elevation={3} sx={{ borderRadius: 4, p: 3 }}>
@@ -1162,7 +1067,10 @@ function LostCustomersCard({ lost }) {
 
 
 function OrdersFunnelCard({ data }) {
-    
+  
+ 
+
+
   const funnelData = [
     { 
       name: 'Total Orders', 
@@ -1585,9 +1493,9 @@ function ComprehensiveSummaryTableIntegrated({ apiBase, start, end }) {
   if (!data) return null;
 
   const rows = [
-    { label: "Total Orders", data: data.total, color: "#2563EB", icon: "📊" },
-    { label: "Team Orders", data: data.team, color: "#DB2777", icon: "👥" },
-    { label: "Shopify Orders", data: data.shopify, color: "#16A34A", icon: "🛍️" },
+    { label: "Total Orders", data: data.total, color: "#2563EB", icon: "" },
+    { label: "Team Orders", data: data.team, color: "#DB2777", icon: "" },
+    { label: "Shopify Orders", data: data.shopify, color: "#16A34A", icon: "" },
   ];
 
   const headCellSx = {
@@ -1973,7 +1881,7 @@ function EscalationPrioritySection() {
   return (
     <Card sx={{ p: 3, borderRadius: 4, boxShadow: "0px 4px 20px rgba(0,0,0,0.05)", border: "1px solid #E0E0E0", ...cardStyle }}>
       <Typography sx={{ fontSize: 18, fontWeight: 700, color: "#1B2559", mb: 2 }}>
-        Escalation Priority Analysis
+        🚨 Escalation Priority Analysis
       </Typography>
 
       <Stack direction="row" spacing={2}>
@@ -2207,7 +2115,7 @@ const loadAnalytics = async () => {
 
   const ovData = await safeGet(`${API}/api/super-admin/analytics/orders-vs-fulfilled`, { start, end }, {});
   setOrderVsConfirmed(ovData || {});
-  setFunnelStats(normalizeFunnelStats(ovData || {})); 
+  setFunnelStats(normalizeFunnelStats(ovData || {}));
 
   const dietData = await safeGet(`${API}/api/super-admin/analytics/diet-plans`, { start, end }, { totalDietPlans: 0 });
   setDietStats(dietData);
@@ -2222,12 +2130,10 @@ const loadAnalytics = async () => {
   setNdrStats(ndrData);
 
   const escData = await safeGet(`${API}/api/super-admin/analytics/escalations`, { start, end }, { open: 0, closed: 0 });
-  setEscalationStats(normalizeEscalationStats(escData)); 
-
+  setEscalationStats(normalizeEscalationStats(escData));
   const aovData = await safeGet(`${API}/api/super-admin/analytics/aov`, { start, end }, {});
   const normalizedAov = normalizeAovStats(aovData);
-  setAovStats(normalizedAov); 
-
+  setAovStats(normalizedAov);
   const codData = await safeGet(`${API}/api/super-admin/analytics/cod-delivered`, { start, end }, { totalCount: 0, totalAmount: 0 });
   setCodStats({ totalCount: codData.totalCount || 0, totalAmount: codData.totalAmount || 0 });
 
@@ -2332,7 +2238,7 @@ useEffect(() => {
   loadSummary();
 }, [start, end]);
 
-  // ------------------- DATA HELPERS -------------------
+
   const ordersSplitPieData = [
     { name: "Online Orders", value: data.onlineOrders || 0 },
     { name: "Team Orders", value: data.teamOrders || 0 },
@@ -2344,8 +2250,8 @@ useEffect(() => {
   ];
 
 const cardStyle = {
-  borderRadius: "12px", // Slightly less rounded for a tighter, professional feel
-  boxShadow: "0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1)", // Shopify-style flat shadow
+  borderRadius: "12px", 
+  boxShadow: "0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1)", 
   border: "1px solid #E2E8F0",
   height: "100%",
   backgroundColor: "#fff",
@@ -2358,8 +2264,7 @@ const cardStyle = {
 
   return (
     <Box sx={{ p: 3, backgroundColor: "#F4F7FE", minHeight: "100vh" }}>
-      
-      {/* --- HEADER TITLE --- */}
+
       <Box sx={{ mb: 4 }}>
         <Typography variant="h4" sx={{ fontWeight: 800, color: "#1B2559", letterSpacing: "-0.5px" }}>
           Super Admin Analytics
@@ -2437,7 +2342,7 @@ const cardStyle = {
           minWidth: 120,
         }}
       >
-        📊 Compare
+        Compare
       </Button>
 
       {compareStart && compareEnd && (
@@ -2548,9 +2453,9 @@ const cardStyle = {
 
 <Grid container spacing={3}>
 
-  {/* ========================== ROW 1 ========================== */}
+
   <Grid item xs={12} md={6}>
-  {/* AOV Chart */}
+
   <AverageOrderValueCard
     apiBase={API}
     start={start}
@@ -2566,15 +2471,15 @@ const cardStyle = {
 
 <Grid item xs={12} md={6}>
   {/* Total Orders Trend */}
-  <Card sx={{ p: 3, borderRadius: 3 }}>
-    <Box sx={{ display: "flex", justifyContent: "space-between", mb: 1.2}}>
-      <Typography sx={{ fontWeight: 700 }}>Total Orders</Typography>
+  <Card sx={{ p: 3, borderRadius: 3, boxShadow: "0px 4px 20px rgba(0,0,0,0.05)", border: "1px solid #E2E8F0" }}>
+    <Box sx={{ display: "flex", justifyContent: "space-between", mb: 1.2 }}>
+      <Typography sx={{ fontWeight: 700, color: "#1B2559", fontSize: 18 }}>Total Orders</Typography>
 
       <Select
         size="small"
         value={orderFilter}
         onChange={(e) => setOrderFilter(e.target.value)}
-        sx={{ height: 32 }}
+        sx={{ height: 32, borderRadius: 2 }}
       >
         <MenuItem value="all">All</MenuItem>
         <MenuItem value="cod">COD</MenuItem>
@@ -2582,180 +2487,105 @@ const cardStyle = {
       </Select>
     </Box>
 
-{orderTrendLoading ? (
-  <Skeleton height={40} width={140} />
-) : (
-  <Box sx={{ mb: 1 }}>
-    
-    {/* MAIN NUMBER + % CHANGE */}
-    <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
-      <Typography sx={{ fontSize: 32, fontWeight: 900 }}>
-        {orderTrendSummary.total}
-      </Typography>
-
-      {compareStart && compareEnd && (
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-          <Box
-            sx={{
-              display: "flex",
-              alignItems: "center",
-              gap: 0.5,
-              px: 1.5,
-              py: 0.6,
-              borderRadius: "20px",
-              bgcolor:
-                orderTrendSummary.percentChange >= 0
-                  ? "#E8F5E9"
-                  : "#FFEBEE",
-              border:
-                orderTrendSummary.percentChange >= 0
-                  ? "1px solid #4CAF50"
-                  : "1px solid #F44336",
-            }}
-          >
-            {orderTrendSummary.percentChange >= 0 ? (
-              <ArrowDropUpIcon sx={{ color: "#2e7d32", fontSize: 20 }} />
-            ) : (
-              <ArrowDropDownIcon sx={{ color: "#d32f2f", fontSize: 20 }} />
-            )}
-
-            <Typography
-              sx={{
-                fontSize: 14,
-                fontWeight: 700,
-                color:
-                  orderTrendSummary.percentChange >= 0
-                    ? "#2e7d32"
-                    : "#d32f2f",
-              }}
-            >
-              {Math.abs(orderTrendSummary.percentChange).toFixed(2)}%
-            </Typography>
-          </Box>
-
-          <Typography
-            sx={{
-              fontSize: 12,
-              color: "text.secondary",
-              fontWeight: 600,
-            }}
-          >
-            vs {orderTrendSummary.comparison.total}
+    {orderTrendLoading ? (
+      <Skeleton height={40} width={140} />
+    ) : (
+      <Box sx={{ mb: 1 }}>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+          <Typography sx={{ fontSize: 32, fontWeight: 900, color: "#1B2559" }}>
+            {orderTrendSummary.total}
           </Typography>
+
+          {compareStart && compareEnd && (
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+              <Box
+                sx={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 0.5,
+                  px: 1.5,
+                  py: 0.6,
+                  borderRadius: "20px",
+                  bgcolor: orderTrendSummary.percentChange >= 0 ? "#E8F5E9" : "#FFEBEE",
+                  border: orderTrendSummary.percentChange >= 0 ? "1px solid #4CAF50" : "1px solid #F44336",
+                }}
+              >
+                <Typography
+                  sx={{
+                    fontSize: 14,
+                    fontWeight: 700,
+                    color: orderTrendSummary.percentChange >= 0 ? "#2e7d32" : "#d32f2f",
+                  }}
+                >
+                  {orderTrendSummary.percentChange >= 0 ? "▲" : "▼"} {Math.abs(orderTrendSummary.percentChange).toFixed(2)}%
+                </Typography>
+              </Box>
+            </Box>
+          )}
         </Box>
+      </Box>
+    )}
+
+    {/* CHART SECTION */}
+    <Box sx={{ height: 260, mt: 2 }}>
+      {orderTrendLoading ? (
+        <Skeleton height="100%" variant="rectangular" sx={{ borderRadius: 2 }} />
+      ) : (
+        <ResponsiveContainer width="100%" height="100%">
+          <AreaChart data={orderTrendData}>
+            <defs>
+              <linearGradient id="colorTotalOrders" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor="#1976d2" stopOpacity={0.3} />
+                <stop offset="95%" stopColor="#1976d2" stopOpacity={0} />
+              </linearGradient>
+            </defs>
+            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F1F1F1" />
+            <XAxis
+              dataKey="time"
+              tick={{ fontSize: 10, fill: "#A3AED0" }}
+              axisLine={false}
+              tickLine={false}
+              // Fixed X-axis split into ~4 parts
+              interval={orderTrendData.length > 4 ? Math.floor(orderTrendData.length / 4) : 0}
+              tickFormatter={(value) => {
+                const isSingle = isSingleDay(start, end);
+                return isSingle ? formatHourlyLabel(value) : formatDateLabel(value);
+              }}
+            />
+            <YAxis tick={{ fontSize: 10, fill: "#A3AED0" }} axisLine={false} tickLine={false} />
+            <Tooltip 
+              contentStyle={{ borderRadius: "10px", border: "none", boxShadow: "0px 4px 20px rgba(0,0,0,0.1)" }}
+            />
+            
+            {/* Main Filled Area */}
+            <Area
+              type="monotone"
+              dataKey="current"
+              name="current"
+              stroke="#1976d2"
+              strokeWidth={3}
+              fillOpacity={1}
+              fill="url(#colorTotalOrders)"
+              activeDot={{ r: 6 }}
+            />
+
+            {/* Comparison Line (no fill) */}
+            {orderTrendData.some(d => d.previous !== null && d.previous > 0) && (
+              <Area
+                type="monotone"
+                dataKey="previous"
+                name="previous"
+                stroke="#fbc02d"
+                strokeWidth={2}
+                fill="transparent"
+                strokeDasharray="5 5"
+                connectNulls={true}
+              />
+            )}
+          </AreaChart>
+        </ResponsiveContainer>
       )}
     </Box>
-
-
-
-{/* DATE RANGE PILLS */}
-{orderTrendSummary.currentRange && orderTrendSummary.previousRange && (
-  <Box sx={{ display: "flex", gap: 1.5, mt: 1, flexWrap: "wrap" }}>
-    {/* CURRENT RANGE PILL */}
-    {buildPill(
-      orderTrendSummary.currentRange.start ===
-        orderTrendSummary.currentRange.end
-        ? fmtDate(orderTrendSummary.currentRange.start)
-        : `${fmtDate(
-            orderTrendSummary.currentRange.start
-          )} – ${fmtDate(orderTrendSummary.currentRange.end)}`,
-      "#2e7d32"
-    )}
-
-    {/* PREVIOUS RANGE PILL - 🔥 FIX: Check if it's a single day */}
-{orderTrendSummary.previousRange && buildPill(
-  fmtDate(orderTrendSummary.previousRange.start),   // 🔥 ALWAYS ONLY FIRST DATE
-  "#fbc02d"
-)}
-
-  </Box>
-)}
-  </Box>
-)}
-
-    <Typography sx={{ fontSize: 13, mt: 1, opacity: 0.7 }}>
-      Orders Over Time {compareStart && compareEnd && `(${start} vs ${compareStart})`}
-    </Typography>
-
-    {orderTrendLoading ? (
-      <Skeleton height={260} variant="rectangular" sx={{ mt: 2 }} />
-    ) : (
-      <ResponsiveContainer width="100%" height={260}>
-        <LineChart data={orderTrendData}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" />
-          <XAxis
-            dataKey="time"
-            tick={{ fontSize: 12 }}
-            tickFormatter={(value) => {
-              const isSingle = isSingleDay(start, end);
-              return isSingle
-                ? formatHourlyLabel(value)
-                : formatDateLabel(value);
-            }}
-            interval={
-              orderTrendData.length > 5
-                ? Math.floor(orderTrendData.length / 3) - 1
-                : 0
-            }
-          />
-          <YAxis tick={{ fontSize: 12 }} />
-          <Tooltip 
-            content={({ active, payload, label }) => {
-              if (!active || !payload) return null;
-              
-              return (
-                <div style={{
-                  background: "white",
-                  padding: "10px",
-                  borderRadius: "8px",
-                  boxShadow: "0 2px 10px rgba(0,0,0,0.15)"
-                }}>
-                  <strong>{label}</strong>
-                  {payload.map((entry, i) => (
-                    <div key={i} style={{ color: entry.color, marginTop: 4 }}>
-                      {entry.name === "current" ? start : compareStart}: {entry.value}
-                    </div>
-                  ))}
-                </div>
-              );
-            }}
-          />
-          <Legend 
-            formatter={(value) => {
-              if (value === "current") return start;
-              if (value === "previous") return compareStart;
-              return value;
-            }}
-          />
-          
-          {/* Current Period Line */}
-          <Line
-            type="monotone"
-            dataKey="current"
-            name="current"
-            stroke={COMMON_COLORS[0]}
-            strokeWidth={3}
-            dot={false}
-            activeDot={{ r: 6 }}
-          />
-
-          {/* Comparison Period Line - Clean with connectNulls */}
-          {orderTrendData.some(d => d.previous !== null && d.previous > 0) && (
-            <Line
-              type="monotone"
-              dataKey="previous"
-              name="previous"
-              stroke={COMMON_COLORS[1]}
-              strokeWidth={3}
-              dot={false}
-              activeDot={{ r: 6 }}
-              strokeDasharray="5 5"
-              connectNulls={true}  // 🔥 Connects valid points, skips nulls
-            />
-          )}
-        </LineChart>
-      </ResponsiveContainer>
-    )}
   </Card>
 </Grid>
 

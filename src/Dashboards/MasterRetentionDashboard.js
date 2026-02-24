@@ -55,21 +55,13 @@ import {
   Phone,
   LocalHospital,
 } from "@mui/icons-material";
-
+import Autocomplete, { createFilterOptions } from "@mui/material/Autocomplete";
 
 import TotalSalesDrilldown from "../pages/filtered/TotalSalesDrilldown";
-
-
-// -------------------------------------------
-// Config
-// -------------------------------------------
+ 
 const API_BASE = "https://muditamleads-14f32a10d7f7.herokuapp.com";
-const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes (matches server TTL)
+const CACHE_TTL_MS = 5 * 60 * 1000;  
 
-
-// -------------------------------------------
-// Time-range dropdown options
-// -------------------------------------------
 const timeRangeOptions = [
   "Custom range",
   "Today",
@@ -165,9 +157,7 @@ const getDateRange = (rangeValue) => {
 };
 
 
-// -------------------------------------------
-// Formatters
-// -------------------------------------------
+
 const fmt0 = (n) =>
   Number(n ?? 0).toLocaleString("en-IN", { maximumFractionDigits: 0 });
 
@@ -176,9 +166,7 @@ const fmt2 = (n) =>
   Number(n ?? 0).toLocaleString("en-IN", { maximumFractionDigits: 2 });
 
 
-// -------------------------------------------
-// sessionStorage cache helpers (client-side)
-// -------------------------------------------
+
 const cacheGet = (key) => {
   try {
     const raw = sessionStorage.getItem(key);
@@ -278,6 +266,15 @@ const SHIPMENT_CARD_DEFS = [
     match: (cat) => String(cat).toLowerCase().includes("rto"),
   },
 ];
+const defaultFilter = createFilterOptions({
+  stringify: (opt) => opt?.fullName || "",
+});
+
+const filterTop5ThenSearch = (options, state) => {
+  const q = (state.inputValue || "").trim();
+  if (!q) return options.slice(0, 5);         // 👈 only 5 when empty
+  return defaultFilter(options, state);       // 👈 normal search when typing
+};
 
 
 const ShipmentCard = ({ label, icon, color, count, amount, percentage, loading, onClick }) => (
@@ -441,10 +438,10 @@ const ManagerRetentionDashboard = () => {
 
   const [codRows, setCodRows] = useState([]);
   const codTotals = useMemo(() => {
-    const totalOrders  = (codRows || []).reduce((acc, a) => acc + Number(a?.totalOrders  || 0), 0);
-    const totalCOD     = (codRows || []).reduce((acc, a) => acc + Number(a?.codOrders    || 0), 0);
-    const totalPrepaid = (codRows || []).reduce((acc, a) => acc + Number(a?.prepaidOrders|| 0), 0);
-    const codPercent     = totalOrders > 0 ? ((totalCOD     / totalOrders) * 100).toFixed(1) : "0.0";
+    const totalOrders = (codRows || []).reduce((acc, a) => acc + Number(a?.totalOrders || 0), 0);
+    const totalCOD = (codRows || []).reduce((acc, a) => acc + Number(a?.codOrders || 0), 0);
+    const totalPrepaid = (codRows || []).reduce((acc, a) => acc + Number(a?.prepaidOrders || 0), 0);
+    const codPercent = totalOrders > 0 ? ((totalCOD / totalOrders) * 100).toFixed(1) : "0.0";
     const prepaidPercent = totalOrders > 0 ? ((totalPrepaid / totalOrders) * 100).toFixed(1) : "0.0";
     return { totalOrders, totalCOD, totalPrepaid, codPercent, prepaidPercent };
   }, [codRows]);
@@ -453,7 +450,7 @@ const ManagerRetentionDashboard = () => {
   const normalizeCustomDates = useCallback((a, b) => {
     if (!a || !b) return null;
     const start = a <= b ? a : b;
-    const end   = a <= b ? b : a;
+    const end = a <= b ? b : a;
     return { start, end };
   }, []);
 
@@ -533,16 +530,16 @@ const ManagerRetentionDashboard = () => {
 
         const metrics = (experts || []).map((expert) => {
           const activeCountMatch = (activeCountsArr || []).find((x) => x?._id === expert.fullName);
-          const activeCustomers  = activeCountMatch ? Number(activeCountMatch.activeCount || 0) : 0;
-          const salesMatch       = (aggregatedSales || []).find((x) => x?.agentName === expert.fullName);
-          const salesDone        = Number(salesMatch?.salesDone    || 0);
-          const totalSales       = Number(salesMatch?.totalSales   || 0);
-          const avgOrderValue    = Number(salesMatch?.avgOrderValue || 0);
+          const activeCustomers = activeCountMatch ? Number(activeCountMatch.activeCount || 0) : 0;
+          const salesMatch = (aggregatedSales || []).find((x) => x?.agentName === expert.fullName);
+          const salesDone = Number(salesMatch?.salesDone || 0);
+          const totalSales = Number(salesMatch?.totalSales || 0);
+          const avgOrderValue = Number(salesMatch?.avgOrderValue || 0);
 
 
           totalActiveCustomers += activeCustomers;
-          totalSalesDone       += salesDone;
-          totalSalesAmount     += totalSales;
+          totalSalesDone += salesDone;
+          totalSalesAmount += totalSales;
 
 
           return { healthExpertName: expert.fullName, activeCustomers, salesDone, totalSales, avgOrderValue };
@@ -614,7 +611,7 @@ const ManagerRetentionDashboard = () => {
         { params: { startDate, endDate } }
       );
       const data = res.data || {};
-      const rows   = data.rows   || [];
+      const rows = data.rows || [];
       const totals = data.totals || {
         assignedTotal: 0,
         dietPlansCreated: 0,
@@ -664,12 +661,12 @@ const ManagerRetentionDashboard = () => {
       const rows = res.data?.summary || res.data?.followup || res.data || [];
       const totals = (rows || []).reduce(
         (acc, r) => {
-          acc.totalNoFollowupSet   += Number(r?.noFollowupSet   || 0);
-          acc.totalFollowupMissed  += Number(r?.followupMissed  || 0);
-          acc.totalFollowupToday   += Number(r?.followupToday   || 0);
-          acc.totalFollowupTomorrow+= Number(r?.followupTomorrow|| 0);
-          acc.totalFollowupLater   += Number(r?.followupLater   || 0);
-          acc.totalLostCustomers   += Number(r?.lostCustomers   || 0);
+          acc.totalNoFollowupSet += Number(r?.noFollowupSet || 0);
+          acc.totalFollowupMissed += Number(r?.followupMissed || 0);
+          acc.totalFollowupToday += Number(r?.followupToday || 0);
+          acc.totalFollowupTomorrow += Number(r?.followupTomorrow || 0);
+          acc.totalFollowupLater += Number(r?.followupLater || 0);
+          acc.totalLostCustomers += Number(r?.lostCustomers || 0);
           return acc;
         },
         { totalNoFollowupSet: 0, totalFollowupMissed: 0, totalFollowupToday: 0, totalFollowupTomorrow: 0, totalFollowupLater: 0, totalLostCustomers: 0 }
@@ -872,38 +869,38 @@ const ManagerRetentionDashboard = () => {
   const shipmentDates = useMemo(() => ({ startDate: effectiveStart, endDate: effectiveEnd }), [effectiveStart, effectiveEnd]);
 
 
- 
+
   const activityLoading = activityCardsLoading || activityTableLoading;
 
 
-const shipmentCards = useMemo(() => {
-  const rows = shipmentSummary || [];
-  const getAmount = (r) => Number(r?.totalAmount ?? r?.amount ?? 0);
+  const shipmentCards = useMemo(() => {
+    const rows = shipmentSummary || [];
+    const getAmount = (r) => Number(r?.totalAmount ?? r?.amount ?? 0);
 
 
-  const cards = SHIPMENT_CARD_DEFS.map((def) => {
-    const matched = rows.filter((r) => def.match(r?.category || ""));
+    const cards = SHIPMENT_CARD_DEFS.map((def) => {
+      const matched = rows.filter((r) => def.match(r?.category || ""));
+      return {
+        ...def,
+        matched, // keep for click open
+        count: matched.reduce((a, r) => a + Number(r?.count || 0), 0),
+        amount: matched.reduce((a, r) => a + getAmount(r), 0),
+        percentage: matched.reduce((a, r) => a + Number(r?.percentage || 0), 0).toFixed(1),
+      };
+    });
+
+
+    const otherRows = rows.filter((r) => !SHIPMENT_CARD_DEFS.some((d) => d.match(r?.category || "")));
+
+
     return {
-      ...def,
-      matched, // keep for click open
-      count: matched.reduce((a, r) => a + Number(r?.count || 0), 0),
-      amount: matched.reduce((a, r) => a + getAmount(r), 0),
-      percentage: matched.reduce((a, r) => a + Number(r?.percentage || 0), 0).toFixed(1),
+      cards,
+      otherRows,
+      otherCount: otherRows.reduce((a, r) => a + Number(r?.count || 0), 0),
+      otherAmount: otherRows.reduce((a, r) => a + getAmount(r), 0),
+      otherPercentage: otherRows.reduce((a, r) => a + Number(r?.percentage || 0), 0).toFixed(1),
     };
-  });
-
-
-  const otherRows = rows.filter((r) => !SHIPMENT_CARD_DEFS.some((d) => d.match(r?.category || "")));
-
-
-  return {
-    cards,
-    otherRows,
-    otherCount: otherRows.reduce((a, r) => a + Number(r?.count || 0), 0),
-    otherAmount: otherRows.reduce((a, r) => a + getAmount(r), 0),
-    otherPercentage: otherRows.reduce((a, r) => a + Number(r?.percentage || 0), 0).toFixed(1),
-  };
-}, [shipmentSummary]);
+  }, [shipmentSummary]);
 
 
   return (
@@ -926,7 +923,7 @@ const shipmentCards = useMemo(() => {
             {range === "Custom range" && (
               <>
                 <TextField label="Start" type="date" value={customStart} onChange={(e) => handleCustomStart(e.target.value)} InputLabelProps={{ shrink: true }} sx={{ width: 160 }} InputProps={{ sx: { borderRadius: 2 } }} />
-                <TextField label="End"   type="date" value={customEnd}   onChange={(e) => handleCustomEnd(e.target.value)}   InputLabelProps={{ shrink: true }} sx={{ width: 160 }} InputProps={{ sx: { borderRadius: 2 } }} />
+                <TextField label="End" type="date" value={customEnd} onChange={(e) => handleCustomEnd(e.target.value)} InputLabelProps={{ shrink: true }} sx={{ width: 160 }} InputProps={{ sx: { borderRadius: 2 } }} />
                 <Chip label="Auto-applied" size="small" sx={{ borderRadius: 2, bgcolor: "#F1F5F9", color: "#0F172A", fontWeight: 700 }} />
               </>
             )}
@@ -947,9 +944,9 @@ const shipmentCards = useMemo(() => {
         <Grid container spacing={1.5}>
           {[
             { label: "Active Customers", value: healthExpertSummary.totalActiveCustomers, icon: <AccountCircle sx={{ color: "#0EA5E9" }} /> },
-            { label: "Sales Done",       value: healthExpertSummary.totalSalesDone,       icon: <ShoppingCart  sx={{ color: "#16A34A" }} /> },
-            { label: "Total Sales",      value: `₹${fmt0(healthExpertSummary.totalSalesAmount)}`, icon: <CurrencyRupee sx={{ color: "#EF4444" }} />, onClick: () => setShowTotalSalesDialog(true), clickable: true },
-            { label: "Avg Order Value",  value: `₹${fmt0(healthExpertSummary.avgOrderValue)}`,    icon: <TrendingUp    sx={{ color: "#7C3AED" }} /> },
+            { label: "Sales Done", value: healthExpertSummary.totalSalesDone, icon: <ShoppingCart sx={{ color: "#16A34A" }} /> },
+            { label: "Total Sales", value: `₹${fmt0(healthExpertSummary.totalSalesAmount)}`, icon: <CurrencyRupee sx={{ color: "#EF4444" }} />, onClick: () => setShowTotalSalesDialog(true), clickable: true },
+            { label: "Avg Order Value", value: `₹${fmt0(healthExpertSummary.avgOrderValue)}`, icon: <TrendingUp sx={{ color: "#7C3AED" }} /> },
           ].map((m) => (
             <Grid key={m.label} item xs={12} sm={6} md={3}>
               <Box onClick={m.onClick} sx={{ ...cardSx, cursor: m.clickable ? "pointer" : "default" }}>
@@ -1016,10 +1013,10 @@ const shipmentCards = useMemo(() => {
         {/* Row 1: Condition Cards (not date-dependent, loads instantly) */}
         <Grid container spacing={1.5}>
           {[
-            { label: "Diabetes",     value: activityCards.diabetes,     icon: <LocalHospital sx={{ color: "#DC2626" }} /> },
-            { label: "Liver",        value: activityCards.liver,        icon: <LocalHospital sx={{ color: "#F59E0B" }} /> },
-            { label: "Cholesterol",  value: activityCards.cholesterol,  icon: <LocalHospital sx={{ color: "#0EA5E9" }} /> },
-            { label: "No Condition", value: activityCards.noCondition,  icon: <LocalHospital sx={{ color: "#64748B" }} /> },
+            { label: "Diabetes", value: activityCards.diabetes, icon: <LocalHospital sx={{ color: "#DC2626" }} /> },
+            { label: "Liver", value: activityCards.liver, icon: <LocalHospital sx={{ color: "#F59E0B" }} /> },
+            { label: "Cholesterol", value: activityCards.cholesterol, icon: <LocalHospital sx={{ color: "#0EA5E9" }} /> },
+            { label: "No Condition", value: activityCards.noCondition, icon: <LocalHospital sx={{ color: "#64748B" }} /> },
           ].map((m) => (
             <Grid key={m.label} item xs={12} sm={6} md={3}>
               <Box sx={cardSx}>
@@ -1136,12 +1133,12 @@ const shipmentCards = useMemo(() => {
         <Divider sx={{ my: 2 }} />
         <Grid container spacing={1.5}>
           {[
-            { label: "No  Set",  value: followupTotals.totalNoFollowupSet,   icon: <PersonOff       sx={{ color: "#0F172A" }} /> },
-            { label: "Missed",           value: followupTotals.totalFollowupMissed,   icon: <EventBusy       sx={{ color: "#DC2626" }} /> },
-            { label: "Today",   value: followupTotals.totalFollowupToday,    icon: <EventAvailable  sx={{ color: "#16A34A" }} /> },
-            { label: "Tomorrow",         value: followupTotals.totalFollowupTomorrow, icon: <Event           sx={{ color: "#F59E0B" }} /> },
-            { label: "Later",   value: followupTotals.totalFollowupLater,    icon: <Update          sx={{ color: "#0284C7" }} /> },
-            { label: "Lost",   value: followupTotals.totalLostCustomers,    icon: <HighlightOff    sx={{ color: "#7C3AED" }} /> },
+            { label: "No  Set", value: followupTotals.totalNoFollowupSet, icon: <PersonOff sx={{ color: "#0F172A" }} /> },
+            { label: "Missed", value: followupTotals.totalFollowupMissed, icon: <EventBusy sx={{ color: "#DC2626" }} /> },
+            { label: "Today", value: followupTotals.totalFollowupToday, icon: <EventAvailable sx={{ color: "#16A34A" }} /> },
+            { label: "Tomorrow", value: followupTotals.totalFollowupTomorrow, icon: <Event sx={{ color: "#F59E0B" }} /> },
+            { label: "Later", value: followupTotals.totalFollowupLater, icon: <Update sx={{ color: "#0284C7" }} /> },
+            { label: "Lost", value: followupTotals.totalLostCustomers, icon: <HighlightOff sx={{ color: "#7C3AED" }} /> },
           ].map((m) => (
             <Grid key={m.label} item xs={12} sm={6} md={2}>
               <Box sx={cardSx}>
@@ -1193,181 +1190,291 @@ const shipmentCards = useMemo(() => {
       </Paper>
 
 
-{/* ===================== 4) SHIPMENT SUMMARY ===================== */}
-<Paper sx={{ ...sectionPaperSx, maxWidth: 1220, mx: "auto", mb: 2.5 }}>
-  <Typography variant="h6" sx={{ fontWeight: 900, color: "#0F172A" }}>
-    Shipment Summary
-  </Typography>
-  <Typography variant="body2" sx={{ color: "#64748B", mt: 0.5 }}>
-    Click any card to open details. Click “Other” to see remaining categories.
-  </Typography>
+      {/* ===================== 4) SHIPMENT SUMMARY ===================== */}
+      <Paper sx={{ ...sectionPaperSx, maxWidth: 1220, mx: "auto", mb: 2.5 }}>
+        <Typography variant="h6" sx={{ fontWeight: 900, color: "#0F172A" }}>
+          Shipment Summary
+        </Typography>
+        <Typography variant="body2" sx={{ color: "#64748B", mt: 0.5 }}>
+          Click any card to open details. Click “Other” to see remaining categories.
+        </Typography>
 
+        <Divider sx={{ my: 2 }} />
 
-  <Divider sx={{ my: 2 }} />
+        {/* ✅ 5 cards in one row without overflow */}
+        <Grid
+          container
+          spacing={1.5}
+          sx={{ width: "100%", m: 0 }}
+          columns={{ xs: 12, sm: 12, md: 10, lg: 10, xl: 10 }}
+        >
+          {shipmentCards.cards.map((card) => {
+            const firstCategory = card.matched?.[0]?.category;
+            const to = firstCategory
+              ? `/shipment-details?category=${encodeURIComponent(firstCategory)}&startDate=${shipmentDates.startDate}&endDate=${shipmentDates.endDate}`
+              : null;
 
+            return (
+              <Grid key={card.key} item xs={12} sm={6} md={2}>
+                <ShipmentCard
+                  label={card.label}
+                  icon={card.icon}
+                  color={card.color}
+                  count={card.count}
+                  amount={card.amount}
+                  percentage={card.percentage}
+                  loading={shipmentLoading}
+                  onClick={to ? () => window.open(to, "_blank", "noopener,noreferrer") : undefined}
+                />
+              </Grid>
+            );
+          })}
 
-  {/* ✅ 5 cards in one row without overflow */}
-  <Grid
-    container
-    spacing={1.5}
-    sx={{ width: "100%", m: 0 }}
-    columns={{ xs: 12, sm: 12, md: 10, lg: 10, xl: 10 }}
-  >
-    {shipmentCards.cards.map((card) => {
-      const firstCategory = card.matched?.[0]?.category;
-      const to = firstCategory
-        ? `/shipment-details?category=${encodeURIComponent(firstCategory)}&startDate=${shipmentDates.startDate}&endDate=${shipmentDates.endDate}`
-        : null;
+          {/* OTHER card (toggle) */}
+          <Grid item xs={12} sm={6} md={2}>
+            <Box
+              onClick={() => setShowOtherShipments((v) => !v)}
+              sx={{ ...cardSx, cursor: "pointer", width: "100%", minWidth: 0, overflow: "hidden" }}
+            >
+              {shipmentLoading ? (
+                <Box sx={{ display: "flex", flex: 1, justifyContent: "center" }}>
+                  <CircularProgress size={20} />
+                </Box>
+              ) : (
+                <Box sx={{ display: "flex", flexDirection: "column", width: "100%", gap: 0.5 }}>
+                  <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                      <Inventory sx={{ color: "#64748B", fontSize: 20 }} />
+                      <Typography sx={{ fontWeight: 900, color: "#0F172A", fontSize: "0.85rem" }}>
+                        Other
+                      </Typography>
+                    </Box>
+                    <Typography sx={{ fontWeight: 900, color: "#64748B", fontSize: "0.9rem" }}>
+                      ({fmt0(shipmentCards.otherCount)})
+                    </Typography>
+                  </Box>
 
-
-      return (
-        <Grid key={card.key} item xs={12} sm={6} md={2}>
-          <ShipmentCard
-            label={card.label}
-            icon={card.icon}
-            color={card.color}
-            count={card.count}
-            amount={card.amount}
-            percentage={card.percentage}
-            loading={shipmentLoading}
-            onClick={
-              to ? () => window.open(to, "_blank", "noopener,noreferrer") : undefined
-            }
-          />
+                  <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <Typography sx={{ fontSize: "0.95rem", fontWeight: 900, color: "#0F172A" }}>
+                      ₹{fmt2(shipmentCards.otherAmount)}
+                    </Typography>
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                      <Typography sx={{ fontSize: "0.75rem", fontWeight: 900, color: "#64748B" }}>
+                        {shipmentCards.otherPercentage}%
+                      </Typography>
+                      {showOtherShipments ? <ExpandLessIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
+                    </Box>
+                  </Box>
+                </Box>
+              )}
+            </Box>
+          </Grid>
         </Grid>
-      );
-    })}
 
+        {/* OTHER breakdown table (only when expanded) */}
+        {showOtherShipments && (
+          <Box sx={{ mt: 2 }}>
+            <Divider sx={{ mb: 1.5 }} />
+            <Typography
+              variant="body2"
+              sx={{
+                fontWeight: 800,
+                color: "#64748B",
+                mb: 1,
+                textTransform: "uppercase",
+                letterSpacing: "0.5px",
+              }}
+            >
+              Other — Breakdown
+            </Typography>
 
-    {/* OTHER card (toggle) */}
-    <Grid item xs={12} sm={6} md={2}>
-      <Box
-        onClick={() => setShowOtherShipments((v) => !v)}
-        sx={{ ...cardSx, cursor: "pointer", width: "100%", minWidth: 0, overflow: "hidden" }}
-      >
-        {shipmentLoading ? (
-          <Box sx={{ display: "flex", flex: 1, justifyContent: "center" }}>
-            <CircularProgress size={20} />
-          </Box>
-        ) : (
-          <Box sx={{ display: "flex", flexDirection: "column", width: "100%", gap: 0.5 }}>
-            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                <Inventory sx={{ color: "#64748B", fontSize: 20 }} />
-                <Typography sx={{ fontWeight: 900, color: "#0F172A", fontSize: "0.85rem" }}>
-                  Other
-                </Typography>
-              </Box>
-              <Typography sx={{ fontWeight: 900, color: "#64748B", fontSize: "0.9rem" }}>
-                ({fmt0(shipmentCards.otherCount)})
-              </Typography>
-            </Box>
+            <TableContainer
+              sx={{ borderRadius: 2, border: "1px solid #E6E8EC", width: "100%", overflowX: "auto" }}
+              component={Paper}
+            >
+              <Table size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell sx={headerCellSx}>Category</TableCell>
+                    <TableCell sx={headerCellSx}>Count</TableCell>
+                    <TableCell sx={headerCellSx}>Amount</TableCell>
+                    <TableCell sx={headerCellSx}>Percentage</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {shipmentLoading && (
+                    <TableRow>
+                      <TableCell colSpan={4} sx={{ p: 0 }}>
+                        <LinearProgress />
+                      </TableCell>
+                    </TableRow>
+                  )}
 
+                  {!shipmentLoading && (shipmentCards.otherRows || []).length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={4} align="center" sx={{ py: 2, color: "#64748B" }}>
+                        No other categories
+                      </TableCell>
+                    </TableRow>
+                  )}
 
-            <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <Typography sx={{ fontSize: "0.95rem", fontWeight: 900, color: "#0F172A" }}>
-                ₹{fmt2(shipmentCards.otherAmount)}
-              </Typography>
-              <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-                <Typography sx={{ fontSize: "0.75rem", fontWeight: 900, color: "#64748B" }}>
-                  {shipmentCards.otherPercentage}%
-                </Typography>
-                {showOtherShipments ? (
-                  <ExpandLessIcon fontSize="small" />
-                ) : (
-                  <ExpandMoreIcon fontSize="small" />
-                )}
-              </Box>
-            </Box>
+                  {!shipmentLoading &&
+                    (shipmentCards.otherRows || []).map((row, idx) => {
+                      const amount = row.totalAmount ?? row.amount ?? 0;
+                      return (
+                        <TableRow
+                          key={`${row.category}-${idx}`}
+                          component={RouterLink}
+                          to={`/shipment-details?category=${encodeURIComponent(row.category)}&startDate=${shipmentDates.startDate}&endDate=${shipmentDates.endDate}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          sx={{
+                            textDecoration: "none",
+                            backgroundColor: idx % 2 === 0 ? "#FFFFFF" : "#FBFDFF",
+                            cursor: "pointer",
+                            ...rowHoverSx,
+                          }}
+                        >
+                          <TableCell sx={{ fontWeight: 800, color: "#0F172A" }} align="center">
+                            {row.category}
+                          </TableCell>
+                          <TableCell align="center">{fmt0(row.count)}</TableCell>
+                          <TableCell align="center">₹{fmt2(amount)}</TableCell>
+                          <TableCell align="center">{row.percentage}%</TableCell>
+                        </TableRow>
+                      );
+                    })}
+                </TableBody>
+              </Table>
+            </TableContainer>
           </Box>
         )}
-      </Box>
-    </Grid>
-  </Grid>
 
+        {/* ✅ NEW: HEALTH EXPERT WISE SHIPMENT STATUS (just below Shipment Summary) */}
+        <Box sx={{ mt: 3 }}>
+          <Box
+            sx={{
+              display: "flex",
+              gap: 2,
+              alignItems: { xs: "flex-start", md: "center" },
+              justifyContent: "space-between",
+              flexWrap: "wrap",
+            }}
+          >
+            <Typography variant="subtitle1" sx={{ fontWeight: 900, color: "#0F172A" }}>
+              Health Expert Wise Shipment Status
+            </Typography>
 
-  {/* OTHER breakdown table (only when expanded) */}
-  {showOtherShipments && (
-    <Box sx={{ mt: 2 }}>
-      <Divider sx={{ mb: 1.5 }} />
-      <Typography
-        variant="body2"
-        sx={{
-          fontWeight: 800,
-          color: "#64748B",
-          mb: 1,
-          textTransform: "uppercase",
-          letterSpacing: "0.5px",
-        }}
-      >
-        Other — Breakdown
-      </Typography>
+            <FormControl sx={{ minWidth: 280 }}>
+              <Autocomplete
+                disablePortal
+                openOnFocus
+                size="small"
+                options={healthExperts || []}
+                getOptionLabel={(opt) => opt?.fullName || ""}
+                filterOptions={filterTop5ThenSearch}
+                value={(healthExperts || []).find((x) => x.fullName === selectedHealthExpert) || null}
+                onChange={(_, v) => setSelectedHealthExpert(v?.fullName || "")}
+                isOptionEqualToValue={(a, b) => a?.fullName === b?.fullName}
+                noOptionsText="No match found"
+                ListboxProps={{ style: { maxHeight: 260 } }}
+                slotProps={{
+                  popupIndicator: { sx: { display: "none" } },
+                }}
+                sx={{
+                  minWidth: 280,
+                  "& .MuiInputBase-root": {
+                    height: 36,
+                    paddingRight: "8px",
+                    borderRadius: 2,
+                    backgroundColor: "#fff",
+                  },
+                  "& .MuiInputBase-input": {
+                    padding: "0 12px",
+                    fontSize: 13.5,
+                  },
+                  "& .MuiAutocomplete-endAdornment": {
+                    top: "calc(50% - 12px)",
+                  },
+                }}
+                renderInput={(params) => (
+                  <TextField {...params} size="small" placeholder="Search health expert..." />
+                )}
+              />
+            </FormControl>
+          </Box>
 
+          <Divider sx={{ my: 2 }} />
 
-      <TableContainer
-        sx={{ borderRadius: 2, border: "1px solid #E6E8EC", width: "100%", overflowX: "auto" }}
-        component={Paper}
-      >
-        <Table size="small">
-          <TableHead>
-            <TableRow>
-              <TableCell sx={headerCellSx}>Category</TableCell>
-              <TableCell sx={headerCellSx}>Count</TableCell>
-              <TableCell sx={headerCellSx}>Amount</TableCell>
-              <TableCell sx={headerCellSx}>Percentage</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {shipmentLoading && (
-              <TableRow>
-                <TableCell colSpan={4} sx={{ p: 0 }}>
-                  <LinearProgress />
-                </TableCell>
-              </TableRow>
-            )}
+          <TableContainer sx={{ borderRadius: 2, border: "1px solid #E6E8EC" }} component={Paper}>
+            <Table size="small">
+              <TableHead>
+                <TableRow>
+                  <TableCell sx={headerCellSx}>Category</TableCell>
+                  <TableCell sx={headerCellSx}>Count</TableCell>
+                  <TableCell sx={headerCellSx}>Amount</TableCell>
+                  <TableCell sx={headerCellSx}>Percentage</TableCell>
+                </TableRow>
+              </TableHead>
 
-
-            {!shipmentLoading && (shipmentCards.otherRows || []).length === 0 && (
-              <TableRow>
-                <TableCell colSpan={4} align="center" sx={{ py: 2, color: "#64748B" }}>
-                  No other categories
-                </TableCell>
-              </TableRow>
-            )}
-
-
-            {!shipmentLoading &&
-              (shipmentCards.otherRows || []).map((row, idx) => {
-                const amount = row.totalAmount ?? row.amount ?? 0;
-                return (
-                  <TableRow
-                    key={`${row.category}-${idx}`}
-                    component={RouterLink}
-                    to={`/shipment-details?category=${encodeURIComponent(row.category)}&startDate=${shipmentDates.startDate}&endDate=${shipmentDates.endDate}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    sx={{
-                      textDecoration: "none",
-                      backgroundColor: idx % 2 === 0 ? "#FFFFFF" : "#FBFDFF",
-                      cursor: "pointer",
-                      ...rowHoverSx,
-                    }}
-                  >
-                    <TableCell sx={{ fontWeight: 800, color: "#0F172A" }} align="center">
-                      {row.category}
+              <TableBody>
+                {agentShipmentLoading && (
+                  <TableRow>
+                    <TableCell colSpan={4} sx={{ p: 0 }}>
+                      <LinearProgress />
                     </TableCell>
-                    <TableCell align="center">{fmt0(row.count)}</TableCell>
-                    <TableCell align="center">₹{fmt2(amount)}</TableCell>
-                    <TableCell align="center">{row.percentage}%</TableCell>
                   </TableRow>
-                );
-              })}
-          </TableBody>
-        </Table>
-      </TableContainer>
-    </Box>
-  )}
-</Paper>
+                )}
+
+                {!agentShipmentLoading && !selectedHealthExpert && (
+                  <TableRow>
+                    <TableCell colSpan={4} align="center" sx={{ py: 2, color: "#64748B" }}>
+                      Please select a Health Expert.
+                    </TableCell>
+                  </TableRow>
+                )}
+
+                {!agentShipmentLoading && selectedHealthExpert && (agentShipmentSummary || []).length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={4} align="center" sx={{ py: 2, color: "#64748B" }}>
+                      No shipment data for this Health Expert.
+                    </TableCell>
+                  </TableRow>
+                )}
+
+                {!agentShipmentLoading &&
+                  selectedHealthExpert &&
+                  (agentShipmentSummary || []).map((row, idx) => {
+                    const amount = row.totalAmount ?? row.amount ?? 0;
+                    return (
+                      <TableRow
+                        key={`${row.category}-${idx}`}
+                        component={RouterLink}
+                        to={`/shipment-details?agent=${encodeURIComponent(selectedHealthExpert)}&category=${encodeURIComponent(row.category)}&startDate=${shipmentDates.startDate}&endDate=${shipmentDates.endDate}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        sx={{
+                          textDecoration: "none",
+                          backgroundColor: idx % 2 === 0 ? "#FFFFFF" : "#FBFDFF",
+                          cursor: "pointer",
+                          ...rowHoverSx,
+                        }}
+                      >
+                        <TableCell sx={{ fontWeight: 800, color: "#0F172A" }} align="center">
+                          {row.category}
+                        </TableCell>
+                        <TableCell align="center">{fmt0(row.count)}</TableCell>
+                        <TableCell align="center">₹{fmt2(amount)}</TableCell>
+                        <TableCell align="center">{row.percentage}%</TableCell>
+                      </TableRow>
+                    );
+                  })}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </Box>
+      </Paper>
+
 
 
 
@@ -1387,11 +1494,11 @@ const shipmentCards = useMemo(() => {
         <Divider sx={{ my: 2 }} />
         <Grid container spacing={1.5}>
           {[
-            { label: "Total Health Experts", value: reachoutTotals.totalExperts, icon: <Groups         sx={{ color: "#0F172A" }} /> },
-            { label: "Total Reachouts",      value: reachoutTotals.totalCount,   icon: <AssignmentTurnedIn sx={{ color: "#16A34A" }} /> },
-            { label: "WhatsApp",             value: reachoutTotals.WhatsApp,     icon: <WhatsApp       sx={{ color: "#16A34A" }} /> },
-            { label: "Call",                 value: reachoutTotals.Call,         icon: <Call           sx={{ color: "#0284C7" }} /> },
-            { label: "Both",                 value: reachoutTotals.Both,         icon: <Update         sx={{ color: "#7C3AED" }} /> },
+            { label: "Total Health Experts", value: reachoutTotals.totalExperts, icon: <Groups sx={{ color: "#0F172A" }} /> },
+            { label: "Total Reachouts", value: reachoutTotals.totalCount, icon: <AssignmentTurnedIn sx={{ color: "#16A34A" }} /> },
+            { label: "WhatsApp", value: reachoutTotals.WhatsApp, icon: <WhatsApp sx={{ color: "#16A34A" }} /> },
+            { label: "Call", value: reachoutTotals.Call, icon: <Call sx={{ color: "#0284C7" }} /> },
+            { label: "Both", value: reachoutTotals.Both, icon: <Update sx={{ color: "#7C3AED" }} /> },
           ].map((m) => (
             <Grid key={m.label} item xs={12} sm={6} md={2.4}>
               <Box sx={cardSx}>
@@ -1450,11 +1557,11 @@ const shipmentCards = useMemo(() => {
         <Divider sx={{ my: 2 }} />
         <Grid container spacing={1.5}>
           {[
-            { label: "Total Orders",   value: codTotals.totalOrders,              icon: <ShoppingCart  sx={{ color: "#0F172A" }} /> },
-            { label: "COD Orders",     value: codTotals.totalCOD,                 icon: <CurrencyRupee sx={{ color: "#EF4444" }} /> },
-            { label: "Prepaid Orders", value: codTotals.totalPrepaid,             icon: <CurrencyRupee sx={{ color: "#16A34A" }} /> },
-            { label: "COD %",          value: `${codTotals.codPercent}%`,         icon: <TrendingUp    sx={{ color: "#F59E0B" }} /> },
-            { label: "Prepaid %",      value: `${codTotals.prepaidPercent}%`,     icon: <TrendingUp    sx={{ color: "#0284C7" }} /> },
+            { label: "Total Orders", value: codTotals.totalOrders, icon: <ShoppingCart sx={{ color: "#0F172A" }} /> },
+            { label: "COD Orders", value: codTotals.totalCOD, icon: <CurrencyRupee sx={{ color: "#EF4444" }} /> },
+            { label: "Prepaid Orders", value: codTotals.totalPrepaid, icon: <CurrencyRupee sx={{ color: "#16A34A" }} /> },
+            { label: "COD %", value: `${codTotals.codPercent}%`, icon: <TrendingUp sx={{ color: "#F59E0B" }} /> },
+            { label: "Prepaid %", value: `${codTotals.prepaidPercent}%`, icon: <TrendingUp sx={{ color: "#0284C7" }} /> },
           ].map((m) => (
             <Grid key={m.label} item xs={12} sm={6} md={2.4}>
               <Box sx={cardSx}>
@@ -1497,10 +1604,10 @@ const shipmentCards = useMemo(() => {
                   )}
                   {!codLoading && (codRows || []).length === 0 && <TableRow><TableCell colSpan={6} align="center" sx={{ py: 2, color: "#64748B" }}>No data available</TableCell></TableRow>}
                   {!codLoading && (codRows || []).map((r, idx) => {
-                    const total   = Number(r.totalOrders   || 0);
-                    const cod     = Number(r.codOrders     || 0);
+                    const total = Number(r.totalOrders || 0);
+                    const cod = Number(r.codOrders || 0);
                     const prepaid = Number(r.prepaidOrders || 0);
-                    const codPct     = total > 0 ? ((cod     / total) * 100).toFixed(1) : "0.0";
+                    const codPct = total > 0 ? ((cod / total) * 100).toFixed(1) : "0.0";
                     const prepaidPct = total > 0 ? ((prepaid / total) * 100).toFixed(1) : "0.0";
                     return (
                       <TableRow key={`${r.agentName}-${idx}`} sx={{ backgroundColor: idx % 2 === 0 ? "#FFFFFF" : "#FBFDFF", ...rowHoverSx }}>
@@ -1525,4 +1632,5 @@ const shipmentCards = useMemo(() => {
 
 
 export default ManagerRetentionDashboard;
+
 

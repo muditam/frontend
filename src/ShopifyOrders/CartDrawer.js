@@ -179,6 +179,7 @@ const CartDrawer = ({ closeDrawer }) => {
   // const [razorpayPaymentLink, setRazorpayPaymentLink] = useState("");
   const [copyStatus, setCopyStatus] = useState("");
 
+  const [partialPaidAmount, setPartialPaidAmount] = useState("");
 
   // Pulling data from Redux store
   const {
@@ -343,8 +344,7 @@ const CartDrawer = ({ closeDrawer }) => {
     setOrderId(null);
     setOrderNotes("");
     setActiveSection("ordering"); // Go back to first tab if you like
-
-
+    setPartialPaidAmount("");
   };
 
   const handleNext = () => {
@@ -591,14 +591,32 @@ const CartDrawer = ({ closeDrawer }) => {
     }
   };
 
-// ----- PAYMENT & ORDER CREATION -----
+  // ----- PAYMENT & ORDER CREATION -----
   const handleGeneratePaymentLink = async () => {
     try {
-      const amountToCharge = parseFloat(finalTotal.toFixed(2));
+      const total = Math.max(0, Number(finalTotal || 0));
+
+      const isPartial = paymentMethod === "Partial Paid";
+      const partialAmt = Number(partialPaidAmount || 0);
+
+      // ✅ validations for partial
+      if (isPartial) {
+        if (!partialAmt || partialAmt <= 0) {
+          alert("Please enter partial paid amount.");
+          return;
+        }
+        if (partialAmt >= total) {
+          alert("Partial amount must be less than total amount.");
+          return;
+        }
+      }
+
+      const amountToCharge = isPartial ? partialAmt : total;
+
       const response = await axios.post(
         "https://muditamleads-14f32a10d7f7.herokuapp.com/api/razorpay/create-payment-link",
         {
-          amount: amountToCharge,
+          amount: Number(amountToCharge.toFixed(2)),
           currency: "INR",
           customer: {
             name: confirmedAddress?.fullName || "Customer Name",
@@ -607,6 +625,7 @@ const CartDrawer = ({ closeDrawer }) => {
           },
         }
       );
+
       dispatch(setRazorpayLink(response.data.paymentLink));
     } catch (error) {
       console.error("Error generating payment link:", error);
@@ -652,6 +671,15 @@ const CartDrawer = ({ closeDrawer }) => {
       shippingAddress,
       billingAddress,
       paymentStatus,
+
+      // ✅ NEW: tell backend which mode
+      paymentMode: paymentMethod, // "Prepaid" | "COD" | "Partial Paid"
+      partialPaidAmount:
+        paymentMethod === "Partial Paid" ? Number(partialPaidAmount || 0) : 0,
+
+      // ✅ NEW: useful for backend validations/remaining calculation
+      orderTotal: Math.max(0, Number(finalTotal || 0)),
+
       transactionId: transactionId || "",
       customerId: customerId,
       shippingCost: shippingCost,
@@ -660,7 +688,7 @@ const CartDrawer = ({ closeDrawer }) => {
 
     try {
       const response = await axios.post(
-        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/shopify/create-order", 
+        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/shopify/create-order",
         orderData
       );
       // Capture order id from Shopify response
@@ -1132,7 +1160,7 @@ const CartDrawer = ({ closeDrawer }) => {
                       variant="h6"
                       sx={{ fontSize: "1rem" }}
                     >
-                      Add Discount + Partial Payment
+                      Add Discount
                     </Typography>
                     <IconButton
                       size="small"
@@ -1141,6 +1169,7 @@ const CartDrawer = ({ closeDrawer }) => {
                       <CloseIcon />
                     </IconButton>
                   </Box>
+                  
                   <Box
                     sx={{
                       display: "flex",
@@ -1781,10 +1810,30 @@ const CartDrawer = ({ closeDrawer }) => {
                   >
                     <MenuItem value="Prepaid">Prepaid</MenuItem>
                     <MenuItem value="COD">COD</MenuItem>
+                    <MenuItem value="Partial Paid">Partial Paid</MenuItem>
                   </Select>
 
-                  {(paymentMethod || "Prepaid") === "Prepaid" && (
+                  {(paymentMethod === "Prepaid" || paymentMethod === "Partial Paid") && (
                     <>
+                      {paymentMethod === "Partial Paid" && (
+                        <TextField
+                          label="Partial Paid Amount (₹)"
+                          type="number"
+                          fullWidth
+                          value={partialPaidAmount}
+                          onChange={(e) => {
+                            setPartialPaidAmount(e.target.value);
+                            if (razorpayLink) dispatch(setRazorpayLink(""));
+                          }}
+                          sx={{ mb: 2 }}
+                          size="small"
+                          helperText={`Remaining COD: ₹${Math.max(
+                            0,
+                            Math.max(0, Number(finalTotal || 0)) - Number(partialPaidAmount || 0)
+                          ).toFixed(2)}`}
+                        />
+                      )}
+
                       <Button
                         variant="contained"
                         onClick={handleGeneratePaymentLink}
@@ -1839,9 +1888,13 @@ const CartDrawer = ({ closeDrawer }) => {
                       color="success"
                       onClick={handleCreateOrder}
                       disabled={
-                        (paymentMethod === "Prepaid" && transactionId.trim() === "") ||
                         isOrderLoading ||
-                        !confirmedAddress
+                        !confirmedAddress || 
+                        (paymentMethod === "Prepaid" && transactionId.trim() === "") || 
+                        (paymentMethod === "Partial Paid" &&
+                          (Number(partialPaidAmount || 0) <= 0 ||
+                            Number(partialPaidAmount || 0) >= Math.max(0, Number(finalTotal || 0)) ||
+                            transactionId.trim() === ""))
                       }
                       sx={buttonStyle}
                     >
@@ -1955,7 +2008,7 @@ const CartDrawer = ({ closeDrawer }) => {
           <OrderDetailsPopup
             orderId={orderId}
             agentName={loggedInAgentName}
-            transactionId={transactionId} 
+            transactionId={transactionId}
             onClose={() => setShowOrderDetailsPopup(false)}
           />
         )}

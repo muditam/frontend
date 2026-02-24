@@ -22,28 +22,32 @@ const API_BASE = "https://muditamleads-14f32a10d7f7.herokuapp.com";
 
 const RazorpayUpload = () => {
   const [file, setFile] = useState(null);
-  const fileInputRef = useRef(null); // ✅ clear filename UI
+  const fileInputRef = useRef(null);
 
   const [records, setRecords] = useState([]);
-  const [loading, setLoading] = useState(false); // ✅ table fetch loading
+  const [loading, setLoading] = useState(false);
 
-  // ✅ separate action loaders
+  // actions
   const [uploading, setUploading] = useState(false);
   const [downloadingSample, setDownloadingSample] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(50);
   const [totalRecords, setTotalRecords] = useState(0);
 
+  // ✅ NEW: sum of amount across FILTERED dataset
+  const [totalAmount, setTotalAmount] = useState(0);
+
   // ---------------- Filters ----------------
-  const [q, setQ] = useState(""); // entity_id / order_id / settlement_id / settlement_utr / issuer / payment_method etc
+  const [q, setQ] = useState("");
   const [uploadMin, setUploadMin] = useState("");
   const [uploadMax, setUploadMax] = useState("");
 
-  const [createdMin, setCreatedMin] = useState(""); // Created At
+  const [createdMin, setCreatedMin] = useState("");
   const [createdMax, setCreatedMax] = useState("");
 
-  const [settledMin, setSettledMin] = useState(""); // Settled At
+  const [settledMin, setSettledMin] = useState("");
   const [settledMax, setSettledMax] = useState("");
 
   const [amountMin, setAmountMin] = useState("");
@@ -59,40 +63,87 @@ const RazorpayUpload = () => {
   const [cardType, setCardType] = useState("");
   const [currency, setCurrency] = useState("");
 
-  const anyActionLoading = uploading || downloadingSample;
+  const anyActionLoading = uploading || downloadingSample || exporting;
+
+  const filtersApplied = useMemo(() => {
+    return (
+      q.trim() ||
+      uploadMin ||
+      uploadMax ||
+      createdMin ||
+      createdMax ||
+      settledMin ||
+      settledMax ||
+      amountMin !== "" ||
+      amountMax !== "" ||
+      feeMin !== "" ||
+      feeMax !== "" ||
+      taxMin !== "" ||
+      taxMax !== "" ||
+      paymentMethod.trim() ||
+      cardType.trim() ||
+      currency.trim()
+    );
+  }, [
+    q,
+    uploadMin,
+    uploadMax,
+    createdMin,
+    createdMax,
+    settledMin,
+    settledMax,
+    amountMin,
+    amountMax,
+    feeMin,
+    feeMax,
+    taxMin,
+    taxMax,
+    paymentMethod,
+    cardType,
+    currency,
+  ]);
+
+  const buildQueryParams = ({ includePagination, pg, limit }) => {
+    const params = new URLSearchParams();
+
+    if (includePagination) {
+      params.set("page", String((pg ?? page) + 1));
+      params.set("limit", String(limit ?? rowsPerPage));
+    }
+
+    if (q.trim()) params.set("q", q.trim());
+
+    if (uploadMin) params.set("uploadMin", uploadMin);
+    if (uploadMax) params.set("uploadMax", uploadMax);
+
+    if (createdMin) params.set("createdMin", createdMin);
+    if (createdMax) params.set("createdMax", createdMax);
+
+    if (settledMin) params.set("settledMin", settledMin);
+    if (settledMax) params.set("settledMax", settledMax);
+
+    if (amountMin !== "") params.set("amountMin", amountMin);
+    if (amountMax !== "") params.set("amountMax", amountMax);
+
+    if (feeMin !== "") params.set("feeMin", feeMin);
+    if (feeMax !== "") params.set("feeMax", feeMax);
+
+    if (taxMin !== "") params.set("taxMin", taxMin);
+    if (taxMax !== "") params.set("taxMax", taxMax);
+
+    if (paymentMethod.trim()) params.set("paymentMethod", paymentMethod.trim());
+    if (cardType.trim()) params.set("cardType", cardType.trim());
+    if (currency.trim()) params.set("currency", currency.trim());
+
+    return params.toString();
+  };
 
   const buildUrl = useMemo(() => {
     return (pg = page, limit = rowsPerPage) => {
-      const params = new URLSearchParams();
-      params.set("page", String(pg + 1));
-      params.set("limit", String(limit));
-
-      if (q.trim()) params.set("q", q.trim());
-
-      if (uploadMin) params.set("uploadMin", uploadMin);
-      if (uploadMax) params.set("uploadMax", uploadMax);
-
-      if (createdMin) params.set("createdMin", createdMin);
-      if (createdMax) params.set("createdMax", createdMax);
-
-      if (settledMin) params.set("settledMin", settledMin);
-      if (settledMax) params.set("settledMax", settledMax);
-
-      if (amountMin !== "") params.set("amountMin", amountMin);
-      if (amountMax !== "") params.set("amountMax", amountMax);
-
-      if (feeMin !== "") params.set("feeMin", feeMin);
-      if (feeMax !== "") params.set("feeMax", feeMax);
-
-      if (taxMin !== "") params.set("taxMin", taxMin);
-      if (taxMax !== "") params.set("taxMax", taxMax);
-
-      if (paymentMethod.trim()) params.set("paymentMethod", paymentMethod.trim());
-      if (cardType.trim()) params.set("cardType", cardType.trim());
-      if (currency.trim()) params.set("currency", currency.trim());
-
-      return `${API_BASE}/api/razorpay/data?${params.toString()}`;
+      const qs = buildQueryParams({ includePagination: true, pg, limit });
+      return `${API_BASE}/api/razorpay/data?${qs}`;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     page,
     rowsPerPage,
@@ -114,6 +165,11 @@ const RazorpayUpload = () => {
     currency,
   ]);
 
+  const buildExportUrl = () => {
+    const qs = buildQueryParams({ includePagination: false });
+    return `${API_BASE}/api/razorpay/export?${qs}`;
+  };
+
   const fetchRecords = async (pg = page, limit = rowsPerPage) => {
     setLoading(true);
     try {
@@ -121,6 +177,7 @@ const RazorpayUpload = () => {
       const json = await res.json();
       setRecords(json.data || []);
       setTotalRecords(json.totalRecords || 0);
+      setTotalAmount(json.totalAmount || 0); // ✅ NEW
     } catch (err) {
       console.error(err);
       alert("Failed to fetch data");
@@ -158,7 +215,7 @@ const RazorpayUpload = () => {
         alert(json.error || "Upload failed");
       } else {
         alert(json.message || `Upload successful (${json.inserted || 0} rows)`);
-        clearSelectedFile(); // ✅ clear file after ok
+        clearSelectedFile();
         setPage(0);
         fetchRecords(0, rowsPerPage);
       }
@@ -175,6 +232,42 @@ const RazorpayUpload = () => {
     setDownloadingSample(true);
     window.open(`${API_BASE}/api/razorpay/sample`, "_blank");
     setTimeout(() => setDownloadingSample(false), 600);
+  };
+
+  // ✅ Export ALL or FILTERED
+  const handleExport = async () => {
+    if (exporting) return;
+    setExporting(true);
+
+    try {
+      const url = buildExportUrl();
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`Export failed (${res.status})`);
+
+      const blob = await res.blob();
+      const a = document.createElement("a");
+      const objUrl = window.URL.createObjectURL(blob);
+
+      const today = new Date();
+      const yyyy = today.getFullYear();
+      const mm = String(today.getMonth() + 1).padStart(2, "0");
+      const dd = String(today.getDate()).padStart(2, "0");
+
+      a.href = objUrl;
+      a.download = filtersApplied
+        ? `razorpay_export_filtered_${yyyy}-${mm}-${dd}.csv`
+        : `razorpay_export_all_${yyyy}-${mm}-${dd}.csv`;
+
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(objUrl);
+    } catch (e) {
+      console.error(e);
+      alert("Export failed");
+    } finally {
+      setExporting(false);
+    }
   };
 
   const applyFilters = () => {
@@ -239,7 +332,6 @@ const RazorpayUpload = () => {
             disabled={uploading}
             onChange={(e) => setFile(e.target.files?.[0] || null)}
             onClick={(e) => {
-              // ✅ allow selecting same file again
               e.target.value = null;
             }}
           />
@@ -259,7 +351,11 @@ const RazorpayUpload = () => {
           <Button
             variant="outlined"
             startIcon={
-              downloadingSample ? <CircularProgress size={18} sx={{ color: "black" }} /> : <DownloadIcon />
+              downloadingSample ? (
+                <CircularProgress size={18} sx={{ color: "black" }} />
+              ) : (
+                <DownloadIcon />
+              )
             }
             onClick={handleDownloadSample}
             disabled={downloadingSample}
@@ -272,11 +368,32 @@ const RazorpayUpload = () => {
           >
             {downloadingSample ? "Preparing..." : "Download Sample CSV"}
           </Button>
+
+          <Button
+            variant="outlined"
+            startIcon={exporting ? <CircularProgress size={18} sx={{ color: "black" }} /> : <DownloadIcon />}
+            onClick={handleExport}
+            disabled={exporting}
+            sx={{
+              borderColor: "black",
+              color: "black",
+              "&:hover": { borderColor: "#333" },
+              minWidth: 140,
+            }}
+          >
+            {exporting ? "Exporting..." : "Export CSV"}
+          </Button>
         </Box>
 
-        <Typography sx={{ color: "#555", fontSize: 13 }}>
-          Total: <b>{totalRecords.toLocaleString("en-IN")}</b>
-        </Typography>
+        <Box sx={{ display: "flex", gap: 2, alignItems: "center", flexWrap: "wrap" }}>
+          <Typography sx={{ color: "#555", fontSize: 13 }}>
+            Total: <b>{totalRecords.toLocaleString("en-IN")}</b>
+          </Typography>
+
+          <Typography sx={{ color: "#555", fontSize: 13 }}>
+            Amount Total: <b>{fmtINR(totalAmount)}</b>
+          </Typography>
+        </Box>
       </Paper>
 
       {/* Filters row */}
@@ -425,20 +542,10 @@ const RazorpayUpload = () => {
           sx={{ width: 140 }}
         />
 
-        <Button
-          variant="outlined"
-          onClick={applyFilters}
-          disabled={anyActionLoading}
-          sx={{ textTransform: "none" }}
-        >
+        <Button variant="outlined" onClick={applyFilters} disabled={anyActionLoading} sx={{ textTransform: "none" }}>
           Apply
         </Button>
-        <Button
-          variant="text"
-          onClick={clearFilters}
-          disabled={anyActionLoading}
-          sx={{ textTransform: "none" }}
-        >
+        <Button variant="text" onClick={clearFilters} disabled={anyActionLoading} sx={{ textTransform: "none" }}>
           Clear
         </Button>
       </Paper>

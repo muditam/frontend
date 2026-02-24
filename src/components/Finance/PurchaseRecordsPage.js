@@ -363,7 +363,7 @@ const PurchaseRecordsPage = () => {
   spacing={2}
   mb={3}
 >
-  <Box sx={{ backgroundColor: "black", color: "white", px: 2, py: 1, borderRadius: 1 }}>
+  <Box sx={{ color: "black" }}>
     <Typography variant="h6" fontWeight={600}>
       Purchase Records
     </Typography>

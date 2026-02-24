@@ -961,6 +961,19 @@ const MenuBar = ({ toggleDrawer }) => {
                     </Typography>
                   </ListItem>
                 )}
+                {can("financePrepaidCashfree") && (
+                  <ListItem
+                    button
+                    component={Link}
+                    to="/gateway/cashfree"
+                    onClick={toggleDrawer}
+                  >
+                    <Typography variant="body2" sx={{ fontSize: "13px" }}>
+                      Cashfree
+                    </Typography>
+                  </ListItem>
+                )}
+
                 {can("financePrepaidBankTransfer") && (
                   <ListItem
                     button

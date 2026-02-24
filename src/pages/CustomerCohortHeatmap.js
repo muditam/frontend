@@ -268,7 +268,7 @@ function computeSummary(row) {
   return (
     <Box sx={{ p: 3 }}>
       <Typography variant="h4" sx={{ fontWeight: 700, mb: 3 }}>
-        📊 Customer Cohort Analytics
+        Customer Cohort Analytics
       </Typography>
 
 

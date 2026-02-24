@@ -71,21 +71,6 @@ function InlinePolicyTable({ title, rows }) {
         <Typography sx={{ fontWeight: 900, fontSize: 12.8, color: "#111" }}>
           {title}
         </Typography>
-        <Typography
-          sx={{
-            fontWeight: 800,
-            fontSize: 11,
-            color: "#444",
-            border: "1px solid #e6e6e6",
-            px: 1,
-            py: 0.35,
-            borderRadius: 999,
-            background: "#fafafa",
-            whiteSpace: "nowrap",
-          }}
-        >
-          Policy
-        </Typography>
       </Box>
 
       <Divider />

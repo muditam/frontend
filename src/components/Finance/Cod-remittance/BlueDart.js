@@ -1,5 +1,5 @@
 // BluedartUpload.jsx
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState, useMemo } from "react";
 import {
   Box,
   Button,
@@ -17,22 +17,26 @@ import {
 } from "@mui/material";
 import CloudUploadIcon from "@mui/icons-material/CloudUpload";
 
-const API_BASE = "https://muditamleads-14f32a10d7f7.herokuapp.com";
+const API_BASE = "https://muditamleads-14f32a10d7f7.herokuapp.com"; // Change this to your actual backend URL
 
 const BluedartUpload = () => {
   const [file, setFile] = useState(null);
-  const fileInputRef = useRef(null);  
+  const fileInputRef = useRef(null);
 
   const [records, setRecords] = useState([]);
   const [loading, setLoading] = useState(false);
- 
+
   const [uploading, setUploading] = useState(false);
   const [deletingLast, setDeletingLast] = useState(false);
   const [downloadingSample, setDownloadingSample] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(50);
   const [total, setTotal] = useState(0);
+
+  // ✅ total customer pay amount (as per filters)
+  const [totalCustomerPayAmt, setTotalCustomerPayAmt] = useState(0);
 
   // filters
   const [q, setQ] = useState("");
@@ -52,10 +56,25 @@ const BluedartUpload = () => {
     return Number.isNaN(dt.getTime()) ? "" : dt.toLocaleDateString("en-IN");
   };
 
-  const buildUrl = (pageNum = 0, limit = rowsPerPage) => {
+  const filtersApplied = useMemo(() => {
+    return (
+      q.trim() ||
+      uploadMin ||
+      uploadMax ||
+      settledMin ||
+      settledMax ||
+      amountMin !== "" ||
+      amountMax !== ""
+    );
+  }, [q, uploadMin, uploadMax, settledMin, settledMax, amountMin, amountMax]);
+
+  const buildQueryParams = ({ includePagination }) => {
     const params = new URLSearchParams();
-    params.set("page", String(pageNum + 1));
-    params.set("limit", String(limit));
+
+    if (includePagination) {
+      params.set("page", String(page + 1));
+      params.set("limit", String(rowsPerPage));
+    }
 
     if (q.trim()) params.set("q", q.trim());
 
@@ -68,16 +87,27 @@ const BluedartUpload = () => {
     if (amountMin !== "") params.set("amountMin", amountMin);
     if (amountMax !== "") params.set("amountMax", amountMax);
 
-    return `${API_BASE}/api/bluedart/data?${params.toString()}`;
+    return params.toString();
   };
+
+  const buildUrl = () => `${API_BASE}/api/bluedart/data?${buildQueryParams({ includePagination: true })}`;
+
+  const buildExportUrl = () =>
+    `${API_BASE}/api/bluedart/export?${buildQueryParams({ includePagination: false })}`;
 
   const fetchData = async (pageNum = page, limit = rowsPerPage) => {
     setLoading(true);
     try {
-      const res = await fetch(buildUrl(pageNum, limit));
+      const params = new URLSearchParams(buildQueryParams({ includePagination: false }));
+      params.set("page", String(pageNum + 1));
+      params.set("limit", String(limit));
+
+      const res = await fetch(`${API_BASE}/api/bluedart/data?${params.toString()}`);
       const json = await res.json();
+
       setRecords(json.data || []);
       setTotal(json.totalCount || 0);
+      setTotalCustomerPayAmt(json.totalCustomerPayAmt || 0);
     } catch (e) {
       console.error(e);
       alert("Failed to fetch data");
@@ -93,7 +123,7 @@ const BluedartUpload = () => {
 
   const clearSelectedFile = () => {
     setFile(null);
-    if (fileInputRef.current) fileInputRef.current.value = ""; // ✅ clears filename UI
+    if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
   const handleUpload = async () => {
@@ -114,7 +144,6 @@ const BluedartUpload = () => {
       if (json.error) {
         alert(json.error);
       } else {
-        // ✅ after OK -> clear
         alert(`Upload successful (${json.inserted || 0} rows)`);
         clearSelectedFile();
 
@@ -168,6 +197,42 @@ const BluedartUpload = () => {
     setTimeout(() => setDownloadingSample(false), 600);
   };
 
+  // ✅ EXPORT (all if no filters, else filtered)
+  const handleExport = async () => {
+    if (exporting) return;
+    setExporting(true);
+
+    try {
+      const url = buildExportUrl();
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`Export failed (${res.status})`);
+
+      const blob = await res.blob();
+      const a = document.createElement("a");
+      const objUrl = window.URL.createObjectURL(blob);
+
+      const today = new Date();
+      const yyyy = today.getFullYear();
+      const mm = String(today.getMonth() + 1).padStart(2, "0");
+      const dd = String(today.getDate()).padStart(2, "0");
+
+      a.href = objUrl;
+      a.download = filtersApplied
+        ? `bluedart_export_filtered_${yyyy}-${mm}-${dd}.csv`
+        : `bluedart_export_all_${yyyy}-${mm}-${dd}.csv`;
+
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(objUrl);
+    } catch (e) {
+      console.error(e);
+      alert("Export failed");
+    } finally {
+      setExporting(false);
+    }
+  };
+
   const clearFilters = () => {
     setQ("");
     setUploadMin("");
@@ -180,7 +245,7 @@ const BluedartUpload = () => {
     fetchData(0, rowsPerPage);
   };
 
-  const anyActionLoading = uploading || deletingLast || downloadingSample;
+  const anyActionLoading = uploading || deletingLast || downloadingSample || exporting;
 
   return (
     <Box sx={{ p: 3 }}>
@@ -203,7 +268,7 @@ const BluedartUpload = () => {
           justifyContent: "space-between",
         }}
       >
-        {/* ✅ LEFT: file + upload */}
+        {/* LEFT */}
         <Box sx={{ display: "flex", gap: 2, alignItems: "center", flexWrap: "wrap" }}>
           <input
             ref={fileInputRef}
@@ -211,8 +276,7 @@ const BluedartUpload = () => {
             accept=".csv"
             disabled={uploading}
             onClick={(e) => {
-              // ✅ allow picking same file again
-              e.target.value = null;
+              e.target.value = null; // allow same file re-pick
             }}
             onChange={(e) => setFile(e.target.files?.[0] || null)}
           />
@@ -235,7 +299,7 @@ const BluedartUpload = () => {
           </Button>
         </Box>
 
-        {/* ✅ RIGHT: total + delete + sample */}
+        {/* RIGHT */}
         <Box
           sx={{
             display: "flex",
@@ -246,8 +310,22 @@ const BluedartUpload = () => {
           }}
         >
           <Typography sx={{ color: "#555", fontSize: 13 }}>
-            Total: <b>{total.toLocaleString("en-IN")}</b>
+            Total Rows: <b>{total.toLocaleString("en-IN")}</b>
           </Typography>
+
+          <Typography sx={{ color: "#555", fontSize: 13 }}>
+            Customer Pay Total: <b>{fmtINR(totalCustomerPayAmt)}</b>
+          </Typography>
+
+          <Button
+            variant="outlined"
+            onClick={handleExport}
+            disabled={exporting}
+            startIcon={exporting ? <CircularProgress size={16} /> : null}
+            sx={{ textTransform: "none" }}
+          >
+            {exporting ? "Exporting..." : "Export CSV"}
+          </Button>
 
           <Button
             variant="outlined"

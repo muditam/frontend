@@ -83,7 +83,19 @@ const OrderDetailsPopup = ({
         const response = await axios.get(
           `https://muditamleads-14f32a10d7f7.herokuapp.com/api/shopify/order-details?orderId=${orderId}`
         );
-        setOrderDetails(response.data);
+
+        const data = response.data;
+        setOrderDetails(data);
+
+        // ✅ Auto-fill partial payment from API note_attributes (if present)
+        if (data?.partialPaidAmount != null && String(data.partialPaidAmount).trim() !== "") {
+          setPartialPayment(String(data.partialPaidAmount));
+        }
+
+        // ✅ If API tells paymentMode Partial Paid, set it automatically
+        if (data?.paymentMode === "Partial Paid") {
+          setPaymentMethod("Partial Paid");
+        }
       } catch (error) {
         console.error("Error fetching order details:", error);
       }
@@ -166,30 +178,31 @@ const OrderDetailsPopup = ({
     return productAbbreviations[orderDetails.productOrdered] || orderDetails.productOrdered;
   }, [orderDetails]);
 
-  // Totals helpers
+  // ✅ total should NOT increase by partial payment
   const computedTotal = useMemo(() => {
     if (!orderDetails) return 0;
-    if (paymentMethod === "Partial Paid") {
-      return Number(orderDetails.totalPrice) + Number(partialPayment || 0);
-    }
-    if (upsellChecked && upsellAmount) {
-      return Number(upsellAmount);
-    }
-    return Number(orderDetails.totalPrice);
-  }, [orderDetails, paymentMethod, partialPayment, upsellChecked, upsellAmount]);
+    if (upsellChecked && upsellAmount) return Number(upsellAmount);
+    return Number(orderDetails.totalPrice || 0);
+  }, [orderDetails, upsellChecked, upsellAmount]);
 
+  // ✅ pending = total - paid (for partial), total (for COD), else 0
   const amountPending = useMemo(() => {
     if (!orderDetails) return 0;
-    if (paymentMethod === "Partial Paid") return Number(orderDetails.totalPrice);
-    if (paymentMethod === "COD") return Number(orderDetails.totalPrice);
-    return 0;
-  }, [orderDetails, paymentMethod]);
+    const total = Number(orderDetails.totalPrice || 0);
+    const paid = Number(partialPayment || 0);
 
-  const paidChipColor = (orderDetails?.paymentStatus || "").toLowerCase() === "paid" ? "success" : "warning";
+    if (paymentMethod === "Partial Paid") return Math.max(0, total - paid);
+    if (paymentMethod === "COD") return total;
+    return 0;
+  }, [orderDetails, paymentMethod, partialPayment]);
+
+  const paidChipColor =
+    (orderDetails?.paymentStatus || "").toLowerCase() === "paid" ? "success" : "warning";
 
   // Copy & confirm
   const handleConfirmAndCopy = () => {
     if (!orderDetails) return;
+
     let detailsText = `Order Created
 Order ID: ${orderDetails.orderId}
 Customer Name: ${orderDetails.customerName}
@@ -203,14 +216,13 @@ Health Expert: ${selectedAgent?.trim() ? selectedAgent : "N/A"}
 Discount: ${discountType === "percentage" ? `${discount}%` : `₹${discount}`}
 Dosage Ordered: ${dosageOrdered}`;
 
-    if (orderDetails.paymentStatus === "pending") {
-      detailsText += `\nPartial Payment: ${partialPayment || 0}`;
-    }
     if (paymentMethod === "Partial Paid") {
-      detailsText += `\nAmount Pending: ${Number(orderDetails.totalPrice)}`;
+      detailsText += `\nPartial Payment (Paid): ${partialPayment || 0}`;
+      detailsText += `\nAmount Pending: ${amountPending}`;
     } else if (paymentMethod === "COD") {
-      detailsText += `\nAmount Pending: ${orderDetails.totalPrice}`;
+      detailsText += `\nAmount Pending: ${amountPending}`;
     }
+
     navigator.clipboard.writeText(detailsText);
     setMessage("Data copied to clipboard. Details confirmed.");
     setDetailsConfirmed(true);
@@ -231,13 +243,17 @@ Dosage Ordered: ${dosageOrdered}`;
         orderId: orderDetails.orderId,
         totalPrice: computedTotal,
         agentName: selectedAgent?.trim() ? selectedAgent : "N/A",
-        partialPayment: partialPayment,
+
+        // ✅ for prepaid/cod it will become 0
+        partialPayment: Number(partialPayment || 0),
+
         dosageOrdered,
         selfRemark,
         paymentMethod,
         upsellAmount: upsellChecked ? Number(upsellAmount) : 0,
-        transactionId: propTransactionId,
+        transactionId: propTransactionId || orderDetails?.transactionId || "",
       };
+
       await axios.post("https://muditamleads-14f32a10d7f7.herokuapp.com/api/my-orders", payload);
       setOrderAdded(true);
       setMessage("Order added successfully to My Sales.");
@@ -249,8 +265,6 @@ Dosage Ordered: ${dosageOrdered}`;
     }
   };
 
-  // ————————————————— UI —————————————————
-
   return (
     <motion.div
       variants={flipVariants}
@@ -260,7 +274,7 @@ Dosage Ordered: ${dosageOrdered}`;
         position: "fixed",
         inset: 0,
         background: "rgba(0,0,0,0.5)",
-        zIndex: 2100, // stays above other MUI dialogs
+        zIndex: 2100,
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -279,7 +293,7 @@ Dosage Ordered: ${dosageOrdered}`;
           display: "flex",
           flexDirection: "column",
         }}
-        onClick={(e) => e.stopPropagation()} 
+        onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
         <Box
@@ -312,7 +326,6 @@ Dosage Ordered: ${dosageOrdered}`;
               )}
             </Stack>
 
-            {/* Close only after added */}
             {orderAdded && (
               <Tooltip title="Close">
                 <IconButton onClick={onClose}>
@@ -333,7 +346,7 @@ Dosage Ordered: ${dosageOrdered}`;
             </Box>
           ) : (
             <Stack spacing={2}>
-              {/* Top summary: Order & Customer */}
+              {/* Top summary */}
               <Paper variant="outlined" sx={{ p: 2, borderRadius: 2 }}>
                 <Grid container spacing={1.5}>
                   <Grid item xs={12}>
@@ -347,6 +360,7 @@ Dosage Ordered: ${dosageOrdered}`;
                       </Typography>
                     </Stack>
                   </Grid>
+
                   <Grid item xs={12} sm={6}>
                     <Stack spacing={0.25}>
                       <Stack direction="row" spacing={1} alignItems="center">
@@ -360,6 +374,7 @@ Dosage Ordered: ${dosageOrdered}`;
                       </Typography>
                     </Stack>
                   </Grid>
+
                   <Grid item xs={12} sm={6}>
                     <Stack spacing={0.25}>
                       <Stack direction="row" spacing={1} alignItems="center">
@@ -371,6 +386,7 @@ Dosage Ordered: ${dosageOrdered}`;
                       <Typography variant="body2">{orderDetails.phone}</Typography>
                     </Stack>
                   </Grid>
+
                   <Grid item xs={12}>
                     <Stack spacing={0.25}>
                       <Stack direction="row" spacing={1} alignItems="center">
@@ -387,7 +403,7 @@ Dosage Ordered: ${dosageOrdered}`;
                 </Grid>
               </Paper>
 
-              {/* Order configuration: discount, payment, upsell, dosage, remark, agent */}
+              {/* Configuration */}
               <Paper variant="outlined" sx={{ p: 2, borderRadius: 2 }}>
                 <Grid container spacing={1.5}>
                   {/* Discount */}
@@ -441,15 +457,15 @@ Dosage Ordered: ${dosageOrdered}`;
                     </Stack>
                   </Grid>
 
-                  {/* Partial payment only when pending */}
-                  {orderDetails.paymentStatus === "pending" && (
+                  {/* ✅ show partial input whenever method is Partial Paid */}
+                  {paymentMethod === "Partial Paid" && (
                     <Grid item xs={12} sm={6}>
                       <TextField
                         fullWidth
                         variant="outlined"
                         size="small"
                         type="number"
-                        label="Partial Payment"
+                        label="Partial Payment (Paid Amount)"
                         value={String(partialPayment)}
                         onChange={(e) => setPartialPayment(e.target.value)}
                       />
@@ -468,6 +484,7 @@ Dosage Ordered: ${dosageOrdered}`;
                       label="Upsell Order"
                     />
                   </Grid>
+
                   {upsellChecked && (
                     <Grid item xs={12} sm={6}>
                       <TextField
@@ -532,6 +549,7 @@ Dosage Ordered: ${dosageOrdered}`;
                         </IconButton>
                       </Tooltip>
                     </Stack>
+
                     {editingAgent && (
                       <Box sx={{ mt: 1 }}>
                         <TextField
@@ -544,21 +562,12 @@ Dosage Ordered: ${dosageOrdered}`;
                         {employeeResults.length > 0 && (
                           <Paper
                             variant="outlined"
-                            sx={{
-                              borderRadius: 1,
-                              mt: 1,
-                              maxHeight: 160,
-                              overflowY: "auto",
-                            }}
+                            sx={{ borderRadius: 1, mt: 1, maxHeight: 160, overflowY: "auto" }}
                           >
                             {employeeResults.map((emp) => (
                               <Box
                                 key={emp._id}
-                                sx={{
-                                  p: 1,
-                                  cursor: "pointer",
-                                  "&:hover": { bgcolor: "action.hover" },
-                                }}
+                                sx={{ p: 1, cursor: "pointer", "&:hover": { bgcolor: "action.hover" } }}
                                 onClick={() => handleSelectEmployee(emp)}
                               >
                                 {emp.fullName}
@@ -574,7 +583,6 @@ Dosage Ordered: ${dosageOrdered}`;
 
               {/* Financial Summary */}
               <Paper variant="outlined" sx={{ p: 2, borderRadius: 2 }}>
-                 
                 <Grid container spacing={1}>
                   <Grid item xs={6}>
                     <Typography variant="body2" color="text.secondary">
@@ -619,13 +627,7 @@ Dosage Ordered: ${dosageOrdered}`;
               </Paper>
 
               {/* Actions */}
-              <Stack
-                direction="row"
-                gap={1}
-                justifyContent="space-between"
-                alignItems="center"
-                sx={{ pt: 1 }}
-              >
+              <Stack direction="row" gap={1} justifyContent="space-between" alignItems="center" sx={{ pt: 1 }}>
                 <Button
                   variant="contained"
                   size="small"
@@ -657,29 +659,17 @@ Dosage Ordered: ${dosageOrdered}`;
               </Stack>
 
               {message && (
-                <Typography
-                  variant="caption"
-                  color="text.secondary"
-                  sx={{ textAlign: "center", display: "block" }}
-                >
+                <Typography variant="caption" color="text.secondary" sx={{ textAlign: "center", display: "block" }}>
                   {message}
                 </Typography>
               )}
 
-              {/* Close button only after order added (kept from your logic) */}
               {orderAdded && (
-                <Button
-                  variant="text"
-                  size="small"
-                  fullWidth
-                  onClick={onClose}
-                  sx={{ mt: 0.5 }}
-                  startIcon={<CloseIcon />}
-                >
+                <Button variant="text" size="small" fullWidth onClick={onClose} sx={{ mt: 0.5 }} startIcon={<CloseIcon />}>
                   Close
-                </Button> 
-              )} 
-            </Stack>   
+                </Button>
+              )}
+            </Stack>
           )}
         </Box>
       </Paper>
@@ -688,5 +678,3 @@ Dosage Ordered: ${dosageOrdered}`;
 };
 
 export default OrderDetailsPopup;
-
-

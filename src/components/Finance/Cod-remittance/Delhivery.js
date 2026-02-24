@@ -1,5 +1,5 @@
 // DelhiveryUpload.jsx
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Box,
   Button,
@@ -21,19 +21,22 @@ const API_BASE = "https://muditamleads-14f32a10d7f7.herokuapp.com";
 
 const DelhiveryUpload = () => {
   const [file, setFile] = useState(null);
-  const fileInputRef = useRef(null); // ✅ clear filename UI
+  const fileInputRef = useRef(null);
 
   const [records, setRecords] = useState([]);
-  const [loading, setLoading] = useState(false); // ✅ table fetch loading
+  const [loading, setLoading] = useState(false);
 
-  // ✅ separate action loaders (prevent double click)
   const [uploading, setUploading] = useState(false);
   const [deletingLast, setDeletingLast] = useState(false);
   const [downloadingSample, setDownloadingSample] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(50);
   const [totalCount, setTotalCount] = useState(0);
+
+  // ✅ NEW: total amount sum across filtered dataset (not just current page)
+  const [totalAmount, setTotalAmount] = useState(0);
 
   // filters
   const [q, setQ] = useState("");
@@ -51,10 +54,25 @@ const DelhiveryUpload = () => {
     return Number.isNaN(dt.getTime()) ? "" : dt.toLocaleDateString("en-IN");
   };
 
-  const buildUrl = (pageNum = page, limit = rowsPerPage) => {
+  const filtersApplied = useMemo(() => {
+    return (
+      q.trim() ||
+      uploadMin ||
+      uploadMax ||
+      settledMin ||
+      settledMax ||
+      amountMin !== "" ||
+      amountMax !== ""
+    );
+  }, [q, uploadMin, uploadMax, settledMin, settledMax, amountMin, amountMax]);
+
+  const buildQueryParams = ({ includePagination }) => {
     const params = new URLSearchParams();
-    params.set("page", String(pageNum + 1));
-    params.set("limit", String(limit));
+
+    if (includePagination) {
+      params.set("page", String(page + 1));
+      params.set("limit", String(rowsPerPage));
+    }
 
     if (q.trim()) params.set("q", q.trim());
     if (uploadMin) params.set("uploadMin", uploadMin);
@@ -64,8 +82,17 @@ const DelhiveryUpload = () => {
     if (amountMin !== "") params.set("amountMin", amountMin);
     if (amountMax !== "") params.set("amountMax", amountMax);
 
+    return params.toString();
+  };
+
+  const buildUrl = (pageNum = page, limit = rowsPerPage) => {
+    const params = new URLSearchParams(buildQueryParams({ includePagination: false }));
+    params.set("page", String(pageNum + 1));
+    params.set("limit", String(limit));
     return `${API_BASE}/api/delhivery/data?${params.toString()}`;
   };
+
+  const buildExportUrl = () => `${API_BASE}/api/delhivery/export?${buildQueryParams({ includePagination: false })}`;
 
   const fetchData = async (pageNum = page, limit = rowsPerPage) => {
     setLoading(true);
@@ -74,6 +101,7 @@ const DelhiveryUpload = () => {
       const json = await res.json();
       setRecords(json.data || []);
       setTotalCount(json.totalCount || 0);
+      setTotalAmount(json.totalAmount || 0); // ✅ NEW
     } catch (e) {
       console.error(e);
       alert("Failed to fetch data");
@@ -89,7 +117,7 @@ const DelhiveryUpload = () => {
 
   const clearSelectedFile = () => {
     setFile(null);
-    if (fileInputRef.current) fileInputRef.current.value = ""; // ✅ clears filename UI
+    if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
   const handleFileChange = (e) => setFile(e.target.files?.[0] || null);
@@ -113,7 +141,7 @@ const DelhiveryUpload = () => {
         alert(json.error);
       } else {
         alert(`Upload successful (${json.inserted || 0} rows)`);
-        clearSelectedFile(); // ✅ clear file after OK
+        clearSelectedFile();
         setPage(0);
         fetchData(0, rowsPerPage);
       }
@@ -125,7 +153,6 @@ const DelhiveryUpload = () => {
     }
   };
 
-  // ✅ Delete last uploaded batch
   const handleDeleteLastUpload = async () => {
     if (deletingLast) return;
 
@@ -156,14 +183,48 @@ const DelhiveryUpload = () => {
     }
   };
 
-  // ✅ Download sample CSV
   const handleDownloadSample = () => {
     if (downloadingSample) return;
     setDownloadingSample(true);
 
     window.open(`${API_BASE}/api/delhivery/sample`, "_blank");
-
     setTimeout(() => setDownloadingSample(false), 600);
+  };
+
+  // ✅ EXPORT (all if no filters, else filtered)
+  const handleExport = async () => {
+    if (exporting) return;
+    setExporting(true);
+
+    try {
+      const url = buildExportUrl();
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`Export failed (${res.status})`);
+
+      const blob = await res.blob();
+      const a = document.createElement("a");
+      const objUrl = window.URL.createObjectURL(blob);
+
+      const today = new Date();
+      const yyyy = today.getFullYear();
+      const mm = String(today.getMonth() + 1).padStart(2, "0");
+      const dd = String(today.getDate()).padStart(2, "0");
+
+      a.href = objUrl;
+      a.download = filtersApplied
+        ? `delhivery_export_filtered_${yyyy}-${mm}-${dd}.csv`
+        : `delhivery_export_all_${yyyy}-${mm}-${dd}.csv`;
+
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(objUrl);
+    } catch (e) {
+      console.error(e);
+      alert("Export failed");
+    } finally {
+      setExporting(false);
+    }
   };
 
   const applyFilters = () => {
@@ -183,7 +244,7 @@ const DelhiveryUpload = () => {
     fetchData(0, rowsPerPage);
   };
 
-  const anyActionLoading = uploading || deletingLast || downloadingSample;
+  const anyActionLoading = uploading || deletingLast || downloadingSample || exporting;
 
   return (
     <Box sx={{ p: 3 }}>
@@ -206,7 +267,7 @@ const DelhiveryUpload = () => {
           flexWrap: "wrap",
         }}
       >
-        {/* ✅ LEFT: file + upload */}
+        {/* LEFT: file + upload */}
         <Box sx={{ display: "flex", gap: 2, alignItems: "center", flexWrap: "wrap" }}>
           <input
             ref={fileInputRef}
@@ -215,7 +276,6 @@ const DelhiveryUpload = () => {
             onChange={handleFileChange}
             disabled={uploading}
             onClick={(e) => {
-              // ✅ allow selecting same file again
               e.target.value = null;
             }}
           />
@@ -233,7 +293,7 @@ const DelhiveryUpload = () => {
           </Button>
         </Box>
 
-        {/* ✅ RIGHT: Total + Delete + Sample */}
+        {/* RIGHT: totals + export + delete + sample */}
         <Box
           sx={{
             display: "flex",
@@ -244,8 +304,22 @@ const DelhiveryUpload = () => {
           }}
         >
           <Typography sx={{ color: "#555", fontSize: 13 }}>
-            Total: <b>{totalCount.toLocaleString("en-IN")}</b>
+            Total Rows: <b>{totalCount.toLocaleString("en-IN")}</b>
           </Typography>
+
+          <Typography sx={{ color: "#555", fontSize: 13 }}>
+            Amount Total: <b>{fmt(totalAmount)}</b>
+          </Typography>
+
+          <Button
+            variant="outlined"
+            onClick={handleExport}
+            disabled={exporting}
+            startIcon={exporting ? <CircularProgress size={16} /> : null}
+            sx={{ textTransform: "none" }}
+          >
+            {exporting ? "Exporting..." : "Export CSV"}
+          </Button>
 
           <Button
             variant="outlined"

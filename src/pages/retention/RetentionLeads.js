@@ -56,6 +56,7 @@ import LanguageIcon from "@mui/icons-material/Language";
 import PlaceIcon from "@mui/icons-material/Place";
 import WhatsAppIcon from "@mui/icons-material/WhatsApp";
 import PhoneDisabledIcon from "@mui/icons-material/PhoneDisabled";
+import AddIcCallIcon from "@mui/icons-material/AddIcCall";
 
 import CreateDietPlanPopup from "./CreateDietPlanPopup";
 import WhatsAppChatDialog from "./WhatsAppChatDialog";
@@ -69,6 +70,12 @@ const getDaysSince = (startDate, endDate = new Date()) => {
   return diffDays >= 0 ? diffDays : null;
 };
 
+const getISTTimestamp = () => {
+  const now = new Date();
+  const istOffset = 5.5 * 60 * 60 * 1000; // +05:30 in milliseconds
+  const istTime = new Date(now.getTime() + istOffset);
+  return istTime.toISOString();
+};
 const followupTagMap = {
   "Follow-up Missed": { label: "Missed", color: "error" },
   "Missed": { label: "Missed", color: "error" },
@@ -225,6 +232,8 @@ const RetentionLeads = () => {
   const [ordersLoading, setOrdersLoading] = useState(false);
 
   const [dietPlanOpen, setDietPlanOpen] = useState(false);
+  const [callLockMap, setCallLockMap] = useState({});
+
 
   const [filters, setFilters] = useState({
     name: "",
@@ -288,7 +297,78 @@ const RetentionLeads = () => {
     nocall: 0,
     followups: { missed: 0, notset: 0, today: 0, tomorrow: 0, later: 0 },
   });
+  const [firstCallStats, setFirstCallStats] = useState({
+    total: 0,
+    connected: 0,
+    notConnected: 0,
+    percentage: 0
+  });
 
+  const handleMarkFirstCallConnected = async () => {
+    if (!leads[selectedLeadIndex]?._id) return;
+
+    if (leads[selectedLeadIndex]?.firstCallConnected) {
+      alert(`First call already marked as connected on ${new Date(leads[selectedLeadIndex].firstCallConnectedAt).toLocaleString()}`);
+      return;
+    }
+
+    try {
+      // ✅ FIX: Use IST timestamp to match backend date range queries
+      const istTimestamp = getISTTimestamp();
+
+      console.log('✅ Marking first call with IST timestamp:', istTimestamp);
+
+      const response = await axios.post(
+        `https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/${leads[selectedLeadIndex]._id}/first-call-connected`,
+        { firstCallConnectedAt: istTimestamp } // ✅ Send explicit IST timestamp
+      );
+
+      // Update lead in state
+      setLeads(prev => {
+        const updated = [...prev];
+        updated[selectedLeadIndex] = {
+          ...updated[selectedLeadIndex],
+          firstCallConnected: true,
+          firstCallConnectedAt: istTimestamp // ✅ Use same IST timestamp
+        };
+        return updated;
+      });
+
+      // Refresh stats
+      fetchFirstCallStats();
+
+      alert("First call marked as connected successfully!");
+    } catch (error) {
+      console.error("Error marking first call:", error);
+      alert(error.response?.data?.message || "Failed to mark first call");
+    }
+  };
+  // Fetch first call stats
+  const fetchFirstCallStats = async () => {
+    if (!loggedInUser?.fullName) return;
+
+    try {
+      const response = await axios.get(
+        'https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/first-call-stats',
+        {
+          params: {
+            healthExpertAssigned: loggedInUser.fullName,
+            email: loggedInUser.email
+          }
+        }
+      );
+      setFirstCallStats(response.data);
+    } catch (error) {
+      console.error("Error fetching first call stats:", error);
+    }
+  };
+
+
+  useEffect(() => {
+    if (loggedInUser?.fullName) {
+      fetchFirstCallStats();
+    }
+  }, [loggedInUser]);
   const handleCopy = (text) => {
     navigator.clipboard.writeText(text);
     setCopySuccess(true);
@@ -422,33 +502,42 @@ const RetentionLeads = () => {
   };
 
 
-  const handleAddSubcell = (leadIdx) => {
+  // ✅ UPDATED: Track when adding subcells/notes
+  const handleAddSubcell = async (leadIdx) => {
     const text = (noteDraft || "").trim();
-    if (!text) return; // prevent empty saves
+    if (!text) return;
 
-    // update UI
+    const newEntry = {
+      date: new Date().toISOString(),
+      value: text,
+      by: currentUserName,
+    };
+
+    // Update UI
     setLeads(prev => {
       const list = [...prev];
       const lead = { ...list[leadIdx] };
-
-      const newEntry = {
-        date: new Date().toISOString(),
-        value: text,
-        by: currentUserName,
-      };
-
       lead.rtSubcells = [...(lead.rtSubcells || []), newEntry];
       list[leadIdx] = lead;
       return list;
     });
 
-    // persist
+    // Persist with tracking
     const leadId = leads[leadIdx]?._id;
     const nextSubcells = [
       ...(leads[leadIdx]?.rtSubcells || []),
-      { date: new Date().toISOString(), value: text, by: currentUserName },
+      newEntry
     ];
-    saveSubcellsToBackend(leadId, nextSubcells);
+
+    try {
+      await axios.put(`https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/${leadId}`, {
+        rtSubcells: nextSubcells,
+        profileUpdatedAt: new Date().toISOString(), // ✅ Track activity
+        profileUpdatedBy: currentUserName
+      });
+    } catch (error) {
+      console.error("Error saving subcells:", error);
+    }
   };
 
   const fetchShopifyDates = async (phoneNumber) => {
@@ -579,16 +668,38 @@ const RetentionLeads = () => {
   }, [selectedLeadIndex, leads]);
 
 
+  // ✅ UPDATED: Track profile and condition updates
   const handleInputChange = async (e, index, field) => {
     const value = e.target.value;
     const updatedLeads = [...leads];
-    updatedLeads[index][field] = value;
+    const oldValue = updatedLeads[index][field];
 
+    updatedLeads[index][field] = value;
     setLeads(updatedLeads);
+
     try {
+      const updatePayload = { [field]: value };
+
+      // ✅ Track profile update
+      const profileFields = [
+        'leadStatus', 'salesStatus', 'retentionStatus', 'communicationMethod',
+        'preferredLanguage', 'rtNextFollowupDate', 'rtFollowupReminder',
+        'rtFollowupStatus', 'lastOrderDate', 'repeatDosageOrdered', 'healthExpertAssigned'
+      ];
+
+      if (profileFields.includes(field)) {
+        updatePayload.profileUpdatedAt = new Date().toISOString();
+        updatePayload.profileUpdatedBy = currentUserName;
+      }
+
+      // ✅ Track sales done
+      if (field === 'salesStatus' && /^sales done$/i.test(value) && !/^sales done$/i.test(oldValue)) {
+        updatePayload.salesDoneAt = new Date().toISOString();
+      }
+
       await axios.put(
         `https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/${updatedLeads[index]._id}`,
-        { [field]: value }
+        updatePayload
       );
     } catch (error) {
       console.error("Error updating lead:", error);
@@ -802,52 +913,111 @@ const RetentionLeads = () => {
   }, [selectedLeadIndex]);
 
   const handleCallIconClick = async (contactNumber) => {
+    const key = String(contactNumber || "").trim();
+    if (!key) return;
+
+
+    if (callLockMap[key]) return;
+    setCallLockMap((prev) => ({ ...prev, [key]: true }));
+
     setLoading(true);
-    setCallingMessage(`Calling ${contactNumber}...`);
+    setCallingMessage(`Calling ${key}...`);
+
     try {
       const { async, agentNumber, callerId } = await fetchUserDetails(loggedInUser);
-      if (!contactNumber || !agentNumber || !callerId) {
+
+      if (!key || !agentNumber || !callerId) {
         setCallingMessage("Error: Missing call parameters");
-        console.error("Missing parameters:", { contactNumber, agentNumber, callerId });
-        setLoading(false);
+        console.error("Missing parameters:", { contactNumber: key, agentNumber, callerId });
         return;
       }
+
       const requestBody = {
-        destination_number: contactNumber,
+        destination_number: key,
         async: 1,
         agent_number: agentNumber.toString().trim(),
         caller_id: callerId.toString().trim(),
-      }; 
-      const response = await axios.post(
-        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/click_to_call",
-        requestBody
-      ); 
+      };
+
+      const response = await axios.post("https://muditamleads-14f32a10d7f7.herokuapp.com/api/click_to_call", requestBody);
+
       if (response.data.status === "success") {
-        setCallingMessage(`Successfully called ${contactNumber}`);
+        setCallingMessage(`Successfully called ${key}`);
       } else {
         setCallingMessage("Failed to place the call. Please try again.");
         console.error("Backend Error Response:", response.data);
+
+
       }
     } catch (error) {
       console.error("Error placing the call", error.response?.data || error);
       setCallingMessage("There was an error placing the call.");
+
     } finally {
       setLoading(false);
     }
   };
+
 
   const handleCreateOrderClick = (lead) => {
     setSelectedLead(lead);
     setOrderPopupOpen(true);
   };
 
+  const updateLeadDetails = async (contactNumber, newDetails) => {
+    // Find the lead
+    const leadIndex = leads.findIndex(l => l.contactNumber === contactNumber);
+    if (leadIndex === -1) {
+      console.warn('Lead not found for contact:', contactNumber);
+      return;
+    }
 
-  const updateLeadDetails = (contactNumber, newDetails) => {
-    setLeads((prevLeads) => {
-      return prevLeads.map((lead) =>
-        lead.contactNumber === contactNumber ? { ...lead, details: newDetails } : lead
+    const lead = leads[leadIndex];
+
+    // ✅ Check if condition fields changed
+    const conditionFields = [
+      'hba1c', 'fastingSugar', 'ppSugar', 'durationOfDiabetes', 'lastTestDone',
+      'totalCholesterol', 'ldl', 'hdl', 'triglycerides', 'lastCholesterolTest',
+      'sgpt', 'sgot', 'ggt', 'ultrasoundFindings', 'lastLiverTest'
+    ];
+
+    const hasConditionUpdate = Object.keys(newDetails).some(field =>
+      conditionFields.includes(field) &&
+      newDetails[field] !== lead.details?.[field]
+    );
+
+    const updatePayload = { details: newDetails };
+
+    // ✅ Track condition update
+    if (hasConditionUpdate) {
+      updatePayload.conditionsUpdatedAt = new Date().toISOString();
+      updatePayload.conditionsUpdatedBy = currentUserName;
+      console.log('✅ Condition field updated, tracking:', {
+        lead: lead.name,
+        timestamp: updatePayload.conditionsUpdatedAt,
+        user: currentUserName
+      });
+    }
+
+    try {
+      // Update backend
+      await axios.put(
+        `https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/${lead._id}`,
+        updatePayload
       );
-    });
+
+      // Update local state
+      setLeads((prevLeads) => {
+        return prevLeads.map((l) =>
+          l.contactNumber === contactNumber ? { ...l, details: newDetails } : l
+        );
+      });
+
+      console.log('✅ Lead details updated successfully');
+    } catch (error) {
+      console.error("❌ Error updating lead details:", error);
+      throw error; // Re-throw so Details.jsx can show error state
+    }
   };
 
   function filteredLeadsByFilters(inputLeads) {
@@ -1357,7 +1527,7 @@ const RetentionLeads = () => {
             ))}
         </Menu>
 
-        {/* Leads List */}
+
         <List disablePadding>
           {leads.map((lead, idx) => {
             const initials = lead.name
@@ -1493,7 +1663,7 @@ const RetentionLeads = () => {
                           const last = lead.lastOrderDate;
                           const daysSinceLast = getDaysSince(last);
 
-                          // normalize + helpers
+
                           const norm = (s) => String(s || "").trim().toLowerCase();
                           const logsAll = Array.isArray(lead.reachoutLogs) ? lead.reachoutLogs : [];
 
@@ -1687,6 +1857,33 @@ const RetentionLeads = () => {
                           <path d="M7 7V6a5 5 0 0 1 10 0v1h1.5a1.5 1.5 0 0 1 1.49 1.29l1.36 9.5A2.5 2.5 0 0 1 18.89 21H5.11a2.5 2.5 0 0 1-2.46-2.21l1.36-9.5A1.5 1.5 0 0 1 5.5 7H7Zm2 0h6V6a3 3 0 0 0-6 0v1Z" />
                           <path d="M10.6 14.8c.3.4.8.7 1.6.7.8 0 1.2-.3 1.2-.8 0-.6-.7-.7-1.4-.9-.9-.2-2-.5-2-1.8 0-1.1.9-1.9 2.3-1.9 1 0 1.8.3 2.3.9l-.9.8c-.3-.4-.8-.6-1.5-.6-.6 0-1 .3-1 .7 0 .5.6.6 1.3.8 1 .2 2.1.5 2.1 1.9 0 1.3-1 2.1-2.5 2.1-1.2 0-2.1-.4-2.6-1.1l.9-.8Z" />
                         </SvgIcon>
+                      </IconButton>
+                    </Tooltip>
+                    <Tooltip title={
+                      leads[selectedLeadIndex]?.firstCallConnected
+                        ? `First call connected on ${new Date(leads[selectedLeadIndex].firstCallConnectedAt).toLocaleString()}`
+                        : "Mark first call as connected"
+                    }>
+                      <IconButton
+                        onClick={handleMarkFirstCallConnected}
+                        disabled={leads[selectedLeadIndex]?.firstCallConnected}
+                        sx={{
+                          width: 36,
+                          height: 36,
+                          borderRadius: 999,
+                          bgcolor: leads[selectedLeadIndex]?.firstCallConnected ? "#4CAF50" : "#fff",
+                          border: "1px solid #E6E8EC",
+                          "&:hover": {
+                            bgcolor: leads[selectedLeadIndex]?.firstCallConnected ? "#45a049" : "#F7F9FB"
+                          },
+                          color: leads[selectedLeadIndex]?.firstCallConnected ? "#fff" : "#2E7D32",
+                          "&:disabled": {
+                            bgcolor: "#4CAF50",
+                            color: "#fff",
+                          }
+                        }}
+                      >
+                        <AddIcCallIcon sx={{ fontSize: 18 }} />
                       </IconButton>
                     </Tooltip>
                   </Box>
@@ -2218,7 +2415,7 @@ You can mark Lost only after 60 days.`);
                   />
                 )}
 
-                {/* Log popup (unchanged) */}
+                {/* ✅ UPDATED: Log popup with activity tracking */}
                 {logPopupAnchor && (
                   <Menu
                     anchorEl={logPopupAnchor}
@@ -2234,7 +2431,13 @@ You can mark Lost only after 60 days.`);
                           setReachoutMethod(method);
                           await axios.post(
                             `https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/${leads[selectedLeadIndex]._id}/reachout-log`,
-                            { timestamp: reachoutTimestamp, method }
+                            {
+                              timestamp: reachoutTimestamp,
+                              method,
+                              // ✅ Track activity
+                              profileUpdatedAt: new Date().toISOString(),
+                              profileUpdatedBy: currentUserName
+                            }
                           );
                         }}
                       >
@@ -2255,7 +2458,14 @@ You can mark Lost only after 60 days.`);
                               setReachoutStatus(status);
                               await axios.post(
                                 `https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/${leads[selectedLeadIndex]._id}/reachout-log`,
-                                { timestamp: reachoutTimestamp, method: reachoutMethod, status }
+                                {
+                                  timestamp: reachoutTimestamp,
+                                  method: reachoutMethod,
+                                  status,
+                                  // ✅ Track activity
+                                  profileUpdatedAt: new Date().toISOString(),
+                                  profileUpdatedBy: currentUserName
+                                }
                               );
                               setLogPopupAnchor(null);
                             }}
@@ -2270,7 +2480,6 @@ You can mark Lost only after 60 days.`);
                   </Menu>
                 )}
 
-                {/* Logs Modal (unchanged) */}
                 <Dialog open={logsModalOpen} onClose={() => setLogsModalOpen(false)} maxWidth="sm" fullWidth>
                   <DialogTitle>Reachout Logs</DialogTitle>
                   <DialogContent>
@@ -2318,8 +2527,6 @@ You can mark Lost only after 60 days.`);
                     ))}
                   </DialogContent>
                 </Dialog>
-
-                {/* ===== Shopify Orders Dialog (replaces inline showOrders block) ===== */}
                 <Dialog
                   open={showOrders}
                   onClose={() => setShowOrders(false)}
@@ -2334,7 +2541,6 @@ You can mark Lost only after 60 days.`);
                     </SvgIcon>
                     Shopify Orders — {leads[selectedLeadIndex]?.name || "Customer"}
                   </DialogTitle>
-
                   <DialogContent dividers>
                     {ordersLoading ? (
                       <Box sx={{ display: "flex", justifyContent: "center", py: 3 }}>
@@ -2342,7 +2548,7 @@ You can mark Lost only after 60 days.`);
                       </Box>
                     ) : (
                       <>
-                        {/* Summary cards */}
+
                         <Box
                           sx={{
                             display: "grid",
@@ -2374,8 +2580,6 @@ You can mark Lost only after 60 days.`);
                             </Typography>
                           </Paper>
                         </Box>
-
-                        {/* Orders list */}
                         {(shopifyDatesMap[leads[selectedLeadIndex]?.contactNumber]?.orders || []).map((order, i) => {
                           const noteInput = noteInputs[order.id] || "";
                           const savingNote = savingNotes[order.id] || false;
@@ -2584,14 +2788,14 @@ You can mark Lost only after 60 days.`);
                   };
 
                   const nextSubcells = [...(lead.rtSubcells || []), entry];
- 
+
                   setLeads((prev) => {
                     const copy = [...prev];
                     copy[selectedLeadIndex] = { ...copy[selectedLeadIndex], rtSubcells: nextSubcells };
                     return copy;
-                  }); 
-                  
-                  await axios.put(`${"https://muditamleads-14f32a10d7f7.herokuapp.com"}/api/leads/${lead._id}`, {
+                  });
+
+                  await axios.put(`https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/${lead._id}`, {
                     rtSubcells: nextSubcells,
                   });
                 }}
@@ -2866,4 +3070,5 @@ You can mark Lost only after 60 days.`);
 };
 
 export default RetentionLeads;
+
 

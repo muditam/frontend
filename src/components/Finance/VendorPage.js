@@ -168,7 +168,7 @@ const VendorRecordsPage = () => {
 
   return (
     <Box p={3} sx={{ backgroundColor: "#fbfbfb", minHeight: "100vh" }}>
-     
+
       {/* HEADER SECTION */}
       <Stack
         direction={{ xs: "column", md: "row" }}
@@ -177,31 +177,31 @@ const VendorRecordsPage = () => {
         spacing={2}
         mb={3}
       >
-        <Box sx={{ backgroundColor: "black", color: "white", px: 3, py: 1.5, borderRadius: "4px", boxShadow: 2 }}>
+        <Box sx={{ color: "black" }}>
           <Typography variant="h6" fontWeight={700} sx={{ letterSpacing: 0.5 }}>
             VENDOR MANAGEMENT
           </Typography>
         </Box>
 
 
-     <Button
-  variant="contained"
-  startIcon={<AddIcon />}
-  onClick={() => setOpenAddVendor(true)}
-  sx={{
-    textTransform: "none",
-    fontWeight: 700,
-    px: 3,
-    py: 1,
-    backgroundColor: "black", // Set background to black
-    color: "white",           // Set text/icon to white
-    "&:hover": {
-      backgroundColor: "#333", // Dark grey on hover for better UX
-    }
-  }}
->
-  Add Vendor
-</Button>
+        <Button
+          variant="contained"
+          startIcon={<AddIcon />}
+          onClick={() => setOpenAddVendor(true)}
+          sx={{
+            textTransform: "none",
+            fontWeight: 700,
+            px: 3,
+            py: 1,
+            backgroundColor: "black",
+            color: "white",
+            "&:hover": {
+              backgroundColor: "#333",
+            }
+          }}
+        >
+          Add Vendor
+        </Button>
       </Stack>
 
 

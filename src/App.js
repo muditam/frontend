@@ -38,6 +38,7 @@ import FinanceOrderSummary from "./components/Finance/FinanceOrderSummary";
 import RazorpaySettlement from "./components/Finance/Payments/RazorpaySettlement";
 import EasebuzzPayout from "./components/Finance/Payments/GokwikSettlement";
 import PhonePePayout from "./components/Finance/Payments/PhonepeSettlement";
+import CashfreePayout from "./components/Finance/Payments/CashfreeUpload";
 import BluedartUpload from "./components/Finance/Cod-remittance/BlueDart";
 import Delhivery from "./components/Finance/Cod-remittance/Delhivery";
 import DTDC from "./components/Finance/Cod-remittance/DtdcUpload";
@@ -390,6 +391,14 @@ const App = () => {
             element={
               <PrivateRoute>
                 <PhonePePayout />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/gateway/cashfree"
+            element={
+              <PrivateRoute>
+                <CashfreePayout />
               </PrivateRoute>
             }
           />
