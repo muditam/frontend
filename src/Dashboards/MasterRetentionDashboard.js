@@ -58,9 +58,9 @@ import {
 import Autocomplete, { createFilterOptions } from "@mui/material/Autocomplete";
 
 import TotalSalesDrilldown from "../pages/filtered/TotalSalesDrilldown";
- 
+
 const API_BASE = "https://muditamleads-14f32a10d7f7.herokuapp.com";
-const CACHE_TTL_MS = 5 * 60 * 1000;  
+const CACHE_TTL_MS = 5 * 60 * 1000;
 
 const timeRangeOptions = [
   "Custom range",
@@ -438,13 +438,21 @@ const ManagerRetentionDashboard = () => {
 
   const [codRows, setCodRows] = useState([]);
   const codTotals = useMemo(() => {
-    const totalOrders = (codRows || []).reduce((acc, a) => acc + Number(a?.totalOrders || 0), 0);
-    const totalCOD = (codRows || []).reduce((acc, a) => acc + Number(a?.codOrders || 0), 0);
-    const totalPrepaid = (codRows || []).reduce((acc, a) => acc + Number(a?.prepaidOrders || 0), 0);
-    const codPercent = totalOrders > 0 ? ((totalCOD / totalOrders) * 100).toFixed(1) : "0.0";
-    const prepaidPercent = totalOrders > 0 ? ((totalPrepaid / totalOrders) * 100).toFixed(1) : "0.0";
-    return { totalOrders, totalCOD, totalPrepaid, codPercent, prepaidPercent };
-  }, [codRows]);
+  const rows = codRows || [];
+  const totalOrders = rows.reduce((acc, a) => acc + Number(a?.totalOrders || 0), 0);
+  const totalCOD = rows.reduce((acc, a) => acc + Number(a?.codOrders || 0), 0);
+  const totalPrepaid = rows.reduce((acc, a) => acc + Number(a?.prepaidOrders || 0), 0);
+  const totalPartial = rows.reduce((acc, a) => acc + Number(a?.partialOrders || 0), 0);
+
+  const getPct = (val) => (totalOrders > 0 ? ((val / totalOrders) * 100).toFixed(1) : "0.0");
+
+  return { 
+    totalOrders, totalCOD, totalPrepaid, totalPartial, 
+    codPercent: getPct(totalCOD), 
+    prepaidPercent: getPct(totalPrepaid), 
+    partialPercent: getPct(totalPartial) 
+  };
+}, [codRows]);
 
 
   const normalizeCustomDates = useCallback((a, b) => {
@@ -1556,24 +1564,26 @@ const ManagerRetentionDashboard = () => {
         </Box>
         <Divider sx={{ my: 2 }} />
         <Grid container spacing={1.5}>
-          {[
-            { label: "Total Orders", value: codTotals.totalOrders, icon: <ShoppingCart sx={{ color: "#0F172A" }} /> },
-            { label: "COD Orders", value: codTotals.totalCOD, icon: <CurrencyRupee sx={{ color: "#EF4444" }} /> },
-            { label: "Prepaid Orders", value: codTotals.totalPrepaid, icon: <CurrencyRupee sx={{ color: "#16A34A" }} /> },
-            { label: "COD %", value: `${codTotals.codPercent}%`, icon: <TrendingUp sx={{ color: "#F59E0B" }} /> },
-            { label: "Prepaid %", value: `${codTotals.prepaidPercent}%`, icon: <TrendingUp sx={{ color: "#0284C7" }} /> },
-          ].map((m) => (
-            <Grid key={m.label} item xs={12} sm={6} md={2.4}>
-              <Box sx={cardSx}>
-                <Box sx={{ fontSize: 28, lineHeight: 1 }}>{m.icon}</Box>
-                <Box sx={{ minWidth: 0 }}>
-                  <Typography variant="caption" sx={{ color: "#64748B", fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.4px" }}>{m.label}</Typography>
-                  <Typography variant="subtitle1" sx={{ fontWeight: 900, color: "#0F172A" }}>{codLoading ? <CircularProgress size={16} /> : m.value}</Typography>
-                </Box>
-              </Box>
-            </Grid>
-          ))}
-        </Grid>
+  {[
+    { label: "Total Orders", value: codTotals.totalOrders, icon: <ShoppingCart sx={{ color: "#0F172A" }} /> },
+    { label: "COD Orders", value: codTotals.totalCOD, icon: <CurrencyRupee sx={{ color: "#EF4444" }} /> },
+    { label: "Prepaid", value: codTotals.totalPrepaid, icon: <CurrencyRupee sx={{ color: "#16A34A" }} /> },
+    { label: "Partial Paid", value: codTotals.totalPartial, icon: <Update sx={{ color: "#7C3AED" }} /> },
+    { label: "COD %", value: `${codTotals.codPercent}%`, icon: <TrendingUp sx={{ color: "#F59E0B" }} /> },
+    { label: "Prepaid %", value: `${codTotals.prepaidPercent}%`, icon: <TrendingUp sx={{ color: "#0284C7" }} /> },
+    { label: "Partial %", value: `${codTotals.partialPercent}%`, icon: <TrendingUp sx={{ color: "#8B5CF6" }} /> },
+  ].map((m) => (
+    <Grid key={m.label} item xs={12} sm={6} md={1.7}> {/* md={1.7} for 7 cards across */}
+      <Box sx={cardSx}>
+        <Box sx={{ fontSize: 24, lineHeight: 1 }}>{m.icon}</Box>
+        <Box sx={{ minWidth: 0 }}>
+          <Typography variant="caption" sx={{ color: "#64748B", fontWeight: 900, textTransform: "uppercase", fontSize: '0.65rem' }}>{m.label}</Typography>
+          <Typography variant="subtitle2" sx={{ fontWeight: 900, color: "#0F172A" }}>{codLoading ? <CircularProgress size={12} /> : m.value}</Typography>
+        </Box>
+      </Box>
+    </Grid>
+  ))}
+</Grid>
         {showCodDetails && (
           <Box sx={{ mt: 2.5 }}>
             <Divider sx={{ my: 2 }} />
@@ -1581,46 +1591,47 @@ const ManagerRetentionDashboard = () => {
             <TableContainer sx={{ borderRadius: 2, border: "1px solid #E6E8EC" }} component={Paper}>
               <Table size="small">
                 <TableHead>
-                  <TableRow>
-                    <TableCell sx={headerCellSx}>Health Expert Name</TableCell>
-                    <TableCell sx={headerCellSx}>Total Orders</TableCell>
-                    <TableCell sx={headerCellSx}>COD Orders</TableCell>
-                    <TableCell sx={headerCellSx}>Prepaid Orders</TableCell>
-                    <TableCell sx={headerCellSx}>COD %</TableCell>
-                    <TableCell sx={headerCellSx}>Prepaid %</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {codLoading && <TableRow><TableCell colSpan={6} sx={{ p: 0 }}><LinearProgress /></TableCell></TableRow>}
-                  {!codLoading && (codRows || []).length > 0 && (
-                    <TableRow sx={{ backgroundColor: "#EEF6FF" }}>
-                      <TableCell sx={{ fontWeight: 900 }}>TOTAL</TableCell>
-                      <TableCell align="center" sx={{ fontWeight: 800 }}>{codTotals.totalOrders}</TableCell>
-                      <TableCell align="center" sx={{ fontWeight: 800 }}>{codTotals.totalCOD}</TableCell>
-                      <TableCell align="center" sx={{ fontWeight: 800 }}>{codTotals.totalPrepaid}</TableCell>
-                      <TableCell align="center" sx={{ fontWeight: 800 }}>{codTotals.codPercent}%</TableCell>
-                      <TableCell align="center" sx={{ fontWeight: 800 }}>{codTotals.prepaidPercent}%</TableCell>
-                    </TableRow>
-                  )}
-                  {!codLoading && (codRows || []).length === 0 && <TableRow><TableCell colSpan={6} align="center" sx={{ py: 2, color: "#64748B" }}>No data available</TableCell></TableRow>}
-                  {!codLoading && (codRows || []).map((r, idx) => {
-                    const total = Number(r.totalOrders || 0);
-                    const cod = Number(r.codOrders || 0);
-                    const prepaid = Number(r.prepaidOrders || 0);
-                    const codPct = total > 0 ? ((cod / total) * 100).toFixed(1) : "0.0";
-                    const prepaidPct = total > 0 ? ((prepaid / total) * 100).toFixed(1) : "0.0";
-                    return (
-                      <TableRow key={`${r.agentName}-${idx}`} sx={{ backgroundColor: idx % 2 === 0 ? "#FFFFFF" : "#FBFDFF", ...rowHoverSx }}>
-                        <TableCell sx={{ fontWeight: 800, color: "#0F172A" }}>{r.agentName || "—"}</TableCell>
-                        <TableCell align="center">{total}</TableCell>
-                        <TableCell align="center">{cod}</TableCell>
-                        <TableCell align="center">{prepaid}</TableCell>
-                        <TableCell align="center">{codPct}%</TableCell>
-                        <TableCell align="center">{prepaidPct}%</TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
+  <TableRow>
+    <TableCell sx={headerCellSx}>Health Expert Name</TableCell>
+    <TableCell sx={headerCellSx}>Total Orders</TableCell>
+    <TableCell sx={headerCellSx}>COD</TableCell>
+    <TableCell sx={headerCellSx}>Prepaid</TableCell>
+    <TableCell sx={headerCellSx}>Partial</TableCell> {/* New */}
+    <TableCell sx={headerCellSx}>COD %</TableCell>
+    <TableCell sx={headerCellSx}>Prepaid %</TableCell>
+    <TableCell sx={headerCellSx}>Partial %</TableCell> {/* New */}
+  </TableRow>
+</TableHead>
+<TableBody>
+  {/* Total Row */}
+  <TableRow sx={{ backgroundColor: "#EEF6FF" }}>
+    <TableCell sx={{ fontWeight: 900 }}>TOTAL</TableCell>
+    <TableCell align="center" sx={{ fontWeight: 800 }}>{codTotals.totalOrders}</TableCell>
+    <TableCell align="center" sx={{ fontWeight: 800 }}>{codTotals.totalCOD}</TableCell>
+    <TableCell align="center" sx={{ fontWeight: 800 }}>{codTotals.totalPrepaid}</TableCell>
+    <TableCell align="center" sx={{ fontWeight: 800 }}>{codTotals.totalPartial}</TableCell>
+    <TableCell align="center" sx={{ fontWeight: 800 }}>{codTotals.codPercent}%</TableCell>
+    <TableCell align="center" sx={{ fontWeight: 800 }}>{codTotals.prepaidPercent}%</TableCell>
+    <TableCell align="center" sx={{ fontWeight: 800 }}>{codTotals.partialPercent}%</TableCell>
+  </TableRow>
+  {/* Agent Rows */}
+  {codRows.map((r, idx) => {
+    const total = Number(r.totalOrders || 0);
+    const getAgentPct = (val) => total > 0 ? ((val / total) * 100).toFixed(1) : "0.0";
+    return (
+      <TableRow key={idx} sx={{ backgroundColor: idx % 2 === 0 ? "#FFFFFF" : "#FBFDFF", ...rowHoverSx }}>
+        <TableCell sx={{ fontWeight: 800 }}>{r.agentName}</TableCell>
+        <TableCell align="center">{total}</TableCell>
+        <TableCell align="center">{r.codOrders}</TableCell>
+        <TableCell align="center">{r.prepaidOrders}</TableCell>
+        <TableCell align="center">{r.partialOrders}</TableCell>
+        <TableCell align="center">{getAgentPct(r.codOrders)}%</TableCell>
+        <TableCell align="center">{getAgentPct(r.prepaidOrders)}%</TableCell>
+        <TableCell align="center">{getAgentPct(r.partialOrders)}%</TableCell>
+      </TableRow>
+    );
+  })}
+</TableBody>
               </Table>
             </TableContainer>
           </Box>

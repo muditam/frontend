@@ -285,6 +285,7 @@ export default function WhatsAppChatDrawer({
   const [tplComposeOpen, setTplComposeOpen] = useState(false);
   const [activeTemplate, setActiveTemplate] = useState(null);
   const [tplVars, setTplVars] = useState([]);
+  const [tplSending, setTplSending] = useState(false); // ✅ Added loading state for send button
 
   // ✅ Header media (attachment) support for templates
   const [tplHeaderFmt, setTplHeaderFmt] = useState("");
@@ -464,6 +465,7 @@ export default function WhatsAppChatDrawer({
     setTplComposeOpen(false);
     setActiveTemplate(null);
     setTplVars([]);
+    setTplSending(false);
 
     setTplHeaderFmt("");
     setTplHeaderFile(null);
@@ -619,6 +621,7 @@ export default function WhatsAppChatDrawer({
     setActiveTemplate(tpl);
     setTplVars(Array.from({ length: count }, () => ""));
     setTplComposeOpen(true);
+    setTplSending(false); // ✅ Reset sending state
 
     // ✅ header attachment config
     const fmt = getHeaderMediaFormatFromTemplate(tpl);
@@ -637,143 +640,143 @@ export default function WhatsAppChatDrawer({
   }, [activeTemplate, templateBodyText, tplVars]);
 
   function absolutizeUrl(url = "") {
-  const u = String(url || "").trim();
-  if (!u) return "";
-  if (/^https?:\/\//i.test(u)) return u;          
-  if (u.startsWith("/")) return `${API_BASE}${u}`; // relative -> API_BASE
-  return `${API_BASE}/${u}`;
-}
+    const u = String(url || "").trim();
+    if (!u) return "";
+    if (/^https?:\/\//i.test(u)) return u;          
+    if (u.startsWith("/")) return `${API_BASE}${u}`; // relative -> API_BASE
+    return `${API_BASE}/${u}`;
+  }
 
-function isProviderUrl(url = "") {
-  return /360dialog\.io|graph\.facebook\.com|lookaside\.facebook\.com|fbcdn\.net|facebook\.com/i.test(String(url || ""));
-}
+  function isProviderUrl(url = "") {
+    return /360dialog\.io|graph\.facebook\.com|lookaside\.facebook\.com|fbcdn\.net|facebook\.com/i.test(String(url || ""));
+  }
 
   const renderMedia = (m) => {
-  const mediaId = String(m?.media?.id || "").trim();
-  const rawUrl = String(m?.media?.url || m?.mediaUrl || "").trim();
- 
-  const absRawUrl = rawUrl ? absolutizeUrl(rawUrl) : "";
- 
-  const url =
-    (!absRawUrl || isProviderUrl(absRawUrl))
-      ? (mediaId ? `${API_BASE}/api/whatsapp/media-proxy/${encodeURIComponent(mediaId)}` : "")
-      : absRawUrl;
+    const mediaId = String(m?.media?.id || "").trim();
+    const rawUrl = String(m?.media?.url || m?.mediaUrl || "").trim();
+   
+    const absRawUrl = rawUrl ? absolutizeUrl(rawUrl) : "";
+   
+    const url =
+      (!absRawUrl || isProviderUrl(absRawUrl))
+        ? (mediaId ? `${API_BASE}/api/whatsapp/media-proxy/${encodeURIComponent(mediaId)}` : "")
+        : absRawUrl;
 
-  if (!url) return null;
+    if (!url) return null;
 
-  const rawMime =
-    m?.media?.mime ||
-    m?.media?.mimetype ||
-    m?.mime ||
-    m?.mediaMime ||
-    "";
+    const rawMime =
+      m?.media?.mime ||
+      m?.media?.mimetype ||
+      m?.mime ||
+      m?.mediaMime ||
+      "";
 
-  const mime = String(rawMime).toLowerCase();
+    const mime = String(rawMime).toLowerCase();
 
-  const msgType = String(
-    m?.type || m?.messageType || m?.media?.type || m?.mediaType || ""
-  ).toLowerCase();
+    const msgType = String(
+      m?.type || m?.messageType || m?.media?.type || m?.mediaType || ""
+    ).toLowerCase();
 
-  const filename = String(m?.media?.filename || m?.filename || "").toLowerCase();
+    const filename = String(m?.media?.filename || m?.filename || "").toLowerCase();
 
-  const isImg =
-    msgType === "image" ||
-    mime.startsWith("image/") ||
-    /\.(png|jpg|jpeg|webp|gif)$/i.test(url) ||
-    /\.(png|jpg|jpeg|webp|gif)$/i.test(filename);
+    const isImg =
+      msgType === "image" ||
+      mime.startsWith("image/") ||
+      /\.(png|jpg|jpeg|webp|gif)$/i.test(url) ||
+      /\.(png|jpg|jpeg|webp|gif)$/i.test(filename);
 
-  const isAudio =
-    msgType === "audio" ||
-    msgType === "voice" ||
-    msgType === "ptt" ||
-    mime.startsWith("audio/") ||
-    mime.startsWith("application/ogg") || 
-    mime.includes("ogg") ||
-    /\.(mp3|wav|ogg|opus|m4a)$/i.test(url) ||
-    /\.(mp3|wav|ogg|opus|m4a)$/i.test(filename);
+    const isAudio =
+      msgType === "audio" ||
+      msgType === "voice" ||
+      msgType === "ptt" ||
+      mime.startsWith("audio/") ||
+      mime.startsWith("application/ogg") || 
+      mime.includes("ogg") ||
+      /\.(mp3|wav|ogg|opus|m4a)$/i.test(url) ||
+      /\.(mp3|wav|ogg|opus|m4a)$/i.test(filename);
 
-  const isVideo =
-    msgType === "video" ||
-    mime.startsWith("video/") ||
-    /\.(mp4|webm|mov)$/i.test(url) ||
-    /\.(mp4|webm|mov)$/i.test(filename);
+    const isVideo =
+      msgType === "video" ||
+      mime.startsWith("video/") ||
+      /\.(mp4|webm|mov)$/i.test(url) ||
+      /\.(mp4|webm|mov)$/i.test(filename);
 
-  const isPdf =
-    mime.includes("pdf") ||
-    /\.pdf$/i.test(url) ||
-    /\.pdf$/i.test(filename);
+    const isPdf =
+      mime.includes("pdf") ||
+      /\.pdf$/i.test(url) ||
+      /\.pdf$/i.test(filename);
 
-  if (isImg) {
+    if (isImg) {
+      return (
+        <Box sx={{ mt: 0.75 }}>
+          <Box
+            component="img"
+            src={url}
+            alt="attachment"
+            sx={{
+              width: 220,
+              maxWidth: "100%",
+              borderRadius: 1.5,
+              border: "1px solid #e5e5e5",
+              display: "block",
+              cursor: "pointer",
+            }}
+            onLoad={() => stickToBottomRef.current && scrollToBottomSoon("auto")}
+            onClick={() => window.open(url, "_blank", "noopener,noreferrer")}
+          />
+        </Box>
+      );
+    }
+
+    if (isAudio) {
+      const typeAttr = mime && mime !== "application/octet-stream" ? mime : undefined;
+
+      return (
+        <Box sx={{ mt: 0.75 }}>
+          <audio
+            controls
+            preload="none"
+            style={{ width: "260px", maxWidth: "100%" }}
+            onLoadedMetadata={() => stickToBottomRef.current && scrollToBottomSoon("auto")}
+          >
+            <source src={url} type={typeAttr} />
+          </audio>
+        </Box>
+      );
+    }
+
+    if (isVideo) {
+      return (
+        <Box sx={{ mt: 0.75 }}>
+          <video
+            controls
+            preload="metadata"
+            src={url}
+            style={{
+              width: "260px",
+              maxWidth: "100%",
+              borderRadius: "10px",
+              border: "1px solid #e5e5e5",
+            }}
+            onLoadedMetadata={() => stickToBottomRef.current && scrollToBottomSoon("auto")}
+          />
+        </Box>
+      );
+    }
+
     return (
       <Box sx={{ mt: 0.75 }}>
-        <Box
-          component="img"
-          src={url}
-          alt="attachment"
-          sx={{
-            width: 220,
-            maxWidth: "100%",
-            borderRadius: 1.5,
-            border: "1px solid #e5e5e5",
-            display: "block",
-            cursor: "pointer",
-          }}
-          onLoad={() => stickToBottomRef.current && scrollToBottomSoon("auto")}
+        <Button
+          size="small"
+          variant="outlined"
           onClick={() => window.open(url, "_blank", "noopener,noreferrer")}
-        />
+          sx={{ textTransform: "none" }}
+        >
+          {isPdf ? "Open PDF" : "Open attachment"}
+        </Button>
       </Box>
     );
-  }
-
-  if (isAudio) {
-  const typeAttr = mime && mime !== "application/octet-stream" ? mime : undefined;
-
-  return (
-    <Box sx={{ mt: 0.75 }}>
-      <audio
-        controls
-        preload="none"
-        style={{ width: "260px", maxWidth: "100%" }}
-        onLoadedMetadata={() => stickToBottomRef.current && scrollToBottomSoon("auto")}
-      >
-        <source src={url} type={typeAttr} />
-      </audio>
-    </Box>
-  );
-}
-
-  if (isVideo) {
-    return (
-      <Box sx={{ mt: 0.75 }}>
-        <video
-          controls
-          preload="metadata"
-          src={url}
-          style={{
-            width: "260px",
-            maxWidth: "100%",
-            borderRadius: "10px",
-            border: "1px solid #e5e5e5",
-          }}
-          onLoadedMetadata={() => stickToBottomRef.current && scrollToBottomSoon("auto")}
-        />
-      </Box>
-    );
-  }
-
-  return (
-    <Box sx={{ mt: 0.75 }}>
-      <Button
-        size="small"
-        variant="outlined"
-        onClick={() => window.open(url, "_blank", "noopener,noreferrer")}
-        sx={{ textTransform: "none" }}
-      >
-        {isPdf ? "Open PDF" : "Open attachment"}
-      </Button>
-    </Box>
-  );
-};
+  };
 
 
   // ✅ Help me write
@@ -1337,7 +1340,7 @@ function isProviderUrl(url = "") {
           <DialogTitle sx={{ display: "flex", alignItems: "center", gap: 1 }}>
             <Typography sx={{ fontWeight: 900 }}>Template Preview</Typography>
             <Box sx={{ ml: "auto" }}>
-              <IconButton onClick={() => setTplComposeOpen(false)}>
+              <IconButton disabled={tplSending} onClick={() => setTplComposeOpen(false)}>
                 <CloseIcon />
               </IconButton>
             </Box>
@@ -1365,7 +1368,7 @@ function isProviderUrl(url = "") {
                     variant="outlined"
                     component="label"
                     sx={{ textTransform: "none", fontWeight: 900 }}
-                    disabled={tplHeaderUploadLoading}
+                    disabled={tplHeaderUploadLoading || tplSending}
                   >
                     Choose file
                     <input
@@ -1395,7 +1398,7 @@ function isProviderUrl(url = "") {
                   <Button
                     variant="contained"
                     onClick={() => uploadTemplateHeaderMedia(tplHeaderFile)}
-                    disabled={!tplHeaderFile || tplHeaderUploadLoading}
+                    disabled={!tplHeaderFile || tplHeaderUploadLoading || tplSending}
                     startIcon={tplHeaderUploadLoading ? <CircularProgress size={14} /> : null}
                     sx={{ textTransform: "none", fontWeight: 900 }}
                   >
@@ -1415,34 +1418,7 @@ function isProviderUrl(url = "") {
               </Box>
             ) : null}
 
-            <Box sx={{ mt: 2 }}>
-              <Typography sx={{ fontWeight: 900, mb: 1 }}>Variables</Typography>
-              {tplVars.length === 0 ? (
-                <Typography variant="body2" color="text.secondary">
-                  No variables detected in this template.
-                </Typography>
-              ) : (
-                <Box sx={{ display: "grid", gap: 1 }}>
-                  {tplVars.map((val, idx) => (
-                    <TextField
-                      key={idx}
-                      size="small"
-                      label={`{{${idx + 1}}}`}
-                      value={val}
-                      onChange={(e) => {
-                        const v = e.target.value;
-                        setTplVars((prev) => {
-                          const copy = [...prev];
-                          copy[idx] = v;
-                          return copy;
-                        });
-                      }}
-                    />
-                  ))}
-                </Box>
-              )}
-            </Box>
-
+            {/* ✅ Preview moved ABOVE Variables */}
             <Box sx={{ mt: 2 }}>
               <Typography sx={{ fontWeight: 900, mb: 1 }}>Preview</Typography>
               <Paper
@@ -1459,18 +1435,57 @@ function isProviderUrl(url = "") {
                 {templatePreview || "—"}
               </Paper>
             </Box>
+
+            {/* ✅ Variables moved BELOW Preview */}
+            <Box sx={{ mt: 2 }}>
+              <Typography sx={{ fontWeight: 900, mb: 1 }}>Variables</Typography>
+              {tplVars.length === 0 ? (
+                <Typography variant="body2" color="text.secondary">
+                  No variables detected in this template.
+                </Typography>
+              ) : (
+                <Box sx={{ display: "grid", gap: 1 }}>
+                  {tplVars.map((val, idx) => (
+                    <TextField
+                      key={idx}
+                      size="small"
+                      label={`{{${idx + 1}}}`}
+                      value={val}
+                      disabled={tplSending}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        setTplVars((prev) => {
+                          const copy = [...prev];
+                          copy[idx] = v;
+                          return copy;
+                        });
+                      }}
+                    />
+                  ))}
+                </Box>
+              )}
+            </Box>
           </DialogContent>
 
+          {/* Action Buttons */}
           <Box sx={{ p: 1.25, display: "flex", justifyContent: "flex-end", gap: 1 }}>
-            <Button variant="outlined" onClick={() => setTplComposeOpen(false)} sx={{ textTransform: "none" }}>
+            <Button 
+              variant="outlined" 
+              disabled={tplSending} 
+              onClick={() => setTplComposeOpen(false)} 
+              sx={{ textTransform: "none" }}
+            >
               Cancel
             </Button>
+            
+            {/* ✅ Button with sending state prevention */}
             <Button
               variant="contained"
+              disabled={tplSending}
+              startIcon={tplSending ? <CircularProgress size={14} color="inherit" /> : null}
               onClick={async () => {
                 if (!activeTemplate) return;
 
-                // ✅ if header required, must have uploaded media id
                 if (tplHeaderFmt && !tplHeaderMediaId) {
                   alert(`This template requires a HEADER ${tplHeaderFmt} attachment. Please upload first.`);
                   return;
@@ -1481,12 +1496,20 @@ function isProviderUrl(url = "") {
                     ? { format: tplHeaderFmt, id: tplHeaderMediaId, filename: tplHeaderFile?.name || "" }
                     : null;
 
-                await sendTemplate(activeTemplate, tplVars, templatePreview, headerMedia);
-                setTplComposeOpen(false);
+                setTplSending(true); 
+                
+                try {
+                  await sendTemplate(activeTemplate, tplVars, templatePreview, headerMedia);
+                  setTplComposeOpen(false); 
+                } catch (error) {
+                  console.error("Failed to send template:", error);
+                } finally {
+                  setTplSending(false); 
+                }
               }}
               sx={{ textTransform: "none", fontWeight: 900 }}
             >
-              Send Template
+              {tplSending ? "Sending..." : "Send Template"}
             </Button>
           </Box>
         </Dialog>

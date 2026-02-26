@@ -311,12 +311,13 @@ function customerPhoneFromMsg(msg) {
 }
 
 /* -----------------------------
-   Media helpers (UPDATED: robust mime/id/url + media-proxy fallback)
+   Media helpers (UPDATED: Extract Template Media)
 ------------------------------ */
 function mediaIdFromMsg(m) {
   return (
     m?.media?.id ||
     m?.mediaId ||
+    m?.templateMeta?.headerMedia?.id || // ✅ Look in templates
     m?.raw?.id ||
     m?.raw?.audio?.id ||
     m?.raw?.image?.id ||
@@ -326,12 +327,20 @@ function mediaIdFromMsg(m) {
   );
 }
 function mediaUrlFromMsg(m) {
-  return m?.media?.url || m?.mediaUrl || m?.url || "";
+  return m?.media?.url || m?.mediaUrl || m?.templateMeta?.headerMedia?.url || m?.url || "";
 }
 function mediaMimeFromMsg(m) {
+  // ✅ Guess mime based on template format if needed
+  const tplFmt = m?.templateMeta?.headerMedia?.format;
+  let guessedMime = "";
+  if (tplFmt === "DOCUMENT") guessedMime = "application/pdf";
+  if (tplFmt === "IMAGE") guessedMime = "image/jpeg";
+  if (tplFmt === "VIDEO") guessedMime = "video/mp4";
+
   return (
     m?.media?.mime ||
     m?.mime ||
+    guessedMime ||
     m?.raw?.audio?.mime_type ||
     m?.raw?.image?.mime_type ||
     m?.raw?.video?.mime_type ||
@@ -344,6 +353,7 @@ function mediaFilenameFromMsg(m) {
   return (
     m?.media?.filename ||
     m?.filename ||
+    m?.templateMeta?.headerMedia?.filename || // ✅ Fetch filename sent with templates
     m?.raw?.document?.filename ||
     m?.raw?.document?.name ||
     m?.raw?.file?.filename ||
@@ -362,7 +372,7 @@ function detectMediaKind({ url = "", mime = "", fallbackType = "" }) {
   if (byMime("image/") || /\.(png|jpg|jpeg|webp|gif)$/i.test(u) || t === "image" || t === "sticker") return "image";
   if (byMime("video/") || /\.(mp4|webm|mov|mkv)$/i.test(u) || t === "video") return "video";
   if (byMime("audio/") || /\.(mp3|wav|ogg|m4a|opus)$/i.test(u) || t === "audio" || t === "voice") return "audio";
-  if (m === "application/pdf" || /\.pdf$/i.test(u) || t === "pdf") return "pdf";
+  if (m === "application/pdf" || /\.pdf$/i.test(u) || t === "pdf" || t === "document") return "pdf"; // ✅ added document fallback
   return "file";
 }
 
@@ -430,7 +440,9 @@ function MessageMedia({
   const filename = mediaFilenameFromMsg(msg);
 
   const resolvedUrl = resolveBestMediaUrl(msg);
-  const kind = detectMediaKind({ url: resolvedUrl, mime, fallbackType: msg?.type });
+  // ✅ Also pass template header format so detectMediaKind knows it's a DOCUMENT
+  const fallbackType = msg?.templateMeta?.headerMedia?.format || msg?.type;
+  const kind = detectMediaKind({ url: resolvedUrl, mime, fallbackType });
 
   const [audioBlobUrl, setAudioBlobUrl] = useState("");
 
@@ -656,6 +668,7 @@ export default function WhatsAppUI() {
   const [tplComposeOpen, setTplComposeOpen] = useState(false);
   const [activeTplForSend, setActiveTplForSend] = useState(null);
   const [tplSendVars, setTplSendVars] = useState({});
+  const [tplSending, setTplSending] = useState(false); // ✅ Added sending state to block multi-click
 
   // ✅ template header attachment (chat template dialog)
   const [tplHeaderFormat, setTplHeaderFormat] = useState("");
@@ -1471,6 +1484,7 @@ export default function WhatsAppUI() {
 
     setActiveTplForSend(tpl);
     setTplSendVars(initial);
+    setTplSending(false); // ✅ reset loading state
 
     const fmt = getHeaderMediaFormat(tpl);
     setTplHeaderFormat(fmt);
@@ -1507,19 +1521,25 @@ export default function WhatsAppUI() {
         setErrorMessages("Max attachment size is 5MB.");
         return;
       }
-
+      
+      setTplSending(true); // ✅ Block UI before upload starts
       try {
         const up = await uploadTemplateHeaderMedia(tplHeaderFile);
         const mediaId = up?.mediaId || up?.id;
         if (!mediaId) {
           setErrorMessages("Upload failed: no mediaId returned.");
+          setTplSending(false);
           return;
         }
-        headerMedia = { format: tplHeaderFormat, id: mediaId };
+        // ✅ ADDED FILENAME SO DOCUMENTS RENDER PROPERLY
+        headerMedia = { format: tplHeaderFormat, id: mediaId, filename: tplHeaderFile.name };
       } catch (e) {
         setErrorMessages(e.message || "Failed to upload header attachment.");
+        setTplSending(false);
         return;
       }
+    } else {
+      setTplSending(true); // ✅ Block UI before send starts
     }
 
     try {
@@ -1530,7 +1550,7 @@ export default function WhatsAppUI() {
           templateName: activeTplForSend.name,
           parameters: params,
           renderedText: tplSendPreview || "",
-          headerMedia, // ✅ NEW
+          headerMedia, 
         }),
       });
 
@@ -1546,6 +1566,8 @@ export default function WhatsAppUI() {
       setErrorMessages("");
     } catch (e) {
       setErrorMessages(e.message || "Failed to send template.");
+    } finally {
+      setTplSending(false);
     }
   };
 
@@ -1673,17 +1695,24 @@ export default function WhatsAppUI() {
       if (!newHeaderFile) return setNewChatError("This template requires a header attachment. Please choose a file.");
       if (newHeaderFile.size > 5 * 1024 * 1024) return setNewChatError("Max attachment size is 5MB.");
 
+      setCreatingChat(true); // ✅ Block UI here before upload
       try {
         const up = await uploadTemplateHeaderMedia(newHeaderFile);
         const mediaId = up?.mediaId || up?.id;
-        if (!mediaId) return setNewChatError("Upload failed: no mediaId returned.");
-        headerMedia = { format: newHeaderFormat, id: mediaId };
+        if (!mediaId) {
+          setCreatingChat(false);
+          return setNewChatError("Upload failed: no mediaId returned.");
+        }
+        // ✅ ADDED FILENAME SO DOCUMENTS RENDER PROPERLY
+        headerMedia = { format: newHeaderFormat, id: mediaId, filename: newHeaderFile.name };
       } catch (e) {
+        setCreatingChat(false);
         return setNewChatError(e.message || "Failed to upload header attachment.");
       }
+    } else {
+      setCreatingChat(true); // ✅ Block UI before send
     }
 
-    setCreatingChat(true);
     setNewChatError("");
 
     try {
@@ -1694,7 +1723,7 @@ export default function WhatsAppUI() {
           templateName: selectedTemplate.name,
           parameters: params,
           renderedText: previewBody || "",
-          headerMedia, // ✅ NEW
+          headerMedia, 
         }),
       });
 
@@ -2251,12 +2280,14 @@ export default function WhatsAppUI() {
           </Box>
         </Dialog>
 
-        {/* Template Composer Dialog */}
+        {/* Template Composer Dialog (Chat Window) */}
         <Dialog
           open={tplComposeOpen}
           onClose={() => {
-            setTplComposeOpen(false);
-            setTplHeaderFile(null);
+            if (!tplSending) {
+              setTplComposeOpen(false);
+              setTplHeaderFile(null);
+            }
           }}
           fullWidth
           maxWidth="sm"
@@ -2272,7 +2303,7 @@ export default function WhatsAppUI() {
               </Typography>
             </Box>
 
-            {/* ✅ header attachment section (when template requires it) */}
+            {/* ✅ header attachment section */}
             {tplHeaderFormat ? (
               <Box sx={{ mt: 1.5 }}>
                 <Typography sx={{ fontWeight: 900, mb: 1 }}>
@@ -2280,7 +2311,12 @@ export default function WhatsAppUI() {
                 </Typography>
 
                 <Stack direction="row" spacing={1} alignItems="center">
-                  <Button variant="outlined" component="label" sx={{ textTransform: "none", fontWeight: 900 }}>
+                  <Button 
+                    variant="outlined" 
+                    component="label" 
+                    sx={{ textTransform: "none", fontWeight: 900 }}
+                    disabled={tplSending}
+                  >
                     Choose file
                     <input
                       type="file"
@@ -2303,7 +2339,12 @@ export default function WhatsAppUI() {
                   </Typography>
 
                   {tplHeaderFile ? (
-                    <Button size="small" onClick={() => setTplHeaderFile(null)} sx={{ textTransform: "none" }}>
+                    <Button 
+                      size="small" 
+                      disabled={tplSending}
+                      onClick={() => setTplHeaderFile(null)} 
+                      sx={{ textTransform: "none" }}
+                    >
                       Remove
                     </Button>
                   ) : null}
@@ -2317,6 +2358,25 @@ export default function WhatsAppUI() {
               </Box>
             ) : null}
 
+            {/* ✅ PREVIEW SWAPPED UP */}
+            <Box sx={{ mt: 2 }}>
+              <Typography sx={{ fontWeight: 900, mb: 1 }}>Preview</Typography>
+              <Paper
+                variant="outlined"
+                sx={{
+                  p: 1.25,
+                  borderRadius: 2,
+                  bgcolor: "#FAFAFA",
+                  whiteSpace: "pre-wrap",
+                  fontSize: 13,
+                  lineHeight: 1.4,
+                }}
+              >
+                {tplSendPreview || "—"}
+              </Paper>
+            </Box>
+
+            {/* ✅ VARIABLES SWAPPED DOWN */}
             <Box sx={{ mt: 2 }}>
               <Typography sx={{ fontWeight: 900, mb: 1 }}>Variables</Typography>
               {(() => {
@@ -2346,6 +2406,7 @@ export default function WhatsAppUI() {
                         key={i}
                         size="small"
                         label={`{{${i}}}`}
+                        disabled={tplSending}
                         value={tplSendVars[String(i)] || ""}
                         onChange={(e) =>
                           setTplSendVars((prev) => ({
@@ -2359,36 +2420,26 @@ export default function WhatsAppUI() {
                 );
               })()}
             </Box>
-
-            <Box sx={{ mt: 2 }}>
-              <Typography sx={{ fontWeight: 900, mb: 1 }}>Preview</Typography>
-              <Paper
-                variant="outlined"
-                sx={{
-                  p: 1.25,
-                  borderRadius: 2,
-                  bgcolor: "#FAFAFA",
-                  whiteSpace: "pre-wrap",
-                  fontSize: 13,
-                  lineHeight: 1.4,
-                }}
-              >
-                {tplSendPreview || "—"}
-              </Paper>
-            </Box>
           </DialogContent>
 
+          {/* Action buttons with load tracking */}
           <Box sx={{ p: 1.25, display: "flex", justifyContent: "flex-end", gap: 1 }}>
-            <Button variant="outlined" onClick={() => setTplComposeOpen(false)} sx={{ textTransform: "none" }}>
+            <Button 
+              variant="outlined" 
+              onClick={() => setTplComposeOpen(false)} 
+              sx={{ textTransform: "none" }}
+              disabled={tplSending}
+            >
               Cancel
             </Button>
             <Button
               variant="contained"
               onClick={sendTemplateFromChat}
               sx={{ textTransform: "none" }}
-              disabled={!hasActiveChat || (tplHeaderFormat ? !tplHeaderFile : false)}
+              startIcon={tplSending ? <CircularProgress size={14} color="inherit" /> : null}
+              disabled={!hasActiveChat || (tplHeaderFormat ? !tplHeaderFile : false) || tplSending}
             >
-              Send Template
+              {tplSending ? "Sending..." : "Send Template"}
             </Button>
           </Box>
         </Dialog>
@@ -2499,26 +2550,25 @@ export default function WhatsAppUI() {
               </Box>
             ) : null}
 
-            <Box display="flex" gap={3} mt={1}>
-              <Box flex={1} minWidth={280}>
+            {/* ✅ Swapped Preview to top, Variables to bottom */}
+            <Stack spacing={3} mt={2}>
+              {/* Preview */}
+              <Box>
                 <Typography fontWeight={700} mb={1}>
                   Template Body (Preview)
                 </Typography>
-
                 <Box
                   sx={{
                     bgcolor: "#e7f6f2",
                     borderRadius: 2,
                     p: 2,
                     border: "1px solid rgba(0,0,0,0.08)",
-                    maxWidth: 360,
                   }}
                 >
                   <Typography fontSize={14} whiteSpace="pre-wrap">
                     {previewBody || "Select a template to preview"}
                   </Typography>
                 </Box>
-
                 {!pickBodyTextFromTemplate(selectedTemplate) && selectedTemplate ? (
                   <Typography mt={1} fontSize={12} color="error">
                     Body text not available in DB for this template. Fix sync to store BODY text.
@@ -2526,11 +2576,11 @@ export default function WhatsAppUI() {
                 ) : null}
               </Box>
 
-              <Box flex={1} minWidth={320}>
+              {/* Variables */}
+              <Box>
                 <Typography fontWeight={700} mb={1}>
                   Input Variables
                 </Typography>
-
                 {selectedTemplate ? (
                   (() => {
                     const body = pickBodyTextFromTemplate(selectedTemplate);
@@ -2543,7 +2593,6 @@ export default function WhatsAppUI() {
                         </Typography>
                       );
                     }
-
                     if (!idxs.length) {
                       return (
                         <Typography fontSize={13} color="text.secondary">
@@ -2554,9 +2603,6 @@ export default function WhatsAppUI() {
 
                     return (
                       <Stack spacing={1.5}>
-                        <Typography fontSize={12} color="text.secondary">
-                          Body
-                        </Typography>
                         {idxs.map((i) => (
                           <TextField
                             key={i}
@@ -2584,7 +2630,7 @@ export default function WhatsAppUI() {
                   </Typography>
                 )}
               </Box>
-            </Box>
+            </Stack>
           </Stack>
         </DialogContent>
 
@@ -2595,6 +2641,7 @@ export default function WhatsAppUI() {
           <Button
             variant="contained"
             onClick={startNewChatWithTemplate}
+            startIcon={creatingChat ? <CircularProgress size={14} color="inherit" /> : null}
             disabled={creatingChat || (newHeaderFormat ? !newHeaderFile : false)}
           >
             {creatingChat ? "Sending..." : "Send"}

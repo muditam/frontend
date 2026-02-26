@@ -51,7 +51,7 @@ import { Inventory } from "@mui/icons-material";
 // -------------------------------------------
 // Config
 // -------------------------------------------
-const API_BASE = "https://muditamleads-14f32a10d7f7.herokuapp.com";
+const API_BASE = "https://muditamleads-14f32a10d7f7.herokuapp.com"; // Change to your actual backend URL
 const CACHE_TTL_MS = 3 * 60 * 1000;
 
 
@@ -128,7 +128,7 @@ const cacheGet = (key) => {
   } catch { return null; }
 };
 const cacheSet = (key, data) => {
-  try { sessionStorage.setItem(key, JSON.stringify({ ts: Date.now(), data })); } catch {}
+  try { sessionStorage.setItem(key, JSON.stringify({ ts: Date.now(), data })); } catch { }
 };
 
 
@@ -469,10 +469,15 @@ const ManagerSalesDashboard = () => {
     const totalOrders = codRows.reduce((a, r) => a + Number(r?.totalOrders || 0), 0);
     const totalCOD = codRows.reduce((a, r) => a + Number(r?.codOrders || 0), 0);
     const totalPrepaid = codRows.reduce((a, r) => a + Number(r?.prepaidOrders || 0), 0);
+    const totalPartial = codRows.reduce((a, r) => a + Number(r?.partialOrders || 0), 0); // New
+
+    const getPct = (val) => (totalOrders > 0 ? ((val / totalOrders) * 100).toFixed(1) : "0.0");
+
     return {
-      totalOrders, totalCOD, totalPrepaid,
-      codPercent: totalOrders > 0 ? ((totalCOD / totalOrders) * 100).toFixed(1) : "0.0",
-      prepaidPercent: totalOrders > 0 ? ((totalPrepaid / totalOrders) * 100).toFixed(1) : "0.0",
+      totalOrders, totalCOD, totalPrepaid, totalPartial,
+      codPercent: getPct(totalCOD),
+      prepaidPercent: getPct(totalPrepaid),
+      partialPercent: getPct(totalPartial), // New
     };
   }, [codRows]);
 
@@ -622,41 +627,41 @@ const ManagerSalesDashboard = () => {
             </Select>
           </FormControl>
         </Box>
-<Grid container spacing={1.5}>
-  {shipmentCards.cards.map((card) => (
-    <Grid key={card.key} item xs={12} sm={6} md={2.4}>
-      <ShipmentCard {...card} loading={shipmentLoading} />
-    </Grid>
-  ))}
-<Grid item xs={12} sm={6} md={2.4}>
-  <Box
-    onClick={() => setShowOtherShipments((v) => !v)}
-    sx={{
-      ...cardSx,
-      cursor: "pointer",
-      borderColor: "#E6E8EC", // Ensures it matches the standard grey border
-      borderWidth: "1px"      // Removes the thicker 2px border
-    }}
-  >
-    <Box sx={{ display: "flex", flexDirection: "column", width: "100%", gap: 0.5 }}>
-      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-          <Inventory sx={{ color: "#64748B", fontSize: 20 }} />
-          <Typography sx={{ fontWeight: 900, color: "#0F172A", fontSize: "0.85rem" }}>Other</Typography>
-        </Box>
-        <Typography sx={{ fontWeight: 900, color: "#64748B", fontSize: "0.9rem" }}>({fmt0(shipmentCards.otherCount)})</Typography>
-      </Box>
-      <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <Typography sx={{ fontSize: "0.95rem", fontWeight: 900, color: "#0F172A" }}>₹{fmt2(shipmentCards.otherAmount)}</Typography>
-        <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-          <Typography sx={{ fontSize: "0.75rem", fontWeight: 900, color: "#64748B" }}>{shipmentCards.otherPercentage}%</Typography>
-          {showOtherShipments ? <ExpandLessIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
-        </Box>
-      </Box>
-    </Box>
-  </Box>
-</Grid>
-</Grid>
+        <Grid container spacing={1.5}>
+          {shipmentCards.cards.map((card) => (
+            <Grid key={card.key} item xs={12} sm={6} md={2.4}>
+              <ShipmentCard {...card} loading={shipmentLoading} />
+            </Grid>
+          ))}
+          <Grid item xs={12} sm={6} md={2.4}>
+            <Box
+              onClick={() => setShowOtherShipments((v) => !v)}
+              sx={{
+                ...cardSx,
+                cursor: "pointer",
+                borderColor: "#E6E8EC", // Ensures it matches the standard grey border
+                borderWidth: "1px"      // Removes the thicker 2px border
+              }}
+            >
+              <Box sx={{ display: "flex", flexDirection: "column", width: "100%", gap: 0.5 }}>
+                <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                    <Inventory sx={{ color: "#64748B", fontSize: 20 }} />
+                    <Typography sx={{ fontWeight: 900, color: "#0F172A", fontSize: "0.85rem" }}>Other</Typography>
+                  </Box>
+                  <Typography sx={{ fontWeight: 900, color: "#64748B", fontSize: "0.9rem" }}>({fmt0(shipmentCards.otherCount)})</Typography>
+                </Box>
+                <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <Typography sx={{ fontSize: "0.95rem", fontWeight: 900, color: "#0F172A" }}>₹{fmt2(shipmentCards.otherAmount)}</Typography>
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                    <Typography sx={{ fontSize: "0.75rem", fontWeight: 900, color: "#64748B" }}>{shipmentCards.otherPercentage}%</Typography>
+                    {showOtherShipments ? <ExpandLessIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
+                  </Box>
+                </Box>
+              </Box>
+            </Box>
+          </Grid>
+        </Grid>
 
 
         {showOtherShipments && shipmentCards.otherRows.length > 0 && (
@@ -704,13 +709,15 @@ const ManagerSalesDashboard = () => {
         </Box>
         <Grid container spacing={1.5}>
           {[
-            { label: "Total Orders", value: fmt0(codTotals.totalOrders), icon: <ShoppingCart sx={{ fontSize: 24 }} />, color: "#2563EB", bg: "#EFF6FF", border: "#BFDBFE" },
-            { label: "COD Orders", value: fmt0(codTotals.totalCOD), icon: <CurrencyRupee sx={{ fontSize: 24 }} />, color: "#DC2626", bg: "#FEF2F2", border: "#FECACA" },
-            { label: "Prepaid Orders", value: fmt0(codTotals.totalPrepaid), icon: <Assignment sx={{ fontSize: 24 }} />, color: "#16A34A", bg: "#F0FDF4", border: "#BBF7D0" },
-            { label: "COD %", value: `${codTotals.codPercent}%`, icon: <BarChart sx={{ fontSize: 24 }} />, color: "#D97706", bg: "#FFFBEB", border: "#FDE68A" },
-            { label: "Prepaid %", value: `${codTotals.prepaidPercent}%`, icon: <TrendingUp sx={{ fontSize: 24 }} />, color: "#7C3AED", bg: "#F5F3FF", border: "#DDD6FE" },
+            { label: "Total", value: fmt0(codTotals.totalOrders), icon: <ShoppingCart sx={{ fontSize: 24 }} />, color: "#2563EB" },
+            { label: "COD", value: fmt0(codTotals.totalCOD), icon: <CurrencyRupee sx={{ fontSize: 24 }} />, color: "#DC2626" },
+            { label: "Prepaid", value: fmt0(codTotals.totalPrepaid), icon: <Assignment sx={{ fontSize: 24 }} />, color: "#16A34A" },
+            { label: "Partial", value: fmt0(codTotals.totalPartial), icon: <MoreTime sx={{ fontSize: 24 }} />, color: "#7C3AED" }, // New Card
+            { label: "COD %", value: `${codTotals.codPercent}%`, icon: <BarChart sx={{ fontSize: 24 }} />, color: "#D97706" },
+            { label: "Prepaid %", value: `${codTotals.prepaidPercent}%`, icon: <TrendingUp sx={{ fontSize: 24 }} />, color: "#0EA5E9" },
+            { label: "Partial %", value: `${codTotals.partialPercent}%`, icon: <TrendingUp sx={{ fontSize: 24 }} />, color: "#8B5CF6" }, // New %
           ].map((m) => (
-            <Grid key={m.label} item xs={12} sm={6} md={2.4}>
+            <Grid key={m.label} item xs={12} sm={6} md={1.7}>
               <CODMetricCard {...m} loading={codLoading} />
             </Grid>
           ))}
@@ -727,24 +734,23 @@ const ManagerSalesDashboard = () => {
               <Table size="small">
                 <TableHead>
                   <TableRow sx={{ backgroundColor: "#F8FAFC" }}>
-                    {["Agent Name", "Total Orders", "COD Orders", "Prepaid Orders", "COD %", "Prepaid %"].map((h) => (
+                    {["Agent Name", "Total Orders", "COD Orders", "Prepaid Orders", "Partial Orders", "COD %", "Prepaid %", "Partial %"].map((h) => (
                       <TableCell key={h} align="center" sx={{ fontWeight: 900, color: "#334155", py: 1.2 }}>{h}</TableCell>
                     ))}
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {codLoading && <TableRow><TableCell colSpan={6} sx={{ p: 0 }}><LinearProgress /></TableCell></TableRow>}
-                  {!codLoading && codRows.length === 0 && (
-                    <TableRow><TableCell colSpan={6} align="center" sx={{ py: 2, color: "#64748B" }}>No data available</TableCell></TableRow>
-                  )}
+                  {codLoading && <TableRow><TableCell colSpan={8} sx={{ p: 0 }}><LinearProgress /></TableCell></TableRow>}
                   {!codLoading && codRows.map((row, idx) => (
-                    <TableRow key={`${row.agentName}-${idx}`} sx={{ backgroundColor: idx % 2 === 0 ? "#FFFFFF" : "#FBFDFF", "&:hover": { backgroundColor: "#F1F5F9" } }}>
+                    <TableRow key={idx} sx={{ backgroundColor: idx % 2 === 0 ? "#FFFFFF" : "#FBFDFF", "&:hover": { backgroundColor: "#F1F5F9" } }}>
                       <TableCell sx={{ fontWeight: 800, color: "#0F172A" }}>{row.agentName}</TableCell>
                       <TableCell align="center">{row.totalOrders}</TableCell>
                       <TableCell align="center">{row.codOrders}</TableCell>
                       <TableCell align="center">{row.prepaidOrders}</TableCell>
+                      <TableCell align="center">{row.partialOrders}</TableCell> {/* New */}
                       <TableCell align="center">{row.codPercentage}%</TableCell>
                       <TableCell align="center">{row.prepaidPercentage}%</TableCell>
+                      <TableCell align="center">{row.partialPercentage}%</TableCell> {/* New */}
                     </TableRow>
                   ))}
                 </TableBody>

@@ -76,6 +76,12 @@ const OrderDetailsPopup = ({
 
   const [discount, setDiscount] = useState(propDiscount || "");
 
+  const asIntString = (v) => {
+  if (v == null) return "";
+  const n = Math.round(Number(v));
+  return Number.isFinite(n) ? String(n) : "";
+};
+
   // Fetch order details
   useEffect(() => {
     const fetchOrderDetails = async () => {
@@ -89,7 +95,7 @@ const OrderDetailsPopup = ({
 
         // ✅ Auto-fill partial payment from API note_attributes (if present)
         if (data?.partialPaidAmount != null && String(data.partialPaidAmount).trim() !== "") {
-          setPartialPayment(String(data.partialPaidAmount));
+          setPartialPayment(asIntString(data.partialPaidAmount));
         }
 
         // ✅ If API tells paymentMode Partial Paid, set it automatically
@@ -217,7 +223,7 @@ Discount: ${discountType === "percentage" ? `${discount}%` : `₹${discount}`}
 Dosage Ordered: ${dosageOrdered}`;
 
     if (paymentMethod === "Partial Paid") {
-      detailsText += `\nPartial Payment (Paid): ${partialPayment || 0}`;
+      detailsText += `\nPartial Payment (Paid): ${asIntString(partialPayment || 0)}`;
       detailsText += `\nAmount Pending: ${amountPending}`;
     } else if (paymentMethod === "COD") {
       detailsText += `\nAmount Pending: ${amountPending}`;
@@ -466,7 +472,7 @@ Dosage Ordered: ${dosageOrdered}`;
                         size="small"
                         type="number"
                         label="Partial Payment (Paid Amount)"
-                        value={String(partialPayment)}
+                        value={asIntString(partialPayment)}
                         onChange={(e) => setPartialPayment(e.target.value)}
                       />
                     </Grid>
