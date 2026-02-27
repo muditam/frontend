@@ -1380,8 +1380,8 @@ export default function WhatsAppUI() {
     if (!activeChat?.phone) return;
     if (sessionExpired) return;
 
-    if (file.size > 5 * 1024 * 1024) {
-      setErrorMessages("Max attachment size is 5MB.");
+    if (file.size > 15 * 1024 * 1024) {
+      setErrorMessages("Max attachment size is 15MB.");
       return;
     }
 
@@ -1517,8 +1517,8 @@ export default function WhatsAppUI() {
         setErrorMessages("This template requires a header attachment. Please choose a file.");
         return;
       }
-      if (tplHeaderFile.size > 5 * 1024 * 1024) {
-        setErrorMessages("Max attachment size is 5MB.");
+      if (tplHeaderFile.size > 15 * 1024 * 1024) {
+        setErrorMessages("Max attachment size is 15MB.");
         return;
       }
       
@@ -1693,7 +1693,7 @@ export default function WhatsAppUI() {
     let headerMedia = null;
     if (newHeaderFormat) {
       if (!newHeaderFile) return setNewChatError("This template requires a header attachment. Please choose a file.");
-      if (newHeaderFile.size > 5 * 1024 * 1024) return setNewChatError("Max attachment size is 5MB.");
+      if (newHeaderFile.size > 15 * 1024 * 1024) return setNewChatError("Max attachment size is 15MB.");
 
       setCreatingChat(true); // ✅ Block UI here before upload
       try {
@@ -2097,7 +2097,7 @@ export default function WhatsAppUI() {
                   </span>
                 </Tooltip>
 
-                <Tooltip title="Attachment (≤ 5MB)">
+                <Tooltip title="Attachment (≤ 15MB)">
                   <span>
                     <IconButton size="small" disabled={!hasActiveChat} onClick={() => fileRef.current?.click()}>
                       <AttachFileIcon fontSize="small" />
@@ -2325,8 +2325,8 @@ export default function WhatsAppUI() {
                       onChange={(e) => {
                         const f = e.target.files?.[0];
                         if (!f) return;
-                        if (f.size > 5 * 1024 * 1024) {
-                          setErrorMessages("Max attachment size is 5MB.");
+                        if (f.size > 15 * 1024 * 1024) {
+                          setErrorMessages("Max attachment size is 15MB.");
                           return;
                         }
                         setTplHeaderFile(f);
@@ -2520,8 +2520,8 @@ export default function WhatsAppUI() {
                       onChange={(e) => {
                         const f = e.target.files?.[0];
                         if (!f) return;
-                        if (f.size > 5 * 1024 * 1024) {
-                          setNewChatError("Max attachment size is 5MB.");
+                        if (f.size > 15 * 1024 * 1024) {
+                          setNewChatError("Max attachment size is 15MB.");
                           return;
                         }
                         setNewHeaderFile(f);

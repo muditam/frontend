@@ -89,6 +89,11 @@ import TemplatePanel from "./whatsaap/TemplatesPanel"
 import "./realtime/IncomingCallSSEBoot"; 
 import WhatsAppNotification from "./whatsaap/WhatsAppNotification";
 import ManagerRoute from "./components/ManagerRoute";
+import Cutpage from './Marketing/Cutpage';
+import Postpage from './Marketing/Postpage';
+import Editpage from './Marketing/Editpage';
+import Scriptpage from './Marketing/Scriptpage';
+import ShootPage from "./Marketing/Shootpage"; 
 
 const App = () => {
   return (
@@ -122,9 +127,9 @@ const App = () => {
           <Route path="/vendors" element={<Vendors />} />
           <Route path="/super-admin-analytics" element={<SuperAdminAnalytics />} /> 
           <Route path="/abandoned-analytics" element={<AbandonedAnalyticsPage />} />
-          <Route path="/incentive-creation" element={<IncentiveCreation />} />
+          
           <Route path="/whatsaap/chat" element={<WhatsAppUI />} />
-          <Route path="/template/chat" element={<TemplatePanel />} />
+          
 
           <Route
             path="/"
@@ -619,10 +624,66 @@ const App = () => {
             } 
           />
           <Route 
+            path="/incentive-creation" 
+            element={
+              <PrivateRoute>
+                <IncentiveCreation />
+              </PrivateRoute>
+            } 
+          />
+          <Route 
+            path="/template/chat" 
+            element={
+              <PrivateRoute>
+                <TemplatePanel />
+              </PrivateRoute>
+            } 
+          />
+          <Route 
             path="/my-assets" 
             element={
               <PrivateRoute>
                 <MyAssets />
+              </PrivateRoute>
+            } 
+          />
+          <Route 
+            path="/marketing/cut" 
+            element={
+              <PrivateRoute>
+                <Cutpage />
+              </PrivateRoute>
+            } 
+          />
+          <Route 
+            path="/marketing/post" 
+            element={
+              <PrivateRoute>
+                <Postpage />
+              </PrivateRoute>
+            } 
+          />
+          <Route 
+            path="/marketing/edit" 
+            element={
+              <PrivateRoute>
+                <Editpage />
+              </PrivateRoute>
+            } 
+          />
+          <Route 
+            path="/marketing/script" 
+            element={
+              <PrivateRoute>
+                <Scriptpage />
+              </PrivateRoute>
+            } 
+          />
+          <Route 
+            path="/marketing/shoot" 
+            element={
+              <PrivateRoute>
+                <ShootPage />
               </PrivateRoute>
             } 
           />

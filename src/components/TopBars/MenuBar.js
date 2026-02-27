@@ -38,35 +38,8 @@ import ReceiptLongIcon from "@mui/icons-material/ReceiptLong";
 import AnalyticsIcon from "@mui/icons-material/Analytics";
 import AssignmentTurnedInIcon from "@mui/icons-material/AssignmentTurnedIn";
 import QueryStatsIcon from "@mui/icons-material/QueryStats";
+import CampaignIcon from "@mui/icons-material/Campaign";
 import { Link, useNavigate } from "react-router-dom";
-
-// Optional custom icon (unused in logic, just kept as you had)
-const GrowthIcon = ({ size = 22, style }) => (
-  <svg
-    width={size}
-    height={size}
-    viewBox="0 0 64 64"
-    fill="none"
-    style={style}
-    xmlns="http://www.w3.org/2000/svg"
-  >
-    <rect x="2" y="50" width="10" height="12" fill="black" />
-    <rect x="18" y="36" width="10" height="26" fill="black" />
-    <circle cx="33" cy="17" r="6" fill="black" />
-    <rect x="30" y="23" width="6" height="16" fill="black" />
-    <rect
-      x="28"
-      y="30"
-      width="10"
-      height="3"
-      rx="1.5"
-      fill="black"
-      transform="rotate(-30 28 30)"
-    />
-    <rect x="48" y="22" width="8" height="28" fill="black" />
-    <polygon points="52,8 60,22 44,22" fill="black" />
-  </svg>
-);
 
 const MenuBar = ({ toggleDrawer }) => {
   const [openDropdown, setOpenDropdown] = useState({});
@@ -983,6 +956,97 @@ const MenuBar = ({ toggleDrawer }) => {
                   >
                     <Typography variant="body2" sx={{ fontSize: "13px" }}>
                       Bank Transfer
+                    </Typography>
+                  </ListItem>
+                )}
+              </List>
+            </Collapse>
+          </>
+        )}
+
+        {user && can("marketingMenu") && (
+          <>
+            <ListItem
+              button
+              onClick={() => handleDropdownClick("marketingDropdown")}
+              sx={dropdownStyle}
+            >
+              <Box sx={{ display: "flex", alignItems: "center" }}>
+                <CampaignIcon sx={{ fontSize: 18, marginRight: "8px" }} />
+                <Typography variant="body1" sx={{ fontSize: "14px" }}>
+                  Marketing
+                </Typography>
+              </Box>
+              {openDropdown.marketingDropdown ? (
+                <KeyboardArrowDownIcon />
+              ) : (
+                <KeyboardArrowRightIcon />
+              )}
+            </ListItem>
+
+            <Collapse
+              in={openDropdown.marketingDropdown}
+              timeout="auto"
+              unmountOnExit
+            >
+              <List sx={nestedListStyle}>
+                {can("marketingMenu") && (
+                  <ListItem
+                    button
+                    component={Link}
+                    to="/marketing/cut"
+                    onClick={toggleDrawer}
+                  >
+                    <Typography variant="body2" sx={{ fontSize: "13px" }}>
+                      Cut
+                    </Typography>
+                  </ListItem>
+                )}
+                {can("marketingMenu") && (
+                  <ListItem
+                    button
+                    component={Link}
+                    to="/marketing/shoot"
+                    onClick={toggleDrawer}
+                  >
+                    <Typography variant="body2" sx={{ fontSize: "13px" }}>
+                      Shoot
+                    </Typography>
+                  </ListItem>
+                )}
+                {can("marketingMenu") && (
+                  <ListItem
+                    button
+                    component={Link}
+                    to="/marketing/edit"
+                    onClick={toggleDrawer}
+                  >
+                    <Typography variant="body2" sx={{ fontSize: "13px" }}>
+                      Edit
+                    </Typography>
+                  </ListItem>
+                )}
+                {can("marketingMenu") && (
+                  <ListItem
+                    button
+                    component={Link}
+                    to="/marketing/script"
+                    onClick={toggleDrawer}
+                  >
+                    <Typography variant="body2" sx={{ fontSize: "13px" }}>
+                      Script
+                    </Typography>
+                  </ListItem>
+                )}
+                {can("marketingMenu") && (
+                  <ListItem
+                    button
+                    component={Link}
+                    to="/marketing/post"
+                    onClick={toggleDrawer}
+                  >
+                    <Typography variant="body2" sx={{ fontSize: "13px" }}>
+                      Post
                     </Typography>
                   </ListItem>
                 )}

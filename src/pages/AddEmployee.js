@@ -106,6 +106,13 @@ const DEFAULT_PERMISSIONS = {
     smartfloCallLogs: false,
     smartfloDataAnalytics: false,
 
+    //Marketing
+    marketingMenu: false,
+    cutPage: false,
+    scriptPage: false,
+    shootPage: false,
+    editPage: false,
+    postPage: false,
 
     // Finance – Orders / Remittance / Records
     financeOrderSummary: false,
@@ -1441,6 +1448,36 @@ const AddEmployee = () => {
                   ["smartfloMenu", "Smartflo Menu"],
                   ["smartfloCallLogs", "Smartflo: Call Logs"],
                   ["smartfloDataAnalytics", "Smartflo: Data Analytics"],
+                ].map(([key, label]) => (
+                  <FormControlLabel
+                    key={key}
+                    control={
+                      <Checkbox
+                        checked={!!permissionValues.menubar[key]}
+                        onChange={() =>
+                          handlePermissionToggle("menubar", key)
+                        }
+                      />
+                    }
+                    label={label}
+                  />
+                ))}
+              </Box>
+
+              <Typography
+                variant="caption"
+                sx={{ fontWeight: 600, mt: 1 }}
+              >
+                Marketing
+              </Typography>
+              <Box sx={{ display: "flex", flexDirection: "column" }}>
+                {[
+                  ["marketingMenu", "Marketing Menu"],
+                  ["cutPage", "Cut Page"],
+                  ["scriptPage", "Script Page"],
+                  ["shootPage", "Shoot Page"],
+                  ["editPage", "Edit Page"],
+                  ["postPage", "Post Page"],
                 ].map(([key, label]) => (
                   <FormControlLabel
                     key={key}

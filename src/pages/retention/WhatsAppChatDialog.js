@@ -581,8 +581,8 @@ export default function WhatsAppChatDrawer({
 
   const onPickFile = async (file) => {
     if (!file) return;
-    if (file.size > 5 * 1024 * 1024) {
-      alert("Max attachment size is 5MB.");
+    if (file.size > 15 * 1024 * 1024) {
+      alert("Max attachment size is 15MB.");
       return;
     }
     if (privateMode) {
@@ -865,8 +865,8 @@ export default function WhatsAppChatDrawer({
   // ✅ Upload header media for template attachments
   const uploadTemplateHeaderMedia = async (file) => {
     if (!file) return;
-    if (file.size > 5 * 1024 * 1024) {
-      alert("Max header media size is 5MB.");
+    if (file.size > 15 * 1024 * 1024) {
+      alert("Max header media size is 15MB.");
       return;
     }
     setTplHeaderUploadLoading(true);
@@ -1132,7 +1132,7 @@ export default function WhatsAppChatDrawer({
                 </IconButton>
               </Tooltip>
 
-              <Tooltip title={privateMode ? "Disabled in Private Reply" : "Attachment (≤ 5MB)"}>
+              <Tooltip title={privateMode ? "Disabled in Private Reply" : "Attachment (≤ 15MB)"}>
                 <span>
                   <IconButton size="small" disabled={privateMode} onClick={() => fileRef.current?.click()}>
                     <AttachFileIcon />
