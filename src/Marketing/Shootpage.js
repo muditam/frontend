@@ -138,35 +138,7 @@ export default function ShootPage() {
           <Tab label={`Completed  (${doneScripts.length})`} sx={{ minHeight: 48 }} />
         </Tabs>
         <Box sx={{ flex: 1 }} />
-        {/* ── Inline Date Filter ── */}
-        <Button variant="outlined" startIcon={<DateRangeIcon sx={{ fontSize: 15 }} />} endIcon={<ArrowDownIcon sx={{ fontSize: 15 }} />}
-          onClick={(e) => setDateAnchor(e.currentTarget)}
-          sx={{ borderColor: dateRange !== "all" ? "#2563eb" : "#d1d5db", color: dateRange !== "all" ? "#2563eb" : "#6b7280", bgcolor: dateRange !== "all" ? "#eff6ff" : "#ffffff", textTransform: "none", fontWeight: 600, fontSize: "0.82rem", px: 2, "&:hover": { borderColor: "#2563eb", bgcolor: "#eff6ff" } }}>
-          {dateLabel}
-        </Button>
-        <Popover open={Boolean(dateAnchor)} anchorEl={dateAnchor} onClose={() => setDateAnchor(null)}
-          anchorOrigin={{ vertical: "bottom", horizontal: "left" }} transformOrigin={{ vertical: "top", horizontal: "left" }}
-          PaperProps={{ sx: { mt: 0.5, p: 2, borderRadius: 2, minWidth: 220, border: "1px solid #e2e8f0", boxShadow: "0 8px 24px rgba(0,0,0,0.12)" } }}>
-          <Typography sx={{ fontSize: "0.72rem", fontWeight: 700, color: "#6b7280", mb: 1.5, letterSpacing: "0.05em", textTransform: "uppercase" }}>Date Range</Typography>
-          <Stack spacing={0.5}>
-            {DATE_RANGES.map((r) => (
-              <Box key={r.value} onClick={() => { setDateRange(r.value); if (r.value !== "custom") setDateAnchor(null); }}
-                sx={{ px: 1.5, py: 0.8, borderRadius: 1.5, cursor: "pointer", fontSize: "0.85rem", fontWeight: dateRange === r.value ? 700 : 500, color: dateRange === r.value ? "#2563eb" : "#374151", bgcolor: dateRange === r.value ? "#eff6ff" : "transparent", "&:hover": { bgcolor: dateRange === r.value ? "#eff6ff" : "#f9fafb" } }}>
-                {r.label}
-              </Box>
-            ))}
-          </Stack>
-          {dateRange === "custom" && (
-            <Box mt={2}>
-              <Typography sx={{ fontSize: "0.75rem", fontWeight: 600, color: "#6b7280", mb: 1 }}>Custom Range</Typography>
-              <Stack spacing={1}>
-                <TextField label="Start" type="date" size="small" value={customStart} onChange={(e) => setCustomStart(e.target.value)} InputLabelProps={{ shrink: true }} sx={{ "& .MuiOutlinedInput-root": { bgcolor: "#fff", "&.Mui-focused fieldset": { borderColor: "#2563eb" } } }} />
-                <TextField label="End" type="date" size="small" value={customEnd} onChange={(e) => setCustomEnd(e.target.value)} InputLabelProps={{ shrink: true }} sx={{ "& .MuiOutlinedInput-root": { bgcolor: "#fff", "&.Mui-focused fieldset": { borderColor: "#2563eb" } } }} />
-                {customStart && customEnd && <Button size="small" variant="contained" onClick={() => setDateAnchor(null)} sx={{ bgcolor: "#2563eb", textTransform: "none", fontWeight: 600, "&:hover": { bgcolor: "#1d4ed8" } }}>Apply</Button>}
-              </Stack>
-            </Box>
-          )}
-        </Popover>
+     
       </Stack>
 
 

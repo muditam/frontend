@@ -1,3 +1,12 @@
+// pages/PostPage.jsx
+// ✅ FIXES APPLIED:
+//  1. Removed "Update Details" dialog entirely — content status managed inline
+//  2. Removed postFileUrl / Final Post File URL field — not needed (posting on external platforms)
+//  3. postComment now editable inline via a small TextField in the row
+//  4. Added getAuthHeaders() to all axios calls (was missing — caused 401 for non-managers)
+//  5. PlayerModal only plays editFileUrl (the already-uploaded edited video)
+
+
 import React, { useEffect, useState, useCallback } from "react";
 import axios from "axios";
 import {
@@ -654,7 +663,6 @@ export default function PostPage() {
       />
 
 
-      {/* ── Video Player ── */}
       <PlayerModal open={player.open} onClose={closePlayer} url={player.url} title={player.title} />
 
 

@@ -8,7 +8,7 @@ import {
   InputLabel, Table, TableBody, TableCell, TableContainer,
   TableHead, TableRow, Paper, IconButton, Tooltip,
   CircularProgress, Alert, Snackbar, Stack, Divider,
-  FormHelperText, InputAdornment, Autocomplete,
+  FormHelperText, InputAdornment,
 } from "@mui/material";
 import {
   Add as AddIcon,
@@ -24,18 +24,23 @@ import {
   Close as CloseIcon,
   OpenWith as ExpandIcon,
   CloseFullscreen as CollapseIcon,
+  Comment as CommentIcon,
 } from "@mui/icons-material";
+
 
 const API           = "https://muditamleads-14f32a10d7f7.herokuapp.com/api/scripts";
 const MANAGER_ROLES = ["admin", "manager", "super-admin", "team-leader"];
+
 
 const getCurrentUser = () => JSON.parse(sessionStorage.getItem("user") || "{}");
 const isManagerRole  = (role = "") => MANAGER_ROLES.includes(role.toLowerCase());
 const hasFullAccess  = (user = {}) => isManagerRole(user.role) || user.hasTeam === true;
 
+
 const SCRIPT_TYPES    = ["Muditam Instagram", "Muditam Snooze Well", "YouTube", "Meta Ads", "Google Ads", "WhatsApp"];
 const SCRIPT_STATUSES = ["Pending", "Approved", "Rewrite", "On Hold", "Rejected"];
 const NEEDS_REASON    = new Set(["On Hold", "Rejected"]);
+
 
 const STATUS_COLORS = {
   Pending:   { bg: "#fffbeb", color: "#d97706", border: "#fcd34d" },
@@ -55,6 +60,7 @@ const NAV_ACCENT = {
   Edit:  { base: "#ea580c", light: "#fff7ed", border: "#fed7aa", text: "#7c2d12" },
   Post:  { base: "#db2777", light: "#fdf2f8", border: "#fbcfe8", text: "#831843" },
 };
+
 
 const lightPaper = { bgcolor: "#ffffff", border: "1px solid #e5e7eb", borderRadius: 2, boxShadow: "0 1px 3px rgba(0,0,0,0.05)" };
 const inputSx = {
@@ -78,6 +84,7 @@ const inlineAcSx = {
 };
 const getAuthHeaders = () => ({ "x-session-user": JSON.stringify(getCurrentUser()) });
 
+
 // ═══════════════════════════════════════════════════════════
 // RICH TEXT EDITOR — Gmail compose style
 // ═══════════════════════════════════════════════════════════
@@ -89,6 +96,7 @@ const TEXT_COLORS  = [
   "#111827","#dc2626","#d97706","#059669","#2563eb","#7c3aed","#db2777","#0891b2",
   "#6b7280","#f87171","#fbbf24","#34d399","#60a5fa","#a78bfa","#f472b6","#22d3ee",
 ];
+
 
 function TBtn({ title, active, onClick, children }) {
   return (
@@ -111,10 +119,12 @@ function TSep() {
   return <Box sx={{ width:"1px", height:20, bgcolor:"#e5e7eb", mx:"2px", flexShrink:0 }} />;
 }
 
+
 function RichEditor({ value, onChange, error, expanded, onToggleExpand }) {
   const ref      = useRef(null);
   const initDone = useRef(false);
   const colorRef = useRef(null);
+
 
   const [bold,      setBold]      = useState(false);
   const [italic,    setItalic]    = useState(false);
@@ -124,12 +134,14 @@ function RichEditor({ value, onChange, error, expanded, onToggleExpand }) {
   const [size,      setSize]      = useState("Normal");
   const [colorOpen, setColorOpen] = useState(false);
 
+
   useEffect(() => {
     if (!initDone.current && ref.current && value) {
       ref.current.innerHTML = value;
       initDone.current = true;
     }
   }, [value]);
+
 
   const exec = (cmd, val = null) => {
     ref.current?.focus();
@@ -153,13 +165,17 @@ function RichEditor({ value, onChange, error, expanded, onToggleExpand }) {
     handleInput();
   };
 
+
   const minH = expanded ? "55vh" : "140px";
+
 
   return (
     <Box sx={{ border:`1.5px solid ${error?"#ef4444":"#d1d5db"}`, borderRadius:2, overflow:"hidden", bgcolor:"#fff", "&:focus-within":{ borderColor: error?"#ef4444":"#4f46e5", boxShadow:`0 0 0 3px ${error?"#fecaca":"#e0e7ff"}` }, transition:"border-color 0.2s" }}>
 
+
       {/* ── Toolbar ── */}
       <Box sx={{ display:"flex", alignItems:"center", flexWrap:"wrap", gap:"2px", px:1.5, py:"6px", bgcolor:"#f9fafb", borderBottom:"1px solid #e5e7eb" }}>
+
 
         {/* Undo / Redo */}
         <TBtn title="Undo" onClick={() => exec("undo")}>
@@ -170,11 +186,13 @@ function RichEditor({ value, onChange, error, expanded, onToggleExpand }) {
         </TBtn>
         <TSep />
 
+
         {/* Font */}
         <Box component="select" value={font} onChange={(e) => applyFont(e.target.value)}
           sx={{ fontSize:"0.78rem", color:"#374151", bgcolor:"#fff", border:"1px solid #e5e7eb", borderRadius:"6px", px:"6px", py:"3px", cursor:"pointer", outline:"none", "&:hover":{ borderColor:"#cbd5e1" } }}>
           {FONT_OPTIONS.map((f) => <option key={f} value={f}>{f}</option>)}
         </Box>
+
 
         {/* Size */}
         <Box component="select" value={size} onChange={(e) => applySize(e.target.value)}
@@ -183,10 +201,12 @@ function RichEditor({ value, onChange, error, expanded, onToggleExpand }) {
         </Box>
         <TSep />
 
+
         {/* B / I / U */}
         <TBtn title="Bold (Ctrl+B)"      active={bold}      onClick={() => exec("bold")}><b style={{fontSize:"0.9rem"}}>B</b></TBtn>
         <TBtn title="Italic (Ctrl+I)"    active={italic}    onClick={() => exec("italic")}><i style={{fontSize:"0.9rem",fontFamily:"serif"}}>I</i></TBtn>
         <TBtn title="Underline (Ctrl+U)" active={underline} onClick={() => exec("underline")}><span style={{textDecoration:"underline",fontSize:"0.85rem"}}>U</span></TBtn>
+
 
         {/* Text color */}
         <Box sx={{ position:"relative" }} ref={colorRef}>
@@ -208,6 +228,7 @@ function RichEditor({ value, onChange, error, expanded, onToggleExpand }) {
         </Box>
         <TSep />
 
+
         {/* Alignment */}
         <TBtn title="Align Left"   active={align==="left"}   onClick={() => { exec("justifyLeft");   setAlign("left");   }}>
           <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="5" width="18" height="2"/><rect x="3" y="11" width="12" height="2"/><rect x="3" y="17" width="15" height="2"/></svg>
@@ -219,6 +240,7 @@ function RichEditor({ value, onChange, error, expanded, onToggleExpand }) {
           <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="5" width="18" height="2"/><rect x="9" y="11" width="12" height="2"/><rect x="6" y="17" width="15" height="2"/></svg>
         </TBtn>
         <TSep />
+
 
         {/* Lists & indent */}
         <TBtn title="Bullet list"    onClick={() => exec("insertUnorderedList")}>
@@ -234,15 +256,18 @@ function RichEditor({ value, onChange, error, expanded, onToggleExpand }) {
           <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="5" width="18" height="2"/><path d="M4 9l4 3-4 3V9z"/><rect x="9" y="11" width="12" height="2"/><rect x="3" y="17" width="18" height="2"/></svg>
         </TBtn>
 
+
         {/* Blockquote */}
         <TBtn title="Blockquote" onClick={insertQuote}>
           <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M6 17h3l2-4V7H5v6h3zm8 0h3l2-4V7h-6v6h3z"/></svg>
         </TBtn>
 
+
         {/* Clear formatting */}
         <TBtn title="Clear formatting" onClick={() => { exec("removeFormat"); exec("unlink"); }}>
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="5" y1="5" x2="19" y2="19"/><path d="M8 8H4l3.5 8h3"/><path d="M16 8h4l-1.5 4"/></svg>
         </TBtn>
+
 
         {/* Spacer + Expand toggle */}
         <Box sx={{ flex:1 }} />
@@ -253,6 +278,7 @@ function RichEditor({ value, onChange, error, expanded, onToggleExpand }) {
           </Box>
         </Tooltip>
       </Box>
+
 
       {/* ── Content area ── */}
       <Box
@@ -286,6 +312,7 @@ function RichEditor({ value, onChange, error, expanded, onToggleExpand }) {
   );
 }
 
+
 // ═══════════════════════════════════════════════════════════
 // Small shared components
 // ═══════════════════════════════════════════════════════════
@@ -309,9 +336,112 @@ function StageChip({ stage }) {
   const color = STAGE_COLORS[stage] || "#6b7280";
   return <Box sx={{ display:"inline-block", px:1, py:0.3, borderRadius:1, fontSize:"0.75rem", fontWeight:600, bgcolor:`${color}15`, color, border:`1px solid ${color}40`, whiteSpace:"nowrap" }}>{stage}</Box>;
 }
+
+
+// ── Approver Comment Cell with centered Dialog ──
+function ApproverCommentCell({ comment }) {
+  const [open, setOpen] = useState(false);
+
+
+  if (!comment?.trim()) {
+    return <Typography sx={{ fontSize:"0.78rem", color:"#d1d5db" }}>—</Typography>;
+  }
+
+
+  const short = comment.length > 28 ? comment.slice(0, 28) + "…" : comment;
+
+
+  return (
+    <>
+      <Stack direction="row" alignItems="center" spacing={0.5}>
+        <Typography sx={{ fontSize:"0.8rem", color:"#475569", maxWidth:150, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+          {short}
+        </Typography>
+        <Tooltip title="View full comment" arrow>
+          <IconButton
+            size="small"
+            onClick={() => setOpen(true)}
+            sx={{ color:"#64748b", p:"3px", "&:hover":{ color:"#4f46e5", bgcolor:"#eef2ff" } }}
+          >
+            <ViewIcon sx={{ fontSize:16 }} />
+          </IconButton>
+        </Tooltip>
+      </Stack>
+
+
+      <Dialog
+        open={open}
+        onClose={() => setOpen(false)}
+        maxWidth="xs"
+        fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: 3,
+            boxShadow: "0 25px 50px -12px rgba(0,0,0,0.2)",
+            overflow: "hidden",
+          }
+        }}
+      >
+        {/* Dialog Header */}
+        <Box sx={{ px:3, pt:3, pb:2, background:"linear-gradient(135deg, #4f46e5 0%, #6366f1 100%)", position:"relative" }}>
+          <Stack direction="row" alignItems="center" spacing={1.5}>
+            <Box sx={{ width:36, height:36, borderRadius:"10px", bgcolor:"rgba(255,255,255,0.2)", display:"flex", alignItems:"center", justifyContent:"center" }}>
+              <CommentIcon sx={{ fontSize:18, color:"#fff" }} />
+            </Box>
+            <Box>
+              <Typography sx={{ fontSize:"1rem", fontWeight:700, color:"#fff", lineHeight:1.2 }}>
+                Approver Comment
+              </Typography>
+              <Typography sx={{ fontSize:"0.75rem", color:"rgba(255,255,255,0.7)", mt:0.2 }}>
+                Feedback from reviewer
+              </Typography>
+            </Box>
+          </Stack>
+          <IconButton
+            size="small"
+            onClick={() => setOpen(false)}
+            sx={{ position:"absolute", top:12, right:12, color:"rgba(255,255,255,0.8)", bgcolor:"rgba(255,255,255,0.1)", "&:hover":{ bgcolor:"rgba(255,255,255,0.2)", color:"#fff" } }}
+          >
+            <CloseIcon sx={{ fontSize:16 }} />
+          </IconButton>
+        </Box>
+
+
+        {/* Dialog Body */}
+        <Box sx={{ px:3, py:3 }}>
+          <Box sx={{ bgcolor:"#f8fafc", border:"1px solid #e2e8f0", borderRadius:2, p:2.5, position:"relative" }}>
+            {/* decorative quote mark */}
+            <Typography sx={{ position:"absolute", top:-4, left:10, fontSize:"2.5rem", color:"#e0e7ff", fontFamily:"Georgia, serif", lineHeight:1, userSelect:"none" }}>
+              "
+            </Typography>
+            <Typography sx={{ fontSize:"0.95rem", color:"#1e293b", lineHeight:1.8, whiteSpace:"pre-wrap", wordBreak:"break-word", pt:1.5, fontStyle:"italic" }}>
+              {comment}
+            </Typography>
+          </Box>
+        </Box>
+
+
+        {/* Dialog Footer */}
+        <Box sx={{ px:3, pb:3 }}>
+          <Button
+            fullWidth
+            variant="contained"
+            onClick={() => setOpen(false)}
+            sx={{ bgcolor:"#4f46e5", "&:hover":{ bgcolor:"#4338ca" }, borderRadius:2, textTransform:"none", fontWeight:600, py:1, boxShadow:"none" }}
+          >
+            Close
+          </Button>
+        </Box>
+      </Dialog>
+    </>
+  );
+}
+
+
 function InlineStatusSelect({ script, reload, toast, openEditWithStatus, canEdit }) {
   const [loading, setLoading] = useState(false);
   const val = script.scriptStatus || "Pending";
+
 
   const handleChange = async (e) => {
     const newVal = e.target.value;
@@ -329,7 +459,9 @@ function InlineStatusSelect({ script, reload, toast, openEditWithStatus, canEdit
     finally { setLoading(false); }
   };
 
+
   if (!canEdit) return <StatusChip status={val} />;
+
 
   return (
     <Stack direction="row" alignItems="center" gap={1}>
@@ -359,10 +491,12 @@ function InlineStatusSelect({ script, reload, toast, openEditWithStatus, canEdit
 }
 const stripHtml = (html) => html?.replace(/<[^>]*>/g,"") || "";
 
+
 export default function ScriptPage() {
   const navigate    = useNavigate();
   const currentUser = getCurrentUser();
-const isManager = hasFullAccess(currentUser);
+  const isManager = hasFullAccess(currentUser);
+
 
   const [scripts, setScripts]           = useState([]);
   const [loading, setLoading]           = useState(true);
@@ -370,10 +504,12 @@ const isManager = hasFullAccess(currentUser);
   const [statusFilter, setStatusFilter] = useState("");
   const [stageCounts, setStageCounts]   = useState({ shoot:null, cut:null, edit:null, post:null });
 
+
   const [createOpen,     setCreateOpen]     = useState(false);
   const [createExpanded, setCreateExpanded] = useState(false);
   const [createForm,     setCreateForm]     = useState({ scriptType:"", scriptText:"", referenceLink:"" });
   const [createErrors,   setCreateErrors]   = useState({});
+
 
   const [editOpen,     setEditOpen]     = useState(false);
   const [editExpanded, setEditExpanded] = useState(false);
@@ -381,11 +517,14 @@ const isManager = hasFullAccess(currentUser);
   const [editForm,     setEditForm]     = useState({});
   const [editErrors,   setEditErrors]   = useState({});
 
+
   const [viewOpen,    setViewOpen]    = useState(false);
   const [viewContent, setViewContent] = useState(null);
 
+
   const [snack, setSnack] = useState({ open:false, msg:"", severity:"success" });
   const showSnack = (msg, severity="success") => setSnack({ open:true, msg, severity });
+
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -398,6 +537,7 @@ const isManager = hasFullAccess(currentUser);
     } catch (e) { showSnack(e.response?.data?.message||"Failed to load scripts","error"); }
     finally { setLoading(false); }
   }, [typeFilter, statusFilter]);
+
 
   const loadCounts = useCallback(async () => {
     if (!isManager) return;
@@ -413,10 +553,13 @@ const isManager = hasFullAccess(currentUser);
     } catch {}
   }, [isManager]);
 
+
   useEffect(() => { load(); },       [load]);
   useEffect(() => { loadCounts(); }, [loadCounts]);
 
+
   const openCreate = () => { setCreateForm({scriptType:"",scriptText:"",referenceLink:""}); setCreateErrors({}); setCreateExpanded(false); setCreateOpen(true); };
+
 
   const validateCreate = () => {
     const errs = {};
@@ -433,6 +576,7 @@ const isManager = hasFullAccess(currentUser);
       setCreateOpen(false); load(); loadCounts();
     } catch (e) { showSnack(e.response?.data?.message||"Error","error"); }
   };
+
 
   const openEdit = (s, prefillStatus=null) => {
     setEditTarget(s);
@@ -470,12 +614,19 @@ const isManager = hasFullAccess(currentUser);
     } catch (e) { showSnack(e.response?.data?.message||"Error","error"); }
   };
 
+
   const canEditScript     = (s) => isManager || s.createdBy === currentUser?.fullName;
   const needsReason       = NEEDS_REASON.has(editForm.scriptStatus);
   const canProceedToShoot = editForm.scriptStatus === "Approved" && editTarget?.stage === "Script";
 
+
+  // Column count for colspan
+  const colCount = isManager ? 10 : 9;
+
+
   return (
     <Box sx={{ bgcolor:"#f4f5f7", minHeight:"100vh", color:"#111827", p:4 }}>
+
 
       {/* Header */}
       <Stack direction="row" alignItems="center" justifyContent="space-between" mb={4} flexWrap="wrap" gap={2}>
@@ -496,10 +647,10 @@ const isManager = hasFullAccess(currentUser);
         <Stack direction="row" spacing={1.5} alignItems="center" flexWrap="wrap">
           {isManager && (
             <>
-              <NavButton label="Shoot" icon={<VideocamIcon sx={{fontSize:16}}/>} accent={NAV_ACCENT.Shoot} count={stageCounts.shoot} onClick={() => navigate("/shoot")}/>
-              <NavButton label="Cut"   icon={<CutIcon       sx={{fontSize:16}}/>} accent={NAV_ACCENT.Cut}   count={stageCounts.cut}   onClick={() => navigate("/cut")}/>
-              <NavButton label="Edit"  icon={<EditStageIcon sx={{fontSize:16}}/>} accent={NAV_ACCENT.Edit}  count={stageCounts.edit}  onClick={() => navigate("/edit")}/>
-              <NavButton label="Post"  icon={<PostIcon      sx={{fontSize:16}}/>} accent={NAV_ACCENT.Post}  count={stageCounts.post}  onClick={() => navigate("/post")}/>
+              <NavButton label="Shoot" icon={<VideocamIcon sx={{fontSize:16}}/>} accent={NAV_ACCENT.Shoot} count={stageCounts.shoot} onClick={() => navigate("/marketing/shoot")}/>
+              <NavButton label="Cut"   icon={<CutIcon       sx={{fontSize:16}}/>} accent={NAV_ACCENT.Cut}   count={stageCounts.cut}   onClick={() => navigate("/marketing/cut")}/>
+              <NavButton label="Edit"  icon={<EditStageIcon sx={{fontSize:16}}/>} accent={NAV_ACCENT.Edit}  count={stageCounts.edit}  onClick={() => navigate("/marketing/edit")}/>
+              <NavButton label="Post"  icon={<PostIcon      sx={{fontSize:16}}/>} accent={NAV_ACCENT.Post}  count={stageCounts.post}  onClick={() => navigate("/marketing/post")}/>
               <Divider orientation="vertical" flexItem sx={{ mx:0.5, borderColor:"#e2e8f0" }}/>
             </>
           )}
@@ -509,6 +660,7 @@ const isManager = hasFullAccess(currentUser);
           </Button>
         </Stack>
       </Stack>
+
 
       {/* Filters */}
       <Stack direction="row" spacing={2} mb={3}>
@@ -528,23 +680,35 @@ const isManager = hasFullAccess(currentUser);
         </FormControl>
       </Stack>
 
+
       {/* Table */}
       <TableContainer component={Paper} sx={lightPaper}>
         <Table size="medium">
           <TableHead>
-            <TableRow sx={{"& th":{color:"#4b5563",fontSize:"0.75rem",fontWeight:700,letterSpacing:"0.05em",textTransform:"uppercase",borderBottom:"1px solid #e5e7eb",bgcolor:"#f9fafb",py:2}}}>
-              <TableCell>#</TableCell><TableCell>Script ID</TableCell><TableCell>Type</TableCell>
+            <TableRow sx={{"& th":{ color:"#4b5563", fontSize:"0.75rem", fontWeight:700, letterSpacing:"0.05em", textTransform:"uppercase", borderBottom:"1px solid #e5e7eb", bgcolor:"#f9fafb", py:2 }}}>
+              <TableCell>#</TableCell>
+              <TableCell>Script ID</TableCell>
+              <TableCell>Type</TableCell>
               <TableCell>Preview</TableCell>
               {isManager && <TableCell>Created By</TableCell>}
-              <TableCell>Date / Time</TableCell><TableCell>Status</TableCell>
-              <TableCell>Stage</TableCell><TableCell align="center">Actions</TableCell>
+              <TableCell>Date / Time</TableCell>
+              <TableCell>Status</TableCell>
+              <TableCell>Stage</TableCell>
+              {/* ── NEW: Approver Comment column ── */}
+              <TableCell>
+                <Stack direction="row" alignItems="center" spacing={0.6}>
+                  <CommentIcon sx={{ fontSize:13, color:"#6b7280" }} />
+                  <span>Approver Comment</span>
+                </Stack>
+              </TableCell>
+              <TableCell align="center">Actions</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
             {loading ? (
-              <TableRow><TableCell colSpan={isManager?9:8} align="center" sx={{py:8,borderBottom:"none"}}><CircularProgress size={32} sx={{color:"#4f46e5"}}/></TableCell></TableRow>
+              <TableRow><TableCell colSpan={colCount} align="center" sx={{py:8,borderBottom:"none"}}><CircularProgress size={32} sx={{color:"#4f46e5"}}/></TableCell></TableRow>
             ) : scripts.length === 0 ? (
-              <TableRow><TableCell colSpan={isManager?9:8} align="center" sx={{py:8,borderBottom:"none",color:"#6b7280"}}>No scripts found</TableCell></TableRow>
+              <TableRow><TableCell colSpan={colCount} align="center" sx={{py:8,borderBottom:"none",color:"#6b7280"}}>No scripts found</TableCell></TableRow>
             ) : scripts.map((s,i) => {
               const dt = new Date(s.createdAt);
               const canEdit = canEditScript(s);
@@ -566,6 +730,14 @@ const isManager = hasFullAccess(currentUser);
                   </TableCell>
                   <TableCell><InlineStatusSelect script={s} reload={load} toast={showSnack} openEditWithStatus={openEdit} canEdit={isManager}/></TableCell>
                   <TableCell><StageChip stage={s.stage}/></TableCell>
+
+
+                  {/* ── NEW: Approver Comment cell ── */}
+                  <TableCell sx={{ maxWidth: 200 }}>
+                    <ApproverCommentCell comment={s.approverComment} />
+                  </TableCell>
+
+
                   <TableCell align="center">
                     <Stack direction="row" spacing={0.5} justifyContent="center" alignItems="center">
                       {s.referenceLink && <Tooltip title="Reference link"><IconButton size="small" href={s.referenceLink} target="_blank" sx={{color:"#6b7280","&:hover":{color:"#4f46e5",bgcolor:"#eef2ff"}}}><LinkIcon sx={{fontSize:18}}/></IconButton></Tooltip>}
@@ -580,6 +752,7 @@ const isManager = hasFullAccess(currentUser);
           </TableBody>
         </Table>
       </TableContainer>
+
 
       {/* View Modal */}
       <Dialog open={viewOpen} onClose={()=>setViewOpen(false)} maxWidth="sm" fullWidth PaperProps={{sx:{bgcolor:"#fff",borderRadius:2,boxShadow:"0 25px 50px -12px rgb(0 0 0/0.25)"}}}>
@@ -608,6 +781,7 @@ const isManager = hasFullAccess(currentUser);
         </DialogContent>
       </Dialog>
 
+
       {/* ── Create Dialog ── */}
       <Dialog open={createOpen} onClose={()=>{setCreateOpen(false);setCreateExpanded(false);}}
         maxWidth={createExpanded?"lg":"sm"} fullWidth
@@ -626,6 +800,7 @@ const isManager = hasFullAccess(currentUser);
             {createErrors.scriptType && <FormHelperText>{createErrors.scriptType}</FormHelperText>}
           </FormControl>
 
+
           <Box>
             <Typography sx={{fontSize:"0.8rem",color:"#374151",fontWeight:600,mb:0.8}}>Script *</Typography>
             <RichEditor
@@ -636,6 +811,7 @@ const isManager = hasFullAccess(currentUser);
               onToggleExpand={()=>setCreateExpanded((e)=>!e)}
             />
           </Box>
+
 
           <TextField label="Reference Link (optional)" placeholder="https://..." size="small"
             value={createForm.referenceLink}
@@ -648,6 +824,7 @@ const isManager = hasFullAccess(currentUser);
           <Button variant="contained" onClick={handleCreate} sx={{bgcolor:"#4f46e5","&:hover":{bgcolor:"#4338ca"},borderRadius:1.5,textTransform:"none",fontWeight:600,px:3,boxShadow:"none"}}>Save Script</Button>
         </DialogActions>
       </Dialog>
+
 
       {/* ── Edit Dialog ── */}
       <Dialog open={editOpen} onClose={()=>{setEditOpen(false);setEditExpanded(false);}}
@@ -666,6 +843,7 @@ const isManager = hasFullAccess(currentUser);
             {editErrors.scriptType && <FormHelperText>{editErrors.scriptType}</FormHelperText>}
           </FormControl>
 
+
           <Box>
             <Typography sx={{fontSize:"0.8rem",color:"#374151",fontWeight:600,mb:0.8}}>Script *</Typography>
             <RichEditor
@@ -677,7 +855,9 @@ const isManager = hasFullAccess(currentUser);
             />
           </Box>
 
+
           <TextField label="Reference Link" size="small" value={editForm.referenceLink||""} onChange={(e)=>setEditForm((f)=>({...f,referenceLink:e.target.value}))} sx={inputSx}/>
+
 
           {isManager && (
             <>
@@ -700,6 +880,7 @@ const isManager = hasFullAccess(currentUser);
         </DialogActions>
       </Dialog>
 
+
       {/* Snackbar */}
       <Snackbar open={snack.open} autoHideDuration={3500} onClose={()=>setSnack((s)=>({...s,open:false}))} anchorOrigin={{vertical:"bottom",horizontal:"right"}}>
         <Alert severity={snack.severity} onClose={()=>setSnack((s)=>({...s,open:false}))} sx={{boxShadow:"0 4px 6px -1px rgba(0,0,0,0.1)",borderRadius:2}}>{snack.msg}</Alert>
@@ -707,3 +888,4 @@ const isManager = hasFullAccess(currentUser);
     </Box>
   );
 }
+
