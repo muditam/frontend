@@ -16,6 +16,7 @@ import {
   Chip,
   Dialog,
   DialogTitle,
+  InputAdornment,
   DialogContent,
   useMediaQuery,
   useTheme,
@@ -30,6 +31,7 @@ import DoneIcon from "@mui/icons-material/Done";
 import DoneAllIcon from "@mui/icons-material/DoneAll";
 import AutoFixHighIcon from "@mui/icons-material/AutoFixHigh";
 import AutorenewIcon from "@mui/icons-material/Autorenew";
+import SearchIcon from "@mui/icons-material/Search";
 import ShoppingCartIcon from "@mui/icons-material/ShoppingCart";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import AddIcon from "@mui/icons-material/Add";
@@ -217,6 +219,7 @@ export default function WhatsAppChatDrawer({
 
   const [quickAnchor, setQuickAnchor] = useState(null);
   const [tplAnchor, setTplAnchor] = useState(null);
+  const [tplSearch, setTplSearch] = useState("");
   const [emojiAnchor, setEmojiAnchor] = useState(null);
   const [privateMode, setPrivateMode] = useState(false);
 
@@ -280,6 +283,23 @@ export default function WhatsAppChatDrawer({
   const utilityTemplates = useMemo(() => {
     return (templates || []).filter((t) => String(t?.category || "").toUpperCase() === "UTILITY");
   }, [templates]);
+
+  const filteredUtilityTemplates = useMemo(() => {
+    const q = tplSearch.trim().toLowerCase();
+    if (!q) return utilityTemplates;
+    return (utilityTemplates || []).filter((t) => {
+      const hay = [
+        t?.name,
+        t?.language,
+        t?.status,
+        extractTemplateBodyText(t),
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      return hay.includes(q);
+    });
+  }, [utilityTemplates, tplSearch]);
 
   // Template composer
   const [tplComposeOpen, setTplComposeOpen] = useState(false);
@@ -642,7 +662,7 @@ export default function WhatsAppChatDrawer({
   function absolutizeUrl(url = "") {
     const u = String(url || "").trim();
     if (!u) return "";
-    if (/^https?:\/\//i.test(u)) return u;          
+    if (/^https?:\/\//i.test(u)) return u;
     if (u.startsWith("/")) return `${API_BASE}${u}`; // relative -> API_BASE
     return `${API_BASE}/${u}`;
   }
@@ -654,9 +674,9 @@ export default function WhatsAppChatDrawer({
   const renderMedia = (m) => {
     const mediaId = String(m?.media?.id || "").trim();
     const rawUrl = String(m?.media?.url || m?.mediaUrl || "").trim();
-   
+
     const absRawUrl = rawUrl ? absolutizeUrl(rawUrl) : "";
-   
+
     const url =
       (!absRawUrl || isProviderUrl(absRawUrl))
         ? (mediaId ? `${API_BASE}/api/whatsapp/media-proxy/${encodeURIComponent(mediaId)}` : "")
@@ -690,7 +710,7 @@ export default function WhatsAppChatDrawer({
       msgType === "voice" ||
       msgType === "ptt" ||
       mime.startsWith("audio/") ||
-      mime.startsWith("application/ogg") || 
+      mime.startsWith("application/ogg") ||
       mime.includes("ogg") ||
       /\.(mp3|wav|ogg|opus|m4a)$/i.test(url) ||
       /\.(mp3|wav|ogg|opus|m4a)$/i.test(filename);
@@ -1075,7 +1095,10 @@ export default function WhatsAppChatDrawer({
               fullWidth
               variant="contained"
               startIcon={<AddIcon />}
-              onClick={(e) => setTplAnchor(e.currentTarget)}
+              onClick={(e) => {
+                setTplSearch("");
+                setTplAnchor(e.currentTarget);
+              }}
               sx={{ textTransform: "none", borderRadius: 1.25, fontWeight: 900, py: 1.1 }}
             >
               Send Template
@@ -1127,7 +1150,10 @@ export default function WhatsAppChatDrawer({
               </Tooltip>
 
               <Tooltip title="Templates (UTILITY only)">
-                <IconButton size="small" onClick={(e) => setTplAnchor(e.currentTarget)}>
+                <IconButton size="small" onClick={(e) => {
+                  setTplSearch("");
+                  setTplAnchor(e.currentTarget);
+                }}>
                   <ViewListIcon />
                 </IconButton>
               </Tooltip>
@@ -1208,47 +1234,78 @@ export default function WhatsAppChatDrawer({
 
         {/* Templates menu (UTILITY only) */}
         <Menu
-          anchorEl={tplAnchor}
-          open={Boolean(tplAnchor)}
-          onClose={() => setTplAnchor(null)}
-          PaperProps={{ sx: { maxHeight: 360, width: 380 } }}
-        >
-          {utilityTemplates.length === 0 ? (
-            <MenuItem disabled>No UTILITY templates found</MenuItem>
-          ) : (
-            utilityTemplates.map((t) => {
-              const needsHeader = !!getHeaderMediaFormatFromTemplate(t);
-              return (
-                <MenuItem
-                  key={t._id || t.name}
-                  onClick={() => {
-                    setTplAnchor(null);
-                    openTemplateComposer(t);
-                  }}
-                >
-                  <Box sx={{ minWidth: 0, width: "100%" }}>
-                    <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                      <Typography sx={{ fontWeight: 800 }} noWrap>
-                        {t.name}
-                      </Typography>
-                      {needsHeader ? (
-                        <Chip
-                          size="small"
-                          label="Attachment"
-                          variant="outlined"
-                          sx={{ ml: "auto", fontWeight: 800 }}
-                        />
-                      ) : null}
-                    </Box>
-                    <Typography variant="caption" color="text.secondary" noWrap>
-                      {t.language || "en"} · {t.status || ""}
-                    </Typography>
-                  </Box>
-                </MenuItem>
-              );
-            })
-          )}
-        </Menu>
+  anchorEl={tplAnchor}
+  open={Boolean(tplAnchor)}
+  onClose={() => {
+    setTplAnchor(null);
+    setTplSearch("");
+  }}
+  PaperProps={{ sx: { width: 380, overflow: "hidden" } }}
+  MenuListProps={{ disablePadding: true, autoFocusItem: false }}
+>
+  {/* 🔎 Search bar */}
+  <Box sx={{ p: 1, position: "sticky", top: 0, bgcolor: "#fff", zIndex: 1 }}>
+    <TextField
+      size="small"
+      fullWidth
+      autoFocus
+      placeholder="Search templates…"
+      value={tplSearch}
+      onChange={(e) => setTplSearch(e.target.value)}
+      InputProps={{
+        startAdornment: (
+          <InputAdornment position="start">
+            <SearchIcon fontSize="small" />
+          </InputAdornment>
+        ),
+      }}
+    />
+  </Box>
+
+  <Divider />
+
+  {/* 📃 List */}
+  <Box sx={{ maxHeight: 360, overflowY: "auto" }}>
+    {utilityTemplates.length === 0 ? (
+      <MenuItem disabled>No UTILITY templates found</MenuItem>
+    ) : filteredUtilityTemplates.length === 0 ? (
+      <MenuItem disabled>No matching templates</MenuItem>
+    ) : (
+      filteredUtilityTemplates.map((t) => {
+        const needsHeader = !!getHeaderMediaFormatFromTemplate(t);
+        return (
+          <MenuItem
+            key={t._id || t.name}
+            onClick={() => {
+              setTplAnchor(null);
+              setTplSearch("");
+              openTemplateComposer(t);
+            }}
+          >
+            <Box sx={{ minWidth: 0, width: "100%" }}>
+              <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                <Typography sx={{ fontWeight: 800 }} noWrap>
+                  {t.name}
+                </Typography>
+                {needsHeader ? (
+                  <Chip
+                    size="small"
+                    label="Attachment"
+                    variant="outlined"
+                    sx={{ ml: "auto", fontWeight: 800 }}
+                  />
+                ) : null}
+              </Box>
+              <Typography variant="caption" color="text.secondary" noWrap>
+                {t.language || "en"} · {t.status || ""}
+              </Typography>
+            </Box>
+          </MenuItem>
+        );
+      })
+    )}
+  </Box>
+</Menu>
 
         {/* Emoji picker */}
         <Menu
@@ -1469,15 +1526,15 @@ export default function WhatsAppChatDrawer({
 
           {/* Action Buttons */}
           <Box sx={{ p: 1.25, display: "flex", justifyContent: "flex-end", gap: 1 }}>
-            <Button 
-              variant="outlined" 
-              disabled={tplSending} 
-              onClick={() => setTplComposeOpen(false)} 
+            <Button
+              variant="outlined"
+              disabled={tplSending}
+              onClick={() => setTplComposeOpen(false)}
               sx={{ textTransform: "none" }}
             >
               Cancel
             </Button>
-            
+
             {/* ✅ Button with sending state prevention */}
             <Button
               variant="contained"
@@ -1496,15 +1553,15 @@ export default function WhatsAppChatDrawer({
                     ? { format: tplHeaderFmt, id: tplHeaderMediaId, filename: tplHeaderFile?.name || "" }
                     : null;
 
-                setTplSending(true); 
-                
+                setTplSending(true);
+
                 try {
                   await sendTemplate(activeTemplate, tplVars, templatePreview, headerMedia);
-                  setTplComposeOpen(false); 
+                  setTplComposeOpen(false);
                 } catch (error) {
                   console.error("Failed to send template:", error);
                 } finally {
-                  setTplSending(false); 
+                  setTplSending(false);
                 }
               }}
               sx={{ textTransform: "none", fontWeight: 900 }}

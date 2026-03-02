@@ -1007,6 +1007,27 @@ export default function WhatsAppUI() {
     return list.filter((t) => isUtilityTemplate(t) && isApprovedTemplate(t));
   }, [templates]);
 
+  const [tplMenuSearch, setTplMenuSearch] = useState("");
+
+  const filteredApprovedUtilityTemplates = useMemo(() => {
+    const q = tplMenuSearch.trim().toLowerCase();
+    if (!q) return approvedUtilityTemplates;
+
+    return (approvedUtilityTemplates || []).filter((t) => {
+      const hay = [
+        t?.name,
+        t?.language,
+        t?.status,
+        pickBodyTextFromTemplate(t),
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+
+      return hay.includes(q);
+    });
+  }, [approvedUtilityTemplates, tplMenuSearch]);
+
   /* -----------------------------
      Mark read (UI + backend) + sticky local
   ------------------------------ */
@@ -1521,7 +1542,7 @@ export default function WhatsAppUI() {
         setErrorMessages("Max attachment size is 15MB.");
         return;
       }
-      
+
       setTplSending(true); // ✅ Block UI before upload starts
       try {
         const up = await uploadTemplateHeaderMedia(tplHeaderFile);
@@ -1550,7 +1571,7 @@ export default function WhatsAppUI() {
           templateName: activeTplForSend.name,
           parameters: params,
           renderedText: tplSendPreview || "",
-          headerMedia, 
+          headerMedia,
         }),
       });
 
@@ -1723,7 +1744,7 @@ export default function WhatsAppUI() {
           templateName: selectedTemplate.name,
           parameters: params,
           renderedText: previewBody || "",
-          headerMedia, 
+          headerMedia,
         }),
       });
 
@@ -2044,7 +2065,10 @@ export default function WhatsAppUI() {
                       <span>
                         <IconButton
                           size="small"
-                          onClick={(e) => setTplAnchor(e.currentTarget)}
+                          onClick={(e) => {
+                            setTplMenuSearch("");
+                            setTplAnchor(e.currentTarget);
+                          }}
                           disabled={!hasActiveChat}
                         >
                           <ViewListIcon fontSize="small" />
@@ -2083,7 +2107,10 @@ export default function WhatsAppUI() {
 
                 <Tooltip title="Templates (UTILITY + APPROVED)">
                   <span>
-                    <IconButton size="small" disabled={!hasActiveChat} onClick={(e) => setTplAnchor(e.currentTarget)}>
+                    <IconButton size="small" disabled={!hasActiveChat} onClick={(e) => {
+                      setTplMenuSearch("");
+                      setTplAnchor(e.currentTarget);
+                    }}>
                       <ViewListIcon fontSize="small" />
                     </IconButton>
                   </span>
@@ -2166,33 +2193,77 @@ export default function WhatsAppUI() {
         <Menu
           anchorEl={tplAnchor}
           open={Boolean(tplAnchor)}
-          onClose={() => setTplAnchor(null)}
-          PaperProps={{ sx: { maxHeight: 360, width: 360 } }}
+          onClose={() => {
+            setTplAnchor(null);
+            setTplMenuSearch("");
+          }}
+          PaperProps={{ sx: { width: 360, overflow: "hidden" } }}
+          MenuListProps={{ disablePadding: true, autoFocusItem: false }}
         >
-          {loadingTemplates ? (
-            <MenuItem disabled>Loading…</MenuItem>
-          ) : approvedUtilityTemplates.length === 0 ? (
-            <MenuItem disabled>No APPROVED UTILITY templates found</MenuItem>
-          ) : (
-            approvedUtilityTemplates.map((t) => (
-              <MenuItem
-                key={t._id || t.name}
-                onClick={() => {
-                  setTplAnchor(null);
-                  openTemplateComposer(t);
-                }}
-              >
-                <Box sx={{ minWidth: 0 }}>
-                  <Typography sx={{ fontWeight: 900 }} noWrap>
-                    {t.name}
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary" noWrap>
-                    {t.language || "en"} · {t.status || ""}
-                  </Typography>
-                </Box>
-              </MenuItem>
-            ))
-          )}
+          {/* 🔎 Search bar */}
+          <Box sx={{ p: 1, position: "sticky", top: 0, bgcolor: "#fff", zIndex: 1 }}>
+            <TextField
+              size="small"
+              fullWidth
+              autoFocus
+              placeholder="Search templates…"
+              value={tplMenuSearch}
+              onChange={(e) => setTplMenuSearch(e.target.value)}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchIcon fontSize="small" />
+                  </InputAdornment>
+                ),
+              }}
+            />
+          </Box>
+
+          <Divider />
+
+          {/* 📃 List */}
+          <Box sx={{ maxHeight: 360, overflowY: "auto" }}>
+            {loadingTemplates ? (
+              <MenuItem disabled>Loading…</MenuItem>
+            ) : approvedUtilityTemplates.length === 0 ? (
+              <MenuItem disabled>No APPROVED UTILITY templates found</MenuItem>
+            ) : filteredApprovedUtilityTemplates.length === 0 ? (
+              <MenuItem disabled>No matching templates</MenuItem>
+            ) : (
+              filteredApprovedUtilityTemplates.map((t) => {
+                const needsHeader = !!getHeaderMediaFormat(t);
+                return (
+                  <MenuItem
+                    key={t._id || t.name}
+                    onClick={() => {
+                      setTplAnchor(null);
+                      setTplMenuSearch("");
+                      openTemplateComposer(t);
+                    }}
+                  >
+                    <Box sx={{ minWidth: 0, width: "100%" }}>
+                      <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                        <Typography sx={{ fontWeight: 900 }} noWrap>
+                          {t.name}
+                        </Typography>
+                        {needsHeader ? (
+                          <Chip
+                            size="small"
+                            label="Attachment"
+                            variant="outlined"
+                            sx={{ ml: "auto", fontWeight: 800 }}
+                          />
+                        ) : null}
+                      </Box>
+                      <Typography variant="caption" color="text.secondary" noWrap>
+                        {t.language || "en"} · {t.status || ""}
+                      </Typography>
+                    </Box>
+                  </MenuItem>
+                );
+              })
+            )}
+          </Box>
         </Menu>
 
         {/* Emoji picker */}
@@ -2311,9 +2382,9 @@ export default function WhatsAppUI() {
                 </Typography>
 
                 <Stack direction="row" spacing={1} alignItems="center">
-                  <Button 
-                    variant="outlined" 
-                    component="label" 
+                  <Button
+                    variant="outlined"
+                    component="label"
                     sx={{ textTransform: "none", fontWeight: 900 }}
                     disabled={tplSending}
                   >
@@ -2339,10 +2410,10 @@ export default function WhatsAppUI() {
                   </Typography>
 
                   {tplHeaderFile ? (
-                    <Button 
-                      size="small" 
+                    <Button
+                      size="small"
                       disabled={tplSending}
-                      onClick={() => setTplHeaderFile(null)} 
+                      onClick={() => setTplHeaderFile(null)}
                       sx={{ textTransform: "none" }}
                     >
                       Remove
@@ -2424,9 +2495,9 @@ export default function WhatsAppUI() {
 
           {/* Action buttons with load tracking */}
           <Box sx={{ p: 1.25, display: "flex", justifyContent: "flex-end", gap: 1 }}>
-            <Button 
-              variant="outlined" 
-              onClick={() => setTplComposeOpen(false)} 
+            <Button
+              variant="outlined"
+              onClick={() => setTplComposeOpen(false)}
               sx={{ textTransform: "none" }}
               disabled={tplSending}
             >

@@ -990,7 +990,7 @@ const MenuBar = ({ toggleDrawer }) => {
               unmountOnExit
             >
               <List sx={nestedListStyle}>
-                {can("marketingMenu") && (
+                {can("cutPage") && (
                   <ListItem
                     button
                     component={Link}
@@ -1002,7 +1002,7 @@ const MenuBar = ({ toggleDrawer }) => {
                     </Typography>
                   </ListItem>
                 )}
-                {can("marketingMenu") && (
+                {can("shootPage") && (
                   <ListItem
                     button
                     component={Link}
@@ -1014,7 +1014,7 @@ const MenuBar = ({ toggleDrawer }) => {
                     </Typography>
                   </ListItem>
                 )}
-                {can("marketingMenu") && (
+                {can("editPage") && (
                   <ListItem
                     button
                     component={Link}
@@ -1026,7 +1026,7 @@ const MenuBar = ({ toggleDrawer }) => {
                     </Typography>
                   </ListItem>
                 )}
-                {can("marketingMenu") && (
+                {can("scriptPage") && (
                   <ListItem
                     button
                     component={Link}
@@ -1038,7 +1038,7 @@ const MenuBar = ({ toggleDrawer }) => {
                     </Typography>
                   </ListItem>
                 )}
-                {can("marketingMenu") && (
+                {can("postPage") && (
                   <ListItem
                     button
                     component={Link}

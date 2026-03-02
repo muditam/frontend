@@ -37,7 +37,7 @@ const isManagerRole  = (role = "") => MANAGER_ROLES.includes(role.toLowerCase())
 const hasFullAccess  = (user = {}) => isManagerRole(user.role) || user.hasTeam === true;
 
 
-const SCRIPT_TYPES    = ["Muditam Instagram", "Muditam Snooze Well", "YouTube", "Meta Ads", "Google Ads", "WhatsApp"];
+const SCRIPT_TYPES    = ["Muditam Instagram", "Muditam Snooze Well", "Muditam infographic", "Snooze Well infographic", "YouTube", "Meta Ads", "Google Ads", "WhatsApp"];
 const SCRIPT_STATUSES = ["Pending", "Approved", "Rewrite", "On Hold", "Rejected"];
 const NEEDS_REASON    = new Set(["On Hold", "Rejected"]);
 

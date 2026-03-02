@@ -299,7 +299,8 @@ function UploadVideoDialog({ open, onClose, script, onUploaded, showSnack }) {
 export default function EditPage() {
   const currentUser = getCurrentUser();
   const isManager   = isManagerRole(currentUser?.role);
-
+  const hasFullAccess = isManager || currentUser?.hasTeam === true;
+  const canAssign     = hasFullAccess; 
 
   const [tab,                setTab]                = useState(0);
   const [pendingScripts,     setPendingScripts]     = useState([]);
@@ -307,10 +308,6 @@ export default function EditPage() {
   const [marketingEmployees, setMarketingEmployees] = useState([]);
   const [loading,            setLoading]            = useState(true);
 
-
-  // ── 🗓️ separate date filter per tab ──
-  // Tab 0 (Edit Pending) → filter by cutDoneAt  (when it entered edit queue)
-  // Tab 1 (Edit Done)    → filter by editDoneAt
   const [pendingDate, setPendingDate] = useState({ dateFrom: "", dateTo: "" });
   const [doneDate,    setDoneDate]    = useState({ dateFrom: "", dateTo: "" });
 
@@ -366,11 +363,11 @@ export default function EditPage() {
       let doneAll    = editDoneRes.data.scripts || [];
 
 
-      if (!isManager) {
-        const name = currentUser?.fullName || "";
-        pendingAll = pendingAll.filter((s) => s.createdBy === name || s.editAssignedTo === name);
-        doneAll    = doneAll.filter((s)    => s.createdBy === name || s.editAssignedTo === name);
-      }
+      if (!hasFullAccess) {
+  const name = currentUser?.fullName || "";
+  pendingAll = pendingAll.filter((s) => s.createdBy === name || s.editAssignedTo === name);
+  doneAll    = doneAll.filter((s)    => s.createdBy === name || s.editAssignedTo === name);
+}
 
 
       setPendingScripts(pendingAll);
@@ -383,7 +380,7 @@ export default function EditPage() {
       setMarketingEmployees(mkt);
     } catch { showSnack("Failed to load data", "error"); }
     finally { setLoading(false); }
-  }, [isManager, currentUser?.fullName, pendingDate, doneDate]);
+  }, [hasFullAccess, currentUser?.fullName, pendingDate, doneDate]);
 
 
   useEffect(() => { load(); }, [load]);
@@ -484,10 +481,10 @@ export default function EditPage() {
           {currentUser?.fullName && (
             <Box component="span" sx={{ ml: 1.5, color: "#9ca3af" }}>
               — <Box component="span" sx={{ color: "#4f46e5", fontWeight: 500 }}>{currentUser.fullName}</Box>
-              {isManager
-                ? <Box component="span" sx={{ ml: 1, px: 1, py: 0.2, borderRadius: "100px", fontSize: "0.72rem", fontWeight: 700, bgcolor: "#ecfdf5", color: "#059669", border: "1px solid #6ee7b7" }}>All Scripts</Box>
-                : <Box component="span" sx={{ ml: 1, px: 1, py: 0.2, borderRadius: "100px", fontSize: "0.72rem", fontWeight: 700, bgcolor: "#eff6ff", color: "#2563eb", border: "1px solid #93c5fd" }}>My Scripts</Box>
-              }
+              {hasFullAccess
+  ? <Box component="span" sx={{ ml: 1, px: 1, py: 0.2, borderRadius: "100px", fontSize: "0.72rem", fontWeight: 700, bgcolor: "#ecfdf5", color: "#059669", border: "1px solid #6ee7b7" }}>All Scripts</Box>
+  : <Box component="span" sx={{ ml: 1, px: 1, py: 0.2, borderRadius: "100px", fontSize: "0.72rem", fontWeight: 700, bgcolor: "#eff6ff", color: "#2563eb", border: "1px solid #93c5fd" }}>My Scripts</Box>
+}
             </Box>
           )}
         </Typography>
@@ -564,7 +561,7 @@ export default function EditPage() {
                         </TableCell>
                         <TableCell sx={tdSx}><Typography sx={{ fontSize: "0.8rem", color: "#1f2937", whiteSpace: "nowrap" }}>{fmt(s.cutDoneAt)}</Typography></TableCell>
                         <TableCell sx={{ ...tdSx, minWidth: 200 }}>
-                          <AssignCell script={s} marketingEmployees={marketingEmployees} onAssigned={load} showSnack={showSnack} canAssign={isManager} />
+                          <AssignCell script={s} marketingEmployees={marketingEmployees} onAssigned={load} showSnack={showSnack} canAssign={canAssign} />
                         </TableCell>
                         <TableCell sx={tdSx}>
                           <Button size="small" variant="contained" startIcon={<UploadIcon sx={{ fontSize: 15 }} />}
@@ -612,7 +609,7 @@ export default function EditPage() {
                           </Stack>
                         </TableCell>
                         <TableCell sx={{ ...tdSx, minWidth: 200 }}>
-                          <AssignCell script={s} marketingEmployees={marketingEmployees} onAssigned={load} showSnack={showSnack} canAssign={isManager} />
+                          <AssignCell script={s} marketingEmployees={marketingEmployees} onAssigned={load} showSnack={showSnack} canAssign={canAssign} />
                         </TableCell>
                         <TableCell sx={tdSx}>
                           {s.editFileUrl && s.editFileUrl !== "pending"
@@ -668,7 +665,6 @@ export default function EditPage() {
         </DialogContent>
       </Dialog>
 
-
       <Dialog open={dialogOpen} onClose={closeDialog} maxWidth="sm" fullWidth PaperProps={{ sx: { bgcolor: "#ffffff", borderRadius: 3 } }}>
         <DialogTitle sx={{ color: "#111827", fontWeight: 700, borderBottom: "1px solid #e5e7eb", pb: 2, display: "flex", alignItems: "center", gap: 1 }}>
           <EditIcon sx={{ color: "#ea580c", fontSize: 22 }} />Edit Details
@@ -707,15 +703,12 @@ export default function EditPage() {
         </DialogActions>
       </Dialog>
 
-
       <CommentModal open={commentModal.open} onClose={() => setCommentModal({ open: false, text: "", title: "" })} comment={commentModal.text} title={commentModal.title} />
       <PlayerModal open={player.open} onClose={() => setPlayer({ open: false, url: "", title: "" })} url={player.url} title={player.title} />
-
-
+        
       <Snackbar open={snack.open} autoHideDuration={3500} onClose={() => setSnack((s) => ({ ...s, open: false }))} anchorOrigin={{ vertical: "bottom", horizontal: "right" }}>
         <Alert severity={snack.severity} onClose={() => setSnack((s) => ({ ...s, open: false }))} sx={{ boxShadow: "0 4px 6px -1px rgba(0,0,0,0.1)", borderRadius: 2 }}>{snack.msg}</Alert>
       </Snackbar>
     </Box>
   );
 }
-
