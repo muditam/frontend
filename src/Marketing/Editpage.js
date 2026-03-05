@@ -1,7 +1,3 @@
-// pages/EditPage.jsx
-// ✅ Filters + Backend Pagination + Reverse Chronological Order + Presigned upload/download (Wasabi)
-// ✅ NEW: Re-upload edited video even in "Edit Done" tab (overwrites editFileUrl/editFileName)
-
 import React, { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import axios from "axios";
 import {
@@ -609,6 +605,161 @@ function UploadVideoDialog({ open, onClose, script, onUploaded, showSnack, mode 
   );
 }
 
+function UploadThumbDialog({ open, onClose, script, onUploaded, showSnack, mode = "upload" }) {
+  const fileInputRef = useRef(null);
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [label, setLabel] = useState("");
+
+  useEffect(() => {
+    if (!open) return;
+    setSelectedFile(null);
+    setUploadProgress(0);
+    setLabel("");
+  }, [open]);
+
+  const handleClose = () => {
+    if (uploading) return;
+    setSelectedFile(null);
+    setUploadProgress(0);
+    setLabel("");
+    onClose();
+  };
+
+  const handleUpload = async () => {
+    if (!selectedFile) {
+      showSnack("Please select a thumbnail image", "error");
+      return;
+    }
+
+    setUploading(true);
+    setUploadProgress(0);
+    setLabel("Uploading thumbnail…");
+
+    try {
+      const results = await uploadFilesToWasabi([selectedFile], getAuthHeaders(), setUploadProgress);
+      const url = results[0]?.url;
+      if (!url) throw new Error("No URL returned");
+
+      setLabel("Saving thumbnail…");
+      setUploadProgress(100);
+
+      await axios.post(
+        `${API}/${script._id}/edit-thumbnail`,
+        { editThumbUrl: url, editThumbName: selectedFile.name },
+        { headers: getAuthHeaders(), withCredentials: true }
+      );
+
+      showSnack(mode === "reupload" ? "Thumbnail re-uploaded ✅" : "Thumbnail uploaded ✅");
+      onUploaded();
+      handleClose();
+    } catch (err) {
+      showSnack(err.response?.data?.message || err.message || "Thumbnail upload failed", "error");
+    } finally {
+      setUploading(false);
+      setLabel("");
+    }
+  };
+
+  const fmtSz = (b) => (b < 1024 * 1024 ? `${(b / 1024).toFixed(1)} KB` : `${(b / (1024 * 1024)).toFixed(1)} MB`);
+
+  return (
+    <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth PaperProps={{ sx: { bgcolor: "#ffffff", borderRadius: 2 } }}>
+      <DialogTitle sx={{ color: "#111827", fontWeight: 700, borderBottom: "1px solid #e5e7eb", pb: 2, px: 3, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <Stack direction="row" alignItems="center" gap={1}>
+          <UploadIcon sx={{ color: "#ea580c" }} />
+          <Typography sx={{ fontSize: "1.1rem", fontWeight: 700 }}>
+            {mode === "reupload" ? "Re-upload Thumbnail" : "Upload Thumbnail"}
+          </Typography>
+        </Stack>
+        <IconButton size="small" onClick={handleClose} disabled={uploading} sx={{ color: "#6b7280" }}>
+          <CloseIcon fontSize="small" />
+        </IconButton>
+      </DialogTitle>
+
+      <DialogContent sx={{ pt: 3, px: 3, display: "flex", flexDirection: "column", gap: 2.5 }}>
+        <Box
+          onClick={() => !uploading && fileInputRef.current?.click()}
+          sx={{
+            border: "2px dashed #d1d5db",
+            borderRadius: 2,
+            p: 4,
+            textAlign: "center",
+            cursor: uploading ? "default" : "pointer",
+            "&:hover": uploading ? {} : { borderColor: "#ea580c", bgcolor: "#fff7ed" },
+          }}
+        >
+          <AttachIcon sx={{ fontSize: 36, color: "#9ca3af", mb: 1 }} />
+
+          {selectedFile ? (
+            <Box>
+              <Typography sx={{ fontSize: "0.9rem", color: "#374151", fontWeight: 600 }}>{selectedFile.name}</Typography>
+              <Typography sx={{ fontSize: "0.8rem", color: "#6b7280" }}>{fmtSz(selectedFile.size)}</Typography>
+              <Button
+                size="small"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setSelectedFile(null);
+                }}
+                sx={{ mt: 1, color: "#dc2626", textTransform: "none", fontSize: "0.8rem" }}
+              >
+                Remove
+              </Button>
+            </Box>
+          ) : (
+            <>
+              <Typography sx={{ fontSize: "0.9rem", color: "#6b7280", fontWeight: 500 }}>Click to select thumbnail</Typography>
+              <Typography sx={{ fontSize: "0.8rem", color: "#9ca3af", mt: 0.5 }}>PNG, JPG, WebP</Typography>
+            </>
+          )}
+
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*,.png,.jpg,.jpeg,.webp"
+            style={{ display: "none" }}
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) setSelectedFile(f);
+            }}
+            disabled={uploading}
+          />
+        </Box>
+
+        {uploading && (
+          <Box>
+            <Stack direction="row" justifyContent="space-between" mb={0.5}>
+              <Typography sx={{ fontSize: "0.8rem", color: "#6b7280" }}>{label || "Uploading…"}</Typography>
+              <Typography sx={{ fontSize: "0.8rem", color: "#ea580c", fontWeight: 600 }}>{uploadProgress}%</Typography>
+            </Stack>
+            <LinearProgress
+              variant="determinate"
+              value={uploadProgress}
+              sx={{ borderRadius: 1, bgcolor: "#e5e7eb", "& .MuiLinearProgress-bar": { bgcolor: "#ea580c" } }}
+            />
+          </Box>
+        )}
+      </DialogContent>
+
+      <DialogActions sx={{ px: 3, pb: 3, pt: 2, borderTop: "1px solid #e5e7eb", gap: 1 }}>
+        <Button onClick={handleClose} disabled={uploading} sx={{ color: "#6b7280", textTransform: "none" }}>
+          Cancel
+        </Button>
+        <Button
+          variant="contained"
+          onClick={handleUpload}
+          disabled={uploading || !selectedFile}
+          startIcon={uploading ? <CircularProgress size={16} color="inherit" /> : <UploadIcon />}
+          sx={{ bgcolor: "#ea580c", color: "#ffffff", boxShadow: "none", textTransform: "none", fontWeight: 600, px: 3, "&:hover": { bgcolor: "#c2410c" } }}
+        >
+          {uploading ? "Uploading…" : mode === "reupload" ? "Re-upload Thumbnail" : "Upload Thumbnail"}
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+}
+
 // ─────────────────────────────────────────────────────────────
 // MAIN PAGE
 // ─────────────────────────────────────────────────────────────
@@ -671,6 +822,10 @@ export default function EditPage() {
   const [form, setForm] = useState({ editStatus: "", editHoldReason: "", editComment: "" });
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
+
+  const [thumbOpen, setThumbOpen] = useState(false);
+  const [thumbTarget, setThumbTarget] = useState(null);
+  const [thumbMode, setThumbMode] = useState("upload");
 
   const [viewOpen, setViewOpen] = useState(false);
   const [viewText, setViewText] = useState("");
@@ -1270,6 +1425,42 @@ export default function EditPage() {
                               >
                                 Reupload
                               </Button>
+
+                              <Button
+                                size="small"
+                                variant="outlined"
+                                startIcon={<UploadIcon sx={{ fontSize: 15 }} />}
+                                disabled={!canUploadForScript(s)}
+                                onClick={() => {
+                                  setThumbTarget(s);
+                                  setThumbMode(s.editThumbUrl ? "reupload" : "upload");
+                                  setThumbOpen(true);
+                                }}
+                                sx={{
+                                  borderColor: "#fdba74",
+                                  color: "#ea580c",
+                                  textTransform: "none",
+                                  fontWeight: 800,
+                                  fontSize: "0.78rem",
+                                  py: 0.4,
+                                  px: 1.2,
+                                  "&:hover": { bgcolor: "#ffedd5", borderColor: "#fb923c" },
+                                  opacity: canUploadForScript(s) ? 1 : 0.6,
+                                }}
+                              >
+                                {s.editThumbUrl ? "Reupload Thumbnail" : "Upload Thumbnail"}
+                              </Button>
+                              {s.editThumbUrl && s.editThumbUrl !== "pending" && (
+                                <Tooltip title="Download Thumbnail">
+                                  <IconButton
+                                    size="small"
+                                    onClick={() => handleDownload(s.editThumbUrl, s.editThumbName || `${s.scriptId}_thumb`)}
+                                    sx={{ color: "#6b7280", "&:hover": { color: "#4f46e5", bgcolor: "#eef2ff" } }}
+                                  >
+                                    <DownloadIcon sx={{ fontSize: 16 }} />
+                                  </IconButton>
+                                </Tooltip>
+                              )}
                             </Stack>
                           </TableCell>
 
@@ -1341,6 +1532,19 @@ export default function EditPage() {
         onUploaded={load}
         showSnack={showSnack}
         mode={uploadMode}
+      />
+
+      <UploadThumbDialog
+        open={thumbOpen}
+        onClose={() => {
+          setThumbOpen(false);
+          setThumbTarget(null);
+          setThumbMode("upload");
+        }}
+        script={thumbTarget}
+        onUploaded={load}
+        showSnack={showSnack}
+        mode={thumbMode}
       />
 
       {/* Full script dialog */}

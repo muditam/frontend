@@ -1182,8 +1182,7 @@ export default function ScriptPage() {
                 <TableCell>Status</TableCell>
                 <TableCell>Stage</TableCell>
                 <TableCell>
-                  <Stack direction="row" alignItems="center" spacing={0.6}>
-                    <CommentIcon sx={{ fontSize: 13, color: "#6b7280" }} />
+                  <Stack direction="row" alignItems="center" spacing={0.6}> 
                     <span>Approver Comment</span>
                   </Stack>
                 </TableCell>
