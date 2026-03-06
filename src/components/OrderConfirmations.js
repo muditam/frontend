@@ -269,7 +269,7 @@ export default function OrderConfirmations() {
     ALL_CNPS: 0,
   });
 
-  const [allCnpDate, setAllCnpDate] = useState("");
+  const [dateFilter, setDateFilter] = useState("");
 
   const [assigned, setAssigned] = useState(() => (isManager ? ASSIGNED_FILTER.ALL : ASSIGNED_FILTER.ME));
 
@@ -297,27 +297,27 @@ export default function OrderConfirmations() {
   const isConfirmedTab = tab === "ORDER_CONFIRMED";
 
   const allFilteredItems = useMemo(() => {
-  if (!isConfirmedTab) return items;
+    if (!isConfirmedTab) return items;
 
-  return items.filter((row) => {
-    const tracking = row?.shipping?.tracking_number;
-    return !tracking || String(tracking).trim() === "";
-  });
-}, [items, isConfirmedTab]);
+    return items.filter((row) => {
+      const tracking = row?.shipping?.tracking_number;
+      return !tracking || String(tracking).trim() === "";
+    });
+  }, [items, isConfirmedTab]);
 
-// Step 2: apply pagination on filtered rows
-const visibleItems = useMemo(() => {
-  if (!isConfirmedTab) return items; // normal tabs use backend pagination
+  // Step 2: apply pagination on filtered rows
+  const visibleItems = useMemo(() => {
+    if (!isConfirmedTab) return items; // normal tabs use backend pagination
 
-  const start = page * rowsPerPage;
-  const end = start + rowsPerPage;
-  return allFilteredItems.slice(start, end);
-}, [allFilteredItems, isConfirmedTab, page, rowsPerPage]);
+    const start = page * rowsPerPage;
+    const end = start + rowsPerPage;
+    return allFilteredItems.slice(start, end);
+  }, [allFilteredItems, isConfirmedTab, page, rowsPerPage]);
 
-// Step 3: correct count
-const visibleTotal = useMemo(() => {
-  return isConfirmedTab ? allFilteredItems.length : total;
-}, [isConfirmedTab, allFilteredItems, total]);
+  // Step 3: correct count
+  const visibleTotal = useMemo(() => {
+    return isConfirmedTab ? allFilteredItems.length : total;
+  }, [isConfirmedTab, allFilteredItems, total]);
 
 
   // Payment dialog state
@@ -376,11 +376,12 @@ const visibleTotal = useMemo(() => {
           channel,
         };
 
+        // common single-date filter for all tabs
+        if (dateFilter) params.dateFilter = dateFilter;
+
         if (tab === "ALL_CNPS") {
-          // Show ALL CNPs for all agents; backend already enforces "after 1 Nov"
-          if (allCnpDate) params.allCnpDate = allCnpDate; // single-day filter for All CNPs only
+          // no assigned scoping for ALL_CNPS
         } else {
-          // Normal tabs keep existing behaviour (agent scoping + global start date)
           if (assignedParam) params.assigned = assignedParam;
           params.startDate = START_FROM_ISO;
         }
@@ -400,7 +401,7 @@ const visibleTotal = useMemo(() => {
         setLoading(false);
       }
     },
-    [qDebounced, rowsPerPage, tab, channel, assignedParam, allCnpDate]
+    [qDebounced, rowsPerPage, tab, channel, assignedParam, dateFilter, isConfirmedTab]
   );
 
 
@@ -413,21 +414,21 @@ const visibleTotal = useMemo(() => {
         startDate: START_FROM_ISO,
       };
 
-      // Let backend compute ALL_CNPS using this date (only for All CNPs)
-      if (allCnpDate) {
-        params.allCnpDate = allCnpDate;
+      // common single-date filter for all tabs
+      if (dateFilter) {
+        params.dateFilter = dateFilter;
       }
 
       const { data } = await axios.get(
         "https://muditamleads-14f32a10d7f7.herokuapp.com/api/order-confirmations/counts",
         { params }
       );
+
       if (data?.counts) setCounts(data.counts);
     } catch (e) {
       console.error("fetchCounts error", e);
     }
-  }, [qDebounced, channel, assignedParam, allCnpDate]);
-
+  }, [qDebounced, channel, assignedParam, dateFilter]);
 
   const fetchTodayConfirmedCount = useCallback(async () => {
     try {
@@ -512,7 +513,7 @@ const visibleTotal = useMemo(() => {
     setPage(0);
     fetchList(0, isConfirmedTab ? 5000 : rowsPerPage);
     setExpandedId(null);
-  }, [tab, qDebounced, channel, assignedParam, allCnpDate, isConfirmedTab]);
+  }, [tab, qDebounced, channel, assignedParam, dateFilter, isConfirmedTab, rowsPerPage, fetchList]);
 
   useEffect(() => {
     fetchTodayConfirmedCount();
@@ -954,17 +955,16 @@ const visibleTotal = useMemo(() => {
               </Tabs>
 
               <TextField
-                label="All CNPs Date"
+                label="Date Filter"
                 type="date"
                 size="small"
-                value={allCnpDate}
-                onChange={(e) => setAllCnpDate(e.target.value)}
+                value={dateFilter}
+                onChange={(e) => setDateFilter(e.target.value)}
                 InputLabelProps={{ shrink: true }}
                 sx={{
                   width: 170,
                   my: { xs: 1, sm: 0 },
                 }}
-                disabled={tab !== "ALL_CNPS"}
               />
 
               {/* Search box pinned to the right */}
