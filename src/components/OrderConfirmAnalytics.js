@@ -21,6 +21,12 @@ import {
   Chip,
   Skeleton,
   Grid,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Button,
+  Divider,
 } from "@mui/material";
 import AssignmentOutlinedIcon from "@mui/icons-material/AssignmentOutlined";
 import DoneAllOutlinedIcon from "@mui/icons-material/DoneAllOutlined";
@@ -28,9 +34,9 @@ import CurrencyRupeeIcon from "@mui/icons-material/CurrencyRupee";
 import WorkHistoryOutlinedIcon from "@mui/icons-material/WorkHistoryOutlined";
 import axios from "axios";
 
-const API_BASE = "https://muditamleads-14f32a10d7f7.herokuapp.com"; // unchanged 
+const API_BASE = "https://muditamleads-14f32a10d7f7.herokuapp.com";
 
-// ===== Range helpers (trimmed to 5 options) =====
+// ===== Range helpers =====
 const RANGE_OPTS = [
   "Custom range",
   "Today",
@@ -48,11 +54,13 @@ function startOfDayIST(date) {
   const day = String(ist.getDate()).padStart(2, "0");
   return `${y}-${m}-${day}`;
 }
+
 function addDays(dateStr, delta) {
   const d = new Date(dateStr);
   d.setDate(d.getDate() + delta);
   return startOfDayIST(d);
 }
+
 function getPresetRange(preset) {
   const today = startOfDayIST(new Date());
   switch (preset) {
@@ -71,7 +79,6 @@ function getPresetRange(preset) {
   }
 }
 
-// Money formatter
 const money = (n) =>
   new Intl.NumberFormat("en-IN", {
     style: "currency",
@@ -80,7 +87,20 @@ const money = (n) =>
     maximumFractionDigits: 2,
   }).format(Number(n || 0));
 
-// Simple wrapper
+const formatDateTime = (iso) => {
+  if (!iso) return "-";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "-";
+  return d.toLocaleString("en-IN", {
+    year: "numeric",
+    month: "short",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+  });
+};
+
 function SmallCard({ children }) {
   return (
     <Card
@@ -97,7 +117,6 @@ function SmallCard({ children }) {
   );
 }
 
-// KPI card (visual only; uses your existing totals)
 function KpiCard({ icon, label, value, prefix = "", accent = "primary" }) {
   const palette =
     {
@@ -140,6 +159,7 @@ function KpiCard({ icon, label, value, prefix = "", accent = "primary" }) {
             {label}
           </Typography>
         </Stack>
+
         <Typography variant="h5" sx={{ fontWeight: 800 }}>
           {prefix}
           {value}
@@ -150,16 +170,14 @@ function KpiCard({ icon, label, value, prefix = "", accent = "primary" }) {
 }
 
 export default function OrderAnalytics() {
-  // Range state
   const [range, setRange] = useState("Today");
   const [customStart, setCustomStart] = useState("");
   const [customEnd, setCustomEnd] = useState("");
 
   const [loading, setLoading] = useState(false);
-  const [rows, setRows] = useState([]); // [{agentId, agentName, counts:{all,pending,confirmed,cnp,callBack,cancel,addLog}}]
+  const [rows, setRows] = useState([]);
   const [error, setError] = useState("");
 
-  // overall totals (window-level) from backend — we only display these 4
   const [totalsBox, setTotalsBox] = useState({
     totalOrders: 0,
     totalWorkedOrders: 0,
@@ -167,14 +185,49 @@ export default function OrderAnalytics() {
     totalAmountOfWorkedOrders: 0,
   });
 
+  const [agentDialog, setAgentDialog] = useState({
+    open: false,
+    agentId: "",
+    agentName: "",
+  });
+  const [agentDetailsLoading, setAgentDetailsLoading] = useState(false);
+  const [agentDetails, setAgentDetails] = useState(null);
+
   const computedRange = useMemo(() => {
-    if (range === "Custom range" && customStart && customEnd) {
-      return { start: customStart, end: customEnd };
+    if (range === "Custom range") {
+      if (customStart && customEnd) {
+        return { start: customStart, end: customEnd };
+      }
+      return { start: "", end: "" };
     }
     return getPresetRange(range);
   }, [range, customStart, customEnd]);
 
+  const isCustomRangeIncomplete =
+    range === "Custom range" && (!customStart || !customEnd);
+
+  const isCustomRangeInvalid =
+    range === "Custom range" &&
+    customStart &&
+    customEnd &&
+    customStart > customEnd;
+
+  const resetTotals = () => {
+    setTotalsBox({
+      totalOrders: 0,
+      totalWorkedOrders: 0,
+      totalAmountOfOrders: 0,
+      totalAmountOfWorkedOrders: 0,
+    });
+  };
+
   const fetchData = useCallback(async () => {
+    if (isCustomRangeIncomplete || isCustomRangeInvalid) {
+      setRows([]);
+      resetTotals();
+      return;
+    }
+
     try {
       setLoading(true);
       setError("");
@@ -198,34 +251,76 @@ export default function OrderAnalytics() {
           totalAmountOfWorkedOrders: Number(data.totals.totalAmountOfWorkedOrders || 0),
         });
       } else {
-        setTotalsBox({
-          totalOrders: 0,
-          totalWorkedOrders: 0,
-          totalAmountOfOrders: 0,
-          totalAmountOfWorkedOrders: 0,
-        });
+        resetTotals();
       }
     } catch (e) {
       console.error("order analytics error", e);
       setError("Failed to load order analytics");
+      setRows([]);
+      resetTotals();
     } finally {
       setLoading(false);
     }
-  }, [range, computedRange]);
+  }, [range, computedRange, isCustomRangeIncomplete, isCustomRangeInvalid]);
 
   useEffect(() => {
     fetchData();
   }, [fetchData]);
 
-  useEffect(() => {
-    if (range === "Custom range" && customStart && customEnd) {
-      fetchData();
-    }
-  }, [range, customStart, customEnd, fetchData]);
+  const openAgentDetails = useCallback(
+    async (row) => {
+      if (!row?.agentId) return;
+      if (isCustomRangeIncomplete || isCustomRangeInvalid) return;
 
-  // (unchanged) totals across visible agent rows for the table footer
+      try {
+        setError("");
+        setAgentDialog({
+          open: true,
+          agentId: row.agentId,
+          agentName: row.agentName || "",
+        });
+        setAgentDetailsLoading(true);
+        setAgentDetails(null);
+
+        const params =
+          range === "Custom range"
+            ? { range: "custom", start: computedRange.start, end: computedRange.end }
+            : { range, start: computedRange.start, end: computedRange.end };
+
+        const { data } = await axios.get(
+          `${API_BASE}/api/order-analytics/agents/${row.agentId}/details`,
+          { params }
+        );
+
+        setAgentDetails(data || null);
+      } catch (e) {
+        console.error("agent details error", e);
+        setError("Failed to load agent details");
+        setAgentDetails(null);
+      } finally {
+        setAgentDetailsLoading(false);
+      }
+    },
+    [range, computedRange, isCustomRangeIncomplete, isCustomRangeInvalid]
+  );
+
+  const closeAgentDetails = () => {
+    setAgentDialog({ open: false, agentId: "", agentName: "" });
+    setAgentDetails(null);
+    setAgentDetailsLoading(false);
+  };
+
   const tableTotals = useMemo(() => {
-    const sum = { all: 0, pending: 0, confirmed: 0, cnp: 0, callBack: 0, cancel: 0, addLog: 0 };
+    const sum = {
+      all: 0,
+      pending: 0,
+      confirmed: 0,
+      cnp: 0,
+      callBack: 0,
+      cancel: 0,
+      addLog: 0,
+    };
+
     for (const r of rows) {
       const c = r.counts || {};
       sum.all += c.all ?? 0;
@@ -236,12 +331,12 @@ export default function OrderAnalytics() {
       sum.cancel += c.cancel ?? 0;
       sum.addLog += c.addLog ?? 0;
     }
+
     return sum;
   }, [rows]);
 
   return (
     <Box sx={{ p: { xs: 1.5, md: 2 } }}>
-      {/* Range selector */}
       <SmallCard>
         <Stack
           direction={{ xs: "column", md: "row" }}
@@ -290,11 +385,19 @@ export default function OrderAnalytics() {
             <Chip
               size="small"
               variant="outlined"
-              label={`Range: ${computedRange.start} → ${computedRange.end}`}
+              label={
+                computedRange.start && computedRange.end
+                  ? `Range: ${computedRange.start} → ${computedRange.end}`
+                  : "Select custom range"
+              }
             />
           </Stack>
 
-          {error ? (
+          {isCustomRangeInvalid ? (
+            <Typography variant="caption" color="error">
+              Start date cannot be after end date.
+            </Typography>
+          ) : error ? (
             <Typography variant="caption" color="error">
               {error}
             </Typography>
@@ -302,10 +405,8 @@ export default function OrderAnalytics() {
         </Stack>
       </SmallCard>
 
-      {/* === NEW: KPI cards (design-only change) === */}
       <Box sx={{ mt: 2 }}>
         <Grid container spacing={2}>
-          {/* Total Orders */}
           <Grid item xs={12} sm={6} md={3}>
             {loading ? (
               <Card elevation={0} sx={{ borderRadius: 3, border: "1px solid", borderColor: "divider", p: 2 }}>
@@ -321,7 +422,6 @@ export default function OrderAnalytics() {
             )}
           </Grid>
 
-          {/* Total Worked Orders */}
           <Grid item xs={12} sm={6} md={3}>
             {loading ? (
               <Card elevation={0} sx={{ borderRadius: 3, border: "1px solid", borderColor: "divider", p: 2 }}>
@@ -337,7 +437,6 @@ export default function OrderAnalytics() {
             )}
           </Grid>
 
-          {/* Total Amount of Orders */}
           <Grid item xs={12} sm={6} md={3}>
             {loading ? (
               <Card elevation={0} sx={{ borderRadius: 3, border: "1px solid", borderColor: "divider", p: 2 }}>
@@ -354,7 +453,6 @@ export default function OrderAnalytics() {
             )}
           </Grid>
 
-          {/* Total Amount of Worked Orders */}
           <Grid item xs={12} sm={6} md={3}>
             {loading ? (
               <Card elevation={0} sx={{ borderRadius: 3, border: "1px solid", borderColor: "divider", p: 2 }}>
@@ -373,13 +471,14 @@ export default function OrderAnalytics() {
         </Grid>
       </Box>
 
-      {/* Table (unchanged) */}
       <Paper sx={{ mt: 2, borderRadius: 3, border: "1px solid", borderColor: "divider" }} elevation={0}>
         <TableContainer>
           <Table size="small" stickyHeader>
             <TableHead>
               <TableRow>
-                <TableCell sx={{ fontWeight: 800, minWidth: 220 }}>Agent Name (Active)</TableCell>
+                <TableCell sx={{ fontWeight: 800, minWidth: 220 }}>
+                  Agent Name (Active)
+                </TableCell>
                 <TableCell align="right" sx={{ fontWeight: 800 }}>
                   All
                 </TableCell>
@@ -403,6 +502,7 @@ export default function OrderAnalytics() {
                 </TableCell>
               </TableRow>
             </TableHead>
+
             <TableBody>
               {loading ? (
                 [...Array(6)].map((_, i) => (
@@ -420,7 +520,11 @@ export default function OrderAnalytics() {
               ) : rows.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={8}>
-                    <Typography variant="body2">No data for the selected range.</Typography>
+                    <Typography variant="body2">
+                      {isCustomRangeIncomplete
+                        ? "Please select custom start and end date."
+                        : "No data for the selected range."}
+                    </Typography>
                   </TableCell>
                 </TableRow>
               ) : (
@@ -428,7 +532,21 @@ export default function OrderAnalytics() {
                   const c = r.counts || {};
                   return (
                     <TableRow key={r.agentId} hover>
-                      <TableCell>{r.agentName || "-"}</TableCell>
+                      <TableCell>
+                        <Button
+                          variant="text"
+                          onClick={() => openAgentDetails(r)}
+                          sx={{
+                            textTransform: "none",
+                            p: 0,
+                            minWidth: 0,
+                            fontWeight: 700,
+                            justifyContent: "flex-start",
+                          }}
+                        >
+                          {r.agentName || "-"}
+                        </Button>
+                      </TableCell>
                       <TableCell align="right">{c.all || 0}</TableCell>
                       <TableCell align="right">{c.pending || 0}</TableCell>
                       <TableCell align="right" sx={{ fontWeight: 700 }}>
@@ -473,6 +591,180 @@ export default function OrderAnalytics() {
           </Table>
         </TableContainer>
       </Paper>
+
+      <Dialog open={agentDialog.open} onClose={closeAgentDetails} maxWidth="lg" fullWidth>
+        <DialogTitle>
+          Agent Details — {agentDialog.agentName || "Agent"}
+        </DialogTitle>
+
+        <DialogContent dividers>
+          {agentDetailsLoading ? (
+            <Stack spacing={2}>
+              <Skeleton variant="rounded" height={80} />
+              <Skeleton variant="rounded" height={80} />
+              <Skeleton variant="rounded" height={240} />
+            </Stack>
+          ) : !agentDetails ? (
+            <Typography variant="body2">No details found.</Typography>
+          ) : (
+            <Stack spacing={2}>
+              <Stack
+                direction={{ xs: "column", md: "row" }}
+                spacing={1}
+                alignItems={{ xs: "flex-start", md: "center" }}
+                justifyContent="space-between"
+              >
+                <Chip
+                  variant="outlined"
+                  label={`Selected Range: ${agentDetails?.window?.start || "-"} → ${agentDetails?.window?.end || "-"}`}
+                />
+                <Chip
+                  color="primary"
+                  variant="outlined"
+                  label={`Today (IST): ${agentDetails?.todayWindow?.start || "-"}`}
+                />
+              </Stack>
+
+              <Grid container spacing={2}>
+                <Grid item xs={12} sm={6} md={3}>
+                  <KpiCard
+                    icon={<DoneAllOutlinedIcon fontSize="small" />}
+                    label="Confirmed in Selected Range"
+                    value={agentDetails?.summary?.confirmedInSelectedWindow || 0}
+                    accent="green"
+                  />
+                </Grid>
+
+                <Grid item xs={12} sm={6} md={3}>
+                  <KpiCard
+                    icon={<AssignmentOutlinedIcon fontSize="small" />}
+                    label="Confirmed Today"
+                    value={agentDetails?.summary?.confirmedToday || 0}
+                    accent="primary"
+                  />
+                </Grid>
+
+                <Grid item xs={12} sm={6} md={3}>
+                  <KpiCard
+                    icon={<WorkHistoryOutlinedIcon fontSize="small" />}
+                    label="Today Confirmed - Today Orders"
+                    value={agentDetails?.summary?.confirmedTodaySameDate || 0}
+                    accent="orange"
+                  />
+                </Grid>
+
+                <Grid item xs={12} sm={6} md={3}>
+                  <KpiCard
+                    icon={<CurrencyRupeeIcon fontSize="small" />}
+                    label="Today Confirmed - Previous Orders"
+                    value={agentDetails?.summary?.confirmedTodayPreviousDate || 0}
+                    accent="teal"
+                  />
+                </Grid>
+              </Grid>
+
+              <Paper
+                elevation={0}
+                sx={{
+                  p: 2,
+                  borderRadius: 3,
+                  border: "1px solid",
+                  borderColor: "divider",
+                  background: "#fafafa",
+                }}
+              >
+                <Stack
+                  direction={{ xs: "column", md: "row" }}
+                  spacing={1}
+                  useFlexGap
+                  flexWrap="wrap"
+                >
+                  <Chip label={`CNP Today: ${agentDetails?.summary?.cnpToday || 0}`} />
+                  <Chip label={`Call Back Today: ${agentDetails?.summary?.callBackToday || 0}`} />
+                  <Chip label={`Cancel Today: ${agentDetails?.summary?.cancelToday || 0}`} />
+                  <Chip label={`Add Log Today: ${agentDetails?.summary?.addLogToday || 0}`} />
+                  <Chip
+                    color="success"
+                    variant="outlined"
+                    label={`Selected Range Amount: ${money(agentDetails?.summary?.confirmedAmountInSelectedWindow || 0)}`}
+                  />
+                  <Chip
+                    color="primary"
+                    variant="outlined"
+                    label={`Today Confirmed Amount: ${money(agentDetails?.summary?.confirmedAmountToday || 0)}`}
+                  />
+                  <Chip
+                    color="warning"
+                    variant="outlined"
+                    label={`Previous-Date Confirmed Amount Today: ${money(agentDetails?.summary?.confirmedTodayPreviousDateAmount || 0)}`}
+                  />
+                </Stack>
+              </Paper>
+
+              <Divider />
+
+              <Typography variant="subtitle1" sx={{ fontWeight: 800 }}>
+                Confirmed Orders List
+              </Typography>
+
+              <TableContainer
+                component={Paper}
+                elevation={0}
+                sx={{ border: "1px solid", borderColor: "divider", borderRadius: 3 }}
+              >
+                <Table size="small" stickyHeader>
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>Order Name</TableCell>
+                      <TableCell>Customer</TableCell>
+                      <TableCell>Phone</TableCell>
+                      <TableCell>Order Date</TableCell>
+                      <TableCell>Confirmed At</TableCell>
+                      <TableCell>Type</TableCell>
+                      <TableCell align="right">Amount</TableCell>
+                    </TableRow>
+                  </TableHead>
+
+                  <TableBody>
+                    {Array.isArray(agentDetails?.items) && agentDetails.items.length > 0 ? (
+                      agentDetails.items.map((it) => (
+                        <TableRow key={it._id} hover>
+                          <TableCell>{it.orderName || "-"}</TableCell>
+                          <TableCell>{it.customerName || "-"}</TableCell>
+                          <TableCell>{it.contactNumber || "-"}</TableCell>
+                          <TableCell>{formatDateTime(it.orderDate || it.createdAt)}</TableCell>
+                          <TableCell>{formatDateTime(it.confirmedAt)}</TableCell>
+                          <TableCell>
+                            <Chip
+                              size="small"
+                              label={it.orderType || "-"}
+                              color={it.orderType === "Previous-date order" ? "warning" : "success"}
+                              variant="outlined"
+                            />
+                          </TableCell>
+                          <TableCell align="right">{money(it.amount || 0)}</TableCell>
+                        </TableRow>
+                      ))
+                    ) : (
+                      <TableRow>
+                        <TableCell colSpan={7}>
+                          <Typography variant="body2">
+                            No confirmed orders found for this agent in the selected range.
+                          </Typography>
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            </Stack>
+          )}
+        </DialogContent>
+
+        <DialogActions>
+          <Button onClick={closeAgentDetails}>Close</Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }

@@ -269,7 +269,8 @@ export default function OrderConfirmations() {
     ALL_CNPS: 0,
   });
 
-  const [dateFilter, setDateFilter] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
 
   const [assigned, setAssigned] = useState(() => (isManager ? ASSIGNED_FILTER.ALL : ASSIGNED_FILTER.ME));
 
@@ -376,15 +377,13 @@ export default function OrderConfirmations() {
           channel,
         };
 
-        // common single-date filter for all tabs
-        if (dateFilter) params.dateFilter = dateFilter;
-
-        if (tab === "ALL_CNPS") {
-          // no assigned scoping for ALL_CNPS
-        } else {
-          if (assignedParam) params.assigned = assignedParam;
-          params.startDate = START_FROM_ISO;
+        // keep existing assigned behavior
+        if (tab !== "ALL_CNPS" && assignedParam) {
+          params.assigned = assignedParam;
         }
+
+        if (startDate) params.startDate = startDate;
+        if (endDate) params.endDate = endDate;
 
         const { data } = await axios.get(
           "https://muditamleads-14f32a10d7f7.herokuapp.com/api/order-confirmations/list",
@@ -401,7 +400,7 @@ export default function OrderConfirmations() {
         setLoading(false);
       }
     },
-    [qDebounced, rowsPerPage, tab, channel, assignedParam, dateFilter, isConfirmedTab]
+    [qDebounced, rowsPerPage, tab, channel, assignedParam, startDate, endDate, isConfirmedTab]
   );
 
 
@@ -411,13 +410,10 @@ export default function OrderConfirmations() {
         q: qDebounced,
         channel,
         assigned: assignedParam,
-        startDate: START_FROM_ISO,
       };
 
-      // common single-date filter for all tabs
-      if (dateFilter) {
-        params.dateFilter = dateFilter;
-      }
+      if (startDate) params.startDate = startDate;
+      if (endDate) params.endDate = endDate;
 
       const { data } = await axios.get(
         "https://muditamleads-14f32a10d7f7.herokuapp.com/api/order-confirmations/counts",
@@ -428,7 +424,8 @@ export default function OrderConfirmations() {
     } catch (e) {
       console.error("fetchCounts error", e);
     }
-  }, [qDebounced, channel, assignedParam, dateFilter]);
+  }, [qDebounced, channel, assignedParam, startDate, endDate]);
+
 
   const fetchTodayConfirmedCount = useCallback(async () => {
     try {
@@ -513,7 +510,7 @@ export default function OrderConfirmations() {
     setPage(0);
     fetchList(0, isConfirmedTab ? 5000 : rowsPerPage);
     setExpandedId(null);
-  }, [tab, qDebounced, channel, assignedParam, dateFilter, isConfirmedTab, rowsPerPage, fetchList]);
+  }, [tab, qDebounced, channel, assignedParam, startDate, endDate, isConfirmedTab]);
 
   useEffect(() => {
     fetchTodayConfirmedCount();
@@ -954,18 +951,49 @@ export default function OrderConfirmations() {
                 <Tab value="ALL_CNPS" label={`All CNPs (${counts.ALL_CNPS || 0})`} />
               </Tabs>
 
-              <TextField
-                label="Date Filter"
-                type="date"
-                size="small"
-                value={dateFilter}
-                onChange={(e) => setDateFilter(e.target.value)}
-                InputLabelProps={{ shrink: true }}
+              <Stack
+                direction="row"
+                spacing={1}
+                alignItems="center"
                 sx={{
-                  width: 170,
                   my: { xs: 1, sm: 0 },
+                  flexWrap: { xs: "wrap", sm: "nowrap" },
                 }}
-              />
+              >
+                <TextField
+                  label="Start Date"
+                  type="date"
+                  size="small"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  InputLabelProps={{ shrink: true }}
+                  sx={{ width: 150 }}
+                />
+
+                <TextField
+                  label="End Date"
+                  type="date"
+                  size="small"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  InputLabelProps={{ shrink: true }}
+                  sx={{ width: 150 }}
+                />
+
+                {(startDate || endDate) && (
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    onClick={() => {
+                      setStartDate("");
+                      setEndDate("");
+                    }}
+                    sx={{ whiteSpace: "nowrap" }}
+                  >
+                    Clear
+                  </Button>
+                )}
+              </Stack>
 
               {/* Search box pinned to the right */}
               <TextField
@@ -981,7 +1009,7 @@ export default function OrderConfirmations() {
                   }
                 }}
                 sx={{
-                  width: { xs: "100%", sm: 280 },
+                  width: { xs: "100%", sm: 250 },
                   my: { xs: 1, sm: 0 },
                 }}
                 InputProps={{

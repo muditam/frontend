@@ -35,13 +35,11 @@ import {
 import axios from "axios";
 import dayjs from "dayjs";
 
-
 const API_BASE = "https://muditamleads-14f32a10d7f7.herokuapp.com";
 
-
-// ✅ Ops Remark options (condition-wise)
+// Ops Remark options (condition-wise)
 const OPS_REMARK_OPTIONS = {
-  rto: ["New Order Punch", "Fake Remarks", "Ringing", "Consignee dont want the order",],
+  rto: ["New Order Punch", "Fake Remarks", "Ringing", "Consignee dont want the order"],
   undelivered: [
     "Fake Remarks",
     "Delivery Delayed",
@@ -53,7 +51,6 @@ const OPS_REMARK_OPTIONS = {
   ],
 };
 
-
 // Helper for status chip colors
 const getStatusColor = (status) => {
   const s = status?.toLowerCase() || "";
@@ -63,7 +60,6 @@ const getStatusColor = (status) => {
   if (s.includes("pick")) return "secondary";
   return "default";
 };
-
 
 const UndeliveredOrders = () => {
   const [orders, setOrders] = useState([]);
@@ -84,8 +80,7 @@ const UndeliveredOrders = () => {
   const [orderCounts, setOrderCounts] = useState({}); // contact_number -> count
   const [phoneToAgentMap, setPhoneToAgentMap] = useState({}); // phone -> agentId
 
-
-  // ✅ Only Sales Agent + Retention Agent (Active)
+  // Only Sales Agent + Retention Agent (Active)
   const assignableAgents = useMemo(() => {
     return (employees || []).filter((e) => {
       const status = String(e.status || "active").toLowerCase();
@@ -95,21 +90,18 @@ const UndeliveredOrders = () => {
     });
   }, [employees]);
 
-
   const fetchEmployees = useCallback(async () => {
     try {
       const res = await axios.get(`${API_BASE}/api/employees`);
       const list = res.data || [];
       setEmployees(list);
 
-
-      // ✅ Build phone -> agent map ONLY for active Sales/Retention
+      // Build phone -> agent map ONLY for active Sales/Retention
       const phoneMap = {};
       list.forEach((emp) => {
         const status = String(emp.status || "active").toLowerCase();
         const role = String(emp.role || "").toLowerCase().trim();
         const allowed = role === "sales agent" || role === "retention agent";
-
 
         if (emp.phone && status === "active" && allowed) {
           phoneMap[String(emp.phone).trim()] = emp._id;
@@ -121,7 +113,6 @@ const UndeliveredOrders = () => {
     }
   }, []);
 
-
   const fetchOrderCounts = useCallback(async () => {
     try {
       const res = await axios.get(`${API_BASE}/api/operations/order-counts`);
@@ -131,12 +122,10 @@ const UndeliveredOrders = () => {
     }
   }, []);
 
-
   const fetchOrders = useCallback(async () => {
     setLoading(true);
     try {
       const viewTabParam = viewTab === 0 ? "pending" : "processed";
-
 
       const res = await axios.get(`${API_BASE}/api/operations/undelivered-orders`, {
         params: {
@@ -151,7 +140,6 @@ const UndeliveredOrders = () => {
         },
       });
 
-
       setOrders(res.data.orders || []);
       setTotalCount(res.data.totalCount || 0);
       setStatusCounts(res.data.statusCounts || []);
@@ -165,35 +153,28 @@ const UndeliveredOrders = () => {
     }
   }, [page, limit, selectedStatus, selectedCarrier, startDate, endDate, viewTab, selectedAgent]);
 
-
   useEffect(() => {
     fetchOrders();
   }, [fetchOrders]);
-
 
   useEffect(() => {
     fetchEmployees();
   }, [fetchEmployees]);
 
-
   useEffect(() => {
     fetchOrderCounts();
   }, [fetchOrderCounts]);
-
 
   useEffect(() => {
     setPage(0);
   }, [viewTab, selectedStatus, selectedCarrier, startDate, endDate, selectedAgent]);
 
-
   const visibleOrders = orders;
   const visibleCount = totalCount;
-
 
   const patchLocalByOrderId = useCallback((order_id, patch) => {
     setOrders((prev) => prev.map((o) => (o.order_id === order_id ? { ...o, ...patch } : o)));
   }, []);
-
 
   const saveOpsMeta = useCallback(async (order, patch) => {
     const response = await axios.patch(`${API_BASE}/api/operations/ops-meta/by-order-id`, {
@@ -203,30 +184,25 @@ const UndeliveredOrders = () => {
     return response.data;
   }, []);
 
-
-  // ✅ Condition-wise options: RTO vs Undelivered
+  // Condition-wise options: RTO vs Undelivered
   const getRemarkOptions = useCallback((shipmentStatus) => {
     const normalized = String(shipmentStatus || "").toLowerCase().trim();
-    const isRto = normalized.includes("rto"); // covers: RTO Initiated / RTO In Transit / etc.
+    const isRto = normalized.includes("rto");
     return isRto ? OPS_REMARK_OPTIONS.rto : OPS_REMARK_OPTIONS.undelivered;
   }, []);
-
 
   const handleRemarkChange = useCallback(
     async (order, value) => {
       const remark = String(value || "").trim();
-
 
       patchLocalByOrderId(order.order_id, {
         opsRemark: remark,
         last_updated_at: new Date().toISOString(),
       });
 
-
       try {
-        // ✅ Auto-fill agent based on phone mapping (only Sales/Retention)
+        // Auto-fill agent based on phone mapping (only Sales/Retention)
         const agentPatch = { opsRemark: remark };
-
 
         if (remark && !order.assignedAgentId && order.contact_number) {
           const mappedAgentId = phoneToAgentMap[String(order.contact_number).trim()];
@@ -236,9 +212,7 @@ const UndeliveredOrders = () => {
           }
         }
 
-
         await saveOpsMeta(order, agentPatch);
-
 
         setCallingMessage(`Remark ${remark ? "saved" : "removed"} successfully`);
         setTimeout(() => setCallingMessage(""), 2000);
@@ -253,17 +227,14 @@ const UndeliveredOrders = () => {
     [patchLocalByOrderId, saveOpsMeta, fetchOrders, phoneToAgentMap]
   );
 
-
   const handleAssignAgent = useCallback(
     async (order, agent) => {
       const assignedAgentId = agent?._id || null;
-
 
       patchLocalByOrderId(order.order_id, {
         assignedAgentId,
         last_updated_at: new Date().toISOString(),
       });
-
 
       try {
         await saveOpsMeta(order, { assignedAgentId });
@@ -279,7 +250,6 @@ const UndeliveredOrders = () => {
     [patchLocalByOrderId, saveOpsMeta, fetchOrders]
   );
 
-
   const handleCallIconClick = async (contactNumber) => {
     setCallingMessage(`Initiating call to ${contactNumber}...`);
     try {
@@ -290,10 +260,8 @@ const UndeliveredOrders = () => {
         return;
       }
 
-
       const agentNumber = loggedInUser.phone || loggedInUser.agentNumber || "";
       const callerId = process.env.REACT_APP_CALLER_ID || "";
-
 
       const requestBody = {
         destination_number: contactNumber,
@@ -301,7 +269,6 @@ const UndeliveredOrders = () => {
         agent_number: agentNumber.toString().trim(),
         caller_id: callerId.toString().trim(),
       };
-
 
       const response = await axios.post(`${API_BASE}/api/click_to_call`, requestBody);
       setCallingMessage(response.data.status === "success" ? `Connected to ${contactNumber}` : "Call failed.");
@@ -311,7 +278,6 @@ const UndeliveredOrders = () => {
     setTimeout(() => setCallingMessage(""), 5000);
   };
 
-
   const handleExportCSV = useCallback(() => {
     try {
       const getAgentName = (agentId) => {
@@ -320,12 +286,12 @@ const UndeliveredOrders = () => {
         return agent ? agent.fullName : "Unassigned";
       };
 
-
       const headers = [
         "Order ID",
         "Customer Name",
         "Contact Number",
         "Tracking Number",
+        "Mode of Payment",
         "Carrier",
         "Shipment Status",
         "Order Date",
@@ -334,12 +300,12 @@ const UndeliveredOrders = () => {
         "Last Updated",
       ];
 
-
       const rows = visibleOrders.map((order) => [
         order.order_id || "",
         order.full_name || "",
         order.contact_number || "",
         order.tracking_number || "",
+        order.financial_status === "pending" ? "COD" : order.financial_status || "",
         order.carrier_title || "",
         order.shipment_status || "",
         order.order_date ? dayjs(order.order_date).format("DD/MM/YYYY") : "",
@@ -348,15 +314,17 @@ const UndeliveredOrders = () => {
         order.last_updated_at ? dayjs(order.last_updated_at).format("DD/MM/YYYY HH:mm") : "",
       ]);
 
-
-      const csvContent = [headers.join(","), ...rows.map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(","))].join("\n");
-
+      const csvContent = [
+        headers.join(","),
+        ...rows.map((row) =>
+          row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(",")
+        ),
+      ].join("\n");
 
       const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
       const link = document.createElement("a");
       const url = URL.createObjectURL(blob);
       const fileName = `processed_orders_${dayjs().format("YYYY-MM-DD_HH-mm")}.csv`;
-
 
       link.setAttribute("href", url);
       link.setAttribute("download", fileName);
@@ -364,7 +332,6 @@ const UndeliveredOrders = () => {
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-
 
       setCallingMessage(`Exported ${visibleOrders.length} orders to ${fileName}`);
       setTimeout(() => setCallingMessage(""), 3000);
@@ -375,12 +342,9 @@ const UndeliveredOrders = () => {
     }
   }, [visibleOrders, employees]);
 
-
   const getAssignedAgent = (agentId) => assignableAgents.find((a) => a._id === agentId) || null;
 
-
   const totalAll = statusCounts.reduce((acc, s) => acc + (s.count || 0), 0);
-
 
   return (
     <Box sx={{ p: 3, bgcolor: "#f8f9fa", minHeight: "100vh" }}>
@@ -391,7 +355,6 @@ const UndeliveredOrders = () => {
           </Typography>
         </Box>
 
-
         <Stack direction="row" spacing={2} alignItems="center">
           {viewTab === 1 && (
             <Button
@@ -400,14 +363,25 @@ const UndeliveredOrders = () => {
               startIcon={<DownloadIcon />}
               onClick={handleExportCSV}
               disabled={visibleOrders.length === 0}
-              sx={{ borderRadius: 2, textTransform: "none", fontWeight: 600, boxShadow: "0 4px 12px rgba(46, 125, 50, 0.25)" }}
+              sx={{
+                borderRadius: 2,
+                textTransform: "none",
+                fontWeight: 600,
+                boxShadow: "0 4px 12px rgba(46, 125, 50, 0.25)",
+              }}
             >
               Export CSV ({visibleOrders.length})
             </Button>
           )}
 
-
-          <Box sx={{ bgcolor: "#fff", borderRadius: 2, p: 0.5, boxShadow: "0 2px 4px rgba(0,0,0,0.05)" }}>
+          <Box
+            sx={{
+              bgcolor: "#fff",
+              borderRadius: 2,
+              p: 0.5,
+              boxShadow: "0 2px 4px rgba(0,0,0,0.05)",
+            }}
+          >
             <Tabs
               value={viewTab}
               onChange={(e, v) => {
@@ -415,7 +389,15 @@ const UndeliveredOrders = () => {
                 setPage(0);
                 setSelectedAgent(null);
               }}
-              sx={{ minHeight: 40, "& .MuiTab-root": { minHeight: 40, px: 3, fontWeight: 600, textTransform: "none" } }}
+              sx={{
+                minHeight: 40,
+                "& .MuiTab-root": {
+                  minHeight: 40,
+                  px: 3,
+                  fontWeight: 600,
+                  textTransform: "none",
+                },
+              }}
             >
               <Tab label="Pending" />
               <Tab label="Processed" />
@@ -424,9 +406,17 @@ const UndeliveredOrders = () => {
         </Stack>
       </Stack>
 
-
       {callingMessage && (
-        <Paper sx={{ p: 1.5, mb: 2, bgcolor: "#e3f2fd", borderLeft: "4px solid #1976d2", display: "flex", alignItems: "center" }}>
+        <Paper
+          sx={{
+            p: 1.5,
+            mb: 2,
+            bgcolor: "#e3f2fd",
+            borderLeft: "4px solid #1976d2",
+            display: "flex",
+            alignItems: "center",
+          }}
+        >
           <PhoneIcon sx={{ mr: 2, color: "#1976d2" }} fontSize="small" />
           <Typography variant="body2" sx={{ fontWeight: 500, color: "#1976d2" }}>
             {callingMessage}
@@ -434,13 +424,27 @@ const UndeliveredOrders = () => {
         </Paper>
       )}
 
-
       <Card sx={{ p: 2, mb: 3, borderRadius: 3, boxShadow: "0 4px 20px rgba(0,0,0,0.05)" }}>
         <Stack spacing={2}>
           <Stack direction="row" spacing={2} flexWrap="wrap" alignItems="center">
-            <TextField label="Start Date" type="date" size="small" InputLabelProps={{ shrink: true }} value={startDate} onChange={(e) => setStartDate(e.target.value)} sx={{ width: 180 }} />
-            <TextField label="End Date" type="date" size="small" InputLabelProps={{ shrink: true }} value={endDate} onChange={(e) => setEndDate(e.target.value)} sx={{ width: 180 }} />
-
+            <TextField
+              label="Start Date"
+              type="date"
+              size="small"
+              InputLabelProps={{ shrink: true }}
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              sx={{ width: 180 }}
+            />
+            <TextField
+              label="End Date"
+              type="date"
+              size="small"
+              InputLabelProps={{ shrink: true }}
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+              sx={{ width: 180 }}
+            />
 
             <TextField
               select
@@ -449,7 +453,9 @@ const UndeliveredOrders = () => {
               value={selectedCarrier}
               onChange={(e) => setSelectedCarrier(e.target.value)}
               sx={{ minWidth: 200 }}
-              InputProps={{ startAdornment: <ShippingIcon sx={{ mr: 1, color: "action.active" }} fontSize="small" /> }}
+              InputProps={{
+                startAdornment: <ShippingIcon sx={{ mr: 1, color: "action.active" }} fontSize="small" />,
+              }}
             >
               <MenuItem value="">All Carriers</MenuItem>
               {carriers.map((c) => (
@@ -458,7 +464,6 @@ const UndeliveredOrders = () => {
                 </MenuItem>
               ))}
             </TextField>
-
 
             {viewTab === 1 && (
               <Autocomplete
@@ -487,8 +492,8 @@ const UndeliveredOrders = () => {
               />
             )}
 
-
             <Box sx={{ flexGrow: 1 }} />
+
             <Button
               startIcon={<RefreshIcon />}
               onClick={() => {
@@ -507,9 +512,7 @@ const UndeliveredOrders = () => {
             </Button>
           </Stack>
 
-
           <Divider />
-
 
           <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
             <Chip
@@ -518,7 +521,11 @@ const UndeliveredOrders = () => {
               variant={!selectedStatus ? "filled" : "outlined"}
               sx={{
                 fontWeight: 600,
-                ...(!selectedStatus && { bgcolor: "black", color: "white", "&:hover": { bgcolor: "#333" } }),
+                ...(!selectedStatus && {
+                  bgcolor: "black",
+                  color: "white",
+                  "&:hover": { bgcolor: "#333" },
+                }),
               }}
             />
             {statusCounts.map((s) => (
@@ -532,7 +539,11 @@ const UndeliveredOrders = () => {
                 variant={selectedStatus === s.shipment_status ? "filled" : "outlined"}
                 sx={{
                   fontWeight: 500,
-                  ...(selectedStatus === s.shipment_status && { bgcolor: "black", color: "white", "&:hover": { bgcolor: "#333" } }),
+                  ...(selectedStatus === s.shipment_status && {
+                    bgcolor: "black",
+                    color: "white",
+                    "&:hover": { bgcolor: "#333" },
+                  }),
                 }}
               />
             ))}
@@ -540,27 +551,37 @@ const UndeliveredOrders = () => {
         </Stack>
       </Card>
 
-
       <Paper sx={{ borderRadius: 3, overflow: "hidden", boxShadow: "0 4px 20px rgba(0,0,0,0.05)" }}>
         <TableContainer sx={{ maxHeight: 600 }}>
           <Table size="small" stickyHeader>
             <TableHead>
               <TableRow>
-                {["Order ID", "Customer", "Contact", "Tracking", "Carrier", "Status", "Date", "Ops Remark"].map((h) => (
+                {[
+                  "Order ID",
+                  "Customer",
+                  "Contact",
+                  "Tracking",
+                  "Mode of Payment",
+                  "Carrier",
+                  "Status",
+                  "Date",
+                  "Ops Remark",
+                ].map((h) => (
                   <TableCell key={h} sx={{ bgcolor: "#f1f3f5", fontWeight: 700, py: 2 }}>
                     {h}
                   </TableCell>
                 ))}
-                {viewTab === 1 && <TableCell sx={{ bgcolor: "#f1f3f5", fontWeight: 700 }}>Assign Agent</TableCell>}
+                {viewTab === 1 && (
+                  <TableCell sx={{ bgcolor: "#f1f3f5", fontWeight: 700 }}>Assign Agent</TableCell>
+                )}
                 <TableCell sx={{ bgcolor: "#f1f3f5", fontWeight: 700 }}>Last Updated</TableCell>
               </TableRow>
             </TableHead>
 
-
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={viewTab === 1 ? 10 : 9} align="center" sx={{ py: 10 }}>
+                  <TableCell colSpan={viewTab === 1 ? 11 : 10} align="center" sx={{ py: 10 }}>
                     <CircularProgress size={30} thickness={5} />
                     <Typography sx={{ mt: 2 }} color="text.secondary">
                       Fetching data...
@@ -571,11 +592,9 @@ const UndeliveredOrders = () => {
                 visibleOrders.map((order) => {
                   const orderCount = orderCounts[order.contact_number] || 0;
 
-
                   return (
                     <TableRow key={order.order_id} hover sx={{ "&:last-child td, &:last-child th": { border: 0 } }}>
                       <TableCell sx={{ fontWeight: 600 }}>#{order.order_id}</TableCell>
-
 
                       <TableCell>
                         <Stack direction="row" alignItems="center" spacing={1}>
@@ -602,7 +621,6 @@ const UndeliveredOrders = () => {
                         </Stack>
                       </TableCell>
 
-
                       <TableCell>
                         <Stack direction="row" alignItems="center" spacing={1}>
                           <Typography variant="body2">{order.contact_number || "-"}</Typography>
@@ -620,7 +638,6 @@ const UndeliveredOrders = () => {
                         </Stack>
                       </TableCell>
 
-
                       <TableCell>
                         {order.tracking_number ? (
                           <Box>
@@ -628,12 +645,21 @@ const UndeliveredOrders = () => {
                               component="a"
                               href={`https://track.shipway.com/t/${order.tracking_number}`}
                               target="_blank"
-                              sx={{ color: "primary.main", textDecoration: "none", fontWeight: 500, "&:hover": { textDecoration: "underline" } }}
+                              rel="noreferrer"
+                              sx={{
+                                color: "primary.main",
+                                textDecoration: "none",
+                                fontWeight: 500,
+                                "&:hover": { textDecoration: "underline" },
+                              }}
                             >
                               {order.tracking_number}
                             </Typography>
                             {viewTab === 1 && (
-                              <Typography variant="caption" sx={{ display: "block", color: "text.secondary", mt: 0.5 }}>
+                              <Typography
+                                variant="caption"
+                                sx={{ display: "block", color: "text.secondary", mt: 0.5 }}
+                              >
                                 ({order.shipment_status})
                               </Typography>
                             )}
@@ -643,9 +669,15 @@ const UndeliveredOrders = () => {
                         )}
                       </TableCell>
 
+                      <TableCell>
+                        <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                          {order.financial_status === "pending"
+                            ? "COD"
+                            : order.financial_status || "-"}
+                        </Typography>
+                      </TableCell>
 
                       <TableCell>{order.carrier_title || "-"}</TableCell>
-
 
                       <TableCell>
                         <Chip
@@ -655,16 +687,17 @@ const UndeliveredOrders = () => {
                           sx={{
                             fontWeight: 600,
                             fontSize: "0.75rem",
-                            ...(getStatusColor(order.shipment_status) === "info" && { bgcolor: "black", color: "white" }),
+                            ...(getStatusColor(order.shipment_status) === "info" && {
+                              bgcolor: "black",
+                              color: "white",
+                            }),
                           }}
                         />
                       </TableCell>
 
-
                       <TableCell sx={{ whiteSpace: "nowrap" }}>
                         {order.order_date ? dayjs(order.order_date).format("DD MMM, YYYY") : "-"}
                       </TableCell>
-
 
                       <TableCell sx={{ minWidth: 200 }}>
                         <TextField
@@ -686,7 +719,6 @@ const UndeliveredOrders = () => {
                         </TextField>
                       </TableCell>
 
-
                       {viewTab === 1 && (
                         <TableCell sx={{ minWidth: 250 }}>
                           <Autocomplete
@@ -703,7 +735,6 @@ const UndeliveredOrders = () => {
                                 sx={{ "& .MuiOutlinedInput-root": { borderRadius: 2 } }}
                               />
                             )}
-                            // ✅ No role tag shown anymore
                             renderOption={(props, option) => (
                               <li {...props}>
                                 <Typography variant="body2">{option.fullName}</Typography>
@@ -713,7 +744,6 @@ const UndeliveredOrders = () => {
                         </TableCell>
                       )}
 
-
                       <TableCell sx={{ color: "text.secondary", fontSize: "0.8rem" }}>
                         {order.last_updated_at ? dayjs(order.last_updated_at).format("DD/MM/YY HH:mm") : "-"}
                       </TableCell>
@@ -722,7 +752,7 @@ const UndeliveredOrders = () => {
                 })
               ) : (
                 <TableRow>
-                  <TableCell colSpan={viewTab === 1 ? 10 : 9} align="center" sx={{ py: 8 }}>
+                  <TableCell colSpan={viewTab === 1 ? 11 : 10} align="center" sx={{ py: 8 }}>
                     <Typography color="text.secondary">No matching orders found.</Typography>
                   </TableCell>
                 </TableRow>
@@ -730,7 +760,6 @@ const UndeliveredOrders = () => {
             </TableBody>
           </Table>
         </TableContainer>
-
 
         <TablePagination
           component="div"
@@ -750,8 +779,4 @@ const UndeliveredOrders = () => {
   );
 };
 
-
 export default UndeliveredOrders;
-
-
-
