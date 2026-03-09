@@ -8,63 +8,35 @@ import FinanceDashboard from "../../Dashboards/FinanceDashboard";
 import OperationsDashboard from "../../Dashboards/OperationsDashboard";
 import { Box, Button, Typography } from "@mui/material";
 // import TeamLeaderDashboardRetentionOnly from "../../Dashboards/TeamLeaderDashboard";
+import MarketingDashboard from "../../Dashboards/MarketingDashboard";
 import SuperAdminAnalytics from "../../pages/SuperAdminAnalytics";
-
-
-
-
-
 
 const SalesDashboard = () => {
   const [role, setRole] = useState(null);
   const [activeTab, setActiveTab] = useState("Sales");
-
-
-
-
   const [isImpersonating, setIsImpersonating] = useState(false);
   const [revertLoading, setRevertLoading] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);    
   const [originalUser, setOriginalUser] = useState(null);
 
-
-
-
   const navigate = useNavigate();
-
-
-
 
   useEffect(() => {
     const userStr = sessionStorage.getItem("user");
     const user = userStr ? JSON.parse(userStr) : null;
-
-
-
 
     if (!user || !user.role) {
       navigate("/login");
       return;
     }
 
-
-
-
     setRole(user.role);
     setCurrentUser(user);
-
-
-
 
 const storedTab = sessionStorage.getItem("activeTab");
 if (storedTab === "Retention" || storedTab === "Analytics") {
   setActiveTab(storedTab);
 }
-
-
-
-
-
 
     // check if we are impersonating
     const originalStr = sessionStorage.getItem("originalUser");
@@ -81,24 +53,15 @@ if (storedTab === "Retention" || storedTab === "Analytics") {
     }
   }, [navigate]);
 
-
-
-
   const switchTab = (tabName) => {
     setActiveTab(tabName);
     sessionStorage.setItem("activeTab", tabName);
   };
 
-
-
-
   // FRONT-END ONLY revert: restore originalUser from sessionStorage
   const handleRevert = () => {
     try {
       setRevertLoading(true);
-
-
-
 
       const originalStr = sessionStorage.getItem("originalUser");
       if (!originalStr) {
@@ -107,27 +70,14 @@ if (storedTab === "Retention" || storedTab === "Analytics") {
         return;
       }
 
-
-
-
       const original = JSON.parse(originalStr);
-
-
-
 
       // restore real user
       sessionStorage.setItem("user", JSON.stringify(original));
 
-
-
-
       // clear impersonation so button disappears and you can switch to others again
       sessionStorage.removeItem("originalUser");
       sessionStorage.removeItem("switchMeta");
-
-
-
-
       // full reload so entire app picks up correct user
       window.location.reload();
     } catch (e) {
@@ -136,18 +86,10 @@ if (storedTab === "Retention" || storedTab === "Analytics") {
     }
   };
 
-
-
-
   if (!role) return <div>Loading...</div>;
 
-
-
-
   return (
-  <div>
-    {/* This bar ONLY appears if someone came here via SwitchDashboard
-        -> i.e. originalUser exists in sessionStorage */}
+  <div> 
     {isImpersonating && originalUser && (
       <Box
         sx={{
@@ -360,22 +302,9 @@ if (storedTab === "Retention" || storedTab === "Analytics") {
     {/* {role === "Team Leader" && <TeamLeaderDashboardRetentionOnly />} */}
     {role === "Finance" && <FinanceDashboard />}
     {role === "Operations" && <OperationsDashboard />}
+    {role === "Marketing" && <MarketingDashboard />}
   </div>
 );
-
-
 };
 
-
-
-
 export default SalesDashboard;
-
-
-
-
-
-
-
-
-

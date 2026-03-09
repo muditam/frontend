@@ -50,8 +50,7 @@ const LoginPage = () => {
         // Get role (string or array-safe)
         const role = user.role;
         const hasMarketingOrDevRole = Array.isArray(role)
-          ? role.includes("Marketing") || role.includes("Developer")
-          : role === "Marketing" || role === "Developer";
+          ? role.includes("Developer") : role === "Developer";
 
         // Redirect based on role
         if (hasMarketingOrDevRole) {
