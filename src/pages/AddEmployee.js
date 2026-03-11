@@ -114,6 +114,27 @@ const DEFAULT_PERMISSIONS = {
     editPage: false,
     postPage: false,
 
+    OthervideoMenu: false,
+    OthercutPage: false,
+    OtherscriptPage: false,
+    OthershootPage: false,
+    OthereditPage: false,
+    OtherpostPage: false,
+
+    StaticCarouselMenu: false,
+    StaticCarouselcutPage: false,
+    StaticCarouselscriptPage: false,
+    StaticCarouselshootPage: false,
+    StaticCarouseleditPage: false,
+    StaticCarouselpostPage: false,
+
+    adsMenu: false,
+    adscutPage: false,
+    adsscriptPage: false,
+    adsshootPage: false,
+    adseditPage: false,
+    adspostPage: false,
+
     // Finance – Orders / Remittance / Records
     financeOrderSummary: false,
     financePrepaidRemittanceMenu: false,
@@ -1494,6 +1515,95 @@ const AddEmployee = () => {
                 ))}
               </Box>
 
+              <Typography
+                variant="caption"
+                sx={{ fontWeight: 600, mt: 1 }}
+              >
+                Other Video
+              </Typography>
+              <Box sx={{ display: "flex", flexDirection: "column" }}>
+                {[
+                  ["OthervideoMenu", "Other Video Menu"],
+                  ["OthercutPage", "Cut Page"],
+                  ["OtherscriptPage", "Script Page"],
+                  ["OthershootPage", "Shoot Page"],
+                  ["OthereditPage", "Edit Page"],
+                  ["OtherpostPage", "Post Page"],
+                ].map(([key, label]) => (
+                  <FormControlLabel
+                    key={key}
+                    control={
+                      <Checkbox
+                        checked={!!permissionValues.menubar[key]}
+                        onChange={() =>
+                          handlePermissionToggle("menubar", key)
+                        }
+                      />
+                    }
+                    label={label}
+                  />
+                ))}
+              </Box> 
+
+              <Typography
+                variant="caption"
+                sx={{ fontWeight: 600, mt: 1 }}
+              >
+                Static / Carousel
+              </Typography>
+              <Box sx={{ display: "flex", flexDirection: "column" }}>
+                {[
+                  ["StaticCarouselMenu", "Static / Carousel Menu"],
+                  ["StaticCarouselcutPage", "Cut Page"],
+                  ["StaticCarouselscriptPage", "Script Page"],
+                  ["StaticCarouselshootPage", "Shoot Page"],
+                  ["StaticCarouseleditPage", "Edit Page"],
+                  ["StaticCarouselpostPage", "Post Page"],
+                ].map(([key, label]) => (
+                  <FormControlLabel
+                    key={key}
+                    control={
+                      <Checkbox
+                        checked={!!permissionValues.menubar[key]}
+                        onChange={() =>
+                          handlePermissionToggle("menubar", key)
+                        }
+                      />
+                    }
+                    label={label}
+                  />
+                ))}
+              </Box>
+
+              <Typography
+                variant="caption"
+                sx={{ fontWeight: 600, mt: 1 }}
+              >
+                Ads
+              </Typography>
+              <Box sx={{ display: "flex", flexDirection: "column" }}>
+                {[
+                  ["adsMenu", "Ads Menu"],
+                  ["adscutPage", "Cut Page"],
+                  ["adsscriptPage", "Script Page"],
+                  ["adsshootPage", "Shoot Page"],
+                  ["adseditPage", "Edit Page"],
+                  ["adspostPage", "Post Page"],
+                ].map(([key, label]) => (
+                  <FormControlLabel
+                    key={key}
+                    control={
+                      <Checkbox
+                        checked={!!permissionValues.menubar[key]}
+                        onChange={() =>
+                          handlePermissionToggle("menubar", key)
+                        }
+                      />
+                    }
+                    label={label}
+                  />
+                ))}
+              </Box>
 
               <Typography
                 variant="caption"

@@ -94,6 +94,21 @@ import Postpage from './Marketing/Postpage';
 import Editpage from './Marketing/Editpage';
 import Scriptpage from './Marketing/Scriptpage';
 import ShootPage from "./Marketing/Shootpage"; 
+import OtherVideoIdeationPage from "./Marketing/othervideo/OtherVideoIdeationPage"; 
+import OtherVideoShootPage from "./Marketing/othervideo/OtherVideoShootPage";
+import OtherVideoCutPage from "./Marketing/othervideo/OtherVideoCutPage";
+import OtherVideoEditPage from "./Marketing/othervideo/OtherVideoEditPage";
+import OtherVideoPostPage from "./Marketing/othervideo/OtherVideoPostPage";
+import StaticCarouselIdeationPage from "./Marketing/staticCarousel/StaticCarouselIdeationPage";
+import StaticCarouselShootPage from "./Marketing/staticCarousel/StaticCarouselShootPage";
+import StaticCarouselCutPage from "./Marketing/staticCarousel/StaticCarouselCutPage";
+import StaticCarouselEditPage from "./Marketing/staticCarousel/StaticCarouselEditPage";
+import StaticCarouselPostPage from "./Marketing/staticCarousel/StaticCarouselPostPage";
+import AdsIdeationPage from "./Marketing/ads/AdsIdeationPage";
+import AdsShootPage from "./Marketing/ads/AdsShootPage";
+import AdsCutPage from "./Marketing/ads/AdsCutPage";
+import AdsEditPage from "./Marketing/ads/AdsEditPage";
+import AdsPostPage from "./Marketing/ads/AdsPostPage";
 
 const App = () => {
   return (
@@ -127,9 +142,22 @@ const App = () => {
           <Route path="/vendors" element={<Vendors />} />
           <Route path="/super-admin-analytics" element={<SuperAdminAnalytics />} /> 
           <Route path="/abandoned-analytics" element={<AbandonedAnalyticsPage />} />
-          
           <Route path="/whatsaap/chat" element={<WhatsAppUI />} />
-          
+          <Route path="/OtherVideo/Ideation" element={<OtherVideoIdeationPage />} />
+          <Route path="/OtherVideo/Shoot" element={<OtherVideoShootPage />} />
+          <Route path="/OtherVideo/Cut" element={<OtherVideoCutPage />} />
+          <Route path="/OtherVideo/Edit" element={<OtherVideoEditPage />} />
+          <Route path="/OtherVideo/Post" element={<OtherVideoPostPage />} />
+          <Route path="/staticCarousel/Ideation" element={<StaticCarouselIdeationPage />} />
+          <Route path="/staticCarousel/Shoot" element={<StaticCarouselShootPage />} />
+          <Route path="/staticCarousel/Cut" element={<StaticCarouselCutPage />} />
+          <Route path="/staticCarousel/Edit" element={<StaticCarouselEditPage />} />
+          <Route path="/staticCarousel/Post" element={<StaticCarouselPostPage />} />
+          <Route path="/Ads/Ideation" element={<AdsIdeationPage />} />
+          <Route path="/Ads/Shoot" element={<AdsShootPage />} />
+          <Route path="/Ads/Cut" element={<AdsCutPage />} />
+          <Route path="/Ads/Edit" element={<AdsEditPage />} />
+          <Route path="/Ads/Post" element={<AdsPostPage />} />
 
           <Route
             path="/"

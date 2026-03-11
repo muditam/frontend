@@ -47,6 +47,7 @@ import {
   ChatBubbleOutline as CommentIcon,
   RestartAlt as ResetIcon,
   Search as SearchIcon,
+  Link as LinkIcon,
 } from "@mui/icons-material";
 
 // ─────────────────────────────────────────────────────────────
@@ -124,6 +125,12 @@ function normalizeScriptText(raw = "") {
 function previewText(raw = "", max = 140) {
   const txt = normalizeScriptText(raw).replace(/\s+/g, " ").trim();
   return txt.length > max ? txt.slice(0, max) + "…" : txt;
+}
+
+function getSafeExternalUrl(url = "") {
+  const v = String(url || "").trim();
+  if (!v) return "";
+  return /^https?:\/\//i.test(v) ? v : `https://${v}`;
 }
 
 async function uploadFilesToWasabi(files, authHeaders, onProgress) {
@@ -1201,9 +1208,19 @@ export default function EditPage() {
 
                           <TableCell sx={{ ...tdSx, maxWidth: 220 }}>
                             <Stack direction="row" alignItems="center" spacing={0.5}>
-                              <Typography sx={{ fontSize: "0.85rem", color: "#4b5563", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>
+                              <Typography
+                                sx={{
+                                  fontSize: "0.85rem",
+                                  color: "#4b5563",
+                                  overflow: "hidden",
+                                  textOverflow: "ellipsis",
+                                  whiteSpace: "nowrap",
+                                  flex: 1,
+                                }}
+                              >
                                 {previewText(s.scriptText, 160)}
                               </Typography>
+
                               <Tooltip title="View Full Script">
                                 <IconButton
                                   size="small"
@@ -1216,6 +1233,18 @@ export default function EditPage() {
                                   <ViewIcon sx={{ fontSize: 16 }} />
                                 </IconButton>
                               </Tooltip>
+
+                              {s.referenceLink && (
+                                <Tooltip title="Open Reference Link">
+                                  <IconButton
+                                    size="small"
+                                    onClick={() => window.open(getSafeExternalUrl(s.referenceLink), "_blank", "noopener,noreferrer")}
+                                    sx={{ color: "#6b7280", "&:hover": { color: "#4f46e5", bgcolor: "#eef2ff" } }}
+                                  >
+                                    <LinkIcon sx={{ fontSize: 16 }} />
+                                  </IconButton>
+                                </Tooltip>
+                              )}
                             </Stack>
                           </TableCell>
 
@@ -1355,9 +1384,19 @@ export default function EditPage() {
 
                           <TableCell sx={{ ...tdSx, maxWidth: 200 }}>
                             <Stack direction="row" alignItems="center" spacing={0.5}>
-                              <Typography sx={{ fontSize: "0.85rem", color: "#4b5563", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>
+                              <Typography
+                                sx={{
+                                  fontSize: "0.85rem",
+                                  color: "#4b5563",
+                                  overflow: "hidden",
+                                  textOverflow: "ellipsis",
+                                  whiteSpace: "nowrap",
+                                  flex: 1,
+                                }}
+                              >
                                 {previewText(s.scriptText, 160)}
                               </Typography>
+
                               <Tooltip title="View Full Script">
                                 <IconButton
                                   size="small"
@@ -1370,6 +1409,18 @@ export default function EditPage() {
                                   <ViewIcon sx={{ fontSize: 16 }} />
                                 </IconButton>
                               </Tooltip>
+
+                              {s.referenceLink && (
+                                <Tooltip title="Open Reference Link">
+                                  <IconButton
+                                    size="small"
+                                    onClick={() => window.open(getSafeExternalUrl(s.referenceLink), "_blank", "noopener,noreferrer")}
+                                    sx={{ color: "#6b7280", "&:hover": { color: "#4f46e5", bgcolor: "#eef2ff" } }}
+                                  >
+                                    <LinkIcon sx={{ fontSize: 16 }} />
+                                  </IconButton>
+                                </Tooltip>
+                              )}
                             </Stack>
                           </TableCell>
 

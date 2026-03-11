@@ -39,6 +39,8 @@ import AnalyticsIcon from "@mui/icons-material/Analytics";
 import AssignmentTurnedInIcon from "@mui/icons-material/AssignmentTurnedIn";
 import QueryStatsIcon from "@mui/icons-material/QueryStats";
 import CampaignIcon from "@mui/icons-material/Campaign";
+import VideoLibraryIcon from "@mui/icons-material/VideoLibrary";
+import ViewCarouselIcon from "@mui/icons-material/ViewCarousel";
 import { Link, useNavigate } from "react-router-dom";
 
 const MenuBar = ({ toggleDrawer }) => {
@@ -990,15 +992,15 @@ const MenuBar = ({ toggleDrawer }) => {
               unmountOnExit
             >
               <List sx={nestedListStyle}>
-                {can("cutPage") && (
+                {can("scriptPage") && (
                   <ListItem
                     button
                     component={Link}
-                    to="/marketing/cut"
+                    to="/marketing/script"
                     onClick={toggleDrawer}
                   >
                     <Typography variant="body2" sx={{ fontSize: "13px" }}>
-                      Cut
+                      Script
                     </Typography>
                   </ListItem>
                 )}
@@ -1014,6 +1016,19 @@ const MenuBar = ({ toggleDrawer }) => {
                     </Typography>
                   </ListItem>
                 )}
+                {can("cutPage") && (
+                  <ListItem
+                    button
+                    component={Link}
+                    to="/marketing/cut"
+                    onClick={toggleDrawer}
+                  >
+                    <Typography variant="body2" sx={{ fontSize: "13px" }}>
+                      Cut
+                    </Typography>
+                  </ListItem>
+                )}
+                
                 {can("editPage") && (
                   <ListItem
                     button
@@ -1026,11 +1041,54 @@ const MenuBar = ({ toggleDrawer }) => {
                     </Typography>
                   </ListItem>
                 )}
-                {can("scriptPage") && (
+                {can("postPage") && (
                   <ListItem
                     button
                     component={Link}
-                    to="/marketing/script"
+                    to="/marketing/post"
+                    onClick={toggleDrawer}
+                  >
+                    <Typography variant="body2" sx={{ fontSize: "13px" }}>
+                      Post
+                    </Typography>
+                  </ListItem>
+                )}
+              </List>
+            </Collapse>
+          </>
+        )}
+
+        {user && can("OthervideoMenu") && (
+          <>
+            <ListItem
+              button
+              onClick={() => handleDropdownClick("othervideoDropdown")}
+              sx={dropdownStyle}
+            >
+              <Box sx={{ display: "flex", alignItems: "center" }}>
+                <VideoLibraryIcon sx={{ fontSize: 18, marginRight: "8px" }} />
+                <Typography variant="body1" sx={{ fontSize: "14px" }}>
+                  Other Video
+                </Typography>
+              </Box>
+              {openDropdown.othervideoDropdown ? (
+                <KeyboardArrowDownIcon />
+              ) : (
+                <KeyboardArrowRightIcon />
+              )}
+            </ListItem>
+
+            <Collapse
+              in={openDropdown.othervideoDropdown}
+              timeout="auto"
+              unmountOnExit
+            >
+              <List sx={nestedListStyle}>
+                {can("OtherscriptPage") && (
+                  <ListItem
+                    button
+                    component={Link}
+                    to="/OtherVideo/Ideation"
                     onClick={toggleDrawer}
                   >
                     <Typography variant="body2" sx={{ fontSize: "13px" }}>
@@ -1038,11 +1096,232 @@ const MenuBar = ({ toggleDrawer }) => {
                     </Typography>
                   </ListItem>
                 )}
-                {can("postPage") && (
+                {can("OthershootPage") && (
                   <ListItem
                     button
                     component={Link}
-                    to="/marketing/post"
+                    to="/OtherVideo/shoot"
+                    onClick={toggleDrawer}
+                  >
+                    <Typography variant="body2" sx={{ fontSize: "13px" }}>
+                      Shoot
+                    </Typography>
+                  </ListItem>
+                )}
+                {can("OthercutPage") && (
+                  <ListItem
+                    button
+                    component={Link}
+                    to="/OtherVideo/cut"
+                    onClick={toggleDrawer}
+                  >
+                    <Typography variant="body2" sx={{ fontSize: "13px" }}>
+                      Cut
+                    </Typography>
+                  </ListItem>
+                )}
+                
+                {can("OthereditPage") && (
+                  <ListItem
+                    button
+                    component={Link}
+                    to="/OtherVideo/edit"
+                    onClick={toggleDrawer}
+                  >
+                    <Typography variant="body2" sx={{ fontSize: "13px" }}>
+                      Edit
+                    </Typography>
+                  </ListItem>
+                )}
+                {can("OtherpostPage") && (
+                  <ListItem
+                    button
+                    component={Link}
+                    to="/OtherVideo/post"
+                    onClick={toggleDrawer}
+                  >
+                    <Typography variant="body2" sx={{ fontSize: "13px" }}>
+                      Post
+                    </Typography>
+                  </ListItem>
+                )}
+              </List>
+            </Collapse>
+          </>
+        )}
+
+        {user && can("StaticCarouselMenu") && (
+          <>
+            <ListItem
+              button
+              onClick={() => handleDropdownClick("StaticCarouselDropdown")}
+              sx={dropdownStyle}
+            >
+              <Box sx={{ display: "flex", alignItems: "center" }}>
+                <ViewCarouselIcon sx={{ fontSize: 18, marginRight: "8px" }} />
+                <Typography variant="body1" sx={{ fontSize: "14px" }}>
+                  Static Carousel
+                </Typography>
+              </Box>
+              {openDropdown.StaticCarouselDropdown ? (
+                <KeyboardArrowDownIcon />
+              ) : (
+                <KeyboardArrowRightIcon />
+              )}
+            </ListItem>
+
+            <Collapse
+              in={openDropdown.StaticCarouselDropdown}
+              timeout="auto"
+              unmountOnExit
+            >
+              <List sx={nestedListStyle}>
+                {can("StaticCarouselscriptPage") && (
+                  <ListItem
+                    button
+                    component={Link}
+                    to="/staticCarousel/Ideation"
+                    onClick={toggleDrawer}
+                  >
+                    <Typography variant="body2" sx={{ fontSize: "13px" }}>
+                      Script
+                    </Typography>
+                  </ListItem>
+                )}
+                {can("StaticCarouselshootPage") && (
+                  <ListItem
+                    button
+                    component={Link}
+                    to="/staticCarousel/shoot"
+                    onClick={toggleDrawer}
+                  >
+                    <Typography variant="body2" sx={{ fontSize: "13px" }}>
+                      Shoot
+                    </Typography>
+                  </ListItem>
+                )}
+                {can("StaticCarouselcutPage") && (
+                  <ListItem
+                    button
+                    component={Link}
+                    to="/staticCarousel/cut"
+                    onClick={toggleDrawer}
+                  >
+                    <Typography variant="body2" sx={{ fontSize: "13px" }}>
+                      Cut
+                    </Typography>
+                  </ListItem>
+                )}
+                
+                {can("StaticCarouseleditPage") && (
+                  <ListItem
+                    button
+                    component={Link}
+                    to="/staticCarousel/edit"
+                    onClick={toggleDrawer}
+                  >
+                    <Typography variant="body2" sx={{ fontSize: "13px" }}>
+                      Edit
+                    </Typography>
+                  </ListItem>
+                )}
+                {can("StaticCarouselpostPage") && (
+                  <ListItem
+                    button
+                    component={Link}
+                    to="/staticCarousel/post"
+                    onClick={toggleDrawer}
+                  >
+                    <Typography variant="body2" sx={{ fontSize: "13px" }}>
+                      Post
+                    </Typography>
+                  </ListItem>
+                )}
+              </List>
+            </Collapse>
+          </>
+        )}
+
+        {user && can("adsMenu") && (
+          <>
+            <ListItem
+              button
+              onClick={() => handleDropdownClick("AdsDropdown")}
+              sx={dropdownStyle}
+            >
+              <Box sx={{ display: "flex", alignItems: "center" }}>
+                <ViewCarouselIcon sx={{ fontSize: 18, marginRight: "8px" }} />
+                <Typography variant="body1" sx={{ fontSize: "14px" }}>
+                  Ads
+                </Typography>
+              </Box>
+              {openDropdown.AdsDropdown ? (
+                <KeyboardArrowDownIcon />
+              ) : (
+                <KeyboardArrowRightIcon />
+              )}
+            </ListItem>
+
+            <Collapse
+              in={openDropdown.AdsDropdown}
+              timeout="auto"
+              unmountOnExit
+            >
+              <List sx={nestedListStyle}>
+                {can("adsscriptPage") && (
+                  <ListItem
+                    button
+                    component={Link}
+                    to="/Ads/Ideation"
+                    onClick={toggleDrawer}
+                  >
+                    <Typography variant="body2" sx={{ fontSize: "13px" }}>
+                      Script
+                    </Typography>
+                  </ListItem>
+                )}
+                {can("adsshootPage") && (
+                  <ListItem
+                    button
+                    component={Link}
+                    to="/Ads/shoot"
+                    onClick={toggleDrawer}
+                  >
+                    <Typography variant="body2" sx={{ fontSize: "13px" }}>
+                      Shoot
+                    </Typography>
+                  </ListItem>
+                )}
+                {can("adscutPage") && (
+                  <ListItem
+                    button
+                    component={Link}
+                    to="/Ads/cut"
+                    onClick={toggleDrawer}
+                  >
+                    <Typography variant="body2" sx={{ fontSize: "13px" }}>
+                      Cut
+                    </Typography>
+                  </ListItem>
+                )}
+                
+                {can("adseditPage") && (
+                  <ListItem
+                    button
+                    component={Link}
+                    to="/Ads/edit"
+                    onClick={toggleDrawer}
+                  >
+                    <Typography variant="body2" sx={{ fontSize: "13px" }}>
+                      Edit
+                    </Typography>
+                  </ListItem>
+                )}
+                {can("adspostPage") && (
+                  <ListItem
+                    button
+                    component={Link}
+                    to="/Ads/post"
                     onClick={toggleDrawer}
                   >
                     <Typography variant="body2" sx={{ fontSize: "13px" }}>

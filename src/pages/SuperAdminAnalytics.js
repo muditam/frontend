@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import {
   Box,
   Typography,
@@ -27,7 +27,7 @@ import {
   TableContainer,
   Skeleton,
   Tooltip as MuiTooltip,
-    ToggleButton,
+  ToggleButton,
   ToggleButtonGroup,
 } from "@mui/material";
 import {
@@ -150,7 +150,7 @@ function formatHourlyLabel(timeStr) {
   if (!timeStr) return '';
   const [hour] = timeStr.split(':');
   const h = parseInt(hour);
-  
+
   if (h === 0) return '12am';
   if (h < 12) return `${h}am`;
   if (h === 12) return '12pm';
@@ -212,33 +212,71 @@ function getSmartTicks(dataLength, isSingle) {
   return [];
 }
 
-const RANGE_OPTIONS = ["Today", "Yesterday", "Last 7 Days", "Last 30 Days", "Custom Range"];
+const RANGE_OPTIONS = ["Today", "Yesterday", "Last Week", "Last Month", "Last 7 Days", "Last 30 Days", "Custom Range"];
 const COMMON_COLORS = ['#2C5F6F', '#3A8F9F', '#5FB8A8', '#80CBC4'];
 
 function formatDate(d) {
-  return new Date(d).toISOString().split("T")[0];
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
+
+
 function getRange(preset) {
   const today = new Date();
   const todayStr = formatDate(today);
+
   switch (preset) {
     case "Today":
       return { start: todayStr, end: todayStr };
+
     case "Yesterday": {
-      let d = new Date();
+      const d = new Date();
       d.setDate(d.getDate() - 1);
       return { start: formatDate(d), end: formatDate(d) };
     }
+
+    case "Last Week": {
+      // Sun–Sat cycle
+      // If today is Wednesday Feb 11 → Last week = Feb 1 (Sun) to Feb 7 (Sat)
+      const d = new Date();
+      const dayOfWeek = d.getDay(); // 0=Sun, 6=Sat
+
+      // Go back to last Saturday
+      const lastSat = new Date(d);
+      lastSat.setDate(d.getDate() - dayOfWeek - 1);
+
+      // Go back to Sunday before that Saturday
+      const lastSun = new Date(lastSat);
+      lastSun.setDate(lastSat.getDate() - 6);
+
+      return { start: formatDate(lastSun), end: formatDate(lastSat) };
+    }
+
+    case "Last Month": {
+      const d = new Date();
+      const year = d.getMonth() === 0 ? d.getFullYear() - 1 : d.getFullYear();
+      const month = d.getMonth() === 0 ? 11 : d.getMonth() - 1; // previous month, 0-indexed
+
+      const firstDay = new Date(year, month, 1);      // 1st of last month
+      const lastDay = new Date(year, month + 1, 0);  // last day of last month (30/31/28/29)
+
+      return { start: formatDate(firstDay), end: formatDate(lastDay) };
+    }
+
     case "Last 7 Days": {
-      let d = new Date();
+      const d = new Date();
       d.setDate(d.getDate() - 6);
       return { start: formatDate(d), end: todayStr };
     }
+
     case "Last 30 Days": {
-      let d = new Date();
+      const d = new Date();
       d.setDate(d.getDate() - 29);
       return { start: formatDate(d), end: todayStr };
     }
+
     default:
       return { start: todayStr, end: todayStr };
   }
@@ -695,7 +733,6 @@ const normalizeEscalationStats = (raw = {}) => ({
   open: num(raw.open ?? raw.openCount ?? raw.totalOpen ?? raw?.counts?.open ?? raw?.open?.count),
   closed: num(raw.closed ?? raw.closedCount ?? raw.totalClosed ?? raw?.counts?.closed ?? raw?.closed?.count),
 });
-
 const normalizeFunnelStats = (raw = {}) => ({
   totalOrders: num(raw.totalOrders ?? raw.total ?? raw.orders ?? raw?.total?.count),
   fulfilled: {
@@ -709,6 +746,15 @@ const normalizeFunnelStats = (raw = {}) => ({
   rto: {
     count: num(raw.rto?.count ?? raw.rtoCount ?? raw.rto ?? raw?.counts?.rto),
     percentage: num(raw.rto?.percentage ?? raw.rtoPct),
+    breakdown: raw.rto?.breakdown || { rto: 0, rtoDelivered: 0 },
+  },
+  notDispatched: {          // 👈 ADD THIS
+    count: num(raw.notDispatched?.count ?? 0),
+    percentage: num(raw.notDispatched?.percentage ?? 0),
+  },
+  inTransit: {              // 👈 ADD THIS
+    count: num(raw.inTransit?.count ?? 0),
+    percentage: num(raw.inTransit?.percentage ?? 0),
   },
 });
 
@@ -755,13 +801,11 @@ function AverageOrderValueCard({
   const isSingle = isSingleDay(start, end);
 
   const safeDateLabel = (v) => {
-    // if backend already returns "Feb 12" etc, keep it
     if (!v) return "";
-    if (String(v).includes("-")) return formatDateLabel(String(v)); // YYYY-MM-DD
+    if (String(v).includes("-")) return formatDateLabel(String(v));
     return String(v);
   };
 
-  // ✅ show all days for <= 14 points; single-day show ~6-8 labels max
   const getXAxisInterval = (len) => {
     if (!len) return 0;
 
@@ -822,8 +866,8 @@ function AverageOrderValueCard({
       previous:
         data.previous.length > 0
           ? Number(
-              (data.previous.reduce((s, v) => s + v, 0) / data.previous.length).toFixed(2)
-            )
+            (data.previous.reduce((s, v) => s + v, 0) / data.previous.length).toFixed(2)
+          )
           : null,
     }));
   };
@@ -1066,221 +1110,138 @@ function LostCustomersCard({ lost }) {
 }
 
 
-function OrdersFunnelCard({ data }) {
-  
- 
-
-
+function OrdersFunnelCard({ data, cancelledOrders = 0 }) {
   const funnelData = [
-    { 
-      name: 'Total Orders', 
-      value: data?.totalOrders || 0,
-      color: '#2C5F6F',
-      showCount: true
-    },
-    { 
-      name: 'Fulfilled', 
-      value: data?.fulfilled?.count || 0,
-      color: '#3A8F9F',
-      showCount: true
-    },
-    { 
-      name: 'Delivered', 
-      value: data?.delivered?.count || 0,
-      color: '#5FB8A8',
-      showCount: true,
-      independent: true // Mark as date-independent
-    },
-    { 
-      name: 'RTO', 
-      value: data?.rto?.count || 0,
-      color: '#E57373',
-      showCount: true,
-      independent: true, // Mark as date-independent
+    { name: 'Total Orders', value: data?.totalOrders || 0, color: '#2C5F6F' },
+    { name: 'Fulfilled', value: data?.fulfilled?.count || 0, color: '#3A8F9F' },
+    { name: 'Delivered', value: data?.delivered?.count || 0, color: '#5FB8A8' },
+    {
+      name: 'RTO', value: data?.rto?.count || 0, color: '#E57373',
       tooltip: `RTO: ${data?.rto?.breakdown?.rto || 0} | RTO Delivered: ${data?.rto?.breakdown?.rtoDelivered || 0}`
     }
   ];
 
-  const formatLabel = (name, value, width) => {
-    const fullText = `${name}: ${value.toLocaleString()}`;
-
-    if (width < 150 || name.length > 12) {
-      return {
-        split: true,
-        line1: name + ':',
-        line2: value.toLocaleString()
-      };
-    }
-
-    return { split: false, text: fullText };
-  };
-
   return (
     <Card sx={{ p: 3, borderRadius: 3 }}>
-      <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
-        <Typography sx={{ fontWeight: 700, fontSize: 18 }}>
-          Orders Funnel
-        </Typography>
-        
-      
-      </Stack>
+      <Typography sx={{ fontWeight: 700, fontSize: 18, mb: 2 }}>Orders Funnel</Typography>
 
-      <Box sx={{ display: 'flex', justifyContent: 'center' }}>
-        <svg
-          viewBox="0 0 300 350"
-          style={{
-            width: '100%',
-            maxWidth: '400px',
-            height: 'auto',
-            filter: 'drop-shadow(0 4px 6px rgba(0,0,0,0.1))'
-          }}
-        >
-          {funnelData.map((item, index) => {
-            const topWidth = 280 - (index * 45);
-            const bottomWidth = 280 - ((index + 1) * 45);
-            const height = 80;
-            const y = index * height;
+      <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2 }}>
+        {/* LEFT: Funnel */}
+        <Box sx={{ flex: 1 }}>
+          <Box sx={{ display: 'flex', justifyContent: 'center' }}>
+            <svg viewBox="0 0 300 350" style={{
+              width: '100%', maxWidth: '360px', height: 'auto',
+              filter: 'drop-shadow(0 4px 6px rgba(0,0,0,0.1))'
+            }}>
+              {funnelData.map((item, index) => {
+                const topWidth = 280 - (index * 45);
+                const bottomWidth = 280 - ((index + 1) * 45);
+                const height = 80;
+                const y = index * height;
+                const leftX = (300 - topWidth) / 2;
+                const rightX = leftX + topWidth;
+                const bottomLeftX = (300 - bottomWidth) / 2;
+                const bottomRightX = bottomLeftX + bottomWidth;
+                const avgWidth = (topWidth + bottomWidth) / 2;
+                const fontSize = avgWidth > 150 ? 14 : 12;
 
-            const avgWidth = (topWidth + bottomWidth) / 2;
-            const leftX = (300 - topWidth) / 2;
-            const rightX = leftX + topWidth;
-            const bottomLeftX = (300 - bottomWidth) / 2;
-            const bottomRightX = bottomLeftX + bottomWidth;
-
-            const label = formatLabel(item.name, item.value, avgWidth);
-            const fontSize = avgWidth > 150 ? 14 : 12;
-
-            return (
-              <g key={index}>
-                {/* Trapezoid Shape */}
-                <path
-                  d={`M ${leftX} ${y}
-                      L ${rightX} ${y}
-                      L ${bottomRightX} ${y + height}
-                      L ${bottomLeftX} ${y + height} Z`}
-                  fill={item.color}
-                  opacity="0.9"
-                  stroke="white"
-                  strokeWidth="2"
-                />
-
-                {/* Text Label */}
-                {label.split ? (
-                  <>
-                    <text
-                      x="150"
-                      y={y + height / 2 - 8}
-                      textAnchor="middle"
-                      style={{ 
-                        fontSize, 
-                        fontWeight: 700, 
-                        fill: '#fff',
-                        fontFamily: 'Arial, sans-serif'
-                      }}
-                    >
-                      {label.line1}
+                return (
+                  <g key={index}>
+                    <path
+                      d={`M ${leftX} ${y} L ${rightX} ${y} L ${bottomRightX} ${y + height} L ${bottomLeftX} ${y + height} Z`}
+                      fill={item.color} opacity="0.9" stroke="white" strokeWidth="2"
+                    />
+                    <text x="150" y={y + height / 2 - 7} textAnchor="middle"
+                      style={{ fontSize, fontWeight: 700, fill: '#fff', fontFamily: 'Arial, sans-serif' }}>
+                      {item.name}:
                     </text>
-                    <text
-                      x="150"
-                      y={y + height / 2 + 8}
-                      textAnchor="middle"
-                      style={{ 
-                        fontSize, 
-                        fontWeight: 700, 
-                        fill: '#fff',
-                        fontFamily: 'Arial, sans-serif'
-                      }}
-                    >
-                      {label.line2}
-                    </text>
-                  </>
-                ) : (
-                  <text
-                    x="150"
-                    y={y + height / 2 + 5}
-                    textAnchor="middle"
-                    style={{ 
-                      fontSize, 
-                      fontWeight: 700, 
-                      fill: '#fff',
-                      fontFamily: 'Arial, sans-serif'
-                    }}
-                  >
-                    {label.text}
-                  </text>
-                )}
-
-                {/* Show indicator for independent metrics */}
-                {item.independent && (
-                  <text
-                    x="150"
-                    y={y + height - 12}
-                    textAnchor="middle"
-                    style={{ 
-                      fontSize: 10, 
-                      fill: '#fff', 
-                      opacity: 0.8,
-                      fontFamily: 'Arial, sans-serif',
-                      fontStyle: 'italic'
-                    }}
-                  >
-                    
-                  </text>
-                )}
-              </g>
-            );
-          })}
-        </svg>
-      </Box>
-
-      {/* Legend with Breakdown - NO PERCENTAGES */}
-      <Box sx={{ mt: 3, p: 2, bgcolor: '#F5F5F5', borderRadius: 2 }}>
-        <Grid container spacing={2}>
-          {funnelData.map((item, i) => (
-            <Grid item xs={6} sm={3} key={i}>
-              <MuiTooltip 
-                title={item.tooltip || ''}
-                placement="top"
-                arrow
-              >
-                <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
-                  <Box 
-                    sx={{ 
-                      width: 12, 
-                      height: 12, 
-                      borderRadius: '2px',
-                      bgcolor: item.color,
-                      mt: 0.5,
-                      flexShrink: 0
-                    }} 
-                  />
-                  <Box sx={{ flex: 1 }}>
-                    <Typography sx={{ 
-                      fontSize: 11, 
-                      color: 'text.secondary', 
-                      fontWeight: 500,
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 0.5
-                    }}>
-                      {item.name}
-                      {item.independent && (
-                        <span style={{ fontSize: 10, opacity: 0.6 }}>⏱</span>
-                      )}
-                    </Typography>
-                    <Typography sx={{ fontSize: 16, fontWeight: 700 }}>
+                    <text x="150" y={y + height / 2 + 10} textAnchor="middle"
+                      style={{ fontSize: fontSize + 1, fontWeight: 800, fill: '#fff', fontFamily: 'Arial, sans-serif' }}>
                       {item.value.toLocaleString()}
-                    </Typography>
-                    {/* NO PERCENTAGE SHOWN */}
-                  </Box>
-                </Box>
-              </MuiTooltip>
+                    </text>
+                  </g>
+                );
+              })}
+            </svg>
+          </Box>
+
+          {/* Legend */}
+          <Box sx={{ mt: 2, p: 1.5, bgcolor: '#F5F5F5', borderRadius: 2 }}>
+            <Grid container spacing={1.5}>
+              {funnelData.map((item, i) => (
+                <Grid item xs={6} key={i}>
+                  <MuiTooltip title={item.tooltip || ''} placement="top" arrow>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <Box sx={{ width: 10, height: 10, borderRadius: '2px', bgcolor: item.color, flexShrink: 0 }} />
+                      <Box>
+                        <Typography sx={{ fontSize: 11, color: 'text.secondary', fontWeight: 500 }}>
+                          {item.name}
+                        </Typography>
+                        <Typography sx={{ fontSize: 15, fontWeight: 700 }}>
+                          {item.value.toLocaleString()}
+                        </Typography>
+                      </Box>
+                    </Box>
+                  </MuiTooltip>
+                </Grid>
+              ))}
             </Grid>
-          ))}
-        </Grid>
+          </Box>
+        </Box>
+
+        {/* RIGHT: Cancelled Orders Panel */}
+        <Box sx={{ width: 140, display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
+          <Box sx={{
+            p: 2, borderRadius: 3, bgcolor: '#FFF3E0',
+            border: '2px solid #FF9800', textAlign: 'center',
+            boxShadow: '0 2px 8px rgba(255,152,0,0.15)'
+          }}>
+            <Typography sx={{ fontSize: 11, fontWeight: 800, color: '#E65100', letterSpacing: 0.5, mb: 0.5 }}>
+              CANCELLED
+            </Typography>
+            <Typography sx={{ fontSize: 32, fontWeight: 900, color: '#BF360C', lineHeight: 1.1 }}>
+              {cancelledOrders.toLocaleString()}
+            </Typography>
+            <Typography sx={{ fontSize: 10, color: '#888', mt: 0.5 }}>
+              orders cancelled
+            </Typography>
+          </Box>
+
+          {/* Not Dispatched box */}
+          <Box sx={{
+            p: 2, borderRadius: 3, bgcolor: '#F3E5F5',
+            border: '2px solid #AB47BC', textAlign: 'center',
+            boxShadow: '0 2px 8px rgba(171,71,188,0.12)'
+          }}>
+            <Typography sx={{ fontSize: 11, fontWeight: 800, color: '#6A1B9A', letterSpacing: 0.5, mb: 0.5 }}>
+              NOT DISPATCHED
+            </Typography>
+            <Typography sx={{ fontSize: 32, fontWeight: 900, color: '#4A148C', lineHeight: 1.1 }}>
+              {(data?.notDispatched?.count || 0).toLocaleString()}
+            </Typography>
+            <Typography sx={{ fontSize: 10, color: '#888', mt: 0.5 }}>
+              pending dispatch
+            </Typography>
+          </Box>
+
+          {/* In Transit box */}
+          <Box sx={{
+            p: 2, borderRadius: 3, bgcolor: '#E3F2FD',
+            border: '2px solid #1976d2', textAlign: 'center',
+            boxShadow: '0 2px 8px rgba(25,118,210,0.12)'
+          }}>
+            <Typography sx={{ fontSize: 11, fontWeight: 800, color: '#0D47A1', letterSpacing: 0.5, mb: 0.5 }}>
+              IN TRANSIT
+            </Typography>
+            <Typography sx={{ fontSize: 32, fontWeight: 900, color: '#01579B', lineHeight: 1.1 }}>
+              {(data?.inTransit?.count || 0).toLocaleString()}
+            </Typography>
+            <Typography sx={{ fontSize: 10, color: '#888', mt: 0.5 }}>
+              with courier
+            </Typography>
+          </Box>
+        </Box>
       </Box>
-
-
     </Card>
   );
 }
@@ -1493,9 +1454,9 @@ function ComprehensiveSummaryTableIntegrated({ apiBase, start, end }) {
   if (!data) return null;
 
   const rows = [
-    { label: "Total Orders", data: data.total, color: "#2563EB", icon: "" },
-    { label: "Team Orders", data: data.team, color: "#DB2777", icon: "" },
-    { label: "Shopify Orders", data: data.shopify, color: "#16A34A", icon: "" },
+    { label: "Total Orders", data: data.total, color: "#2563EB", icon: "📊" },
+    { label: "Team Orders", data: data.team, color: "#DB2777", icon: "👥" },
+    { label: "Shopify Orders", data: data.shopify, color: "#16A34A", icon: "🛍️" },
   ];
 
   const headCellSx = {
@@ -1550,7 +1511,7 @@ function ComprehensiveSummaryTableIntegrated({ apiBase, start, end }) {
           >
             Comprehensive Order Analytics
           </Typography>
-   
+
         </Box>
 
         <Chip
@@ -1623,7 +1584,7 @@ function ComprehensiveSummaryTableIntegrated({ apiBase, start, end }) {
                       >
                         {row.icon} {row.label}
                       </Typography>
-               
+
                     </Box>
                   </Stack>
                 </TableCell>
@@ -1742,17 +1703,66 @@ function ComprehensiveSummaryTableIntegrated({ apiBase, start, end }) {
     </Card>
   );
 }
+const apiCache = new Map();
+const CACHE_TTL = 5 * 60 * 1000;
 
+function getCached(key) {
+  const entry = apiCache.get(key);
+  if (!entry) return null;
+  if (Date.now() - entry.ts > CACHE_TTL) {
+    apiCache.delete(key);
+    return null;
+  }
+  return entry.data;
+}
+function setCache(key, data) {
+  // Prevent Map from growing infinitely
+  if (apiCache.size > 100) {
+    const firstKey = apiCache.keys().next().value;
+    apiCache.delete(firstKey);
+  }
+  apiCache.set(key, { data, ts: Date.now() });
+}
+async function cachedGet(url, params, fallback) {
+  const key = url + JSON.stringify(params);
+  const cached = getCached(key);
+  if (cached) return cached;
+  try {
+    const res = await axios.get(url, { params });
+    const data = res.data ?? fallback;
+    setCache(key, data);
+    return data;
+  } catch (err) {
+    console.error("❌ API failed:", url, err?.response?.data || err.message);
+    return fallback;
+  }
+}
+function ShimmerCard({ height = 200 }) {
+  return (
+    <Skeleton
+      variant="rectangular"
+      height={height}
+      sx={{
+        borderRadius: 3,
+        bgcolor: "rgba(0,0,0,0.06)",
+        "&::after": {
+          background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent)",
+        },
+      }}
+      animation="wave"
+    />
+  );
+}
 export default function SuperAdminAnalytics() {
   const API = "https://muditamleads-14f32a10d7f7.herokuapp.com";
-  
+
   const [compareMode, setCompareMode] = useState("previous");
   const [compareStart, setCompareStart] = useState("");
   const [compareEnd, setCompareEnd] = useState("");
   const [useCustomCompare, setUseCustomCompare] = useState(false);
-const [compareDialogOpen, setCompareDialogOpen] = useState(false);
-const [tempCompareStart, setTempCompareStart] = useState("");
-const [tempCompareEnd, setTempCompareEnd] = useState("");
+  const [compareDialogOpen, setCompareDialogOpen] = useState(false);
+  const [tempCompareStart, setTempCompareStart] = useState("");
+  const [tempCompareEnd, setTempCompareEnd] = useState("");
   const [preset, setPreset] = useState("Today");
   const [customStart, setCustomStart] = useState("");
   const [customEnd, setCustomEnd] = useState("");
@@ -1763,7 +1773,6 @@ const [tempCompareEnd, setTempCompareEnd] = useState("");
   const [leadStats, setLeadStats] = useState({ totalLeads: 0 });
   const [loading, setLoading] = useState(false);
   const [deliveredStats, setDeliveredStats] = useState({ delivered: 0 });
-  const [callStats, setCallStats] = useState({ incoming: 0, outgoing: 0 });
   const [codStats, setCodStats] = useState({ totalCount: 0, totalAmount: 0 });
 
   const [rtoStats, setRtoStats] = useState({ rto: 0, rtoDelivered: 0 });
@@ -1781,7 +1790,7 @@ const [tempCompareEnd, setTempCompareEnd] = useState("");
     totalOrders: 0,
     confirmedOrders: 0,
   });
-  
+
 
 
   const [deliveredAgents, setDeliveredAgents] = useState([]);
@@ -1794,8 +1803,6 @@ const [tempCompareEnd, setTempCompareEnd] = useState("");
     active: true,
     lost: true
   });
-
-  
   const toggleLine = (lineKey) => {
     setVisibleLines(prev => ({
       ...prev,
@@ -1803,254 +1810,225 @@ const [tempCompareEnd, setTempCompareEnd] = useState("");
     }));
   };
 
-const [funnelStats, setFunnelStats] = useState({
-  totalOrders: 0,
-  fulfilled: { count: 0, percentage: 0 },
-  delivered: { count: 0, percentage: 0 },
-  rto: { count: 0, percentage: 0 }
-});
+  const [funnelStats, setFunnelStats] = useState({
+    totalOrders: 0,
+    fulfilled: { count: 0, percentage: 0 },
+    delivered: { count: 0, percentage: 0 },
+    rto: { count: 0, percentage: 0 }
+  });
   const [customerStats, setCustomerStats] = useState({
     totalCustomers: 0,
     activeCustomers: 0,
     lostCustomers: 0,
   });
   const [customerTrendFilters, setCustomerTrendFilters] = useState({
-  compareMode: false,
-  compareStart: null,
-  compareEnd: null,
-  useCustomCompare: false
-});
+    compareMode: false,
+    compareStart: null,
+    compareEnd: null,
+    useCustomCompare: false
+  });
 
 
   const [customerTrendData, setCustomerTrendData] = useState([]);
   const [customerTrendLoading, setCustomerTrendLoading] = useState(false);
-const [paymentStats, setPaymentStats] = useState({
-  cod: { count: 0, amount: 0, percentage: "0%" },
-  prepaid: { count: 0, amount: 0, percentage: "0%" }
-});
-const [salesStats, setSalesStats] = useState({
-  totalSales: 0,
-});
-const [orderTrendData, setOrderTrendData] = useState([]);
-const [orderFilter, setOrderFilter] = useState("all"); 
-const [orderTrendLoading, setOrderTrendLoading] = useState(false);
-const [orderTrendSummary, setOrderTrendSummary] = useState({
-  total: 0,
-  percentChange: 0,
-  comparison: { total: 0, percentChange: 0 },
-  currentRange: null,
-  previousRange: null
-});
+  const [paymentStats, setPaymentStats] = useState({
+    cod: { count: 0, amount: 0, percentage: "0%" },
+    prepaid: { count: 0, amount: 0, percentage: "0%" }
+  });
+  const [salesStats, setSalesStats] = useState({
+    totalSales: 0,
+  });
+  const [orderTrendData, setOrderTrendData] = useState([]);
+  const [orderFilter, setOrderFilter] = useState("all");
+  const [orderTrendLoading, setOrderTrendLoading] = useState(false);
+  const [orderTrendSummary, setOrderTrendSummary] = useState({
+    total: 0,
+    percentChange: 0,
+    comparison: { total: 0, percentChange: 0 },
+    currentRange: null,
+    previousRange: null
+  });
 
-const [summaryLoading, setSummaryLoading] = useState(false);
-const [summary, setSummary] = useState({
-  totalSales: 0,
-  totalOrders: 0,
-  aov: 0,
-  prepaid: { count: 0, amount: 0, percentage: 0 },
-  cod: { count: 0, amount: 0, percentage: 0 },
-});
-const [escalationPriorityData, setEscalationPriorityData] = useState(null);
-const [escalationPriorityLoading, setEscalationPriorityLoading] = useState(false);
-const [activePriorityTab, setActivePriorityTab] = useState("high");
+  const [summaryLoading, setSummaryLoading] = useState(false);
+  const [summary, setSummary] = useState({
+    totalSales: 0,
+    totalOrders: 0,
+    aov: 0,
+    prepaid: { count: 0, amount: 0, percentage: 0 },
+    cod: { count: 0, amount: 0, percentage: 0 },
+  });
+  const [escalationPriorityData, setEscalationPriorityData] = useState(null);
+  const [escalationPriorityLoading, setEscalationPriorityLoading] = useState(false);
+  const loadingRef = useRef(false);
+  const [activePriorityTab, setActivePriorityTab] = useState("high");
+  const [cancelledOrders, setCancelledOrders] = useState(0);
 
 
 
-function EscalationPrioritySection() {
-  if (escalationPriorityLoading) {
+  function EscalationPrioritySection() {
+    if (escalationPriorityLoading) {
+      return (
+        <Card sx={{ p: 3, borderRadius: 4 }}>
+          <Skeleton height={40} width="60%" sx={{ mb: 2 }} />
+          <Skeleton height={120} />
+        </Card>
+      );
+    }
+
+    if (!escalationPriorityData || escalationPriorityData.summary.total === 0) {
+      return (
+        <Card sx={{ p: 3, borderRadius: 4, textAlign: "center" }}>
+          <Typography color="text.secondary">
+            No active escalations found
+          </Typography>
+        </Card>
+      );
+    }
+
+    const { summary } = escalationPriorityData;
+
     return (
-      <Card sx={{ p: 3, borderRadius: 4 }}>
-        <Skeleton height={40} width="60%" sx={{ mb: 2 }} />
-        <Skeleton height={120} />
-      </Card>
-    );
-  }
-
-  if (!escalationPriorityData || escalationPriorityData.summary.total === 0) {
-    return (
-      <Card sx={{ p: 3, borderRadius: 4, textAlign: "center" }}>
-        <Typography color="text.secondary">
-          No active escalations found
+      <Card sx={{ p: 3, borderRadius: 4, boxShadow: "0px 4px 20px rgba(0,0,0,0.05)", border: "1px solid #E0E0E0", ...cardStyle }}>
+        <Typography sx={{ fontSize: 18, fontWeight: 700, color: "#1B2559", mb: 2 }}>
+          🚨 Escalation Priority Analysis
         </Typography>
+
+        <Stack direction="row" spacing={2}>
+          <Box
+            sx={{
+              flex: 1,
+              p: 2.5,
+              borderRadius: 3,
+              bgcolor: "#E8F5E9",
+              border: "2px solid #388e3c",
+              textAlign: "center",
+              transition: "all 0.2s",
+              "&:hover": {
+                transform: "translateY(-2px)",
+                boxShadow: "0 4px 12px rgba(56,142,60,0.15)",
+              },
+            }}
+          >
+            <Typography sx={{ fontSize: 11, fontWeight: 600, color: "#388e3c", mb: 1 }}>
+              LOW PRIORITY
+            </Typography>
+            <Typography sx={{ fontSize: 36, fontWeight: 900, color: "#388e3c" }}>
+              {summary.lowPriority}
+            </Typography>
+            <Typography sx={{ fontSize: 11, color: "#666", mt: 0.5 }}>
+              0-2 days old
+            </Typography>
+          </Box>
+
+          <Box
+            sx={{
+              flex: 1,
+              p: 2.5,
+              borderRadius: 3,
+              bgcolor: "#FFF3E0",
+              border: "2px solid #f57c00",
+              textAlign: "center",
+              transition: "all 0.2s",
+              "&:hover": {
+                transform: "translateY(-2px)",
+                boxShadow: "0 4px 12px rgba(245,124,0,0.15)",
+              },
+            }}
+          >
+            <Typography sx={{ fontSize: 11, fontWeight: 600, color: "#f57c00", mb: 1 }}>
+              Medium Priority
+            </Typography>
+            <Typography sx={{ fontSize: 36, fontWeight: 900, color: "#f57c00" }}>
+              {summary.mediumPriority}
+            </Typography>
+            <Typography sx={{ fontSize: 11, color: "#666", mt: 0.5 }}>
+              3-4 days old
+            </Typography>
+          </Box>
+
+          <Box
+            sx={{
+              flex: 1,
+              p: 2.5,
+              borderRadius: 3,
+              bgcolor: "#FFEBEE",
+              border: "2px solid #d32f2f",
+              textAlign: "center",
+              transition: "all 0.2s",
+              "&:hover": {
+                transform: "translateY(-2px)",
+                boxShadow: "0 4px 12px rgba(211,47,47,0.15)",
+              },
+            }}
+          >
+            <Typography sx={{ fontSize: 11, fontWeight: 600, color: "#d32f2f", mb: 1 }}>
+              URGENT HIGH PRIORITY
+            </Typography>
+            <Typography sx={{ fontSize: 36, fontWeight: 900, color: "#d32f2f" }}>
+              {summary.highPriority}
+            </Typography>
+            <Typography sx={{ fontSize: 11, color: "#666", mt: 0.5 }}>
+              5+ days old
+            </Typography>
+          </Box>
+
+          <Box
+            sx={{
+              flex: 1,
+              p: 2.5,
+              borderRadius: 3,
+              bgcolor: "#F5F5F5",
+              border: "2px solid #9E9E9E",
+              textAlign: "center",
+              transition: "all 0.2s",
+              "&:hover": {
+                transform: "translateY(-2px)",
+                boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+              },
+            }}
+          >
+            <Typography sx={{ fontSize: 11, fontWeight: 600, color: "#424242", mb: 1 }}>
+              TOTAL OPEN
+            </Typography>
+            <Typography sx={{ fontSize: 36, fontWeight: 900, color: "#424242" }}>
+              {summary.total}
+            </Typography>
+            <Typography sx={{ fontSize: 11, color: "#666", mt: 0.5 }}>
+              All escalations
+            </Typography>
+          </Box>
+        </Stack>
       </Card>
     );
   }
 
-  const { summary } = escalationPriorityData;
-
-  return (
-    <Card sx={{ p: 3, borderRadius: 4, boxShadow: "0px 4px 20px rgba(0,0,0,0.05)", border: "1px solid #E0E0E0", ...cardStyle }}>
-      <Typography sx={{ fontSize: 18, fontWeight: 700, color: "#1B2559", mb: 2 }}>
-        🚨 Escalation Priority Analysis
-      </Typography>
-
-      <Stack direction="row" spacing={2}>
-        <Box
-          sx={{
-            flex: 1,
-            p: 2.5,
-            borderRadius: 3,
-            bgcolor: "#E8F5E9",
-            border: "2px solid #388e3c",
-            textAlign: "center",
-            transition: "all 0.2s",
-            "&:hover": {
-              transform: "translateY(-2px)",
-              boxShadow: "0 4px 12px rgba(56,142,60,0.15)",
-            },
-          }}
-        >
-          <Typography sx={{ fontSize: 11, fontWeight: 600, color: "#388e3c", mb: 1 }}>
-            LOW PRIORITY
-          </Typography>
-          <Typography sx={{ fontSize: 36, fontWeight: 900, color: "#388e3c" }}>
-            {summary.lowPriority}
-          </Typography>
-          <Typography sx={{ fontSize: 11, color: "#666", mt: 0.5 }}>
-            0-2 days old
-          </Typography>
-        </Box>
-
-        <Box
-          sx={{
-            flex: 1,
-            p: 2.5,
-            borderRadius: 3,
-            bgcolor: "#FFF3E0",
-            border: "2px solid #f57c00",
-            textAlign: "center",
-            transition: "all 0.2s",
-            "&:hover": {
-              transform: "translateY(-2px)",
-              boxShadow: "0 4px 12px rgba(245,124,0,0.15)",
-            },
-          }}
-        >
-          <Typography sx={{ fontSize: 11, fontWeight: 600, color: "#f57c00", mb: 1 }}>
-            MORE PRIORITY
-          </Typography>
-          <Typography sx={{ fontSize: 36, fontWeight: 900, color: "#f57c00" }}>
-            {summary.mediumPriority}
-          </Typography>
-          <Typography sx={{ fontSize: 11, color: "#666", mt: 0.5 }}>
-            3-4 days old
-          </Typography>
-        </Box>
-
-        <Box
-          sx={{
-            flex: 1,
-            p: 2.5,
-            borderRadius: 3,
-            bgcolor: "#FFEBEE",
-            border: "2px solid #d32f2f",
-            textAlign: "center",
-            transition: "all 0.2s",
-            "&:hover": {
-              transform: "translateY(-2px)",
-              boxShadow: "0 4px 12px rgba(211,47,47,0.15)",
-            },
-          }}
-        >
-          <Typography sx={{ fontSize: 11, fontWeight: 600, color: "#d32f2f", mb: 1 }}>
-            URGENT HIGH PRIORITY
-          </Typography>
-          <Typography sx={{ fontSize: 36, fontWeight: 900, color: "#d32f2f" }}>
-            {summary.highPriority}
-          </Typography>
-          <Typography sx={{ fontSize: 11, color: "#666", mt: 0.5 }}>
-            5+ days old
-          </Typography>
-        </Box>
-
-        <Box
-          sx={{
-            flex: 1,
-            p: 2.5,
-            borderRadius: 3,
-            bgcolor: "#F5F5F5",
-            border: "2px solid #9E9E9E",
-            textAlign: "center",
-            transition: "all 0.2s",
-            "&:hover": {
-              transform: "translateY(-2px)",
-              boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
-            },
-          }}
-        >
-          <Typography sx={{ fontSize: 11, fontWeight: 600, color: "#424242", mb: 1 }}>
-            TOTAL OPEN
-          </Typography>
-          <Typography sx={{ fontSize: 36, fontWeight: 900, color: "#424242" }}>
-            {summary.total}
-          </Typography>
-          <Typography sx={{ fontSize: 11, color: "#666", mt: 0.5 }}>
-            All escalations
-          </Typography>
-        </Box>
-      </Stack>
-    </Card>
-  );
-}
-const loadEscalationPriorities = async () => {
-  try {
-    setEscalationPriorityLoading(true);
-    const res = await axios.get(
-      `${API}/api/super-admin/analytics/escalation-priority-stats`,
-      { params: { start, end } }
-    );
-    setEscalationPriorityData(res.data);
-  } catch (err) {
-    console.error("Failed to fetch escalation priorities:", err);
-  } finally {
-    setEscalationPriorityLoading(false);
-  }
-   };
-
-const loadSummary = async () => {
-  try {
-    setSummaryLoading(true);
-
-    const res = await axios.get(`${API}/api/super-admin/analytics/dashboard-summary`, {
-      params: { start, end }
-    });
-
-    setSummary(res.data);
-
-  } catch (err) {
-    console.error("Summary Fetch Error:", err);
-  } finally {
-    setSummaryLoading(false);
-  }
-};
-const handleComparisonSave = () => {
-  if (!tempCompareStart || !tempCompareEnd) {
-    alert("Please select both dates");
-    return;
-  }
-  if (tempCompareStart > tempCompareEnd) {
-    alert("Start date must be before end date");
-    return;
-  }
-  setCompareStart(tempCompareStart);
-  setCompareEnd(tempCompareEnd);
-  setCompareMode("custom");
-  setUseCustomCompare(true);
-  setCompareDialogOpen(false);
-};
-
-const handleComparisonReset = () => {
-  setCompareStart("");
-  setCompareEnd("");
-  setCompareMode("none");
-  setUseCustomCompare(false);
-  setTempCompareStart("");
-  setTempCompareEnd("");
-  setCompareDialogOpen(false);
-};
 
 
+  const handleComparisonSave = () => {
+    if (!tempCompareStart || !tempCompareEnd) {
+      alert("Please select both dates");
+      return;
+    }
+    if (tempCompareStart > tempCompareEnd) {
+      alert("Start date must be before end date");
+      return;
+    }
+    setCompareStart(tempCompareStart);
+    setCompareEnd(tempCompareEnd);
+    setCompareMode("custom");
+    setUseCustomCompare(true);
+    setCompareDialogOpen(false);
+  };
 
+  const handleComparisonReset = () => {
+    setCompareStart("");
+    setCompareEnd("");
+    setCompareMode("none");
+    setUseCustomCompare(false);
+    setTempCompareStart("");
+    setTempCompareEnd("");
+    setCompareDialogOpen(false);
+  };
   const loadDeliveredRevenue = async () => {
     try {
       setDeliveredLoading(true);
@@ -2074,169 +2052,159 @@ const handleComparisonReset = () => {
     preset === "Custom Range" && customStart && customEnd
       ? { start: customStart, end: customEnd }
       : getRange(preset);
-const safeGet = async (url, params, fallback) => {
-  try {
-    const res = await axios.get(url, { params });
-    return res.data ?? fallback;
-  } catch (err) {
-    console.error(
-      "❌ API failed:",
-      url,
-      "status:",
-      err?.response?.status,
-      "data:",
-      err?.response?.data || err.message
-    );
-    return fallback;
-  }
-};
+  const safeGet = async (url, params, fallback) => {
+    try {
+      const res = await axios.get(url, { params });
+      return res.data ?? fallback;
+    } catch (err) {
+      console.error(
+        "❌ API failed:",
+        url,
+        "status:",
+        err?.response?.status,
+        "data:",
+        err?.response?.data || err.message
+      );
+      return fallback;
+    }
+  };
 
 
-const loadAnalytics = async () => {
-  setLoading(true);
 
-  const orderData = await safeGet(`${API}/api/super-admin/analytics/orders`, { start, end }, {});
-  setData(orderData || {});
-
-  const frData = await safeGet(`${API}/api/super-admin/analytics/first-vs-returning`, { start, end }, {});
-  setFirstReturning(frData || {});
-
-  const leadsData = await safeGet(`${API}/api/super-admin/analytics/leads`, { start, end }, { totalLeads: 0 });
-  setLeadStats({ totalLeads: leadsData.totalLeads || 0 });
-
-  const callsData = await safeGet(`${API}/api/super-admin/analytics/calls`, { start, end }, { incoming: 0, outgoing: 0 });
-  setCallStats(callsData);
-
-  const delData = await safeGet(`${API}/api/super-admin/analytics/delivered`, { start, end }, { delivered: 0 });
-  setDeliveredStats(delData);
-
-  const rtoData = await safeGet(`${API}/api/super-admin/analytics/rto`, { start, end }, { rto: 0, rtoDelivered: 0 });
-  setRtoStats(rtoData);
-
-  const ovData = await safeGet(`${API}/api/super-admin/analytics/orders-vs-fulfilled`, { start, end }, {});
-  setOrderVsConfirmed(ovData || {});
-  setFunnelStats(normalizeFunnelStats(ovData || {}));
-
-  const dietData = await safeGet(`${API}/api/super-admin/analytics/diet-plans`, { start, end }, { totalDietPlans: 0 });
-  setDietStats(dietData);
-
-  const fuData = await safeGet(`${API}/api/super-admin/analytics/followups`, { start, end }, { followUpsDue: 0 });
-  setFollowUpStats(fuData);
-
-  const noConsultData = await safeGet(`${API}/api/super-admin/analytics/no-consult`, { start, end }, { noConsult: 0 });
-  setNoConsultStats(noConsultData);
-
-  const ndrData = await safeGet(`${API}/api/super-admin/analytics/ndr`, { start, end }, { ndr: 0 });
-  setNdrStats(ndrData);
-
-  const escData = await safeGet(`${API}/api/super-admin/analytics/escalations`, { start, end }, { open: 0, closed: 0 });
-  setEscalationStats(normalizeEscalationStats(escData));
-  const aovData = await safeGet(`${API}/api/super-admin/analytics/aov`, { start, end }, {});
-  const normalizedAov = normalizeAovStats(aovData);
-  setAovStats(normalizedAov);
-  const codData = await safeGet(`${API}/api/super-admin/analytics/cod-delivered`, { start, end }, { totalCount: 0, totalAmount: 0 });
-  setCodStats({ totalCount: codData.totalCount || 0, totalAmount: codData.totalAmount || 0 });
-
-  const custData = await safeGet(`${API}/api/super-admin/analytics/customer-stats`, { start, end }, {});
-  setCustomerStats(custData || {});
-
-  const payData = await safeGet(`${API}/api/super-admin/analytics/payment-mode-stats`, { start, end }, null);
-  if (payData) setPaymentStats(payData);
-
-  const salesData = await safeGet(`${API}/api/super-admin/analytics/sales-per-day`, { start, end }, []);
-  const totalSales = (salesData || []).reduce((sum, d) => sum + (d.totalSales || 0), 0);
-  setSalesStats({ totalSales });
-
-  setLoading(false);
-};
-
-
-const loadCustomerTrends = async () => {
-  try {
-    setCustomerTrendLoading(true);
-    const res = await axios.get(`${API}/api/super-admin/analytics/customer-trends`, {
-      params: { 
-        start, 
-        end,
-        compareStart: compareStart || undefined,
-        compareEnd: compareEnd || undefined
-      }
-    });
-    setCustomerTrendData(res.data || []);
-  } catch (err) {
-    console.error("Customer Trends Fetch Error:", err);
-    setCustomerTrendData([]);
-  } finally {
-    setCustomerTrendLoading(false);
-  }
-};
 
   useEffect(() => {
-    loadAnalytics();
-    loadCustomerTrends();
-     loadEscalationPriorities();
-  }, [preset, customStart, customEnd, compareStart, compareEnd]);
-useEffect(() => {
- const loadOrderTrend = async () => {
-  if ((!compareStart || !compareEnd) && compareMode === "custom") return;
+    // Prevent double-firing (React StrictMode / fast switching)
 
-  try {
-    setOrderTrendLoading(true);
+    const run = async () => {
+      setLoading(true);
 
-    const params = {
-      start,
-      end,
-      filter: orderFilter
+      const [
+        orderData,
+        frData,
+        leadsData,
+        delData,
+        cancelledData,
+        rtoData,
+        ovData,
+        dietData,
+        fuData,
+        noConsultData,
+        ndrData,
+        escData,
+        aovData,
+        codData,
+        custData,
+        payData,
+        salesData,
+        trendRes,
+        customerTrendRes,
+      ] = await Promise.all([
+        cachedGet(`${API}/api/super-admin/analytics/orders`, { start, end }, {}),
+        cachedGet(`${API}/api/super-admin/analytics/first-vs-returning`, { start, end }, {}),
+        cachedGet(`${API}/api/super-admin/analytics/leads`, { start, end }, { totalLeads: 0 }),
+        cachedGet(`${API}/api/super-admin/analytics/delivered`, { start, end }, { delivered: 0 }),
+        cachedGet(`${API}/api/super-admin/analytics/cancelled-orders`, { start, end }, { cancelled: 0 }),
+        cachedGet(`${API}/api/super-admin/analytics/rto`, { start, end }, { rto: 0, rtoDelivered: 0 }),
+        cachedGet(`${API}/api/super-admin/analytics/orders-vs-fulfilled`, { start, end }, {}),
+        cachedGet(`${API}/api/super-admin/analytics/diet-plans`, { start, end }, { totalDietPlans: 0 }),
+        cachedGet(`${API}/api/super-admin/analytics/followups`, { start, end }, { followUpsDue: 0 }),
+        cachedGet(`${API}/api/super-admin/analytics/no-consult`, { start, end }, { noConsult: 0 }),
+        cachedGet(`${API}/api/super-admin/analytics/ndr`, { start, end }, { ndr: 0 }),
+        cachedGet(`${API}/api/super-admin/analytics/escalations`, { start, end }, { open: 0, closed: 0 }),
+        cachedGet(`${API}/api/super-admin/analytics/aov`, { start, end }, {}),
+        cachedGet(`${API}/api/super-admin/analytics/cod-delivered`, { start, end }, { totalCount: 0, totalAmount: 0 }),
+        cachedGet(`${API}/api/super-admin/analytics/customer-stats`, { start, end }, {}),
+        cachedGet(`${API}/api/super-admin/analytics/payment-mode-stats`, { start, end }, null),
+        cachedGet(`${API}/api/super-admin/analytics/sales-per-day`, { start, end }, []),
+        cachedGet(`${API}/api/super-admin/analytics/orders-over-time`, {
+          start, end, filter: orderFilter,
+          ...(compareStart && compareEnd ? { compareStart, compareEnd } : {}),
+        }, { trend: [], total: 0, comparison: {} }),
+        cachedGet(`${API}/api/super-admin/analytics/customer-trends`, {
+          start, end,
+          ...(compareStart ? { compareStart } : {}),
+          ...(compareEnd ? { compareEnd } : {}),
+        }, []),
+      ]);
+
+      // ── Set all state at once ──────────────────────────────────────────
+      setData(orderData || {});
+      setFirstReturning(frData || {});
+      setLeadStats({ totalLeads: leadsData.totalLeads || 0 });
+      setDeliveredStats(delData);
+      setRtoStats(rtoData);
+      setOrderVsConfirmed(ovData || {});
+      setFunnelStats(normalizeFunnelStats(ovData || {}));
+      setDietStats(dietData);
+      setFollowUpStats(fuData);
+      setNoConsultStats(noConsultData);
+      setNdrStats(ndrData);
+      setEscalationStats(normalizeEscalationStats(escData));
+      setAovStats(normalizeAovStats(aovData));
+      setCodStats({ totalCount: codData.totalCount || 0, totalAmount: codData.totalAmount || 0 });
+      setCustomerStats(custData || {});
+      if (payData) setPaymentStats(payData);
+      setSalesStats({ totalSales: (salesData || []).reduce((s, d) => s + (d.totalSales || 0), 0) });
+      setCancelledOrders(cancelledData?.cancelled || 0);
+
+      // Orders trend
+      const processedTrend = (trendRes.trend || []).map(p => ({
+        ...p,
+        previous: p.previous > 0 ? p.previous : null,
+      }));
+      setOrderTrendData(processedTrend);
+      setOrderTrendSummary({
+        total: trendRes.total || 0,
+        percentChange: trendRes.comparison?.percentChange || 0,
+        comparison: {
+          total: trendRes.comparison?.total || 0,
+          percentChange: trendRes.comparison?.percentChange || 0,
+        },
+        currentRange: { start, end },
+        previousRange: compareStart && compareEnd ? { start: compareStart, end: compareEnd } : null,
+      });
+
+      // Customer trends
+      setCustomerTrendData(Array.isArray(customerTrendRes) ? customerTrendRes : []);
+
+      setLoading(false);
     };
 
-    if (compareStart && compareEnd) {
-      params.compareStart = compareStart;
-      params.compareEnd = compareEnd;
-    }
+    run();
 
-    const trendRes = await axios.get(
-      `${API}/api/super-admin/analytics/orders-over-time`,
-      { params }
-    );
+    return () => {
+    };
+  }, [start, end, orderFilter, compareStart, compareEnd]);
 
-    const processedTrend = trendRes.data.trend.map(p => ({
-      ...p,
-      previous: p.previous > 0 ? p.previous : null
-    }));
+  useEffect(() => {
+    const load = async () => {
+      setEscalationPriorityLoading(true);
+      const data = await cachedGet(
+        `${API}/api/super-admin/analytics/escalation-priority-stats`,
+        { start, end },
+        null
+      );
+      setEscalationPriorityData(data);
+      setEscalationPriorityLoading(false);
+    };
+    load();
+  }, [start, end]);
 
-    setOrderTrendData(processedTrend);
+  // Summary — separate small call
+  useEffect(() => {
+    const load = async () => {
+      setSummaryLoading(true);
+      const data = await cachedGet(
+        `${API}/api/super-admin/analytics/dashboard-summary`,
+        { start, end },
+        {}
+      );
+      setSummary(data);
+      setSummaryLoading(false);
+    };
+    load();
+  }, [start, end]);
 
-
-    setOrderTrendSummary({
-      total: trendRes.data.total || 0,
-      percentChange: trendRes.data.comparison?.percentChange || 0,
-      comparison: {
-        total: trendRes.data.comparison?.total || 0,
-        percentChange: trendRes.data.comparison?.percentChange || 0,
-      },
-      currentRange: { 
-        start: start,  
-        end: end 
-      },
-      previousRange: compareStart && compareEnd ? {
-        start: compareStart,  
-        end: compareEnd
-      } : null,
-    });
-
-  } catch(err) {
-    console.error("Order Trend Error", err);
-  } finally {
-    setOrderTrendLoading(false);
-  }
-};
-
-  loadOrderTrend();
-}, [start, end, orderFilter, compareStart, compareEnd]);
-
-useEffect(() => {
-  loadSummary();
-}, [start, end]);
 
 
   const ordersSplitPieData = [
@@ -2249,21 +2217,21 @@ useEffect(() => {
     { name: "Returning", value: firstReturning.returning || 0 },
   ];
 
-const cardStyle = {
-  borderRadius: "12px", 
-  boxShadow: "0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1)", 
-  border: "1px solid #E2E8F0",
-  height: "100%",
-  backgroundColor: "#fff",
-  transition: "all 0.2s ease-in-out",
-  "&:hover": {
+  const cardStyle = {
+    borderRadius: "12px",
+    boxShadow: "0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1)",
+    border: "1px solid #E2E8F0",
+    height: "100%",
+    backgroundColor: "#fff",
+    transition: "all 0.2s ease-in-out",
+    "&:hover": {
       boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.1)",
       borderColor: "#CBD5E1",
-  }
-};
+    }
+  };
 
   return (
-    <Box sx={{ p: 3, backgroundColor: "#F4F7FE", minHeight: "100vh" }}>
+    <Box sx={{ p: 3, minHeight: "100vh" }}>
 
       <Box sx={{ mb: 4 }}>
         <Typography variant="h4" sx={{ fontWeight: 800, color: "#1B2559", letterSpacing: "-0.5px" }}>
@@ -2274,725 +2242,721 @@ const cardStyle = {
         </Typography>
       </Box>
 
-<Card sx={{ p: 2, mb: 4, borderRadius: "16px", boxShadow: "0px 2px 10px rgba(0,0,0,0.03)" }}>
-  <Stack
-    direction={{ xs: "column", md: "row" }}
-    alignItems="center"
-    justifyContent="space-between"
-    spacing={2}
-  >
-    {/* LEFT: main date range controls */}
-    <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap">
-      <FormControl size="small" sx={{ minWidth: 200, bgcolor: "#F4F7FE", borderRadius: 2 }}>
-        <InputLabel>Date Range</InputLabel>
-        <Select
-          value={preset}
-          label="Date Range"
-          onChange={(e) => setPreset(e.target.value)}
-          sx={{ borderRadius: 2 }}
+      <Card sx={{ p: 2, mb: 4, borderRadius: "16px", boxShadow: "0px 2px 10px rgba(0,0,0,0.03)" }}>
+        <Stack
+          direction={{ xs: "column", md: "row" }}
+          alignItems="center"
+          justifyContent="space-between"
+          spacing={2}
         >
-          {RANGE_OPTIONS.map((r) => (
-            <MenuItem key={r} value={r}>{r}</MenuItem>
-          ))}
-        </Select>
-      </FormControl>
+          <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap">
+            <FormControl size="small" sx={{ minWidth: 200, bgcolor: "#F4F7FE", borderRadius: 2 }}>
+              <InputLabel>Date Range</InputLabel>
+              <Select
+                value={preset}
+                label="Date Range"
+                onChange={(e) => setPreset(e.target.value)}
+                sx={{ borderRadius: 2 }}
+              >
+                {RANGE_OPTIONS.map((r) => (
+                  <MenuItem key={r} value={r}>{r}</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
 
-      {preset === "Custom Range" && (
-        <>
-          <TextField
-            type="date"
-            size="small"
-            label="Start"
-            InputLabelProps={{ shrink: true }}
-            value={customStart}
-            onChange={(e) => setCustomStart(e.target.value)}
-          />
-          <TextField
-            type="date"
-            size="small"
-            label="End"
-            InputLabelProps={{ shrink: true }}
-            value={customEnd}
-            onChange={(e) => setCustomEnd(e.target.value)}
-          />
-        </>
-      )}
+            {preset === "Custom Range" && (
+              <>
+                <TextField
+                  type="date"
+                  size="small"
+                  label="Start"
+                  InputLabelProps={{ shrink: true }}
+                  value={customStart}
+                  onChange={(e) => setCustomStart(e.target.value)}
+                />
+                <TextField
+                  type="date"
+                  size="small"
+                  label="End"
+                  InputLabelProps={{ shrink: true }}
+                  value={customEnd}
+                  onChange={(e) => setCustomEnd(e.target.value)}
+                />
+              </>
+            )}
 
-      <Box sx={{ bgcolor: "#EAF3FF", px: 2, py: 1, borderRadius: "10px", color: "#1976d2" }}>
-        <Typography sx={{ fontSize: 13, fontWeight: 600 }}>
-          📅 {start} → {end}
-        </Typography>
-      </Box>
-    </Stack>
+            <Box sx={{ bgcolor: "#EAF3FF", px: 2, py: 1, borderRadius: "10px", color: "#1976d2" }}>
+              <Typography sx={{ fontSize: 13, fontWeight: 600 }}>
+                📅 {start} → {end}
+              </Typography>
+            </Box>
+          </Stack>
 
-    {/* RIGHT: Comparison Button */}
-    <Box sx={{ display: "flex", alignItems: "center", gap: 2, flexWrap: "wrap" }}>
-      <Button
-        variant={compareStart && compareEnd ? "contained" : "outlined"}
-        color={compareStart && compareEnd ? "primary" : "inherit"}
-        onClick={() => {
-          setTempCompareStart(compareStart);
-          setTempCompareEnd(compareEnd);
-          setCompareDialogOpen(true);
-        }}
-        sx={{
-          borderRadius: "8px",
-          textTransform: "none",
-          fontWeight: 600,
-          minWidth: 120,
-        }}
-      >
-        Compare
-      </Button>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 2, flexWrap: "wrap" }}>
+            <Button
+              variant={compareStart && compareEnd ? "contained" : "outlined"}
+              color={compareStart && compareEnd ? "primary" : "inherit"}
+              onClick={() => {
+                setTempCompareStart(compareStart);
+                setTempCompareEnd(compareEnd);
+                setCompareDialogOpen(true);
+              }}
+              sx={{
+                borderRadius: "8px",
+                textTransform: "none",
+                fontWeight: 600,
+                minWidth: 120,
+              }}
+            >
+              📊 Compare
+            </Button>
 
-      {compareStart && compareEnd && (
-        <Box
-          sx={{
-            display: "flex",
-            alignItems: "center",
-            gap: 1,
-            px: 2,
-            py: 1,
-            bgcolor: "#E8F5E9",
-            borderRadius: "8px",
-            border: "1px solid #4CAF50",
-          }}
-        >
-          <Typography sx={{ fontSize: 12, fontWeight: 600, color: "#2e7d32" }}>
-            ✓ {compareStart} to {compareEnd}
-          </Typography>
-          <Button
-            size="small"
-            onClick={handleComparisonReset}
-            sx={{ minWidth: "auto", p: 0.5, color: "#d32f2f", fontSize: 16 }}
-          >
-            ✕
-          </Button>
-        </Box>
-      )}
-    </Box>
-  </Stack>
-</Card>
-<Dialog
-  open={compareDialogOpen}
-  onClose={() => setCompareDialogOpen(false)}
-  maxWidth="sm"
-  fullWidth
->
-  <DialogTitle sx={{ fontWeight: 700, fontSize: 18 }}>
-    Select Period to Compare
-  </DialogTitle>
-
-  <DialogContent dividers sx={{ p: 3 }}>
-    <Stack spacing={3} sx={{ mt: 1 }}>
-      <Box>
-        <Typography sx={{ fontSize: 12, fontWeight: 600, color: "text.secondary", mb: 1 }}>
-          Comparison Start Date
-        </Typography>
-        <TextField
-          type="date"
-          fullWidth
-          InputLabelProps={{ shrink: true }}
-          value={tempCompareStart}
-          onChange={(e) => setTempCompareStart(e.target.value)}
-          sx={{ "& input": { padding: "12px" } }}
-        />
-      </Box>
-
-      <Box>
-        <Typography sx={{ fontSize: 12, fontWeight: 600, color: "text.secondary", mb: 1 }}>
-          Comparison End Date
-        </Typography>
-        <TextField
-          type="date"
-          fullWidth
-          InputLabelProps={{ shrink: true }}
-          value={tempCompareEnd}
-          onChange={(e) => setTempCompareEnd(e.target.value)}
-          sx={{ "& input": { padding: "12px" } }}
-        />
-      </Box>
-
-      <Box sx={{ bgcolor: "#FFF3E0", p: 2, borderRadius: "8px", border: "1px solid #FFB74D" }}>
-        <Typography sx={{ fontSize: 12, color: "#E65100" }}>
-          <strong>💡 Tip:</strong> Compare against a past period to see growth or decline.
-        </Typography>
-      </Box>
-    </Stack>
-  </DialogContent>
-
-  <DialogActions sx={{ p: 2 }}>
-    <Button
-      variant="outlined"
-      onClick={() => setCompareDialogOpen(false)}
-    >
-      Cancel
-    </Button>
-    <Button
-      variant="outlined"
-      color="error"
-      onClick={handleComparisonReset}
-    >
-      Clear
-    </Button>
-    <Button
-      variant="contained"
-      onClick={handleComparisonSave}
-    >
-      Apply
-    </Button>
-  </DialogActions>
-</Dialog>
-
-   <ComprehensiveSummaryTableIntegrated 
-        apiBase={API} 
-        start={start} 
-        end={end} 
-      />
-
-
-<Grid container spacing={3}>
-
-
-  <Grid item xs={12} md={6}>
-
-  <AverageOrderValueCard
-    apiBase={API}
-    start={start}
-    end={end}
-    aovStats={aovStats}
-    compareMode={compareStart && compareEnd ? "custom" : "none"}
-    compareStart={compareStart}
-    compareEnd={compareEnd}
-    useCustomCompare={useCustomCompare}
-  />
-</Grid>
-
-
-<Grid item xs={12} md={6}>
-  {/* Total Orders Trend */}
-  <Card sx={{ p: 3, borderRadius: 3, boxShadow: "0px 4px 20px rgba(0,0,0,0.05)", border: "1px solid #E2E8F0" }}>
-    <Box sx={{ display: "flex", justifyContent: "space-between", mb: 1.2 }}>
-      <Typography sx={{ fontWeight: 700, color: "#1B2559", fontSize: 18 }}>Total Orders</Typography>
-
-      <Select
-        size="small"
-        value={orderFilter}
-        onChange={(e) => setOrderFilter(e.target.value)}
-        sx={{ height: 32, borderRadius: 2 }}
-      >
-        <MenuItem value="all">All</MenuItem>
-        <MenuItem value="cod">COD</MenuItem>
-        <MenuItem value="prepaid">Prepaid</MenuItem>
-      </Select>
-    </Box>
-
-    {orderTrendLoading ? (
-      <Skeleton height={40} width={140} />
-    ) : (
-      <Box sx={{ mb: 1 }}>
-        <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
-          <Typography sx={{ fontSize: 32, fontWeight: 900, color: "#1B2559" }}>
-            {orderTrendSummary.total}
-          </Typography>
-
-          {compareStart && compareEnd && (
-            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+            {compareStart && compareEnd && (
               <Box
                 sx={{
                   display: "flex",
                   alignItems: "center",
-                  gap: 0.5,
-                  px: 1.5,
-                  py: 0.6,
-                  borderRadius: "20px",
-                  bgcolor: orderTrendSummary.percentChange >= 0 ? "#E8F5E9" : "#FFEBEE",
-                  border: orderTrendSummary.percentChange >= 0 ? "1px solid #4CAF50" : "1px solid #F44336",
+                  gap: 1,
+                  px: 2,
+                  py: 1,
+                  bgcolor: "#E8F5E9",
+                  borderRadius: "8px",
+                  border: "1px solid #4CAF50",
                 }}
               >
-                <Typography
-                  sx={{
-                    fontSize: 14,
-                    fontWeight: 700,
-                    color: orderTrendSummary.percentChange >= 0 ? "#2e7d32" : "#d32f2f",
-                  }}
-                >
-                  {orderTrendSummary.percentChange >= 0 ? "▲" : "▼"} {Math.abs(orderTrendSummary.percentChange).toFixed(2)}%
+                <Typography sx={{ fontSize: 12, fontWeight: 600, color: "#2e7d32" }}>
+                  ✓ {compareStart} to {compareEnd}
                 </Typography>
+                <Button
+                  size="small"
+                  onClick={handleComparisonReset}
+                  sx={{ minWidth: "auto", p: 0.5, color: "#d32f2f", fontSize: 16 }}
+                >
+                  ✕
+                </Button>
               </Box>
-            </Box>
-          )}
-        </Box>
-      </Box>
-    )}
-
-    {/* CHART SECTION */}
-    <Box sx={{ height: 260, mt: 2 }}>
-      {orderTrendLoading ? (
-        <Skeleton height="100%" variant="rectangular" sx={{ borderRadius: 2 }} />
-      ) : (
-        <ResponsiveContainer width="100%" height="100%">
-          <AreaChart data={orderTrendData}>
-            <defs>
-              <linearGradient id="colorTotalOrders" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#1976d2" stopOpacity={0.3} />
-                <stop offset="95%" stopColor="#1976d2" stopOpacity={0} />
-              </linearGradient>
-            </defs>
-            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F1F1F1" />
-            <XAxis
-              dataKey="time"
-              tick={{ fontSize: 10, fill: "#A3AED0" }}
-              axisLine={false}
-              tickLine={false}
-              // Fixed X-axis split into ~4 parts
-              interval={orderTrendData.length > 4 ? Math.floor(orderTrendData.length / 4) : 0}
-              tickFormatter={(value) => {
-                const isSingle = isSingleDay(start, end);
-                return isSingle ? formatHourlyLabel(value) : formatDateLabel(value);
-              }}
-            />
-            <YAxis tick={{ fontSize: 10, fill: "#A3AED0" }} axisLine={false} tickLine={false} />
-            <Tooltip 
-              contentStyle={{ borderRadius: "10px", border: "none", boxShadow: "0px 4px 20px rgba(0,0,0,0.1)" }}
-            />
-            
-            {/* Main Filled Area */}
-            <Area
-              type="monotone"
-              dataKey="current"
-              name="current"
-              stroke="#1976d2"
-              strokeWidth={3}
-              fillOpacity={1}
-              fill="url(#colorTotalOrders)"
-              activeDot={{ r: 6 }}
-            />
-
-            {/* Comparison Line (no fill) */}
-            {orderTrendData.some(d => d.previous !== null && d.previous > 0) && (
-              <Area
-                type="monotone"
-                dataKey="previous"
-                name="previous"
-                stroke="#fbc02d"
-                strokeWidth={2}
-                fill="transparent"
-                strokeDasharray="5 5"
-                connectNulls={true}
-              />
             )}
-          </AreaChart>
-        </ResponsiveContainer>
-      )}
-    </Box>
-  </Card>
-</Grid>
-
-
-  <Grid item xs={12} md={6}>
-
-    <OrdersFunnelCard data={funnelStats} />
-  </Grid>
-
-  <Grid item xs={12} md={6}>
-
-
-
-
-<Card
-  sx={{
-    p: 3,
-    ...cardStyle,
-    width: "100%",
-    height: "100%",              // ✅ same height as Orders Funnel (when parent Grid item is flex)
-    display: "flex",
-    flexDirection: "column",
-    overflow: "hidden",
-  }}
->
-  {/* Header */}
-  <Stack
-    direction="row"
-    justifyContent="space-between"
-    alignItems="center"
-    mb={1.5}
-    sx={{ flexShrink: 0 }}
-  >
-    <Typography sx={{ fontWeight: 700, fontSize: 18, color: "#1B2559" }}>
-      Customer Trends
-    </Typography>
-
-    <Box sx={{ display: "flex", gap: 1 }}>
-      <Button
-        variant={visibleLines.newCustomers ? "contained" : "outlined"}
-        size="small"
-        onClick={() => toggleLine("newCustomers")}
-        sx={{
-          fontSize: "10px",
-          borderRadius: "6px",
-          borderColor: COMMON_COLORS[0],
-          bgcolor: visibleLines.newCustomers ? COMMON_COLORS[0] : "transparent",
-          color: visibleLines.newCustomers ? "white" : COMMON_COLORS[0],
-          px: 1.2,
-          py: 0.4,
-          minHeight: 26,
-        }}
+          </Box>
+        </Stack>
+      </Card>
+      <Dialog
+        open={compareDialogOpen}
+        onClose={() => setCompareDialogOpen(false)}
+        maxWidth="sm"
+        fullWidth
       >
-        NEW
-      </Button>
+        <DialogTitle sx={{ fontWeight: 700, fontSize: 18 }}>
+          Select Period to Compare
+        </DialogTitle>
 
-      <Button
-        variant={visibleLines.active ? "contained" : "outlined"}
-        size="small"
-        onClick={() => toggleLine("active")}
-        sx={{
-          fontSize: "10px",
-          borderRadius: "6px",
-          borderColor: COMMON_COLORS[1],
-          bgcolor: visibleLines.active ? COMMON_COLORS[1] : "transparent",
-          color: visibleLines.active ? "white" : COMMON_COLORS[1],
-          px: 1.2,
-          py: 0.4,
-          minHeight: 26,
-        }}
-      >
-        ACTIVE
-      </Button>
-
-      <Button
-        variant={visibleLines.lost ? "contained" : "outlined"}
-        size="small"
-        onClick={() => toggleLine("lost")}
-        sx={{
-          fontSize: "10px",
-          borderRadius: "6px",
-          borderColor: COMMON_COLORS[2],
-          bgcolor: visibleLines.lost ? COMMON_COLORS[2] : "transparent",
-          color: visibleLines.lost ? "white" : COMMON_COLORS[2],
-          px: 1.2,
-          py: 0.4,
-          minHeight: 26,
-        }}
-      >
-        LOST
-      </Button>
-    </Box>
-  </Stack>
-
-  {/* Body (kept inside fixed card height) */}
-  <Box sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", gap: 1.5 }}>
-    {customerTrendLoading ? (
-      <Skeleton variant="rectangular" sx={{ flex: 1, borderRadius: 2 }} />
-    ) : customerTrendData.length === 0 ? (
-      <Box sx={{ flex: 1, display: "grid", placeItems: "center" }}>
-        <Typography color="text.secondary">No customer trend data available</Typography>
-      </Box>
-    ) : (
-      <>
-        {/* Chart takes remaining height */}
-        <Box sx={{ flex: 1, minHeight: 0 }}>
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={customerTrendData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-              <XAxis
-                dataKey="date"
-                tick={{ fontSize: 11 }}
-                tickFormatter={(value) => {
-                  const isSingle = isSingleDay(start, end);
-                  return isSingle ? formatHourlyLabel(value) : formatDateLabel(value);
-                }}
-                interval={
-                  customerTrendData.length > 5
-                    ? Math.floor(customerTrendData.length / 3) - 1
-                    : 0
-                }
+        <DialogContent dividers sx={{ p: 3 }}>
+          <Stack spacing={3} sx={{ mt: 1 }}>
+            <Box>
+              <Typography sx={{ fontSize: 12, fontWeight: 600, color: "text.secondary", mb: 1 }}>
+                Comparison Start Date
+              </Typography>
+              <TextField
+                type="date"
+                fullWidth
+                InputLabelProps={{ shrink: true }}
+                value={tempCompareStart}
+                onChange={(e) => setTempCompareStart(e.target.value)}
+                sx={{ "& input": { padding: "12px" } }}
               />
-              <YAxis tick={{ fontSize: 11 }} />
+            </Box>
 
-              <Tooltip
-                content={({ active, payload, label }) => {
-                  if (!active || !payload || payload.length === 0) return null;
+            <Box>
+              <Typography sx={{ fontSize: 12, fontWeight: 600, color: "text.secondary", mb: 1 }}>
+                Comparison End Date
+              </Typography>
+              <TextField
+                type="date"
+                fullWidth
+                InputLabelProps={{ shrink: true }}
+                value={tempCompareEnd}
+                onChange={(e) => setTempCompareEnd(e.target.value)}
+                sx={{ "& input": { padding: "12px" } }}
+              />
+            </Box>
 
-                  return (
-                    <div
-                      style={{
-                        background: "white",
-                        padding: "12px",
-                        borderRadius: "8px",
-                        boxShadow: "0 2px 10px rgba(0,0,0,0.15)",
-                        border: "1px solid #e0e0e0",
-                        minWidth: "200px",
+            <Box sx={{ bgcolor: "#FFF3E0", p: 2, borderRadius: "8px", border: "1px solid #FFB74D" }}>
+              <Typography sx={{ fontSize: 12, color: "#E65100" }}>
+                <strong>💡 Tip:</strong> Compare against a past period to see growth or decline.
+              </Typography>
+            </Box>
+          </Stack>
+        </DialogContent>
+
+        <DialogActions sx={{ p: 2 }}>
+          <Button
+            variant="outlined"
+            onClick={() => setCompareDialogOpen(false)}
+          >
+            Cancel
+          </Button>
+          <Button
+            variant="outlined"
+            color="error"
+            onClick={handleComparisonReset}
+          >
+            Clear
+          </Button>
+          <Button
+            variant="contained"
+            onClick={handleComparisonSave}
+          >
+            Apply
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <ComprehensiveSummaryTableIntegrated
+        apiBase={API}
+        start={start}
+        end={end}
+      />
+
+
+      <Grid container spacing={3}>
+
+
+        <Grid item xs={12} md={6}>
+
+          <AverageOrderValueCard
+            apiBase={API}
+            start={start}
+            end={end}
+            aovStats={aovStats}
+            compareMode={compareStart && compareEnd ? "custom" : "none"}
+            compareStart={compareStart}
+            compareEnd={compareEnd}
+            useCustomCompare={useCustomCompare}
+          />
+        </Grid>
+
+
+        <Grid item xs={12} md={6}>
+          {/* Total Orders Trend */}
+          <Card sx={{ p: 3, borderRadius: 3, boxShadow: "0px 4px 20px rgba(0,0,0,0.05)", border: "1px solid #E2E8F0" }}>
+            <Box sx={{ display: "flex", justifyContent: "space-between", mb: 1.2 }}>
+              <Typography sx={{ fontWeight: 700, color: "#1B2559", fontSize: 18 }}>Total Orders</Typography>
+
+              <Select
+                size="small"
+                value={orderFilter}
+                onChange={(e) => setOrderFilter(e.target.value)}
+                sx={{ height: 32, borderRadius: 2 }}
+              >
+                <MenuItem value="all">All</MenuItem>
+                <MenuItem value="cod">COD</MenuItem>
+                <MenuItem value="prepaid">Prepaid</MenuItem>
+              </Select>
+            </Box>
+
+            {orderTrendLoading ? (
+              <Skeleton height={40} width={140} />
+            ) : (
+              <Box sx={{ mb: 1 }}>
+                <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+                  <Typography sx={{ fontSize: 32, fontWeight: 900, color: "#1B2559" }}>
+                    {orderTrendSummary.total}
+                  </Typography>
+
+                  {compareStart && compareEnd && (
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                      <Box
+                        sx={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 0.5,
+                          px: 1.5,
+                          py: 0.6,
+                          borderRadius: "20px",
+                          bgcolor: orderTrendSummary.percentChange >= 0 ? "#E8F5E9" : "#FFEBEE",
+                          border: orderTrendSummary.percentChange >= 0 ? "1px solid #4CAF50" : "1px solid #F44336",
+                        }}
+                      >
+                        <Typography
+                          sx={{
+                            fontSize: 14,
+                            fontWeight: 700,
+                            color: orderTrendSummary.percentChange >= 0 ? "#2e7d32" : "#d32f2f",
+                          }}
+                        >
+                          {orderTrendSummary.percentChange >= 0 ? "▲" : "▼"} {Math.abs(orderTrendSummary.percentChange).toFixed(2)}%
+                        </Typography>
+                      </Box>
+                    </Box>
+                  )}
+                </Box>
+              </Box>
+            )}
+
+            {/* CHART SECTION */}
+            <Box sx={{ height: 260, mt: 2 }}>
+              {orderTrendLoading ? (
+                <Skeleton height="100%" variant="rectangular" sx={{ borderRadius: 2 }} />
+              ) : (
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={orderTrendData}>
+                    <defs>
+                      <linearGradient id="colorTotalOrders" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#1976d2" stopOpacity={0.3} />
+                        <stop offset="95%" stopColor="#1976d2" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F1F1F1" />
+                    <XAxis
+                      dataKey="time"
+                      tick={{ fontSize: 10, fill: "#A3AED0" }}
+                      axisLine={false}
+                      tickLine={false}
+                      // Fixed X-axis split into ~4 parts
+                      interval={orderTrendData.length > 4 ? Math.floor(orderTrendData.length / 4) : 0}
+                      tickFormatter={(value) => {
+                        const isSingle = isSingleDay(start, end);
+                        return isSingle ? formatHourlyLabel(value) : formatDateLabel(value);
                       }}
-                    >
-                      <strong style={{ fontSize: "12px", color: "#333" }}>{label}</strong>
+                    />
+                    <YAxis tick={{ fontSize: 10, fill: "#A3AED0" }} axisLine={false} tickLine={false} />
+                    <Tooltip
+                      contentStyle={{ borderRadius: "10px", border: "none", boxShadow: "0px 4px 20px rgba(0,0,0,0.1)" }}
+                    />
 
-                      {payload.map((entry, i) => {
-                        let lab = entry.name;
-                        if (entry.name === "newCustomers") {
-                          lab = start === end ? "New (Today)" : "New Customers";
-                        } else if (entry.name === "compareNewCustomers") {
-                          lab =
-                            compareStart === compareEnd
-                              ? "New (Comparison)"
-                              : "New (Compare)";
-                        }
+                    {/* Main Filled Area */}
+                    <Area
+                      type="monotone"
+                      dataKey="current"
+                      name="current"
+                      stroke="#1976d2"
+                      strokeWidth={3}
+                      fillOpacity={1}
+                      fill="url(#colorTotalOrders)"
+                      activeDot={{ r: 6 }}
+                    />
 
-                        return (
-                          <div
-                            key={i}
-                            style={{
-                              color: entry.color,
-                              marginTop: "6px",
-                              fontSize: "12px",
-                              fontWeight: 600,
-                              display: "flex",
-                              justifyContent: "space-between",
-                              gap: "20px",
-                            }}
-                          >
-                            <span>{lab}:</span>
-                            <strong>{entry.value?.toLocaleString() || 0}</strong>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  );
-                }}
-              />
-
-              <Legend
-                formatter={(value) => {
-                  if (value === "newCustomers") return `New (${start})`;
-                  if (value === "compareNewCustomers") return `New (${compareStart})`;
-                  if (value === "active") return "Active";
-                  if (value === "lost") return "Lost";
-                  return value;
-                }}
-                wrapperStyle={{ paddingTop: "8px" }}
-              />
-
-              {visibleLines.newCustomers && (
-                <Line
-                  dataKey="newCustomers"
-                  stroke={COMMON_COLORS[0]}
-                  strokeWidth={3}
-                  dot={{ r: 3.5, fill: COMMON_COLORS[0] }}
-                  name="newCustomers"
-                />
+                    {/* Comparison Line (no fill) */}
+                    {orderTrendData.some(d => d.previous !== null && d.previous > 0) && (
+                      <Area
+                        type="monotone"
+                        dataKey="previous"
+                        name="previous"
+                        stroke="#fbc02d"
+                        strokeWidth={2}
+                        fill="transparent"
+                        strokeDasharray="5 5"
+                        connectNulls={true}
+                      />
+                    )}
+                  </AreaChart>
+                </ResponsiveContainer>
               )}
-
-              {visibleLines.newCustomers &&
-                compareStart &&
-                compareEnd &&
-                customerTrendData.some((d) => d.compareNewCustomers > 0) && (
-                  <Line
-                    dataKey="compareNewCustomers"
-                    stroke={COMMON_COLORS[1]}
-                    strokeWidth={3}
-                    strokeDasharray="5 5"
-                    dot={{ r: 3.5, fill: COMMON_COLORS[1] }}
-                    name="compareNewCustomers"
-                  />
-                )}
-
-              {visibleLines.active && (
-                <Line
-                  dataKey="active"
-                  stroke={COMMON_COLORS[1]}
-                  strokeWidth={3}
-                  dot={{ r: 3.5, fill: COMMON_COLORS[1] }}
-                  name="active"
-                />
-              )}
-
-              {visibleLines.lost && (
-                <Line
-                  dataKey="lost"
-                  stroke={COMMON_COLORS[3]}
-                  strokeWidth={3}
-                  dot={{ r: 3.5, fill: COMMON_COLORS[3] }}
-                  name="lost"
-                />
-              )}
-            </LineChart>
-          </ResponsiveContainer>
-        </Box>
-
-        {/* Summary Stats (compact) */}
-        <Box
-          sx={{
-            p: 1.25,
-            bgcolor: "#F5F5F5",
-            borderRadius: 2,
-            display: "grid",
-            gridTemplateColumns: { xs: "1fr", sm: "repeat(3, 1fr)" },
-            gap: 1,
-            flexShrink: 0,
-          }}
-        >
-          {visibleLines.newCustomers && (
-            <Box sx={{ textAlign: "center" }}>
-              <Typography sx={{ fontSize: 10, color: "text.secondary", fontWeight: 700 }}>
-                Total New
-              </Typography>
-              <Typography sx={{ fontSize: 16, fontWeight: 800, color: COMMON_COLORS[0] }}>
-                {customerTrendData
-                  .reduce((sum, d) => sum + (d.newCustomers || 0), 0)
-                  .toLocaleString()}
-              </Typography>
             </Box>
-          )}
+          </Card>
+        </Grid>
 
-          {visibleLines.active && (
-            <Box sx={{ textAlign: "center" }}>
-              <Typography sx={{ fontSize: 10, color: "text.secondary", fontWeight: 700 }}>
-                Active Customers
-              </Typography>
-              <Typography sx={{ fontSize: 16, fontWeight: 800, color: COMMON_COLORS[1] }}>
-                {(customerTrendData[0]?.active || 0).toLocaleString()}
-              </Typography>
-            </Box>
-          )}
 
-          {visibleLines.lost && (
-            <Box sx={{ textAlign: "center" }}>
-              <Typography sx={{ fontSize: 10, color: "text.secondary", fontWeight: 700 }}>
-                Lost Customers
-              </Typography>
-              <Typography sx={{ fontSize: 16, fontWeight: 800, color: COMMON_COLORS[3] }}>
-                {(customerTrendData[0]?.lost || 0).toLocaleString()}
-              </Typography>
-            </Box>
-          )}
-        </Box>
+        <Grid item xs={12} md={6}>
+          {loading
+            ? <Skeleton variant="rectangular" height={480} sx={{ borderRadius: 3 }} animation="wave" />
+            : <OrdersFunnelCard data={funnelStats} cancelledOrders={cancelledOrders} />
+          }
+        </Grid>
 
-        {/* Escalations (wider + shorter cards) */}
-        {escalationPriorityLoading ? (
-          <Skeleton variant="rectangular" height={100} sx={{ borderRadius: 2, flexShrink: 0 }} />
-        ) : (
-          <Box
+        <Grid item xs={12} md={6}>
+          <Card
             sx={{
-              p: 1.25,
-              bgcolor: "#F5F5F5",
-              borderRadius: 2,
-              flexShrink: 0,
+              p: 3,
+              ...cardStyle,
+              width: "100%",
+              height: "100%",
+              display: "flex",
+              flexDirection: "column",
+              overflow: "hidden",
             }}
           >
-            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 1 }}>
-              <Typography sx={{ fontWeight: 800, color: "#1B2559", fontSize: 14 }}>
-                Escalations
-              </Typography>
-            </Box>
-
-            <Box
-              sx={{
-                display: "grid",
-                gridTemplateColumns: { xs: "1fr", sm: "repeat(3, 1fr)" }, // ✅ wider (no empty 4th column)
-                gap: 1.5,
-              }}
+            {/* Header */}
+            <Stack
+              direction="row"
+              justifyContent="space-between"
+              alignItems="center"
+              mb={1.5}
+              sx={{ flexShrink: 0 }}
             >
-              {[
-                {
-                  title: "LOW PRIORITY",
-                  value: escalationPriorityData?.summary?.lowPriority ?? 0,
-                  sub: "0-2 days old",
-                },
-                {
-                  title: "MORE PRIORITY",
-                  value: escalationPriorityData?.summary?.mediumPriority ?? 0,
-                  sub: "3-4 days old",
-                },
-                {
-                  title: "URGENT HIGH PRIORITY",
-                  value: escalationPriorityData?.summary?.highPriority ?? 0,
-                  sub: "5+ days old",
-                },
-              ].map((c) => (
-                <Box
-                  key={c.title}
+              <Typography sx={{ fontWeight: 700, fontSize: 18, color: "#1B2559" }}>
+                Customer Trends
+              </Typography>
+
+              <Box sx={{ display: "flex", gap: 1 }}>
+                <Button
+                  variant={visibleLines.newCustomers ? "contained" : "outlined"}
+                  size="small"
+                  onClick={() => toggleLine("newCustomers")}
                   sx={{
-                    p: 1.25,                 // ✅ reduced height
-                    bgcolor: "#fff",
-                    border: "1px solid #E2E8F0",
-                    borderRadius: 2,
-                    minHeight: 86,            // ✅ short card
-                    display: "flex",
-                    flexDirection: "column",
-                    justifyContent: "center",
+                    fontSize: "10px",
+                    borderRadius: "6px",
+                    borderColor: COMMON_COLORS[0],
+                    bgcolor: visibleLines.newCustomers ? COMMON_COLORS[0] : "transparent",
+                    color: visibleLines.newCustomers ? "white" : COMMON_COLORS[0],
+                    px: 1.2,
+                    py: 0.4,
+                    minHeight: 26,
                   }}
                 >
-                  <Typography sx={{ fontSize: 10, fontWeight: 900, letterSpacing: 0.6 }}>
-                    {c.title}
-                  </Typography>
-                  <Typography sx={{ fontSize: 24, fontWeight: 900, lineHeight: 1.1, mt: 0.3 }}>
-                    {c.value}
-                  </Typography>
-                  <Typography sx={{ fontSize: 12, color: "text.secondary", mt: 0.3 }}>
-                    {c.sub}
-                  </Typography>
+                  NEW
+                </Button>
+
+                <Button
+                  variant={visibleLines.active ? "contained" : "outlined"}
+                  size="small"
+                  onClick={() => toggleLine("active")}
+                  sx={{
+                    fontSize: "10px",
+                    borderRadius: "6px",
+                    borderColor: COMMON_COLORS[1],
+                    bgcolor: visibleLines.active ? COMMON_COLORS[1] : "transparent",
+                    color: visibleLines.active ? "white" : COMMON_COLORS[1],
+                    px: 1.2,
+                    py: 0.4,
+                    minHeight: 26,
+                  }}
+                >
+                  ACTIVE
+                </Button>
+
+                <Button
+                  variant={visibleLines.lost ? "contained" : "outlined"}
+                  size="small"
+                  onClick={() => toggleLine("lost")}
+                  sx={{
+                    fontSize: "10px",
+                    borderRadius: "6px",
+                    borderColor: COMMON_COLORS[2],
+                    bgcolor: visibleLines.lost ? COMMON_COLORS[2] : "transparent",
+                    color: visibleLines.lost ? "white" : COMMON_COLORS[2],
+                    px: 1.2,
+                    py: 0.4,
+                    minHeight: 26,
+                  }}
+                >
+                  LOST
+                </Button>
+              </Box>
+            </Stack>
+
+            {/* Body (kept inside fixed card height) */}
+            <Box sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", gap: 1.5 }}>
+              {customerTrendLoading ? (
+                <Skeleton variant="rectangular" sx={{ flex: 1, borderRadius: 2 }} />
+              ) : customerTrendData.length === 0 ? (
+                <Box sx={{ flex: 1, display: "grid", placeItems: "center" }}>
+                  <Typography color="text.secondary">No customer trend data available</Typography>
                 </Box>
-              ))}
+              ) : (
+                <>
+                  {/* Chart takes remaining height */}
+                  <Box sx={{ flex: 1, minHeight: 0 }}>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={customerTrendData}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                        <XAxis
+                          dataKey="date"
+                          tick={{ fontSize: 11 }}
+                          tickFormatter={(value) => {
+                            const isSingle = isSingleDay(start, end);
+                            return isSingle ? formatHourlyLabel(value) : formatDateLabel(value);
+                          }}
+                          interval={
+                            customerTrendData.length > 5
+                              ? Math.floor(customerTrendData.length / 3) - 1
+                              : 0
+                          }
+                        />
+                        <YAxis tick={{ fontSize: 11 }} />
+
+                        <Tooltip
+                          content={({ active, payload, label }) => {
+                            if (!active || !payload || payload.length === 0) return null;
+
+                            return (
+                              <div
+                                style={{
+                                  background: "white",
+                                  padding: "12px",
+                                  borderRadius: "8px",
+                                  boxShadow: "0 2px 10px rgba(0,0,0,0.15)",
+                                  border: "1px solid #e0e0e0",
+                                  minWidth: "200px",
+                                }}
+                              >
+                                <strong style={{ fontSize: "12px", color: "#333" }}>{label}</strong>
+
+                                {payload.map((entry, i) => {
+                                  let lab = entry.name;
+                                  if (entry.name === "newCustomers") {
+                                    lab = start === end ? "New (Today)" : "New Customers";
+                                  } else if (entry.name === "compareNewCustomers") {
+                                    lab =
+                                      compareStart === compareEnd
+                                        ? "New (Comparison)"
+                                        : "New (Compare)";
+                                  }
+
+                                  return (
+                                    <div
+                                      key={i}
+                                      style={{
+                                        color: entry.color,
+                                        marginTop: "6px",
+                                        fontSize: "12px",
+                                        fontWeight: 600,
+                                        display: "flex",
+                                        justifyContent: "space-between",
+                                        gap: "20px",
+                                      }}
+                                    >
+                                      <span>{lab}:</span>
+                                      <strong>{entry.value?.toLocaleString() || 0}</strong>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            );
+                          }}
+                        />
+
+                        <Legend
+                          formatter={(value) => {
+                            if (value === "newCustomers") return `New (${start})`;
+                            if (value === "compareNewCustomers") return `New (${compareStart})`;
+                            if (value === "active") return "Active";
+                            if (value === "lost") return "Lost";
+                            return value;
+                          }}
+                          wrapperStyle={{ paddingTop: "8px" }}
+                        />
+
+                        {visibleLines.newCustomers && (
+                          <Line
+                            dataKey="newCustomers"
+                            stroke={COMMON_COLORS[0]}
+                            strokeWidth={3}
+                            dot={{ r: 3.5, fill: COMMON_COLORS[0] }}
+                            name="newCustomers"
+                          />
+                        )}
+
+                        {visibleLines.newCustomers &&
+                          compareStart &&
+                          compareEnd &&
+                          customerTrendData.some((d) => d.compareNewCustomers > 0) && (
+                            <Line
+                              dataKey="compareNewCustomers"
+                              stroke={COMMON_COLORS[1]}
+                              strokeWidth={3}
+                              strokeDasharray="5 5"
+                              dot={{ r: 3.5, fill: COMMON_COLORS[1] }}
+                              name="compareNewCustomers"
+                            />
+                          )}
+
+                        {visibleLines.active && (
+                          <Line
+                            dataKey="active"
+                            stroke={COMMON_COLORS[1]}
+                            strokeWidth={3}
+                            dot={{ r: 3.5, fill: COMMON_COLORS[1] }}
+                            name="active"
+                          />
+                        )}
+
+                        {visibleLines.lost && (
+                          <Line
+                            dataKey="lost"
+                            stroke={COMMON_COLORS[3]}
+                            strokeWidth={3}
+                            dot={{ r: 3.5, fill: COMMON_COLORS[3] }}
+                            name="lost"
+                          />
+                        )}
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </Box>
+
+                  {/* Summary Stats (compact) */}
+                  <Box
+                    sx={{
+                      p: 1.25,
+                      bgcolor: "#F5F5F5",
+                      borderRadius: 2,
+                      display: "grid",
+                      gridTemplateColumns: { xs: "1fr", sm: "repeat(3, 1fr)" },
+                      gap: 1,
+                      flexShrink: 0,
+                    }}
+                  >
+                    {visibleLines.newCustomers && (
+                      <Box sx={{ textAlign: "center" }}>
+                        <Typography sx={{ fontSize: 10, color: "text.secondary", fontWeight: 700 }}>
+                          Total New
+                        </Typography>
+                        <Typography sx={{ fontSize: 16, fontWeight: 800, color: COMMON_COLORS[0] }}>
+                          {customerTrendData
+                            .reduce((sum, d) => sum + (d.newCustomers || 0), 0)
+                            .toLocaleString()}
+                        </Typography>
+                      </Box>
+                    )}
+
+                    {visibleLines.active && (
+                      <Box sx={{ textAlign: "center" }}>
+                        <Typography sx={{ fontSize: 10, color: "text.secondary", fontWeight: 700 }}>
+                          Active Customers
+                        </Typography>
+                        <Typography sx={{ fontSize: 16, fontWeight: 800, color: COMMON_COLORS[1] }}>
+                          {(customerTrendData[0]?.active || 0).toLocaleString()}
+                        </Typography>
+                      </Box>
+                    )}
+
+                    {visibleLines.lost && (
+                      <Box sx={{ textAlign: "center" }}>
+                        <Typography sx={{ fontSize: 10, color: "text.secondary", fontWeight: 700 }}>
+                          Lost Customers
+                        </Typography>
+                        <Typography sx={{ fontSize: 16, fontWeight: 800, color: COMMON_COLORS[3] }}>
+                          {(customerTrendData[0]?.lost || 0).toLocaleString()}
+                        </Typography>
+                      </Box>
+                    )}
+                  </Box>
+
+                  {/* Escalations (wider + shorter cards) */}
+                  {escalationPriorityLoading ? (
+                    <Skeleton variant="rectangular" height={100} sx={{ borderRadius: 2, flexShrink: 0 }} />
+                  ) : (
+                    <Box
+                      sx={{
+                        p: 1.25,
+                        bgcolor: "#F5F5F5",
+                        borderRadius: 2,
+                        flexShrink: 0,
+                      }}
+                    >
+                      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 1 }}>
+                        <Typography sx={{ fontWeight: 800, color: "#1B2559", fontSize: 14 }}>
+                          Escalations
+                        </Typography>
+                      </Box>
+
+                      <Box
+                        sx={{
+                          display: "grid",
+                          gridTemplateColumns: { xs: "1fr", sm: "repeat(3, 1fr)" }, // ✅ wider (no empty 4th column)
+                          gap: 1.5,
+                        }}
+                      >
+                        {[
+                          {
+                            title: "LOW PRIORITY",
+                            value: escalationPriorityData?.summary?.lowPriority ?? 0,
+                            sub: "0-2 days old",
+                          },
+                          {
+                            title: "MEDIUM PRIORITY",
+                            value: escalationPriorityData?.summary?.mediumPriority ?? 0,
+                            sub: "3-4 days old",
+                          },
+                          {
+                            title: "HIGH PRIORITY",
+                            value: escalationPriorityData?.summary?.highPriority ?? 0,
+                            sub: "5+ days old",
+                          },
+                        ].map((c) => (
+                          <Box
+                            key={c.title}
+                            sx={{
+                              p: 1.25,                 // ✅ reduced height
+                              bgcolor: "#fff",
+                              border: "1px solid #E2E8F0",
+                              borderRadius: 2,
+                              minHeight: 86,            // ✅ short card
+                              display: "flex",
+                              flexDirection: "column",
+                              justifyContent: "center",
+                            }}
+                          >
+                            <Typography sx={{ fontSize: 10, fontWeight: 900, letterSpacing: 0.6 }}>
+                              {c.title}
+                            </Typography>
+                            <Typography sx={{ fontSize: 24, fontWeight: 900, lineHeight: 1.1, mt: 0.3 }}>
+                              {c.value}
+                            </Typography>
+                            <Typography sx={{ fontSize: 12, color: "text.secondary", mt: 0.3 }}>
+                              {c.sub}
+                            </Typography>
+                          </Box>
+                        ))}
+                      </Box>
+                    </Box>
+                  )}
+                </>
+              )}
             </Box>
-          </Box>
-        )}
-      </>
-    )}
-  </Box>
-</Card>
+          </Card>
 
-  </Grid>
+        </Grid>
 
-  <Grid item xs={12}>
+        <Grid item xs={12}>
 
-  </Grid>
+        </Grid>
 
 
-<Grid container spacing={3} sx={{ mb: 4 }}>
-  
-
-  <Grid item xs={12} sm={6} md={3}>
-    <Card sx={{ p: 3, ...cardStyle }}>
-      <LeadsOverviewDonut
-        totalLeads={leadStats.totalLeads}
-        followUpDue={followUpStats.followUpsDue}
-        noConsult={noConsultStats.noConsult}
-      />
-    </Card>
-  </Grid>
-
-  <Grid item xs={12} sm={6} md={3}>
-    <Card sx={{ p: 3, ...cardStyle }}>
-      <OrdersSplitPie
-        onlineOrders={data.onlineOrders}
-        teamOrders={data.teamOrders}
-      />
-    </Card>
-  </Grid>
+        <Grid container spacing={3} sx={{ mb: 4 }}>
 
 
-  <Grid item xs={12} sm={6} md={3}>
-    <Card sx={{ p: 3, ...cardStyle }}>
-      <FirstReturningDonut
-        firstTime={firstReturning.firstTime}
-        returning={firstReturning.returning}
-      />
-    </Card>
-  </Grid>
+          <Grid item xs={12} sm={6} md={3}>
+            <Card sx={{ p: 3, ...cardStyle }}>
+              <LeadsOverviewDonut
+                totalLeads={leadStats.totalLeads}
+                followUpDue={followUpStats.followUpsDue}
+                noConsult={noConsultStats.noConsult}
+              />
+            </Card>
+          </Grid>
 
-  <Grid item xs={12} sm={6} md={3}>
-    <Card sx={{ p: 3, ...cardStyle }}>
-      <EscalationDonut
-        open={escalationStats.open}
-        closed={escalationStats.closed}
-      />
-    </Card>
-  </Grid>
-</Grid>
-  <Grid item xs={12}>
-    <CustomerCohortHeatmap />
-  </Grid>
-</Grid>
+          <Grid item xs={12} sm={6} md={3}>
+            <Card sx={{ p: 3, ...cardStyle }}>
+              <OrdersSplitPie
+                onlineOrders={data.onlineOrders}
+                teamOrders={data.teamOrders}
+              />
+            </Card>
+          </Grid>
+
+
+          <Grid item xs={12} sm={6} md={3}>
+            <Card sx={{ p: 3, ...cardStyle }}>
+              <FirstReturningDonut
+                firstTime={firstReturning.firstTime}
+                returning={firstReturning.returning}
+              />
+            </Card>
+          </Grid>
+
+          <Grid item xs={12} sm={6} md={3}>
+            <Card sx={{ p: 3, ...cardStyle }}>
+              <EscalationDonut
+                open={escalationStats.open}
+                closed={escalationStats.closed}
+              />
+            </Card>
+          </Grid>
+        </Grid>
+        <Grid item xs={12}>
+          <CustomerCohortHeatmap />
+        </Grid>
+      </Grid>
 
 
       <Dialog open={deliveredOpen} onClose={() => setDeliveredOpen(false)} maxWidth="sm" fullWidth>

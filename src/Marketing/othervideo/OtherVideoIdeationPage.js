@@ -31,6 +31,8 @@ import {
   FormHelperText,
   InputAdornment,
   TablePagination,
+  Checkbox,
+  FormControlLabel,
 } from "@mui/material";
 import {
   Add as AddIcon,
@@ -51,12 +53,14 @@ import {
   RestartAlt as ResetIcon,
 } from "@mui/icons-material";
 
-const API = "https://muditamleads-14f32a10d7f7.herokuapp.com/api/scripts";
+const API = "https://muditamleads-14f32a10d7f7.herokuapp.com/api/other-videos";
 const MANAGER_ROLES = ["admin", "manager", "super-admin", "team-leader"];
 
 const getCurrentUser = () => JSON.parse(sessionStorage.getItem("user") || "{}");
-const isManagerRole = (role = "") => MANAGER_ROLES.includes(String(role || "").toLowerCase());
-const hasFullAccess = (user = {}) => isManagerRole(user.role) || user.hasTeam === true;
+const isManagerRole = (role = "") =>
+  MANAGER_ROLES.includes(String(role || "").toLowerCase());
+const hasFullAccess = (user = {}) =>
+  isManagerRole(user.role) || user.hasTeam === true;
 
 const SCRIPT_TYPES = [
   "Muditam Instagram",
@@ -71,6 +75,7 @@ const SCRIPT_TYPES = [
   "Google Ads",
   "WhatsApp",
 ];
+
 const SCRIPT_STATUSES = ["Pending", "Approved", "Rewrite", "On Hold", "Rejected"];
 const NEEDS_REASON = new Set(["On Hold", "Rejected"]);
 
@@ -81,8 +86,9 @@ const STATUS_COLORS = {
   "On Hold": { bg: "#eff6ff", color: "#2563eb", border: "#93c5fd" },
   Rejected: { bg: "#fef2f2", color: "#dc2626", border: "#fca5a5" },
 };
+
 const STAGE_COLORS = {
-  Script: "#6b7280",
+  Ideation: "#6b7280",
   "Shoot Pending": "#d97706",
   "Shoot Done": "#059669",
   "Cut Pending": "#2563eb",
@@ -91,6 +97,7 @@ const STAGE_COLORS = {
   "Edit Done": "#059669",
   Post: "#db2777",
 };
+
 const NAV_ACCENT = {
   Shoot: { base: "#f59e0b", light: "#fffbeb", border: "#fde68a", text: "#92400e" },
   Cut: { base: "#8b5cf6", light: "#f5f3ff", border: "#ddd6fe", text: "#4c1d95" },
@@ -104,6 +111,7 @@ const lightPaper = {
   borderRadius: 2,
   boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
 };
+
 const inputSx = {
   "& .MuiOutlinedInput-root": {
     bgcolor: "#ffffff",
@@ -114,18 +122,39 @@ const inputSx = {
   "& .MuiInputLabel-root.Mui-focused": { color: "#4f46e5" },
 };
 
-const getAuthHeaders = () => ({ "x-session-user": JSON.stringify(getCurrentUser()) });
+const getAuthHeaders = () => ({
+  "x-session-user": JSON.stringify(getCurrentUser()),
+});
 
 // ═══════════════════════════════════════════════════════════
-// RICH TEXT EDITOR — Gmail compose style (same as yours)
+// Rich Text Editor
 // ═══════════════════════════════════════════════════════════
 const FONT_OPTIONS = ["Sans Serif", "Serif", "Monospace", "Cursive"];
-const FONT_MAP = { "Sans Serif": "Arial, sans-serif", Serif: "Georgia, serif", Monospace: "'Courier New', monospace", Cursive: "cursive" };
+const FONT_MAP = {
+  "Sans Serif": "Arial, sans-serif",
+  Serif: "Georgia, serif",
+  Monospace: "'Courier New', monospace",
+  Cursive: "cursive",
+};
 const SIZE_OPTIONS = ["Small", "Normal", "Large", "Huge"];
 const SIZE_MAP = { Small: "1", Normal: "3", Large: "5", Huge: "7" };
 const TEXT_COLORS = [
-  "#111827", "#dc2626", "#d97706", "#059669", "#2563eb", "#7c3aed", "#db2777", "#0891b2",
-  "#6b7280", "#f87171", "#fbbf24", "#34d399", "#60a5fa", "#a78bfa", "#f472b6", "#22d3ee",
+  "#111827",
+  "#dc2626",
+  "#d97706",
+  "#059669",
+  "#2563eb",
+  "#7c3aed",
+  "#db2777",
+  "#0891b2",
+  "#6b7280",
+  "#f87171",
+  "#fbbf24",
+  "#34d399",
+  "#60a5fa",
+  "#a78bfa",
+  "#f472b6",
+  "#22d3ee",
 ];
 
 function TBtn({ title, active, onClick, children }) {
@@ -162,8 +191,19 @@ function TBtn({ title, active, onClick, children }) {
     </Tooltip>
   );
 }
+
 function TSep() {
-  return <Box sx={{ width: "1px", height: 20, bgcolor: "#e5e7eb", mx: "2px", flexShrink: 0 }} />;
+  return (
+    <Box
+      sx={{
+        width: "1px",
+        height: 20,
+        bgcolor: "#e5e7eb",
+        mx: "2px",
+        flexShrink: 0,
+      }}
+    />
+  );
 }
 
 function RichEditor({ value, onChange, error, expanded, onToggleExpand }) {
@@ -191,10 +231,12 @@ function RichEditor({ value, onChange, error, expanded, onToggleExpand }) {
     document.execCommand(cmd, false, val);
     sync();
   };
+
   const sync = () => {
     setBold(document.queryCommandState("bold"));
     setItalic(document.queryCommandState("italic"));
     setUnderline(document.queryCommandState("underline"));
+
     const aligns = ["justifyLeft", "justifyCenter", "justifyRight", "justifyFull"];
     for (const a of aligns) {
       if (document.queryCommandState(a)) {
@@ -203,21 +245,26 @@ function RichEditor({ value, onChange, error, expanded, onToggleExpand }) {
       }
     }
   };
+
   const handleInput = () => {
     if (ref.current) onChange(ref.current.innerHTML);
   };
+
   const applyFont = (f) => {
     setFont(f);
     exec("fontName", FONT_MAP[f]);
   };
+
   const applySize = (s) => {
     setSize(s);
     exec("fontSize", SIZE_MAP[s]);
   };
+
   const applyColor = (c) => {
     exec("foreColor", c);
     setColorOpen(false);
   };
+
   const insertQuote = () => {
     ref.current?.focus();
     document.execCommand(
@@ -244,7 +291,6 @@ function RichEditor({ value, onChange, error, expanded, onToggleExpand }) {
         transition: "border-color 0.2s",
       }}
     >
-      {/* Toolbar */}
       <Box
         sx={{
           display: "flex",
@@ -263,12 +309,14 @@ function RichEditor({ value, onChange, error, expanded, onToggleExpand }) {
             <path d="M3 13A9 9 0 1 0 6 6.7" />
           </svg>
         </TBtn>
+
         <TBtn title="Redo" onClick={() => exec("redo")}>
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
             <path d="M21 7v6h-6" />
             <path d="M21 13A9 9 0 1 1 18 6.7" />
           </svg>
         </TBtn>
+
         <TSep />
 
         <Box
@@ -319,14 +367,17 @@ function RichEditor({ value, onChange, error, expanded, onToggleExpand }) {
             </option>
           ))}
         </Box>
+
         <TSep />
 
         <TBtn title="Bold (Ctrl+B)" active={bold} onClick={() => exec("bold")}>
           <b style={{ fontSize: "0.9rem" }}>B</b>
         </TBtn>
+
         <TBtn title="Italic (Ctrl+I)" active={italic} onClick={() => exec("italic")}>
           <i style={{ fontSize: "0.9rem", fontFamily: "serif" }}>I</i>
         </TBtn>
+
         <TBtn title="Underline (Ctrl+U)" active={underline} onClick={() => exec("underline")}>
           <span style={{ textDecoration: "underline", fontSize: "0.85rem" }}>U</span>
         </TBtn>
@@ -357,6 +408,7 @@ function RichEditor({ value, onChange, error, expanded, onToggleExpand }) {
               <Box sx={{ width: 14, height: 3, borderRadius: "2px", bgcolor: "#4f46e5", mt: "2px" }} />
             </Box>
           </Tooltip>
+
           {colorOpen && (
             <Box
               sx={{
@@ -390,36 +442,64 @@ function RichEditor({ value, onChange, error, expanded, onToggleExpand }) {
                     border: "2px solid transparent",
                     cursor: "pointer",
                     transition: "all 0.15s",
-                    "&:hover": { border: "2px solid #4f46e5", transform: "scale(1.15)" },
+                    "&:hover": {
+                      border: "2px solid #4f46e5",
+                      transform: "scale(1.15)",
+                    },
                   }}
                 />
               ))}
             </Box>
           )}
         </Box>
+
         <TSep />
 
-        <TBtn title="Align Left" active={align === "left"} onClick={() => { exec("justifyLeft"); setAlign("left"); }}>
+        <TBtn
+          title="Align Left"
+          active={align === "left"}
+          onClick={() => {
+            exec("justifyLeft");
+            setAlign("left");
+          }}
+        >
           <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
             <rect x="3" y="5" width="18" height="2" />
             <rect x="3" y="11" width="12" height="2" />
             <rect x="3" y="17" width="15" height="2" />
           </svg>
         </TBtn>
-        <TBtn title="Align Center" active={align === "center"} onClick={() => { exec("justifyCenter"); setAlign("center"); }}>
+
+        <TBtn
+          title="Align Center"
+          active={align === "center"}
+          onClick={() => {
+            exec("justifyCenter");
+            setAlign("center");
+          }}
+        >
           <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
             <rect x="3" y="5" width="18" height="2" />
             <rect x="6" y="11" width="12" height="2" />
             <rect x="4" y="17" width="16" height="2" />
           </svg>
         </TBtn>
-        <TBtn title="Align Right" active={align === "right"} onClick={() => { exec("justifyRight"); setAlign("right"); }}>
+
+        <TBtn
+          title="Align Right"
+          active={align === "right"}
+          onClick={() => {
+            exec("justifyRight");
+            setAlign("right");
+          }}
+        >
           <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
             <rect x="3" y="5" width="18" height="2" />
             <rect x="9" y="11" width="12" height="2" />
             <rect x="6" y="17" width="15" height="2" />
           </svg>
         </TBtn>
+
         <TSep />
 
         <TBtn title="Bullet list" onClick={() => exec("insertUnorderedList")}>
@@ -432,22 +512,18 @@ function RichEditor({ value, onChange, error, expanded, onToggleExpand }) {
             <rect x="7" y="17" width="14" height="2" />
           </svg>
         </TBtn>
+
         <TBtn title="Numbered list" onClick={() => exec("insertOrderedList")}>
           <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
-            <text x="2" y="8" fontSize="7" fontWeight="bold" fontFamily="monospace">
-              1.
-            </text>
+            <text x="2" y="8" fontSize="7" fontWeight="bold" fontFamily="monospace">1.</text>
             <rect x="9" y="5" width="12" height="2" />
-            <text x="2" y="14" fontSize="7" fontWeight="bold" fontFamily="monospace">
-              2.
-            </text>
+            <text x="2" y="14" fontSize="7" fontWeight="bold" fontFamily="monospace">2.</text>
             <rect x="9" y="11" width="12" height="2" />
-            <text x="2" y="20" fontSize="7" fontWeight="bold" fontFamily="monospace">
-              3.
-            </text>
+            <text x="2" y="20" fontSize="7" fontWeight="bold" fontFamily="monospace">3.</text>
             <rect x="9" y="17" width="12" height="2" />
           </svg>
         </TBtn>
+
         <TBtn title="Decrease indent" onClick={() => exec("outdent")}>
           <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
             <rect x="3" y="5" width="18" height="2" />
@@ -456,6 +532,7 @@ function RichEditor({ value, onChange, error, expanded, onToggleExpand }) {
             <rect x="3" y="17" width="18" height="2" />
           </svg>
         </TBtn>
+
         <TBtn title="Increase indent" onClick={() => exec("indent")}>
           <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
             <rect x="3" y="5" width="18" height="2" />
@@ -471,7 +548,13 @@ function RichEditor({ value, onChange, error, expanded, onToggleExpand }) {
           </svg>
         </TBtn>
 
-        <TBtn title="Clear formatting" onClick={() => { exec("removeFormat"); exec("unlink"); }}>
+        <TBtn
+          title="Clear formatting"
+          onClick={() => {
+            exec("removeFormat");
+            exec("unlink");
+          }}
+        >
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <line x1="5" y1="5" x2="19" y2="19" />
             <path d="M8 8H4l3.5 8h3" />
@@ -480,6 +563,7 @@ function RichEditor({ value, onChange, error, expanded, onToggleExpand }) {
         </TBtn>
 
         <Box sx={{ flex: 1 }} />
+
         <Tooltip title={expanded ? "Collapse" : "Expand editor"} arrow placement="top">
           <Box
             component="button"
@@ -499,7 +583,11 @@ function RichEditor({ value, onChange, error, expanded, onToggleExpand }) {
               bgcolor: expanded ? "#eef2ff" : "#fff",
               color: expanded ? "#4f46e5" : "#6b7280",
               transition: "all 0.15s",
-              "&:hover": { bgcolor: "#eef2ff", color: "#4f46e5", borderColor: "#c7d2fe" },
+              "&:hover": {
+                bgcolor: "#eef2ff",
+                color: "#4f46e5",
+                borderColor: "#c7d2fe",
+              },
             }}
           >
             {expanded ? <CollapseIcon sx={{ fontSize: 15 }} /> : <ExpandIcon sx={{ fontSize: 15 }} />}
@@ -507,7 +595,6 @@ function RichEditor({ value, onChange, error, expanded, onToggleExpand }) {
         </Tooltip>
       </Box>
 
-      {/* Content */}
       <Box
         ref={ref}
         contentEditable
@@ -516,7 +603,7 @@ function RichEditor({ value, onChange, error, expanded, onToggleExpand }) {
         onKeyUp={sync}
         onMouseUp={sync}
         onMouseDown={() => colorOpen && setColorOpen(false)}
-        data-placeholder="Write your script here…"
+        data-placeholder="Write your idea / script here…"
         sx={{
           minHeight: minH,
           maxHeight: expanded ? "60vh" : "320px",
@@ -529,7 +616,11 @@ function RichEditor({ value, onChange, error, expanded, onToggleExpand }) {
           outline: "none",
           fontFamily: "Arial, sans-serif",
           transition: "min-height 0.3s ease",
-          "&:empty:before": { content: "attr(data-placeholder)", color: "#9ca3af", pointerEvents: "none" },
+          "&:empty:before": {
+            content: "attr(data-placeholder)",
+            color: "#9ca3af",
+            pointerEvents: "none",
+          },
           "& ul": { paddingLeft: "1.5em", listStyleType: "disc" },
           "& ol": { paddingLeft: "1.5em", listStyleType: "decimal" },
           "& blockquote": {
@@ -543,6 +634,7 @@ function RichEditor({ value, onChange, error, expanded, onToggleExpand }) {
           },
         }}
       />
+
       {error && (
         <Box sx={{ px: 2, py: 0.5, bgcolor: "#fef2f2" }}>
           <Typography sx={{ fontSize: "0.75rem", color: "#dc2626" }}>{error}</Typography>
@@ -579,6 +671,7 @@ function CountBadge({ count, accent }) {
     </Box>
   );
 }
+
 function NavButton({ label, icon, accent, count, onClick }) {
   return (
     <Button
@@ -593,7 +686,11 @@ function NavButton({ label, icon, accent, count, onClick }) {
         fontWeight: 600,
         fontSize: "0.85rem",
         px: 1.8,
-        "&:hover": { borderColor: accent.base, bgcolor: accent.light, boxShadow: `0 0 0 2px ${accent.border}` },
+        "&:hover": {
+          borderColor: accent.base,
+          bgcolor: accent.light,
+          boxShadow: `0 0 0 2px ${accent.border}`,
+        },
       }}
     >
       {label}
@@ -601,6 +698,7 @@ function NavButton({ label, icon, accent, count, onClick }) {
     </Button>
   );
 }
+
 function StatusChip({ status }) {
   const c = STATUS_COLORS[status] || STATUS_COLORS.Pending;
   return (
@@ -623,6 +721,7 @@ function StatusChip({ status }) {
     </Box>
   );
 }
+
 function StageChip({ stage }) {
   const color = STAGE_COLORS[stage] || "#6b7280";
   return (
@@ -648,18 +747,37 @@ function StageChip({ stage }) {
 function ApproverCommentCell({ comment }) {
   const [open, setOpen] = useState(false);
 
-  if (!comment?.trim()) return <Typography sx={{ fontSize: "0.78rem", color: "#d1d5db" }}>—</Typography>;
+  if (!comment?.trim()) {
+    return <Typography sx={{ fontSize: "0.78rem", color: "#d1d5db" }}>—</Typography>;
+  }
 
   const short = comment.length > 28 ? comment.slice(0, 28) + "…" : comment;
 
   return (
     <>
       <Stack direction="row" alignItems="center" spacing={0.5}>
-        <Typography sx={{ fontSize: "0.8rem", color: "#475569", maxWidth: 150, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+        <Typography
+          sx={{
+            fontSize: "0.8rem",
+            color: "#475569",
+            maxWidth: 150,
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+          }}
+        >
           {short}
         </Typography>
         <Tooltip title="View full comment" arrow>
-          <IconButton size="small" onClick={() => setOpen(true)} sx={{ color: "#64748b", p: "3px", "&:hover": { color: "#4f46e5", bgcolor: "#eef2ff" } }}>
+          <IconButton
+            size="small"
+            onClick={() => setOpen(true)}
+            sx={{
+              color: "#64748b",
+              p: "3px",
+              "&:hover": { color: "#4f46e5", bgcolor: "#eef2ff" },
+            }}
+          >
             <ViewIcon sx={{ fontSize: 16 }} />
           </IconButton>
         </Tooltip>
@@ -671,19 +789,46 @@ function ApproverCommentCell({ comment }) {
         maxWidth="xs"
         fullWidth
         PaperProps={{
-          sx: { borderRadius: 3, boxShadow: "0 25px 50px -12px rgba(0,0,0,0.2)", overflow: "hidden" },
+          sx: {
+            borderRadius: 3,
+            boxShadow: "0 25px 50px -12px rgba(0,0,0,0.2)",
+            overflow: "hidden",
+          },
         }}
       >
-        <Box sx={{ px: 3, pt: 3, pb: 2, background: "linear-gradient(135deg, #4f46e5 0%, #6366f1 100%)", position: "relative" }}>
+        <Box
+          sx={{
+            px: 3,
+            pt: 3,
+            pb: 2,
+            background: "linear-gradient(135deg, #4f46e5 0%, #6366f1 100%)",
+            position: "relative",
+          }}
+        >
           <Stack direction="row" alignItems="center" spacing={1.5}>
-            <Box sx={{ width: 36, height: 36, borderRadius: "10px", bgcolor: "rgba(255,255,255,0.2)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <Box
+              sx={{
+                width: 36,
+                height: 36,
+                borderRadius: "10px",
+                bgcolor: "rgba(255,255,255,0.2)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
               <CommentIcon sx={{ fontSize: 18, color: "#fff" }} />
             </Box>
             <Box>
-              <Typography sx={{ fontSize: "1rem", fontWeight: 700, color: "#fff", lineHeight: 1.2 }}>Approver Comment</Typography>
-              <Typography sx={{ fontSize: "0.75rem", color: "rgba(255,255,255,0.7)", mt: 0.2 }}>Feedback from reviewer</Typography>
+              <Typography sx={{ fontSize: "1rem", fontWeight: 700, color: "#fff", lineHeight: 1.2 }}>
+                Approver Comment
+              </Typography>
+              <Typography sx={{ fontSize: "0.75rem", color: "rgba(255,255,255,0.7)", mt: 0.2 }}>
+                Feedback from reviewer
+              </Typography>
             </Box>
           </Stack>
+
           <IconButton
             size="small"
             onClick={() => setOpen(false)}
@@ -701,18 +846,60 @@ function ApproverCommentCell({ comment }) {
         </Box>
 
         <Box sx={{ px: 3, py: 3 }}>
-          <Box sx={{ bgcolor: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 2, p: 2.5, position: "relative" }}>
-            <Typography sx={{ position: "absolute", top: -4, left: 10, fontSize: "2.5rem", color: "#e0e7ff", fontFamily: "Georgia, serif", lineHeight: 1, userSelect: "none" }}>
+          <Box
+            sx={{
+              bgcolor: "#f8fafc",
+              border: "1px solid #e2e8f0",
+              borderRadius: 2,
+              p: 2.5,
+              position: "relative",
+            }}
+          >
+            <Typography
+              sx={{
+                position: "absolute",
+                top: -4,
+                left: 10,
+                fontSize: "2.5rem",
+                color: "#e0e7ff",
+                fontFamily: "Georgia, serif",
+                lineHeight: 1,
+                userSelect: "none",
+              }}
+            >
               "
             </Typography>
-            <Typography sx={{ fontSize: "0.95rem", color: "#1e293b", lineHeight: 1.8, whiteSpace: "pre-wrap", wordBreak: "break-word", pt: 1.5, fontStyle: "italic" }}>
+            <Typography
+              sx={{
+                fontSize: "0.95rem",
+                color: "#1e293b",
+                lineHeight: 1.8,
+                whiteSpace: "pre-wrap",
+                wordBreak: "break-word",
+                pt: 1.5,
+                fontStyle: "italic",
+              }}
+            >
               {comment}
             </Typography>
           </Box>
         </Box>
 
         <Box sx={{ px: 3, pb: 3 }}>
-          <Button fullWidth variant="contained" onClick={() => setOpen(false)} sx={{ bgcolor: "#4f46e5", "&:hover": { bgcolor: "#4338ca" }, borderRadius: 2, textTransform: "none", fontWeight: 600, py: 1, boxShadow: "none" }}>
+          <Button
+            fullWidth
+            variant="contained"
+            onClick={() => setOpen(false)}
+            sx={{
+              bgcolor: "#4f46e5",
+              "&:hover": { bgcolor: "#4338ca" },
+              borderRadius: 2,
+              textTransform: "none",
+              fontWeight: 600,
+              py: 1,
+              boxShadow: "none",
+            }}
+          >
             Close
           </Button>
         </Box>
@@ -721,36 +908,53 @@ function ApproverCommentCell({ comment }) {
   );
 }
 
-function InlineStatusSelect({ script, reload, toast, openEditWithStatus, canEdit }) {
+function InlineStatusSelect({
+  item,
+  reload,
+  toast,
+  openEditWithStatus,
+  canEdit,
+}) {
   const [loading, setLoading] = useState(false);
-  const val = script.scriptStatus || "Pending";
+  const val = item.scriptStatus || "Pending";
 
   const handleChange = async (e) => {
     const newVal = e.target.value;
     if (!canEdit || !newVal || newVal === val) return;
+
     if (NEEDS_REASON.has(newVal)) {
-      openEditWithStatus(script, newVal);
+      openEditWithStatus(item, newVal);
       return;
     }
 
     setLoading(true);
     try {
       await axios.put(
-        `${API}/${script._id}`,
+        `${API}/${item._id}`,
         {
-          scriptType: script.scriptType,
-          scriptText: script.scriptText,
-          referenceLink: script.referenceLink || "",
+          scriptType: item.scriptType,
+          scriptText: item.scriptText,
+          referenceLink: item.referenceLink || "",
+          hasShoot: !!item.hasShoot,
           scriptStatus: newVal,
-          approverComment: script.approverComment || "",
+          approverComment: item.approverComment || "",
           holdReason: "",
         },
         { headers: getAuthHeaders(), withCredentials: true }
       );
 
-      if (newVal === "Approved" && script.stage === "Script") {
-        await axios.post(`${API}/${script._id}/proceed-to-shoot`, {}, { headers: getAuthHeaders(), withCredentials: true });
-        toast("Approved & moved to Shoot Pending! 🎬");
+      if (newVal === "Approved" && item.stage === "Ideation") {
+        await axios.post(
+          `${API}/${item._id}/proceed-to-shoot`,
+          {},
+          { headers: getAuthHeaders(), withCredentials: true }
+        );
+
+        toast(
+          item.hasShoot
+            ? "Approved & moved directly to Edit Pending! 🎬"
+            : "Approved & moved to Shoot Pending! 🎬"
+        );
       } else {
         toast(`Status updated to ${newVal} ✅`);
       }
@@ -801,37 +1005,45 @@ function InlineStatusSelect({ script, reload, toast, openEditWithStatus, canEdit
 
 const stripHtml = (html) => html?.replace(/<[^>]*>/g, "") || "";
 
-// ✅ quick safe preview (no raw <div> shown)
 const previewText = (html, max = 120) => {
   const txt = stripHtml(html).replace(/\u00A0/g, " ").replace(/\s+/g, " ").trim();
   return txt.length > max ? txt.slice(0, max) + "…" : txt;
 };
 
-export default function ScriptPage() {
+export default function OtherVideoIdeationPage() {
   const navigate = useNavigate();
   const currentUser = getCurrentUser();
   const isManager = hasFullAccess(currentUser);
 
-  // ✅ Backend pagination state
-  const [page, setPage] = useState(0); // MUI is 0-based
+  const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(25);
   const [total, setTotal] = useState(0);
 
-  // ✅ Search
   const [searchDraft, setSearchDraft] = useState("");
   const [search, setSearch] = useState("");
 
-  const [scripts, setScripts] = useState([]);
+  const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
 
   const [typeFilter, setTypeFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+  const [hasShootFilter, setHasShootFilter] = useState("");
 
-  const [stageCounts, setStageCounts] = useState({ shoot: null, cut: null, edit: null, post: null });
+  const [stageCounts, setStageCounts] = useState({
+    shoot: null,
+    cut: null,
+    edit: null,
+    post: null,
+  });
 
   const [createOpen, setCreateOpen] = useState(false);
   const [createExpanded, setCreateExpanded] = useState(false);
-  const [createForm, setCreateForm] = useState({ scriptType: "", scriptText: "", referenceLink: "" });
+  const [createForm, setCreateForm] = useState({
+    scriptType: "",
+    scriptText: "",
+    referenceLink: "",
+    hasShoot: false,
+  });
   const [createErrors, setCreateErrors] = useState({});
 
   const [editOpen, setEditOpen] = useState(false);
@@ -843,10 +1055,15 @@ export default function ScriptPage() {
   const [viewOpen, setViewOpen] = useState(false);
   const [viewContent, setViewContent] = useState(null);
 
-  const [snack, setSnack] = useState({ open: false, msg: "", severity: "success" });
-  const showSnack = (msg, severity = "success") => setSnack({ open: true, msg, severity });
+  const [snack, setSnack] = useState({
+    open: false,
+    msg: "",
+    severity: "success",
+  });
 
-  // ✅ main loader: backend pagination + reverse chronological + search
+  const showSnack = (msg, severity = "success") =>
+    setSnack({ open: true, msg, severity });
+
   const load = useCallback(async () => {
     setLoading(true);
     try {
@@ -856,62 +1073,83 @@ export default function ScriptPage() {
         sortBy: "createdAt",
         sortDir: "desc",
       };
+
       if (typeFilter) params.scriptType = typeFilter;
       if (statusFilter) params.scriptStatus = statusFilter;
       if (search.trim()) params.q = search.trim();
+      if (hasShootFilter !== "") params.hasShoot = hasShootFilter;
 
-      const { data } = await axios.get(API, { params, headers: getAuthHeaders(), withCredentials: true });
-      setScripts(data.scripts || []);
-      setTotal(data.pagination?.total ?? (data.scripts || []).length);
+      const { data } = await axios.get(API, {
+        params,
+        headers: getAuthHeaders(),
+        withCredentials: true,
+      });
+
+      setItems(data.otherVideos || []);
+      setTotal(data.pagination?.total ?? (data.otherVideos || []).length);
     } catch (e) {
-      showSnack(e.response?.data?.message || "Failed to load scripts", "error");
-      setScripts([]);
+      showSnack(e.response?.data?.message || "Failed to load items", "error");
+      setItems([]);
       setTotal(0);
     } finally {
       setLoading(false);
     }
-  }, [page, rowsPerPage, typeFilter, statusFilter, search]);
+  }, [page, rowsPerPage, typeFilter, statusFilter, search, hasShootFilter]);
 
-  // counts can remain (optional), but now use limit=1 to reduce payload
   const loadCounts = useCallback(async () => {
     if (!isManager) return;
+
     try {
-      const base = { limit: 1, sortBy: "createdAt", sortDir: "desc" };
-      const [sP, sD, cD, eP, eD] = await Promise.all([
-        axios.get(API, { params: { ...base, stage: "Shoot Pending" }, headers: getAuthHeaders(), withCredentials: true }),
-        axios.get(API, { params: { ...base, stage: "Shoot Done" }, headers: getAuthHeaders(), withCredentials: true }),
-        axios.get(API, { params: { ...base, stage: "Cut Done" }, headers: getAuthHeaders(), withCredentials: true }),
-        axios.get(API, { params: { ...base, stage: "Edit Pending" }, headers: getAuthHeaders(), withCredentials: true }),
-        axios.get(API, { params: { ...base, stage: "Edit Done" }, headers: getAuthHeaders(), withCredentials: true }),
-      ]);
+      const { data } = await axios.get(`${API}/stages-summary`, {
+        headers: getAuthHeaders(),
+        withCredentials: true,
+      });
+
+      const summary = data || {};
 
       setStageCounts({
-        shoot: sP.data.pagination?.total ?? (sP.data.scripts || []).length,
-        cut: sD.data.pagination?.total ?? (sD.data.scripts || []).length,
-        edit:
-          (cD.data.pagination?.total ?? (cD.data.scripts || []).length) +
-          (eP.data.pagination?.total ?? (eP.data.scripts || []).length),
-        post: eD.data.pagination?.total ?? (eD.data.scripts || []).length,
+        shoot: summary["Shoot Pending"] || 0,
+        cut: summary["Shoot Done"] || 0,
+        edit: (summary["Cut Done"] || 0) + (summary["Edit Pending"] || 0),
+        post: summary["Edit Done"] || 0,
       });
     } catch {}
   }, [isManager]);
 
-  useEffect(() => { load(); }, [load]);
-  useEffect(() => { loadCounts(); }, [loadCounts]);
+  const refreshAll = useCallback(() => {
+    load();
+    loadCounts();
+  }, [load, loadCounts]);
 
-  // Apply/clear search
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  useEffect(() => {
+    loadCounts();
+  }, [loadCounts]);
+
   const applySearch = () => {
     setSearch(searchDraft);
     setPage(0);
   };
+
   const clearSearch = () => {
     setSearchDraft("");
     setSearch("");
+    setTypeFilter("");
+    setStatusFilter("");
+    setHasShootFilter("");
     setPage(0);
   };
 
   const openCreate = () => {
-    setCreateForm({ scriptType: "", scriptText: "", referenceLink: "" });
+    setCreateForm({
+      scriptType: "",
+      scriptText: "",
+      referenceLink: "",
+      hasShoot: false,
+    });
     setCreateErrors({});
     setCreateExpanded(false);
     setCreateOpen(true);
@@ -927,27 +1165,32 @@ export default function ScriptPage() {
 
   const handleCreate = async () => {
     if (!validateCreate()) return;
+
     try {
-      const { data } = await axios.post(API, createForm, { headers: getAuthHeaders(), withCredentials: true });
-      showSnack(`Script ${data.script.scriptId} created!`);
+      const { data } = await axios.post(API, createForm, {
+        headers: getAuthHeaders(),
+        withCredentials: true,
+      });
+
+      showSnack(`Other video ${data.otherVideo.otherVideoId} created!`);
       setCreateOpen(false);
       setPage(0);
-      load();
-      loadCounts();
+      refreshAll();
     } catch (e) {
       showSnack(e.response?.data?.message || "Error", "error");
     }
   };
 
-  const openEdit = (s, prefillStatus = null) => {
-    setEditTarget(s);
+  const openEdit = (item, prefillStatus = null) => {
+    setEditTarget(item);
     setEditForm({
-      scriptType: s.scriptType,
-      scriptText: s.scriptText,
-      referenceLink: s.referenceLink || "",
-      scriptStatus: prefillStatus || s.scriptStatus || "Pending",
-      approverComment: s.approverComment || "",
-      holdReason: s.holdReason || "",
+      scriptType: item.scriptType,
+      scriptText: item.scriptText,
+      referenceLink: item.referenceLink || "",
+      hasShoot: !!item.hasShoot,
+      scriptStatus: prefillStatus || item.scriptStatus || "Pending",
+      approverComment: item.approverComment || "",
+      holdReason: item.holdReason || "",
     });
     setEditErrors({});
     setEditExpanded(false);
@@ -958,68 +1201,111 @@ export default function ScriptPage() {
     const errs = {};
     if (!editForm.scriptType) errs.scriptType = "Required";
     if (!stripHtml(editForm.scriptText || "").trim()) errs.scriptText = "Required";
-    if (NEEDS_REASON.has(editForm.scriptStatus) && !editForm.holdReason?.trim()) errs.holdReason = "Reason required";
+    if (NEEDS_REASON.has(editForm.scriptStatus) && !editForm.holdReason?.trim()) {
+      errs.holdReason = "Reason required";
+    }
     setEditErrors(errs);
     return !Object.keys(errs).length;
   };
 
   const handleEdit = async () => {
     if (!validateEdit()) return;
+
     try {
-      await axios.put(`${API}/${editTarget._id}`, editForm, { headers: getAuthHeaders(), withCredentials: true });
-      showSnack("Script updated!");
+      await axios.put(`${API}/${editTarget._id}`, editForm, {
+        headers: getAuthHeaders(),
+        withCredentials: true,
+      });
+
+      showSnack("Other video updated!");
       setEditOpen(false);
-      load();
-      loadCounts();
+      refreshAll();
     } catch (e) {
       showSnack(e.response?.data?.message || "Error", "error");
     }
   };
 
-  const handleProceedToShoot = async () => {
+  const handleProceedFromIdeation = async () => {
     if (!editTarget || !validateEdit()) return;
+
     try {
-      await axios.put(`${API}/${editTarget._id}`, editForm, { headers: getAuthHeaders(), withCredentials: true });
-      await axios.post(`${API}/${editTarget._id}/proceed-to-shoot`, {}, { headers: getAuthHeaders(), withCredentials: true });
-      showSnack("Moved to Shoot Pending! 🎬");
+      await axios.put(`${API}/${editTarget._id}`, editForm, {
+        headers: getAuthHeaders(),
+        withCredentials: true,
+      });
+
+      await axios.post(
+        `${API}/${editTarget._id}/proceed-to-shoot`,
+        {},
+        { headers: getAuthHeaders(), withCredentials: true }
+      );
+
+      showSnack(
+        editForm.hasShoot
+          ? "Approved & moved directly to Edit Pending! 🎬"
+          : "Moved to Shoot Pending! 🎬"
+      );
+
       setEditOpen(false);
-      load();
-      loadCounts();
+      refreshAll();
     } catch (e) {
       showSnack(e.response?.data?.message || "Error", "error");
     }
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm("Delete this script?")) return;
+    if (!window.confirm("Delete this other video item?")) return;
+
     try {
-      await axios.delete(`${API}/${id}`, { headers: getAuthHeaders(), withCredentials: true });
+      await axios.delete(`${API}/${id}`, {
+        headers: getAuthHeaders(),
+        withCredentials: true,
+      });
+
       showSnack("Deleted");
-      // if last item deleted on page, move back a page gracefully
-      if (scripts.length === 1 && page > 0) setPage((p) => p - 1);
-      else load();
-      loadCounts();
+
+      if (items.length === 1 && page > 0) {
+        setPage((p) => p - 1);
+      } else {
+        refreshAll();
+      }
     } catch (e) {
       showSnack(e.response?.data?.message || "Error", "error");
     }
   };
 
-  const canEditScript = (s) => isManager || s.createdBy === currentUser?.fullName;
+  const canEditItem = (item) => isManager || item.createdBy === currentUser?.fullName;
   const needsReason = NEEDS_REASON.has(editForm.scriptStatus);
-  const canProceedToShoot = editForm.scriptStatus === "Approved" && editTarget?.stage === "Script";
+  const canProceed =
+    editForm.scriptStatus === "Approved" && editTarget?.stage === "Ideation";
 
-  const colCount = isManager ? 10 : 9;
+  const colCount = isManager ? 11 : 10;
 
   return (
     <Box sx={{ bgcolor: "#f4f5f7", minHeight: "100vh", color: "#111827", p: 4 }}>
-      {/* Header */}
-      <Stack direction="row" alignItems="center" justifyContent="space-between" mb={3} flexWrap="wrap" gap={2}>
+      <Stack
+        direction="row"
+        alignItems="center"
+        justifyContent="space-between"
+        mb={3}
+        flexWrap="wrap"
+        gap={2}
+      >
         <Box>
-          <Typography sx={{ fontFamily: "'Syne', sans-serif", fontWeight: 800, fontSize: "1.8rem", letterSpacing: "-0.5px", color: "#111827" }}>
-            Script <Box component="span" sx={{ color: "#4f46e5" }}>Library</Box>
+          <Typography
+            sx={{
+              fontFamily: "'Syne', sans-serif",
+              fontWeight: 800,
+              fontSize: "1.8rem",
+              letterSpacing: "-0.5px",
+              color: "#111827",
+            }}
+          >
+            Other Video <Box component="span" sx={{ color: "#4f46e5" }}>Ideation</Box>
           </Typography>
+
           <Typography sx={{ color: "#6b7280", fontSize: "0.9rem", mt: 0.5 }}>
-            {loading ? "Loading…" : `${total} script${total !== 1 ? "s" : ""}`}
+            {loading ? "Loading…" : `${total} item${total !== 1 ? "s" : ""}`}
             {currentUser?.fullName && (
               <Box component="span" sx={{ ml: 1.5, color: "#9ca3af" }}>
                 — logged in as{" "}
@@ -1027,7 +1313,20 @@ export default function ScriptPage() {
                   {currentUser.fullName}
                 </Box>
                 {isManager && (
-                  <Box component="span" sx={{ ml: 1, px: 1, py: 0.2, borderRadius: "100px", fontSize: "0.72rem", fontWeight: 700, bgcolor: "#ecfdf5", color: "#059669", border: "1px solid #6ee7b7" }}>
+                  <Box
+                    component="span"
+                    sx={{
+                      ml: 1,
+                      px: 1,
+                      py: 0.2,
+                      borderRadius: "100px",
+                      fontSize: "0.72rem",
+                      fontWeight: 700,
+                      bgcolor: "#ecfdf5",
+                      color: "#059669",
+                      border: "1px solid #6ee7b7",
+                    }}
+                  >
                     Manager
                   </Box>
                 )}
@@ -1039,13 +1338,38 @@ export default function ScriptPage() {
         <Stack direction="row" spacing={1.5} alignItems="center" flexWrap="wrap">
           {isManager && (
             <>
-              <NavButton label="Shoot" icon={<VideocamIcon sx={{ fontSize: 16 }} />} accent={NAV_ACCENT.Shoot} count={stageCounts.shoot} onClick={() => navigate("/marketing/shoot")} />
-              <NavButton label="Cut" icon={<CutIcon sx={{ fontSize: 16 }} />} accent={NAV_ACCENT.Cut} count={stageCounts.cut} onClick={() => navigate("/marketing/cut")} />
-              <NavButton label="Edit" icon={<EditStageIcon sx={{ fontSize: 16 }} />} accent={NAV_ACCENT.Edit} count={stageCounts.edit} onClick={() => navigate("/marketing/edit")} />
-              <NavButton label="Post" icon={<PostIcon sx={{ fontSize: 16 }} />} accent={NAV_ACCENT.Post} count={stageCounts.post} onClick={() => navigate("/marketing/post")} />
+              <NavButton
+                label="Shoot"
+                icon={<VideocamIcon sx={{ fontSize: 16 }} />}
+                accent={NAV_ACCENT.Shoot}
+                count={stageCounts.shoot}
+                onClick={() => navigate("/marketing/other-videos/shoot")}
+              />
+              <NavButton
+                label="Cut"
+                icon={<CutIcon sx={{ fontSize: 16 }} />}
+                accent={NAV_ACCENT.Cut}
+                count={stageCounts.cut}
+                onClick={() => navigate("/marketing/other-videos/cut")}
+              />
+              <NavButton
+                label="Edit"
+                icon={<EditStageIcon sx={{ fontSize: 16 }} />}
+                accent={NAV_ACCENT.Edit}
+                count={stageCounts.edit}
+                onClick={() => navigate("/marketing/other-videos/edit")}
+              />
+              <NavButton
+                label="Post"
+                icon={<PostIcon sx={{ fontSize: 16 }} />}
+                accent={NAV_ACCENT.Post}
+                count={stageCounts.post}
+                onClick={() => navigate("/marketing/other-videos/post")}
+              />
               <Divider orientation="vertical" flexItem sx={{ mx: 0.5, borderColor: "#e2e8f0" }} />
             </>
           )}
+
           <Button
             variant="contained"
             startIcon={<AddIcon />}
@@ -1061,12 +1385,11 @@ export default function ScriptPage() {
               boxShadow: "0 4px 6px -1px rgba(79,70,229,0.2)",
             }}
           >
-            Add Script
+            Add Idea
           </Button>
         </Stack>
       </Stack>
 
-      {/* Filters + Search */}
       <Paper sx={{ ...lightPaper, p: 2, mb: 3 }}>
         <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap" gap={1}>
           <FormControl size="small" sx={{ minWidth: 220, ...inputSx }}>
@@ -1107,9 +1430,25 @@ export default function ScriptPage() {
             </Select>
           </FormControl>
 
+          <FormControl size="small" sx={{ minWidth: 180, ...inputSx }}>
+            <InputLabel>Have a Shoot</InputLabel>
+            <Select
+              value={hasShootFilter}
+              label="Have a Shoot"
+              onChange={(e) => {
+                setHasShootFilter(e.target.value);
+                setPage(0);
+              }}
+            >
+              <MenuItem value="">All</MenuItem>
+              <MenuItem value="true">Yes</MenuItem>
+              <MenuItem value="false">No</MenuItem>
+            </Select>
+          </FormControl>
+
           <TextField
             size="small"
-            label="Search (Script / ID / Link)"
+            label="Search (Idea / ID / Link)"
             value={searchDraft}
             onChange={(e) => setSearchDraft(e.target.value)}
             sx={{ minWidth: 320, ...inputSx }}
@@ -1131,10 +1470,16 @@ export default function ScriptPage() {
             variant="contained"
             startIcon={<SearchIcon />}
             onClick={applySearch}
-            sx={{ bgcolor: "#4f46e5", "&:hover": { bgcolor: "#4338ca" }, textTransform: "none", fontWeight: 700 }}
+            sx={{
+              bgcolor: "#4f46e5",
+              "&:hover": { bgcolor: "#4338ca" },
+              textTransform: "none",
+              fontWeight: 700,
+            }}
           >
             Apply
           </Button>
+
           <Button
             variant="outlined"
             startIcon={<ResetIcon />}
@@ -1150,13 +1495,12 @@ export default function ScriptPage() {
             Clear
           </Button>
 
-          <Button onClick={load} sx={{ textTransform: "none", fontWeight: 700, color: "#4f46e5" }}>
+          <Button onClick={refreshAll} sx={{ textTransform: "none", fontWeight: 700, color: "#4f46e5" }}>
             Refresh
           </Button>
         </Stack>
       </Paper>
 
-      {/* Table */}
       <Paper sx={lightPaper}>
         <TableContainer>
           <Table size="medium">
@@ -1177,18 +1521,15 @@ export default function ScriptPage() {
                 }}
               >
                 <TableCell>#</TableCell>
-                <TableCell>Script ID</TableCell>
+                <TableCell>Other Video ID</TableCell>
                 <TableCell>Type</TableCell>
+                <TableCell>Have a Shoot</TableCell>
                 <TableCell>Preview</TableCell>
                 {isManager && <TableCell>Created By</TableCell>}
                 <TableCell>Date / Time</TableCell>
                 <TableCell>Status</TableCell>
                 <TableCell>Stage</TableCell>
-                <TableCell>
-                  <Stack direction="row" alignItems="center" spacing={0.6}> 
-                    <span>Approver Comment</span>
-                  </Stack>
-                </TableCell>
+                <TableCell>Approver Comment</TableCell>
                 <TableCell align="center">Actions</TableCell>
               </TableRow>
             </TableHead>
@@ -1200,20 +1541,20 @@ export default function ScriptPage() {
                     <CircularProgress size={32} sx={{ color: "#4f46e5" }} />
                   </TableCell>
                 </TableRow>
-              ) : scripts.length === 0 ? (
+              ) : items.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={colCount} align="center" sx={{ py: 8, borderBottom: "none", color: "#6b7280" }}>
-                    No scripts found
+                    No ideas found
                   </TableCell>
                 </TableRow>
               ) : (
-                scripts.map((s, i) => {
-                  const dt = new Date(s.createdAt);
-                  const canEdit = canEditScript(s);
+                items.map((item, i) => {
+                  const dt = new Date(item.createdAt);
+                  const canEdit = canEditItem(item);
 
                   return (
                     <TableRow
-                      key={s._id}
+                      key={item._id}
                       sx={{
                         "&:hover td": { bgcolor: "#f9fafb" },
                         "& td": { borderBottom: "1px solid #f3f4f6", py: 1.5 },
@@ -1224,13 +1565,43 @@ export default function ScriptPage() {
                       </TableCell>
 
                       <TableCell>
-                        <Typography sx={{ fontFamily: "'Syne',sans-serif", fontWeight: 700, fontSize: "0.85rem", color: "#4f46e5" }}>
-                          {s.scriptId}
+                        <Typography
+                          sx={{
+                            fontFamily: "'Syne',sans-serif",
+                            fontWeight: 700,
+                            fontSize: "0.85rem",
+                            color: "#4f46e5",
+                          }}
+                        >
+                          {item.otherVideoId}
                         </Typography>
                       </TableCell>
 
                       <TableCell>
-                        <Typography sx={{ fontSize: "0.8rem", color: "#4b5563", fontWeight: 500 }}>{s.scriptType}</Typography>
+                        <Typography sx={{ fontSize: "0.8rem", color: "#4b5563", fontWeight: 500 }}>
+                          {item.scriptType}
+                        </Typography>
+                      </TableCell>
+
+                      <TableCell>
+                        <Box
+                          sx={{
+                            display: "inline-block",
+                            px: 1.1,
+                            py: 0.35,
+                            borderRadius: "100px",
+                            fontSize: "0.74rem",
+                            fontWeight: 700,
+                            bgcolor: item.hasShoot ? "#ecfdf5" : "#f8fafc",
+                            color: item.hasShoot ? "#059669" : "#64748b",
+                            border: item.hasShoot
+                              ? "1px solid #6ee7b7"
+                              : "1px solid #e2e8f0",
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          {item.hasShoot ? "Yes" : "No"}
+                        </Box>
                       </TableCell>
 
                       <TableCell sx={{ maxWidth: 320 }}>
@@ -1245,16 +1616,20 @@ export default function ScriptPage() {
                               flex: 1,
                             }}
                           >
-                            {previewText(s.scriptText, 140)}
+                            {previewText(item.scriptText, 140)}
                           </Typography>
-                          <Tooltip title="View Full Script">
+
+                          <Tooltip title="View Full Idea / Script">
                             <IconButton
                               size="small"
                               onClick={() => {
-                                setViewContent(s);
+                                setViewContent(item);
                                 setViewOpen(true);
                               }}
-                              sx={{ color: "#64748b", "&:hover": { color: "#4f46e5", bgcolor: "#eef2ff" } }}
+                              sx={{
+                                color: "#64748b",
+                                "&:hover": { color: "#4f46e5", bgcolor: "#eef2ff" },
+                              }}
                             >
                               <ViewIcon sx={{ fontSize: 18 }} />
                             </IconButton>
@@ -1264,68 +1639,97 @@ export default function ScriptPage() {
 
                       {isManager && (
                         <TableCell>
-                          <Typography sx={{ fontSize: "0.8rem", color: "#4b5563" }}>{s.createdBy}</Typography>
+                          <Typography sx={{ fontSize: "0.8rem", color: "#4b5563" }}>
+                            {item.createdBy}
+                          </Typography>
                         </TableCell>
                       )}
 
                       <TableCell>
                         <Typography sx={{ fontSize: "0.8rem", color: "#1f2937", whiteSpace: "nowrap" }}>
-                          {dt.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
+                          {dt.toLocaleDateString("en-IN", {
+                            day: "2-digit",
+                            month: "short",
+                            year: "numeric",
+                          })}
                         </Typography>
                         <Typography sx={{ fontSize: "0.75rem", color: "#6b7280" }}>
-                          {dt.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}
+                          {dt.toLocaleTimeString("en-IN", {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
                         </Typography>
                       </TableCell>
 
                       <TableCell>
-                        <InlineStatusSelect script={s} reload={load} toast={showSnack} openEditWithStatus={openEdit} canEdit={isManager} />
+                        <InlineStatusSelect
+                          item={item}
+                          reload={refreshAll}
+                          toast={showSnack}
+                          openEditWithStatus={openEdit}
+                          canEdit={isManager}
+                        />
                       </TableCell>
 
                       <TableCell>
-                        <StageChip stage={s.stage} />
+                        <StageChip stage={item.stage} />
                       </TableCell>
 
                       <TableCell sx={{ maxWidth: 220 }}>
-                        <ApproverCommentCell comment={s.approverComment} />
+                        <ApproverCommentCell comment={item.approverComment} />
                       </TableCell>
 
                       <TableCell align="center">
                         <Stack direction="row" spacing={0.5} justifyContent="center" alignItems="center">
-                          {s.referenceLink && (
+                          {item.referenceLink && (
                             <Tooltip title="Reference link">
                               <IconButton
                                 size="small"
-                                href={s.referenceLink}
+                                href={item.referenceLink}
                                 target="_blank"
-                                sx={{ color: "#6b7280", "&:hover": { color: "#4f46e5", bgcolor: "#eef2ff" } }}
+                                sx={{
+                                  color: "#6b7280",
+                                  "&:hover": { color: "#4f46e5", bgcolor: "#eef2ff" },
+                                }}
                               >
                                 <LinkIcon sx={{ fontSize: 18 }} />
                               </IconButton>
                             </Tooltip>
                           )}
+
                           {canEdit && (
-                            <Tooltip title="Edit Script">
+                            <Tooltip title="Edit">
                               <IconButton
                                 size="small"
-                                onClick={() => openEdit(s)}
-                                sx={{ color: "#6b7280", "&:hover": { color: "#4f46e5", bgcolor: "#eef2ff" } }}
+                                onClick={() => openEdit(item)}
+                                sx={{
+                                  color: "#6b7280",
+                                  "&:hover": { color: "#4f46e5", bgcolor: "#eef2ff" },
+                                }}
                               >
                                 <EditIcon sx={{ fontSize: 18 }} />
                               </IconButton>
                             </Tooltip>
                           )}
+
                           {canEdit && (
                             <Tooltip title="Delete">
                               <IconButton
                                 size="small"
-                                onClick={() => handleDelete(s._id)}
-                                sx={{ color: "#6b7280", "&:hover": { color: "#dc2626", bgcolor: "#fef2f2" } }}
+                                onClick={() => handleDelete(item._id)}
+                                sx={{
+                                  color: "#6b7280",
+                                  "&:hover": { color: "#dc2626", bgcolor: "#fef2f2" },
+                                }}
                               >
                                 <DeleteIcon sx={{ fontSize: 18 }} />
                               </IconButton>
                             </Tooltip>
                           )}
-                          {!canEdit && !s.referenceLink && <Typography sx={{ fontSize: "0.75rem", color: "#d1d5db" }}>—</Typography>}
+
+                          {!canEdit && !item.referenceLink && (
+                            <Typography sx={{ fontSize: "0.75rem", color: "#d1d5db" }}>—</Typography>
+                          )}
                         </Stack>
                       </TableCell>
                     </TableRow>
@@ -1336,7 +1740,6 @@ export default function ScriptPage() {
           </Table>
         </TableContainer>
 
-        {/* ✅ Pagination */}
         <TablePagination
           component="div"
           count={total}
@@ -1352,28 +1755,108 @@ export default function ScriptPage() {
       </Paper>
 
       {/* View Modal */}
-      <Dialog open={viewOpen} onClose={() => setViewOpen(false)} maxWidth="sm" fullWidth PaperProps={{ sx: { bgcolor: "#fff", borderRadius: 2, boxShadow: "0 25px 50px -12px rgb(0 0 0/0.25)" } }}>
-        <DialogTitle sx={{ color: "#0f172a", fontWeight: 700, borderBottom: "1px solid #e2e8f0", py: 2, px: 3, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+      <Dialog
+        open={viewOpen}
+        onClose={() => setViewOpen(false)}
+        maxWidth="sm"
+        fullWidth
+        PaperProps={{
+          sx: {
+            bgcolor: "#fff",
+            borderRadius: 2,
+            boxShadow: "0 25px 50px -12px rgb(0 0 0/0.25)",
+          },
+        }}
+      >
+        <DialogTitle
+          sx={{
+            color: "#0f172a",
+            fontWeight: 700,
+            borderBottom: "1px solid #e2e8f0",
+            py: 2,
+            px: 3,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+          }}
+        >
           <Stack direction="row" alignItems="center" gap={1}>
             <ViewIcon sx={{ color: "#4f46e5" }} />
-            <Typography sx={{ fontSize: "1.1rem", fontWeight: 700 }}>Full Script Content</Typography>
+            <Typography sx={{ fontSize: "1.1rem", fontWeight: 700 }}>
+              Full Idea / Script
+            </Typography>
           </Stack>
-          <IconButton size="small" onClick={() => setViewOpen(false)} sx={{ color: "#64748b", "&:hover": { color: "#0f172a", bgcolor: "#f1f5f9" } }}>
+
+          <IconButton
+            size="small"
+            onClick={() => setViewOpen(false)}
+            sx={{
+              color: "#64748b",
+              "&:hover": { color: "#0f172a", bgcolor: "#f1f5f9" },
+            }}
+          >
             <CloseIcon fontSize="small" />
           </IconButton>
         </DialogTitle>
+
         <DialogContent sx={{ pt: 3, px: 3, pb: 4 }}>
           {viewContent && (
             <Box>
               <Stack direction="row" spacing={1.5} mb={2.5} alignItems="center">
-                <Typography sx={{ fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: "0.85rem", color: "#4f46e5" }}>{viewContent.scriptId}</Typography>
-                <Box sx={{ display: "inline-block", px: 1.2, py: 0.3, borderRadius: "100px", fontSize: "0.75rem", fontWeight: 600, bgcolor: "#eef2ff", color: "#4f46e5", border: "1px solid #c7d2fe" }}>
+                <Typography
+                  sx={{
+                    fontFamily: "'Inter',sans-serif",
+                    fontWeight: 700,
+                    fontSize: "0.85rem",
+                    color: "#4f46e5",
+                  }}
+                >
+                  {viewContent.otherVideoId}
+                </Typography>
+
+                <Box
+                  sx={{
+                    display: "inline-block",
+                    px: 1.2,
+                    py: 0.3,
+                    borderRadius: "100px",
+                    fontSize: "0.75rem",
+                    fontWeight: 600,
+                    bgcolor: "#eef2ff",
+                    color: "#4f46e5",
+                    border: "1px solid #c7d2fe",
+                  }}
+                >
                   {viewContent.scriptType}
+                </Box>
+
+                <Box
+                  sx={{
+                    display: "inline-block",
+                    px: 1.1,
+                    py: 0.35,
+                    borderRadius: "100px",
+                    fontSize: "0.74rem",
+                    fontWeight: 700,
+                    bgcolor: viewContent.hasShoot ? "#ecfdf5" : "#f8fafc",
+                    color: viewContent.hasShoot ? "#059669" : "#64748b",
+                    border: viewContent.hasShoot
+                      ? "1px solid #6ee7b7"
+                      : "1px solid #e2e8f0",
+                  }}
+                >
+                  {viewContent.hasShoot ? "Have a Shoot: Yes" : "Have a Shoot: No"}
                 </Box>
               </Stack>
 
-              {/* ✅ IMPORTANT: render HTML (so you don't see raw <div> tags) */}
-              <Box sx={{ bgcolor: "#f8fafc", p: 2.5, borderRadius: 2, border: "1px solid #e2e8f0" }}>
+              <Box
+                sx={{
+                  bgcolor: "#f8fafc",
+                  p: 2.5,
+                  borderRadius: 2,
+                  border: "1px solid #e2e8f0",
+                }}
+              >
                 <Box
                   sx={{
                     fontSize: "0.95rem",
@@ -1381,14 +1864,33 @@ export default function ScriptPage() {
                     lineHeight: 1.7,
                     "& ul": { pl: 3 },
                     "& ol": { pl: 3 },
-                    "& blockquote": { borderLeft: "3px solid #4f46e5", pl: 2, color: "#4b5563", fontStyle: "italic", bgcolor: "#f5f3ff", borderRadius: "0 4px 4px 0", my: 1 },
+                    "& blockquote": {
+                      borderLeft: "3px solid #4f46e5",
+                      pl: 2,
+                      color: "#4b5563",
+                      fontStyle: "italic",
+                      bgcolor: "#f5f3ff",
+                      borderRadius: "0 4px 4px 0",
+                      my: 1,
+                    },
                   }}
                   dangerouslySetInnerHTML={{ __html: viewContent.scriptText || "" }}
                 />
               </Box>
 
               {viewContent.referenceLink && (
-                <Button component="a" href={viewContent.referenceLink} target="_blank" startIcon={<LinkIcon />} sx={{ mt: 2, color: "#4f46e5", textTransform: "none", fontWeight: 600 }}>
+                <Button
+                  component="a"
+                  href={viewContent.referenceLink}
+                  target="_blank"
+                  startIcon={<LinkIcon />}
+                  sx={{
+                    mt: 2,
+                    color: "#4f46e5",
+                    textTransform: "none",
+                    fontWeight: 600,
+                  }}
+                >
                   Open Reference Link
                 </Button>
               )}
@@ -1406,13 +1908,40 @@ export default function ScriptPage() {
         }}
         maxWidth={createExpanded ? "lg" : "sm"}
         fullWidth
-        PaperProps={{ sx: { bgcolor: "#fff", borderRadius: 3, boxShadow: "0 20px 25px -5px rgba(0,0,0,0.1)", transition: "max-width 0.25s ease" } }}
+        PaperProps={{
+          sx: {
+            bgcolor: "#fff",
+            borderRadius: 3,
+            boxShadow: "0 20px 25px -5px rgba(0,0,0,0.1)",
+            transition: "max-width 0.25s ease",
+          },
+        }}
       >
-        <DialogTitle sx={{ color: "#111827", fontFamily: "'Syne',sans-serif", fontWeight: 700, borderBottom: "1px solid #e5e7eb", pb: 2 }}>
-          Add New Script
+        <DialogTitle
+          sx={{
+            color: "#111827",
+            fontFamily: "'Syne',sans-serif",
+            fontWeight: 700,
+            borderBottom: "1px solid #e5e7eb",
+            pb: 2,
+          }}
+        >
+          Add New Other Video Idea
         </DialogTitle>
+
         <DialogContent sx={{ pt: 3, display: "flex", flexDirection: "column", gap: 3, mt: 1 }}>
-          <Box sx={{ bgcolor: "#f9fafb", border: "1px solid #e5e7eb", borderRadius: 1.5, px: 2, py: 1.2, display: "flex", alignItems: "center", gap: 1 }}>
+          <Box
+            sx={{
+              bgcolor: "#f9fafb",
+              border: "1px solid #e5e7eb",
+              borderRadius: 1.5,
+              px: 2,
+              py: 1.2,
+              display: "flex",
+              alignItems: "center",
+              gap: 1,
+            }}
+          >
             <Box sx={{ width: 8, height: 8, borderRadius: "50%", bgcolor: "#10b981" }} />
             <Typography sx={{ fontSize: "0.85rem", color: "#6b7280" }}>
               Created by:{" "}
@@ -1423,22 +1952,34 @@ export default function ScriptPage() {
           </Box>
 
           <FormControl size="small" error={!!createErrors.scriptType} sx={inputSx}>
-            <InputLabel>Script Type *</InputLabel>
-            <Select value={createForm.scriptType} label="Script Type *" onChange={(e) => setCreateForm((f) => ({ ...f, scriptType: e.target.value }))}>
+            <InputLabel>Type *</InputLabel>
+            <Select
+              value={createForm.scriptType}
+              label="Type *"
+              onChange={(e) =>
+                setCreateForm((f) => ({ ...f, scriptType: e.target.value }))
+              }
+            >
               {SCRIPT_TYPES.map((t) => (
                 <MenuItem key={t} value={t}>
                   {t}
                 </MenuItem>
               ))}
             </Select>
-            {createErrors.scriptType && <FormHelperText>{createErrors.scriptType}</FormHelperText>}
+            {createErrors.scriptType && (
+              <FormHelperText>{createErrors.scriptType}</FormHelperText>
+            )}
           </FormControl>
 
           <Box>
-            <Typography sx={{ fontSize: "0.8rem", color: "#374151", fontWeight: 600, mb: 0.8 }}>Script *</Typography>
+            <Typography sx={{ fontSize: "0.8rem", color: "#374151", fontWeight: 600, mb: 0.8 }}>
+              Idea / Script *
+            </Typography>
             <RichEditor
               value={createForm.scriptText}
-              onChange={(html) => setCreateForm((f) => ({ ...f, scriptText: html }))}
+              onChange={(html) =>
+                setCreateForm((f) => ({ ...f, scriptText: html }))
+              }
               error={createErrors.scriptText}
               expanded={createExpanded}
               onToggleExpand={() => setCreateExpanded((e) => !e)}
@@ -1450,7 +1991,9 @@ export default function ScriptPage() {
             placeholder="https://..."
             size="small"
             value={createForm.referenceLink}
-            onChange={(e) => setCreateForm((f) => ({ ...f, referenceLink: e.target.value }))}
+            onChange={(e) =>
+              setCreateForm((f) => ({ ...f, referenceLink: e.target.value }))
+            }
             InputProps={{
               startAdornment: (
                 <InputAdornment position="start">
@@ -1460,13 +2003,68 @@ export default function ScriptPage() {
             }}
             sx={inputSx}
           />
+
+          <Box
+            sx={{
+              bgcolor: "#f8fafc",
+              border: "1px solid #e2e8f0",
+              borderRadius: 2,
+              px: 2,
+              py: 1.5,
+            }}
+          >
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={createForm.hasShoot}
+                  onChange={(e) =>
+                    setCreateForm((f) => ({ ...f, hasShoot: e.target.checked }))
+                  }
+                  sx={{
+                    color: "#94a3b8",
+                    "&.Mui-checked": { color: "#4f46e5" },
+                  }}
+                />
+              }
+              label={
+                <Box>
+                  <Typography sx={{ fontSize: "0.9rem", fontWeight: 600, color: "#111827" }}>
+                    Have a Shoot
+                  </Typography>
+                  <Typography sx={{ fontSize: "0.78rem", color: "#6b7280", mt: 0.2 }}>
+                    If checked, this item will skip Shoot and Cut after approval and go directly to Edit Pending.
+                  </Typography>
+                </Box>
+              }
+            />
+          </Box>
         </DialogContent>
+
         <DialogActions sx={{ px: 3, pb: 3, pt: 2, borderTop: "1px solid #e5e7eb", gap: 1 }}>
-          <Button onClick={() => { setCreateOpen(false); setCreateExpanded(false); }} sx={{ color: "#4b5563", textTransform: "none" }}>
+          <Button
+            onClick={() => {
+              setCreateOpen(false);
+              setCreateExpanded(false);
+            }}
+            sx={{ color: "#4b5563", textTransform: "none" }}
+          >
             Cancel
           </Button>
-          <Button variant="contained" onClick={handleCreate} sx={{ bgcolor: "#4f46e5", "&:hover": { bgcolor: "#4338ca" }, borderRadius: 1.5, textTransform: "none", fontWeight: 600, px: 3, boxShadow: "none" }}>
-            Save Script
+
+          <Button
+            variant="contained"
+            onClick={handleCreate}
+            sx={{
+              bgcolor: "#4f46e5",
+              "&:hover": { bgcolor: "#4338ca" },
+              borderRadius: 1.5,
+              textTransform: "none",
+              fontWeight: 600,
+              px: 3,
+              boxShadow: "none",
+            }}
+          >
+            Save Idea
           </Button>
         </DialogActions>
       </Dialog>
@@ -1480,31 +2078,66 @@ export default function ScriptPage() {
         }}
         maxWidth={editExpanded ? "lg" : "sm"}
         fullWidth
-        PaperProps={{ sx: { bgcolor: "#fff", borderRadius: 3, boxShadow: "0 20px 25px -5px rgba(0,0,0,0.1)", transition: "max-width 0.25s ease" } }}
+        PaperProps={{
+          sx: {
+            bgcolor: "#fff",
+            borderRadius: 3,
+            boxShadow: "0 20px 25px -5px rgba(0,0,0,0.1)",
+            transition: "max-width 0.25s ease",
+          },
+        }}
       >
-        <DialogTitle sx={{ color: "#111827", fontFamily: "'Syne',sans-serif", fontWeight: 700, borderBottom: "1px solid #e5e7eb", pb: 2 }}>
-          Edit Script
+        <DialogTitle
+          sx={{
+            color: "#111827",
+            fontFamily: "'Syne',sans-serif",
+            fontWeight: 700,
+            borderBottom: "1px solid #e5e7eb",
+            pb: 2,
+          }}
+        >
+          Edit Other Video Idea
           {editTarget && (
-            <Box component="span" sx={{ ml: 1.5, fontSize: "0.85rem", color: "#4f46e5", fontFamily: "monospace", fontWeight: 500 }}>
-              {editTarget.scriptId}
+            <Box
+              component="span"
+              sx={{
+                ml: 1.5,
+                fontSize: "0.85rem",
+                color: "#4f46e5",
+                fontFamily: "monospace",
+                fontWeight: 500,
+              }}
+            >
+              {editTarget.otherVideoId}
             </Box>
           )}
         </DialogTitle>
+
         <DialogContent sx={{ pt: 3, display: "flex", flexDirection: "column", gap: 3, mt: 1 }}>
           <FormControl size="small" error={!!editErrors.scriptType} sx={inputSx}>
-            <InputLabel>Script Type *</InputLabel>
-            <Select value={editForm.scriptType || ""} label="Script Type *" onChange={(e) => setEditForm((f) => ({ ...f, scriptType: e.target.value }))}>
+            <InputLabel>Type *</InputLabel>
+            <Select
+              value={editForm.scriptType || ""}
+              label="Type *"
+              onChange={(e) =>
+                setEditForm((f) => ({ ...f, scriptType: e.target.value }))
+              }
+            >
               {SCRIPT_TYPES.map((t) => (
                 <MenuItem key={t} value={t}>
                   {t}
                 </MenuItem>
               ))}
             </Select>
-            {editErrors.scriptType && <FormHelperText>{editErrors.scriptType}</FormHelperText>}
+            {editErrors.scriptType && (
+              <FormHelperText>{editErrors.scriptType}</FormHelperText>
+            )}
           </FormControl>
 
           <Box>
-            <Typography sx={{ fontSize: "0.8rem", color: "#374151", fontWeight: 600, mb: 0.8 }}>Script *</Typography>
+            <Typography sx={{ fontSize: "0.8rem", color: "#374151", fontWeight: 600, mb: 0.8 }}>
+              Idea / Script *
+            </Typography>
             <RichEditor
               value={editForm.scriptText}
               onChange={(html) => setEditForm((f) => ({ ...f, scriptText: html }))}
@@ -1514,14 +2147,68 @@ export default function ScriptPage() {
             />
           </Box>
 
-          <TextField label="Reference Link" size="small" value={editForm.referenceLink || ""} onChange={(e) => setEditForm((f) => ({ ...f, referenceLink: e.target.value }))} sx={inputSx} />
+          <TextField
+            label="Reference Link"
+            size="small"
+            value={editForm.referenceLink || ""}
+            onChange={(e) =>
+              setEditForm((f) => ({ ...f, referenceLink: e.target.value }))
+            }
+            sx={inputSx}
+          />
+
+          <Box
+            sx={{
+              bgcolor: "#f8fafc",
+              border: "1px solid #e2e8f0",
+              borderRadius: 2,
+              px: 2,
+              py: 1.5,
+            }}
+          >
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={!!editForm.hasShoot}
+                  onChange={(e) =>
+                    setEditForm((f) => ({ ...f, hasShoot: e.target.checked }))
+                  }
+                  sx={{
+                    color: "#94a3b8",
+                    "&.Mui-checked": { color: "#4f46e5" },
+                  }}
+                />
+              }
+              label={
+                <Box>
+                  <Typography sx={{ fontSize: "0.9rem", fontWeight: 600, color: "#111827" }}>
+                    Have a Shoot
+                  </Typography>
+                  <Typography sx={{ fontSize: "0.78rem", color: "#6b7280", mt: 0.2 }}>
+                    If checked, this item will skip Shoot and Cut after approval and go directly to Edit Pending.
+                  </Typography>
+                </Box>
+              }
+            />
+          </Box>
 
           {isManager && (
             <>
               <Divider sx={{ borderColor: "#e5e7eb" }} />
+
               <FormControl size="small" sx={inputSx}>
                 <InputLabel>Status</InputLabel>
-                <Select value={editForm.scriptStatus || "Pending"} label="Status" onChange={(e) => setEditForm((f) => ({ ...f, scriptStatus: e.target.value, holdReason: "" }))}>
+                <Select
+                  value={editForm.scriptStatus || "Pending"}
+                  label="Status"
+                  onChange={(e) =>
+                    setEditForm((f) => ({
+                      ...f,
+                      scriptStatus: e.target.value,
+                      holdReason: "",
+                    }))
+                  }
+                >
                   {SCRIPT_STATUSES.map((s) => (
                     <MenuItem key={s} value={s}>
                       {s}
@@ -1529,44 +2216,101 @@ export default function ScriptPage() {
                   ))}
                 </Select>
               </FormControl>
+
               {needsReason && (
                 <TextField
                   label={`Reason for "${editForm.scriptStatus}" *`}
                   multiline
                   minRows={2}
                   value={editForm.holdReason || ""}
-                  onChange={(e) => setEditForm((f) => ({ ...f, holdReason: e.target.value }))}
+                  onChange={(e) =>
+                    setEditForm((f) => ({ ...f, holdReason: e.target.value }))
+                  }
                   error={!!editErrors.holdReason}
                   helperText={editErrors.holdReason}
                   sx={inputSx}
                 />
               )}
-              <TextField label="Approver Comment" multiline minRows={2} value={editForm.approverComment || ""} onChange={(e) => setEditForm((f) => ({ ...f, approverComment: e.target.value }))} sx={inputSx} />
+
+              <TextField
+                label="Approver Comment"
+                multiline
+                minRows={2}
+                value={editForm.approverComment || ""}
+                onChange={(e) =>
+                  setEditForm((f) => ({
+                    ...f,
+                    approverComment: e.target.value,
+                  }))
+                }
+                sx={inputSx}
+              />
             </>
           )}
         </DialogContent>
+
         <DialogActions sx={{ px: 3, pb: 3, pt: 2, borderTop: "1px solid #e5e7eb", gap: 1, flexWrap: "wrap" }}>
-          <Button onClick={() => { setEditOpen(false); setEditExpanded(false); }} sx={{ color: "#4b5563", textTransform: "none" }}>
+          <Button
+            onClick={() => {
+              setEditOpen(false);
+              setEditExpanded(false);
+            }}
+            sx={{ color: "#4b5563", textTransform: "none" }}
+          >
             Cancel
           </Button>
+
           <Button
             variant="outlined"
             onClick={handleEdit}
-            sx={{ borderColor: "#d1d5db", color: "#374151", textTransform: "none", "&:hover": { borderColor: "#4f46e5", color: "#4f46e5", bgcolor: "#f5f3ff" } }}
+            sx={{
+              borderColor: "#d1d5db",
+              color: "#374151",
+              textTransform: "none",
+              "&:hover": {
+                borderColor: "#4f46e5",
+                color: "#4f46e5",
+                bgcolor: "#f5f3ff",
+              },
+            }}
           >
             Save Changes
           </Button>
-          {canProceedToShoot && (
-            <Button variant="contained" endIcon={<ArrowIcon />} onClick={handleProceedToShoot} sx={{ bgcolor: "#10b981", color: "#fff", textTransform: "none", fontWeight: 600, boxShadow: "none", "&:hover": { bgcolor: "#059669" } }}>
-              Proceed to Shoot
+
+          {canProceed && (
+            <Button
+              variant="contained"
+              endIcon={<ArrowIcon />}
+              onClick={handleProceedFromIdeation}
+              sx={{
+                bgcolor: "#10b981",
+                color: "#fff",
+                textTransform: "none",
+                fontWeight: 600,
+                boxShadow: "none",
+                "&:hover": { bgcolor: "#059669" },
+              }}
+            >
+              {editForm.hasShoot ? "Proceed to Edit" : "Proceed to Shoot"}
             </Button>
           )}
         </DialogActions>
       </Dialog>
 
-      {/* Snackbar */}
-      <Snackbar open={snack.open} autoHideDuration={3500} onClose={() => setSnack((s) => ({ ...s, open: false }))} anchorOrigin={{ vertical: "bottom", horizontal: "right" }}>
-        <Alert severity={snack.severity} onClose={() => setSnack((s) => ({ ...s, open: false }))} sx={{ boxShadow: "0 4px 6px -1px rgba(0,0,0,0.1)", borderRadius: 2 }}>
+      <Snackbar
+        open={snack.open}
+        autoHideDuration={3500}
+        onClose={() => setSnack((s) => ({ ...s, open: false }))}
+        anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
+      >
+        <Alert
+          severity={snack.severity}
+          onClose={() => setSnack((s) => ({ ...s, open: false }))}
+          sx={{
+            boxShadow: "0 4px 6px -1px rgba(0,0,0,0.1)",
+            borderRadius: 2,
+          }}
+        >
           {snack.msg}
         </Alert>
       </Snackbar>

@@ -43,11 +43,14 @@ import {
   Save as SaveIcon,
   Search as SearchIcon,
   RestartAlt as ResetIcon,
+  Link as LinkIcon,
+  Download as DownloadIcon,
 } from "@mui/icons-material";
 
-const API = "https://muditamleads-14f32a10d7f7.herokuapp.com/api/scripts";
+const API = "https://muditamleads-14f32a10d7f7.herokuapp.com/api/other-videos";
+const PRESIGN_DOWN_API =
+  "https://muditamleads-14f32a10d7f7.herokuapp.com/api/other-videos/presign-download";
 
-// ✅ Auth helper — same pattern as other pages
 const getAuthHeaders = () => {
   const user = JSON.parse(sessionStorage.getItem("user") || "{}");
   return { "x-session-user": JSON.stringify(user) };
@@ -82,7 +85,12 @@ const tableHeaderSx = {
   py: 2,
   whiteSpace: "nowrap",
 };
-const tableCellSx = { borderBottom: "1px solid #f1f5f9", py: 1.5, color: "#334155" };
+
+const tableCellSx = {
+  borderBottom: "1px solid #f1f5f9",
+  py: 1.5,
+  color: "#334155",
+};
 
 const inputSx = {
   "& .MuiOutlinedInput-root": {
@@ -104,10 +112,11 @@ const inlineAcSx = {
     "&:hover fieldset": { borderColor: "#cbd5e1" },
     "&.Mui-focused fieldset": { borderColor: "#2563eb" },
   },
-  "& .MuiAutocomplete-popupIndicator, & .MuiAutocomplete-clearIndicator": { color: "#94a3b8" },
+  "& .MuiAutocomplete-popupIndicator, & .MuiAutocomplete-clearIndicator": {
+    color: "#94a3b8",
+  },
 };
 
-// ✅ Script type list (same as ScriptPage)
 const SCRIPT_TYPES = [
   "",
   "Muditam Instagram",
@@ -123,7 +132,6 @@ const SCRIPT_TYPES = [
   "WhatsApp",
 ];
 
-// ✅ Convert HTML scriptText -> RAW text (no tags), preserving line breaks
 function htmlToRawText(html = "") {
   if (!html) return "";
   try {
@@ -146,10 +154,16 @@ function previewRaw(html, max = 140) {
   return txt.length > max ? txt.slice(0, max) + "…" : txt;
 }
 
-// ── Tiny Components ──────────────────────────────────────────
-function ScriptNo({ id }) {
+function OtherVideoNo({ id }) {
   return (
-    <Typography sx={{ fontFamily: "'Inter', sans-serif", fontWeight: 700, fontSize: "0.85rem", color: "#2563eb" }}>
+    <Typography
+      sx={{
+        fontFamily: "'Inter', sans-serif",
+        fontWeight: 700,
+        fontSize: "0.85rem",
+        color: "#2563eb",
+      }}
+    >
       {id}
     </Typography>
   );
@@ -176,9 +190,33 @@ function TypePill({ label }) {
   );
 }
 
+function ShootPill({ hasShoot }) {
+  return (
+    <Box
+      sx={{
+        display: "inline-block",
+        px: 1.1,
+        py: 0.35,
+        borderRadius: "100px",
+        fontSize: "0.74rem",
+        fontWeight: 700,
+        bgcolor: hasShoot ? "#ecfdf5" : "#f8fafc",
+        color: hasShoot ? "#059669" : "#64748b",
+        border: hasShoot ? "1px solid #6ee7b7" : "1px solid #e2e8f0",
+        whiteSpace: "nowrap",
+      }}
+    >
+      {hasShoot ? "Have a Shoot" : "Need Shoot"}
+    </Box>
+  );
+}
+
 function StatusBadge({ value }) {
   const c = STATUS_COLORS[value];
-  if (!value || !c) return <Typography sx={{ fontSize: "0.8rem", color: "#94a3b8" }}>—</Typography>;
+  if (!value || !c) {
+    return <Typography sx={{ fontSize: "0.8rem", color: "#94a3b8" }}>—</Typography>;
+  }
+
   return (
     <Box
       sx={{
@@ -221,6 +259,7 @@ function PublishBadge({ value }) {
       </Box>
     );
   }
+
   return (
     <Box
       sx={{
@@ -242,50 +281,115 @@ function PublishBadge({ value }) {
 }
 
 function FormattedDate({ value }) {
-  if (!value) return <Typography sx={{ fontSize: "0.8rem", color: "#94a3b8" }}>—</Typography>;
+  if (!value) {
+    return <Typography sx={{ fontSize: "0.8rem", color: "#94a3b8" }}>—</Typography>;
+  }
+
   const d = new Date(value);
   return (
     <Box>
-      <Typography sx={{ fontSize: "0.8rem", color: "#0f172a", whiteSpace: "nowrap", fontWeight: 500 }}>
-        {d.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
+      <Typography
+        sx={{
+          fontSize: "0.8rem",
+          color: "#0f172a",
+          whiteSpace: "nowrap",
+          fontWeight: 500,
+        }}
+      >
+        {d.toLocaleDateString("en-IN", {
+          day: "2-digit",
+          month: "short",
+          year: "numeric",
+        })}
       </Typography>
       <Typography sx={{ fontSize: "0.75rem", color: "#64748b" }}>
-        {d.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}
+        {d.toLocaleTimeString("en-IN", {
+          hour: "2-digit",
+          minute: "2-digit",
+        })}
       </Typography>
     </Box>
   );
 }
 
-// ── Video Player Modal ──────────────────────────────────────
 const VIDEO_EXT = /\.(mp4|mov|avi|webm|mkv|m4v)(\?.*)?$/i;
 
 function PlayerModal({ open, onClose, url, title }) {
   if (!url) return null;
   const isVideo = VIDEO_EXT.test(url);
+
   return (
     <Dialog
       open={open}
       onClose={onClose}
       maxWidth="md"
       fullWidth
-      PaperProps={{ sx: { bgcolor: "#ffffff", borderRadius: 2, boxShadow: "0 20px 25px -5px rgba(0,0,0,0.1)" } }}
+      PaperProps={{
+        sx: {
+          bgcolor: "#ffffff",
+          borderRadius: 2,
+          boxShadow: "0 20px 25px -5px rgba(0,0,0,0.1)",
+        },
+      }}
     >
-      <DialogTitle sx={{ borderBottom: "1px solid #e2e8f0", py: 2, px: 3, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+      <DialogTitle
+        sx={{
+          borderBottom: "1px solid #e2e8f0",
+          py: 2,
+          px: 3,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+        }}
+      >
         <Stack direction="row" alignItems="center" gap={1}>
           <PlayCircleFilled sx={{ color: "#2563eb", fontSize: 24 }} />
-          <Typography sx={{ fontWeight: 700, color: "#0f172a", fontSize: "1.1rem" }}>{title || "Video Preview"}</Typography>
+          <Typography sx={{ fontWeight: 700, color: "#0f172a", fontSize: "1.1rem" }}>
+            {title || "Video Preview"}
+          </Typography>
         </Stack>
-        <IconButton size="small" onClick={onClose} sx={{ color: "#64748b", "&:hover": { color: "#0f172a", bgcolor: "#f1f5f9" } }}>
+        <IconButton
+          size="small"
+          onClick={onClose}
+          sx={{
+            color: "#64748b",
+            "&:hover": { color: "#0f172a", bgcolor: "#f1f5f9" },
+          }}
+        >
           <CloseIcon fontSize="small" />
         </IconButton>
       </DialogTitle>
+
       <DialogContent sx={{ pt: 3, pb: 3, px: 3 }}>
         {isVideo ? (
-          <Box component="video" src={url} controls autoPlay={false} sx={{ width: "100%", maxHeight: "65vh", display: "block", borderRadius: 2, bgcolor: "#000", outline: "none" }} />
+          <Box
+            component="video"
+            src={url}
+            controls
+            autoPlay={false}
+            sx={{
+              width: "100%",
+              maxHeight: "65vh",
+              display: "block",
+              borderRadius: 2,
+              bgcolor: "#000",
+              outline: "none",
+            }}
+          />
         ) : (
-          <Box sx={{ textAlign: "center", py: 8, bgcolor: "#f8fafc", borderRadius: 2, border: "1px dashed #cbd5e1" }}>
+          <Box
+            sx={{
+              textAlign: "center",
+              py: 8,
+              bgcolor: "#f8fafc",
+              borderRadius: 2,
+              border: "1px dashed #cbd5e1",
+            }}
+          >
             <PlayCircleIcon sx={{ fontSize: 48, color: "#94a3b8", mb: 2, opacity: 0.5 }} />
-            <Typography sx={{ color: "#475569", mb: 3 }}>This file cannot be previewed inline.</Typography>
+            <Typography sx={{ color: "#475569", mb: 3 }}>
+              This file cannot be previewed inline.
+            </Typography>
             <Button
               component="a"
               href={url}
@@ -293,7 +397,13 @@ function PlayerModal({ open, onClose, url, title }) {
               rel="noopener noreferrer"
               variant="contained"
               startIcon={<OpenInNewIcon />}
-              sx={{ bgcolor: "#2563eb", "&:hover": { bgcolor: "#1d4ed8" }, textTransform: "none", fontWeight: 600, boxShadow: "none" }}
+              sx={{
+                bgcolor: "#2563eb",
+                "&:hover": { bgcolor: "#1d4ed8" },
+                textTransform: "none",
+                fontWeight: 600,
+                boxShadow: "none",
+              }}
             >
               Open Externally
             </Button>
@@ -304,28 +414,55 @@ function PlayerModal({ open, onClose, url, title }) {
   );
 }
 
-// ── Reason Dialog — shown only when status needs a reason ──
-function ReasonDialog({ open, onClose, status, script, onConfirm, saving }) {
+function ReasonDialog({ open, onClose, status, item, onConfirm, saving }) {
   const [reason, setReason] = useState("");
+
   useEffect(() => {
     if (open) setReason("");
   }, [open]);
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="xs" fullWidth PaperProps={{ sx: { bgcolor: "#ffffff", borderRadius: 2 } }}>
-      <DialogTitle sx={{ fontWeight: 700, borderBottom: "1px solid #e2e8f0", py: 2, px: 3, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <Typography sx={{ fontWeight: 700, fontSize: "1rem" }}>Reason for "{status}"</Typography>
+    <Dialog
+      open={open}
+      onClose={onClose}
+      maxWidth="xs"
+      fullWidth
+      PaperProps={{ sx: { bgcolor: "#ffffff", borderRadius: 2 } }}
+    >
+      <DialogTitle
+        sx={{
+          fontWeight: 700,
+          borderBottom: "1px solid #e2e8f0",
+          py: 2,
+          px: 3,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+        }}
+      >
+        <Typography sx={{ fontWeight: 700, fontSize: "1rem" }}>
+          Reason for "{status}"
+        </Typography>
         <IconButton size="small" onClick={onClose}>
           <CloseIcon fontSize="small" />
         </IconButton>
       </DialogTitle>
 
       <DialogContent sx={{ pt: 3, px: 3 }}>
-        {script && (
-          <Box sx={{ mb: 2, bgcolor: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 1.5, p: 2 }}>
-            <Stack direction="row" gap={1}>
-              <ScriptNo id={script.scriptId} />
-              <TypePill label={script.scriptType} />
+        {item && (
+          <Box
+            sx={{
+              mb: 2,
+              bgcolor: "#f8fafc",
+              border: "1px solid #e2e8f0",
+              borderRadius: 1.5,
+              p: 2,
+            }}
+          >
+            <Stack direction="row" gap={1} flexWrap="wrap">
+              <OtherVideoNo id={item.otherVideoId} />
+              <TypePill label={item.scriptType} />
+              <ShootPill hasShoot={item.hasShoot} />
             </Stack>
           </Box>
         )}
@@ -341,16 +478,35 @@ function ReasonDialog({ open, onClose, status, script, onConfirm, saving }) {
         />
       </DialogContent>
 
-      <DialogActions sx={{ px: 3, pb: 3, pt: 2, borderTop: "1px solid #e2e8f0", gap: 1 }}>
-        <Button onClick={onClose} sx={{ color: "#64748b", textTransform: "none", fontWeight: 600 }}>
+      <DialogActions
+        sx={{
+          px: 3,
+          pb: 3,
+          pt: 2,
+          borderTop: "1px solid #e2e8f0",
+          gap: 1,
+        }}
+      >
+        <Button
+          onClick={onClose}
+          sx={{ color: "#64748b", textTransform: "none", fontWeight: 600 }}
+        >
           Cancel
         </Button>
+
         <Button
           variant="contained"
           onClick={() => onConfirm(reason)}
           disabled={saving || !reason.trim()}
           startIcon={saving ? <CircularProgress size={16} color="inherit" /> : <SendIcon />}
-          sx={{ bgcolor: "#2563eb", boxShadow: "none", textTransform: "none", fontWeight: 600, px: 3, "&:hover": { bgcolor: "#1d4ed8" } }}
+          sx={{
+            bgcolor: "#2563eb",
+            boxShadow: "none",
+            textTransform: "none",
+            fontWeight: 600,
+            px: 3,
+            "&:hover": { bgcolor: "#1d4ed8" },
+          }}
         >
           {saving ? "Saving…" : "Confirm"}
         </Button>
@@ -359,17 +515,21 @@ function ReasonDialog({ open, onClose, status, script, onConfirm, saving }) {
   );
 }
 
-// ── Inline Publish Select ────────────────────────────────────
-function InlinePublishSelect({ script, reload, toast }) {
+function InlinePublishSelect({ item, reload, toast }) {
   const [loading, setLoading] = useState(false);
-  const val = script.postPublishStatus || "Blank";
+  const val = item.postPublishStatus || "Blank";
 
   const handleChange = async (_, newVal) => {
     if (!newVal || newVal === val) return;
     const actualVal = newVal === "Blank" ? "" : newVal;
+
     setLoading(true);
     try {
-      await axios.post(`${API}/${script._id}/post-update`, { postPublishStatus: actualVal }, { headers: getAuthHeaders(), withCredentials: true });
+      await axios.post(
+        `${API}/${item._id}/post-update`,
+        { postPublishStatus: actualVal },
+        { headers: getAuthHeaders(), withCredentials: true }
+      );
       toast(actualVal ? `Publish status → ${actualVal} 🚀` : "Publish status cleared");
       reload();
     } catch {
@@ -390,7 +550,11 @@ function InlinePublishSelect({ script, reload, toast }) {
         sx={inlineAcSx}
         renderInput={(params) => <TextField {...params} placeholder="Publish Status" />}
         renderOption={(props, option) => (
-          <Box component="li" {...props} sx={{ fontSize: "0.85rem", "&:hover": { bgcolor: "#f1f5f9 !important" } }}>
+          <Box
+            component="li"
+            {...props}
+            sx={{ fontSize: "0.85rem", "&:hover": { bgcolor: "#f1f5f9 !important" } }}
+          >
             <PublishBadge value={option} />
           </Box>
         )}
@@ -400,22 +564,25 @@ function InlinePublishSelect({ script, reload, toast }) {
   );
 }
 
-// ── Inline Status Select ─────────────────────────────────────
-function InlineStatusSelect({ script, reload, toast, openReasonDlg }) {
+function InlineStatusSelect({ item, reload, toast, openReasonDlg }) {
   const [loading, setLoading] = useState(false);
-  const val = script.postStatus || "";
+  const val = item.postStatus || "";
 
   const handleChange = async (_, newVal) => {
     if (!newVal || newVal === val) return;
 
     if (NEEDS_REASON.has(newVal)) {
-      openReasonDlg(script, newVal);
+      openReasonDlg(item, newVal);
       return;
     }
 
     setLoading(true);
     try {
-      await axios.post(`${API}/${script._id}/post-update`, { postStatus: newVal, postHoldReason: "" }, { headers: getAuthHeaders(), withCredentials: true });
+      await axios.post(
+        `${API}/${item._id}/post-update`,
+        { postStatus: newVal, postHoldReason: "" },
+        { headers: getAuthHeaders(), withCredentials: true }
+      );
       toast(`Status → ${newVal} ✅`);
       reload();
     } catch {
@@ -435,7 +602,11 @@ function InlineStatusSelect({ script, reload, toast, openReasonDlg }) {
         sx={inlineAcSx}
         renderInput={(params) => <TextField {...params} placeholder="Set Status…" />}
         renderOption={(props, option) => (
-          <Box component="li" {...props} sx={{ fontSize: "0.85rem", "&:hover": { bgcolor: "#f1f5f9 !important" } }}>
+          <Box
+            component="li"
+            {...props}
+            sx={{ fontSize: "0.85rem", "&:hover": { bgcolor: "#f1f5f9 !important" } }}
+          >
             <StatusBadge value={option} />
           </Box>
         )}
@@ -445,20 +616,23 @@ function InlineStatusSelect({ script, reload, toast, openReasonDlg }) {
   );
 }
 
-// ── Inline Comment Cell ──────────────────────────────────────
-function InlineComment({ script, reload, toast }) {
+function InlineComment({ item, reload, toast }) {
   const [editing, setEditing] = useState(false);
-  const [val, setVal] = useState(script.postComment || "");
+  const [val, setVal] = useState(item.postComment || "");
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    setVal(script.postComment || "");
-  }, [script.postComment]);
+    setVal(item.postComment || "");
+  }, [item.postComment]);
 
   const handleSave = async () => {
     setSaving(true);
     try {
-      await axios.post(`${API}/${script._id}/post-update`, { postComment: val }, { headers: getAuthHeaders(), withCredentials: true });
+      await axios.post(
+        `${API}/${item._id}/post-update`,
+        { postComment: val },
+        { headers: getAuthHeaders(), withCredentials: true }
+      );
       toast("Comment saved ✅");
       setEditing(false);
       reload();
@@ -489,14 +663,20 @@ function InlineComment({ script, reload, toast }) {
           }}
         />
         <Stack spacing={0.5}>
-          <IconButton size="small" onClick={handleSave} disabled={saving} sx={{ color: "#059669", "&:hover": { bgcolor: "#dcfce7" } }}>
+          <IconButton
+            size="small"
+            onClick={handleSave}
+            disabled={saving}
+            sx={{ color: "#059669", "&:hover": { bgcolor: "#dcfce7" } }}
+          >
             {saving ? <CircularProgress size={14} /> : <SaveIcon sx={{ fontSize: 16 }} />}
           </IconButton>
+
           <IconButton
             size="small"
             onClick={() => {
               setEditing(false);
-              setVal(script.postComment || "");
+              setVal(item.postComment || "");
             }}
             sx={{ color: "#94a3b8", "&:hover": { bgcolor: "#f1f5f9" } }}
           >
@@ -528,39 +708,57 @@ function InlineComment({ script, reload, toast }) {
   );
 }
 
-// ── Edited Video Play Button ─────────────────────────────────
-function EditedVideoBtn({ script, openPlayer }) {
-  const url = script?.editFileUrl;
-  if (!url) return <Typography sx={{ fontSize: "0.8rem", color: "#94a3b8" }}>—</Typography>;
+function EditedVideoBtn({ item, openPlayer, handleDownload }) {
+  const url = item?.editFileUrl;
+  if (!url) {
+    return <Typography sx={{ fontSize: "0.8rem", color: "#94a3b8" }}>—</Typography>;
+  }
+
   return (
-    <Button
-      size="small"
-      onClick={() => openPlayer(url, `${script.scriptId} — Edited Video`)}
-      startIcon={<PlayCircleFilled sx={{ fontSize: 16 }} />}
-      sx={{
-        color: "#2563eb",
-        textTransform: "none",
-        fontSize: "0.8rem",
-        fontWeight: 600,
-        px: 1.5,
-        py: 0.5,
-        border: "1px solid #bfdbfe",
-        borderRadius: 1.5,
-        "&:hover": { bgcolor: "#eff6ff" },
-        minWidth: 0,
-        whiteSpace: "nowrap",
-      }}
-    >
-      Play
-    </Button>
+    <Stack direction="row" spacing={0.5} alignItems="center">
+      <Button
+        size="small"
+        onClick={() => openPlayer(url, `${item.otherVideoId} — Edited Video`)}
+        startIcon={<PlayCircleFilled sx={{ fontSize: 16 }} />}
+        sx={{
+          color: "#2563eb",
+          textTransform: "none",
+          fontSize: "0.8rem",
+          fontWeight: 600,
+          px: 1.5,
+          py: 0.5,
+          border: "1px solid #bfdbfe",
+          borderRadius: 1.5,
+          "&:hover": { bgcolor: "#eff6ff" },
+          minWidth: 0,
+          whiteSpace: "nowrap",
+        }}
+      >
+        Play
+      </Button>
+
+      <Tooltip title="Download">
+        <IconButton
+          size="small"
+          onClick={() =>
+            handleDownload(url, item.editFileName || `${item.otherVideoId}_edited`)
+          }
+          sx={{
+            color: "#64748b",
+            "&:hover": { color: "#2563eb", bgcolor: "#eff6ff" },
+          }}
+        >
+          <DownloadIcon sx={{ fontSize: 16 }} />
+        </IconButton>
+      </Tooltip>
+    </Stack>
   );
 }
 
 // ── Main Page ────────────────────────────────────────────────
-export default function PostPage() {
+export default function OtherVideoPostPage() {
   const [tab, setTab] = useState(0);
 
-  // ✅ Server-side pagination per tab
   const [pendingPage, setPendingPage] = useState(0);
   const [pendingRows, setPendingRows] = useState(25);
   const [publishedPage, setPublishedPage] = useState(0);
@@ -572,19 +770,20 @@ export default function PostPage() {
   const [publishedTotal, setPublishedTotal] = useState(0);
 
   const [creatorOptions, setCreatorOptions] = useState([]);
-
   const [loading, setLoading] = useState(true);
 
-  // ✅ Filters draft + applied
   const [filtersDraft, setFiltersDraft] = useState({
     q: "",
     scriptType: "",
     creator: "",
+    hasShoot: "",
   });
+
   const [filters, setFilters] = useState({
     q: "",
     scriptType: "",
     creator: "",
+    hasShoot: "",
   });
 
   const applyFilters = () => {
@@ -592,14 +791,15 @@ export default function PostPage() {
       q: (filtersDraft.q || "").trim(),
       scriptType: filtersDraft.scriptType || "",
       creator: filtersDraft.creator || "",
+      hasShoot: filtersDraft.hasShoot,
     });
     setPendingPage(0);
     setPublishedPage(0);
   };
 
   const clearFilters = () => {
-    setFiltersDraft({ q: "", scriptType: "", creator: "" });
-    setFilters({ q: "", scriptType: "", creator: "" });
+    setFiltersDraft({ q: "", scriptType: "", creator: "", hasShoot: "" });
+    setFilters({ q: "", scriptType: "", creator: "", hasShoot: "" });
     setPendingPage(0);
     setPublishedPage(0);
   };
@@ -609,16 +809,91 @@ export default function PostPage() {
     if (filters.q) p.q = filters.q;
     if (filters.scriptType) p.scriptType = filters.scriptType;
     if (filters.creator) p.creator = filters.creator;
+    if (filters.hasShoot !== "") p.hasShoot = filters.hasShoot;
     return p;
   }, [filters]);
 
-  // Reason dialog (for statuses that require a reason)
-  const [reasonDlg, setReasonDlg] = useState({ open: false, script: null, status: "" });
+  const [reasonDlg, setReasonDlg] = useState({
+    open: false,
+    item: null,
+    status: "",
+  });
   const [reasonSaving, setReasonSaving] = useState(false);
 
-  const [player, setPlayer] = useState({ open: false, url: "", title: "" });
-  const [snack, setSnack] = useState({ open: false, msg: "", sev: "success" });
+  const [player, setPlayer] = useState({
+    open: false,
+    url: "",
+    title: "",
+  });
+
+  const [snack, setSnack] = useState({
+    open: false,
+    msg: "",
+    sev: "success",
+  });
+
   const toast = (msg, sev = "success") => setSnack({ open: true, msg, sev });
+
+  const extractKey = (url) => {
+    try {
+      const path = new URL(url).pathname;
+      const parts = path.replace(/^\//, "").split("/");
+      parts.shift();
+      return parts.join("/");
+    } catch {
+      const m = url.match(/https?:\/\/[^/]+\/[^/]+\/(.+?)(\?|$)/);
+      return m ? m[1] : null;
+    }
+  };
+
+  const handleDownload = async (url, filename) => {
+    const key = extractKey(url);
+    if (!key) {
+      window.open(url, "_blank");
+      return;
+    }
+
+    try {
+      toast("Preparing download…");
+      const { data } = await axios.get(PRESIGN_DOWN_API, {
+        params: { key },
+        headers: getAuthHeaders(),
+        withCredentials: true,
+      });
+
+      const a = Object.assign(document.createElement("a"), {
+        href: data.url,
+        download: filename || key.split("/").pop() || "file",
+      });
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+
+      toast("Download started ✅");
+    } catch {
+      toast("Download failed", "error");
+      window.open(url, "_blank");
+    }
+  };
+
+  const openPlayer = async (rawUrl, title) => {
+    const key = extractKey(rawUrl);
+    if (!key) {
+      setPlayer({ open: true, url: rawUrl, title });
+      return;
+    }
+
+    try {
+      const { data } = await axios.get(PRESIGN_DOWN_API, {
+        params: { key },
+        headers: getAuthHeaders(),
+        withCredentials: true,
+      });
+      setPlayer({ open: true, url: data.url, title });
+    } catch {
+      setPlayer({ open: true, url: rawUrl, title });
+    }
+  };
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -648,25 +923,28 @@ export default function PostPage() {
         axios.get(API, { params: publishedParams, headers, withCredentials: true }),
       ]);
 
-      const eScripts = eRes.data.scripts || [];
-      const pScripts = pRes.data.scripts || [];
+      const eItems = eRes.data.otherVideos || [];
+      const pItems = pRes.data.otherVideos || [];
 
-      setPendingList(eScripts);
-      setPublishedList(pScripts);
+      setPendingList(eItems);
+      setPublishedList(pItems);
 
-      setPendingTotal(eRes.data.pagination?.total ?? eScripts.length);
-      setPublishedTotal(pRes.data.pagination?.total ?? pScripts.length);
+      setPendingTotal(eRes.data.pagination?.total ?? eItems.length);
+      setPublishedTotal(pRes.data.pagination?.total ?? pItems.length);
 
-      // ✅ creator dropdown options from current loaded pages (minimal/no new backend)
       const set = new Set();
-      [...eScripts, ...pScripts].forEach((s) => {
+      [...eItems, ...pItems].forEach((s) => {
         if (s?.createdBy) set.add(String(s.createdBy).trim());
       });
       if (filtersDraft.creator) set.add(filtersDraft.creator);
 
-      setCreatorOptions(Array.from(set).filter(Boolean).sort((a, b) => a.localeCompare(b)));
+      setCreatorOptions(
+        Array.from(set)
+          .filter(Boolean)
+          .sort((a, b) => a.localeCompare(b))
+      );
     } catch {
-      toast("Failed to load scripts", "error");
+      toast("Failed to load items", "error");
       setPendingList([]);
       setPublishedList([]);
       setPendingTotal(0);
@@ -675,26 +953,26 @@ export default function PostPage() {
     } finally {
       setLoading(false);
     }
-  }, [pendingPage, pendingRows, publishedPage, publishedRows, commonParams]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [pendingPage, pendingRows, publishedPage, publishedRows, commonParams, filtersDraft.creator]);
 
   useEffect(() => {
     load();
   }, [load]);
 
-  const openPlayer = (url, title) => setPlayer({ open: true, url, title });
   const closePlayer = () => setPlayer({ open: false, url: "", title: "" });
 
-  // Open reason dialog
-  const openReasonDlg = (script, status) => setReasonDlg({ open: true, script, status });
-  const closeReasonDlg = () => setReasonDlg({ open: false, script: null, status: "" });
+  const openReasonDlg = (item, status) =>
+    setReasonDlg({ open: true, item, status });
 
-  // Confirm status with reason
+  const closeReasonDlg = () =>
+    setReasonDlg({ open: false, item: null, status: "" });
+
   const handleConfirmReason = async (reason) => {
-    if (!reasonDlg.script) return;
+    if (!reasonDlg.item) return;
     setReasonSaving(true);
     try {
       await axios.post(
-        `${API}/${reasonDlg.script._id}/post-update`,
+        `${API}/${reasonDlg.item._id}/post-update`,
         { postStatus: reasonDlg.status, postHoldReason: reason },
         { headers: getAuthHeaders(), withCredentials: true }
       );
@@ -711,56 +989,86 @@ export default function PostPage() {
   const thSx = tableHeaderSx;
   const tdSx = tableCellSx;
 
-  const renderRow = (s, idxOnPage, isPublished = false, page = 0, rows = 25) => (
-    <TableRow key={s._id} sx={{ "&:hover td": { bgcolor: "#f8fafc" } }}>
-      <TableCell sx={{ ...tdSx, color: "#94a3b8", fontSize: "0.85rem" }}>{page * rows + idxOnPage + 1}</TableCell>
-      <TableCell sx={tdSx}>
-        <ScriptNo id={s.scriptId} />
-      </TableCell>
-      <TableCell sx={tdSx}>
-        <TypePill label={s.scriptType} />
+  const renderRow = (item, idxOnPage, isPublished = false, page = 0, rows = 25) => (
+    <TableRow key={item._id} sx={{ "&:hover td": { bgcolor: "#f8fafc" } }}>
+      <TableCell sx={{ ...tdSx, color: "#94a3b8", fontSize: "0.85rem" }}>
+        {page * rows + idxOnPage + 1}
       </TableCell>
 
-      {/* ✅ RAW Script Preview */}
+      <TableCell sx={tdSx}>
+        <OtherVideoNo id={item.otherVideoId} />
+      </TableCell>
+
+      <TableCell sx={tdSx}>
+        <TypePill label={item.scriptType} />
+      </TableCell>
+
+      <TableCell sx={tdSx}>
+        <ShootPill hasShoot={item.hasShoot} />
+      </TableCell>
+
       <TableCell sx={{ ...tdSx, maxWidth: 220 }}>
-        <Tooltip title={htmlToRawText(s.scriptText)} placement="top" arrow>
-          <Typography sx={{ fontSize: "0.85rem", color: "#475569", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-            {previewRaw(s.scriptText, 160)}
+        <Tooltip title={htmlToRawText(item.scriptText)} placement="top" arrow>
+          <Typography
+            sx={{
+              fontSize: "0.85rem",
+              color: "#475569",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {previewRaw(item.scriptText, 160)}
           </Typography>
         </Tooltip>
       </TableCell>
 
       <TableCell sx={tdSx}>
-        <Typography sx={{ fontSize: "0.85rem", color: "#475569" }}>{s.createdBy}</Typography>
+        <Typography sx={{ fontSize: "0.85rem", color: "#475569" }}>
+          {item.createdBy}
+        </Typography>
       </TableCell>
 
-      {/* Edited Video */}
       <TableCell sx={tdSx}>
-        <EditedVideoBtn script={s} openPlayer={openPlayer} />
+        <EditedVideoBtn
+          item={item}
+          openPlayer={openPlayer}
+          handleDownload={handleDownload}
+        />
       </TableCell>
 
-      {/* Inline Content Status */}
       <TableCell sx={tdSx}>
-        <InlineStatusSelect script={s} reload={load} toast={toast} openReasonDlg={openReasonDlg} />
+        <InlineStatusSelect
+          item={item}
+          reload={load}
+          toast={toast}
+          openReasonDlg={openReasonDlg}
+        />
       </TableCell>
 
-      {/* Inline Publish Status */}
       <TableCell sx={tdSx}>
-        <InlinePublishSelect script={s} reload={load} toast={toast} />
+        <InlinePublishSelect item={item} reload={load} toast={toast} />
       </TableCell>
 
-      {/* Inline Comment */}
       <TableCell sx={tdSx}>
-        <InlineComment script={s} reload={load} toast={toast} />
+        <InlineComment item={item} reload={load} toast={toast} />
       </TableCell>
 
       {isPublished && (
         <>
           <TableCell sx={tdSx}>
-            <FormattedDate value={s.postPublishStatusUpdatedAt} />
+            <FormattedDate value={item.postPublishStatusUpdatedAt} />
           </TableCell>
           <TableCell sx={tdSx}>
-            <Typography sx={{ fontSize: "0.85rem", color: "#047857", fontWeight: 600 }}>{s.postedBy || "—"}</Typography>
+            <Typography
+              sx={{
+                fontSize: "0.85rem",
+                color: "#047857",
+                fontWeight: 600,
+              }}
+            >
+              {item.postedBy || "—"}
+            </Typography>
           </TableCell>
         </>
       )}
@@ -769,24 +1077,41 @@ export default function PostPage() {
 
   return (
     <Box sx={{ bgcolor: "#f8fafc", minHeight: "100vh", color: "#0f172a", p: 4 }}>
-      {/* Header */}
       <Box mb={3}>
-        <Typography sx={{ fontFamily: "'Inter', sans-serif", fontWeight: 800, fontSize: "1.8rem", color: "#0f172a" }}>
-          Post Management
+        <Typography
+          sx={{
+            fontFamily: "'Inter', sans-serif",
+            fontWeight: 800,
+            fontSize: "1.8rem",
+            color: "#0f172a",
+          }}
+        >
+          Other Video Post Management
         </Typography>
+
         <Typography sx={{ color: "#64748b", fontSize: "0.95rem", mt: 0.5 }}>
           Review final content · Set status · Track publishing. Videos are posted via external platforms.
         </Typography>
       </Box>
 
-      {/* ✅ Filters */}
-      <Paper sx={{ bgcolor: "#fff", border: "1px solid #e2e8f0", borderRadius: 2, p: 2, mb: 2, boxShadow: "0 1px 3px rgba(0,0,0,0.06)" }}>
+      <Paper
+        sx={{
+          bgcolor: "#fff",
+          border: "1px solid #e2e8f0",
+          borderRadius: 2,
+          p: 2,
+          mb: 2,
+          boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
+        }}
+      >
         <Stack direction="row" spacing={1.5} alignItems="center" flexWrap="wrap" gap={1}>
           <TextField
             size="small"
-            label="Search (script / id / link / creator)"
+            label="Search (idea / id / link / creator)"
             value={filtersDraft.q}
-            onChange={(e) => setFiltersDraft((s) => ({ ...s, q: e.target.value }))}
+            onChange={(e) =>
+              setFiltersDraft((s) => ({ ...s, q: e.target.value }))
+            }
             sx={{ minWidth: 320, ...inputSx }}
             onKeyDown={(e) => {
               if (e.key === "Enter") applyFilters();
@@ -802,7 +1127,13 @@ export default function PostPage() {
 
           <FormControl size="small" sx={{ minWidth: 220, ...inputSx }}>
             <InputLabel>Type</InputLabel>
-            <Select value={filtersDraft.scriptType} label="Type" onChange={(e) => setFiltersDraft((s) => ({ ...s, scriptType: e.target.value }))}>
+            <Select
+              value={filtersDraft.scriptType}
+              label="Type"
+              onChange={(e) =>
+                setFiltersDraft((s) => ({ ...s, scriptType: e.target.value }))
+              }
+            >
               <MenuItem value="">All</MenuItem>
               {SCRIPT_TYPES.filter(Boolean).map((t) => (
                 <MenuItem key={t} value={t}>
@@ -814,7 +1145,13 @@ export default function PostPage() {
 
           <FormControl size="small" sx={{ minWidth: 240, ...inputSx }}>
             <InputLabel>Creator</InputLabel>
-            <Select value={filtersDraft.creator} label="Creator" onChange={(e) => setFiltersDraft((s) => ({ ...s, creator: e.target.value }))}>
+            <Select
+              value={filtersDraft.creator}
+              label="Creator"
+              onChange={(e) =>
+                setFiltersDraft((s) => ({ ...s, creator: e.target.value }))
+              }
+            >
               <MenuItem value="">All</MenuItem>
               {creatorOptions.map((c) => (
                 <MenuItem key={c} value={c}>
@@ -824,13 +1161,49 @@ export default function PostPage() {
             </Select>
           </FormControl>
 
+          <FormControl size="small" sx={{ minWidth: 170, ...inputSx }}>
+            <InputLabel>Have a Shoot</InputLabel>
+            <Select
+              value={filtersDraft.hasShoot}
+              label="Have a Shoot"
+              onChange={(e) =>
+                setFiltersDraft((s) => ({ ...s, hasShoot: e.target.value }))
+              }
+            >
+              <MenuItem value="">All</MenuItem>
+              <MenuItem value="true">Yes</MenuItem>
+              <MenuItem value="false">No</MenuItem>
+            </Select>
+          </FormControl>
+
           <Box sx={{ flex: 1 }} />
 
-          <Button variant="contained" startIcon={<SearchIcon />} onClick={applyFilters} sx={{ bgcolor: "#2563eb", "&:hover": { bgcolor: "#1d4ed8" }, textTransform: "none", fontWeight: 700 }}>
+          <Button
+            variant="contained"
+            startIcon={<SearchIcon />}
+            onClick={applyFilters}
+            sx={{
+              bgcolor: "#2563eb",
+              "&:hover": { bgcolor: "#1d4ed8" },
+              textTransform: "none",
+              fontWeight: 700,
+            }}
+          >
             Apply
           </Button>
 
-          <Button variant="outlined" startIcon={<ResetIcon />} onClick={clearFilters} sx={{ textTransform: "none", fontWeight: 700, borderColor: "#cbd5e1", color: "#475569", "&:hover": { borderColor: "#94a3b8" } }}>
+          <Button
+            variant="outlined"
+            startIcon={<ResetIcon />}
+            onClick={clearFilters}
+            sx={{
+              textTransform: "none",
+              fontWeight: 700,
+              borderColor: "#cbd5e1",
+              color: "#475569",
+              "&:hover": { borderColor: "#94a3b8" },
+            }}
+          >
             Clear
           </Button>
 
@@ -840,14 +1213,23 @@ export default function PostPage() {
         </Stack>
       </Paper>
 
-      {/* Tabs */}
       <Tabs
         value={tab}
         onChange={(_, v) => setTab(v)}
         sx={{
           mb: 2,
-          "& .MuiTabs-indicator": { bgcolor: "#2563eb", height: 3, borderRadius: "3px 3px 0 0" },
-          "& .MuiTab-root": { color: "#64748b", textTransform: "none", fontWeight: 600, fontSize: "0.95rem", minHeight: 48 },
+          "& .MuiTabs-indicator": {
+            bgcolor: "#2563eb",
+            height: 3,
+            borderRadius: "3px 3px 0 0",
+          },
+          "& .MuiTab-root": {
+            color: "#64748b",
+            textTransform: "none",
+            fontWeight: 600,
+            fontSize: "0.95rem",
+            minHeight: 48,
+          },
           "& .Mui-selected": { color: "#2563eb !important" },
           bgcolor: "#ffffff",
           border: "1px solid #e2e8f0",
@@ -868,30 +1250,62 @@ export default function PostPage() {
         </Box>
       ) : (
         <>
-          {/* TAB 0: POST PENDING (Edit Done) */}
           {tab === 0 && (
-            <Paper sx={{ bgcolor: "#ffffff", border: "1px solid #e2e8f0", borderRadius: 2, boxShadow: "0 1px 3px 0 rgb(0 0 0 / 0.1)" }}>
+            <Paper
+              sx={{
+                bgcolor: "#ffffff",
+                border: "1px solid #e2e8f0",
+                borderRadius: 2,
+                boxShadow: "0 1px 3px 0 rgb(0 0 0 / 0.1)",
+              }}
+            >
               <TableContainer>
                 <Table size="medium">
                   <TableHead>
                     <TableRow>
-                      {["#", "Script No", "Type", "Script Preview", "Creator", "Edited Video", "Content Status", "Publish Status", "Comment"].map((h) => (
+                      {[
+                        "#",
+                        "Other Video ID",
+                        "Type",
+                        "Shoot Type",
+                        "Content Preview",
+                        "Creator",
+                        "Edited Video",
+                        "Content Status",
+                        "Publish Status",
+                        "Comment",
+                      ].map((h) => (
                         <TableCell key={h} sx={thSx}>
                           {h}
                         </TableCell>
                       ))}
                     </TableRow>
                   </TableHead>
+
                   <TableBody>
                     {pendingList.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={9} align="center" sx={{ py: 8, borderBottom: "none", color: "#64748b" }}>
-                          <InboxIcon sx={{ fontSize: 40, mb: 1, color: "#cbd5e1", display: "block", mx: "auto" }} />
-                          No scripts ready to post yet.
+                        <TableCell
+                          colSpan={10}
+                          align="center"
+                          sx={{ py: 8, borderBottom: "none", color: "#64748b" }}
+                        >
+                          <InboxIcon
+                            sx={{
+                              fontSize: 40,
+                              mb: 1,
+                              color: "#cbd5e1",
+                              display: "block",
+                              mx: "auto",
+                            }}
+                          />
+                          No other videos ready to post yet.
                         </TableCell>
                       </TableRow>
                     ) : (
-                      pendingList.map((s, i) => renderRow(s, i, false, pendingPage, pendingRows))
+                      pendingList.map((item, i) =>
+                        renderRow(item, i, false, pendingPage, pendingRows)
+                      )
                     )}
                   </TableBody>
                 </Table>
@@ -912,30 +1326,64 @@ export default function PostPage() {
             </Paper>
           )}
 
-          {/* TAB 1: PUBLISHED (Post) */}
           {tab === 1 && (
-            <Paper sx={{ bgcolor: "#ffffff", border: "1px solid #e2e8f0", borderRadius: 2, boxShadow: "0 1px 3px 0 rgb(0 0 0 / 0.1)" }}>
+            <Paper
+              sx={{
+                bgcolor: "#ffffff",
+                border: "1px solid #e2e8f0",
+                borderRadius: 2,
+                boxShadow: "0 1px 3px 0 rgb(0 0 0 / 0.1)",
+              }}
+            >
               <TableContainer>
                 <Table size="medium">
                   <TableHead>
                     <TableRow>
-                      {["#", "Script No", "Type", "Script Preview", "Creator", "Edited Video", "Content Status", "Publish Status", "Comment", "Published At", "Posted By"].map((h) => (
+                      {[
+                        "#",
+                        "Other Video ID",
+                        "Type",
+                        "Shoot Type",
+                        "Content Preview",
+                        "Creator",
+                        "Edited Video",
+                        "Content Status",
+                        "Publish Status",
+                        "Comment",
+                        "Published At",
+                        "Posted By",
+                      ].map((h) => (
                         <TableCell key={h} sx={thSx}>
                           {h}
                         </TableCell>
                       ))}
                     </TableRow>
                   </TableHead>
+
                   <TableBody>
                     {publishedList.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={11} align="center" sx={{ py: 8, borderBottom: "none", color: "#64748b" }}>
-                          <RocketIcon sx={{ fontSize: 40, mb: 1, color: "#cbd5e1", display: "block", mx: "auto" }} />
+                        <TableCell
+                          colSpan={12}
+                          align="center"
+                          sx={{ py: 8, borderBottom: "none", color: "#64748b" }}
+                        >
+                          <RocketIcon
+                            sx={{
+                              fontSize: 40,
+                              mb: 1,
+                              color: "#cbd5e1",
+                              display: "block",
+                              mx: "auto",
+                            }}
+                          />
                           Nothing published yet.
                         </TableCell>
                       </TableRow>
                     ) : (
-                      publishedList.map((s, i) => renderRow(s, i, true, publishedPage, publishedRows))
+                      publishedList.map((item, i) =>
+                        renderRow(item, i, true, publishedPage, publishedRows)
+                      )
                     )}
                   </TableBody>
                 </Table>
@@ -958,20 +1406,36 @@ export default function PostPage() {
         </>
       )}
 
-      {/* Reason Dialog */}
       <ReasonDialog
         open={reasonDlg.open}
         onClose={closeReasonDlg}
         status={reasonDlg.status}
-        script={reasonDlg.script}
+        item={reasonDlg.item}
         onConfirm={handleConfirmReason}
         saving={reasonSaving}
       />
 
-      <PlayerModal open={player.open} onClose={closePlayer} url={player.url} title={player.title} />
+      <PlayerModal
+        open={player.open}
+        onClose={closePlayer}
+        url={player.url}
+        title={player.title}
+      />
 
-      <Snackbar open={snack.open} autoHideDuration={3500} onClose={() => setSnack((s) => ({ ...s, open: false }))} anchorOrigin={{ vertical: "bottom", horizontal: "right" }}>
-        <Alert severity={snack.sev} onClose={() => setSnack((s) => ({ ...s, open: false }))} sx={{ boxShadow: "0 10px 15px -3px rgb(0 0 0 / 0.1)", borderRadius: 2 }}>
+      <Snackbar
+        open={snack.open}
+        autoHideDuration={3500}
+        onClose={() => setSnack((s) => ({ ...s, open: false }))}
+        anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
+      >
+        <Alert
+          severity={snack.sev}
+          onClose={() => setSnack((s) => ({ ...s, open: false }))}
+          sx={{
+            boxShadow: "0 10px 15px -3px rgb(0 0 0 / 0.1)",
+            borderRadius: 2,
+          }}
+        >
           {snack.msg}
         </Alert>
       </Snackbar>
