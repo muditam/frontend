@@ -40,7 +40,8 @@ import AssignmentTurnedInIcon from "@mui/icons-material/AssignmentTurnedIn";
 import QueryStatsIcon from "@mui/icons-material/QueryStats";
 import CampaignIcon from "@mui/icons-material/Campaign";
 import VideoLibraryIcon from "@mui/icons-material/VideoLibrary";
-import ViewCarouselIcon from "@mui/icons-material/ViewCarousel";
+import ViewCarouselIcon from "@mui/icons-material/ViewCarousel"; 
+import StorefrontIcon from "@mui/icons-material/Storefront";
 import { Link, useNavigate } from "react-router-dom";
 
 const MenuBar = ({ toggleDrawer }) => {
@@ -974,7 +975,7 @@ const MenuBar = ({ toggleDrawer }) => {
               sx={dropdownStyle}
             >
               <Box sx={{ display: "flex", alignItems: "center" }}>
-                <CampaignIcon sx={{ fontSize: 18, marginRight: "8px" }} />
+                <StorefrontIcon sx={{ fontSize: 18, marginRight: "8px" }} />
                 <Typography variant="body1" sx={{ fontSize: "14px" }}>
                   Marketing
                 </Typography>
@@ -1250,7 +1251,7 @@ const MenuBar = ({ toggleDrawer }) => {
               sx={dropdownStyle}
             >
               <Box sx={{ display: "flex", alignItems: "center" }}>
-                <ViewCarouselIcon sx={{ fontSize: 18, marginRight: "8px" }} />
+                <CampaignIcon sx={{ fontSize: 18, marginRight: "8px" }} />
                 <Typography variant="body1" sx={{ fontSize: "14px" }}>
                   Ads
                 </Typography>

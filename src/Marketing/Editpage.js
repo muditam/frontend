@@ -48,6 +48,7 @@ import {
   RestartAlt as ResetIcon,
   Search as SearchIcon,
   Link as LinkIcon,
+  DoneAll as DoneAllIcon,
 } from "@mui/icons-material";
 
 // ─────────────────────────────────────────────────────────────
@@ -68,7 +69,10 @@ const getAuthHeaders = () => ({ "x-session-user": JSON.stringify(getCurrentUser(
 // ─────────────────────────────────────────────────────────────
 async function getPresignedUrl(filename, contentType, authHeaders) {
   const params = new URLSearchParams({ filename, contentType });
-  const res = await fetch(`${PRESIGN_API}?${params}`, { headers: authHeaders, credentials: "include" });
+  const res = await fetch(`${PRESIGN_API}?${params}`, {
+    headers: authHeaders,
+    credentials: "include",
+  });
   if (!res.ok) {
     const e = await res.json().catch(() => ({}));
     throw new Error(e.message || `Presign failed: ${res.status}`);
@@ -80,10 +84,14 @@ function uploadDirectToWasabi(file, presignedUrl, contentType, onProgress) {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     xhr.upload.addEventListener("progress", (e) => {
-      if (e.lengthComputable && onProgress) onProgress(Math.round((e.loaded / e.total) * 100));
+      if (e.lengthComputable && onProgress) {
+        onProgress(Math.round((e.loaded / e.total) * 100));
+      }
     });
     xhr.addEventListener("load", () =>
-      xhr.status >= 200 && xhr.status < 300 ? resolve() : reject(new Error(`Wasabi upload failed: HTTP ${xhr.status}`))
+      xhr.status >= 200 && xhr.status < 300
+        ? resolve()
+        : reject(new Error(`Wasabi upload failed: HTTP ${xhr.status}`))
     );
     xhr.addEventListener("error", () => reject(new Error("Network error")));
     xhr.addEventListener("abort", () => reject(new Error("Upload aborted")));
@@ -97,7 +105,10 @@ function normalizeScriptText(raw = "") {
   let s = String(raw || "");
   if (!s) return "";
 
-  const hasHtml = /<\/?[a-z][\s\S]*>/i.test(s) || /&nbsp;|&amp;|&lt;|&gt;|&quot;|&#39;/.test(s);
+  const hasHtml =
+    /<\/?[a-z][\s\S]*>/i.test(s) ||
+    /&nbsp;|&amp;|&lt;|&gt;|&quot;|&#39;/.test(s);
+
   if (!hasHtml) return s;
 
   s = s
@@ -136,15 +147,27 @@ function getSafeExternalUrl(url = "") {
 async function uploadFilesToWasabi(files, authHeaders, onProgress) {
   if (!files?.length) throw new Error("No files provided");
   const progresses = new Array(files.length).fill(0);
-  const reportOverall = () => onProgress?.(Math.round(progresses.reduce((a, b) => a + b, 0) / files.length));
+  const reportOverall = () =>
+    onProgress?.(
+      Math.round(progresses.reduce((a, b) => a + b, 0) / files.length)
+    );
 
   return Promise.all(
     files.map(async (file, idx) => {
-      const { presignedUrl, finalUrl } = await getPresignedUrl(file.name, file.type || "application/octet-stream", authHeaders);
-      await uploadDirectToWasabi(file, presignedUrl, file.type || "application/octet-stream", (pct) => {
-        progresses[idx] = pct;
-        reportOverall();
-      });
+      const { presignedUrl, finalUrl } = await getPresignedUrl(
+        file.name,
+        file.type || "application/octet-stream",
+        authHeaders
+      );
+      await uploadDirectToWasabi(
+        file,
+        presignedUrl,
+        file.type || "application/octet-stream",
+        (pct) => {
+          progresses[idx] = pct;
+          reportOverall();
+        }
+      );
       return { url: finalUrl, originalName: file.name };
     })
   );
@@ -204,10 +227,22 @@ const EDIT_STATUS_STYLE = {
   Done: { bg: "#ecfdf5", color: "#059669", border: "#6ee7b7" },
 };
 
+const PUBLISH_STATUS_STYLE = {
+  Posted: { bg: "#ecfdf5", color: "#059669", border: "#6ee7b7" },
+  "Used in Ads": { bg: "#f5f3ff", color: "#7c3aed", border: "#c4b5fd" },
+};
+
 const VIDEO_EXT = /\.(mp4|mov|avi|webm|mkv|m4v)(\?.*)?$/i;
 
-// Script Types (adjust as needed)
-const SCRIPT_TYPES = ["", "Muditam instagram", "Muditam Snooze well", "Youtube", "Meta Ads", "Google Ads", "Whatsapp"];
+const SCRIPT_TYPES = [
+  "",
+  "Muditam instagram",
+  "Muditam Snooze well",
+  "Youtube",
+  "Meta Ads",
+  "Google Ads",
+  "Whatsapp",
+];
 
 function fmt(dt) {
   if (!dt) return "—";
@@ -222,7 +257,15 @@ function fmt(dt) {
 
 function ScriptId({ id }) {
   return (
-    <Typography sx={{ fontFamily: "'Syne',sans-serif", fontWeight: 700, fontSize: "0.85rem", color: "#4f46e5", letterSpacing: "0.02em" }}>
+    <Typography
+      sx={{
+        fontFamily: "'Syne',sans-serif",
+        fontWeight: 700,
+        fontSize: "0.85rem",
+        color: "#4f46e5",
+        letterSpacing: "0.02em",
+      }}
+    >
       {id}
     </Typography>
   );
@@ -251,7 +294,9 @@ function TypeBadge({ label }) {
 
 function EditStatusChip({ status }) {
   const c = EDIT_STATUS_STYLE[status];
-  if (!c || !status) return <Typography sx={{ fontSize: "0.75rem", color: "#9ca3af" }}>—</Typography>;
+  if (!c || !status) {
+    return <Typography sx={{ fontSize: "0.75rem", color: "#9ca3af" }}>—</Typography>;
+  }
   return (
     <Box
       sx={{
@@ -272,6 +317,32 @@ function EditStatusChip({ status }) {
   );
 }
 
+function PublishStatusChip({ status }) {
+  const finalStatus = status || "Posted";
+  const c = PUBLISH_STATUS_STYLE[finalStatus];
+  if (!c) {
+    return <Typography sx={{ fontSize: "0.75rem", color: "#9ca3af" }}>—</Typography>;
+  }
+  return (
+    <Box
+      sx={{
+        display: "inline-block",
+        px: 1.2,
+        py: 0.4,
+        borderRadius: "100px",
+        fontSize: "0.75rem",
+        fontWeight: 700,
+        bgcolor: c.bg,
+        color: c.color,
+        border: `1px solid ${c.border}`,
+        whiteSpace: "nowrap",
+      }}
+    >
+      {finalStatus}
+    </Box>
+  );
+}
+
 // ─────────────────────────────────────────────────────────────
 // SUB-COMPONENTS
 // ─────────────────────────────────────────────────────────────
@@ -279,11 +350,28 @@ function PlayerModal({ open, onClose, url, title }) {
   if (!url) return null;
   const isVideo = VIDEO_EXT.test(url);
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth PaperProps={{ sx: { bgcolor: "#ffffff", borderRadius: 2 } }}>
-      <DialogTitle sx={{ borderBottom: "1px solid #e5e7eb", py: 2, px: 3, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+    <Dialog
+      open={open}
+      onClose={onClose}
+      maxWidth="md"
+      fullWidth
+      PaperProps={{ sx: { bgcolor: "#ffffff", borderRadius: 2 } }}
+    >
+      <DialogTitle
+        sx={{
+          borderBottom: "1px solid #e5e7eb",
+          py: 2,
+          px: 3,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+        }}
+      >
         <Stack direction="row" alignItems="center" gap={1}>
           <PlayIcon sx={{ color: "#4f46e5", fontSize: 24 }} />
-          <Typography sx={{ fontWeight: 700, color: "#111827", fontSize: "1.1rem" }}>{title || "File Preview"}</Typography>
+          <Typography sx={{ fontWeight: 700, color: "#111827", fontSize: "1.1rem" }}>
+            {title || "File Preview"}
+          </Typography>
         </Stack>
         <IconButton size="small" onClick={onClose} sx={{ color: "#6b7280" }}>
           <CloseIcon fontSize="small" />
@@ -291,11 +379,47 @@ function PlayerModal({ open, onClose, url, title }) {
       </DialogTitle>
       <DialogContent sx={{ pt: 3, pb: 3, px: 3 }}>
         {isVideo ? (
-          <Box component="video" src={url} controls sx={{ width: "100%", maxHeight: "65vh", display: "block", borderRadius: 2, bgcolor: "#000", outline: "none" }} />
+          <Box
+            component="video"
+            src={url}
+            controls
+            sx={{
+              width: "100%",
+              maxHeight: "65vh",
+              display: "block",
+              borderRadius: 2,
+              bgcolor: "#000",
+              outline: "none",
+            }}
+          />
         ) : (
-          <Box sx={{ textAlign: "center", py: 8, bgcolor: "#f8fafc", borderRadius: 2, border: "1px dashed #d1d5db" }}>
-            <Typography sx={{ color: "#6b7280", mb: 3 }}>Cannot preview this file type.</Typography>
-            <Button component="a" href={url} target="_blank" variant="contained" startIcon={<OpenInNewIcon />} sx={{ bgcolor: "#4f46e5", "&:hover": { bgcolor: "#4338ca" }, textTransform: "none", fontWeight: 600, borderRadius: 1.5, boxShadow: "none" }}>
+          <Box
+            sx={{
+              textAlign: "center",
+              py: 8,
+              bgcolor: "#f8fafc",
+              borderRadius: 2,
+              border: "1px dashed #d1d5db",
+            }}
+          >
+            <Typography sx={{ color: "#6b7280", mb: 3 }}>
+              Cannot preview this file type.
+            </Typography>
+            <Button
+              component="a"
+              href={url}
+              target="_blank"
+              variant="contained"
+              startIcon={<OpenInNewIcon />}
+              sx={{
+                bgcolor: "#4f46e5",
+                "&:hover": { bgcolor: "#4338ca" },
+                textTransform: "none",
+                fontWeight: 600,
+                borderRadius: 1.5,
+                boxShadow: "none",
+              }}
+            >
               Open Externally
             </Button>
           </Box>
@@ -307,11 +431,28 @@ function PlayerModal({ open, onClose, url, title }) {
 
 function CommentModal({ open, onClose, comment, title }) {
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="xs" fullWidth PaperProps={{ sx: { bgcolor: "#ffffff", borderRadius: 2 } }}>
-      <DialogTitle sx={{ borderBottom: "1px solid #e5e7eb", py: 2, px: 3, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+    <Dialog
+      open={open}
+      onClose={onClose}
+      maxWidth="xs"
+      fullWidth
+      PaperProps={{ sx: { bgcolor: "#ffffff", borderRadius: 2 } }}
+    >
+      <DialogTitle
+        sx={{
+          borderBottom: "1px solid #e5e7eb",
+          py: 2,
+          px: 3,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+        }}
+      >
         <Stack direction="row" alignItems="center" gap={1}>
           <CommentIcon sx={{ color: "#4f46e5", fontSize: 20 }} />
-          <Typography sx={{ fontWeight: 700, fontSize: "1rem" }}>{title || "Comment"}</Typography>
+          <Typography sx={{ fontWeight: 700, fontSize: "1rem" }}>
+            {title || "Comment"}
+          </Typography>
         </Stack>
         <IconButton size="small" onClick={onClose} sx={{ color: "#6b7280" }}>
           <CloseIcon fontSize="small" />
@@ -319,11 +460,35 @@ function CommentModal({ open, onClose, comment, title }) {
       </DialogTitle>
       <DialogContent sx={{ pt: 2.5, pb: 3, px: 3 }}>
         {comment ? (
-          <Box sx={{ bgcolor: "#f8fafc", border: "1px solid #e5e7eb", borderRadius: 2, p: 2 }}>
-            <Typography sx={{ fontSize: "0.9rem", color: "#374151", lineHeight: 1.7, whiteSpace: "pre-wrap" }}>{comment}</Typography>
+          <Box
+            sx={{
+              bgcolor: "#f8fafc",
+              border: "1px solid #e5e7eb",
+              borderRadius: 2,
+              p: 2,
+            }}
+          >
+            <Typography
+              sx={{
+                fontSize: "0.9rem",
+                color: "#374151",
+                lineHeight: 1.7,
+                whiteSpace: "pre-wrap",
+              }}
+            >
+              {comment}
+            </Typography>
           </Box>
         ) : (
-          <Typography sx={{ color: "#9ca3af", fontStyle: "italic", fontSize: "0.9rem" }}>No comment added.</Typography>
+          <Typography
+            sx={{
+              color: "#9ca3af",
+              fontStyle: "italic",
+              fontSize: "0.9rem",
+            }}
+          >
+            No comment added.
+          </Typography>
         )}
       </DialogContent>
     </Dialog>
@@ -331,7 +496,9 @@ function CommentModal({ open, onClose, comment, title }) {
 }
 
 function AssignCell({ script, marketingEmployees, onAssigned, showSnack, canAssign }) {
-  const [value, setValue] = useState(marketingEmployees.find((e) => e.fullName === script.editAssignedTo) || null);
+  const [value, setValue] = useState(
+    marketingEmployees.find((e) => e.fullName === script.editAssignedTo) || null
+  );
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -345,7 +512,11 @@ function AssignCell({ script, marketingEmployees, onAssigned, showSnack, canAssi
 
     setSaving(true);
     try {
-      await axios.post(`${API}/${script._id}/edit-assign`, { editAssignedTo: newVal.fullName }, { headers: getAuthHeaders(), withCredentials: true });
+      await axios.post(
+        `${API}/${script._id}/edit-assign`,
+        { editAssignedTo: newVal.fullName },
+        { headers: getAuthHeaders(), withCredentials: true }
+      );
       showSnack(`Assigned to ${newVal.fullName} ✅`);
       onAssigned();
     } catch (e) {
@@ -356,7 +527,17 @@ function AssignCell({ script, marketingEmployees, onAssigned, showSnack, canAssi
   };
 
   if (!canAssign) {
-    return <Typography sx={{ fontSize: "0.85rem", color: value ? "#374151" : "#9ca3af", fontWeight: value ? 500 : 400 }}>{value ? value.fullName : "—"}</Typography>;
+    return (
+      <Typography
+        sx={{
+          fontSize: "0.85rem",
+          color: value ? "#374151" : "#9ca3af",
+          fontWeight: value ? 500 : 400,
+        }}
+      >
+        {value ? value.fullName : "—"}
+      </Typography>
+    );
   }
 
   return (
@@ -370,17 +551,37 @@ function AssignCell({ script, marketingEmployees, onAssigned, showSnack, canAssi
         sx={acSx}
         slotProps={{
           paper: {
-            sx: { bgcolor: "#ffffff", color: "#111827", border: "1px solid #e5e7eb", fontSize: "0.85rem", boxShadow: "0 4px 6px -1px rgba(0,0,0,0.1)" },
+            sx: {
+              bgcolor: "#ffffff",
+              color: "#111827",
+              border: "1px solid #e5e7eb",
+              fontSize: "0.85rem",
+              boxShadow: "0 4px 6px -1px rgba(0,0,0,0.1)",
+            },
           },
         }}
         renderOption={(props, option) => (
-          <Box component="li" {...props} sx={{ fontSize: "0.85rem", color: "#374151", "&:hover": { bgcolor: "#f3f4f6 !important" } }}>
+          <Box
+            component="li"
+            {...props}
+            sx={{
+              fontSize: "0.85rem",
+              color: "#374151",
+              "&:hover": { bgcolor: "#f3f4f6 !important" },
+            }}
+          >
             {option.fullName}
           </Box>
         )}
-        renderInput={(params) => <TextField {...params} placeholder="Assign to…" size="small" />}
+        renderInput={(params) => (
+          <TextField {...params} placeholder="Assign to…" size="small" />
+        )}
       />
-      {saving ? <CircularProgress size={16} sx={{ color: "#4f46e5" }} /> : value && <CheckIcon sx={{ fontSize: 18, color: "#10b981" }} />}
+      {saving ? (
+        <CircularProgress size={16} sx={{ color: "#4f46e5" }} />
+      ) : value ? (
+        <CheckIcon sx={{ fontSize: 18, color: "#10b981" }} />
+      ) : null}
     </Stack>
   );
 }
@@ -395,7 +596,6 @@ function UploadVideoDialog({ open, onClose, script, onUploaded, showSnack, mode 
   const [editStatus, setEditStatus] = useState("Done");
   const [holdReason, setHoldReason] = useState("");
 
-  // When opening dialog for an existing script, default to current editStatus (or Done)
   useEffect(() => {
     if (!open) return;
     setSelectedFile(null);
@@ -434,7 +634,11 @@ function UploadVideoDialog({ open, onClose, script, onUploaded, showSnack, mode 
 
     try {
       setLabel("Uploading to Wasabi…");
-      const results = await uploadFilesToWasabi([selectedFile], getAuthHeaders(), setUploadProgress);
+      const results = await uploadFilesToWasabi(
+        [selectedFile],
+        getAuthHeaders(),
+        setUploadProgress
+      );
       const url = results[0]?.url;
       if (!url) throw new Error("No URL returned");
 
@@ -453,7 +657,11 @@ function UploadVideoDialog({ open, onClose, script, onUploaded, showSnack, mode 
         { headers: getAuthHeaders(), withCredentials: true }
       );
 
-      showSnack(mode === "reupload" ? "Edited video re-uploaded ✅ (replaced old file)" : "Edited video uploaded! 🎬");
+      showSnack(
+        mode === "reupload"
+          ? "Edited video re-uploaded ✅ (replaced old file)"
+          : "Edited video uploaded! 🎬"
+      );
       onUploaded();
       handleClose();
     } catch (err) {
@@ -464,37 +672,89 @@ function UploadVideoDialog({ open, onClose, script, onUploaded, showSnack, mode 
     }
   };
 
-  const fmtSz = (b) => (b < 1024 * 1024 ? `${(b / 1024).toFixed(1)} KB` : `${(b / (1024 * 1024)).toFixed(1)} MB`);
+  const fmtSz = (b) =>
+    b < 1024 * 1024
+      ? `${(b / 1024).toFixed(1)} KB`
+      : `${(b / (1024 * 1024)).toFixed(1)} MB`;
 
   return (
-    <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth PaperProps={{ sx: { bgcolor: "#ffffff", borderRadius: 2 } }}>
-      <DialogTitle sx={{ color: "#111827", fontWeight: 700, borderBottom: "1px solid #e5e7eb", pb: 2, px: 3, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+    <Dialog
+      open={open}
+      onClose={handleClose}
+      maxWidth="sm"
+      fullWidth
+      PaperProps={{ sx: { bgcolor: "#ffffff", borderRadius: 2 } }}
+    >
+      <DialogTitle
+        sx={{
+          color: "#111827",
+          fontWeight: 700,
+          borderBottom: "1px solid #e5e7eb",
+          pb: 2,
+          px: 3,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+        }}
+      >
         <Stack direction="row" alignItems="center" gap={1}>
           <UploadIcon sx={{ color: "#ea580c" }} />
           <Typography sx={{ fontSize: "1.1rem", fontWeight: 700 }}>
             {mode === "reupload" ? "Re-upload Edited Video" : "Upload Edited Video"}
           </Typography>
         </Stack>
-        <IconButton size="small" onClick={handleClose} disabled={uploading} sx={{ color: "#6b7280" }}>
+        <IconButton
+          size="small"
+          onClick={handleClose}
+          disabled={uploading}
+          sx={{ color: "#6b7280" }}
+        >
           <CloseIcon fontSize="small" />
         </IconButton>
       </DialogTitle>
 
-      <DialogContent sx={{ pt: 3, px: 3, display: "flex", flexDirection: "column", gap: 2.5 }}>
+      <DialogContent
+        sx={{
+          pt: 3,
+          px: 3,
+          display: "flex",
+          flexDirection: "column",
+          gap: 2.5,
+        }}
+      >
         {script && (
-          <Box sx={{ bgcolor: "#f9fafb", border: "1px solid #e5e7eb", borderRadius: 1.5, p: 2 }}>
+          <Box
+            sx={{
+              bgcolor: "#f9fafb",
+              border: "1px solid #e5e7eb",
+              borderRadius: 1.5,
+              p: 2,
+            }}
+          >
             <Stack direction="row" alignItems="center" gap={1} mb={0.5}>
               <ScriptId id={script.scriptId} />
               <TypeBadge label={script.scriptType} />
             </Stack>
 
-            <Typography sx={{ fontSize: "0.85rem", color: "#4b5563", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
+            <Typography
+              sx={{
+                fontSize: "0.85rem",
+                color: "#4b5563",
+                display: "-webkit-box",
+                WebkitLineClamp: 2,
+                WebkitBoxOrient: "vertical",
+                overflow: "hidden",
+              }}
+            >
               {previewText(script.scriptText, 220)}
             </Typography>
 
             {mode === "reupload" && script.editFileUrl && (
               <Typography sx={{ mt: 1, fontSize: "0.8rem", color: "#6b7280" }}>
-                Current edited file: <Box component="span" sx={{ color: "#111827", fontWeight: 600 }}>{script.editFileName || "—"}</Box>
+                Current edited file:{" "}
+                <Box component="span" sx={{ color: "#111827", fontWeight: 600 }}>
+                  {script.editFileName || "—"}
+                </Box>
               </Typography>
             )}
           </Box>
@@ -515,8 +775,12 @@ function UploadVideoDialog({ open, onClose, script, onUploaded, showSnack, mode 
 
           {selectedFile ? (
             <Box>
-              <Typography sx={{ fontSize: "0.9rem", color: "#374151", fontWeight: 600 }}>{selectedFile.name}</Typography>
-              <Typography sx={{ fontSize: "0.8rem", color: "#6b7280" }}>{fmtSz(selectedFile.size)}</Typography>
+              <Typography sx={{ fontSize: "0.9rem", color: "#374151", fontWeight: 600 }}>
+                {selectedFile.name}
+              </Typography>
+              <Typography sx={{ fontSize: "0.8rem", color: "#6b7280" }}>
+                {fmtSz(selectedFile.size)}
+              </Typography>
               <Button
                 size="small"
                 onClick={(e) => {
@@ -533,7 +797,9 @@ function UploadVideoDialog({ open, onClose, script, onUploaded, showSnack, mode 
               <Typography sx={{ fontSize: "0.9rem", color: "#6b7280", fontWeight: 500 }}>
                 Click to select your edited video
               </Typography>
-              <Typography sx={{ fontSize: "0.8rem", color: "#9ca3af", mt: 0.5 }}>MP4, MOV, AVI, WebM and more</Typography>
+              <Typography sx={{ fontSize: "0.8rem", color: "#9ca3af", mt: 0.5 }}>
+                MP4, MOV, AVI, WebM and more
+              </Typography>
             </>
           )}
 
@@ -554,7 +820,12 @@ function UploadVideoDialog({ open, onClose, script, onUploaded, showSnack, mode 
 
         <FormControl size="small" sx={inputSx}>
           <InputLabel>Edit Status</InputLabel>
-          <Select value={editStatus} label="Edit Status" onChange={(e) => setEditStatus(e.target.value)} disabled={uploading}>
+          <Select
+            value={editStatus}
+            label="Edit Status"
+            onChange={(e) => setEditStatus(e.target.value)}
+            disabled={uploading}
+          >
             {EDIT_STATUSES.map((s) => (
               <MenuItem key={s} value={s}>
                 {s}
@@ -564,7 +835,15 @@ function UploadVideoDialog({ open, onClose, script, onUploaded, showSnack, mode 
         </FormControl>
 
         {needsReason && (
-          <TextField label="Reason *" multiline minRows={2} value={holdReason} onChange={(e) => setHoldReason(e.target.value)} disabled={uploading} sx={inputSx} />
+          <TextField
+            label="Reason *"
+            multiline
+            minRows={2}
+            value={holdReason}
+            onChange={(e) => setHoldReason(e.target.value)}
+            disabled={uploading}
+            sx={inputSx}
+          />
         )}
 
         <TextField
@@ -581,10 +860,22 @@ function UploadVideoDialog({ open, onClose, script, onUploaded, showSnack, mode 
         {uploading && (
           <Box>
             <Stack direction="row" justifyContent="space-between" mb={0.5}>
-              <Typography sx={{ fontSize: "0.8rem", color: "#6b7280" }}>{label || "Uploading…"}</Typography>
-              <Typography sx={{ fontSize: "0.8rem", color: "#ea580c", fontWeight: 600 }}>{uploadProgress}%</Typography>
+              <Typography sx={{ fontSize: "0.8rem", color: "#6b7280" }}>
+                {label || "Uploading…"}
+              </Typography>
+              <Typography sx={{ fontSize: "0.8rem", color: "#ea580c", fontWeight: 600 }}>
+                {uploadProgress}%
+              </Typography>
             </Stack>
-            <LinearProgress variant="determinate" value={uploadProgress} sx={{ borderRadius: 1, bgcolor: "#e5e7eb", "& .MuiLinearProgress-bar": { bgcolor: "#ea580c" } }} />
+            <LinearProgress
+              variant="determinate"
+              value={uploadProgress}
+              sx={{
+                borderRadius: 1,
+                bgcolor: "#e5e7eb",
+                "& .MuiLinearProgress-bar": { bgcolor: "#ea580c" },
+              }}
+            />
             {uploadProgress > 0 && uploadProgress < 100 && (
               <Typography sx={{ fontSize: "0.75rem", color: "#9ca3af", mt: 0.5 }}>
                 Uploading directly to storage — large files may take a few minutes
@@ -594,7 +885,15 @@ function UploadVideoDialog({ open, onClose, script, onUploaded, showSnack, mode 
         )}
       </DialogContent>
 
-      <DialogActions sx={{ px: 3, pb: 3, pt: 2, borderTop: "1px solid #e5e7eb", gap: 1 }}>
+      <DialogActions
+        sx={{
+          px: 3,
+          pb: 3,
+          pt: 2,
+          borderTop: "1px solid #e5e7eb",
+          gap: 1,
+        }}
+      >
         <Button onClick={handleClose} disabled={uploading} sx={{ color: "#6b7280", textTransform: "none" }}>
           Cancel
         </Button>
@@ -603,7 +902,15 @@ function UploadVideoDialog({ open, onClose, script, onUploaded, showSnack, mode 
           onClick={handleUpload}
           disabled={uploading || !selectedFile}
           startIcon={uploading ? <CircularProgress size={16} color="inherit" /> : <UploadIcon />}
-          sx={{ bgcolor: "#ea580c", color: "#ffffff", boxShadow: "none", textTransform: "none", fontWeight: 600, px: 3, "&:hover": { bgcolor: "#c2410c" } }}
+          sx={{
+            bgcolor: "#ea580c",
+            color: "#ffffff",
+            boxShadow: "none",
+            textTransform: "none",
+            fontWeight: 600,
+            px: 3,
+            "&:hover": { bgcolor: "#c2410c" },
+          }}
         >
           {uploading ? "Uploading…" : mode === "reupload" ? "Re-upload Video" : "Upload Edited Video"}
         </Button>
@@ -645,7 +952,11 @@ function UploadThumbDialog({ open, onClose, script, onUploaded, showSnack, mode 
     setLabel("Uploading thumbnail…");
 
     try {
-      const results = await uploadFilesToWasabi([selectedFile], getAuthHeaders(), setUploadProgress);
+      const results = await uploadFilesToWasabi(
+        [selectedFile],
+        getAuthHeaders(),
+        setUploadProgress
+      );
       const url = results[0]?.url;
       if (!url) throw new Error("No URL returned");
 
@@ -662,30 +973,66 @@ function UploadThumbDialog({ open, onClose, script, onUploaded, showSnack, mode 
       onUploaded();
       handleClose();
     } catch (err) {
-      showSnack(err.response?.data?.message || err.message || "Thumbnail upload failed", "error");
+      showSnack(
+        err.response?.data?.message || err.message || "Thumbnail upload failed",
+        "error"
+      );
     } finally {
       setUploading(false);
       setLabel("");
     }
   };
 
-  const fmtSz = (b) => (b < 1024 * 1024 ? `${(b / 1024).toFixed(1)} KB` : `${(b / (1024 * 1024)).toFixed(1)} MB`);
+  const fmtSz = (b) =>
+    b < 1024 * 1024
+      ? `${(b / 1024).toFixed(1)} KB`
+      : `${(b / (1024 * 1024)).toFixed(1)} MB`;
 
   return (
-    <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth PaperProps={{ sx: { bgcolor: "#ffffff", borderRadius: 2 } }}>
-      <DialogTitle sx={{ color: "#111827", fontWeight: 700, borderBottom: "1px solid #e5e7eb", pb: 2, px: 3, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+    <Dialog
+      open={open}
+      onClose={handleClose}
+      maxWidth="sm"
+      fullWidth
+      PaperProps={{ sx: { bgcolor: "#ffffff", borderRadius: 2 } }}
+    >
+      <DialogTitle
+        sx={{
+          color: "#111827",
+          fontWeight: 700,
+          borderBottom: "1px solid #e5e7eb",
+          pb: 2,
+          px: 3,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+        }}
+      >
         <Stack direction="row" alignItems="center" gap={1}>
           <UploadIcon sx={{ color: "#ea580c" }} />
           <Typography sx={{ fontSize: "1.1rem", fontWeight: 700 }}>
             {mode === "reupload" ? "Re-upload Thumbnail" : "Upload Thumbnail"}
           </Typography>
         </Stack>
-        <IconButton size="small" onClick={handleClose} disabled={uploading} sx={{ color: "#6b7280" }}>
+        <IconButton
+          size="small"
+          onClick={handleClose}
+          disabled={uploading}
+          sx={{ color: "#6b7280" }}
+        >
           <CloseIcon fontSize="small" />
         </IconButton>
       </DialogTitle>
 
-      <DialogContent sx={{ pt: 3, px: 3, display: "flex", flexDirection: "column", gap: 2.5 }}>
+      <DialogContent
+        sx={{
+          pt: 3,
+          px: 3,
+          display: "flex",
+          flexDirection: "column",
+          gap: 2.5,
+        }}
+      >
         <Box
           onClick={() => !uploading && fileInputRef.current?.click()}
           sx={{
@@ -701,8 +1048,12 @@ function UploadThumbDialog({ open, onClose, script, onUploaded, showSnack, mode 
 
           {selectedFile ? (
             <Box>
-              <Typography sx={{ fontSize: "0.9rem", color: "#374151", fontWeight: 600 }}>{selectedFile.name}</Typography>
-              <Typography sx={{ fontSize: "0.8rem", color: "#6b7280" }}>{fmtSz(selectedFile.size)}</Typography>
+              <Typography sx={{ fontSize: "0.9rem", color: "#374151", fontWeight: 600 }}>
+                {selectedFile.name}
+              </Typography>
+              <Typography sx={{ fontSize: "0.8rem", color: "#6b7280" }}>
+                {fmtSz(selectedFile.size)}
+              </Typography>
               <Button
                 size="small"
                 onClick={(e) => {
@@ -716,8 +1067,12 @@ function UploadThumbDialog({ open, onClose, script, onUploaded, showSnack, mode 
             </Box>
           ) : (
             <>
-              <Typography sx={{ fontSize: "0.9rem", color: "#6b7280", fontWeight: 500 }}>Click to select thumbnail</Typography>
-              <Typography sx={{ fontSize: "0.8rem", color: "#9ca3af", mt: 0.5 }}>PNG, JPG, WebP</Typography>
+              <Typography sx={{ fontSize: "0.9rem", color: "#6b7280", fontWeight: 500 }}>
+                Click to select thumbnail
+              </Typography>
+              <Typography sx={{ fontSize: "0.8rem", color: "#9ca3af", mt: 0.5 }}>
+                PNG, JPG, WebP
+              </Typography>
             </>
           )}
 
@@ -737,19 +1092,35 @@ function UploadThumbDialog({ open, onClose, script, onUploaded, showSnack, mode 
         {uploading && (
           <Box>
             <Stack direction="row" justifyContent="space-between" mb={0.5}>
-              <Typography sx={{ fontSize: "0.8rem", color: "#6b7280" }}>{label || "Uploading…"}</Typography>
-              <Typography sx={{ fontSize: "0.8rem", color: "#ea580c", fontWeight: 600 }}>{uploadProgress}%</Typography>
+              <Typography sx={{ fontSize: "0.8rem", color: "#6b7280" }}>
+                {label || "Uploading…"}
+              </Typography>
+              <Typography sx={{ fontSize: "0.8rem", color: "#ea580c", fontWeight: 600 }}>
+                {uploadProgress}%
+              </Typography>
             </Stack>
             <LinearProgress
               variant="determinate"
               value={uploadProgress}
-              sx={{ borderRadius: 1, bgcolor: "#e5e7eb", "& .MuiLinearProgress-bar": { bgcolor: "#ea580c" } }}
+              sx={{
+                borderRadius: 1,
+                bgcolor: "#e5e7eb",
+                "& .MuiLinearProgress-bar": { bgcolor: "#ea580c" },
+              }}
             />
           </Box>
         )}
       </DialogContent>
 
-      <DialogActions sx={{ px: 3, pb: 3, pt: 2, borderTop: "1px solid #e5e7eb", gap: 1 }}>
+      <DialogActions
+        sx={{
+          px: 3,
+          pb: 3,
+          pt: 2,
+          borderTop: "1px solid #e5e7eb",
+          gap: 1,
+        }}
+      >
         <Button onClick={handleClose} disabled={uploading} sx={{ color: "#6b7280", textTransform: "none" }}>
           Cancel
         </Button>
@@ -758,7 +1129,15 @@ function UploadThumbDialog({ open, onClose, script, onUploaded, showSnack, mode 
           onClick={handleUpload}
           disabled={uploading || !selectedFile}
           startIcon={uploading ? <CircularProgress size={16} color="inherit" /> : <UploadIcon />}
-          sx={{ bgcolor: "#ea580c", color: "#ffffff", boxShadow: "none", textTransform: "none", fontWeight: 600, px: 3, "&:hover": { bgcolor: "#c2410c" } }}
+          sx={{
+            bgcolor: "#ea580c",
+            color: "#ffffff",
+            boxShadow: "none",
+            textTransform: "none",
+            fontWeight: 600,
+            px: 3,
+            "&:hover": { bgcolor: "#c2410c" },
+          }}
         >
           {uploading ? "Uploading…" : mode === "reupload" ? "Re-upload Thumbnail" : "Upload Thumbnail"}
         </Button>
@@ -779,20 +1158,21 @@ export default function EditPage() {
   const canUploadForScript = (s) => {
     if (!s) return false;
     if (hasFullAccess) return true;
-    // allow assigned editor to upload/reupload
-    if (s.editAssignedTo && currentUser?.fullName && s.editAssignedTo === currentUser.fullName) return true;
+    if (s.editAssignedTo && currentUser?.fullName && s.editAssignedTo === currentUser.fullName) {
+      return true;
+    }
     return false;
   };
 
   const [tab, setTab] = useState(0);
 
-  // Filters (draft UI) + Applied filters (used for API calls)
   const [filtersDraft, setFiltersDraft] = useState({
-    assignedTo: null, // {fullName, email}
+    assignedTo: null,
     scriptId: "",
     scriptType: "",
     creator: "",
   });
+
   const [filters, setFilters] = useState({
     assignedTo: "",
     scriptId: "",
@@ -800,33 +1180,38 @@ export default function EditPage() {
     creator: "",
   });
 
-  // Pagination per tab
-  const [pendingPage, setPendingPage] = useState(0); // 0-based for MUI
+  const [pendingPage, setPendingPage] = useState(0);
   const [pendingRows, setPendingRows] = useState(50);
   const [donePage, setDonePage] = useState(0);
   const [doneRows, setDoneRows] = useState(50);
+  const [completedPage, setCompletedPage] = useState(0);
+  const [completedRows, setCompletedRows] = useState(50);
 
-  // Lists + totals
   const [pendingScripts, setPendingScripts] = useState([]);
   const [doneScripts, setDoneScripts] = useState([]);
+  const [completedScripts, setCompletedScripts] = useState([]);
+
   const [pendingTotal, setPendingTotal] = useState(0);
   const [doneTotal, setDoneTotal] = useState(0);
+  const [completedTotal, setCompletedTotal] = useState(0);
 
   const [marketingEmployees, setMarketingEmployees] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // Optional date filters
-  const [pendingDate, setPendingDate] = useState({ dateFrom: "", dateTo: "" }); // uses cutDoneAt
-  const [doneDate, setDoneDate] = useState({ dateFrom: "", dateTo: "" }); // uses editDoneAt
+  const [pendingDate, setPendingDate] = useState({ dateFrom: "", dateTo: "" });
+  const [doneDate, setDoneDate] = useState({ dateFrom: "", dateTo: "" });
 
-  // Upload / dialogs
   const [uploadOpen, setUploadOpen] = useState(false);
   const [uploadTarget, setUploadTarget] = useState(null);
-  const [uploadMode, setUploadMode] = useState("upload"); // "upload" | "reupload"
+  const [uploadMode, setUploadMode] = useState("upload");
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [dialogTarget, setDialogTarget] = useState(null);
-  const [form, setForm] = useState({ editStatus: "", editHoldReason: "", editComment: "" });
+  const [form, setForm] = useState({
+    editStatus: "",
+    editHoldReason: "",
+    editComment: "",
+  });
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
 
@@ -836,20 +1221,33 @@ export default function EditPage() {
 
   const [viewOpen, setViewOpen] = useState(false);
   const [viewText, setViewText] = useState("");
-  const [commentModal, setCommentModal] = useState({ open: false, text: "", title: "" });
-  const [player, setPlayer] = useState({ open: false, url: "", title: "" });
+  const [commentModal, setCommentModal] = useState({
+    open: false,
+    text: "",
+    title: "",
+  });
+  const [player, setPlayer] = useState({
+    open: false,
+    url: "",
+    title: "",
+  });
 
-  const [snack, setSnack] = useState({ open: false, msg: "", severity: "success" });
-  const showSnack = (msg, severity = "success") => setSnack({ open: true, msg, severity });
+  const [snack, setSnack] = useState({
+    open: false,
+    msg: "",
+    severity: "success",
+  });
+
+  const showSnack = (msg, severity = "success") =>
+    setSnack({ open: true, msg, severity });
 
   const needsReason = ["On Hold", "Reshoot", "Re-edit"].includes(form.editStatus);
 
-  // ── Extracts the Wasabi object key from a stored finalUrl ──
   const extractKey = (url) => {
     try {
-      const path = new URL(url).pathname; // /bucket/scripts/uuid.ext
+      const path = new URL(url).pathname;
       const parts = path.replace(/^\//, "").split("/");
-      parts.shift(); // remove bucket
+      parts.shift();
       return parts.join("/");
     } catch {
       const m = url.match(/https?:\/\/[^/]+\/[^/]+\/(.+?)(\?|$)/);
@@ -884,7 +1282,6 @@ export default function EditPage() {
     }
   };
 
-  // ── Opens the player modal with a fresh presigned GET URL ──
   const openPlayer = async (rawUrl, title) => {
     const key = extractKey(rawUrl);
     if (!key) {
@@ -899,13 +1296,10 @@ export default function EditPage() {
       });
       setPlayer({ open: true, url: data.url, title });
     } catch {
-      setPlayer({ open: true, url: rawUrl, title }); // fallback
+      setPlayer({ open: true, url: rawUrl, title });
     }
   };
 
-  // ─────────────────────────────────────────────────────────────
-  // Load Employees once
-  // ─────────────────────────────────────────────────────────────
   useEffect(() => {
     (async () => {
       try {
@@ -926,9 +1320,6 @@ export default function EditPage() {
     })();
   }, []);
 
-  // ─────────────────────────────────────────────────────────────
-  // API params builder (shared)
-  // ─────────────────────────────────────────────────────────────
   const commonFilterParams = useMemo(() => {
     const p = {
       sortBy: "createdAt",
@@ -943,20 +1334,18 @@ export default function EditPage() {
     return p;
   }, [filters]);
 
-  // ─────────────────────────────────────────────────────────────
-  // Load Scripts (backend pagination)
-  // ─────────────────────────────────────────────────────────────
   const load = useCallback(async () => {
     setLoading(true);
     try {
       const headers = getAuthHeaders();
 
-      // Pending = Cut Done + Edit Pending
       const pendingParams = {
         stage: "Cut Done,Edit Pending",
         page: pendingPage + 1,
         limit: pendingRows,
-        ...(pendingDate.dateFrom || pendingDate.dateTo ? { dateField: "cutDoneAt", ...pendingDate } : {}),
+        ...(pendingDate.dateFrom || pendingDate.dateTo
+          ? { dateField: "cutDoneAt", ...pendingDate }
+          : {}),
         ...commonFilterParams,
       };
 
@@ -964,38 +1353,67 @@ export default function EditPage() {
         stage: "Edit Done",
         page: donePage + 1,
         limit: doneRows,
-        ...(doneDate.dateFrom || doneDate.dateTo ? { dateField: "editDoneAt", ...doneDate } : {}),
+        ...(doneDate.dateFrom || doneDate.dateTo
+          ? { dateField: "editDoneAt", ...doneDate }
+          : {}),
         ...commonFilterParams,
       };
 
-      const [pendingRes, doneRes] = await Promise.all([
+      const completedParams = {
+        stage: "Post",
+        page: completedPage + 1,
+        limit: completedRows,
+        sortBy: "postedAt",
+        sortDir: "desc",
+        ...commonFilterParams,
+      };
+
+      const [pendingRes, doneRes, completedRes] = await Promise.all([
         axios.get(API, { params: pendingParams, headers, withCredentials: true }),
         axios.get(API, { params: doneParams, headers, withCredentials: true }),
+        axios.get(API, { params: completedParams, headers, withCredentials: true }),
       ]);
 
       setPendingScripts(pendingRes.data.scripts || []);
       setDoneScripts(doneRes.data.scripts || []);
+      setCompletedScripts(completedRes.data.scripts || []);
 
-      setPendingTotal(pendingRes.data.pagination?.total ?? (pendingRes.data.scripts || []).length);
-      setDoneTotal(doneRes.data.pagination?.total ?? (doneRes.data.scripts || []).length);
+      setPendingTotal(
+        pendingRes.data.pagination?.total ?? (pendingRes.data.scripts || []).length
+      );
+      setDoneTotal(
+        doneRes.data.pagination?.total ?? (doneRes.data.scripts || []).length
+      );
+      setCompletedTotal(
+        completedRes.data.pagination?.total ?? (completedRes.data.scripts || []).length
+      );
     } catch {
       showSnack("Failed to load data", "error");
       setPendingScripts([]);
       setDoneScripts([]);
+      setCompletedScripts([]);
       setPendingTotal(0);
       setDoneTotal(0);
+      setCompletedTotal(0);
     } finally {
       setLoading(false);
     }
-  }, [pendingPage, pendingRows, donePage, doneRows, pendingDate, doneDate, commonFilterParams]);
+  }, [
+    pendingPage,
+    pendingRows,
+    donePage,
+    doneRows,
+    completedPage,
+    completedRows,
+    pendingDate,
+    doneDate,
+    commonFilterParams,
+  ]);
 
   useEffect(() => {
     load();
   }, [load]);
 
-  // ─────────────────────────────────────────────────────────────
-  // Filter Apply / Clear
-  // ─────────────────────────────────────────────────────────────
   const applyFilters = () => {
     setFilters({
       assignedTo: filtersDraft.assignedTo?.fullName || "",
@@ -1005,18 +1423,27 @@ export default function EditPage() {
     });
     setPendingPage(0);
     setDonePage(0);
+    setCompletedPage(0);
   };
 
   const clearFilters = () => {
-    setFiltersDraft({ assignedTo: null, scriptId: "", scriptType: "", creator: "" });
-    setFilters({ assignedTo: "", scriptId: "", scriptType: "", creator: "" });
+    setFiltersDraft({
+      assignedTo: null,
+      scriptId: "",
+      scriptType: "",
+      creator: "",
+    });
+    setFilters({
+      assignedTo: "",
+      scriptId: "",
+      scriptType: "",
+      creator: "",
+    });
     setPendingPage(0);
     setDonePage(0);
+    setCompletedPage(0);
   };
 
-  // ─────────────────────────────────────────────────────────────
-  // Dialog helpers
-  // ─────────────────────────────────────────────────────────────
   const openDialog = (s) => {
     setDialogTarget(s);
     setForm({
@@ -1027,6 +1454,7 @@ export default function EditPage() {
     setErrors({});
     setDialogOpen(true);
   };
+
   const closeDialog = () => {
     setDialogOpen(false);
     setDialogTarget(null);
@@ -1067,22 +1495,58 @@ export default function EditPage() {
 
   return (
     <Box sx={{ bgcolor: "#f4f5f7", minHeight: "100vh", color: "#111827", p: 4 }}>
-      {/* Header */}
       <Box mb={3}>
-        <Typography sx={{ fontFamily: "'Syne',sans-serif", fontWeight: 800, fontSize: "1.8rem", letterSpacing: "-0.5px", color: "#111827" }}>
+        <Typography
+          sx={{
+            fontFamily: "'Syne',sans-serif",
+            fontWeight: 800,
+            fontSize: "1.8rem",
+            letterSpacing: "-0.5px",
+            color: "#111827",
+          }}
+        >
           Edit <Box component="span" sx={{ color: "#4f46e5" }}>Workspace</Box>
         </Typography>
         <Typography sx={{ color: "#6b7280", fontSize: "0.9rem", mt: 0.5 }}>
           Assign team · Download cut video · Upload edited video · Track status
           {currentUser?.fullName && (
             <Box component="span" sx={{ ml: 1.5, color: "#9ca3af" }}>
-              — <Box component="span" sx={{ color: "#4f46e5", fontWeight: 500 }}>{currentUser.fullName}</Box>
+              —{" "}
+              <Box component="span" sx={{ color: "#4f46e5", fontWeight: 500 }}>
+                {currentUser.fullName}
+              </Box>
               {hasFullAccess ? (
-                <Box component="span" sx={{ ml: 1, px: 1, py: 0.2, borderRadius: "100px", fontSize: "0.72rem", fontWeight: 700, bgcolor: "#ecfdf5", color: "#059669", border: "1px solid #6ee7b7" }}>
+                <Box
+                  component="span"
+                  sx={{
+                    ml: 1,
+                    px: 1,
+                    py: 0.2,
+                    borderRadius: "100px",
+                    fontSize: "0.72rem",
+                    fontWeight: 700,
+                    bgcolor: "#ecfdf5",
+                    color: "#059669",
+                    border: "1px solid #6ee7b7",
+                  }}
+                >
                   All Scripts
                 </Box>
               ) : (
-                <Box component="span" sx={{ ml: 1, px: 1, py: 0.2, borderRadius: "100px", fontSize: "0.72rem", fontWeight: 700, bgcolor: "#eff6ff", color: "#2563eb", border: "1px solid #93c5fd" }}>
+                <Box
+                  component="span"
+                  sx={{
+                    ml: 1,
+                    px: 1,
+                    py: 0.2,
+                    borderRadius: "100px",
+                    fontSize: "0.72rem",
+                    fontWeight: 700,
+                    bgcolor: "#eff6ff",
+                    color: "#2563eb",
+                    border: "1px solid #93c5fd",
+                  }}
+                >
                   My Assigned
                 </Box>
               )}
@@ -1091,7 +1555,6 @@ export default function EditPage() {
         </Typography>
       </Box>
 
-      {/* Filters Bar */}
       <Paper sx={{ ...lightPaper, mb: 2, p: 2 }}>
         <Stack direction="row" spacing={1.5} alignItems="center" flexWrap="wrap" gap={1}>
           <Autocomplete
@@ -1101,8 +1564,12 @@ export default function EditPage() {
             value={filtersDraft.assignedTo}
             onChange={(_, v) => setFiltersDraft((s) => ({ ...s, assignedTo: v }))}
             getOptionLabel={(o) => o?.fullName || ""}
-            isOptionEqualToValue={(a, b) => (a?.email || a?.fullName) === (b?.email || b?.fullName)}
-            renderInput={(params) => <TextField {...params} label="Assigned To" placeholder="Select…" />}
+            isOptionEqualToValue={(a, b) =>
+              (a?.email || a?.fullName) === (b?.email || b?.fullName)
+            }
+            renderInput={(params) => (
+              <TextField {...params} label="Assigned To" placeholder="Select…" />
+            )}
           />
 
           <TextField
@@ -1116,10 +1583,16 @@ export default function EditPage() {
 
           <FormControl size="small" sx={{ minWidth: 200, ...inputSx }}>
             <InputLabel>Type</InputLabel>
-            <Select label="Type" value={filtersDraft.scriptType} onChange={(e) => setFiltersDraft((s) => ({ ...s, scriptType: e.target.value }))}>
+            <Select
+              label="Type"
+              value={filtersDraft.scriptType}
+              onChange={(e) => setFiltersDraft((s) => ({ ...s, scriptType: e.target.value }))}
+            >
               <MenuItem value="">All</MenuItem>
               {SCRIPT_TYPES.filter(Boolean).map((t) => (
-                <MenuItem key={t} value={t}>{t}</MenuItem>
+                <MenuItem key={t} value={t}>
+                  {t}
+                </MenuItem>
               ))}
             </Select>
           </FormControl>
@@ -1135,23 +1608,53 @@ export default function EditPage() {
 
           <Box sx={{ flex: 1 }} />
 
-          <Button variant="contained" startIcon={<SearchIcon />} onClick={applyFilters} sx={{ bgcolor: "#4f46e5", "&:hover": { bgcolor: "#4338ca" }, textTransform: "none", fontWeight: 700 }}>
+          <Button
+            variant="contained"
+            startIcon={<SearchIcon />}
+            onClick={applyFilters}
+            sx={{
+              bgcolor: "#4f46e5",
+              "&:hover": { bgcolor: "#4338ca" },
+              textTransform: "none",
+              fontWeight: 700,
+            }}
+          >
             Apply
           </Button>
-          <Button variant="outlined" startIcon={<ResetIcon />} onClick={clearFilters} sx={{ textTransform: "none", fontWeight: 700, borderColor: "#d1d5db", color: "#374151", "&:hover": { borderColor: "#9ca3af" } }}>
+          <Button
+            variant="outlined"
+            startIcon={<ResetIcon />}
+            onClick={clearFilters}
+            sx={{
+              textTransform: "none",
+              fontWeight: 700,
+              borderColor: "#d1d5db",
+              color: "#374151",
+              "&:hover": { borderColor: "#9ca3af" },
+            }}
+          >
             Clear
           </Button>
         </Stack>
       </Paper>
 
-      {/* Tabs */}
       <Stack direction="row" spacing={2} mb={2} alignItems="center" flexWrap="wrap" gap={1}>
         <Tabs
           value={tab}
           onChange={(_, v) => setTab(v)}
           sx={{
-            "& .MuiTabs-indicator": { bgcolor: "#4f46e5", height: 3, borderRadius: "3px 3px 0 0" },
-            "& .MuiTab-root": { color: "#6b7280", textTransform: "none", fontWeight: 700, fontSize: "0.9rem", minHeight: 48 },
+            "& .MuiTabs-indicator": {
+              bgcolor: "#4f46e5",
+              height: 3,
+              borderRadius: "3px 3px 0 0",
+            },
+            "& .MuiTab-root": {
+              color: "#6b7280",
+              textTransform: "none",
+              fontWeight: 700,
+              fontSize: "0.9rem",
+              minHeight: 48,
+            },
             "& .Mui-selected": { color: "#4f46e5 !important" },
             bgcolor: "#ffffff",
             border: "1px solid #e5e7eb",
@@ -1164,6 +1667,7 @@ export default function EditPage() {
         >
           <Tab label={`Edit Pending (${pendingTotal})`} />
           <Tab label={`Edit Done (${doneTotal})`} />
+          <Tab label={`Completed (${completedTotal})`} />
         </Tabs>
 
         <Box sx={{ flex: 1 }} />
@@ -1178,15 +1682,29 @@ export default function EditPage() {
         </Box>
       ) : (
         <>
-          {/* ── EDIT PENDING ── */}
+          {/* EDIT PENDING */}
           {tab === 0 && (
             <Paper sx={lightPaper}>
               <TableContainer>
                 <Table size="medium">
                   <TableHead>
                     <TableRow>
-                      {["#", "Script ID", "Type", "Script Preview", "Creator", "Cut Video", "Cut Comment", "Cut Done At", "Assigned To", "Upload Edited Video", ""].map((h) => (
-                        <TableCell key={h} sx={thSx}>{h}</TableCell>
+                      {[
+                        "#",
+                        "Script ID",
+                        "Type",
+                        "Script Preview",
+                        "Creator",
+                        "Cut Video",
+                        "Cut Comment",
+                        "Cut Done At",
+                        "Assigned To",
+                        "Upload Edited Video",
+                        "",
+                      ].map((h) => (
+                        <TableCell key={h} sx={thSx}>
+                          {h}
+                        </TableCell>
                       ))}
                     </TableRow>
                   </TableHead>
@@ -1195,16 +1713,31 @@ export default function EditPage() {
                     {pendingScripts.length === 0 ? (
                       <TableRow>
                         <TableCell colSpan={11} align="center" sx={{ py: 8, borderBottom: "none", color: "#6b7280" }}>
-                          <MagicIcon sx={{ fontSize: 36, mb: 1, opacity: 0.3, display: "block", mx: "auto", color: "#9ca3af" }} />
+                          <MagicIcon
+                            sx={{
+                              fontSize: 36,
+                              mb: 1,
+                              opacity: 0.3,
+                              display: "block",
+                              mx: "auto",
+                              color: "#9ca3af",
+                            }}
+                          />
                           No scripts found for current filters
                         </TableCell>
                       </TableRow>
                     ) : (
                       pendingScripts.map((s, i) => (
                         <TableRow key={s._id} sx={rowSx}>
-                          <TableCell sx={{ ...tdSx, color: "#9ca3af", fontSize: "0.8rem" }}>{pendingPage * pendingRows + i + 1}</TableCell>
-                          <TableCell sx={tdSx}><ScriptId id={s.scriptId} /></TableCell>
-                          <TableCell sx={tdSx}><TypeBadge label={s.scriptType} /></TableCell>
+                          <TableCell sx={{ ...tdSx, color: "#9ca3af", fontSize: "0.8rem" }}>
+                            {pendingPage * pendingRows + i + 1}
+                          </TableCell>
+                          <TableCell sx={tdSx}>
+                            <ScriptId id={s.scriptId} />
+                          </TableCell>
+                          <TableCell sx={tdSx}>
+                            <TypeBadge label={s.scriptType} />
+                          </TableCell>
 
                           <TableCell sx={{ ...tdSx, maxWidth: 220 }}>
                             <Stack direction="row" alignItems="center" spacing={0.5}>
@@ -1228,7 +1761,10 @@ export default function EditPage() {
                                     setViewText(normalizeScriptText(s.scriptText));
                                     setViewOpen(true);
                                   }}
-                                  sx={{ color: "#6b7280", "&:hover": { color: "#4f46e5", bgcolor: "#eef2ff" } }}
+                                  sx={{
+                                    color: "#6b7280",
+                                    "&:hover": { color: "#4f46e5", bgcolor: "#eef2ff" },
+                                  }}
                                 >
                                   <ViewIcon sx={{ fontSize: 16 }} />
                                 </IconButton>
@@ -1238,8 +1774,17 @@ export default function EditPage() {
                                 <Tooltip title="Open Reference Link">
                                   <IconButton
                                     size="small"
-                                    onClick={() => window.open(getSafeExternalUrl(s.referenceLink), "_blank", "noopener,noreferrer")}
-                                    sx={{ color: "#6b7280", "&:hover": { color: "#4f46e5", bgcolor: "#eef2ff" } }}
+                                    onClick={() =>
+                                      window.open(
+                                        getSafeExternalUrl(s.referenceLink),
+                                        "_blank",
+                                        "noopener,noreferrer"
+                                      )
+                                    }
+                                    sx={{
+                                      color: "#6b7280",
+                                      "&:hover": { color: "#4f46e5", bgcolor: "#eef2ff" },
+                                    }}
                                   >
                                     <LinkIcon sx={{ fontSize: 16 }} />
                                   </IconButton>
@@ -1249,7 +1794,9 @@ export default function EditPage() {
                           </TableCell>
 
                           <TableCell sx={tdSx}>
-                            <Typography sx={{ fontSize: "0.85rem", color: "#4b5563" }}>{s.createdBy}</Typography>
+                            <Typography sx={{ fontSize: "0.85rem", color: "#4b5563" }}>
+                              {s.createdBy}
+                            </Typography>
                           </TableCell>
 
                           <TableCell sx={tdSx}>
@@ -1259,12 +1806,33 @@ export default function EditPage() {
                                   size="small"
                                   onClick={() => openPlayer(s.cutVideoUrl, `${s.scriptId} — Cut`)}
                                   startIcon={<PlayIcon sx={{ fontSize: 16 }} />}
-                                  sx={{ color: "#4f46e5", textTransform: "none", fontWeight: 700, fontSize: "0.8rem", p: "4px 8px", border: "1px solid #c7d2fe", borderRadius: 1.5, "&:hover": { bgcolor: "#eef2ff" } }}
+                                  sx={{
+                                    color: "#4f46e5",
+                                    textTransform: "none",
+                                    fontWeight: 700,
+                                    fontSize: "0.8rem",
+                                    p: "4px 8px",
+                                    border: "1px solid #c7d2fe",
+                                    borderRadius: 1.5,
+                                    "&:hover": { bgcolor: "#eef2ff" },
+                                  }}
                                 >
                                   Play
                                 </Button>
                                 <Tooltip title="Download">
-                                  <IconButton size="small" onClick={() => handleDownload(s.cutVideoUrl, s.cutVideoName || s.scriptId + "_cut")} sx={{ color: "#6b7280", "&:hover": { color: "#4f46e5", bgcolor: "#eef2ff" } }}>
+                                  <IconButton
+                                    size="small"
+                                    onClick={() =>
+                                      handleDownload(
+                                        s.cutVideoUrl,
+                                        s.cutVideoName || s.scriptId + "_cut"
+                                      )
+                                    }
+                                    sx={{
+                                      color: "#6b7280",
+                                      "&:hover": { color: "#4f46e5", bgcolor: "#eef2ff" },
+                                    }}
+                                  >
                                     <DownloadIcon sx={{ fontSize: 16 }} />
                                   </IconButton>
                                 </Tooltip>
@@ -1276,12 +1844,35 @@ export default function EditPage() {
 
                           <TableCell sx={{ ...tdSx, maxWidth: 160 }}>
                             <Stack direction="row" alignItems="center" spacing={0.5}>
-                              <Typography sx={{ fontSize: "0.85rem", color: "#6b7280", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>
+                              <Typography
+                                sx={{
+                                  fontSize: "0.85rem",
+                                  color: "#6b7280",
+                                  overflow: "hidden",
+                                  textOverflow: "ellipsis",
+                                  whiteSpace: "nowrap",
+                                  flex: 1,
+                                }}
+                              >
                                 {s.cutComment || "—"}
                               </Typography>
                               {s.cutComment && (
                                 <Tooltip title="View full">
-                                  <IconButton size="small" onClick={() => setCommentModal({ open: true, text: s.cutComment, title: `Cut Comment — ${s.scriptId}` })} sx={{ color: "#6b7280", flexShrink: 0, "&:hover": { color: "#4f46e5", bgcolor: "#eef2ff" } }}>
+                                  <IconButton
+                                    size="small"
+                                    onClick={() =>
+                                      setCommentModal({
+                                        open: true,
+                                        text: s.cutComment,
+                                        title: `Cut Comment — ${s.scriptId}`,
+                                      })
+                                    }
+                                    sx={{
+                                      color: "#6b7280",
+                                      flexShrink: 0,
+                                      "&:hover": { color: "#4f46e5", bgcolor: "#eef2ff" },
+                                    }}
+                                  >
                                     <ViewIcon sx={{ fontSize: 15 }} />
                                   </IconButton>
                                 </Tooltip>
@@ -1290,11 +1881,19 @@ export default function EditPage() {
                           </TableCell>
 
                           <TableCell sx={tdSx}>
-                            <Typography sx={{ fontSize: "0.8rem", color: "#1f2937", whiteSpace: "nowrap" }}>{fmt(s.cutDoneAt)}</Typography>
+                            <Typography sx={{ fontSize: "0.8rem", color: "#1f2937", whiteSpace: "nowrap" }}>
+                              {fmt(s.cutDoneAt)}
+                            </Typography>
                           </TableCell>
 
                           <TableCell sx={{ ...tdSx, minWidth: 220 }}>
-                            <AssignCell script={s} marketingEmployees={marketingEmployees} onAssigned={load} showSnack={showSnack} canAssign={canAssign} />
+                            <AssignCell
+                              script={s}
+                              marketingEmployees={marketingEmployees}
+                              onAssigned={load}
+                              showSnack={showSnack}
+                              canAssign={canAssign}
+                            />
                           </TableCell>
 
                           <TableCell sx={tdSx}>
@@ -1327,7 +1926,14 @@ export default function EditPage() {
 
                           <TableCell sx={tdSx}>
                             <Tooltip title="Update status / comment">
-                              <IconButton size="small" onClick={() => openDialog(s)} sx={{ color: "#6b7280", "&:hover": { color: "#ea580c", bgcolor: "#ffedd5" } }}>
+                              <IconButton
+                                size="small"
+                                onClick={() => openDialog(s)}
+                                sx={{
+                                  color: "#6b7280",
+                                  "&:hover": { color: "#ea580c", bgcolor: "#ffedd5" },
+                                }}
+                              >
                                 <EditIcon sx={{ fontSize: 18 }} />
                               </IconButton>
                             </Tooltip>
@@ -1354,15 +1960,29 @@ export default function EditPage() {
             </Paper>
           )}
 
-          {/* ── EDIT DONE ── */}
+          {/* EDIT DONE */}
           {tab === 1 && (
             <Paper sx={lightPaper}>
               <TableContainer>
                 <Table size="medium">
                   <TableHead>
                     <TableRow>
-                      {["#", "Script ID", "Type", "Script Preview", "Assigned To", "Edited Video", "Edit Status", "Comment", "Done At", "Done By", ""].map((h) => (
-                        <TableCell key={h} sx={thSx}>{h}</TableCell>
+                      {[
+                        "#",
+                        "Script ID",
+                        "Type",
+                        "Script Preview",
+                        "Assigned To",
+                        "Edited Video",
+                        "Edit Status",
+                        "Comment",
+                        "Done At",
+                        "Done By",
+                        "",
+                      ].map((h) => (
+                        <TableCell key={h} sx={thSx}>
+                          {h}
+                        </TableCell>
                       ))}
                     </TableRow>
                   </TableHead>
@@ -1371,16 +1991,31 @@ export default function EditPage() {
                     {doneScripts.length === 0 ? (
                       <TableRow>
                         <TableCell colSpan={11} align="center" sx={{ py: 8, borderBottom: "none", color: "#6b7280" }}>
-                          <MagicIcon sx={{ fontSize: 36, mb: 1, opacity: 0.3, display: "block", mx: "auto", color: "#9ca3af" }} />
+                          <MagicIcon
+                            sx={{
+                              fontSize: 36,
+                              mb: 1,
+                              opacity: 0.3,
+                              display: "block",
+                              mx: "auto",
+                              color: "#9ca3af",
+                            }}
+                          />
                           No scripts found for current filters
                         </TableCell>
                       </TableRow>
                     ) : (
                       doneScripts.map((s, i) => (
                         <TableRow key={s._id} sx={rowSx}>
-                          <TableCell sx={{ ...tdSx, color: "#9ca3af", fontSize: "0.8rem" }}>{donePage * doneRows + i + 1}</TableCell>
-                          <TableCell sx={tdSx}><ScriptId id={s.scriptId} /></TableCell>
-                          <TableCell sx={tdSx}><TypeBadge label={s.scriptType} /></TableCell>
+                          <TableCell sx={{ ...tdSx, color: "#9ca3af", fontSize: "0.8rem" }}>
+                            {donePage * doneRows + i + 1}
+                          </TableCell>
+                          <TableCell sx={tdSx}>
+                            <ScriptId id={s.scriptId} />
+                          </TableCell>
+                          <TableCell sx={tdSx}>
+                            <TypeBadge label={s.scriptType} />
+                          </TableCell>
 
                           <TableCell sx={{ ...tdSx, maxWidth: 200 }}>
                             <Stack direction="row" alignItems="center" spacing={0.5}>
@@ -1404,7 +2039,10 @@ export default function EditPage() {
                                     setViewText(normalizeScriptText(s.scriptText));
                                     setViewOpen(true);
                                   }}
-                                  sx={{ color: "#6b7280", "&:hover": { color: "#4f46e5", bgcolor: "#eef2ff" } }}
+                                  sx={{
+                                    color: "#6b7280",
+                                    "&:hover": { color: "#4f46e5", bgcolor: "#eef2ff" },
+                                  }}
                                 >
                                   <ViewIcon sx={{ fontSize: 16 }} />
                                 </IconButton>
@@ -1414,8 +2052,17 @@ export default function EditPage() {
                                 <Tooltip title="Open Reference Link">
                                   <IconButton
                                     size="small"
-                                    onClick={() => window.open(getSafeExternalUrl(s.referenceLink), "_blank", "noopener,noreferrer")}
-                                    sx={{ color: "#6b7280", "&:hover": { color: "#4f46e5", bgcolor: "#eef2ff" } }}
+                                    onClick={() =>
+                                      window.open(
+                                        getSafeExternalUrl(s.referenceLink),
+                                        "_blank",
+                                        "noopener,noreferrer"
+                                      )
+                                    }
+                                    sx={{
+                                      color: "#6b7280",
+                                      "&:hover": { color: "#4f46e5", bgcolor: "#eef2ff" },
+                                    }}
                                   >
                                     <LinkIcon sx={{ fontSize: 16 }} />
                                   </IconButton>
@@ -1425,10 +2072,15 @@ export default function EditPage() {
                           </TableCell>
 
                           <TableCell sx={{ ...tdSx, minWidth: 220 }}>
-                            <AssignCell script={s} marketingEmployees={marketingEmployees} onAssigned={load} showSnack={showSnack} canAssign={canAssign} />
+                            <AssignCell
+                              script={s}
+                              marketingEmployees={marketingEmployees}
+                              onAssigned={load}
+                              showSnack={showSnack}
+                              canAssign={canAssign}
+                            />
                           </TableCell>
 
-                          {/* ✅ Edited Video + NEW Reupload */}
                           <TableCell sx={tdSx}>
                             <Stack direction="row" spacing={0.5} alignItems="center" flexWrap="wrap" gap={0.5}>
                               {s.editFileUrl && s.editFileUrl !== "pending" ? (
@@ -1437,12 +2089,33 @@ export default function EditPage() {
                                     size="small"
                                     onClick={() => openPlayer(s.editFileUrl, `${s.scriptId} — Edited`)}
                                     startIcon={<PlayIcon sx={{ fontSize: 16 }} />}
-                                    sx={{ color: "#4f46e5", textTransform: "none", fontWeight: 700, fontSize: "0.8rem", p: "4px 8px", border: "1px solid #c7d2fe", borderRadius: 1.5, "&:hover": { bgcolor: "#eef2ff" } }}
+                                    sx={{
+                                      color: "#4f46e5",
+                                      textTransform: "none",
+                                      fontWeight: 700,
+                                      fontSize: "0.8rem",
+                                      p: "4px 8px",
+                                      border: "1px solid #c7d2fe",
+                                      borderRadius: 1.5,
+                                      "&:hover": { bgcolor: "#eef2ff" },
+                                    }}
                                   >
                                     Play
                                   </Button>
                                   <Tooltip title="Download">
-                                    <IconButton size="small" onClick={() => handleDownload(s.editFileUrl, s.editFileName || s.scriptId + "_edited")} sx={{ color: "#6b7280", "&:hover": { color: "#4f46e5", bgcolor: "#eef2ff" } }}>
+                                    <IconButton
+                                      size="small"
+                                      onClick={() =>
+                                        handleDownload(
+                                          s.editFileUrl,
+                                          s.editFileName || s.scriptId + "_edited"
+                                        )
+                                      }
+                                      sx={{
+                                        color: "#6b7280",
+                                        "&:hover": { color: "#4f46e5", bgcolor: "#eef2ff" },
+                                      }}
+                                    >
                                       <DownloadIcon sx={{ fontSize: 16 }} />
                                     </IconButton>
                                   </Tooltip>
@@ -1451,7 +2124,6 @@ export default function EditPage() {
                                 <Typography sx={{ fontSize: "0.8rem", color: "#9ca3af" }}>—</Typography>
                               )}
 
-                              {/* ✅ NEW: Reupload button */}
                               <Button
                                 size="small"
                                 variant="outlined"
@@ -1501,12 +2173,21 @@ export default function EditPage() {
                               >
                                 {s.editThumbUrl ? "Reupload Thumbnail" : "Upload Thumbnail"}
                               </Button>
+
                               {s.editThumbUrl && s.editThumbUrl !== "pending" && (
                                 <Tooltip title="Download Thumbnail">
                                   <IconButton
                                     size="small"
-                                    onClick={() => handleDownload(s.editThumbUrl, s.editThumbName || `${s.scriptId}_thumb`)}
-                                    sx={{ color: "#6b7280", "&:hover": { color: "#4f46e5", bgcolor: "#eef2ff" } }}
+                                    onClick={() =>
+                                      handleDownload(
+                                        s.editThumbUrl,
+                                        s.editThumbName || `${s.scriptId}_thumb`
+                                      )
+                                    }
+                                    sx={{
+                                      color: "#6b7280",
+                                      "&:hover": { color: "#4f46e5", bgcolor: "#eef2ff" },
+                                    }}
                                   >
                                     <DownloadIcon sx={{ fontSize: 16 }} />
                                   </IconButton>
@@ -1515,16 +2196,41 @@ export default function EditPage() {
                             </Stack>
                           </TableCell>
 
-                          <TableCell sx={tdSx}><EditStatusChip status={s.editStatus} /></TableCell>
+                          <TableCell sx={tdSx}>
+                            <EditStatusChip status={s.editStatus} />
+                          </TableCell>
 
                           <TableCell sx={{ ...tdSx, maxWidth: 180 }}>
                             <Stack direction="row" alignItems="center" spacing={0.5}>
-                              <Typography sx={{ fontSize: "0.85rem", color: "#6b7280", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>
+                              <Typography
+                                sx={{
+                                  fontSize: "0.85rem",
+                                  color: "#6b7280",
+                                  overflow: "hidden",
+                                  textOverflow: "ellipsis",
+                                  whiteSpace: "nowrap",
+                                  flex: 1,
+                                }}
+                              >
                                 {s.editComment || "—"}
                               </Typography>
                               {s.editComment && (
                                 <Tooltip title="View full">
-                                  <IconButton size="small" onClick={() => setCommentModal({ open: true, text: s.editComment, title: `Edit Comment — ${s.scriptId}` })} sx={{ color: "#6b7280", flexShrink: 0, "&:hover": { color: "#4f46e5", bgcolor: "#eef2ff" } }}>
+                                  <IconButton
+                                    size="small"
+                                    onClick={() =>
+                                      setCommentModal({
+                                        open: true,
+                                        text: s.editComment,
+                                        title: `Edit Comment — ${s.scriptId}`,
+                                      })
+                                    }
+                                    sx={{
+                                      color: "#6b7280",
+                                      flexShrink: 0,
+                                      "&:hover": { color: "#4f46e5", bgcolor: "#eef2ff" },
+                                    }}
+                                  >
                                     <ViewIcon sx={{ fontSize: 15 }} />
                                   </IconButton>
                                 </Tooltip>
@@ -1533,16 +2239,27 @@ export default function EditPage() {
                           </TableCell>
 
                           <TableCell sx={tdSx}>
-                            <Typography sx={{ fontSize: "0.8rem", color: "#1f2937", whiteSpace: "nowrap" }}>{fmt(s.editDoneAt)}</Typography>
+                            <Typography sx={{ fontSize: "0.8rem", color: "#1f2937", whiteSpace: "nowrap" }}>
+                              {fmt(s.editDoneAt)}
+                            </Typography>
                           </TableCell>
 
                           <TableCell sx={tdSx}>
-                            <Typography sx={{ fontSize: "0.85rem", color: "#059669", fontWeight: 600 }}>{s.editDoneBy || "—"}</Typography>
+                            <Typography sx={{ fontSize: "0.85rem", color: "#059669", fontWeight: 600 }}>
+                              {s.editDoneBy || "—"}
+                            </Typography>
                           </TableCell>
 
                           <TableCell sx={tdSx}>
                             <Tooltip title="Update status / comment">
-                              <IconButton size="small" onClick={() => openDialog(s)} sx={{ color: "#6b7280", "&:hover": { color: "#ea580c", bgcolor: "#ffedd5" } }}>
+                              <IconButton
+                                size="small"
+                                onClick={() => openDialog(s)}
+                                sx={{
+                                  color: "#6b7280",
+                                  "&:hover": { color: "#ea580c", bgcolor: "#ffedd5" },
+                                }}
+                              >
                                 <EditIcon sx={{ fontSize: 18 }} />
                               </IconButton>
                             </Tooltip>
@@ -1568,10 +2285,259 @@ export default function EditPage() {
               />
             </Paper>
           )}
+
+          {/* COMPLETED */}
+          {tab === 2 && (
+            <Paper sx={lightPaper}>
+              <TableContainer>
+                <Table size="medium">
+                  <TableHead>
+                    <TableRow>
+                      {[
+                        "#",
+                        "Script ID",
+                        "Type",
+                        "Script Preview",
+                        "Assigned To",
+                        "Edited Video",
+                        "Edit Status",
+                        "Comment",
+                        "Publish Status",
+                        "Published At",
+                        "Posted By",
+                      ].map((h) => (
+                        <TableCell key={h} sx={thSx}>
+                          {h}
+                        </TableCell>
+                      ))}
+                    </TableRow>
+                  </TableHead>
+
+                  <TableBody>
+                    {completedScripts.length === 0 ? (
+                      <TableRow>
+                        <TableCell
+                          colSpan={11}
+                          align="center"
+                          sx={{ py: 8, borderBottom: "none", color: "#6b7280" }}
+                        >
+                          <DoneAllIcon
+                            sx={{
+                              fontSize: 36,
+                              mb: 1,
+                              opacity: 0.3,
+                              display: "block",
+                              mx: "auto",
+                              color: "#9ca3af",
+                            }}
+                          />
+                          No completed / published videos found
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      completedScripts.map((s, i) => (
+                        <TableRow key={s._id} sx={rowSx}>
+                          <TableCell sx={{ ...tdSx, color: "#9ca3af", fontSize: "0.8rem" }}>
+                            {completedPage * completedRows + i + 1}
+                          </TableCell>
+
+                          <TableCell sx={tdSx}>
+                            <ScriptId id={s.scriptId} />
+                          </TableCell>
+
+                          <TableCell sx={tdSx}>
+                            <TypeBadge label={s.scriptType} />
+                          </TableCell>
+
+                          <TableCell sx={{ ...tdSx, maxWidth: 220 }}>
+                            <Stack direction="row" alignItems="center" spacing={0.5}>
+                              <Typography
+                                sx={{
+                                  fontSize: "0.85rem",
+                                  color: "#4b5563",
+                                  overflow: "hidden",
+                                  textOverflow: "ellipsis",
+                                  whiteSpace: "nowrap",
+                                  flex: 1,
+                                }}
+                              >
+                                {previewText(s.scriptText, 160)}
+                              </Typography>
+
+                              <Tooltip title="View Full Script">
+                                <IconButton
+                                  size="small"
+                                  onClick={() => {
+                                    setViewText(normalizeScriptText(s.scriptText));
+                                    setViewOpen(true);
+                                  }}
+                                  sx={{
+                                    color: "#6b7280",
+                                    "&:hover": { color: "#4f46e5", bgcolor: "#eef2ff" },
+                                  }}
+                                >
+                                  <ViewIcon sx={{ fontSize: 16 }} />
+                                </IconButton>
+                              </Tooltip>
+
+                              {s.referenceLink && (
+                                <Tooltip title="Open Reference Link">
+                                  <IconButton
+                                    size="small"
+                                    onClick={() =>
+                                      window.open(
+                                        getSafeExternalUrl(s.referenceLink),
+                                        "_blank",
+                                        "noopener,noreferrer"
+                                      )
+                                    }
+                                    sx={{
+                                      color: "#6b7280",
+                                      "&:hover": { color: "#4f46e5", bgcolor: "#eef2ff" },
+                                    }}
+                                  >
+                                    <LinkIcon sx={{ fontSize: 16 }} />
+                                  </IconButton>
+                                </Tooltip>
+                              )}
+                            </Stack>
+                          </TableCell>
+
+                          <TableCell sx={{ ...tdSx, minWidth: 220 }}>
+                            <AssignCell
+                              script={s}
+                              marketingEmployees={marketingEmployees}
+                              onAssigned={load}
+                              showSnack={showSnack}
+                              canAssign={canAssign}
+                            />
+                          </TableCell>
+
+                          <TableCell sx={tdSx}>
+                            {s.editFileUrl && s.editFileUrl !== "pending" ? (
+                              <Stack direction="row" spacing={0.5} alignItems="center">
+                                <Button
+                                  size="small"
+                                  onClick={() => openPlayer(s.editFileUrl, `${s.scriptId} — Edited`)}
+                                  startIcon={<PlayIcon sx={{ fontSize: 16 }} />}
+                                  sx={{
+                                    color: "#4f46e5",
+                                    textTransform: "none",
+                                    fontWeight: 700,
+                                    fontSize: "0.8rem",
+                                    p: "4px 8px",
+                                    border: "1px solid #c7d2fe",
+                                    borderRadius: 1.5,
+                                    "&:hover": { bgcolor: "#eef2ff" },
+                                  }}
+                                >
+                                  Play
+                                </Button>
+
+                                <Tooltip title="Download">
+                                  <IconButton
+                                    size="small"
+                                    onClick={() =>
+                                      handleDownload(
+                                        s.editFileUrl,
+                                        s.editFileName || s.scriptId + "_edited"
+                                      )
+                                    }
+                                    sx={{
+                                      color: "#6b7280",
+                                      "&:hover": { color: "#4f46e5", bgcolor: "#eef2ff" },
+                                    }}
+                                  >
+                                    <DownloadIcon sx={{ fontSize: 16 }} />
+                                  </IconButton>
+                                </Tooltip>
+                              </Stack>
+                            ) : (
+                              <Typography sx={{ fontSize: "0.8rem", color: "#9ca3af" }}>—</Typography>
+                            )}
+                          </TableCell>
+
+                          <TableCell sx={tdSx}>
+                            <EditStatusChip status={s.editStatus} />
+                          </TableCell>
+
+                          <TableCell sx={{ ...tdSx, maxWidth: 180 }}>
+                            <Stack direction="row" alignItems="center" spacing={0.5}>
+                              <Typography
+                                sx={{
+                                  fontSize: "0.85rem",
+                                  color: "#6b7280",
+                                  overflow: "hidden",
+                                  textOverflow: "ellipsis",
+                                  whiteSpace: "nowrap",
+                                  flex: 1,
+                                }}
+                              >
+                                {s.editComment || "—"}
+                              </Typography>
+                              {s.editComment && (
+                                <Tooltip title="View full">
+                                  <IconButton
+                                    size="small"
+                                    onClick={() =>
+                                      setCommentModal({
+                                        open: true,
+                                        text: s.editComment,
+                                        title: `Edit Comment — ${s.scriptId}`,
+                                      })
+                                    }
+                                    sx={{
+                                      color: "#6b7280",
+                                      flexShrink: 0,
+                                      "&:hover": { color: "#4f46e5", bgcolor: "#eef2ff" },
+                                    }}
+                                  >
+                                    <ViewIcon sx={{ fontSize: 15 }} />
+                                  </IconButton>
+                                </Tooltip>
+                              )}
+                            </Stack>
+                          </TableCell>
+
+                          <TableCell sx={tdSx}>
+                            <PublishStatusChip status={s.postPublishStatus || "Posted"} />
+                          </TableCell>
+
+                          <TableCell sx={tdSx}>
+                            <Typography sx={{ fontSize: "0.8rem", color: "#1f2937", whiteSpace: "nowrap" }}>
+                              {fmt(s.postedAt || s.postPublishStatusUpdatedAt)}
+                            </Typography>
+                          </TableCell>
+
+                          <TableCell sx={tdSx}>
+                            <Typography sx={{ fontSize: "0.85rem", color: "#059669", fontWeight: 600 }}>
+                              {s.postedBy || "—"}
+                            </Typography>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+
+              <TablePagination
+                component="div"
+                count={completedTotal}
+                page={completedPage}
+                onPageChange={(_, newPage) => setCompletedPage(newPage)}
+                rowsPerPage={completedRows}
+                onRowsPerPageChange={(e) => {
+                  setCompletedRows(parseInt(e.target.value, 10));
+                  setCompletedPage(0);
+                }}
+                rowsPerPageOptions={[25, 50, 100, 200]}
+              />
+            </Paper>
+          )}
         </>
       )}
 
-      {/* Upload / Reupload dialog */}
       <UploadVideoDialog
         open={uploadOpen}
         onClose={() => {
@@ -1598,21 +2564,63 @@ export default function EditPage() {
         mode={thumbMode}
       />
 
-      {/* Full script dialog */}
-      <Dialog open={viewOpen} onClose={() => { setViewOpen(false); setViewText(""); }} maxWidth="sm" fullWidth PaperProps={{ sx: { bgcolor: "#ffffff", borderRadius: 2 } }}>
-        <DialogTitle sx={{ color: "#111827", fontWeight: 700, borderBottom: "1px solid #e5e7eb", py: 2, px: 3, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+      <Dialog
+        open={viewOpen}
+        onClose={() => {
+          setViewOpen(false);
+          setViewText("");
+        }}
+        maxWidth="sm"
+        fullWidth
+        PaperProps={{ sx: { bgcolor: "#ffffff", borderRadius: 2 } }}
+      >
+        <DialogTitle
+          sx={{
+            color: "#111827",
+            fontWeight: 700,
+            borderBottom: "1px solid #e5e7eb",
+            py: 2,
+            px: 3,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+          }}
+        >
           <Stack direction="row" alignItems="center" gap={1}>
             <ViewIcon sx={{ color: "#4f46e5" }} />
-            <Typography sx={{ fontSize: "1.1rem", fontWeight: 700 }}>Full Script Content</Typography>
+            <Typography sx={{ fontSize: "1.1rem", fontWeight: 700 }}>
+              Full Script Content
+            </Typography>
           </Stack>
-          <IconButton size="small" onClick={() => { setViewOpen(false); setViewText(""); }} sx={{ color: "#6b7280" }}>
+          <IconButton
+            size="small"
+            onClick={() => {
+              setViewOpen(false);
+              setViewText("");
+            }}
+            sx={{ color: "#6b7280" }}
+          >
             <CloseIcon fontSize="small" />
           </IconButton>
         </DialogTitle>
         <DialogContent sx={{ pt: 3, px: 3, pb: 4 }}>
           {viewText && (
-            <Box sx={{ bgcolor: "#f8fafc", p: 2.5, borderRadius: 2, border: "1px solid #e5e7eb" }}>
-              <Typography sx={{ fontSize: "0.95rem", color: "#374151", lineHeight: 1.7, whiteSpace: "pre-wrap" }}>
+            <Box
+              sx={{
+                bgcolor: "#f8fafc",
+                p: 2.5,
+                borderRadius: 2,
+                border: "1px solid #e5e7eb",
+              }}
+            >
+              <Typography
+                sx={{
+                  fontSize: "0.95rem",
+                  color: "#374151",
+                  lineHeight: 1.7,
+                  whiteSpace: "pre-wrap",
+                }}
+              >
                 {viewText}
               </Typography>
             </Box>
@@ -1620,26 +2628,78 @@ export default function EditPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Edit details dialog */}
-      <Dialog open={dialogOpen} onClose={closeDialog} maxWidth="sm" fullWidth PaperProps={{ sx: { bgcolor: "#ffffff", borderRadius: 3 } }}>
-        <DialogTitle sx={{ color: "#111827", fontWeight: 700, borderBottom: "1px solid #e5e7eb", pb: 2, display: "flex", alignItems: "center", gap: 1 }}>
+      <Dialog
+        open={dialogOpen}
+        onClose={closeDialog}
+        maxWidth="sm"
+        fullWidth
+        PaperProps={{ sx: { bgcolor: "#ffffff", borderRadius: 3 } }}
+      >
+        <DialogTitle
+          sx={{
+            color: "#111827",
+            fontWeight: 700,
+            borderBottom: "1px solid #e5e7eb",
+            pb: 2,
+            display: "flex",
+            alignItems: "center",
+            gap: 1,
+          }}
+        >
           <EditIcon sx={{ color: "#ea580c", fontSize: 22 }} />
           Edit Details
           {dialogTarget && (
-            <Box component="span" sx={{ ml: 1, fontSize: "0.85rem", color: "#4f46e5", fontFamily: "monospace", fontWeight: 500 }}>
+            <Box
+              component="span"
+              sx={{
+                ml: 1,
+                fontSize: "0.85rem",
+                color: "#4f46e5",
+                fontFamily: "monospace",
+                fontWeight: 500,
+              }}
+            >
               {dialogTarget.scriptId}
             </Box>
           )}
         </DialogTitle>
 
-        <DialogContent sx={{ pt: 3, display: "flex", flexDirection: "column", gap: 3, mt: 1, overflowY: "auto", maxHeight: "70vh" }}>
+        <DialogContent
+          sx={{
+            pt: 3,
+            display: "flex",
+            flexDirection: "column",
+            gap: 3,
+            mt: 1,
+            overflowY: "auto",
+            maxHeight: "70vh",
+          }}
+        >
           {dialogTarget && (
-            <Box sx={{ bgcolor: "#f9fafb", border: "1px solid #e5e7eb", borderRadius: 1.5, p: 2 }}>
+            <Box
+              sx={{
+                bgcolor: "#f9fafb",
+                border: "1px solid #e5e7eb",
+                borderRadius: 1.5,
+                p: 2,
+              }}
+            >
               <Stack direction="row" alignItems="center" gap={1} mb={1}>
                 <TypeBadge label={dialogTarget.scriptType} />
-                <Typography sx={{ fontSize: "0.8rem", color: "#6b7280" }}>by {dialogTarget.createdBy}</Typography>
+                <Typography sx={{ fontSize: "0.8rem", color: "#6b7280" }}>
+                  by {dialogTarget.createdBy}
+                </Typography>
               </Stack>
-              <Typography sx={{ fontSize: "0.85rem", color: "#4b5563", display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
+              <Typography
+                sx={{
+                  fontSize: "0.85rem",
+                  color: "#4b5563",
+                  display: "-webkit-box",
+                  WebkitLineClamp: 3,
+                  WebkitBoxOrient: "vertical",
+                  overflow: "hidden",
+                }}
+              >
                 {previewText(dialogTarget.scriptText, 260)}
               </Typography>
             </Box>
@@ -1649,10 +2709,22 @@ export default function EditPage() {
 
           <FormControl size="small" sx={inputSx}>
             <InputLabel>Edit Status</InputLabel>
-            <Select value={form.editStatus} label="Edit Status" onChange={(e) => setForm((f) => ({ ...f, editStatus: e.target.value, editHoldReason: "" }))}>
+            <Select
+              value={form.editStatus}
+              label="Edit Status"
+              onChange={(e) =>
+                setForm((f) => ({
+                  ...f,
+                  editStatus: e.target.value,
+                  editHoldReason: "",
+                }))
+              }
+            >
               <MenuItem value="">— Select —</MenuItem>
               {EDIT_STATUSES.map((s) => (
-                <MenuItem key={s} value={s}>{s}</MenuItem>
+                <MenuItem key={s} value={s}>
+                  {s}
+                </MenuItem>
               ))}
             </Select>
           </FormControl>
@@ -1663,7 +2735,9 @@ export default function EditPage() {
               multiline
               minRows={2}
               value={form.editHoldReason}
-              onChange={(e) => setForm((f) => ({ ...f, editHoldReason: e.target.value }))}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, editHoldReason: e.target.value }))
+              }
               error={!!errors.editHoldReason}
               helperText={errors.editHoldReason}
               sx={inputSx}
@@ -1678,31 +2752,70 @@ export default function EditPage() {
             minRows={3}
             placeholder="Notes for the team…"
             value={form.editComment}
-            onChange={(e) => setForm((f) => ({ ...f, editComment: e.target.value }))}
+            onChange={(e) =>
+              setForm((f) => ({ ...f, editComment: e.target.value }))
+            }
             sx={inputSx}
           />
         </DialogContent>
 
-        <DialogActions sx={{ px: 3, pb: 3, pt: 2, borderTop: "1px solid #e5e7eb", gap: 1 }}>
-          <Button onClick={closeDialog} sx={{ color: "#6b7280", textTransform: "none" }}>Cancel</Button>
+        <DialogActions
+          sx={{
+            px: 3,
+            pb: 3,
+            pt: 2,
+            borderTop: "1px solid #e5e7eb",
+            gap: 1,
+          }}
+        >
+          <Button onClick={closeDialog} sx={{ color: "#6b7280", textTransform: "none" }}>
+            Cancel
+          </Button>
           <Button
             variant="contained"
             onClick={handleSave}
             disabled={saving}
             startIcon={saving ? <CircularProgress size={16} color="inherit" /> : <EditIcon />}
-            sx={{ bgcolor: "#ea580c", color: "#ffffff", boxShadow: "none", textTransform: "none", fontWeight: 800, px: 3, "&:hover": { bgcolor: "#c2410c" } }}
+            sx={{
+              bgcolor: "#ea580c",
+              color: "#ffffff",
+              boxShadow: "none",
+              textTransform: "none",
+              fontWeight: 800,
+              px: 3,
+              "&:hover": { bgcolor: "#c2410c" },
+            }}
           >
             {saving ? "Saving…" : "Save Details"}
           </Button>
         </DialogActions>
       </Dialog>
 
-      <CommentModal open={commentModal.open} onClose={() => setCommentModal({ open: false, text: "", title: "" })} comment={commentModal.text} title={commentModal.title} />
+      <CommentModal
+        open={commentModal.open}
+        onClose={() => setCommentModal({ open: false, text: "", title: "" })}
+        comment={commentModal.text}
+        title={commentModal.title}
+      />
 
-      <PlayerModal open={player.open} onClose={() => setPlayer({ open: false, url: "", title: "" })} url={player.url} title={player.title} />
+      <PlayerModal
+        open={player.open}
+        onClose={() => setPlayer({ open: false, url: "", title: "" })}
+        url={player.url}
+        title={player.title}
+      />
 
-      <Snackbar open={snack.open} autoHideDuration={3500} onClose={() => setSnack((s) => ({ ...s, open: false }))} anchorOrigin={{ vertical: "bottom", horizontal: "right" }}>
-        <Alert severity={snack.severity} onClose={() => setSnack((s) => ({ ...s, open: false }))} sx={{ boxShadow: "0 4px 6px -1px rgba(0,0,0,0.1)", borderRadius: 2 }}>
+      <Snackbar
+        open={snack.open}
+        autoHideDuration={3500}
+        onClose={() => setSnack((s) => ({ ...s, open: false }))}
+        anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
+      >
+        <Alert
+          severity={snack.severity}
+          onClose={() => setSnack((s) => ({ ...s, open: false }))}
+          sx={{ boxShadow: "0 4px 6px -1px rgba(0,0,0,0.1)", borderRadius: 2 }}
+        >
           {snack.msg}
         </Alert>
       </Snackbar>

@@ -17,7 +17,7 @@ import {
   Table,
   TableHead,
   TableRow,
-  TableCell, 
+  TableCell,
   TableBody,
   Paper,
   IconButton,
@@ -46,13 +46,13 @@ const PUBLIC_LINK_BASE = "https://muditam.com/apps/consultation/diet-plan";
 // ---------- HELPERS ----------
 const WEEKLY_TYPE = "weekly-14";
 const MONTHLY_TYPE = "monthly-options";
- 
+
 const mealsOrder = ["Breakfast", "Lunch", "Snacks", "Dinner"];
 const monthlySlotOrder = ["Early Morning", "Breakfast", "Mid Morning", "Lunch", "Evening Snack", "Dinner", "Bed Time",];
 
 const FORTNIGHT_DAYS = 14;
 
-const emptyFortnight = () => 
+const emptyFortnight = () =>
   mealsOrder.reduce((acc, meal) => {
     acc[meal] = Array(FORTNIGHT_DAYS).fill("");
     return acc;
@@ -285,14 +285,14 @@ export default function CreateDietPlanPopup({
   const [conditions, setConditions] = useState([]);
   const [healthGoals, setHealthGoals] = useState([]);
   const [goalsTouched, setGoalsTouched] = useState(false); // prevent overwriting manual edits
-  const [newGoal, setNewGoal] = useState(""); 
+  const [newGoal, setNewGoal] = useState("");
 
   const [editVitalsMode, setEditVitalsMode] = useState(false);
   const [editAge, setEditAge] = useState("");
   const [editHeightRaw, setEditHeightRaw] = useState("");     // ⬅️ unified height input (cm text or ft/in text)
   const [editHeightIsFeet, setEditHeightIsFeet] = useState(false); // ⬅️ checkbox state
   const [editWeightKg, setEditWeightKg] = useState("");
-  const [savingVitals, setSavingVitals] = useState(false); 
+  const [savingVitals, setSavingVitals] = useState(false);
   const [vitalsErrorMsg, setVitalsErrorMsg] = useState("");
 
   useEffect(() => {
@@ -392,7 +392,7 @@ export default function CreateDietPlanPopup({
   // Initial planType sync
   useEffect(() => {
     setPlanType(initialPlanType);
-  }, [initialPlanType]); 
+  }, [initialPlanType]);
 
   // Templates for current type
   const templateOptions =
@@ -502,12 +502,12 @@ export default function CreateDietPlanPopup({
       setVitalsErrorMsg("");
       // Update both places for compatibility: details + healthProfile
       await axios.put(`${BASE_URL}/api/leads/${leadId}`, {
-        details: { age: a, height: h, heightCm: h, weight: w, weightKg: w }, 
+        details: { age: a, height: h, heightCm: h, weight: w, weightKg: w },
         healthProfile: { age: a, heightCm: h, weightKg: w },
       });
       // Reflect locally
-      setAge(a); 
-      setHeightCm(h); 
+      setAge(a);
+      setHeightCm(h);
       setWeightKg(w);
       setEditVitalsMode(false);
     } catch (e) {
@@ -530,10 +530,10 @@ export default function CreateDietPlanPopup({
       tm.setDate(tm.getDate() + 1);
       return toISO(tm);
     }
-    return customStartDate || toISO(today); 
+    return customStartDate || toISO(today);
   }, [startMode, customStartDate]);
 
-  const durationDays = planType === "Weekly" ? FORTNIGHT_DAYS : 30; 
+  const durationDays = planType === "Weekly" ? FORTNIGHT_DAYS : 30;
 
   const vitalsFilled = useMemo(() => {
     const a = String(age ?? "").trim();
@@ -545,14 +545,14 @@ export default function CreateDietPlanPopup({
   const conditionsFilled = useMemo(() => (conditions?.length ?? 0) > 0, [conditions]);
 
   const canSave = useMemo(() => {
-    if (!leadId || saving || !templateId || !vitalsFilled || !conditionsFilled) return false; 
+    if (!leadId || saving || !templateId || !vitalsFilled || !conditionsFilled) return false;
 
-    if (planType === "Weekly") { 
+    if (planType === "Weekly") {
       const any = mealsOrder.some((m) =>
         fortnight[m].some((v) => (v || "").trim())
       );
       return any;
-    } 
+    }
     const anyMonthly = Object.values(monthly).some((slot) =>
       slot.options.some((o) => (o || "").trim())
     );
@@ -650,13 +650,13 @@ export default function CreateDietPlanPopup({
     if (!vitalsFilled) {
       alert("Age, Height, and Weight are required. Please update these before saving.");
       return;
-    } 
+    }
 
     if (!conditionsFilled) {
       alert("Please select at least one Health Condition before saving.");
       return;
     }
-    const payload = makePayload(); 
+    const payload = makePayload();
     try {
       setGeneratedLink(""); // clear old link
       setSaving(true);
@@ -665,7 +665,7 @@ export default function CreateDietPlanPopup({
       if (typeof onSaved === "function") {
         try {
           await Promise.resolve(onSaved({ payload, created }));
-        } catch {}
+        } catch { }
       }
 
       const createdId =
@@ -690,7 +690,7 @@ export default function CreateDietPlanPopup({
       );
       alert(
         err?.response?.data?.error ||
-          "Failed to save diet plan. Please check server logs."
+        "Failed to save diet plan. Please check server logs."
       );
     } finally {
       setSaving(false);
@@ -872,6 +872,14 @@ export default function CreateDietPlanPopup({
       maxWidth="lg"
       fullWidth
       scroll="paper"
+      PaperProps={{
+        sx: {
+          width: "94vw",
+          maxWidth: "1600px",
+          height: "95vh",
+          m: 1,
+        },
+      }}
     >
       <DialogTitle sx={{ fontWeight: 700, textAlign: "center" }}>
         Create Diet Plan
@@ -881,7 +889,7 @@ export default function CreateDietPlanPopup({
         dividers
         sx={{
           p: 2,
-          maxHeight: "85vh",
+          maxHeight: "90vh",
           display: "flex",
           flexDirection: "column",
           gap: 2,
@@ -985,12 +993,12 @@ export default function CreateDietPlanPopup({
         {vitalsErrorMsg && (
           <Alert severity="error" variant="outlined">{vitalsErrorMsg}</Alert>
         )}
- 
+
         {!vitalsFilled && (
           <Alert severity="error" variant="outlined">
-             Age, Height, and Weight are required. Please update the lead’s details before saving.
+            Age, Height, and Weight are required. Please update the lead’s details before saving.
           </Alert>
-         )}
+        )}
 
         {/* Controls row: Plan Type, Template, Past Plans */}
         <Stack
@@ -1112,7 +1120,7 @@ export default function CreateDietPlanPopup({
 
           <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
             {/* Conditions (multi) */}
-            <FormControl size="small" sx={{ minWidth: 240 }} error={!conditionsFilled}> 
+            <FormControl size="small" sx={{ minWidth: 240 }} error={!conditionsFilled}>
               <InputLabel id="conditions-label">Conditions</InputLabel>
               <Select
                 labelId="conditions-label"
@@ -1129,17 +1137,17 @@ export default function CreateDietPlanPopup({
                 }
                 renderValue={(selected) => selected.join(", ")}
               >
-                {CONDITION_OPTIONS.map((opt) => ( 
+                {CONDITION_OPTIONS.map((opt) => (
                   <MenuItem key={opt} value={opt}>
                     {opt}
                   </MenuItem>
                 ))}
-              </Select> 
+              </Select>
               <FormHelperText>
                 {conditionsFilled
                   ? "Selecting conditions will auto-pick relevant goals (you can edit)."
                   : "Please select at least one condition."}
-             </FormHelperText>
+              </FormHelperText>
             </FormControl>
 
             {/* Health Goals (multi) */}
@@ -1423,7 +1431,7 @@ export default function CreateDietPlanPopup({
             Save & Share
           </Button>
         </Box>
- 
+
         <Collapse in={saving} timeout={300} unmountOnExit>
           <Stack
             direction="row"
@@ -1446,7 +1454,7 @@ export default function CreateDietPlanPopup({
               display: "flex",
               alignItems: "center",
               gap: 1,
-              border: "1px solid #e0e0e0", 
+              border: "1px solid #e0e0e0",
               borderRadius: 1.5,
               background: "#fafafa",
             }}
@@ -1468,7 +1476,7 @@ export default function CreateDietPlanPopup({
             </Tooltip>
           </Paper>
         </Collapse>
-      </DialogActions> 
+      </DialogActions>
     </Dialog>
   );
 }
