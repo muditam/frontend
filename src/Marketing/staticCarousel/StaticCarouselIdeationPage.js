@@ -73,7 +73,7 @@ const SCRIPT_TYPES = [
 ];
 
 const CONTENT_TYPES = ["Static", "Carousel"];
-const IDEATION_STATUSES = ["Pending", "Approved", "Rewrite", "On Hold", "Rejected"];
+const IDEATION_STATUSES = ["Approved", "Pending", "Rewrite", "Rejected", "On Hold"];
 const NEEDS_REASON = new Set(["On Hold", "Rejected"]);
 
 const STATUS_COLORS = {
@@ -115,12 +115,7 @@ const inputSx = {
 function makeEmptyItem(itemNo = 1) {
   return {
     itemNo,
-    headline: "",
-    subHeadline: "",
-    caption: "",
     description: "",
-    cta: "",
-    notes: "",
   };
 }
 
@@ -128,33 +123,13 @@ function normalizeItemsForSave(items = []) {
   return items
     .map((item, idx) => ({
       itemNo: idx + 1,
-      headline: String(item?.headline || "").trim(),
-      subHeadline: String(item?.subHeadline || "").trim(),
-      caption: String(item?.caption || "").trim(),
       description: String(item?.description || "").trim(),
-      cta: String(item?.cta || "").trim(),
-      notes: String(item?.notes || "").trim(),
     }))
-    .filter(
-      (x) =>
-        x.headline ||
-        x.subHeadline ||
-        x.caption ||
-        x.description ||
-        x.cta ||
-        x.notes
-    );
+    .filter((x) => x.description);
 }
 
 function getItemPreview(item = {}) {
-  const parts = [
-    item.headline,
-    item.subHeadline,
-    item.caption,
-    item.description,
-    item.cta,
-    item.notes,
-  ]
+  const parts = [item.description]
     .map((x) => String(x || "").trim())
     .filter(Boolean);
 
@@ -416,12 +391,7 @@ function ApproverCommentCell({ comment }) {
   );
 }
 
-function ContentItemsEditor({
-  contentType,
-  items,
-  setItems,
-  errors = {},
-}) {
+function ContentItemsEditor({ contentType, items, setItems, errors = {} }) {
   const updateItem = (index, field, value) => {
     setItems((prev) =>
       prev.map((item, i) =>
@@ -446,43 +416,16 @@ function ContentItemsEditor({
 
   return (
     <Box>
-      <Stack
-        direction="row"
-        alignItems="center"
-        justifyContent="space-between"
-        mb={1.2}
-        flexWrap="wrap"
-        gap={1}
-      >
-        <Box>
-          <Typography sx={{ fontSize: "0.9rem", fontWeight: 700, color: "#111827" }}>
-            {isStatic ? "Static Content" : "Carousel Items"}
-          </Typography>
-          <Typography sx={{ fontSize: "0.78rem", color: "#6b7280" }}>
-            {isStatic
-              ? "Static must have exactly 1 item"
-              : "Add as many carousel items as you want"}
-          </Typography>
-        </Box>
-
-        {!isStatic && (
-          <Button
-            size="small"
-            variant="outlined"
-            startIcon={<AddSlideIcon />}
-            onClick={addItem}
-            sx={{
-              textTransform: "none",
-              fontWeight: 700,
-              borderColor: "#c7d2fe",
-              color: "#4f46e5",
-              "&:hover": { borderColor: "#4f46e5", bgcolor: "#eef2ff" },
-            }}
-          >
-            Add Item
-          </Button>
-        )}
-      </Stack>
+      <Box mb={1.2}>
+        <Typography sx={{ fontSize: "0.9rem", fontWeight: 700, color: "#111827" }}>
+          {isStatic ? "Static Image" : "Carousel Images"}
+        </Typography>
+        <Typography sx={{ fontSize: "0.78rem", color: "#6b7280" }}>
+          {isStatic
+            ? "Static must have exactly 1 image"
+            : "Add as many carousel images as you want"}
+        </Typography>
+      </Box>
 
       {errors.contentItems && (
         <Typography sx={{ fontSize: "0.78rem", color: "#dc2626", mb: 1.2 }}>
@@ -509,11 +452,11 @@ function ContentItemsEditor({
               mb={1.5}
             >
               <Typography sx={{ fontWeight: 700, color: "#4f46e5", fontSize: "0.9rem" }}>
-                Item {index + 1}
+                Image {index + 1}
               </Typography>
 
               {!isStatic && items.length > 2 && (
-                <Tooltip title="Remove item">
+                <Tooltip title="Remove image">
                   <IconButton
                     size="small"
                     onClick={() => removeItem(index)}
@@ -528,60 +471,38 @@ function ContentItemsEditor({
               )}
             </Stack>
 
-            <Stack spacing={1.5}>
-              <TextField
-                label="Headline"
-                size="small"
-                value={item.headline}
-                onChange={(e) => updateItem(index, "headline", e.target.value)}
-                sx={inputSx}
-              />
-
-              <TextField
-                label="Sub headline"
-                size="small"
-                value={item.subHeadline}
-                onChange={(e) => updateItem(index, "subHeadline", e.target.value)}
-                sx={inputSx}
-              />
-
-              <TextField
-                label="Caption"
-                size="small"
-                value={item.caption}
-                onChange={(e) => updateItem(index, "caption", e.target.value)}
-                sx={inputSx}
-              />
-
-              <TextField
-                label="Description"
-                multiline
-                minRows={2}
-                value={item.description}
-                onChange={(e) => updateItem(index, "description", e.target.value)}
-                sx={inputSx}
-              />
-
-              <TextField
-                label="CTA"
-                size="small"
-                value={item.cta}
-                onChange={(e) => updateItem(index, "cta", e.target.value)}
-                sx={inputSx}
-              />
-
-              <TextField
-                label="Internal notes"
-                multiline
-                minRows={2}
-                value={item.notes}
-                onChange={(e) => updateItem(index, "notes", e.target.value)}
-                sx={inputSx}
-              />
-            </Stack>
+            <TextField
+              label="Description"
+              multiline
+              minRows={2}
+              value={item.description}
+              onChange={(e) => updateItem(index, "description", e.target.value)}
+              sx={inputSx}
+              fullWidth
+            />
           </Paper>
         ))}
       </Stack>
+
+      {!isStatic && (
+        <Box mt={2}>
+          <Button
+            size="small"
+            variant="outlined"
+            startIcon={<AddSlideIcon />}
+            onClick={addItem}
+            sx={{
+              textTransform: "none",
+              fontWeight: 700,
+              borderColor: "#c7d2fe",
+              color: "#4f46e5",
+              "&:hover": { borderColor: "#4f46e5", bgcolor: "#eef2ff" },
+            }}
+          >
+            Add Image
+          </Button>
+        </Box>
+      )}
     </Box>
   );
 }
@@ -672,43 +593,10 @@ function ViewItemsDialog({ open, onClose, item }) {
                   mb: 1.5,
                 }}
               >
-                Item {index + 1}
+                Image {index + 1}
               </Typography>
 
               <Stack spacing={1.2}>
-                {!!contentItem.headline && (
-                  <Box>
-                    <Typography sx={{ fontSize: "0.75rem", color: "#64748b" }}>
-                      Headline
-                    </Typography>
-                    <Typography sx={{ fontSize: "0.95rem", color: "#111827", fontWeight: 600 }}>
-                      {contentItem.headline}
-                    </Typography>
-                  </Box>
-                )}
-
-                {!!contentItem.subHeadline && (
-                  <Box>
-                    <Typography sx={{ fontSize: "0.75rem", color: "#64748b" }}>
-                      Sub headline
-                    </Typography>
-                    <Typography sx={{ fontSize: "0.92rem", color: "#334155" }}>
-                      {contentItem.subHeadline}
-                    </Typography>
-                  </Box>
-                )}
-
-                {!!contentItem.caption && (
-                  <Box>
-                    <Typography sx={{ fontSize: "0.75rem", color: "#64748b" }}>
-                      Caption
-                    </Typography>
-                    <Typography sx={{ fontSize: "0.92rem", color: "#334155" }}>
-                      {contentItem.caption}
-                    </Typography>
-                  </Box>
-                )}
-
                 {!!contentItem.description && (
                   <Box>
                     <Typography sx={{ fontSize: "0.75rem", color: "#64748b" }}>
@@ -722,34 +610,6 @@ function ViewItemsDialog({ open, onClose, item }) {
                       }}
                     >
                       {contentItem.description}
-                    </Typography>
-                  </Box>
-                )}
-
-                {!!contentItem.cta && (
-                  <Box>
-                    <Typography sx={{ fontSize: "0.75rem", color: "#64748b" }}>
-                      CTA
-                    </Typography>
-                    <Typography sx={{ fontSize: "0.92rem", color: "#334155" }}>
-                      {contentItem.cta}
-                    </Typography>
-                  </Box>
-                )}
-
-                {!!contentItem.notes && (
-                  <Box>
-                    <Typography sx={{ fontSize: "0.75rem", color: "#64748b" }}>
-                      Notes
-                    </Typography>
-                    <Typography
-                      sx={{
-                        fontSize: "0.9rem",
-                        color: "#475569",
-                        whiteSpace: "pre-wrap",
-                      }}
-                    >
-                      {contentItem.notes}
                     </Typography>
                   </Box>
                 )}
@@ -993,11 +853,11 @@ export default function StaticCarouselIdeationPage() {
     const normalized = normalizeItemsForSave(formItems);
 
     if (contentType === "Static" && normalized.length !== 1) {
-      return "Static must have exactly 1 item";
+      return "Static must have exactly 1 image";
     }
 
     if (contentType === "Carousel" && normalized.length < 2) {
-      return "Carousel must have at least 2 items with content";
+      return "Carousel must have at least 2 images with description";
     }
 
     return "";
@@ -1123,7 +983,6 @@ export default function StaticCarouselIdeationPage() {
   };
 
   const canEditItem = (item) => isManager || item.createdBy === currentUser?.fullName;
-
   const colCount = isManager ? 12 : 11;
 
   return (
@@ -1221,10 +1080,10 @@ export default function StaticCarouselIdeationPage() {
           </FormControl>
 
           <FormControl size="small" sx={{ minWidth: 220, ...inputSx }}>
-            <InputLabel>Script Type</InputLabel>
+            <InputLabel>Platform</InputLabel>
             <Select
               value={scriptTypeFilter}
-              label="Script Type"
+              label="Platform"
               onChange={(e) => {
                 setScriptTypeFilter(e.target.value);
                 setPage(0);
@@ -1276,7 +1135,7 @@ export default function StaticCarouselIdeationPage() {
 
           <TextField
             size="small"
-            label="Search (ID / title / caption / creator)"
+            label="Search (ID / description / creator)"
             value={searchDraft}
             onChange={(e) => setSearchDraft(e.target.value)}
             sx={{ minWidth: 320, ...inputSx }}
@@ -1354,7 +1213,7 @@ export default function StaticCarouselIdeationPage() {
                 <TableCell>Shoot</TableCell>
                 <TableCell>Script Type</TableCell>
                 <TableCell>Preview</TableCell>
-                <TableCell>Items</TableCell>
+                <TableCell>Images</TableCell>
                 {isManager && <TableCell>Created By</TableCell>}
                 <TableCell>Date / Time</TableCell>
                 <TableCell>Status</TableCell>
@@ -1635,10 +1494,10 @@ export default function StaticCarouselIdeationPage() {
             </FormControl>
 
             <FormControl size="small" error={!!createErrors.scriptType} sx={{ flex: 1, ...inputSx }}>
-              <InputLabel>Script Type *</InputLabel>
+              <InputLabel>Platform *</InputLabel>
               <Select
                 value={createForm.scriptType}
-                label="Script Type *"
+                label="Platform *"
                 onChange={(e) => setCreateForm((f) => ({ ...f, scriptType: e.target.value }))}
               >
                 {SCRIPT_TYPES.map((t) => (
@@ -1658,15 +1517,7 @@ export default function StaticCarouselIdeationPage() {
                 onChange={(e) => setCreateForm((f) => ({ ...f, hasShoot: e.target.checked }))}
               />
             }
-            label='Have a Shoot'
-          />
-
-          <TextField
-            label="Overall Title (optional)"
-            size="small"
-            value={createForm.title}
-            onChange={(e) => setCreateForm((f) => ({ ...f, title: e.target.value }))}
-            sx={inputSx}
+            label="Have a Shoot"
           />
 
           <ContentItemsEditor
@@ -1808,7 +1659,7 @@ export default function StaticCarouselIdeationPage() {
                 onChange={(e) => setEditForm((f) => ({ ...f, hasShoot: e.target.checked }))}
               />
             }
-            label='Have a Shoot'
+            label="Have a Shoot"
           />
 
           <TextField

@@ -218,7 +218,7 @@ const DEFAULT_PERMISSIONS = {
     bloodTestIcon: false,
     deliveryStatusIcon: false,
     cartIcon: false,
-
+    campaignQuickCreate: false,
 
     // Task shortcuts (for managers/others)
     taskBoardIcon: false,
@@ -1756,6 +1756,7 @@ const AddEmployee = () => {
                   ["bloodTestIcon", "Blood Test Pincode Check"],
                   ["deliveryStatusIcon", "Delivery Status Checker"],
                   ["cartIcon", "Cart Icon (Shopify Orders)"],
+                  ["campaignQuickCreate", "Marketing Icon"],
                 ].map(([key, label]) => (
                   <FormControlLabel
                     key={key}

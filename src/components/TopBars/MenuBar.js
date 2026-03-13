@@ -977,7 +977,7 @@ const MenuBar = ({ toggleDrawer }) => {
               <Box sx={{ display: "flex", alignItems: "center" }}>
                 <StorefrontIcon sx={{ fontSize: 18, marginRight: "8px" }} />
                 <Typography variant="body1" sx={{ fontSize: "14px" }}>
-                  Marketing
+                  Scripted Videos
                 </Typography>
               </Box>
               {openDropdown.marketingDropdown ? (
@@ -1093,7 +1093,7 @@ const MenuBar = ({ toggleDrawer }) => {
                     onClick={toggleDrawer}
                   >
                     <Typography variant="body2" sx={{ fontSize: "13px" }}>
-                      Script
+                      Ideation
                     </Typography>
                   </ListItem>
                 )}
@@ -1185,7 +1185,7 @@ const MenuBar = ({ toggleDrawer }) => {
                     onClick={toggleDrawer}
                   >
                     <Typography variant="body2" sx={{ fontSize: "13px" }}>
-                      Script
+                      Ideation
                     </Typography>
                   </ListItem>
                 )}
@@ -1277,7 +1277,7 @@ const MenuBar = ({ toggleDrawer }) => {
                     onClick={toggleDrawer}
                   >
                     <Typography variant="body2" sx={{ fontSize: "13px" }}>
-                      Script
+                      Ideation
                     </Typography>
                   </ListItem>
                 )}

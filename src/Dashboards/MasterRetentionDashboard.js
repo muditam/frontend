@@ -882,33 +882,35 @@ const ManagerRetentionDashboard = () => {
 
 
   const shipmentCards = useMemo(() => {
-    const rows = shipmentSummary || [];
-    const getAmount = (r) => Number(r?.totalAmount ?? r?.amount ?? 0);
+  const rows = (shipmentSummary || []).filter(
+    (r) => String(r?.category || "").trim().toLowerCase() !== "total orders"
+  );
 
+  const getAmount = (r) => Number(r?.totalAmount ?? r?.amount ?? 0);
 
-    const cards = SHIPMENT_CARD_DEFS.map((def) => {
-      const matched = rows.filter((r) => def.match(r?.category || ""));
-      return {
-        ...def,
-        matched, // keep for click open
-        count: matched.reduce((a, r) => a + Number(r?.count || 0), 0),
-        amount: matched.reduce((a, r) => a + getAmount(r), 0),
-        percentage: matched.reduce((a, r) => a + Number(r?.percentage || 0), 0).toFixed(1),
-      };
-    });
-
-
-    const otherRows = rows.filter((r) => !SHIPMENT_CARD_DEFS.some((d) => d.match(r?.category || "")));
-
-
+  const cards = SHIPMENT_CARD_DEFS.map((def) => {
+    const matched = rows.filter((r) => def.match(r?.category || ""));
     return {
-      cards,
-      otherRows,
-      otherCount: otherRows.reduce((a, r) => a + Number(r?.count || 0), 0),
-      otherAmount: otherRows.reduce((a, r) => a + getAmount(r), 0),
-      otherPercentage: otherRows.reduce((a, r) => a + Number(r?.percentage || 0), 0).toFixed(1),
+      ...def,
+      matched,
+      count: matched.reduce((a, r) => a + Number(r?.count || 0), 0),
+      amount: matched.reduce((a, r) => a + getAmount(r), 0),
+      percentage: matched.reduce((a, r) => a + Number(r?.percentage || 0), 0).toFixed(1),
     };
-  }, [shipmentSummary]);
+  });
+
+  const otherRows = rows.filter(
+    (r) => !SHIPMENT_CARD_DEFS.some((d) => d.match(r?.category || ""))
+  );
+
+  return {
+    cards,
+    otherRows,
+    otherCount: otherRows.reduce((a, r) => a + Number(r?.count || 0), 0),
+    otherAmount: otherRows.reduce((a, r) => a + getAmount(r), 0),
+    otherPercentage: otherRows.reduce((a, r) => a + Number(r?.percentage || 0), 0).toFixed(1),
+  };
+}, [shipmentSummary]);
 
 
   return (

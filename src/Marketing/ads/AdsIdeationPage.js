@@ -72,7 +72,7 @@ const AD_TYPES = [
   "Other Ads",
 ];
 
-const IDEATION_STATUSES = ["Pending", "Approved", "Rewrite", "On Hold", "Rejected"];
+const IDEATION_STATUSES = ["Approved", "Pending", "Rewrite", "Rejected", "On Hold"];
 const NEEDS_REASON = new Set(["On Hold", "Rejected"]);
 
 const STATUS_COLORS = {

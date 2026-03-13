@@ -51,9 +51,11 @@ import NotificationsIcon from "@mui/icons-material/Notifications";
 import Badge from "@mui/material/Badge";
 import TaskNotifications from "./Notifications";
 import CheckBoxIcon from "@mui/icons-material/CheckBox";
+import CampaignIcon from "@mui/icons-material/Campaign";
 import AssessmentIcon from "@mui/icons-material/Assessment";
 import { Flower2 } from "lucide-react";
 import Bloomleader from "./Bloomleader";
+import MarketingQuickCreateDialog from "../../Marketing/MarketingQuickCreateDialog";
 
 const SlideDown = React.forwardRef(function Transition(props, ref) {
   return <Slide direction="down" ref={ref} {...props} />;
@@ -88,6 +90,7 @@ const NavbarWithSearch = () => {
   const [deliveryDialogOpen, setDeliveryDialogOpen] = useState(false);
   const [bloomOpen, setBloomOpen] = useState(false);
   const [notifAnchorEl, setNotifAnchorEl] = useState(null);
+  const [marketingQuickCreateOpen, setMarketingQuickCreateOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
 
   const navigate = useNavigate();
@@ -731,6 +734,30 @@ const NavbarWithSearch = () => {
               anchorEl={leaderboardAnchorRef.current}
               onClose={() => setLeaderboardOpen(false)}
             />
+
+            {user && canNav("campaignQuickCreate") && (
+  <IconButton
+    onClick={() => setMarketingQuickCreateOpen(true)}
+    sx={{
+      mr: 0.5,
+      color: "#fff",
+      borderRadius: "50%",
+      p: 1.1,
+      "&:hover": { bgcolor: "#e0e0e0" },
+    }}
+    title="Quick Create Marketing Item"
+  >
+    <CampaignIcon />
+  </IconButton>
+)}
+
+<MarketingQuickCreateDialog
+  open={marketingQuickCreateOpen}
+  onClose={() => setMarketingQuickCreateOpen(false)}
+  onCreated={() => {
+    setMarketingQuickCreateOpen(false);
+  }}
+/>
 
             {user && canNav("bloodTestIcon") && (
               <IconButton
