@@ -236,12 +236,17 @@ const VIDEO_EXT = /\.(mp4|mov|avi|webm|mkv|m4v)(\?.*)?$/i;
 
 const SCRIPT_TYPES = [
   "",
-  "Muditam instagram",
-  "Muditam Snooze well",
-  "Youtube",
-  "Meta Ads",
+  "Muditam Instagram",
+  "Muditam Snooze Well",
+  "Muditam infographic",
+  "Snooze Well infographic",
+  "YouTube",
+  "Meta Ads KJF",
+  "Meta Ads Liver Fix",
+  "Meta Ads International",
+  "Meta Ads Others",
   "Google Ads",
-  "Whatsapp",
+  "WhatsApp",
 ];
 
 function fmt(dt) {
