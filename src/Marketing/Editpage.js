@@ -80,23 +80,52 @@ async function getPresignedUrl(filename, contentType, authHeaders) {
   return res.json();
 }
 
+function normalizeMediaContentType(file) {
+  const name = String(file?.name || "").toLowerCase();
+  const type = String(file?.type || "").toLowerCase().trim();
+
+  if (type) return type;
+
+  if (name.endsWith(".mp4")) return "video/mp4";
+  if (name.endsWith(".mov")) return "video/quicktime";
+  if (name.endsWith(".avi")) return "video/x-msvideo";
+  if (name.endsWith(".webm")) return "video/webm";
+  if (name.endsWith(".mkv")) return "video/x-matroska";
+  if (name.endsWith(".m4v")) return "video/x-m4v";
+
+  if (name.endsWith(".png")) return "image/png";
+  if (name.endsWith(".jpg") || name.endsWith(".jpeg")) return "image/jpeg";
+  if (name.endsWith(".webp")) return "image/webp";
+  if (name.endsWith(".gif")) return "image/gif";
+
+  return "application/octet-stream";
+}
+
 function uploadDirectToWasabi(file, presignedUrl, contentType, onProgress) {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
+
     xhr.upload.addEventListener("progress", (e) => {
       if (e.lengthComputable && onProgress) {
         onProgress(Math.round((e.loaded / e.total) * 100));
       }
     });
+
     xhr.addEventListener("load", () =>
       xhr.status >= 200 && xhr.status < 300
         ? resolve()
         : reject(new Error(`Wasabi upload failed: HTTP ${xhr.status}`))
     );
+
     xhr.addEventListener("error", () => reject(new Error("Network error")));
     xhr.addEventListener("abort", () => reject(new Error("Upload aborted")));
+
     xhr.open("PUT", presignedUrl);
-    xhr.setRequestHeader("Content-Type", contentType);
+
+    if (contentType && contentType !== "application/octet-stream") {
+      xhr.setRequestHeader("Content-Type", contentType);
+    }
+
     xhr.send(file);
   });
 }
@@ -146,6 +175,7 @@ function getSafeExternalUrl(url = "") {
 
 async function uploadFilesToWasabi(files, authHeaders, onProgress) {
   if (!files?.length) throw new Error("No files provided");
+
   const progresses = new Array(files.length).fill(0);
   const reportOverall = () =>
     onProgress?.(
@@ -154,20 +184,24 @@ async function uploadFilesToWasabi(files, authHeaders, onProgress) {
 
   return Promise.all(
     files.map(async (file, idx) => {
-      const { presignedUrl, finalUrl } = await getPresignedUrl(
+      const normalizedType = normalizeMediaContentType(file);
+
+      const { presignedUrl, finalUrl, contentType } = await getPresignedUrl(
         file.name,
-        file.type || "application/octet-stream",
+        normalizedType,
         authHeaders
       );
+
       await uploadDirectToWasabi(
         file,
         presignedUrl,
-        file.type || "application/octet-stream",
+        contentType || normalizedType,
         (pct) => {
           progresses[idx] = pct;
           reportOverall();
         }
       );
+
       return { url: finalUrl, originalName: file.name };
     })
   );
