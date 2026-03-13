@@ -233,6 +233,7 @@ const PUBLISH_STATUS_STYLE = {
 };
 
 const VIDEO_EXT = /\.(mp4|mov|avi|webm|mkv|m4v)(\?.*)?$/i;
+const IMAGE_EXT = /\.(png|jpg|jpeg|webp|gif)(\?.*)?$/i;
 
 const SCRIPT_TYPES = [
   "",
@@ -353,7 +354,10 @@ function PublishStatusChip({ status }) {
 // ─────────────────────────────────────────────────────────────
 function PlayerModal({ open, onClose, url, title }) {
   if (!url) return null;
+
   const isVideo = VIDEO_EXT.test(url);
+  const isImage = IMAGE_EXT.test(url);
+
   return (
     <Dialog
       open={open}
@@ -382,6 +386,7 @@ function PlayerModal({ open, onClose, url, title }) {
           <CloseIcon fontSize="small" />
         </IconButton>
       </DialogTitle>
+
       <DialogContent sx={{ pt: 3, pb: 3, px: 3 }}>
         {isVideo ? (
           <Box
@@ -395,6 +400,21 @@ function PlayerModal({ open, onClose, url, title }) {
               borderRadius: 2,
               bgcolor: "#000",
               outline: "none",
+            }}
+          />
+        ) : isImage ? (
+          <Box
+            component="img"
+            src={url}
+            alt={title || "Preview"}
+            sx={{
+              width: "100%",
+              maxHeight: "65vh",
+              objectFit: "contain",
+              display: "block",
+              borderRadius: 2,
+              bgcolor: "#f8fafc",
+              border: "1px solid #e5e7eb",
             }}
           />
         ) : (
@@ -664,8 +684,8 @@ function UploadVideoDialog({ open, onClose, script, onUploaded, showSnack, mode 
 
       showSnack(
         mode === "reupload"
-          ? "Edited video re-uploaded ✅ (replaced old file)"
-          : "Edited video uploaded! 🎬"
+          ? "Edited file re-uploaded ✅ (replaced old file)"
+          : "Edited file uploaded! 🎬"
       );
       onUploaded();
       handleClose();
@@ -705,7 +725,7 @@ function UploadVideoDialog({ open, onClose, script, onUploaded, showSnack, mode 
         <Stack direction="row" alignItems="center" gap={1}>
           <UploadIcon sx={{ color: "#ea580c" }} />
           <Typography sx={{ fontSize: "1.1rem", fontWeight: 700 }}>
-            {mode === "reupload" ? "Re-upload Edited Video" : "Upload Edited Video"}
+            {mode === "reupload" ? "Re-upload Edited Media" : "Upload Edited Media"}
           </Typography>
         </Stack>
         <IconButton
@@ -800,25 +820,25 @@ function UploadVideoDialog({ open, onClose, script, onUploaded, showSnack, mode 
           ) : (
             <>
               <Typography sx={{ fontSize: "0.9rem", color: "#6b7280", fontWeight: 500 }}>
-                Click to select your edited video
+                Click to select your edited file
               </Typography>
               <Typography sx={{ fontSize: "0.8rem", color: "#9ca3af", mt: 0.5 }}>
-                MP4, MOV, AVI, WebM and more
+                MP4, MOV, AVI, WebM, PNG, JPG, JPEG, WebP
               </Typography>
             </>
           )}
 
           <input
-            ref={fileInputRef}
-            type="file"
-            accept="video/*,.mp4,.mov,.avi,.webm,.mkv,.m4v"
-            style={{ display: "none" }}
-            onChange={(e) => {
-              const f = e.target.files?.[0];
-              if (f) setSelectedFile(f);
-            }}
-            disabled={uploading}
-          />
+  ref={fileInputRef}
+  type="file"
+  accept="video/*,image/*,.mp4,.mov,.avi,.webm,.mkv,.m4v,.png,.jpg,.jpeg,.webp,.gif"
+  style={{ display: "none" }}
+  onChange={(e) => {
+    const f = e.target.files?.[0];
+    if (f) setSelectedFile(f);
+  }}
+  disabled={uploading}
+/>
         </Box>
 
         <Divider sx={{ borderColor: "#e5e7eb" }} />
@@ -917,7 +937,7 @@ function UploadVideoDialog({ open, onClose, script, onUploaded, showSnack, mode 
             "&:hover": { bgcolor: "#c2410c" },
           }}
         >
-          {uploading ? "Uploading…" : mode === "reupload" ? "Re-upload Video" : "Upload Edited Video"}
+          {uploading ? "Uploading…" : mode === "reupload" ? "Re-upload Media" : "Upload Media"}
         </Button>
       </DialogActions>
     </Dialog>
@@ -1925,7 +1945,7 @@ export default function EditPage() {
                                 opacity: canUploadForScript(s) ? 1 : 0.6,
                               }}
                             >
-                              Upload Video
+                              Upload Media
                             </Button>
                           </TableCell>
 
@@ -2151,7 +2171,7 @@ export default function EditPage() {
                                   opacity: canUploadForScript(s) ? 1 : 0.6,
                                 }}
                               >
-                                Reupload
+                                Reupload Media
                               </Button>
 
                               <Button

@@ -1,5 +1,11 @@
 // pages/ReportPage.jsx
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import axios from "axios";
 import {
   Box,
@@ -35,7 +41,7 @@ import {
   ViewCarousel as StaticCarouselIcon,
   SmartDisplay as OtherVideoIcon,
   ContentCut as CutIcon,
-  Edit as EditIcon,
+  Edit as EditStageIcon,
   Send as PostIcon,
   DateRange as DateRangeIcon,
   KeyboardArrowDown as ArrowDownIcon,
@@ -48,7 +54,8 @@ import {
   Block as BlockIcon,
 } from "@mui/icons-material";
 
-const API = "https://muditamleads-14f32a10d7f7.herokuapp.com/api/marketing-dashboard";
+const API =
+  "https://muditamleads-14f32a10d7f7.herokuapp.com/api/marketing-dashboard";
 
 const getAuthHeaders = () => {
   const user = JSON.parse(sessionStorage.getItem("user") || "{}");
@@ -169,10 +176,10 @@ const tableHeadCellSx = {
 const fmt = (d) =>
   d
     ? new Date(d).toLocaleDateString("en-IN", {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-    })
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+      })
     : "—";
 
 const n = (v) => Number(v || 0);
@@ -187,17 +194,19 @@ const softChipSx = (bg, color) => ({
 });
 
 const stageColor = (stage = "") =>
-({
-  Script: BRAND.blue,
-  Ideation: BRAND.blue,
-  "Shoot Pending": "#f59e0b",
-  "Shoot Done": BRAND.green,
-  "Cut Pending": BRAND.orange,
-  "Cut Done": BRAND.amber,
-  "Edit Pending": BRAND.purple,
-  "Edit Done": BRAND.cyan,
-  Post: BRAND.green,
-}[stage] || "#64748b");
+  (
+    {
+      Script: BRAND.blue,
+      Ideation: BRAND.blue,
+      "Shoot Pending": "#f59e0b",
+      "Shoot Done": BRAND.green,
+      "Cut Pending": BRAND.orange,
+      "Cut Done": BRAND.amber,
+      "Edit Pending": BRAND.purple,
+      "Edit Done": BRAND.cyan,
+      Post: BRAND.green,
+    }[stage] || "#64748b"
+  );
 
 const getStatusChipStyles = (status = "") => {
   const map = {
@@ -228,7 +237,14 @@ const getItemType = (row = {}) => {
 
 const getReviewStatus = (row = {}) => row.scriptStatus || row.ideationStatus || "—";
 
-function SectionHeader({ icon: Icon, iconColor, iconBg, title, subtitle, chip }) {
+const SectionHeader = React.memo(function SectionHeader({
+  icon: Icon,
+  iconColor,
+  iconBg,
+  title,
+  subtitle,
+  chip,
+}) {
   return (
     <Stack direction="row" alignItems="center" gap={1.4} mb={2}>
       {Icon && (
@@ -264,9 +280,16 @@ function SectionHeader({ icon: Icon, iconColor, iconBg, title, subtitle, chip })
       </Box>
     </Stack>
   );
-}
+});
 
-function StatTile({ label, value, Icon, color, bg, subtitle }) {
+const StatTile = React.memo(function StatTile({
+  label,
+  value,
+  Icon,
+  color,
+  bg,
+  subtitle,
+}) {
   return (
     <Paper
       elevation={0}
@@ -344,9 +367,9 @@ function StatTile({ label, value, Icon, color, bg, subtitle }) {
       </Stack>
     </Paper>
   );
-}
+});
 
-function MiniCountBox({ label, value, color, bg }) {
+const MiniCountBox = React.memo(function MiniCountBox({ label, value, color, bg }) {
   return (
     <Box
       sx={{
@@ -375,9 +398,9 @@ function MiniCountBox({ label, value, color, bg }) {
       </Typography>
     </Box>
   );
-}
+});
 
-function SchemaSection({ schema }) {
+const SchemaSection = React.memo(function SchemaSection({ schema }) {
   const Icon = schema.icon;
   const statusBadges = [
     { label: "Pending", value: schema.status.pending, style: getStatusChipStyles("Pending") },
@@ -519,14 +542,19 @@ function SchemaSection({ schema }) {
           ))}
         </Stack>
       ) : (
-        <Typography sx={{ fontSize: "0.78rem", color: BRAND.textLight }}>
-        </Typography>
+        <Typography sx={{ fontSize: "0.78rem", color: BRAND.textLight }}>—</Typography>
       )}
     </Paper>
   );
-}
+});
 
-function WriterItemsDialog({ open, onClose, writerName, filterType, dateParams }) {
+const WriterItemsDialog = React.memo(function WriterItemsDialog({
+  open,
+  onClose,
+  writerName,
+  filterType,
+  dateParams,
+}) {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
 
@@ -594,8 +622,7 @@ function WriterItemsDialog({ open, onClose, writerName, filterType, dateParams }
           <Stack direction="row" alignItems="center" gap={1}>
             <Box sx={{ width: 10, height: 10, borderRadius: "50%", bgcolor: color }} />
             <Typography sx={{ fontWeight: 800, fontSize: "1rem", color: BRAND.heading }}>
-              {titleMap[filterType] || "Items"} —{" "}
-              <span style={{ color }}>{writerName}</span>
+              {titleMap[filterType] || "Items"} — <span style={{ color }}>{writerName}</span>
             </Typography>
           </Stack>
           <Typography sx={{ fontSize: "0.75rem", color: BRAND.textLight, mt: 0.35, pl: 2.3 }}>
@@ -746,9 +773,12 @@ function WriterItemsDialog({ open, onClose, writerName, filterType, dateParams }
       </DialogActions>
     </Dialog>
   );
-}
+});
 
-function WriterMetricsTable({ metrics, dateParams }) {
+const WriterMetricsTable = React.memo(function WriterMetricsTable({
+  metrics,
+  dateParams,
+}) {
   const [expanded, setExpanded] = useState(false);
   const [dialog, setDialog] = useState({ open: false, name: "", filter: "" });
   const visible = expanded ? metrics : metrics.slice(0, 6);
@@ -831,7 +861,9 @@ function WriterMetricsTable({ metrics, dateParams }) {
                         </Typography>
                       </Box>
 
-                      <Typography sx={{ fontWeight: 700, color: BRAND.heading, fontSize: "0.83rem" }}>
+                      <Typography
+                        sx={{ fontWeight: 700, color: BRAND.heading, fontSize: "0.83rem" }}
+                      >
                         {w.name || "—"}
                       </Typography>
                     </Stack>
@@ -992,9 +1024,15 @@ function WriterMetricsTable({ metrics, dateParams }) {
       />
     </>
   );
-}
+});
 
-function BlockedItemsDialog({ open, onClose, data = [], loading = false, employeeName = "" }) {
+const BlockedItemsDialog = React.memo(function BlockedItemsDialog({
+  open,
+  onClose,
+  data = [],
+  loading = false,
+  employeeName = "",
+}) {
   return (
     <Dialog
       open={open}
@@ -1156,9 +1194,12 @@ function BlockedItemsDialog({ open, onClose, data = [], loading = false, employe
       </DialogActions>
     </Dialog>
   );
-}
+});
 
-function EditorMetricsTable({ metrics, dateParams }) {
+const EditorMetricsTable = React.memo(function EditorMetricsTable({
+  metrics,
+  dateParams,
+}) {
   const [expanded, setExpanded] = useState(false);
   const [blockedDialog, setBlockedDialog] = useState({
     open: false,
@@ -1273,7 +1314,9 @@ function EditorMetricsTable({ metrics, dateParams }) {
                         </Box>
 
                         <Box>
-                          <Typography sx={{ fontWeight: 700, color: BRAND.heading, fontSize: "0.83rem" }}>
+                          <Typography
+                            sx={{ fontWeight: 700, color: BRAND.heading, fontSize: "0.83rem" }}
+                          >
                             {emp.name || "—"}
                           </Typography>
                           <Stack direction="row" alignItems="center" gap={0.7} mt={0.35}>
@@ -1291,7 +1334,13 @@ function EditorMetricsTable({ metrics, dateParams }) {
                                 },
                               }}
                             />
-                            <Typography sx={{ fontSize: "0.67rem", color: BRAND.textLight, fontWeight: 700 }}>
+                            <Typography
+                              sx={{
+                                fontSize: "0.67rem",
+                                color: BRAND.textLight,
+                                fontWeight: 700,
+                              }}
+                            >
                               {completionRate}%
                             </Typography>
                           </Stack>
@@ -1396,7 +1445,7 @@ function EditorMetricsTable({ metrics, dateParams }) {
       />
     </>
   );
-}
+});
 
 function normalizeSchema(schemaKey, raw = {}, reportData = {}, summaryData = {}) {
   const meta = SCHEMA_META[schemaKey];
@@ -1404,28 +1453,28 @@ function normalizeSchema(schemaKey, raw = {}, reportData = {}, summaryData = {})
   const fallbackForScriptOnly =
     schemaKey === "script" && !Object.keys(raw || {}).length
       ? {
-        total: reportData?.summary?.totalScripts || 0,
-        stageCounts: summaryData?.stageCounts || {},
-        published: summaryData?.published || {},
-        blocked: summaryData?.blocked || {},
-        approval: {
-          Pending: summaryData?.writerMetrics
-            ? summaryData.writerMetrics.reduce((acc, row) => acc + n(row.pendingReview), 0)
-            : 0,
-          Approved: summaryData?.writerMetrics
-            ? summaryData.writerMetrics.reduce((acc, row) => acc + n(row.approved), 0)
-            : 0,
-          Rewrite: summaryData?.writerMetrics
-            ? summaryData.writerMetrics.reduce((acc, row) => acc + n(row.rewrite), 0)
-            : 0,
-          "On Hold": summaryData?.writerMetrics
-            ? summaryData.writerMetrics.reduce((acc, row) => acc + n(row.onHold), 0)
-            : 0,
-          Rejected: summaryData?.writerMetrics
-            ? summaryData.writerMetrics.reduce((acc, row) => acc + n(row.rejected), 0)
-            : 0,
-        },
-      }
+          total: reportData?.summary?.totalScripts || 0,
+          stageCounts: summaryData?.stageCounts || {},
+          published: summaryData?.published || {},
+          blocked: summaryData?.blocked || {},
+          approval: {
+            Pending: summaryData?.writerMetrics
+              ? summaryData.writerMetrics.reduce((acc, row) => acc + n(row.pendingReview), 0)
+              : 0,
+            Approved: summaryData?.writerMetrics
+              ? summaryData.writerMetrics.reduce((acc, row) => acc + n(row.approved), 0)
+              : 0,
+            Rewrite: summaryData?.writerMetrics
+              ? summaryData.writerMetrics.reduce((acc, row) => acc + n(row.rewrite), 0)
+              : 0,
+            "On Hold": summaryData?.writerMetrics
+              ? summaryData.writerMetrics.reduce((acc, row) => acc + n(row.onHold), 0)
+              : 0,
+            Rejected: summaryData?.writerMetrics
+              ? summaryData.writerMetrics.reduce((acc, row) => acc + n(row.rejected), 0)
+              : 0,
+          },
+        }
       : raw || {};
 
   const stageCounts = fallbackForScriptOnly.stageCounts || {};
@@ -1434,35 +1483,38 @@ function normalizeSchema(schemaKey, raw = {}, reportData = {}, summaryData = {})
   const blocked = fallbackForScriptOnly.blocked || {};
 
   const start = n(stageCounts[meta.startStage]);
-  const shootPending = n(fallbackForScriptOnly?.pipeline?.shootPending ?? stageCounts["Shoot Pending"]);
-  const cutPending = n(fallbackForScriptOnly?.pipeline?.cutPending ?? stageCounts["Cut Pending"]);
-  const editPending = n(fallbackForScriptOnly?.pipeline?.editPending ?? stageCounts["Edit Pending"]);
-  const postPending = n(fallbackForScriptOnly?.pipeline?.postPending ?? stageCounts["Post"]);
+  const shootPending = n(
+    fallbackForScriptOnly?.pipeline?.shootPending ?? stageCounts["Shoot Pending"]
+  );
+  const cutPending = n(
+    fallbackForScriptOnly?.pipeline?.cutPending ?? stageCounts["Cut Pending"]
+  );
+  const editPending = n(
+    fallbackForScriptOnly?.pipeline?.editPending ?? stageCounts["Edit Pending"]
+  );
+  const postPending = n(
+    fallbackForScriptOnly?.pipeline?.postPending ?? stageCounts["Post"]
+  );
   const buffer = n(
     fallbackForScriptOnly?.pipeline?.buffer ??
-    fallbackForScriptOnly?.bufferCount ??
-    blocked.total
+      fallbackForScriptOnly?.bufferCount ??
+      blocked.total
   );
 
   const pendingApproval = n(
-    fallbackForScriptOnly.pendingApproval ??
-    approval.Pending ??
-    approval.pending ??
-    start
+    fallbackForScriptOnly.pendingApproval ?? approval.Pending ?? approval.pending ?? start
   );
 
   const total = n(
     fallbackForScriptOnly.total ??
-    fallbackForScriptOnly.totalItems ??
-    fallbackForScriptOnly.count
+      fallbackForScriptOnly.totalItems ??
+      fallbackForScriptOnly.count
   );
 
   const posted = n(published.posted ?? fallbackForScriptOnly.posted);
   const usedInAds = n(published.usedInAds ?? fallbackForScriptOnly.usedInAds);
   const completed = n(
-    fallbackForScriptOnly.completed ??
-    published.total ??
-    posted + usedInAds
+    fallbackForScriptOnly.completed ?? published.total ?? posted + usedInAds
   );
 
   return {
@@ -1546,7 +1598,7 @@ function normalizeDashboard(reportData = {}, summaryData = {}) {
       value: hasMultiSchema
         ? schemas.reduce((acc, s) => acc + n(s.pipeline.editPending), 0)
         : n(summaryData?.stageCounts?.["Edit Pending"]),
-      Icon: EditIcon,
+      Icon: EditStageIcon,
       color: BRAND.purple,
       bg: BRAND.purpleBg,
       subtitle: "Waiting for edit work",
@@ -1637,71 +1689,92 @@ function normalizeDashboard(reportData = {}, summaryData = {}) {
 export default function ReportPage() {
   const [reportData, setReportData] = useState({});
   const [summaryData, setSummaryData] = useState({});
-  const [loading, setLoading] = useState(true);
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [snack, setSnack] = useState({ open: false, msg: "", severity: "success" });
 
   const [dateRange, setDateRange] = useState("all");
   const [customStart, setCustomStart] = useState("");
   const [customEnd, setCustomEnd] = useState("");
+
+  const [appliedDateRange, setAppliedDateRange] = useState("all");
+  const [appliedCustomStart, setAppliedCustomStart] = useState("");
+  const [appliedCustomEnd, setAppliedCustomEnd] = useState("");
+
   const [dateAnchor, setDateAnchor] = useState(null);
   const [metricsTab, setMetricsTab] = useState(0);
+
+  const firstLoadRef = useRef(true);
 
   const showSnack = (msg, severity = "success") =>
     setSnack({ open: true, msg, severity });
 
   const dateLabel =
-    dateRange === "custom" && customStart && customEnd
-      ? `${customStart} → ${customEnd}`
-      : DATE_RANGES.find((r) => r.value === dateRange)?.label || "All Time";
+    appliedDateRange === "custom" && appliedCustomStart && appliedCustomEnd
+      ? `${appliedCustomStart} → ${appliedCustomEnd}`
+      : DATE_RANGES.find((r) => r.value === appliedDateRange)?.label || "All Time";
 
   const buildReportParams = useCallback(() => {
     const p = {};
-    if (dateRange !== "all") p.dateRange = dateRange;
-    if (dateRange === "custom" && customStart) p.customStart = customStart;
-    if (dateRange === "custom" && customEnd) p.customEnd = customEnd;
+    if (appliedDateRange !== "all") p.dateRange = appliedDateRange;
+    if (appliedDateRange === "custom" && appliedCustomStart) {
+      p.customStart = appliedCustomStart;
+    }
+    if (appliedDateRange === "custom" && appliedCustomEnd) {
+      p.customEnd = appliedCustomEnd;
+    }
     return p;
-  }, [dateRange, customStart, customEnd]);
+  }, [appliedDateRange, appliedCustomStart, appliedCustomEnd]);
 
   const buildSummaryParams = useCallback(() => {
-    if (!dateRange || dateRange === "all") return {};
+    if (!appliedDateRange || appliedDateRange === "all") return {};
 
     const now = new Date();
     let dateFrom;
     let dateTo;
 
-    if (dateRange === "today") {
+    if (appliedDateRange === "today") {
       dateFrom = dateTo = now.toISOString().split("T")[0];
-    } else if (dateRange === "yesterday") {
+    } else if (appliedDateRange === "yesterday") {
       const d = new Date(now);
       d.setDate(d.getDate() - 1);
       dateFrom = dateTo = d.toISOString().split("T")[0];
-    } else if (dateRange === "last7") {
+    } else if (appliedDateRange === "last7") {
       const d = new Date(now);
       d.setDate(d.getDate() - 6);
       dateFrom = d.toISOString().split("T")[0];
       dateTo = now.toISOString().split("T")[0];
-    } else if (dateRange === "last30") {
+    } else if (appliedDateRange === "last30") {
       const d = new Date(now);
       d.setDate(d.getDate() - 29);
       dateFrom = d.toISOString().split("T")[0];
       dateTo = now.toISOString().split("T")[0];
-    } else if (dateRange === "lastMonth") {
+    } else if (appliedDateRange === "lastMonth") {
       const s = new Date(now.getFullYear(), now.getMonth() - 1, 1);
       const e = new Date(now.getFullYear(), now.getMonth(), 0);
       dateFrom = s.toISOString().split("T")[0];
       dateTo = e.toISOString().split("T")[0];
-    } else if (dateRange === "custom" && customStart && customEnd) {
-      dateFrom = customStart;
-      dateTo = customEnd;
+    } else if (
+      appliedDateRange === "custom" &&
+      appliedCustomStart &&
+      appliedCustomEnd
+    ) {
+      dateFrom = appliedCustomStart;
+      dateTo = appliedCustomEnd;
     }
 
     return dateFrom ? { dateFrom, dateTo } : {};
-  }, [dateRange, customStart, customEnd]);
+  }, [appliedDateRange, appliedCustomStart, appliedCustomEnd]);
 
   const load = useCallback(
-    async (forceFresh = false) => {
-      setLoading(true);
+    async (forceFresh = false, silent = false) => {
       try {
+        if (silent) {
+          setRefreshing(true);
+        } else {
+          setInitialLoading(true);
+        }
+
         const headers = getAuthHeaders();
         const refreshParam = forceFresh ? { refresh: 1 } : {};
 
@@ -1723,14 +1796,17 @@ export default function ReportPage() {
       } catch {
         showSnack("Failed to load dashboard", "error");
       } finally {
-        setLoading(false);
+        setInitialLoading(false);
+        setRefreshing(false);
       }
     },
     [buildReportParams, buildSummaryParams]
   );
 
   useEffect(() => {
-    load(false);
+    const isFirst = firstLoadRef.current;
+    load(false, !isFirst);
+    firstLoadRef.current = false;
   }, [load]);
 
   const dashboard = useMemo(
@@ -1738,7 +1814,7 @@ export default function ReportPage() {
     [reportData, summaryData]
   );
 
-  const summaryDateParams = buildSummaryParams();
+  const summaryDateParams = useMemo(() => buildSummaryParams(), [buildSummaryParams]);
 
   return (
     <Box
@@ -1750,7 +1826,6 @@ export default function ReportPage() {
       }}
     >
       <Box sx={{ maxWidth: 1600, mx: "auto" }}>
-        {/* Header */}
         <Paper
           elevation={0}
           sx={{
@@ -1788,9 +1863,9 @@ export default function ReportPage() {
                 endIcon={<ArrowDownIcon sx={{ fontSize: 15 }} />}
                 onClick={(e) => setDateAnchor(e.currentTarget)}
                 sx={{
-                  borderColor: dateRange !== "all" ? BRAND.blue : BRAND.border,
-                  color: dateRange !== "all" ? BRAND.blue : BRAND.textMuted,
-                  bgcolor: dateRange !== "all" ? BRAND.blueBg : "#fff",
+                  borderColor: appliedDateRange !== "all" ? BRAND.blue : BRAND.border,
+                  color: appliedDateRange !== "all" ? BRAND.blue : BRAND.textMuted,
+                  bgcolor: appliedDateRange !== "all" ? BRAND.blueBg : "#fff",
                   textTransform: "none",
                   fontWeight: 700,
                   fontSize: "0.82rem",
@@ -1808,16 +1883,31 @@ export default function ReportPage() {
 
               <IconButton
                 size="small"
-                onClick={() => load(true)}
+                onClick={() => load(true, true)}
+                disabled={refreshing}
                 sx={{
                   width: 40,
                   height: 40,
                   bgcolor: "#fff",
                   border: `1px solid ${BRAND.border}`,
                   "&:hover": { bgcolor: "#f8fafc" },
+                  "&.Mui-disabled": {
+                    opacity: 0.7,
+                    bgcolor: "#fff",
+                  },
                 }}
               >
-                <RefreshIcon sx={{ fontSize: 18, color: BRAND.textMuted }} />
+                <RefreshIcon
+                  sx={{
+                    fontSize: 18,
+                    color: BRAND.textMuted,
+                    animation: refreshing ? "spin 1s linear infinite" : "none",
+                    "@keyframes spin": {
+                      from: { transform: "rotate(0deg)" },
+                      to: { transform: "rotate(360deg)" },
+                    },
+                  }}
+                />
               </IconButton>
             </Stack>
           </Stack>
@@ -1858,7 +1948,13 @@ export default function ReportPage() {
                   key={r.value}
                   onClick={() => {
                     setDateRange(r.value);
-                    if (r.value !== "custom") setDateAnchor(null);
+
+                    if (r.value !== "custom") {
+                      setAppliedDateRange(r.value);
+                      setAppliedCustomStart("");
+                      setAppliedCustomEnd("");
+                      setDateAnchor(null);
+                    }
                   }}
                   sx={{
                     px: 1.5,
@@ -1916,7 +2012,12 @@ export default function ReportPage() {
                     <Button
                       size="small"
                       variant="contained"
-                      onClick={() => setDateAnchor(null)}
+                      onClick={() => {
+                        setAppliedDateRange("custom");
+                        setAppliedCustomStart(customStart);
+                        setAppliedCustomEnd(customEnd);
+                        setDateAnchor(null);
+                      }}
                       sx={{
                         bgcolor: BRAND.blue,
                         textTransform: "none",
@@ -1934,13 +2035,27 @@ export default function ReportPage() {
           </Popover>
         </Paper>
 
-        {loading ? (
+        {initialLoading ? (
           <Box display="flex" justifyContent="center" py={12}>
             <CircularProgress sx={{ color: BRAND.blue }} size={38} />
           </Box>
         ) : (
           <>
-            {/* Content overview */}
+            {refreshing ? (
+              <LinearProgress
+                sx={{
+                  mb: 2,
+                  borderRadius: 999,
+                  height: 4,
+                  bgcolor: "#e2e8f0",
+                  "& .MuiLinearProgress-bar": {
+                    borderRadius: 999,
+                    bgcolor: BRAND.blue,
+                  },
+                }}
+              />
+            ) : null}
+
             <SectionHeader
               icon={PersonIcon}
               iconColor={BRAND.blue}
@@ -1966,7 +2081,6 @@ export default function ReportPage() {
               ))}
             </Box>
 
-            {/* Workflow overview */}
             <SectionHeader
               icon={WarningIcon}
               iconColor={BRAND.amber}
@@ -1993,7 +2107,6 @@ export default function ReportPage() {
               ))}
             </Box>
 
-            {/* Per schema sections */}
             <SectionHeader
               icon={ScriptIcon}
               iconColor={BRAND.heading}
@@ -2009,7 +2122,6 @@ export default function ReportPage() {
               ))}
             </Grid>
 
-            {/* Team metrics */}
             <Paper elevation={0} sx={{ ...panelSx, overflow: "hidden" }}>
               <Box sx={{ borderBottom: `1px solid ${BRAND.borderSoft}`, px: 3, pt: 2 }}>
                 <SectionHeader
