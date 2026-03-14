@@ -311,7 +311,7 @@ function UploadFileDialog({ open, onClose, script, onUploaded, showSnack }) {
     setLabel("Getting upload URL…");
 
     try {
-      setLabel("Uploading to Wasabi…");
+      setLabel("Uploading...");
       const urls = await uploadFilesToWasabi(selectedFiles, getAuthHeaders(), setProgress);
       setLabel("Saving to database…");
       setProgress(100);

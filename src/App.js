@@ -108,7 +108,7 @@ import AdsIdeationPage from "./Marketing/ads/AdsIdeationPage";
 import AdsShootPage from "./Marketing/ads/AdsShootPage";
 import AdsCutPage from "./Marketing/ads/AdsCutPage";
 import AdsEditPage from "./Marketing/ads/AdsEditPage";
-import AdsPostPage from "./Marketing/ads/AdsPostPage";
+import AdsPostPage from "./Marketing/ads/AdsPostPage"; 
 
 const App = () => {
   return (
@@ -157,7 +157,7 @@ const App = () => {
           <Route path="/Ads/Shoot" element={<AdsShootPage />} />
           <Route path="/Ads/Cut" element={<AdsCutPage />} />
           <Route path="/Ads/Edit" element={<AdsEditPage />} />
-          <Route path="/Ads/Post" element={<AdsPostPage />} />
+          <Route path="/Ads/Post" element={<AdsPostPage />} /> 
 
           <Route
             path="/"

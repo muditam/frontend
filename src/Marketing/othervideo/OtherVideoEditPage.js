@@ -666,7 +666,7 @@ function UploadVideoDialog({
     setLabel("Getting upload URL…");
 
     try {
-      setLabel("Uploading to Wasabi…");
+      setLabel("Uploading…");
       const results = await uploadFilesToWasabi(
         [selectedFile],
         getAuthHeaders(),

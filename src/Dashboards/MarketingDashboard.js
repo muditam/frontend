@@ -2111,7 +2111,7 @@ export default function ReportPage() {
               icon={ScriptIcon}
               iconColor={BRAND.heading}
               iconBg="#e2e8f0"
-              title="Schema-wise Breakdown"
+              title="Category-wise Breakdown"
             />
 
             <Grid container spacing={2} mb={3}>
