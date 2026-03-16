@@ -425,8 +425,11 @@ function PlayerModal({ open, onClose, url, title }) {
         {isVideo ? (
           <Box
             component="video"
+            key={url}
             src={url}
             controls
+            playsInline
+            preload="metadata"
             sx={{
               width: "100%",
               maxHeight: "65vh",
@@ -468,6 +471,7 @@ function PlayerModal({ open, onClose, url, title }) {
               component="a"
               href={url}
               target="_blank"
+              rel="noopener noreferrer"
               variant="contained"
               startIcon={<OpenInNewIcon />}
               sx={{
@@ -863,16 +867,16 @@ function UploadVideoDialog({ open, onClose, script, onUploaded, showSnack, mode 
           )}
 
           <input
-  ref={fileInputRef}
-  type="file"
-  accept="video/*,image/*,.mp4,.mov,.avi,.webm,.mkv,.m4v,.png,.jpg,.jpeg,.webp,.gif"
-  style={{ display: "none" }}
-  onChange={(e) => {
-    const f = e.target.files?.[0];
-    if (f) setSelectedFile(f);
-  }}
-  disabled={uploading}
-/>
+            ref={fileInputRef}
+            type="file"
+            accept="video/*,image/*,.mp4,.mov,.avi,.webm,.mkv,.m4v,.png,.jpg,.jpeg,.webp,.gif"
+            style={{ display: "none" }}
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) setSelectedFile(f);
+            }}
+            disabled={uploading}
+          />
         </Box>
 
         <Divider sx={{ borderColor: "#e5e7eb" }} />
@@ -1317,45 +1321,54 @@ export default function EditPage() {
   const handleDownload = async (url, filename) => {
     const key = extractKey(url);
     if (!key) {
-      window.open(url, "_blank");
+      window.open(url, "_blank", "noopener,noreferrer");
       return;
     }
+
     try {
       showSnack("Preparing download…");
+
+      const finalName = filename || key.split("/").pop() || "file";
+
       const { data } = await axios.get(PRESIGN_DOWN_API, {
-        params: { key },
+        params: {
+          key,
+          filename: finalName,
+          disposition: "attachment",
+        },
         headers: getAuthHeaders(),
         withCredentials: true,
       });
-      const a = Object.assign(document.createElement("a"), {
-        href: data.url,
-        download: filename || key.split("/").pop() || "file",
-      });
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
+
+      window.open(data.url, "_blank", "noopener,noreferrer");
       showSnack("Download started ✅");
     } catch (err) {
       showSnack(err.response?.data?.message || "Download failed", "error");
-      window.open(url, "_blank");
     }
   };
 
   const openPlayer = async (rawUrl, title) => {
     const key = extractKey(rawUrl);
+
     if (!key) {
       setPlayer({ open: true, url: rawUrl, title });
       return;
     }
+
     try {
       const { data } = await axios.get(PRESIGN_DOWN_API, {
-        params: { key },
+        params: {
+          key,
+          filename: key.split("/").pop() || "video.mp4",
+          disposition: "inline",
+        },
         headers: getAuthHeaders(),
         withCredentials: true,
       });
+
       setPlayer({ open: true, url: data.url, title });
-    } catch {
-      setPlayer({ open: true, url: rawUrl, title });
+    } catch (err) {
+      showSnack(err.response?.data?.message || "Unable to open video", "error");
     }
   };
 

@@ -46,6 +46,7 @@ import {
 } from "@mui/icons-material";
 
 const API = "https://muditamleads-14f32a10d7f7.herokuapp.com/api/scripts";
+const PRESIGN_DOWN_API = "https://muditamleads-14f32a10d7f7.herokuapp.com/api/scripts/presign-download";
 
 // ✅ Auth helper — same pattern as other pages
 const getAuthHeaders = () => {
@@ -138,6 +139,18 @@ function htmlToRawText(html = "") {
     return txt.replace(/\n{3,}/g, "\n\n").trim();
   } catch {
     return String(html).replace(/<[^>]*>/g, "").replace(/&nbsp;/g, " ").trim();
+  }
+}
+
+function extractKey(url = "") {
+  try {
+    const pathName = new URL(url).pathname;
+    const parts = pathName.replace(/^\//, "").split("/");
+    parts.shift(); // removes bucket name
+    return parts.join("/");
+  } catch {
+    const m = String(url).match(/https?:\/\/[^/]+\/[^/]+\/(.+?)(\?|$)/);
+    return m ? m[1] : null;
   }
 }
 
@@ -281,7 +294,7 @@ function PlayerModal({ open, onClose, url, title }) {
       </DialogTitle>
       <DialogContent sx={{ pt: 3, pb: 3, px: 3 }}>
         {isVideo ? (
-          <Box component="video" src={url} controls autoPlay={false} sx={{ width: "100%", maxHeight: "65vh", display: "block", borderRadius: 2, bgcolor: "#000", outline: "none" }} />
+          <Box component="video" src={url} controls playsInline autoPlay={false} sx={{ width: "100%", maxHeight: "65vh", display: "block", borderRadius: 2, bgcolor: "#000", outline: "none" }} />
         ) : (
           <Box sx={{ textAlign: "center", py: 8, bgcolor: "#f8fafc", borderRadius: 2, border: "1px dashed #cbd5e1" }}>
             <PlayCircleIcon sx={{ fontSize: 48, color: "#94a3b8", mb: 2, opacity: 0.5 }} />
@@ -681,7 +694,30 @@ export default function PostPage() {
     load();
   }, [load]);
 
-  const openPlayer = (url, title) => setPlayer({ open: true, url, title });
+  const openPlayer = async (rawUrl, title) => {
+  const key = extractKey(rawUrl);
+
+  if (!key) {
+    setPlayer({ open: true, url: rawUrl, title });
+    return;
+  }
+
+  try {
+    const { data } = await axios.get(PRESIGN_DOWN_API, {
+      params: {
+        key,
+        filename: key.split("/").pop() || "video.mp4",
+        disposition: "inline",
+      },
+      headers: getAuthHeaders(),
+      withCredentials: true,
+    });
+
+    setPlayer({ open: true, url: data.url, title });
+  } catch (err) {
+    toast("Unable to open video", "error");
+  }
+};
   const closePlayer = () => setPlayer({ open: false, url: "", title: "" });
 
   // Open reason dialog
