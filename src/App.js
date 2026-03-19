@@ -109,6 +109,8 @@ import AdsShootPage from "./Marketing/ads/AdsShootPage";
 import AdsCutPage from "./Marketing/ads/AdsCutPage";
 import AdsEditPage from "./Marketing/ads/AdsEditPage";
 import AdsPostPage from "./Marketing/ads/AdsPostPage"; 
+import LeadUtmLinkGenerator from "./components/LeadUtmLinkGenerator";
+import UnicommerceOrdersPage from "./components/UnicommerceOrdersPage";
 
 const App = () => {
   return (
@@ -158,6 +160,8 @@ const App = () => {
           <Route path="/Ads/Cut" element={<AdsCutPage />} />
           <Route path="/Ads/Edit" element={<AdsEditPage />} />
           <Route path="/Ads/Post" element={<AdsPostPage />} /> 
+          <Route path="/utmlink-generator" element={<LeadUtmLinkGenerator />} />
+          <Route path="/unicommerce" element={<UnicommerceOrdersPage />} />
 
           <Route
             path="/"

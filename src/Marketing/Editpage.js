@@ -51,9 +51,6 @@ import {
   DoneAll as DoneAllIcon,
 } from "@mui/icons-material";
 
-// ─────────────────────────────────────────────────────────────
-// 🌐 PRODUCTION URLS
-// ─────────────────────────────────────────────────────────────
 const API = "https://muditamleads-14f32a10d7f7.herokuapp.com/api/scripts";
 const EMP_API = "https://muditamleads-14f32a10d7f7.herokuapp.com/api/employees";
 const PRESIGN_API = "https://muditamleads-14f32a10d7f7.herokuapp.com/api/scripts/presign";
@@ -63,10 +60,8 @@ const MANAGER_ROLES = ["admin", "manager", "super-admin", "team-leader"];
 const getCurrentUser = () => JSON.parse(sessionStorage.getItem("user") || "{}");
 const isManagerRole = (role = "") => MANAGER_ROLES.includes(String(role || "").toLowerCase());
 const getAuthHeaders = () => ({ "x-session-user": JSON.stringify(getCurrentUser()) });
+ 
 
-// ─────────────────────────────────────────────────────────────
-// ✅ WASABI PRESIGNED UPLOAD (inlined)
-// ─────────────────────────────────────────────────────────────
 async function getPresignedUrl(filename, contentType, authHeaders) {
   const params = new URLSearchParams({ filename, contentType });
   const res = await fetch(`${PRESIGN_API}?${params}`, {
@@ -660,14 +655,14 @@ function UploadVideoDialog({ open, onClose, script, onUploaded, showSnack, mode 
   const [holdReason, setHoldReason] = useState("");
 
   useEffect(() => {
-    if (!open) return;
-    setSelectedFile(null);
-    setUploadProgress(0);
-    setLabel("");
-    setComment("");
-    setHoldReason("");
-    setEditStatus(script?.editStatus || "Done");
-  }, [open, script]);
+  if (!open) return;
+  setSelectedFile(null);
+  setUploadProgress(0);
+  setLabel("");
+  setComment("");
+  setHoldReason("");
+  setEditStatus("Done");
+}, [open]);
 
   const needsReason = ["On Hold", "Reshoot", "Re-edit"].includes(editStatus);
 
@@ -676,7 +671,7 @@ function UploadVideoDialog({ open, onClose, script, onUploaded, showSnack, mode 
     setUploadProgress(0);
     setLabel("");
     setComment("");
-    setEditStatus(script?.editStatus || "Done");
+    setEditStatus("Done");
     setHoldReason("");
     onClose();
   };

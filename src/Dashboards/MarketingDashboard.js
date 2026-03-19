@@ -48,7 +48,6 @@ import {
   Close as CloseIcon,
   Warning as WarningIcon,
   Refresh as RefreshIcon,
-  AutoAwesome as BufferIcon,
   Person as PersonIcon,
   Create as WriteIcon,
   Block as BlockIcon,
@@ -775,6 +774,178 @@ const WriterItemsDialog = React.memo(function WriterItemsDialog({
   );
 });
 
+const PersonItemsDialog = React.memo(function PersonItemsDialog({
+  open,
+  onClose,
+  personName,
+  field,
+  title,
+  dateParams,
+}) {
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!open || !personName || !field) return;
+
+    setLoading(true);
+    axios
+      .get(`${API}/scripts-by-person`, {
+        params: { name: personName, field, ...dateParams },
+        headers: getAuthHeaders(),
+        withCredentials: true,
+      })
+      .then(({ data }) => setItems(data.items || data.scripts || []))
+      .catch(() => setItems([]))
+      .finally(() => setLoading(false));
+  }, [open, personName, field, dateParams]);
+
+  return (
+    <Dialog
+      open={open}
+      onClose={onClose}
+      maxWidth="lg"
+      fullWidth
+      PaperProps={{
+        sx: {
+          borderRadius: 4,
+          maxHeight: "82vh",
+          border: `1px solid ${BRAND.border}`,
+        },
+      }}
+    >
+      <DialogTitle
+        sx={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          pb: 1,
+        }}
+      >
+        <Box>
+          <Typography sx={{ fontWeight: 800, fontSize: "1rem", color: BRAND.heading }}>
+            {title} — <span style={{ color: BRAND.blue }}>{personName}</span>
+          </Typography>
+          <Typography sx={{ fontSize: "0.75rem", color: BRAND.textLight, mt: 0.35 }}>
+            {loading
+              ? "Loading…"
+              : `${items.length} record${items.length !== 1 ? "s" : ""}`}
+          </Typography>
+        </Box>
+
+        <IconButton onClick={onClose} size="small">
+          <CloseIcon fontSize="small" />
+        </IconButton>
+      </DialogTitle>
+
+      <Divider />
+
+      <DialogContent sx={{ p: 0, overflow: "auto" }}>
+        {loading ? (
+          <Box display="flex" justifyContent="center" py={6}>
+            <CircularProgress size={26} sx={{ color: BRAND.blue }} />
+          </Box>
+        ) : !items.length ? (
+          <Typography sx={{ textAlign: "center", py: 6, color: BRAND.textLight }}>
+            No records found
+          </Typography>
+        ) : (
+          <Table stickyHeader size="small">
+            <TableHead>
+              <TableRow>
+                <TableCell sx={tableHeadCellSx}>#</TableCell>
+                <TableCell sx={tableHeadCellSx}>ID</TableCell>
+                <TableCell sx={tableHeadCellSx}>Type</TableCell>
+                <TableCell sx={tableHeadCellSx}>Stage</TableCell>
+                <TableCell sx={tableHeadCellSx}>Shoot Done By</TableCell>
+                <TableCell sx={tableHeadCellSx}>Shoot Done At</TableCell>
+                <TableCell sx={tableHeadCellSx}>Cut Done By</TableCell>
+                <TableCell sx={tableHeadCellSx}>Cut Done At</TableCell>
+                <TableCell sx={tableHeadCellSx}>Cut Uploaded By</TableCell>
+                <TableCell sx={tableHeadCellSx}>Created</TableCell>
+              </TableRow>
+            </TableHead>
+
+            <TableBody>
+              {items.map((row, i) => (
+                <TableRow
+                  key={row._id || i}
+                  hover
+                  sx={{
+                    "& td": {
+                      fontSize: "0.82rem",
+                      borderBottom: `1px solid ${BRAND.borderSoft}`,
+                      py: 1.2,
+                    },
+                    "&:hover": { bgcolor: "#fbfdff" },
+                  }}
+                >
+                  <TableCell sx={{ color: BRAND.textLight, fontWeight: 700 }}>
+                    {i + 1}
+                  </TableCell>
+
+                  <TableCell>
+                    <Typography
+                      sx={{
+                        fontWeight: 800,
+                        color: BRAND.blue,
+                        fontSize: "0.82rem",
+                        fontFamily: "monospace",
+                      }}
+                    >
+                      {getItemId(row)}
+                    </Typography>
+                  </TableCell>
+
+                  <TableCell>
+                    <Chip
+                      label={getItemType(row)}
+                      size="small"
+                      sx={softChipSx("#f1f5f9", "#475569")}
+                    />
+                  </TableCell>
+
+                  <TableCell>
+                    <Chip
+                      label={row.stage || "—"}
+                      size="small"
+                      sx={softChipSx(stageColor(row.stage), "#fff")}
+                    />
+                  </TableCell>
+
+                  <TableCell>{row.shootDoneBy || "—"}</TableCell>
+                  <TableCell sx={{ whiteSpace: "nowrap" }}>{fmt(row.shootDoneAt)}</TableCell>
+                  <TableCell>{row.cutDoneBy || "—"}</TableCell>
+                  <TableCell sx={{ whiteSpace: "nowrap" }}>{fmt(row.cutDoneAt)}</TableCell>
+                  <TableCell>{row.cutUploadedBy || "—"}</TableCell>
+                  <TableCell sx={{ whiteSpace: "nowrap" }}>{fmt(row.createdAt)}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </DialogContent>
+
+      <DialogActions sx={{ px: 3, py: 1.5, borderTop: `1px solid ${BRAND.border}` }}>
+        <Button
+          onClick={onClose}
+          variant="outlined"
+          size="small"
+          sx={{
+            textTransform: "none",
+            color: BRAND.textMuted,
+            borderColor: BRAND.border,
+            fontWeight: 700,
+            borderRadius: 2,
+          }}
+        >
+          Close
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+});
+
 const WriterMetricsTable = React.memo(function WriterMetricsTable({
   metrics,
   dateParams,
@@ -1020,6 +1191,220 @@ const WriterMetricsTable = React.memo(function WriterMetricsTable({
         onClose={() => setDialog({ open: false, name: "", filter: "" })}
         writerName={dialog.name}
         filterType={dialog.filter}
+        dateParams={dateParams}
+      />
+    </>
+  );
+});
+
+const VideographerMetricsTable = React.memo(function VideographerMetricsTable({
+  metrics,
+  dateParams,
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const [dialog, setDialog] = useState({
+    open: false,
+    name: "",
+    field: "",
+    title: "",
+  });
+
+  const visible = expanded ? metrics : metrics.slice(0, 6);
+
+  if (!metrics?.length) {
+    return (
+      <Typography sx={{ px: 3, py: 4, color: BRAND.textLight }}>
+        No videographer metrics available.
+      </Typography>
+    );
+  }
+
+  return (
+    <>
+      <Paper elevation={0} sx={{ borderRadius: 0, overflow: "hidden", bgcolor: "#fff" }}>
+        <Box sx={{ overflow: "auto" }}>
+          <Table size="small">
+            <TableHead>
+              <TableRow>
+                <TableCell sx={tableHeadCellSx}>Videographer</TableCell>
+                <TableCell sx={tableHeadCellSx} align="center">
+                  Shoot Done
+                </TableCell>
+                <TableCell sx={tableHeadCellSx} align="center">
+                  Cut Done
+                </TableCell>
+                <TableCell sx={tableHeadCellSx} align="center">
+                  Cut Uploaded
+                </TableCell>
+                <TableCell sx={tableHeadCellSx} align="center">
+                  Total Actions
+                </TableCell>
+              </TableRow>
+            </TableHead>
+
+            <TableBody>
+              {visible.map((person, i) => (
+                <TableRow
+                  key={person.name || i}
+                  hover
+                  sx={{
+                    "& td": {
+                      borderBottom: `1px solid ${BRAND.borderSoft}`,
+                      py: 1.25,
+                      fontSize: "0.83rem",
+                    },
+                    "&:hover": { bgcolor: "#fbfdff" },
+                  }}
+                >
+                  <TableCell>
+                    <Stack direction="row" alignItems="center" gap={1}>
+                      <Box
+                        sx={{
+                          width: 30,
+                          height: 30,
+                          borderRadius: "50%",
+                          bgcolor: AVATAR_COLORS[i % AVATAR_COLORS.length],
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          flexShrink: 0,
+                        }}
+                      >
+                        <Typography sx={{ fontSize: "0.66rem", fontWeight: 800, color: "#fff" }}>
+                          {(person.name || "?")
+                            .split(" ")
+                            .map((x) => x[0])
+                            .join("")
+                            .toUpperCase()
+                            .slice(0, 2)}
+                        </Typography>
+                      </Box>
+
+                      <Typography
+                        sx={{ fontWeight: 700, color: BRAND.heading, fontSize: "0.83rem" }}
+                      >
+                        {person.name || "—"}
+                      </Typography>
+                    </Stack>
+                  </TableCell>
+
+                  <TableCell align="center">
+                    <Button
+                      size="small"
+                      variant="text"
+                      onClick={() =>
+                        setDialog({
+                          open: true,
+                          name: person.name,
+                          field: "shootDoneBy",
+                          title: "Shoot Done Items",
+                        })
+                      }
+                      sx={{
+                        fontWeight: 900,
+                        color: BRAND.green,
+                        fontSize: "0.83rem",
+                        p: 0,
+                        minWidth: 0,
+                        "&:hover": { textDecoration: "underline", bgcolor: "transparent" },
+                      }}
+                    >
+                      {person.shootDone ?? 0}
+                    </Button>
+                  </TableCell>
+
+                  <TableCell align="center">
+                    <Button
+                      size="small"
+                      variant="text"
+                      onClick={() =>
+                        setDialog({
+                          open: true,
+                          name: person.name,
+                          field: "cutDoneBy",
+                          title: "Cut Done Items",
+                        })
+                      }
+                      sx={{
+                        fontWeight: 900,
+                        color: BRAND.orange,
+                        fontSize: "0.83rem",
+                        p: 0,
+                        minWidth: 0,
+                        "&:hover": { textDecoration: "underline", bgcolor: "transparent" },
+                      }}
+                    >
+                      {person.cutDone ?? 0}
+                    </Button>
+                  </TableCell>
+
+                  <TableCell align="center">
+                    <Button
+                      size="small"
+                      variant="text"
+                      onClick={() =>
+                        setDialog({
+                          open: true,
+                          name: person.name,
+                          field: "cutUploadedBy",
+                          title: "Cut Uploaded Items",
+                        })
+                      }
+                      sx={{
+                        fontWeight: 900,
+                        color: BRAND.blue,
+                        fontSize: "0.83rem",
+                        p: 0,
+                        minWidth: 0,
+                        "&:hover": { textDecoration: "underline", bgcolor: "transparent" },
+                      }}
+                    >
+                      {person.cutUploaded ?? 0}
+                    </Button>
+                  </TableCell>
+
+                  <TableCell align="center">
+                    <Typography sx={{ fontWeight: 900, color: BRAND.heading }}>
+                      {person.totalActions ?? 0}
+                    </Typography>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </Box>
+
+        {metrics.length > 6 ? (
+          <Box
+            sx={{
+              px: 3,
+              py: 1.5,
+              borderTop: `1px solid ${BRAND.borderSoft}`,
+              textAlign: "center",
+            }}
+          >
+            <Button
+              size="small"
+              onClick={() => setExpanded((v) => !v)}
+              sx={{
+                textTransform: "none",
+                color: BRAND.textMuted,
+                fontWeight: 700,
+                fontSize: "0.82rem",
+              }}
+            >
+              {expanded ? "Show less" : `Show all ${metrics.length} videographers`}
+            </Button>
+          </Box>
+        ) : null}
+      </Paper>
+
+      <PersonItemsDialog
+        open={dialog.open}
+        onClose={() => setDialog({ open: false, name: "", field: "", title: "" })}
+        personName={dialog.name}
+        field={dialog.field}
+        title={dialog.title}
         dateParams={dateParams}
       />
     </>
@@ -1604,7 +1989,7 @@ function normalizeDashboard(reportData = {}, summaryData = {}) {
       subtitle: "Waiting for edit work",
     },
     {
-      label: "Post Pending",
+      label: "Post Pending / Buffer",
       value: hasMultiSchema
         ? schemas.reduce((acc, s) => acc + n(s.pipeline.postPending), 0)
         : n(summaryData?.stageCounts?.Post),
@@ -1612,24 +1997,6 @@ function normalizeDashboard(reportData = {}, summaryData = {}) {
       color: BRAND.red,
       bg: BRAND.redBg,
       subtitle: "Waiting for post / publish",
-    },
-    {
-      label: "Buffer",
-      value: hasMultiSchema
-        ? schemas.reduce((acc, s) => acc + n(s.pipeline.buffer), 0)
-        : n(summaryData?.bufferCount ?? summaryData?.blocked?.total),
-      Icon: BufferIcon,
-      color: "#6b7280",
-      bg: "#f3f4f6",
-      subtitle: "Blocked / hold / rework zone",
-    },
-    {
-      label: "No Action 3+ Days",
-      value: n(summaryData?.pendingWithoutAction),
-      Icon: WarningIcon,
-      color: BRAND.amber,
-      bg: "#fffbeb",
-      subtitle: "Stale pending records",
     },
   ];
 
@@ -1682,6 +2049,7 @@ function normalizeDashboard(reportData = {}, summaryData = {}) {
     workflowCards,
     schemas,
     writerMetrics: summaryData?.writerMetrics || [],
+    videographerMetrics: summaryData?.videographerMetrics || [],
     editorMetrics: summaryData?.editorMetrics || [],
   };
 }
@@ -2086,7 +2454,7 @@ export default function ReportPage() {
               iconColor={BRAND.amber}
               iconBg="#fffbeb"
               title="Workflow Overview"
-              subtitle="Pending workload, post pending, and buffer visible clearly"
+              subtitle="Pending workload across key workflow stages"
             />
 
             <Box
@@ -2095,8 +2463,7 @@ export default function ReportPage() {
                 gridTemplateColumns: {
                   xs: "1fr",
                   sm: "repeat(2, 1fr)",
-                  lg: "repeat(3, 1fr)",
-                  xl: "repeat(6, 1fr)",
+                  lg: "repeat(4, 1fr)",
                 },
                 gap: 2,
                 mb: 3,
@@ -2153,6 +2520,7 @@ export default function ReportPage() {
                   }}
                 >
                   <Tab label={`Writers (${dashboard.writerMetrics.length})`} />
+                  <Tab label={`Videographers (${dashboard.videographerMetrics.length})`} />
                   <Tab label={`Editors (${dashboard.editorMetrics.length})`} />
                 </Tabs>
               </Box>
@@ -2161,6 +2529,11 @@ export default function ReportPage() {
                 {metricsTab === 0 ? (
                   <WriterMetricsTable
                     metrics={dashboard.writerMetrics}
+                    dateParams={summaryDateParams}
+                  />
+                ) : metricsTab === 1 ? (
+                  <VideographerMetricsTable
+                    metrics={dashboard.videographerMetrics}
                     dateParams={summaryDateParams}
                   />
                 ) : (
