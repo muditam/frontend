@@ -30,7 +30,6 @@ import DownloadIcon from "@mui/icons-material/Download";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
 import { CircularProgress } from "@mui/material";
 import JumpIcon from "@mui/icons-material/KeyboardDoubleArrowDown";
-import { Today, EventBusy, EventAvailable, FiberNew } from "@mui/icons-material";
 import Popover from "@mui/material/Popover";
 import { Badge } from "@mui/material";
 import axios from "axios";
@@ -39,7 +38,7 @@ import axios from "axios";
  * Returns a label based on the createdAt date:
  * - "Today" if created today
  * - "Yesterday" if created yesterday
- * - For 2-7 days ago, returns the weekday name (e.g., "Monday")
+ * - For 2-7 days ago, returns the weekday name
  * - If older than 7 days, returns full date as dd/MM/yyyy
  */
 const getCreatedAtLabel = (createdAt) => {
@@ -61,13 +60,6 @@ const getCreatedAtLabel = (createdAt) => {
   return `${day}/${month}/${year}`;
 };
 
-/**
- * Computes the follow-up tag based on the lead's followUpDate:
- * - "Missed" if date is in the past 
- * - "Today" if the date is today
- * - "Tomorrow" if the date is tomorrow
- * - "Later" if the date is further in the future
- */
 const getFollowUpTag = (followUpDate) => {
   if (!followUpDate) return "";
   const today = new Date();
@@ -81,15 +73,14 @@ const getFollowUpTag = (followUpDate) => {
   return "Later";
 };
 
-/**
- * Extracts initials from a full name.
- * Uses the first letter of the first word and the first letter of the last word.
- */
 const getInitials = (name) => {
   if (!name) return "NA";
   const parts = name.split(" ");
   if (parts.length === 1) return parts[0].charAt(0).toUpperCase();
-  return parts[0].charAt(0).toUpperCase() + parts[parts.length - 1].charAt(0).toUpperCase();
+  return (
+    parts[0].charAt(0).toUpperCase() +
+    parts[parts.length - 1].charAt(0).toUpperCase()
+  );
 };
 
 const leadSourceOptions = [
@@ -101,14 +92,20 @@ const leadSourceOptions = [
   "Incoming Call",
   "Lead Form",
   "Online Store",
-  "Others", 
+  "Others",
   "Rampwin",
   "Reference",
   "Whatsapp",
   "Degpeg",
 ];
 
-const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId, reloadTrigger }) => {
+const LeadList = ({
+  employees,
+  setLocation,
+  onSelectCustomer,
+  selectedCustomerId,
+  reloadTrigger,
+}) => {
   const [leadData, setLeadData] = useState({
     name: "",
     phone: "",
@@ -119,39 +116,37 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
     followUpDate: new Date().toISOString().split("T")[0],
     leadSource: "",
   });
-  const [open, setOpen] = useState(false); 
+
+  const [open, setOpen] = useState(false);
   const [error, setError] = useState("");
   const [customers, setCustomers] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [locations, setLocations] = useState([]);
 
-  // Filter status: "", "Open", "Won", or "Lost"
+  // "", "Open", "Won", "Lost"
   const [filterStatus, setFilterStatus] = useState("");
 
-  // in LeadList:
   const [yesterdayChecked, setYesterdayChecked] = useState(false);
   const [dayBeforeChecked, setDayBeforeChecked] = useState(false);
 
   const [jumpAnchorEl, setJumpAnchorEl] = useState(null);
   const [jumpInput, setJumpInput] = useState("");
 
-  // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
-  const limit = 20; // Number of leads per page 
+  const limit = 20;
 
   const [filterMenuAnchorEl, setFilterMenuAnchorEl] = useState(null);
   const [totalMatchingCustomers, setTotalMatchingCustomers] = useState(0);
   const [selectedFilters, setSelectedFilters] = useState([]);
-  const filterOptions = [ 
+  const filterOptions = [
     "CONS Scheduled",
     "CONS Done",
     "CNP",
-    "On Follow Up", 
+    "On Follow Up",
     "Call Back Later",
   ];
 
-  const handleFilterClick = (e) => setFilterMenuAnchorEl(e.currentTarget);
   const handleFilterClose = () => setFilterMenuAnchorEl(null);
   const handleFilterToggle = (opt) => {
     setSelectedFilters((prev) =>
@@ -160,7 +155,7 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
   };
 
   const [sortMenuAnchorEl, setSortMenuAnchorEl] = useState(null);
-  const [sortOrder, setSortOrder] = useState(null); // 'asc' | 'desc'
+  const [sortOrder, setSortOrder] = useState(null);
   const handleSortClick = (e) => setSortMenuAnchorEl(e.currentTarget);
   const handleSortClose = () => setSortMenuAnchorEl(null);
   const handleSortSelect = (order) => {
@@ -182,26 +177,50 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
   const [wonCount, setWonCount] = useState(0);
   const [lostCount, setLostCount] = useState(0);
 
-  const [activeTagFilters, setActiveTagFilters] = useState([]);
   const [tagCounts, setTagCounts] = useState({});
-
 
   const [jumpMode, setJumpMode] = useState(false);
   const [jumpOffset, setJumpOffset] = useState(0);
 
   const suppressFetchRef = useRef(false);
 
-  // Memoize loggedInUser to prevent re-renders from recreating the object
   const loggedInUser = useMemo(() => {
     return JSON.parse(sessionStorage.getItem("user"));
   }, []);
 
-  // Fetch locations from public API
+  const isManager = loggedInUser?.role === "Manager";
+
+  const isWonLead = (customer) => customer?.leadStatus === "Sales Done";
+
+  const visibleCustomers = useMemo(() => {
+    return customers.filter((customer) => {
+      const wonLead = isWonLead(customer);
+
+      // By default or any non-Won status, hide Won leads from list
+      if (filterStatus !== "Won" && wonLead) {
+        return false;
+      }
+
+      // Defensive fallback: if Missed is selected, never show Won in Missed list
+      if (selectedFilters.includes("Missed") && wonLead) {
+        return false;
+      }
+
+      return true;
+    });
+  }, [customers, filterStatus, selectedFilters]);
+
   useEffect(() => {
     async function fetchLocations() {
       try {
-        const citiesRes = await axios.post("https://countriesnow.space/api/v0.1/countries/cities", { country: "India" });
-        const statesRes = await axios.post("https://countriesnow.space/api/v0.1/countries/states", { country: "India" });
+        const citiesRes = await axios.post(
+          "https://countriesnow.space/api/v0.1/countries/cities",
+          { country: "India" }
+        );
+        const statesRes = await axios.post(
+          "https://countriesnow.space/api/v0.1/countries/states",
+          { country: "India" }
+        );
         const cities = citiesRes.data.data;
         const states = statesRes.data.data.states.map((s) => s.name);
         const combined = Array.from(new Set([...cities, ...states]));
@@ -218,24 +237,47 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
     setLeadData({ ...leadData, [name]: value });
   };
 
-  // 1. Add this utility function INSIDE LeadList component (or import if you prefer)
   const calculateCompletionPercent = (customer) => {
-    // Define required fields from each section for completeness check
     const presalesFields = [
-      "leadStatus", "hba1c", "lastTestDone", "fastingSugar", "ppSugar",
-      "durationOfDiabetes", "gender", "dietType", "weight", "sittingTime",
-      "exerciseRoutine", "outsideMeals", "timeOfSleep", "assignExpert", "doctorCons",
+      "leadStatus",
+      "hba1c",
+      "lastTestDone",
+      "fastingSugar",
+      "ppSugar",
+      "durationOfDiabetes",
+      "gender",
+      "dietType",
+      "weight",
+      "sittingTime",
+      "exerciseRoutine",
+      "outsideMeals",
+      "timeOfSleep",
+      "assignExpert",
+      "doctorCons",
     ];
     const consultationFields = [
-      "currentMedications", "sideEffects", "suddenSugarFluctuations", "symptoms",
-      "familyHistory", "otherConditions", "stressLevel", "monitorBloodSugar",
-      "painInLiver", "gutIssues", "energyLevels", "sleepQuality", "sugarCravings",
+      "currentMedications",
+      "sideEffects",
+      "suddenSugarFluctuations",
+      "symptoms",
+      "familyHistory",
+      "otherConditions",
+      "stressLevel",
+      "monitorBloodSugar",
+      "painInLiver",
+      "gutIssues",
+      "energyLevels",
+      "sleepQuality",
+      "sugarCravings",
     ];
     const closingFields = [
-      "expectedResult", "preferredDiet", "courseDuration", "freebie", "bloodTest"
+      "expectedResult",
+      "preferredDiet",
+      "courseDuration",
+      "freebie",
+      "bloodTest",
     ];
 
-    // Helper: count how many fields are filled (non-empty, non-null)
     const countFilledFields = (obj, fields) => {
       if (!obj) return 0;
       let filled = 0;
@@ -255,10 +297,14 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
     const closing = customer.closing || {};
 
     const presalesFilled = countFilledFields(presales, presalesFields);
-    const consultationFilled = countFilledFields(consultation, consultationFields);
+    const consultationFilled = countFilledFields(
+      consultation,
+      consultationFields
+    );
     const closingFilled = countFilledFields(closing, closingFields);
 
-    const totalFields = presalesFields.length + consultationFields.length + closingFields.length;
+    const totalFields =
+      presalesFields.length + consultationFields.length + closingFields.length;
     const filledFields = presalesFilled + consultationFilled + closingFilled;
 
     return Math.round((filledFields / totalFields) * 100);
@@ -279,7 +325,11 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
         params.userName = loggedInUser.fullName;
       }
 
-      const res = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/customers/counts", { params }); 
+      const res = await axios.get(
+        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/customers/counts",
+        { params }
+      );
+
       setOpenCount(res.data.openCount || 0);
       setWonCount(res.data.wonCount || 0);
       setLostCount(res.data.lostCount || 0);
@@ -295,46 +345,62 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
     }
   };
 
-
-  // When adding a new lead, check for duplicate phone then post the data.
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      if (!leadData.name || !leadData.phone || !leadData.age || !leadData.leadSource) {
+      if (
+        !leadData.name ||
+        !leadData.phone ||
+        !leadData.age ||
+        !leadData.leadSource
+      ) {
         setError("All fields are required.");
         return;
       }
-      // Duplicate check: if phone number already exists, show error
-      const duplicateCheck = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/check-duplicate", {
-        params: { contactNumber: leadData.phone },
-      });
+
+      const duplicateCheck = await axios.get(
+        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/check-duplicate",
+        {
+          params: { contactNumber: leadData.phone },
+        }
+      );
+
       if (duplicateCheck.data.exists) {
         setError("Phone number already exists.");
         return;
       }
+
       let ld = new Date();
       if (yesterdayChecked) {
         ld.setDate(ld.getDate() - 1);
       } else if (dayBeforeChecked) {
         ld.setDate(ld.getDate() - 2);
       }
+
       const payload = {
         ...leadData,
         leadDate: ld.toISOString(),
       };
 
-      await axios.post("https://muditamleads-14f32a10d7f7.herokuapp.com/api/customers", payload);
+      await axios.post(
+        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/customers",
+        payload
+      );
+
       setError("");
       setOpen(false);
-      // Reload the first page after a new lead is added (with search filter if any)
       fetchCustomers(1, true, searchQuery);
     } catch (err) {
       setError("Error saving customer data.");
     }
   };
 
-  // Fetch customers based on role, page, and search value
-  const fetchCustomers = async (page = 1, reset = false, searchValue = "", skip = null) => {
+  const fetchCustomers = async (
+    page = 1,
+    reset = false,
+    searchValue = "",
+    skip = null
+  ) => {
     setLoading(true);
     try {
       const filters = searchValue
@@ -349,7 +415,7 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
         tags: JSON.stringify(selectedFilters),
         sortBy: sortOrder,
         userRole: loggedInUser?.role,
-        userId: loggedInUser?.id || loggedInUser?._id, 
+        userId: loggedInUser?.id || loggedInUser?._id,
         userName: loggedInUser?.fullName,
       };
 
@@ -365,21 +431,23 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
         params.skip = skip;
       }
 
-      const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/customers", {
-        params,
-      });
+      const response = await axios.get(
+        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/customers",
+        {
+          params,
+        }
+      );
 
       if (reset) {
-        setJumpOffset(skip || 0); // Important: Set the base offset only on reset
+        setJumpOffset(skip || 0);
         setCustomers(response.data.customers);
         setTotalMatchingCustomers(response.data.totalCustomers);
       } else {
-        setCustomers(prev => [...prev, ...response.data.customers]);
+        setCustomers((prev) => [...prev, ...response.data.customers]);
       }
 
       setTotalPages(response.data.totalPages);
       setCurrentPage(response.data.currentPage);
-
     } catch (err) {
       console.error("Error fetching customers:", err);
     } finally {
@@ -387,17 +455,15 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
     }
   };
 
-
-
   useEffect(() => {
     fetchCounts();
   }, [filterStatus, filterAgent]);
 
   useEffect(() => {
     if (suppressFetchRef.current) {
-    suppressFetchRef.current = false;
-    return; // Skip fetch on lead selection
-  }
+      suppressFetchRef.current = false;
+      return;
+    }
 
     if (!jumpMode) {
       setJumpOffset(0);
@@ -414,7 +480,6 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
     filterAgent,
   ]);
 
-
   useEffect(() => {
     if (jumpMode && jumpOffset >= 0) {
       fetchCustomers(1, true, searchQuery, jumpOffset);
@@ -427,15 +492,22 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
     }
   }, [loading]);
 
-
   const handleScroll = () => {
     const container = listRef.current;
     if (!container) return;
     const { scrollTop, scrollHeight, clientHeight } = container;
-    if (scrollTop + clientHeight >= scrollHeight - 50 && !loadingMore && currentPage < totalPages) {
+    if (
+      scrollTop + clientHeight >= scrollHeight - 50 &&
+      !loadingMore &&
+      currentPage < totalPages
+    ) {
       setLoadingMore(true);
-      fetchCustomers(currentPage + 1, false, searchQuery, jumpOffset + currentPage * limit)
-        .finally(() => setLoadingMore(false));
+      fetchCustomers(
+        currentPage + 1,
+        false,
+        searchQuery,
+        jumpOffset + currentPage * limit
+      ).finally(() => setLoadingMore(false));
     }
   };
 
@@ -443,50 +515,32 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
     try {
       const params = new URLSearchParams();
 
-      if (searchQuery) params.append("filters", JSON.stringify({ search: searchQuery }));
+      if (searchQuery)
+        params.append("filters", JSON.stringify({ search: searchQuery }));
       if (filterStatus) params.append("status", filterStatus);
-      if (selectedFilters.length > 0) params.append("tags", JSON.stringify(selectedFilters));
-      if (filterAgent.length > 0) params.append("assignedTo", filterAgent.join(","));
+      if (selectedFilters.length > 0)
+        params.append("tags", JSON.stringify(selectedFilters));
+      if (filterAgent.length > 0)
+        params.append("assignedTo", filterAgent.join(","));
       if (filterDate) params.append("createdAt", filterDate);
 
-      const url = `http://localhost:5001/api/customers/export-csv?${params.toString()}`;    
- 
+      const url = `http://localhost:5001/api/customers/export-csv?${params.toString()}`;
+
       const link = document.createElement("a");
       link.href = url;
       link.setAttribute("download", "customers.csv");
       document.body.appendChild(link);
-      link.click(); 
+      link.click();
       document.body.removeChild(link);
     } catch (error) {
       console.error("Error triggering CSV download:", error);
       alert("Failed to download CSV.");
-    } 
+    }
   };
-
- 
-  const openStatuses = [
-    "New Lead",
-    "CONS Scheduled",
-    "CONS Done",
-    "Call Back Later",
-    "On Follow Up",
-    "CNP",
-    "Switch Off",
-  ];
-  const lostStatuses = [
-    "General Query",
-    "Fake Lead",
-    "Invalid Number",
-    "Not Interested",
-    "Ordered from Other Sources",
-    "Budget issue",
-  ];
-
 
   const handleMoreClick = (event) => {
     setMoreAnchorEl(event.currentTarget);
   };
-
 
   const handleMoreClose = () => {
     setMoreAnchorEl(null);
@@ -500,7 +554,14 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
     !!filterDate;
 
   return (
-    <Box sx={{ width: "100%", height: "100%", display: "flex", flexDirection: "column" }}>
+    <Box
+      sx={{
+        width: "100%",
+        height: "100%",
+        display: "flex",
+        flexDirection: "column",
+      }}
+    >
       <Box
         sx={{
           backgroundColor: "black",
@@ -524,6 +585,7 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
           }}
           onClick={() => setOpen(true)}
         />
+
         <Button
           startIcon={<FolderOpenIcon />}
           variant={filterStatus === "Open" ? "contained" : "outlined"}
@@ -540,7 +602,6 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
           Open ({openCount})
         </Button>
 
-        {loggedInUser?.role !== "Sales Agent" && (
         <Button
           startIcon={<CheckCircleIcon />}
           variant={filterStatus === "Won" ? "contained" : "outlined"}
@@ -556,7 +617,6 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
         >
           Won ({wonCount})
         </Button>
-        )}
 
         <Button
           startIcon={<CancelIcon />}
@@ -600,6 +660,7 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
         >
           Today ({tagCounts["Today"] || 0})
         </Button>
+
         <Button
           variant={selectedFilters.includes("Missed") ? "contained" : "outlined"}
           size="small"
@@ -614,8 +675,11 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
         >
           Missed ({tagCounts["Missed"] || 0})
         </Button>
+
         <Button
-          variant={selectedFilters.includes("Tomorrow") ? "contained" : "outlined"}
+          variant={
+            selectedFilters.includes("Tomorrow") ? "contained" : "outlined"
+          }
           size="small"
           sx={{
             textTransform: "none",
@@ -628,8 +692,11 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
         >
           Tomorrow ({tagCounts["Tomorrow"] || 0})
         </Button>
+
         <Button
-          variant={selectedFilters.includes("New Lead") ? "contained" : "outlined"}
+          variant={
+            selectedFilters.includes("New Lead") ? "contained" : "outlined"
+          }
           size="small"
           sx={{
             textTransform: "none",
@@ -644,8 +711,6 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
         </Button>
       </Box>
 
-
-      {/* Search Bar */}
       <Box sx={{ p: 1, display: "flex", alignItems: "center" }}>
         <TextField
           fullWidth
@@ -664,7 +729,11 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
           sx={{ fontSize: "0.8rem" }}
         />
 
-        <IconButton size="small" sx={{ ml: 1 }} onClick={(e) => setJumpAnchorEl(e.currentTarget)}>
+        <IconButton
+          size="small"
+          sx={{ ml: 1 }}
+          onClick={(e) => setJumpAnchorEl(e.currentTarget)}
+        >
           <JumpIcon />
         </IconButton>
 
@@ -707,29 +776,34 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
             >
               Go
             </Button>
-
-
           </Box>
         </Popover>
 
         <Box sx={{ display: "flex", ml: 1 }}>
-          <Box sx={{ width: 42, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+          <Box
+            sx={{
+              width: 42,
+              display: "flex",
+              justifyContent: "center",
+              alignItems: "center",
+            }}
+          >
             <Badge
               badgeContent={activeFilters ? totalMatchingCustomers : 0}
               max={9999}
               color="primary"
               invisible={!activeFilters}
               overlap="circular"
-              anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
+              anchorOrigin={{ vertical: "top", horizontal: "right" }}
               sx={{
                 width: 42,
-                display: 'flex',
-                justifyContent: 'center',
-                '& .MuiBadge-badge': {
-                  fontSize: '0.6rem',
+                display: "flex",
+                justifyContent: "center",
+                "& .MuiBadge-badge": {
+                  fontSize: "0.6rem",
                   height: 16,
                   minWidth: 16,
-                  padding: '0 4px',
+                  padding: "0 4px",
                 },
               }}
             >
@@ -742,8 +816,6 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
               </IconButton>
             </Badge>
           </Box>
-
-
 
           <Menu
             anchorEl={filterMenuAnchorEl}
@@ -758,13 +830,10 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
             ))}
           </Menu>
 
-          <IconButton
-            size="small"
-            sx={{ color: "black" }}
-            onClick={handleSortClick}
-          >
+          <IconButton size="small" sx={{ color: "black" }} onClick={handleSortClick}>
             <Sort fontSize="small" />
           </IconButton>
+
           <Menu
             anchorEl={sortMenuAnchorEl}
             open={Boolean(sortMenuAnchorEl)}
@@ -784,16 +853,15 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
             </MenuItem>
           </Menu>
 
-          {loggedInUser.role === "Manager" && (
-            <IconButton
-              size="small"
-              sx={{ color: "black", ml: 1 }}
-              onClick={handleMoreClick}
-              title="More Options"
-            >
-              <MoreVertIcon fontSize="small" />
-            </IconButton>
-          )}
+          <IconButton
+            size="small"
+            sx={{ color: "black", ml: 1 }}
+            onClick={handleMoreClick}
+            title="More Options"
+          >
+            <MoreVertIcon fontSize="small" />
+          </IconButton>
+
           <Menu
             anchorEl={moreAnchorEl}
             open={isMoreMenuOpen}
@@ -836,52 +904,49 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
               },
             }}
           >
-            <MenuItem
-              onClick={() => {
-                handleMoreClose();
-                handleDownloadCSV();
-              }}
-            >
-              Download CSV
-              <DownloadIcon fontSize="small" style={{ marginLeft: 8 }} />
-            </MenuItem>
+            {isManager && (
+              <MenuItem
+                onClick={() => {
+                  handleMoreClose();
+                  handleDownloadCSV();
+                }}
+              >
+                Download CSV
+                <DownloadIcon fontSize="small" style={{ marginLeft: 8 }} />
+              </MenuItem>
+            )}
 
-
-            <MenuItem disableGutters>
-              <Box width={180}>
-                {" "}
-                {/* Apply same width here */}
-                <FormControl size="small" fullWidth>
-                  <InputLabel>Agents</InputLabel>
-                  <Select
-                    label="Agents"
-                    multiple
-                    value={filterAgent}
-                    onChange={(e) => {
-                      const value = e.target.value;
-                      setFilterAgent(
-                        typeof value === "string" ? value.split(",") : value
-                      );
-                    }}
-                    renderValue={(selected) => selected.join(", ")}
-                  >
-                    {employees.map((emp) => (
-                      <MenuItem key={emp._id} value={emp.fullName}>
-                        <Checkbox
-                          checked={filterAgent.includes(emp.fullName)}
-                        />
-                        {emp.fullName}
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-              </Box>
-            </MenuItem>
-
+            {isManager && (
+              <MenuItem disableGutters>
+                <Box width={180}>
+                  <FormControl size="small" fullWidth>
+                    <InputLabel>Agents</InputLabel>
+                    <Select
+                      label="Agents"
+                      multiple
+                      value={filterAgent}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        setFilterAgent(
+                          typeof value === "string" ? value.split(",") : value
+                        );
+                      }}
+                      renderValue={(selected) => selected.join(", ")}
+                    >
+                      {employees.map((emp) => (
+                        <MenuItem key={emp._id} value={emp.fullName}>
+                          <Checkbox checked={filterAgent.includes(emp.fullName)} />
+                          {emp.fullName}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                </Box>
+              </MenuItem>
+            )}
 
             <MenuItem disableGutters>
               <Box width={180}>
-                {" "}
                 <TextField
                   type="date"
                   size="small"
@@ -894,24 +959,26 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
               </Box>
             </MenuItem>
           </Menu>
-
         </Box>
       </Box>
 
-      {/* Lead List Section */}
-      <Box
-        ref={listRef}
-        onScroll={handleScroll}
-        sx={{ flex: 1, overflowY: "auto" }}>
+      <Box ref={listRef} onScroll={handleScroll} sx={{ flex: 1, overflowY: "auto" }}>
         {loading && customers.length === 0 ? (
-          <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", mt: 4 }}>
+          <Box
+            sx={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              mt: 4,
+            }}
+          >
             <CircularProgress />
             <Typography variant="body2" sx={{ mt: 1 }}>
               Please wait...
             </Typography>
           </Box>
         ) : (
-          customers.map((customer, index) => (
+          visibleCustomers.map((customer, index) => (
             <Box
               key={customer._id}
               onClick={() => {
@@ -926,9 +993,11 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
                 py: 0.5,
                 borderBottom: "1px solid #e0e0e0",
                 cursor: "pointer",
-                backgroundColor: customer._id === selectedCustomerId ? "#e0f7fa" : "inherit",
+                backgroundColor:
+                  customer._id === selectedCustomerId ? "#e0f7fa" : "inherit",
                 ":hover": {
-                  backgroundColor: customer._id === selectedCustomerId ? "#e0f7fa" : "#f9f9f9",
+                  backgroundColor:
+                    customer._id === selectedCustomerId ? "#e0f7fa" : "#f9f9f9",
                 },
               }}
             >
@@ -947,6 +1016,7 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
               >
                 {jumpOffset + index + 1}
               </Typography>
+
               <Avatar
                 sx={{
                   bgcolor: "black",
@@ -959,20 +1029,54 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
               >
                 {getInitials(customer.name)}
               </Avatar>
+
               <Box sx={{ flex: 1 }}>
-                <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <Typography variant="body2" sx={{ fontWeight: "bold", fontSize: "0.8rem" }}>
+                <Box
+                  sx={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                  }}
+                >
+                  <Typography
+                    variant="body2"
+                    sx={{ fontWeight: "bold", fontSize: "0.8rem" }}
+                  >
                     {`${customer.name} - ${customer.age}`}
                   </Typography>
-                  <Typography variant="body2" sx={{ fontSize: "0.7rem", color: "gray" }}>
+
+                  <Typography
+                    variant="body2"
+                    sx={{ fontSize: "0.7rem", color: "gray" }}
+                  >
                     {getCreatedAtLabel(customer.createdAt)}
                   </Typography>
                 </Box>
-                <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mt: 0.5 }}>
-                  <Typography variant="body2" sx={{ fontSize: "0.7rem", color: "gray" }}>
-                    {customer.lookingFor ? customer.lookingFor : "No Condition"} • {customer.assignedTo ? customer.assignedTo : "Unassigned"}
+
+                <Box
+                  sx={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    mt: 0.5,
+                  }}
+                >
+                  <Typography
+                    variant="body2"
+                    sx={{ fontSize: "0.7rem", color: "gray" }}
+                  >
+                    {customer.lookingFor ? customer.lookingFor : "No Condition"} •{" "}
+                    {customer.assignedTo ? customer.assignedTo : "Unassigned"}
                   </Typography>
-                  {!["Switch Off", "General Query", "Fake Lead", "Invalid Number", "Not Interested"].includes(customer.leadStatus) && (
+
+                  {![
+                    "Switch Off",
+                    "General Query",
+                    "Fake Lead",
+                    "Invalid Number",
+                    "Not Interested",
+                    "Sales Done",
+                  ].includes(customer.leadStatus) && (
                     <Chip
                       label={getFollowUpTag(customer.followUpDate)}
                       size="small"
@@ -982,15 +1086,16 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
                           getFollowUpTag(customer.followUpDate) === "Missed"
                             ? "#e57373"
                             : getFollowUpTag(customer.followUpDate) === "Today"
-                              ? "#81c784"
-                              : getFollowUpTag(customer.followUpDate) === "Tomorrow"
-                                ? "#64b5f6"
-                                : "#ffb74d",
+                            ? "#81c784"
+                            : getFollowUpTag(customer.followUpDate) === "Tomorrow"
+                            ? "#64b5f6"
+                            : "#ffb74d",
                         color: "white",
                       }}
                     />
                   )}
                 </Box>
+
                 <Box
                   sx={{
                     display: "flex",
@@ -1005,7 +1110,6 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
                     {customer.location || "Unknown"}
                   </Typography>
 
-                  {/* Scheduled / Done chips, with a left margin */}
                   {customer.leadStatus === "CONS Scheduled" && (
                     <Chip
                       label="Scheduled"
@@ -1018,6 +1122,7 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
                       }}
                     />
                   )}
+
                   {customer.leadStatus === "CONS Done" && (
                     <Chip
                       label="Done"
@@ -1030,6 +1135,7 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
                       }}
                     />
                   )}
+
                   {customer.leadStatus === "Sales Done" && (
                     <Chip
                       label="WON"
@@ -1044,6 +1150,7 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
                   )}
                 </Box>
               </Box>
+
               <Box
                 sx={{
                   position: "absolute",
@@ -1064,19 +1171,23 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
             </Box>
           ))
         )}
+
         {loadingMore && (
-          <Box sx={{ textAlign: 'center', py: 1 }}>
+          <Box sx={{ textAlign: "center", py: 1 }}>
             <CircularProgress size={24} />
           </Box>
         )}
       </Box>
 
-      {/* Dialog for Adding a New Lead */}
       <Dialog open={open} onClose={() => setOpen(false)} fullWidth maxWidth="sm">
         <DialogContent>
-          <Typography variant="h6" sx={{ mb: 2, fontWeight: "bold", fontSize: "0.9rem" }}>
+          <Typography
+            variant="h6"
+            sx={{ mb: 2, fontWeight: "bold", fontSize: "0.9rem" }}
+          >
             Add New Lead
           </Typography>
+
           <Grid container spacing={1}>
             <Grid item xs={4}>
               <TextField
@@ -1089,6 +1200,7 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
                 size="small"
               />
             </Grid>
+
             <Grid item xs={4}>
               <TextField
                 label="Phone"
@@ -1100,10 +1212,13 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
                 type="tel"
                 size="small"
                 InputProps={{
-                  startAdornment: <InputAdornment position="start">+91</InputAdornment>,
+                  startAdornment: (
+                    <InputAdornment position="start">+91</InputAdornment>
+                  ),
                 }}
               />
             </Grid>
+
             <Grid item xs={4}>
               <TextField
                 label="Age"
@@ -1116,10 +1231,16 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
                 size="small"
               />
             </Grid>
+
             <Grid item xs={6}>
               <FormControl fullWidth required size="small">
                 <InputLabel>Looking For</InputLabel>
-                <Select name="lookingFor" value={leadData.lookingFor} onChange={handleChange} label="Looking For">
+                <Select
+                  name="lookingFor"
+                  value={leadData.lookingFor}
+                  onChange={handleChange}
+                  label="Looking For"
+                >
                   <MenuItem value="Diabetes">Diabetes</MenuItem>
                   <MenuItem value="Fatty Liver">Fatty Liver</MenuItem>
                   <MenuItem value="Cholesterol">Cholesterol</MenuItem>
@@ -1127,20 +1248,34 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
                 </Select>
               </FormControl>
             </Grid>
+
             <Grid item xs={6}>
               <Autocomplete
                 options={locations}
                 value={leadData.location}
-                onChange={(event, newValue) => setLeadData({ ...leadData, location: newValue })}
+                onChange={(event, newValue) =>
+                  setLeadData({ ...leadData, location: newValue })
+                }
                 renderInput={(params) => (
-                  <TextField {...params} label="Location" variant="outlined" size="small" />
+                  <TextField
+                    {...params}
+                    label="Location"
+                    variant="outlined"
+                    size="small"
+                  />
                 )}
               />
             </Grid>
+
             <Grid item xs={6}>
               <FormControl fullWidth required size="small">
                 <InputLabel>Assigned To</InputLabel>
-                <Select name="assignedTo" value={leadData.assignedTo} onChange={handleChange} label="Assigned To">
+                <Select
+                  name="assignedTo"
+                  value={leadData.assignedTo}
+                  onChange={handleChange}
+                  label="Assigned To"
+                >
                   <MenuItem value="">Unassigned</MenuItem>
                   {employees.map((employee) => {
                     const displayName =
@@ -1150,6 +1285,7 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
                         ? `${employee.firstName} ${employee.lastName}`
                         : employee.name) ||
                       "No Name Provided";
+
                     return (
                       <MenuItem key={employee._id} value={displayName}>
                         {displayName}
@@ -1159,6 +1295,7 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
                 </Select>
               </FormControl>
             </Grid>
+
             <Grid item xs={6}>
               <FormControl fullWidth required size="small">
                 <InputLabel>Lead Source</InputLabel>
@@ -1176,7 +1313,12 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
                 </Select>
               </FormControl>
             </Grid>
-            <Grid item xs={12} sx={{ display: "flex", gap: 2, alignItems: "center" }}>
+
+            <Grid
+              item
+              xs={12}
+              sx={{ display: "flex", gap: 2, alignItems: "center" }}
+            >
               <FormControlLabel
                 control={
                   <Checkbox
@@ -1189,6 +1331,7 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
                 }
                 label="Yesterday"
               />
+
               <FormControlLabel
                 control={
                   <Checkbox
@@ -1203,15 +1346,18 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
               />
             </Grid>
           </Grid>
+
           {error && (
             <Typography color="error" sx={{ mt: 1, fontSize: "0.7rem" }}>
               {error}
             </Typography>
           )}
+
           <Box sx={{ display: "flex", justifyContent: "flex-end", gap: 1, mt: 2 }}>
             <Button onClick={() => setLeadData({})} variant="outlined" size="small">
               Reset
             </Button>
+
             <Button
               type="submit"
               onClick={handleSubmit}
@@ -1223,6 +1369,7 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
             </Button>
           </Box>
         </DialogContent>
+
         <DialogActions>
           <Button onClick={() => setOpen(false)} color="secondary" size="small">
             Cancel
@@ -1233,4 +1380,4 @@ const LeadList = ({ employees, setLocation, onSelectCustomer, selectedCustomerId
   );
 };
 
-export default LeadList; 
+export default LeadList;

@@ -21,7 +21,9 @@ import {
   TablePagination,
   CircularProgress,
   InputLabel,
+  IconButton,
 } from "@mui/material";
+import DeleteIcon from "@mui/icons-material/Delete";
 import axios from "axios";
 
 const ORDER_FIELDS = new Set([
@@ -43,6 +45,7 @@ const SalesMySales = () => {
   const [rowsPerPage, setRowsPerPage] = useState(50);
   const [totalSales, setTotalSales] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [deletingRowKey, setDeletingRowKey] = useState("");
   const [filters, setFilters] = useState({
     dateFrom: "",
     dateTo: "",
@@ -71,13 +74,16 @@ const SalesMySales = () => {
   const fetchSales = async (agentAssignedName) => {
     setLoading(true);
     try {
-      const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/merged-sales", {
-        params: {
-          agentAssignedName,
-          page: currentPage + 1,
-          limit: rowsPerPage,
-        },
-      });
+      const response = await axios.get(
+        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/merged-sales",
+        {
+          params: {
+            agentAssignedName,
+            page: currentPage + 1,
+            limit: rowsPerPage,
+          },
+        }
+      );
 
       const { sales: updatedSales, totalSales = 0 } = response.data;
       setSales(updatedSales);
@@ -132,14 +138,81 @@ const SalesMySales = () => {
     return currentDate.toISOString().split("T")[0];
   };
 
-  // Decides whether a field edit belongs to Lead or to MyOrder
   const getTargetForField = (sale, field) => {
-    // Order-backed fields -> use myOrderData._id if available
     if (ORDER_FIELDS.has(field) && sale.myOrderData?._id) {
       return { targetId: sale.myOrderData._id, source: "order" };
     }
-    // Else edit lead row using sale._id
     return { targetId: sale._id, source: "lead" };
+  };
+
+  const getDeleteIds = (sale) => {
+    const hasOrder = !!sale.myOrderData?._id;
+
+    if (!hasOrder) {
+      return {
+        leadId: sale._id || null,
+        orderId: null,
+      };
+    }
+
+    const orderId = sale.myOrderData._id;
+
+    // order-only row in merged list: top-level _id and myOrderData._id are same
+    if (String(sale._id) === String(orderId)) {
+      return {
+        leadId: null,
+        orderId,
+      };
+    }
+
+    // row has both lead and order
+    return {
+      leadId: sale._id || null,
+      orderId,
+    };
+  };
+
+  const handleDeleteRow = async (sale, rowKey) => {
+    const isTemp = String(sale._id || "").startsWith("temp-");
+    if (isTemp) {
+      setSales((prev) => prev.filter((row) => {
+        const currentRowKey = `${row._id || "noLead"}-${row.myOrderData?._id || row.myOrderData?.orderId || ""}`;
+        return currentRowKey !== rowKey;
+      }));
+      return;
+    }
+
+    const ok = window.confirm(
+      "Are you sure you want to delete this row? This will delete the linked Lead, MyOrder, or both if present."
+    );
+    if (!ok) return;
+
+    const { leadId, orderId } = getDeleteIds(sale);
+
+    if (!leadId && !orderId) {
+      alert("No valid Lead/MyOrder record found for this row.");
+      return;
+    }
+
+    try {
+      setDeletingRowKey(rowKey);
+
+      await axios.delete(
+        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/merged-sales/row",
+        {
+          data: { leadId, orderId },
+        }
+      );
+
+      await fetchSales(agentAssignedName);
+    } catch (error) {
+      console.error("Error deleting row:", error);
+      alert(
+        error?.response?.data?.message || "Failed to delete the selected row."
+      );
+    } finally {
+      setDeletingRowKey("");
+    }
   };
 
   const handleInputChange = async (e, index, field) => {
@@ -148,9 +221,7 @@ const SalesMySales = () => {
     const updatedSales = [...sales];
     const row = { ...updatedSales[index] };
 
-    // Update local state carefully (for nested myOrderData vs lead fields)
     if (ORDER_FIELDS.has(field)) {
-      // Update nested order data in-place if present; else fall back to lead-like copy
       if (!row.myOrderData) row.myOrderData = {};
       if (field === "orderDate") row.myOrderData.orderDate = value;
       else if (field === "productOrdered") row.myOrderData.productOrdered = value;
@@ -162,7 +233,6 @@ const SalesMySales = () => {
       else if (field === "shipmentStatus") row.myOrderData.shipmentStatus = value;
       else if (field === "orderId") row.myOrderData.orderId = value;
     } else {
-      // Lead-side fields
       row[field] = value;
 
       if (field === "dosageOrdered" && !row.myOrderData) {
@@ -174,10 +244,8 @@ const SalesMySales = () => {
     updatedSales[index] = row;
     setSales(updatedSales);
 
-    // Decide target doc & issue PUT
     const { targetId, source } = getTargetForField(row, field);
 
-    // For new temp rows, keep the POST flow (unchanged)
     const isNew = String(row._id || "").startsWith("temp-");
     const requiredFieldsFilled = row.name && row.contactNumber;
 
@@ -212,18 +280,15 @@ const SalesMySales = () => {
         setSales(updatedSales);
       } catch (error) {
         console.error("Error saving new sale:", error);
-        updatedSales[index].posting = false; // allow retry
+        updatedSales[index].posting = false;
         setSales(updatedSales);
       }
       return;
     }
 
-    // Normal update: PUT to /merged-sales/:id (Lead or Order id)
     if (targetId) {
-      // Map UI field names to backend doc fields
       let payload = {};
       if (source === "order") {
-        // MyOrder fields
         if (field === "orderDate") payload.orderDate = value;
         else if (field === "productOrdered") payload.productOrdered = value;
         else if (field === "dosageOrdered") payload.dosageOrdered = value;
@@ -233,12 +298,15 @@ const SalesMySales = () => {
         else if (field === "selfRemark") payload.selfRemark = value;
         else if (field === "shipmentStatus") payload.shipmentStatus = value;
         else if (field === "orderId") payload.orderId = value;
-      } else { 
+      } else {
         payload[field] = value;
       }
 
       try {
-        await axios.put(`https://muditamleads-14f32a10d7f7.herokuapp.com/api/merged-sales/${targetId}`, payload);
+        await axios.put(
+          `https://muditamleads-14f32a10d7f7.herokuapp.com/api/merged-sales/${targetId}`,
+          payload
+        );
       } catch (error) {
         console.error("Error updating sale:", error);
       }
@@ -247,7 +315,7 @@ const SalesMySales = () => {
 
   const handleAddSale = () => {
     const newSale = {
-      _id: `temp-${Date.now()}`, // temporary ID
+      _id: `temp-${Date.now()}`,
       name: "",
       contactNumber: "",
       productsOrdered: [],
@@ -383,7 +451,7 @@ const SalesMySales = () => {
                 multiple={multiple}
                 value={filters[key] || (multiple ? [] : "")}
                 onChange={(e) => {
-                  const value = multiple ? e.target.value : e.target.value;
+                  const value = e.target.value;
                   setFilters((prev) => ({ ...prev, [key]: value }));
                 }}
                 renderValue={(selected) => (multiple ? selected.join(", ") : selected)}
@@ -453,12 +521,13 @@ const SalesMySales = () => {
               <TableCell>Order Id</TableCell>
               <TableCell>Shipment Status</TableCell>
               <TableCell>Agents Remarks *</TableCell>
+              <TableCell align="center">Action</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={14} align="center">
+                <TableCell colSpan={12} align="center">
                   <Box sx={{ py: 3, display: "flex", flexDirection: "column", alignItems: "center" }}>
                     <CircularProgress size={24} />
                     <Typography variant="body2" sx={{ mt: 1 }}>
@@ -469,14 +538,14 @@ const SalesMySales = () => {
               </TableRow>
             ) : (
               sales.map((sale, index) => {
-                // unique key even when same lead has multiple orders
                 const rowKey = `${sale._id || "noLead"}-${sale.myOrderData?._id || sale.myOrderData?.orderId || index}`;
                 const firstDate =
-                  (sale.myOrderData && sale.myOrderData.orderDate) || sale.lastOrderDate || "";
+                  (sale.myOrderData && sale.myOrderData.orderDate) ||
+                  sale.lastOrderDate ||
+                  "";
 
                 return (
                   <TableRow key={rowKey}>
-                    {/* First Order Date (editable for both lead/order) */}
                     <TableCell>
                       <TextField
                         type="date"
@@ -492,7 +561,6 @@ const SalesMySales = () => {
                       />
                     </TableCell>
 
-                    {/* Name (lead field) */}
                     <TableCell style={{ whiteSpace: "nowrap", minWidth: "250px" }}>
                       <TextField
                         value={sale.name || ""}
@@ -501,7 +569,6 @@ const SalesMySales = () => {
                       />
                     </TableCell>
 
-                    {/* Contact No (lead field) */}
                     <TableCell style={{ whiteSpace: "nowrap", minWidth: "200px" }}>
                       <TextField
                         type="number"
@@ -511,7 +578,6 @@ const SalesMySales = () => {
                       />
                     </TableCell>
 
-                    {/* Products Ordered (editable for both) */}
                     <TableCell>
                       {sale.myOrderData ? (
                         <TextField
@@ -551,7 +617,6 @@ const SalesMySales = () => {
                       )}
                     </TableCell>
 
-                    {/* Dosage Ordered */}
                     <TableCell>
                       {sale.myOrderData ? (
                         <TextField
@@ -574,7 +639,6 @@ const SalesMySales = () => {
                       )}
                     </TableCell>
 
-                    {/* Amount Paid / totalPrice */}
                     <TableCell style={{ whiteSpace: "nowrap", minWidth: "150px" }}>
                       <TextField
                         type="number"
@@ -592,7 +656,6 @@ const SalesMySales = () => {
                       />
                     </TableCell>
 
-                    {/* Partial Payment */}
                     <TableCell>
                       <TextField
                         type="number"
@@ -605,14 +668,13 @@ const SalesMySales = () => {
                           handleInputChange(
                             e,
                             index,
-                            sale.myOrderData ? "partialPayment" : "partialPayment"
+                            "partialPayment"
                           )
                         }
                         fullWidth
                       />
                     </TableCell>
 
-                    {/* Mode of Payment / paymentMethod */}
                     <TableCell>
                       {sale.myOrderData ? (
                         <TextField
@@ -637,7 +699,6 @@ const SalesMySales = () => {
                       )}
                     </TableCell>
 
-                    {/* Order Id (editable if order row) */}
                     <TableCell style={{ whiteSpace: "nowrap", minWidth: "150px" }}>
                       {sale.myOrderData ? (
                         <TextField
@@ -650,7 +711,6 @@ const SalesMySales = () => {
                       )}
                     </TableCell>
 
-                    {/* Shipment Status */}
                     <TableCell style={{ whiteSpace: "nowrap", minWidth: "200px" }}>
                       <TextField
                         value={
@@ -669,7 +729,6 @@ const SalesMySales = () => {
                       />
                     </TableCell>
 
-                    {/* Agents Remarks / selfRemark */}
                     <TableCell style={{ whiteSpace: "nowrap", minWidth: "250px" }}>
                       <TextField
                         value={
@@ -687,6 +746,20 @@ const SalesMySales = () => {
                         fullWidth
                       />
                     </TableCell>
+
+                    <TableCell align="center">
+                      <IconButton
+                        color="error"
+                        onClick={() => handleDeleteRow(sale, rowKey)}
+                        disabled={deletingRowKey === rowKey}
+                      >
+                        {deletingRowKey === rowKey ? (
+                          <CircularProgress size={18} />
+                        ) : (
+                          <DeleteIcon />
+                        )}
+                      </IconButton>
+                    </TableCell>
                   </TableRow>
                 );
               })
@@ -696,7 +769,7 @@ const SalesMySales = () => {
       </TableContainer>
 
       <TablePagination
-        rowsPerPageOptions={[10, 20, 50, 100]} 
+        rowsPerPageOptions={[10, 20, 50, 100]}
         component="div"
         count={totalSales}
         rowsPerPage={rowsPerPage}

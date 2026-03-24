@@ -58,9 +58,11 @@ const PRESIGN_DOWN_API = "https://muditamleads-14f32a10d7f7.herokuapp.com/api/sc
 
 const MANAGER_ROLES = ["admin", "manager", "super-admin", "team-leader"];
 const getCurrentUser = () => JSON.parse(sessionStorage.getItem("user") || "{}");
-const isManagerRole = (role = "") => MANAGER_ROLES.includes(String(role || "").toLowerCase());
-const getAuthHeaders = () => ({ "x-session-user": JSON.stringify(getCurrentUser()) });
- 
+const isManagerRole = (role = "") =>
+  MANAGER_ROLES.includes(String(role || "").toLowerCase());
+const getAuthHeaders = () => ({
+  "x-session-user": JSON.stringify(getCurrentUser()),
+});
 
 async function getPresignedUrl(filename, contentType, authHeaders) {
   const params = new URLSearchParams({ filename, contentType });
@@ -290,6 +292,50 @@ function fmt(dt) {
   });
 }
 
+function detectMediaKind(fileOrName = "") {
+  const value =
+    typeof fileOrName === "string"
+      ? fileOrName.toLowerCase()
+      : String(fileOrName?.name || "").toLowerCase();
+
+  if (/\.(mp4|mov|avi|webm|mkv|m4v)$/.test(value)) return "video";
+  if (/\.(png|jpg|jpeg|webp|gif)$/.test(value)) return "image";
+  return "file";
+}
+
+function getEditMediaItems(script) {
+  if (Array.isArray(script?.editVariants) && script.editVariants.length > 0) {
+    return script.editVariants
+      .filter((item) => item?.url)
+      .map((item, index) => ({
+        label: item.label || `Variant ${index + 1}`,
+        url: item.url,
+        name: item.name || item.url?.split("/").pop() || `variant-${index + 1}`,
+        type: item.type || detectMediaKind(item.name || item.url || ""),
+      }));
+  }
+
+  if (script?.editFileUrl) {
+    return [
+      {
+        label: "Main",
+        url: script.editFileUrl,
+        name: script.editFileName || script.editFileUrl.split("/").pop(),
+        type: detectMediaKind(script.editFileName || script.editFileUrl),
+      },
+    ];
+  }
+
+  return [];
+}
+
+function getCurrentEditMediaSummary(script) {
+  const items = getEditMediaItems(script);
+  if (!items.length) return "—";
+  if (items.length === 1) return items[0].name || "1 file";
+  return `${items.length} variants uploaded`;
+}
+
 function ScriptId({ id }) {
   return (
     <Typography
@@ -330,7 +376,9 @@ function TypeBadge({ label }) {
 function EditStatusChip({ status }) {
   const c = EDIT_STATUS_STYLE[status];
   if (!c || !status) {
-    return <Typography sx={{ fontSize: "0.75rem", color: "#9ca3af" }}>—</Typography>;
+    return (
+      <Typography sx={{ fontSize: "0.75rem", color: "#9ca3af" }}>—</Typography>
+    );
   }
   return (
     <Box
@@ -356,7 +404,9 @@ function PublishStatusChip({ status }) {
   const finalStatus = status || "Posted";
   const c = PUBLISH_STATUS_STYLE[finalStatus];
   if (!c) {
-    return <Typography sx={{ fontSize: "0.75rem", color: "#9ca3af" }}>—</Typography>;
+    return (
+      <Typography sx={{ fontSize: "0.75rem", color: "#9ca3af" }}>—</Typography>
+    );
   }
   return (
     <Box
@@ -644,9 +694,104 @@ function AssignCell({ script, marketingEmployees, onAssigned, showSnack, canAssi
   );
 }
 
+function MediaVariantsCell({ script, onPlay, onDownload }) {
+  const items = getEditMediaItems(script);
+
+  if (!items.length) {
+    return (
+      <Typography sx={{ fontSize: "0.8rem", color: "#9ca3af" }}>—</Typography>
+    );
+  }
+
+  return (
+    <Stack spacing={1} sx={{ minWidth: 260 }}>
+      {items.map((item, index) => (
+        <Box
+          key={`${item.url}-${index}`}
+          sx={{
+            border: "1px solid #e5e7eb",
+            borderRadius: 1.5,
+            p: 1,
+            bgcolor: "#f9fafb",
+          }}
+        >
+          <Stack
+            direction="row"
+            alignItems="center"
+            justifyContent="space-between"
+            spacing={1}
+          >
+            <Box sx={{ minWidth: 0, flex: 1 }}>
+              <Typography
+                sx={{
+                  fontSize: "0.78rem",
+                  fontWeight: 700,
+                  color: "#111827",
+                  whiteSpace: "nowrap",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                }}
+              >
+                {item.label}
+              </Typography>
+              <Typography
+                sx={{
+                  fontSize: "0.72rem",
+                  color: "#6b7280",
+                  whiteSpace: "nowrap",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                }}
+              >
+                {item.name}
+              </Typography>
+            </Box>
+
+            <Stack direction="row" spacing={0.5}>
+              <Button
+                size="small"
+                onClick={() => onPlay(item.url, `${script.scriptId} — ${item.label}`)}
+                startIcon={<PlayIcon sx={{ fontSize: 14 }} />}
+                sx={{
+                  color: "#4f46e5",
+                  textTransform: "none",
+                  fontWeight: 700,
+                  fontSize: "0.75rem",
+                  minWidth: 0,
+                  px: 1,
+                  border: "1px solid #c7d2fe",
+                  borderRadius: 1.2,
+                  "&:hover": { bgcolor: "#eef2ff" },
+                }}
+              >
+                Play
+              </Button>
+
+              <Tooltip title="Download">
+                <IconButton
+                  size="small"
+                  onClick={() => onDownload(item.url, item.name)}
+                  sx={{
+                    color: "#6b7280",
+                    "&:hover": { color: "#4f46e5", bgcolor: "#eef2ff" },
+                  }}
+                >
+                  <DownloadIcon sx={{ fontSize: 16 }} />
+                </IconButton>
+              </Tooltip>
+            </Stack>
+          </Stack>
+        </Box>
+      ))}
+    </Stack>
+  );
+}
+
 function UploadVideoDialog({ open, onClose, script, onUploaded, showSnack, mode = "upload" }) {
   const fileInputRef = useRef(null);
-  const [selectedFile, setSelectedFile] = useState(null);
+  const [selectedFiles, setSelectedFiles] = useState([]);
+  const [hasVariants, setHasVariants] = useState(false);
+  const [variantLabels, setVariantLabels] = useState([]);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [label, setLabel] = useState("");
@@ -655,19 +800,24 @@ function UploadVideoDialog({ open, onClose, script, onUploaded, showSnack, mode 
   const [holdReason, setHoldReason] = useState("");
 
   useEffect(() => {
-  if (!open) return;
-  setSelectedFile(null);
-  setUploadProgress(0);
-  setLabel("");
-  setComment("");
-  setHoldReason("");
-  setEditStatus("Done");
-}, [open]);
+    if (!open) return;
+    setSelectedFiles([]);
+    setHasVariants(false);
+    setVariantLabels([]);
+    setUploadProgress(0);
+    setLabel("");
+    setComment("");
+    setHoldReason("");
+    setEditStatus("Done");
+  }, [open]);
 
   const needsReason = ["On Hold", "Reshoot", "Re-edit"].includes(editStatus);
 
   const handleClose = () => {
-    setSelectedFile(null);
+    if (uploading) return;
+    setSelectedFiles([]);
+    setHasVariants(false);
+    setVariantLabels([]);
     setUploadProgress(0);
     setLabel("");
     setComment("");
@@ -677,12 +827,18 @@ function UploadVideoDialog({ open, onClose, script, onUploaded, showSnack, mode 
   };
 
   const handleUpload = async () => {
-    if (!selectedFile) {
-      showSnack("Please select a file", "error");
+    if (!selectedFiles.length) {
+      showSnack("Please select file(s)", "error");
       return;
     }
+
     if (needsReason && !holdReason.trim()) {
       showSnack("Please provide a reason", "error");
+      return;
+    }
+
+    if (hasVariants && selectedFiles.length < 2) {
+      showSnack("Please select multiple files for variants", "error");
       return;
     }
 
@@ -692,38 +848,52 @@ function UploadVideoDialog({ open, onClose, script, onUploaded, showSnack, mode 
 
     try {
       setLabel("Uploading...");
-      const results = await uploadFilesToWasabi(
-        [selectedFile],
+      const uploaded = await uploadFilesToWasabi(
+        selectedFiles,
         getAuthHeaders(),
         setUploadProgress
       );
-      const url = results[0]?.url;
-      if (!url) throw new Error("No URL returned");
 
       setLabel("Saving to database…");
       setUploadProgress(100);
 
-      await axios.post(
-        `${API}/${script._id}/edit-upload`,
-        {
-          editFileUrl: url,
-          editFileName: selectedFile.name,
-          editComment: comment,
-          editStatus,
-          editHoldReason: holdReason,
-        },
-        { headers: getAuthHeaders(), withCredentials: true }
-      );
+      const payload = {
+        editComment: comment,
+        editStatus,
+        editHoldReason: holdReason,
+      };
+
+      if (hasVariants) {
+        payload.editHasVariants = true;
+        payload.editVariants = uploaded.map((item, index) => ({
+          label: variantLabels[index]?.trim() || `Variant ${index + 1}`,
+          url: item.url,
+          name: item.originalName,
+          type: detectMediaKind(item.originalName),
+        }));
+      } else {
+        payload.editHasVariants = false;
+        payload.editFileUrl = uploaded[0]?.url;
+        payload.editFileName = uploaded[0]?.originalName;
+      }
+
+      await axios.post(`${API}/${script._id}/edit-upload`, payload, {
+        headers: getAuthHeaders(),
+        withCredentials: true,
+      });
 
       showSnack(
         mode === "reupload"
-          ? "Edited file re-uploaded ✅ (replaced old file)"
-          : "Edited file uploaded! 🎬"
+          ? "Edited media updated ✅"
+          : "Edited media uploaded ✅"
       );
       onUploaded();
       handleClose();
     } catch (err) {
-      showSnack(err.message || "Upload failed", "error");
+      showSnack(
+        err.response?.data?.message || err.message || "Upload failed",
+        "error"
+      );
     } finally {
       setUploading(false);
       setLabel("");
@@ -807,16 +977,61 @@ function UploadVideoDialog({ open, onClose, script, onUploaded, showSnack, mode 
               {previewText(script.scriptText, 220)}
             </Typography>
 
-            {mode === "reupload" && script.editFileUrl && (
+            {mode === "reupload" && (
               <Typography sx={{ mt: 1, fontSize: "0.8rem", color: "#6b7280" }}>
-                Current edited file:{" "}
+                Current edited media:{" "}
                 <Box component="span" sx={{ color: "#111827", fontWeight: 600 }}>
-                  {script.editFileName || "—"}
+                  {getCurrentEditMediaSummary(script)}
                 </Box>
               </Typography>
             )}
           </Box>
         )}
+
+        <Box
+          sx={{
+            p: 1.5,
+            border: "1px solid #e5e7eb",
+            borderRadius: 1.5,
+            bgcolor: "#f9fafb",
+          }}
+        >
+          <Stack direction="row" alignItems="center" justifyContent="space-between">
+            <Typography
+              sx={{ fontSize: "0.9rem", fontWeight: 600, color: "#111827" }}
+            >
+              Have variants?
+            </Typography>
+
+            <Button
+              size="small"
+              variant={hasVariants ? "contained" : "outlined"}
+              onClick={() => {
+                setHasVariants((prev) => {
+                  const next = !prev;
+                  setSelectedFiles([]);
+                  setVariantLabels([]);
+                  return next;
+                });
+              }}
+              disabled={uploading}
+              sx={{
+                textTransform: "none",
+                ...(hasVariants
+                  ? {
+                      bgcolor: "#4f46e5",
+                      "&:hover": { bgcolor: "#4338ca" },
+                    }
+                  : {
+                      borderColor: "#d1d5db",
+                      color: "#374151",
+                    }),
+              }}
+            >
+              {hasVariants ? "Yes" : "No"}
+            </Button>
+          </Stack>
+        </Box>
 
         <Box
           onClick={() => !uploading && fileInputRef.current?.click()}
@@ -831,29 +1046,75 @@ function UploadVideoDialog({ open, onClose, script, onUploaded, showSnack, mode 
         >
           <AttachIcon sx={{ fontSize: 36, color: "#9ca3af", mb: 1 }} />
 
-          {selectedFile ? (
-            <Box>
-              <Typography sx={{ fontSize: "0.9rem", color: "#374151", fontWeight: 600 }}>
-                {selectedFile.name}
-              </Typography>
-              <Typography sx={{ fontSize: "0.8rem", color: "#6b7280" }}>
-                {fmtSz(selectedFile.size)}
-              </Typography>
+          {selectedFiles.length ? (
+            <Stack spacing={1.2}>
+              {selectedFiles.map((file, index) => (
+                <Box
+                  key={`${file.name}-${index}`}
+                  sx={{
+                    border: "1px solid #e5e7eb",
+                    borderRadius: 1.5,
+                    p: 1.2,
+                    bgcolor: "#ffffff",
+                    textAlign: "left",
+                  }}
+                >
+                  <Stack spacing={0.6}>
+                    <Typography
+                      sx={{
+                        fontSize: "0.88rem",
+                        color: "#374151",
+                        fontWeight: 600,
+                      }}
+                    >
+                      {file.name}
+                    </Typography>
+                    <Typography sx={{ fontSize: "0.78rem", color: "#6b7280" }}>
+                      {fmtSz(file.size)}
+                    </Typography>
+
+                    {hasVariants && (
+                      <TextField
+                        size="small"
+                        label={`Variant ${index + 1} label`}
+                        value={variantLabels[index] || ""}
+                        onChange={(e) => {
+                          const next = [...variantLabels];
+                          next[index] = e.target.value;
+                          setVariantLabels(next);
+                        }}
+                        sx={inputSx}
+                      />
+                    )}
+                  </Stack>
+                </Box>
+              ))}
+
               <Button
                 size="small"
                 onClick={(e) => {
                   e.stopPropagation();
-                  setSelectedFile(null);
+                  setSelectedFiles([]);
+                  setVariantLabels([]);
                 }}
-                sx={{ mt: 1, color: "#dc2626", textTransform: "none", fontSize: "0.8rem" }}
+                sx={{
+                  mt: 1,
+                  color: "#dc2626",
+                  textTransform: "none",
+                  fontSize: "0.8rem",
+                }}
               >
-                Remove
+                Remove all
               </Button>
-            </Box>
+            </Stack>
           ) : (
             <>
-              <Typography sx={{ fontSize: "0.9rem", color: "#6b7280", fontWeight: 500 }}>
-                Click to select your edited file
+              <Typography
+                sx={{ fontSize: "0.9rem", color: "#6b7280", fontWeight: 500 }}
+              >
+                {hasVariants
+                  ? "Click to select multiple media variants"
+                  : "Click to select your edited file"}
               </Typography>
               <Typography sx={{ fontSize: "0.8rem", color: "#9ca3af", mt: 0.5 }}>
                 MP4, MOV, AVI, WebM, PNG, JPG, JPEG, WebP
@@ -864,11 +1125,13 @@ function UploadVideoDialog({ open, onClose, script, onUploaded, showSnack, mode 
           <input
             ref={fileInputRef}
             type="file"
+            multiple={hasVariants}
             accept="video/*,image/*,.mp4,.mov,.avi,.webm,.mkv,.m4v,.png,.jpg,.jpeg,.webp,.gif"
             style={{ display: "none" }}
             onChange={(e) => {
-              const f = e.target.files?.[0];
-              if (f) setSelectedFile(f);
+              const files = Array.from(e.target.files || []);
+              setSelectedFiles(files);
+              setVariantLabels(files.map((_, idx) => `Variant ${idx + 1}`));
             }}
             disabled={uploading}
           />
@@ -952,14 +1215,20 @@ function UploadVideoDialog({ open, onClose, script, onUploaded, showSnack, mode 
           gap: 1,
         }}
       >
-        <Button onClick={handleClose} disabled={uploading} sx={{ color: "#6b7280", textTransform: "none" }}>
+        <Button
+          onClick={handleClose}
+          disabled={uploading}
+          sx={{ color: "#6b7280", textTransform: "none" }}
+        >
           Cancel
         </Button>
         <Button
           variant="contained"
           onClick={handleUpload}
-          disabled={uploading || !selectedFile}
-          startIcon={uploading ? <CircularProgress size={16} color="inherit" /> : <UploadIcon />}
+          disabled={uploading || !selectedFiles.length}
+          startIcon={
+            uploading ? <CircularProgress size={16} color="inherit" /> : <UploadIcon />
+          }
           sx={{
             bgcolor: "#ea580c",
             color: "#ffffff",
@@ -970,7 +1239,11 @@ function UploadVideoDialog({ open, onClose, script, onUploaded, showSnack, mode 
             "&:hover": { bgcolor: "#c2410c" },
           }}
         >
-          {uploading ? "Uploading…" : mode === "reupload" ? "Re-upload Media" : "Upload Media"}
+          {uploading
+            ? "Uploading…"
+            : mode === "reupload"
+            ? "Re-upload Media"
+            : "Upload Media"}
         </Button>
       </DialogActions>
     </Dialog>
@@ -1179,7 +1452,11 @@ function UploadThumbDialog({ open, onClose, script, onUploaded, showSnack, mode 
           gap: 1,
         }}
       >
-        <Button onClick={handleClose} disabled={uploading} sx={{ color: "#6b7280", textTransform: "none" }}>
+        <Button
+          onClick={handleClose}
+          disabled={uploading}
+          sx={{ color: "#6b7280", textTransform: "none" }}
+        >
           Cancel
         </Button>
         <Button
@@ -1197,7 +1474,11 @@ function UploadThumbDialog({ open, onClose, script, onUploaded, showSnack, mode 
             "&:hover": { bgcolor: "#c2410c" },
           }}
         >
-          {uploading ? "Uploading…" : mode === "reupload" ? "Re-upload Thumbnail" : "Upload Thumbnail"}
+          {uploading
+            ? "Uploading…"
+            : mode === "reupload"
+            ? "Re-upload Thumbnail"
+            : "Upload Thumbnail"}
         </Button>
       </DialogActions>
     </Dialog>
@@ -1509,6 +1790,8 @@ export default function EditPage() {
     setPendingPage(0);
     setDonePage(0);
     setCompletedPage(0);
+    setPendingDate({ dateFrom: "", dateTo: "" });
+    setDoneDate({ dateFrom: "", dateTo: "" });
   };
 
   const openDialog = (s) => {
@@ -1523,6 +1806,7 @@ export default function EditPage() {
   };
 
   const closeDialog = () => {
+    if (saving) return;
     setDialogOpen(false);
     setDialogTarget(null);
   };
@@ -1530,7 +1814,9 @@ export default function EditPage() {
   const validate = () => {
     const errs = {};
     const needs = ["On Hold", "Reshoot", "Re-edit"].includes(form.editStatus);
-    if (needs && !form.editHoldReason.trim()) errs.editHoldReason = "Reason is required";
+    if (needs && !form.editHoldReason.trim()) {
+      errs.editHoldReason = "Reason is required";
+    }
     setErrors(errs);
     return !Object.keys(errs).length;
   };
@@ -1738,7 +2024,10 @@ export default function EditPage() {
         </Tabs>
 
         <Box sx={{ flex: 1 }} />
-        <Button onClick={load} sx={{ textTransform: "none", fontWeight: 700, color: "#4f46e5" }}>
+        <Button
+          onClick={load}
+          sx={{ textTransform: "none", fontWeight: 700, color: "#4f46e5" }}
+        >
           Refresh
         </Button>
       </Stack>
@@ -1779,7 +2068,11 @@ export default function EditPage() {
                   <TableBody>
                     {pendingScripts.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={11} align="center" sx={{ py: 8, borderBottom: "none", color: "#6b7280" }}>
+                        <TableCell
+                          colSpan={11}
+                          align="center"
+                          sx={{ py: 8, borderBottom: "none", color: "#6b7280" }}
+                        >
                           <MagicIcon
                             sx={{
                               fontSize: 36,
@@ -1799,9 +2092,11 @@ export default function EditPage() {
                           <TableCell sx={{ ...tdSx, color: "#9ca3af", fontSize: "0.8rem" }}>
                             {pendingPage * pendingRows + i + 1}
                           </TableCell>
+
                           <TableCell sx={tdSx}>
                             <ScriptId id={s.scriptId} />
                           </TableCell>
+
                           <TableCell sx={tdSx}>
                             <TypeBadge label={s.scriptType} />
                           </TableCell>
@@ -1892,7 +2187,7 @@ export default function EditPage() {
                                     onClick={() =>
                                       handleDownload(
                                         s.cutVideoUrl,
-                                        s.cutVideoName || s.scriptId + "_cut"
+                                        s.cutVideoName || `${s.scriptId}_cut`
                                       )
                                     }
                                     sx={{
@@ -1905,7 +2200,9 @@ export default function EditPage() {
                                 </Tooltip>
                               </Stack>
                             ) : (
-                              <Typography sx={{ fontSize: "0.8rem", color: "#9ca3af" }}>—</Typography>
+                              <Typography sx={{ fontSize: "0.8rem", color: "#9ca3af" }}>
+                                —
+                              </Typography>
                             )}
                           </TableCell>
 
@@ -1948,7 +2245,13 @@ export default function EditPage() {
                           </TableCell>
 
                           <TableCell sx={tdSx}>
-                            <Typography sx={{ fontSize: "0.8rem", color: "#1f2937", whiteSpace: "nowrap" }}>
+                            <Typography
+                              sx={{
+                                fontSize: "0.8rem",
+                                color: "#1f2937",
+                                whiteSpace: "nowrap",
+                              }}
+                            >
                               {fmt(s.cutDoneAt)}
                             </Typography>
                           </TableCell>
@@ -2057,7 +2360,11 @@ export default function EditPage() {
                   <TableBody>
                     {doneScripts.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={11} align="center" sx={{ py: 8, borderBottom: "none", color: "#6b7280" }}>
+                        <TableCell
+                          colSpan={11}
+                          align="center"
+                          sx={{ py: 8, borderBottom: "none", color: "#6b7280" }}
+                        >
                           <MagicIcon
                             sx={{
                               fontSize: 36,
@@ -2077,9 +2384,11 @@ export default function EditPage() {
                           <TableCell sx={{ ...tdSx, color: "#9ca3af", fontSize: "0.8rem" }}>
                             {donePage * doneRows + i + 1}
                           </TableCell>
+
                           <TableCell sx={tdSx}>
                             <ScriptId id={s.scriptId} />
                           </TableCell>
+
                           <TableCell sx={tdSx}>
                             <TypeBadge label={s.scriptType} />
                           </TableCell>
@@ -2149,48 +2458,19 @@ export default function EditPage() {
                           </TableCell>
 
                           <TableCell sx={tdSx}>
-                            <Stack direction="row" spacing={0.5} alignItems="center" flexWrap="wrap" gap={0.5}>
-                              {s.editFileUrl && s.editFileUrl !== "pending" ? (
-                                <>
-                                  <Button
-                                    size="small"
-                                    onClick={() => openPlayer(s.editFileUrl, `${s.scriptId} — Edited`)}
-                                    startIcon={<PlayIcon sx={{ fontSize: 16 }} />}
-                                    sx={{
-                                      color: "#4f46e5",
-                                      textTransform: "none",
-                                      fontWeight: 700,
-                                      fontSize: "0.8rem",
-                                      p: "4px 8px",
-                                      border: "1px solid #c7d2fe",
-                                      borderRadius: 1.5,
-                                      "&:hover": { bgcolor: "#eef2ff" },
-                                    }}
-                                  >
-                                    Play
-                                  </Button>
-                                  <Tooltip title="Download">
-                                    <IconButton
-                                      size="small"
-                                      onClick={() =>
-                                        handleDownload(
-                                          s.editFileUrl,
-                                          s.editFileName || s.scriptId + "_edited"
-                                        )
-                                      }
-                                      sx={{
-                                        color: "#6b7280",
-                                        "&:hover": { color: "#4f46e5", bgcolor: "#eef2ff" },
-                                      }}
-                                    >
-                                      <DownloadIcon sx={{ fontSize: 16 }} />
-                                    </IconButton>
-                                  </Tooltip>
-                                </>
-                              ) : (
-                                <Typography sx={{ fontSize: "0.8rem", color: "#9ca3af" }}>—</Typography>
-                              )}
+                            <MediaVariantsCell
+                              script={s}
+                              onPlay={openPlayer}
+                              onDownload={handleDownload}
+                            />
 
+                            <Stack
+                              direction="row"
+                              spacing={0.5}
+                              mt={1}
+                              flexWrap="wrap"
+                              gap={0.5}
+                            >
                               <Button
                                 size="small"
                                 variant="outlined"
@@ -2209,7 +2489,10 @@ export default function EditPage() {
                                   fontSize: "0.78rem",
                                   py: 0.4,
                                   px: 1.2,
-                                  "&:hover": { bgcolor: "#ffedd5", borderColor: "#fb923c" },
+                                  "&:hover": {
+                                    bgcolor: "#ffedd5",
+                                    borderColor: "#fb923c",
+                                  },
                                   opacity: canUploadForScript(s) ? 1 : 0.6,
                                 }}
                               >
@@ -2234,7 +2517,10 @@ export default function EditPage() {
                                   fontSize: "0.78rem",
                                   py: 0.4,
                                   px: 1.2,
-                                  "&:hover": { bgcolor: "#ffedd5", borderColor: "#fb923c" },
+                                  "&:hover": {
+                                    bgcolor: "#ffedd5",
+                                    borderColor: "#fb923c",
+                                  },
                                   opacity: canUploadForScript(s) ? 1 : 0.6,
                                 }}
                               >
@@ -2253,7 +2539,10 @@ export default function EditPage() {
                                     }
                                     sx={{
                                       color: "#6b7280",
-                                      "&:hover": { color: "#4f46e5", bgcolor: "#eef2ff" },
+                                      "&:hover": {
+                                        color: "#4f46e5",
+                                        bgcolor: "#eef2ff",
+                                      },
                                     }}
                                   >
                                     <DownloadIcon sx={{ fontSize: 16 }} />
@@ -2306,13 +2595,25 @@ export default function EditPage() {
                           </TableCell>
 
                           <TableCell sx={tdSx}>
-                            <Typography sx={{ fontSize: "0.8rem", color: "#1f2937", whiteSpace: "nowrap" }}>
+                            <Typography
+                              sx={{
+                                fontSize: "0.85rem",
+                                color: "#4b5563",
+                                whiteSpace: "nowrap",
+                              }}
+                            >
                               {fmt(s.editDoneAt)}
                             </Typography>
                           </TableCell>
 
                           <TableCell sx={tdSx}>
-                            <Typography sx={{ fontSize: "0.85rem", color: "#059669", fontWeight: 600 }}>
+                            <Typography
+                              sx={{
+                                fontSize: "0.85rem",
+                                color: "#059669",
+                                fontWeight: 600,
+                              }}
+                            >
                               {s.editDoneBy || "—"}
                             </Typography>
                           </TableCell>
@@ -2470,58 +2771,18 @@ export default function EditPage() {
                             </Stack>
                           </TableCell>
 
-                          <TableCell sx={{ ...tdSx, minWidth: 220 }}>
-                            <AssignCell
-                              script={s}
-                              marketingEmployees={marketingEmployees}
-                              onAssigned={load}
-                              showSnack={showSnack}
-                              canAssign={canAssign}
-                            />
+                          <TableCell sx={tdSx}>
+                            <Typography sx={{ fontSize: "0.85rem", color: "#4b5563" }}>
+                              {s.editAssignedTo || "—"}
+                            </Typography>
                           </TableCell>
 
                           <TableCell sx={tdSx}>
-                            {s.editFileUrl && s.editFileUrl !== "pending" ? (
-                              <Stack direction="row" spacing={0.5} alignItems="center">
-                                <Button
-                                  size="small"
-                                  onClick={() => openPlayer(s.editFileUrl, `${s.scriptId} — Edited`)}
-                                  startIcon={<PlayIcon sx={{ fontSize: 16 }} />}
-                                  sx={{
-                                    color: "#4f46e5",
-                                    textTransform: "none",
-                                    fontWeight: 700,
-                                    fontSize: "0.8rem",
-                                    p: "4px 8px",
-                                    border: "1px solid #c7d2fe",
-                                    borderRadius: 1.5,
-                                    "&:hover": { bgcolor: "#eef2ff" },
-                                  }}
-                                >
-                                  Play
-                                </Button>
-
-                                <Tooltip title="Download">
-                                  <IconButton
-                                    size="small"
-                                    onClick={() =>
-                                      handleDownload(
-                                        s.editFileUrl,
-                                        s.editFileName || s.scriptId + "_edited"
-                                      )
-                                    }
-                                    sx={{
-                                      color: "#6b7280",
-                                      "&:hover": { color: "#4f46e5", bgcolor: "#eef2ff" },
-                                    }}
-                                  >
-                                    <DownloadIcon sx={{ fontSize: 16 }} />
-                                  </IconButton>
-                                </Tooltip>
-                              </Stack>
-                            ) : (
-                              <Typography sx={{ fontSize: "0.8rem", color: "#9ca3af" }}>—</Typography>
-                            )}
+                            <MediaVariantsCell
+                              script={s}
+                              onPlay={openPlayer}
+                              onDownload={handleDownload}
+                            />
                           </TableCell>
 
                           <TableCell sx={tdSx}>
@@ -2567,17 +2828,29 @@ export default function EditPage() {
                           </TableCell>
 
                           <TableCell sx={tdSx}>
-                            <PublishStatusChip status={s.postPublishStatus || "Posted"} />
+                            <PublishStatusChip status={s.postPublishStatus} />
                           </TableCell>
 
                           <TableCell sx={tdSx}>
-                            <Typography sx={{ fontSize: "0.8rem", color: "#1f2937", whiteSpace: "nowrap" }}>
-                              {fmt(s.postedAt || s.postPublishStatusUpdatedAt)}
+                            <Typography
+                              sx={{
+                                fontSize: "0.85rem",
+                                color: "#4b5563",
+                                whiteSpace: "nowrap",
+                              }}
+                            >
+                              {fmt(s.postedAt)}
                             </Typography>
                           </TableCell>
 
                           <TableCell sx={tdSx}>
-                            <Typography sx={{ fontSize: "0.85rem", color: "#059669", fontWeight: 600 }}>
+                            <Typography
+                              sx={{
+                                fontSize: "0.85rem",
+                                color: "#059669",
+                                fontWeight: 600,
+                              }}
+                            >
                               {s.postedBy || "—"}
                             </Typography>
                           </TableCell>
@@ -2604,6 +2877,20 @@ export default function EditPage() {
           )}
         </>
       )}
+
+      <PlayerModal
+        open={player.open}
+        onClose={() => setPlayer({ open: false, url: "", title: "" })}
+        url={player.url}
+        title={player.title}
+      />
+
+      <CommentModal
+        open={commentModal.open}
+        onClose={() => setCommentModal({ open: false, text: "", title: "" })}
+        comment={commentModal.text}
+        title={commentModal.title}
+      />
 
       <UploadVideoDialog
         open={uploadOpen}
@@ -2747,50 +3034,34 @@ export default function EditPage() {
               sx={{
                 bgcolor: "#f9fafb",
                 border: "1px solid #e5e7eb",
-                borderRadius: 1.5,
+                borderRadius: 2,
                 p: 2,
               }}
             >
-              <Stack direction="row" alignItems="center" gap={1} mb={1}>
+              <Stack direction="row" alignItems="center" gap={1} mb={0.8}>
+                <ScriptId id={dialogTarget.scriptId} />
                 <TypeBadge label={dialogTarget.scriptType} />
-                <Typography sx={{ fontSize: "0.8rem", color: "#6b7280" }}>
-                  by {dialogTarget.createdBy}
-                </Typography>
               </Stack>
-              <Typography
-                sx={{
-                  fontSize: "0.85rem",
-                  color: "#4b5563",
-                  display: "-webkit-box",
-                  WebkitLineClamp: 3,
-                  WebkitBoxOrient: "vertical",
-                  overflow: "hidden",
-                }}
-              >
-                {previewText(dialogTarget.scriptText, 260)}
+              <Typography sx={{ fontSize: "0.85rem", color: "#4b5563" }}>
+                {previewText(dialogTarget.scriptText, 220)}
               </Typography>
             </Box>
           )}
 
-          <Divider sx={{ borderColor: "#e5e7eb" }} />
-
           <FormControl size="small" sx={inputSx}>
             <InputLabel>Edit Status</InputLabel>
             <Select
-              value={form.editStatus}
               label="Edit Status"
+              value={form.editStatus}
               onChange={(e) =>
-                setForm((f) => ({
-                  ...f,
-                  editStatus: e.target.value,
-                  editHoldReason: "",
-                }))
+                setForm((prev) => ({ ...prev, editStatus: e.target.value }))
               }
+              disabled={saving}
             >
-              <MenuItem value="">— Select —</MenuItem>
-              {EDIT_STATUSES.map((s) => (
-                <MenuItem key={s} value={s}>
-                  {s}
+              <MenuItem value="">Select status</MenuItem>
+              {EDIT_STATUSES.map((status) => (
+                <MenuItem key={status} value={status}>
+                  {status}
                 </MenuItem>
               ))}
             </Select>
@@ -2800,28 +3071,27 @@ export default function EditPage() {
             <TextField
               label="Reason *"
               multiline
-              minRows={2}
+              minRows={3}
               value={form.editHoldReason}
               onChange={(e) =>
-                setForm((f) => ({ ...f, editHoldReason: e.target.value }))
+                setForm((prev) => ({ ...prev, editHoldReason: e.target.value }))
               }
               error={!!errors.editHoldReason}
               helperText={errors.editHoldReason}
+              disabled={saving}
               sx={inputSx}
             />
           )}
-
-          <Divider sx={{ borderColor: "#e5e7eb" }} />
 
           <TextField
             label="Comment"
             multiline
             minRows={3}
-            placeholder="Notes for the team…"
             value={form.editComment}
             onChange={(e) =>
-              setForm((f) => ({ ...f, editComment: e.target.value }))
+              setForm((prev) => ({ ...prev, editComment: e.target.value }))
             }
+            disabled={saving}
             sx={inputSx}
           />
         </DialogContent>
@@ -2829,59 +3099,49 @@ export default function EditPage() {
         <DialogActions
           sx={{
             px: 3,
-            pb: 3,
-            pt: 2,
+            py: 2,
             borderTop: "1px solid #e5e7eb",
             gap: 1,
           }}
         >
-          <Button onClick={closeDialog} sx={{ color: "#6b7280", textTransform: "none" }}>
+          <Button
+            onClick={closeDialog}
+            disabled={saving}
+            sx={{ color: "#6b7280", textTransform: "none" }}
+          >
             Cancel
           </Button>
           <Button
             variant="contained"
             onClick={handleSave}
             disabled={saving}
-            startIcon={saving ? <CircularProgress size={16} color="inherit" /> : <EditIcon />}
+            startIcon={saving ? <CircularProgress size={16} color="inherit" /> : <CheckIcon />}
             sx={{
               bgcolor: "#ea580c",
               color: "#ffffff",
               boxShadow: "none",
               textTransform: "none",
-              fontWeight: 800,
+              fontWeight: 600,
               px: 3,
               "&:hover": { bgcolor: "#c2410c" },
             }}
           >
-            {saving ? "Saving…" : "Save Details"}
+            {saving ? "Saving…" : "Save"}
           </Button>
         </DialogActions>
       </Dialog>
 
-      <CommentModal
-        open={commentModal.open}
-        onClose={() => setCommentModal({ open: false, text: "", title: "" })}
-        comment={commentModal.text}
-        title={commentModal.title}
-      />
-
-      <PlayerModal
-        open={player.open}
-        onClose={() => setPlayer({ open: false, url: "", title: "" })}
-        url={player.url}
-        title={player.title}
-      />
-
       <Snackbar
         open={snack.open}
-        autoHideDuration={3500}
+        autoHideDuration={2600}
         onClose={() => setSnack((s) => ({ ...s, open: false }))}
         anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
       >
         <Alert
-          severity={snack.severity}
           onClose={() => setSnack((s) => ({ ...s, open: false }))}
-          sx={{ boxShadow: "0 4px 6px -1px rgba(0,0,0,0.1)", borderRadius: 2 }}
+          severity={snack.severity}
+          variant="filled"
+          sx={{ width: "100%" }}
         >
           {snack.msg}
         </Alert>
