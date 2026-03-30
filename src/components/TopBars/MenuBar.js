@@ -40,7 +40,8 @@ import AssignmentTurnedInIcon from "@mui/icons-material/AssignmentTurnedIn";
 import QueryStatsIcon from "@mui/icons-material/QueryStats";
 import CampaignIcon from "@mui/icons-material/Campaign";
 import VideoLibraryIcon from "@mui/icons-material/VideoLibrary";
-import ViewCarouselIcon from "@mui/icons-material/ViewCarousel"; 
+import ViewCarouselIcon from "@mui/icons-material/ViewCarousel";
+import AccountBalanceWalletOutlinedIcon from "@mui/icons-material/AccountBalanceWalletOutlined";
 import StorefrontIcon from "@mui/icons-material/Storefront";
 import { Link, useNavigate } from "react-router-dom";
 
@@ -1029,7 +1030,7 @@ const MenuBar = ({ toggleDrawer }) => {
                     </Typography>
                   </ListItem>
                 )}
-                
+
                 {can("editPage") && (
                   <ListItem
                     button
@@ -1121,7 +1122,7 @@ const MenuBar = ({ toggleDrawer }) => {
                     </Typography>
                   </ListItem>
                 )}
-                
+
                 {can("OthereditPage") && (
                   <ListItem
                     button
@@ -1213,7 +1214,7 @@ const MenuBar = ({ toggleDrawer }) => {
                     </Typography>
                   </ListItem>
                 )}
-                
+
                 {can("StaticCarouseleditPage") && (
                   <ListItem
                     button
@@ -1305,7 +1306,7 @@ const MenuBar = ({ toggleDrawer }) => {
                     </Typography>
                   </ListItem>
                 )}
-                
+
                 {can("adseditPage") && (
                   <ListItem
                     button
@@ -1349,6 +1350,8 @@ const MenuBar = ({ toggleDrawer }) => {
             </Typography>
           </ListItem>
         )}
+
+
 
         {user && can("financeCodRemittanceMenu") && (
           <>
@@ -1417,6 +1420,58 @@ const MenuBar = ({ toggleDrawer }) => {
                   >
                     <Typography variant="body2" sx={{ fontSize: "13px" }}>
                       Shiprocket
+                    </Typography>
+                  </ListItem>
+                )}
+              </List>
+            </Collapse>
+          </>
+        )}
+
+        {user && can("incentivesWallet") && (
+          <>
+            <ListItem
+              button
+              onClick={() => handleDropdownClick("incentivesWallet")}
+              sx={dropdownStyle}
+            >
+              <Box sx={{ display: "flex", alignItems: "center" }}>
+                <AccountBalanceWalletOutlinedIcon
+                  sx={{ fontSize: 18, marginRight: "8px" }}
+                />
+                <Typography variant="body1" sx={{ fontSize: "14px" }}>
+                  Incentives Wallet
+                </Typography>
+              </Box>
+              {openDropdown.incentivesWallet ? (
+                <KeyboardArrowDownIcon />
+              ) : (
+                <KeyboardArrowRightIcon />
+              )}
+            </ListItem>
+
+            <Collapse in={openDropdown.incentivesWallet} timeout="auto" unmountOnExit>
+              <List sx={nestedListStyle}>
+                <ListItem
+                  button
+                  component={Link}
+                  to="/incentives"
+                  onClick={toggleDrawer}
+                >
+                  <Typography variant="body2" sx={{ fontSize: "13px" }}>
+                    Incentives Details
+                  </Typography>
+                </ListItem>
+
+                {can("sops") && (
+                  <ListItem
+                    button
+                    component={Link}
+                    to="/SOP-creation"
+                    onClick={toggleDrawer}
+                  >
+                    <Typography variant="body2" sx={{ fontSize: "13px" }}>
+                      SOPs
                     </Typography>
                   </ListItem>
                 )}

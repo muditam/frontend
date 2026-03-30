@@ -658,7 +658,7 @@ const NavbarWithSearch = () => {
                   alignItems: "center",
                 }}
               >
-                Target: ({salesProgress}/{target})
+                Target: ({Math.floor(salesProgress)}/{Math.floor(target)})
                 <span
                   style={{
                     marginLeft: 8,
@@ -1222,7 +1222,7 @@ const NavbarWithSearch = () => {
             <TableBody>
               {[
                 {
-                  slab: "1.5L – 2L ( Only during probation)",
+                  slab: "0 – 2L",
                   rate: "1%",
                   monthly: "1,500 – 2,000",
                   annual: "18,000 – 24,000",

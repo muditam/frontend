@@ -59,6 +59,8 @@ const DEFAULT_PERMISSIONS = {
     adminAccessRequests: false,
     deliveredSalesRecord: false,
 
+    incentivesWallet: false,
+    sops: false,
 
     // Order confirmations & abandoned
     orderConfirmationsMenu: false,
@@ -193,7 +195,6 @@ const DEFAULT_PERMISSIONS = {
     othersTransferRequests: false,
     othersBulkDataUpload: false,
     othersIncentiveCreation: false,
-
 
     // International Agent
     globalShopifyMenu: false,
@@ -1342,6 +1343,8 @@ const AddEmployee = () => {
                   ["accessManagement", "Access Management"],
                   ["adminAccessRequests", "Admin Access Requests"],
                   ["deliveredSalesRecord", "Delivered Sales Record"],
+                  ["incentivesWallet", "Incentives Wallet"],
+                  ["sops", "SOPs"],
                 ].map(([key, label]) => (
                   <FormControlLabel
                     key={key}

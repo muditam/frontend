@@ -153,8 +153,18 @@ async function uploadFilesToWasabi(files, authHeaders, onProgress) {
         url: finalUrl,
         name: file.name,
         key,
+        mimeType: file.type || "application/octet-stream",
       };
     })
+  );
+}
+
+function isVideoAsset(asset) {
+  const mime = String(asset?.mimeType || "").toLowerCase();
+  const name = String(asset?.name || asset?.url || "").toLowerCase();
+  return (
+    mime.startsWith("video/") ||
+    /\.(mp4|mov|avi|mkv|webm|m4v)$/i.test(name)
   );
 }
 
@@ -655,18 +665,34 @@ function AssetGalleryDialog({ open, onClose, assets = [], title = "Images", onDo
                   bgcolor: "#fff",
                 }}
               >
-                <Box
-                  component="img"
-                  src={asset.url}
-                  alt={asset.name || `asset-${idx + 1}`}
-                  sx={{
-                    width: "100%",
-                    height: 220,
-                    objectFit: "cover",
-                    display: "block",
-                    bgcolor: "#f8fafc",
-                  }}
-                />
+                {isVideoAsset(asset) ? (
+                  <Box
+                    component="video"
+                    src={asset.url}
+                    controls
+                    preload="metadata"
+                    sx={{
+                      width: "100%",
+                      height: 220,
+                      objectFit: "cover",
+                      display: "block",
+                      bgcolor: "#f8fafc",
+                    }}
+                  />
+                ) : (
+                  <Box
+                    component="img"
+                    src={asset.url}
+                    alt={asset.name || `asset-${idx + 1}`}
+                    sx={{
+                      width: "100%",
+                      height: 220,
+                      objectFit: "cover",
+                      display: "block",
+                      bgcolor: "#f8fafc",
+                    }}
+                  />
+                )}
 
                 <Box sx={{ p: 1.2 }}>
                   <Stack direction="row" alignItems="center" justifyContent="space-between" gap={1}>
@@ -850,7 +876,7 @@ function UploadEditedAssetsDialog({
 
   const handleUpload = async () => {
     if (!selectedFiles.length) {
-      showSnack("Please select at least one image", "error");
+      showSnack("Please select at least one file", "error");
       return;
     }
 
@@ -864,7 +890,7 @@ function UploadEditedAssetsDialog({
     setLabel("Getting upload URL…");
 
     try {
-      setLabel("Uploading edited images…");
+      setLabel("Uploading edited media...");
       const assets = await uploadFilesToWasabi(
         selectedFiles,
         getAuthHeaders(),
@@ -887,8 +913,8 @@ function UploadEditedAssetsDialog({
 
       showSnack(
         mode === "reupload"
-          ? "Edited images re-uploaded ✅"
-          : "Edited images uploaded ✅"
+          ? "Edited media re-uploaded ✅"
+          : "Edited media uploaded ✅"
       );
 
       onUploaded();
@@ -1050,7 +1076,7 @@ function UploadEditedAssetsDialog({
             ref={fileInputRef}
             type="file"
             multiple
-            accept="image/*,.png,.jpg,.jpeg,.webp"
+            accept="image/*,video/*,.png,.jpg,.jpeg,.webp,.mp4,.mov,.avi,.mkv,.webm"
             style={{ display: "none" }}
             onChange={(e) => {
               const files = Array.from(e.target.files || []);
@@ -1160,8 +1186,8 @@ function UploadEditedAssetsDialog({
           {uploading
             ? "Uploading…"
             : mode === "reupload"
-            ? "Re-upload Images"
-            : "Upload Edited Images"}
+              ? "Re-upload Images"
+              : "Upload Edited Images"}
         </Button>
       </DialogActions>
     </Dialog>

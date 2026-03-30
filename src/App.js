@@ -111,6 +111,9 @@ import AdsEditPage from "./Marketing/ads/AdsEditPage";
 import AdsPostPage from "./Marketing/ads/AdsPostPage"; 
 import LeadUtmLinkGenerator from "./components/LeadUtmLinkGenerator";
 import UnicommerceOrdersPage from "./components/UnicommerceOrdersPage";
+import IncentivesPage from "./pages/IncentivesPage";
+import SOPMasterPage from "./pages/SOPMasterPage"; 
+import RewardsAdminPage from "./pages/RewardsAdminPage"; 
 
 const App = () => {
   return (
@@ -162,6 +165,9 @@ const App = () => {
           <Route path="/Ads/Post" element={<AdsPostPage />} /> 
           <Route path="/utmlink-generator" element={<LeadUtmLinkGenerator />} />
           <Route path="/unicommerce" element={<UnicommerceOrdersPage />} />
+          <Route path="/incentives" element={<IncentivesPage />} />
+          <Route path="/SOP-creation" element={<SOPMasterPage />} /> 
+          <Route path="/Rewards-Admin-Page" element={<RewardsAdminPage />} /> 
 
           <Route
             path="/"

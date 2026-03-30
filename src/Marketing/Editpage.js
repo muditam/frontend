@@ -827,78 +827,82 @@ function UploadVideoDialog({ open, onClose, script, onUploaded, showSnack, mode 
   };
 
   const handleUpload = async () => {
-    if (!selectedFiles.length) {
-      showSnack("Please select file(s)", "error");
-      return;
+  if (!selectedFiles.length) {
+    showSnack("Please select file(s)", "error");
+    return;
+  }
+
+  if (needsReason && !holdReason.trim()) {
+    showSnack("Please provide a reason", "error");
+    return;
+  }
+
+  const useVariants = hasVariants || selectedFiles.length > 1;
+
+  if (useVariants && selectedFiles.length < 2) {
+    showSnack("Please select multiple files for variants", "error");
+    return;
+  }
+
+  setUploading(true);
+  setUploadProgress(0);
+  setLabel("Getting upload URL…");
+
+  try {
+    setLabel("Uploading...");
+
+    const uploaded = await uploadFilesToWasabi(
+      selectedFiles,
+      getAuthHeaders(),
+      setUploadProgress
+    );
+
+    setLabel("Saving to database…");
+    setUploadProgress(100);
+
+    const payload = {
+      editComment: comment,
+      editStatus,
+      editHoldReason: holdReason,
+    };
+
+    if (useVariants) {
+      payload.editHasVariants = true;
+      payload.editVariants = uploaded.map((item, index) => ({
+        label: variantLabels[index]?.trim() || `Variant ${index + 1}`,
+        url: item.url,
+        name: item.originalName,
+        type: detectMediaKind(item.originalName),
+      }));
+    } else {
+      payload.editHasVariants = false;
+      payload.editFileUrl = uploaded[0]?.url || "";
+      payload.editFileName = uploaded[0]?.originalName || "";
     }
 
-    if (needsReason && !holdReason.trim()) {
-      showSnack("Please provide a reason", "error");
-      return;
-    }
+    await axios.post(`${API}/${script._id}/edit-upload`, payload, {
+      headers: getAuthHeaders(),
+      withCredentials: true,
+    });
 
-    if (hasVariants && selectedFiles.length < 2) {
-      showSnack("Please select multiple files for variants", "error");
-      return;
-    }
+    showSnack(
+      mode === "reupload"
+        ? "Edited media updated"
+        : "Edited media uploaded"
+    );
 
-    setUploading(true);
-    setUploadProgress(0);
-    setLabel("Getting upload URL…");
-
-    try {
-      setLabel("Uploading...");
-      const uploaded = await uploadFilesToWasabi(
-        selectedFiles,
-        getAuthHeaders(),
-        setUploadProgress
-      );
-
-      setLabel("Saving to database…");
-      setUploadProgress(100);
-
-      const payload = {
-        editComment: comment,
-        editStatus,
-        editHoldReason: holdReason,
-      };
-
-      if (hasVariants) {
-        payload.editHasVariants = true;
-        payload.editVariants = uploaded.map((item, index) => ({
-          label: variantLabels[index]?.trim() || `Variant ${index + 1}`,
-          url: item.url,
-          name: item.originalName,
-          type: detectMediaKind(item.originalName),
-        }));
-      } else {
-        payload.editHasVariants = false;
-        payload.editFileUrl = uploaded[0]?.url;
-        payload.editFileName = uploaded[0]?.originalName;
-      }
-
-      await axios.post(`${API}/${script._id}/edit-upload`, payload, {
-        headers: getAuthHeaders(),
-        withCredentials: true,
-      });
-
-      showSnack(
-        mode === "reupload"
-          ? "Edited media updated ✅"
-          : "Edited media uploaded ✅"
-      );
-      onUploaded();
-      handleClose();
-    } catch (err) {
-      showSnack(
-        err.response?.data?.message || err.message || "Upload failed",
-        "error"
-      );
-    } finally {
-      setUploading(false);
-      setLabel("");
-    }
-  };
+    onUploaded();
+    handleClose();
+  } catch (err) {
+    showSnack(
+      err.response?.data?.message || err.message || "Upload failed",
+      "error"
+    );
+  } finally {
+    setUploading(false);
+    setLabel("");
+  }
+};
 
   const fmtSz = (b) =>
     b < 1024 * 1024
@@ -1007,12 +1011,7 @@ function UploadVideoDialog({ open, onClose, script, onUploaded, showSnack, mode 
               size="small"
               variant={hasVariants ? "contained" : "outlined"}
               onClick={() => {
-                setHasVariants((prev) => {
-                  const next = !prev;
-                  setSelectedFiles([]);
-                  setVariantLabels([]);
-                  return next;
-                });
+                setHasVariants((prev) => !prev);
               }}
               disabled={uploading}
               sx={{
@@ -1112,7 +1111,7 @@ function UploadVideoDialog({ open, onClose, script, onUploaded, showSnack, mode 
               <Typography
                 sx={{ fontSize: "0.9rem", color: "#6b7280", fontWeight: 500 }}
               >
-                {hasVariants
+                {selectedFiles.length > 1 || hasVariants
                   ? "Click to select multiple media variants"
                   : "Click to select your edited file"}
               </Typography>
@@ -1125,14 +1124,20 @@ function UploadVideoDialog({ open, onClose, script, onUploaded, showSnack, mode 
           <input
             ref={fileInputRef}
             type="file"
-            multiple={hasVariants}
+            multiple
             accept="video/*,image/*,.mp4,.mov,.avi,.webm,.mkv,.m4v,.png,.jpg,.jpeg,.webp,.gif"
             style={{ display: "none" }}
             onChange={(e) => {
-              const files = Array.from(e.target.files || []);
-              setSelectedFiles(files);
-              setVariantLabels(files.map((_, idx) => `Variant ${idx + 1}`));
-            }}
+  const files = Array.from(e.target.files || []);
+  const isMulti = files.length > 1;
+
+  setSelectedFiles(files);
+  setHasVariants(isMulti);
+
+  setVariantLabels(
+    files.map((file, idx) => variantLabels[idx] || `Variant ${idx + 1}`)
+  );
+}}
             disabled={uploading}
           />
         </Box>
