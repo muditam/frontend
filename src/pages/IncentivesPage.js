@@ -1591,7 +1591,7 @@ export default function IncentivesPage() {
                   <SummaryMetric
                     title="Prepaid"
                     value={formatNumber(prepaidCoins)}
-                    sub={`${formatNumber(prepaidCount)} orders · 30 coins each`}
+                    sub={`${formatNumber(prepaidCount)} orders · 20 coins each`}
                     color={BRAND.prepaid}
                     bg={BRAND.prepaidSoft}
                     borderColor="#ccfbf1"

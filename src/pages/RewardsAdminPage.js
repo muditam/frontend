@@ -125,6 +125,7 @@ export default function RewardsAdminPage() {
   const [requestsLoading, setRequestsLoading] = useState(false);
   const [requestsError, setRequestsError] = useState("");
   const [requests, setRequests] = useState([]);
+  const [requestActionId, setRequestActionId] = useState("");
 
   const [rewardDialogOpen, setRewardDialogOpen] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
@@ -194,7 +195,7 @@ export default function RewardsAdminPage() {
       console.error("Error fetching custom requests:", err);
       setRequests([]);
       setRequestsError(
-        err?.response?.data?.message || "Failed to load custom requests."
+        err?.response?.data?.message || "Failed to load pending requests."
       );
     } finally {
       setRequestsLoading(false);
@@ -336,8 +337,8 @@ export default function RewardsAdminPage() {
   const openApproveDialog = (request) => {
     setApprovalRequest(request);
     setApprovalForm({
-      title: "",
-      image: "",
+      title: request.extractedTitle || "",
+      image: request.extractedImage || "",
       link: request.url || "",
       price: request.requestedCoinBudget || "",
       isActive: true,
@@ -390,6 +391,7 @@ export default function RewardsAdminPage() {
       );
 
       setApproveDialogOpen(false);
+      setApprovalRequest(null);
       fetchRequests();
       fetchRewards();
     } catch (err) {
@@ -397,6 +399,35 @@ export default function RewardsAdminPage() {
       setApprovalError(err?.response?.data?.message || "Failed to approve request.");
     } finally {
       setApprovalSaving(false);
+    }
+  };
+
+  const handleApprovePendingRequest = async (request) => {
+    if (!request?._id) return;
+
+    if (request.requestType !== "curated_redeem") {
+      openApproveDialog(request);
+      return;
+    }
+
+    setRequestActionId(request._id);
+    setRequestsError("");
+
+    try {
+      await axios.post(
+        `${API_BASE}/api/custom-reward/${request._id}/approve`,
+        {},
+        { headers }
+      );
+
+      fetchRequests();
+    } catch (err) {
+      console.error("Error approving redeem request:", err);
+      setRequestsError(
+        err?.response?.data?.message || "Failed to approve redeem request."
+      );
+    } finally {
+      setRequestActionId("");
     }
   };
 
@@ -420,6 +451,7 @@ export default function RewardsAdminPage() {
       );
 
       setRejectDialogOpen(false);
+      setRejectingRequest(null);
       fetchRequests();
     } catch (err) {
       console.error("Error rejecting request:", err);
@@ -763,6 +795,7 @@ export default function RewardsAdminPage() {
               >
                 {requests.map((request) => {
                   const milestone = getMilestoneByCoinCost(request.requestedCoinBudget);
+                  const isCuratedRedeem = request.requestType === "curated_redeem";
 
                   return (
                     <Card
@@ -776,11 +809,17 @@ export default function RewardsAdminPage() {
                       <Box sx={{ p: 2.25 }}>
                         <Stack spacing={1.5}>
                           <Typography sx={{ fontWeight: 800, color: "#101828" }}>
-                            Custom Reward Request
+                            {isCuratedRedeem
+                              ? "Curated Reward Redeem Request"
+                              : "Custom Reward Request"}
                           </Typography>
 
                           <Typography variant="body2" sx={{ color: "#667085" }}>
                             Agent: {request.agentName || "-"}
+                          </Typography>
+
+                          <Typography sx={{ fontWeight: 700, color: "#1d2939" }}>
+                            {request.extractedTitle || "Untitled Reward"}
                           </Typography>
 
                           <Typography
@@ -792,15 +831,30 @@ export default function RewardsAdminPage() {
 
                           <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
                             <Chip size="small" color="warning" label="Pending" />
-                            <Chip size="small" variant="outlined" label={milestone.label} />
+                            <Chip
+                              size="small"
+                              variant="outlined"
+                              label={isCuratedRedeem ? "Redeem Request" : "Custom Request"}
+                            />
+                            <Chip
+                              size="small"
+                              variant="outlined"
+                              label={request.milestoneLabel || milestone.label}
+                            />
                             {request.requestedCoinBudget ? (
                               <Chip
                                 size="small"
                                 variant="outlined"
-                                label={`${formatNumber(request.requestedCoinBudget)} Price`}
+                                label={`${formatNumber(request.requestedCoinBudget)} Coins`}
                               />
                             ) : null}
                           </Stack>
+
+                          {request.note ? (
+                            <Typography variant="body2" sx={{ color: "#667085" }}>
+                              {request.note}
+                            </Typography>
+                          ) : null}
 
                           <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
                             <Button
@@ -814,19 +868,22 @@ export default function RewardsAdminPage() {
                             >
                               Open Link
                             </Button>
+
                             <Button
                               size="small"
                               variant="contained"
                               startIcon={<ApproveIcon />}
-                              onClick={() => openApproveDialog(request)}
+                              onClick={() => handleApprovePendingRequest(request)}
+                              disabled={requestActionId === request._id}
                               sx={{
                                 textTransform: "none",
                                 boxShadow: "none",
                                 borderRadius: 999,
                               }}
                             >
-                              Approve
+                              {requestActionId === request._id ? "Approving..." : "Approve"}
                             </Button>
+
                             <Button
                               size="small"
                               color="error"
@@ -845,7 +902,7 @@ export default function RewardsAdminPage() {
                 })}
               </Box>
             ) : (
-              <Alert severity="info">No pending custom requests.</Alert>
+              <Alert severity="info">No pending requests.</Alert>
             )}
           </Stack>
         )}
@@ -1039,7 +1096,7 @@ export default function RewardsAdminPage() {
         fullWidth
         maxWidth="sm"
       >
-        <DialogTitle>Reject Custom Reward</DialogTitle>
+        <DialogTitle>Reject Request</DialogTitle>
         <DialogContent dividers>
           <Stack spacing={2} sx={{ pt: 1 }}>
             {rejectError ? <Alert severity="error">{rejectError}</Alert> : null}

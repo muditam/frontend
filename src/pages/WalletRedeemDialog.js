@@ -563,8 +563,16 @@ const styles = `
   .wrd-divider { border: none; border-top: 1px solid #f1f5f9; margin: 10px 0; }
 `;
 
-function formatNumber(v) { return Number(v || 0).toLocaleString("en-IN"); }
-function formatCurrency(v) { return `₹${Number(v || 0).toLocaleString("en-IN", { maximumFractionDigits: 0 })}`; }
+function formatNumber(v) {
+  return Number(v || 0).toLocaleString("en-IN");
+}
+
+function formatCurrency(v) {
+  return `₹${Number(v || 0).toLocaleString("en-IN", {
+    maximumFractionDigits: 0,
+  })}`;
+}
+
 function formatDateTime(v) {
   if (!v) return "-";
   const d = new Date(v);
@@ -581,46 +589,66 @@ function getMilestoneMeta(id) {
 }
 
 function isValidUrl(v = "") {
-  try { const u = new URL(v); return ["http:", "https:"].includes(u.protocol); }
-  catch { return false; }
+  try {
+    const u = new URL(v);
+    return ["http:", "https:"].includes(u.protocol);
+  } catch {
+    return false;
+  }
 }
 
 function StatusBadge({ status }) {
   const s = String(status || "").toLowerCase();
-  if (s === "approved") return <span className="wrd-status-badge wrd-status-approved">✓ Approved</span>;
-  if (s === "rejected") return <span className="wrd-status-badge wrd-status-rejected">✕ Rejected</span>;
+  if (s === "approved") {
+    return <span className="wrd-status-badge wrd-status-approved">✓ Approved</span>;
+  }
+  if (s === "rejected") {
+    return <span className="wrd-status-badge wrd-status-rejected">✕ Rejected</span>;
+  }
   return <span className="wrd-status-badge wrd-status-pending">⏳ Pending</span>;
 }
 
 export default function WalletRedeemDialog({
-  open, onClose, headers, agentName, startDate, endDate, availableCoin = 0,
+  open,
+  onClose,
+  headers,
+  agentName,
+  startDate,
+  endDate,
+  availableCoin = 0,
 }) {
   const [tab, setTab] = useState(0);
   const [loading, setLoading] = useState(false);
   const [rewards, setRewards] = useState([]);
   const [error, setError] = useState("");
   const [selectedMilestone, setSelectedMilestone] = useState(1);
+
   const [customLink, setCustomLink] = useState("");
+  const [customPrice, setCustomPrice] = useState("");
   const [customNotes, setCustomNotes] = useState("");
   const [customSubmitting, setCustomSubmitting] = useState(false);
   const [customError, setCustomError] = useState("");
   const [customSuccess, setCustomSuccess] = useState("");
+
   const [requestsLoading, setRequestsLoading] = useState(false);
   const [myRequests, setMyRequests] = useState([]);
   const [requestsError, setRequestsError] = useState("");
 
-  const unlockedMilestone = useMemo(() => getUnlockedMilestone(availableCoin), [availableCoin]);
+  const [redeemSubmittingId, setRedeemSubmittingId] = useState("");
 
-  // Set default milestone on open
+  const unlockedMilestone = useMemo(
+    () => getUnlockedMilestone(availableCoin),
+    [availableCoin]
+  );
+
   useEffect(() => {
     if (!open) return;
     const def = getUnlockedMilestone(availableCoin)?.id || MILESTONES[0].id;
     setSelectedMilestone(def);
-  }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [open, availableCoin]);
 
-  // Fetch rewards when dialog opens OR milestone changes
   useEffect(() => {
-    if (!open || !selectedMilestone) return;
+    if (!open) return;
 
     (async () => {
       setLoading(true);
@@ -637,8 +665,8 @@ export default function WalletRedeemDialog({
         const list = Array.isArray(res.data?.rewards)
           ? res.data.rewards
           : Array.isArray(res.data)
-            ? res.data
-            : [];
+          ? res.data
+          : [];
 
         setRewards(list);
       } catch (err) {
@@ -651,26 +679,37 @@ export default function WalletRedeemDialog({
         setLoading(false);
       }
     })();
-  }, [open, selectedMilestone]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [open, headers]);
 
-  // Fetch my requests once on open
+  const fetchMyRequests = async () => {
+    setRequestsLoading(true);
+    setRequestsError("");
+
+    try {
+      const res = await axios.get(`${API_BASE}/api/custom-reward/mine`, {
+        headers,
+      });
+
+      const list = Array.isArray(res.data?.requests)
+        ? res.data.requests
+        : Array.isArray(res.data)
+        ? res.data
+        : [];
+
+      setMyRequests(list);
+    } catch (err) {
+      setMyRequests([]);
+      setRequestsError(
+        err?.response?.data?.message || "Failed to load your reward requests."
+      );
+    } finally {
+      setRequestsLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (!open) return;
-    (async () => {
-      setRequestsLoading(true);
-      setRequestsError("");
-      try {
-        const res = await axios.get(`${API_BASE}/api/custom-reward/mine`, { headers });
-        const list = Array.isArray(res.data?.requests) ? res.data.requests
-          : Array.isArray(res.data) ? res.data : [];
-        setMyRequests(list);
-      } catch (err) {
-        setMyRequests([]);
-        setRequestsError(err?.response?.data?.message || "Failed to load your reward requests.");
-      } finally {
-        setRequestsLoading(false);
-      }
-    })();
+    fetchMyRequests();
   }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const filteredRewards = useMemo(() => {
@@ -688,31 +727,109 @@ export default function WalletRedeemDialog({
     });
   }, [rewards, selectedMilestone]);
 
+  const redeemStatusByRewardId = useMemo(() => {
+    const map = {};
+
+    myRequests.forEach((item) => {
+      if (item.requestType === "curated_redeem" && item.rewardId) {
+        const key = String(item.rewardId);
+        if (!map[key]) {
+          map[key] = item.status || "pending";
+        }
+      }
+    });
+
+    return map;
+  }, [myRequests]);
+
   const handleSubmitCustomReward = async () => {
     setCustomError("");
     setCustomSuccess("");
-    if (!customLink.trim()) { setCustomError("Please paste a product link."); return; }
-    if (!isValidUrl(customLink.trim())) { setCustomError("Please enter a valid product link (https://...)."); return; }
+
+    if (!customLink.trim()) {
+      setCustomError("Please paste a product link.");
+      return;
+    }
+
+    if (!isValidUrl(customLink.trim())) {
+      setCustomError("Please enter a valid product link (https://...).");
+      return;
+    }
+
+    if (!customPrice || Number(customPrice) <= 0) {
+      setCustomError("Please enter a valid price.");
+      return;
+    }
+
     setCustomSubmitting(true);
+
     try {
-      const res = await axios.post(`${API_BASE}/api/custom-reward`, {
-        url: customLink.trim(), note: customNotes.trim(),
-        agentName, availableCoin: Number(availableCoin || 0),
-        startDate, endDate, milestoneId: Number(selectedMilestone),
-      }, { headers });
-      setCustomSuccess(res.data?.message || "Request submitted — pending approval.");
+      const res = await axios.post(
+        `${API_BASE}/api/custom-reward`,
+        {
+          url: customLink.trim(),
+          note: customNotes.trim(),
+          agentName,
+          availableCoin: Number(customPrice || 0),
+          startDate,
+          endDate,
+          milestoneId: Number(selectedMilestone),
+        },
+        { headers }
+      );
+
+      setCustomSuccess(
+        res.data?.message || "Request submitted — pending approval."
+      );
       setCustomLink("");
+      setCustomPrice("");
       setCustomNotes("");
-      // Refresh requests and switch tab
-      const res2 = await axios.get(`${API_BASE}/api/custom-reward/mine`, { headers });
-      const list = Array.isArray(res2.data?.requests) ? res2.data.requests
-        : Array.isArray(res2.data) ? res2.data : [];
-      setMyRequests(list);
+      await fetchMyRequests();
       setTab(1);
     } catch (err) {
-      setCustomError(err?.response?.data?.message || "Failed to submit request.");
+      setCustomError(
+        err?.response?.data?.message || "Failed to submit request."
+      );
     } finally {
       setCustomSubmitting(false);
+    }
+  };
+
+  const handleRedeemReward = async (reward) => {
+    setCustomError("");
+    setCustomSuccess("");
+
+    if (!reward?._id) {
+      setCustomError("Reward not found.");
+      return;
+    }
+
+    setRedeemSubmittingId(String(reward._id));
+
+    try {
+      const res = await axios.post(
+        `${API_BASE}/api/reward-redeem`,
+        {
+          rewardId: reward._id,
+          agentName,
+          availableCoin: Number(availableCoin || 0),
+          startDate,
+          endDate,
+        },
+        { headers }
+      );
+
+      setCustomSuccess(
+        res.data?.message || "Redeem request submitted successfully."
+      );
+      await fetchMyRequests();
+      setTab(1);
+    } catch (err) {
+      setCustomError(
+        err?.response?.data?.message || "Failed to submit redeem request."
+      );
+    } finally {
+      setRedeemSubmittingId("");
     }
   };
 
@@ -721,46 +838,68 @@ export default function WalletRedeemDialog({
   return (
     <>
       <style>{styles}</style>
+
       <div
         className="wrd-overlay"
-        onClick={(e) => { if (e.target === e.currentTarget && !loading && !customSubmitting) onClose(); }}
+        onClick={(e) => {
+          if (
+            e.target === e.currentTarget &&
+            !loading &&
+            !customSubmitting &&
+            !redeemSubmittingId
+          ) {
+            onClose();
+          }
+        }}
       >
         <div className="wrd-dialog">
-
-          {/* ── Header ── */}
           <div className="wrd-header">
             <div className="wrd-header-left">
               <h2>Gift Picker</h2>
               <p>Browse curated rewards or submit a custom request</p>
             </div>
+
             <div className="wrd-header-right">
-              <span className="wrd-badge wrd-badge-coin">◆ {formatNumber(availableCoin)} coins</span>
-              {unlockedMilestone
-                ? <span className="wrd-badge wrd-badge-milestone">✓ {unlockedMilestone.title} unlocked</span>
-                : <span className="wrd-badge wrd-badge-milestone-none">No milestone unlocked</span>}
+              <span className="wrd-badge wrd-badge-coin">
+                ◆ {formatNumber(availableCoin)} coins
+              </span>
+
+              {unlockedMilestone ? (
+                <span className="wrd-badge wrd-badge-milestone">
+                  ✓ {unlockedMilestone.title} unlocked
+                </span>
+              ) : (
+                <span className="wrd-badge wrd-badge-milestone-none">
+                  No milestone unlocked
+                </span>
+              )}
             </div>
           </div>
 
-          {/* ── Body ── */}
           <div className="wrd-body">
-
             <div className="wrd-tabs">
-              <button className={`wrd-tab${tab === 0 ? " active" : ""}`} onClick={() => setTab(0)}>
+              <button
+                className={`wrd-tab${tab === 0 ? " active" : ""}`}
+                onClick={() => setTab(0)}
+              >
                 Curated Rewards
               </button>
-              <button className={`wrd-tab${tab === 1 ? " active" : ""}`} onClick={() => setTab(1)}>
+
+              <button
+                className={`wrd-tab${tab === 1 ? " active" : ""}`}
+                onClick={() => setTab(1)}
+              >
                 My Requests{myRequests.length > 0 ? ` (${myRequests.length})` : ""}
               </button>
             </div>
 
-            {/* ── Curated Rewards tab ── */}
             {tab === 0 && (
               <>
-                {/* Milestone pills — ALL are clickable; locked ones just show a lock icon */}
                 <div className="wrd-milestone-strip">
                   {MILESTONES.map((item) => {
                     const locked = Number(availableCoin || 0) < item.coin;
                     const isSelected = Number(selectedMilestone) === item.id;
+
                     return (
                       <button
                         key={item.id}
@@ -768,10 +907,14 @@ export default function WalletRedeemDialog({
                           "wrd-milestone-pill",
                           isSelected ? "active" : "",
                           locked ? "locked" : "",
-                        ].join(" ").trim()}
+                        ]
+                          .join(" ")
+                          .trim()}
                         onClick={() => setSelectedMilestone(item.id)}
                       >
-                        {locked && !isSelected && <span className="wrd-lock-icon">🔒</span>}
+                        {locked && !isSelected && (
+                          <span className="wrd-lock-icon">🔒</span>
+                        )}
                         {item.title} · {formatCurrency(item.coin)}
                       </button>
                     );
@@ -779,54 +922,133 @@ export default function WalletRedeemDialog({
                 </div>
 
                 {error && <div className="wrd-alert wrd-alert-error">{error}</div>}
+                {customError && (
+                  <div className="wrd-alert wrd-alert-error">{customError}</div>
+                )}
+                {customSuccess && (
+                  <div className="wrd-alert wrd-alert-success">{customSuccess}</div>
+                )}
 
                 {loading ? (
-                  <div className="wrd-spinner"><div className="wrd-spin" /></div>
+                  <div className="wrd-spinner">
+                    <div className="wrd-spin" />
+                  </div>
                 ) : filteredRewards.length ? (
                   <div className="wrd-grid">
                     {filteredRewards.map((reward) => {
-                      const coinCost = Number(reward.coinCost ?? reward.price ?? reward.coins ?? 0);
+                      const coinCost = Number(
+                        reward.coinCost ?? reward.price ?? reward.coins ?? 0
+                      );
                       const eligible = Number(availableCoin || 0) >= coinCost;
                       const milestoneMeta = getMilestoneMeta(reward.milestoneId);
+                      const currentRedeemStatus =
+                        redeemStatusByRewardId[String(reward._id)];
+
                       return (
                         <div className="wrd-card" key={reward._id || reward.id}>
                           <div className="wrd-card-img">
-                            {reward.image
-                              ? <img src={reward.image} alt={reward.title} />
-                              : <span className="wrd-gift-icon">🎁</span>}
+                            {reward.image ? (
+                              <img src={reward.image} alt={reward.title} />
+                            ) : (
+                              <span className="wrd-gift-icon">🎁</span>
+                            )}
                           </div>
+
                           <div className="wrd-card-body">
                             <div>
-                              <p className="wrd-card-title">{reward.title || "Reward"}</p>
-                              <p className="wrd-card-brand">{reward.brand || reward.category || "Curated Reward"}</p>
+                              <p className="wrd-card-title">
+                                {reward.title || "Reward"}
+                              </p>
+                              <p className="wrd-card-brand">
+                                {reward.brand || reward.category || "Curated Reward"}
+                              </p>
                             </div>
+
                             <div className="wrd-tags">
                               <span className="wrd-tag wrd-tag-ms">
-                                {milestoneMeta ? milestoneMeta.title : reward.milestoneLabel || "Suggested"}
+                                {milestoneMeta
+                                  ? milestoneMeta.title
+                                  : reward.milestoneLabel || "Suggested"}
                               </span>
-                              {reward.category && <span className="wrd-tag wrd-tag-cat">{reward.category}</span>}
+
+                              {reward.category && (
+                                <span className="wrd-tag wrd-tag-cat">
+                                  {reward.category}
+                                </span>
+                              )}
                             </div>
+
                             <div className="wrd-coin-box">
                               <div className="wrd-coin-label">Redemption</div>
-                              <div className="wrd-coin-value">{formatNumber(coinCost)} coins</div>
+                              <div className="wrd-coin-value">
+                                {formatNumber(coinCost)} coins
+                              </div>
                             </div>
-                            {reward.note
-                              ? <p className="wrd-card-note">{reward.note}</p>
-                              : <div style={{ minHeight: 36 }} />}
+
+                            {reward.note ? (
+                              <p className="wrd-card-note">{reward.note}</p>
+                            ) : (
+                              <div style={{ minHeight: 36 }} />
+                            )}
+
                             <hr className="wrd-divider" />
+
                             <div className="wrd-card-footer">
-                              <span className={`wrd-eligible-badge ${eligible ? "yes" : "no"}`}>
+                              <span
+                                className={`wrd-eligible-badge ${
+                                  eligible ? "yes" : "no"
+                                }`}
+                              >
                                 {eligible ? "✓ Eligible" : "Locked"}
                               </span>
-                              <a
-                                className="wrd-btn-link"
-                                href={reward.link || reward.url || "#"}
-                                target="_blank"
-                                rel="noreferrer"
-                                style={!(reward.link || reward.url) ? { opacity: 0.4, pointerEvents: "none" } : {}}
+
+                              <div
+                                style={{
+                                  display: "flex",
+                                  gap: 8,
+                                  alignItems: "center",
+                                  flexWrap: "wrap",
+                                  justifyContent: "flex-end",
+                                }}
                               >
-                                View ↗
-                              </a>
+                                <a
+                                  className="wrd-btn-link"
+                                  href={reward.link || reward.url || "#"}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  style={
+                                    !(reward.link || reward.url)
+                                      ? { opacity: 0.4, pointerEvents: "none" }
+                                      : {}
+                                  }
+                                >
+                                  View ↗
+                                </a>
+
+                                <button
+                                  className="wrd-btn-primary"
+                                  style={{
+                                    padding: "7px 14px",
+                                    fontSize: 12,
+                                    boxShadow: "none",
+                                  }}
+                                  disabled={
+                                    !eligible ||
+                                    redeemSubmittingId === String(reward._id) ||
+                                    currentRedeemStatus === "pending" ||
+                                    currentRedeemStatus === "approved"
+                                  }
+                                  onClick={() => handleRedeemReward(reward)}
+                                >
+                                  {redeemSubmittingId === String(reward._id)
+                                    ? "Submitting..."
+                                    : currentRedeemStatus === "pending"
+                                    ? "Pending"
+                                    : currentRedeemStatus === "approved"
+                                    ? "Approved"
+                                    : "Redeem"}
+                                </button>
+                              </div>
                             </div>
                           </div>
                         </div>
@@ -840,12 +1062,13 @@ export default function WalletRedeemDialog({
                   </div>
                 )}
 
-                {/* Custom reward form */}
                 <div className="wrd-custom-box">
                   <h3>Request a custom reward</h3>
-                  <p>Can't find what you want? Paste a product link and we'll review it under the selected milestone.</p>
-                  {customError && <div className="wrd-alert wrd-alert-error">{customError}</div>}
-                  {customSuccess && <div className="wrd-alert wrd-alert-success">{customSuccess}</div>}
+                  <p>
+                    Can't find what you want? Paste a product link and we'll
+                    review it under the selected milestone.
+                  </p>
+
                   <div className="wrd-field">
                     <span className="wrd-field-icon">🔗</span>
                     <input
@@ -856,6 +1079,20 @@ export default function WalletRedeemDialog({
                       onChange={(e) => setCustomLink(e.target.value)}
                     />
                   </div>
+
+                  <div className="wrd-field">
+                    <input
+                      className="wrd-input"
+                      type="number"
+                      placeholder="Enter price"
+                      value={customPrice}
+                      onChange={(e) => setCustomPrice(e.target.value)}
+                      min="0"
+                      step="1"
+                      style={{ paddingLeft: 13 }}
+                    />
+                  </div>
+
                   <textarea
                     className="wrd-textarea"
                     placeholder="Notes — colour, size, model, or any preference (optional)"
@@ -863,11 +1100,12 @@ export default function WalletRedeemDialog({
                     onChange={(e) => setCustomNotes(e.target.value)}
                     style={{ marginBottom: 14 }}
                   />
+
                   <div style={{ display: "flex", justifyContent: "flex-end" }}>
                     <button
                       className="wrd-btn-primary"
                       onClick={handleSubmitCustomReward}
-                      disabled={customSubmitting || !customLink.trim()}
+                      disabled={customSubmitting || !customLink.trim() || !customPrice.trim()}
                     >
                       {customSubmitting ? "Submitting…" : "Submit Request"}
                     </button>
@@ -876,63 +1114,126 @@ export default function WalletRedeemDialog({
               </>
             )}
 
-            {/* ── My Requests tab ── */}
             {tab === 1 && (
               <>
-                {requestsError && <div className="wrd-alert wrd-alert-error">{requestsError}</div>}
+                {requestsError && (
+                  <div className="wrd-alert wrd-alert-error">{requestsError}</div>
+                )}
+
                 {requestsLoading ? (
-                  <div className="wrd-spinner"><div className="wrd-spin" /></div>
+                  <div className="wrd-spinner">
+                    <div className="wrd-spin" />
+                  </div>
                 ) : myRequests.length ? (
-                  myRequests.map((item) => (
-                    <div className="wrd-request-card" key={item._id}>
-                      <div className="wrd-request-header">
-                        <div>
-                          <p className="wrd-request-title">{item.extractedTitle || "Custom Reward Request"}</p>
-                          <p className="wrd-request-site">{item.extractedSiteName || "Via product link"}</p>
+                  myRequests.map((item) => {
+                    const isCuratedRedeem =
+                      item.requestType === "curated_redeem";
+
+                    return (
+                      <div className="wrd-request-card" key={item._id}>
+                        <div className="wrd-request-header">
+                          <div>
+                            <p className="wrd-request-title">
+                              {item.extractedTitle ||
+                                (isCuratedRedeem
+                                  ? "Curated Reward Redeem"
+                                  : "Custom Reward Request")}
+                            </p>
+                            <p className="wrd-request-site">
+                              {item.extractedSiteName ||
+                                (isCuratedRedeem
+                                  ? "Curated Reward"
+                                  : "Via product link")}
+                            </p>
+                          </div>
+
+                          <StatusBadge status={item.status} />
                         </div>
-                        <StatusBadge status={item.status} />
-                      </div>
-                      <div className="wrd-meta-row">
-                        {item.milestoneLabel && <span className="wrd-tag wrd-tag-ms">{item.milestoneLabel}</span>}
-                        {item.requestedCoinBudget && (
-                          <span className="wrd-tag wrd-tag-cat">
-                            Budget: {formatNumber(item.requestedCoinBudget)} coins
-                          </span>
+
+                        <div className="wrd-meta-row">
+                          {item.milestoneLabel && (
+                            <span className="wrd-tag wrd-tag-ms">
+                              {item.milestoneLabel}
+                            </span>
+                          )}
+
+                          {item.requestType && (
+                            <span className="wrd-tag wrd-tag-cat">
+                              {isCuratedRedeem ? "Redeem Request" : "Custom Request"}
+                            </span>
+                          )}
+
+                          {item.requestedCoinBudget ? (
+                            <span className="wrd-tag wrd-tag-cat">
+                              Budget: {formatNumber(item.requestedCoinBudget)} coins
+                            </span>
+                          ) : null}
+                        </div>
+
+                        {item.note && (
+                          <p
+                            style={{
+                              fontSize: 13,
+                              color: "#64748b",
+                              margin: "0 0 8px",
+                              lineHeight: 1.5,
+                            }}
+                          >
+                            {item.note}
+                          </p>
                         )}
+
+                        <span className="wrd-timestamp">
+                          Submitted: {formatDateTime(item.createdAt)}
+                        </span>
+
+                        {item.rejectionReason && (
+                          <div
+                            className="wrd-alert wrd-alert-error"
+                            style={{ marginBottom: 10 }}
+                          >
+                            {item.rejectionReason}
+                          </div>
+                        )}
+
+                        <a
+                          className="wrd-btn-link"
+                          href={item.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          style={
+                            !item.url
+                              ? { opacity: 0.4, pointerEvents: "none" }
+                              : {}
+                          }
+                        >
+                          Open link ↗
+                        </a>
                       </div>
-                      {item.note && (
-                        <p style={{ fontSize: 13, color: "#64748b", margin: "0 0 8px", lineHeight: 1.5 }}>
-                          {item.note}
-                        </p>
-                      )}
-                      <span className="wrd-timestamp">Submitted: {formatDateTime(item.createdAt)}</span>
-                      {item.rejectionReason && (
-                        <div className="wrd-alert wrd-alert-error" style={{ marginBottom: 10 }}>
-                          {item.rejectionReason}
-                        </div>
-                      )}
-                      <a className="wrd-btn-link" href={item.url} target="_blank" rel="noreferrer">
-                        Open link ↗
-                      </a>
-                    </div>
-                  ))
+                    );
+                  })
                 ) : (
                   <div className="wrd-empty">
                     <h3>No requests yet</h3>
-                    <p>Submit a product link from the Curated Rewards tab.</p>
+                    <p>
+                      Submit a product link or redeem a curated reward from the
+                      Curated Rewards tab.
+                    </p>
                   </div>
                 )}
               </>
             )}
           </div>
 
-          {/* ── Footer ── */}
           <div className="wrd-footer">
-            <button className="wrd-btn-close" onClick={onClose} disabled={loading || customSubmitting}>
+            <button
+              className="wrd-btn-close"
+              onClick={onClose}
+              disabled={loading || customSubmitting || !!redeemSubmittingId}
+            >
               Close
             </button>
           </div>
-
         </div>
       </div>
     </>
