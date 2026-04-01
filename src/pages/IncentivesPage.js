@@ -529,7 +529,7 @@ export default function IncentivesPage() {
     }
 
     const res = await axios.get(`${API_BASE}/api/employees`, {
-      params: { status: "Active" },
+      params: { status: "active" },
       headers,
     });
 
@@ -537,7 +537,7 @@ export default function IncentivesPage() {
 
     const filtered = list.filter(
       (emp) =>
-        emp?.status === "Active" &&
+        emp?.status === "active" &&
         (emp?.role === "Sales Agent" || emp?.role === "Retention Agent")
     );
 
