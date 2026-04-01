@@ -16,9 +16,14 @@ import {
   TableRow,
   TablePagination,
   Chip,
+  Divider,
 } from "@mui/material";
 
-const API = "http://localhost:5001/api/unicommerce/shopify-orders-live";
+const LIVE_API = "http://localhost:5001/api/shopify-orders-live";
+const BACKFILL_API =
+  "http://localhost:5001/api/orders/backfill-shopify-to-order";
+const DELETE_API =
+  "http://localhost:5001/api/orders/delete-after-date";
 
 function getChipColor(status) {
   switch (status) {
@@ -39,13 +44,21 @@ function getChipColor(status) {
 export default function ShopifyUnicommerceOrdersPage() {
   const [rows, setRows] = useState([]);
   const [totalOrders, setTotalOrders] = useState(0);
+  const [rawOrdersSeen, setRawOrdersSeen] = useState(0);
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(20);
+
   const [loading, setLoading] = useState(false);
+  const [backfillLoading, setBackfillLoading] = useState(false);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+
   const [error, setError] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
+  const [backfillSummary, setBackfillSummary] = useState(null);
+  const [deleteSummary, setDeleteSummary] = useState(null);
 
   const [filters, setFilters] = useState({
-    startDate: "",
+    startDate: "2026-03-06",
     endDate: "",
     search: "",
   });
@@ -55,7 +68,7 @@ export default function ShopifyUnicommerceOrdersPage() {
       setLoading(true);
       setError("");
 
-      const res = await axios.get(API, {
+      const res = await axios.get(LIVE_API, {
         params: {
           page: page + 1,
           limit: rowsPerPage,
@@ -67,6 +80,7 @@ export default function ShopifyUnicommerceOrdersPage() {
 
       setRows(res.data.orders || []);
       setTotalOrders(res.data.totalOrders || 0);
+      setRawOrdersSeen(res.data.rawOrdersSeen || 0);
     } catch (err) {
       setError(
         err.response?.data?.message ||
@@ -75,6 +89,7 @@ export default function ShopifyUnicommerceOrdersPage() {
       );
       setRows([]);
       setTotalOrders(0);
+      setRawOrdersSeen(0);
     } finally {
       setLoading(false);
     }
@@ -86,6 +101,10 @@ export default function ShopifyUnicommerceOrdersPage() {
 
   const handleFilterChange = (field) => (event) => {
     setPage(0);
+    setSuccessMessage("");
+    setBackfillSummary(null);
+    setDeleteSummary(null);
+
     setFilters((prev) => ({
       ...prev,
       [field]: event.target.value,
@@ -94,11 +113,81 @@ export default function ShopifyUnicommerceOrdersPage() {
 
   const handleReset = () => {
     setPage(0);
+    setError("");
+    setSuccessMessage("");
+    setBackfillSummary(null);
+    setDeleteSummary(null);
+
     setFilters({
-      startDate: "",
+      startDate: "2026-03-06",
       endDate: "",
       search: "",
     });
+  };
+
+  const handleBackfill = async () => {
+    try {
+      setBackfillLoading(true);
+      setError("");
+      setSuccessMessage("");
+      setBackfillSummary(null);
+      setDeleteSummary(null);
+
+      const payload = {
+        startDate: filters.startDate || "2026-03-06",
+      };
+
+      if (filters.endDate) payload.endDate = filters.endDate;
+      if (filters.search) payload.search = filters.search;
+
+      const res = await axios.post(BACKFILL_API, payload);
+
+      setSuccessMessage(
+        res.data?.message || "Orders backfilled successfully."
+      );
+      setBackfillSummary(res.data || null);
+
+      await fetchOrders();
+    } catch (err) {
+      setError(
+        err.response?.data?.message ||
+          err.response?.data?.error ||
+          "Failed to backfill orders"
+      );
+    } finally {
+      setBackfillLoading(false);
+    }
+  };
+
+  const handleDeleteAfterDate = async () => {
+    try {
+      setDeleteLoading(true);
+      setError("");
+      setSuccessMessage("");
+      setBackfillSummary(null);
+      setDeleteSummary(null);
+
+      const res = await axios.delete(DELETE_API, {
+        data: {
+          startDate: filters.startDate || "2026-03-06",
+        },
+      });
+
+      setSuccessMessage(
+        res.data?.message || "Orders deleted successfully."
+      );
+      setDeleteSummary(res.data || null);
+
+      await fetchOrders();
+    } catch (err) {
+      setError(
+        err.response?.data?.message ||
+          err.response?.data?.error ||
+          "Failed to delete orders"
+      );
+    } finally {
+      setDeleteLoading(false);
+    }
   };
 
   return (
@@ -107,7 +196,7 @@ export default function ShopifyUnicommerceOrdersPage() {
         Shopify Orders From Unicommerce
       </Typography>
 
-      <Paper sx={{ p: 2, mb: 2 }}>
+      <Paper sx={{ p: 2, mb: 2, borderRadius: 3 }}>
         <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
           <TextField
             label="Start Date"
@@ -117,6 +206,7 @@ export default function ShopifyUnicommerceOrdersPage() {
             InputLabelProps={{ shrink: true }}
             fullWidth
           />
+
           <TextField
             label="End Date"
             type="date"
@@ -125,20 +215,59 @@ export default function ShopifyUnicommerceOrdersPage() {
             InputLabelProps={{ shrink: true }}
             fullWidth
           />
+
           <TextField
             label="Search Order ID"
             value={filters.search}
             onChange={handleFilterChange("search")}
-            placeholder="112733"
+            placeholder="123456 / MA123456 / #MA123456"
             fullWidth
           />
-          <Button variant="contained" onClick={fetchOrders}>
-            Refresh
+
+          <Button
+            variant="contained"
+            onClick={fetchOrders}
+            disabled={loading || backfillLoading || deleteLoading}
+            sx={{ minWidth: 120 }}
+          >
+            {loading ? "Loading..." : "Refresh"}
           </Button>
-          <Button variant="outlined" onClick={handleReset}>
+
+          <Button
+            variant="outlined"
+            onClick={handleReset}
+            disabled={loading || backfillLoading || deleteLoading}
+            sx={{ minWidth: 100 }}
+          >
             Reset
           </Button>
+
+          <Button
+            variant="contained"
+            color="success"
+            onClick={handleBackfill}
+            disabled={loading || backfillLoading || deleteLoading}
+            sx={{ minWidth: 180 }}
+          >
+            {backfillLoading ? "Updating..." : "Backfill Shopify Orders"}
+          </Button>
+
+          <Button
+            variant="contained"
+            color="error"
+            onClick={handleDeleteAfterDate}
+            disabled={loading || backfillLoading || deleteLoading}
+            sx={{ minWidth: 200 }}
+          >
+            {deleteLoading ? "Deleting..." : "Delete Orders After Date"}
+          </Button>
         </Stack>
+
+        <Divider sx={{ my: 2 }} />
+
+        <Typography variant="body2" color="text.secondary">
+          Backfill takes Shopify-channel orders from Unicommerce, maps contact number and full name from ShopifyOrder by order id when available, and saves all values in Order.
+        </Typography>
       </Paper>
 
       {error ? (
@@ -147,7 +276,104 @@ export default function ShopifyUnicommerceOrdersPage() {
         </Alert>
       ) : null}
 
-      <Paper sx={{ width: "100%", overflow: "auto" }}>
+      {successMessage ? (
+        <Alert severity="success" sx={{ mb: 2 }}>
+          {successMessage}
+        </Alert>
+      ) : null}
+
+      <Paper sx={{ p: 2, mb: 2, borderRadius: 3 }}>
+        <Stack direction={{ xs: "column", sm: "row" }} spacing={2} useFlexGap flexWrap="wrap">
+          <Chip
+            label={`Raw Unicommerce Seen: ${rawOrdersSeen || 0}`}
+            color="default"
+            variant="outlined"
+          />
+          <Chip
+            label={`Shopify Live Rows: ${totalOrders || 0}`}
+            color="primary"
+            variant="outlined"
+          />
+        </Stack>
+      </Paper>
+
+      {backfillSummary ? (
+        <Paper
+          sx={{
+            p: 2,
+            mb: 2,
+            borderRadius: 3,
+            backgroundColor: "#f8fff8",
+          }}
+        >
+          <Typography variant="h6" fontWeight={700} mb={1}>
+            Backfill Summary
+          </Typography>
+
+          <Stack direction={{ xs: "column", sm: "row" }} spacing={2} useFlexGap flexWrap="wrap">
+            <Chip
+              label={`Raw Seen: ${backfillSummary.rawOrdersSeen || 0}`}
+              color="default"
+              variant="outlined"
+            />
+            <Chip
+              label={`Shopify Channel Seen: ${backfillSummary.totalFetchedShopifyChannelOrders || 0}`}
+              color="primary"
+              variant="outlined"
+            />
+            <Chip
+              label={`Processed: ${backfillSummary.totalProcessed || 0}`}
+              color="info"
+              variant="outlined"
+            />
+            <Chip
+              label={`Shopify Matched: ${backfillSummary.matchedShopifyOrderCount || 0}`}
+              color="secondary"
+              variant="outlined"
+            />
+            <Chip
+              label={`Inserted: ${backfillSummary.inserted || 0}`}
+              color="success"
+              variant="outlined"
+            />
+            <Chip
+              label={`Updated: ${backfillSummary.updated || 0}`}
+              color="warning"
+              variant="outlined"
+            />
+          </Stack>
+        </Paper>
+      ) : null}
+
+      {deleteSummary ? (
+        <Paper
+          sx={{
+            p: 2,
+            mb: 2,
+            borderRadius: 3,
+            backgroundColor: "#fff8f8",
+          }}
+        >
+          <Typography variant="h6" fontWeight={700} mb={1}>
+            Delete Summary
+          </Typography>
+
+          <Stack direction={{ xs: "column", sm: "row" }} spacing={2} useFlexGap flexWrap="wrap">
+            <Chip
+              label={`Deleted: ${deleteSummary.deletedCount || 0}`}
+              color="error"
+              variant="outlined"
+            />
+            <Chip
+              label={`From: ${deleteSummary.startDate || "-"}`}
+              color="default"
+              variant="outlined"
+            />
+          </Stack>
+        </Paper>
+      ) : null}
+
+      <Paper sx={{ width: "100%", overflow: "auto", borderRadius: 3 }}>
         {loading ? (
           <Box p={3} display="flex" justifyContent="center">
             <CircularProgress />
@@ -160,16 +386,15 @@ export default function ShopifyUnicommerceOrdersPage() {
                   <TableCell>Order ID</TableCell>
                   <TableCell>Shipment Status</TableCell>
                   <TableCell>Order Date</TableCell>
-                  <TableCell>Contact Number</TableCell>
                   <TableCell>Tracking Number</TableCell>
-                  <TableCell>Full Name</TableCell>
                   <TableCell>Carrier Title</TableCell>
+                  <TableCell>Channel</TableCell>
                 </TableRow>
               </TableHead>
 
               <TableBody>
                 {rows.map((row, idx) => (
-                  <TableRow key={`${row.order_id}-${idx}`}>
+                  <TableRow key={`${row.order_id}-${idx}`} hover>
                     <TableCell>{row.order_id || "-"}</TableCell>
                     <TableCell>
                       <Chip
@@ -179,18 +404,19 @@ export default function ShopifyUnicommerceOrdersPage() {
                       />
                     </TableCell>
                     <TableCell>
-                      {row.order_date ? new Date(row.order_date).toLocaleString() : "-"}
+                      {row.order_date
+                        ? new Date(row.order_date).toLocaleString()
+                        : "-"}
                     </TableCell>
-                    <TableCell>{row.contact_number || "-"}</TableCell>
                     <TableCell>{row.tracking_number || "-"}</TableCell>
-                    <TableCell>{row.full_name || "-"}</TableCell>
                     <TableCell>{row.carrier_title || "-"}</TableCell>
+                    <TableCell>{row.channel_text || "-"}</TableCell>
                   </TableRow>
                 ))}
 
                 {!rows.length && !loading ? (
                   <TableRow>
-                    <TableCell colSpan={7} align="center">
+                    <TableCell colSpan={6} align="center">
                       No Shopify orders found
                     </TableCell>
                   </TableRow>

@@ -800,6 +800,7 @@ function AssignDialog({
               setForm((prev) => ({
                 ...prev,
                 allocatedTo: newValue?.name || "",
+                employeeId: newValue?.employeeId || "",
               }));
             }}
             renderInput={(params) => (

@@ -42,13 +42,7 @@ import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
 import PersonIcon from "@mui/icons-material/Person";
 import axios from "axios";
 
-
-
-
 const API_BASE = "https://muditamleads-14f32a10d7f7.herokuapp.com";
-
-
-
 
 function LazyImage({
   src,
@@ -136,9 +130,6 @@ const ASSET_OPTIONS = [
   "Hard Disk",
 ];
 
-
-
-
 // Company options mapped by asset name (type-ahead still allowed)
 const COMPANY_MAP = {
   Laptop: ["Dell", "Acer", "HP", "Lenovo", "Asus", "Apple"],
@@ -155,18 +146,12 @@ const COMPANY_MAP = {
   "Hard Disk": ["Seagate", "WD", "Toshiba", "Samsung"],
 };
 
-
-
-
 const fmtDateTime = (d) => {
   if (!d) return "-";
   const dt = new Date(d);
   if (Number.isNaN(dt.getTime())) return "-";
   return dt.toLocaleString();
 };
-
-
-
 
 const fmtDateInput = (d) => {
   const dt = d ? new Date(d) : new Date();
@@ -194,20 +179,11 @@ export default function AssetAllotment() {
   const [loadingAllotments, setLoadingAllotments] = useState(true);
   const [collectSubmitting, setCollectSubmitting] = useState(false);
 
-
-
-
   const [snack, setSnack] = useState(null);
   const [submitting, setSubmitting] = useState(false);
 
-
-
-
   // Dialog open/close (add allotment)
   const [openForm, setOpenForm] = useState(false);
-
-
-
 
   const initialForm = {
     employeeId: "",
@@ -218,13 +194,7 @@ export default function AssetAllotment() {
     allotmentImageUrls: [], // only array now
   };
 
-
-
-
   const [form, setForm] = useState(initialForm);
-
-
-
 
   // Image gallery dialog (for viewing images from table)
   const [gallery, setGallery] = useState({
@@ -233,15 +203,9 @@ export default function AssetAllotment() {
     title: "",
   });
 
-
-
-
   // hold multiple File objects for ADD dialog
   const [files, setFiles] = useState([]); // Array<File>
   const [isDragging, setIsDragging] = useState(false);
-
-
-
 
   // --------- Collect dialog state ----------
   const [collectDialog, setCollectDialog] = useState({
@@ -257,24 +221,12 @@ export default function AssetAllotment() {
   const [isCollectDragging, setIsCollectDragging] = useState(false);
   const [collectObjectUrls, setCollectObjectUrls] = useState([]);
 
-
-
-
   const [search, setSearch] = useState("");
-
-
-
 
   const [employeeFilter, setEmployeeFilter] = useState(null);
 
-
-
-
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(20);
-
-
-
 
   // Load employees
   const fetchEmployees = async () => {
@@ -290,9 +242,6 @@ export default function AssetAllotment() {
     }
   };
 
-
-
-
   // Load allotments
   const fetchAllotments = async () => {
     setLoadingAllotments(true);
@@ -307,16 +256,10 @@ export default function AssetAllotment() {
     }
   };
 
-
-
-
   useEffect(() => {
     fetchEmployees();
     fetchAllotments();
   }, []);
-
-
-
 
   // Company options depend on assetName, but allow free typing
   const companyOptions = useMemo(() => {
@@ -324,9 +267,6 @@ export default function AssetAllotment() {
     const v = (form.company || "").trim();
     return v && !base.includes(v) ? [v, ...base] : base;
   }, [form.assetName, form.company]);
-
-
-
 
   // Validation for ADD
   const validate = () => {
@@ -339,13 +279,7 @@ export default function AssetAllotment() {
     return errs;
   };
 
-
-
-
   const [errs, setErrs] = useState({});
-
-
-
 
   // Generic image upload helper to Wasabi via backend
   const uploadImagesToWasabi = async (fileList, prefix) => {
@@ -359,17 +293,11 @@ export default function AssetAllotment() {
     return data?.urls || [];
   };
 
-
-
-
   // --- ADD Allotment submit ---
   const onSubmit = async () => {
     const e = validate();
     setErrs(e);
     if (Object.keys(e).length) return;
-
-
-
 
     setSubmitting(true);
     try {
@@ -377,9 +305,6 @@ export default function AssetAllotment() {
       let urls = Array.isArray(form.allotmentImageUrls)
         ? [...form.allotmentImageUrls]
         : [];
-
-
-
 
       if (files?.length) {
         const uploaded = await uploadImagesToWasabi(
@@ -391,9 +316,6 @@ export default function AssetAllotment() {
         urls = [...urls, ...uploaded];
       }
 
-
-
-
       const payload = {
         employeeId: form.employeeId,
         name: form.assetName.trim(),
@@ -403,14 +325,8 @@ export default function AssetAllotment() {
         allotmentImageUrls: urls,
       };
 
-
-
-
       await axios.post(`${API_BASE}/api/asset-allotments`, payload);
       setSnack({ severity: "success", msg: "Asset allotted" });
-
-
-
 
       // reset form and close dialog
       setForm(initialForm);
@@ -427,8 +343,6 @@ export default function AssetAllotment() {
   };
 
 
-
-
   const onOpenForm = () => {
     setErrs({});
     setForm(initialForm);
@@ -437,23 +351,15 @@ export default function AssetAllotment() {
   };
 
 
-
-
   const onCloseForm = () => {
     if (submitting) return;
     setOpenForm(false);
   };
 
-
-
-
   const employeeOptions = employees.map((e) => ({
     id: e._id,
     label: `${e.fullName}`,
   }));
-
-
-
 
   // Helpers for previews (Object URLs) - ADD dialog
   const [objectUrls, setObjectUrls] = useState([]);
@@ -491,13 +397,6 @@ export default function AssetAllotment() {
   };
 
 
-
-
-  // ---------- Collect dialog helpers ----------
-
-
-
-
   // open collect dialog for specific allotment
   const openCollectDialog = (allot) => {
     setCollectDialog({ open: true, allotment: allot });
@@ -511,16 +410,11 @@ export default function AssetAllotment() {
     setIsCollectDragging(false);
   };
 
-
-
-
   const closeCollectDialog = () => {
     setCollectDialog({ open: false, allotment: null });
     setCollectFiles([]);
     setCollectObjectUrls([]);
   };
-
-
 
 
   // Preview URLs for collectFiles
@@ -533,14 +427,9 @@ export default function AssetAllotment() {
   }, [collectFiles]);
 
 
-
-
   const removeCollectFileAt = (idx) => {
     setCollectFiles((prev) => prev.filter((_, i) => i !== idx));
   };
-
-
-
 
   // dropzone handlers for collect dialog
   const onCollectDragOver = (e) => {
@@ -557,19 +446,10 @@ export default function AssetAllotment() {
     if (selected.length) setCollectFiles((prev) => [...prev, ...selected]);
   };
 
-
-
-
  const handleCollectSubmit = async () => {
   if (!collectDialog.allotment || collectSubmitting) return;
 
-
-
-
   const id = collectDialog.allotment._id;
-
-
-
 
   // 1️⃣ Date check
   if (!collectForm.returnedAt) {
@@ -577,10 +457,6 @@ export default function AssetAllotment() {
     return;
   }
 
-
-
-
-  // 2️⃣ Ensure at least one collection image
   if (!collectFiles.length) {
     setSnack({
       severity: "error",
@@ -596,13 +472,7 @@ export default function AssetAllotment() {
     return;
   }
 
-
-
-
   setCollectSubmitting(true);
-
-
-
 
   try {
     // 3️⃣ Upload new images (collection photos)
@@ -616,16 +486,10 @@ export default function AssetAllotment() {
       );
     }
 
-
-
-
     let combinedReturnedAt = collectForm.returnedAt;
     if (collectForm.returnedTime) {
       combinedReturnedAt = `${collectForm.returnedAt}T${collectForm.returnedTime}`;
     }
-
-
-
 
     const payload = {
       returnedAt: combinedReturnedAt,
@@ -633,39 +497,23 @@ export default function AssetAllotment() {
       returnImageUrls: returnUrls,
     };
 
-
-
-
     // 🔹 PATCH allotment → status becomes "returned"
     const { data: updated } = await axios.patch(
       `${API_BASE}/api/asset-allotments/${id}/collect`,
       payload
     );
 
-
-
-
-    // 🔹 Update localStorage inventory (same as before)
     try {
       const LS_KEY = "org_hw_assets_v2";
       const assetCode = collectDialog.allotment.assetCode;
       const raw = localStorage.getItem(LS_KEY);
 
-
-
-
       if (raw && assetCode) {
         const assets = JSON.parse(raw);
-
-
-
 
         const idx = assets.findIndex(
           (a) => a.assetCode && a.assetCode === assetCode
         );
-
-
-
 
         if (idx >= 0) {
           assets[idx] = {
@@ -676,9 +524,6 @@ export default function AssetAllotment() {
             updatedAt: new Date().toISOString(),
           };
 
-
-
-
           localStorage.setItem(LS_KEY, JSON.stringify(assets));
         }
       }
@@ -686,21 +531,13 @@ export default function AssetAllotment() {
       console.error("Failed to update Asset Inventory after collect:", e);
     }
 
-
-
-
-    // 🔹 NEW: also clear assignment in Assets collection (DB)
     try {
       const assetCode = collectDialog.allotment.assetCode;
       if (assetCode) {
-        // get all assets and find by assetCode
         const resAssets = await axios.get(`${API_BASE}/api/assets`);
         const assetsList = Array.isArray(resAssets.data)
           ? resAssets.data
           : [];
-
-
-
 
         const assetDoc = assetsList.find(
           (a) =>
@@ -709,12 +546,8 @@ export default function AssetAllotment() {
               assetCode.trim().toLowerCase()
         );
 
-
-
-
         if (assetDoc && assetDoc._id) {
           const clearPayload = {
-            // keep existing master details
             name: assetDoc.name || "",
             company: assetDoc.company || "",
             model: assetDoc.model || "",
@@ -723,13 +556,9 @@ export default function AssetAllotment() {
             imageUrls: Array.isArray(assetDoc.imageUrls)
               ? assetDoc.imageUrls
               : [],
-            // 👇 clear assignment
             allottedTo: "",
             emp_id: "",
           };
-
-
-
 
           await axios.put(
             `${API_BASE}/api/assets/${assetDoc._id}`,
@@ -739,19 +568,11 @@ export default function AssetAllotment() {
       }
     } catch (e) {
       console.error("Failed to clear asset assignment in DB on collect:", e);
-      // no toast here, main collect still succeeds
     }
 
-
-
-
-    // 🔹 Update allotments state (active list will drop this because status=returned)
     setAllotments((prev) =>
       prev.map((a) => (a._id === updated._id ? updated : a))
     );
-
-
-
 
     setSnack({ severity: "success", msg: "Asset collected" });
     closeCollectDialog();
@@ -764,19 +585,8 @@ export default function AssetAllotment() {
   }
 };
 
-
-
-
-
-
-
-
   const activeAllotments = allotments.filter((a) => a.status !== "returned");
 
-
-
-
-  // Active employees for filter
   const activeEmployees = useMemo(() => {
     const active = employees.filter(
       (e) => e.isActive || e.active || e.status === "Active"
@@ -784,15 +594,8 @@ export default function AssetAllotment() {
     return active.length ? active : employees;
   }, [employees]);
 
-
-
-
-  // Filtered allotments based on search + employeeFilter
   const filteredActiveAllotments = useMemo(() => {
     let list = activeAllotments;
-
-
-
 
     const q = search.trim().toLowerCase();
     if (q) {
@@ -803,31 +606,19 @@ export default function AssetAllotment() {
         const model = (a.model || "").toLowerCase();
         const code = (a.assetCode || "").toLowerCase();
 
-
-
-
         const hay = [empName, assetName, company, model, code].join(" ");
         return hay.includes(q);
       });
     }
 
-
-
-
     if (employeeFilter) {
       const fId = employeeFilter._id;
       const fName = (employeeFilter.fullName || "").trim().toLowerCase();
-
-
-
 
       list = list.filter((a) => {
         const emp = a.employee || {};
         const empId = emp._id;
         const empName = (emp.fullName || "").trim().toLowerCase();
-
-
-
 
         if (fId && empId) return empId === fId;
         if (fName && empName) return empName === fName;
@@ -835,14 +626,8 @@ export default function AssetAllotment() {
       });
     }
 
-
-
-
     return list;
   }, [activeAllotments, search, employeeFilter]);
-
-
-
 
   // Paginated list
   const pagedAllotments = useMemo(() => {
@@ -850,10 +635,6 @@ export default function AssetAllotment() {
     return filteredActiveAllotments.slice(start, start + rowsPerPage);
   }, [filteredActiveAllotments, page, rowsPerPage]);
 
-
-
-
-  // Main images for side-by-side comparison in Collect Dialog
   const mainOldImage =
     collectDialog.allotment &&
     Array.isArray(collectDialog.allotment.allotmentImageUrls) &&
@@ -861,12 +642,7 @@ export default function AssetAllotment() {
       ? collectDialog.allotment.allotmentImageUrls[0]
       : null;
 
-
-
-
   const mainNewImage = collectObjectUrls.length ? collectObjectUrls[0] : null;
-
-
 
 
   return (
@@ -878,8 +654,7 @@ export default function AssetAllotment() {
               <Typography variant="h6">Asset Allotment</Typography>
               <Chip label={`${activeAllotments.length} allotted`} size="small" />
             </Stack>
-          }
-          // ✅ Employee filter moved to the right of heading (and count), plus Add Allotment button
+          } 
           action={
             <Stack
               direction={{ xs: "column", md: "row" }}
@@ -919,9 +694,6 @@ export default function AssetAllotment() {
                 sx={{ minWidth: 220 }}
               />
 
-
-
-
               <Button
                 variant="contained"
                 startIcon={<AddIcon />}
@@ -934,17 +706,11 @@ export default function AssetAllotment() {
           }
         />
 
-
-
-
         <CardContent sx={{ pt: 1 }}>
           <Typography variant="overline" sx={{ color: "text.secondary" }}>
             Recent Allotments
           </Typography>
           <Divider sx={{ mb: 1.5 }} />
-
-
-
 
           {loadingAllotments ? (
             <Stack alignItems="center" py={4}>
@@ -973,9 +739,6 @@ export default function AssetAllotment() {
                     </TableRow>
                   </TableHead>
 
-
-
-
                   <TableBody>
                     {activeAllotments.length === 0 ? (
                       <TableRow>
@@ -1002,13 +765,7 @@ export default function AssetAllotment() {
                         const moreCount =
                           imgs.length > 4 ? imgs.length - 4 : 0;
 
-
-
-
                         const isReturned = a.status === "returned";
-
-
-
 
                         return (
                           <TableRow key={a._id} hover>
@@ -1023,8 +780,6 @@ export default function AssetAllotment() {
                             <TableCell>
                               <code>{a.assetCode}</code>
                             </TableCell>
-
-
 
 
                             {/* Images column */}
@@ -1059,8 +814,6 @@ export default function AssetAllotment() {
     window.open(url, "_blank", "noopener,noreferrer");
   }}
 />
-
-
     </Avatar>
   </Tooltip>
 ))}
@@ -1081,9 +834,6 @@ export default function AssetAllotment() {
                                         sx={{ cursor: "pointer" }}
                                       />
                                     )}
-
-
-
 
                                     {moreCount > 0 && (
                                       <Chip
@@ -1117,9 +867,6 @@ export default function AssetAllotment() {
                               )}
                             </TableCell>
 
-
-
-
                             {/* Allotted / Collected info */}
                             <TableCell>
                               <Typography variant="body2">
@@ -1134,9 +881,6 @@ export default function AssetAllotment() {
                                 </Typography>
                               )}
                             </TableCell>
-
-
-
 
                             {/* Collect column */}
                             <TableCell>
@@ -1158,13 +902,7 @@ export default function AssetAllotment() {
                 </Table>
               </TableContainer>
 
-
-
-
               <Divider />
-
-
-
 
               <TablePagination
                 component="div"
@@ -1183,10 +921,6 @@ export default function AssetAllotment() {
         </CardContent>
       </Card>
 
-
-
-
-      {/* —————————— Add Allotment Dialog —————————— */}
       <Dialog
         open={openForm}
         onClose={onCloseForm}
@@ -1651,9 +1385,6 @@ export default function AssetAllotment() {
                   </Typography>
                 </Grid>
 
-
-
-
                 {/* NEW IMAGE */}
                 <Grid item xs={12} md={6}>
                   <Paper
@@ -1706,13 +1437,7 @@ export default function AssetAllotment() {
             </>
           )}
 
-
-
-
           <Divider sx={{ my: 2 }} />
-
-
-
 
           {/* Old photos thumbnails */}
           <Typography variant="overline" sx={{ color: "text.secondary" }}>
@@ -1758,21 +1483,12 @@ export default function AssetAllotment() {
   )}
 </Stack>
 
-
-
-
           <Divider sx={{ my: 2 }} />
-
-
-
 
           {/* New photos upload */}
           <Typography variant="overline" sx={{ color: "text.secondary" }}>
             New Photos (at collection time)
           </Typography>
-
-
-
 
           <Box
             onDragOver={onCollectDragOver}
@@ -1855,9 +1571,6 @@ export default function AssetAllotment() {
             ))}
           </Stack>
         </DialogContent>
-
-
-
 
         <DialogActions sx={{ px: 3, py: 2 }}>
           <Button onClick={closeCollectDialog} disabled={collectSubmitting}>
@@ -1978,8 +1691,3 @@ export default function AssetAllotment() {
     </Box>
   );
 }
-
-
-
-
-

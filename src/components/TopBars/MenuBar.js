@@ -261,7 +261,7 @@ const MenuBar = ({ toggleDrawer }) => {
           >
             <WhatsAppIcon sx={{ marginRight: "12px" }} />
             <Typography variant="body1" style={{ fontSize: "14px" }}>
-              Whatsaap Chats
+              Whatsapp Chats
             </Typography>
           </ListItem>
         )}
@@ -1440,7 +1440,7 @@ const MenuBar = ({ toggleDrawer }) => {
                   sx={{ fontSize: 18, marginRight: "8px" }}
                 />
                 <Typography variant="body1" sx={{ fontSize: "14px" }}>
-                  Incentives Wallet
+                  Wallet
                 </Typography>
               </Box>
               {openDropdown.incentivesWallet ? (
@@ -1452,16 +1452,18 @@ const MenuBar = ({ toggleDrawer }) => {
 
             <Collapse in={openDropdown.incentivesWallet} timeout="auto" unmountOnExit>
               <List sx={nestedListStyle}>
-                <ListItem
-                  button
-                  component={Link}
-                  to="/incentives"
-                  onClick={toggleDrawer}
-                >
-                  <Typography variant="body2" sx={{ fontSize: "13px" }}>
-                    Incentives Details
-                  </Typography>
-                </ListItem>
+                {can("incentivesWallet") && (
+                  <ListItem
+                    button
+                    component={Link}
+                    to="/incentives"
+                    onClick={toggleDrawer}
+                  >
+                    <Typography variant="body2" sx={{ fontSize: "13px" }}>
+                      Incentives Details
+                    </Typography>
+                  </ListItem>
+                )}
 
                 {can("sops") && (
                   <ListItem
@@ -1472,6 +1474,19 @@ const MenuBar = ({ toggleDrawer }) => {
                   >
                     <Typography variant="body2" sx={{ fontSize: "13px" }}>
                       SOPs
+                    </Typography>
+                  </ListItem>
+                )}
+
+                {can("RewardsAdminPage") && (
+                  <ListItem
+                    button
+                    component={Link}
+                    to="/Rewards-Admin-Page"
+                    onClick={toggleDrawer}
+                  >
+                    <Typography variant="body2" sx={{ fontSize: "13px" }}>
+                      Rewards Creation
                     </Typography>
                   </ListItem>
                 )}
@@ -1930,7 +1945,7 @@ const MenuBar = ({ toggleDrawer }) => {
                     onClick={toggleDrawer}
                   >
                     <Typography variant="body2" sx={{ fontSize: "13px" }}>
-                      Whatsaap Templates
+                      Whatsapp Templates
                     </Typography>
                   </ListItem>
                 )}

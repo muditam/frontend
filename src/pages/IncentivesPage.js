@@ -12,7 +12,6 @@ import {
   DialogContent,
   DialogTitle,
   Divider,
-  IconButton,
   LinearProgress,
   Paper,
   Popover,
@@ -55,6 +54,12 @@ const BRAND = {
   coin: "#7c3aed",
   coinSoft: "#f5f3ff",
   coinBorder: "#ddd6fe",
+  prepaid: "#0f766e",
+  prepaidSoft: "#ecfeff",
+  partial: "#7c2d12",
+  partialSoft: "#fff7ed",
+  referral: "#1d4ed8",
+  referralSoft: "#eff6ff",
 };
 
 const TABLE_CELL_COMMON_SX = {
@@ -146,7 +151,7 @@ function VKRTargetProgressBar({ value = 0, threshold = 60 }) {
             fontWeight: 700,
           }}
         >
-          Required: {safeThreshold}%
+          Min. Required: {safeThreshold}%
         </Typography>
         <Typography variant="caption" sx={{ color: BRAND.sub, fontWeight: 600 }}>
           100%
@@ -422,16 +427,16 @@ function WalletDistributionBar({
   );
 }
 
-function SummaryMetric({ title, value, sub, color }) {
+function SummaryMetric({ title, value, sub, color, bg, borderColor }) {
   return (
     <Box
       sx={{
         flex: 1,
-        minWidth: 180,
+        minWidth: 160,
         p: 2,
         borderRadius: 2.5,
-        border: `1px solid ${BRAND.border}`,
-        background: "#fff",
+        border: `1px solid ${borderColor || BRAND.border}`,
+        background: bg || "#fff",
       }}
     >
       <Typography
@@ -513,34 +518,37 @@ export default function IncentivesPage() {
   }, []);
 
   const fetchAgents = useCallback(async () => {
-    setLoadingAgents(true);
-    setError("");
+  setLoadingAgents(true);
+  setError("");
 
-    try {
-      if (!isManagerView) {
-        setAgents(selfAgent ? [selfAgent] : []);
-        setSelectedAgent(selfAgent || null);
-        return;
-      }
-
-      const res = await axios.get(`${API_BASE}/api/employees`, {
-        params: { status: "Active" },
-        headers,
-      });
-
-      const list = Array.isArray(res.data) ? res.data : res.data?.employees || [];
-      const filtered = list.filter(
-        (emp) => emp?.role === "Sales Agent" || emp?.role === "Retention Agent"
-      );
-
-      setAgents(filtered);
-    } catch (err) {
-      console.error("Error fetching agents:", err);
-      setError("Failed to load agents");
-    } finally {
-      setLoadingAgents(false);
+  try {
+    if (!isManagerView) {
+      setAgents(selfAgent ? [selfAgent] : []);
+      setSelectedAgent(selfAgent || null);
+      return;
     }
-  }, [headers, isManagerView, selfAgent]);
+
+    const res = await axios.get(`${API_BASE}/api/employees`, {
+      params: { status: "Active" },
+      headers,
+    });
+
+    const list = Array.isArray(res.data) ? res.data : res.data?.employees || [];
+
+    const filtered = list.filter(
+      (emp) =>
+        emp?.status === "Active" &&
+        (emp?.role === "Sales Agent" || emp?.role === "Retention Agent")
+    );
+
+    setAgents(filtered);
+  } catch (err) {
+    console.error("Error fetching agents:", err);
+    setError("Failed to load agents");
+  } finally {
+    setLoadingAgents(false);
+  }
+}, [headers, isManagerView, selfAgent]);
 
   const fetchIncentives = useCallback(async () => {
     const effectiveAgentName = isManagerView
@@ -629,8 +637,8 @@ export default function IncentivesPage() {
     walletCoin.projectedCoins ?? summary.walletCoinProjected ?? 0
   );
   const walletBaseEarnedCoins = Number(
-    walletCoin.earnedCoins ?? summary.walletCoin ?? 0
-  );
+  walletCoin.baseEarnedCoins ?? summary.walletCoinBaseEarned ?? 0
+);
   const walletLapsedCoins = Number(
     walletCoin.lapsedCoins ?? summary.walletCoinLapsed ?? 0
   );
@@ -648,8 +656,44 @@ export default function IncentivesPage() {
   const walletRows = walletCoin.rows || [];
   const walletRules = walletCoin.rules || {};
   const walletAchievementPercent = Number(walletTarget.achievementPercent ?? 0);
-  const walletStatus =
-    walletTarget.status || (walletLapsedCoins > 0 ? "lapsed" : "earned");
+
+  const prepaidCoins = Number(
+    summary.prepaidCoins ??
+    walletCoin.prepaidCoins ??
+    data?.extraCoins?.prepaidCoins ??
+    0
+  );
+  const partialPaidCoins = Number(
+    summary.partialPaidCoins ??
+    walletCoin.partialPaidCoins ??
+    data?.extraCoins?.partialPaidCoins ??
+    0
+  );
+  const referralPatientCoins = Number(
+    summary.referralPatientCoins ??
+    walletCoin.referralPatientCoins ??
+    data?.extraCoins?.referralPatientCoins ??
+    0
+  );
+
+  const prepaidCount = Number(
+    summary.prepaidCount ??
+    walletCoin.prepaidCount ??
+    data?.extraCoins?.prepaidCount ??
+    0
+  );
+  const partialPaidCount = Number(
+    summary.partialPaidCount ??
+    walletCoin.partialPaidCount ??
+    data?.extraCoins?.partialPaidCount ??
+    0
+  );
+  const referralPatientCount = Number(
+    summary.referralPatientCount ??
+    walletCoin.referralPatientCount ??
+    data?.extraCoins?.referralPatientCount ??
+    0
+  );
 
   const displayAvailableCoinValue = Number(
     walletOverride?.availableCoin ??
@@ -728,11 +772,9 @@ export default function IncentivesPage() {
     [totalPercent]
   );
 
-
-
   const walletPopoverOpen = Boolean(walletAnchorEl);
 
-  const handleOpenWalletPopover = (event) => {
+  const handleOpenConvertPopover = (event) => {
     setWalletAnchorEl(event.currentTarget);
     setConvertAmount("");
     setConvertError("");
@@ -840,82 +882,14 @@ export default function IncentivesPage() {
   return (
     <Box sx={{ minHeight: "100vh", p: 3, background: BRAND.bg }}>
       <Stack spacing={3}>
-        <Stack
-          direction={{ xs: "column", lg: "row" }}
-          justifyContent="space-between"
-          alignItems={{ xs: "flex-start", lg: "flex-start" }}
-          spacing={2}
-        >
-          <Box>
-            <Typography
-              variant="h4"
-              sx={{ fontWeight: 800, color: BRAND.text, letterSpacing: -0.4 }}
-            >
-              Wallet
-            </Typography>
-          </Box>
-
-          <Box
-            sx={{
-              minWidth: { xs: "100%", sm: 360, lg: 420 },
-              p: 2,
-              borderRadius: 3,
-              border: `1px solid ${BRAND.coinBorder}`,
-              background: "linear-gradient(180deg, #ffffff 0%, #f8f5ff 100%)",
-              boxShadow: "0 8px 24px rgba(15, 23, 42, 0.04)",
-            }}
+        <Box>
+          <Typography
+            variant="h4"
+            sx={{ fontWeight: 800, color: BRAND.text, letterSpacing: -0.4 }}
           >
-            <Stack direction="row" spacing={1.25} alignItems="flex-start">
-              <IconButton
-                onClick={handleOpenWalletPopover}
-                sx={{
-                  width: 40,
-                  height: 40,
-                  borderRadius: 2,
-                  background: BRAND.coinSoft,
-                  border: `1px solid ${BRAND.coinBorder}`,
-                  color: BRAND.coin,
-                  flexShrink: 0,
-                }}
-              >
-                <WalletBalanceIcon fontSize="small" />
-              </IconButton>
-
-              <Box sx={{ minWidth: 0, flex: 1 }}>
-                <Typography
-                  variant="body2"
-                  sx={{ color: BRAND.sub, fontWeight: 600, mb: 0.75 }}
-                >
-                  Available Wallet Balance
-                </Typography>
-
-                <Typography
-                  variant="h6"
-                  sx={{ color: BRAND.text, fontWeight: 800, lineHeight: 1.2 }}
-                >
-                  {formatNumber(displayAvailableCoinValue)} Coins |{" "}
-                  {formatCurrency(displayAvailableCashValue)} Cash
-                </Typography>
-              </Box>
-
-              <Button
-                variant="contained"
-                startIcon={<RedeemIcon />}
-                onClick={() => setRedeemOpen(true)}
-                disabled={!data || Number(displayAvailableCoinValue || 0) <= 0}
-                sx={{
-                  textTransform: "none",
-                  borderRadius: 2.5,
-                  boxShadow: "none",
-                  alignSelf: "center",
-                  whiteSpace: "nowrap",
-                }}
-              >
-                Redeem
-              </Button>
-            </Stack>
-          </Box>
-        </Stack>
+            Wallet
+          </Typography>
+        </Box>
 
         <WalletRedeemDialog
           open={redeemOpen}
@@ -1025,95 +999,182 @@ export default function IncentivesPage() {
             boxShadow: "0 8px 30px rgba(15, 23, 42, 0.04)",
           }}
         >
-          <Stack
-            direction={{ xs: "column", md: "row" }}
-            spacing={2}
-            alignItems={{ xs: "stretch", md: "center" }}
-            flexWrap="wrap"
-          >
-            {isManagerView && (
-              <Autocomplete
-                sx={{
-                  width: { xs: "100%", md: 260 },
-                  flexShrink: 0,
-                }}
-                options={agents}
-                loading={loadingAgents}
-                value={selectedAgent}
-                onChange={(_, value) => {
-                  setSelectedAgent(value);
-                  clearPageState();
-                }}
-                isOptionEqualToValue={(option, value) =>
-                  option?.fullName === value?.fullName
-                }
-                getOptionLabel={(option) =>
-                  option?.fullName ? `${option.fullName} (${option.role || ""})` : ""
-                }
-                renderInput={(params) => (
-                  <TextField {...params} label="Select Agent" size="small" />
+          <Stack spacing={2}>
+            <Stack
+              direction={{ xs: "column", xl: "row" }}
+              spacing={2}
+              alignItems={{ xs: "stretch", xl: "center" }}
+              justifyContent="space-between"
+            >
+              <Stack
+                direction={{ xs: "column", md: "row" }}
+                spacing={2}
+                alignItems={{ xs: "stretch", md: "center" }}
+                flexWrap="wrap"
+                sx={{ flex: 1 }}
+              >
+                {isManagerView && (
+                  <Autocomplete
+                    sx={{
+                      width: { xs: "100%", md: 260 },
+                      flexShrink: 0,
+                    }}
+                    options={agents}
+                    loading={loadingAgents}
+                    value={selectedAgent}
+                    onChange={(_, value) => {
+                      setSelectedAgent(value);
+                      clearPageState();
+                    }}
+                    isOptionEqualToValue={(option, value) =>
+                      option?.fullName === value?.fullName
+                    }
+                    getOptionLabel={(option) =>
+                      option?.fullName ? `${option.fullName} (${option.role || ""})` : ""
+                    }
+                    renderInput={(params) => (
+                      <TextField {...params} label="Select Agent" size="small" />
+                    )}
+                  />
                 )}
-              />
-            )}
 
-            <TextField
-              label="Start Month"
-              type="month"
-              size="small"
-              InputLabelProps={{ shrink: true }}
-              inputProps={{ min: MIN_WALLET_MONTH }}
-              value={startMonth}
-              onChange={(e) => {
-                setStartMonth(e.target.value);
-                clearPageState();
-              }}
-              sx={{ width: { xs: "100%", md: 170 } }}
-            />
+                <TextField
+                  label="Start Month"
+                  type="month"
+                  size="small"
+                  InputLabelProps={{ shrink: true }}
+                  inputProps={{ min: MIN_WALLET_MONTH }}
+                  value={startMonth}
+                  onChange={(e) => {
+                    setStartMonth(e.target.value);
+                    clearPageState();
+                  }}
+                  sx={{ width: { xs: "100%", md: 170 } }}
+                />
 
-            <TextField
-              label="End Month"
-              type="month"
-              size="small"
-              InputLabelProps={{ shrink: true }}
-              inputProps={{ min: MIN_WALLET_MONTH }}
-              value={endMonth}
-              onChange={(e) => {
-                setEndMonth(e.target.value);
-                clearPageState();
-              }}
-              sx={{ width: { xs: "100%", md: 170 } }}
-            />
+                <TextField
+                  label="End Month"
+                  type="month"
+                  size="small"
+                  InputLabelProps={{ shrink: true }}
+                  inputProps={{ min: MIN_WALLET_MONTH }}
+                  value={endMonth}
+                  onChange={(e) => {
+                    setEndMonth(e.target.value);
+                    clearPageState();
+                  }}
+                  sx={{ width: { xs: "100%", md: 170 } }}
+                />
 
-            <Button
-              variant="contained"
-              onClick={fetchIncentives}
-              disabled={
-                !(isManagerView ? selectedAgent?.fullName : selfAgent?.fullName) ||
-                !startMonth ||
-                !endMonth ||
-                loadingData
-              }
-              sx={{
-                width: { xs: "100%", md: 100 },
-                textTransform: "none",
-                borderRadius: 2,
-                boxShadow: "none",
-              }}
-            >
-              Apply
-            </Button>
+                <Button
+                  variant="contained"
+                  onClick={fetchIncentives}
+                  disabled={
+                    !(isManagerView ? selectedAgent?.fullName : selfAgent?.fullName) ||
+                    !startMonth ||
+                    !endMonth ||
+                    loadingData
+                  }
+                  sx={{
+                    width: { xs: "100%", md: 100 },
+                    textTransform: "none",
+                    borderRadius: 2,
+                    boxShadow: "none",
+                  }}
+                >
+                  Apply
+                </Button>
 
-            <Button
-              variant="outlined"
-              onClick={handleResetFilters}
-              sx={{
-                width: { xs: "100%", md: 100 },
-                textTransform: "none",
-                borderRadius: 2,
-              }}
-            >
-              Reset
-            </Button>
+                <Button
+                  variant="outlined"
+                  onClick={handleResetFilters}
+                  sx={{
+                    width: { xs: "100%", md: 100 },
+                    textTransform: "none",
+                    borderRadius: 2,
+                  }}
+                >
+                  Reset
+                </Button>
+              </Stack>
+
+              <Box
+                sx={{
+                  minWidth: { xs: "100%", xl: 420 },
+                  p: 1.75,
+                  borderRadius: 3,
+                  border: `1px solid ${BRAND.coinBorder}`,
+                  background: "linear-gradient(180deg, #ffffff 0%, #f8f5ff 100%)",
+                  boxShadow: "0 8px 24px rgba(15, 23, 42, 0.04)",
+                }}
+              >
+                <Stack direction="row" spacing={1.25} alignItems="center">
+                  <Box
+                    sx={{
+                      width: 40,
+                      height: 40,
+                      borderRadius: 2,
+                      background: BRAND.coinSoft,
+                      border: `1px solid ${BRAND.coinBorder}`,
+                      color: BRAND.coin,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      flexShrink: 0,
+                    }}
+                  >
+                    <WalletBalanceIcon fontSize="small" />
+                  </Box>
+
+                  <Box sx={{ minWidth: 0, flex: 1 }}>
+                    <Typography
+                      variant="body2"
+                      sx={{ color: BRAND.sub, fontWeight: 600, mb: 0.5 }}
+                    >
+                      Available Wallet Balance
+                    </Typography>
+
+                    <Typography
+                      variant="h6"
+                      sx={{ color: BRAND.text, fontWeight: 800, lineHeight: 1.2 }}
+                    >
+                      {formatNumber(displayAvailableCoinValue)} Coins |{" "}
+                      {formatCurrency(displayAvailableCashValue)} Cash
+                    </Typography>
+                  </Box>
+
+                  <Stack direction="row" spacing={1} sx={{ flexShrink: 0 }}>
+                    <Button
+                      variant="contained"
+                      startIcon={<RedeemIcon />}
+                      onClick={() => setRedeemOpen(true)}
+                      disabled={!data || Number(displayAvailableCoinValue || 0) <= 0}
+                      sx={{
+                        textTransform: "none",
+                        borderRadius: 2.5,
+                        boxShadow: "none",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      Redeem
+                    </Button>
+
+                    <Button
+                      variant="outlined"
+                      onClick={handleOpenConvertPopover}
+                      disabled={!data || Number(displayAvailableCashValue || 0) <= 0}
+                      sx={{
+                        textTransform: "none",
+                        borderRadius: 2.5,
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      Convert
+                    </Button>
+                  </Stack>
+                </Stack>
+              </Box>
+            </Stack>
           </Stack>
         </Paper>
 
@@ -1444,11 +1505,7 @@ export default function IncentivesPage() {
 
               <Divider sx={{ my: 2 }} />
 
-              <Stack
-                direction={{ xs: "column", lg: "row" }}
-                spacing={1.5}
-                alignItems="stretch"
-              >
+              <Stack direction={{ xs: "column", lg: "row" }} spacing={1.5} alignItems="stretch">
                 <Box
                   sx={{
                     flex: 1.15,
@@ -1466,67 +1523,95 @@ export default function IncentivesPage() {
                   </Typography>
 
                   <Stack spacing={1.25}>
-                    <Typography
-                      variant="h5"
-                      sx={{ color: BRAND.coin, fontWeight: 800, lineHeight: 1.1 }}
+                    <Stack
+                      direction={{ xs: "column", md: "row" }}
+                      justifyContent="space-between"
+                      alignItems={{ xs: "flex-start", md: "flex-start" }}
+                      spacing={1.5}
                     >
-                      {walletAchievementPercent}%
-                    </Typography>
+                      <Box sx={{ minWidth: 0, flex: 1 }}>
+                        <Typography
+                          variant="h5"
+                          sx={{ color: BRAND.coin, fontWeight: 800, lineHeight: 1.1 }}
+                        >
+                          {walletAchievementPercent}%
+                        </Typography>
 
-                    <Typography variant="caption" sx={{ color: BRAND.sub }}>
-                      Target: {formatNumber(walletTarget.deliveredCount || 0)} /{" "}
-                      {formatNumber(walletTarget.monthlyTargetCount || 0)}
-                    </Typography>
+                        <Typography variant="caption" sx={{ color: BRAND.sub }}>
+                          Target: {formatNumber(walletTarget.deliveredCount || 0)} /{" "}
+                          {formatNumber(walletTarget.monthlyTargetCount || 0)}
+                        </Typography>
+                      </Box>
 
-                    <VKRTargetProgressBar
-                      value={walletAchievementPercent}
-                      threshold={walletTarget.minAchievementPercentToRetain || 60}
-                    />
-
-                    <Stack direction="row" justifyContent="space-between" alignItems="center">
-                      <Typography
-                        variant="caption"
+                      <Stack
+                        direction={{ xs: "column", sm: "row" }}
+                        spacing={1.25}
                         sx={{
-                          color:
-                            walletAchievementPercent >= (walletTarget.minAchievementPercentToRetain || 60)
-                              ? BRAND.available
-                              : BRAND.reversed,
-                          fontWeight: 600,
+                          width: { xs: "100%", md: "auto" },
+                          minWidth: { md: 380 },
                         }}
                       >
-                        {walletAchievementPercent >= (walletTarget.minAchievementPercentToRetain || 60)
-                          ? "Target retained"
-                          : ""}
-                      </Typography> 
+                        <SummaryMetric
+                          title="Earned Coins"
+                          value={formatNumber(walletBaseEarnedCoins)}
+                          sub={`${formatNumber(walletDeliveredOrders)} delivered qualifying orders`}
+                          color={BRAND.coin}
+                          bg="#ffffff"
+                          borderColor={BRAND.coinBorder}
+                        />
+
+                        <SummaryMetric
+                          title="Lapsed Coins"
+                          value={formatNumber(walletLapsedCoins)}
+                          sub={`${walletAchievementPercent}% achievement`}
+                          color={BRAND.reversed}
+                          bg="#ffffff"
+                          borderColor="#fecaca"
+                        />
+                      </Stack>
                     </Stack>
+
+                    <Box sx={{ mt: 0.5 }}>
+                      <VKRTargetProgressBar
+                        value={walletAchievementPercent}
+                        threshold={walletTarget.minAchievementPercentToRetain || 60}
+                      />
+                    </Box>
                   </Stack>
                 </Box>
 
-                <Box sx={{ flex: 1 }}>
-                  <Stack
-                    direction={{ xs: "column", sm: "row" }}
-                    spacing={1.5}
-                    sx={{ flexWrap: "wrap", height: "100%" }}
-                  >
-                    <SummaryMetric
-                      title="Available Coins"
-                      value={formatNumber(displayAvailableCoinValue)}
-                      sub={`${formatNumber(walletDeliveredOrders)} delivered qualifying orders`}
-                      color={BRAND.coin}
-                    />
-                    <SummaryMetric
-                      title="Projected Coins"
-                      value={formatNumber(walletProjectedCoins)}
-                      sub={`${formatNumber(walletQualifyingOrders)} total qualifying orders`}
-                      color={BRAND.primary}
-                    />
-                    <SummaryMetric
-                      title="Lapsed Coins"
-                      value={formatNumber(walletLapsedCoins)}
-                      sub={`${walletAchievementPercent}% achievement`}
-                      color={BRAND.reversed}
-                    />
-                  </Stack>
+                <Box
+                  sx={{
+                    flex: 1,
+                    display: "grid",
+                    gridTemplateColumns: { xs: "1fr", md: "repeat(3, 1fr)" },
+                    gap: 1.5,
+                  }}
+                >
+                  <SummaryMetric
+                    title="Prepaid"
+                    value={formatNumber(prepaidCoins)}
+                    sub={`${formatNumber(prepaidCount)} orders · 30 coins each`}
+                    color={BRAND.prepaid}
+                    bg={BRAND.prepaidSoft}
+                    borderColor="#ccfbf1"
+                  />
+                  <SummaryMetric
+                    title="Partial Paid"
+                    value={formatNumber(partialPaidCoins)}
+                    sub={`${formatNumber(partialPaidCount)} orders · 10 coins each`}
+                    color={BRAND.partial}
+                    bg={BRAND.partialSoft}
+                    borderColor="#fed7aa"
+                  />
+                  <SummaryMetric
+                    title="Referral Patient"
+                    value={formatNumber(referralPatientCoins)}
+                    sub={`${formatNumber(referralPatientCount)} referrals · 200 coins each`}
+                    color={BRAND.referral}
+                    bg={BRAND.referralSoft}
+                    borderColor="#bfdbfe"
+                  />
                 </Box>
               </Stack>
             </Paper>
@@ -1590,9 +1675,7 @@ export default function IncentivesPage() {
                                 "&:last-child td": { borderBottom: 0 },
                               }}
                             >
-                              <TableCell sx={COL_DATE}>
-                                {formatDate(row.date)}
-                              </TableCell>
+                              <TableCell sx={COL_DATE}>{formatDate(row.date)}</TableCell>
 
                               <TableCell
                                 sx={{

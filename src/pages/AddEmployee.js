@@ -33,6 +33,7 @@ import {
   AdminPanelSettings, // NEW
 } from "@mui/icons-material";
 import axios from "axios";
+import RewardsAdminPage from "./RewardsAdminPage";
 
 
 // === DEFAULT PERMISSIONS (Menubar + Navbar) ===
@@ -61,6 +62,7 @@ const DEFAULT_PERMISSIONS = {
 
     incentivesWallet: false,
     sops: false,
+    RewardsAdminPage: false,
 
     // Order confirmations & abandoned
     orderConfirmationsMenu: false,
@@ -1345,6 +1347,7 @@ const AddEmployee = () => {
                   ["deliveredSalesRecord", "Delivered Sales Record"],
                   ["incentivesWallet", "Incentives Wallet"],
                   ["sops", "SOPs"],
+                  ["RewardsAdminPage", "Rewards Admin"],
                 ].map(([key, label]) => (
                   <FormControlLabel
                     key={key}
