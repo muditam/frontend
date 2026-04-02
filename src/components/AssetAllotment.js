@@ -1,5 +1,5 @@
 // src/components/AssetAllotment.jsx
-import React, { useEffect, useMemo, useState ,useRef } from "react";
+import React, { useEffect, useMemo, useState, useRef } from "react";
 import {
   Box,
   Card,
@@ -65,10 +65,8 @@ function LazyImage({
       return;
     }
 
-
     const container = imgRef.current?.parentElement;
     if (!container) return;
-
 
     observerRef.current = new IntersectionObserver(
       ([entry]) => {
@@ -80,11 +78,9 @@ function LazyImage({
       { rootMargin: "200px", threshold: 0.01 }
     );
 
-
     observerRef.current.observe(container);
     return () => observerRef.current?.disconnect();
   }, [src, eager]);
-
 
   return (
     <Box
@@ -113,8 +109,6 @@ function LazyImage({
   );
 }
 
-
-// Asset types
 const ASSET_OPTIONS = [
   "Laptop",
   "Mouse",
@@ -130,7 +124,6 @@ const ASSET_OPTIONS = [
   "Hard Disk",
 ];
 
-// Company options mapped by asset name (type-ahead still allowed)
 const COMPANY_MAP = {
   Laptop: ["Dell", "Acer", "HP", "Lenovo", "Asus", "Apple"],
   Mouse: ["Logitech", "Dell", "HP", "Razer"],
@@ -161,6 +154,7 @@ const fmtDateInput = (d) => {
   const dd = String(dt.getDate()).padStart(2, "0");
   return `${yyyy}-${mm}-${dd}`;
 };
+
 const fmtTimeInput = (d) => {
   const dt = d ? new Date(d) : new Date();
   if (Number.isNaN(dt.getTime())) return "";
@@ -169,20 +163,15 @@ const fmtTimeInput = (d) => {
   return `${hh}:${mm}`;
 };
 
-
-
-
 export default function AssetAllotment() {
   const [employees, setEmployees] = useState([]);
   const [allotments, setAllotments] = useState([]);
   const [loadingEmployees, setLoadingEmployees] = useState(true);
   const [loadingAllotments, setLoadingAllotments] = useState(true);
   const [collectSubmitting, setCollectSubmitting] = useState(false);
-
   const [snack, setSnack] = useState(null);
   const [submitting, setSubmitting] = useState(false);
 
-  // Dialog open/close (add allotment)
   const [openForm, setOpenForm] = useState(false);
 
   const initialForm = {
@@ -191,23 +180,20 @@ export default function AssetAllotment() {
     company: "",
     model: "",
     assetCode: "",
-    allotmentImageUrls: [], // only array now
+    allotmentImageUrls: [],
   };
 
   const [form, setForm] = useState(initialForm);
 
-  // Image gallery dialog (for viewing images from table)
   const [gallery, setGallery] = useState({
     open: false,
     images: [],
     title: "",
   });
 
-  // hold multiple File objects for ADD dialog
-  const [files, setFiles] = useState([]); // Array<File>
+  const [files, setFiles] = useState([]);
   const [isDragging, setIsDragging] = useState(false);
 
-  // --------- Collect dialog state ----------
   const [collectDialog, setCollectDialog] = useState({
     open: false,
     allotment: null,
@@ -217,18 +203,15 @@ export default function AssetAllotment() {
     returnedTime: "",
     notes: "",
   });
-  const [collectFiles, setCollectFiles] = useState([]); // new images at collection time
+  const [collectFiles, setCollectFiles] = useState([]);
   const [isCollectDragging, setIsCollectDragging] = useState(false);
   const [collectObjectUrls, setCollectObjectUrls] = useState([]);
 
   const [search, setSearch] = useState("");
-
   const [employeeFilter, setEmployeeFilter] = useState(null);
-
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(20);
 
-  // Load employees
   const fetchEmployees = async () => {
     setLoadingEmployees(true);
     try {
@@ -242,7 +225,6 @@ export default function AssetAllotment() {
     }
   };
 
-  // Load allotments
   const fetchAllotments = async () => {
     setLoadingAllotments(true);
     try {
@@ -261,14 +243,12 @@ export default function AssetAllotment() {
     fetchAllotments();
   }, []);
 
-  // Company options depend on assetName, but allow free typing
   const companyOptions = useMemo(() => {
     const base = COMPANY_MAP[form.assetName] || [];
     const v = (form.company || "").trim();
     return v && !base.includes(v) ? [v, ...base] : base;
   }, [form.assetName, form.company]);
 
-  // Validation for ADD
   const validate = () => {
     const errs = {};
     if (!form.employeeId) errs.employeeId = "Select employee";
@@ -281,7 +261,6 @@ export default function AssetAllotment() {
 
   const [errs, setErrs] = useState({});
 
-  // Generic image upload helper to Wasabi via backend
   const uploadImagesToWasabi = async (fileList, prefix) => {
     if (!fileList?.length) return [];
     const fd = new FormData();
@@ -293,7 +272,6 @@ export default function AssetAllotment() {
     return data?.urls || [];
   };
 
-  // --- ADD Allotment submit ---
   const onSubmit = async () => {
     const e = validate();
     setErrs(e);
@@ -301,7 +279,6 @@ export default function AssetAllotment() {
 
     setSubmitting(true);
     try {
-      // existing URLs from form + new uploads
       let urls = Array.isArray(form.allotmentImageUrls)
         ? [...form.allotmentImageUrls]
         : [];
@@ -328,7 +305,6 @@ export default function AssetAllotment() {
       await axios.post(`${API_BASE}/api/asset-allotments`, payload);
       setSnack({ severity: "success", msg: "Asset allotted" });
 
-      // reset form and close dialog
       setForm(initialForm);
       setFiles([]);
       setOpenForm(false);
@@ -342,14 +318,12 @@ export default function AssetAllotment() {
     }
   };
 
-
   const onOpenForm = () => {
     setErrs({});
     setForm(initialForm);
     setFiles([]);
     setOpenForm(true);
   };
-
 
   const onCloseForm = () => {
     if (submitting) return;
@@ -361,27 +335,18 @@ export default function AssetAllotment() {
     label: `${e.fullName}`,
   }));
 
-  // Helpers for previews (Object URLs) - ADD dialog
   const [objectUrls, setObjectUrls] = useState([]);
   useEffect(() => {
     objectUrls.forEach((u) => URL.revokeObjectURL(u));
     const urls = (files || []).map((f) => URL.createObjectURL(f));
     setObjectUrls(urls);
     return () => urls.forEach((u) => URL.revokeObjectURL(u));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [files]);
-
-
-
 
   const removeFileAt = (idx) => {
     setFiles((prev) => prev.filter((_, i) => i !== idx));
   };
 
-
-
-
-  // Drag & drop handlers for ADD dropzone
   const onDragOver = (e) => {
     e.preventDefault();
     setIsDragging(true);
@@ -395,7 +360,6 @@ export default function AssetAllotment() {
     );
     if (selected.length) setFiles((prev) => [...prev, ...selected]);
   };
-
 
   // open collect dialog for specific allotment
   const openCollectDialog = (allot) => {
@@ -416,22 +380,17 @@ export default function AssetAllotment() {
     setCollectObjectUrls([]);
   };
 
-
-  // Preview URLs for collectFiles
   useEffect(() => {
     collectObjectUrls.forEach((u) => URL.revokeObjectURL(u));
     const urls = (collectFiles || []).map((f) => URL.createObjectURL(f));
     setCollectObjectUrls(urls);
     return () => urls.forEach((u) => URL.revokeObjectURL(u));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [collectFiles]);
-
 
   const removeCollectFileAt = (idx) => {
     setCollectFiles((prev) => prev.filter((_, i) => i !== idx));
   };
 
-  // dropzone handlers for collect dialog
   const onCollectDragOver = (e) => {
     e.preventDefault();
     setIsCollectDragging(true);
@@ -446,144 +405,138 @@ export default function AssetAllotment() {
     if (selected.length) setCollectFiles((prev) => [...prev, ...selected]);
   };
 
- const handleCollectSubmit = async () => {
-  if (!collectDialog.allotment || collectSubmitting) return;
+  const handleCollectSubmit = async () => {
+    if (!collectDialog.allotment || collectSubmitting) return;
 
-  const id = collectDialog.allotment._id;
+    const id = collectDialog.allotment._id;
 
-  // 1️⃣ Date check
-  if (!collectForm.returnedAt) {
-    setSnack({ severity: "error", msg: "Please select collection date" });
-    return;
-  }
+    if (!collectForm.returnedAt) {
+      setSnack({ severity: "error", msg: "Please select collection date" });
+      return;
+    }
 
-  if (!collectFiles.length) {
-    setSnack({
-      severity: "error",
-      msg: "Please upload at least one collection image",
-    });
-    return;
-  }
-  if (!collectForm.notes || !collectForm.notes.trim()) {
-    setSnack({
-      severity: "error",
-      msg: "Please enter remarks (damage / OK / notes)",
-    });
-    return;
-  }
+    if (!collectFiles.length) {
+      setSnack({
+        severity: "error",
+        msg: "Please upload at least one collection image",
+      });
+      return;
+    }
+    if (!collectForm.notes || !collectForm.notes.trim()) {
+      setSnack({
+        severity: "error",
+        msg: "Please enter remarks (damage / OK / notes)",
+      });
+      return;
+    }
 
-  setCollectSubmitting(true);
+    setCollectSubmitting(true);
 
-  try {
-    // 3️⃣ Upload new images (collection photos)
-    let returnUrls = [];
-    if (collectFiles.length) {
-      returnUrls = await uploadImagesToWasabi(
-        collectFiles,
-        `returns/${(collectDialog.allotment.assetCode || "asset")
-          .replace(/\s+/g, "_")
-          .toLowerCase()}`
+    try {
+      let returnUrls = [];
+      if (collectFiles.length) {
+        returnUrls = await uploadImagesToWasabi(
+          collectFiles,
+          `returns/${(collectDialog.allotment.assetCode || "asset")
+            .replace(/\s+/g, "_")
+            .toLowerCase()}`
+        );
+      }
+
+      let combinedReturnedAt = collectForm.returnedAt;
+      if (collectForm.returnedTime) {
+        combinedReturnedAt = `${collectForm.returnedAt}T${collectForm.returnedTime}`;
+      }
+
+      const payload = {
+        returnedAt: combinedReturnedAt,
+        notes: collectForm.notes || "",
+        returnImageUrls: returnUrls,
+      };
+
+      const { data: updated } = await axios.patch(
+        `${API_BASE}/api/asset-allotments/${id}/collect`,
+        payload
       );
-    }
 
-    let combinedReturnedAt = collectForm.returnedAt;
-    if (collectForm.returnedTime) {
-      combinedReturnedAt = `${collectForm.returnedAt}T${collectForm.returnedTime}`;
-    }
+      try {
+        const LS_KEY = "org_hw_assets_v2";
+        const assetCode = collectDialog.allotment.assetCode;
+        const raw = localStorage.getItem(LS_KEY);
 
-    const payload = {
-      returnedAt: combinedReturnedAt,
-      notes: collectForm.notes || "",
-      returnImageUrls: returnUrls,
-    };
+        if (raw && assetCode) {
+          const assets = JSON.parse(raw);
 
-    // 🔹 PATCH allotment → status becomes "returned"
-    const { data: updated } = await axios.patch(
-      `${API_BASE}/api/asset-allotments/${id}/collect`,
-      payload
-    );
-
-    try {
-      const LS_KEY = "org_hw_assets_v2";
-      const assetCode = collectDialog.allotment.assetCode;
-      const raw = localStorage.getItem(LS_KEY);
-
-      if (raw && assetCode) {
-        const assets = JSON.parse(raw);
-
-        const idx = assets.findIndex(
-          (a) => a.assetCode && a.assetCode === assetCode
-        );
-
-        if (idx >= 0) {
-          assets[idx] = {
-            ...assets[idx],
-            allocatedTo: "",
-            employeeId: "",
-            issuedDate: "",
-            updatedAt: new Date().toISOString(),
-          };
-
-          localStorage.setItem(LS_KEY, JSON.stringify(assets));
-        }
-      }
-    } catch (e) {
-      console.error("Failed to update Asset Inventory after collect:", e);
-    }
-
-    try {
-      const assetCode = collectDialog.allotment.assetCode;
-      if (assetCode) {
-        const resAssets = await axios.get(`${API_BASE}/api/assets`);
-        const assetsList = Array.isArray(resAssets.data)
-          ? resAssets.data
-          : [];
-
-        const assetDoc = assetsList.find(
-          (a) =>
-            a.assetCode &&
-            a.assetCode.trim().toLowerCase() ===
-              assetCode.trim().toLowerCase()
-        );
-
-        if (assetDoc && assetDoc._id) {
-          const clearPayload = {
-            name: assetDoc.name || "",
-            company: assetDoc.company || "",
-            model: assetDoc.model || "",
-            brand: assetDoc.brand || "",
-            assetCode: assetDoc.assetCode,
-            imageUrls: Array.isArray(assetDoc.imageUrls)
-              ? assetDoc.imageUrls
-              : [],
-            allottedTo: "",
-            emp_id: "",
-          };
-
-          await axios.put(
-            `${API_BASE}/api/assets/${assetDoc._id}`,
-            clearPayload
+          const idx = assets.findIndex(
+            (a) => a.assetCode && a.assetCode === assetCode
           );
+
+          if (idx >= 0) {
+            assets[idx] = {
+              ...assets[idx],
+              allocatedTo: "",
+              employeeId: "",
+              issuedDate: "",
+              updatedAt: new Date().toISOString(),
+            };
+            localStorage.setItem(LS_KEY, JSON.stringify(assets));
+          }
         }
+      } catch (e) {
+        console.error("Failed to update Asset Inventory after collect:", e);
       }
-    } catch (e) {
-      console.error("Failed to clear asset assignment in DB on collect:", e);
+
+      try {
+        const assetCode = collectDialog.allotment.assetCode;
+        if (assetCode) {
+          const resAssets = await axios.get(`${API_BASE}/api/assets`);
+          const assetsList = Array.isArray(resAssets.data)
+            ? resAssets.data
+            : [];
+
+          const assetDoc = assetsList.find(
+            (a) =>
+              a.assetCode &&
+              a.assetCode.trim().toLowerCase() ===
+              assetCode.trim().toLowerCase()
+          );
+
+          if (assetDoc && assetDoc._id) {
+            const clearPayload = {
+              name: assetDoc.name || "",
+              company: assetDoc.company || "",
+              model: assetDoc.model || "",
+              brand: assetDoc.brand || "",
+              assetCode: assetDoc.assetCode,
+              imageUrls: Array.isArray(assetDoc.imageUrls)
+                ? assetDoc.imageUrls
+                : [],
+              allottedTo: "",
+              emp_id: "",
+            };
+
+            await axios.put(
+              `${API_BASE}/api/assets/${assetDoc._id}`,
+              clearPayload
+            );
+          }
+        }
+      } catch (e) {
+        console.error("Failed to clear asset assignment in DB on collect:", e);
+      }
+      setAllotments((prev) =>
+        prev.map((a) => (a._id === updated._id ? updated : a))
+      );
+      setSnack({ severity: "success", msg: "Asset collected" });
+      closeCollectDialog();
+    } catch (err) {
+      console.error(err);
+      const msg = err?.response?.data?.message || "Failed to collect asset";
+      setSnack({ severity: "error", msg });
+    } finally {
+      setCollectSubmitting(false);
     }
-
-    setAllotments((prev) =>
-      prev.map((a) => (a._id === updated._id ? updated : a))
-    );
-
-    setSnack({ severity: "success", msg: "Asset collected" });
-    closeCollectDialog();
-  } catch (err) {
-    console.error(err);
-    const msg = err?.response?.data?.message || "Failed to collect asset";
-    setSnack({ severity: "error", msg });
-  } finally {
-    setCollectSubmitting(false);
-  }
-};
+  };
 
   const activeAllotments = allotments.filter((a) => a.status !== "returned");
 
@@ -596,7 +549,6 @@ export default function AssetAllotment() {
 
   const filteredActiveAllotments = useMemo(() => {
     let list = activeAllotments;
-
     const q = search.trim().toLowerCase();
     if (q) {
       list = list.filter((a) => {
@@ -629,7 +581,6 @@ export default function AssetAllotment() {
     return list;
   }, [activeAllotments, search, employeeFilter]);
 
-  // Paginated list
   const pagedAllotments = useMemo(() => {
     const start = page * rowsPerPage;
     return filteredActiveAllotments.slice(start, start + rowsPerPage);
@@ -637,13 +588,12 @@ export default function AssetAllotment() {
 
   const mainOldImage =
     collectDialog.allotment &&
-    Array.isArray(collectDialog.allotment.allotmentImageUrls) &&
-    collectDialog.allotment.allotmentImageUrls.length
+      Array.isArray(collectDialog.allotment.allotmentImageUrls) &&
+      collectDialog.allotment.allotmentImageUrls.length
       ? collectDialog.allotment.allotmentImageUrls[0]
       : null;
 
   const mainNewImage = collectObjectUrls.length ? collectObjectUrls[0] : null;
-
 
   return (
     <Box p={{ xs: 1.5, md: 3 }}>
@@ -654,7 +604,7 @@ export default function AssetAllotment() {
               <Typography variant="h6">Asset Allotment</Typography>
               <Chip label={`${activeAllotments.length} allotted`} size="small" />
             </Stack>
-          } 
+          }
           action={
             <Stack
               direction={{ xs: "column", md: "row" }}
@@ -781,8 +731,6 @@ export default function AssetAllotment() {
                               <code>{a.assetCode}</code>
                             </TableCell>
 
-
-                            {/* Images column */}
                             <TableCell>
                               {imgs.length ? (
                                 <Stack spacing={0.5}>
@@ -793,30 +741,30 @@ export default function AssetAllotment() {
                                     useFlexGap
                                     sx={{ alignItems: "center" }}
                                   >
-                                 {firstImgs.map((url, i) => (
-  <Tooltip key={i} title="Click to open in new tab">
-    <Avatar
-      variant="rounded"
-      sx={{
-        width: 28,
-        height: 28,
-        cursor: "zoom-in",
-        borderRadius: 1,
-        bgcolor: "action.hover",
-      }}
-    >
-  <LazyImage
-  src={url}
-  alt={`img-${i}`}
-  style={{ width: "100%", height: "100%", objectFit: "cover" }}
-  placeholder={false}
-  onClick={() => {
-    window.open(url, "_blank", "noopener,noreferrer");
-  }}
-/>
-    </Avatar>
-  </Tooltip>
-))}
+                                    {firstImgs.map((url, i) => (
+                                      <Tooltip key={i} title="Click to open in new tab">
+                                        <Avatar
+                                          variant="rounded"
+                                          sx={{
+                                            width: 28,
+                                            height: 28,
+                                            cursor: "zoom-in",
+                                            borderRadius: 1,
+                                            bgcolor: "action.hover",
+                                          }}
+                                        >
+                                          <LazyImage
+                                            src={url}
+                                            alt={`img-${i}`}
+                                            style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                                            placeholder={false}
+                                            onClick={() => {
+                                              window.open(url, "_blank", "noopener,noreferrer");
+                                            }}
+                                          />
+                                        </Avatar>
+                                      </Tooltip>
+                                    ))}
                                     {moreCount > 0 && (
                                       <Chip
                                         size="small"
@@ -846,9 +794,8 @@ export default function AssetAllotment() {
                                   <Chip
                                     size="small"
                                     variant="outlined"
-                                    label={`${imgs.length} image${
-                                      imgs.length > 1 ? "s" : ""
-                                    }`}
+                                    label={`${imgs.length} image${imgs.length > 1 ? "s" : ""
+                                      }`}
                                     sx={{ alignSelf: "flex-start" }}
                                   />
                                 </Stack>
@@ -867,7 +814,6 @@ export default function AssetAllotment() {
                               )}
                             </TableCell>
 
-                            {/* Allotted / Collected info */}
                             <TableCell>
                               <Typography variant="body2">
                                 Allotted: {fmtDateTime(a.allottedAt)}
@@ -882,7 +828,6 @@ export default function AssetAllotment() {
                               )}
                             </TableCell>
 
-                            {/* Collect column */}
                             <TableCell>
                               <Button
                                 variant={isReturned ? "outlined" : "contained"}
@@ -940,9 +885,6 @@ export default function AssetAllotment() {
           </Stack>
         </DialogTitle>
 
-
-
-
         <DialogContent dividers sx={{ pt: 2 }}>
           {/* Employee & asset details */}
           <Grid container spacing={1.5} sx={{ mb: 2 }}>
@@ -968,9 +910,6 @@ export default function AssetAllotment() {
               />
             </Grid>
 
-
-
-
             <Grid item xs={12} md={6}>
               <Autocomplete
                 size="small"
@@ -994,9 +933,6 @@ export default function AssetAllotment() {
                 )}
               />
             </Grid>
-
-
-
 
             <Grid item xs={12} md={4}>
               <Autocomplete
@@ -1022,9 +958,6 @@ export default function AssetAllotment() {
               />
             </Grid>
 
-
-
-
             <Grid item xs={12} md={4}>
               <TextField
                 label="Model"
@@ -1038,9 +971,6 @@ export default function AssetAllotment() {
                 fullWidth
               />
             </Grid>
-
-
-
 
             <Grid item xs={12} md={4}>
               <TextField
@@ -1057,22 +987,12 @@ export default function AssetAllotment() {
             </Grid>
           </Grid>
 
-
-
-
           <Divider sx={{ my: 2 }} />
-
-
-
 
           <Typography variant="overline" sx={{ color: "text.secondary" }}>
             Allotment Photos
           </Typography>
 
-
-
-
-          {/* Add dialog dropzone */}
           <Box
             onDragOver={onDragOver}
             onDragLeave={onDragLeave}
@@ -1117,10 +1037,6 @@ export default function AssetAllotment() {
             </Stack>
           </Box>
 
-
-
-
-          {/* Thumbnails for allotment images */}
           <Stack direction="row" gap={1} flexWrap="wrap" sx={{ mt: 1.5 }}>
             {objectUrls.map((url, idx) => (
               <Badge
@@ -1156,9 +1072,6 @@ export default function AssetAllotment() {
           </Stack>
         </DialogContent>
 
-
-
-
         <DialogActions sx={{ px: 3, py: 2 }}>
           <Button onClick={onCloseForm} disabled={submitting}>
             Cancel
@@ -1174,10 +1087,6 @@ export default function AssetAllotment() {
         </DialogActions>
       </Dialog>
 
-
-
-
-      {/* —————————— Collect Dialog —————————— */}
       <Dialog
         open={collectDialog.open}
         onClose={closeCollectDialog}
@@ -1202,11 +1111,7 @@ export default function AssetAllotment() {
           </Stack>
         </DialogTitle>
 
-
-
-
         <DialogContent dividers sx={{ pt: 2 }}>
-          {/* Asset details in collect dialog */}
           {collectDialog.allotment && (
             <>
               <Typography variant="overline" sx={{ color: "text.secondary" }}>
@@ -1250,18 +1155,10 @@ export default function AssetAllotment() {
                   />
                 </Grid>
               </Grid>
-
-
-
-
               <Divider sx={{ my: 2 }} />
             </>
           )}
 
-
-
-
-          {/* Dates & remark */}
           <Grid container spacing={1.5} sx={{ mb: 2 }}>
             <Grid item xs={12} md={3}>
               <TextField
@@ -1280,9 +1177,6 @@ export default function AssetAllotment() {
               />
             </Grid>
 
-
-
-
             <Grid item xs={12} md={3}>
               <TextField
                 label="Collection Time"
@@ -1300,9 +1194,6 @@ export default function AssetAllotment() {
               />
             </Grid>
 
-
-
-
             <Grid item xs={12} md={6}>
               <TextField
                 label="Remarks (damage / OK / notes)"
@@ -1318,10 +1209,6 @@ export default function AssetAllotment() {
             </Grid>
           </Grid>
 
-
-
-
-          {/* Big comparison: Old vs New side-by-side */}
           {(mainOldImage || mainNewImage) && (
             <>
               <Divider sx={{ my: 2 }} />
@@ -1332,11 +1219,7 @@ export default function AssetAllotment() {
                 Compare (Old vs New)
               </Typography>
 
-
-
-
               <Grid container spacing={2} sx={{ mt: 1, mb: 2 }}>
-                {/* OLD IMAGE */}
                 <Grid item xs={12} md={6}>
                   <Paper
                     variant="outlined"
@@ -1385,7 +1268,6 @@ export default function AssetAllotment() {
                   </Typography>
                 </Grid>
 
-                {/* NEW IMAGE */}
                 <Grid item xs={12} md={6}>
                   <Paper
                     variant="outlined"
@@ -1439,53 +1321,51 @@ export default function AssetAllotment() {
 
           <Divider sx={{ my: 2 }} />
 
-          {/* Old photos thumbnails */}
           <Typography variant="overline" sx={{ color: "text.secondary" }}>
             Old Photos (all allotment images)
           </Typography>
-        <Stack direction="row" gap={1} flexWrap="wrap" sx={{ mt: 1, mb: 2 }}>
-  {collectDialog.allotment &&
-  Array.isArray(collectDialog.allotment.allotmentImageUrls) &&
-  collectDialog.allotment.allotmentImageUrls.length ? (
-    collectDialog.allotment.allotmentImageUrls.map((url, idx) => (
-      <Avatar
-        key={idx}
-        variant="rounded"
-        sx={{
-          width: 64,
-          height: 64,
-          borderRadius: 2,
-          border: "1px solid",
-          borderColor: "divider",
-          bgcolor: "action.hover",
-        }}
-      >
-        <LazyImage
-          src={url}
-          alt={`old-${idx}`}
-          style={{ width: "100%", height: "100%", objectFit: "cover" }}
-          placeholder={false}
-        />
-      </Avatar>
-    ))
-  ) : (
-    <Stack
-      direction="row"
-      spacing={0.5}
-      alignItems="center"
-      sx={{ color: "text.disabled" }}
-    >
-      <ImageIcon fontSize="small" />
-      <Typography variant="caption">
-        No old images stored
-      </Typography>
-    </Stack>
-  )}
-</Stack>
+          <Stack direction="row" gap={1} flexWrap="wrap" sx={{ mt: 1, mb: 2 }}>
+            {collectDialog.allotment &&
+              Array.isArray(collectDialog.allotment.allotmentImageUrls) &&
+              collectDialog.allotment.allotmentImageUrls.length ? (
+              collectDialog.allotment.allotmentImageUrls.map((url, idx) => (
+                <Avatar
+                  key={idx}
+                  variant="rounded"
+                  sx={{
+                    width: 64,
+                    height: 64,
+                    borderRadius: 2,
+                    border: "1px solid",
+                    borderColor: "divider",
+                    bgcolor: "action.hover",
+                  }}
+                >
+                  <LazyImage
+                    src={url}
+                    alt={`old-${idx}`}
+                    style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                    placeholder={false}
+                  />
+                </Avatar>
+              ))
+            ) : (
+              <Stack
+                direction="row"
+                spacing={0.5}
+                alignItems="center"
+                sx={{ color: "text.disabled" }}
+              >
+                <ImageIcon fontSize="small" />
+                <Typography variant="caption">
+                  No old images stored
+                </Typography>
+              </Stack>
+            )}
+          </Stack>
 
           <Divider sx={{ my: 2 }} />
 
-          {/* New photos upload */}
           <Typography variant="overline" sx={{ color: "text.secondary" }}>
             New Photos (at collection time)
           </Typography>
@@ -1533,9 +1413,6 @@ export default function AssetAllotment() {
               </Typography>
             </Stack>
           </Box>
-
-
-
 
           <Stack direction="row" gap={1} flexWrap="wrap" sx={{ mt: 1.5 }}>
             {collectObjectUrls.map((url, idx) => (
@@ -1587,10 +1464,6 @@ export default function AssetAllotment() {
         </DialogActions>
       </Dialog>
 
-
-
-
-      {/* —————————— Image Gallery Dialog —————————— */}
       <Dialog
         open={gallery.open}
         onClose={() => setGallery((g) => ({ ...g, open: false }))}
@@ -1600,9 +1473,6 @@ export default function AssetAllotment() {
         <DialogTitle sx={{ fontWeight: 800 }}>
           {gallery.title || "Images"}
         </DialogTitle>
-
-
-
 
         <DialogContent dividers sx={{ p: 2.5 }}>
           {gallery.images && gallery.images.length ? (
@@ -1623,23 +1493,22 @@ export default function AssetAllotment() {
                     overflow: "hidden",
                   }}
                 >
-<LazyImage
-  src={src}
-  alt={`asset-img-${idx}`}
-  eager={true}
-  style={{
-    width: "100%",
-    height: 180,
-    objectFit: "cover",
-    display: "block",
-    cursor: "zoom-in",
-  }}
-  onClick={(e) => {
-    e.stopPropagation();
-    window.open(src, "_blank", "noopener,noreferrer");
-  }}
-/>
-
+                  <LazyImage
+                    src={src}
+                    alt={`asset-img-${idx}`}
+                    eager={true}
+                    style={{
+                      width: "100%",
+                      height: 180,
+                      objectFit: "cover",
+                      display: "block",
+                      cursor: "zoom-in",
+                    }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      window.open(src, "_blank", "noopener,noreferrer");
+                    }}
+                  />
 
                 </Paper>
               ))}
@@ -1656,9 +1525,6 @@ export default function AssetAllotment() {
           )}
         </DialogContent>
 
-
-
-
         <DialogActions sx={{ p: 1.5 }}>
           <Button
             onClick={() => setGallery((g) => ({ ...g, open: false }))}
@@ -1668,9 +1534,6 @@ export default function AssetAllotment() {
           </Button>
         </DialogActions>
       </Dialog>
-
-
-
 
       <Snackbar
         open={!!snack}

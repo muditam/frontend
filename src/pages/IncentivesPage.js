@@ -12,16 +12,12 @@ import {
   DialogContent,
   DialogTitle,
   Divider,
+  FormControlLabel,
   LinearProgress,
   Paper,
   Popover,
   Stack,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
+  Switch,
   TextField,
   Typography,
 } from "@mui/material";
@@ -30,7 +26,6 @@ import {
   CheckCircle as CheckCircleIcon,
   Autorenew as AutorenewIcon,
   Cancel as CancelIcon,
-  VisibilityOutlined as ViewIcon,
   AccountBalanceWalletOutlined as WalletBalanceIcon,
   RedeemOutlined as RedeemIcon,
 } from "@mui/icons-material";
@@ -38,6 +33,13 @@ import WalletRedeemDialog from "./WalletRedeemDialog";
 
 const API_BASE = "https://muditamleads-14f32a10d7f7.herokuapp.com";
 const MIN_WALLET_MONTH = "2026-03";
+
+const TEAM_INCENTIVE_STEPS = [
+  { threshold: 90, percent: 0.6 },
+  { threshold: 100, percent: 1 },
+  { threshold: 110, percent: 1.25 },
+  { threshold: 120, percent: 1.75 },
+];
 
 const BRAND = {
   bg: "#f6f8fb",
@@ -62,28 +64,23 @@ const BRAND = {
   referralSoft: "#eff6ff",
 };
 
-const TABLE_CELL_COMMON_SX = {
-  py: 1.5,
-  px: 2,
-  verticalAlign: "middle",
-  borderBottom: "1px solid #eef2f7",
-};
+function round2(value) {
+  return Math.round((Number(value || 0) + Number.EPSILON) * 100) / 100;
+}
 
-const TABLE_HEAD_SX = {
-  ...TABLE_CELL_COMMON_SX,
-  fontWeight: 700,
-  color: BRAND.text,
-  backgroundColor: "#f8fafc",
-  whiteSpace: "nowrap",
-};
+function toNumber(value, fallback = 0) {
+  const num = Number(value);
+  return Number.isFinite(num) ? num : fallback;
+}
 
-const COL_DATE = { width: "12%" };
-const COL_ORDER = { width: "15%" };
-const COL_CUSTOMER = { width: "20%" };
-const COL_AMOUNT = { width: "13%" };
-const COL_STATUS = { width: "18%" };
-const COL_WALLET = { width: "12%" };
-const COL_INCENTIVE = { width: "10%" };
+function normalizeComparable(value = "") {
+  return String(value || "").trim().toLowerCase();
+}
+
+function getEntityId(entity) {
+  if (!entity) return "";
+  return String(entity._id || entity.id || "").trim();
+}
 
 function getAuthHeaders() {
   try {
@@ -110,55 +107,6 @@ function getCurrentMonthValue() {
   const mm = String(now.getMonth() + 1).padStart(2, "0");
   const currentMonth = `${yyyy}-${mm}`;
   return currentMonth < MIN_WALLET_MONTH ? MIN_WALLET_MONTH : currentMonth;
-}
-
-function VKRTargetProgressBar({ value = 0, threshold = 60 }) {
-  const safeValue = Math.max(0, Math.min(100, Number(value || 0)));
-  const safeThreshold = Math.max(0, Math.min(100, Number(threshold || 60)));
-  const isSafe = safeValue >= safeThreshold;
-
-  return (
-    <Box sx={{ width: "100%" }}>
-      <Box
-        sx={{
-          position: "relative",
-          height: 12,
-          borderRadius: 999,
-          overflow: "hidden",
-          border: "1px solid #e5e7eb",
-          background: isSafe ? "#dcfce7" : "#fee2e2",
-        }}
-      >
-        <Box
-          sx={{
-            height: "100%",
-            width: `${safeValue}%`,
-            background: isSafe ? "#16a34a" : "#dc2626",
-            transition: "width 0.35s ease",
-            borderRadius: 999,
-          }}
-        />
-      </Box>
-
-      <Stack direction="row" justifyContent="space-between" sx={{ mt: 0.75 }}>
-        <Typography variant="caption" sx={{ color: BRAND.sub, fontWeight: 600 }}>
-          0%
-        </Typography>
-        <Typography
-          variant="caption"
-          sx={{
-            color: isSafe ? BRAND.available : BRAND.reversed,
-            fontWeight: 700,
-          }}
-        >
-          Min. Required: {safeThreshold}%
-        </Typography>
-        <Typography variant="caption" sx={{ color: BRAND.sub, fontWeight: 600 }}>
-          100%
-        </Typography>
-      </Stack>
-    </Box>
-  );
 }
 
 function formatCurrency(value) {
@@ -232,34 +180,6 @@ function getBucketMeta(bucket) {
         icon: null,
       };
   }
-}
-
-function getStatusMeta(status = "") {
-  const s = String(status || "").toUpperCase();
-
-  if (
-    s.includes("RTO") ||
-    s.includes("CANCEL") ||
-    s.includes("RETURN") ||
-    s.includes("UNDELIVER")
-  ) {
-    return { label: status || "Reversed", color: "error" };
-  }
-
-  if (s.includes("DELIVERED")) {
-    return { label: status || "Delivered", color: "success" };
-  }
-
-  if (
-    s.includes("TRANSIT") ||
-    s.includes("OUT FOR DELIVERY") ||
-    s.includes("SHIPPED") ||
-    s.includes("DISPATCH")
-  ) {
-    return { label: status || "Coming", color: "warning" };
-  }
-
-  return { label: status || "Unknown", color: "default" };
 }
 
 function formatSignedCurrency(value, walletBucket) {
@@ -366,6 +286,21 @@ function getSlabTone(percent = 0) {
   };
 }
 
+function getTeamIncentivePercent(achievementPercent = 0) {
+  const safeValue = Number(achievementPercent || 0);
+
+  if (safeValue >= 120) return 1.75;
+  if (safeValue >= 110) return 1.25;
+  if (safeValue >= 100) return 1;
+  if (safeValue >= 90) return 0.6;
+  return 0;
+}
+
+function getNextTeamThreshold(achievementPercent = 0) {
+  const safeValue = Number(achievementPercent || 0);
+  return TEAM_INCENTIVE_STEPS.find((item) => safeValue < item.threshold) || null;
+}
+
 function WalletDistributionBar({
   available = 0,
   coming = 0,
@@ -460,17 +395,372 @@ function SummaryMetric({ title, value, sub, color, bg, borderColor }) {
   );
 }
 
+function buildTeamAggregateData(responses = [], members = [], label = "Team") {
+  const safeResponses = responses.filter(Boolean);
+  const teamTargetValue = round2(
+    members.reduce((sum, member) => sum + toNumber(member?.target, 0), 0)
+  );
+
+  const flattenedRows = safeResponses
+    .flatMap((response) =>
+      (response?.rows || []).map((row) => ({
+        ...row,
+        agentName: response?.agentName || "",
+      }))
+    )
+    .sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
+
+  const baseDeliveredRevenue = round2(
+    safeResponses.reduce(
+      (sum, response) => sum + toNumber(response?.slab?.deliveredRevenue ?? response?.summary?.deliveredRevenue, 0),
+      0
+    )
+  );
+
+  const baseTotalRevenue = round2(
+    safeResponses.reduce(
+      (sum, response) => sum + toNumber(response?.slab?.totalRevenue ?? response?.summary?.totalRevenue, 0),
+      0
+    )
+  );
+
+  const deliveredAchievementPercent = teamTargetValue
+    ? round2((baseDeliveredRevenue / teamTargetValue) * 100)
+    : 0;
+
+  const totalAchievementPercent = teamTargetValue
+    ? round2((baseTotalRevenue / teamTargetValue) * 100)
+    : 0;
+
+  const deliveredPercent = getTeamIncentivePercent(deliveredAchievementPercent);
+  const totalPercent = getTeamIncentivePercent(totalAchievementPercent);
+
+  const rows = flattenedRows.map((row) => {
+    const walletBucket = row.walletBucket || "unknown";
+    const amount = toNumber(row.amount, 0);
+    const incentiveAmount =
+      walletBucket === "available" || walletBucket === "coming" || walletBucket === "reversed"
+        ? round2((amount * deliveredPercent) / 100)
+        : 0;
+
+    return {
+      ...row,
+      amount,
+      walletBucket,
+      incentivePercent: deliveredPercent,
+      incentiveAmount,
+    };
+  });
+
+  const availableRows = rows.filter((row) => row.walletBucket === "available");
+  const comingRows = rows.filter((row) => row.walletBucket === "coming" && !row.isAtRisk);
+  const atRiskRows = rows.filter((row) => row.walletBucket === "coming" && row.isAtRisk);
+  const reversedRows = rows.filter((row) => row.walletBucket === "reversed");
+  const unknownRows = rows.filter((row) => row.walletBucket === "unknown");
+
+  const deliveredRevenue = round2(
+    availableRows.reduce((sum, row) => sum + toNumber(row.amount, 0), 0)
+  );
+  const comingRevenue = round2(
+    comingRows.reduce((sum, row) => sum + toNumber(row.amount, 0), 0)
+  );
+  const atRiskRevenue = round2(
+    atRiskRows.reduce((sum, row) => sum + toNumber(row.amount, 0), 0)
+  );
+  const reversedRevenue = round2(
+    reversedRows.reduce((sum, row) => sum + toNumber(row.amount, 0), 0)
+  );
+  const unknownRevenue = round2(
+    unknownRows.reduce((sum, row) => sum + toNumber(row.amount, 0), 0)
+  );
+
+  const availableIncentive = round2(
+    availableRows.reduce((sum, row) => sum + toNumber(row.incentiveAmount, 0), 0)
+  );
+  const comingIncentive = round2(
+    comingRows.reduce((sum, row) => sum + toNumber(row.incentiveAmount, 0), 0)
+  );
+  const atRiskIncentive = round2(
+    atRiskRows.reduce((sum, row) => sum + toNumber(row.incentiveAmount, 0), 0)
+  );
+  const reversedIncentive = round2(
+    reversedRows.reduce((sum, row) => sum + toNumber(row.incentiveAmount, 0), 0)
+  );
+
+  const walletAvailableCash = round2(
+    safeResponses.reduce(
+      (sum, response) => sum + toNumber(response?.wallet?.availableCash ?? response?.summary?.availableIncentive, 0),
+      0
+    )
+  );
+
+  const walletAvailableCoin = round2(
+    safeResponses.reduce(
+      (sum, response) => sum + toNumber(response?.wallet?.availableCoin ?? response?.walletCoin?.availableCoin, 0),
+      0
+    )
+  );
+
+  const totalCashConverted = round2(
+    safeResponses.reduce(
+      (sum, response) => sum + toNumber(response?.wallet?.totalCashConverted ?? response?.summary?.totalCashConverted, 0),
+      0
+    )
+  );
+
+  const totalCoinReceived = round2(
+    safeResponses.reduce(
+      (sum, response) => sum + toNumber(response?.wallet?.totalCoinReceived ?? response?.summary?.convertedCoinAdded, 0),
+      0
+    )
+  );
+
+  const prepaidCount = safeResponses.reduce(
+    (sum, response) => sum + toNumber(response?.summary?.prepaidCount ?? response?.walletCoin?.prepaidCount, 0),
+    0
+  );
+  const partialPaidCount = safeResponses.reduce(
+    (sum, response) => sum + toNumber(response?.summary?.partialPaidCount ?? response?.walletCoin?.partialPaidCount, 0),
+    0
+  );
+  const referralPatientCount = safeResponses.reduce(
+    (sum, response) => sum + toNumber(response?.summary?.referralPatientCount ?? response?.walletCoin?.referralPatientCount, 0),
+    0
+  );
+
+  const prepaidCoins = round2(
+    safeResponses.reduce(
+      (sum, response) => sum + toNumber(response?.summary?.prepaidCoins ?? response?.walletCoin?.prepaidCoins, 0),
+      0
+    )
+  );
+  const partialPaidCoins = round2(
+    safeResponses.reduce(
+      (sum, response) => sum + toNumber(response?.summary?.partialPaidCoins ?? response?.walletCoin?.partialPaidCoins, 0),
+      0
+    )
+  );
+  const referralPatientCoins = round2(
+    safeResponses.reduce(
+      (sum, response) => sum + toNumber(response?.summary?.referralPatientCoins ?? response?.walletCoin?.referralPatientCoins, 0),
+      0
+    )
+  );
+
+  const walletProjectedCoins = round2(
+    safeResponses.reduce(
+      (sum, response) => sum + toNumber(response?.walletCoin?.projectedCoins ?? response?.summary?.walletCoinProjected, 0),
+      0
+    )
+  );
+
+  const walletBaseEarnedCoins = round2(
+    safeResponses.reduce(
+      (sum, response) => sum + toNumber(response?.walletCoin?.baseEarnedCoins ?? response?.summary?.walletCoinBaseEarned, 0),
+      0
+    )
+  );
+
+  const walletLapsedCoins = round2(
+    safeResponses.reduce(
+      (sum, response) => sum + toNumber(response?.walletCoin?.lapsedCoins ?? response?.summary?.walletCoinLapsed, 0),
+      0
+    )
+  );
+
+  const walletQualifyingOrders = safeResponses.reduce(
+    (sum, response) => sum + toNumber(response?.walletCoin?.qualifyingOrders ?? response?.summary?.walletCoinQualifyingOrders, 0),
+    0
+  );
+
+  const walletDeliveredOrders = safeResponses.reduce(
+    (sum, response) => sum + toNumber(response?.walletCoin?.deliveredQualifyingOrders ?? response?.summary?.walletCoinDeliveredOrders, 0),
+    0
+  );
+
+  const walletDeliveredVkrCount = round2(
+    safeResponses.reduce(
+      (sum, response) =>
+        sum + toNumber(response?.walletCoin?.target?.deliveredCount, 0),
+      0
+    )
+  );
+
+  const walletMonthlyTargetCount = round2(
+    safeResponses.reduce(
+      (sum, response) =>
+        sum + toNumber(response?.walletCoin?.target?.monthlyTargetCount, 0),
+      0
+    )
+  );
+
+  const walletWorkingDays = round2(
+    safeResponses.reduce(
+      (sum, response) =>
+        sum + toNumber(response?.walletCoin?.target?.workingDays, 0),
+      0
+    )
+  );
+
+  const walletDailyTarget = round2(
+    safeResponses.reduce(
+      (sum, response) =>
+        sum + toNumber(response?.walletCoin?.target?.dailyTarget, 0),
+      0
+    )
+  );
+
+  const walletAchievementPercent = walletMonthlyTargetCount
+    ? round2((walletDeliveredVkrCount / walletMonthlyTargetCount) * 100)
+    : 0;
+
+  const rules = safeResponses.find((response) => response?.walletCoin?.rules)?.walletCoin?.rules || {};
+  const sop = safeResponses.find((response) => response?.walletCoin?.sop)?.walletCoin?.sop || {};
+  const period = safeResponses.find((response) => response?.walletCoin?.period)?.walletCoin?.period || {};
+  const target = safeResponses.find((response) => response?.walletCoin?.target)?.walletCoin?.target || {};
+  const walletNote =
+    safeResponses.find((response) => response?.walletCoin?.note)?.walletCoin?.note ||
+    "Team wallet coin summary";
+
+  return {
+    agentName: label,
+    role: "Team",
+    isTeamAggregate: true,
+    teamMembers: members,
+    teamTargetValue,
+    slab: {
+      deliveredRevenue,
+      deliveredPercent,
+      totalRevenue: baseTotalRevenue,
+      totalPercent,
+      incentivePercent: deliveredPercent,
+      deliveredAchievementPercent,
+      totalAchievementPercent,
+    },
+    summary: {
+      totalOrders: rows.length,
+      deliveredOrders: availableRows.length,
+      comingOrders: comingRows.length,
+      reversedOrders: reversedRows.length,
+      unknownOrders: unknownRows.length,
+
+      deliveredRevenue,
+      comingRevenue,
+      reversedRevenue,
+      unknownRevenue,
+      totalRevenue: baseTotalRevenue,
+
+      availableIncentive,
+      comingIncentive,
+      reversedIncentive,
+
+      atRiskOrders: atRiskRows.length,
+      atRiskRevenue,
+      atRiskIncentive,
+
+      totalVisibleIncentive: round2(availableIncentive + comingIncentive),
+
+      totalCashConverted,
+      convertedCoinAdded: totalCoinReceived,
+
+      walletCoinProjected: walletProjectedCoins,
+      walletCoinLapsed: walletLapsedCoins,
+      walletCoinQualifyingOrders: walletQualifyingOrders,
+      walletCoinDeliveredOrders: walletDeliveredOrders,
+      walletCoinBaseEarned: walletBaseEarnedCoins,
+      walletCoinNote: walletNote,
+
+      prepaidCount,
+      partialPaidCount,
+      referralPatientCount,
+      prepaidCoins,
+      partialPaidCoins,
+      referralPatientCoins,
+    },
+    wallet: {
+      availableCash: walletAvailableCash,
+      availableCoin: walletAvailableCoin,
+      totalCashConverted,
+      totalCoinReceived,
+    },
+    walletCoin: {
+      projectedCoins: walletProjectedCoins,
+      baseEarnedCoins: walletBaseEarnedCoins,
+      earnedCoins: walletBaseEarnedCoins,
+      lapsedCoins: walletLapsedCoins,
+      qualifyingOrders: walletQualifyingOrders,
+      deliveredQualifyingOrders: walletDeliveredOrders,
+      prepaidCount,
+      partialPaidCount,
+      referralPatientCount,
+      prepaidCoins,
+      partialPaidCoins,
+      referralPatientCoins,
+      note: walletNote,
+      sop,
+      target: {
+        ...target,
+        dailyTarget: walletDailyTarget,
+        workingDays: walletWorkingDays,
+        deliveredCount: walletDeliveredVkrCount,
+        monthlyTargetCount: walletMonthlyTargetCount,
+        achievementPercent: walletAchievementPercent,
+      },
+      period,
+      rows: [],
+      rules,
+      convertedCoinAdded: totalCoinReceived,
+      availableCoin: walletAvailableCoin,
+    },
+    rows,
+  };
+}
+
 export default function IncentivesPage() {
   const sessionUser = useMemo(() => getSessionUser(), []);
   const defaultMonth = useMemo(() => getCurrentMonthValue(), []);
+  const headers = useMemo(() => getAuthHeaders(), []);
+  const cumulativeStartDate = useMemo(() => monthToStartDate(MIN_WALLET_MONTH), []);
 
-  const isManagerView = useMemo(() => {
-    const role = String(sessionUser?.role || "").toLowerCase();
-    return (
-      ["admin", "manager", "super-admin", "team-leader"].includes(role) ||
-      sessionUser?.hasTeam === true
-    );
-  }, [sessionUser]);
+  const sessionRole = useMemo(
+    () => String(sessionUser?.role || "").toLowerCase(),
+    [sessionUser]
+  );
+
+  const hasTeam = sessionUser?.hasTeam === true;
+  const isManagerWithTeam = sessionRole === "manager" && hasTeam;
+  const isRetentionWithTeam = sessionRole === "retention agent" && hasTeam;
+  const isAdminLike = ["admin", "manager", "super-admin", "team-leader"].includes(sessionRole);
+  const canManageAgents = isAdminLike;
+
+  const [teamViewEnabled, setTeamViewEnabled] = useState(false);
+
+  const effectiveTeamView = isRetentionWithTeam && teamViewEnabled;
+
+  const [employees, setEmployees] = useState([]);
+  const [selectedAgent, setSelectedAgent] = useState(null);
+  const [startMonth, setStartMonth] = useState(defaultMonth);
+  const [endMonth, setEndMonth] = useState(defaultMonth);
+  const [loadingAgents, setLoadingAgents] = useState(false);
+  const [loadingData, setLoadingData] = useState(false);
+  const [error, setError] = useState("");
+  const [data, setData] = useState(null);
+  const [balanceData, setBalanceData] = useState(null);
+
+  const usingCombinedTeamView = useMemo(() => {
+    if (isManagerWithTeam) {
+      return !selectedAgent;
+    }
+
+    if (isRetentionWithTeam) {
+      return effectiveTeamView;
+    }
+
+    return false;
+  }, [isManagerWithTeam, isRetentionWithTeam, effectiveTeamView, selectedAgent]);
+
+  const canShowAgentDropdown =
+    canManageAgents || (isRetentionWithTeam && !usingCombinedTeamView);
 
   const selfAgent = useMemo(() => {
     const fullName = sessionUser?.fullName || "";
@@ -480,22 +770,14 @@ export default function IncentivesPage() {
       _id: sessionUser?._id || sessionUser?.id || "self",
       fullName,
       role: sessionUser?.role || "",
+      email: sessionUser?.email || "",
+      target: sessionUser?.target || 0,
+      hasTeam: sessionUser?.hasTeam || false,
+      teamMembers: sessionUser?.teamMembers || [],
     };
   }, [sessionUser]);
 
-  const [agents, setAgents] = useState([]);
-  const [selectedAgent, setSelectedAgent] = useState(null);
-  const [startMonth, setStartMonth] = useState(defaultMonth);
-  const [endMonth, setEndMonth] = useState(defaultMonth);
-  const [loadingAgents, setLoadingAgents] = useState(false);
-  const [loadingData, setLoadingData] = useState(false);
-  const [error, setError] = useState("");
-  const [data, setData] = useState(null);
-
-  const [incentiveSummaryOpen, setIncentiveSummaryOpen] = useState(false);
-  const [walletSummaryOpen, setWalletSummaryOpen] = useState(false);
   const [walletRulesOpen, setWalletRulesOpen] = useState(false);
-
   const [walletAnchorEl, setWalletAnchorEl] = useState(null);
   const [convertAmount, setConvertAmount] = useState("");
   const [convertLoading, setConvertLoading] = useState(false);
@@ -503,62 +785,152 @@ export default function IncentivesPage() {
   const [walletOverride, setWalletOverride] = useState(null);
   const [redeemOpen, setRedeemOpen] = useState(false);
 
-  const headers = useMemo(() => getAuthHeaders(), []);
-
   const derivedStartDate = useMemo(() => monthToStartDate(startMonth), [startMonth]);
   const derivedEndDate = useMemo(() => monthToEndDate(endMonth), [endMonth]);
 
+  useEffect(() => {
+    if (!isRetentionWithTeam) {
+      setTeamViewEnabled(false);
+    }
+  }, [isRetentionWithTeam]);
+
+  const currentEmployeeRecord = useMemo(() => {
+    return (
+      employees.find((emp) => {
+        const sameEmail =
+          normalizeComparable(emp?.email) &&
+          normalizeComparable(emp?.email) === normalizeComparable(sessionUser?.email);
+
+        const sameName =
+          normalizeComparable(emp?.fullName) === normalizeComparable(sessionUser?.fullName);
+
+        return sameEmail || sameName;
+      }) || selfAgent
+    );
+  }, [employees, selfAgent, sessionUser]);
+
+  const teamAgents = useMemo(() => {
+    const rawTeamMembers =
+      currentEmployeeRecord?.teamMembers ||
+      sessionUser?.teamMembers ||
+      [];
+
+    const memberIds = new Set(
+      (Array.isArray(rawTeamMembers) ? rawTeamMembers : [])
+        .map((item) => {
+          if (!item) return "";
+          if (typeof item === "string") return item.trim();
+          return getEntityId(item);
+        })
+        .filter(Boolean)
+    );
+
+    if (!memberIds.size) return [];
+
+    return employees.filter((emp) => {
+      const empId = getEntityId(emp);
+      return (
+        memberIds.has(empId) &&
+        emp?.status === "active" &&
+        (emp?.role === "Sales Agent" || emp?.role === "Retention Agent")
+      );
+    });
+  }, [currentEmployeeRecord, employees, sessionUser]);
+
+  const agentOptions = useMemo(() => {
+  const filtered = employees.filter(
+    (emp) =>
+      emp?.status === "active" &&
+      (emp?.role === "Sales Agent" || emp?.role === "Retention Agent")
+  );
+
+  if (isManagerWithTeam) {
+    return teamAgents;
+  }
+
+  if (canManageAgents) {
+    return filtered;
+  }
+
+  if (isRetentionWithTeam) {
+    const selfId = getEntityId(selfAgent);
+    const uniqueTeamAgents = teamAgents.filter(
+      (emp) => getEntityId(emp) !== selfId
+    );
+
+    return selfAgent ? [selfAgent, ...uniqueTeamAgents] : uniqueTeamAgents;
+  }
+
+  return selfAgent ? [selfAgent] : [];
+}, [
+  canManageAgents,
+  employees,
+  isManagerWithTeam,
+  isRetentionWithTeam,
+  selfAgent,
+  teamAgents,
+]);
+
   const clearPageState = useCallback(() => {
     setData(null);
+    setBalanceData(null);
     setWalletOverride(null);
     setError("");
-    setIncentiveSummaryOpen(false);
-    setWalletSummaryOpen(false);
     setWalletRulesOpen(false);
   }, []);
 
-  const fetchAgents = useCallback(async () => {
-  setLoadingAgents(true);
-  setError("");
+  const fetchEmployees = useCallback(async () => {
+    setLoadingAgents(true);
+    setError("");
 
-  try {
-    if (!isManagerView) {
-      setAgents(selfAgent ? [selfAgent] : []);
-      setSelectedAgent(selfAgent || null);
-      return;
+    try {
+      if (!canManageAgents && !hasTeam) {
+        setEmployees(selfAgent ? [selfAgent] : []);
+        setSelectedAgent(selfAgent || null);
+        return;
+      }
+
+      const res = await axios.get(`${API_BASE}/api/employees`, {
+        params: { status: "active" },
+        headers,
+      });
+
+      const list = Array.isArray(res.data) ? res.data : res.data?.employees || [];
+      setEmployees(list);
+
+      if (isManagerWithTeam) {
+  setSelectedAgent(null);
+} else if (isRetentionWithTeam && selfAgent) {
+  setSelectedAgent(selfAgent);
+} else if (!canManageAgents && selfAgent) {
+  setSelectedAgent(selfAgent);
+}
+    } catch (err) {
+      console.error("Error fetching employees:", err);
+      setError("Failed to load employees");
+    } finally {
+      setLoadingAgents(false);
     }
+  }, [canManageAgents, hasTeam, headers, isManagerWithTeam, isRetentionWithTeam, selfAgent]);
 
-    const res = await axios.get(`${API_BASE}/api/employees`, {
-      params: { status: "active" },
-      headers,
-    });
+  const fetchIncentivesForAgent = useCallback(
+    async (agentName, startDate, endDate) => {
+      const res = await axios.get(`${API_BASE}/api/incentives-new`, {
+        headers,
+        params: {
+          agentName,
+          startDate,
+          endDate,
+        },
+      });
 
-    const list = Array.isArray(res.data) ? res.data : res.data?.employees || [];
-
-    const filtered = list.filter(
-      (emp) =>
-        emp?.status === "active" &&
-        (emp?.role === "Sales Agent" || emp?.role === "Retention Agent")
-    );
-
-    setAgents(filtered);
-  } catch (err) {
-    console.error("Error fetching agents:", err);
-    setError("Failed to load agents");
-  } finally {
-    setLoadingAgents(false);
-  }
-}, [headers, isManagerView, selfAgent]);
+      return res.data;
+    },
+    [headers]
+  );
 
   const fetchIncentives = useCallback(async () => {
-    const effectiveAgentName = isManagerView
-      ? selectedAgent?.fullName
-      : selfAgent?.fullName;
-
-    if (!effectiveAgentName) {
-      setError(isManagerView ? "Please select an agent" : "Agent not found in session");
-      return;
-    }
+    const usingTeamView = usingCombinedTeamView;
 
     if (!startMonth || !endMonth) {
       setError("Please select both start month and end month");
@@ -575,206 +947,341 @@ export default function IncentivesPage() {
     setWalletOverride(null);
 
     try {
-      const res = await axios.get(`${API_BASE}/api/incentives-new`, {
-        headers,
-        params: {
-          agentName: effectiveAgentName,
-          startDate: derivedStartDate,
-          endDate: derivedEndDate,
-        },
-      });
+      if (usingTeamView) {
+        if (!teamAgents.length) {
+          setData(null);
+          setBalanceData(null);
+          setError("No team members found for this user.");
+          setLoadingData(false);
+          return;
+        }
 
-      setData(res.data);
+        const [selectedResponses, cumulativeResponses] = await Promise.all([
+          Promise.all(
+            teamAgents.map((member) =>
+              fetchIncentivesForAgent(member.fullName, derivedStartDate, derivedEndDate)
+            )
+          ),
+          Promise.all(
+            teamAgents.map((member) =>
+              fetchIncentivesForAgent(member.fullName, cumulativeStartDate, derivedEndDate)
+            )
+          ),
+        ]);
+
+        const selectedTeamData = buildTeamAggregateData(
+          selectedResponses,
+          teamAgents,
+          `${sessionUser?.fullName || "Team"} Team`
+        );
+
+        const cumulativeTeamData = buildTeamAggregateData(
+          cumulativeResponses,
+          teamAgents,
+          `${sessionUser?.fullName || "Team"} Team`
+        );
+
+        setData(selectedTeamData);
+        setBalanceData(cumulativeTeamData);
+      } else {
+        const effectiveAgentName =
+  selectedAgent?.fullName ||
+  (!canManageAgents ? selfAgent?.fullName : "");
+
+        if (!effectiveAgentName) {
+          setError(canManageAgents ? "Please select an agent" : "Agent not found in session");
+          setLoadingData(false);
+          return;
+        }
+
+        const [selectedResponse, cumulativeResponse] = await Promise.all([
+          fetchIncentivesForAgent(effectiveAgentName, derivedStartDate, derivedEndDate),
+          fetchIncentivesForAgent(effectiveAgentName, cumulativeStartDate, derivedEndDate),
+        ]);
+
+        setData(selectedResponse);
+        setBalanceData(cumulativeResponse);
+      }
     } catch (err) {
       console.error("Error fetching incentives:", err);
       setData(null);
+      setBalanceData(null);
       setError(err?.response?.data?.message || "Failed to load incentive data");
     } finally {
       setLoadingData(false);
     }
   }, [
-    headers,
-    isManagerView,
-    selectedAgent,
-    selfAgent,
-    startMonth,
-    endMonth,
-    derivedStartDate,
-    derivedEndDate,
+    canManageAgents,
+  cumulativeStartDate,
+  derivedEndDate,
+  derivedStartDate,
+  usingCombinedTeamView,
+  endMonth,
+  fetchIncentivesForAgent,
+  selectedAgent,
+  selfAgent,
+  sessionUser,
+  startMonth,
+  teamAgents,
   ]);
 
   const handleResetFilters = useCallback(() => {
-    setSelectedAgent(isManagerView ? null : selfAgent || null);
-    setStartMonth(defaultMonth);
-    setEndMonth(defaultMonth);
-    clearPageState();
-  }, [clearPageState, defaultMonth, isManagerView, selfAgent]);
+  if (isManagerWithTeam) {
+    setSelectedAgent(null);
+  } else if (isRetentionWithTeam) {
+    setSelectedAgent(selfAgent || null);
+  } else {
+    setSelectedAgent(selfAgent || null);
+  }
+
+  setStartMonth(defaultMonth);
+  setEndMonth(defaultMonth);
+
+  if (isRetentionWithTeam) {
+    setTeamViewEnabled(false);
+  }
+
+  clearPageState();
+}, [
+  clearPageState,
+  defaultMonth,
+  isManagerWithTeam,
+  isRetentionWithTeam,
+  selfAgent,
+]);
 
   useEffect(() => {
-    fetchAgents();
-  }, [fetchAgents]);
+    fetchEmployees();
+  }, [fetchEmployees]);
 
   useEffect(() => {
-    if (!isManagerView && selfAgent?.fullName && !data && startMonth && endMonth) {
+  if (!startMonth || !endMonth || data) return;
+
+  if (isManagerWithTeam && teamAgents.length && !selectedAgent) {
+    fetchIncentives();
+    return;
+  }
+
+  if (isRetentionWithTeam) {
+    if (usingCombinedTeamView && teamAgents.length) {
       fetchIncentives();
+      return;
     }
-  }, [
-    isManagerView,
-    selfAgent,
-    data,
-    startMonth,
-    endMonth,
-    fetchIncentives,
-  ]);
+
+    if (!usingCombinedTeamView && (selectedAgent?.fullName || selfAgent?.fullName)) {
+      fetchIncentives();
+      return;
+    }
+  }
+
+  if (!canManageAgents && !isRetentionWithTeam && selfAgent?.fullName) {
+    fetchIncentives();
+  }
+}, [
+  canManageAgents,
+  data,
+  endMonth,
+  fetchIncentives,
+  isManagerWithTeam,
+  isRetentionWithTeam,
+  selectedAgent,
+  selfAgent,
+  startMonth,
+  teamAgents,
+  usingCombinedTeamView,
+]);
 
   const summary = data?.summary || {};
   const slab = data?.slab || {};
-  const rows = data?.rows || [];
   const walletCoin = data?.walletCoin || {};
-  const walletData = data?.wallet || {};
-
-  const walletProjectedCoins = Number(
-    walletCoin.projectedCoins ?? summary.walletCoinProjected ?? 0
-  );
-  const walletBaseEarnedCoins = Number(
-  walletCoin.baseEarnedCoins ?? summary.walletCoinBaseEarned ?? 0
-);
-  const walletLapsedCoins = Number(
-    walletCoin.lapsedCoins ?? summary.walletCoinLapsed ?? 0
-  );
-  const walletQualifyingOrders = Number(
-    walletCoin.qualifyingOrders ?? summary.walletCoinQualifyingOrders ?? 0
-  );
-  const walletDeliveredOrders = Number(
-    walletCoin.deliveredQualifyingOrders ?? summary.walletCoinDeliveredOrders ?? 0
-  );
-  const walletNote =
-    walletCoin.note || summary.walletCoinNote || "Wallet coin summary";
-  const walletTarget = walletCoin.target || {};
+  const walletRules = walletCoin.rules || {};
   const walletPeriod = walletCoin.period || {};
   const walletSop = walletCoin.sop || {};
-  const walletRows = walletCoin.rows || [];
-  const walletRules = walletCoin.rules || {};
-  const walletAchievementPercent = Number(walletTarget.achievementPercent ?? 0);
+  const walletTarget = walletCoin.target || {};
+  const walletNote = walletCoin.note || summary.walletCoinNote || "Wallet coin summary";
 
-  const prepaidCoins = Number(
-    summary.prepaidCoins ??
-    walletCoin.prepaidCoins ??
-    data?.extraCoins?.prepaidCoins ??
-    0
-  );
-  const partialPaidCoins = Number(
-    summary.partialPaidCoins ??
-    walletCoin.partialPaidCoins ??
-    data?.extraCoins?.partialPaidCoins ??
-    0
-  );
-  const referralPatientCoins = Number(
-    summary.referralPatientCoins ??
-    walletCoin.referralPatientCoins ??
-    data?.extraCoins?.referralPatientCoins ??
-    0
-  );
-
-  const prepaidCount = Number(
-    summary.prepaidCount ??
-    walletCoin.prepaidCount ??
-    data?.extraCoins?.prepaidCount ??
-    0
-  );
-  const partialPaidCount = Number(
-    summary.partialPaidCount ??
-    walletCoin.partialPaidCount ??
-    data?.extraCoins?.partialPaidCount ??
-    0
-  );
-  const referralPatientCount = Number(
-    summary.referralPatientCount ??
-    walletCoin.referralPatientCount ??
-    data?.extraCoins?.referralPatientCount ??
-    0
-  );
+  const balanceSummary = balanceData?.summary || {};
+  const balanceWallet = balanceData?.wallet || {};
+  const balanceWalletCoin = balanceData?.walletCoin || {};
 
   const displayAvailableCoinValue = Number(
     walletOverride?.availableCoin ??
-    walletData.availableCoin ??
+    balanceWallet.availableCoin ??
+    balanceWalletCoin.availableCoin ??
+    balanceSummary.availableWalletCoin ??
     walletCoin.availableCoin ??
     summary.availableWalletCoin ??
-    walletBaseEarnedCoins ??
     0
   );
 
   const displayAvailableCashValue = Number(
     walletOverride?.availableCash ??
-    walletData.availableCash ??
+    balanceWallet.availableCash ??
+    balanceSummary.availableIncentive ??
+    data?.wallet?.availableCash ??
     summary.availableIncentive ??
     0
   );
 
   const displayedConvertedCash = Number(
-    walletData.totalCashConverted ?? summary.totalCashConverted ?? 0
+    balanceWallet.totalCashConverted ??
+    balanceSummary.totalCashConverted ??
+    data?.wallet?.totalCashConverted ??
+    summary.totalCashConverted ??
+    0
   );
+
   const displayedConvertedCoin = Number(
-    walletData.totalCoinReceived ?? summary.convertedCoinAdded ?? 0
+    balanceWallet.totalCoinReceived ??
+    balanceSummary.convertedCoinAdded ??
+    data?.wallet?.totalCoinReceived ??
+    summary.convertedCoinAdded ??
+    0
   );
 
   const deliveredRevenueValue = Number(slab.deliveredRevenue || 0);
   const totalRevenueValue = Number(slab.totalRevenue || summary.totalRevenue || 0);
 
+  const teamTargetValue = Number(
+    data?.teamTargetValue ??
+    currentEmployeeRecord?.target ??
+    walletTarget.monthlyTargetCount ??
+    0
+  );
+
+  const isTeamData = Boolean(data?.isTeamAggregate);
+
+  const deliveredAchievementPercent = Number(
+    isTeamData
+      ? slab.deliveredAchievementPercent ?? 0
+      : deliveredRevenueValue && teamTargetValue
+        ? round2((deliveredRevenueValue / teamTargetValue) * 100)
+        : 0
+  );
+
+  const totalAchievementPercent = Number(
+    isTeamData
+      ? slab.totalAchievementPercent ?? 0
+      : totalRevenueValue && teamTargetValue
+        ? round2((totalRevenueValue / teamTargetValue) * 100)
+        : 0
+  );
+
   const deliveredPercent = Number(
-    slab.deliveredPercent ?? slab.incentivePercent ?? 0
-  );
-  const totalPercent = Number(slab.totalPercent ?? 0);
-
-  const deliveredSlabRange = useMemo(
-    () => getSlabRange(deliveredRevenueValue),
-    [deliveredRevenueValue]
+    isTeamData
+      ? slab.deliveredPercent ?? slab.incentivePercent ?? 0
+      : slab.deliveredPercent ?? slab.incentivePercent ?? 0
   );
 
-  const totalSlabRange = useMemo(
-    () => getSlabRange(totalRevenueValue),
-    [totalRevenueValue]
+  const totalPercent = Number(
+    isTeamData
+      ? slab.totalPercent ?? 0
+      : slab.totalPercent ?? 0
   );
+
+  const deliveredSlabRange = useMemo(() => {
+    if (!isTeamData) return getSlabRange(deliveredRevenueValue);
+
+    const nextThreshold = getNextTeamThreshold(deliveredAchievementPercent);
+    return {
+      currentPercent: deliveredPercent,
+      min: 0,
+      max: nextThreshold ? round2((teamTargetValue * nextThreshold.threshold) / 100) : deliveredRevenueValue,
+      nextPercent: nextThreshold ? nextThreshold.percent : null,
+      nextThreshold: nextThreshold?.threshold || null,
+    };
+  }, [deliveredAchievementPercent, deliveredPercent, deliveredRevenueValue, isTeamData, teamTargetValue]);
+
+  const totalSlabRange = useMemo(() => {
+    if (!isTeamData) return getSlabRange(totalRevenueValue);
+
+    const nextThreshold = getNextTeamThreshold(totalAchievementPercent);
+    return {
+      currentPercent: totalPercent,
+      min: 0,
+      max: nextThreshold ? round2((teamTargetValue * nextThreshold.threshold) / 100) : totalRevenueValue,
+      nextPercent: nextThreshold ? nextThreshold.percent : null,
+      nextThreshold: nextThreshold?.threshold || null,
+    };
+  }, [isTeamData, teamTargetValue, totalAchievementPercent, totalPercent, totalRevenueValue]);
 
   const deliveredProgress = useMemo(() => {
-    const target = Number(deliveredSlabRange.max || 0);
-    if (!target) return 0;
+    if (!isTeamData) {
+      const target = Number(deliveredSlabRange.max || 0);
+      if (!target) return 0;
+      return Math.max(0, Math.min(100, (deliveredRevenueValue / target) * 100));
+    }
 
-    const value = (deliveredRevenueValue / target) * 100;
-    return Math.max(0, Math.min(100, value));
-  }, [deliveredRevenueValue, deliveredSlabRange.max]);
+    return Math.max(0, Math.min(100, deliveredAchievementPercent));
+  }, [deliveredAchievementPercent, deliveredRevenueValue, deliveredSlabRange.max, isTeamData]);
 
   const totalProgress = useMemo(() => {
-    const target = Number(totalSlabRange.max || 0);
-    if (!target) return 0;
+    if (!isTeamData) {
+      const target = Number(totalSlabRange.max || 0);
+      if (!target) return 0;
+      return Math.max(0, Math.min(100, (totalRevenueValue / target) * 100));
+    }
 
-    const value = (totalRevenueValue / target) * 100;
-    return Math.max(0, Math.min(100, value));
-  }, [totalRevenueValue, totalSlabRange.max]);
+    return Math.max(0, Math.min(100, totalAchievementPercent));
+  }, [isTeamData, totalAchievementPercent, totalRevenueValue, totalSlabRange.max]);
 
   const deliveredAmountToNextSlab = useMemo(() => {
     if (!deliveredSlabRange.nextPercent) return 0;
-    return Math.max(0, deliveredSlabRange.max - deliveredRevenueValue);
-  }, [deliveredRevenueValue, deliveredSlabRange]);
+    if (!isTeamData) {
+      return Math.max(0, deliveredSlabRange.max - deliveredRevenueValue);
+    }
+    return Math.max(0, round2((teamTargetValue * (deliveredSlabRange.nextThreshold || 0)) / 100) - deliveredRevenueValue);
+  }, [deliveredRevenueValue, deliveredSlabRange, isTeamData, teamTargetValue]);
 
   const totalAmountToNextSlab = useMemo(() => {
     if (!totalSlabRange.nextPercent) return 0;
-    return Math.max(0, totalSlabRange.max - totalRevenueValue);
-  }, [totalRevenueValue, totalSlabRange]);
+    if (!isTeamData) {
+      return Math.max(0, totalSlabRange.max - totalRevenueValue);
+    }
+    return Math.max(0, round2((teamTargetValue * (totalSlabRange.nextThreshold || 0)) / 100) - totalRevenueValue);
+  }, [isTeamData, teamTargetValue, totalRevenueValue, totalSlabRange]);
 
-  const deliveredTone = useMemo(
-    () => getSlabTone(deliveredPercent),
-    [deliveredPercent]
+  const deliveredTone = useMemo(() => getSlabTone(deliveredPercent), [deliveredPercent]);
+  const totalTone = useMemo(() => getSlabTone(totalPercent), [totalPercent]);
+
+  const walletProjectedCoins = Number(
+    walletCoin.projectedCoins ?? summary.walletCoinProjected ?? 0
+  );
+  const walletBaseEarnedCoins = Number(
+    walletCoin.baseEarnedCoins ?? summary.walletCoinBaseEarned ?? 0
+  );
+  const walletLapsedCoins = Number(
+    walletCoin.lapsedCoins ?? summary.walletCoinLapsed ?? 0
+  );
+  const walletAchievementPercent = Number(
+    walletTarget.achievementPercent ?? slab.deliveredAchievementPercent ?? 0
   );
 
-  const totalTone = useMemo(
-    () => getSlabTone(totalPercent),
-    [totalPercent]
+  const prepaidCoins = Number(
+    summary.prepaidCoins ?? walletCoin.prepaidCoins ?? data?.extraCoins?.prepaidCoins ?? 0
+  );
+  const partialPaidCoins = Number(
+    summary.partialPaidCoins ?? walletCoin.partialPaidCoins ?? data?.extraCoins?.partialPaidCoins ?? 0
+  );
+  const referralPatientCoins = Number(
+    summary.referralPatientCoins ?? walletCoin.referralPatientCoins ?? data?.extraCoins?.referralPatientCoins ?? 0
+  );
+
+  const prepaidCount = Number(
+    summary.prepaidCount ?? walletCoin.prepaidCount ?? data?.extraCoins?.prepaidCount ?? 0
+  );
+  const partialPaidCount = Number(
+    summary.partialPaidCount ?? walletCoin.partialPaidCount ?? data?.extraCoins?.partialPaidCount ?? 0
+  );
+  const referralPatientCount = Number(
+    summary.referralPatientCount ?? walletCoin.referralPatientCount ?? data?.extraCoins?.referralPatientCount ?? 0
   );
 
   const walletPopoverOpen = Boolean(walletAnchorEl);
+  const canUseWalletActions = !usingCombinedTeamView && Boolean(data);
 
   const handleOpenConvertPopover = (event) => {
+    if (!canUseWalletActions) return;
     setWalletAnchorEl(event.currentTarget);
     setConvertAmount("");
     setConvertError("");
@@ -813,7 +1320,7 @@ export default function IncentivesPage() {
         `${API_BASE}/api/wallet/convert-cash-to-coin`,
         {
           agentName: data.agentName,
-          startDate: derivedStartDate,
+          startDate: cumulativeStartDate,
           endDate: derivedEndDate,
           cashAmount: amount,
         },
@@ -837,7 +1344,7 @@ export default function IncentivesPage() {
         availableCoin: nextCoin,
       });
 
-      setData((prev) =>
+      setBalanceData((prev) =>
         prev
           ? {
             ...prev,
@@ -896,7 +1403,7 @@ export default function IncentivesPage() {
           onClose={() => setRedeemOpen(false)}
           headers={headers}
           agentName={data?.agentName || selectedAgent?.fullName || selfAgent?.fullName || ""}
-          startDate={derivedStartDate}
+          startDate={cumulativeStartDate}
           endDate={derivedEndDate}
           availableCoin={displayAvailableCoinValue}
         />
@@ -954,7 +1461,7 @@ export default function IncentivesPage() {
             </Stack>
 
             <Typography variant="caption" sx={{ color: BRAND.sub }}>
-              Period: {formatMonthLabel(startMonth)} to {formatMonthLabel(endMonth)}
+              Balance Period: {formatMonthLabel(MIN_WALLET_MONTH)} to {formatMonthLabel(endMonth)}
             </Typography>
 
             {convertError ? <Alert severity="error">{convertError}</Alert> : null}
@@ -1013,19 +1520,23 @@ export default function IncentivesPage() {
                 flexWrap="wrap"
                 sx={{ flex: 1 }}
               >
-                {isManagerView && (
+                {canShowAgentDropdown && (
                   <Autocomplete
                     sx={{
                       width: { xs: "100%", md: 260 },
                       flexShrink: 0,
                     }}
-                    options={agents}
+                    options={agentOptions}
                     loading={loadingAgents}
                     value={selectedAgent}
                     onChange={(_, value) => {
-                      setSelectedAgent(value);
-                      clearPageState();
-                    }}
+  if (isRetentionWithTeam && !usingCombinedTeamView) {
+    setSelectedAgent(value || selfAgent || null);
+  } else {
+    setSelectedAgent(value);
+  }
+  clearPageState();
+}}
                     isOptionEqualToValue={(option, value) =>
                       option?.fullName === value?.fullName
                     }
@@ -1035,6 +1546,36 @@ export default function IncentivesPage() {
                     renderInput={(params) => (
                       <TextField {...params} label="Select Agent" size="small" />
                     )}
+                  />
+                )}
+
+                {isManagerWithTeam && (
+                  <Chip
+                    label={`Team View • ${teamAgents.length} members`}
+                    sx={{
+                      height: 40,
+                      fontWeight: 700,
+                      border: `1px solid ${BRAND.border}`,
+                      background: "#f8fafc",
+                    }}
+                  />
+                )}
+
+                {isRetentionWithTeam && (
+                  <FormControlLabel
+                    sx={{ ml: 0 }}
+                    control={
+                      <Switch
+                        checked={teamViewEnabled}
+                        onChange={(e) => {
+  const checked = e.target.checked;
+  setTeamViewEnabled(checked);
+  setSelectedAgent(checked ? null : selfAgent || null);
+  clearPageState();
+}}
+                      />
+                    }
+                    label="Team All View"
                   />
                 )}
 
@@ -1070,11 +1611,15 @@ export default function IncentivesPage() {
                   variant="contained"
                   onClick={fetchIncentives}
                   disabled={
-                    !(isManagerView ? selectedAgent?.fullName : selfAgent?.fullName) ||
-                    !startMonth ||
-                    !endMonth ||
-                    loadingData
-                  }
+  loadingData ||
+  !startMonth ||
+  !endMonth ||
+  (
+    !usingCombinedTeamView &&
+    !(selectedAgent?.fullName || (!canManageAgents ? selfAgent?.fullName : ""))
+  ) ||
+  (usingCombinedTeamView && teamAgents.length === 0)
+}
                   sx={{
                     width: { xs: "100%", md: 100 },
                     textTransform: "none",
@@ -1141,6 +1686,10 @@ export default function IncentivesPage() {
                       {formatNumber(displayAvailableCoinValue)} Coins |{" "}
                       {formatCurrency(displayAvailableCashValue)} Cash
                     </Typography>
+
+                    <Typography variant="caption" sx={{ color: BRAND.sub }}>
+                      Balance from {formatMonthLabel(MIN_WALLET_MONTH)} to {formatMonthLabel(endMonth)}
+                    </Typography>
                   </Box>
 
                   <Stack direction="row" spacing={1} sx={{ flexShrink: 0 }}>
@@ -1148,7 +1697,7 @@ export default function IncentivesPage() {
                       variant="contained"
                       startIcon={<RedeemIcon />}
                       onClick={() => setRedeemOpen(true)}
-                      disabled={!data || Number(displayAvailableCoinValue || 0) <= 0}
+                      disabled={!canUseWalletActions || Number(displayAvailableCoinValue || 0) <= 0}
                       sx={{
                         textTransform: "none",
                         borderRadius: 2.5,
@@ -1162,7 +1711,7 @@ export default function IncentivesPage() {
                     <Button
                       variant="outlined"
                       onClick={handleOpenConvertPopover}
-                      disabled={!data || Number(displayAvailableCashValue || 0) <= 0}
+                      disabled={!canUseWalletActions || Number(displayAvailableCashValue || 0) <= 0}
                       sx={{
                         textTransform: "none",
                         borderRadius: 2.5,
@@ -1223,18 +1772,17 @@ export default function IncentivesPage() {
                       border: "1px solid #bfdbfe",
                     }}
                   />
-                  <Button
-                    variant="contained"
-                    startIcon={<ViewIcon />}
-                    onClick={() => setIncentiveSummaryOpen(true)}
-                    sx={{
-                      textTransform: "none",
-                      borderRadius: 2,
-                      boxShadow: "none",
-                    }}
-                  >
-                    View Summary
-                  </Button>
+                  {isTeamData ? (
+                    <Chip
+                      label={`Target: ${formatCurrency(teamTargetValue)}`}
+                      sx={{
+                        background: "#f8fafc",
+                        color: BRAND.text,
+                        fontWeight: 700,
+                        border: `1px solid ${BRAND.border}`,
+                      }}
+                    />
+                  ) : null}
                 </Stack>
               </Stack>
 
@@ -1250,7 +1798,7 @@ export default function IncentivesPage() {
                   </Typography>
 
                   <WalletDistributionBar
-                    available={displayAvailableCashValue}
+                    available={summary.availableIncentive || 0}
                     coming={summary.comingIncentive || 0}
                     reversed={summary.reversedIncentive || 0}
                     unknown={0}
@@ -1263,7 +1811,7 @@ export default function IncentivesPage() {
                   >
                     <SummaryMetric
                       title="Available Cash"
-                      value={formatCurrency(displayAvailableCashValue)}
+                      value={formatCurrency(summary.availableIncentive)}
                       sub={`${formatNumber(summary.deliveredOrders || 0)} delivered orders`}
                       color={BRAND.available}
                     />
@@ -1344,10 +1892,14 @@ export default function IncentivesPage() {
 
                       <Stack direction="row" justifyContent="space-between">
                         <Typography variant="caption" sx={{ color: BRAND.sub }}>
-                          ₹0.00
+                          {isTeamData ? "0%" : "₹0.00"}
                         </Typography>
                         <Typography variant="caption" sx={{ color: BRAND.sub }}>
-                          {formatCurrency(totalSlabRange.max)}
+                          {isTeamData
+                            ? totalSlabRange.nextThreshold
+                              ? `${totalSlabRange.nextThreshold}%`
+                              : "120%+"
+                            : formatCurrency(totalSlabRange.max)}
                         </Typography>
                       </Stack>
 
@@ -1370,6 +1922,12 @@ export default function IncentivesPage() {
                           Highest slab reached
                         </Typography>
                       )}
+
+                      {isTeamData ? (
+                        <Typography variant="caption" sx={{ color: BRAND.sub }}>
+                          Achievement: {totalAchievementPercent}% of team target
+                        </Typography>
+                      ) : null}
                     </Stack>
                   </Box>
 
@@ -1421,10 +1979,14 @@ export default function IncentivesPage() {
 
                       <Stack direction="row" justifyContent="space-between">
                         <Typography variant="caption" sx={{ color: BRAND.sub }}>
-                          ₹0.00
+                          {isTeamData ? "0%" : "₹0.00"}
                         </Typography>
                         <Typography variant="caption" sx={{ color: BRAND.sub }}>
-                          {formatCurrency(deliveredSlabRange.max)}
+                          {isTeamData
+                            ? deliveredSlabRange.nextThreshold
+                              ? `${deliveredSlabRange.nextThreshold}%`
+                              : "120%+"
+                            : formatCurrency(deliveredSlabRange.max)}
                         </Typography>
                       </Stack>
 
@@ -1447,6 +2009,12 @@ export default function IncentivesPage() {
                           Highest slab reached
                         </Typography>
                       )}
+
+                      {isTeamData ? (
+                        <Typography variant="caption" sx={{ color: BRAND.sub }}>
+                          Achievement: {deliveredAchievementPercent}% of team target
+                        </Typography>
+                      ) : null}
                     </Stack>
                   </Box>
                 </Box>
@@ -1477,19 +2045,6 @@ export default function IncentivesPage() {
                 </Box>
 
                 <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
-                  <Button
-                    variant="contained"
-                    startIcon={<ViewIcon />}
-                    onClick={() => setWalletSummaryOpen(true)}
-                    sx={{
-                      textTransform: "none",
-                      borderRadius: 2,
-                      boxShadow: "none",
-                    }}
-                  >
-                    View Summary
-                  </Button>
-
                   <Button
                     variant="outlined"
                     onClick={() => setWalletRulesOpen(true)}
@@ -1554,7 +2109,7 @@ export default function IncentivesPage() {
                         <SummaryMetric
                           title="Earned Coins"
                           value={formatNumber(walletBaseEarnedCoins)}
-                          sub={`${formatNumber(walletDeliveredOrders)} delivered qualifying orders`}
+                          sub={`${formatNumber(walletCoin.deliveredQualifyingOrders ?? summary.walletCoinDeliveredOrders ?? 0)} delivered qualifying orders`}
                           color={BRAND.coin}
                           bg="#ffffff"
                           borderColor={BRAND.coinBorder}
@@ -1572,10 +2127,47 @@ export default function IncentivesPage() {
                     </Stack>
 
                     <Box sx={{ mt: 0.5 }}>
-                      <VKRTargetProgressBar
-                        value={walletAchievementPercent}
-                        threshold={walletTarget.minAchievementPercentToRetain || 60}
+                      <LinearProgress
+                        variant="determinate"
+                        value={Math.max(0, Math.min(100, walletAchievementPercent))}
+                        sx={{
+                          height: 12,
+                          borderRadius: 999,
+                          backgroundColor:
+                            walletAchievementPercent >= Number(walletTarget.minAchievementPercentToRetain || 60)
+                              ? "#dcfce7"
+                              : "#fee2e2",
+                          border: "1px solid #e5e7eb",
+                          "& .MuiLinearProgress-bar": {
+                            borderRadius: 999,
+                            backgroundColor:
+                              walletAchievementPercent >= Number(walletTarget.minAchievementPercentToRetain || 60)
+                                ? "#16a34a"
+                                : "#dc2626",
+                          },
+                        }}
                       />
+
+                      <Stack direction="row" justifyContent="space-between" sx={{ mt: 0.75 }}>
+                        <Typography variant="caption" sx={{ color: BRAND.sub, fontWeight: 600 }}>
+                          0%
+                        </Typography>
+                        <Typography
+                          variant="caption"
+                          sx={{
+                            color:
+                              walletAchievementPercent >= Number(walletTarget.minAchievementPercentToRetain || 60)
+                                ? BRAND.available
+                                : BRAND.reversed,
+                            fontWeight: 700,
+                          }}
+                        >
+                          Min. Required: {walletTarget.minAchievementPercentToRetain || 60}%
+                        </Typography>
+                        <Typography variant="caption" sx={{ color: BRAND.sub, fontWeight: 600 }}>
+                          100%
+                        </Typography>
+                      </Stack>
                     </Box>
                   </Stack>
                 </Box>
@@ -1591,7 +2183,7 @@ export default function IncentivesPage() {
                   <SummaryMetric
                     title="Prepaid"
                     value={formatNumber(prepaidCoins)}
-                    sub={`${formatNumber(prepaidCount)} orders · 20 coins each`}
+                    sub={`${formatNumber(prepaidCount)} orders`}
                     color={BRAND.prepaid}
                     bg={BRAND.prepaidSoft}
                     borderColor="#ccfbf1"
@@ -1599,7 +2191,7 @@ export default function IncentivesPage() {
                   <SummaryMetric
                     title="Partial Paid"
                     value={formatNumber(partialPaidCoins)}
-                    sub={`${formatNumber(partialPaidCount)} orders · 10 coins each`}
+                    sub={`${formatNumber(partialPaidCount)} orders`}
                     color={BRAND.partial}
                     bg={BRAND.partialSoft}
                     borderColor="#fed7aa"
@@ -1607,7 +2199,7 @@ export default function IncentivesPage() {
                   <SummaryMetric
                     title="Referral Patient"
                     value={formatNumber(referralPatientCoins)}
-                    sub={`${formatNumber(referralPatientCount)} referrals · 200 coins each`}
+                    sub={`${formatNumber(referralPatientCount)} referrals`}
                     color={BRAND.referral}
                     bg={BRAND.referralSoft}
                     borderColor="#bfdbfe"
@@ -1615,273 +2207,6 @@ export default function IncentivesPage() {
                 </Box>
               </Stack>
             </Paper>
-
-            <Dialog
-              open={incentiveSummaryOpen}
-              onClose={() => setIncentiveSummaryOpen(false)}
-              fullWidth
-              maxWidth="xl"
-            >
-              <DialogTitle sx={{ fontWeight: 800, color: BRAND.text }}>
-                Cash Summary
-              </DialogTitle>
-
-              <DialogContent dividers sx={{ p: 0 }}>
-                <TableContainer
-                  sx={{
-                    borderTop: `1px solid ${BRAND.border}`,
-                    overflowX: "auto",
-                  }}
-                >
-                  <Table
-                    sx={{
-                      minWidth: 980,
-                      tableLayout: "fixed",
-                      "& .MuiTableCell-root": {
-                        ...TABLE_CELL_COMMON_SX,
-                      },
-                    }}
-                  >
-                    <TableHead>
-                      <TableRow>
-                        <TableCell sx={{ ...TABLE_HEAD_SX, ...COL_DATE }}>Date</TableCell>
-                        <TableCell sx={{ ...TABLE_HEAD_SX, ...COL_ORDER }}>Order ID</TableCell>
-                        <TableCell sx={{ ...TABLE_HEAD_SX, ...COL_CUSTOMER }}>Customer</TableCell>
-                        <TableCell sx={{ ...TABLE_HEAD_SX, ...COL_AMOUNT }}>Amount</TableCell>
-                        <TableCell sx={{ ...TABLE_HEAD_SX, ...COL_STATUS }}>
-                          Shipment Status
-                        </TableCell>
-                        <TableCell sx={{ ...TABLE_HEAD_SX, ...COL_WALLET }}>Wallet</TableCell>
-                        <TableCell
-                          sx={{ ...TABLE_HEAD_SX, ...COL_INCENTIVE }}
-                          align="right"
-                        >
-                          Incentive
-                        </TableCell>
-                      </TableRow>
-                    </TableHead>
-
-                    <TableBody>
-                      {rows.length ? (
-                        rows.map((row, index) => {
-                          const bucketMeta = getBucketMeta(row.walletBucket);
-                          const statusMeta = getStatusMeta(row.deliveryStatus);
-
-                          return (
-                            <TableRow
-                              key={`${row.orderId || "row"}-${index}`}
-                              hover
-                              sx={{
-                                "&:last-child td": { borderBottom: 0 },
-                              }}
-                            >
-                              <TableCell sx={COL_DATE}>{formatDate(row.date)}</TableCell>
-
-                              <TableCell
-                                sx={{
-                                  ...COL_ORDER,
-                                  fontWeight: 600,
-                                  whiteSpace: "nowrap",
-                                  overflow: "hidden",
-                                  textOverflow: "ellipsis",
-                                }}
-                              >
-                                {row.orderId || "-"}
-                              </TableCell>
-
-                              <TableCell
-                                sx={{
-                                  ...COL_CUSTOMER,
-                                  whiteSpace: "nowrap",
-                                  overflow: "hidden",
-                                  textOverflow: "ellipsis",
-                                }}
-                              >
-                                {row.name || "-"}
-                              </TableCell>
-
-                              <TableCell
-                                sx={{
-                                  ...COL_AMOUNT,
-                                  fontWeight: 600,
-                                  whiteSpace: "nowrap",
-                                }}
-                              >
-                                {formatCurrency(row.amount)}
-                              </TableCell>
-
-                              <TableCell sx={COL_STATUS}>
-                                <Chip
-                                  size="small"
-                                  label={statusMeta.label}
-                                  color={statusMeta.color}
-                                  variant="outlined"
-                                  sx={{ maxWidth: "100%" }}
-                                />
-                              </TableCell>
-
-                              <TableCell sx={COL_WALLET}>
-                                <Chip
-                                  size="small"
-                                  label={bucketMeta.label}
-                                  color={bucketMeta.chipColor}
-                                  icon={bucketMeta.icon}
-                                  sx={{ maxWidth: "100%" }}
-                                />
-                              </TableCell>
-
-                              <TableCell
-                                align="right"
-                                sx={{
-                                  ...COL_INCENTIVE,
-                                  fontWeight: 700,
-                                  color: bucketMeta.color,
-                                  whiteSpace: "nowrap",
-                                }}
-                              >
-                                {formatSignedCurrency(row.incentiveAmount, row.walletBucket)}
-                              </TableCell>
-                            </TableRow>
-                          );
-                        })
-                      ) : (
-                        <TableRow>
-                          <TableCell colSpan={7} align="center" sx={{ py: 4 }}>
-                            No records found
-                          </TableCell>
-                        </TableRow>
-                      )}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
-              </DialogContent>
-
-              <DialogActions sx={{ p: 2 }}>
-                <Button
-                  onClick={() => setIncentiveSummaryOpen(false)}
-                  variant="outlined"
-                  sx={{ textTransform: "none", borderRadius: 2 }}
-                >
-                  Close
-                </Button>
-              </DialogActions>
-            </Dialog>
-
-            <Dialog
-              open={walletSummaryOpen}
-              onClose={() => setWalletSummaryOpen(false)}
-              fullWidth
-              maxWidth="xl"
-            >
-              <DialogTitle sx={{ fontWeight: 800, color: BRAND.text }}>
-                Wallet Summary
-              </DialogTitle>
-
-              <DialogContent dividers sx={{ p: 0 }}>
-                <Box sx={{ p: 2 }}>
-                  <Stack
-                    direction={{ xs: "column", md: "row" }}
-                    justifyContent="space-between"
-                    spacing={1.5}
-                    sx={{ mb: 2 }}
-                  >
-                    <Box>
-                      <Typography variant="body2" sx={{ color: BRAND.sub }}>
-                        SOP:{" "}
-                        <Box component="span" sx={{ color: BRAND.text, fontWeight: 700 }}>
-                          {walletSop.name || "VKR Plan Coin"}
-                        </Box>
-                      </Typography>
-                      <Typography variant="body2" sx={{ color: BRAND.sub, mt: 0.5 }}>
-                        Value per count:{" "}
-                        <Box component="span" sx={{ color: BRAND.text, fontWeight: 700 }}>
-                          {formatNumber(walletSop.valuePerCount || 0)}
-                        </Box>
-                      </Typography>
-                      <Typography variant="body2" sx={{ color: BRAND.sub, mt: 0.5 }}>
-                        Achievement:{" "}
-                        <Box component="span" sx={{ color: BRAND.text, fontWeight: 700 }}>
-                          {walletAchievementPercent}%
-                        </Box>
-                      </Typography>
-                    </Box>
-
-                    <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
-                      <Chip
-                        label={`Available: ${formatNumber(displayAvailableCoinValue)}`}
-                        variant="outlined"
-                      />
-                      <Chip
-                        label={`Projected: ${formatNumber(walletProjectedCoins)}`}
-                        variant="outlined"
-                      />
-                      <Chip
-                        label={`Lapsed: ${formatNumber(walletLapsedCoins)}`}
-                        variant="outlined"
-                      />
-                    </Stack>
-                  </Stack>
-                </Box>
-
-                <TableContainer
-                  sx={{
-                    borderTop: `1px solid ${BRAND.border}`,
-                    overflowX: "auto",
-                  }}
-                >
-                  <Table sx={{ minWidth: 900 }}>
-                    <TableHead>
-                      <TableRow sx={{ backgroundColor: "#f8fafc" }}>
-                        <TableCell sx={{ fontWeight: 700 }}>Date</TableCell>
-                        <TableCell sx={{ fontWeight: 700 }}>Order ID</TableCell>
-                        <TableCell sx={{ fontWeight: 700 }}>Customer</TableCell>
-                        <TableCell sx={{ fontWeight: 700 }}>Phone Number</TableCell>
-                        <TableCell sx={{ fontWeight: 700 }}>Shipment Status</TableCell>
-                      </TableRow>
-                    </TableHead>
-
-                    <TableBody>
-                      {walletRows.length ? (
-                        walletRows.map((row, index) => (
-                          <TableRow key={`${row.orderId || "wallet"}-${index}`} hover>
-                            <TableCell>{formatDate(row.date)}</TableCell>
-                            <TableCell sx={{ fontWeight: 600 }}>
-                              {row.orderId || "-"}
-                            </TableCell>
-                            <TableCell>{row.customerName || "-"}</TableCell>
-                            <TableCell>{row.contactNumber || "-"}</TableCell>
-                            <TableCell>
-                              <Chip
-                                size="small"
-                                label={row.shipmentStatus || "Unknown"}
-                                color={row.isDelivered ? "success" : "default"}
-                                variant={row.isDelivered ? "filled" : "outlined"}
-                              />
-                            </TableCell>
-                          </TableRow>
-                        ))
-                      ) : (
-                        <TableRow>
-                          <TableCell colSpan={5} align="center" sx={{ py: 4 }}>
-                            No wallet records found
-                          </TableCell>
-                        </TableRow>
-                      )}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
-              </DialogContent>
-
-              <DialogActions sx={{ p: 2 }}>
-                <Button
-                  onClick={() => setWalletSummaryOpen(false)}
-                  variant="outlined"
-                  sx={{ textTransform: "none", borderRadius: 2 }}
-                >
-                  Close
-                </Button>
-              </DialogActions>
-            </Dialog>
 
             <Dialog
               open={walletRulesOpen}
@@ -1940,26 +2265,34 @@ export default function IncentivesPage() {
                   </Typography>
 
                   <Typography variant="body2" sx={{ color: BRAND.sub }}>
-                    Total converted cash in this range:{" "}
+                    Total converted cash:{" "}
                     <Box component="span" sx={{ color: BRAND.text, fontWeight: 700 }}>
                       {formatCurrency(displayedConvertedCash)}
                     </Box>
                   </Typography>
 
                   <Typography variant="body2" sx={{ color: BRAND.sub }}>
-                    Total converted coin in this range:{" "}
+                    Total converted coin:{" "}
                     <Box component="span" sx={{ color: BRAND.text, fontWeight: 700 }}>
                       {formatNumber(displayedConvertedCoin)}
                     </Box>
                   </Typography>
 
                   <Typography variant="body2" sx={{ color: BRAND.sub }}>
-                    Period:{" "}
+                    Balance period:{" "}
                     <Box component="span" sx={{ color: BRAND.text, fontWeight: 700 }}>
-                      {walletPeriod.effectiveStartDate || walletPeriod.startDate || "-"} to{" "}
-                      {walletPeriod.endDate || "-"}
+                      {cumulativeStartDate} to {derivedEndDate}
                     </Box>
                   </Typography>
+
+                  {effectiveTeamView ? (
+                    <Typography variant="body2" sx={{ color: BRAND.sub }}>
+                      Team members included:{" "}
+                      <Box component="span" sx={{ color: BRAND.text, fontWeight: 700 }}>
+                        {teamAgents.map((member) => member.fullName).join(", ") || "-"}
+                      </Box>
+                    </Typography>
+                  ) : null}
                 </Stack>
               </DialogContent>
 

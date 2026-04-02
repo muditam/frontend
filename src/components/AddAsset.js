@@ -56,8 +56,7 @@ const TYPES = [
   "Monitor",
   "NeckBand",
 ];
-
-// 🔹 New: common brands for dropdown (still allows custom)
+ 
 const BRANDS = [
   "HP",
   "Dell",
@@ -74,7 +73,7 @@ const BRANDS = [
   "Zebronics",
 ];
 
-const API_BASE_URL = "https://muditamleads-14f32a10d7f7.herokuapp.com"; // change if needed
+const API_BASE_URL = "https://muditamleads-14f32a10d7f7.herokuapp.com"; 
 
 const fmtDate = (d) => {
   if (!d) return "—";
@@ -103,16 +102,14 @@ function LazyImage({ src, alt, style, onClick, placeholder = true, eager = false
 
     const container = imgRef.current?.parentElement;
     if (!container) return;
-
-    // Check if already loaded from cache
+ 
     const imgEl = imgRef.current;
     if (imgEl?.complete && imgEl.naturalHeight !== 0) {
       setLoaded(true);
       setInView(true);
       return;
     }
-
-    // Intersection Observer with margin for preloading
+ 
     observerRef.current = new IntersectionObserver(
       ([entry]) => {
         if (entry.isIntersecting) {
@@ -121,7 +118,7 @@ function LazyImage({ src, alt, style, onClick, placeholder = true, eager = false
         }
       },
       {
-        rootMargin: '200px', // Start loading 200px BEFORE entering viewport
+        rootMargin: '200px', 
         threshold: 0.01
       }
     );
@@ -139,7 +136,7 @@ function LazyImage({ src, alt, style, onClick, placeholder = true, eager = false
   onClick={(e) => {
     if (loadOnClick && !inView) {
       e.stopPropagation();
-      setInView(true);      // 👈 LOAD IMAGE ON CLICK
+      setInView(true);  
       return;
     }
     onClick?.(e);
@@ -800,7 +797,6 @@ function AssignDialog({
               setForm((prev) => ({
                 ...prev,
                 allocatedTo: newValue?.name || "",
-                employeeId: newValue?.employeeId || "",
               }));
             }}
             renderInput={(params) => (
@@ -2265,6 +2261,7 @@ const isAssigned = !!(
     </Box>
   );
 }
+
 
 
 
