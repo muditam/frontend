@@ -36,6 +36,8 @@ function getChipColor(status) {
       return "info";
     case "On Hold":
       return "warning";
+    case "Canceled":
+      return "default";
     default:
       return "default";
   }
@@ -266,7 +268,10 @@ export default function ShopifyUnicommerceOrdersPage() {
         <Divider sx={{ my: 2 }} />
 
         <Typography variant="body2" color="text.secondary">
-          Backfill takes Shopify-channel orders from Unicommerce, maps contact number and full name from ShopifyOrder by order id when available, and saves all values in Order.
+          Backfill takes Shopify-channel orders from Unicommerce, maps contact
+          number and full name from ShopifyOrder by order id when available, and
+          correctly treats two-phase RTO flows as RTO / RTO Delivered instead of
+          normal customer Delivered.
         </Typography>
       </Paper>
 
@@ -283,7 +288,12 @@ export default function ShopifyUnicommerceOrdersPage() {
       ) : null}
 
       <Paper sx={{ p: 2, mb: 2, borderRadius: 3 }}>
-        <Stack direction={{ xs: "column", sm: "row" }} spacing={2} useFlexGap flexWrap="wrap">
+        <Stack
+          direction={{ xs: "column", sm: "row" }}
+          spacing={2}
+          useFlexGap
+          flexWrap="wrap"
+        >
           <Chip
             label={`Raw Unicommerce Seen: ${rawOrdersSeen || 0}`}
             color="default"
@@ -310,14 +320,21 @@ export default function ShopifyUnicommerceOrdersPage() {
             Backfill Summary
           </Typography>
 
-          <Stack direction={{ xs: "column", sm: "row" }} spacing={2} useFlexGap flexWrap="wrap">
+          <Stack
+            direction={{ xs: "column", sm: "row" }}
+            spacing={2}
+            useFlexGap
+            flexWrap="wrap"
+          >
             <Chip
               label={`Raw Seen: ${backfillSummary.rawOrdersSeen || 0}`}
               color="default"
               variant="outlined"
             />
             <Chip
-              label={`Shopify Channel Seen: ${backfillSummary.totalFetchedShopifyChannelOrders || 0}`}
+              label={`Shopify Channel Seen: ${
+                backfillSummary.totalFetchedShopifyChannelOrders || 0
+              }`}
               color="primary"
               variant="outlined"
             />
@@ -327,7 +344,9 @@ export default function ShopifyUnicommerceOrdersPage() {
               variant="outlined"
             />
             <Chip
-              label={`Shopify Matched: ${backfillSummary.matchedShopifyOrderCount || 0}`}
+              label={`Shopify Matched: ${
+                backfillSummary.matchedShopifyOrderCount || 0
+              }`}
               color="secondary"
               variant="outlined"
             />
@@ -358,7 +377,12 @@ export default function ShopifyUnicommerceOrdersPage() {
             Delete Summary
           </Typography>
 
-          <Stack direction={{ xs: "column", sm: "row" }} spacing={2} useFlexGap flexWrap="wrap">
+          <Stack
+            direction={{ xs: "column", sm: "row" }}
+            spacing={2}
+            useFlexGap
+            flexWrap="wrap"
+          >
             <Chip
               label={`Deleted: ${deleteSummary.deletedCount || 0}`}
               color="error"
