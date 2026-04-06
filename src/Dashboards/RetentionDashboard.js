@@ -60,89 +60,121 @@ const timeRangeOptions = [
 ];
 
 // 2) Utility: format date => YYYY-MM-DD
-const toISODate = (date) => date.toISOString().split("T")[0];
+const toISODate = (date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
 
 // 3) getDateRange helper
 const getDateRange = (rangeValue) => {
   const now = new Date();
+  now.setHours(0, 0, 0, 0);
+
   let start = new Date(now);
   let end = new Date(now);
 
-  // Helper to get Monday-based "week to date":
   const getWeekStart = (d) => {
-    const day = d.getDay(); // 0 = Sunday
+    const copy = new Date(d);
+    const day = copy.getDay(); // 0 = Sunday
     const diff = day === 0 ? 6 : day - 1; // Monday-based
-    d.setDate(d.getDate() - diff);
-    return d;
+    copy.setDate(copy.getDate() - diff);
+    copy.setHours(0, 0, 0, 0);
+    return copy;
   };
 
   switch (rangeValue) {
     case "Today":
       break;
+
     case "Yesterday":
       start.setDate(now.getDate() - 1);
       end = new Date(start);
       break;
+
     case "Last 7 days":
       start.setDate(now.getDate() - 6);
       break;
+
     case "Last 30 days":
       start.setDate(now.getDate() - 29);
       break;
+
     case "Week to date":
-      start = getWeekStart(new Date());
+      start = getWeekStart(now);
       break;
-    case "Month to date": 
+
+    case "Month to date":
       start = new Date(now.getFullYear(), now.getMonth(), 1);
+      start.setHours(0, 0, 0, 0);
       break;
+
     case "Year to date":
       start = new Date(now.getFullYear(), 0, 1);
+      start.setHours(0, 0, 0, 0);
       break;
+
     case "Last 90 days":
       start.setDate(now.getDate() - 89);
       break;
+
     case "Last 365 days":
       start.setDate(now.getDate() - 364);
       break;
+
     case "Last month": {
       const year = now.getFullYear();
       const month = now.getMonth();
       const prevMonth = month - 1 < 0 ? 11 : month - 1;
       const prevYear = month - 1 < 0 ? year - 1 : year;
+
       start = new Date(prevYear, prevMonth, 1);
       end = new Date(prevYear, prevMonth + 1, 0);
-      return { startDate: toISODate(start), endDate: toISODate(end) };   
+
+      start.setHours(0, 0, 0, 0);
+      end.setHours(0, 0, 0, 0);
+
+      return { startDate: toISODate(start), endDate: toISODate(end) };
     }
+
     case "Last 12 months":
       start.setFullYear(now.getFullYear() - 1);
       break;
+
     case "Last year": {
       const y = now.getFullYear() - 1;
       start = new Date(y, 0, 1);
       end = new Date(y, 11, 31);
+
+      start.setHours(0, 0, 0, 0);
+      end.setHours(0, 0, 0, 0);
+
       return { startDate: toISODate(start), endDate: toISODate(end) };
     }
+
     case "Quarter to date": {
       const currentMonth = now.getMonth();
       const quarterStartMonth = currentMonth - (currentMonth % 3);
       start = new Date(now.getFullYear(), quarterStartMonth, 1);
+      start.setHours(0, 0, 0, 0);
       break;
     }
+
     case "Custom range":
       return { startDate: "", endDate: "" };
+
     default:
       break;
   }
-  return { startDate: toISODate(start), endDate: toISODate(end) };
-};
 
-const BlinkingIcon = styled(WarningAmberIcon)({
-  animation: "blink-animation 1.5s steps(2, start) infinite",
-  "@keyframes blink-animation": {
-    "50%": { opacity: 0 },
-  },
-  color: "red",
-});
+  end.setHours(0, 0, 0, 0);
+
+  return {
+    startDate: toISODate(start),
+    endDate: toISODate(end),
+  };
+};
 
 const RetentionAgentDashboard = () => {
   const [loading, setLoading] = useState(true);
@@ -355,23 +387,17 @@ const RetentionAgentDashboard = () => {
       window.open(`/retention/${filterType}`, "_blank");
     }
   };
+ 
+useEffect(() => {
+  if (user?.fullName) {
+    const { startDate, endDate } = getDateRange("Today");
+    fetchTodayFollowupData(user.fullName, startDate, endDate);
 
-  // ---------------------------------------------------------
-  // On mount, default:
-  //  - "Today-Followup" => "Today" range
-  //  - "Shipment Summary" => "Month to date" range
-  // ---------------------------------------------------------
-  useEffect(() => {
-    if (user?.fullName) {
-      // 1) Today-Followup defaults to "Today"
-      const { startDate, endDate } = getDateRange("Today");
-      fetchTodayFollowupData(user.fullName, startDate, endDate);
-
-      // 2) Shipment Summary defaults to "Month to date"
-      const { startDate: sShipment, endDate: eShipment } = getDateRange("Today");
-      fetchShipmentStatusSummary(user.fullName, sShipment, eShipment);
-    }
-  }, [user?.fullName]);
+    const { startDate: sShipment, endDate: eShipment } = getDateRange("Month to date");
+    fetchShipmentStatusSummary(user.fullName, sShipment, eShipment);
+    setSelectedRangeShipment("Month to date");
+  }
+}, [user?.fullName]);
 
   // ---------------------------------------------------------
   // Handle main summary toggle (two options)

@@ -831,10 +831,10 @@ const EscalationsPage = () => {
                             <Typography
                               variant="caption"
                               sx={{
-                                color: "#333", // Darker for better clarity
+                                color: "#333",  
                                 fontSize: "0.75rem",
-                                fontWeight: "bold", // Bold as requested
-                                fontStyle: "normal", // Removed italic to fix blurriness
+                                fontWeight: "bold",  
+                                fontStyle: "normal",  
                               }}
                             >
                               ({esc.shipmentStatus})
