@@ -50,7 +50,6 @@ async function safeJson(res) {
   }
 }
 
-
 function onlyAllowedTemplateName(v) {
   return (v || "")
     .toLowerCase()
@@ -88,6 +87,15 @@ function fmtTime(d) {
   }
 }
 
+function fmtDateTime(v) {
+  if (!v) return "";
+  try {
+    return new Date(v).toLocaleString();
+  } catch {
+    return "";
+  }
+}
+
 function statusChipStyles(statusRaw) {
   const s = String(statusRaw || "").toLowerCase();
   if (s.includes("approve")) {
@@ -96,7 +104,7 @@ function statusChipStyles(statusRaw) {
   if (s.includes("reject")) {
     return { bgcolor: "#ffeceb", color: "#b42318", borderColor: "#ffc7c3" };
   }
-  if (s.includes("pend") || s.includes("submitted")) {
+  if (s.includes("pend") || s.includes("submitted") || s.includes("review")) {
     return { bgcolor: "#fff3dc", color: "#a15c07", borderColor: "#ffe1b0" };
   }
   return { bgcolor: "#f4f6f8", color: "#344054", borderColor: "#e5e7eb" };
@@ -167,9 +175,8 @@ function CounterLabel({ label, count, max }) {
 }
 
 export default function TemplatesPanel() {
-  const [mode, setMode] = useState("list"); // list | create
+  const [mode, setMode] = useState("list");
 
-  // list state
   const [templates, setTemplates] = useState([]);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
@@ -177,22 +184,20 @@ export default function TemplatesPanel() {
   const [lastSync, setLastSync] = useState(null);
   const [inSync, setInSync] = useState(true);
 
-  // create state
   const [category, setCategory] = useState("");
   const [name, setName] = useState("");
   const [language] = useState("en");
-  const [headerType, setHeaderType] = useState("NONE"); // NONE | TEXT | MEDIA
+  const [headerType, setHeaderType] = useState("NONE");
   const [headerText, setHeaderText] = useState("");
-  const [mediaType, setMediaType] = useState("DOCUMENT"); // DOCUMENT | VIDEO | IMAGE
+  const [mediaType, setMediaType] = useState("DOCUMENT");
   const [body, setBody] = useState("");
   const [footer, setFooter] = useState("");
   const [sending, setSending] = useState(false);
 
-  // sample modal
   const [sampleOpen, setSampleOpen] = useState(false);
   const [sampleFilename, setSampleFilename] = useState("");
   const [sampleHeaderText, setSampleHeaderText] = useState("");
-  const [sampleVars, setSampleVars] = useState({}); // { "1": "John" }
+  const [sampleVars, setSampleVars] = useState({});
 
   const bodyVars = useMemo(() => extractVars(body), [body]);
 
@@ -209,7 +214,6 @@ export default function TemplatesPanel() {
     [category, name, body]
   );
 
-  // keep sampleVars aligned to body vars
   useEffect(() => {
     const vars = bodyVars;
     setSampleVars((prev) => {
@@ -223,7 +227,6 @@ export default function TemplatesPanel() {
       }
       return next;
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [JSON.stringify(bodyVars)]);
 
   async function fetchTemplates({ silent = false } = {}) {
@@ -231,7 +234,6 @@ export default function TemplatesPanel() {
 
     try {
       const res = await fetch(`${API_BASE}/api/whatsapp/templates`, {
-        // ✅ IMPORTANT: try without cookies first
         credentials: "omit",
         headers: { Accept: "application/json" },
       });
@@ -247,12 +249,11 @@ export default function TemplatesPanel() {
       const list = Array.isArray(data)
         ? data
         : Array.isArray(data?.templates)
-          ? data.templates
-          : [];
+        ? data.templates
+        : [];
 
       setTemplates(list);
 
-      // meta only exists when backend returns object shape
       const meta = !Array.isArray(data) ? data?.meta : null;
       if (meta?.lastSyncAt) setLastSync(meta.lastSyncAt);
       if (typeof meta?.inSync === "boolean") setInSync(meta.inSync);
@@ -277,15 +278,22 @@ export default function TemplatesPanel() {
 
       const data = await safeJson(res);
 
+      if (!res.ok) {
+        console.error("Sync failed:", res.status, data);
+        setInSync(false);
+        alert(data?.error?.message || data?.message || "Template sync failed");
+        return;
+      }
+
       if (data?.meta?.lastSyncAt) setLastSync(data.meta.lastSyncAt);
       if (typeof data?.meta?.inSync === "boolean") setInSync(data.meta.inSync);
       else setInSync(true);
 
-      // refresh list from mongo
       await fetchTemplates({ silent: true });
     } catch (e) {
       console.error("Sync failed", e);
       setInSync(false);
+      alert("Template sync failed");
     } finally {
       setSyncing(false);
     }
@@ -294,7 +302,6 @@ export default function TemplatesPanel() {
   async function deleteTemplate(t) {
     const id = t?._id || t?.id;
     if (!id) return;
-
     if (!window.confirm(`Delete template "${t.name}"?`)) return;
 
     setTemplates((prev) => prev.filter((x) => (x?._id || x?.id) !== id));
@@ -305,7 +312,6 @@ export default function TemplatesPanel() {
         credentials: "omit",
         headers: { Accept: "application/json" },
       });
-
       if (!res.ok) await fetchTemplates({ silent: true });
     } catch (e) {
       console.error("Delete failed", e);
@@ -368,8 +374,6 @@ export default function TemplatesPanel() {
         components.push({
           type: "HEADER",
           format: mediaType,
-          // NOTE: 360dialog usually expects a real uploaded handle or URL.
-          // For now we pass it through; backend will still store it.
           example: sampleFilename ? { header_handle: [sampleFilename] } : undefined,
         });
       }
@@ -380,13 +384,13 @@ export default function TemplatesPanel() {
         example:
           bodyVars.length > 0
             ? {
-              body_text: [
-                bodyVars.map((n) => {
-                  const v = sampleVars[String(n)];
-                  return v && String(v).trim() ? String(v) : `sample_${n}`;
-                }),
-              ],
-            }
+                body_text: [
+                  bodyVars.map((n) => {
+                    const v = sampleVars[String(n)];
+                    return v && String(v).trim() ? String(v) : `sample_${n}`;
+                  }),
+                ],
+              }
             : undefined,
       });
 
@@ -432,7 +436,6 @@ export default function TemplatesPanel() {
       if (mode === "list") fetchTemplates({ silent: true });
     }, 20000);
     return () => clearInterval(id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode]);
 
   const previewBody = useMemo(
@@ -474,8 +477,6 @@ export default function TemplatesPanel() {
           </Box>
 
           <Stack direction="row" alignItems="center" spacing={1}>
-            
-
             <Chip
               label={inSync ? "In sync" : "Out of sync"}
               size="small"
@@ -502,7 +503,7 @@ export default function TemplatesPanel() {
                 "&:hover": { borderColor: "#D0D5DD", bgcolor: "#fafafa" },
               }}
             >
-              {syncing ? "Syncing..." : "Synchronize templates with Meta"}
+              {syncing ? "Syncing..." : "Sync from TrustSignal"}
             </Button>
 
             <Button
@@ -513,6 +514,14 @@ export default function TemplatesPanel() {
               Add template
             </Button>
           </Stack>
+        </Stack>
+
+        <Stack direction="row" spacing={2} sx={{ mt: 1 }} alignItems="center">
+          {lastSync ? (
+            <Typography fontSize={12} color="text.secondary">
+              Last sync: {fmtDateTime(lastSync)}
+            </Typography>
+          ) : null}
         </Stack>
 
         <Box sx={{ mt: 3 }}>
@@ -635,7 +644,6 @@ export default function TemplatesPanel() {
     );
   }
 
-  // CREATE VIEW (same UI, no change besides backend compatibility)
   return (
     <Box sx={{ p: 2 }}>
       <Stack direction="row" alignItems="center" justifyContent="space-between">
@@ -1078,7 +1086,7 @@ export default function TemplatesPanel() {
                       <Typography fontSize={10} color="text.secondary">
                         {fmtTime(Date.now())}
                       </Typography>
-                    </Stack>
+                    </Stack> 
                   </Box>
                 </Box>
               </Paper>

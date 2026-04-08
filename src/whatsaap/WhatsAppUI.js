@@ -146,11 +146,9 @@ function pickBodyTextFromTemplate(tpl) {
   if (!tpl) return "";
   if (tpl.body) return String(tpl.body || "");
   if (tpl.bodyText) return String(tpl.bodyText || "");
-  const comps =
-    (Array.isArray(tpl.components) && tpl.components) ||
-    (Array.isArray(tpl.raw360?.components) && tpl.raw360.components) ||
-    (Array.isArray(tpl.raw360?.template?.components) && tpl.raw360.template.components) ||
-    [];
+  if (tpl.text) return String(tpl.text || "");
+
+  const comps = templateComponents(tpl);
   const body = comps.find((c) => String(c?.type || "").toUpperCase() === "BODY");
   return String(body?.text || "");
 }
@@ -163,6 +161,17 @@ function extractVarIndexes(bodyText = "") {
     if (n > 0) set.add(n);
   }
   return Array.from(set).sort((a, b) => a - b);
+}
+
+function extractApiErrorMessage(err, fallback = "Request failed") {
+  const data = err?.data || {};
+  return (
+    data?.providerError?.errors?.[0]?.message ||
+    data?.providerError?.message ||
+    data?.message ||
+    err?.message ||
+    fallback
+  );
 }
 
 function applyVarsToBody(bodyText = "", varsMap = {}) {
@@ -187,28 +196,25 @@ function msgKey(m) {
   );
 }
 
-/* -----------------------------
-   Templates filters / header media detection
------------------------------- */
+function templateComponents(tpl) {
+  return Array.isArray(tpl?.components) ? tpl.components : [];
+}
+
 function isUtilityTemplate(t) {
-  const cat = t?.category || t?.raw360?.category || t?.raw360?.template?.category || "";
-  return String(cat).toUpperCase() === "UTILITY";
+  const cat = String(t?.category || "").toUpperCase();
+  return cat === "UTILITY";
 }
 
 function isApprovedTemplate(t) {
-  const st = String(t?.status || t?.raw360?.status || "").toUpperCase();
+  const st = String(t?.status || "").toUpperCase();
   return st.includes("APPROV");
 }
 
 function getHeaderMediaFormat(tpl) {
   if (!tpl) return "";
-  const comps =
-    (Array.isArray(tpl.components) && tpl.components) ||
-    (Array.isArray(tpl.raw360?.components) && tpl.raw360.components) ||
-    (Array.isArray(tpl.raw360?.template?.components) && tpl.raw360.template.components) ||
-    [];
+  const comps = templateComponents(tpl);
   const header = comps.find((c) => String(c?.type || "").toUpperCase() === "HEADER");
-  const format = String(header?.format || "").toUpperCase(); // IMAGE / VIDEO / DOCUMENT / TEXT
+  const format = String(header?.format || "").toUpperCase();
   if (["IMAGE", "VIDEO", "DOCUMENT"].includes(format)) return format;
   return "";
 }
@@ -379,8 +385,10 @@ function detectMediaKind({ url = "", mime = "", fallbackType = "" }) {
 function isProbablyProviderUrl(u = "") {
   const s = String(u || "");
   if (!s) return false;
-  // common 360dialog / Meta media URLs that often need proxy/auth or expire
   return (
+    s.includes("wpapi.trustsignal.io") ||
+    s.includes("trustsignal.io") ||
+    s.includes("sigmo.ai") ||
     s.includes("waba-v2.360dialog.io") ||
     s.includes("360dialog") ||
     s.includes("graph.facebook.com") ||
@@ -1569,6 +1577,11 @@ export default function WhatsAppUI() {
         body: JSON.stringify({
           to,
           templateName: activeTplForSend.name,
+          templateId:
+            activeTplForSend.template_id ||
+            activeTplForSend.templateId ||
+            activeTplForSend.providerTemplateId ||
+            "",
           parameters: params,
           renderedText: tplSendPreview || "",
           headerMedia,
@@ -1586,7 +1599,7 @@ export default function WhatsAppUI() {
       setSessionExpired(false);
       setErrorMessages("");
     } catch (e) {
-      setErrorMessages(e.message || "Failed to send template.");
+      setErrorMessages(extractApiErrorMessage(e, "Failed to send template."));
     } finally {
       setTplSending(false);
     }
@@ -1742,6 +1755,11 @@ export default function WhatsAppUI() {
         body: JSON.stringify({
           to,
           templateName: selectedTemplate.name,
+          templateId:
+            selectedTemplate.template_id ||
+            selectedTemplate.templateId ||
+            selectedTemplate.providerTemplateId ||
+            "",
           parameters: params,
           renderedText: previewBody || "",
           headerMedia,
@@ -1762,7 +1780,7 @@ export default function WhatsAppUI() {
       refreshConversations(null, { silent: true });
       setSessionExpired(false);
     } catch (e) {
-      setNewChatError(e.message || "Failed to send template");
+      setNewChatError(extractApiErrorMessage(e, "Failed to send template"));
     } finally {
       setCreatingChat(false);
     }
