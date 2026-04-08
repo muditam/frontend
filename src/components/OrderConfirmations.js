@@ -585,85 +585,82 @@ export default function OrderConfirmations() {
   const statusToNote = (val) => statusValueToLabel(val);
 
   const handleShopifyNotesChange = async (row, newValue) => {
-    const prevStatus = String(row?.orderConfirmOps?.callStatus || "").toUpperCase();
-    const newStatus = String(newValue || "").toUpperCase();
+  const prevStatus = String(row?.orderConfirmOps?.callStatus || "").toUpperCase();
+  const newStatus = String(newValue || "").toUpperCase();
+  const hadNoNoteBefore = !((row?.orderConfirmOps?.shopifyNotes || "").trim());
 
-    const hadNoNoteBefore = !((row?.orderConfirmOps?.shopifyNotes || "").trim());
+  const label = statusToNote(newValue) || String(newValue || "");
+  const userFullName = getLoggedInFullName() || "";
 
-    const label = statusToNote(newValue) || String(newValue || "");
-    const userFullName = getLoggedInFullName() || "";
-    const finalNote = userFullName ? `${label} - ${userFullName}` : label;
+  try {
+    setRowSaving(row._id, true);
 
-    try {
-      await patchOrder(row._id, { callStatus: newValue }, "Status updated");
-
-      moveStatusCount(setCounts, prevStatus, newStatus);
-
-      const nowIso = new Date().toISOString();
-      const patchedRow = {
-        ...row,
-        orderConfirmOps: {
-          ...(row.orderConfirmOps || {}),
-          callStatus: newValue,
-          callStatusUpdatedAt: nowIso,
-        },
-      };
-
-      const shouldStayAfterStatus = rowMatchesTab(patchedRow, tab);
-      if (!shouldStayAfterStatus) {
-        setItems((rows) => rows.filter((r) => r._id !== row._id));
-        setTotal((t) => Math.max(0, t - 1));
-        setExpandedId((prev) => (prev === row._id ? null : prev));
-      } else {
-        setItems((rows) => rows.map((r) => (r._id === row._id ? patchedRow : r)));
-      }
-
-      if (prevStatus !== newStatus && (prevStatus === "ORDER_CONFIRMED" || newStatus === "ORDER_CONFIRMED")) {
-        fetchTodayConfirmedCount?.();
-      }
-    } catch {
-      return;
-    }
-
-    try {
-      await axios.post("https://muditamleads-14f32a10d7f7.herokuapp.com/api/order-confirmations/shopify-notes", {
+    const { data } = await axios.post(
+      "https://muditamleads-14f32a10d7f7.herokuapp.com/api/order-confirmations/shopify-notes",
+      {
         orderName: row.orderName,
         note: label,
+        callStatus: newValue,
         userFullName,
-      });
-
-      setToast({ open: true, severity: "success", msg: "Shopify note updated" });
-
-      const updatedRow = {
-        ...row,
-        orderConfirmOps: {
-          ...(row.orderConfirmOps || {}),
-          shopifyNotes: finalNote,
-          callStatus: newValue,
-          callStatusUpdatedAt: new Date().toISOString(),
-        },
-      };
-
-      const shouldStayFinal = rowMatchesTab(updatedRow, tab);
-      if (!shouldStayFinal) {
-        setItems((rows) => rows.filter((r) => r._id !== row._id));
-        setTotal((t) => Math.max(0, t - 1));
-        setExpandedId((prev) => (prev === row._id ? null : prev));
-      } else {
-        setItems((rows) => rows.map((r) => (r._id === row._id ? updatedRow : r)));
       }
+    );
 
-      if (hadNoNoteBefore) {
-        decrementPendingOnFirstNote(setCounts);
-      }
+    const savedOps = data?.mongo?.orderConfirmOps || {};
 
+    const updatedRow = {
+      ...row,
+      orderConfirmOps: {
+        ...(row.orderConfirmOps || {}),
+        ...savedOps,
+        shopifyNotes:
+          savedOps.shopifyNotes ||
+          (userFullName ? `${label} - ${userFullName}` : label),
+        callStatus: savedOps.callStatus || newStatus,
+        callStatusUpdatedAt:
+          savedOps.callStatusUpdatedAt || new Date().toISOString(),
+      },
+    };
 
-    } catch (e) {
-      console.error("shopify-notes push error", e?.response?.data || e.message);
-      const msg = e?.response?.data?.error || "Failed to update Shopify note";
-      setToast({ open: true, severity: "error", msg });
+    moveStatusCount(setCounts, prevStatus, updatedRow.orderConfirmOps.callStatus);
+
+    if (
+      hadNoNoteBefore &&
+      (updatedRow.orderConfirmOps.shopifyNotes || "").trim()
+    ) {
+      decrementPendingOnFirstNote(setCounts);
     }
-  };
+
+    const shouldStay = rowMatchesTab(updatedRow, tab);
+    if (!shouldStay) {
+      setItems((rows) => rows.filter((r) => r._id !== row._id));
+      setTotal((t) => Math.max(0, t - 1));
+      setExpandedId((prev) => (prev === row._id ? null : prev));
+    } else {
+      setItems((rows) =>
+        rows.map((r) => (r._id === row._id ? updatedRow : r))
+      );
+    }
+
+    const finalStatus = String(
+      updatedRow?.orderConfirmOps?.callStatus || ""
+    ).toUpperCase();
+
+    if (
+      prevStatus !== finalStatus &&
+      (prevStatus === "ORDER_CONFIRMED" || finalStatus === "ORDER_CONFIRMED")
+    ) {
+      fetchTodayConfirmedCount?.();
+    }
+
+    setToast({ open: true, severity: "success", msg: "Shopify note updated" });
+  } catch (e) {
+    console.error("shopify-notes push error", e?.response?.data || e.message);
+    const msg = e?.response?.data?.error || "Failed to update Shopify note";
+    setToast({ open: true, severity: "error", msg });
+  } finally {
+    setRowSaving(row._id, false);
+  }
+};
 
   const cancelOrderOnShopify = async (row, ocReason = "") => {
     const id = row._id;
