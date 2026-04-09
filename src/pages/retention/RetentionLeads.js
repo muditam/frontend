@@ -61,6 +61,14 @@ import AddIcCallIcon from "@mui/icons-material/AddIcCall";
 import CreateDietPlanPopup from "./CreateDietPlanPopup";
 import WhatsAppChatDialog from "./WhatsAppChatDialog";
 
+// const API_BASE = "http://localhost:5001";
+const API_BASE = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "");
+
+const api = axios.create({
+  baseURL: API_BASE,
+  withCredentials: true,
+});
+
 const getDaysSince = (startDate, endDate = new Date()) => {
   if (!startDate) return null;
   const start = new Date(startDate);
@@ -318,9 +326,9 @@ const RetentionLeads = () => {
 
       console.log('✅ Marking first call with IST timestamp:', istTimestamp);
 
-      const response = await axios.post(
-        `https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/${leads[selectedLeadIndex]._id}/first-call-connected`,
-        { firstCallConnectedAt: istTimestamp } // ✅ Send explicit IST timestamp
+      const response = await api.post(
+        `/api/leads/${leads[selectedLeadIndex]._id}/first-call-connected`,
+        { firstCallConnectedAt: istTimestamp }
       );
 
       // Update lead in state
@@ -348,15 +356,12 @@ const RetentionLeads = () => {
     if (!loggedInUser?.fullName) return;
 
     try {
-      const response = await axios.get(
-        'https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/first-call-stats',
-        {
-          params: {
-            healthExpertAssigned: loggedInUser.fullName,
-            email: loggedInUser.email
-          }
-        }
-      );
+      const response = await api.get("/api/leads/first-call-stats", {
+        params: {
+          healthExpertAssigned: loggedInUser.fullName,
+          email: loggedInUser.email,
+        },
+      });
       setFirstCallStats(response.data);
     } catch (error) {
       console.error("Error fetching first call stats:", error);
@@ -421,7 +426,7 @@ const RetentionLeads = () => {
       const serialParam =
         serialMatch && /^\d+$/.test(serialMatch) ? parseInt(serialMatch, 10) : null;
 
-      const resp = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/retentions", {
+      const resp = await api.get("/api/leads/retentions", {
         params: {
           fullName: user.fullName,
           email: user.email,
@@ -492,16 +497,6 @@ const RetentionLeads = () => {
     }
   };
 
-
-  const saveSubcellsToBackend = async (leadId, subcells) => {
-    try {
-      await axios.put(`https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/${leadId}`, { rtSubcells: subcells });
-    } catch (error) {
-      console.error("Error saving subcells:", error);
-    }
-  };
-
-
   // ✅ UPDATED: Track when adding subcells/notes
   const handleAddSubcell = async (leadIdx) => {
     const text = (noteDraft || "").trim();
@@ -530,10 +525,10 @@ const RetentionLeads = () => {
     ];
 
     try {
-      await axios.put(`https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/${leadId}`, {
+      await api.put(`/api/leads/${leadId}`, {
         rtSubcells: nextSubcells,
-        profileUpdatedAt: new Date().toISOString(), // ✅ Track activity
-        profileUpdatedBy: currentUserName
+        profileUpdatedAt: new Date().toISOString(),
+        profileUpdatedBy: currentUserName,
       });
     } catch (error) {
       console.error("Error saving subcells:", error);
@@ -542,7 +537,7 @@ const RetentionLeads = () => {
 
   const fetchShopifyDates = async (phoneNumber) => {
     try {
-      const res = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/shopify/orders-dates", {
+      const res = await api.get("/api/shopify/orders-dates", {
         params: { phoneNumber },
       });
 
@@ -613,7 +608,7 @@ const RetentionLeads = () => {
 
   const fetchLogs = async (leadId) => {
     try {
-      const res = await axios.get(`https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/${leadId}/reachout-logs`);
+      const res = await api.get(`/api/leads/${leadId}/reachout-logs`);
       setLogsData(res.data);
     } catch (err) {
       console.error("Failed to fetch logs", err);
@@ -697,10 +692,7 @@ const RetentionLeads = () => {
         updatePayload.salesDoneAt = new Date().toISOString();
       }
 
-      await axios.put(
-        `https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/${updatedLeads[index]._id}`,
-        updatePayload
-      );
+      await api.put(`/api/leads/${updatedLeads[index]._id}`, updatePayload);
     } catch (error) {
       console.error("Error updating lead:", error);
     }
@@ -772,10 +764,7 @@ const RetentionLeads = () => {
     setColorMenuIdx(null);
 
     try {
-      await axios.put(
-        `https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/${updatedLeads[index]._id}`,
-        { rowColor: color }
-      );
+      await api.put(`/api/leads/${updatedLeads[index]._id}`, { rowColor: color });
     } catch (error) {
       console.error("Error updating row color:", error);
     }
@@ -786,10 +775,9 @@ const RetentionLeads = () => {
     if (planCountLoading[leadId] || planCountMap[leadId] != null) return;
     try {
       setPlanCountLoading((p) => ({ ...p, [leadId]: true }));
-      const res = await axios.get(
-        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/diet-plans",
-        { params: { leadId, limit: 200 } } // fetch enough to cover recent
-      );
+      const res = await api.get("/api/diet-plans", {
+        params: { leadId, limit: 200 },
+      });
       const items = res?.data?.items || [];
       const now = new Date();
       const ms14 = 14 * 24 * 60 * 60 * 1000;
@@ -1000,11 +988,7 @@ const RetentionLeads = () => {
     }
 
     try {
-      // Update backend
-      await axios.put(
-        `https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/${lead._id}`,
-        updatePayload
-      );
+      await api.put(`/api/leads/${lead._id}`, updatePayload);
 
       // Update local state
       setLeads((prevLeads) => {
@@ -2429,16 +2413,12 @@ You can mark Lost only after 60 days.`);
                         onChange={async (e) => {
                           const method = e.target.value;
                           setReachoutMethod(method);
-                          await axios.post(
-                            `https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/${leads[selectedLeadIndex]._id}/reachout-log`,
-                            {
-                              timestamp: reachoutTimestamp,
-                              method,
-                              // ✅ Track activity
-                              profileUpdatedAt: new Date().toISOString(),
-                              profileUpdatedBy: currentUserName
-                            }
-                          );
+                          await api.post(`/api/leads/${leads[selectedLeadIndex]._id}/reachout-log`, {
+                            timestamp: reachoutTimestamp,
+                            method,
+                            profileUpdatedAt: new Date().toISOString(),
+                            profileUpdatedBy: currentUserName,
+                          });
                         }}
                       >
                         {["WhatsApp", "Call", "Both"].map((opt) => (
@@ -2456,17 +2436,13 @@ You can mark Lost only after 60 days.`);
                             onChange={async (e) => {
                               const status = e.target.value;
                               setReachoutStatus(status);
-                              await axios.post(
-                                `https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/${leads[selectedLeadIndex]._id}/reachout-log`,
-                                {
-                                  timestamp: reachoutTimestamp,
-                                  method: reachoutMethod,
-                                  status,
-                                  // ✅ Track activity
-                                  profileUpdatedAt: new Date().toISOString(),
-                                  profileUpdatedBy: currentUserName
-                                }
-                              );
+                              await api.post(`/api/leads/${leads[selectedLeadIndex]._id}/reachout-log`, {
+                                timestamp: reachoutTimestamp,
+                                method: reachoutMethod,
+                                status,
+                                profileUpdatedAt: new Date().toISOString(),
+                                profileUpdatedBy: currentUserName,
+                              });
                               setLogPopupAnchor(null);
                             }}
                           >

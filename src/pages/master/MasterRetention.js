@@ -71,7 +71,10 @@ const TOP_FILTERS = [
 ];
 
 const PAGE_SIZE = 20;
-const API_URL = "https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/retention";
+// const API_BASE = "http://localhost:5001";
+const API_BASE = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "");
+
+const API_URL = `${API_BASE}/api/leads/retention`;
 
 export default function RetentionTable() {
   // State

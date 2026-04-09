@@ -27,6 +27,13 @@ import axios from "axios";
 import PhoneIcon from "@mui/icons-material/Phone";
 import TuneIcon from "@mui/icons-material/Tune";
 
+// const API_BASE = "http://localhost:5001";
+const API_BASE = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "");
+
+const api = axios.create({
+  baseURL: API_BASE,
+  withCredentials: true,
+});
 
 const SalesMyLeads = () => {
   const [leads, setLeads] = useState([]);
@@ -86,14 +93,14 @@ const SalesMyLeads = () => {
   const fetchLeads = async (agentAssigned) => {
     setLoading(true);
     try {
-      const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads", {
-        params: {
-          agentAssignedName: agentAssigned,
-          page: currentPage + 1, // Backend expects 1-based indexing
-          limit: rowsPerPage, // Number of rows per page
-          filters: JSON.stringify(filters),
-        },
-      });
+      const response = await api.get("/api/leads", {
+  params: {
+    agentAssignedName: agentAssigned,
+    page: currentPage + 1,
+    limit: rowsPerPage,
+    filters: JSON.stringify(filters),
+  },
+});
       const { leads, totalLeads } = response.data;
       setLeads(leads || []); // Update leads state with fetched data
       setTotalLeads(totalLeads || 0); // Update the total leads count
@@ -146,12 +153,9 @@ const SalesMyLeads = () => {
     if (field === "contactNumber") {
       const enteredNumber = e.target.value;
       try {
-        const response = await axios.get(
-          "https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/check-duplicate",
-          {
-            params: { contactNumber: enteredNumber },
-          }
-        );
+        const response = await api.get("/api/leads/check-duplicate", {
+  params: { contactNumber: enteredNumber },
+});
 
         if (response.data.exists) {
           setValidationErrors((prev) => ({
@@ -172,12 +176,9 @@ const SalesMyLeads = () => {
 
     const leadId = updatedLeads[index]._id;
     try {
-      await axios.put(
-        `https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/${leadId}`,
-        {
-          [field]: e.target.value,
-        }
-      );
+      await api.put(`/api/leads/${leadId}`, {
+  [field]: e.target.value,
+});
     } catch (error) {
       console.error("Error updating lead:", error);
     }
@@ -201,7 +202,7 @@ const SalesMyLeads = () => {
     }
 
     try {
-      const response = await axios.post("https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads", leadToAdd);
+      const response = await api.post("/api/leads", leadToAdd);
       if (response.status === 201) {
         setLeads((prevLeads) => [response.data.lead, ...prevLeads]);
         setNewLead({
@@ -241,7 +242,7 @@ const SalesMyLeads = () => {
     setLoading(true);
     setCurrentPage(0);
     try {
-      const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads", {
+      const response = await api.get("/api/leads", {
         params: {
           agentAssignedName: agentName,
           page: 1,
@@ -285,7 +286,7 @@ const SalesMyLeads = () => {
 
   const fetchUserDetails = async (user) => {
     try {
-      const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/employees", {
+      const response = await api.get("/api/employees", {
         params: { fullName: user.fullName, email: user.email }
       });
       if (response.data.length > 0) {
@@ -334,10 +335,7 @@ const SalesMyLeads = () => {
         caller_id: callerId.toString().trim(),
       };
 
-      const response = await axios.post(
-        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/click_to_call",
-        requestBody
-      );
+      const response = await api.post("/api/click_to_call", requestBody);
 
       console.log("Backend Response:", response.data);
 

@@ -40,7 +40,7 @@ import DoneAllIcon from "@mui/icons-material/DoneAll";
 
 import { io } from "socket.io-client";
 
-const API_BASE = "https://muditamleads-14f32a10d7f7.herokuapp.com";
+const API_BASE = "http://localhost:5001";
 
 // toggle this if you want to see socket events
 const DEBUG_SOCKET = false;
@@ -323,18 +323,20 @@ function mediaIdFromMsg(m) {
   return (
     m?.media?.id ||
     m?.mediaId ||
-    m?.templateMeta?.headerMedia?.id || // ✅ Look in templates
-    m?.raw?.id ||
-    m?.raw?.audio?.id ||
-    m?.raw?.image?.id ||
-    m?.raw?.video?.id ||
-    m?.raw?.document?.id ||
+    m?.templateMeta?.headerMedia?.id ||
     ""
   );
 }
+
 function mediaUrlFromMsg(m) {
-  return m?.media?.url || m?.mediaUrl || m?.templateMeta?.headerMedia?.url || m?.url || "";
+  return (
+    m?.media?.url ||
+    m?.mediaUrl ||
+    m?.templateMeta?.headerMedia?.url ||
+    ""
+  );
 }
+
 function mediaMimeFromMsg(m) {
   // ✅ Guess mime based on template format if needed
   const tplFmt = m?.templateMeta?.headerMedia?.format;
@@ -347,22 +349,15 @@ function mediaMimeFromMsg(m) {
     m?.media?.mime ||
     m?.mime ||
     guessedMime ||
-    m?.raw?.audio?.mime_type ||
-    m?.raw?.image?.mime_type ||
-    m?.raw?.video?.mime_type ||
-    m?.raw?.document?.mime_type ||
-    m?.raw?.file?.mime_type ||
     ""
   );
 }
+
 function mediaFilenameFromMsg(m) {
   return (
     m?.media?.filename ||
     m?.filename ||
-    m?.templateMeta?.headerMedia?.filename || // ✅ Fetch filename sent with templates
-    m?.raw?.document?.filename ||
-    m?.raw?.document?.name ||
-    m?.raw?.file?.filename ||
+    m?.templateMeta?.headerMedia?.filename ||
     "attachment"
   );
 }
@@ -1175,13 +1170,46 @@ export default function WhatsAppUI() {
       const activeNow = activeP10Ref.current;
       if (activeNow && p10 === activeNow) {
         setMessages((prev) => {
-          const seen = new Set(prev.map((m) => msgKey(m)));
+          const dir = String(normalizedMsg?.direction || "").toUpperCase();
+
+          // replace matching optimistic outbound temp message
+          if (dir === "OUTBOUND") {
+            const tempIndex = prev.findIndex(
+              (m) =>
+                String(m?._id || "").startsWith("tmp_") &&
+                String(m?.direction || "").toUpperCase() === "OUTBOUND" &&
+                phone10(m?.to || m?.phone || customerPhoneFromMsg(m)) === p10 &&
+                String(m?.text || "").trim() === String(normalizedMsg?.text || "").trim()
+            );
+
+            if (tempIndex !== -1) {
+              const next = [...prev];
+              next[tempIndex] = normalizedMsg;
+              return next;
+            }
+          }
+
+          // strong dedupe by waId first
+          if (
+            normalizedMsg?.waId &&
+            prev.some((m) => String(m?.waId || "") === String(normalizedMsg.waId))
+          ) {
+            return prev;
+          }
+
+          // fallback dedupe by computed key
           const k = msgKey(normalizedMsg);
-          if (seen.has(k)) return prev;
+          if (prev.some((m) => msgKey(m) === k)) {
+            return prev;
+          }
+
           return [...prev, normalizedMsg];
         });
 
         if (String(normalizedMsg?.direction || "").toUpperCase() === "INBOUND") {
+          setSessionExpired(false);
+          setErrorMessages("");
+
           const ad = activeDigitsRef.current;
           if (ad) markConversationRead(ad, { optimisticOnly: false });
         }
@@ -1214,7 +1242,9 @@ export default function WhatsAppUI() {
           const delta = Number(patch?.unreadCountDelta || 0);
           const hasAbsolute = typeof patch?.unreadCount === "number";
 
-          const nextUnread = hasAbsolute ? patch.unreadCount : Math.max(0, Number(c.unreadCount || 0) + delta);
+          const nextUnread = hasAbsolute
+            ? patch.unreadCount
+            : Math.max(0, Number(c.unreadCount || 0) + delta);
 
           const cleanedPatch = { ...patch };
           delete cleanedPatch.unreadCountDelta;
@@ -1226,6 +1256,16 @@ export default function WhatsAppUI() {
           };
         })
       );
+
+      const activeNow = activeP10Ref.current;
+      if (
+        activeNow &&
+        p10 === activeNow &&
+        (patch?.lastInboundAt || patch?.windowExpiresAt)
+      ) {
+        setSessionExpired(false);
+        setErrorMessages("");
+      }
     };
 
     s.on("wa:message", onMessage);
@@ -1356,7 +1396,16 @@ export default function WhatsAppUI() {
     const to = normalizeToWa(activeChat?.phone);
     const text = input.trim();
     if (!to || !text) return;
-    if (sessionExpired) return;
+
+    const liveWindow =
+      activeConversation?.windowExpiresAt &&
+      new Date(activeConversation.windowExpiresAt).getTime() > Date.now();
+
+    if (sessionExpired && !liveWindow) return;
+    if (sessionExpired && liveWindow) {
+      setSessionExpired(false);
+      setErrorMessages("");
+    }
 
     const p10 = phone10(to);
 
@@ -1372,7 +1421,6 @@ export default function WhatsAppUI() {
 
     setMessages((prev) => [...prev, optimistic]);
 
-    // ✅ clear draft for THIS chat only
     setInput("");
     clearDraftFor(p10);
 
@@ -1385,10 +1433,8 @@ export default function WhatsAppUI() {
       });
       refreshConversations(null, { silent: true });
     } catch (e) {
-      // remove optimistic
       setMessages((prev) => prev.filter((m) => m._id !== optimistic._id));
 
-      // ✅ restore draft for THIS chat
       setInput(text);
       setDraftFor(p10, text);
 
@@ -1596,8 +1642,8 @@ export default function WhatsAppUI() {
 
       refreshConversations(null, { silent: true });
       await loadMessagesInitial(to);
-      setSessionExpired(false);
-      setErrorMessages("");
+      setSessionExpired(true);
+      setErrorMessages("Template sent successfully.");
     } catch (e) {
       setErrorMessages(extractApiErrorMessage(e, "Failed to send template."));
     } finally {
@@ -1778,7 +1824,8 @@ export default function WhatsAppUI() {
 
       await loadMessagesInitial(to);
       refreshConversations(null, { silent: true });
-      setSessionExpired(false);
+      setSessionExpired(true);
+      setErrorMessages("Template sent successfully. New chat started.");
     } catch (e) {
       setNewChatError(extractApiErrorMessage(e, "Failed to send template"));
     } finally {
@@ -2012,7 +2059,11 @@ export default function WhatsAppUI() {
                 const wasUnread = !isOutbound && cutoff && ts > cutoff;
 
                 const bubbleText = msg?.text || "";
-                const hasMedia = !!resolveBestMediaUrl(msg) || !!mediaIdFromMsg(msg);
+                const hasMedia =
+                  !!String(msg?.media?.id || "").trim() ||
+                  !!String(msg?.media?.url || "").trim() ||
+                  !!String(msg?.templateMeta?.headerMedia?.id || "").trim() ||
+                  !!String(msg?.templateMeta?.headerMedia?.url || "").trim();
 
                 return (
                   <Box key={msgKey(msg)} alignSelf={isOutbound ? "flex-end" : "flex-start"}>

@@ -26,6 +26,14 @@ import {
 import DeleteIcon from "@mui/icons-material/Delete";
 import axios from "axios";
 
+// const API_BASE = "http://localhost:5001";
+const API_BASE = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "");
+
+const api = axios.create({
+  baseURL: API_BASE,
+  withCredentials: true,
+});
+
 const ORDER_FIELDS = new Set([
   "orderDate",
   "productOrdered",
@@ -74,16 +82,13 @@ const SalesMySales = () => {
   const fetchSales = async (agentAssignedName) => {
     setLoading(true);
     try {
-      const response = await axios.get(
-        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/merged-sales",
-        {
-          params: {
-            agentAssignedName,
-            page: currentPage + 1,
-            limit: rowsPerPage,
-          },
-        }
-      );
+      const response = await api.get("/api/merged-sales", {
+        params: {
+          agentAssignedName,
+          page: currentPage + 1,
+          limit: rowsPerPage,
+        },
+      });
 
       const { sales: updatedSales, totalSales = 0 } = response.data;
       setSales(updatedSales);
@@ -197,12 +202,9 @@ const SalesMySales = () => {
     try {
       setDeletingRowKey(rowKey);
 
-      await axios.delete(
-        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/merged-sales/row",
-        {
-          data: { leadId, orderId },
-        }
-      );
+      await api.delete("/api/merged-sales/row", {
+  data: { leadId, orderId },
+});
 
       await fetchSales(agentAssignedName);
     } catch (error) {
@@ -271,10 +273,7 @@ const SalesMySales = () => {
       };
 
       try {
-        const res = await axios.post(
-          "https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads",
-          payload
-        );
+       const res = await api.post("/api/leads", payload);
         const savedLead = res.data.lead;
         updatedSales[index] = { ...savedLead, myOrderData: null };
         setSales(updatedSales);
@@ -303,10 +302,7 @@ const SalesMySales = () => {
       }
 
       try {
-        await axios.put(
-          `https://muditamleads-14f32a10d7f7.herokuapp.com/api/merged-sales/${targetId}`,
-          payload
-        );
+        await api.put(`/api/merged-sales/${targetId}`, payload);
       } catch (error) {
         console.error("Error updating sale:", error);
       }
