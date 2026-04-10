@@ -1267,7 +1267,7 @@ const LeadList = ({
                   {employees.map((employee) => {
                     const displayName =
                       employee.fullName ||
-                      employee.agentName ||
+                      employee.agentName || 
                       (employee.firstName && employee.lastName
                         ? `${employee.firstName} ${employee.lastName}`
                         : employee.name) ||

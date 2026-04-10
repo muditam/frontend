@@ -68,7 +68,7 @@ function readCurrentUser() {
       const fullName = c?.fullName || c?.name || "";
       if (role) return { _id: id ? String(id) : undefined, role: String(role), email, fullName };
     }
-  } catch {}
+  } catch { }
   return null;
 }
 
@@ -206,7 +206,7 @@ export default function AbandonedCheckouts() {
   // Fetch on param changes, but only when ready
   useEffect(() => {
     fetchData();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     readyToFetch,
     page,
@@ -234,15 +234,15 @@ export default function AbandonedCheckouts() {
           prev.map((r) =>
             r._id === row._id
               ? {
-                  ...r,
-                  assignedExpert: {
-                    _id: emp._id,
-                    fullName: emp.fullName,
-                    email: emp.email,
-                    role: emp.role,
-                  },
-                  assignedAt: data?.assignedAt || new Date().toISOString(),
-                }
+                ...r,
+                assignedExpert: {
+                  _id: emp._id,
+                  fullName: emp.fullName,
+                  email: emp.email,
+                  role: emp.role,
+                },
+                assignedAt: data?.assignedAt || new Date().toISOString(),
+              }
               : r
           )
         );
@@ -366,19 +366,32 @@ export default function AbandonedCheckouts() {
                       <TableCell>
                         <Stack spacing={0.5}>
                           {preview.map((it, idx) => (
-                            <Typography key={idx} variant="body2"> 
+                            <Typography key={idx} variant="body2">
                               <b>{it.title || "-"}</b>
                               {it.variantTitle ? ` — ${it.variantTitle}` : ""} • x{it.quantity ?? 1} •{" "}
                               {formatMoney(it.finalLinePrice ?? (it.unitPrice || 0) * (it.quantity ?? 1), currency)}
                             </Typography>
                           ))}
-                        </Stack> 
-                      </TableCell> 
+                        </Stack>
+                      </TableCell>
 
                       <TableCell>{formatMoney(r.total, currency)}</TableCell>
 
-                      <TableCell>
-                        {r.customer?.state || "-"} 
+                      <TableCell sx={{ minWidth: 260 }}>
+                        {r.customerAddressText ||
+                          [
+                            r.customerAddress?.name,
+                            r.customerAddress?.line1,
+                            r.customerAddress?.line2,
+                            r.customerAddress?.city,
+                            r.customerAddress?.state,
+                            r.customerAddress?.postalCode,
+                            r.customerAddress?.country,
+                          ]
+                            .filter(Boolean)
+                            .join(", ") ||
+                          r.customer?.state ||
+                          "-"}
                       </TableCell>
 
                       <TableCell>
