@@ -34,13 +34,14 @@ import Popover from "@mui/material/Popover";
 import { Badge } from "@mui/material";
 import axios from "axios";
 
-/**
- * Returns a label based on the createdAt date:
- * - "Today" if created today
- * - "Yesterday" if created yesterday
- * - For 2-7 days ago, returns the weekday name
- * - If older than 7 days, returns full date as dd/MM/yyyy
- */
+// const API_BASE = "http://localhost:5001";
+const API_BASE = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "");
+
+const api = axios.create({
+  baseURL: API_BASE,
+  withCredentials: true,
+});
+
 const getCreatedAtLabel = (createdAt) => {
   if (!createdAt) return "";
   const now = new Date();
@@ -325,10 +326,7 @@ const LeadList = ({
         params.userName = loggedInUser.fullName;
       }
 
-      const res = await axios.get(
-        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/customers/counts",
-        { params }
-      );
+      const res = await api.get("/api/customers/counts", { params });
 
       setOpenCount(res.data.openCount || 0);
       setWonCount(res.data.wonCount || 0);
@@ -358,12 +356,9 @@ const LeadList = ({
         return;
       }
 
-      const duplicateCheck = await axios.get(
-        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/check-duplicate",
-        {
-          params: { contactNumber: leadData.phone },
-        }
-      );
+      const duplicateCheck = await api.get("/api/leads/check-duplicate", {
+  params: { contactNumber: leadData.phone },
+});
 
       if (duplicateCheck.data.exists) {
         setError("Phone number already exists.");
@@ -382,10 +377,7 @@ const LeadList = ({
         leadDate: ld.toISOString(),
       };
 
-      await axios.post(
-        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/customers",
-        payload
-      );
+      await api.post("/api/customers", payload);
 
       setError("");
       setOpen(false);
@@ -431,12 +423,7 @@ const LeadList = ({
         params.skip = skip;
       }
 
-      const response = await axios.get(
-        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/customers",
-        {
-          params,
-        }
-      );
+      const response = await api.get("/api/customers", { params });
 
       if (reset) {
         setJumpOffset(skip || 0);
