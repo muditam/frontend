@@ -43,6 +43,11 @@ import axios from "axios";
 const BASE_URL = "https://muditamleads-14f32a10d7f7.herokuapp.com";
 const PUBLIC_LINK_BASE = "https://muditam.com/apps/consultation/diet-plan";
 
+const api = axios.create({
+  baseURL: BASE_URL,
+  withCredentials: true,
+});
+
 // ---------- HELPERS ----------
 const WEEKLY_TYPE = "weekly-14";
 const MONTHLY_TYPE = "monthly-options";
@@ -336,7 +341,7 @@ export default function CreateDietPlanPopup({
       setLoadingTemplates(true);
       setTemplatesError("");
       try {
-        const { data } = await axios.get(`${BASE_URL}/api/diet-templates`, {
+        const { data } = await api.get(`/api/diet-templates`, {
           params: { status: "published" },
         });
         const weekly = (data || []).filter((t) => t.type === WEEKLY_TYPE);
@@ -359,7 +364,7 @@ export default function CreateDietPlanPopup({
     if (!open || !leadId) return;
     (async () => {
       try {
-        const { data } = await axios.get(`${BASE_URL}/api/leads/${leadId}`);
+        const { data } = await api.get(`/api/leads/${leadId}`);
         const hp = data?.healthProfile || {};
         const det = data?.details || {};
 
@@ -501,7 +506,7 @@ export default function CreateDietPlanPopup({
       setSavingVitals(true);
       setVitalsErrorMsg("");
       // Update both places for compatibility: details + healthProfile
-      await axios.put(`${BASE_URL}/api/leads/${leadId}`, {
+      await api.put(`/api/leads/${leadId}`, {
         details: { age: a, height: h, heightCm: h, weight: w, weightKg: w },
         healthProfile: { age: a, heightCm: h, weightKg: w },
       });
@@ -629,7 +634,7 @@ export default function CreateDietPlanPopup({
       ...payload,
       createdBy: createdByName,
     };
-    const { data } = await axios.post(`${BASE_URL}/api/diet-plans`, body);
+    const { data } = await api.post(`/api/diet-plans`, body); 
     return data;
   };
 
