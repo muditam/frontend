@@ -34,7 +34,6 @@ import Popover from "@mui/material/Popover";
 import { Badge } from "@mui/material";
 import axios from "axios";
 
-// const API_BASE = "http://localhost:5001";
 const API_BASE = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "");
 
 const api = axios.create({

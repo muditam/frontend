@@ -16,6 +16,13 @@ import {
 } from "@mui/material";
 import axios from "axios";
 
+const API_BASE = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "");
+
+const api = axios.create({
+  baseURL: API_BASE,
+  withCredentials: true,
+});
+
 // Options for the consultation form
 const currentMedicationsOptions = [
   "Metformin",
@@ -75,15 +82,7 @@ const gutIssuesOptions = ["Yes", "No"];
 const energyLevelsOptions = ["High", "Moderate", "Low"];
 const sleepQualityOptions = ["Good", "Fair", "Poor"];
 const sugarCravingsOptions = ["Yes", "No"];
-const durationOfDiabetesOptions = [
-  "Less than 1 year",
-  "1-3 years",
-  "4-5 years",
-  "6-10 years",
-  "More than 10 years",
-];
 
-// Checklist items for the call section with tooltips
 const checklistItems = [
   {
     label: "Opening & Customer Details",
@@ -122,8 +121,29 @@ const checklistItems = [
   },
 ];
 
+const products = [
+  "Karela Jamun Fizz",
+  "Sugar Defend Pro",
+  "Vasant Kusmakar Ras",
+  "Liver Fix",
+  "Stress & Sleep",
+  "Chandraprabha Vati",
+  "Heart Defend Pro",
+  "Performance Forever",
+  "Power Gut",
+  "Shilajit with Gold",
+  "Nerve Fix",
+  "Core Essentials",
+  "Omega Fuel",
+  "Thyroid Defend Pro",
+  "Glucometer",
+  "Dumbbells",
+  "HbA1c - Blood Test",
+  "Full Body Checkup",
+  "Lipid + HbA1c + Liver",
+];
+
 const Consultation = ({ customerId }) => {
-  // Form state for consultation fields
   const [formData, setFormData] = useState({
     currentMedications: [],
     sideEffects: "",
@@ -137,11 +157,10 @@ const Consultation = ({ customerId }) => {
     gutIssues: "",
     energyLevels: "",
     sleepQuality: "",
-    sugarCravings: "", 
-    notesCons: "", 
+    sugarCravings: "",
+    notesCons: "",
   });
 
-  // Call Checklist state
   const [callChecklist, setCallChecklist] = useState({
     openingCustomerDetails: false,
     symptomAnalysis: false,
@@ -151,71 +170,78 @@ const Consultation = ({ customerId }) => {
     closingAssurance: false,
   });
 
-  // State for products recommended (from Closing section)
   const [selectedProducts, setSelectedProducts] = useState([]);
 
-  // Handler for text/select fields
   const handleChange = (e) => {
-       const { name, value } = e.target;
-       const updated = { ...formData, [name]: value };
-       setFormData(updated);
-       autoSaveConsultation(updated, callChecklist, selectedProducts);
-     };
+    const { name, value } = e.target;
+    const updated = { ...formData, [name]: value };
+    setFormData(updated);
+    autoSaveConsultation(updated, callChecklist, selectedProducts);
+  };
 
-  // Handler for multi-select fields
   const handleMultiSelectChange = (field, newValue) => {
-       const updated = { ...formData, [field]: newValue };
-       setFormData(updated);
-       autoSaveConsultation(updated, callChecklist, selectedProducts);
-     }
+    const updated = { ...formData, [field]: newValue };
+    setFormData(updated);
+    autoSaveConsultation(updated, callChecklist, selectedProducts);
+  };
 
-  // Handler for checklist changes
   const handleCheckboxChange = (e) => {
-       const { name, checked } = e.target;
-       const updatedChecklist = { ...callChecklist, [name]: checked };
-       setCallChecklist(updatedChecklist);
-       autoSaveConsultation(formData, updatedChecklist, selectedProducts);
-     };
+    const { name, checked } = e.target;
+    const updatedChecklist = { ...callChecklist, [name]: checked };
+    setCallChecklist(updatedChecklist);
+    autoSaveConsultation(formData, updatedChecklist, selectedProducts);
+  };
 
-  // Handler for product selection toggling
   const handleProductClick = (product) => {
-       const updatedProducts = selectedProducts.includes(product)
-         ? selectedProducts.filter((p) => p !== product)
-         : [...selectedProducts, product];
-       setSelectedProducts(updatedProducts);
-       autoSaveConsultation(formData, callChecklist, updatedProducts);
-     };
+    const updatedProducts = selectedProducts.includes(product)
+      ? selectedProducts.filter((p) => p !== product)
+      : [...selectedProducts, product];
 
-  // On mount, fetch existing consultation data (if available) for the specific customerId
+    setSelectedProducts(updatedProducts);
+    autoSaveConsultation(formData, callChecklist, updatedProducts);
+  };
+
   useEffect(() => {
-    if (customerId) {
-      axios
-        .get(`https://muditamleads-14f32a10d7f7.herokuapp.com/api/consultation-details?customerId=${customerId}`)
-        .then((response) => {
-          if (response.data && response.data.length > 0) {
-            const savedConsultation = response.data[0].consultation;
-            if (savedConsultation) {
-              setFormData((prev) => ({
-                ...prev,
-                ...savedConsultation,
-              }));
-              if (savedConsultation.checklist) {
-                setCallChecklist(savedConsultation.checklist);
-              }
-              if (savedConsultation.selectedProducts) {
-                setSelectedProducts(savedConsultation.selectedProducts);
-              }
+    if (!customerId) return;
+
+    api
+      .get("/api/consultation-details", {
+        params: { customerId },
+      })
+      .then((response) => {
+        if (response.data && response.data.length > 0) {
+          const savedConsultation = response.data[0].consultation;
+          if (savedConsultation) {
+            setFormData((prev) => ({
+              ...prev,
+              ...savedConsultation,
+            }));
+
+            if (savedConsultation.checklist) {
+              setCallChecklist(savedConsultation.checklist);
+            }
+
+            if (savedConsultation.selectedProducts) {
+              setSelectedProducts(savedConsultation.selectedProducts);
             }
           }
-        })
-        .catch((error) =>
-          console.error("Error fetching consultation details:", error)
-        );
-    }
+        }
+      })
+      .catch((error) =>
+        console.error(
+          "Error fetching consultation details:",
+          error?.response?.data || error.message
+        )
+      );
   }, [customerId]);
 
-  const autoSaveConsultation = (updatedData, updatedChecklist, updatedProducts) => {
+  const autoSaveConsultation = (
+    updatedData,
+    updatedChecklist,
+    updatedProducts
+  ) => {
     if (!customerId) return;
+
     const payload = {
       customerId,
       consultation: {
@@ -224,42 +250,21 @@ const Consultation = ({ customerId }) => {
         selectedProducts: updatedProducts,
       },
     };
-    axios
-      .post(
-        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/consultation-details",
-        payload
-      )
-      .catch((err) => console.error("Error auto-saving consultation:", err));
-  };
 
-  const products = [
-    "Karela Jamun Fizz",
-    "Sugar Defend Pro",
-    "Vasant Kusmakar Ras",
-    "Liver Fix",
-    "Stress & Sleep",
-    "Chandraprabha Vati",
-    "Heart Defend Pro",
-    "Performance Forever",
-    "Power Gut",
-    "Shilajit with Gold", 
-    "Nerve Fix",
-    "Core Essentials",
-    "Omega Fuel",
-    "Thyroid Defend Pro",
-    "Glucometer",
-    "Dumbbells",
-    "HbA1c - Blood Test",
-    "Full Body Checkup",
-    "Lipid + HbA1c + Liver",
-  ];
+    api
+      .post("/api/consultation-details", payload)
+      .catch((err) =>
+        console.error(
+          "Error auto-saving consultation:",
+          err?.response?.data || err.message
+        )
+      );
+  };
 
   return (
     <Box sx={{ display: "flex", height: "100%" }}>
-      {/* Left Section (80%) – Consultation Form */}
       <Box sx={{ width: "80%", p: 2 }}>
         <Grid container spacing={2}>
-          {/* Row 1: Current Medications (Multi-select) */}
           <Grid item xs={4}>
             <Autocomplete
               multiple
@@ -270,12 +275,15 @@ const Consultation = ({ customerId }) => {
                 handleMultiSelectChange("currentMedications", newValue)
               }
               renderInput={(params) => (
-                <TextField {...params} label="Current Medications" size="small" />
+                <TextField
+                  {...params}
+                  label="Current Medications"
+                  size="small"
+                />
               )}
             />
           </Grid>
-          
-          {/* Row 2: Side Effects, Sudden Sugar Fluctuations, Family History */}
+
           <Grid item xs={4}>
             <FormControl fullWidth size="small">
               <InputLabel>Side Effects</InputLabel>
@@ -293,6 +301,7 @@ const Consultation = ({ customerId }) => {
               </Select>
             </FormControl>
           </Grid>
+
           <Grid item xs={4}>
             <FormControl fullWidth size="small">
               <InputLabel>Sudden Sugar Fluctuations</InputLabel>
@@ -310,6 +319,7 @@ const Consultation = ({ customerId }) => {
               </Select>
             </FormControl>
           </Grid>
+
           <Grid item xs={4}>
             <FormControl fullWidth size="small">
               <InputLabel>Family History of Diabetes</InputLabel>
@@ -364,7 +374,6 @@ const Consultation = ({ customerId }) => {
             </FormControl>
           </Grid>
 
-          {/* Row 3: Symptoms (Multi-select) */}
           <Grid item xs={6}>
             <Autocomplete
               multiple
@@ -379,7 +388,7 @@ const Consultation = ({ customerId }) => {
               )}
             />
           </Grid>
-          {/* Row 4: Other Conditions (Multi-select) */}
+
           <Grid item xs={6}>
             <Autocomplete
               multiple
@@ -394,7 +403,7 @@ const Consultation = ({ customerId }) => {
               )}
             />
           </Grid>
-          {/* Row 5: Stress Level, Pain in Liver, Gut Issues */}
+
           <Grid item xs={4}>
             <FormControl fullWidth size="small">
               <InputLabel>Stress Level</InputLabel>
@@ -412,6 +421,7 @@ const Consultation = ({ customerId }) => {
               </Select>
             </FormControl>
           </Grid>
+
           <Grid item xs={4}>
             <FormControl fullWidth size="small">
               <InputLabel>Pain in Liver</InputLabel>
@@ -429,6 +439,7 @@ const Consultation = ({ customerId }) => {
               </Select>
             </FormControl>
           </Grid>
+
           <Grid item xs={4}>
             <FormControl fullWidth size="small">
               <InputLabel>Gut Issues</InputLabel>
@@ -446,7 +457,7 @@ const Consultation = ({ customerId }) => {
               </Select>
             </FormControl>
           </Grid>
-          {/* Row 6: Energy Levels, Sleep Quality, Sugar Cravings */}
+
           <Grid item xs={4}>
             <FormControl fullWidth size="small">
               <InputLabel>Energy Levels</InputLabel>
@@ -464,6 +475,7 @@ const Consultation = ({ customerId }) => {
               </Select>
             </FormControl>
           </Grid>
+
           <Grid item xs={4}>
             <FormControl fullWidth size="small">
               <InputLabel>Sleep Quality</InputLabel>
@@ -481,25 +493,29 @@ const Consultation = ({ customerId }) => {
               </Select>
             </FormControl>
           </Grid>
-          
+
           <Grid item xs={4}>
-            <TextField 
-              name="notesCons" 
-              label="Notes (cons)" 
-              value={formData.notesCons} 
-              onChange={handleChange} 
-              fullWidth 
-              size="small" 
-              multiline 
-              rows={2} 
-            /> 
+            <TextField
+              name="notesCons"
+              label="Notes (cons)"
+              value={formData.notesCons}
+              onChange={handleChange}
+              fullWidth
+              size="small"
+              multiline
+              rows={2}
+            />
           </Grid>
 
-          {/* Products Recommended */}
           <Grid item xs={12}>
             <Typography
               variant="subtitle1"
-              sx={{ mb: 1, fontSize: "0.9rem", fontWeight: "bold", color: "black" }}
+              sx={{
+                mb: 1,
+                fontSize: "0.9rem",
+                fontWeight: "bold",
+                color: "black",
+              }}
             >
               Products Recommended:
             </Typography>
@@ -507,12 +523,20 @@ const Consultation = ({ customerId }) => {
               {products.map((product) => (
                 <Grid item xs={2} key={product}>
                   <Button
-                    variant={selectedProducts.includes(product) ? "contained" : "outlined"}
+                    variant={
+                      selectedProducts.includes(product)
+                        ? "contained"
+                        : "outlined"
+                    }
                     size="small"
                     onClick={() => handleProductClick(product)}
                     sx={{
-                      backgroundColor: selectedProducts.includes(product) ? "green" : "inherit",
-                      color: selectedProducts.includes(product) ? "white" : "black",
+                      backgroundColor: selectedProducts.includes(product)
+                        ? "green"
+                        : "inherit",
+                      color: selectedProducts.includes(product)
+                        ? "white"
+                        : "black",
                       borderColor: "black",
                       fontSize: "0.60rem",
                       width: "100%",
@@ -524,13 +548,17 @@ const Consultation = ({ customerId }) => {
               ))}
             </Grid>
           </Grid>
-
-           
         </Grid>
       </Box>
 
-      {/* Right Section – Call Checklist */}
-      <Box sx={{ width: "20%", p: 2, bgcolor: "#e0e0e0", borderLeft: "1px solid #ccc" }}>
+      <Box
+        sx={{
+          width: "20%",
+          p: 2,
+          bgcolor: "#e0e0e0",
+          borderLeft: "1px solid #ccc",
+        }}
+      >
         <Typography
           variant="h6"
           align="center"
@@ -538,6 +566,7 @@ const Consultation = ({ customerId }) => {
         >
           Call Checklist
         </Typography>
+
         {checklistItems.map((item) => (
           <Tooltip key={item.key} title={item.tooltip} placement="right" arrow>
             <FormControlLabel
@@ -550,7 +579,12 @@ const Consultation = ({ customerId }) => {
                 />
               }
               label={item.label}
-              sx={{ "& .MuiFormControlLabel-label": { fontSize: "0.7rem", color: "black" } }} 
+              sx={{
+                "& .MuiFormControlLabel-label": {
+                  fontSize: "0.7rem",
+                  color: "black",
+                },
+              }}
             />
           </Tooltip>
         ))}

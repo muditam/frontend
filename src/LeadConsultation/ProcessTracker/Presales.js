@@ -8,18 +8,24 @@ import {
   FormControl,
   InputLabel,
   Select,
-  Typography, 
+  Typography,
   Tooltip,
   FormControlLabel,
   Checkbox,
 } from "@mui/material";
 import axios from "axios";
 
+const API_BASE = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "");
+
+const api = axios.create({
+  baseURL: API_BASE,
+  withCredentials: true,
+});
+
 // Fixed cell width style for form fields
 const cellStyle = { minWidth: "220px", maxWidth: "220px" };
 
-const Presales = ({ customerId, parentLeadStatus  }) => {
-  // State for presales fields; note that "notes" will be saved manually.
+const Presales = ({ customerId, parentLeadStatus }) => {
   const [formData, setFormData] = useState({
     leadStatus: "New Lead",
     hba1c: "",
@@ -58,10 +64,8 @@ const Presales = ({ customerId, parentLeadStatus  }) => {
     "Budget issue",
   ];
 
-  // State for file preview URL.
   const [filePreviewUrl, setFilePreviewUrl] = useState("");
 
-  // State for call checklist.
   const [checklist, setChecklist] = useState({
     confirmedCustomerIdentity: false,
     confirmedLeadInquiry: false,
@@ -76,7 +80,6 @@ const Presales = ({ customerId, parentLeadStatus  }) => {
     introduceDoctor: false,
   });
 
-  // Checklist items with tooltips.
   const checklistItems = [
     {
       label: "Confirmed customer identity",
@@ -145,15 +148,20 @@ const Presales = ({ customerId, parentLeadStatus  }) => {
     },
   ];
 
-  // State for "Assign Expert" options.
   const [assignExpertOptions, setAssignExpertOptions] = useState([]);
 
-  // When customerId changes, fetch existing presales data and assign expert options.
   useEffect(() => {
-    if (customerId) {
-      axios
-        .get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/consultation-details?customerId=" + customerId)
-        .then((response) => {
+    let isMounted = true;
+
+    const fetchData = async () => {
+      try {
+        if (customerId) {
+          const response = await api.get("/api/consultation-details", {
+            params: { customerId },
+          });
+
+          if (!isMounted) return;
+
           if (response.data && response.data.length > 0) {
             const savedPresales = response.data[0].presales;
             if (savedPresales) {
@@ -163,53 +171,58 @@ const Presales = ({ customerId, parentLeadStatus  }) => {
               }
             }
           }
-        })
-        .catch((error) =>
-          console.error("Error fetching consultation details:", error)
-        );
-    }
-    // Fetch assign expert options (active Retention Agents).
-    axios
-      .get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/employees")
-      .then((response) => {
-        const filteredEmployees = response.data.filter(
+        }
+
+        const employeeResponse = await api.get("/api/employees");
+        if (!isMounted) return;
+
+        const filteredEmployees = (employeeResponse.data || []).filter(
           (emp) => emp.status === "active" && emp.role === "Retention Agent"
         );
         setAssignExpertOptions(filteredEmployees);
-      })
-      .catch((error) => console.error("Error fetching employees:", error));
+      } catch (error) {
+        console.error(
+          "Error fetching presales data:",
+          error?.response?.data || error.message
+        );
+      }
+    };
+
+    fetchData();
+
+    return () => {
+      isMounted = false;
+      if (filePreviewUrl) {
+        URL.revokeObjectURL(filePreviewUrl);
+      }
+    };
   }, [customerId]);
 
-  useEffect(() => { 
-     setFormData(prev => ({
-       ...prev,
-        leadStatus: parentLeadStatus
-     }));
-    }, [parentLeadStatus]);
+  useEffect(() => {
+    setFormData((prev) => ({
+      ...prev,
+      leadStatus: parentLeadStatus,
+    }));
+  }, [parentLeadStatus]);
 
-  // Updated auto-save function that converts fields as needed.
   const autoSavePresales = (updatedFormData, updatedChecklist) => {
     if (!customerId) return;
 
-    // Build payload excluding notes.
     const dataToSave = {
       ...updatedFormData,
       file: updatedFormData.file ? updatedFormData.file.name : "",
       checklist: updatedChecklist,
     };
 
-    // Remove "notes" so that they aren't overwritten unintentionally.
     delete dataToSave.notes;
 
-    // Convert "weight" to a number if provided; if empty, remove it.
     if (dataToSave.weight === "") {
       delete dataToSave.weight;
-    } else {
+    } else if (dataToSave.weight !== undefined && dataToSave.weight !== null) {
       dataToSave.weight = Number(dataToSave.weight);
     }
 
-    // For "assignExpert": if it's an empty string, remove it.
-    if (dataToSave.assignExpert === "") { 
+    if (dataToSave.assignExpert === "") {
       delete dataToSave.assignExpert;
     }
 
@@ -218,24 +231,24 @@ const Presales = ({ customerId, parentLeadStatus  }) => {
       presales: dataToSave,
     };
 
-    axios
-      .post("https://muditamleads-14f32a10d7f7.herokuapp.com/api/consultation-details", payload)
-      .catch((error) =>
-        console.error("Error auto-saving presales data:", error)
-      );
+    api.post("/api/consultation-details", payload).catch((error) =>
+      console.error(
+        "Error auto-saving presales data:",
+        error?.response?.data || error.message
+      )
+    );
   };
 
-  // Handle field change events (except for notes) to compute updated state and auto-save.
   const handleChange = (e) => {
     const { name, value } = e.target;
     const updatedFormData = { ...formData, [name]: value };
     setFormData(updatedFormData);
+
     if (name !== "notes") {
       autoSavePresales(updatedFormData, checklist);
     }
   };
 
-  // File handling: update file and auto-save.
   const handleFileChange = (e) => {
     const file = e.target.files[0];
     if (file) {
@@ -243,22 +256,26 @@ const Presales = ({ customerId, parentLeadStatus  }) => {
         alert("File size should be less than 1MB.");
         return;
       }
+
+      if (filePreviewUrl) {
+        URL.revokeObjectURL(filePreviewUrl);
+      }
+
       const url = URL.createObjectURL(file);
       setFilePreviewUrl(url);
+
       const updatedFormData = { ...formData, file };
       setFormData(updatedFormData);
       autoSavePresales(updatedFormData, checklist);
     }
   };
 
-  // Open file preview.
   const handleFileButtonClick = () => {
     if (filePreviewUrl) {
       window.open(filePreviewUrl, "_blank");
     }
   };
 
-  // Handle checklist changes and auto-save.
   const handleCheckboxChange = (e) => {
     const { name, checked } = e.target;
     const updatedChecklist = { ...checklist, [name]: checked };
@@ -266,86 +283,45 @@ const Presales = ({ customerId, parentLeadStatus  }) => {
     autoSavePresales(formData, updatedChecklist);
   };
 
-  // Save Notes button handler – sends only the "notes" field.
   const handleSaveNotes = () => {
     if (!customerId) return;
+
     const payload = {
       customerId,
       presales: {
         notes: formData.notes,
       },
     };
-    axios
-      .post("https://muditamleads-14f32a10d7f7.herokuapp.com/api/consultation-details", payload)
-      .then(() => {
-        // Optionally, refresh data after saving notes.
-      })
+
+    api
+      .post("/api/consultation-details", payload)
       .catch((error) =>
-        console.error("Error saving notes:", error)
+        console.error(
+          "Error saving notes:",
+          error?.response?.data || error.message
+        )
       );
   };
 
-  // Determine if "Assign Expert" should be editable.
   const isAssignExpertEditable =
-  parentLeadStatus  === "CONS Scheduled" || formData.leadStatus === "CONS Done";
+    parentLeadStatus === "CONS Scheduled" || formData.leadStatus === "CONS Done";
 
   return (
     <Box sx={{ display: "flex", height: "100%" }}>
-      {/* Left Section (80%) - Presales Form */}
       <Box sx={{ width: "80%", p: 2 }}>
         <form>
           <Grid container spacing={2}>
-          <Grid item xs={6} sx={cellStyle}>
-            <TextField
-            name="doctorCons"
-            label="Doctor Consultation By"
-            size="small"
-            fullWidth
-            value={formData.doctorCons}
-            onChange={handleChange}
-            />
-          </Grid>
+            <Grid item xs={6} sx={cellStyle}>
+              <TextField
+                name="doctorCons"
+                label="Doctor Consultation By"
+                size="small"
+                fullWidth
+                value={formData.doctorCons}
+                onChange={handleChange}
+              />
+            </Grid>
 
-            {/* Assign Expert dropdown – wrapped in Tooltip if disabled */}
-            {/* <Grid item xs={6} sx={cellStyle}>
-              <Tooltip
-                title={!isAssignExpertEditable ? "Update Lead Status First" : ""}
-                arrow
-              >
-                <span>
-                  <FormControl
-                    fullWidth
-                    size="small"
-                    disabled={!isAssignExpertEditable}
-                  >
-                    <InputLabel>Retention Agent</InputLabel> 
-                    <Select
-                      name="assignExpert"
-                      value={formData.assignExpert || ""}
-                      onChange={(e) => {
-                        const updatedFormData = {
-                          ...formData,
-                          assignExpert: e.target.value,
-                        };
-                        setFormData(updatedFormData);
-                        autoSavePresales(updatedFormData, checklist);
-                      }}
-                      label="Assign Expert"
-                    >
-                      {assignExpertOptions.map((option) => (
-                        <MenuItem key={option._id} value={option._id}>
-                          {option.fullName ||
-                            option.agentName ||
-                            `${option.firstName} ${option.lastName}`}
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
-                </span>
-              </Tooltip>
-            </Grid> */}
-
-            {/* Row 1: HbA1c, Last Test Done, Fasting Sugar, PP Sugar */}
             <Grid item xs={3} sx={cellStyle}>
               <TextField
                 name="hba1c"
@@ -408,7 +384,6 @@ const Presales = ({ customerId, parentLeadStatus  }) => {
               />
             </Grid>
 
-            {/* Row 2: Duration of Diabetes, Gender, Diet Type, Weight */}
             <Grid item xs={3} sx={cellStyle}>
               <FormControl fullWidth size="small">
                 <InputLabel>Duration of Diabetes</InputLabel>
@@ -418,9 +393,7 @@ const Presales = ({ customerId, parentLeadStatus  }) => {
                   label="Duration of Diabetes"
                   onChange={handleChange}
                 >
-                  <MenuItem value="Less than 1 year">
-                    Less than 1 year
-                  </MenuItem>
+                  <MenuItem value="Less than 1 year">Less than 1 year</MenuItem>
                   <MenuItem value="1-3 years">1-3 years</MenuItem>
                   <MenuItem value="4-5 years">4-5 years</MenuItem>
                   <MenuItem value="6-10 years">6-10 years</MenuItem>
@@ -472,7 +445,6 @@ const Presales = ({ customerId, parentLeadStatus  }) => {
               />
             </Grid>
 
-            {/* Row 3: Sitting Time, Exercise Routine, Outside Meals, Time of Sleep */}
             <Grid item xs={3} sx={cellStyle}>
               <FormControl fullWidth size="small">
                 <InputLabel>Sitting Time</InputLabel>
@@ -482,9 +454,7 @@ const Presales = ({ customerId, parentLeadStatus  }) => {
                   label="Sitting Time"
                   onChange={handleChange}
                 >
-                  <MenuItem value="Less than 1 hour">
-                    Less than 1 hour
-                  </MenuItem>
+                  <MenuItem value="Less than 1 hour">Less than 1 hour</MenuItem>
                   <MenuItem value="1-2 hours">1-2 hours</MenuItem>
                   <MenuItem value="3-4 hours">3-4 hours</MenuItem>
                   <MenuItem value="5-6 hours">5-6 hours</MenuItem>
@@ -506,12 +476,8 @@ const Presales = ({ customerId, parentLeadStatus  }) => {
                   onChange={handleChange}
                 >
                   <MenuItem value="Daily">Daily</MenuItem>
-                  <MenuItem value="4-5 times a week">
-                    4-5 times a week
-                  </MenuItem>
-                  <MenuItem value="2-3 times a week">
-                    2-3 times a week
-                  </MenuItem>
+                  <MenuItem value="4-5 times a week">4-5 times a week</MenuItem>
+                  <MenuItem value="2-3 times a week">2-3 times a week</MenuItem>
                   <MenuItem value="Once a week">Once a week</MenuItem>
                   <MenuItem value="Rarely">Rarely</MenuItem>
                   <MenuItem value="Never">Never</MenuItem>
@@ -528,15 +494,9 @@ const Presales = ({ customerId, parentLeadStatus  }) => {
                   onChange={handleChange}
                 >
                   <MenuItem value="Daily">Daily</MenuItem>
-                  <MenuItem value="4-5 times a week">
-                    4-5 times a week
-                  </MenuItem>
-                  <MenuItem value="2-3 times a week">
-                    2-3 times a week
-                  </MenuItem>
-                  <MenuItem value="Once a week">
-                    Once a week
-                  </MenuItem>
+                  <MenuItem value="4-5 times a week">4-5 times a week</MenuItem>
+                  <MenuItem value="2-3 times a week">2-3 times a week</MenuItem>
+                  <MenuItem value="Once a week">Once a week</MenuItem>
                   <MenuItem value="Rarely">Rarely</MenuItem>
                   <MenuItem value="Never">Never</MenuItem>
                 </Select>
@@ -565,7 +525,6 @@ const Presales = ({ customerId, parentLeadStatus  }) => {
               </FormControl>
             </Grid>
 
-            {/* Row 4: Notes (full width) - Only saved with the Save Notes button */}
             <Grid item xs={6}>
               <TextField
                 label="Notes"
@@ -579,7 +538,6 @@ const Presales = ({ customerId, parentLeadStatus  }) => {
               />
             </Grid>
 
-            {/* Row 5: Upload File */}
             <Grid item xs={6} sx={cellStyle}>
               <Button
                 variant="outlined"
@@ -602,7 +560,6 @@ const Presales = ({ customerId, parentLeadStatus  }) => {
               )}
             </Grid>
 
-            {/* Save Notes Button */}
             <Grid item xs={12}>
               <Box sx={{ display: "flex", justifyContent: "flex-end", mt: 2 }}>
                 <Button
@@ -619,7 +576,6 @@ const Presales = ({ customerId, parentLeadStatus  }) => {
         </form>
       </Box>
 
-      {/* Right Section (20%) - Call Checklist */}
       <Box
         sx={{
           width: "20%",
@@ -643,9 +599,10 @@ const Presales = ({ customerId, parentLeadStatus  }) => {
                   name={item.name}
                   checked={checklist[item.name] || false}
                   onChange={handleCheckboxChange}
-                  sx={{ "& .MuiTypography-root": { fontSize: "0.7rem" },
-                  p: "6px",
-                }}
+                  sx={{
+                    "& .MuiTypography-root": { fontSize: "0.7rem" },
+                    p: "6px",
+                  }}
                 />
               }
               label={item.label}

@@ -3,49 +3,61 @@ import LeadList from "./LeadList";
 import ConsultationDetails from "./ConsultationDetails";
 import axios from "axios";
 
+const API_BASE = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "");
+
+const api = axios.create({
+  baseURL: API_BASE,
+  withCredentials: true,
+});
+
 const LeadManagement = () => {
   const [employees, setEmployees] = useState([]);
   const [location, setLocation] = useState("");
   const [selectedCustomerId, setSelectedCustomerId] = useState(null);
   const [reloadTrigger, setReloadTrigger] = useState(0);
 
-  // Fetch all employees but filter only Sales Agents who are active
   useEffect(() => {
-    axios
-      .get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/employees")
+    api
+      .get("/api/employees")
       .then((response) => {
-        const filteredEmployees = response.data.filter(
+        const filteredEmployees = (response.data || []).filter(
           (emp) =>
             (emp.role === "Sales Agent" || emp.role === "Retention Agent") &&
             emp.status === "active"
         );
         setEmployees(filteredEmployees);
       })
-      .catch((error) => console.error("Error fetching employees:", error));
+      .catch((error) => {
+        console.error(
+          "Error fetching employees:",
+          error?.response?.data || error.message
+        );
+      });
   }, []);
 
   const handleSelectCustomer = (customerId) => {
     setSelectedCustomerId(customerId);
-    setReloadTrigger((prev) => prev + 1); // INCREMENT ON EVERY SELECT
+    setReloadTrigger((prev) => prev + 1);
   };
 
   return (
     <div style={{ display: "flex", height: "90vh" }}>
-      {/* Lead List Section - occupies 20% of the viewport */}
       <div style={{ width: "20%", background: "#f4f4f4", padding: "20px" }}>
         <LeadList
           employees={employees}
           setLocation={setLocation}
-          onSelectCustomer={handleSelectCustomer}  // PASS THE HANDLER FUNCTION
-          selectedCustomerId={selectedCustomerId}  // PASS THE CURRENT SELECTED ID 
+          onSelectCustomer={handleSelectCustomer}
+          selectedCustomerId={selectedCustomerId}
           reloadTrigger={reloadTrigger}
         />
-
       </div>
 
-      {/* Consultation Details Section - occupies 80% of the viewport */}
       <div style={{ width: "80%" }}>
-        <ConsultationDetails customerId={selectedCustomerId} reloadTrigger={reloadTrigger} onReload={() => setReloadTrigger(prev => prev + 1)} />
+        <ConsultationDetails
+          customerId={selectedCustomerId}
+          reloadTrigger={reloadTrigger}
+          onReload={() => setReloadTrigger((prev) => prev + 1)}
+        />
       </div>
     </div>
   );

@@ -32,13 +32,19 @@ import Closing from "./ProcessTracker/Closing";
 import ConsultationFollowup from "./FollowUpConsultation/ConsultationFollowup";
 import ConsultationHistory from "./FollowUpConsultation/ConsultationHistory";
 
-// All icon imports are now at the top
-import EditIcon from '@mui/icons-material/Edit';
+import EditIcon from "@mui/icons-material/Edit";
 import ShoppingCartIcon from "@mui/icons-material/ShoppingCart";
 import ChatIcon from "@mui/icons-material/Chat";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import ScheduleIcon from "@mui/icons-material/Schedule";
 import HistoryIcon from "@mui/icons-material/History";
+
+const API_BASE = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "");
+
+const api = axios.create({
+  baseURL: API_BASE,
+  withCredentials: true,
+});
 
 // Original stepper icons for Presales, Consultation & Closing
 const stepIconsOriginal = {
@@ -96,13 +102,12 @@ const CustomStepIconNew = (props) => {
   );
 };
 
-const BlackConnector = styled(StepConnector)(({ theme }) => ({
+const BlackConnector = styled(StepConnector)(() => ({
   [`& .MuiStepConnector-line`]: {
     borderColor: "#9e9e9e",
   },
 }));
 
-// Helper to format the "Created At" label
 const getCreatedAtLabel = (createdAt) => {
   if (!createdAt) return "";
   const now = new Date();
@@ -122,91 +127,102 @@ const getCreatedAtLabel = (createdAt) => {
   return `${day}/${month}/${year}`;
 };
 
-// Steps for the original stepper
 const stepsOriginal = ["Presales", "Consultation", "Closing"];
 
 const ConsultationDetails = ({ customerId, reloadTrigger, onReload }) => {
   const [customer, setCustomer] = useState(null);
   const [loading, setLoading] = useState(true);
   const [followUpDate, setFollowUpDate] = useState("");
-  // activeStep controls the displayed child component
   const [activeStep, setActiveStep] = useState(0);
-  // Local state for presales.leadStatus (used by dropdown and to decide stepper type)
   const [leadStatus, setLeadStatus] = useState("New Lead");
-
   const [editOpen, setEditOpen] = useState(false);
   const [editData, setEditData] = useState({});
-
   const [employees, setEmployees] = useState([]);
-
   const [subLeadStatus, setSubLeadStatus] = useState("");
+  const [fetchError, setFetchError] = useState("");
 
-  // Fetch employees for Assigned To dropdown
   useEffect(() => {
-    axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/employees")
-      .then(res => {
-        const filtered = res.data.filter(emp =>
-          (emp.role === "Sales Agent" || emp.role === "Retention Agent") && emp.status === "active"
+    api
+      .get("/api/employees")
+      .then((res) => {
+        const filtered = (res.data || []).filter(
+          (emp) =>
+            (emp.role === "Sales Agent" || emp.role === "Retention Agent") &&
+            emp.status === "active"
         );
         setEmployees(filtered);
       })
-      .catch(err => console.error("Error fetching employees:", err));
+      .catch((err) => {
+        console.error(
+          "Error fetching employees:",
+          err?.response?.data || err.message
+        );
+      });
   }, []);
 
-  // Reset activeStep when customerId changes
   useEffect(() => {
     setActiveStep(0);
   }, [customerId]);
 
-  // Fetch customer data and consultation details on mount or when customerId changes
   useEffect(() => {
     setLeadStatus("New Lead");
     setSubLeadStatus("");
+    setFetchError("");
 
     if (customerId) {
       setLoading(true);
 
-      // Fetch customer info (includes leadStatus and subLeadStatus now)
-      axios
-        .get(`https://muditamleads-14f32a10d7f7.herokuapp.com/api/customers/${customerId}`)
+      api
+        .get(`/api/customers/${customerId}`)
         .then((response) => {
           const c = response.data;
           if (c) {
             setCustomer(c);
-            setFollowUpDate(c.followUpDate ? c.followUpDate.split("T")[0] : "");
+            setFollowUpDate(
+              c.followUpDate ? String(c.followUpDate).split("T")[0] : ""
+            );
             setLeadStatus(c.leadStatus || "New Lead");
             setSubLeadStatus(c.subLeadStatus || "");
+          } else {
+            setCustomer(null);
           }
           setLoading(false);
         })
         .catch((error) => {
-          console.error("Error fetching customer:", error);
+          console.error(
+            "Error fetching customer:",
+            error?.response?.data || error.message
+          );
+          setCustomer(null);
+          setFetchError(
+            error?.response?.data?.message || "Failed to fetch customer"
+          );
           setLoading(false);
         });
-
     } else {
       setCustomer(null);
+      setFetchError("");
       setLoading(false);
     }
   }, [customerId, reloadTrigger]);
 
-
-  // Save updated follow-up date
   const handleSaveFollowUp = () => {
     if (!customer) return;
-    axios
-      .put(`https://muditamleads-14f32a10d7f7.herokuapp.com/api/customers/${customerId}`, {
+
+    api
+      .put(`/api/customers/${customerId}`, {
         ...customer,
-        followUpDate: followUpDate,
+        followUpDate,
       })
       .then((response) => {
         setCustomer(response.data.customer);
-        if (onReload) {
-          onReload();
-        }
+        if (onReload) onReload();
       })
       .catch((error) => {
-        console.error("Error updating follow-up date:", error);
+        console.error(
+          "Error updating follow-up date:",
+          error?.response?.data || error.message
+        );
       });
   };
 
@@ -220,47 +236,55 @@ const ConsultationDetails = ({ customerId, reloadTrigger, onReload }) => {
         leadStatus: newStatus,
       };
 
-      await axios.put(`https://muditamleads-14f32a10d7f7.herokuapp.com/api/customers/${customerId}`, updated);
+      await api.put(`/api/customers/${customerId}`, updated);
 
       if (onReload) onReload();
     } catch (error) {
-      console.error("Error updating leadStatus in customer:", error);
+      console.error(
+        "Error updating leadStatus in customer:",
+        error?.response?.data || error.message
+      );
     }
   };
 
-
   const handleOpenEdit = () => {
+    if (!customer) return;
+
     setEditData({
-      name: customer.name,
-      phone: customer.phone,
-      age: customer.age,
-      location: customer.location,
-      lookingFor: customer.lookingFor,
-      assignedTo: customer.assignedTo,
-      leadSource: customer.leadSource,
-      followUpDate,
+      name: customer.name || "",
+      phone: customer.phone || "",
+      age: customer.age || "",
+      location: customer.location || "",
+      lookingFor: customer.lookingFor || "",
+      assignedTo: customer.assignedTo || "",
+      leadSource: customer.leadSource || "",
+      followUpDate: followUpDate || "",
     });
     setEditOpen(true);
   };
 
   const handleEditChange = (e) => {
     const { name, value } = e.target;
-    setEditData(prev => ({ ...prev, [name]: value }));
+    setEditData((prev) => ({ ...prev, [name]: value }));
   };
 
-  // Save edits
   const handleSaveEdit = () => {
-    axios.put(
-      `https://muditamleads-14f32a10d7f7.herokuapp.com/api/customers/${customerId}`,
-      editData
-    ).then(({ data }) => {
-      setCustomer(data.customer);
-      setFollowUpDate(editData.followUpDate);
-      setEditOpen(false);
-    });
+    api
+      .put(`/api/customers/${customerId}`, editData)
+      .then(({ data }) => {
+        setCustomer(data.customer);
+        setFollowUpDate(editData.followUpDate || "");
+        setEditOpen(false);
+        if (onReload) onReload();
+      })
+      .catch((error) => {
+        console.error(
+          "Error updating customer:",
+          error?.response?.data || error.message
+        );
+      });
   };
 
-  // Update active step when a step is clicked
   const handleStepClick = (stepIndex) => {
     setActiveStep(stepIndex);
   };
@@ -274,20 +298,22 @@ const ConsultationDetails = ({ customerId, reloadTrigger, onReload }) => {
         subLeadStatus: newSubStatus,
       };
 
-      await axios.put(`https://muditamleads-14f32a10d7f7.herokuapp.com/api/customers/${customerId}`, updated);
+      await api.put(`/api/customers/${customerId}`, updated);
 
       if (onReload) onReload();
     } catch (error) {
-      console.error("Error updating subLeadStatus in customer:", error);
+      console.error(
+        "Error updating subLeadStatus in customer:",
+        error?.response?.data || error.message
+      );
     }
   };
 
-
   const today = new Date();
-  const minDate = today.toISOString().split('T')[0];
+  const minDate = today.toISOString().split("T")[0];
   const next7 = new Date();
   next7.setDate(today.getDate() + 10);
-  const maxDate = next7.toISOString().split('T')[0];
+  const maxDate = next7.toISOString().split("T")[0];
 
   if (loading) {
     return (
@@ -303,7 +329,8 @@ const ConsultationDetails = ({ customerId, reloadTrigger, onReload }) => {
       </Box>
     );
   }
-  if (!customer) {
+
+  if (!customerId) {
     return (
       <Box
         sx={{
@@ -313,29 +340,100 @@ const ConsultationDetails = ({ customerId, reloadTrigger, onReload }) => {
           alignItems: "center",
         }}
       >
-        <Typography variant="h5" sx={{ color: "#555" }}> 
+        <Typography variant="h5" sx={{ color: "#555" }}>
           No customer selected
         </Typography>
       </Box>
     );
   }
 
+  if (!customer) {
+    return (
+      <Box
+        sx={{
+          height: "100%",
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          flexDirection: "column",
+          gap: 1,
+        }}
+      >
+        <Typography variant="h5" sx={{ color: "#555" }}>
+          Failed to load customer
+        </Typography>
+        {!!fetchError && (
+          <Typography variant="body2" sx={{ color: "red" }}>
+            {fetchError}
+          </Typography>
+        )}
+      </Box>
+    );
+  }
 
   return (
     <Box sx={{ p: 2 }}>
-
-      <Dialog open={editOpen} onClose={() => setEditOpen(false)} fullWidth maxWidth="sm">
+      <Dialog
+        open={editOpen}
+        onClose={() => setEditOpen(false)}
+        fullWidth
+        maxWidth="sm"
+      >
         <DialogContent>
-          <Typography variant="h6" sx={{ mb: 2 }}>Edit Customer</Typography>
+          <Typography variant="h6" sx={{ mb: 2 }}>
+            Edit Customer
+          </Typography>
           <Grid container spacing={1}>
-            <Grid item xs={6}><TextField label="Name" name="name" value={editData.name} onChange={handleEditChange} fullWidth size="small" /></Grid>
-            <Grid item xs={6}><TextField label="Phone" name="phone" value={editData.phone} onChange={handleEditChange} fullWidth size="small" /></Grid>
-            <Grid item xs={4}><TextField label="Age" name="age" type="number" value={editData.age} onChange={handleEditChange} fullWidth size="small" /></Grid>
-            <Grid item xs={8}><TextField label="Location" name="location" value={editData.location} onChange={handleEditChange} fullWidth size="small" /></Grid>
+            <Grid item xs={6}>
+              <TextField
+                label="Name"
+                name="name"
+                value={editData.name || ""}
+                onChange={handleEditChange}
+                fullWidth
+                size="small"
+              />
+            </Grid>
+            <Grid item xs={6}>
+              <TextField
+                label="Phone"
+                name="phone"
+                value={editData.phone || ""}
+                onChange={handleEditChange}
+                fullWidth
+                size="small"
+              />
+            </Grid>
+            <Grid item xs={4}>
+              <TextField
+                label="Age"
+                name="age"
+                type="number"
+                value={editData.age || ""}
+                onChange={handleEditChange}
+                fullWidth
+                size="small"
+              />
+            </Grid>
+            <Grid item xs={8}>
+              <TextField
+                label="Location"
+                name="location"
+                value={editData.location || ""}
+                onChange={handleEditChange}
+                fullWidth
+                size="small"
+              />
+            </Grid>
             <Grid item xs={6}>
               <FormControl fullWidth size="small">
                 <InputLabel>Looking For</InputLabel>
-                <Select name="lookingFor" value={editData.lookingFor} onChange={handleEditChange} label="Looking For">
+                <Select
+                  name="lookingFor"
+                  value={editData.lookingFor || ""}
+                  onChange={handleEditChange}
+                  label="Looking For"
+                >
                   <MenuItem value="Diabetes">Diabetes</MenuItem>
                   <MenuItem value="Fatty Liver">Fatty Liver</MenuItem>
                   <MenuItem value="Cholesterol">Cholesterol</MenuItem>
@@ -346,43 +444,93 @@ const ConsultationDetails = ({ customerId, reloadTrigger, onReload }) => {
             <Grid item xs={6}>
               <FormControl fullWidth size="small">
                 <InputLabel>Assigned To</InputLabel>
-                <Select name="assignedTo" value={editData.assignedTo} onChange={handleEditChange} label="Assigned To">
+                <Select
+                  name="assignedTo"
+                  value={editData.assignedTo || ""}
+                  onChange={handleEditChange}
+                  label="Assigned To"
+                >
                   <MenuItem value="">Unassigned</MenuItem>
-                  {employees.map(emp => <MenuItem key={emp._id} value={emp.fullName}>{emp.fullName}</MenuItem>)}
+                  {employees.map((emp) => (
+                    <MenuItem key={emp._id} value={emp.fullName}>
+                      {emp.fullName}
+                    </MenuItem>
+                  ))}
                 </Select>
               </FormControl>
             </Grid>
             <Grid item xs={6}>
               <FormControl fullWidth size="small">
                 <InputLabel>Lead Source</InputLabel>
-                <Select name="leadSource" value={editData.leadSource} onChange={handleEditChange} label="Lead Source">
-                  {leadSourceOptions.map(src => <MenuItem key={src} value={src}>{src}</MenuItem>)}
+                <Select
+                  name="leadSource"
+                  value={editData.leadSource || ""}
+                  onChange={handleEditChange}
+                  label="Lead Source"
+                >
+                  {leadSourceOptions.map((src) => (
+                    <MenuItem key={src} value={src}>
+                      {src}
+                    </MenuItem>
+                  ))}
                 </Select>
               </FormControl>
             </Grid>
-            <Grid item xs={6}><TextField label="Follow-up Date" name="followUpDate" type="date" value={editData.followUpDate} onChange={handleEditChange} fullWidth size="small" /></Grid>
+            <Grid item xs={6}>
+              <TextField
+                label="Follow-up Date"
+                name="followUpDate"
+                type="date"
+                value={editData.followUpDate || ""}
+                onChange={handleEditChange}
+                fullWidth
+                size="small"
+                InputLabelProps={{ shrink: true }}
+              />
+            </Grid>
           </Grid>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setEditOpen(false)}>Cancel</Button>
-          <Button variant="contained" onClick={handleSaveEdit}>Save</Button>
+          <Button variant="contained" onClick={handleSaveEdit}>
+            Save
+          </Button>
         </DialogActions>
       </Dialog>
 
-      {/* Customer details table */}
       <Table sx={{ mb: 2 }}>
         <TableHead sx={{ backgroundColor: "black" }}>
           <TableRow>
-            <TableCell sx={{ color: "white", fontWeight: "bold" }}>Name</TableCell>
-            <TableCell sx={{ color: "white", fontWeight: "bold" }}>Phone Number</TableCell>
-            <TableCell sx={{ color: "white", fontWeight: "bold" }}>Age</TableCell>
-            <TableCell sx={{ color: "white", fontWeight: "bold" }}>Location</TableCell>
-            <TableCell sx={{ color: "white", fontWeight: "bold" }}>Looking For</TableCell>
-            <TableCell sx={{ color: "white", fontWeight: "bold" }}>Assigned To</TableCell>
-            <TableCell sx={{ color: "white", fontWeight: "bold" }}>Created At</TableCell>
-            <TableCell sx={{ color: "white", fontWeight: "bold" }}>Lead Source</TableCell>
-            <TableCell sx={{ color: "white", fontWeight: "bold" }}>Follow-up Date</TableCell>
-            <TableCell sx={{ color: "white", fontWeight: "bold" }}>Action</TableCell>
+            <TableCell sx={{ color: "white", fontWeight: "bold" }}>
+              Name
+            </TableCell>
+            <TableCell sx={{ color: "white", fontWeight: "bold" }}>
+              Phone Number
+            </TableCell>
+            <TableCell sx={{ color: "white", fontWeight: "bold" }}>
+              Age
+            </TableCell>
+            <TableCell sx={{ color: "white", fontWeight: "bold" }}>
+              Location
+            </TableCell>
+            <TableCell sx={{ color: "white", fontWeight: "bold" }}>
+              Looking For
+            </TableCell>
+            <TableCell sx={{ color: "white", fontWeight: "bold" }}>
+              Assigned To
+            </TableCell>
+            <TableCell sx={{ color: "white", fontWeight: "bold" }}>
+              Created At
+            </TableCell>
+            <TableCell sx={{ color: "white", fontWeight: "bold" }}>
+              Lead Source
+            </TableCell>
+            <TableCell sx={{ color: "white", fontWeight: "bold" }}>
+              Follow-up Date
+            </TableCell>
+            <TableCell sx={{ color: "white", fontWeight: "bold" }}>
+              Action
+            </TableCell>
           </TableRow>
         </TableHead>
         <TableBody>
@@ -407,12 +555,28 @@ const ConsultationDetails = ({ customerId, reloadTrigger, onReload }) => {
                 }}
               />
             </TableCell>
-            <TableCell><IconButton size="small" onClick={handleOpenEdit}><EditIcon /></IconButton> <Button size="small" variant="contained" onClick={handleSaveFollowUp} sx={{ ml: 1, backgroundColor: 'black', color: 'white', '&:hover': { backgroundColor: '#333' } }}>Save</Button></TableCell>
+            <TableCell>
+              <IconButton size="small" onClick={handleOpenEdit}>
+                <EditIcon />
+              </IconButton>
+              <Button
+                size="small"
+                variant="contained"
+                onClick={handleSaveFollowUp}
+                sx={{
+                  ml: 1,
+                  backgroundColor: "black",
+                  color: "white",
+                  "&:hover": { backgroundColor: "#333" },
+                }}
+              >
+                Save
+              </Button>
+            </TableCell>
           </TableRow>
         </TableBody>
       </Table>
 
-      {/* Stepper and Lead Status Dropdown side by side */}
       <Box
         sx={{
           mb: 2,
@@ -442,7 +606,9 @@ const ConsultationDetails = ({ customerId, reloadTrigger, onReload }) => {
                   ".MuiStepLabel-root": { cursor: "pointer" },
                 }}
               >
-                <StepLabel StepIconComponent={CustomStepIconNew}>{label}</StepLabel>
+                <StepLabel StepIconComponent={CustomStepIconNew}>
+                  {label}
+                </StepLabel>
               </Step>
             ))}
           </Stepper>
@@ -475,10 +641,13 @@ const ConsultationDetails = ({ customerId, reloadTrigger, onReload }) => {
           </Stepper>
         )}
 
-        {/* Lead Status Dropdown on the right */}
         <FormControl size="small" sx={{ minWidth: 200, ml: 2 }}>
           <InputLabel>Lead Status</InputLabel>
-          <Select value={leadStatus} label="Lead Status" onChange={handleLeadStatusChange}>
+          <Select
+            value={leadStatus}
+            label="Lead Status"
+            onChange={handleLeadStatusChange}
+          >
             {[
               "New Lead",
               "CONS Scheduled",
@@ -511,27 +680,52 @@ const ConsultationDetails = ({ customerId, reloadTrigger, onReload }) => {
               label="Sub-Status"
               onChange={(e) => handleSubLeadStatusChange(e.target.value)}
             >
-              {["Budget issue", "On Follow Up", "CNP", "Call Back Later"].map((opt) => (
-                <MenuItem key={opt} value={opt}>{opt}</MenuItem>
-              ))}
+              {["Budget issue", "On Follow Up", "CNP", "Call Back Later"].map(
+                (opt) => (
+                  <MenuItem key={opt} value={opt}>
+                    {opt}
+                  </MenuItem>
+                )
+              )}
             </Select>
           </FormControl>
         )}
       </Box>
 
-      {/* Render child component based on the current step */}
       <Box>
         {leadStatus === "Sales Done" ? (
           activeStep === 0 ? (
-            <ConsultationFollowup key={`followup-${customerId}`} customerId={customerId} />
+            <ConsultationFollowup
+              key={`followup-${customerId}`}
+              customerId={customerId}
+            />
           ) : (
-            <ConsultationHistory key={`history-${customerId}`} customerId={customerId} />
+            <ConsultationHistory
+              key={`history-${customerId}`}
+              customerId={customerId}
+            />
           )
         ) : (
           <>
-            {activeStep === 0 && <Presales key={`presales-${customerId}`} customerId={customerId} parentLeadStatus={leadStatus} />}
-            {activeStep === 1 && <Consultation key={`consultation-${customerId}`} customerId={customerId} />}
-            {activeStep === 2 && <Closing key={`closing-${customerId}`} customerId={customerId} />}
+            {activeStep === 0 && (
+              <Presales
+                key={`presales-${customerId}`}
+                customerId={customerId}
+                parentLeadStatus={leadStatus}
+              />
+            )}
+            {activeStep === 1 && (
+              <Consultation
+                key={`consultation-${customerId}`}
+                customerId={customerId}
+              />
+            )}
+            {activeStep === 2 && (
+              <Closing
+                key={`closing-${customerId}`}
+                customerId={customerId}
+              />
+            )}
           </>
         )}
       </Box>
