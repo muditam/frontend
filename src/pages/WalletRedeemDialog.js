@@ -12,6 +12,10 @@ const MILESTONES = [
   { id: 6, title: "Milestone 6", coin: 36000 },
   { id: 7, title: "Milestone 7", coin: 42000 },
   { id: 8, title: "Milestone 8", coin: 48000 },
+  { id: 9, title: "Milestone 9", coin: 54000 },
+  { id: 10, title: "Milestone 10", coin: 60000 },
+  { id: 11, title: "Milestone 11", coin: 66000 },
+  { id: 12, title: "Milestone 12", coin: 72000 },
 ];
 
 const styles = `
@@ -983,15 +987,7 @@ export default function WalletRedeemDialog({
                               <div className="wrd-coin-value">
                                 {formatNumber(coinCost)} coins
                               </div>
-                            </div>
-
-                            {reward.note ? (
-                              <p className="wrd-card-note">{reward.note}</p>
-                            ) : (
-                              <div style={{ minHeight: 36 }} />
-                            )}
-
-                            <hr className="wrd-divider" />
+                            </div> 
 
                             <div className="wrd-card-footer">
                               <span

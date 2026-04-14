@@ -329,280 +329,269 @@ const NavbarWithSearch = () => {
 
           {/* Center: Shopify Customer Search Bar */}
           {user && canNav("shopifySearch") && (
-            <Box sx={{ flex: 1, display: "flex", justifyContent: "center" }}>
-              <Box sx={{ position: "relative", width: 300 }}>
-                <ClickAwayListener onClickAway={handleShopifyClickAway}>
-                  <div>
-                    <TextField
-                      fullWidth
-                      variant="outlined"
-                      placeholder="Search On Shopify"
-                      value={shopifyQuery}
-                      onChange={handleShopifyInputChange}
-                      sx={{
-                        backgroundColor: "#fff",
-                        borderRadius: 2,
-                        "& .MuiInputBase-input": {
-                          padding: "8px 12px",
-                          ...smallFont,
-                        },
-                      }}
-                      InputProps={{
-                        endAdornment: (
-                          <InputAdornment position="end">
-                            <IconButton
-                              onClick={executeShopifySearch}
-                              sx={{ color: "#1976d2" }}
-                            >
-                              <SearchIcon sx={{ color: "gray" }} />
-                            </IconButton>
-                          </InputAdornment>
-                        ),
-                      }}
+  <Box sx={{ flex: 1, display: "flex", justifyContent: "center" }}>
+    <Box sx={{ position: "relative", width: 300 }}>
+      <ClickAwayListener onClickAway={handleShopifyClickAway}>
+        <div>
+          <TextField
+            fullWidth
+            variant="outlined"
+            placeholder="Search On Shopify"
+            value={shopifyQuery}
+            onChange={handleShopifyInputChange}
+            sx={{
+              backgroundColor: "#fff",
+              borderRadius: 2,
+              "& .MuiInputBase-input": {
+                padding: "8px 12px",
+                ...smallFont,
+              },
+            }}
+            InputProps={{
+              endAdornment: (
+                <InputAdornment position="end">
+                  <IconButton
+                    onClick={executeShopifySearch}
+                    sx={{ color: "#1976d2" }}
+                  >
+                    <SearchIcon sx={{ color: "gray" }} />
+                  </IconButton>
+                </InputAdornment>
+              ),
+            }}
+          />
+          {showCustomerDetails && (
+            <List
+              sx={{
+                position: "absolute",
+                top: "100%",
+                left: 0,
+                right: 0,
+                bgcolor: "#f5f5f5",
+                border: "1px solid #ccc",
+                borderRadius: "4px",
+                maxHeight: 290,
+                overflowY: "auto",
+                zIndex: 10,
+                color: "black",
+              }}
+            >
+              {customerData ? (
+                <React.Fragment>
+                  <ListItem
+                    button
+                    onClick={toggleOrders}
+                    sx={{ py: 1, ...smallFont }}
+                  >
+                    <ListItemText
+                      primary={`${customerData.name}`}
+                      secondary={
+                        <>
+                          <span>
+                            Total Orders: {customerData.totalOrders} | Total
+                            Spent: ₹{customerData.totalSpent}
+                          </span>
+                          <br />
+                          <span>
+                            Customer No: {customerData.phone || "N/A"}
+                          </span>
+                          <br />
+                          <span>
+                            Last Order:{" "}
+                            {customerData.lastOrderDate
+                              ? new Date(
+                                  customerData.lastOrderDate
+                                ).toLocaleString()
+                              : "N/A"}{" "}
+                            | Payment Status:{" "}
+                            {customerData.lastOrderPaymentStatus || "N/A"}
+                          </span>
+                        </>
+                      }
+                      primaryTypographyProps={{ style: smallFont }}
+                      secondaryTypographyProps={{ style: smallFont }}
                     />
-                    {showCustomerDetails && (
-                      <List
-                        sx={{
-                          position: "absolute",
-                          top: "100%",
-                          left: 0,
-                          right: 0,
-                          bgcolor: "#f5f5f5",
-                          border: "1px solid #ccc",
-                          borderRadius: "4px",
-                          maxHeight: 290,
-                          overflowY: "auto",
-                          zIndex: 10,
-                          color: "black",
-                        }}
-                      >
-                        {customerData ? (
-                          <React.Fragment>
+                    {showOrders ? (
+                      <ExpandLessIcon fontSize="small" />
+                    ) : (
+                      <ExpandMoreIcon fontSize="small" />
+                    )}
+                  </ListItem>
+
+                  <Collapse in={showOrders} timeout="auto" unmountOnExit>
+                    <List component="div" disablePadding>
+                      {customerData.orders && customerData.orders.length > 0 ? (
+                        <>
+                          {customerData.orders.slice(0, 4).map((order) => (
                             <ListItem
-                              button
-                              onClick={toggleOrders}
-                              sx={{ py: 1, ...smallFont }}
+                              key={order.id}
+                              sx={{ pl: 3, py: 0.5, ...smallFont }}
                             >
                               <ListItemText
-                                primary={`${customerData.name}`}
+                                primary={`Order ${order.name || order.id} | Total Amount: ₹${
+                                  order.totalAmount || 0
+                                }`}
                                 secondary={
                                   <>
                                     <span>
-                                      Total Orders:{" "}
-                                      {customerData.totalOrders} | Total
-                                      Spent: ₹{customerData.totalSpent}
+                                      {new Date(order.created_at).toLocaleString()} | Items:{" "}
+                                      {order.itemCount} | {order.deliveryStatus} | Shipment:{" "}
+                                      {order.shipmentStatus || "N/A"}
                                     </span>
                                     <br />
                                     <span>
-                                      Last Order:{" "}
-                                      {customerData.lastOrderDate
-                                        ? new Date(
-                                          customerData.lastOrderDate
-                                        ).toLocaleString()
-                                        : "N/A"}{" "}
-                                      | Payment Status:{" "}
-                                      {customerData.lastOrderPaymentStatus ||
-                                        "N/A"}
+                                      Customer No:{" "}
+                                      {order.customerPhone ||
+                                        customerData.phone ||
+                                        "N/A"}{" "}
+                                      | Tracking ID:{" "}
+                                      {order.trackingNumber || "N/A"}
                                     </span>
+                                    <br />
+                                    {order.lineItems.map((item, idx) => (
+                                      <span key={idx}>
+                                        {item.title} - {item.variant} (₹
+                                        {item.amountPaid}){" "}
+                                      </span>
+                                    ))}
+                                    <br />
+                                    <Box
+                                      onClick={() => toggleAddress(order.id)}
+                                      sx={{
+                                        cursor: "pointer",
+                                        color: "#1976d2",
+                                        mt: 1,
+                                        display: "flex",
+                                        alignItems: "center",
+                                      }}
+                                    >
+                                      {expandedOrderIds.includes(order.id) ? (
+                                        <>
+                                          Show Less Address{" "}
+                                          <ExpandLessIcon
+                                            fontSize="small"
+                                            sx={{ ml: 0.5 }}
+                                          />
+                                        </>
+                                      ) : (
+                                        <>
+                                          Show Address{" "}
+                                          <ExpandMoreIcon
+                                            fontSize="small"
+                                            sx={{ ml: 0.5 }}
+                                          />
+                                        </>
+                                      )}
+                                    </Box>
+                                    <Collapse
+                                      in={expandedOrderIds.includes(order.id)}
+                                      timeout="auto"
+                                      unmountOnExit
+                                    >
+                                      <Typography
+                                        sx={{
+                                          mt: 1,
+                                          ...smallFont,
+                                        }}
+                                      >
+                                        {order.shippingAddress ||
+                                          "No shipping address found"}
+                                      </Typography>
+                                    </Collapse>
                                   </>
                                 }
-                                primaryTypographyProps={{ style: smallFont }}
-                                secondaryTypographyProps={{ style: smallFont }}
+                                primaryTypographyProps={{
+                                  style: smallFont,
+                                }}
+                                secondaryTypographyProps={{
+                                  style: smallFont,
+                                }}
                               />
-                              {showOrders ? (
-                                <ExpandLessIcon fontSize="small" />
-                              ) : (
-                                <ExpandMoreIcon fontSize="small" />
-                              )}
                             </ListItem>
-                            <Collapse
-                              in={showOrders}
-                              timeout="auto"
-                              unmountOnExit
+                          ))}
+
+                          {customerData.orders.length > 4 && (
+                            <ListItem
+                              button
+                              onClick={toggleShowAllOrders}
+                              sx={{ pl: 3, ...smallFont }}
                             >
-                              <List component="div" disablePadding>
-                                {customerData.orders &&
-                                  customerData.orders.length > 0 ? (
-                                  <>
-                                    {customerData.orders
-                                      .slice(0, 4)
-                                      .map((order) => (
-                                        <ListItem
-                                          key={order.id}
-                                          sx={{ pl: 3, py: 0.5, ...smallFont }}
-                                        >
-                                          <ListItemText
-                                            primary={`Order ${order.name || order.id
-                                              } | Total Amount: ₹${order.totalAmount || 0
-                                              }`}
-                                            secondary={
-                                              <>
-                                                <span>
-                                                  {new Date(
-                                                    order.created_at
-                                                  ).toLocaleString()}{" "}
-                                                  | Items: {order.itemCount} |{" "}
-                                                  {order.deliveryStatus}{" "}
-                                                  {" | "}
-                                                  Shipment:{" "}
-                                                  {order.shipmentStatus ??
-                                                    "N/A"}
-                                                </span>
-                                                <br />
-                                                {order.lineItems.map(
-                                                  (item, idx) => (
-                                                    <span key={idx}>
-                                                      {item.title} -{" "}
-                                                      {item.variant} (₹
-                                                      {item.amountPaid}){" "}
-                                                    </span>
-                                                  )
-                                                )}
-                                                <br />
-                                                <Box
-                                                  onClick={() =>
-                                                    toggleAddress(order.id)
-                                                  }
-                                                  sx={{
-                                                    cursor: "pointer",
-                                                    color: "#1976d2",
-                                                    mt: 1,
-                                                    display: "flex",
-                                                    alignItems: "center",
-                                                  }}
-                                                >
-                                                  {expandedOrderIds.includes(
-                                                    order.id
-                                                  ) ? (
-                                                    <>
-                                                      Show Less Address{" "}
-                                                      <ExpandLessIcon
-                                                        fontSize="small"
-                                                        sx={{ ml: 0.5 }}
-                                                      />
-                                                    </>
-                                                  ) : (
-                                                    <>
-                                                      Show Address{" "}
-                                                      <ExpandMoreIcon
-                                                        fontSize="small"
-                                                        sx={{ ml: 0.5 }}
-                                                      />
-                                                    </>
-                                                  )}
-                                                </Box>
-                                                <Collapse
-                                                  in={expandedOrderIds.includes(
-                                                    order.id
-                                                  )}
-                                                  timeout="auto"
-                                                  unmountOnExit
-                                                >
-                                                  <Typography
-                                                    sx={{
-                                                      mt: 1,
-                                                      ...smallFont,
-                                                    }}
-                                                  >
-                                                    {order.shippingAddress ||
-                                                      "No shipping address found"}
-                                                  </Typography>
-                                                </Collapse>
-                                              </>
-                                            }
-                                            primaryTypographyProps={{
-                                              style: smallFont,
-                                            }}
-                                            secondaryTypographyProps={{
-                                              style: smallFont,
-                                            }}
-                                          />
-                                        </ListItem>
+                              <ListItemText
+                                primary={
+                                  showAllOrders
+                                    ? "Show less orders"
+                                    : `${customerData.orders.length - 4} more orders`
+                                }
+                              />
+                            </ListItem>
+                          )}
+
+                          {showAllOrders &&
+                            customerData.orders.slice(4).map((order) => (
+                              <ListItem
+                                key={order.id}
+                                sx={{ pl: 3, py: 0.5, ...smallFont }}
+                              >
+                                <ListItemText
+                                  primary={`Order ${order.name || order.id}`}
+                                  secondary={
+                                    <>
+                                      <span>
+                                        {new Date(order.created_at).toLocaleString()} | Items:{" "}
+                                        {order.itemCount} | {order.deliveryStatus} | Shipment:{" "}
+                                        {order.shipmentStatus || "N/A"}
+                                      </span>
+                                      <br />
+                                      <span>
+                                        Customer No:{" "}
+                                        {order.customerPhone ||
+                                          customerData.phone ||
+                                          "N/A"}{" "}
+                                        | Tracking ID:{" "}
+                                        {order.trackingNumber || "N/A"}
+                                      </span>
+                                      <br />
+                                      {order.lineItems.map((item, idx) => (
+                                        <span key={idx}>
+                                          {item.title} - {item.variant} (₹
+                                          {item.amountPaid}){" "}
+                                        </span>
                                       ))}
-                                    {customerData.orders.length > 4 && (
-                                      <ListItem
-                                        button
-                                        onClick={toggleShowAllOrders}
-                                        sx={{ pl: 3, ...smallFont }}
-                                      >
-                                        <ListItemText
-                                          primary={
-                                            showAllOrders
-                                              ? "Show less orders"
-                                              : `${customerData.orders.length -
-                                              4
-                                              } more orders`
-                                          }
-                                        />
-                                      </ListItem>
-                                    )}
-                                    {showAllOrders &&
-                                      customerData.orders
-                                        .slice(4)
-                                        .map((order) => (
-                                          <ListItem
-                                            key={order.id}
-                                            sx={{ pl: 3, py: 0.5, ...smallFont }}
-                                          >
-                                            <ListItemText
-                                              primary={`Order ${order.name || order.id
-                                                }`}
-                                              secondary={
-                                                <>
-                                                  <span>
-                                                    {new Date(
-                                                      order.created_at
-                                                    ).toLocaleString()}{" "}
-                                                    | Items: {order.itemCount} |{" "}
-                                                    {order.deliveryStatus}
-                                                  </span>
-                                                  <br />
-                                                  {order.lineItems.map(
-                                                    (item, idx) => (
-                                                      <span key={idx}>
-                                                        {item.title} -{" "}
-                                                        {item.variant} (
-                                                        {item.amountPaid}){" "}
-                                                      </span>
-                                                    )
-                                                  )}
-                                                </>
-                                              }
-                                              primaryTypographyProps={{
-                                                style: smallFont,
-                                              }}
-                                              secondaryTypographyProps={{
-                                                style: smallFont,
-                                              }}
-                                            />
-                                          </ListItem>
-                                        ))}
-                                  </>
-                                ) : (
-                                  <ListItem
-                                    sx={{ pl: 3, py: 1, ...smallFont }}
-                                  >
-                                    <ListItemText primary="No orders found." />
-                                  </ListItem>
-                                )}
-                              </List>
-                            </Collapse>
-                          </React.Fragment>
-                        ) : (
-                          <ListItem>
-                            <ListItemText
-                              primary="Customer does not exist."
-                              sx={smallFont}
-                            />
-                          </ListItem>
-                        )}
-                      </List>
-                    )}
-                  </div>
-                </ClickAwayListener>
-              </Box>
-            </Box>
+                                    </>
+                                  }
+                                  primaryTypographyProps={{
+                                    style: smallFont,
+                                  }}
+                                  secondaryTypographyProps={{
+                                    style: smallFont,
+                                  }}
+                                />
+                              </ListItem>
+                            ))}
+                        </>
+                      ) : (
+                        <ListItem sx={{ pl: 3, py: 1, ...smallFont }}>
+                          <ListItemText primary="No orders found." />
+                        </ListItem>
+                      )}
+                    </List>
+                  </Collapse>
+                </React.Fragment>
+              ) : (
+                <ListItem>
+                  <ListItemText
+                    primary="Customer does not exist."
+                    sx={smallFont}
+                  />
+                </ListItem>
+              )}
+            </List>
           )}
+        </div>
+      </ClickAwayListener>
+    </Box>
+  </Box>
+)}
 
           {/* DRR + Target block */}
           {user && canNav("drrPanel") && (

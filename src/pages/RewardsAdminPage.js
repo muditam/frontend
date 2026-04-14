@@ -39,6 +39,10 @@ const MILESTONE_BUCKETS = [
   { id: 6, label: "Milestone 6", min: 30001, max: 36000 },
   { id: 7, label: "Milestone 7", min: 36001, max: 42000 },
   { id: 8, label: "Milestone 8", min: 42001, max: 48000 },
+  { id: 9, label: "Milestone 9", min: 48001, max: 54000 },
+  { id: 10, label: "Milestone 10", min: 54001, max: 60000 },
+  { id: 11, label: "Milestone 11", min: 60001, max: 66000 },
+  { id: 12, label: "Milestone 12", min: 66001, max: 72000 },
 ];
 
 function getAuthHeaders() {

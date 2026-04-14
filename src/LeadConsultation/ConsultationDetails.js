@@ -253,7 +253,7 @@ const ConsultationDetails = ({ customerId, reloadTrigger, onReload }) => {
     setEditData({
       name: customer.name || "",
       phone: customer.phone || "",
-      age: customer.age || "",
+      age: customer.age ?? "",
       location: customer.location || "",
       lookingFor: customer.lookingFor || "",
       assignedTo: customer.assignedTo || "",
@@ -269,21 +269,34 @@ const ConsultationDetails = ({ customerId, reloadTrigger, onReload }) => {
   };
 
   const handleSaveEdit = () => {
-    api
-      .put(`/api/customers/${customerId}`, editData)
-      .then(({ data }) => {
-        setCustomer(data.customer);
-        setFollowUpDate(editData.followUpDate || "");
-        setEditOpen(false);
-        if (onReload) onReload();
-      })
-      .catch((error) => {
-        console.error(
-          "Error updating customer:",
-          error?.response?.data || error.message
-        );
-      });
+  const payload = {
+    name: editData.name,
+    phone: editData.phone,
+    location: editData.location,
+    lookingFor: editData.lookingFor,
+    assignedTo: editData.assignedTo,
+    leadSource: editData.leadSource,
+    followUpDate: editData.followUpDate,
+    ...(editData.age !== "" && editData.age !== null && editData.age !== undefined
+      ? { age: Number(editData.age) }
+      : {}),
   };
+
+  api
+    .put(`/api/customers/${customerId}`, payload)
+    .then(({ data }) => {
+      setCustomer(data.customer);
+      setFollowUpDate(editData.followUpDate || "");
+      setEditOpen(false);
+      if (onReload) onReload();
+    })
+    .catch((error) => {
+      console.error(
+        "Error updating customer:",
+        error?.response?.data || error.message
+      );
+    });
+};
 
   const handleStepClick = (stepIndex) => {
     setActiveStep(stepIndex);
@@ -409,7 +422,7 @@ const ConsultationDetails = ({ customerId, reloadTrigger, onReload }) => {
                 label="Age"
                 name="age"
                 type="number"
-                value={editData.age || ""}
+                value={editData.age ?? ""}
                 onChange={handleEditChange}
                 fullWidth
                 size="small"

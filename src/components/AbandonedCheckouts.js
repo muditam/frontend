@@ -26,9 +26,12 @@ import axios from "axios";
 import SearchIcon from "@mui/icons-material/Search";
 import RefreshIcon from "@mui/icons-material/Refresh";
 
-const API_BASE =
-  process.env.REACT_APP_API_BASE ||
-  "https://muditamleads-14f32a10d7f7.herokuapp.com";
+const API_BASE = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "");
+
+const api = axios.create({
+  baseURL: API_BASE,
+  withCredentials: true,
+});
 
 const DATE_FILTERS = ["All time", "Custom range", "Today", "Yesterday"];
 
@@ -128,7 +131,7 @@ export default function AbandonedCheckouts() {
   useEffect(() => {
     (async () => {
       try {
-        const { data } = await axios.get(`${API_BASE}/api/employees`);
+        const { data } = await api.get(`/api/employees`);
         const filtered = (Array.isArray(data) ? data : []).filter(
           (e) =>
             String(e.status).toLowerCase() === "active" &&
@@ -193,7 +196,7 @@ export default function AbandonedCheckouts() {
         }
       }
 
-      const { data } = await axios.get(`${API_BASE}/api/abandoned`, { params });
+      const { data } = await api.get("/api/abandoned", { params });
       setRows(data.items || []);
       setCount(data.total || 0);
     } catch (e) {
@@ -224,10 +227,7 @@ export default function AbandonedCheckouts() {
     if (!expertId) return;
     try {
       setSavingRow(row._id);
-      const { data } = await axios.post(
-        `${API_BASE}/api/abandoned/${row._id}/assign-expert`,
-        { expertId }
-      );
+      const { data } = await api.post(`/api/abandoned/${row._id}/assign-expert`, { expertId });
       const emp = employees.find((e) => e._id === expertId);
       if (emp) {
         setRows((prev) =>
