@@ -1,18 +1,21 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { Grid, Box, Typography, TextField, Button } from "@mui/material";
 import { Typewriter } from "react-simple-typewriter";
 import ErrorOutlineIcon from "@mui/icons-material/ErrorOutline";
-
-
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 
+const API_BASE = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "");
+
+const api = axios.create({
+  baseURL: API_BASE,
+  withCredentials: true,
+});
 
 const LoginPage = () => {
   const [userId, setUserId] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
-  const [forgotOpen, setForgotOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [forgotPassMessage, setForgotPassMessage] = useState(false);
 
@@ -35,11 +38,10 @@ const LoginPage = () => {
     setError("");
 
     try {
-      const response = await axios.post(
-        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/login",
-        { email: userId, password },
-        { withCredentials: true }
-      );
+      const response = await api.post("/api/login", {
+        email: userId,
+        password,
+      });
 
       if (response.status === 200) {
         const { user } = response.data;
