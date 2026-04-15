@@ -17,7 +17,13 @@ import {
 import CloudUploadIcon from "@mui/icons-material/CloudUpload";
 import DownloadIcon from "@mui/icons-material/Download";
 
-const API_BASE = "https://muditamleads-14f32a10d7f7.herokuapp.com"; // Change this to your actual backend URL
+const API_BASE = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "");
+
+const authFetch = (url, options = {}) =>
+  fetch(url, {
+    credentials: "include",
+    ...options,
+  });
 
 const headers = [
   "Upload Date",
@@ -53,11 +59,8 @@ const EasebuzzUpload = () => {
 
   const [file, setFile] = useState(null);
   const [records, setRecords] = useState([]);
-
-  // ✅ table fetch loader separate
   const [loading, setLoading] = useState(false);
 
-  // ✅ action loaders
   const [uploading, setUploading] = useState(false);
   const [deletingLast, setDeletingLast] = useState(false);
   const [downloadingSample, setDownloadingSample] = useState(false);
@@ -67,12 +70,10 @@ const EasebuzzUpload = () => {
   const [rowsPerPage, setRowsPerPage] = useState(50);
   const [totalCount, setTotalCount] = useState(0);
 
-  // ✅ totals (ALL if no filters, else filtered totals)
   const [totalAmount, setTotalAmount] = useState(0);
   const [totalDebit, setTotalDebit] = useState(0);
   const [totalCredit, setTotalCredit] = useState(0);
 
-  // ✅ filters
   const [q, setQ] = useState("");
   const [uploadMin, setUploadMin] = useState("");
   const [uploadMax, setUploadMax] = useState("");
@@ -81,7 +82,8 @@ const EasebuzzUpload = () => {
   const [amountMin, setAmountMin] = useState("");
   const [amountMax, setAmountMax] = useState("");
 
-  const anyActionLoading = uploading || deletingLast || downloadingSample || exporting;
+  const anyActionLoading =
+    uploading || deletingLast || downloadingSample || exporting;
 
   const fmtINR = (n) =>
     n == null || n === "" ? "" : `₹${Number(n).toLocaleString("en-IN")}`;
@@ -117,7 +119,17 @@ const EasebuzzUpload = () => {
       return `${API_BASE}/api/easebuzz/data?${qs}`;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [q, uploadMin, uploadMax, settleMin, settleMax, amountMin, amountMax, page, rowsPerPage]);
+  }, [
+    q,
+    uploadMin,
+    uploadMax,
+    settleMin,
+    settleMax,
+    amountMin,
+    amountMax,
+    page,
+    rowsPerPage,
+  ]);
 
   const buildExportUrl = () => {
     const qs = buildQueryParams({ includePagination: false });
@@ -127,13 +139,15 @@ const EasebuzzUpload = () => {
   const fetchData = async (pageNum = page, limit = rowsPerPage) => {
     setLoading(true);
     try {
-      const res = await fetch(buildUrl(pageNum, limit));
+      const res = await authFetch(buildUrl(pageNum, limit));
       const json = await res.json();
+
+      if (!res.ok) {
+        throw new Error(json?.error || "Failed to fetch data");
+      }
 
       setRecords(json.data || []);
       setTotalCount(json.totalCount || 0);
-
-      // ✅ totals from backend
       setTotalAmount(json.totalAmount || 0);
       setTotalDebit(json.totalDebit || 0);
       setTotalCredit(json.totalCredit || 0);
@@ -166,14 +180,14 @@ const EasebuzzUpload = () => {
 
     setUploading(true);
     try {
-      const res = await fetch(`${API_BASE}/api/easebuzz/upload`, {
+      const res = await authFetch(`${API_BASE}/api/easebuzz/upload`, {
         method: "POST",
         body: formData,
       });
       const json = await res.json();
 
-      if (json.error) {
-        alert(json.error);
+      if (!res.ok || json.error) {
+        alert(json.error || "Upload failed.");
       } else {
         alert(`Upload successful (${json.inserted || 0} rows)`);
         clearFileInput();
@@ -198,13 +212,13 @@ const EasebuzzUpload = () => {
 
     setDeletingLast(true);
     try {
-      const res = await fetch(`${API_BASE}/api/easebuzz/delete-last-upload`, {
+      const res = await authFetch(`${API_BASE}/api/easebuzz/delete-last-upload`, {
         method: "DELETE",
       });
       const json = await res.json();
 
-      if (json.error) {
-        alert(json.error);
+      if (!res.ok || json.error) {
+        alert(json.error || "Delete failed");
       } else {
         alert(`Deleted: ${json.deleted || 0} rows`);
         setPage(0);
@@ -218,21 +232,39 @@ const EasebuzzUpload = () => {
     }
   };
 
-  const handleDownloadSample = () => {
+  const handleDownloadSample = async () => {
     if (downloadingSample) return;
     setDownloadingSample(true);
 
-    window.open(`${API_BASE}/api/easebuzz/sample`, "_blank");
-    setTimeout(() => setDownloadingSample(false), 600);
+    try {
+      const res = await authFetch(`${API_BASE}/api/easebuzz/sample`);
+      if (!res.ok) throw new Error(`Sample download failed (${res.status})`);
+
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "easebuzz_sample.csv";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+
+      window.URL.revokeObjectURL(url);
+    } catch (e) {
+      console.error(e);
+      alert("Failed to download sample CSV");
+    } finally {
+      setDownloadingSample(false);
+    }
   };
 
-  // ✅ Export all if no filters, else export filtered (same endpoint)
   const handleExport = async () => {
     if (exporting) return;
     setExporting(true);
 
     try {
-      const res = await fetch(buildExportUrl());
+      const res = await authFetch(buildExportUrl());
       if (!res.ok) throw new Error(`Export failed (${res.status})`);
 
       const blob = await res.blob();
@@ -284,7 +316,6 @@ const EasebuzzUpload = () => {
         📥 Upload Easebuzz Transactions
       </Typography>
 
-      {/* Upload row */}
       <Paper
         elevation={0}
         sx={{
@@ -299,7 +330,6 @@ const EasebuzzUpload = () => {
           flexWrap: "wrap",
         }}
       >
-        {/* LEFT */}
         <Box sx={{ display: "flex", gap: 2, alignItems: "center", flexWrap: "wrap" }}>
           <input
             ref={fileInputRef}
@@ -308,7 +338,6 @@ const EasebuzzUpload = () => {
             onChange={handleFileChange}
             disabled={uploading}
             onClick={(e) => {
-              // ✅ allow selecting same file again
               e.target.value = null;
             }}
           />
@@ -324,7 +353,12 @@ const EasebuzzUpload = () => {
             }
             onClick={handleUpload}
             disabled={uploading || !file}
-            sx={{ bgcolor: "black", color: "#fff", "&:hover": { bgcolor: "#333" }, minWidth: 120 }}
+            sx={{
+              bgcolor: "black",
+              color: "#fff",
+              "&:hover": { bgcolor: "#333" },
+              minWidth: 120,
+            }}
           >
             {uploading ? "Uploading..." : "Upload"}
           </Button>
@@ -340,7 +374,6 @@ const EasebuzzUpload = () => {
           </Button>
         </Box>
 
-        {/* RIGHT */}
         <Box sx={{ display: "flex", gap: 1.5, alignItems: "center", flexWrap: "wrap" }}>
           <Typography sx={{ color: "#555", fontSize: 13 }}>
             Total: <b>{totalCount.toLocaleString("en-IN")}</b>
@@ -380,7 +413,6 @@ const EasebuzzUpload = () => {
         </Box>
       </Paper>
 
-      {/* Filters */}
       <Paper
         elevation={0}
         sx={{
@@ -453,10 +485,20 @@ const EasebuzzUpload = () => {
           sx={{ width: 140 }}
         />
 
-        <Button variant="outlined" disabled={anyActionLoading} onClick={applyFilters} sx={{ textTransform: "none" }}>
+        <Button
+          variant="outlined"
+          disabled={anyActionLoading}
+          onClick={applyFilters}
+          sx={{ textTransform: "none" }}
+        >
           Apply
         </Button>
-        <Button variant="text" disabled={anyActionLoading} onClick={clearFilters} sx={{ textTransform: "none" }}>
+        <Button
+          variant="text"
+          disabled={anyActionLoading}
+          onClick={clearFilters}
+          sx={{ textTransform: "none" }}
+        >
           Clear
         </Button>
       </Paper>
@@ -492,7 +534,6 @@ const EasebuzzUpload = () => {
                       <TableCell>{row.transactionType}</TableCell>
                       <TableCell>{row.paymentId}</TableCell>
                       <TableCell>{row.orderId}</TableCell>
-
                       <TableCell>{fmtINR(row.amount)}</TableCell>
                       <TableCell>{row.currency}</TableCell>
                       <TableCell>{fmtINR(row.tax)}</TableCell>
@@ -502,7 +543,6 @@ const EasebuzzUpload = () => {
                       <TableCell>{fmtINR(row.debit)}</TableCell>
                       <TableCell>{fmtINR(row.gokwikDeduction)}</TableCell>
                       <TableCell>{fmtINR(row.credit)}</TableCell>
-
                       <TableCell>{row.paymentMethod}</TableCell>
                       <TableCell>{row.transactionDate}</TableCell>
                       <TableCell>{row.transactionRRN}</TableCell>

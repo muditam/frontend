@@ -1,4 +1,3 @@
-// DtdcUpload.jsx
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Box,
@@ -17,7 +16,13 @@ import {
 } from "@mui/material";
 import CloudUploadIcon from "@mui/icons-material/CloudUpload";
 
-const API_BASE = "https://muditamleads-14f32a10d7f7.herokuapp.com";
+const API_BASE = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "");
+
+const authFetch = (url, options = {}) =>
+  fetch(url, {
+    credentials: "include",
+    ...options,
+  });
 
 const DtdcUpload = () => {
   const [file, setFile] = useState(null);
@@ -26,7 +31,6 @@ const DtdcUpload = () => {
   const [records, setRecords] = useState([]);
   const [loading, setLoading] = useState(false);
 
-  // actions
   const [uploading, setUploading] = useState(false);
   const [deletingLast, setDeletingLast] = useState(false);
   const [downloadingSample, setDownloadingSample] = useState(false);
@@ -36,10 +40,8 @@ const DtdcUpload = () => {
   const [rowsPerPage, setRowsPerPage] = useState(50);
   const [totalCount, setTotalCount] = useState(0);
 
-  // ✅ total remitted amount (as per filters; NOT just current page)
   const [totalRemittedAmount, setTotalRemittedAmount] = useState(0);
 
-  // filters
   const [q, setQ] = useState("");
   const [status, setStatus] = useState("");
 
@@ -70,7 +72,6 @@ const DtdcUpload = () => {
     return Number.isNaN(dt.getTime()) ? "" : dt.toLocaleDateString("en-IN");
   };
 
-  // ✅ detect if any filter applied (for filename only)
   const filtersApplied = useMemo(() => {
     return (
       q.trim() ||
@@ -144,17 +145,22 @@ const DtdcUpload = () => {
     return `${API_BASE}/api/dtdc/data?${params.toString()}`;
   };
 
-  const buildExportUrl = () => `${API_BASE}/api/dtdc/export?${buildQueryParams({ includePagination: false })}`;
+  const buildExportUrl = () =>
+    `${API_BASE}/api/dtdc/export?${buildQueryParams({ includePagination: false })}`;
 
   const fetchData = async (pageNum = page, limit = rowsPerPage) => {
     setLoading(true);
     try {
-      const res = await fetch(buildUrl(pageNum, limit));
+      const res = await authFetch(buildUrl(pageNum, limit));
       const json = await res.json();
+
+      if (!res.ok) {
+        throw new Error(json?.error || "Failed to fetch DTDC data");
+      }
 
       setRecords(json.data || []);
       setTotalCount(json.totalCount || 0);
-      setTotalRemittedAmount(json.totalRemittedAmount || 0); // ✅ NEW
+      setTotalRemittedAmount(json.totalRemittedAmount || 0);
     } catch (err) {
       console.error(err);
       alert("Failed to fetch DTDC data");
@@ -184,14 +190,14 @@ const DtdcUpload = () => {
 
     setUploading(true);
     try {
-      const res = await fetch(`${API_BASE}/api/dtdc/upload`, {
+      const res = await authFetch(`${API_BASE}/api/dtdc/upload`, {
         method: "POST",
         body: formData,
       });
 
       const json = await res.json();
-      if (json.error) {
-        alert(json.error);
+      if (!res.ok || json.error) {
+        alert(json.error || "Upload failed");
       } else {
         alert(`Upload successful (${json.inserted || 0} rows)`);
         clearSelectedFile();
@@ -216,13 +222,13 @@ const DtdcUpload = () => {
 
     setDeletingLast(true);
     try {
-      const res = await fetch(`${API_BASE}/api/dtdc/delete-last-upload`, {
+      const res = await authFetch(`${API_BASE}/api/dtdc/delete-last-upload`, {
         method: "DELETE",
       });
       const json = await res.json();
 
-      if (json.error) {
-        alert(json.error);
+      if (!res.ok || json.error) {
+        alert(json.error || "Delete failed");
       } else {
         alert(`Deleted: ${json.deleted || 0} rows`);
         setPage(0);
@@ -236,22 +242,38 @@ const DtdcUpload = () => {
     }
   };
 
-  const handleDownloadSample = () => {
+  const handleDownloadSample = async () => {
     if (downloadingSample) return;
     setDownloadingSample(true);
 
-    window.open(`${API_BASE}/api/dtdc/sample`, "_blank");
-    setTimeout(() => setDownloadingSample(false), 600);
+    try {
+      const res = await authFetch(`${API_BASE}/api/dtdc/sample`);
+      if (!res.ok) throw new Error(`Sample download failed (${res.status})`);
+
+      const blob = await res.blob();
+      const objUrl = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = objUrl;
+      a.download = "dtdc_upload_sample.csv";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(objUrl);
+    } catch (e) {
+      console.error(e);
+      alert("Failed to download sample CSV");
+    } finally {
+      setDownloadingSample(false);
+    }
   };
 
-  // ✅ EXPORT (all if no filters, else filtered)
   const handleExport = async () => {
     if (exporting) return;
     setExporting(true);
 
     try {
       const url = buildExportUrl();
-      const res = await fetch(url);
+      const res = await authFetch(url);
       if (!res.ok) throw new Error(`Export failed (${res.status})`);
 
       const blob = await res.blob();
@@ -316,10 +338,9 @@ const DtdcUpload = () => {
   return (
     <Box sx={{ p: 3 }}>
       <Typography variant="h5" fontWeight="bold" sx={{ color: "black", mb: 2 }}>
-        📦 DTDC Settlement Upload
+        DTDC Settlement Upload
       </Typography>
 
-      {/* Upload */}
       <Paper
         elevation={0}
         sx={{
@@ -334,7 +355,6 @@ const DtdcUpload = () => {
           flexWrap: "wrap",
         }}
       >
-        {/* LEFT */}
         <Box sx={{ display: "flex", gap: 2, alignItems: "center", flexWrap: "wrap" }}>
           <input
             ref={fileInputRef}
@@ -342,7 +362,7 @@ const DtdcUpload = () => {
             accept=".csv"
             disabled={uploading}
             onClick={(e) => {
-              e.target.value = null; // allow selecting same file again
+              e.target.value = null;
             }}
             onChange={handleFileChange}
           />
@@ -364,7 +384,6 @@ const DtdcUpload = () => {
           </Button>
         </Box>
 
-        {/* RIGHT */}
         <Box
           sx={{
             display: "flex",
@@ -414,7 +433,6 @@ const DtdcUpload = () => {
         </Box>
       </Paper>
 
-      {/* Filters */}
       <Paper
         elevation={0}
         sx={{
@@ -436,7 +454,6 @@ const DtdcUpload = () => {
           sx={{ minWidth: 260 }}
         />
 
-        {/* ✅ status filter actually usable now */}
         <TextField
           size="small"
           label="Status contains"

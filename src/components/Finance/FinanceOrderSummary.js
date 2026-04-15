@@ -24,6 +24,13 @@ import { styled } from "@mui/material/styles";
 import axios from "axios";
 import dayjs from "dayjs";
 
+const API_BASE = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "");
+
+const api = axios.create({
+  baseURL: API_BASE,
+  withCredentials: true,
+});
+
 // Date filter options
 const DATE_FILTERS = ["This week", "This month", "Last 15 days", "Custom"];
 
@@ -129,10 +136,7 @@ const FinanceOrderSummary = () => {
     }
 
     try {
-      const res = await axios.get(
-        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/finance/orders",
-        { params }
-      );
+      const res = await api.get("/api/finance/orders", { params });
 
       setOrders(res.data.orders || []);
       setTotalCount(res.data.totalCount || 0);
@@ -204,9 +208,7 @@ const FinanceOrderSummary = () => {
     try {
       setRefreshing(true);
 
-      await axios.post(
-        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/finance/refresh-shopify"
-      );
+      await api.post("/api/finance/refresh-shopify");
 
       setPage(0);
 

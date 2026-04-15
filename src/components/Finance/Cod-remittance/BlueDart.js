@@ -1,4 +1,3 @@
-// BluedartUpload.jsx
 import React, { useEffect, useRef, useState, useMemo } from "react";
 import {
   Box,
@@ -17,7 +16,13 @@ import {
 } from "@mui/material";
 import CloudUploadIcon from "@mui/icons-material/CloudUpload";
 
-const API_BASE = "https://muditamleads-14f32a10d7f7.herokuapp.com"; // Change this to your actual backend URL
+const API_BASE = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "");
+
+const authFetch = (url, options = {}) =>
+  fetch(url, {
+    credentials: "include",
+    ...options,
+  });
 
 const BluedartUpload = () => {
   const [file, setFile] = useState(null);
@@ -35,10 +40,8 @@ const BluedartUpload = () => {
   const [rowsPerPage, setRowsPerPage] = useState(50);
   const [total, setTotal] = useState(0);
 
-  // ✅ total customer pay amount (as per filters)
   const [totalCustomerPayAmt, setTotalCustomerPayAmt] = useState(0);
 
-  // filters
   const [q, setQ] = useState("");
   const [uploadMin, setUploadMin] = useState("");
   const [uploadMax, setUploadMax] = useState("");
@@ -90,7 +93,8 @@ const BluedartUpload = () => {
     return params.toString();
   };
 
-  const buildUrl = () => `${API_BASE}/api/bluedart/data?${buildQueryParams({ includePagination: true })}`;
+  const buildUrl = () =>
+    `${API_BASE}/api/bluedart/data?${buildQueryParams({ includePagination: true })}`;
 
   const buildExportUrl = () =>
     `${API_BASE}/api/bluedart/export?${buildQueryParams({ includePagination: false })}`;
@@ -102,8 +106,12 @@ const BluedartUpload = () => {
       params.set("page", String(pageNum + 1));
       params.set("limit", String(limit));
 
-      const res = await fetch(`${API_BASE}/api/bluedart/data?${params.toString()}`);
+      const res = await authFetch(`${API_BASE}/api/bluedart/data?${params.toString()}`);
       const json = await res.json();
+
+      if (!res.ok) {
+        throw new Error(json?.error || "Failed to fetch data");
+      }
 
       setRecords(json.data || []);
       setTotal(json.totalCount || 0);
@@ -135,18 +143,17 @@ const BluedartUpload = () => {
 
     setUploading(true);
     try {
-      const res = await fetch(`${API_BASE}/api/bluedart/upload`, {
+      const res = await authFetch(`${API_BASE}/api/bluedart/upload`, {
         method: "POST",
         body: formData,
       });
       const json = await res.json();
 
-      if (json.error) {
-        alert(json.error);
+      if (!res.ok || json.error) {
+        alert(json.error || "Upload failed");
       } else {
         alert(`Upload successful (${json.inserted || 0} rows)`);
         clearSelectedFile();
-
         setPage(0);
         fetchData(0, rowsPerPage);
       }
@@ -168,13 +175,13 @@ const BluedartUpload = () => {
 
     setDeletingLast(true);
     try {
-      const res = await fetch(`${API_BASE}/api/bluedart/delete-last-upload`, {
+      const res = await authFetch(`${API_BASE}/api/bluedart/delete-last-upload`, {
         method: "DELETE",
       });
       const json = await res.json();
 
-      if (json.error) {
-        alert(json.error);
+      if (!res.ok || json.error) {
+        alert(json.error || "Delete failed");
       } else {
         alert(`Deleted: ${json.deleted || 0} rows`);
         setPage(0);
@@ -192,19 +199,34 @@ const BluedartUpload = () => {
     if (downloadingSample) return;
     setDownloadingSample(true);
 
-    window.open(`${API_BASE}/api/bluedart/sample`, "_blank");
+    try {
+      const res = await authFetch(`${API_BASE}/api/bluedart/sample`);
+      if (!res.ok) throw new Error(`Sample download failed (${res.status})`);
 
-    setTimeout(() => setDownloadingSample(false), 600);
+      const blob = await res.blob();
+      const objUrl = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = objUrl;
+      a.download = "bluedart_upload_sample.csv";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(objUrl);
+    } catch (e) {
+      console.error(e);
+      alert("Failed to download sample CSV");
+    } finally {
+      setDownloadingSample(false);
+    }
   };
 
-  // ✅ EXPORT (all if no filters, else filtered)
   const handleExport = async () => {
     if (exporting) return;
     setExporting(true);
 
     try {
       const url = buildExportUrl();
-      const res = await fetch(url);
+      const res = await authFetch(url);
       if (!res.ok) throw new Error(`Export failed (${res.status})`);
 
       const blob = await res.blob();
@@ -250,10 +272,9 @@ const BluedartUpload = () => {
   return (
     <Box sx={{ p: 3 }}>
       <Typography variant="h5" sx={{ mb: 2, fontWeight: "bold", color: "black" }}>
-        📦 Bluedart Settlement Upload
+        Bluedart Settlement Upload
       </Typography>
 
-      {/* Upload row */}
       <Paper
         elevation={0}
         sx={{
@@ -268,7 +289,6 @@ const BluedartUpload = () => {
           justifyContent: "space-between",
         }}
       >
-        {/* LEFT */}
         <Box sx={{ display: "flex", gap: 2, alignItems: "center", flexWrap: "wrap" }}>
           <input
             ref={fileInputRef}
@@ -276,7 +296,7 @@ const BluedartUpload = () => {
             accept=".csv"
             disabled={uploading}
             onClick={(e) => {
-              e.target.value = null; // allow same file re-pick
+              e.target.value = null;
             }}
             onChange={(e) => setFile(e.target.files?.[0] || null)}
           />
@@ -299,7 +319,6 @@ const BluedartUpload = () => {
           </Button>
         </Box>
 
-        {/* RIGHT */}
         <Box
           sx={{
             display: "flex",
@@ -349,7 +368,6 @@ const BluedartUpload = () => {
         </Box>
       </Paper>
 
-      {/* Filters row */}
       <Paper
         elevation={0}
         sx={{

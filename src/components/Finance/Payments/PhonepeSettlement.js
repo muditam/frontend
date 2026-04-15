@@ -15,6 +15,8 @@ import {
 } from "@mui/material";
 import CloudUploadIcon from "@mui/icons-material/CloudUpload";
 
+const API_BASE = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "");
+
 const headers = [
   "Upload Date",
   "Merchant Id",
@@ -49,6 +51,7 @@ const PhonePeUpload = () => {
   const [file, setFile] = useState(null);
   const [records, setRecords] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(50);
   const [totalRecords, setTotalRecords] = useState(0);
@@ -57,12 +60,22 @@ const PhonePeUpload = () => {
     setLoading(true);
     try {
       const res = await fetch(
-        `https://muditamleads-14f32a10d7f7.herokuapp.com/api/phonepe/data?page=${pageNum + 1}&limit=${limit}`
+        `${API_BASE}/api/phonepe/data?page=${pageNum + 1}&limit=${limit}`,
+        {
+          credentials: "include",
+        }
       );
+
       const json = await res.json();
-      setRecords(json.data);
+
+      if (!res.ok) {
+        throw new Error(json?.error || "Failed to fetch data");
+      }
+
+      setRecords(json.data || []);
       setTotalRecords(json.totalCount || 0);
-    } catch {
+    } catch (err) {
+      console.error(err);
       alert("Failed to fetch data");
     } finally {
       setLoading(false);
@@ -71,33 +84,43 @@ const PhonePeUpload = () => {
 
   useEffect(() => {
     fetchRecords(page, rowsPerPage);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, rowsPerPage]);
 
-  const handleFileChange = (e) => setFile(e.target.files[0]);
+  const handleFileChange = (e) => setFile(e.target.files?.[0] || null);
 
   const handleUpload = async () => {
-    if (!file) return alert("Please select a CSV file.");
+    if (uploading) return;
+    if (!file) {
+      alert("Please select a CSV file.");
+      return;
+    }
 
     const formData = new FormData();
     formData.append("file", file);
-    setLoading(true);
+    setUploading(true);
 
     try {
-      const res = await fetch("https://muditamleads-14f32a10d7f7.herokuapp.com/api/phonepe/upload", {
+      const res = await fetch(`${API_BASE}/api/phonepe/upload`, {
         method: "POST",
         body: formData,
+        credentials: "include",
       });
 
       const json = await res.json();
-      if (json.error) {
-        alert(json.error);
+
+      if (!res.ok || json.error) {
+        alert(json.error || "Upload failed.");
       } else {
-        fetchRecords(0, rowsPerPage); 
+        setFile(null);
+        setPage(0);
+        fetchRecords(0, rowsPerPage);
       }
-    } catch {
+    } catch (err) {
+      console.error(err);
       alert("Upload failed.");
     } finally {
-      setLoading(false);
+      setUploading(false);
     }
   };
 
@@ -111,11 +134,18 @@ const PhonePeUpload = () => {
         <input type="file" accept=".csv" onChange={handleFileChange} />
         <Button
           variant="contained"
-          startIcon={<CloudUploadIcon />}
+          startIcon={
+            uploading ? (
+              <CircularProgress size={18} sx={{ color: "#fff" }} />
+            ) : (
+              <CloudUploadIcon />
+            )
+          }
           onClick={handleUpload}
+          disabled={uploading || !file}
           sx={{ bgcolor: "black", color: "#fff", "&:hover": { bgcolor: "#333" } }}
         >
-          Upload
+          {uploading ? "Uploading..." : "Upload"}
         </Button>
       </Box>
 
@@ -135,37 +165,47 @@ const PhonePeUpload = () => {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {records.map((row, idx) => (
-                  <TableRow key={idx}>
-                    <TableCell>{new Date(row.uploadDate).toLocaleDateString()}</TableCell>
-                    <TableCell>{row.merchantId}</TableCell>
-                    <TableCell>{row.transactionType}</TableCell>
-                    <TableCell>{row.merchantOrderId}</TableCell>
-                    <TableCell>{row.merchantReferenceId}</TableCell>
-                    <TableCell>{row.phonePeReferenceId}</TableCell>
-                    <TableCell>{row.phonePeTransactionReferenceId}</TableCell>
-                    <TableCell>{row.phonePeAttemptReferenceId}</TableCell>
-                    <TableCell>{row.transactionUTR}</TableCell>
-                    <TableCell>₹{row.totalTransactionAmount}</TableCell>
-                    <TableCell>{row.transactionDate}</TableCell>
-                    <TableCell>{row.transactionStatus}</TableCell>
-                    <TableCell>{row.upiAmount}</TableCell>
-                    <TableCell>{row.walletAmount}</TableCell>
-                    <TableCell>{row.creditCardAmount}</TableCell>
-                    <TableCell>{row.debitCardAmount}</TableCell>
-                    <TableCell>{row.externalWalletAmount}</TableCell>
-                    <TableCell>{row.egvAmount}</TableCell>
-                    <TableCell>{row.storeId}</TableCell>
-                    <TableCell>{row.terminalId}</TableCell>
-                    <TableCell>{row.storeName}</TableCell>
-                    <TableCell>{row.terminalName}</TableCell>
-                    <TableCell>{row.errorCode}</TableCell>
-                    <TableCell>{row.detailedErrorCode}</TableCell>
-                    <TableCell>{row.errorDescription}</TableCell>
-                    <TableCell>{row.errorSource}</TableCell>
-                    <TableCell>{row.errorStage}</TableCell>
+                {records.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={headers.length} align="center">
+                      No records found
+                    </TableCell>
                   </TableRow>
-                ))}
+                ) : (
+                  records.map((row, idx) => (
+                    <TableRow key={row._id || idx}>
+                      <TableCell>
+                        {row.uploadDate ? new Date(row.uploadDate).toLocaleDateString() : "-"}
+                      </TableCell>
+                      <TableCell>{row.merchantId || "-"}</TableCell>
+                      <TableCell>{row.transactionType || "-"}</TableCell>
+                      <TableCell>{row.merchantOrderId || "-"}</TableCell>
+                      <TableCell>{row.merchantReferenceId || "-"}</TableCell>
+                      <TableCell>{row.phonePeReferenceId || "-"}</TableCell>
+                      <TableCell>{row.phonePeTransactionReferenceId || "-"}</TableCell>
+                      <TableCell>{row.phonePeAttemptReferenceId || "-"}</TableCell>
+                      <TableCell>{row.transactionUTR || "-"}</TableCell>
+                      <TableCell>₹{row.totalTransactionAmount || 0}</TableCell>
+                      <TableCell>{row.transactionDate || "-"}</TableCell>
+                      <TableCell>{row.transactionStatus || "-"}</TableCell>
+                      <TableCell>{row.upiAmount || 0}</TableCell>
+                      <TableCell>{row.walletAmount || 0}</TableCell>
+                      <TableCell>{row.creditCardAmount || 0}</TableCell>
+                      <TableCell>{row.debitCardAmount || 0}</TableCell>
+                      <TableCell>{row.externalWalletAmount || 0}</TableCell>
+                      <TableCell>{row.egvAmount || 0}</TableCell>
+                      <TableCell>{row.storeId || "-"}</TableCell>
+                      <TableCell>{row.terminalId || "-"}</TableCell>
+                      <TableCell>{row.storeName || "-"}</TableCell>
+                      <TableCell>{row.terminalName || "-"}</TableCell>
+                      <TableCell>{row.errorCode || "-"}</TableCell>
+                      <TableCell>{row.detailedErrorCode || "-"}</TableCell>
+                      <TableCell>{row.errorDescription || "-"}</TableCell>
+                      <TableCell>{row.errorSource || "-"}</TableCell>
+                      <TableCell>{row.errorStage || "-"}</TableCell>
+                    </TableRow>
+                  ))
+                )}
               </TableBody>
             </Table>
           </TableContainer>

@@ -1,4 +1,3 @@
-// RazorpayUpload.jsx
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Box,
@@ -18,7 +17,13 @@ import {
 import CloudUploadIcon from "@mui/icons-material/CloudUpload";
 import DownloadIcon from "@mui/icons-material/Download";
 
-const API_BASE = "https://muditamleads-14f32a10d7f7.herokuapp.com";
+const API_BASE = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "");
+
+const authFetch = (url, options = {}) =>
+  fetch(url, {
+    credentials: "include",
+    ...options,
+  });
 
 const RazorpayUpload = () => {
   const [file, setFile] = useState(null);
@@ -27,7 +32,6 @@ const RazorpayUpload = () => {
   const [records, setRecords] = useState([]);
   const [loading, setLoading] = useState(false);
 
-  // actions
   const [uploading, setUploading] = useState(false);
   const [downloadingSample, setDownloadingSample] = useState(false);
   const [exporting, setExporting] = useState(false);
@@ -35,11 +39,8 @@ const RazorpayUpload = () => {
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(50);
   const [totalRecords, setTotalRecords] = useState(0);
-
-  // ✅ NEW: sum of amount across FILTERED dataset
   const [totalAmount, setTotalAmount] = useState(0);
 
-  // ---------------- Filters ----------------
   const [q, setQ] = useState("");
   const [uploadMin, setUploadMin] = useState("");
   const [uploadMax, setUploadMax] = useState("");
@@ -173,11 +174,16 @@ const RazorpayUpload = () => {
   const fetchRecords = async (pg = page, limit = rowsPerPage) => {
     setLoading(true);
     try {
-      const res = await fetch(buildUrl(pg, limit));
+      const res = await authFetch(buildUrl(pg, limit));
       const json = await res.json();
+
+      if (!res.ok) {
+        throw new Error(json?.error || "Failed to fetch data");
+      }
+
       setRecords(json.data || []);
       setTotalRecords(json.totalRecords || 0);
-      setTotalAmount(json.totalAmount || 0); // ✅ NEW
+      setTotalAmount(json.totalAmount || 0);
     } catch (err) {
       console.error(err);
       alert("Failed to fetch data");
@@ -198,20 +204,23 @@ const RazorpayUpload = () => {
 
   const handleUpload = async () => {
     if (uploading) return;
-    if (!file) return alert("Please select a CSV file.");
+    if (!file) {
+      alert("Please select a CSV file.");
+      return;
+    }
 
     const formData = new FormData();
     formData.append("file", file);
 
     setUploading(true);
     try {
-      const res = await fetch(`${API_BASE}/api/razorpay/upload`, {
+      const res = await authFetch(`${API_BASE}/api/razorpay/upload`, {
         method: "POST",
         body: formData,
       });
       const json = await res.json();
 
-      if (json.error) {
+      if (!res.ok || json.error) {
         alert(json.error || "Upload failed");
       } else {
         alert(json.message || `Upload successful (${json.inserted || 0} rows)`);
@@ -227,21 +236,38 @@ const RazorpayUpload = () => {
     }
   };
 
-  const handleDownloadSample = () => {
+  const handleDownloadSample = async () => {
     if (downloadingSample) return;
     setDownloadingSample(true);
-    window.open(`${API_BASE}/api/razorpay/sample`, "_blank");
-    setTimeout(() => setDownloadingSample(false), 600);
+
+    try {
+      const res = await authFetch(`${API_BASE}/api/razorpay/sample`);
+      if (!res.ok) throw new Error(`Sample download failed (${res.status})`);
+
+      const blob = await res.blob();
+      const objUrl = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = objUrl;
+      a.download = "razorpay_sample.csv";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(objUrl);
+    } catch (e) {
+      console.error(e);
+      alert("Failed to download sample CSV");
+    } finally {
+      setDownloadingSample(false);
+    }
   };
 
-  // ✅ Export ALL or FILTERED
   const handleExport = async () => {
     if (exporting) return;
     setExporting(true);
 
     try {
       const url = buildExportUrl();
-      const res = await fetch(url);
+      const res = await authFetch(url);
       if (!res.ok) throw new Error(`Export failed (${res.status})`);
 
       const blob = await res.blob();
@@ -296,7 +322,9 @@ const RazorpayUpload = () => {
     fetchRecords(0, rowsPerPage);
   };
 
-  const fmtINR = (n) => (n == null || n === "" ? "-" : `₹${Number(n).toLocaleString("en-IN")}`);
+  const fmtINR = (n) =>
+    n == null || n === "" ? "-" : `₹${Number(n).toLocaleString("en-IN")}`;
+
   const fmtDate = (d) => {
     if (!d) return "-";
     const dt = new Date(d);
@@ -309,7 +337,6 @@ const RazorpayUpload = () => {
         📄 Upload Razorpay Settlement CSV
       </Typography>
 
-      {/* Upload row */}
       <Paper
         elevation={0}
         sx={{
@@ -339,11 +366,20 @@ const RazorpayUpload = () => {
           <Button
             variant="contained"
             startIcon={
-              uploading ? <CircularProgress size={18} sx={{ color: "#fff" }} /> : <CloudUploadIcon />
+              uploading ? (
+                <CircularProgress size={18} sx={{ color: "#fff" }} />
+              ) : (
+                <CloudUploadIcon />
+              )
             }
             onClick={handleUpload}
             disabled={uploading || !file}
-            sx={{ bgcolor: "black", color: "#fff", "&:hover": { bgcolor: "#333" }, minWidth: 120 }}
+            sx={{
+              bgcolor: "black",
+              color: "#fff",
+              "&:hover": { bgcolor: "#333" },
+              minWidth: 120,
+            }}
           >
             {uploading ? "Uploading..." : "Upload"}
           </Button>
@@ -371,7 +407,13 @@ const RazorpayUpload = () => {
 
           <Button
             variant="outlined"
-            startIcon={exporting ? <CircularProgress size={18} sx={{ color: "black" }} /> : <DownloadIcon />}
+            startIcon={
+              exporting ? (
+                <CircularProgress size={18} sx={{ color: "black" }} />
+              ) : (
+                <DownloadIcon />
+              )
+            }
             onClick={handleExport}
             disabled={exporting}
             sx={{
@@ -396,7 +438,6 @@ const RazorpayUpload = () => {
         </Box>
       </Paper>
 
-      {/* Filters row */}
       <Paper
         elevation={0}
         sx={{
@@ -542,10 +583,20 @@ const RazorpayUpload = () => {
           sx={{ width: 140 }}
         />
 
-        <Button variant="outlined" onClick={applyFilters} disabled={anyActionLoading} sx={{ textTransform: "none" }}>
+        <Button
+          variant="outlined"
+          onClick={applyFilters}
+          disabled={anyActionLoading}
+          sx={{ textTransform: "none" }}
+        >
           Apply
         </Button>
-        <Button variant="text" onClick={clearFilters} disabled={anyActionLoading} sx={{ textTransform: "none" }}>
+        <Button
+          variant="text"
+          onClick={clearFilters}
+          disabled={anyActionLoading}
+          sx={{ textTransform: "none" }}
+        >
           Clear
         </Button>
       </Paper>

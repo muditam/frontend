@@ -17,7 +17,13 @@ import {
 import CloudUploadIcon from "@mui/icons-material/CloudUpload";
 import DownloadIcon from "@mui/icons-material/Download";
 
-const API_BASE = "https://muditamleads-14f32a10d7f7.herokuapp.com";
+const API_BASE = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "");
+
+const authFetch = (url, options = {}) =>
+  fetch(url, {
+    credentials: "include",
+    ...options,
+  });
 
 const headers = [
   "Upload Date",
@@ -45,7 +51,6 @@ const CashfreeUpload = () => {
   const [rowsPerPage, setRowsPerPage] = useState(50);
   const [totalCount, setTotalCount] = useState(0);
 
-  // filters
   const [q, setQ] = useState("");
   const [uploadMin, setUploadMin] = useState("");
   const [uploadMax, setUploadMax] = useState("");
@@ -101,8 +106,13 @@ const CashfreeUpload = () => {
   const fetchData = async (pageNum = page, limit = rowsPerPage) => {
     setLoading(true);
     try {
-      const res = await fetch(buildUrl(pageNum, limit));
+      const res = await authFetch(buildUrl(pageNum, limit));
       const json = await res.json();
+
+      if (!res.ok) {
+        throw new Error(json?.error || "Failed to fetch data");
+      }
+
       setRecords(json.data || []);
       setTotalCount(json.totalCount || 0);
     } catch (e) {
@@ -132,14 +142,14 @@ const CashfreeUpload = () => {
 
     setUploading(true);
     try {
-      const res = await fetch(`${API_BASE}/api/cashfree/upload`, {
+      const res = await authFetch(`${API_BASE}/api/cashfree/upload`, {
         method: "POST",
         body: formData,
       });
 
       const json = await res.json();
-      if (json.error) {
-        alert(json.error);
+      if (!res.ok || json.error) {
+        alert(json.error || "Upload failed");
       } else {
         alert(`Upload successful (${json.inserted || 0} rows)`);
         clearSelectedFile();
@@ -162,11 +172,14 @@ const CashfreeUpload = () => {
 
     setDeletingLast(true);
     try {
-      const res = await fetch(`${API_BASE}/api/cashfree/delete-last-upload`, { method: "DELETE" });
+      const res = await authFetch(`${API_BASE}/api/cashfree/delete-last-upload`, {
+        method: "DELETE",
+      });
       const json = await res.json();
 
-      if (json.error) alert(json.error);
-      else {
+      if (!res.ok || json.error) {
+        alert(json.error || "Delete failed");
+      } else {
         alert(`Deleted: ${json.deleted || 0} rows`);
         setPage(0);
         fetchData(0, rowsPerPage);
@@ -179,12 +192,31 @@ const CashfreeUpload = () => {
     }
   };
 
-  const handleDownloadSample = () => {
+  const handleDownloadSample = async () => {
     if (downloadingSample) return;
     setDownloadingSample(true);
 
-    window.open(`${API_BASE}/api/cashfree/sample`, "_blank");
-    setTimeout(() => setDownloadingSample(false), 600);
+    try {
+      const res = await authFetch(`${API_BASE}/api/cashfree/sample`);
+      if (!res.ok) throw new Error(`Sample download failed (${res.status})`);
+
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "cashfree_sample.csv";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+
+      window.URL.revokeObjectURL(url);
+    } catch (e) {
+      console.error(e);
+      alert("Failed to download sample CSV");
+    } finally {
+      setDownloadingSample(false);
+    }
   };
 
   const applyFilters = () => {
@@ -209,10 +241,9 @@ const CashfreeUpload = () => {
   return (
     <Box sx={{ p: 3 }}>
       <Typography variant="h5" fontWeight="bold" sx={{ color: "black", mb: 2 }}>
-        🧾 Cashfree Settlement Upload
+        Cashfree Settlement Upload
       </Typography>
 
-      {/* Upload row */}
       <Paper
         elevation={0}
         sx={{
@@ -235,7 +266,7 @@ const CashfreeUpload = () => {
             disabled={uploading}
             onChange={(e) => setFile(e.target.files?.[0] || null)}
             onClick={(e) => {
-              e.target.value = null; // allow re-select same file
+              e.target.value = null;
             }}
           />
 
@@ -279,7 +310,6 @@ const CashfreeUpload = () => {
         </Box>
       </Paper>
 
-      {/* Filters */}
       <Paper
         elevation={0}
         sx={{

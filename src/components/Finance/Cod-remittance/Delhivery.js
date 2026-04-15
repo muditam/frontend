@@ -1,4 +1,3 @@
-// DelhiveryUpload.jsx
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Box,
@@ -17,7 +16,13 @@ import {
 } from "@mui/material";
 import CloudUploadIcon from "@mui/icons-material/CloudUpload";
 
-const API_BASE = "https://muditamleads-14f32a10d7f7.herokuapp.com";
+const API_BASE = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "");
+
+const authFetch = (url, options = {}) =>
+  fetch(url, {
+    credentials: "include",
+    ...options,
+  });
 
 const DelhiveryUpload = () => {
   const [file, setFile] = useState(null);
@@ -35,10 +40,8 @@ const DelhiveryUpload = () => {
   const [rowsPerPage, setRowsPerPage] = useState(50);
   const [totalCount, setTotalCount] = useState(0);
 
-  // ✅ NEW: total amount sum across filtered dataset (not just current page)
   const [totalAmount, setTotalAmount] = useState(0);
 
-  // filters
   const [q, setQ] = useState("");
   const [uploadMin, setUploadMin] = useState("");
   const [uploadMax, setUploadMax] = useState("");
@@ -47,7 +50,9 @@ const DelhiveryUpload = () => {
   const [amountMin, setAmountMin] = useState("");
   const [amountMax, setAmountMax] = useState("");
 
-  const fmt = (n) => (n == null || n === "" ? "" : `₹${Number(n).toLocaleString("en-IN")}`);
+  const fmt = (n) =>
+    n == null || n === "" ? "" : `₹${Number(n).toLocaleString("en-IN")}`;
+
   const fmtDate = (d) => {
     if (!d) return "";
     const dt = new Date(d);
@@ -92,16 +97,22 @@ const DelhiveryUpload = () => {
     return `${API_BASE}/api/delhivery/data?${params.toString()}`;
   };
 
-  const buildExportUrl = () => `${API_BASE}/api/delhivery/export?${buildQueryParams({ includePagination: false })}`;
+  const buildExportUrl = () =>
+    `${API_BASE}/api/delhivery/export?${buildQueryParams({ includePagination: false })}`;
 
   const fetchData = async (pageNum = page, limit = rowsPerPage) => {
     setLoading(true);
     try {
-      const res = await fetch(buildUrl(pageNum, limit));
+      const res = await authFetch(buildUrl(pageNum, limit));
       const json = await res.json();
+
+      if (!res.ok) {
+        throw new Error(json?.error || "Failed to fetch data");
+      }
+
       setRecords(json.data || []);
       setTotalCount(json.totalCount || 0);
-      setTotalAmount(json.totalAmount || 0); // ✅ NEW
+      setTotalAmount(json.totalAmount || 0);
     } catch (e) {
       console.error(e);
       alert("Failed to fetch data");
@@ -131,14 +142,14 @@ const DelhiveryUpload = () => {
 
     setUploading(true);
     try {
-      const res = await fetch(`${API_BASE}/api/delhivery/upload`, {
+      const res = await authFetch(`${API_BASE}/api/delhivery/upload`, {
         method: "POST",
         body: formData,
       });
 
       const json = await res.json();
-      if (json.error) {
-        alert(json.error);
+      if (!res.ok || json.error) {
+        alert(json.error || "Upload failed");
       } else {
         alert(`Upload successful (${json.inserted || 0} rows)`);
         clearSelectedFile();
@@ -163,13 +174,13 @@ const DelhiveryUpload = () => {
 
     setDeletingLast(true);
     try {
-      const res = await fetch(`${API_BASE}/api/delhivery/delete-last-upload`, {
+      const res = await authFetch(`${API_BASE}/api/delhivery/delete-last-upload`, {
         method: "DELETE",
       });
       const json = await res.json();
 
-      if (json.error) {
-        alert(json.error);
+      if (!res.ok || json.error) {
+        alert(json.error || "Delete failed");
       } else {
         alert(`Deleted: ${json.deleted || 0} rows`);
         setPage(0);
@@ -191,14 +202,13 @@ const DelhiveryUpload = () => {
     setTimeout(() => setDownloadingSample(false), 600);
   };
 
-  // ✅ EXPORT (all if no filters, else filtered)
   const handleExport = async () => {
     if (exporting) return;
     setExporting(true);
 
     try {
       const url = buildExportUrl();
-      const res = await fetch(url);
+      const res = await authFetch(url);
       if (!res.ok) throw new Error(`Export failed (${res.status})`);
 
       const blob = await res.blob();
@@ -244,15 +254,15 @@ const DelhiveryUpload = () => {
     fetchData(0, rowsPerPage);
   };
 
-  const anyActionLoading = uploading || deletingLast || downloadingSample || exporting;
+  const anyActionLoading =
+    uploading || deletingLast || downloadingSample || exporting;
 
   return (
     <Box sx={{ p: 3 }}>
       <Typography variant="h5" fontWeight="bold" sx={{ color: "black", mb: 2 }}>
-        🚚 Delhivery Settlement Upload
+        Delhivery Settlement Upload
       </Typography>
 
-      {/* Upload */}
       <Paper
         elevation={0}
         sx={{
@@ -267,7 +277,6 @@ const DelhiveryUpload = () => {
           flexWrap: "wrap",
         }}
       >
-        {/* LEFT: file + upload */}
         <Box sx={{ display: "flex", gap: 2, alignItems: "center", flexWrap: "wrap" }}>
           <input
             ref={fileInputRef}
@@ -283,7 +292,11 @@ const DelhiveryUpload = () => {
           <Button
             variant="contained"
             startIcon={
-              uploading ? <CircularProgress size={18} sx={{ color: "#fff" }} /> : <CloudUploadIcon />
+              uploading ? (
+                <CircularProgress size={18} sx={{ color: "#fff" }} />
+              ) : (
+                <CloudUploadIcon />
+              )
             }
             onClick={handleUpload}
             disabled={uploading || !file}
@@ -293,7 +306,6 @@ const DelhiveryUpload = () => {
           </Button>
         </Box>
 
-        {/* RIGHT: totals + export + delete + sample */}
         <Box
           sx={{
             display: "flex",
@@ -343,7 +355,6 @@ const DelhiveryUpload = () => {
         </Box>
       </Paper>
 
-      {/* Filters */}
       <Paper
         elevation={0}
         sx={{
