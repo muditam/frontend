@@ -16,29 +16,32 @@ import {
   Chip,
   Tooltip,
   Button,
-  CircularProgress, 
+  CircularProgress,
   Alert,
   Select,
   MenuItem,
   Snackbar,
   Alert as MuiAlert,
-  FormControl, 
+  FormControl,
   InputLabel,
   TextField,
   Stack,
 } from "@mui/material";
 import RefreshIcon from "@mui/icons-material/Refresh";
 
-const API_BASE = "https://muditamleads-14f32a10d7f7.herokuapp.com";
-const EMPLOYEES_URL = 
-  "https://muditamleads-14f32a10d7f7.herokuapp.com/api/employees?role=Retention%20Agent";
+const API_BASE = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "");
+
+const api = axios.create({
+  baseURL: API_BASE,
+  withCredentials: true,
+});
 
 const PRODUCT_ABBREV = {
   "Karela Jamun Fizz": "KJF",
   "Sugar Defend Pro": "SDP",
   "Vasant Kusmakar Ras": "VKR",
-  "Liver Fix": "L-Fx", 
-  "Stress & Sleep": "S&S", 
+  "Liver Fix": "L-Fx",
+  "Stress & Sleep": "S&S",
   "Chandraprabha Vati": "CPV",
   "Heart Defend Pro": "HDP",
   "Performance Forever": "PF",
@@ -72,15 +75,15 @@ function shipmentColor(status) {
   const s = (status || "").toLowerCase();
 
   if (!s || s === "-" || s === "—") return "default";
- 
+
   if (s.includes("undelivered") || s.includes("failed")) return "error";
   if (s.includes("cancel")) return "error";
   if (s.includes("rto")) return "warning";
-  
+
   if (s.includes("in transit") || s.includes("ofd") || s.includes("out for")) {
     return "info";
   }
- 
+
   if (s === "delivered" || s.endsWith(" delivered")) {
     return "success";
   }
@@ -145,7 +148,7 @@ export default function ShopifyOrdersTable() {
     if (controllerRef.current) {
       try {
         controllerRef.current.abort();
-      } catch {}
+      } catch { }
       controllerRef.current = null;
     }
   }, []);
@@ -169,7 +172,9 @@ export default function ShopifyOrdersTable() {
   useEffect(() => {
     (async () => {
       try {
-        const { data } = await axios.get(EMPLOYEES_URL);
+        const { data } = await api.get("/api/employees", {
+          params: { role: "Retention Agent" },
+        });
         const active = Array.isArray(data) ? data.filter((a) => a?.status === "active") : [];
         setAgents(active);
       } catch (e) {
@@ -179,7 +184,7 @@ export default function ShopifyOrdersTable() {
 
       // Initial meta (shipment statuses, states, modes) with onlyMeta=1 (no rows)
       try {
-        const { data: meta } = await axios.get(`${API_BASE}/api/shopify/orders-table`, {
+        const { data: meta } = await api.get("/api/shopify/orders-table", {
           params: { onlyMeta: 1, page: 1, limit: 1 },
         });
         setAvailableStatuses(Array.isArray(meta?.statuses) ? meta.statuses : []);
@@ -204,7 +209,7 @@ export default function ShopifyOrdersTable() {
       setErr("");
       try {
         const params = buildParams(p, l, { withMeta: withMeta ? 1 : 0 });
-        const { data } = await axios.get(`${API_BASE}/api/shopify/orders-table`, {
+        const { data } = await api.get("/api/shopify/orders-table", {
           params,
           signal: controller.signal,
         });
@@ -255,7 +260,7 @@ export default function ShopifyOrdersTable() {
 
   // Save Health Expert (optimistic UI)
   const persistHealthExpert = async (row, value) => {
-    await axios.post(`${API_BASE}/api/leads/assign-health-expert`, {
+    await api.post("/api/leads/assign-health-expert", {
       orderName: row.orderId,
       contactNumber: row.contactNumber,
       healthExpertAssigned: value,
@@ -295,8 +300,7 @@ export default function ShopifyOrdersTable() {
       if (endDate) params.endDate = endDate;
       if (stateFilter) params.state = stateFilter;
       if (modeFilter) params.mode = modeFilter;
-      // NOTE: For initial flow, assigned and status are not included here on purpose
-      const { data: meta } = await axios.get(`${API_BASE}/api/shopify/orders-table`, {
+      const { data: meta } = await api.get("/api/shopify/orders-table", {
         params: { onlyMeta: 1, page: 1, limit: 1, ...params },
       });
       setAvailableStatuses(Array.isArray(meta?.statuses) ? meta.statuses : []);
@@ -413,8 +417,8 @@ export default function ShopifyOrdersTable() {
               disabled={loading}
             >
               Get Orders
-            </Button> 
-            
+            </Button>
+
             <Button
               onClick={refreshMetaOnly}
               variant="text"
