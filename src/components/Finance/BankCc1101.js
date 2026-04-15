@@ -19,7 +19,12 @@ import {
 import CloudUploadIcon from "@mui/icons-material/CloudUpload";
 import axios from "axios";
 
-const API_BASE_URL = "https://muditamleads-14f32a10d7f7.herokuapp.com";
+const API_BASE_URL = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "");
+
+const api = axios.create({
+  baseURL: API_BASE_URL,
+  withCredentials: true,
+});
 
 const LIGHT_GREEN = "#DCFCE7";
 const LIGHT_RED = "#FEE2E2";
@@ -48,13 +53,11 @@ const BankCc1101 = () => {
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(50);
 
-  // selection (by _id)
   const [selectedIds, setSelectedIds] = useState(new Set());
 
-  // filters
   const [dateMin, setDateMin] = useState("");
   const [dateMax, setDateMax] = useState("");
-  const [textFilter, setTextFilter] = useState(""); // Description/Ref/Remarks/Branch
+  const [textFilter, setTextFilter] = useState("");
   const [branchFilter, setBranchFilter] = useState("");
   const [amountMin, setAmountMin] = useState("");
   const [amountMax, setAmountMax] = useState("");
@@ -73,7 +76,7 @@ const BankCc1101 = () => {
   const fetchData = async (pageArg = page, rowsArg = rowsPerPage) => {
     try {
       setLoading(true);
-      const { data } = await axios.get(`${API_BASE_URL}/api/bank-reconciliation/cc-1101`, {
+      const { data } = await api.get("/api/bank-reconciliation/cc-1101", {
         params: buildParams(pageArg, rowsArg),
       });
 
@@ -81,7 +84,7 @@ const BankCc1101 = () => {
       setTotal(data?.total || 0);
       setPage(pageArg);
       setRowsPerPage(rowsArg);
-      setSelectedIds(new Set()); // clear selection on fetch
+      setSelectedIds(new Set());
     } catch (err) {
       console.error("Error fetching CC 1101 txns:", err);
     } finally {
@@ -103,7 +106,7 @@ const BankCc1101 = () => {
 
     try {
       setUploading(true);
-      await axios.post(`${API_BASE_URL}/api/bank-reconciliation/cc-1101/upload`, formData, {
+      await api.post("/api/bank-reconciliation/cc-1101/upload", formData, {
         headers: { "Content-Type": "multipart/form-data" },
       });
       await fetchData(0, rowsPerPage);
@@ -132,11 +135,16 @@ const BankCc1101 = () => {
     if (value === null || value === undefined || value === "") return "";
     const num = Number(value);
     if (Number.isNaN(num)) return "";
-    return num.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    return num.toLocaleString("en-IN", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
   };
 
-  // selection helpers
-  const allChecked = useMemo(() => rows.length > 0 && rows.every((r) => selectedIds.has(r._id)), [rows, selectedIds]);
+  const allChecked = useMemo(
+    () => rows.length > 0 && rows.every((r) => selectedIds.has(r._id)),
+    [rows, selectedIds]
+  );
 
   const someChecked = useMemo(() => {
     if (!rows.length) return false;
@@ -158,18 +166,17 @@ const BankCc1101 = () => {
     setSelectedIds(new Set(rows.map((r) => r._id)));
   };
 
-  // rowColor persist
   const saveRowColor = async (id, color) => {
-    await axios.put(`${API_BASE_URL}/api/bank-reconciliation/cc-1101/${id}`, { rowColor: color });
+    await api.put(`/api/bank-reconciliation/cc-1101/${id}`, { rowColor: color });
   };
 
   const applyRowColor = async (color) => {
     if (!selectedIds.size) return;
 
-    // optimistic UI
-    setRows((prev) => prev.map((r) => (selectedIds.has(r._id) ? { ...r, rowColor: color } : r)));
+    setRows((prev) =>
+      prev.map((r) => (selectedIds.has(r._id) ? { ...r, rowColor: color } : r))
+    );
 
-    // persist best-effort
     await Promise.all(
       Array.from(selectedIds).map(async (id) => {
         try {
@@ -193,7 +200,6 @@ const BankCc1101 = () => {
 
   return (
     <Box sx={{ p: 3, bgcolor: "#f5f7fb", minHeight: "100vh", boxSizing: "border-box" }}>
-      {/* Header card */}
       <Paper
         elevation={0}
         sx={{
@@ -217,7 +223,6 @@ const BankCc1101 = () => {
         </Box>
 
         <Stack direction="row" spacing={1.5} alignItems="center" flexWrap="wrap">
-          {/* Coloring controls */}
           <Stack direction="row" spacing={1} alignItems="center">
             <Swatch color={LIGHT_GREEN} onClick={() => applyRowColor(LIGHT_GREEN)} title="Mark selected Green" />
             <Swatch color={LIGHT_RED} onClick={() => applyRowColor(LIGHT_RED)} title="Mark selected Red" />
@@ -231,7 +236,6 @@ const BankCc1101 = () => {
             </Button>
           </Stack>
 
-          {/* Upload */}
           <Button
             variant="contained"
             component="label"
@@ -251,7 +255,6 @@ const BankCc1101 = () => {
         </Stack>
       </Paper>
 
-      {/* Filters */}
       <Paper
         elevation={0}
         sx={{
@@ -330,7 +333,6 @@ const BankCc1101 = () => {
         </Stack>
       </Paper>
 
-      {/* Table */}
       <Paper elevation={0} sx={{ borderRadius: 2, border: "1px solid #e0e3ef", overflow: "hidden" }}>
         {loading ? (
           <Box sx={{ py: 6, display: "flex", justifyContent: "center", alignItems: "center" }}>

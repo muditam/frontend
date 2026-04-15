@@ -20,7 +20,12 @@ import {
 import CloudUploadIcon from "@mui/icons-material/CloudUpload";
 import axios from "axios";
 
-const API_BASE_URL = "https://muditamleads-14f32a10d7f7.herokuapp.com";
+const API_BASE_URL = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "");
+
+const api = axios.create({
+  baseURL: API_BASE_URL,
+  withCredentials: true,
+});
 
 const LIGHT_GREEN = "#DCFCE7";
 const LIGHT_RED = "#FEE2E2";
@@ -49,16 +54,14 @@ const BankYesCcAbhay = () => {
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(50);
 
-  // selection
   const [selectedIds, setSelectedIds] = useState(new Set());
 
-  // filters
   const [dateMin, setDateMin] = useState("");
   const [dateMax, setDateMax] = useState("");
   const [q, setQ] = useState("");
   const [amountMin, setAmountMin] = useState("");
   const [amountMax, setAmountMax] = useState("");
-  const [drCr, setDrCr] = useState(""); // "", "DR", "CR"
+  const [drCr, setDrCr] = useState("");
 
   const buildParams = (pageArg, rowsArg) => ({
     page: pageArg + 1,
@@ -74,16 +77,15 @@ const BankYesCcAbhay = () => {
   const fetchData = async (pageArg = page, rowsArg = rowsPerPage) => {
     try {
       setLoading(true);
-      const { data } = await axios.get(
-        `${API_BASE_URL}/api/bank-reconciliation/yes-cc-abhay`,
-        { params: buildParams(pageArg, rowsArg) }
-      );
+      const { data } = await api.get("/api/bank-reconciliation/yes-cc-abhay", {
+        params: buildParams(pageArg, rowsArg),
+      });
 
       setRows(data?.data || []);
       setTotal(data?.total || 0);
       setPage(pageArg);
       setRowsPerPage(rowsArg);
-      setSelectedIds(new Set()); // clear on fetch
+      setSelectedIds(new Set());
     } catch (err) {
       console.error("Error fetching Yes CC Abhay txns:", err);
     } finally {
@@ -105,11 +107,9 @@ const BankYesCcAbhay = () => {
 
     try {
       setUploading(true);
-      await axios.post(
-        `${API_BASE_URL}/api/bank-reconciliation/yes-cc-abhay/upload`,
-        formData,
-        { headers: { "Content-Type": "multipart/form-data" } }
-      );
+      await api.post("/api/bank-reconciliation/yes-cc-abhay/upload", formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
       await fetchData(0, rowsPerPage);
     } catch (err) {
       console.error("Upload error:", err);
@@ -133,10 +133,12 @@ const BankYesCcAbhay = () => {
     if (value === null || value === undefined || value === "") return "";
     const num = Number(value);
     if (Number.isNaN(num)) return "";
-    return num.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    return num.toLocaleString("en-IN", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
   };
 
-  // selection helpers
   const allChecked = useMemo(
     () => rows.length > 0 && rows.every((r) => selectedIds.has(r._id)),
     [rows, selectedIds]
@@ -163,16 +165,14 @@ const BankYesCcAbhay = () => {
   };
 
   const saveRowColor = async (id, color) => {
-    await axios.put(
-      `${API_BASE_URL}/api/bank-reconciliation/yes-cc-abhay/${id}`,
-      { rowColor: color }
-    );
+    await api.put(`/api/bank-reconciliation/yes-cc-abhay/${id}`, {
+      rowColor: color,
+    });
   };
 
   const applyRowColor = async (color) => {
     if (!selectedIds.size) return;
 
-    // optimistic
     setRows((prev) =>
       prev.map((r) => (selectedIds.has(r._id) ? { ...r, rowColor: color } : r))
     );
@@ -200,7 +200,6 @@ const BankYesCcAbhay = () => {
 
   return (
     <Box sx={{ p: 3, bgcolor: "#f5f7fb", minHeight: "100vh", boxSizing: "border-box" }}>
-      {/* Header */}
       <Paper
         elevation={0}
         sx={{
@@ -240,7 +239,13 @@ const BankYesCcAbhay = () => {
             component="label"
             startIcon={<CloudUploadIcon />}
             disabled={uploading}
-            sx={{ textTransform: "none", borderRadius: 999, px: 2.5, py: 0.75, boxShadow: "0 4px 12px rgba(0,0,0,0.12)" }}
+            sx={{
+              textTransform: "none",
+              borderRadius: 999,
+              px: 2.5,
+              py: 0.75,
+              boxShadow: "0 4px 12px rgba(0,0,0,0.12)",
+            }}
           >
             {uploading ? "Uploading..." : "Upload CSV"}
             <input type="file" accept=".csv" hidden onChange={handleFileChange} />
@@ -248,7 +253,6 @@ const BankYesCcAbhay = () => {
         </Stack>
       </Paper>
 
-      {/* Filters */}
       <Paper elevation={0} sx={{ mb: 2, px: 2, py: 2, borderRadius: 2, border: "1px solid #e0e3ef" }}>
         <Stack direction="row" spacing={1.5} flexWrap="wrap" alignItems="center">
           <TextField
@@ -315,7 +319,6 @@ const BankYesCcAbhay = () => {
         </Stack>
       </Paper>
 
-      {/* Table */}
       <Paper elevation={0} sx={{ borderRadius: 2, border: "1px solid #e0e3ef", overflow: "hidden" }}>
         {loading ? (
           <Box sx={{ py: 6, display: "flex", justifyContent: "center", alignItems: "center" }}>

@@ -19,7 +19,12 @@ import {
 import CloudUploadIcon from "@mui/icons-material/CloudUpload";
 import axios from "axios";
 
-const API_BASE_URL = "https://muditamleads-14f32a10d7f7.herokuapp.com";
+const API_BASE_URL = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "");
+
+const api = axios.create({
+  baseURL: API_BASE_URL,
+  withCredentials: true,
+});
 
 const LIGHT_GREEN = "#DCFCE7";
 const LIGHT_RED = "#FEE2E2";
@@ -94,8 +99,8 @@ const BankCapital6389 = () => {
   const fetchData = async (pageArg = page, rowsArg = rowsPerPage) => {
     try {
       setLoading(true);
-      const { data } = await axios.get(
-        `${API_BASE_URL}/api/bank-reconciliation/capital-6389`,
+      const { data } = await api.get(
+        `/api/bank-reconciliation/capital-6389`,
         { params: buildParams(pageArg, rowsArg) }
       );
 
@@ -125,8 +130,8 @@ const BankCapital6389 = () => {
 
     try {
       setUploading(true);
-      await axios.post(
-        `${API_BASE_URL}/api/bank-reconciliation/capital-6389/upload`,
+      await api.post(
+        `/api/bank-reconciliation/capital-6389/upload`,
         formData,
         { headers: { "Content-Type": "multipart/form-data" } }
       );
@@ -181,7 +186,7 @@ const BankCapital6389 = () => {
 
   // row color persist
   const saveRowColor = async (id, color) => {
-    await axios.put(`${API_BASE_URL}/api/bank-reconciliation/capital-6389/${id}`, {
+    await api.put(`/api/bank-reconciliation/capital-6389/${id}`, {
       rowColor: color,
     });
   };

@@ -2,7 +2,13 @@
 import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import TablePagination from "@mui/material/TablePagination";
 
-const API_BASE = "https://muditamleads-14f32a10d7f7.herokuapp.com";
+const API_BASE = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "");
+
+const authFetch = (path, options = {}) =>
+  fetch(`${API_BASE}${path}`, {
+    credentials: "include",
+    ...options,
+  });
 
 /** Columns (Updated order: Transaction Date, then Value Date) */
 const COLUMNS = [
@@ -19,8 +25,8 @@ const COLUMNS = [
 ];
 
 const BASE_MIN_W = 140;
-const REFNO_MIN_W = BASE_MIN_W * 2; // 280
-const DESC_MIN_W = BASE_MIN_W * 4; // 560
+const REFNO_MIN_W = BASE_MIN_W * 2;
+const DESC_MIN_W = BASE_MIN_W * 4;
 const cellMinStyle = (key) =>
   key === "description"
     ? { minWidth: `${DESC_MIN_W}px` }
@@ -34,7 +40,6 @@ const EMPTY_ROW = () =>
     return acc;
   }, { __bg: "" });
 
-/* ---------------- mapping helpers ---------------- */
 const toDateInputValue = (v) => {
   try {
     const d = new Date(v);
@@ -50,8 +55,8 @@ const toDateInputValue = (v) => {
 
 const mapBackendToFe = (item) => ({
   _id: item._id,
-  valueDate1: item.valueDate ? toDateInputValue(item.valueDate) : "", // Value Date
-  valueDate2: item.txnDate ? toDateInputValue(item.txnDate) : "", // Transaction Date
+  valueDate1: item.valueDate ? toDateInputValue(item.valueDate) : "",
+  valueDate2: item.txnDate ? toDateInputValue(item.txnDate) : "",
   description: item.description ?? "",
   refNo: item.refNoChequeNo ?? "",
   branchCode: item.branchCode ?? "",
@@ -79,7 +84,6 @@ const mapFeToBackend = (row) => ({
   rowColor: row.__bg || "",
 });
 
-/* ------------- EditableCell component (per-cell draft) ------------- */
 function EditableCell({ valueFromServer, type, placeholder, onCommit, onKeyDown, inputRef }) {
   const [focused, setFocused] = useState(false);
   const [localValue, setLocalValue] = useState(valueFromServer ?? "");
@@ -107,37 +111,38 @@ function EditableCell({ valueFromServer, type, placeholder, onCommit, onKeyDown,
   );
 }
 
-/* ---------------- component ---------------- */
 export default function TransactionsTable() {
   const [serverRows, setServerRows] = useState([]);
   const [total, setTotal] = useState(0);
 
-  const [page, setPage] = useState(0); // MUI 0-based
-  const [rowsPerPage, setRowsPerPage] = useState(250); // ✅ default 250
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(250);
 
   const [selected, setSelected] = useState(new Set());
 
-  // Filters
   const [dateMin, setDateMin] = useState("");
   const [dateMax, setDateMax] = useState("");
   const [descFilter, setDescFilter] = useState("");
   const [remarksFilter, setRemarksFilter] = useState("");
   const [amountMin, setAmountMin] = useState("");
   const [amountMax, setAmountMax] = useState("");
-  const [yearFilter, setYearFilter] = useState(""); // ✅ year filter
+  const [yearFilter, setYearFilter] = useState("");
 
   const savingStateRef = useRef(new Map());
   const [, force] = useState(0);
+
   const setRowStatus = (idx, st) => {
     savingStateRef.current.set(idx, st);
     force((n) => n + 1);
   };
+
   const rowStatus = (idx) => savingStateRef.current.get(idx) || "idle";
 
   const buildQuery = useCallback(() => {
     const params = new URLSearchParams();
     params.set("page", String(page + 1));
     params.set("limit", String(rowsPerPage));
+
     if (dateMin) params.set("dateMin", dateMin);
     if (dateMax) params.set("dateMax", dateMax);
 
@@ -154,9 +159,10 @@ export default function TransactionsTable() {
 
   const fetchPage = useCallback(async () => {
     const query = buildQuery();
-    const resp = await fetch(`${API_BASE}/api/bank-entries?${query}`);
+    const resp = await authFetch(`/api/bank-entries?${query}`);
     const json = await resp.json();
     if (!json.ok) throw new Error(json.error || "Fetch failed");
+
     setTotal(json.total || 0);
     setServerRows((json.items || []).map(mapBackendToFe));
     savingStateRef.current = new Map();
@@ -176,11 +182,12 @@ export default function TransactionsTable() {
       setRowStatus(origIdx, "saving");
       const row = serverRows[origIdx];
       if (!row) return;
+
       const payload = payloadOverride ?? mapFeToBackend(row);
       let json;
 
       if (row._id) {
-        const resp = await fetch(`${API_BASE}/api/bank-entries/${row._id}`, {
+        const resp = await authFetch(`/api/bank-entries/${row._id}`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
@@ -188,7 +195,7 @@ export default function TransactionsTable() {
         json = await resp.json();
         if (!json.ok) throw new Error(json.error || "Update failed");
       } else {
-        const resp = await fetch(`${API_BASE}/api/bank-entries`, {
+        const resp = await authFetch("/api/bank-entries", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
@@ -231,6 +238,7 @@ export default function TransactionsTable() {
   const setInputRef = (r, c) => (el) => {
     inputsGridRef.current[`${r}-${c}`] = el;
   };
+
   const focusCell = (r, c) => {
     const el = inputsGridRef.current[`${r}-${c}`];
     if (el) el.focus();
@@ -242,23 +250,29 @@ export default function TransactionsTable() {
     setTimeout(() => focusCell(0, 2), 0);
   };
 
-  // Upload
   const fileInputRef = useRef(null);
   const triggerUpload = () => fileInputRef.current?.click();
+
   const handleFile = async (file) => {
     if (!file) return;
     try {
       const form = new FormData();
       form.append("file", file);
-      const resp = await fetch(`${API_BASE}/api/bank-entries/upload`, { method: "POST", body: form });
+
+      const resp = await authFetch("/api/bank-entries/upload", {
+        method: "POST",
+        body: form,
+      });
       const json = await resp.json();
       if (!json.ok) throw new Error(json.error || "Upload failed");
+
       await fetchPage();
     } catch (e) {
       console.error("Upload error:", e);
       alert(e.message || "Upload failed");
     }
   };
+
   const onFileChange = (e) => {
     const file = e.target.files?.[0];
     handleFile(file);
@@ -294,10 +308,12 @@ export default function TransactionsTable() {
       return n;
     });
   };
+
   const toggleAll = (checked) => {
     if (checked) setSelected(new Set(visibleIndex));
     else setSelected(new Set());
   };
+
   const allSelected = visibleIndex.length > 0 && selected.size === visibleIndex.length;
   const someSelected = selected.size > 0 && !allSelected;
 
@@ -307,14 +323,16 @@ export default function TransactionsTable() {
   const saveRowColor = async (origIdx, hex) => {
     const row = serverRows[origIdx];
     if (!row?._id) return;
+
     try {
-      const resp = await fetch(`${API_BASE}/api/bank-entries/${row._id}`, {
+      const resp = await authFetch(`/api/bank-entries/${row._id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ rowColor: hex }),
       });
       const json = await resp.json();
       if (!json.ok) throw new Error(json.error || "Color save failed");
+
       setServerRows((prev) => {
         const next = [...prev];
         next[origIdx] = { ...next[origIdx], ...mapBackendToFe(json.item) };
@@ -327,6 +345,7 @@ export default function TransactionsTable() {
 
   const applyRowColor = (hex) => {
     if (!selected.size) return;
+
     setServerRows((prev) => {
       const next = [...prev];
       selected.forEach((origIdx) => {
@@ -334,11 +353,12 @@ export default function TransactionsTable() {
       });
       return next;
     });
+
     selected.forEach((origIdx) => saveRowColor(origIdx, hex));
   };
+
   const clearRowColor = () => applyRowColor("");
 
-  // ✅ Year dropdown behavior: selecting a year sets dateMin/dateMax (doesn't auto-fetch)
   const onYearChange = (e) => {
     const y = e.target.value;
     setYearFilter(y);
@@ -347,40 +367,60 @@ export default function TransactionsTable() {
     setDateMax(`${y}-12-31`);
   };
 
-  // pagination
   const handleChangePage = (_e, newPage) => setPage(newPage);
+
   const handleChangeRowsPerPage = (e) => {
     setRowsPerPage(parseInt(e.target.value, 10));
     setPage(0);
   };
 
   const Swatch = ({ color, onClick, title }) => (
-    <button onClick={onClick} title={title} className="w-7 h-7 rounded-md border shadow-sm" style={{ background: color }} />
+    <button
+      onClick={onClick}
+      title={title}
+      className="w-7 h-7 rounded-md border shadow-sm"
+      style={{ background: color }}
+    />
   );
 
   return (
     <div className="w-full p-4">
-      {/* Toolbar */}
       <div className="flex items-center justify-between gap-4 mb-3 flex-wrap">
         <div className="flex items-center gap-2">
-          <button onClick={addRow} className="px-3 py-2 rounded-lg border hover:bg-gray-50" title="Add a new row (at top)">
+          <button
+            onClick={addRow}
+            className="px-3 py-2 rounded-lg border hover:bg-gray-50"
+            title="Add a new row (at top)"
+          >
             + Add Row
           </button>
 
-          <input ref={fileInputRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={onFileChange} />
-          <button onClick={triggerUpload} className="px-3 py-2 rounded-lg border hover:bg-gray-50" title="Upload Sheet (CSV/XLSX)">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".xlsx,.xls,.csv"
+            className="hidden"
+            onChange={onFileChange}
+          />
+          <button
+            onClick={triggerUpload}
+            className="px-3 py-2 rounded-lg border hover:bg-gray-50"
+            title="Upload Sheet (CSV/XLSX)"
+          >
             📄 Upload Sheet
           </button>
 
-          {/* Color controls + Year filter (right side of color filter) */}
           <div className="flex items-center gap-2 ml-2">
             <Swatch color={LIGHT_GREEN} onClick={() => applyRowColor(LIGHT_GREEN)} title="Apply to selected" />
             <Swatch color={LIGHT_RED} onClick={() => applyRowColor(LIGHT_RED)} title="Apply to selected" />
-            <button onClick={clearRowColor} className="px-2 py-1 rounded-lg border hover:bg-gray-50" title="Clear color from selected rows">
+            <button
+              onClick={clearRowColor}
+              className="px-2 py-1 rounded-lg border hover:bg-gray-50"
+              title="Clear color from selected rows"
+            >
               ⟲
             </button>
 
-            {/* ✅ Year filter */}
             <div className="flex items-center gap-2 ml-2">
               <span className="text-sm text-gray-600">Year</span>
               <select
@@ -399,13 +439,22 @@ export default function TransactionsTable() {
           </div>
         </div>
 
-        {/* Filters */}
         <div className="flex items-center gap-2 flex-wrap">
           <div className="flex items-center gap-1">
             <span className="text-sm text-gray-600">From</span>
-            <input type="date" value={dateMin} onChange={(e) => setDateMin(e.target.value)} className="px-2 py-1 border rounded-lg" />
+            <input
+              type="date"
+              value={dateMin}
+              onChange={(e) => setDateMin(e.target.value)}
+              className="px-2 py-1 border rounded-lg"
+            />
             <span className="text-sm text-gray-600">To</span>
-            <input type="date" value={dateMax} onChange={(e) => setDateMax(e.target.value)} className="px-2 py-1 border rounded-lg" />
+            <input
+              type="date"
+              value={dateMax}
+              onChange={(e) => setDateMax(e.target.value)}
+              className="px-2 py-1 border rounded-lg"
+            />
           </div>
 
           <input
@@ -422,8 +471,20 @@ export default function TransactionsTable() {
             onChange={(e) => setRemarksFilter(e.target.value)}
             className="px-2 py-1 border rounded-lg min-w-[200px]"
           />
-          <input type="number" placeholder="Amount min" value={amountMin} onChange={(e) => setAmountMin(e.target.value)} className="px-2 py-1 border rounded-lg w-28" />
-          <input type="number" placeholder="Amount max" value={amountMax} onChange={(e) => setAmountMax(e.target.value)} className="px-2 py-1 border rounded-lg w-28" />
+          <input
+            type="number"
+            placeholder="Amount min"
+            value={amountMin}
+            onChange={(e) => setAmountMin(e.target.value)}
+            className="px-2 py-1 border rounded-lg w-28"
+          />
+          <input
+            type="number"
+            placeholder="Amount max"
+            value={amountMax}
+            onChange={(e) => setAmountMax(e.target.value)}
+            className="px-2 py-1 border rounded-lg w-28"
+          />
 
           <button
             onClick={() => {
@@ -455,7 +516,6 @@ export default function TransactionsTable() {
         </div>
       </div>
 
-      {/* Table */}
       <div className="overflow-auto border rounded-xl">
         <table className="w-full text-sm">
           <thead className="bg-gray-50 sticky top-0 z-10">
@@ -473,7 +533,11 @@ export default function TransactionsTable() {
               <th className="px-3 py-2 text-left">#</th>
 
               {COLUMNS.map((c) => (
-                <th key={c.key} className="px-3 py-2 text-left whitespace-nowrap" style={cellMinStyle(c.key)}>
+                <th
+                  key={c.key}
+                  className="px-3 py-2 text-left whitespace-nowrap"
+                  style={cellMinStyle(c.key)}
+                >
                   {c.label}
                 </th>
               ))}
@@ -492,21 +556,34 @@ export default function TransactionsTable() {
                 const isChecked = selected.has(origIdx);
 
                 return (
-                  <tr key={row._id || `local-${origIdx}`} className="border-t" style={{ background: row.__bg || "" }}>
+                  <tr
+                    key={row._id || `local-${origIdx}`}
+                    className="border-t"
+                    style={{ background: row.__bg || "" }}
+                  >
                     <td className="px-3 py-2 sticky left-0 bg-white">
                       <input type="checkbox" checked={isChecked} onChange={() => toggleRow(origIdx)} />
                     </td>
 
-                    <td className="px-3 py-2 sticky left-0 bg-white">{page * rowsPerPage + rIdx + 1}</td>
+                    <td className="px-3 py-2 sticky left-0 bg-white">
+                      {page * rowsPerPage + rIdx + 1}
+                    </td>
 
                     {COLUMNS.map((c, cIdx) => {
                       const isDate = c.key === "valueDate1" || c.key === "valueDate2";
                       const gridColIndex = cIdx + 2;
+
                       return (
                         <td key={c.key} className="px-2 py-2" style={cellMinStyle(c.key)}>
                           <EditableCell
                             inputRef={setInputRef(rIdx, gridColIndex)}
-                            type={isDate ? "date" : ["debit", "credit", "balance"].includes(c.key) ? "number" : "text"}
+                            type={
+                              isDate
+                                ? "date"
+                                : ["debit", "credit", "balance"].includes(c.key)
+                                ? "number"
+                                : "text"
+                            }
                             valueFromServer={row[c.key] ?? ""}
                             placeholder={c.label}
                             onCommit={(finalValue) => commitCell(origIdx, c.key, finalValue)}
@@ -523,7 +600,6 @@ export default function TransactionsTable() {
         </table>
       </div>
 
-      {/* Pagination */}
       <div className="mt-2">
         <TablePagination
           component="div"

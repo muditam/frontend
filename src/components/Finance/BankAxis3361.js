@@ -19,7 +19,12 @@ import {
 import CloudUploadIcon from "@mui/icons-material/CloudUpload";
 import axios from "axios";
 
-const API_BASE_URL = "https://muditamleads-14f32a10d7f7.herokuapp.com";
+const API_BASE_URL = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, ""); 
+
+const api = axios.create({
+  baseURL: API_BASE_URL,
+  withCredentials: true,
+});
 
 const LIGHT_GREEN = "#DCFCE7";
 const LIGHT_RED = "#FEE2E2";
@@ -45,22 +50,23 @@ const BankAxis3361 = () => {
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
 
-  // pagination
-  const [page, setPage] = useState(0); // 0-based
+  const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(50);
 
-  // selection (by _id)
   const [selectedIds, setSelectedIds] = useState(new Set());
 
-  // filters
   const [dateMin, setDateMin] = useState("");
   const [dateMax, setDateMax] = useState("");
-  const [textFilter, setTextFilter] = useState(""); // search across particulars/chq/remark/branch/drCr
+  const [textFilter, setTextFilter] = useState("");
   const [branchFilter, setBranchFilter] = useState("");
   const [amountMin, setAmountMin] = useState("");
   const [amountMax, setAmountMax] = useState("");
 
-  const allChecked = useMemo(() => rows.length > 0 && rows.every((r) => selectedIds.has(r._id)), [rows, selectedIds]);
+  const allChecked = useMemo(
+    () => rows.length > 0 && rows.every((r) => selectedIds.has(r._id)),
+    [rows, selectedIds]
+  );
+
   const someChecked = useMemo(() => {
     if (!rows.length) return false;
     const cnt = rows.reduce((acc, r) => acc + (selectedIds.has(r._id) ? 1 : 0), 0);
@@ -81,7 +87,7 @@ const BankAxis3361 = () => {
   const fetchData = async (pageArg = page, rowsArg = rowsPerPage) => {
     try {
       setLoading(true);
-      const { data } = await axios.get(`${API_BASE_URL}/api/bank-reconciliation/axis-3361`, {
+      const { data } = await api.get("/api/bank-reconciliation/axis-3361", {
         params: buildParams(pageArg, rowsArg),
       });
 
@@ -89,7 +95,7 @@ const BankAxis3361 = () => {
       setTotal(data?.total || 0);
       setPage(pageArg);
       setRowsPerPage(rowsArg);
-      setSelectedIds(new Set()); // clear selection on page change/fetch
+      setSelectedIds(new Set());
     } catch (err) {
       console.error("Error fetching Axis 3361 txns:", err);
     } finally {
@@ -111,7 +117,7 @@ const BankAxis3361 = () => {
 
     try {
       setUploading(true);
-      await axios.post(`${API_BASE_URL}/api/bank-reconciliation/axis-3361/upload`, formData, {
+      await api.post("/api/bank-reconciliation/axis-3361/upload", formData, {
         headers: { "Content-Type": "multipart/form-data" },
       });
       await fetchData(0, rowsPerPage);
@@ -140,10 +146,12 @@ const BankAxis3361 = () => {
     if (value === null || value === undefined || value === "") return "";
     const num = Number(value);
     if (Number.isNaN(num)) return "";
-    return num.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    return num.toLocaleString("en-IN", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
   };
 
-  // selection
   const toggleOne = (id) => {
     setSelectedIds((prev) => {
       const n = new Set(prev);
@@ -158,18 +166,17 @@ const BankAxis3361 = () => {
     setSelectedIds(new Set(rows.map((r) => r._id)));
   };
 
-  // row color persist
   const saveRowColor = async (id, color) => {
-    await axios.put(`${API_BASE_URL}/api/bank-reconciliation/axis-3361/${id}`, { rowColor: color });
+    await api.put(`/api/bank-reconciliation/axis-3361/${id}`, { rowColor: color });
   };
 
   const applyRowColor = async (color) => {
     if (!selectedIds.size) return;
 
-    // optimistic
-    setRows((prev) => prev.map((r) => (selectedIds.has(r._id) ? { ...r, rowColor: color } : r)));
+    setRows((prev) =>
+      prev.map((r) => (selectedIds.has(r._id) ? { ...r, rowColor: color } : r))
+    );
 
-    // persist best-effort
     await Promise.all(
       Array.from(selectedIds).map(async (id) => {
         try {
@@ -193,7 +200,6 @@ const BankAxis3361 = () => {
 
   return (
     <Box sx={{ p: 3, bgcolor: "#f5f7fb", minHeight: "100vh", boxSizing: "border-box" }}>
-      {/* Header */}
       <Paper
         elevation={0}
         sx={{
@@ -217,7 +223,6 @@ const BankAxis3361 = () => {
         </Box>
 
         <Stack direction="row" spacing={1.5} alignItems="center" flexWrap="wrap">
-          {/* coloring */}
           <Stack direction="row" spacing={1} alignItems="center">
             <Swatch color={LIGHT_GREEN} onClick={() => applyRowColor(LIGHT_GREEN)} title="Mark selected Green" />
             <Swatch color={LIGHT_RED} onClick={() => applyRowColor(LIGHT_RED)} title="Mark selected Red" />
@@ -231,7 +236,6 @@ const BankAxis3361 = () => {
             </Button>
           </Stack>
 
-          {/* upload */}
           <Button
             variant="contained"
             component="label"
@@ -251,7 +255,6 @@ const BankAxis3361 = () => {
         </Stack>
       </Paper>
 
-      {/* Filters */}
       <Paper
         elevation={0}
         sx={{
@@ -330,7 +333,6 @@ const BankAxis3361 = () => {
         </Stack>
       </Paper>
 
-      {/* Table */}
       <Paper elevation={0} sx={{ borderRadius: 2, border: "1px solid #e0e3ef", overflow: "hidden" }}>
         {loading ? (
           <Box sx={{ py: 6, display: "flex", justifyContent: "center", alignItems: "center" }}>

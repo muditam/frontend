@@ -20,7 +20,12 @@ import {
 import CloudUploadIcon from "@mui/icons-material/CloudUpload";
 import axios from "axios";
 
-const API_BASE_URL = "https://muditamleads-14f32a10d7f7.herokuapp.com";
+const API_BASE_URL = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "");
+
+const api = axios.create({
+  baseURL: API_BASE_URL,
+  withCredentials: true,
+});
 
 const LIGHT_GREEN = "#DCFCE7";
 const LIGHT_RED = "#FEE2E2";
@@ -33,19 +38,17 @@ const BankKotak = () => {
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
 
-  const [page, setPage] = useState(0); // MUI 0-based
+  const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(250);
 
-  // filters
   const [year, setYear] = useState("");
   const [dateMin, setDateMin] = useState("");
   const [dateMax, setDateMax] = useState("");
   const [q, setQ] = useState("");
   const [amountMin, setAmountMin] = useState("");
   const [amountMax, setAmountMax] = useState("");
-  const [drcr, setDrcr] = useState(""); // DR/CR
+  const [drcr, setDrcr] = useState("");
 
-  // selection
   const [selected, setSelected] = useState(() => new Set());
 
   const formatDate = (value) => (value ? new Date(value).toLocaleDateString("en-IN") : "");
@@ -59,7 +62,7 @@ const BankKotak = () => {
   const fetchData = async (pageArg = page, rowsArg = rowsPerPage) => {
     try {
       setLoading(true);
-      const { data } = await axios.get(`${API_BASE_URL}/api/bank-reconciliation/kotak-bank`, {
+      const { data } = await api.get("/api/bank-reconciliation/kotak-bank", {
         params: {
           page: pageArg + 1,
           limit: rowsArg,
@@ -99,7 +102,7 @@ const BankKotak = () => {
 
     try {
       setUploading(true);
-      await axios.post(`${API_BASE_URL}/api/bank-reconciliation/kotak-bank/upload`, formData, {
+      await api.post("/api/bank-reconciliation/kotak-bank/upload", formData, {
         headers: { "Content-Type": "multipart/form-data" },
       });
       await fetchData(0, rowsPerPage);
@@ -119,7 +122,6 @@ const BankKotak = () => {
     fetchData(0, newRowsPerPage);
   };
 
-  // selection helpers
   const allSelected = rows.length > 0 && selected.size === rows.length;
   const someSelected = selected.size > 0 && !allSelected;
 
@@ -138,10 +140,9 @@ const BankKotak = () => {
     });
   };
 
-  // persist rowColor
   const saveRowColor = async (id, hex) => {
     try {
-      await axios.put(`${API_BASE_URL}/api/bank-reconciliation/kotak-bank/${id}`, { rowColor: hex });
+      await api.put(`/api/bank-reconciliation/kotak-bank/${id}`, { rowColor: hex });
     } catch (e) {
       console.error("Row color save error:", e);
     }
@@ -150,12 +151,10 @@ const BankKotak = () => {
   const applyRowColor = async (hex) => {
     if (!selected.size) return;
 
-    // optimistic
     setRows((prev) =>
       prev.map((r) => (selected.has(r._id) ? { ...r, rowColor: hex } : r))
     );
 
-    // persist (one by one; safe + simple)
     await Promise.all(Array.from(selected).map((id) => saveRowColor(id, hex)));
   };
 
@@ -170,7 +169,6 @@ const BankKotak = () => {
 
   return (
     <Box sx={{ p: 3, bgcolor: "#f5f7fb", minHeight: "100vh", boxSizing: "border-box" }}>
-      {/* Header */}
       <Paper
         elevation={0}
         sx={{
@@ -207,7 +205,6 @@ const BankKotak = () => {
         </Button>
       </Paper>
 
-      {/* Toolbar */}
       <Paper
         elevation={0}
         sx={{
@@ -223,7 +220,6 @@ const BankKotak = () => {
           justifyContent: "space-between",
         }}
       >
-        {/* Left: color controls + YEAR dropdown */}
         <Box sx={{ display: "flex", alignItems: "center", gap: 1.2, flexWrap: "wrap" }}>
           <Swatch color={LIGHT_GREEN} title="Apply green to selected" onClick={() => applyRowColor(LIGHT_GREEN)} />
           <Swatch color={LIGHT_RED} title="Apply red to selected" onClick={() => applyRowColor(LIGHT_RED)} />
@@ -237,7 +233,6 @@ const BankKotak = () => {
             Clear Color
           </Button>
 
-          {/* YEAR filter (right side of color filter) */}
           <FormControl size="small" sx={{ minWidth: 140 }}>
             <InputLabel>Year</InputLabel>
             <Select
@@ -254,7 +249,6 @@ const BankKotak = () => {
           </FormControl>
         </Box>
 
-        {/* Right: filters */}
         <Box sx={{ display: "flex", alignItems: "center", gap: 1.2, flexWrap: "wrap" }}>
           <input
             type="date"
@@ -330,7 +324,6 @@ const BankKotak = () => {
         </Box>
       </Paper>
 
-      {/* Table */}
       <Paper elevation={0} sx={{ borderRadius: 2, border: "1px solid #e0e3ef", overflow: "hidden" }}>
         {loading ? (
           <Box sx={{ py: 6, display: "flex", justifyContent: "center", alignItems: "center" }}>
