@@ -37,6 +37,12 @@ import AccountBalanceWalletIcon from "@mui/icons-material/AccountBalanceWallet";
 
 import axios from "axios";
 
+const API_BASE = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "");
+
+const api = axios.create({
+  baseURL: API_BASE,
+  withCredentials: true,
+});
 
 // --- Helpers ---
 function todayISO() {
@@ -77,8 +83,8 @@ const PaymentRecordsPage = () => {
     try {
       setLoading(true);
       const [payRes, vendorRes] = await Promise.all([
-        axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/payment-records"),
-        axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/vendors"),
+        api.get("/api/payment-records"),
+        api.get("/api/vendors"),
       ]);
       setPayments(sortPayments(payRes.data || []));
       setVendors(vendorRes.data || []);
@@ -146,10 +152,9 @@ const stats = useMemo(() => {
 
 
     try {
-      const res = await axios.get(
-        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/payment-records/calc-due",
-        { params: { vendorId: newRow.vendorId, date: newRow.date, amountPaid: amt } }
-      );
+      const res = await api.get("/api/payment-records/calc-due", {
+          params: { vendorId: newRow.vendorId, date: newRow.date, amountPaid: amt }
+      });
       setDuePreview(res.data?.due ?? null);
     } catch (e) {
       setDuePreview(null);
@@ -178,7 +183,7 @@ const stats = useMemo(() => {
       };
 
 
-      const res = await axios.post("https://muditamleads-14f32a10d7f7.herokuapp.com/api/payment-records", payload);
+      const res = await api.post("/api/payment-records", payload);
       setPayments((prev) => sortPayments([res.data, ...prev]));
       setNewRow(null);
       setSuccessMsg("Payment recorded successfully");
@@ -191,7 +196,7 @@ const stats = useMemo(() => {
   const handleDeleteRow = async (row) => {
     if (!window.confirm("Delete this record?")) return;
     try {
-      await axios.delete(`https://muditamleads-14f32a10d7f7.herokuapp.com/api/payment-records/${row._id}`);
+      await api.delete(`/api/payment-records/${row._id}`);
       setPayments((prev) => prev.map((p) => (p._id === row._id ? { ...p, isDeleted: true } : p)));
       setSuccessMsg("Record deleted");
     } catch (err) {
@@ -207,7 +212,7 @@ const stats = useMemo(() => {
       setUploadingScreenshot(true);
       const fd = new FormData();
       fd.append("file", file);
-      const res = await axios.post("https://muditamleads-14f32a10d7f7.herokuapp.com/api/payment-records/upload-screenshot", fd);
+      const res = await api.post("/api/payment-records/upload-screenshot", fd);
       setNewRow((prev) => ({ ...prev, screenshotUrl: res.data.url }));
       setSuccessMsg("Upload successful");
     } catch (err) {

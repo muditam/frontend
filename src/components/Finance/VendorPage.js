@@ -28,7 +28,7 @@ import {
   LinearProgress,
   Switch,
   InputAdornment,
-  Autocomplete, // Added for the searchable name filter
+  Autocomplete,
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import DeleteIcon from "@mui/icons-material/Delete";
@@ -40,6 +40,12 @@ import SearchIcon from "@mui/icons-material/Search";
 import FilterListIcon from "@mui/icons-material/FilterList";
 import axios from "axios";
 
+const API_BASE = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "");
+
+const api = axios.create({
+  baseURL: API_BASE,
+  withCredentials: true,
+});
 
 const validateEmail = (email) => {
   return String(email)
@@ -47,24 +53,19 @@ const validateEmail = (email) => {
     .match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/);
 };
 
-
 const VendorRecordsPage = () => {
   const [vendors, setVendors] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedVendor, setSelectedVendor] = useState("ALL");
 
-
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
 
-
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(25);
 
-
   const [openAddVendor, setOpenAddVendor] = useState(false);
-
 
   const [vendorForm, setVendorForm] = useState({
     name: "",
@@ -74,16 +75,14 @@ const VendorRecordsPage = () => {
     gstNumber: "",
   });
 
-
   useEffect(() => {
     loadVendors();
   }, []);
 
-
   const loadVendors = async () => {
     try {
       setLoading(true);
-      const res = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/vendors");
+      const res = await api.get("/api/vendors");
       setVendors(res.data || []);
     } catch (err) {
       setErrorMsg("Failed to fetch vendors");
@@ -92,12 +91,10 @@ const VendorRecordsPage = () => {
     }
   };
 
-
   const vendorNameOptions = useMemo(() => {
     const names = vendors.map((v) => v.name).filter(Boolean);
     return ["ALL", ...Array.from(new Set(names))];
   }, [vendors]);
-
 
   const filteredVendors = useMemo(() => {
     let data = vendors;
@@ -117,33 +114,28 @@ const VendorRecordsPage = () => {
     return data;
   }, [vendors, searchTerm, selectedVendor]);
 
-
   const handleChangePage = (_e, newPage) => setPage(newPage);
   const handleChangeRowsPerPage = (e) => {
     setRowsPerPage(parseInt(e.target.value, 10));
     setPage(0);
   };
 
-
   const paginatedVendors = useMemo(() => {
     const start = page * rowsPerPage;
     return filteredVendors.slice(start, start + rowsPerPage);
   }, [filteredVendors, page, rowsPerPage]);
 
-
   const resetVendorForm = () => {
     setVendorForm({ name: "", email: "", phone: "", hasGST: false, gstNumber: "" });
   };
-
 
   const handleAddVendor = async () => {
     if (!vendorForm.name.trim()) return setErrorMsg("Vendor name is required");
     if (vendorForm.email && !validateEmail(vendorForm.email)) return setErrorMsg("Invalid email format");
     if (vendorForm.hasGST && !vendorForm.gstNumber.trim()) return setErrorMsg("GST Number required");
 
-
     try {
-      const res = await axios.post("https://muditamleads-14f32a10d7f7.herokuapp.com/api/vendors", vendorForm);
+      const res = await api.post("/api/vendors", vendorForm);
       setVendors((prev) => [res.data, ...prev]);
       setSuccessMsg("Vendor added successfully");
       setOpenAddVendor(false);
@@ -154,21 +146,20 @@ const VendorRecordsPage = () => {
     }
   };
 
-
   const handleDeleteVendor = async (vendor) => {
     const yes = window.confirm(`Delete vendor "${vendor.name}"?`);
     if (!yes) return;
     try {
-      await axios.delete(`https://muditamleads-14f32a10d7f7.herokuapp.com/api/vendors/${vendor._id}`);
+      await api.delete(`/api/vendors/${vendor._id}`);
       setVendors((prev) => prev.filter((v) => v._id !== vendor._id));
       setSuccessMsg("Vendor deleted");
-    } catch (err) { setErrorMsg("Failed to delete vendor"); }
+    } catch (err) {
+      setErrorMsg("Failed to delete vendor");
+    }
   };
-
 
   return (
     <Box p={3} sx={{ backgroundColor: "#fbfbfb", minHeight: "100vh" }}>
-
       {/* HEADER SECTION */}
       <Stack
         direction={{ xs: "column", md: "row" }}
@@ -183,7 +174,6 @@ const VendorRecordsPage = () => {
           </Typography>
         </Box>
 
-
         <Button
           variant="contained"
           startIcon={<AddIcon />}
@@ -197,13 +187,12 @@ const VendorRecordsPage = () => {
             color: "white",
             "&:hover": {
               backgroundColor: "#333",
-            }
+            },
           }}
         >
           Add Vendor
         </Button>
       </Stack>
-
 
       {/* FILTER SECTION */}
       <Card variant="outlined" sx={{ p: 2.5, mb: 3, backgroundColor: "#fff", borderRadius: 2 }}>
@@ -225,8 +214,6 @@ const VendorRecordsPage = () => {
             }}
           />
 
-
-          {/* Searchable Autocomplete Filter */}
           <Autocomplete
             size="small"
             options={vendorNameOptions}
@@ -253,18 +240,19 @@ const VendorRecordsPage = () => {
             )}
           />
 
-
           <Button
             variant="text"
             color="inherit"
-            onClick={() => { setSearchTerm(""); setSelectedVendor("ALL"); }}
+            onClick={() => {
+              setSearchTerm("");
+              setSelectedVendor("ALL");
+            }}
             sx={{ textTransform: "none", fontWeight: 600, color: "text.secondary" }}
           >
             Reset Filters
           </Button>
         </Stack>
       </Card>
-
 
       {/* TABLE SECTION */}
       <Card variant="outlined" sx={{ borderRadius: 2, overflow: "hidden", position: "relative" }}>
@@ -281,7 +269,6 @@ const VendorRecordsPage = () => {
               </TableRow>
             </TableHead>
 
-
             <TableBody>
               {paginatedVendors.length === 0 && !loading && (
                 <TableRow>
@@ -291,7 +278,6 @@ const VendorRecordsPage = () => {
                 </TableRow>
               )}
 
-
               {paginatedVendors.map((row, i) => (
                 <TableRow key={row._id} hover>
                   <TableCell sx={{ fontWeight: 600 }}>{page * rowsPerPage + i + 1}</TableCell>
@@ -299,15 +285,18 @@ const VendorRecordsPage = () => {
                   <TableCell>{row.email || "-"}</TableCell>
                   <TableCell>{row.phone || "-"}</TableCell>
                   <TableCell>
-                    <Box sx={{
-                      display: 'inline-block',
-                      px: 1.5, py: 0.5,
-                      borderRadius: 1,
-                      fontSize: '0.75rem',
-                      fontWeight: 700,
-                      backgroundColor: row.hasGST ? '#e8f5e9' : '#f5f5f5',
-                      color: row.hasGST ? '#2e7d32' : '#757575'
-                    }}>
+                    <Box
+                      sx={{
+                        display: "inline-block",
+                        px: 1.5,
+                        py: 0.5,
+                        borderRadius: 1,
+                        fontSize: "0.75rem",
+                        fontWeight: 700,
+                        backgroundColor: row.hasGST ? "#e8f5e9" : "#f5f5f5",
+                        color: row.hasGST ? "#2e7d32" : "#757575",
+                      }}
+                    >
                       {row.hasGST ? "GST REGISTERED" : "NO GST"}
                     </Box>
                   </TableCell>
@@ -325,7 +314,6 @@ const VendorRecordsPage = () => {
           </Table>
         </TableContainer>
 
-
         <TablePagination
           component="div"
           count={filteredVendors.length}
@@ -335,24 +323,21 @@ const VendorRecordsPage = () => {
           onRowsPerPageChange={handleChangeRowsPerPage}
           rowsPerPageOptions={[10, 25, 50]}
         />
-      </Card>
-
-
-      {/* BEAUTIFUL ADD VENDOR DIALOG */}
+      </Card> 
+      
       <Dialog
         open={openAddVendor}
         onClose={() => setOpenAddVendor(false)}
         maxWidth="xs"
         fullWidth
         PaperProps={{
-          sx: { borderRadius: 3, px: 1, pb: 1, boxShadow: '0px 10px 30px rgba(0,0,0,0.1)' }
+          sx: { borderRadius: 3, px: 1, pb: 1, boxShadow: "0px 10px 30px rgba(0,0,0,0.1)" },
         }}
       >
         <DialogTitle sx={{ fontWeight: 700, pb: 1, pt: 3 }}>
           Add Vendor
         </DialogTitle>
         <Divider variant="middle" sx={{ mb: 2 }} />
-
 
         <DialogContent sx={{ pt: 1 }}>
           <Stack spacing={3}>
@@ -365,11 +350,12 @@ const VendorRecordsPage = () => {
               onChange={(e) => setVendorForm({ ...vendorForm, name: e.target.value })}
               InputProps={{
                 startAdornment: (
-                  <InputAdornment position="start"><PersonOutlineIcon color="action" /></InputAdornment>
+                  <InputAdornment position="start">
+                    <PersonOutlineIcon color="action" />
+                  </InputAdornment>
                 ),
               }}
             />
-
 
             <Stack direction="row" spacing={2}>
               <TextField
@@ -379,7 +365,9 @@ const VendorRecordsPage = () => {
                 onChange={(e) => setVendorForm({ ...vendorForm, phone: e.target.value })}
                 InputProps={{
                   startAdornment: (
-                    <InputAdornment position="start"><LocalPhoneIcon color="action" /></InputAdornment>
+                    <InputAdornment position="start">
+                      <LocalPhoneIcon color="action" />
+                    </InputAdornment>
                   ),
                 }}
               />
@@ -391,12 +379,13 @@ const VendorRecordsPage = () => {
                 error={vendorForm.email !== "" && !validateEmail(vendorForm.email)}
                 InputProps={{
                   startAdornment: (
-                    <InputAdornment position="start"><MailOutlineIcon color="action" /></InputAdornment>
+                    <InputAdornment position="start">
+                      <MailOutlineIcon color="action" />
+                    </InputAdornment>
                   ),
                 }}
               />
             </Stack>
-
 
             <Stack direction="row" alignItems="center" sx={{ pl: 0.5 }}>
               <Switch
@@ -404,11 +393,10 @@ const VendorRecordsPage = () => {
                 checked={vendorForm.hasGST}
                 onChange={(e) => setVendorForm({ ...vendorForm, hasGST: e.target.checked })}
               />
-              <Typography variant="body2" sx={{ fontWeight: 600, color: 'text.secondary' }}>
+              <Typography variant="body2" sx={{ fontWeight: 600, color: "text.secondary" }}>
                 Has GST Registration?
               </Typography>
             </Stack>
-
 
             {vendorForm.hasGST && (
               <TextField
@@ -420,15 +408,17 @@ const VendorRecordsPage = () => {
                 value={vendorForm.gstNumber}
                 onChange={(e) => setVendorForm({ ...vendorForm, gstNumber: e.target.value })}
                 sx={{
-                  animation: 'fadeIn 0.3s ease-in-out',
-                  '@keyframes fadeIn': {
-                    from: { opacity: 0, transform: 'translateY(-10px)' },
-                    to: { opacity: 1, transform: 'translateY(0)' }
-                  }
+                  animation: "fadeIn 0.3s ease-in-out",
+                  "@keyframes fadeIn": {
+                    from: { opacity: 0, transform: "translateY(-10px)" },
+                    to: { opacity: 1, transform: "translateY(0)" },
+                  },
                 }}
                 InputProps={{
                   startAdornment: (
-                    <InputAdornment position="start"><ReceiptIcon color="primary" /></InputAdornment>
+                    <InputAdornment position="start">
+                      <ReceiptIcon color="primary" />
+                    </InputAdornment>
                   ),
                 }}
               />
@@ -436,20 +426,20 @@ const VendorRecordsPage = () => {
           </Stack>
         </DialogContent>
 
-
         <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button onClick={() => setOpenAddVendor(false)} sx={{ color: 'text.secondary', fontWeight: 600 }}>
+          <Button onClick={() => setOpenAddVendor(false)} sx={{ color: "text.secondary", fontWeight: 600 }}>
             Cancel
           </Button>
           <Button
             variant="contained"
             onClick={handleAddVendor}
             sx={{
-              px: 4, py: 1,
+              px: 4,
+              py: 1,
               borderRadius: 2,
-              textTransform: 'none',
+              textTransform: "none",
               fontWeight: 700,
-              boxShadow: '0px 4px 10px rgba(25, 118, 210, 0.3)'
+              boxShadow: "0px 4px 10px rgba(25, 118, 210, 0.3)",
             }}
           >
             Save Vendor
@@ -457,18 +447,19 @@ const VendorRecordsPage = () => {
         </DialogActions>
       </Dialog>
 
-
       {/* NOTIFICATIONS */}
       <Snackbar open={!!errorMsg} autoHideDuration={4000} onClose={() => setErrorMsg("")}>
-        <Alert severity="error" variant="filled" onClose={() => setErrorMsg("")}>{errorMsg}</Alert>
+        <Alert severity="error" variant="filled" onClose={() => setErrorMsg("")}>
+          {errorMsg}
+        </Alert>
       </Snackbar>
       <Snackbar open={!!successMsg} autoHideDuration={3000} onClose={() => setSuccessMsg("")}>
-        <Alert severity="success" variant="filled" onClose={() => setSuccessMsg("")}>{successMsg}</Alert>
+        <Alert severity="success" variant="filled" onClose={() => setSuccessMsg("")}>
+          {successMsg}
+        </Alert>
       </Snackbar>
     </Box>
   );
 };
 
-
 export default VendorRecordsPage;
-

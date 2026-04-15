@@ -45,8 +45,12 @@ import ReceiptIcon from "@mui/icons-material/Receipt";
 import axios from "axios";
 
 
-const API_BASE = "https://muditamleads-14f32a10d7f7.herokuapp.com";
+const API_BASE = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "");
 
+const api = axios.create({
+  baseURL: API_BASE,
+  withCredentials: true,
+});
 
 const CATEGORY_OPTIONS = [
   "Advertisement", "Assets", "Assets (Intangible)", "Bank Charges",
@@ -165,7 +169,7 @@ const PurchaseRecordsPage = () => {
 
 
   const fetchVendors = useCallback(async () => {
-    const res = await axios.get(`${API_BASE}/api/vendors`);
+    const res = await api.get("/api/vendors");
     const list = Array.isArray(res.data) ? res.data : [];
     setVendors(list.filter(v => v?._id && (v.name || "").trim()));
   }, []);
@@ -232,10 +236,10 @@ const PurchaseRecordsPage = () => {
       if (debouncedFilters.billingGST) params.billingGST = debouncedFilters.billingGST;
 
 
-      const res = await axios.get(`${API_BASE}/api/purchase-records`, {
-        params, signal: controller.signal,
-      });
-
+      const res = await api.get("/api/purchase-records", {
+  params,
+  signal: controller.signal,
+});
 
       const data = res.data;
       if (Array.isArray(data)) {
@@ -268,7 +272,7 @@ const PurchaseRecordsPage = () => {
     const updated = { ...record, ...patch };
     setRecords((prev) => prev.map((r) => (r._id === record._id ? updated : r)));
     try {
-      await axios.patch(`${API_BASE}/api/purchase-records/${record._id}`, patch);
+      await api.patch(`/api/purchase-records/${record._id}`, patch);
     } catch (err) {
       setErrorMsg("Update failed");
       setRecords((prev) => prev.map((r) => (r._id === record._id ? original : r)));
@@ -286,7 +290,7 @@ const PurchaseRecordsPage = () => {
     if (record.isDeleted) return;
     if (!window.confirm("Delete this record?")) return;
     try {
-      await axios.delete(`${API_BASE}/api/purchase-records/${record._id}`);
+      await api.delete(`/api/purchase-records/${record._id}`);
       fetchRecords();
       setSuccessMsg("Record deleted");
     } catch (err) { setErrorMsg("Failed to delete"); }
@@ -296,13 +300,12 @@ const PurchaseRecordsPage = () => {
   const handleAddRecordInline = async () => {
     try {
       const payload = { date: todayISO(), category: "", invoiceType: "", billingGST: "", invoiceNo: "", vendorId: null, vendorName: "", amount: "", invoiceUrl: "", matched2B: false, tally: false };
-      await axios.post(`${API_BASE}/api/purchase-records`, payload);
+      await api.post("/api/purchase-records", payload);
       setPage(0);
       fetchRecords();
       setSuccessMsg("New empty record added");
     } catch (err) { setErrorMsg("Failed to add record"); }
   };
-
 
   const handleSaveVendor = async () => {
     if (!vendorForm.name.trim()) return setErrorMsg("Name required");
@@ -315,7 +318,7 @@ const PurchaseRecordsPage = () => {
 
 
     try {
-      await axios.post(`${API_BASE}/api/vendors`, vendorForm);
+      await api.post("/api/vendors", vendorForm);
       setOpenAddVendor(false);
       setVendorForm({ name: "", phone: "", email: "", hasGST: false, gstNumber: "" });
       fetchVendors();
@@ -323,19 +326,17 @@ const PurchaseRecordsPage = () => {
     } catch (err) { setErrorMsg("Failed to save vendor"); }
   };
 
-
   const handleRowInvoiceUpload = async (record, file) => {
     setRowInvoiceUploadingId(record._id);
     const formData = new FormData();
     formData.append("file", file);
     try {
-      const res = await axios.post(`${API_BASE}/api/purchase-records/upload-invoice`, formData);
+      const res = await api.post("/api/purchase-records/upload-invoice", formData);
       await patchRecord(record, { invoiceUrl: res.data.url });
       setSuccessMsg("Invoice uploaded");
     } catch (e) { setErrorMsg("Upload failed"); }
     finally { setRowInvoiceUploadingId(null); }
   };
-
 
   const handleBulkUpload = async () => {
     if (!bulkFile) return setErrorMsg("Select file");
@@ -344,7 +345,7 @@ const PurchaseRecordsPage = () => {
     formData.append("file", bulkFile);
     formData.append("date", bulkDate);
     try {
-      await axios.post(`${API_BASE}/api/purchase-records/bulk-upload`, formData);
+      await api.post("/api/purchase-records/bulk-upload", formData);
       setOpenBulkUpload(false);
       fetchRecords();
       setSuccessMsg("Bulk upload success");
