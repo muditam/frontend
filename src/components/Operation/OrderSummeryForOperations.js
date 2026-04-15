@@ -34,8 +34,13 @@ import {
 } from "@mui/icons-material";
 import axios from "axios";
 import dayjs from "dayjs";
+ 
+const API_BASE = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "");
 
-const API_BASE = "https://muditamleads-14f32a10d7f7.herokuapp.com";
+const api = axios.create({
+  baseURL: API_BASE,
+  withCredentials: true,
+});
 
 // Ops Remark options (condition-wise)
 const OPS_REMARK_OPTIONS = {
@@ -92,7 +97,7 @@ const UndeliveredOrders = () => {
 
   const fetchEmployees = useCallback(async () => {
     try {
-      const res = await axios.get(`${API_BASE}/api/employees`);
+      const res = await api.get("/api/employees");
       const list = res.data || [];
       setEmployees(list);
 
@@ -115,7 +120,7 @@ const UndeliveredOrders = () => {
 
   const fetchOrderCounts = useCallback(async () => {
     try {
-      const res = await axios.get(`${API_BASE}/api/operations/order-counts`);
+      const res = await api.get("/api/operations/order-counts");
       setOrderCounts(res.data || {});
     } catch (e) {
       console.error("Failed to fetch order counts", e);
@@ -127,7 +132,7 @@ const UndeliveredOrders = () => {
     try {
       const viewTabParam = viewTab === 0 ? "pending" : "processed";
 
-      const res = await axios.get(`${API_BASE}/api/operations/undelivered-orders`, {
+      const res = await api.get("/api/operations/undelivered-orders", {
         params: {
           page: page + 1,
           limit,
@@ -177,7 +182,7 @@ const UndeliveredOrders = () => {
   }, []);
 
   const saveOpsMeta = useCallback(async (order, patch) => {
-    const response = await axios.patch(`${API_BASE}/api/operations/ops-meta/by-order-id`, {
+    const response = await api.patch("/api/operations/ops-meta/by-order-id", {
       order_id: order.order_id,
       ...patch,
     });
@@ -270,7 +275,7 @@ const UndeliveredOrders = () => {
         caller_id: callerId.toString().trim(),
       };
 
-      const response = await axios.post(`${API_BASE}/api/click_to_call`, requestBody);
+      const response = await api.post("/api/click_to_call", requestBody);
       setCallingMessage(response.data.status === "success" ? `Connected to ${contactNumber}` : "Call failed.");
     } catch (error) {
       setCallingMessage("Error placing the call.");

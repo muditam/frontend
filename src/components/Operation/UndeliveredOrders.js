@@ -34,7 +34,12 @@ import { IconButton } from "@mui/material";
 import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 
-const API_BASE = process.env.REACT_APP_API_BASE || "https://muditamleads-14f32a10d7f7.herokuapp.com";
+const API_BASE = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "");
+
+const api = axios.create({
+  baseURL: API_BASE,
+  withCredentials: true,
+});
 
 const SUBJECT_TEMPLATES = [
   { key: "fakeRemark", label: "Escalation – Fake Delivery Remark | Order ID {{Order_ID}} | AWB {{tracking_number}}" },
@@ -188,7 +193,9 @@ const UndeliveredOrdersTabs = () => {
   useEffect(() => {
     const loadSentFromBackend = async () => {
       try {
-        const { data } = await axios.get(`${API_BASE}/api/zoho/sent?withReplies=1`);
+        const { data } = await api.get("/api/zoho/sent", {
+          params: { withReplies: 1 },
+        });
         const sentOrderIds = data?.sentOrderIds || [];
         const counts = data?.counts || {};
         const replies = data?.replies || {};
@@ -230,9 +237,16 @@ const UndeliveredOrdersTabs = () => {
       if (toDate) params.set('endDate', toDate);
       if (statusFilter.length) params.set('status', statusFilter.join(','));
 
-      const res = await axios.get(
-        `https://muditamleads-14f32a10d7f7.herokuapp.com/api/orders/undelivered?${params.toString()}`
-      );
+      const res = await api.get("/api/orders/undelivered", {
+        params: {
+          priority,
+          page: pageNum,
+          limit,
+          ...(fromDate ? { startDate: fromDate } : {}),
+          ...(toDate ? { endDate: toDate } : {}),
+          ...(statusFilter.length ? { status: statusFilter.join(",") } : {}),
+        },
+      });
 
       setOrders(res.data.data || []);
       setTotal(res.data.total || 0);
@@ -256,7 +270,7 @@ const UndeliveredOrdersTabs = () => {
 
     try {
       setSavingIssueIds(prev => ({ ...prev, [order._id]: true }));
-      await axios.patch(`${API_BASE}/api/orders/${order._id}/issue`, { issue: newValue });
+      await api.patch(`/api/orders/${order._id}/issue`, { issue: newValue });
 
       setOrders(prev =>
         prev.map(o => (o._id === order._id ? { ...o, issue: newValue } : o))
@@ -364,12 +378,14 @@ const UndeliveredOrdersTabs = () => {
         subjectTemplateKey: replyForm.subjectTemplateKey,
         contentTemplateKey: replyForm.contentTemplateKey,
       };
-      await axios.post(`${API_BASE}/api/zoho/reply`, payload);
+      await api.post("/api/zoho/reply", payload);
 
       // refresh this order's latest reply after sending
       try {
         const qs = encodeURIComponent(replyDlg.orderId);
-        const { data } = await axios.get(`${API_BASE}/api/zoho/replies?orderIds=${qs}`);
+        const { data } = await api.get("/api/zoho/replies", {
+          params: { orderIds: replyDlg.orderId },
+        });
         const rep = data?.replies?.[replyDlg.orderId] || null;
         setEmailStatus((prev) => ({
           ...prev,
@@ -442,10 +458,9 @@ const UndeliveredOrdersTabs = () => {
 
   const loadRepliesPage = async ({ orderId, offset = 0, append = false }) => {
     try {
-      const { data } = await axios.get(
-        `${API_BASE}/api/zoho/replies/list`,
-        { params: { orderId, offset, limit: REPLIES_PAGE_SIZE } }
-      );
+      const { data } = await api.get("/api/zoho/replies/list", {
+        params: { orderId, offset, limit: REPLIES_PAGE_SIZE },
+      });
       const rawItems = Array.isArray(data?.items) ? data.items : [];
 
       // Prefer only external replies (not from us). If none, show all.
@@ -584,11 +599,11 @@ const UndeliveredOrdersTabs = () => {
         fd.append("agentName", getAgentName(from));
         attachments.forEach((file) => fd.append("attachments", file, file.name));
 
-        await axios.post(`${API_BASE}/api/zoho/send-batch`, fd, {
+        await api.post("/api/zoho/send-batch", fd, {
           headers: { "Content-Type": "multipart/form-data" },
         });
       } else {
-        await axios.post(`${API_BASE}/api/zoho/send-batch`, {
+        await api.post("/api/zoho/send-batch", {
           from,
           to,
           subjectTemplateKey,
@@ -610,7 +625,9 @@ const UndeliveredOrdersTabs = () => {
       });
 
       try {
-        const { data } = await axios.get(`${API_BASE}/api/zoho/sent?withReplies=1`);
+        const { data } = await api.get("/api/zoho/sent", {
+          params: { withReplies: 1 },
+        });
         const sentOrderIds = data?.sentOrderIds || [];
         const counts = data?.counts || {};
         const replies = data?.replies || {};
@@ -662,7 +679,9 @@ const UndeliveredOrdersTabs = () => {
 
     try {
       const qs = encodeURIComponent(orderId);
-      const { data } = await axios.get(`${API_BASE}/api/zoho/replies?orderIds=${qs}`);
+      const { data } = await api.get("/api/zoho/replies", {
+        params: { orderIds: orderId },
+      });
       const rep = data?.replies?.[orderId] || null;
 
       // update local emailStatus cache
@@ -721,89 +740,98 @@ const UndeliveredOrdersTabs = () => {
   };
 
   const toCsvCell = (v) => {
-     if (v == null) return "";
-     const s = String(v).replace(/\r?\n/g, " ");      
-     return /[",]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-   };
- 
-   const rowsToCsv = (rows) => {
-     const header = [
-       "Order ID",
-       "Customer Phone",
-       "Customer Name",
-       "Priority",
-       "Status",
-       "Agent Name", 
-       "Order Date",
-       "Amount",
-       "Products",
-       "Due Days",
-       "Tracking No.",
-       "Carrier",
-       "Issue",
-     ];
-     const body = rows.map((o) => {
-       const dueDays = o.order_date ? Math.max(0, dayjs().diff(dayjs(o.order_date), "day")) : "";
-       const products = Array.isArray(o.productsAbbrev) && o.productsAbbrev.length
-         ? o.productsAbbrev.join(" + ")
-         : "";
-        return [
-         o.order_id || "",
-         o.contact_number || "",
-         o.full_name || "",
-         o.priority || "",
-         o.shipment_status || "", 
-         o.agentName || "", 
-         o.order_date ? dayjs(o.order_date).format("DD/MM/YYYY") : "", 
-         formatINR(o.amount),
-         products,
-         dueDays,
-         o.tracking_number || "",
-         o.carrier_title || "",
-         o.issue || "",
-       ].map(toCsvCell).join(",");
-     });
-     // BOM for Excel opening + UTF-8
-     return "\uFEFF" + [header.join(","), ...body].join("\n");
-   };
- 
-   const handleDownload = async () => {
-     try {
-       const API_PAGE = 200; // backend max
-       let pageNum = 1;
-       let all = [];
-       let totalCount = 0;
-       do {
-         const params = new URLSearchParams();
-         params.set("priority", tab);
-         params.set("page", String(pageNum));
-         params.set("limit", String(API_PAGE));
-         if (fromDate) params.set("startDate", fromDate);
-         if (toDate) params.set("endDate", toDate);
-         if (statusFilter.length) params.set("status", statusFilter.join(","));
- 
-         const res = await axios.get(`${API_BASE}/api/orders/undelivered?${params.toString()}`);
-         const chunk = Array.isArray(res.data?.data) ? res.data.data : [];
-         totalCount = res.data?.total ?? (pageNum === 1 ? chunk.length : totalCount);
-         all = all.concat(chunk);
-         pageNum += 1;
-         if (!chunk.length) break;
-       } while (all.length < totalCount);
- 
-       const csv = rowsToCsv(all);
-       const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
-       const url = URL.createObjectURL(blob);
-       const a = document.createElement("a");
-       const filename = `undelivered_${tab.toLowerCase()}_${dayjs().format("YYYYMMDD_HHmm")}.csv`;
-       a.href = url;
-       a.download = filename;
-       document.body.appendChild(a);
-       a.click();
-       document.body.removeChild(a);
-       URL.revokeObjectURL(url);
-       setToast({ open: true, severity: "success", msg: `Downloaded ${all.length} ${tab} record(s).` });
-     } catch (err) {
-       console.error("Download failed:", err);
+    if (v == null) return "";
+    const s = String(v).replace(/\r?\n/g, " ");
+    return /[",]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+
+  const rowsToCsv = (rows) => {
+    const header = [
+      "Order ID",
+      "Customer Phone",
+      "Customer Name",
+      "Priority",
+      "Status",
+      "Agent Name",
+      "Order Date",
+      "Amount",
+      "Products",
+      "Due Days",
+      "Tracking No.",
+      "Carrier",
+      "Issue",
+    ];
+    const body = rows.map((o) => {
+      const dueDays = o.order_date ? Math.max(0, dayjs().diff(dayjs(o.order_date), "day")) : "";
+      const products = Array.isArray(o.productsAbbrev) && o.productsAbbrev.length
+        ? o.productsAbbrev.join(" + ")
+        : "";
+      return [
+        o.order_id || "",
+        o.contact_number || "",
+        o.full_name || "",
+        o.priority || "",
+        o.shipment_status || "",
+        o.agentName || "",
+        o.order_date ? dayjs(o.order_date).format("DD/MM/YYYY") : "",
+        formatINR(o.amount),
+        products,
+        dueDays,
+        o.tracking_number || "",
+        o.carrier_title || "",
+        o.issue || "",
+      ].map(toCsvCell).join(",");
+    });
+    // BOM for Excel opening + UTF-8
+    return "\uFEFF" + [header.join(","), ...body].join("\n");
+  };
+
+  const handleDownload = async () => {
+    try {
+      const API_PAGE = 200; // backend max
+      let pageNum = 1;
+      let all = [];
+      let totalCount = 0;
+      do {
+        const params = new URLSearchParams();
+        params.set("priority", tab);
+        params.set("page", String(pageNum));
+        params.set("limit", String(API_PAGE));
+        if (fromDate) params.set("startDate", fromDate);
+        if (toDate) params.set("endDate", toDate);
+        if (statusFilter.length) params.set("status", statusFilter.join(","));
+
+        const res = await api.get("/api/orders/undelivered", {
+          params: {
+            priority: tab,
+            page: pageNum,
+            limit: API_PAGE,
+            ...(fromDate ? { startDate: fromDate } : {}),
+            ...(toDate ? { endDate: toDate } : {}),
+            ...(statusFilter.length ? { status: statusFilter.join(",") } : {}),
+          },
+        });
+        const chunk = Array.isArray(res.data?.data) ? res.data.data : [];
+        totalCount = res.data?.total ?? (pageNum === 1 ? chunk.length : totalCount);
+        all = all.concat(chunk);
+        pageNum += 1;
+        if (!chunk.length) break;
+      } while (all.length < totalCount);
+
+      const csv = rowsToCsv(all);
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      const filename = `undelivered_${tab.toLowerCase()}_${dayjs().format("YYYYMMDD_HHmm")}.csv`;
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      setToast({ open: true, severity: "success", msg: `Downloaded ${all.length} ${tab} record(s).` });
+    } catch (err) {
+      console.error("Download failed:", err);
       setToast({ open: true, severity: "error", msg: "Failed to download CSV." });
     }
   };
@@ -821,7 +849,7 @@ const UndeliveredOrdersTabs = () => {
           onClick={() => openReplyDialog(order.order_id)}
           clickable
         />
-      ); 
+      );
     }
 
     const label = status.lastReply
@@ -862,7 +890,7 @@ const UndeliveredOrdersTabs = () => {
 
 
 
-        <Box display="flex" gap={1}> 
+        <Box display="flex" gap={1}>
           <Button
             variant="outlined"
             onClick={handleDownload}
@@ -1042,7 +1070,7 @@ const UndeliveredOrdersTabs = () => {
                       )}
                     </TableCell>
                     <TableCell align="center">{order.shipment_status || "-"}</TableCell>
-                    <TableCell align="center">{order.agentName || "-"}</TableCell> 
+                    <TableCell align="center">{order.agentName || "-"}</TableCell>
                     <TableCell align="center">
                       {order.order_date ? dayjs(order.order_date).format("DD/MM/YYYY") : "-"}
                     </TableCell>

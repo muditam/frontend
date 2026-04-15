@@ -1336,23 +1336,6 @@ const MenuBar = ({ toggleDrawer }) => {
           </>
         )}
 
-        {user && can("financeRtoSheet") && (
-          <ListItem
-            button
-            component={Link}
-            to="/rto-sheet"
-            sx={menuItemStyle}
-            onClick={toggleDrawer}
-          >
-            <DeleteIcon sx={{ fontSize: 18, marginRight: "8px" }} />
-            <Typography variant="body1" sx={{ fontSize: "14px" }}>
-              RTO Sheet
-            </Typography>
-          </ListItem>
-        )}
-
-
-
         {user && can("financeCodRemittanceMenu") && (
           <>
             <ListItem
