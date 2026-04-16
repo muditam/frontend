@@ -11,6 +11,13 @@ import DownloadIcon from "@mui/icons-material/Download";
 import dayjs from "dayjs";
 import axios from "axios";
 
+const API_BASE = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "");
+
+const api = axios.create({
+  baseURL: API_BASE,
+  withCredentials: true,
+});
+
 // helper to format to `YYYY-MM-DD HH:mm:ss` as required by Smartflo CDR API
 const fmt = (d) => dayjs(d).format("YYYY-MM-DD HH:mm:ss");
 
@@ -62,7 +69,7 @@ export default function SmartfloCallLogs() {
       if (searchClient) params.callerid = searchClient;
       if (searchDid) params.did_number = searchDid;
 
-      const { data } = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/smartflo/call-records", { params });
+      const { data } = await api.get("/api/smartflo/call-records", { params });
       setRows(data?.results || []);
       setTotal(data?.count || 0);
     } catch (e) {
