@@ -11,7 +11,7 @@ import {
   CircularProgress,
   Divider,
   Button,
-  Dialog,
+  Dialog, 
   DialogTitle,
   DialogContent,
   InputAdornment,
@@ -609,7 +609,7 @@ function MessageMedia({
           onClick={() => window.open(resolvedUrl, "_blank", "noopener,noreferrer")}
           sx={{ textTransform: "none" }}
         >
-          Open file{filename ? `: ${filename}` : ""}
+          Open PDF{filename ? `: ${filename}` : ""}
         </Button>
       </Box>
     );
