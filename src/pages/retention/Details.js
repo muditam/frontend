@@ -37,8 +37,7 @@ import axios from "axios";
 
 /** ---------- CONFIG & HELPERS ---------- */
 
-const API_BASE =
-  "https://muditamleads-14f32a10d7f7.herokuapp.com/api/details";
+const API_BASE = `${(process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "")}/api/details`;
 
 // Includes added Cholesterol + Fatty Liver fields
 const initialFormState = {
@@ -46,7 +45,7 @@ const initialFormState = {
   age: "",
   height: "", // cm
   weight: "",
-  // Diabetes
+  // Diabetes 
   hba1c: "",
   fastingSugar: "",
   ppSugar: "",

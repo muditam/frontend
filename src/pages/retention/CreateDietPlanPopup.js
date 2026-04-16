@@ -40,7 +40,7 @@ import CheckIcon from "@mui/icons-material/Check";
 import CloseIcon from "@mui/icons-material/Close";
 import axios from "axios";
 
-const BASE_URL = "https://muditamleads-14f32a10d7f7.herokuapp.com";
+const BASE_URL = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "");
 const PUBLIC_LINK_BASE = "https://muditam.com/apps/consultation/diet-plan";
 
 const api = axios.create({

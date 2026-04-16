@@ -342,7 +342,7 @@ export default function CohortDataCustomer({
       setLoading(true);
       setError("");
       try { 
-        const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "https://muditamleads-14f32a10d7f7.herokuapp.com";
+        const API_BASE = process.env.REACT_APP_API_BASE_URL || "https://muditamleads-14f32a10d7f7.herokuapp.com";
         const doFetch =
           fetchOrders ||
           (async (p) => {

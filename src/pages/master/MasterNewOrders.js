@@ -10,7 +10,7 @@ import {
   TableRow,
   Paper,
   Select,
-  MenuItem, 
+  MenuItem,
   Button,
   Drawer,
   TextField,
@@ -22,8 +22,14 @@ import {
   Divider,
   CircularProgress,
 } from "@mui/material";
-import axios from "axios"; 
+import axios from "axios";
 
+const API_BASE_URL = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "");
+
+const api = axios.create({
+  baseURL: API_BASE_URL,
+  withCredentials: true,
+});
 
 const NewOrders = () => {
   const [newOrders, setNewOrders] = useState([]);
@@ -43,7 +49,7 @@ const NewOrders = () => {
     healthExpertAssigned: "",
     modeOfPayment: [],
   });
-  const [filterOpen, setFilterOpen] = useState(false); 
+  const [filterOpen, setFilterOpen] = useState(false);
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(30);
 
@@ -67,16 +73,16 @@ const NewOrders = () => {
   const fetchNewOrders = async () => {
     setLoading(true);
     try {
-      const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/orders/combined", { 
+      const response = await api.get("/api/orders/combined", {
         params: {
-          page: page + 1, // converting to 1-indexed for backend
+          page: page + 1,
           limit: rowsPerPage,
           ...filters,
         },
       });
       const orders = response.data.orders;
       setTotalOrders(response.data.total);
-      setNewOrders(orders); 
+      setNewOrders(orders);
       setAllOrders(orders);
 
 
@@ -88,20 +94,22 @@ const NewOrders = () => {
     } catch (error) {
       console.error("Error fetching combined orders:", error);
     } finally {
-    setLoading(false);  
-  }
+      setLoading(false);
+    }
   };
- 
+
   const fetchRetentionAgents = async () => {
     try {
-      const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/employees?role=Retention%20Agent");
+      const response = await api.get("/api/employees", {
+        params: { role: "Retention Agent" },
+      });
       setRetentionAgents(response.data);
       // console.log(response.data);
     } catch (error) {
       console.error("Error fetching retention agents:", error);
     }
   };
- 
+
   // Updated Health Expert change handler:
   // Now it uses the updated endpoint URL so that it doesn't conflict with /api/leads/:id
   const handleHealthExpertChange = async (e, index) => {
@@ -113,8 +121,7 @@ const NewOrders = () => {
 
     const contactNumber = updatedOrders[index].contactNumber;
     try {
-      // Use the endpoint mounted at /api/orders/combined/update-by-contact
-      await axios.put("https://muditamleads-14f32a10d7f7.herokuapp.com/api/orders/combined/update-by-contact", {
+      await api.put("/api/orders/combined/update-by-contact", {
         contactNumber,
         healthExpertAssigned: selectedAgent,
       });
@@ -150,15 +157,14 @@ const NewOrders = () => {
   // Export only the required fields to CSV
   const exportToCSV = async () => {
     try {
-      const response = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/orders/combined", {
+      const response = await api.get("/api/orders/combined", {
         params: {
           page: 1,
           limit: totalOrders || 10000,
-          ...(filters || {}), 
+          ...(filters || {}),
         },
       });
       const orders = response.data.orders;
- 
 
       const headers = [
         "Order Date",
@@ -171,7 +177,7 @@ const NewOrders = () => {
         "Remark for HE",
         "Amount Paid",
         "Mode of Payment"
-      ]; 
+      ];
 
 
       const rows = orders.map(order => [
@@ -386,49 +392,49 @@ const NewOrders = () => {
           </TableHead>
           <TableBody>
             {newOrders.length === 0 ? (
-    <TableRow>
-      <TableCell colSpan={10} align="center">
-        <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", py: 3 }}>
-          <CircularProgress />
-          <Typography variant="body2" sx={{ mt: 1 }}>Please wait...</Typography>
-        </Box>
-      </TableCell>
-    </TableRow>
-  ) : (
-            newOrders.map((order, index) => (
-              <TableRow key={order._id || index}>
-                <TableCell>
-                  {order.orderDate ? new Date(order.orderDate).toLocaleDateString() : "N/A"}
+              <TableRow>
+                <TableCell colSpan={10} align="center">
+                  <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", py: 3 }}>
+                    <CircularProgress />
+                    <Typography variant="body2" sx={{ mt: 1 }}>Please wait...</Typography>
+                  </Box>
                 </TableCell>
-                <TableCell>{order.name || "N/A"}</TableCell>
-                <TableCell>{order.contactNumber || "N/A"}</TableCell>
-                <TableCell>{order.agentName || "N/A"}</TableCell>
-                <TableCell>
-                  {Array.isArray(order.productsOrdered)
-                    ? order.productsOrdered.join(", ")
-                    : order.productsOrdered || "N/A"}
-                </TableCell>
-                <TableCell>{order.dosageOrdered || "N/A"}</TableCell>
-                <TableCell> 
-                  <Select
-                    value={order.healthExpertAssigned || ""}
-                    onChange={(e) => handleHealthExpertChange(e, index)}
-                    fullWidth
-                  >
-                    {retentionAgents.map((expert) => (
-                      <MenuItem key={expert._id} value={expert.fullName}>
-                        {expert.fullName}
-                      </MenuItem>
-                    ))} 
-                  </Select>
-                </TableCell>
-                {/* <TableCell>{order.shipment_status || "N/A"}</TableCell> */}
-                <TableCell>{order.remarkForHE || "N/A"}</TableCell> 
-                <TableCell>{order.amountPaid || "N/A"}</TableCell>
-                <TableCell>{order.modeOfPayment || "N/A"}</TableCell> 
               </TableRow>
-            ))
-          )}
+            ) : (
+              newOrders.map((order, index) => (
+                <TableRow key={order._id || index}>
+                  <TableCell>
+                    {order.orderDate ? new Date(order.orderDate).toLocaleDateString() : "N/A"}
+                  </TableCell>
+                  <TableCell>{order.name || "N/A"}</TableCell>
+                  <TableCell>{order.contactNumber || "N/A"}</TableCell>
+                  <TableCell>{order.agentName || "N/A"}</TableCell>
+                  <TableCell>
+                    {Array.isArray(order.productsOrdered)
+                      ? order.productsOrdered.join(", ")
+                      : order.productsOrdered || "N/A"}
+                  </TableCell>
+                  <TableCell>{order.dosageOrdered || "N/A"}</TableCell>
+                  <TableCell>
+                    <Select
+                      value={order.healthExpertAssigned || ""}
+                      onChange={(e) => handleHealthExpertChange(e, index)}
+                      fullWidth
+                    >
+                      {retentionAgents.map((expert) => (
+                        <MenuItem key={expert._id} value={expert.fullName}>
+                          {expert.fullName}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </TableCell>
+                  {/* <TableCell>{order.shipment_status || "N/A"}</TableCell> */}
+                  <TableCell>{order.remarkForHE || "N/A"}</TableCell>
+                  <TableCell>{order.amountPaid || "N/A"}</TableCell>
+                  <TableCell>{order.modeOfPayment || "N/A"}</TableCell>
+                </TableRow>
+              ))
+            )}
           </TableBody>
         </Table>
       </TableContainer>

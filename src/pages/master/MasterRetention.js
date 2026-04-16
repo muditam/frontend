@@ -137,11 +137,11 @@ export default function RetentionTable() {
   useEffect(() => {
     // Only active employees, and specific roles
     const fetchEmployees = async () => {
-      const agentsRes = await fetch("https://muditamleads-14f32a10d7f7.herokuapp.com/api/employees?role=Sales%20Agent");
+      const agentsRes = await fetch(`${API_BASE}/api/employees?role=Sales%20Agent`);
       const agentsData = await agentsRes.json();
       setAgents(agentsData.filter((emp) => emp.status === "active"));
 
-      const healthRes = await fetch("https://muditamleads-14f32a10d7f7.herokuapp.com/api/employees?role=Retention%20Agent");
+      const healthRes = await fetch(`${API_BASE}/api/employees?role=Retention%20Agent`);
       const healthData = await healthRes.json();
       setHealthExperts(healthData.filter((emp) => emp.status === "active"));
     };
