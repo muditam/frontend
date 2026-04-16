@@ -53,8 +53,12 @@ import ScheduleCallDialog from "./ScheduleCallDialog";
 import axios from "axios";
 import { ThemeProvider, createTheme } from "@mui/material/styles";
 
-const CREATE_PAYMENT_LINK_URL =
-  "https://muditamleads-14f32a10d7f7.herokuapp.com/api/order-confirmations/create-payment-link";
+const API_BASE_URL = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "");
+
+const api = axios.create({
+  baseURL: API_BASE_URL,
+  withCredentials: true,
+});
 
 const CALL_STATUS = [
   { value: "CNP", label: "CNP" },
@@ -340,7 +344,7 @@ export default function OrderConfirmations() {
 
   const fetchAgents = useCallback(async () => {
     try {
-      const { data } = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/employees");
+      const { data } = await api.get("/api/employees");
       const filtered = Array.isArray(data)
         ? data.filter((a) => !!a?.isDoctor && (a?.status === "active" || a?.status === "Active"))
         : [];
@@ -385,10 +389,7 @@ export default function OrderConfirmations() {
         if (startDate) params.startDate = startDate;
         if (endDate) params.endDate = endDate;
 
-        const { data } = await axios.get(
-          "https://muditamleads-14f32a10d7f7.herokuapp.com/api/order-confirmations/list",
-          { params }
-        );
+        const { data } = await api.get("/api/order-confirmations/list", { params });
 
         const rows = data?.items || [];
         setTotal(typeof data?.total === "number" ? data.total : rows.length);
@@ -415,10 +416,7 @@ export default function OrderConfirmations() {
       if (startDate) params.startDate = startDate;
       if (endDate) params.endDate = endDate;
 
-      const { data } = await axios.get(
-        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/order-confirmations/counts",
-        { params }
-      );
+      const { data } = await api.get("/api/order-confirmations/counts", { params });
 
       if (data?.counts) setCounts(data.counts);
     } catch (e) {
@@ -430,10 +428,7 @@ export default function OrderConfirmations() {
   const fetchTodayConfirmedCount = useCallback(async () => {
     try {
       const params = (!isManager && myAgentId) ? { agentId: myAgentId } : {};
-      const { data } = await axios.get(
-        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/order-confirmations/today-confirmed-count",
-        { params }
-      );
+      const { data } = await api.get("/api/order-confirmations/today-confirmed-count", { params });
       setTodayConfirmedCount(Number(data?.count || 0));
     } catch (e) {
       console.error("fetchTodayConfirmedCount error", e);
@@ -443,7 +438,7 @@ export default function OrderConfirmations() {
   const syncNewAndRefresh = useCallback(async () => {
     try {
       setSyncing(true);
-      const { data } = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/orders-shopify/sync-new");
+      const { data } = await api.get("/api/orders-shopify/sync-new");
       const stats = data || {};
       const parts = [];
       ["inserted", "updated", "processed", "fetched", "upserts", "total"].forEach((k) => {
@@ -469,10 +464,7 @@ export default function OrderConfirmations() {
 
     try {
       setSyncing(true);
-      const { data } = await axios.post(
-        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/order-confirmations/assign/round-robin",
-        {}
-      );
+      const { data } = await api.post("/api/order-confirmations/assign/round-robin", {});
       const msg = data?.assigned
         ? `Assigned ${data.assigned} orders across ${data.agents} agents`
         : "No unassigned orders";
@@ -537,7 +529,7 @@ export default function OrderConfirmations() {
   const patchOrder = async (id, payload, msgOnSuccess = "Saved") => {
     try {
       setRowSaving(id, true);
-      const { data } = await axios.patch(`https://muditamleads-14f32a10d7f7.herokuapp.com/api/order-confirmations/${id}`, payload);
+      const { data } = await api.patch(`/api/order-confirmations/${id}`, payload);
       setItems((rows) =>
         rows.map((r) =>
           String(r._id) === String(id)
@@ -562,9 +554,9 @@ export default function OrderConfirmations() {
     if (!phone) return;
     setHistoryDlg({ open: true, phone, items: [], loading: true });
     try {
-      const { data } = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/order-confirmations/history-by-phone", {
-        params: { phone },
-      });
+      const { data } = await api.get("/api/order-confirmations/history-by-phone", {
+  params: { phone },
+});
       setHistoryDlg((s) => ({ ...s, items: Array.isArray(data?.items) ? data.items : [], loading: false }));
     } catch (e) {
       setHistoryDlg((s) => ({ ...s, loading: false }));
@@ -595,15 +587,12 @@ export default function OrderConfirmations() {
   try {
     setRowSaving(row._id, true);
 
-    const { data } = await axios.post(
-      "https://muditamleads-14f32a10d7f7.herokuapp.com/api/order-confirmations/shopify-notes",
-      {
-        orderName: row.orderName,
-        note: label,
-        callStatus: newValue,
-        userFullName,
-      }
-    );
+    const { data } = await api.post("/api/order-confirmations/shopify-notes", {
+  orderName: row.orderName,
+  note: label,
+  callStatus: newValue,
+  userFullName,
+});
 
     const savedOps = data?.mongo?.orderConfirmOps || {};
 
@@ -667,18 +656,14 @@ export default function OrderConfirmations() {
     try {
       setCancelingRow((m) => ({ ...m, [id]: true }));
 
-      // Call the new backend
-      const { data } = await axios.post(
-        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/order-confirmations/cancel",
-        {
-          orderName: row.orderName,
-          reason: "customer",
-          email: true,
-          restock: true,
-          note: "Cancel Order - via OC",
-          ocCancelReason: ocReason,
-        }
-      );
+      const { data } = await api.post("/api/order-confirmations/cancel", {
+  orderName: row.orderName,
+  reason: "customer",
+  email: true,
+  restock: true,
+  note: "Cancel Order - via OC",
+  ocCancelReason: ocReason,
+});
 
       // Toast & update status + counts
       setToast({ open: true, severity: "success", msg: data?.alreadyCancelled ? "Order already cancelled" : "Order cancelled" });
@@ -709,9 +694,7 @@ export default function OrderConfirmations() {
   const fetchMyActiveStatus = useCallback(async () => {
     if (!myAgentId) return;
     try {
-      const { data } = await axios.get(
-        `https://muditamleads-14f32a10d7f7.herokuapp.com/api/order-confirmations/agents/${myAgentId}/status`
-      );
+      const { data } = await api.get(`/api/order-confirmations/agents/${myAgentId}/status`);
       const serverVal = !!data?.agent?.orderConfirmActive;
       setMyActive(serverVal);
       sessionStorage.setItem("orderConfirmActive", String(serverVal));
@@ -758,7 +741,7 @@ export default function OrderConfirmations() {
 
     try {
       setPayDlg((s) => ({ ...s, generating: true }));
-      const { data } = await axios.post(CREATE_PAYMENT_LINK_URL, {
+      const { data } = await api.post("/api/order-confirmations/create-payment-link", {
         amount: amtFinal,
         currency: currency || "INR",
         customer: { name: customerName || "Customer", email: customerEmail || "", contact },
@@ -845,10 +828,10 @@ export default function OrderConfirmations() {
                             sessionStorage.setItem("orderConfirmActive", String(!!checked));
                             setSavingActive(true);
 
-                            const { data } = await axios.post(
-                              "https://muditamleads-14f32a10d7f7.herokuapp.com/api/order-confirmations/agents/toggle",
-                              { agentId: myAgentId, active: checked }
-                            );
+                            const { data } = await api.post("/api/order-confirmations/agents/toggle", {
+  agentId: myAgentId,
+  active: checked,
+});
 
                             const serverVal = !!data?.agent?.orderConfirmActive;
                             setMyActive(serverVal);

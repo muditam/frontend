@@ -10,6 +10,7 @@ import { Box, Button, Typography } from "@mui/material";
 // import TeamLeaderDashboardRetentionOnly from "../../Dashboards/TeamLeaderDashboard";
 import MarketingDashboard from "../../Dashboards/MarketingDashboard";
 import SuperAdminAnalytics from "../../pages/SuperAdminAnalytics";
+import ItManagerDashboard from "../../Dashboards/ITManagerDashboard";
 
 const SalesDashboard = () => {
   const [role, setRole] = useState(null);
@@ -303,6 +304,7 @@ if (storedTab === "Retention" || storedTab === "Analytics") {
     {role === "Finance" && <FinanceDashboard />}
     {role === "Operations" && <OperationsDashboard />}
     {role === "Marketing" && <MarketingDashboard />}
+    {role === "Human Resource" && <ItManagerDashboard />}
   </div>
 );
 };
