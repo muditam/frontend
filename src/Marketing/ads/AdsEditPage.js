@@ -54,13 +54,13 @@ import {
 // ─────────────────────────────────────────────────────────────
 // URLs
 // ─────────────────────────────────────────────────────────────
-const API = "https://muditamleads-14f32a10d7f7.herokuapp.com/api/ads-videos";
+const API = `${(process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "")}/api/ads-videos`;
 const DESIGNERS_API =
-  "https://muditamleads-14f32a10d7f7.herokuapp.com/api/ads-videos/designers";
+  `${(process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "")}/api/ads-videos/designers`;
 const PRESIGN_API =
-  "https://muditamleads-14f32a10d7f7.herokuapp.com/api/ads-videos/presign";
+  `${(process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "")}/api/ads-videos/presign`;
 const PRESIGN_DOWN_API =
-  "https://muditamleads-14f32a10d7f7.herokuapp.com/api/ads-videos/presign-download";
+  `${(process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "")}/api/ads-videos/presign-download`;
 
 const MANAGER_ROLES = ["admin", "manager", "super-admin", "team-leader"];
 const AD_TYPES = [

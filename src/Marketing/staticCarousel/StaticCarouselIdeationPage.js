@@ -48,8 +48,8 @@ import {
   Collections as CarouselIcon,
   Image as StaticIcon,
 } from "@mui/icons-material";
-
-const API = "https://muditamleads-14f32a10d7f7.herokuapp.com/api/static-carousel";
+ 
+const API = `${(process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "")}/api/static-carousel`;
 const MANAGER_ROLES = ["admin", "manager", "super-admin", "team-leader"];
 
 const getCurrentUser = () => JSON.parse(sessionStorage.getItem("user") || "{}");

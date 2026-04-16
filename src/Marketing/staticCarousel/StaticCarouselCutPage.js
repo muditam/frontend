@@ -49,23 +49,15 @@ import {
   OpenInNew as OpenInNewIcon,
 } from "@mui/icons-material";
 
-// ─────────────────────────────────────────────────────────────
-// API
-// ─────────────────────────────────────────────────────────────
-const API = "https://muditamleads-14f32a10d7f7.herokuapp.com/api/static-carousel";
-const PRESIGN_API =
-  "https://muditamleads-14f32a10d7f7.herokuapp.com/api/static-carousel/presign";
-const PRESIGN_DOWN_API =
-  "https://muditamleads-14f32a10d7f7.herokuapp.com/api/static-carousel/presign-download";
+const API = `${(process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "")}/api/static-carousel`;
+const PRESIGN_API = `${(process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "")}/api/static-carousel/presign`;
+const PRESIGN_DOWN_API = `${(process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "")}/api/static-carousel/presign-download`;
 
 const getAuthHeaders = () => {
   const user = JSON.parse(sessionStorage.getItem("user") || "{}");
   return { "x-session-user": JSON.stringify(user) };
 };
 
-// ─────────────────────────────────────────────────────────────
-// Wasabi upload
-// ─────────────────────────────────────────────────────────────
 async function getPresignedUrl(filename, contentType, authHeaders) {
   const params = new URLSearchParams({ filename, contentType });
   const res = await fetch(`${PRESIGN_API}?${params}`, {

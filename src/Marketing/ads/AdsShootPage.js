@@ -42,8 +42,8 @@ import {
   RestartAlt as ResetIcon,
   Campaign as CampaignIcon,
 } from "@mui/icons-material";
-
-const API = "https://muditamleads-14f32a10d7f7.herokuapp.com/api/ads-videos";
+ 
+const API = `${(process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "")}/api/ads-videos`;
 
 const getAuthHeaders = () => {
   const user = JSON.parse(sessionStorage.getItem("user") || "{}");

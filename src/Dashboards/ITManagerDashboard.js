@@ -14,38 +14,23 @@ import {
   DialogContent,
   DialogTitle,
   Divider,
-  Grid,
-  IconButton,
-  InputAdornment,
-  LinearProgress,
-  MenuItem,
+  Grid, 
+  LinearProgress, 
   Paper,
   Snackbar,
-  Stack,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TablePagination,
-  TableRow,
-  TextField,
-  Tooltip,
+  Stack, 
   Typography,
-} from "@mui/material";
-import RefreshRoundedIcon from "@mui/icons-material/RefreshRounded";
-import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
+} from "@mui/material"; 
 import Inventory2OutlinedIcon from "@mui/icons-material/Inventory2Outlined";
 import AssignmentIndOutlinedIcon from "@mui/icons-material/AssignmentIndOutlined";
 import WarningAmberRoundedIcon from "@mui/icons-material/WarningAmberRounded";
 import AssignmentReturnOutlinedIcon from "@mui/icons-material/AssignmentReturnOutlined";
-import PeopleOutlineRoundedIcon from "@mui/icons-material/PeopleOutlineRounded";
-import HistoryRoundedIcon from "@mui/icons-material/HistoryRounded";
+import PeopleOutlineRoundedIcon from "@mui/icons-material/PeopleOutlineRounded"; 
 import ImageOutlinedIcon from "@mui/icons-material/ImageOutlined";
 import CategoryOutlinedIcon from "@mui/icons-material/CategoryOutlined";
 import BusinessOutlinedIcon from "@mui/icons-material/BusinessOutlined";
 
-const API_BASE = "https://muditamleads-14f32a10d7f7.herokuapp.com";
+const API_BASE = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "");
 
 const safeArr = (v) => (Array.isArray(v) ? v : []);
 

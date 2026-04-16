@@ -53,11 +53,10 @@ import {
 // ─────────────────────────────────────────────────────────────
 // URLs
 // ─────────────────────────────────────────────────────────────
-const API = "https://muditamleads-14f32a10d7f7.herokuapp.com/api/other-videos";
-const EMP_API = "https://muditamleads-14f32a10d7f7.herokuapp.com/api/employees";
-const PRESIGN_API = "https://muditamleads-14f32a10d7f7.herokuapp.com/api/other-videos/presign";
-const PRESIGN_DOWN_API =
-  "https://muditamleads-14f32a10d7f7.herokuapp.com/api/other-videos/presign-download";
+const API = `${(process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "")}/api/other-videos`;
+const EMP_API = `${(process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "")}/api/employees`;
+const PRESIGN_API = `${(process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "")}/api/other-videos/presign`;
+const PRESIGN_DOWN_API = `${(process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "")}/api/other-videos/presign-download`;
 
 const MANAGER_ROLES = ["admin", "manager", "super-admin", "team-leader"];
 const getCurrentUser = () => JSON.parse(sessionStorage.getItem("user") || "{}");
