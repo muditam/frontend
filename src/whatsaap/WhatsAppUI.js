@@ -11,7 +11,7 @@ import {
   CircularProgress,
   Divider,
   Button,
-  Dialog, 
+  Dialog,
   DialogTitle,
   DialogContent,
   InputAdornment,
@@ -21,30 +21,27 @@ import {
   MenuItem,
   Tooltip,
 } from "@mui/material";
-
 import { useLocation, useNavigate } from "react-router-dom";
 import SendIcon from "@mui/icons-material/Send";
 import SearchIcon from "@mui/icons-material/Search";
 import AddIcon from "@mui/icons-material/Add";
 import RefreshIcon from "@mui/icons-material/Refresh";
-
 import FlashOnIcon from "@mui/icons-material/FlashOn";
 import ViewListIcon from "@mui/icons-material/ViewList";
 import InsertEmoticonIcon from "@mui/icons-material/InsertEmoticon";
 import AttachFileIcon from "@mui/icons-material/AttachFile";
 import AutoFixHighIcon from "@mui/icons-material/AutoFixHigh";
 import AutorenewIcon from "@mui/icons-material/Autorenew";
-
 import DoneIcon from "@mui/icons-material/Done";
 import DoneAllIcon from "@mui/icons-material/DoneAll";
-
 import { io } from "socket.io-client";
 
 const API_BASE = "https://muditamleads-14f32a10d7f7.herokuapp.com";
-
-// toggle this if you want to see socket events
 const DEBUG_SOCKET = false;
 
+/* -----------------------------
+   Basic helpers
+------------------------------ */
 function digitsOnly(v = "") {
   return String(v || "").replace(/\D/g, "");
 }
@@ -55,7 +52,38 @@ function phone10(v = "") {
 function roomForPhone10(p10) {
   return `wa:${String(p10 || "").slice(-10)}`;
 }
+function buildTempId(prefix = "tmp") {
+  return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+}
+function normalizeToWa(toAny = "") {
+  const d = digitsOnly(toAny);
+  if (!d) return "";
+  if (d.length === 10) return `91${d}`;
+  return d;
+}
+function customerPhoneFromMsg(msg) {
+  const dir = String(msg?.direction || "").toUpperCase();
+  if (dir === "OUTBOUND") return msg?.to || "";
+  if (dir === "INBOUND") return msg?.from || "";
+  return msg?.phone || msg?.to || msg?.from || "";
+}
+function sameCustomer(msg, p10) {
+  return phone10(customerPhoneFromMsg(msg)) === p10;
+}
+function replaceMessageById(list, id, nextValue) {
+  const idx = list.findIndex((m) => m?._id === id);
+  if (idx === -1) return list;
+  const next = [...list];
+  next[idx] = nextValue;
+  return next;
+}
+function removeMessageById(list, id) {
+  return list.filter((m) => m?._id !== id);
+}
 
+/* -----------------------------
+   API helpers
+------------------------------ */
 async function api(path, options = {}) {
   const res = await fetch(`${API_BASE}${path}`, {
     credentials: "include",
@@ -110,6 +138,9 @@ async function apiForm(path, formData) {
   return data;
 }
 
+/* -----------------------------
+   Display helpers
+------------------------------ */
 function formatTime(ts) {
   if (!ts) return "";
   const d = new Date(ts);
@@ -122,114 +153,6 @@ function formatLastActive(ts) {
   if (Number.isNaN(d.getTime())) return "—";
   return d.toLocaleString();
 }
-
-function statusChipProps(statusRaw) {
-  const s = String(statusRaw || "").toUpperCase();
-  if (s.includes("APPROV"))
-    return { label: "APPROVED", sx: { bgcolor: "#e7fbf2", color: "#1b7f4b" } };
-  if (s.includes("REJECT"))
-    return { label: "REJECTED", sx: { bgcolor: "#ffeceb", color: "#b42318" } };
-  if (s.includes("PEND") || s.includes("SUBMIT") || s.includes("REVIEW"))
-    return { label: "PENDING", sx: { bgcolor: "#fff3dc", color: "#a15c07" } };
-  return { label: s || "UNKNOWN", sx: { bgcolor: "#f4f6f8", color: "#344054" } };
-}
-
-function normalizeToWa(toAny = "") {
-  const d = digitsOnly(toAny);
-  if (!d) return "";
-  // If user typed 10 digits, assume India and prefix 91
-  if (d.length === 10) return `91${d}`;
-  return d; // already includes country code
-}
-
-function pickBodyTextFromTemplate(tpl) {
-  if (!tpl) return "";
-  if (tpl.body) return String(tpl.body || "");
-  if (tpl.bodyText) return String(tpl.bodyText || "");
-  if (tpl.text) return String(tpl.text || "");
-
-  const comps = templateComponents(tpl);
-  const body = comps.find((c) => String(c?.type || "").toUpperCase() === "BODY");
-  return String(body?.text || "");
-}
-
-function extractVarIndexes(bodyText = "") {
-  const text = String(bodyText || "");
-  const set = new Set();
-  for (const m of text.matchAll(/{{\s*(\d+)\s*}}/g)) {
-    const n = Number(m[1] || 0);
-    if (n > 0) set.add(n);
-  }
-  return Array.from(set).sort((a, b) => a - b);
-}
-
-function extractApiErrorMessage(err, fallback = "Request failed") {
-  const data = err?.data || {};
-  return (
-    data?.providerError?.errors?.[0]?.message ||
-    data?.providerError?.message ||
-    data?.message ||
-    err?.message ||
-    fallback
-  );
-}
-
-function applyVarsToBody(bodyText = "", varsMap = {}) {
-  let out = String(bodyText || "");
-  for (const [k, v] of Object.entries(varsMap)) {
-    const idx = Number(k);
-    if (!idx) continue;
-    const safe = String(v ?? "");
-    out = out.replace(new RegExp(`{{\\s*${idx}\\s*}}`, "g"), safe || `{{${idx}}}`);
-  }
-  return out;
-}
-
-// ✅ IMPORTANT: include media id/url in key so media messages don't collide when text is empty
-function msgKey(m) {
-  return (
-    m?.waId ||
-    m?._id ||
-    m?.id ||
-    `${m?.direction || "X"}_${m?.timestamp || m?.createdAt || ""}_${m?.text || ""}_${m?.media?.id || ""}_${m?.media?.url || ""
-    }`
-  );
-}
-
-function templateComponents(tpl) {
-  return Array.isArray(tpl?.components) ? tpl.components : [];
-}
-
-function isUtilityTemplate(t) {
-  const cat = String(t?.category || "").toUpperCase();
-  return cat === "UTILITY";
-}
-
-function isApprovedTemplate(t) {
-  const st = String(t?.status || "").toUpperCase();
-  return st.includes("APPROV");
-}
-
-function getHeaderMediaFormat(tpl) {
-  if (!tpl) return "";
-  const comps = templateComponents(tpl);
-  const header = comps.find((c) => String(c?.type || "").toUpperCase() === "HEADER");
-  const format = String(header?.format || "").toUpperCase();
-  if (["IMAGE", "VIDEO", "DOCUMENT"].includes(format)) return format;
-  return "";
-}
-
-function acceptForHeaderFormat(fmt) {
-  const f = String(fmt || "").toUpperCase();
-  if (f === "IMAGE") return "image/*";
-  if (f === "VIDEO") return "video/*";
-  if (f === "DOCUMENT") return ".pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,application/pdf";
-  return "*/*";
-}
-
-/* -----------------------------
-   Name helpers
------------------------------- */
 function nameInitials(name = "") {
   const parts = String(name || "")
     .trim()
@@ -245,10 +168,126 @@ function chatDisplayName(chat) {
 function assignedToText(chat) {
   return `Assigned To: ${chat?.assignedToLabel || "—"}`;
 }
+function extractApiErrorMessage(err, fallback = "Request failed") {
+  const data = err?.data || {};
+  return (
+    data?.providerError?.errors?.[0]?.message ||
+    data?.providerError?.message ||
+    data?.message ||
+    err?.message ||
+    fallback
+  );
+}
+function statusChipProps(statusRaw) {
+  const s = String(statusRaw || "").toUpperCase();
+  if (s.includes("APPROV")) {
+    return { label: "APPROVED", sx: { bgcolor: "#e7fbf2", color: "#1b7f4b" } };
+  }
+  if (s.includes("REJECT")) {
+    return { label: "REJECTED", sx: { bgcolor: "#ffeceb", color: "#b42318" } };
+  }
+  if (s.includes("PEND") || s.includes("SUBMIT") || s.includes("REVIEW")) {
+    return { label: "PENDING", sx: { bgcolor: "#fff3dc", color: "#a15c07" } };
+  }
+  return { label: s || "UNKNOWN", sx: { bgcolor: "#f4f6f8", color: "#344054" } };
+}
 
 /* -----------------------------
-   Unread badge
+   Template helpers
 ------------------------------ */
+function templateComponents(tpl) {
+  return Array.isArray(tpl?.components) ? tpl.components : [];
+}
+function isUtilityTemplate(t) {
+  const cat = String(t?.category || "").toUpperCase();
+  return cat === "UTILITY";
+}
+function isApprovedTemplate(t) {
+  const st = String(t?.status || "").toUpperCase();
+  return st.includes("APPROV");
+}
+function pickBodyTextFromTemplate(tpl) {
+  if (!tpl) return "";
+  if (tpl.body) return String(tpl.body || "");
+  if (tpl.bodyText) return String(tpl.bodyText || "");
+  if (tpl.text) return String(tpl.text || "");
+
+  const comps = templateComponents(tpl);
+  const body = comps.find((c) => String(c?.type || "").toUpperCase() === "BODY");
+  return String(body?.text || "");
+}
+function extractVarIndexes(bodyText = "") {
+  const text = String(bodyText || "");
+  const set = new Set();
+  for (const m of text.matchAll(/{{\s*(\d+)\s*}}/g)) {
+    const n = Number(m[1] || 0);
+    if (n > 0) set.add(n);
+  }
+  return Array.from(set).sort((a, b) => a - b);
+}
+function applyVarsToBody(bodyText = "", varsMap = {}) {
+  let out = String(bodyText || "");
+  for (const [k, v] of Object.entries(varsMap)) {
+    const idx = Number(k);
+    if (!idx) continue;
+    const safe = String(v ?? "");
+    out = out.replace(new RegExp(`{{\\s*${idx}\\s*}}`, "g"), safe || `{{${idx}}}`);
+  }
+  return out;
+}
+function getHeaderMediaFormat(tpl) {
+  if (!tpl) return "";
+  const comps = templateComponents(tpl);
+  const header = comps.find((c) => String(c?.type || "").toUpperCase() === "HEADER");
+  const format = String(header?.format || "").toUpperCase();
+  if (["IMAGE", "VIDEO", "DOCUMENT"].includes(format)) return format;
+  return "";
+}
+function acceptForHeaderFormat(fmt) {
+  const f = String(fmt || "").toUpperCase();
+  if (f === "IMAGE") return "image/*";
+  if (f === "VIDEO") return "video/*";
+  if (f === "DOCUMENT") return ".pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,application/pdf";
+  return "*/*";
+}
+
+/* -----------------------------
+   Message helpers
+------------------------------ */
+function msgKey(m) {
+  return (
+    m?.waId ||
+    m?._id ||
+    m?.id ||
+    `${m?.direction || "X"}_${m?.timestamp || m?.createdAt || ""}_${m?.text || ""}_${m?.media?.url || ""}_${m?.type || ""}`
+  );
+}
+function normalizeStatus(s) {
+  const v = String(s || "").toLowerCase().trim();
+  if (["read", "seen"].includes(v)) return "read";
+  if (["delivered", "deliver", "received"].includes(v)) return "delivered";
+  if (["sent"].includes(v)) return "sent";
+  if (["failed", "error"].includes(v)) return "failed";
+  return v;
+}
+function MessageTicks({ status }) {
+  const st = normalizeStatus(status);
+  if (st === "read") return <DoneAllIcon sx={{ fontSize: 14, ml: 0.5, color: "#1DA1F2" }} />;
+  if (st === "delivered") {
+    return <DoneAllIcon sx={{ fontSize: 14, ml: 0.5, color: "rgba(0,0,0,0.55)" }} />;
+  }
+  if (st === "sent") {
+    return <DoneIcon sx={{ fontSize: 14, ml: 0.5, color: "rgba(0,0,0,0.55)" }} />;
+  }
+  if (st === "failed") {
+    return (
+      <Typography component="span" sx={{ fontSize: 12, color: "error.main", ml: 0.5, fontWeight: 900 }}>
+        !
+      </Typography>
+    );
+  }
+  return null;
+}
 function UnreadBadge({ count }) {
   const n = Number(count || 0);
   if (!n) return null;
@@ -278,121 +317,45 @@ function UnreadBadge({ count }) {
 }
 
 /* -----------------------------
-   Ticks
------------------------------- */
-function normalizeStatus(s) {
-  const v = String(s || "").toLowerCase().trim();
-  if (["read", "seen"].includes(v)) return "read";
-  if (["delivered", "deliver", "received"].includes(v)) return "delivered";
-  if (["sent"].includes(v)) return "sent";
-  if (["failed", "error"].includes(v)) return "failed";
-  return v;
-}
-function MessageTicks({ status }) {
-  const st = normalizeStatus(status);
-  if (st === "read") return <DoneAllIcon sx={{ fontSize: 14, ml: 0.5, color: "#1DA1F2" }} />;
-  if (st === "delivered")
-    return <DoneAllIcon sx={{ fontSize: 14, ml: 0.5, color: "rgba(0,0,0,0.55)" }} />;
-  if (st === "sent") return <DoneIcon sx={{ fontSize: 14, ml: 0.5, color: "rgba(0,0,0,0.55)" }} />;
-  if (st === "failed")
-    return (
-      <Typography component="span" sx={{ fontSize: 12, color: "error.main", ml: 0.5, fontWeight: 900 }}>
-        !
-      </Typography>
-    );
-  return null;
-}
-
-/* -----------------------------
-   Customer phone resolver (CRITICAL)
-   - OUTBOUND: customer is "to"
-   - INBOUND:  customer is "from"
------------------------------- */
-function customerPhoneFromMsg(msg) {
-  const dir = String(msg?.direction || "").toUpperCase();
-  if (dir === "OUTBOUND") return msg?.to || "";
-  if (dir === "INBOUND") return msg?.from || "";
-  // fallback
-  return msg?.phone || msg?.to || msg?.from || "";
-}
-
-/* -----------------------------
-   Media helpers (UPDATED: Extract Template Media)
+   Media helpers
 ------------------------------ */
 function mediaIdFromMsg(m) {
-  return (
-    m?.media?.id ||
-    m?.mediaId ||
-    m?.templateMeta?.headerMedia?.id ||
-    ""
-  );
+  return m?.media?.id || m?.mediaId || m?.templateMeta?.headerMedia?.id || "";
 }
-
 function mediaUrlFromMsg(m) {
-  return (
-    m?.media?.url ||
-    m?.mediaUrl ||
-    m?.templateMeta?.headerMedia?.url ||
-    ""
-  );
+  return m?.media?.url || m?.mediaUrl || m?.templateMeta?.headerMedia?.url || "";
 }
-
 function mediaMimeFromMsg(m) {
-  // ✅ Guess mime based on template format if needed
   const tplFmt = m?.templateMeta?.headerMedia?.format;
   let guessedMime = "";
   if (tplFmt === "DOCUMENT") guessedMime = "application/pdf";
   if (tplFmt === "IMAGE") guessedMime = "image/jpeg";
   if (tplFmt === "VIDEO") guessedMime = "video/mp4";
 
-  return (
-    m?.media?.mime ||
-    m?.mime ||
-    guessedMime ||
-    ""
-  );
+  return m?.media?.mime || m?.mime || guessedMime || "";
 }
-
 function mediaFilenameFromMsg(m) {
-  return (
-    m?.media?.filename ||
-    m?.filename ||
-    m?.templateMeta?.headerMedia?.filename ||
-    "attachment"
-  );
+  return m?.media?.filename || m?.filename || m?.templateMeta?.headerMedia?.filename || "attachment";
 }
-
-// detect file kind
 function detectMediaKind({ url = "", mime = "", fallbackType = "" }) {
   const u = String(url || "");
   const m = String(mime || "").toLowerCase();
   const t = String(fallbackType || "").toLowerCase();
 
-  const byMime = (prefix) => m.startsWith(prefix);
-
-  if (byMime("image/") || /\.(png|jpg|jpeg|webp|gif)$/i.test(u) || t === "image" || t === "sticker") return "image";
-  if (byMime("video/") || /\.(mp4|webm|mov|mkv)$/i.test(u) || t === "video") return "video";
-  if (byMime("audio/") || /\.(mp3|wav|ogg|m4a|opus)$/i.test(u) || t === "audio" || t === "voice") return "audio";
-  if (m === "application/pdf" || /\.pdf$/i.test(u) || t === "pdf" || t === "document") return "pdf"; // ✅ added document fallback
+  if (m.startsWith("image/") || /\.(png|jpg|jpeg|webp|gif)$/i.test(u) || t === "image" || t === "sticker") {
+    return "image";
+  }
+  if (m.startsWith("video/") || /\.(mp4|webm|mov|mkv)$/i.test(u) || t === "video") {
+    return "video";
+  }
+  if (m.startsWith("audio/") || /\.(mp3|wav|ogg|m4a|opus)$/i.test(u) || t === "audio" || t === "voice") {
+    return "audio";
+  }
+  if (m === "application/pdf" || /\.pdf$/i.test(u) || t === "pdf" || t === "document") {
+    return "pdf";
+  }
   return "file";
 }
-
-function isProbablyProviderUrl(u = "") {
-  const s = String(u || "");
-  if (!s) return false;
-  return (
-    s.includes("wpapi.trustsignal.io") ||
-    s.includes("trustsignal.io") ||
-    s.includes("sigmo.ai") ||
-    s.includes("waba-v2.360dialog.io") ||
-    s.includes("360dialog") ||
-    s.includes("graph.facebook.com") ||
-    s.includes("lookaside.fbsbx.com") ||
-    s.includes("facebook.com") ||
-    s.includes("fbcdn")
-  );
-}
-
 function absolutizeMaybe(url = "") {
   const u = String(url || "").trim();
   if (!u) return "";
@@ -401,55 +364,21 @@ function absolutizeMaybe(url = "") {
   if (u.startsWith("/")) return `${API_BASE}${u}`;
   return u;
 }
-
-function proxyUrlForMediaId(mediaId) {
-  if (!mediaId) return "";
-  return `${API_BASE}/api/whatsapp/media-proxy/${encodeURIComponent(mediaId)}`;
-}
-
 function resolveBestMediaUrl(msg) {
-  const mediaId = mediaIdFromMsg(msg);
   const rawUrl = mediaUrlFromMsg(msg);
-  const abs = absolutizeMaybe(rawUrl);
-
-  // Prefer proxy when:
-  // - url missing
-  // - url is a provider/meta url
-  // - url is not http(s) (often relative/invalid)
-  if (mediaId && (!abs || isProbablyProviderUrl(abs) || !/^https?:\/\//i.test(abs) || abs.startsWith("/"))) {
-    return proxyUrlForMediaId(mediaId);
-  }
-
-  if (abs) return abs;
-
-  // final fallback: mediaId proxy
-  if (mediaId) return proxyUrlForMediaId(mediaId);
-
-  return "";
+  return absolutizeMaybe(rawUrl);
 }
 
-/* -----------------------------
-   Media renderer component (hooks-safe)
-   - Fixes: inbound voice notes with empty url/mime (uses media-proxy)
-   - Fixes: audio duration 0:00 issues by prefetching blob (when needed)
------------------------------- */
-function MessageMedia({
-  msg,
-  isNearBottomRef,
-  bottomRef,
-}) {
+function MessageMedia({ msg, isNearBottomRef, bottomRef }) {
   const mediaId = mediaIdFromMsg(msg);
   const mime = mediaMimeFromMsg(msg);
   const filename = mediaFilenameFromMsg(msg);
-
   const resolvedUrl = resolveBestMediaUrl(msg);
-  // ✅ Also pass template header format so detectMediaKind knows it's a DOCUMENT
   const fallbackType = msg?.templateMeta?.headerMedia?.format || msg?.type;
   const kind = detectMediaKind({ url: resolvedUrl, mime, fallbackType });
 
   const [audioBlobUrl, setAudioBlobUrl] = useState("");
 
-  // Prefetch audio via fetch+blob (fixes many “0:00” / no-play cases)
   useEffect(() => {
     let cancelled = false;
     let localBlob = "";
@@ -458,10 +387,7 @@ function MessageMedia({
       if (kind !== "audio") return;
       if (!resolvedUrl) return;
 
-      // Only blob-prefetch when using our API proxy (cookie auth + Range), or provider url
-      const shouldBlob =
-        resolvedUrl.startsWith(API_BASE) || isProbablyProviderUrl(resolvedUrl);
-
+      const shouldBlob = resolvedUrl.startsWith(API_BASE);
       if (!shouldBlob) return;
 
       try {
@@ -472,35 +398,30 @@ function MessageMedia({
         if (cancelled) {
           try {
             URL.revokeObjectURL(localBlob);
-          } catch { }
+          } catch {}
           return;
         }
         setAudioBlobUrl(localBlob);
-      } catch {
-        // ignore blob failure; <audio src> fallback will still try
-      }
+      } catch {}
     }
 
     run();
-
     return () => {
       cancelled = true;
       if (localBlob) {
         try {
           URL.revokeObjectURL(localBlob);
-        } catch { }
+        } catch {}
       }
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [kind, resolvedUrl, mediaId]);
 
   if (!resolvedUrl) {
-    // If url is missing but we still have id, show a hint (rare)
     if (mediaId) {
       return (
         <Box sx={{ mt: 0.75 }}>
           <Typography fontSize={12} color="text.secondary">
-            Media available (id: {mediaId}) but URL missing.
+            Media available but URL missing.
           </Typography>
         </Box>
       );
@@ -615,8 +536,18 @@ function MessageMedia({
     );
   }
 
-  // generic file
-  return null;
+  return (
+    <Box sx={{ mt: 0.75 }}>
+      <Button
+        size="small"
+        variant="outlined"
+        onClick={() => window.open(resolvedUrl, "_blank", "noopener,noreferrer")}
+        sx={{ textTransform: "none" }}
+      >
+        Open file{filename ? `: ${filename}` : ""}
+      </Button>
+    </Box>
+  );
 }
 
 export default function WhatsAppUI() {
@@ -624,7 +555,6 @@ export default function WhatsAppUI() {
   const [activeChat, setActiveChat] = useState(null);
   const [messages, setMessages] = useState([]);
 
-  // ✅ Draft per chat (phone10 -> draft text)
   const [drafts, setDrafts] = useState({});
   const [input, setInput] = useState("");
 
@@ -646,22 +576,17 @@ export default function WhatsAppUI() {
   const [sessionExpired, setSessionExpired] = useState(false);
 
   const [tplVars, setTplVars] = useState({});
-
   const [socketStatus, setSocketStatus] = useState("disconnected");
 
   const bottomRef = useRef(null);
   const prevLenRef = useRef(0);
-
   const isNearBottomRef = useRef(true);
   const openedCutoffRef = useRef(0);
 
   const socketRef = useRef(null);
   const joinedRoomRef = useRef(null);
+  const pendingReadRef = useRef(new Map());
 
-  // IMPORTANT: keeps local “read” sticky so refreshConversations doesn’t re-add unread
-  const pendingReadRef = useRef(new Map()); // phone10 -> { at:number, iso:string }
-
-  // bottom composer menus
   const [quickAnchor, setQuickAnchor] = useState(null);
   const [tplAnchor, setTplAnchor] = useState(null);
   const [emojiAnchor, setEmojiAnchor] = useState(null);
@@ -671,9 +596,8 @@ export default function WhatsAppUI() {
   const [tplComposeOpen, setTplComposeOpen] = useState(false);
   const [activeTplForSend, setActiveTplForSend] = useState(null);
   const [tplSendVars, setTplSendVars] = useState({});
-  const [tplSending, setTplSending] = useState(false); // ✅ Added sending state to block multi-click
+  const [tplSending, setTplSending] = useState(false);
 
-  // ✅ template header attachment (chat template dialog)
   const [tplHeaderFormat, setTplHeaderFormat] = useState("");
   const [tplHeaderFile, setTplHeaderFile] = useState(null);
 
@@ -683,12 +607,12 @@ export default function WhatsAppUI() {
   const [rephraseStyle, setRephraseStyle] = useState("professional");
   const [rephraseLoading, setRephraseLoading] = useState(false);
 
-  // ✅ new chat header attachment
   const [newHeaderFormat, setNewHeaderFormat] = useState("");
   const [newHeaderFile, setNewHeaderFile] = useState(null);
 
-  // ✅ session countdown tick
+  const [tplMenuSearch, setTplMenuSearch] = useState("");
   const [nowTick, setNowTick] = useState(Date.now());
+
   useEffect(() => {
     const id = setInterval(() => setNowTick(Date.now()), 1000);
     return () => clearInterval(id);
@@ -697,28 +621,12 @@ export default function WhatsAppUI() {
   const activeDigits = useMemo(() => digitsOnly(activeChat?.phone), [activeChat?.phone]);
   const activeP10 = useMemo(() => phone10(activeChat?.phone), [activeChat?.phone]);
 
-  // refs to avoid reconnecting socket when active changes
   const activeP10Ref = useRef("");
   const activeDigitsRef = useRef("");
   useEffect(() => {
     activeP10Ref.current = activeP10 || "";
     activeDigitsRef.current = activeDigits || "";
   }, [activeP10, activeDigits]);
-
-  // ✅ draft helpers
-  const setDraftFor = useCallback((p10, value) => {
-    if (!p10) return;
-    setDrafts((prev) => ({ ...prev, [p10]: String(value ?? "") }));
-  }, []);
-  const clearDraftFor = useCallback((p10) => {
-    if (!p10) return;
-    setDrafts((prev) => {
-      if (!prev[p10]) return prev;
-      const next = { ...prev };
-      delete next[p10];
-      return next;
-    });
-  }, []);
 
   const sessionUser = useMemo(() => {
     try {
@@ -732,13 +640,11 @@ export default function WhatsAppUI() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // deep-link: /whatsaap/chat?phone=...
   const urlPhone = useMemo(() => {
     const p = new URLSearchParams(location.search).get("phone") || "";
     return digitsOnly(p);
   }, [location.search]);
 
-  // prevent repeat-open loop
   const lastUrlOpenedRef = useRef("");
 
   const agentName = useMemo(() => sessionUser?.fullName || "", [sessionUser?.fullName]);
@@ -748,14 +654,12 @@ export default function WhatsAppUI() {
     return conversations.find((c) => phone10(c.phone) === activeP10) || null;
   }, [activeP10, conversations]);
 
-  // ✅ session info (remaining time)
   const sessionInfo = useMemo(() => {
     const exp = activeConversation?.windowExpiresAt ? new Date(activeConversation.windowExpiresAt).getTime() : 0;
     if (!exp) return { has: false, expired: false, msLeft: 0, label: "—" };
 
     const msLeft = exp - nowTick;
     const expired = msLeft <= 0;
-
     const s = Math.max(0, Math.floor(msLeft / 1000));
     const hh = String(Math.floor(s / 3600)).padStart(2, "0");
     const mm = String(Math.floor((s % 3600) / 60)).padStart(2, "0");
@@ -769,7 +673,6 @@ export default function WhatsAppUI() {
     };
   }, [activeConversation?.windowExpiresAt, nowTick]);
 
-  // keep sessionExpired in sync with windowExpiresAt (UI + server errors)
   useEffect(() => {
     if (!activeChat?.phone) return;
     if (!sessionInfo.has) return;
@@ -783,6 +686,37 @@ export default function WhatsAppUI() {
     return `${name} (${activeP10})`;
   }, [activeP10, activeConversation]);
 
+  const setDraftFor = useCallback((p10, value) => {
+    if (!p10) return;
+    setDrafts((prev) => ({ ...prev, [p10]: String(value ?? "") }));
+  }, []);
+
+  const clearDraftFor = useCallback((p10) => {
+    if (!p10) return;
+    setDrafts((prev) => {
+      if (!prev[p10]) return prev;
+      const next = { ...prev };
+      delete next[p10];
+      return next;
+    });
+  }, []);
+
+  const QUICK_REPLIES = useMemo(
+    () => [
+      "Hi! How are you doing today?",
+      "Just checking in for your follow-up 😊",
+      "Can I call you in 10 minutes?",
+      "Please share your latest reports if available.",
+      "Thank you! I’m here if you need anything.",
+    ],
+    []
+  );
+
+  const EMOJIS = useMemo(
+    () => ["😊", "😂", "🙏", "👍", "❤️", "🔥", "😄", "😅", "😇", "🤝", "😎", "🥳", "😢", "😡", "✅", "✨"],
+    []
+  );
+
   const filteredConversations = useMemo(() => {
     const raw = String(search || "").trim();
     if (!raw) return conversations;
@@ -790,7 +724,6 @@ export default function WhatsAppUI() {
     const q = raw.toLowerCase();
     const typedDigits = digitsOnly(raw);
     const p10Query = phone10(typedDigits);
-
     const tokens = q.split(/\s+/).filter(Boolean);
 
     return conversations.filter((c) => {
@@ -807,13 +740,10 @@ export default function WhatsAppUI() {
         .join(" ")
         .toLowerCase();
 
-      const matchesName =
-        tokens.length > 0 && tokens.every((t) => nameHaystack.includes(t));
-
-      const matchesPhone =
-        typedDigits
-          ? phoneDigits.includes(typedDigits) || (p10Query && phoneP10.includes(p10Query))
-          : false;
+      const matchesName = tokens.length > 0 && tokens.every((t) => nameHaystack.includes(t));
+      const matchesPhone = typedDigits
+        ? phoneDigits.includes(typedDigits) || (p10Query && phoneP10.includes(p10Query))
+        : false;
 
       return matchesName || matchesPhone;
     });
@@ -835,28 +765,6 @@ export default function WhatsAppUI() {
     return list;
   }, [filteredConversations]);
 
-  /* -----------------------------
-     Quick replies / emojis
-  ------------------------------ */
-  const QUICK_REPLIES = useMemo(
-    () => [
-      "Hi! How are you doing today?",
-      "Just checking in for your follow-up 😊",
-      "Can I call you in 10 minutes?",
-      "Please share your latest reports if available.",
-      "Thank you! I’m here if you need anything.",
-    ],
-    []
-  );
-
-  const EMOJIS = useMemo(
-    () => ["😊", "😂", "🙏", "👍", "❤️", "🔥", "😄", "😅", "😇", "🤝", "😎", "🥳", "😢", "😡", "✅", "✨"],
-    []
-  );
-
-  /* -----------------------------
-     Core: Upsert conversation from a message (customer-based)
-  ------------------------------ */
   const upsertConversationFromMessage = useCallback((msg) => {
     const customerPhone = customerPhoneFromMsg(msg);
     const p10 = phone10(customerPhone);
@@ -864,29 +772,26 @@ export default function WhatsAppUI() {
 
     const isInbound = String(msg?.direction || "").toUpperCase() === "INBOUND";
     const isActive = activeP10Ref.current && p10 === activeP10Ref.current;
-
     const nowIso = msg?.timestamp || new Date().toISOString();
 
     const url = resolveBestMediaUrl(msg);
     const mime = mediaMimeFromMsg(msg);
     const kind = detectMediaKind({ url, mime, fallbackType: msg?.type });
 
-    const lastText =
-      url
-        ? kind === "image"
-          ? "📷 Photo"
-          : kind === "video"
-            ? "🎥 Video"
-            : kind === "audio"
-              ? "🎙️ Audio"
-              : "📎 Attachment"
-        : String(msg?.text || "").slice(0, 200);
+    const lastText = url
+      ? kind === "image"
+        ? "📷 Photo"
+        : kind === "video"
+        ? "🎥 Video"
+        : kind === "audio"
+        ? "🎙️ Audio"
+        : "📎 Attachment"
+      : String(msg?.text || "").slice(0, 200);
 
     setConversations((prev) => {
       const idx = prev.findIndex((c) => phone10(c.phone) === p10);
-
       const pending = pendingReadRef.current.get(p10);
-      const forceRead = pending && Date.now() - pending.at < 30_000;
+      const forceRead = pending && Date.now() - pending.at < 30000;
 
       if (idx === -1) {
         return [
@@ -905,14 +810,13 @@ export default function WhatsAppUI() {
 
       const next = [...prev];
       const existing = next[idx];
-
       const newUnread = forceRead
         ? 0
         : isInbound
-          ? isActive
-            ? 0
-            : Number(existing?.unreadCount || 0) + 1
-          : Number(existing?.unreadCount || 0);
+        ? isActive
+          ? 0
+          : Number(existing?.unreadCount || 0) + 1
+        : Number(existing?.unreadCount || 0);
 
       next[idx] = {
         ...existing,
@@ -928,9 +832,6 @@ export default function WhatsAppUI() {
     });
   }, []);
 
-  /* -----------------------------
-     Fetch: Conversations
-  ------------------------------ */
   const refreshConversations = useCallback(
     async (selectPhone = null, { silent = false } = {}) => {
       setErrorChats("");
@@ -943,12 +844,11 @@ export default function WhatsAppUI() {
         const data = (await api(`/api/whatsapp/conversations?${queryParams}`)) || [];
         const serverList = Array.isArray(data) ? data : [];
 
-        // keep “read” sticky for a short window
         const now = Date.now();
         const list = serverList.map((c) => {
           const p10 = phone10(c.phone);
           const pending = pendingReadRef.current.get(p10);
-          if (pending && now - pending.at < 30_000) {
+          if (pending && now - pending.at < 30000) {
             return { ...c, unreadCount: 0, lastReadAt: pending.iso || c.lastReadAt };
           }
           return c;
@@ -968,9 +868,6 @@ export default function WhatsAppUI() {
     [activeChat?.phone, sessionUser?.fullName, sessionUser?.role]
   );
 
-  /* -----------------------------
-     Fetch: Messages
-  ------------------------------ */
   const loadMessagesInitial = useCallback(async (phoneAnyDigits) => {
     const q = digitsOnly(phoneAnyDigits);
     if (!q) return;
@@ -988,9 +885,6 @@ export default function WhatsAppUI() {
     }
   }, []);
 
-  /* -----------------------------
-     Templates
-  ------------------------------ */
   const fetchTemplates = useCallback(async () => {
     setLoadingTemplates(true);
     try {
@@ -1004,43 +898,30 @@ export default function WhatsAppUI() {
     }
   }, []);
 
-  // ✅ ONLY UTILITY + APPROVED templates (prevents send errors)
   const approvedUtilityTemplates = useMemo(() => {
     const list = Array.isArray(templates) ? templates : [];
     return list.filter((t) => isUtilityTemplate(t) && isApprovedTemplate(t));
   }, [templates]);
 
-  const [tplMenuSearch, setTplMenuSearch] = useState("");
-
   const filteredApprovedUtilityTemplates = useMemo(() => {
     const q = tplMenuSearch.trim().toLowerCase();
     if (!q) return approvedUtilityTemplates;
 
-    return (approvedUtilityTemplates || []).filter((t) => {
-      const hay = [
-        t?.name,
-        t?.language,
-        t?.status,
-        pickBodyTextFromTemplate(t),
-      ]
+    return approvedUtilityTemplates.filter((t) => {
+      const hay = [t?.name, t?.language, t?.status, pickBodyTextFromTemplate(t)]
         .filter(Boolean)
         .join(" ")
         .toLowerCase();
-
       return hay.includes(q);
     });
   }, [approvedUtilityTemplates, tplMenuSearch]);
 
-  /* -----------------------------
-     Mark read (UI + backend) + sticky local
-  ------------------------------ */
   const markConversationRead = useCallback(async (phoneDigits, { optimisticOnly = false } = {}) => {
     const phone = digitsOnly(phoneDigits);
     const p10 = phone10(phoneDigits);
     if (!p10) return;
 
     const nowIso = new Date().toISOString();
-
     pendingReadRef.current.set(p10, { at: Date.now(), iso: nowIso });
 
     setConversations((prev) =>
@@ -1054,23 +935,14 @@ export default function WhatsAppUI() {
         method: "POST",
         body: JSON.stringify({ phone }),
       });
-    } catch {
-      // ignore
-    }
+    } catch {}
   }, []);
 
-  /* -----------------------------
-     Boot
-  ------------------------------ */
   useEffect(() => {
     refreshConversations(null, { silent: false });
     fetchTemplates();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [refreshConversations, fetchTemplates]);
 
-  /* -----------------------------
-     Socket: connect ONCE (stable)
-  ------------------------------ */
   useEffect(() => {
     const s = io(API_BASE, {
       withCredentials: true,
@@ -1096,6 +968,7 @@ export default function WhatsAppUI() {
         joinedRoomRef.current = roomForPhone10(p10);
       }
     };
+
     const onDisconnect = () => setSocketStatus("disconnected");
     const onError = () => setSocketStatus("error");
 
@@ -1109,16 +982,12 @@ export default function WhatsAppUI() {
         s.off("disconnect", onDisconnect);
         s.off("connect_error", onError);
         s.disconnect();
-      } catch { }
+      } catch {}
       socketRef.current = null;
       joinedRoomRef.current = null;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // ✅ connect once
+  }, [refreshConversations]);
 
-  /* -----------------------------
-     Socket: join/leave room (on active chat change)
-  ------------------------------ */
   useEffect(() => {
     const s = socketRef.current;
     if (!s) return;
@@ -1138,9 +1007,6 @@ export default function WhatsAppUI() {
     }
   }, [activeP10]);
 
-  /* -----------------------------
-     Socket: listeners (payload-shape safe)
-  ------------------------------ */
   useEffect(() => {
     const s = socketRef.current;
     if (!s) return;
@@ -1160,10 +1026,7 @@ export default function WhatsAppUI() {
       if (!p10) return;
 
       const customerPhone = customerPhoneFromMsg(msg);
-      const normalizedMsg = {
-        ...msg,
-        phone: customerPhone || p10,
-      };
+      const normalizedMsg = { ...msg, phone: customerPhone || p10 };
 
       upsertConversationFromMessage(normalizedMsg);
 
@@ -1172,15 +1035,28 @@ export default function WhatsAppUI() {
         setMessages((prev) => {
           const dir = String(normalizedMsg?.direction || "").toUpperCase();
 
-          // replace matching optimistic outbound temp message
           if (dir === "OUTBOUND") {
-            const tempIndex = prev.findIndex(
-              (m) =>
-                String(m?._id || "").startsWith("tmp_") &&
-                String(m?.direction || "").toUpperCase() === "OUTBOUND" &&
-                phone10(m?.to || m?.phone || customerPhoneFromMsg(m)) === p10 &&
-                String(m?.text || "").trim() === String(normalizedMsg?.text || "").trim()
-            );
+            const serverType = String(normalizedMsg?.type || "").toLowerCase();
+            const serverText = String(normalizedMsg?.text || "").trim();
+
+            const tempIndex = prev.findIndex((m) => {
+              if (!String(m?._id || "").startsWith("tmp_")) return false;
+              if (String(m?.direction || "").toUpperCase() !== "OUTBOUND") return false;
+              if (!sameCustomer(m, p10)) return false;
+
+              const tempType = String(m?.type || "").toLowerCase();
+
+              if (serverType === "text") {
+                return tempType === "text" && String(m?.text || "").trim() === serverText;
+              }
+              if (serverType === "template") {
+                return tempType === "template";
+              }
+              if (["image", "video", "audio", "document"].includes(serverType)) {
+                return ["image", "video", "audio", "document"].includes(tempType);
+              }
+              return false;
+            });
 
             if (tempIndex !== -1) {
               const next = [...prev];
@@ -1189,15 +1065,10 @@ export default function WhatsAppUI() {
             }
           }
 
-          // strong dedupe by waId first
-          if (
-            normalizedMsg?.waId &&
-            prev.some((m) => String(m?.waId || "") === String(normalizedMsg.waId))
-          ) {
+          if (normalizedMsg?.waId && prev.some((m) => String(m?.waId || "") === String(normalizedMsg.waId))) {
             return prev;
           }
 
-          // fallback dedupe by computed key
           const k = msgKey(normalizedMsg);
           if (prev.some((m) => msgKey(m) === k)) {
             return prev;
@@ -1209,7 +1080,6 @@ export default function WhatsAppUI() {
         if (String(normalizedMsg?.direction || "").toUpperCase() === "INBOUND") {
           setSessionExpired(false);
           setErrorMessages("");
-
           const ad = activeDigitsRef.current;
           if (ad) markConversationRead(ad, { optimisticOnly: false });
         }
@@ -1242,9 +1112,7 @@ export default function WhatsAppUI() {
           const delta = Number(patch?.unreadCountDelta || 0);
           const hasAbsolute = typeof patch?.unreadCount === "number";
 
-          const nextUnread = hasAbsolute
-            ? patch.unreadCount
-            : Math.max(0, Number(c.unreadCount || 0) + delta);
+          const nextUnread = hasAbsolute ? patch.unreadCount : Math.max(0, Number(c.unreadCount || 0) + delta);
 
           const cleanedPatch = { ...patch };
           delete cleanedPatch.unreadCountDelta;
@@ -1258,11 +1126,7 @@ export default function WhatsAppUI() {
       );
 
       const activeNow = activeP10Ref.current;
-      if (
-        activeNow &&
-        p10 === activeNow &&
-        (patch?.lastInboundAt || patch?.windowExpiresAt)
-      ) {
+      if (activeNow && p10 === activeNow && (patch?.lastInboundAt || patch?.windowExpiresAt)) {
         setSessionExpired(false);
         setErrorMessages("");
       }
@@ -1279,9 +1143,6 @@ export default function WhatsAppUI() {
     };
   }, [markConversationRead, upsertConversationFromMessage]);
 
-  /* -----------------------------
-     When active chat changes: load draft into input
-  ------------------------------ */
   useEffect(() => {
     if (activeP10) {
       const d = drafts[activeP10] || "";
@@ -1289,12 +1150,8 @@ export default function WhatsAppUI() {
     } else {
       setInput("");
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeP10]);
+  }, [activeP10, drafts]);
 
-  /* -----------------------------
-     When active chat changes: load messages + mark read
-  ------------------------------ */
   useEffect(() => {
     if (!activeDigits) return;
 
@@ -1310,9 +1167,6 @@ export default function WhatsAppUI() {
     });
   }, [activeDigits, loadMessagesInitial, markConversationRead]);
 
-  /* -----------------------------
-     Auto-scroll only when near bottom
-  ------------------------------ */
   useEffect(() => {
     if (messages.length > prevLenRef.current && isNearBottomRef.current) {
       bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -1326,9 +1180,6 @@ export default function WhatsAppUI() {
     isNearBottomRef.current = distance < 120;
   };
 
-  /* -----------------------------
-     Open chat
-  ------------------------------ */
   const openChat = useCallback(
     (phone) => {
       const p = digitsOnly(phone);
@@ -1337,7 +1188,6 @@ export default function WhatsAppUI() {
       const nextSearch = `?phone=${encodeURIComponent(p)}`;
       const nextUrl = `/whatsaap/chat${nextSearch}`;
 
-      // avoid unnecessary navigation (prevents loops)
       if (location.search !== nextSearch) {
         navigate(nextUrl, { replace: true });
       }
@@ -1345,7 +1195,6 @@ export default function WhatsAppUI() {
       openedCutoffRef.current = Date.now();
       setActiveChat({ phone: p });
       setSearch("");
-
       markConversationRead(p, { optimisticOnly: false });
     },
     [location.search, markConversationRead, navigate]
@@ -1354,14 +1203,12 @@ export default function WhatsAppUI() {
   useEffect(() => {
     const p = digitsOnly(urlPhone);
     if (!p) return;
-
     if (lastUrlOpenedRef.current === p) return;
     lastUrlOpenedRef.current = p;
-
     openChat(p);
   }, [openChat, urlPhone]);
 
-  const updateConversationPreviewLocal = (phoneDigits, lastMessageText) => {
+  const updateConversationPreviewLocal = useCallback((phoneDigits, lastMessageText) => {
     const nowIso = new Date().toISOString();
     const p10 = phone10(phoneDigits);
 
@@ -1390,7 +1237,7 @@ export default function WhatsAppUI() {
       const [item] = next.splice(idx, 1);
       return [item, ...next];
     });
-  };
+  }, []);
 
   const sendText = async () => {
     const to = normalizeToWa(activeChat?.phone);
@@ -1410,8 +1257,9 @@ export default function WhatsAppUI() {
     const p10 = phone10(to);
 
     const optimistic = {
-      _id: `tmp_${Date.now()}`,
+      _id: buildTempId("tmp_text"),
       direction: "OUTBOUND",
+      type: "text",
       text,
       timestamp: new Date().toISOString(),
       status: "sent",
@@ -1420,10 +1268,8 @@ export default function WhatsAppUI() {
     };
 
     setMessages((prev) => [...prev, optimistic]);
-
     setInput("");
     clearDraftFor(p10);
-
     updateConversationPreviewLocal(to, text);
 
     try {
@@ -1431,10 +1277,8 @@ export default function WhatsAppUI() {
         method: "POST",
         body: JSON.stringify({ to, text }),
       });
-      refreshConversations(null, { silent: true });
     } catch (e) {
-      setMessages((prev) => prev.filter((m) => m._id !== optimistic._id));
-
+      setMessages((prev) => removeMessageById(prev, optimistic._id));
       setInput(text);
       setDraftFor(p10, text);
 
@@ -1447,9 +1291,6 @@ export default function WhatsAppUI() {
     }
   };
 
-  /* -----------------------------
-     Attachments
------------------------------- */
   const onPickFile = async (file) => {
     if (!file) return;
     if (!activeChat?.phone) return;
@@ -1461,8 +1302,8 @@ export default function WhatsAppUI() {
     }
 
     const to = normalizeToWa(activeChat.phone);
-
     const mime = file.type || "application/octet-stream";
+
     const urlBlob =
       mime.startsWith("image/") || mime.startsWith("video/") || mime.startsWith("audio/")
         ? URL.createObjectURL(file)
@@ -1471,13 +1312,13 @@ export default function WhatsAppUI() {
     const optimisticType = mime.startsWith("image/")
       ? "image"
       : mime.startsWith("video/")
-        ? "video"
-        : mime.startsWith("audio/")
-          ? "audio"
-          : "document";
+      ? "video"
+      : mime.startsWith("audio/")
+      ? "audio"
+      : "document";
 
     const optimistic = {
-      _id: `tmp_file_${Date.now()}`,
+      _id: buildTempId("tmp_file"),
       direction: "OUTBOUND",
       text: "",
       type: optimisticType,
@@ -1498,10 +1339,10 @@ export default function WhatsAppUI() {
       optimisticType === "image"
         ? "📷 Photo"
         : optimisticType === "video"
-          ? "🎥 Video"
-          : optimisticType === "audio"
-            ? "🎙️ Audio"
-            : `📎 ${file.name}`;
+        ? "🎥 Video"
+        : optimisticType === "audio"
+        ? "🎙️ Audio"
+        : `📎 ${file.name}`;
 
     updateConversationPreviewLocal(to, previewLabel);
 
@@ -1509,13 +1350,9 @@ export default function WhatsAppUI() {
       const fd = new FormData();
       fd.append("to", to);
       fd.append("file", file);
-
       await apiForm(`/api/whatsapp/send-media`, fd);
-
-      await loadMessagesInitial(to);
-      refreshConversations(null, { silent: true });
     } catch (e) {
-      setMessages((prev) => prev.filter((m) => m._id !== optimistic._id));
+      setMessages((prev) => removeMessageById(prev, optimistic._id));
       setErrorMessages(e.message || "Failed to send attachment.");
     } finally {
       if (fileRef.current) fileRef.current.value = "";
@@ -1530,22 +1367,14 @@ export default function WhatsAppUI() {
     });
   };
 
-  /* -----------------------------
-     Templates: upload header media (backend later)
-  ------------------------------ */
   async function uploadTemplateHeaderMedia(file) {
     const fd = new FormData();
     fd.append("file", file);
-    // backend should return { mediaId }
     return apiForm(`/api/whatsapp/upload-template-media`, fd);
   }
 
-  /* -----------------------------
-     Templates: send from chat
-  ------------------------------ */
   const openTemplateComposer = (tpl) => {
     if (!tpl) return;
-    // ✅ guard: only approved templates can be sent
     if (!isApprovedTemplate(tpl)) {
       setErrorMessages("This template is not APPROVED yet. Please use an APPROVED template.");
       return;
@@ -1553,18 +1382,16 @@ export default function WhatsAppUI() {
 
     const body = pickBodyTextFromTemplate(tpl);
     const idxs = extractVarIndexes(body);
-
     const initial = {};
     idxs.forEach((i) => (initial[String(i)] = ""));
 
     setActiveTplForSend(tpl);
     setTplSendVars(initial);
-    setTplSending(false); // ✅ reset loading state
+    setTplSending(false);
 
     const fmt = getHeaderMediaFormat(tpl);
     setTplHeaderFormat(fmt);
     setTplHeaderFile(null);
-
     setTplComposeOpen(true);
   };
 
@@ -1587,6 +1414,8 @@ export default function WhatsAppUI() {
     }
 
     let headerMedia = null;
+    let optimisticMedia = null;
+
     if (tplHeaderFormat) {
       if (!tplHeaderFile) {
         setErrorMessages("This template requires a header attachment. Please choose a file.");
@@ -1597,7 +1426,7 @@ export default function WhatsAppUI() {
         return;
       }
 
-      setTplSending(true); // ✅ Block UI before upload starts
+      setTplSending(true);
       try {
         const up = await uploadTemplateHeaderMedia(tplHeaderFile);
         const mediaId = up?.mediaId || up?.id;
@@ -1606,16 +1435,52 @@ export default function WhatsAppUI() {
           setTplSending(false);
           return;
         }
-        // ✅ ADDED FILENAME SO DOCUMENTS RENDER PROPERLY
-        headerMedia = { format: tplHeaderFormat, id: mediaId, filename: tplHeaderFile.name };
+
+        headerMedia = {
+          format: tplHeaderFormat,
+          id: mediaId,
+          filename: tplHeaderFile.name,
+        };
+
+        if (
+          tplHeaderFile.type?.startsWith("image/") ||
+          tplHeaderFile.type?.startsWith("video/") ||
+          tplHeaderFile.type?.startsWith("audio/")
+        ) {
+          optimisticMedia = {
+            url: URL.createObjectURL(tplHeaderFile),
+            mime: tplHeaderFile.type,
+            filename: tplHeaderFile.name,
+          };
+        }
       } catch (e) {
         setErrorMessages(e.message || "Failed to upload header attachment.");
         setTplSending(false);
         return;
       }
     } else {
-      setTplSending(true); // ✅ Block UI before send starts
+      setTplSending(true);
     }
+
+    const optimistic = {
+      _id: buildTempId("tmp_tpl"),
+      direction: "OUTBOUND",
+      type: "template",
+      text: tplSendPreview || `[TEMPLATE] ${activeTplForSend.name}`,
+      timestamp: new Date().toISOString(),
+      status: "sent",
+      to,
+      phone: to,
+      ...(optimisticMedia ? { media: optimisticMedia } : {}),
+      templateMeta: {
+        name: activeTplForSend.name,
+        language: activeTplForSend.language || "",
+        parameters: params,
+      },
+    };
+
+    setMessages((prev) => [...prev, optimistic]);
+    updateConversationPreviewLocal(to, optimistic.text);
 
     try {
       await api(`/api/whatsapp/send-template`, {
@@ -1639,27 +1504,20 @@ export default function WhatsAppUI() {
       setTplSendVars({});
       setTplHeaderFormat("");
       setTplHeaderFile(null);
-
-      refreshConversations(null, { silent: true });
-      await loadMessagesInitial(to);
       setSessionExpired(true);
       setErrorMessages("Template sent successfully.");
     } catch (e) {
+      setMessages((prev) => removeMessageById(prev, optimistic._id));
       setErrorMessages(extractApiErrorMessage(e, "Failed to send template."));
     } finally {
       setTplSending(false);
     }
   };
 
-  /* -----------------------------
-     Help me write (AI)
-  ------------------------------ */
   const helpMeWrite = async () => {
-    if (!activeP10) return;
-    if (sessionExpired) return;
+    if (!activeP10 || sessionExpired) return;
 
     setHelpWriteLoading(true);
-
     try {
       const lastInbound = [...(messages || [])]
         .reverse()
@@ -1696,12 +1554,8 @@ export default function WhatsAppUI() {
     }
   };
 
-  /* -----------------------------
-     Rephrase
-  ------------------------------ */
   const openRephraseDialog = () => {
-    if (!input.trim()) return;
-    if (sessionExpired) return;
+    if (!input.trim() || sessionExpired) return;
     setRephraseStyle("professional");
     setRephraseOpen(true);
   };
@@ -1733,9 +1587,6 @@ export default function WhatsAppUI() {
     }
   };
 
-  /* -----------------------------
-     New Chat: template options (UTILITY + APPROVED only)
-  ------------------------------ */
   const templateOptions = useMemo(() => {
     const list = Array.isArray(templates) ? templates : [];
     return list
@@ -1771,11 +1622,13 @@ export default function WhatsAppUI() {
     if (params.some((v) => !v)) return setNewChatError("Fill all template variables");
 
     let headerMedia = null;
+    let optimisticMedia = null;
+
     if (newHeaderFormat) {
       if (!newHeaderFile) return setNewChatError("This template requires a header attachment. Please choose a file.");
       if (newHeaderFile.size > 15 * 1024 * 1024) return setNewChatError("Max attachment size is 15MB.");
 
-      setCreatingChat(true); // ✅ Block UI here before upload
+      setCreatingChat(true);
       try {
         const up = await uploadTemplateHeaderMedia(newHeaderFile);
         const mediaId = up?.mediaId || up?.id;
@@ -1783,17 +1636,54 @@ export default function WhatsAppUI() {
           setCreatingChat(false);
           return setNewChatError("Upload failed: no mediaId returned.");
         }
-        // ✅ ADDED FILENAME SO DOCUMENTS RENDER PROPERLY
-        headerMedia = { format: newHeaderFormat, id: mediaId, filename: newHeaderFile.name };
+
+        headerMedia = {
+          format: newHeaderFormat,
+          id: mediaId,
+          filename: newHeaderFile.name,
+        };
+
+        if (
+          newHeaderFile.type?.startsWith("image/") ||
+          newHeaderFile.type?.startsWith("video/") ||
+          newHeaderFile.type?.startsWith("audio/")
+        ) {
+          optimisticMedia = {
+            url: URL.createObjectURL(newHeaderFile),
+            mime: newHeaderFile.type,
+            filename: newHeaderFile.name,
+          };
+        }
       } catch (e) {
         setCreatingChat(false);
         return setNewChatError(e.message || "Failed to upload header attachment.");
       }
     } else {
-      setCreatingChat(true); // ✅ Block UI before send
+      setCreatingChat(true);
     }
 
     setNewChatError("");
+    setActiveChat({ phone: to });
+
+    const optimistic = {
+      _id: buildTempId("tmp_new_tpl"),
+      direction: "OUTBOUND",
+      type: "template",
+      text: previewBody || `[TEMPLATE] ${selectedTemplate.name}`,
+      timestamp: new Date().toISOString(),
+      status: "sent",
+      to,
+      phone: to,
+      ...(optimisticMedia ? { media: optimisticMedia } : {}),
+      templateMeta: {
+        name: selectedTemplate.name,
+        language: selectedTemplate.language || "",
+        parameters: params,
+      },
+    };
+
+    setMessages((prev) => [...prev, optimistic]);
+    updateConversationPreviewLocal(to, optimistic.text);
 
     try {
       await api(`/api/whatsapp/send-template`, {
@@ -1818,31 +1708,21 @@ export default function WhatsAppUI() {
       setTplVars({});
       setNewHeaderFormat("");
       setNewHeaderFile(null);
-
-      updateConversationPreviewLocal(to, `[TEMPLATE] ${selectedTemplate.name}`);
-      setActiveChat({ phone: to });
-
-      await loadMessagesInitial(to);
-      refreshConversations(null, { silent: true });
       setSessionExpired(true);
       setErrorMessages("Template sent successfully. New chat started.");
     } catch (e) {
+      setMessages((prev) => removeMessageById(prev, optimistic._id));
       setNewChatError(extractApiErrorMessage(e, "Failed to send template"));
     } finally {
       setCreatingChat(false);
     }
   };
 
-  // ✅ convenience flags for UI gating
   const hasActiveChat = !!activeChat?.phone;
-  const expiredMode = hasActiveChat && sessionExpired; // session expired UX
+  const expiredMode = hasActiveChat && sessionExpired;
 
-  /* =========================================================
-     Render
-  ========================================================= */
   return (
     <Box height="93vh" display="flex" bgcolor="#ece5dd">
-      {/* LEFT SIDEBAR */}
       <Box width={360} bgcolor="#fff" display="flex" flexDirection="column" borderRight="1px solid #ddd">
         <Box px={2} py={1.5} display="flex" alignItems="center" justifyContent="space-between">
           <Stack direction="row" spacing={1} alignItems="center">
@@ -1856,7 +1736,11 @@ export default function WhatsAppUI() {
                 height: 20,
                 fontSize: 11,
                 bgcolor:
-                  socketStatus === "connected" ? "#e7fbf2" : socketStatus === "error" ? "#ffeceb" : "#f2f4f7",
+                  socketStatus === "connected"
+                    ? "#e7fbf2"
+                    : socketStatus === "error"
+                    ? "#ffeceb"
+                    : "#f2f4f7",
               }}
             />
           </Stack>
@@ -1865,7 +1749,6 @@ export default function WhatsAppUI() {
             <IconButton size="small" onClick={() => setNewChatOpen(true)} title="New chat">
               <AddIcon fontSize="small" />
             </IconButton>
-
             <IconButton
               size="small"
               onClick={() => {
@@ -1995,9 +1878,7 @@ export default function WhatsAppUI() {
         </Box>
       </Box>
 
-      {/* CHAT WINDOW */}
       <Box flex={1} display="flex" flexDirection="column">
-        {/* Header */}
         <Box px={2} py={1.25} bgcolor="#f0f2f5" borderBottom="1px solid #ddd">
           <Stack direction="row" spacing={2} alignItems="center" justifyContent="space-between">
             <Stack direction="row" spacing={2} alignItems="center">
@@ -2010,7 +1891,6 @@ export default function WhatsAppUI() {
                   {activeConversation?.assignedToLabel ? assignedToText(activeConversation) : ""}
                 </Typography>
 
-                {/* ✅ remaining time at top */}
                 {activeChat?.phone && sessionInfo.has ? (
                   <Typography
                     fontSize={12}
@@ -2028,7 +1908,6 @@ export default function WhatsAppUI() {
           </Stack>
         </Box>
 
-        {/* Messages */}
         <Box
           flex={1}
           p={2}
@@ -2102,7 +1981,6 @@ export default function WhatsAppUI() {
           )}
         </Box>
 
-        {/* Composer */}
         <Box p={1.25} bgcolor="#f0f2f5" borderTop="1px solid rgba(0,0,0,0.06)">
           <Stack direction="row" spacing={1} alignItems="flex-end">
             <TextField
@@ -2126,7 +2004,6 @@ export default function WhatsAppUI() {
               multiline
               minRows={1}
               maxRows={4}
-              // ✅ Session expired: template icon INSIDE input on right side
               InputProps={{
                 endAdornment: expiredMode ? (
                   <InputAdornment position="end">
@@ -2149,37 +2026,38 @@ export default function WhatsAppUI() {
               }}
             />
 
-            {/* Send button hidden/disabled in expired mode */}
             <IconButton color="primary" onClick={sendText} disabled={!hasActiveChat || !input.trim() || expiredMode}>
               <SendIcon />
             </IconButton>
           </Stack>
 
-          {/* ✅ expired mode hint */}
           {expiredMode ? (
             <Typography sx={{ mt: 0.75 }} fontSize={12} color="error" fontWeight={900}>
-              Session expired — send a template (icon inside input) to reopen the 24h window.
+              Session expired — send a template to reopen the 24h window.
             </Typography>
           ) : null}
 
-          {/* Actions row (HIDE when session expired) */}
           {!expiredMode ? (
             <Stack direction="row" spacing={0.5} alignItems="center" justifyContent="space-between" mt={1}>
               <Stack direction="row" spacing={0.5} alignItems="center">
-                <Tooltip title="Quick Replies">
+                <Tooltip title="Quick replies">
                   <span>
-                    <IconButton size="small" disabled={!hasActiveChat} onClick={(e) => setQuickAnchor(e.currentTarget)}>
+                    <IconButton size="small" onClick={(e) => setQuickAnchor(e.currentTarget)} disabled={!hasActiveChat}>
                       <FlashOnIcon fontSize="small" />
                     </IconButton>
                   </span>
                 </Tooltip>
 
-                <Tooltip title="Templates (UTILITY + APPROVED)">
+                <Tooltip title="Templates">
                   <span>
-                    <IconButton size="small" disabled={!hasActiveChat} onClick={(e) => {
-                      setTplMenuSearch("");
-                      setTplAnchor(e.currentTarget);
-                    }}>
+                    <IconButton
+                      size="small"
+                      onClick={(e) => {
+                        setTplMenuSearch("");
+                        setTplAnchor(e.currentTarget);
+                      }}
+                      disabled={!hasActiveChat}
+                    >
                       <ViewListIcon fontSize="small" />
                     </IconButton>
                   </span>
@@ -2187,606 +2065,318 @@ export default function WhatsAppUI() {
 
                 <Tooltip title="Emoji">
                   <span>
-                    <IconButton size="small" disabled={!hasActiveChat} onClick={(e) => setEmojiAnchor(e.currentTarget)}>
+                    <IconButton size="small" onClick={(e) => setEmojiAnchor(e.currentTarget)} disabled={!hasActiveChat}>
                       <InsertEmoticonIcon fontSize="small" />
                     </IconButton>
                   </span>
                 </Tooltip>
 
-                <Tooltip title="Attachment (≤ 15MB)">
+                <Tooltip title="Attach file">
                   <span>
-                    <IconButton size="small" disabled={!hasActiveChat} onClick={() => fileRef.current?.click()}>
+                    <IconButton size="small" disabled={!hasActiveChat || sessionExpired} onClick={() => fileRef.current?.click()}>
                       <AttachFileIcon fontSize="small" />
                     </IconButton>
                   </span>
                 </Tooltip>
 
-                <input ref={fileRef} type="file" hidden onChange={(e) => onPickFile(e.target.files?.[0])} />
-              </Stack>
-
-              <Stack direction="row" spacing={1} alignItems="center">
-                <Tooltip title="Help me write (AI)">
+                <Tooltip title="Help me write">
                   <span>
-                    <Button
-                      size="small"
-                      variant="outlined"
-                      disabled={!hasActiveChat || helpWriteLoading}
-                      onClick={helpMeWrite}
-                      startIcon={helpWriteLoading ? <CircularProgress size={14} /> : <AutoFixHighIcon />}
-                      sx={{ textTransform: "none", fontWeight: 900 }}
-                    >
-                      Help me write
-                    </Button>
+                    <IconButton size="small" disabled={!hasActiveChat || sessionExpired || helpWriteLoading} onClick={helpMeWrite}>
+                      {helpWriteLoading ? <CircularProgress size={16} /> : <AutoFixHighIcon fontSize="small" />}
+                    </IconButton>
                   </span>
                 </Tooltip>
 
-                <Tooltip title="Rephrase current text">
+                <Tooltip title="Rephrase">
                   <span>
-                    <Button
-                      size="small"
-                      variant="outlined"
-                      disabled={!hasActiveChat || !input.trim()}
-                      onClick={openRephraseDialog}
-                      startIcon={<AutorenewIcon />}
-                      sx={{ textTransform: "none", fontWeight: 900 }}
-                    >
-                      Rephrase
-                    </Button>
+                    <IconButton size="small" disabled={!hasActiveChat || !input.trim() || sessionExpired} onClick={openRephraseDialog}>
+                      <AutorenewIcon fontSize="small" />
+                    </IconButton>
                   </span>
                 </Tooltip>
               </Stack>
+
+              <input
+                ref={fileRef}
+                type="file"
+                hidden
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) onPickFile(f);
+                }}
+              />
             </Stack>
           ) : null}
         </Box>
-
-        {/* Quick replies menu */}
-        <Menu anchorEl={quickAnchor} open={Boolean(quickAnchor)} onClose={() => setQuickAnchor(null)}>
-          {QUICK_REPLIES.map((q) => (
-            <MenuItem
-              key={q}
-              onClick={() => {
-                setInput((t) => {
-                  const next = t ? t + "\n" + q : q;
-                  if (activeP10) setDraftFor(activeP10, next);
-                  return next;
-                });
-                setQuickAnchor(null);
-              }}
-            >
-              {q}
-            </MenuItem>
-          ))}
-        </Menu>
-
-        {/* Templates menu (UTILITY + APPROVED only) */}
-        <Menu
-          anchorEl={tplAnchor}
-          open={Boolean(tplAnchor)}
-          onClose={() => {
-            setTplAnchor(null);
-            setTplMenuSearch("");
-          }}
-          PaperProps={{ sx: { width: 360, overflow: "hidden" } }}
-          MenuListProps={{ disablePadding: true, autoFocusItem: false }}
-        >
-          {/* 🔎 Search bar */}
-          <Box sx={{ p: 1, position: "sticky", top: 0, bgcolor: "#fff", zIndex: 1 }}>
-            <TextField
-              size="small"
-              fullWidth
-              autoFocus
-              placeholder="Search templates…"
-              value={tplMenuSearch}
-              onChange={(e) => setTplMenuSearch(e.target.value)}
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <SearchIcon fontSize="small" />
-                  </InputAdornment>
-                ),
-              }}
-            />
-          </Box>
-
-          <Divider />
-
-          {/* 📃 List */}
-          <Box sx={{ maxHeight: 360, overflowY: "auto" }}>
-            {loadingTemplates ? (
-              <MenuItem disabled>Loading…</MenuItem>
-            ) : approvedUtilityTemplates.length === 0 ? (
-              <MenuItem disabled>No APPROVED UTILITY templates found</MenuItem>
-            ) : filteredApprovedUtilityTemplates.length === 0 ? (
-              <MenuItem disabled>No matching templates</MenuItem>
-            ) : (
-              filteredApprovedUtilityTemplates.map((t) => {
-                const needsHeader = !!getHeaderMediaFormat(t);
-                return (
-                  <MenuItem
-                    key={t._id || t.name}
-                    onClick={() => {
-                      setTplAnchor(null);
-                      setTplMenuSearch("");
-                      openTemplateComposer(t);
-                    }}
-                  >
-                    <Box sx={{ minWidth: 0, width: "100%" }}>
-                      <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                        <Typography sx={{ fontWeight: 900 }} noWrap>
-                          {t.name}
-                        </Typography>
-                        {needsHeader ? (
-                          <Chip
-                            size="small"
-                            label="Attachment"
-                            variant="outlined"
-                            sx={{ ml: "auto", fontWeight: 800 }}
-                          />
-                        ) : null}
-                      </Box>
-                      <Typography variant="caption" color="text.secondary" noWrap>
-                        {t.language || "en"} · {t.status || ""}
-                      </Typography>
-                    </Box>
-                  </MenuItem>
-                );
-              })
-            )}
-          </Box>
-        </Menu>
-
-        {/* Emoji picker */}
-        <Menu
-          anchorEl={emojiAnchor}
-          open={Boolean(emojiAnchor)}
-          onClose={() => setEmojiAnchor(null)}
-          PaperProps={{ sx: { p: 1 } }}
-        >
-          <Box sx={{ display: "grid", gridTemplateColumns: "repeat(8, 1fr)", gap: 0.5 }}>
-            {EMOJIS.map((e) => (
-              <IconButton
-                key={e}
-                size="small"
-                onClick={() => {
-                  insertEmoji(e);
-                  setEmojiAnchor(null);
-                }}
-              >
-                <Typography>{e}</Typography>
-              </IconButton>
-            ))}
-          </Box>
-        </Menu>
-
-        {/* Rephrase Dialog */}
-        <Dialog open={rephraseOpen} onClose={() => setRephraseOpen(false)} fullWidth maxWidth="xs">
-          <DialogTitle sx={{ fontWeight: 900 }}>Rephrase</DialogTitle>
-          <DialogContent dividers>
-            <Typography variant="body2" sx={{ mb: 1.25 }} color="text.secondary">
-              Choose a style and we’ll rephrase your current message.
-            </Typography>
-            <Box sx={{ display: "grid", gap: 1 }}>
-              {[
-                { key: "simple", label: "Simple" },
-                { key: "professional", label: "Professional" },
-                { key: "friendly", label: "Friendly" },
-                { key: "empathetic", label: "Empathetic" },
-              ].map((opt) => (
-                <Button
-                  key={opt.key}
-                  variant={rephraseStyle === opt.key ? "contained" : "outlined"}
-                  onClick={() => setRephraseStyle(opt.key)}
-                  sx={{ justifyContent: "flex-start", textTransform: "none", fontWeight: 900 }}
-                >
-                  {opt.label}
-                </Button>
-              ))}
-            </Box>
-
-            <Paper
-              variant="outlined"
-              sx={{
-                mt: 2,
-                p: 1.25,
-                borderRadius: 2,
-                bgcolor: "#FAFAFA",
-                whiteSpace: "pre-wrap",
-                fontSize: 13,
-                lineHeight: 1.4,
-              }}
-            >
-              {input.trim() || "—"}
-            </Paper>
-          </DialogContent>
-
-          <Box sx={{ p: 1.25, display: "flex", justifyContent: "flex-end", gap: 1 }}>
-            <Button
-              variant="outlined"
-              onClick={() => setRephraseOpen(false)}
-              sx={{ textTransform: "none" }}
-              disabled={rephraseLoading}
-            >
-              Cancel
-            </Button>
-            <Button
-              variant="contained"
-              onClick={doRephrase}
-              sx={{ textTransform: "none" }}
-              disabled={rephraseLoading}
-              startIcon={rephraseLoading ? <CircularProgress size={14} /> : null}
-            >
-              Rephrase
-            </Button>
-          </Box>
-        </Dialog>
-
-        {/* Template Composer Dialog (Chat Window) */}
-        <Dialog
-          open={tplComposeOpen}
-          onClose={() => {
-            if (!tplSending) {
-              setTplComposeOpen(false);
-              setTplHeaderFile(null);
-            }
-          }}
-          fullWidth
-          maxWidth="sm"
-        >
-          <DialogTitle sx={{ fontWeight: 900 }}>Template Preview</DialogTitle>
-          <DialogContent dividers>
-            <Box sx={{ mb: 1 }}>
-              <Typography sx={{ fontWeight: 900 }} noWrap>
-                {activeTplForSend?.name || "—"}
-              </Typography>
-              <Typography variant="caption" color="text.secondary">
-                Language: {activeTplForSend?.language || "en"} · Status: {activeTplForSend?.status || "—"}
-              </Typography>
-            </Box>
-
-            {/* ✅ header attachment section */}
-            {tplHeaderFormat ? (
-              <Box sx={{ mt: 1.5 }}>
-                <Typography sx={{ fontWeight: 900, mb: 1 }}>
-                  Header Attachment ({tplHeaderFormat})
-                </Typography>
-
-                <Stack direction="row" spacing={1} alignItems="center">
-                  <Button
-                    variant="outlined"
-                    component="label"
-                    sx={{ textTransform: "none", fontWeight: 900 }}
-                    disabled={tplSending}
-                  >
-                    Choose file
-                    <input
-                      type="file"
-                      hidden
-                      accept={acceptForHeaderFormat(tplHeaderFormat)}
-                      onChange={(e) => {
-                        const f = e.target.files?.[0];
-                        if (!f) return;
-                        if (f.size > 15 * 1024 * 1024) {
-                          setErrorMessages("Max attachment size is 15MB.");
-                          return;
-                        }
-                        setTplHeaderFile(f);
-                      }}
-                    />
-                  </Button>
-
-                  <Typography fontSize={13} color="text.secondary" noWrap sx={{ maxWidth: 340 }}>
-                    {tplHeaderFile ? tplHeaderFile.name : "No file selected"}
-                  </Typography>
-
-                  {tplHeaderFile ? (
-                    <Button
-                      size="small"
-                      disabled={tplSending}
-                      onClick={() => setTplHeaderFile(null)}
-                      sx={{ textTransform: "none" }}
-                    >
-                      Remove
-                    </Button>
-                  ) : null}
-                </Stack>
-
-                {!tplHeaderFile ? (
-                  <Typography sx={{ mt: 0.75 }} fontSize={12} color="error">
-                    This template needs a header attachment.
-                  </Typography>
-                ) : null}
-              </Box>
-            ) : null}
-
-            {/* ✅ PREVIEW SWAPPED UP */}
-            <Box sx={{ mt: 2 }}>
-              <Typography sx={{ fontWeight: 900, mb: 1 }}>Preview</Typography>
-              <Paper
-                variant="outlined"
-                sx={{
-                  p: 1.25,
-                  borderRadius: 2,
-                  bgcolor: "#FAFAFA",
-                  whiteSpace: "pre-wrap",
-                  fontSize: 13,
-                  lineHeight: 1.4,
-                }}
-              >
-                {tplSendPreview || "—"}
-              </Paper>
-            </Box>
-
-            {/* ✅ VARIABLES SWAPPED DOWN */}
-            <Box sx={{ mt: 2 }}>
-              <Typography sx={{ fontWeight: 900, mb: 1 }}>Variables</Typography>
-              {(() => {
-                const body = pickBodyTextFromTemplate(activeTplForSend);
-                const idxs = extractVarIndexes(body);
-
-                if (!activeTplForSend) return null;
-                if (!body) {
-                  return (
-                    <Typography variant="body2" color="text.secondary">
-                      No body found for this template.
-                    </Typography>
-                  );
-                }
-                if (!idxs.length) {
-                  return (
-                    <Typography variant="body2" color="text.secondary">
-                      No variables detected in this template.
-                    </Typography>
-                  );
-                }
-
-                return (
-                  <Box sx={{ display: "grid", gap: 1 }}>
-                    {idxs.map((i) => (
-                      <TextField
-                        key={i}
-                        size="small"
-                        label={`{{${i}}}`}
-                        disabled={tplSending}
-                        value={tplSendVars[String(i)] || ""}
-                        onChange={(e) =>
-                          setTplSendVars((prev) => ({
-                            ...prev,
-                            [String(i)]: e.target.value,
-                          }))
-                        }
-                      />
-                    ))}
-                  </Box>
-                );
-              })()}
-            </Box>
-          </DialogContent>
-
-          {/* Action buttons with load tracking */}
-          <Box sx={{ p: 1.25, display: "flex", justifyContent: "flex-end", gap: 1 }}>
-            <Button
-              variant="outlined"
-              onClick={() => setTplComposeOpen(false)}
-              sx={{ textTransform: "none" }}
-              disabled={tplSending}
-            >
-              Cancel
-            </Button>
-            <Button
-              variant="contained"
-              onClick={sendTemplateFromChat}
-              sx={{ textTransform: "none" }}
-              startIcon={tplSending ? <CircularProgress size={14} color="inherit" /> : null}
-              disabled={!hasActiveChat || (tplHeaderFormat ? !tplHeaderFile : false) || tplSending}
-            >
-              {tplSending ? "Sending..." : "Send Template"}
-            </Button>
-          </Box>
-        </Dialog>
       </Box>
 
-      {/* New Chat Dialog */}
-      <Dialog
-        open={newChatOpen}
-        onClose={() => (creatingChat ? null : setNewChatOpen(false))}
-        maxWidth="md"
-        fullWidth
-        onEntered={() => fetchTemplates()}
+      <Menu anchorEl={quickAnchor} open={Boolean(quickAnchor)} onClose={() => setQuickAnchor(null)}>
+        {QUICK_REPLIES.map((q) => (
+          <MenuItem
+            key={q}
+            onClick={() => {
+              setInput(q);
+              if (activeP10) setDraftFor(activeP10, q);
+              setQuickAnchor(null);
+            }}
+          >
+            {q}
+          </MenuItem>
+        ))}
+      </Menu>
+
+      <Menu anchorEl={emojiAnchor} open={Boolean(emojiAnchor)} onClose={() => setEmojiAnchor(null)}>
+        <Box px={1} py={1} display="grid" gridTemplateColumns="repeat(8, 1fr)" gap={0.5} maxWidth={320}>
+          {EMOJIS.map((emo) => (
+            <Button
+              key={emo}
+              variant="text"
+              onClick={() => {
+                insertEmoji(emo);
+                setEmojiAnchor(null);
+              }}
+              sx={{ minWidth: 0, p: 0.5, fontSize: 20 }}
+            >
+              {emo}
+            </Button>
+          ))}
+        </Box>
+      </Menu>
+
+      <Menu
+        anchorEl={tplAnchor}
+        open={Boolean(tplAnchor)}
+        onClose={() => setTplAnchor(null)}
+        PaperProps={{ sx: { width: 380, maxHeight: 420 } }}
       >
-        <DialogTitle>Start New Chat (Template)</DialogTitle>
+        <Box px={1.5} py={1}>
+          <TextField
+            fullWidth
+            size="small"
+            placeholder="Search templates"
+            value={tplMenuSearch}
+            onChange={(e) => setTplMenuSearch(e.target.value)}
+          />
+        </Box>
+        <Divider />
+        {loadingTemplates ? (
+          <Box p={2}>
+            <CircularProgress size={20} />
+          </Box>
+        ) : filteredApprovedUtilityTemplates.length ? (
+          filteredApprovedUtilityTemplates.map((tpl) => {
+            const chip = statusChipProps(tpl?.status);
+            return (
+              <MenuItem
+                key={tpl._id || tpl.id || tpl.name}
+                onClick={() => {
+                  openTemplateComposer(tpl);
+                  setTplAnchor(null);
+                }}
+                sx={{ alignItems: "flex-start", py: 1.2 }}
+              >
+                <Box width="100%">
+                  <Stack direction="row" justifyContent="space-between" alignItems="center" mb={0.5}>
+                    <Typography fontWeight={700} fontSize={13}>
+                      {tpl.name}
+                    </Typography>
+                    <Chip size="small" label={chip.label} sx={chip.sx} />
+                  </Stack>
+                  <Typography fontSize={12} color="text.secondary" noWrap>
+                    {pickBodyTextFromTemplate(tpl) || "No body text"}
+                  </Typography>
+                </Box>
+              </MenuItem>
+            );
+          })
+        ) : (
+          <Box p={2}>
+            <Typography fontSize={13} color="text.secondary">
+              No approved utility templates found.
+            </Typography>
+          </Box>
+        )}
+      </Menu>
 
+      <Dialog open={tplComposeOpen} onClose={() => !tplSending && setTplComposeOpen(false)} fullWidth maxWidth="sm">
+        <DialogTitle>Send template</DialogTitle>
         <DialogContent>
-          <Stack spacing={2} pt={1}>
-            {newChatError ? (
-              <Typography color="error" fontSize={13}>
-                {newChatError}
-              </Typography>
-            ) : null}
+          {activeTplForSend ? (
+            <Stack spacing={2} mt={1}>
+              <Box>
+                <Typography fontWeight={700}>{activeTplForSend.name}</Typography>
+                <Typography fontSize={12} color="text.secondary">
+                  {activeTplForSend.language || "—"}
+                </Typography>
+              </Box>
 
+              {extractVarIndexes(pickBodyTextFromTemplate(activeTplForSend)).map((i) => (
+                <TextField
+                  key={i}
+                  fullWidth
+                  size="small"
+                  label={`Variable ${i}`}
+                  value={tplSendVars[String(i)] || ""}
+                  onChange={(e) =>
+                    setTplSendVars((prev) => ({ ...prev, [String(i)]: e.target.value }))
+                  }
+                />
+              ))}
+
+              {!!tplHeaderFormat && (
+                <Box>
+                  <Typography fontSize={13} fontWeight={700} mb={1}>
+                    Header attachment required: {tplHeaderFormat}
+                  </Typography>
+                  <Button variant="outlined" component="label">
+                    Choose file
+                    <input
+                      hidden
+                      type="file"
+                      accept={acceptForHeaderFormat(tplHeaderFormat)}
+                      onChange={(e) => setTplHeaderFile(e.target.files?.[0] || null)}
+                    />
+                  </Button>
+                  {tplHeaderFile ? (
+                    <Typography fontSize={12} color="text.secondary" mt={1}>
+                      {tplHeaderFile.name}
+                    </Typography>
+                  ) : null}
+                </Box>
+              )}
+
+              <Box>
+                <Typography fontSize={13} fontWeight={700} mb={0.5}>
+                  Preview
+                </Typography>
+                <Paper variant="outlined" sx={{ p: 1.5, bgcolor: "#fafafa" }}>
+                  <Typography fontSize={14} whiteSpace="pre-wrap">
+                    {tplSendPreview || "—"}
+                  </Typography>
+                </Paper>
+              </Box>
+
+              <Stack direction="row" justifyContent="flex-end" spacing={1}>
+                <Button onClick={() => setTplComposeOpen(false)} disabled={tplSending}>
+                  Cancel
+                </Button>
+                <Button variant="contained" onClick={sendTemplateFromChat} disabled={tplSending}>
+                  {tplSending ? "Sending..." : "Send template"}
+                </Button>
+              </Stack>
+            </Stack>
+          ) : null}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={newChatOpen} onClose={() => !creatingChat && setNewChatOpen(false)} fullWidth maxWidth="sm">
+        <DialogTitle>Start new chat</DialogTitle>
+        <DialogContent>
+          <Stack spacing={2} mt={1}>
             <TextField
-              label="Phone (10 digits or 91xxxxxxxxxx)"
+              fullWidth
               size="small"
+              label="Phone number"
               value={newChatPhone}
               onChange={(e) => setNewChatPhone(e.target.value)}
-              placeholder="e.g. 9694638351 or 919694638351"
-              inputProps={{ inputMode: "numeric" }}
-              disabled={creatingChat}
             />
 
             <Autocomplete
-              loading={loadingTemplates}
               options={templateOptions}
               value={selectedTemplate}
-              onChange={(e, val) => setSelectedTemplate(val)}
-              getOptionLabel={(opt) => String(opt?.name || "")}
-              isOptionEqualToValue={(a, b) => String(a?.name) === String(b?.name)}
-              renderOption={(props, opt) => {
-                const st = statusChipProps(opt?.status);
-                return (
-                  <li {...props} key={opt?._id || opt?.name}>
-                    <Stack direction="row" spacing={1} alignItems="center" sx={{ width: "100%" }}>
-                      <Typography sx={{ flex: 1 }} fontWeight={700} noWrap>
-                        {opt?.name}
-                      </Typography>
-                      <Chip size="small" label={st.label} sx={st.sx} />
-                    </Stack>
-                  </li>
-                );
-              }}
-              renderInput={(params) => (
-                <TextField {...params} label="Search Template (UTILITY + APPROVED)" size="small" placeholder="Search Template" />
-              )}
-              disabled={creatingChat}
+              onChange={(_, v) => setSelectedTemplate(v)}
+              getOptionLabel={(o) => o?.name || ""}
+              renderInput={(params) => <TextField {...params} size="small" label="Select approved utility template" />}
             />
 
-            {/* header attachment for New Chat */}
-            {newHeaderFormat ? (
-              <Box>
-                <Typography fontWeight={900} mb={1}>
-                  Header Attachment ({newHeaderFormat})
-                </Typography>
-                <Stack direction="row" spacing={1} alignItems="center">
-                  <Button
-                    variant="outlined"
-                    component="label"
-                    sx={{ textTransform: "none", fontWeight: 900 }}
-                    disabled={creatingChat}
-                  >
-                    Choose file
-                    <input
-                      type="file"
-                      hidden
-                      accept={acceptForHeaderFormat(newHeaderFormat)}
-                      onChange={(e) => {
-                        const f = e.target.files?.[0];
-                        if (!f) return;
-                        if (f.size > 15 * 1024 * 1024) {
-                          setNewChatError("Max attachment size is 15MB.");
-                          return;
-                        }
-                        setNewHeaderFile(f);
-                      }}
-                    />
-                  </Button>
-                  <Typography fontSize={13} color="text.secondary" noWrap sx={{ maxWidth: 420 }}>
-                    {newHeaderFile ? newHeaderFile.name : "No file selected"}
-                  </Typography>
-                  {newHeaderFile ? (
-                    <Button
-                      size="small"
-                      onClick={() => setNewHeaderFile(null)}
-                      sx={{ textTransform: "none" }}
-                      disabled={creatingChat}
-                    >
-                      Remove
+            {selectedTemplate ? (
+              <>
+                {extractVarIndexes(pickBodyTextFromTemplate(selectedTemplate)).map((i) => (
+                  <TextField
+                    key={i}
+                    fullWidth
+                    size="small"
+                    label={`Variable ${i}`}
+                    value={tplVars[String(i)] || ""}
+                    onChange={(e) =>
+                      setTplVars((prev) => ({ ...prev, [String(i)]: e.target.value }))
+                    }
+                  />
+                ))}
+
+                {!!newHeaderFormat && (
+                  <Box>
+                    <Typography fontSize={13} fontWeight={700} mb={1}>
+                      Header attachment required: {newHeaderFormat}
+                    </Typography>
+                    <Button variant="outlined" component="label">
+                      Choose file
+                      <input
+                        hidden
+                        type="file"
+                        accept={acceptForHeaderFormat(newHeaderFormat)}
+                        onChange={(e) => setNewHeaderFile(e.target.files?.[0] || null)}
+                      />
                     </Button>
-                  ) : null}
-                </Stack>
-                {!newHeaderFile ? (
-                  <Typography mt={0.75} fontSize={12} color="error">
-                    This template needs a header attachment.
+                    {newHeaderFile ? (
+                      <Typography fontSize={12} color="text.secondary" mt={1}>
+                        {newHeaderFile.name}
+                      </Typography>
+                    ) : null}
+                  </Box>
+                )}
+
+                <Box>
+                  <Typography fontSize={13} fontWeight={700} mb={0.5}>
+                    Preview
                   </Typography>
-                ) : null}
-              </Box>
+                  <Paper variant="outlined" sx={{ p: 1.5, bgcolor: "#fafafa" }}>
+                    <Typography fontSize={14} whiteSpace="pre-wrap">
+                      {previewBody || "—"}
+                    </Typography>
+                  </Paper>
+                </Box>
+              </>
             ) : null}
 
-            {/* ✅ Swapped Preview to top, Variables to bottom */}
-            <Stack spacing={3} mt={2}>
-              {/* Preview */}
-              <Box>
-                <Typography fontWeight={700} mb={1}>
-                  Template Body (Preview)
-                </Typography>
-                <Box
-                  sx={{
-                    bgcolor: "#e7f6f2",
-                    borderRadius: 2,
-                    p: 2,
-                    border: "1px solid rgba(0,0,0,0.08)",
-                  }}
-                >
-                  <Typography fontSize={14} whiteSpace="pre-wrap">
-                    {previewBody || "Select a template to preview"}
-                  </Typography>
-                </Box>
-                {!pickBodyTextFromTemplate(selectedTemplate) && selectedTemplate ? (
-                  <Typography mt={1} fontSize={12} color="error">
-                    Body text not available in DB for this template. Fix sync to store BODY text.
-                  </Typography>
-                ) : null}
-              </Box>
+            {!!newChatError && (
+              <Typography fontSize={13} color="error">
+                {newChatError}
+              </Typography>
+            )}
 
-              {/* Variables */}
-              <Box>
-                <Typography fontWeight={700} mb={1}>
-                  Input Variables
-                </Typography>
-                {selectedTemplate ? (
-                  (() => {
-                    const body = pickBodyTextFromTemplate(selectedTemplate);
-                    const idxs = extractVarIndexes(body);
-
-                    if (!body) {
-                      return (
-                        <Typography fontSize={13} color="text.secondary">
-                          No body found for this template.
-                        </Typography>
-                      );
-                    }
-                    if (!idxs.length) {
-                      return (
-                        <Typography fontSize={13} color="text.secondary">
-                          No input variables detected in body.
-                        </Typography>
-                      );
-                    }
-
-                    return (
-                      <Stack spacing={1.5}>
-                        {idxs.map((i) => (
-                          <TextField
-                            key={i}
-                            size="small"
-                            placeholder="Enter Variable"
-                            value={tplVars[String(i)] || ""}
-                            onChange={(e) =>
-                              setTplVars((prev) => ({
-                                ...prev,
-                                [String(i)]: e.target.value,
-                              }))
-                            }
-                            InputProps={{
-                              startAdornment: <InputAdornment position="start">{`{{${i}}}`}</InputAdornment>,
-                            }}
-                            disabled={creatingChat}
-                          />
-                        ))}
-                      </Stack>
-                    );
-                  })()
-                ) : (
-                  <Typography fontSize={13} color="text.secondary">
-                    Select a template to see variables.
-                  </Typography>
-                )}
-              </Box>
+            <Stack direction="row" justifyContent="flex-end" spacing={1}>
+              <Button onClick={() => setNewChatOpen(false)} disabled={creatingChat}>
+                Cancel
+              </Button>
+              <Button variant="contained" onClick={startNewChatWithTemplate} disabled={creatingChat}>
+                {creatingChat ? "Sending..." : "Start chat"}
+              </Button>
             </Stack>
           </Stack>
         </DialogContent>
+      </Dialog>
 
-        <Box sx={{ p: 2, display: "flex", justifyContent: "flex-end", gap: 1 }}>
-          <Button onClick={() => setNewChatOpen(false)} disabled={creatingChat}>
-            Cancel
-          </Button>
-          <Button
-            variant="contained"
-            onClick={startNewChatWithTemplate}
-            startIcon={creatingChat ? <CircularProgress size={14} color="inherit" /> : null}
-            disabled={creatingChat || (newHeaderFormat ? !newHeaderFile : false)}
-          >
-            {creatingChat ? "Sending..." : "Send"}
-          </Button>
-        </Box>
+      <Dialog open={rephraseOpen} onClose={() => !rephraseLoading && setRephraseOpen(false)} fullWidth maxWidth="xs">
+        <DialogTitle>Rephrase message</DialogTitle>
+        <DialogContent>
+          <Stack spacing={2} mt={1}>
+            <Autocomplete
+              options={["professional", "friendly", "empathetic", "short", "formal"]}
+              value={rephraseStyle}
+              onChange={(_, v) => setRephraseStyle(v || "professional")}
+              renderInput={(params) => <TextField {...params} size="small" label="Style" />}
+            />
+            <Stack direction="row" justifyContent="flex-end" spacing={1}>
+              <Button onClick={() => setRephraseOpen(false)} disabled={rephraseLoading}>
+                Cancel
+              </Button>
+              <Button variant="contained" onClick={doRephrase} disabled={rephraseLoading}>
+                {rephraseLoading ? "Rephrasing..." : "Apply"}
+              </Button>
+            </Stack>
+          </Stack>
+        </DialogContent>
       </Dialog>
     </Box>
   );
