@@ -67,6 +67,7 @@ const EscalationsPage = () => {
   const [orderIdError, setOrderIdError] = useState(false);
   const [orderIdErrorMsg, setOrderIdErrorMsg] = useState("");
   const [reasonFilter, setReasonFilter] = useState("");
+  const [assignedToFilter, setAssignedToFilter] = useState("");
   const [formData, setFormData] = useState({
     date: "",
     orderId: "",
@@ -84,14 +85,17 @@ const EscalationsPage = () => {
     products: [],
   });
 
+  const BACKEND_URL = `${(process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "")}/api`;
 
-  const BACKEND_URL = "https://muditamleads-14f32a10d7f7.herokuapp.com/api";
   const allowedAssignees = useMemo(() => {
     return employees
       .filter((emp) => allowedRolesForAssign.includes(emp.role))
       .sort((a, b) => a.fullName.localeCompare(b.fullName));
   }, [employees]);
 
+  const assignedToFilterOptions = useMemo(() => {
+    return allowedAssignees.map((emp) => emp.fullName);
+  }, [allowedAssignees]);
 
   useEffect(() => {
     fetchEmployees();
@@ -109,9 +113,14 @@ const EscalationsPage = () => {
   };
 
 
-  const fetchEscalations = async (pageIdx = page, rpp = rowsPerPage, closedOnly = showClosedOnly) => {
+  const fetchEscalations = async (
+    pageIdx = page,
+    rpp = rowsPerPage,
+    closedOnly = showClosedOnly
+  ) => {
     try {
       const statusParam = closedOnly ? "Closed" : "Open,In Progress";
+
       const params = {
         page: pageIdx + 1,
         limit: rpp,
@@ -119,8 +128,9 @@ const EscalationsPage = () => {
         sortBy: "createdAt",
         order: "desc",
       };
-      if (reasonFilter) params.reason = reasonFilter;
 
+      if (reasonFilter) params.reason = reasonFilter;
+      if (assignedToFilter) params.assignedTo = assignedToFilter;
 
       const response = await axios.get(`${BACKEND_URL}/escalations`, { params });
       setEscalations(response.data.data);
@@ -136,7 +146,7 @@ const EscalationsPage = () => {
   useEffect(() => {
     setInitialLoading(true);
     fetchEscalations(page, rowsPerPage, showClosedOnly);
-  }, [page, rowsPerPage, showClosedOnly, reasonFilter]);
+  }, [page, rowsPerPage, showClosedOnly, reasonFilter, assignedToFilter]);
 
 
   const handleConfirmDelete = async () => {
@@ -349,7 +359,27 @@ const EscalationsPage = () => {
           <TextField
             select
             size="small"
-            label=""
+            value={assignedToFilter}
+            onChange={(e) => {
+              setAssignedToFilter(e.target.value);
+              setPage(0);
+            }}
+            sx={{ minWidth: 220, bgcolor: "#fff" }}
+            SelectProps={{ displayEmpty: true }}
+          >
+            <MenuItem value="">
+              <em>All assignees</em>
+            </MenuItem>
+            {assignedToFilterOptions.map((name) => (
+              <MenuItem key={name} value={name}>
+                {name}
+              </MenuItem>
+            ))}
+          </TextField>
+
+          <TextField
+            select
+            size="small"
             value={reasonFilter}
             onChange={(e) => {
               setReasonFilter(e.target.value);
@@ -367,7 +397,6 @@ const EscalationsPage = () => {
               </MenuItem>
             ))}
           </TextField>
-
 
           <Button
             variant={showClosedOnly ? "contained" : "outlined"}
@@ -831,10 +860,10 @@ const EscalationsPage = () => {
                             <Typography
                               variant="caption"
                               sx={{
-                                color: "#333",  
+                                color: "#333",
                                 fontSize: "0.75rem",
-                                fontWeight: "bold",  
-                                fontStyle: "normal",  
+                                fontWeight: "bold",
+                                fontStyle: "normal",
                               }}
                             >
                               ({esc.shipmentStatus})

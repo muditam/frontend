@@ -1049,6 +1049,8 @@ export default function IncentivesPage() {
   const [incentiveSummaryOpen, setIncentiveSummaryOpen] = useState(false);
   const [walletSummaryOpen, setWalletSummaryOpen] = useState(false);
   const [walletRulesOpen, setWalletRulesOpen] = useState(false);
+  const [walletAgentsOpen, setWalletAgentsOpen] = useState(false);
+  const [agentVkrRows, setAgentVkrRows] = useState([]);
 
   const [walletAnchorEl, setWalletAnchorEl] = useState(null);
   const [convertAmount, setConvertAmount] = useState("");
@@ -1161,6 +1163,8 @@ export default function IncentivesPage() {
     setIncentiveSummaryOpen(false);
     setWalletSummaryOpen(false);
     setWalletRulesOpen(false);
+    setWalletAgentsOpen(false);
+    setAgentVkrRows([]);
   }, []);
 
   const fetchEmployees = useCallback(async () => {
@@ -1213,6 +1217,21 @@ export default function IncentivesPage() {
     [headers]
   );
 
+  const buildAgentVkrRow = useCallback((response, fallbackAgent = {}) => {
+    const vkrCountTotal = round2(
+      response?.walletCoin?.target?.deliveredCount ??
+      response?.walletCoin?.deliveredQualifyingOrders ??
+      response?.summary?.walletCoinDeliveredOrders ??
+      0
+    );
+
+    return {
+      agentName: response?.agentName || fallbackAgent?.fullName || "-",
+      role: response?.role || fallbackAgent?.role || "",
+      vkrCountTotal,
+    };
+  }, []);
+
   const fetchIncentives = useCallback(async () => {
     if (!startMonth || !endMonth) {
       setError("Please select both start month and end month");
@@ -1233,6 +1252,7 @@ export default function IncentivesPage() {
         if (!teamAgents.length) {
           setData(null);
           setBalanceData(null);
+          setAgentVkrRows([]);
           setError("No team members found for this user.");
           setLoadingData(false);
           return;
@@ -1263,8 +1283,17 @@ export default function IncentivesPage() {
           `${sessionUser?.fullName || "Team"} Team`
         );
 
+        const nextAgentVkrRows = cumulativeResponses
+          .map((response, index) => buildAgentVkrRow(response, teamAgents[index]))
+          .sort(
+            (a, b) =>
+              b.vkrCountTotal - a.vkrCountTotal ||
+              String(a.agentName).localeCompare(String(b.agentName))
+          );
+
         setData(selectedTeamData);
         setBalanceData(cumulativeTeamData);
+        setAgentVkrRows(nextAgentVkrRows);
       } else {
         const effectiveAgentName =
           selectedAgent?.fullName ||
@@ -1283,16 +1312,24 @@ export default function IncentivesPage() {
 
         setData(selectedResponse);
         setBalanceData(cumulativeResponse);
+        setAgentVkrRows([
+          buildAgentVkrRow(
+            cumulativeResponse,
+            selectedAgent || selfAgent || { fullName: effectiveAgentName }
+          ),
+        ]);
       }
     } catch (err) {
       console.error("Error fetching incentives:", err);
       setData(null);
       setBalanceData(null);
+      setAgentVkrRows([]);
       setError(err?.response?.data?.message || "Failed to load incentive data");
     } finally {
       setLoadingData(false);
     }
   }, [
+    buildAgentVkrRow,
     canManageAgents,
     cumulativeStartDate,
     derivedEndDate,
@@ -2569,12 +2606,36 @@ export default function IncentivesPage() {
 
               <Dialog
                 open={walletSummaryOpen}
-                onClose={() => setWalletSummaryOpen(false)}
+                onClose={() => {
+                  setWalletSummaryOpen(false);
+                  setWalletAgentsOpen(false);
+                }}
                 fullWidth
                 maxWidth="xl"
               >
                 <DialogTitle sx={{ fontWeight: 800, color: BRAND.text }}>
-                  Wallet Summary
+                  <Stack
+                    direction="row"
+                    alignItems="center"
+                    justifyContent="space-between"
+                    spacing={2}
+                  >
+                    <Box component="span">Wallet Summary</Box>
+
+                    <Button
+                      variant="outlined"
+                      size="small"
+                      onClick={() => setWalletAgentsOpen(true)}
+                      disabled={!agentVkrRows.length}
+                      sx={{
+                        textTransform: "none",
+                        borderRadius: 2,
+                        fontWeight: 700,
+                      }}
+                    >
+                      View Agents
+                    </Button>
+                  </Stack>
                 </DialogTitle>
 
                 <DialogContent dividers sx={{ p: 0 }}>
@@ -2682,7 +2743,72 @@ export default function IncentivesPage() {
 
                 <DialogActions sx={{ p: 2 }}>
                   <Button
-                    onClick={() => setWalletSummaryOpen(false)}
+                    onClick={() => {
+                      setWalletSummaryOpen(false);
+                      setWalletAgentsOpen(false);
+                    }}
+                    variant="outlined"
+                    sx={{ textTransform: "none", borderRadius: 2 }}
+                  >
+                    Close
+                  </Button>
+                </DialogActions>
+              </Dialog>
+
+              <Dialog
+                open={walletAgentsOpen}
+                onClose={() => setWalletAgentsOpen(false)}
+                fullWidth
+                maxWidth="sm"
+              >
+                <DialogTitle sx={{ fontWeight: 800, color: BRAND.text }}>
+                  Agent VKR Total
+                </DialogTitle>
+
+                <DialogContent dividers sx={{ p: 0 }}>
+                  <TableContainer sx={{ overflowX: "auto" }}>
+                    <Table sx={{ minWidth: 520 }}>
+                      <TableHead>
+                        <TableRow sx={{ backgroundColor: "#f8fafc" }}>
+                          <TableCell sx={{ fontWeight: 700 }}>Agent Name</TableCell>
+                          <TableCell sx={{ fontWeight: 700 }}>Role</TableCell>
+                          <TableCell sx={{ fontWeight: 700 }} align="right">
+                            VKR Count Total
+                          </TableCell>
+                        </TableRow>
+                      </TableHead>
+
+                      <TableBody>
+                        {agentVkrRows.length ? (
+                          agentVkrRows.map((row, index) => (
+                            <TableRow key={`${row.agentName || "agent"}-${index}`} hover>
+                              <TableCell sx={{ fontWeight: 600 }}>
+                                {row.agentName || "-"}
+                              </TableCell>
+                              <TableCell>{row.role || "-"}</TableCell>
+                              <TableCell
+                                align="right"
+                                sx={{ fontWeight: 800, color: BRAND.coin }}
+                              >
+                                {formatNumber(row.vkrCountTotal)}
+                              </TableCell>
+                            </TableRow>
+                          ))
+                        ) : (
+                          <TableRow>
+                            <TableCell colSpan={3} align="center" sx={{ py: 4 }}>
+                              No agent data found
+                            </TableCell>
+                          </TableRow>
+                        )}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                </DialogContent>
+
+                <DialogActions sx={{ p: 2 }}>
+                  <Button
+                    onClick={() => setWalletAgentsOpen(false)}
                     variant="outlined"
                     sx={{ textTransform: "none", borderRadius: 2 }}
                   >
