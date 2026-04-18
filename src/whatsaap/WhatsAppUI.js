@@ -1344,7 +1344,7 @@ export default function WhatsAppUI() {
         ? "🎙️ Audio"
         : `📎 ${file.name}`;
 
-    updateConversationPreviewLocal(to, previewLabel);
+    updateConversationPreviewLocal(to, previewLabel); 
 
     try {
       const fd = new FormData();
@@ -1352,7 +1352,7 @@ export default function WhatsAppUI() {
       fd.append("file", file);
       await apiForm(`/api/whatsapp/send-media`, fd);
     } catch (e) {
-      setMessages((prev) => removeMessageById(prev, optimistic._id));
+      setMessages((prev) => removeMessageById(prev, optimistic._id));  
       setErrorMessages(e.message || "Failed to send attachment.");
     } finally {
       if (fileRef.current) fileRef.current.value = "";
