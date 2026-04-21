@@ -57,6 +57,10 @@ import PlaceIcon from "@mui/icons-material/Place";
 import WhatsAppIcon from "@mui/icons-material/WhatsApp";
 import PhoneDisabledIcon from "@mui/icons-material/PhoneDisabled";
 import AddIcCallIcon from "@mui/icons-material/AddIcCall";
+import StickyNote2Icon from "@mui/icons-material/StickyNote2";
+import KeyboardDoubleArrowLeftIcon from "@mui/icons-material/KeyboardDoubleArrowLeft";
+import KeyboardDoubleArrowRightIcon from "@mui/icons-material/KeyboardDoubleArrowRight";
+import ShoppingBagOutlinedIcon from "@mui/icons-material/ShoppingBagOutlined";
 
 import CreateDietPlanPopup from "./CreateDietPlanPopup";
 import WhatsAppChatDialog from "./WhatsAppChatDialog";
@@ -220,6 +224,7 @@ const RetentionLeads = () => {
 
 
   const [noteDraft, setNoteDraft] = useState("");
+  const [notesCollapsed, setNotesCollapsed] = useState(false);
 
   const [sortMenuAnchorEl, setSortMenuAnchorEl] = useState(null);
 
@@ -1038,6 +1043,49 @@ const RetentionLeads = () => {
     fetchRetentionLeadsPage(loggedInUser, 1);
   };
 
+  const premiumPillSx = (isSelected) => ({
+    textTransform: "none",
+    borderRadius: "12px",
+    fontSize: "0.72rem",
+    fontWeight: 600,
+    color: isSelected ? "#fff" : "#1B2430",
+    borderColor: isSelected ? "transparent" : "#D6DEE8",
+    background: isSelected
+      ? "linear-gradient(135deg, #0F172A 0%, #1E293B 100%)"
+      : "rgba(255,255,255,0.92)",
+    boxShadow: isSelected
+      ? "0 8px 18px rgba(15, 23, 42, 0.25)"
+      : "inset 0 1px 0 rgba(255,255,255,0.8)",
+    "&:hover": {
+      background: isSelected
+        ? "linear-gradient(135deg, #111827 0%, #1F2937 100%)"
+        : "rgba(255,255,255,1)",
+      borderColor: isSelected ? "transparent" : "#C8D2DE",
+    },
+  });
+
+  const premiumInputSx = {
+    "& .MuiOutlinedInput-root": {
+      borderRadius: "12px",
+      backgroundColor: "rgba(255,255,255,0.92)",
+      "& .MuiOutlinedInput-notchedOutline": { borderColor: "#D6DEE8" },
+      "&:hover .MuiOutlinedInput-notchedOutline": { borderColor: "#C8D2DE" },
+      "&.Mui-focused .MuiOutlinedInput-notchedOutline": { borderColor: "#8EA9C7" },
+    },
+    "& .MuiInputLabel-root": { color: "#5B6B7F" },
+  };
+
+  const solidActionSx = {
+    textTransform: "none",
+    borderRadius: 999,
+    px: 1.75,
+    py: 0.5,
+    fontWeight: 600,
+    letterSpacing: 0.2,
+    boxShadow: "0 10px 20px rgba(15,23,42,0.16)",
+  };
+  const notesExpanded = !notesCollapsed;
+
 
   return (
     <Box
@@ -1053,13 +1101,14 @@ const RetentionLeads = () => {
       <Box
         sx={{
           width: "20%",
-          borderRight: "1px solid #ddd",
+          borderRight: "1px solid #D7E0EA",
           display: "flex",
           flexDirection: "column",
           pt: 0,
-          px: 1,
-          pb: 1,
-          bgcolor: "background.paper",
+          px: 1.25,
+          pb: 1.25,
+          background:
+            "radial-gradient(140% 90% at 0% 0%, #F6F9FC 0%, #EEF3F9 55%, #E9EEF5 100%)",
           overflowY: "auto",
         }}
         ref={containerRef}
@@ -1069,13 +1118,24 @@ const RetentionLeads = () => {
             position: "sticky",
             top: 0,
             zIndex: 10,
-            backgroundColor: "background.paper",
+            backdropFilter: "blur(8px)",
+            background:
+              "linear-gradient(180deg, rgba(241,246,252,0.97) 0%, rgba(241,246,252,0.92) 100%)",
             mt: 0,
-            pt: 1,
-            pb: 1,
-            borderBottom: "1px solid #ddd",
+            pt: 1.25,
+            pb: 1.1,
+            borderBottom: "1px solid #D7E0EA",
+            borderRadius: "0 0 16px 16px",
           }}
         >
+          <Box sx={{ mb: 1.1 }}>
+            <Typography sx={{ fontSize: "0.82rem", fontWeight: 700, color: "#0F172A", letterSpacing: 0.2 }}>
+              Retention Queue
+            </Typography>
+            <Typography sx={{ fontSize: "0.67rem", color: "#5B6B7F", mt: 0.25 }}>
+              Prioritized follow-ups with live filters
+            </Typography>
+          </Box>
           <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <Stack direction="row" spacing={2}>
               {[
@@ -1109,18 +1169,7 @@ const RetentionLeads = () => {
                       }))
                     }
                     size="small"
-                    sx={{
-                      textTransform: "none",
-                      borderRadius: "4px",
-                      fontSize: "0.75rem",
-                      fontWeight: 500,
-                      color: isSelected ? "#fff" : "black",
-                      borderColor: "black",
-                      backgroundColor: isSelected ? "black" : "transparent",
-                      "&:hover": {
-                        backgroundColor: isSelected ? "#222" : "#f5f5f5",
-                      },
-                    }}
+                    sx={premiumPillSx(isSelected)}
                   >
                     <Box sx={{ display: "flex", alignItems: "center" }}>
                       <Typography>{label}</Typography>
@@ -1148,9 +1197,11 @@ const RetentionLeads = () => {
                 }
                 sx={{
                   ml: 1,
-                  border: "1px solid #111",
-                  borderRadius: 1,
-                  bgcolor: filters.retentionStatus === "No-Call" ? "rgba(0,0,0,0.08)" : "transparent",
+                  border: "1px solid #D6DEE8",
+                  borderRadius: "12px",
+                  bgcolor: filters.retentionStatus === "No-Call" ? "#E7EEF8" : "rgba(255,255,255,0.85)",
+                  color: "#1B2430",
+                  boxShadow: "0 3px 10px rgba(15,23,42,0.08)",
                 }}
               >
                 <Badge
@@ -1165,7 +1216,7 @@ const RetentionLeads = () => {
             </Tooltip>
           </Box>
 
-          <Stack direction="row" spacing={1} mt={1}>
+          <Stack direction="row" spacing={0.75} mt={1.2} sx={{ flexWrap: "wrap", rowGap: 0.75 }}>
             {[
               { label: "Today", value: "Today" },
               { label: "Tomorrow", value: "Tomorrow" },
@@ -1186,19 +1237,11 @@ const RetentionLeads = () => {
                   }}
                   size="small"
                   sx={{
-                    textTransform: "none",
-                    borderRadius: "4px",
+                    ...premiumPillSx(isSelected),
+                    borderRadius: "10px",
                     minWidth: "auto",
-                    px: 0.5,
-                    py: 0.2,
-                    fontSize: "0.65rem",
-                    fontWeight: 400,
-                    color: isSelected ? "#fff" : "black",
-                    borderColor: "black",
-                    backgroundColor: isSelected ? "black" : "transparent",
-                    "&:hover": {
-                      backgroundColor: isSelected ? "#222" : "#f5f5f5",
-                    },
+                    px: 0.75,
+                    py: 0.35,
                   }}
                 >
                   <Box
@@ -1230,7 +1273,7 @@ const RetentionLeads = () => {
             })}
           </Stack>
 
-          <Box sx={{ display: "flex", alignItems: "center", mb: 1, gap: 1, mt: 1, }}>
+          <Box sx={{ display: "flex", alignItems: "center", mb: 0.5, gap: 0.75, mt: 1.2 }}>
             <TextField
               size="small"
               placeholder="Search leads..."
@@ -1241,9 +1284,14 @@ const RetentionLeads = () => {
                 setFilters((prev) => ({ ...prev, name: e.target.value }))
               }
               InputProps={{
+                sx: {
+                  borderRadius: "12px",
+                  bgcolor: "rgba(255,255,255,0.92)",
+                  boxShadow: "0 6px 14px rgba(15,23,42,0.06)",
+                },
                 startAdornment: (
                   <InputAdornment position="start">
-                    <SearchIcon />
+                    <SearchIcon sx={{ color: "#60758D" }} />
                   </InputAdornment>
                 ),
               }}
@@ -1259,9 +1307,13 @@ const RetentionLeads = () => {
                   else el.click();
                 }}
                 // Optional: highlight when active
-                sx={filters.rtNextFollowupDate ? { bgcolor: "rgba(25,118,210,0.12)" } : undefined}
+                sx={{
+                  borderRadius: "10px",
+                  border: "1px solid #D6DEE8",
+                  bgcolor: filters.rtNextFollowupDate ? "#E7EEF8" : "rgba(255,255,255,0.88)",
+                }}
               >
-                <CalendarMonthIcon />
+                <CalendarMonthIcon sx={{ color: "#334155" }} />
               </IconButton>
             </Tooltip>
 
@@ -1297,14 +1349,27 @@ const RetentionLeads = () => {
                   size="small"
                   onClick={(e) => setFilterAnchorEl(e.currentTarget)}
                   aria-label={`Filter leads${orderPlacedFilter === "Acquired In" && dateRangeFilter ? `: ${dateRangeFilter}` : ''}`}
+                  sx={{
+                    borderRadius: "10px",
+                    border: "1px solid #D6DEE8",
+                    bgcolor: "rgba(255,255,255,0.88)",
+                  }}
                 >
-                  <FilterListIcon />
+                  <FilterListIcon sx={{ color: "#334155" }} />
                 </IconButton>
               </Badge>
             </Tooltip>
             <Tooltip title="Sort">
-              <IconButton size="small" onClick={(e) => setSortMenuAnchorEl(e.currentTarget)}>
-                <SortIcon />
+              <IconButton
+                size="small"
+                onClick={(e) => setSortMenuAnchorEl(e.currentTarget)}
+                sx={{
+                  borderRadius: "10px",
+                  border: "1px solid #D6DEE8",
+                  bgcolor: "rgba(255,255,255,0.88)",
+                }}
+              >
+                <SortIcon sx={{ color: "#334155" }} />
               </IconButton>
             </Tooltip>
           </Box>
@@ -1512,7 +1577,7 @@ const RetentionLeads = () => {
         </Menu>
 
 
-        <List disablePadding>
+        <List disablePadding sx={{ mt: 1, pb: 0.5 }}>
           {leads.map((lead, idx) => {
             const initials = lead.name
               ? lead.name
@@ -1531,16 +1596,27 @@ const RetentionLeads = () => {
               <ListItemButton
                 key={lead._id || idx}
                 sx={{
-                  mb: 0.5,
-                  borderRadius: 1,
-                  minHeight: 64,
-                  backgroundColor: lead.rowColor
-                    ? lead.rowColor
+                  mb: 0.9,
+                  borderRadius: 2.2,
+                  minHeight: 70,
+                  background: lead.rowColor
+                    ? `linear-gradient(135deg, ${lead.rowColor} 0%, #FFFFFF 100%)`
                     : isSelected
-                      ? "rgba(25, 118, 210, 0.15)"
-                      : "inherit",
+                      ? "linear-gradient(135deg, #E4EDF9 0%, #F8FBFF 100%)"
+                      : "rgba(255,255,255,0.92)",
                   position: "relative",
-                  px: 1,
+                  border: isSelected ? "1px solid #93B3D8" : "1px solid #D8E1EC",
+                  boxShadow: isSelected
+                    ? "0 14px 26px rgba(30,41,59,0.14)"
+                    : "0 8px 18px rgba(15,23,42,0.07)",
+                  px: 1.05,
+                  py: 0.25,
+                  transition: "all .18s ease",
+                  "&:hover": {
+                    transform: "translateY(-1px)",
+                    boxShadow: "0 14px 28px rgba(15,23,42,0.14)",
+                    borderColor: "#C3D3E6",
+                  },
                 }}
                 onClick={() => {
                   setLeadLoading(true);
@@ -1551,31 +1627,43 @@ const RetentionLeads = () => {
                 <Box
                   sx={{
                     position: "absolute",
-                    top: 0,
-                    left: 3,
-                    fontSize: "0.8rem",
-                    fontWeight: "bold",
-                    color: "text.secondary",
-                    opacity: 0.7,
+                    top: -8,
+                    left: 8,
+                    fontSize: "0.64rem",
+                    fontWeight: 700,
+                    color: "#4E6073",
+                    border: "1px solid #D4DEEA",
+                    bgcolor: "#F8FAFD",
+                    borderRadius: 999,
+                    px: 0.75,
+                    py: 0.1,
                   }}
                 >
                   {allLeads.findIndex((l) => l._id === lead._id) + 1}
                 </Box>
-                <ListItemAvatar sx={{ position: "relative", ml: 2 }}>
-                  <Avatar sx={{ bgcolor: "black", fontSize: "0.8rem" }}>
+                <ListItemAvatar sx={{ position: "relative", ml: 1.8 }}>
+                  <Avatar
+                    sx={{
+                      background: "linear-gradient(135deg, #0F172A 0%, #334155 100%)",
+                      fontSize: "0.78rem",
+                      width: 34,
+                      height: 34,
+                    }}
+                  >
                     {initials}
                   </Avatar>
                   <IconButton
                     size="small"
                     sx={{
                       position: "absolute",
-                      top: -3,
-                      left: -6,
-                      bgcolor: "white",
+                      top: -4,
+                      left: -8,
+                      bgcolor: "#FFFFFF",
                       width: 20,
                       height: 20,
                       p: 0.3,
-                      boxShadow: 1,
+                      border: "1px solid #D6DEE8",
+                      boxShadow: "0 4px 10px rgba(15,23,42,0.16)",
                     }}
                     onClick={(e) => {
                       e.stopPropagation();
@@ -1600,7 +1688,7 @@ const RetentionLeads = () => {
                         variant="body2"
                         fontWeight={600}
                         noWrap
-                        sx={{ maxWidth: "70%" }}
+                        sx={{ maxWidth: "68%", color: "#0F172A", letterSpacing: 0.1 }}
                       >
                         {lead.name}
                       </Typography>
@@ -1624,7 +1712,12 @@ const RetentionLeads = () => {
                           label={tagInfo.label}
                           color={tagInfo.color}
                           size="small"
-                          sx={{ fontWeight: "bold" }}
+                          sx={{
+                            fontWeight: 700,
+                            height: 22,
+                            borderRadius: "7px",
+                            "& .MuiChip-label": { px: 1, fontSize: "0.66rem" },
+                          }}
                         />
                       </Box>
                     </Box>
@@ -1640,7 +1733,14 @@ const RetentionLeads = () => {
                       <Typography
                         variant="caption"
                         color="text.secondary"
-                        sx={{ fontWeight: "normal", whiteSpace: "nowrap", fontSize: "0.7rem", opacity: 0.8 }}
+                        sx={{
+                          fontWeight: 500,
+                          whiteSpace: "nowrap",
+                          fontSize: "0.68rem",
+                          opacity: 0.9,
+                          color: "#60758D",
+                          lineHeight: 1.35,
+                        }}
                         component="div"
                       >
                         {(() => {
@@ -1762,6 +1862,8 @@ const RetentionLeads = () => {
           overflowY: "auto",
           display: "flex",
           gap: 2,
+          background:
+            "radial-gradient(120% 120% at 85% 0%, #F3F7FC 0%, #EEF3F9 55%, #EAF0F7 100%)",
         }}
       >
         {selectedLeadIndex === null || leadLoading ? (
@@ -1780,10 +1882,12 @@ const RetentionLeads = () => {
               <Paper
                 sx={{
                   mb: 3,
-                  p: 2,
-                  borderRadius: 2,
-                  boxShadow: "0 2px 12px rgba(0,0,0,0.04)",
-                  backgroundColor: "#fff",
+                  p: 2.25,
+                  borderRadius: 3,
+                  boxShadow: "0 20px 38px rgba(15,23,42,0.12)",
+                  border: "1px solid #D5DFEA",
+                  background:
+                    "linear-gradient(145deg, rgba(255,255,255,0.98) 0%, rgba(248,251,255,0.98) 100%)",
                   fontSize: "0.85rem",
                   fontFamily: '"Segoe UI", Inter, system-ui, sans-serif',
                 }}
@@ -1793,13 +1897,14 @@ const RetentionLeads = () => {
                   <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 1 }}>
                     <Avatar
                       sx={{
-                        width: 44,
-                        height: 44,
-                        bgcolor: "#EAF3EE",
-                        color: "#2E7D32",
+                        width: 46,
+                        height: 46,
+                        background: "linear-gradient(135deg, #0F172A 0%, #334155 100%)",
+                        color: "#F8FAFC",
                         fontWeight: 700,
                         fontSize: "0.95rem",
                         flex: "0 0 auto",
+                        boxShadow: "0 12px 24px rgba(15,23,42,0.24)",
                       }}
                     >
                       {(leads[selectedLeadIndex]?.name || "?")
@@ -1832,9 +1937,10 @@ const RetentionLeads = () => {
                           width: 36,
                           height: 36,
                           borderRadius: 999,
-                          bgcolor: "#fff",
-                          border: "1px solid #E6E8EC",
-                          "&:hover": { bgcolor: "#F7F9FB" },
+                          bgcolor: "rgba(255,255,255,0.95)",
+                          border: "1px solid #D4DEEA",
+                          boxShadow: "0 6px 14px rgba(15,23,42,0.12)",
+                          "&:hover": { bgcolor: "#F7FAFD" },
                         }}
                       >
                         <SvgIcon fontSize="small" sx={{ color: "#5E8E3E" }} viewBox="0 0 24 24">
@@ -1856,7 +1962,8 @@ const RetentionLeads = () => {
                           height: 36,
                           borderRadius: 999,
                           bgcolor: leads[selectedLeadIndex]?.firstCallConnected ? "#4CAF50" : "#fff",
-                          border: "1px solid #E6E8EC",
+                          border: "1px solid #D4DEEA",
+                          boxShadow: "0 6px 14px rgba(15,23,42,0.12)",
                           "&:hover": {
                             bgcolor: leads[selectedLeadIndex]?.firstCallConnected ? "#45a049" : "#F7F9FB"
                           },
@@ -1877,114 +1984,93 @@ const RetentionLeads = () => {
                       sx={{
                         display: "flex",
                         alignItems: "center",
+                        justifyContent: "space-between",
+                        gap: 1.5,
+                        flexWrap: "wrap",
+                      }}
+                    >
+                      <Stack direction="row" spacing={1} alignItems="center" sx={{ minWidth: 0, flexWrap: "wrap" }}>
+                        <Typography sx={{ fontSize: 17, fontWeight: 700, color: "#0F172A" }} noWrap>
+                          {leads[selectedLeadIndex]?.name || "—"}
+                        </Typography>
+                        <Box sx={{ width: 4, height: 4, borderRadius: "50%", bgcolor: "#D0D5DD" }} />
+                        <Typography sx={{ fontWeight: 600, color: "#1E293B" }}>
+                          {leads[selectedLeadIndex]?.contactNumber || "N/A"}
+                        </Typography>
+                        <Tooltip title="Copy Number">
+                          <IconButton
+                            color="default"
+                            size="small"
+                            sx={{ color: "#334155", p: 0.5 }}
+                            onClick={() => handleCopy(leads[selectedLeadIndex]?.contactNumber)}
+                          >
+                            <ContentCopyIcon fontSize="inherit" />
+                          </IconButton>
+                        </Tooltip>
+                      </Stack>
+
+                      <Stack direction="row" spacing={1} alignItems="center">
+                        <Button
+                          size="small"
+                          onClick={(e) => {
+                            setReachoutTimestamp(new Date());
+                            setReachoutMethod("");
+                            setReachoutStatus("");
+                            setLogPopupAnchor(e.currentTarget);
+                          }}
+                          sx={{
+                            ...solidActionSx,
+                            bgcolor: "#1D4ED8",
+                            color: "#fff",
+                            "&:hover": { bgcolor: "#1E40AF" },
+                          }}
+                        >
+                          Add Log
+                        </Button>
+                        <Tooltip title="View Logs">
+                          <IconButton
+                            size="small"
+                            sx={{
+                              color: "#334155",
+                              border: "1px solid #D4DEEA",
+                              borderRadius: "10px",
+                              p: 0.7,
+                              bgcolor: "rgba(255,255,255,0.92)",
+                            }}
+                            onClick={() => {
+                              fetchLogs(leads[selectedLeadIndex]._id);
+                              setLogsModalOpen(true);
+                            }}
+                          >
+                            <Badge
+                              badgeContent={Object.keys(
+                                groupLogsByDate(leads[selectedLeadIndex]?.reachoutLogs || [])
+                              ).length}
+                              sx={{
+                                "& .MuiBadge-badge": {
+                                  backgroundColor: "#111",
+                                  color: "#fff",
+                                  boxShadow: "0 0 0 2px #fff",
+                                  fontWeight: 700,
+                                },
+                              }}
+                            >
+                              <HistoryIcon />
+                            </Badge>
+                          </IconButton>
+                        </Tooltip>
+                      </Stack>
+                    </Box>
+
+                    <Box
+                      sx={{
+                        mt: 1,
+                        display: "flex",
+                        alignItems: "center",
                         gap: 1,
                         flexWrap: "wrap",
                       }}
                     >
-                      <Typography sx={{ fontSize: 16, fontWeight: 700, color: "#111" }} noWrap>
-                        {leads[selectedLeadIndex]?.name || "—"}
-                      </Typography>
-
-                      <Box sx={{ width: 4, height: 4, borderRadius: "50%", bgcolor: "#D0D5DD" }} />
-
-                      <Typography sx={{ fontWeight: 600, color: "#111" }}>
-                        {leads[selectedLeadIndex]?.contactNumber || "N/A"}
-                      </Typography>
-
-                      {/* Copy */}
-                      <Tooltip title="Copy Number">
-                        <IconButton
-                          color="default"
-                          size="small"
-                          sx={{ color: "#111", p: 0.5 }}
-                          onClick={() => handleCopy(leads[selectedLeadIndex]?.contactNumber)}
-                        >
-                          <ContentCopyIcon fontSize="inherit" />
-                        </IconButton>
-                      </Tooltip>
-
-                      {/* Call */}
-                      <Button
-                        onClick={() => handleCallIconClick(leads[selectedLeadIndex]?.contactNumber)}
-                        size="small"
-                        startIcon={<PhoneIcon />}
-                        sx={{
-                          textTransform: "none",
-                          bgcolor: "#2E7D32",
-                          color: "#fff",
-                          borderRadius: 999,
-                          px: 1.75,
-                          py: 0.5,
-                          "&:hover": { bgcolor: "#256528" },
-                        }}
-                      >
-                        Call
-                      </Button>
-
-                      <Tooltip title="Send WhatsApp">
-                        <IconButton
-                          onClick={() => setWaOpen(true)}
-                          disableRipple
-                          sx={{
-                            p: 0.25,
-                            ml: 0.25,
-                            color: "#25D366",
-                            "&:hover": { bgcolor: "transparent" },
-                          }}
-                        >
-                          <WhatsAppIcon sx={{ fontSize: 28 }} />
-                        </IconButton>
-                      </Tooltip>
-
-
-                      <Button
-                        size="small"
-                        onClick={(e) => {
-                          setReachoutTimestamp(new Date());
-                          setReachoutMethod("");
-                          setReachoutStatus("");
-                          setLogPopupAnchor(e.currentTarget);
-                        }}
-                        sx={{
-                          textTransform: "none",
-                          bgcolor: "#2E7D32",
-                          color: "#fff",
-                          borderRadius: 999,
-                          px: 1.75,
-                          py: 0.5,
-                          "&:hover": { bgcolor: "#256528" },
-                        }}
-                      >
-                        Add Log
-                      </Button>
-
-                      <Tooltip title="View Logs">
-                        <IconButton
-                          size="small"
-                          sx={{ color: "#111" }}
-                          onClick={() => {
-                            fetchLogs(leads[selectedLeadIndex]._id);
-                            setLogsModalOpen(true);
-                          }}
-                        >
-                          <Badge
-                            badgeContent={Object.keys(
-                              groupLogsByDate(leads[selectedLeadIndex]?.reachoutLogs || [])
-                            ).length}
-                            sx={{
-                              "& .MuiBadge-badge": {
-                                backgroundColor: "#111",
-                                color: "#fff",
-                                boxShadow: "0 0 0 2px #fff",
-                                fontWeight: 700,
-                              },
-                            }}
-                          >
-                            <HistoryIcon />
-                          </Badge>
-                        </IconButton>
-                      </Tooltip>
-
                       {(() => {
                         const phone = leads[selectedLeadIndex]?.contactNumber;
                         const first = shopifyDatesMap[phone]?.firstOrderDate;
@@ -2019,10 +2105,11 @@ const RetentionLeads = () => {
                                 px: 1.25,
                                 py: 0.5,
                                 borderRadius: 999,
-                                bgcolor: "#F5F7FA",
-                                color: "#111",
+                                bgcolor: "#EAF0F8",
+                                color: "#1E293B",
                                 fontWeight: 600,
                                 fontSize: "0.8rem",
+                                border: "1px solid #D5DFEA",
                               }}
                             >
                               CS – {since}
@@ -2032,10 +2119,11 @@ const RetentionLeads = () => {
                                 px: 1.25,
                                 py: 0.5,
                                 borderRadius: 999,
-                                bgcolor: "#F5F7FA",
-                                color: "#111",
+                                bgcolor: "#EAF0F8",
+                                color: "#1E293B",
                                 fontWeight: 600,
                                 fontSize: "0.8rem",
+                                border: "1px solid #D5DFEA",
                               }}
                             >
                               Last Order – {lastDays}
@@ -2043,29 +2131,19 @@ const RetentionLeads = () => {
                           </Stack>
                         );
                       })()}
-                    </Box>
-
-                    <Box
-                      sx={{
-                        mt: 1,
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 1,
-                        flexWrap: "wrap",
-                      }}
-                    >
                       <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", alignItems: "center" }}>
                         <Box
                           sx={{
                             px: 1,
                             py: 0.5,
                             borderRadius: 999,
-                            bgcolor: "#F5F7FA",
+                            bgcolor: "#EDF2F8",
                             color: "#333",
                             display: "flex",
                             alignItems: "center",
                             gap: 0.75,
                             fontSize: "0.8rem",
+                            border: "1px solid #D5DFEA",
                           }}
                         >
                           <Typography sx={{ color: "#667085", fontSize: "0.8rem" }}>Agent</Typography>
@@ -2079,12 +2157,13 @@ const RetentionLeads = () => {
                             px: 1,
                             py: 0.5,
                             borderRadius: 999,
-                            bgcolor: "#F5F7FA",
+                            bgcolor: "#EDF2F8",
                             color: "#333",
                             display: "flex",
                             alignItems: "center",
                             gap: 0.5,
                             fontSize: "0.8rem",
+                            border: "1px solid #D5DFEA",
                           }}
                         >
                           <LanguageIcon sx={{ fontSize: 16, color: "#667085" }} />
@@ -2098,12 +2177,13 @@ const RetentionLeads = () => {
                             px: 1,
                             py: 0.5,
                             borderRadius: 999,
-                            bgcolor: "#F5F7FA",
+                            bgcolor: "#EDF2F8",
                             color: "#333",
                             display: "flex",
                             alignItems: "center",
                             gap: 0.5,
                             fontSize: "0.8rem",
+                            border: "1px solid #D5DFEA",
                           }}
                         >
                           <PlaceIcon sx={{ fontSize: 16, color: "#667085" }} />
@@ -2117,36 +2197,6 @@ const RetentionLeads = () => {
                           </Typography>
                         </Box>
 
-                        <Button
-                          onClick={() => setDietPlanOpen(true)}
-                          sx={{
-                            textTransform: "none",
-                            bgcolor: "#2E7D32",
-                            color: "white",
-                            borderRadius: 999,
-                            px: 1.55,
-                            py: 0.5,
-                            "&:hover": { backgroundColor: "#256528" },
-                          }}
-                        >
-                          Diet Plan
-                        </Button>
-
-                        <Button
-                          onClick={() => setOrderPopupOpen(true)}
-                          sx={{
-                            textTransform: "none",
-                            bgcolor: "#1976D2",
-                            color: "white",
-                            borderRadius: 999,
-                            px: 1.55,
-                            py: 0.5,
-                            "&:hover": { backgroundColor: "#145ea8" },
-                          }}
-                        >
-                          Order
-                        </Button>
-
                         <TextField
                           label="Alternate Number"
                           size="small"
@@ -2154,11 +2204,7 @@ const RetentionLeads = () => {
                           onChange={(e) => handleInputChange(e, selectedLeadIndex, "alternativeNumber")}
                           sx={{
                             minWidth: 170,
-                            "& .MuiOutlinedInput-root": {
-                              borderRadius: 999,
-                              "& .MuiOutlinedInput-notchedOutline": { borderColor: "#E6E8EC" },
-                              "&:hover .MuiOutlinedInput-notchedOutline": { borderColor: "#DDE1E6" },
-                            },
+                            ...premiumInputSx,
                           }}
                           InputLabelProps={{ shrink: true }}
                         />
@@ -2178,13 +2224,11 @@ const RetentionLeads = () => {
                         size="small"
                         sx={{
                           minWidth: 150,
+                          ...premiumInputSx,
                           "& .MuiOutlinedInput-root": {
-                            borderRadius: 999,
-                            "& .MuiOutlinedInput-notchedOutline": { borderColor: "#E6E8EC" },
-                            "&:hover .MuiOutlinedInput-notchedOutline": { borderColor: "#DDE1E6" },
+                            ...premiumInputSx["& .MuiOutlinedInput-root"],
                             pr: 0,
                           },
-                          "& .MuiInputLabel-root": { color: "#667085" },
                         }}
                         InputProps={{
                           inputProps: {
@@ -2202,7 +2246,7 @@ const RetentionLeads = () => {
                         InputLabelProps={{ shrink: true }}
                       />
 
-                      <FormControl size="small" sx={{ minWidth: 130 }}>
+                      <FormControl size="small" sx={{ minWidth: 130, ...premiumInputSx }}>
                         <InputLabel>Retention Status</InputLabel>
 
                         <Select
@@ -2220,11 +2264,7 @@ You can mark Lost only after 60 days.`);
 
                             handleInputChange(e, selectedLeadIndex, "retentionStatus");
                           }}
-                          sx={{
-                            borderRadius: 999,
-                            "& .MuiOutlinedInput-notchedOutline": { borderColor: "#E6E8EC" },
-                            "&:hover .MuiOutlinedInput-notchedOutline": { borderColor: "#DDE1E6" },
-                          }}
+                          sx={{ borderRadius: "12px" }}
                         >
                           <MenuItem value="Active">Active</MenuItem>
 
@@ -2248,17 +2288,13 @@ You can mark Lost only after 60 days.`);
 
 
                       {/* Follow-up Status */}
-                      <FormControl size="small" sx={{ minWidth: 160 }}>
+                      <FormControl size="small" sx={{ minWidth: 160, ...premiumInputSx }}>
                         <InputLabel>Follow-up Status</InputLabel>
                         <Select
                           label="Follow-up Status"
                           value={leads[selectedLeadIndex]?.rtFollowupStatus || ""}
                           onChange={(e) => handleInputChange(e, selectedLeadIndex, "rtFollowupStatus")}
-                          sx={{
-                            borderRadius: 999,
-                            "& .MuiOutlinedInput-notchedOutline": { borderColor: "#E6E8EC" },
-                            "&:hover .MuiOutlinedInput-notchedOutline": { borderColor: "#DDE1E6" },
-                          }}
+                          sx={{ borderRadius: "12px" }}
                         >
                           {[
                             "Good Results",
@@ -2283,17 +2319,13 @@ You can mark Lost only after 60 days.`);
                       </FormControl>
 
                       {/* Preferred Language */}
-                      <FormControl size="small" sx={{ minWidth: 140 }}>
+                      <FormControl size="small" sx={{ minWidth: 140, ...premiumInputSx }}>
                         <InputLabel>Pref Language</InputLabel>
                         <Select
                           label="Pref Language"
                           value={leads[selectedLeadIndex]?.preferredLanguage || ""}
                           onChange={(e) => handleInputChange(e, selectedLeadIndex, "preferredLanguage")}
-                          sx={{
-                            borderRadius: 999,
-                            "& .MuiOutlinedInput-notchedOutline": { borderColor: "#E6E8EC" },
-                            "&:hover .MuiOutlinedInput-notchedOutline": { borderColor: "#DDE1E6" },
-                          }}
+                          sx={{ borderRadius: "12px" }}
                         >
                           {["Hindi", "English", "Others"].map((lang) => (
                             <MenuItem key={lang} value={lang}>
@@ -2304,17 +2336,13 @@ You can mark Lost only after 60 days.`);
                       </FormControl>
 
                       {/* Preferred Method */}
-                      <FormControl size="small" sx={{ minWidth: 140 }}>
+                      <FormControl size="small" sx={{ minWidth: 140, ...premiumInputSx }}>
                         <InputLabel>Pref Method</InputLabel>
                         <Select
                           label="Pref Method"
                           value={leads[selectedLeadIndex]?.communicationMethod || ""}
                           onChange={(e) => handleInputChange(e, selectedLeadIndex, "communicationMethod")}
-                          sx={{
-                            borderRadius: 999,
-                            "& .MuiOutlinedInput-notchedOutline": { borderColor: "#E6E8EC" },
-                            "&:hover .MuiOutlinedInput-notchedOutline": { borderColor: "#DDE1E6" },
-                          }}
+                          sx={{ borderRadius: "12px" }}
                         >
                           {["Call", "WhatsApp", "Both"].map((option) => (
                             <MenuItem key={option} value={option}>
@@ -2326,7 +2354,7 @@ You can mark Lost only after 60 days.`);
 
                       <FormControl
                         size="small"
-                        sx={{ minWidth: 150 }}
+                        sx={{ minWidth: 150, ...premiumInputSx }}
                         error={(selectedConditions?.length ?? 0) === 0}
                         focused // 👈 keep focused style always
                       >
@@ -2361,11 +2389,7 @@ You can mark Lost only after 60 days.`);
                             }
                             return `${s.length} selected`;
                           }}
-                          sx={{
-                            borderRadius: 999,
-                            "& .MuiOutlinedInput-notchedOutline": { borderColor: "#E6E8EC" },
-                            "&:hover .MuiOutlinedInput-notchedOutline": { borderColor: "#DDE1E6" },
-                          }}
+                          sx={{ borderRadius: "12px" }}
                         >
                           <MenuItem value="Diabetes">Diabetes</MenuItem>
                           <MenuItem value="Liver">Liver</MenuItem>
@@ -2406,8 +2430,8 @@ You can mark Lost only after 60 days.`);
                     open={Boolean(logPopupAnchor)}
                     onClose={() => setLogPopupAnchor(null)}
                   >
-                    <Box sx={{ px: 2, py: 1 }}>
-                      <Typography variant="body2">Reachout Method</Typography>
+                    <Box sx={{ px: 2, py: 1.5, minWidth: 280 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 700, color: "#1E293B" }}>Reachout Method</Typography>
                       <RadioGroup
                         value={reachoutMethod}
                         onChange={async (e) => {
@@ -2428,7 +2452,7 @@ You can mark Lost only after 60 days.`);
 
                       {reachoutMethod && (
                         <>
-                          <Typography variant="body2" mt={2}>Disposition</Typography>
+                          <Typography variant="body2" mt={2} sx={{ fontWeight: 700, color: "#1E293B" }}>Disposition</Typography>
                           <Select
                             size="small"
                             fullWidth
@@ -2445,6 +2469,7 @@ You can mark Lost only after 60 days.`);
                               });
                               setLogPopupAnchor(null);
                             }}
+                            sx={{ mt: 0.6, borderRadius: "10px" }}
                           >
                             {["CNP", "Followup Done", "Order Placed", "Call Back Later", "Busy", "Switch Off", "Drop On Intro"].map((status) => (
                               <MenuItem key={status} value={status}>{status}</MenuItem>
@@ -2456,14 +2481,21 @@ You can mark Lost only after 60 days.`);
                   </Menu>
                 )}
 
-                <Dialog open={logsModalOpen} onClose={() => setLogsModalOpen(false)} maxWidth="sm" fullWidth>
-                  <DialogTitle>Reachout Logs</DialogTitle>
-                  <DialogContent>
+                <Dialog open={logsModalOpen} onClose={() => setLogsModalOpen(false)} maxWidth="sm" fullWidth PaperProps={{ sx: { borderRadius: 3, border: "1px solid #D4DEEA" } }}>
+                  <DialogTitle sx={{ fontWeight: 700, color: "#0F172A", borderBottom: "1px solid #E3E9F2" }}>Reachout Logs</DialogTitle>
+                  <DialogContent sx={{ bgcolor: "#F7FAFD", py: 1.5 }}>
                     {sortedDates.map((date) => (
                       <Accordion
                         key={date}
                         expanded={expandedDate === date}
                         onChange={handleAccordionChange(date)}
+                        sx={{
+                          borderRadius: "12px !important",
+                          border: "1px solid #D8E1ED",
+                          boxShadow: "0 4px 12px rgba(15,23,42,0.08)",
+                          mb: 1,
+                          "&:before": { display: "none" },
+                        }}
                       >
                         <AccordionSummary
                           expandIcon={<ExpandMoreIcon />}
@@ -2509,6 +2541,13 @@ You can mark Lost only after 60 days.`);
                   maxWidth="md"
                   fullWidth
                   scroll="paper"
+                  PaperProps={{
+                    sx: {
+                      borderRadius: 3,
+                      border: "1px solid #D4DEEA",
+                      background: "linear-gradient(160deg, #FFFFFF 0%, #F6FAFE 100%)",
+                    },
+                  }}
                 >
                   <DialogTitle sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                     <SvgIcon fontSize="small" sx={{ color: "#5E8E3E" }} viewBox="0 0 24 24">
@@ -2517,7 +2556,7 @@ You can mark Lost only after 60 days.`);
                     </SvgIcon>
                     Shopify Orders — {leads[selectedLeadIndex]?.name || "Customer"}
                   </DialogTitle>
-                  <DialogContent dividers>
+                  <DialogContent dividers sx={{ borderColor: "#E3E9F2" }}>
                     {ordersLoading ? (
                       <Box sx={{ display: "flex", justifyContent: "center", py: 3 }}>
                         <CircularProgress size={28} />
@@ -2533,13 +2572,13 @@ You can mark Lost only after 60 days.`);
                             mb: 2,
                           }}
                         >
-                          <Paper variant="outlined" sx={{ p: 1.25, borderRadius: 2 }}>
+                          <Paper variant="outlined" sx={{ p: 1.25, borderRadius: 2, borderColor: "#D8E2EE", background: "#F9FBFE" }}>
                             <Typography variant="caption" color="text.secondary">Total Orders</Typography>
                             <Typography sx={{ fontWeight: 700 }}>
                               {shopifyDatesMap[leads[selectedLeadIndex]?.contactNumber]?.orders?.length || 0}
                             </Typography>
                           </Paper>
-                          <Paper variant="outlined" sx={{ p: 1.25, borderRadius: 2 }}>
+                          <Paper variant="outlined" sx={{ p: 1.25, borderRadius: 2, borderColor: "#D8E2EE", background: "#F9FBFE" }}>
                             <Typography variant="caption" color="text.secondary">First Order Date</Typography>
                             <Typography>
                               {shopifyDatesMap[leads[selectedLeadIndex]?.contactNumber]?.firstOrderDate
@@ -2549,7 +2588,7 @@ You can mark Lost only after 60 days.`);
                                 : "N/A"}
                             </Typography>
                           </Paper>
-                          <Paper variant="outlined" sx={{ p: 1.25, borderRadius: 2 }}>
+                          <Paper variant="outlined" sx={{ p: 1.25, borderRadius: 2, borderColor: "#D8E2EE", background: "#F9FBFE" }}>
                             <Typography variant="caption" color="text.secondary">Total Spend</Typography>
                             <Typography>
                               ₹{shopifyDatesMap[leads[selectedLeadIndex]?.contactNumber]?.totalSpend?.toFixed(2) || "0.00"}
@@ -2607,8 +2646,9 @@ You can mark Lost only after 60 days.`);
                                 p: 1.25,
                                 mb: 1.25,
                                 borderRadius: 2,
-                                borderColor: "#E6E8EC",
-                                backgroundColor: "#FAFAFA",
+                                borderColor: "#D7E1ED",
+                                background: "linear-gradient(150deg, #FFFFFF 0%, #F8FBFF 100%)",
+                                boxShadow: "0 6px 16px rgba(15,23,42,0.08)",
                               }}
                             >
                               {/* Header row */}
@@ -2683,12 +2723,14 @@ You can mark Lost only after 60 days.`);
                                         onChange={(e) => handleNoteChange(e.target.value)}
                                         disabled={savingNote}
                                         fullWidth
+                                        sx={premiumInputSx}
                                       />
                                       <Button
                                         variant="contained"
                                         size="small"
                                         onClick={handleSaveNote}
                                         disabled={savingNote}
+                                        sx={{ borderRadius: "10px", textTransform: "none" }}
                                       >
                                         {savingNote ? "Saving..." : "Save"}
                                       </Button>
@@ -2703,9 +2745,12 @@ You can mark Lost only after 60 days.`);
                                   size="small"
                                   sx={{
                                     mt: 0.5,
-                                    backgroundColor: "white",
-                                    color: "black",
+                                    backgroundColor: "#fff",
+                                    color: "#1E293B",
                                     fontSize: "0.72rem",
+                                    border: "1px solid #D7E1ED",
+                                    borderRadius: "10px",
+                                    textTransform: "none",
                                   }}
                                   onClick={() => {
                                     const updated = [
@@ -2779,213 +2824,231 @@ You can mark Lost only after 60 days.`);
 
             </Box>
 
-            <Paper
-              sx={{
-                flex: "0 0 20%",
-                p: 2,
-                boxShadow: 2,
-                borderRadius: 2,
-                backgroundColor: "background.paper",
-                fontSize: "0.85rem",
-                display: "flex",
-                flexDirection: "column",
-                overflowY: "auto",
-                color: "black",
-              }}
-              elevation={3}
+            <Box
+              sx={{ flex: "0 0 auto", display: "flex", alignItems: "stretch", minWidth: notesExpanded ? 320 : 48 }}
             >
               <Box
                 sx={{
-                  mt: 1,
-                  height: '50vh',
-                  display: 'flex',
-                  flexDirection: 'column'
+                  width: 46,
+                  borderRadius: notesExpanded ? "14px 0 0 14px" : "14px",
+                  border: "1px solid #CFDBE9",
+                  borderRight: notesExpanded ? "none" : "1px solid #CFDBE9",
+                  background: "linear-gradient(180deg, #F4F8FD 0%, #EAF0F8 100%)",
+                  boxShadow: "0 16px 30px rgba(15,23,42,0.12)",
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  py: 1,
                 }}
               >
-                <Typography variant="subtitle2" color="text.secondary" mb={1}>
-                  Notes
-                </Typography>
-
-                {/* Editor */}
-                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                  <TextField
-                    label="Add / update note"
-                    value={noteDraft}
-                    onChange={(e) => setNoteDraft(e.target.value)}
-                    multiline
-                    minRows={3}
-                    size="small"
-                    fullWidth
-                    variant="outlined"
-                  />
-
-                  <Box sx={{ display: 'flex', gap: 1 }}>
-                    <Button
-                      variant="contained"
-                      size="small"
-                      onClick={() => handleAddSubcell(selectedLeadIndex)}
-                      sx={{ alignSelf: 'flex-start', backgroundColor: 'black', textTransform: 'none' }}
-                    >
-                      Save
-                    </Button>
-
-                    <Button
-                      variant="outlined"
+                <Stack spacing={0.5} alignItems="center">
+                  <Tooltip title={notesExpanded ? "Collapse Notes" : "Expand Notes"}>
+                    <IconButton
                       size="small"
                       onClick={() => {
-                        if (selectedLeadIndex == null) return;
-                        const lead = leads[selectedLeadIndex];
-                        const latestVal = lead?.rtSubcells?.length
-                          ? lead.rtSubcells[lead.rtSubcells.length - 1]?.value || ""
-                          : lead?.rtRemark || "";
-                        setNoteDraft(latestVal);
+                        setNotesCollapsed((v) => !v);
                       }}
-                      sx={{ textTransform: 'none', borderColor: 'black', color: 'black' }}
+                      sx={{ border: "1px solid #D1DDEB", bgcolor: "#fff" }}
                     >
-                      Reset
-                    </Button>
-                  </Box>
-                </Box>
+                      {notesExpanded ? (
+                        <KeyboardDoubleArrowRightIcon fontSize="small" />
+                      ) : (
+                        <KeyboardDoubleArrowLeftIcon fontSize="small" />
+                      )}
+                    </IconButton>
+                  </Tooltip>
+                  <Tooltip title="Notes">
+                    <IconButton
+                      size="small"
+                      onClick={() => {
+                        setNotesCollapsed(false);
+                      }}
+                      sx={{ border: "1px solid #D1DDEB", bgcolor: "#fff", color: "#1E293B" }}
+                    >
+                      <StickyNote2Icon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
+                  <Tooltip title="Call">
+                    <IconButton
+                      size="small"
+                      onClick={() => handleCallIconClick(leads[selectedLeadIndex]?.contactNumber)}
+                      sx={{ border: "1px solid #D1DDEB", bgcolor: "#fff", color: "#0F766E" }}
+                    >
+                      <PhoneIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
+                  <Tooltip title="WhatsApp">
+                    <IconButton
+                      size="small"
+                      onClick={() => setWaOpen(true)}
+                      sx={{ border: "1px solid #D1DDEB", bgcolor: "#fff", color: "#25D366" }}
+                    >
+                      <WhatsAppIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
+                  <Tooltip title="Diet Plan">
+                    <IconButton
+                      size="small"
+                      onClick={() => setDietPlanOpen(true)}
+                      sx={{ border: "1px solid #D1DDEB", bgcolor: "#fff", color: "#166534" }}
+                    >
+                      <SpaIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
+                  <Tooltip title="Create Order">
+                    <IconButton
+                      size="small"
+                      onClick={() => setOrderPopupOpen(true)}
+                      sx={{ border: "1px solid #D1DDEB", bgcolor: "#fff", color: "#1D4ED8" }}
+                    >
+                      <ShoppingBagOutlinedIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
+                  <Tooltip title="History">
+                    <IconButton
+                      size="small"
+                      onClick={() => {
+                        setNotesCollapsed(false);
+                        setRemarksExpanded(true);
+                      }}
+                      sx={{ border: "1px solid #D1DDEB", bgcolor: "#fff", color: "#1E293B" }}
+                    >
+                      <HistoryIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
+                </Stack>
+                <Typography sx={{ fontSize: "0.64rem", color: "#64748B", writingMode: "vertical-rl", transform: "rotate(180deg)" }}>
+                  Notes
+                </Typography>
+              </Box>
 
-                {/* Scrollable history */}
-                <Box
-                  ref={remarksBodyRef}
+              {notesExpanded && (
+                <Paper
                   sx={{
-                    mt: 1,
-                    pr: 1,
-                    overflowY: remarksExpanded ? 'auto' : 'hidden',
-                    height: remarksExpanded ? '56vh' : '44vh',
-                    position: 'relative'
+                    flex: "0 0 320px",
+                    p: 2.2,
+                    boxShadow: "0 24px 42px rgba(15,23,42,0.18)",
+                    borderRadius: "0 14px 14px 0",
+                    border: "1px solid #CFDBE9",
+                    borderLeft: "none",
+                    background:
+                      "linear-gradient(162deg, rgba(255,255,255,0.99) 0%, rgba(242,248,255,0.98) 100%)",
+                    fontSize: "0.85rem",
+                    display: "flex",
+                    flexDirection: "column",
+                    overflowY: "auto",
+                    color: "black",
+                    transition: "all .18s ease",
                   }}
+                  elevation={3}
                 >
-                  <Box sx={{ mt: 1 }}>
-                    {/* First consult note FIRST, separate card */}
-                    {leads[selectedLeadIndex]?.rtRemark && (
-                      <Box sx={{ mb: 1.25, p: 1, bgcolor: "#FAFAFA", borderRadius: 1 }}>
-                        <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>
-                          First Cons Notes
-                        </Typography>
-                        <Typography
-                          variant="body2"
+                  <Box
+                    sx={{
+                      mt: 0.5,
+                      height: '50vh',
+                      display: 'flex',
+                      flexDirection: 'column'
+                    }}
+                  >
+                    <Stack direction="row" alignItems="center" justifyContent="space-between" mb={1}>
+                      <Typography variant="subtitle2" sx={{ color: "#0F172A", fontWeight: 800, letterSpacing: 0.2 }}>
+                        Expert Notes
+                      </Typography>
+                      <Chip
+                        size="small"
+                        label={`${(leads[selectedLeadIndex]?.rtSubcells || []).length} entries`}
+                        sx={{ bgcolor: "#EAF0F8", border: "1px solid #D1DDEB", color: "#334155", fontWeight: 700 }}
+                      />
+                    </Stack>
+
+                    {/* Editor */}
+                    <Box
+                      sx={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 1,
+                        p: 1.25,
+                        borderRadius: 2,
+                        border: "1px solid #D6E1EE",
+                        background: "linear-gradient(170deg, #FFFFFF 0%, #F8FBFF 100%)",
+                        boxShadow: "0 10px 20px rgba(15,23,42,0.08)",
+                      }}
+                    >
+                      <TextField
+                        label="Add / update note"
+                        value={noteDraft}
+                        onChange={(e) => setNoteDraft(e.target.value)}
+                        multiline
+                        minRows={4}
+                        size="small"
+                        fullWidth
+                        variant="outlined"
+                        sx={premiumInputSx}
+                      />
+
+                      <Box sx={{ display: 'flex', gap: 1 }}>
+                        <Button
+                          variant="contained"
+                          size="small"
+                          onClick={() => handleAddSubcell(selectedLeadIndex)}
                           sx={{
-                            whiteSpace: "pre-wrap",
-                            wordBreak: "break-word",
-                            overflowWrap: "anywhere",
-                            lineHeight: 1.4
+                            alignSelf: 'flex-start',
+                            background: "linear-gradient(135deg, #0F172A 0%, #334155 100%)",
+                            textTransform: 'none',
+                            borderRadius: "10px",
+                            boxShadow: "0 10px 20px rgba(15,23,42,0.22)",
+                            fontWeight: 700,
+                            px: 2,
                           }}
                         >
-                          {leads[selectedLeadIndex]?.rtRemark}
-                        </Typography>
+                          Save
+                        </Button>
+
+                        <Button
+                          variant="outlined"
+                          size="small"
+                          onClick={() => {
+                            if (selectedLeadIndex == null) return;
+                            const lead = leads[selectedLeadIndex];
+                            const latestVal = lead?.rtSubcells?.length
+                              ? lead.rtSubcells[lead.rtSubcells.length - 1]?.value || ""
+                              : lead?.rtRemark || "";
+                            setNoteDraft(latestVal);
+                          }}
+                          sx={{ textTransform: 'none', borderColor: '#C6D3E2', color: '#1E293B', borderRadius: "10px" }}
+                        >
+                          Reset
+                        </Button>
                       </Box>
-                    )}
+                    </Box>
 
-                    {/* Dated subcells as cards */}
-                    {(() => {
-                      const list = [...(leads[selectedLeadIndex]?.rtSubcells || [])];
-
-                      const normalizeUser = (by) =>
-                        (typeof by === 'string' ? by.trim() : '') || 'Expert';
-
-                      list.sort((a, b) => {
-                        const ta = toDateSafe(a?.date)?.getTime() ?? -Infinity;
-                        const tb = toDateSafe(b?.date)?.getTime() ?? -Infinity;
-                        return tb - ta;
-                      });
-
-                      const dated = {};
-                      const invalid = {};
-
-                      const getInvalidLabel = (raw) => {
-                        const s = String(raw ?? "").trim();
-                        return s || "—";
-                      };
-
-                      list.forEach((sub) => {
-                        const key = getISTDayKey(sub?.date);
-                        if (key) {
-                          (dated[key] ||= []).push(sub);
-                        } else {
-                          const label = getInvalidLabel(sub?.date);
-                          (invalid[label] ||= []).push(sub);
-                        }
-                      });
-
-                      const blocks = [];
-
-                      Object.keys(dated)
-                        .sort((a, b) => (a > b ? -1 : 1))
-                        .forEach((dayKey) => {
-                          const items = dated[dayKey];
-
-                          items.sort((a, b) => {
-                            const ta = toDateSafe(a?.date)?.getTime() ?? -Infinity;
-                            const tb = toDateSafe(b?.date)?.getTime() ?? -Infinity;
-                            return tb - ta;
-                          });
-
-                          const usersLabel = Array.from(
-                            new Set(items.map(s => normalizeUser(s?.by)))
-                          ).join(', ');
-
-                          const firstTime = formatTimeIST(items[0]?.date);
-                          const notesJoined = items
-                            .map((s) => (s?.value?.trim() ? s.value.trim() : "—"))
-                            .join(" | ");
-
-                          blocks.push(
-                            <Box
-                              key={`dated-${dayKey}`}
-                              sx={{
-                                mb: 1,
-                                p: 1,
-                                borderRadius: 1,
-                                border: "1px solid #E6E8EC",
-                                bgcolor: "#FFFFFF",
-                              }}
-                            >
-                              <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                                {`${formatDayHeaderIST(dayKey)} (${usersLabel})`}
-                              </Typography>
-                              <Typography
-                                variant="body2"
-                                sx={{
-                                  whiteSpace: "pre-wrap",
-                                  wordBreak: "break-word",
-                                  overflowWrap: "anywhere",
-                                  lineHeight: 1.4,
-                                  mt: 0.25,
-                                }}
-                              >
-                                {firstTime && firstTime !== "—"
-                                  ? `${firstTime} — ${notesJoined}`
-                                  : notesJoined}
-                              </Typography>
-                            </Box>
-                          );
-                        });
-
-                      Object.keys(invalid).forEach((label) => {
-                        const items = invalid[label];
-                        const usersLabel = Array.from(
-                          new Set(items.map(s => normalizeUser(s?.by)))
-                        ).join(', ');
-                        const notesJoined = items
-                          .map((s) => (s?.value?.trim() ? s.value.trim() : "—"))
-                          .join(" | ");
-
-                        blocks.push(
+                    {/* Scrollable history */}
+                    <Box
+                      ref={remarksBodyRef}
+                      sx={{
+                        mt: 1,
+                        pr: 1,
+                        overflowY: remarksExpanded ? 'auto' : 'hidden',
+                        height: remarksExpanded ? '56vh' : '44vh',
+                        position: 'relative'
+                      }}
+                    >
+                      <Box sx={{ mt: 1 }}>
+                        {/* First consult note FIRST, separate card */}
+                        {leads[selectedLeadIndex]?.rtRemark && (
                           <Box
-                            key={`invalid-${label}`}
                             sx={{
-                              mb: 1,
-                              p: 1,
-                              borderRadius: 1,
-                              border: "1px solid #E6E8EC",
-                              bgcolor: "#FFFFFF",
+                              mb: 1.25,
+                              p: 1.1,
+                              bgcolor: "#F6F9FD",
+                              borderRadius: 1.8,
+                              border: "1px solid #D7E1ED",
+                              boxShadow: "0 8px 16px rgba(15,23,42,0.08)",
                             }}
                           >
-                            <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                              {`${label} (${usersLabel})`}
+                            <Typography variant="body2" sx={{ fontWeight: 700, mb: 0.5, color: "#0F172A" }}>
+                              First Cons Notes
                             </Typography>
                             <Typography
                               variant="body2"
@@ -2993,51 +3056,181 @@ You can mark Lost only after 60 days.`);
                                 whiteSpace: "pre-wrap",
                                 wordBreak: "break-word",
                                 overflowWrap: "anywhere",
-                                lineHeight: 1.4,
-                                mt: 0.25,
+                                lineHeight: 1.4
                               }}
                             >
-                              {notesJoined}
+                              {leads[selectedLeadIndex]?.rtRemark}
                             </Typography>
                           </Box>
-                        );
-                      });
+                        )}
 
-                      return blocks;
-                    })()}
-                  </Box>
+                        {/* Dated subcells as cards */}
+                        {(() => {
+                          const list = [...(leads[selectedLeadIndex]?.rtSubcells || [])];
 
-                  {!remarksExpanded && showRemarksMore && (
-                    <Box
-                      sx={{
-                        position: 'absolute',
-                        left: 0,
-                        right: 0,
-                        bottom: 0,
-                        height: 56,
-                        background:
-                          'linear-gradient(to bottom, rgba(255,255,255,0), rgba(255,255,255,1))',
-                        display: 'flex',
-                        alignItems: 'flex-end',
-                        justifyContent: 'center',
-                        pb: 0.5,
-                        zIndex: 1,
-                      }}
-                    >
-                      <Button
-                        size="small"
-                        variant="outlined"
-                        onClick={() => setRemarksExpanded(true)}
-                        sx={{ textTransform: 'none', color: 'black', borderColor: 'black' }}
-                      >
-                        Load more
-                      </Button>
+                          const normalizeUser = (by) =>
+                            (typeof by === 'string' ? by.trim() : '') || 'Expert';
+
+                          list.sort((a, b) => {
+                            const ta = toDateSafe(a?.date)?.getTime() ?? -Infinity;
+                            const tb = toDateSafe(b?.date)?.getTime() ?? -Infinity;
+                            return tb - ta;
+                          });
+
+                          const dated = {};
+                          const invalid = {};
+
+                          const getInvalidLabel = (raw) => {
+                            const s = String(raw ?? "").trim();
+                            return s || "—";
+                          };
+
+                          list.forEach((sub) => {
+                            const key = getISTDayKey(sub?.date);
+                            if (key) {
+                              (dated[key] ||= []).push(sub);
+                            } else {
+                              const label = getInvalidLabel(sub?.date);
+                              (invalid[label] ||= []).push(sub);
+                            }
+                          });
+
+                          const blocks = [];
+
+                          Object.keys(dated)
+                            .sort((a, b) => (a > b ? -1 : 1))
+                            .forEach((dayKey) => {
+                              const items = dated[dayKey];
+
+                              items.sort((a, b) => {
+                                const ta = toDateSafe(a?.date)?.getTime() ?? -Infinity;
+                                const tb = toDateSafe(b?.date)?.getTime() ?? -Infinity;
+                                return tb - ta;
+                              });
+
+                              const usersLabel = Array.from(
+                                new Set(items.map(s => normalizeUser(s?.by)))
+                              ).join(', ');
+
+                              const firstTime = formatTimeIST(items[0]?.date);
+                              const notesJoined = items
+                                .map((s) => (s?.value?.trim() ? s.value.trim() : "—"))
+                                .join(" | ");
+
+                              blocks.push(
+                                <Box
+                                  key={`dated-${dayKey}`}
+                                  sx={{
+                                    mb: 1,
+                                    p: 1.1,
+                                    borderRadius: 1.8,
+                                    border: "1px solid #D1DDEB",
+                                    bgcolor: "#FFFFFF",
+                                    boxShadow: "0 8px 16px rgba(15,23,42,0.08)",
+                                  }}
+                                >
+                                  <Typography variant="body2" sx={{ fontWeight: 700, color: "#0F172A" }}>
+                                    {`${formatDayHeaderIST(dayKey)} (${usersLabel})`}
+                                  </Typography>
+                                  <Typography
+                                    variant="body2"
+                                    sx={{
+                                      whiteSpace: "pre-wrap",
+                                      wordBreak: "break-word",
+                                      overflowWrap: "anywhere",
+                                      lineHeight: 1.4,
+                                      mt: 0.25,
+                                    }}
+                                  >
+                                    {firstTime && firstTime !== "—"
+                                      ? `${firstTime} — ${notesJoined}`
+                                      : notesJoined}
+                                  </Typography>
+                                </Box>
+                              );
+                            });
+
+                          Object.keys(invalid).forEach((label) => {
+                            const items = invalid[label];
+                            const usersLabel = Array.from(
+                              new Set(items.map(s => normalizeUser(s?.by)))
+                            ).join(', ');
+                            const notesJoined = items
+                              .map((s) => (s?.value?.trim() ? s.value.trim() : "—"))
+                              .join(" | ");
+
+                            blocks.push(
+                              <Box
+                                key={`invalid-${label}`}
+                                sx={{
+                                  mb: 1,
+                                  p: 1.1,
+                                  borderRadius: 1.8,
+                                  border: "1px solid #D1DDEB",
+                                  bgcolor: "#FFFFFF",
+                                  boxShadow: "0 8px 16px rgba(15,23,42,0.08)",
+                                }}
+                              >
+                                <Typography variant="body2" sx={{ fontWeight: 700, color: "#0F172A" }}>
+                                  {`${label} (${usersLabel})`}
+                                </Typography>
+                                <Typography
+                                  variant="body2"
+                                  sx={{
+                                    whiteSpace: "pre-wrap",
+                                    wordBreak: "break-word",
+                                    overflowWrap: "anywhere",
+                                    lineHeight: 1.4,
+                                    mt: 0.25,
+                                  }}
+                                >
+                                  {notesJoined}
+                                </Typography>
+                              </Box>
+                            );
+                          });
+
+                          return blocks;
+                        })()}
+                      </Box>
+
+                      {!remarksExpanded && showRemarksMore && (
+                        <Box
+                          sx={{
+                            position: 'absolute',
+                            left: 0,
+                            right: 0,
+                            bottom: 0,
+                            height: 56,
+                            background:
+                              'linear-gradient(to bottom, rgba(255,255,255,0), rgba(255,255,255,1))',
+                            display: 'flex',
+                            alignItems: 'flex-end',
+                            justifyContent: 'center',
+                            pb: 0.5,
+                            zIndex: 1,
+                          }}
+                        >
+                          <Button
+                            size="small"
+                            variant="outlined"
+                            onClick={() => setRemarksExpanded(true)}
+                            sx={{
+                              textTransform: 'none',
+                              color: '#1E293B',
+                              borderColor: '#C6D3E2',
+                              borderRadius: "10px"
+                            }}
+                          >
+                            Load more
+                          </Button>
+                        </Box>
+                      )}
                     </Box>
-                  )}
-                </Box>
-              </Box>
-            </Paper>
-
+                  </Box>
+                </Paper>
+              )}
+            </Box>
           </>
         )}
       </Box>

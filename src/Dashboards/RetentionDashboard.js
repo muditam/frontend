@@ -1,1050 +1,751 @@
-import React, { useEffect, useState } from "react";
-import {
-  Box,
-  Typography,
-  Grid,
-  Paper,
-  CircularProgress,
-  LinearProgress,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  Select,
-  MenuItem,
-  FormControl,
-  TextField,
-  Button,
-} from "@mui/material";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import axios from "axios";
+import IncentiveSummarySection from "../components/IncentiveSummarySection";
+import "./RetentionDashboard.css";
 
-import WarningAmberIcon from "@mui/icons-material/WarningAmber";
-import {
-  PersonOutline,
-  LocalMall,
-  CurrencyRupee,
-  CurrencyRupeeOutlined,
-  ExpandMore,
-  EventBusy,
-  Today,
-  EventAvailable,
-  Schedule,
-  MoreTime,
-  Cancel,
-} from "@mui/icons-material";
-import { styled } from "@mui/system";
 
-import Badge from "@mui/material/Badge";
-import CircleIcon from '@mui/icons-material/Circle';
+const API_BASE = "https://muditamleads-14f32a10d7f7.herokuapp.com";
 
-// ----------------------
-// 1) Range dropdown options (shared for both Today-Followup & Shipment)
-// ----------------------
-const timeRangeOptions = [
-  "Today",
-  "Yesterday",
-  "Last 7 days",
-  "Last 30 days",
-  "Week to date",
-  "Month to date",
-  "Year to date",
-  "Last 90 days",
-  "Last 365 days",
-  "Last month",
-  "Last 12 months",
-  "Last year",
-  "Quarter to date",
-  "Custom range",
+
+const TIME_RANGE_OPTIONS = [
+ "Today",
+ "Yesterday",
+ "Last 7 days",
+ "Last 30 days",
+ "Week to date",
+ "Month to date",
+ "Year to date",
+ "Last 90 days",
+ "Last 365 days",
+ "Last month",
+ "Last 12 months",
+ "Last year",
+ "Quarter to date",
+ "Custom range",
 ];
 
-// 2) Utility: format date => YYYY-MM-DD
+
+const DISPOSITION_KEYS = [
+ "OC",
+ "CNP",
+ "Followup Done",
+ "Order Placed",
+ "Call Back Later",
+ "Busy",
+ "Switch Off",
+ "Drop On Intro",
+];
+
+
 const toISODate = (date) => {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
+ const year = date.getFullYear();
+ const month = String(date.getMonth() + 1).padStart(2, "0");
+ const day = String(date.getDate()).padStart(2, "0");
+ return `${year}-${month}-${day}`;
 };
 
-// 3) getDateRange helper
+
 const getDateRange = (rangeValue) => {
-  const now = new Date();
-  now.setHours(0, 0, 0, 0);
+ const now = new Date();
+ now.setHours(0, 0, 0, 0);
 
-  let start = new Date(now);
-  let end = new Date(now);
 
-  const getWeekStart = (d) => {
-    const copy = new Date(d);
-    const day = copy.getDay(); // 0 = Sunday
-    const diff = day === 0 ? 6 : day - 1; // Monday-based
-    copy.setDate(copy.getDate() - diff);
-    copy.setHours(0, 0, 0, 0);
-    return copy;
-  };
+ let start = new Date(now);
+ let end = new Date(now);
 
-  switch (rangeValue) {
-    case "Today":
-      break;
 
-    case "Yesterday":
-      start.setDate(now.getDate() - 1);
-      end = new Date(start);
-      break;
+ const getWeekStart = (date) => {
+   const copy = new Date(date);
+   const day = copy.getDay();
+   const diff = day === 0 ? 6 : day - 1;
+   copy.setDate(copy.getDate() - diff);
+   copy.setHours(0, 0, 0, 0);
+   return copy;
+ };
 
-    case "Last 7 days":
-      start.setDate(now.getDate() - 6);
-      break;
 
-    case "Last 30 days":
-      start.setDate(now.getDate() - 29);
-      break;
+ switch (rangeValue) {
+   case "Today":
+     break;
+   case "Yesterday":
+     start.setDate(now.getDate() - 1);
+     end = new Date(start);
+     break;
+   case "Last 7 days":
+     start.setDate(now.getDate() - 6);
+     break;
+   case "Last 30 days":
+     start.setDate(now.getDate() - 29);
+     break;
+   case "Week to date":
+     start = getWeekStart(now);
+     break;
+   case "Month to date":
+     start = new Date(now.getFullYear(), now.getMonth(), 1);
+     start.setHours(0, 0, 0, 0);
+     break;
+   case "Year to date":
+     start = new Date(now.getFullYear(), 0, 1);
+     start.setHours(0, 0, 0, 0);
+     break;
+   case "Last 90 days":
+     start.setDate(now.getDate() - 89);
+     break;
+   case "Last 365 days":
+     start.setDate(now.getDate() - 364);
+     break;
+   case "Last month": {
+     const year = now.getFullYear();
+     const month = now.getMonth();
+     const prevMonth = month - 1 < 0 ? 11 : month - 1;
+     const prevYear = month - 1 < 0 ? year - 1 : year;
+     start = new Date(prevYear, prevMonth, 1);
+     end = new Date(prevYear, prevMonth + 1, 0);
+     return { startDate: toISODate(start), endDate: toISODate(end) };
+   }
+   case "Last 12 months":
+     start.setFullYear(now.getFullYear() - 1);
+     break;
+   case "Last year": {
+     const y = now.getFullYear() - 1;
+     start = new Date(y, 0, 1);
+     end = new Date(y, 11, 31);
+     return { startDate: toISODate(start), endDate: toISODate(end) };
+   }
+   case "Quarter to date": {
+     const currentMonth = now.getMonth();
+     const quarterStartMonth = currentMonth - (currentMonth % 3);
+     start = new Date(now.getFullYear(), quarterStartMonth, 1);
+     start.setHours(0, 0, 0, 0);
+     break;
+   }
+   case "Custom range":
+     return { startDate: "", endDate: "" };
+   default:
+     break;
+ }
 
-    case "Week to date":
-      start = getWeekStart(now);
-      break;
 
-    case "Month to date":
-      start = new Date(now.getFullYear(), now.getMonth(), 1);
-      start.setHours(0, 0, 0, 0);
-      break;
-
-    case "Year to date":
-      start = new Date(now.getFullYear(), 0, 1);
-      start.setHours(0, 0, 0, 0);
-      break;
-
-    case "Last 90 days":
-      start.setDate(now.getDate() - 89);
-      break;
-
-    case "Last 365 days":
-      start.setDate(now.getDate() - 364);
-      break;
-
-    case "Last month": {
-      const year = now.getFullYear();
-      const month = now.getMonth();
-      const prevMonth = month - 1 < 0 ? 11 : month - 1;
-      const prevYear = month - 1 < 0 ? year - 1 : year;
-
-      start = new Date(prevYear, prevMonth, 1);
-      end = new Date(prevYear, prevMonth + 1, 0);
-
-      start.setHours(0, 0, 0, 0);
-      end.setHours(0, 0, 0, 0);
-
-      return { startDate: toISODate(start), endDate: toISODate(end) };
-    }
-
-    case "Last 12 months":
-      start.setFullYear(now.getFullYear() - 1);
-      break;
-
-    case "Last year": {
-      const y = now.getFullYear() - 1;
-      start = new Date(y, 0, 1);
-      end = new Date(y, 11, 31);
-
-      start.setHours(0, 0, 0, 0);
-      end.setHours(0, 0, 0, 0);
-
-      return { startDate: toISODate(start), endDate: toISODate(end) };
-    }
-
-    case "Quarter to date": {
-      const currentMonth = now.getMonth();
-      const quarterStartMonth = currentMonth - (currentMonth % 3);
-      start = new Date(now.getFullYear(), quarterStartMonth, 1);
-      start.setHours(0, 0, 0, 0);
-      break;
-    }
-
-    case "Custom range":
-      return { startDate: "", endDate: "" };
-
-    default:
-      break;
-  }
-
-  end.setHours(0, 0, 0, 0);
-
-  return {
-    startDate: toISODate(start),
-    endDate: toISODate(end),
-  };
+ return { startDate: toISODate(start), endDate: toISODate(end) };
 };
+
+
+const iconForMetric = (key) => {
+ switch (key) {
+   case "Active Customers":
+     return "AC";
+   case "Sales Done Today":
+     return "SD";
+   case "Total Sales":
+     return "TS";
+   case "Average Order Value":
+     return "AOV";
+   case "No Followup Set":
+     return "NS";
+   case "Followup Missed":
+     return "FM";
+   case "Followup Today":
+     return "FT";
+   case "Followup Tomorrow":
+     return "FR";
+   case "Followup Later":
+     return "FL";
+   case "Lost Customers":
+     return "LC";
+   default:
+     return "•";
+ }
+};
+
+
+const normalizeShipmentTone = (label = "") => {
+ const value = String(label).toLowerCase();
+ if (value.includes("deliver")) return "good";
+ if (value.includes("rto") || value.includes("cancel") || value.includes("return")) return "bad";
+ if (value.includes("unknown")) return "neutral";
+ return "info";
+};
+
+
+const clampPercent = (value) => {
+ const parsed = Number(value || 0);
+ if (!Number.isFinite(parsed)) return 0;
+ return Math.max(0, Math.min(100, parsed));
+};
+
+
+const prettyDate = (dateText = "") => {
+ if (!dateText) return "";
+ const date = new Date(`${dateText}T00:00:00`);
+ if (Number.isNaN(date.getTime())) return dateText;
+ return date.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+};
+
+
+const toneClassForMetric = (key) => {
+ switch (key) {
+   case "Active Customers":
+     return "rd-tone-blue";
+   case "Sales Done Today":
+     return "rd-tone-orange";
+   case "Total Sales":
+     return "rd-tone-teal";
+   case "Average Order Value":
+     return "rd-tone-red";
+   case "No Followup Set":
+     return "rd-tone-slate";
+   case "Followup Missed":
+     return "rd-tone-red";
+   case "Followup Today":
+     return "rd-tone-green";
+   case "Followup Tomorrow":
+     return "rd-tone-amber";
+   case "Followup Later":
+     return "rd-tone-cyan";
+   case "Lost Customers":
+     return "rd-tone-red";
+   default:
+     return "rd-tone-slate";
+ }
+};
+
 
 const RetentionAgentDashboard = () => {
-  const [loading, setLoading] = useState(true);
-  const [todayMetrics, setTodayMetrics] = useState({});
-  const [followupMetrics, setFollowupMetrics] = useState({});
-  const [shipmentSummary, setShipmentSummary] = useState([]);
-  const [applyingShipment, setApplyingShipment] = useState(false);
-  const [reachoutLogsCount, setReachoutLogsCount] = useState(0);
-  const [reachoutLogsWhatsApp, setReachoutLogsWhatsApp] = useState(0);
-  const [reachoutLogsCall, setReachoutLogsCall] = useState(0);
-  const [reachoutLogsBoth, setReachoutLogsBoth] = useState(0);
-  const [dispositionCounts, setDispositionCounts] = useState({});
-
-  // Which summary is selected in the main toggle?
-  const [selectedSummary, setSelectedSummary] = useState("Today-Followup Summary");
-
-  // ---------------------
-  // Today-Followup states
-  // ---------------------
-  const [selectedRangeTF, setSelectedRangeTF] = useState("Today");
-  const [customStartTF, setCustomStartTF] = useState("");
-  const [customEndTF, setCustomEndTF] = useState("");
-
-  // ---------------------
-  // Shipment Summary states
-  // ---------------------
-  // Default to "Month to date" for the shipment summary
-  const [selectedRangeShipment, setSelectedRangeShipment] = useState("Today");
-  const [customStartShipment, setCustomStartShipment] = useState("");
-  const [customEndShipment, setCustomEndShipment] = useState("");
-
-  const user = JSON.parse(sessionStorage.getItem("user"));
-
-  // ---------------------------------------------------------
-  // 1) fetchTodayFollowupData => calls /api/today-summary and /api/followup-summary 
-  // ---------------------------------------------------------
-  const fetchTodayFollowupData = async (agentName, startDate, endDate) => {
-    try {
-      setLoading(true);
-
-      // 1. Fetch active customers from the /active-counts endpoint.
-      // This endpoint returns an array with objects like { _id: "<agentName>", activeCount: <number> }
-      const activeCountsResponse = await axios.get(
-        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/retention/active-counts" 
-      );
-      const activeCountsData = activeCountsResponse.data;
-      const activeCountForAgent = activeCountsData.find(
-        (item) => item._id === agentName
-      );
-      const activeCount = activeCountForAgent ? activeCountForAgent.activeCount : 0;
-
-      // 2. Fetch today's summary data from /api/today-summary
-      const todaySummaryResponse = await axios.get(
-        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/today-summary", 
-        { params: { agentName, startDate, endDate } }
-      );
-
-      // Merge the returned data from todaySummary with the active count value.
-      const updatedTodayMetrics = {
-        ...todaySummaryResponse.data, 
-        activeCustomers: activeCount,
-      };
-      setTodayMetrics(updatedTodayMetrics);
-
-      // 3. Fetch followup summary data as before.
-      const followupSummaryResponse = await axios.get(
-        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/followup-summary",
-        { params: { agentName, startDate, endDate } }
-      );
-      setFollowupMetrics(followupSummaryResponse.data);
-    } catch (error) {
-      console.error("Error fetching Today-Followup data:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
+ const [loadingMain, setLoadingMain] = useState(true);
+ const [loadingShipment, setLoadingShipment] = useState(false);
+ const [loadingAux, setLoadingAux] = useState(false);
 
 
-  const fetchReachoutLogsCount = async () => {
-    // Decide the date range based on selected summary and selected time range
-    let startDate = "";
-    let endDate = "";
-
-    if (selectedSummary === "Today-Followup Summary") {
-      if (selectedRangeTF === "Custom range" && customStartTF && customEndTF) {
-        startDate = customStartTF;
-        endDate = customEndTF;
-      } else {
-        const range = getDateRange(selectedRangeTF);
-        startDate = range.startDate;
-        endDate = range.endDate;
-      }
-    } else if (selectedSummary === "Shipment Summary") {
-      if (selectedRangeShipment === "Custom range" && customStartShipment && customEndShipment) {
-        startDate = customStartShipment;
-        endDate = customEndShipment;
-      } else {
-        const range = getDateRange(selectedRangeShipment);
-        startDate = range.startDate;
-        endDate = range.endDate;
-      }
-    }
-
-    try {
-      // Call new API endpoint without user ID
-      const res = await axios.get(`https://muditamleads-14f32a10d7f7.herokuapp.com/api/reachout-logs/count`, {
-        params: { startDate, endDate, healthExpertAssigned: user?.fullName },
-      });
-
-      setReachoutLogsCount(res.data.totalCount || 0);
-      setReachoutLogsWhatsApp(res.data.WhatsApp || 0);
-      setReachoutLogsCall(res.data.Call || 0);
-      setReachoutLogsBoth(res.data.Both || 0);
-    } catch (err) {
-      console.error("Failed to fetch reachout logs count", err);
-      setReachoutLogsCount(0);
-      setReachoutLogsWhatsApp(0);
-      setReachoutLogsCall(0);
-      setReachoutLogsBoth(0);
-    }
-  };
-
-  const fetchDispositionCounts = async () => {
-    let startDate = "";
-    let endDate = "";
-
-    if (selectedSummary === "Today-Followup Summary") {
-      if (selectedRangeTF === "Custom range" && customStartTF && customEndTF) {
-        startDate = customStartTF;
-        endDate = customEndTF;
-      } else {
-        const range = getDateRange(selectedRangeTF);
-        startDate = range.startDate;
-        endDate = range.endDate;
-      }
-    } else if (selectedSummary === "Shipment Summary") {
-      if (selectedRangeShipment === "Custom range" && customStartShipment && customEndShipment) {
-        startDate = customStartShipment;
-        endDate = customEndShipment;
-      } else {
-        const range = getDateRange(selectedRangeShipment);
-        startDate = range.startDate;
-        endDate = range.endDate;
-      }
-    }
-
-    try {
-      const res = await axios.get(`https://muditamleads-14f32a10d7f7.herokuapp.com/api/reachout-logs/disposition-count`, {
-        params: { startDate, endDate, healthExpertAssigned: user?.fullName },
-      });
-
-      setDispositionCounts(res.data || {});
-    } catch (err) {
-      console.error("Failed to fetch disposition counts", err);
-      setDispositionCounts({});
-    }
-  };
+ const [todayMetrics, setTodayMetrics] = useState({});
+ const [followupMetrics, setFollowupMetrics] = useState({});
+ const [shipmentSummary, setShipmentSummary] = useState([]);
 
 
-  useEffect(() => {
-    fetchReachoutLogsCount();
-    fetchDispositionCounts();
-  }, [
-    selectedSummary,
-    selectedRangeTF,
-    selectedRangeShipment,
-    customStartTF,
-    customEndTF,
-    customStartShipment,
-    customEndShipment,
-  ]);
+ const [reachoutLogsCount, setReachoutLogsCount] = useState(0);
+ const [reachoutLogsWhatsApp, setReachoutLogsWhatsApp] = useState(0);
+ const [reachoutLogsCall, setReachoutLogsCall] = useState(0);
+ const [reachoutLogsBoth, setReachoutLogsBoth] = useState(0);
+ const [dispositionCounts, setDispositionCounts] = useState({});
 
 
-
-  // ---------------------------------------------------------
-  // 2) fetchShipmentStatusSummary => calls /api/shipment-summary
-  // ---------------------------------------------------------
-  const fetchShipmentStatusSummary = async (retentionAgentName, startDate, endDate) => {
-    try {
-      setApplyingShipment(true);
-      const response = await axios.get(
-        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/shipment-summary",
-        {
-          params: { agentName: retentionAgentName, startDate, endDate },
-        }
-      );
-      setShipmentSummary(response.data);
-    } catch (error) {
-      console.error("Error fetching shipment status summary:", error);
-    } finally {
-      setApplyingShipment(false);
-    }
-  };
-
-  // ---------------------------------------------------------
-  // Handle box click for filtering (open new tab, optional)
-  // ---------------------------------------------------------
-  const handleBoxClick = (filterType) => {
-    const clickableBoxes = [
-      "Active Customers",
-      "Lost Customers",
-      "Sales Done Today",
-      "Followup Today",
-      "No Followup Set",
-      "Followup Tomorrow",
-      "Followup Later",
-      "Followup Missed",
-    ];
-    if (clickableBoxes.includes(filterType)) {
-      window.open(`/retention/${filterType}`, "_blank");
-    }
-  };
- 
-useEffect(() => {
-  if (user?.fullName) {
-    const { startDate, endDate } = getDateRange("Today");
-    fetchTodayFollowupData(user.fullName, startDate, endDate);
-
-    const { startDate: sShipment, endDate: eShipment } = getDateRange("Month to date");
-    fetchShipmentStatusSummary(user.fullName, sShipment, eShipment);
-    setSelectedRangeShipment("Month to date");
-  }
-}, [user?.fullName]);
-
-  // ---------------------------------------------------------
-  // Handle main summary toggle (two options)
-  // ---------------------------------------------------------
-  const handleSummaryChange = (e) => {
-    setSelectedSummary(e.target.value);
-  };
-
-  // ---------------------------------------------------------
-  // 4) handleTimeRangeChange for "Today-Followup Summary"
-  // ---------------------------------------------------------
-  const handleTimeRangeChangeTF = async (e) => {
-    const newRange = e.target.value;
-    setSelectedRangeTF(newRange);
-    if (!user?.fullName) return;
-    if (newRange !== "Custom range") {
-      const { startDate, endDate } = getDateRange(newRange);
-      await fetchTodayFollowupData(user.fullName, startDate, endDate);
-    }
-  };
-
-  // 5) applyCustomRangeTF
-  const applyCustomRangeTF = async () => {
-    if (!customStartTF || !customEndTF || !user?.fullName) return;
-    await fetchTodayFollowupData(user.fullName, customStartTF, customEndTF);
-  };
-
-  // ---------------------------------------------------------
-  // 6) handleTimeRangeChange for "Shipment Summary"
-  // ---------------------------------------------------------
-  const handleTimeRangeChangeShipment = async (e) => {
-    const newRange = e.target.value;
-    setSelectedRangeShipment(newRange);
-    if (!user?.fullName) return;
-    if (newRange !== "Custom range") {
-      const { startDate, endDate } = getDateRange(newRange);
-      await fetchShipmentStatusSummary(user.fullName, startDate, endDate);
-    }
-  };
-
-  // applyCustomRangeShipment
-  const applyCustomRangeShipment = async () => {
-    if (!customStartShipment || !customEndShipment || !user?.fullName) return;
-    await fetchShipmentStatusSummary(user.fullName, customStartShipment, customEndShipment);
-  };
-
-  return (
-    <Box
-      sx={{
-        padding: { xs: 2, sm: 3, md: 4 },
-        width: { xs: "90%", sm: "85%", md: "85%", lg: "90%" },
-        paddingBottom: "10px",
-        marginLeft: "auto",
-        marginRight: "auto",
-      }}
-    >
-      <Typography
-        variant="h4"
-        gutterBottom
-        fontWeight={600}
-        color="#000000"
-        textAlign="center" 
-        marginTop={-2}
-      >
-        {user?.fullName} - Dashboard
-      </Typography>
-
-      {/* Combined Dropdowns for Summary Toggle and Time Range */}
-      <Box
-        sx={{
-          display: "flex",
-          justifyContent: "center",
-          alignItems: "center",
-          gap: 2,
-          flexWrap: "wrap",
-          mb: 2,
-          mt: 2,
-        }}
-      >
-        {/* Summary Toggle (Today-Followup vs Shipment) */}
-        <FormControl variant="outlined" sx={{ width: 300 }}>
-          <Select
-            value={selectedSummary}
-            onChange={handleSummaryChange}
-            displayEmpty
-            IconComponent={ExpandMore}
-            renderValue={(selected) =>
-              selected ? `${selected}` : "Summary:"
-            }
-            sx={{
-              backgroundColor: "#fff",
-              color: "#333",
-              borderRadius: 2,
-              border: "1px solid #ccc",
-              "& .MuiOutlinedInput-notchedOutline": { borderColor: "#ccc" },
-              "&:hover .MuiOutlinedInput-notchedOutline": { borderColor: "#888" },
-            }}
-          >
-            <MenuItem value="Today-Followup Summary">
-              <Typography variant="body2">Today & Followup Summary</Typography>
-            </MenuItem>
-            <MenuItem value="Shipment Summary">
-              <Typography variant="body2">Shipment Summary</Typography>
-            </MenuItem>
-          </Select>
-        </FormControl>
-
-        {/* Time Range Dropdown for Today-Followup */}
-        {selectedSummary === "Today-Followup Summary" && (
-          <FormControl variant="outlined" sx={{ width: 300 }}>
-            <Select
-              value={selectedRangeTF}
-              onChange={handleTimeRangeChangeTF}
-              displayEmpty
-              IconComponent={ExpandMore}
-              renderValue={(val) => (val ? val : "Time Range")}
-              sx={{
-                backgroundColor: "#fff",
-                color: "#333",
-                borderRadius: 2,
-                border: "1px solid #ccc",
-                "& .MuiOutlinedInput-notchedOutline": { borderColor: "#ccc" },
-                "&:hover .MuiOutlinedInput-notchedOutline": { borderColor: "#888" },
-              }}
-            >
-              {timeRangeOptions.map((option) => (
-                <MenuItem key={option} value={option}>
-                  <Typography variant="body2">{option}</Typography>
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-        )}
-
-        {/* Time Range Dropdown for Shipment Summary */}
-        {selectedSummary === "Shipment Summary" && (
-          <FormControl variant="outlined" sx={{ width: 300 }}>
-            <Select
-              value={selectedRangeShipment}
-              onChange={handleTimeRangeChangeShipment}
-              displayEmpty
-              IconComponent={ExpandMore}
-              renderValue={(val) => (val ? val : "Time Range")}
-              sx={{
-                backgroundColor: "#fff",
-                color: "#333",
-                borderRadius: 2,
-                border: "1px solid #ccc",
-                "& .MuiOutlinedInput-notchedOutline": { borderColor: "#ccc" },
-                "&:hover .MuiOutlinedInput-notchedOutline": { borderColor: "#888" },
-              }}
-            >
-              {timeRangeOptions.map((option) => (
-                <MenuItem key={option} value={option}>
-                  <Typography variant="body2">{option}</Typography>
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-        )}
+ const [selectedRange, setSelectedRange] = useState("Today");
+ const [customStart, setCustomStart] = useState("");
+ const [customEnd, setCustomEnd] = useState("");
+ const [windowLabel, setWindowLabel] = useState("Today");
+ const [target, setTarget] = useState(0);
+ const [salesProgress, setSalesProgress] = useState(0);
 
 
-        {/* Reachout Logs Circle Badge */}
-        <Box
-          sx={{
-            position: "fixed",
-            top: 80,
-            right: 16,
-            width: 220,
-            backgroundColor: "white",
-            borderRadius: 2,
-            boxShadow: "0 0 15px rgba(0,0,0,0.2)",
-            padding: 2,
-            userSelect: "none",
-          }}
-        >
-          <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
-            Reachout Logs Summary
-          </Typography>
+ const user = useMemo(() => {
+   try {
+     return JSON.parse(sessionStorage.getItem("user"));
+   } catch {
+     return null;
+   }
+ }, []);
+ const canShowDrrPanel = Boolean(user?.permissions?.navbar?.drrPanel);
 
-          <Box sx={{ display: "flex", justifyContent: "space-between", mb: 1 }}>
-            <Typography>Total:</Typography>
-            <Typography fontWeight="bold">{reachoutLogsCount}</Typography>
-          </Box>
-          <Box sx={{ display: "flex", justifyContent: "space-between", mb: 1 }}>
-            <Typography>WhatsApp:</Typography>
-            <Typography fontWeight="bold">{reachoutLogsWhatsApp || 0}</Typography>
-          </Box>
-          <Box sx={{ display: "flex", justifyContent: "space-between", mb: 1 }}>
-            <Typography>Call:</Typography>
-            <Typography fontWeight="bold">{reachoutLogsCall || 0}</Typography>
-          </Box>
-          <Box sx={{ display: "flex", justifyContent: "space-between" }}>
-            <Typography>Both:</Typography>
-            <Typography fontWeight="bold">{reachoutLogsBoth || 0}</Typography>
-          </Box>
-        </Box>
 
-        <Box
-          sx={{
-            position: "fixed",
-            top: 300,
-            right: 16,
-            width: 220,
-            backgroundColor: "white",
-            borderRadius: 2,
-            boxShadow: "0 0 15px rgba(0,0,0,0.2)",
-            padding: 2,
-            userSelect: "none",
-          }}
-        >
-          <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
-            Disposition Summary
-          </Typography>
+ const fetchAllSummaryData = useCallback(async (agentName, startDate, endDate) => {
+   setLoadingMain(true);
+   try {
+     const [activeCountsRes, todaySummaryRes, followupRes] = await Promise.all([
+       axios.get(`${API_BASE}/api/leads/retention/active-counts`),
+       axios.get(`${API_BASE}/api/today-summary`, {
+         params: { agentName, startDate, endDate },
+       }),
+       axios.get(`${API_BASE}/api/followup-summary`, {
+         params: { agentName, startDate, endDate },
+       }),
+     ]);
 
-          {[
-            "OC",
-            "CNP",
-            "Followup Done",
-            "Order Placed",
-            "Call Back Later",
-            "Busy",
-            "Switch Off",
-            "Drop On Intro",
-          ].map((status) => (
-            <Box
-              key={status}
-              sx={{ display: "flex", justifyContent: "space-between", mb: 1 }}
-            >
-              <Typography>{status}:</Typography>
-              <Typography fontWeight="bold">
-                {dispositionCounts?.[status] ?? 0}
-              </Typography>
-            </Box>
-          ))}
-        </Box>
-      </Box>
 
-      {/* If "Custom range" is selected for Today-Followup, show date pickers and Apply button */}
-      {selectedSummary === "Today-Followup Summary" && selectedRangeTF === "Custom range" && (
-        <Box
-          sx={{
-            display: "flex",
-            justifyContent: "center",
-            gap: 2,
-            flexWrap: "wrap",
-            mb: 2,
-          }}
-        >
-          <TextField
-            label="Start Date"
-            type="date"
-            value={customStartTF}
-            onChange={(e) => setCustomStartTF(e.target.value)}
-            InputLabelProps={{ shrink: true }}
-            sx={{
-              width: 180,
-              "& .MuiInputBase-root": {
-                backgroundColor: "background.default",
-              },
-            }}
-          />
-          <TextField
-            label="End Date"
-            type="date"
-            value={customEndTF}
-            onChange={(e) => setCustomEndTF(e.target.value)}
-            InputLabelProps={{ shrink: true }}
-            sx={{
-              width: 180,
-              "& .MuiInputBase-root": {
-                backgroundColor: "background.default",
-              },
-            }}
-          />
-          <Button
-            variant="contained"
-            onClick={applyCustomRangeTF}
-            sx={{
-              bgcolor: "primary.main",
-              color: "white",
-              "&:hover": { bgcolor: "primary.dark" },
-            }}
-          >
-            Apply
-          </Button>
-        </Box>
-      )}
+     const activeCounts = Array.isArray(activeCountsRes?.data)
+       ? activeCountsRes.data
+       : [];
+     const current = activeCounts.find((item) => item?._id === agentName);
 
-      {/* If "Custom range" is selected for Shipment Summary, show date pickers and Apply button */}
-      {selectedSummary === "Shipment Summary" && selectedRangeShipment === "Custom range" && (
-        <Box
-          sx={{
-            display: "flex",
-            justifyContent: "center",
-            gap: 2,
-            flexWrap: "wrap",
-            mb: 2,
-          }}
-        >
-          <TextField
-            label="Start Date"
-            type="date"
-            value={customStartShipment}
-            onChange={(e) => setCustomStartShipment(e.target.value)}
-            InputLabelProps={{ shrink: true }}
-            sx={{
-              width: 180,
-              "& .MuiInputBase-root": {
-                backgroundColor: "background.default",
-              },
-            }}
-          />
-          <TextField
-            label="End Date"
-            type="date"
-            value={customEndShipment}
-            onChange={(e) => setCustomEndShipment(e.target.value)}
-            InputLabelProps={{ shrink: true }}
-            sx={{
-              width: 180,
-              "& .MuiInputBase-root": {
-                backgroundColor: "background.default",
-              },
-            }}
-          />
-          <Button
-            variant="contained"
-            onClick={applyCustomRangeShipment}
-            sx={{
-              bgcolor: "primary.main",
-              color: "white",
-              "&:hover": { bgcolor: "primary.dark" },
-            }}
-          >
-            Apply
-          </Button>
-        </Box>
-      )}
 
-      {/* 1) TODAY-FOLLOWUP SUMMARY */}
-      {selectedSummary === "Today-Followup Summary" && (
-        <>
-          {/* Today Summary Section */}
-          <Box
-            sx={{
-              padding: 2,
-              marginTop: 1,
-              borderRadius: 2,
-              backgroundColor: "#FFFFFF",
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              maxWidth: "1000px",
-              margin: "0 auto",
-              boxShadow: "0px 5px 15px rgba(0, 0, 0, 0.05)",
-            }}
-          >
-            <Typography
-              variant="h5"
-              fontWeight={600}
-              gutterBottom
-              color="#000000"
-              textAlign="center"
-              marginTop={-2}
-            >
-              Today Summary
-            </Typography>
-            <Grid container spacing={2} sx={{ width: "100%" }}>
-              {[
-                {
-                  label: "Active Customers",
-                  value: todayMetrics.activeCustomers || 0,
-                  icon: (
-                    <PersonOutline fontSize="medium" sx={{ color: "#1976D2" }} />
-                  ),
-                },
-                {
-                  label: "Sales Done Today",
-                  value: todayMetrics.salesDone || 0,
-                  icon: (
-                    <LocalMall fontSize="medium" sx={{ color: "#f57c00" }} />
-                  ),
-                },
-                {
-                  label: "Total Sales",
-                  value: `₹${(todayMetrics.totalSales || 0).toFixed(2)}`,
-                  icon: (
-                    <CurrencyRupee fontSize="medium" sx={{ color: "#9c27b0" }} />
-                  ),
-                },
-                {
-                  label: "Average Order Value",
-                  value: `₹${(todayMetrics.avgOrderValue || 0).toFixed(2)}`,
-                  icon: (
-                    <CurrencyRupeeOutlined fontSize="medium" sx={{ color: "#d32f2f" }} />
-                  ),
-                },
-              ].map(({ label, value, icon }) => (
-                <Grid item xs={12} sm={6} md={3} key={label}>
-                  <Box
-                    sx={{
-                      p: 2,
-                      display: "flex",
-                      alignItems: "center",
-                      borderRadius: 2,
-                      backgroundColor: "#F9FAFB",
-                      boxShadow: "0px 3px 10px rgba(0, 0, 0, 0.05)",
-                      transition: "0.3s",
-                      width: "90%",
-                      minHeight: "130px",
-                      margin: "0 auto",
-                      "&:hover": {
-                        transform: "translateY(-3px)",
-                        boxShadow: "0px 5px 15px rgba(0, 0, 0, 0.1)",
-                      },
-                    }}
-                    onClick={() => handleBoxClick(label)}
-                  >
-                    <Box sx={{ fontSize: 28, mr: 2 }}>{icon}</Box>
-                    <Box>
-                      <Typography variant="subtitle2" sx={{ color: "#555" }}>
-                        {label}
-                      </Typography>
-                      <Typography variant="h6" fontWeight="bold" sx={{ color: "#333" }}>
-                        {value !== undefined ? value : <CircularProgress size={18} />}
-                      </Typography>
-                    </Box>
-                  </Box>
-                </Grid>
-              ))}
-            </Grid>
-          </Box>
+     setTodayMetrics({
+       ...(todaySummaryRes?.data || {}),
+       activeCustomers: Number(current?.activeCount || 0),
+     });
+     setFollowupMetrics(followupRes?.data || {});
+   } catch (error) {
+     console.error("Error fetching today/followup data:", error);
+     setTodayMetrics({});
+     setFollowupMetrics({});
+   } finally {
+     setLoadingMain(false);
+   }
+ }, []);
 
-          {/* Followup Summary Section */}
-          <Box
-            sx={{
-              padding: 2,
-              marginTop: 3,
-              borderRadius: 2,
-              backgroundColor: "#FFFFFF",
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              maxWidth: "1000px",
-              margin: "0 auto",
-              boxShadow: "0px 5px 15px rgba(0, 0, 0, 0.05)",
-            }}
-          >
-            <Typography
-              variant="h5"
-              fontWeight={600}
-              gutterBottom
-              color="#000000"
-              textAlign="center"
-              marginTop={-3}
-            >
-              Followup Summary
-            </Typography>
-            <Grid container spacing={2} sx={{ width: "100%" }}>
-              {[
-                {
-                  label: "No Followup Set",
-                  icon: <Schedule sx={{ color: "#546E7A" }} />,
-                  value:
-                    followupMetrics.noFollowupSet !== undefined
-                      ? followupMetrics.noFollowupSet
-                      : <CircularProgress size={20} />,
-                },
-                {
-                  label: "Followup Missed",
-                  icon: <EventBusy sx={{ color: "#D32F2F" }} />,
-                  value:
-                    followupMetrics.followupMissed !== undefined
-                      ? followupMetrics.followupMissed
-                      : <CircularProgress size={20} />,
-                },
-                {
-                  label: "Followup Today",
-                  icon: <Today sx={{ color: "#388E3C" }} />,
-                  value:
-                    followupMetrics.followupToday !== undefined
-                      ? followupMetrics.followupToday
-                      : <CircularProgress size={20} />,
-                },
-                {
-                  label: "Followup Tomorrow",
-                  icon: <EventAvailable sx={{ color: "#FFA000" }} />,
-                  value:
-                    followupMetrics.followupTomorrow !== undefined
-                      ? followupMetrics.followupTomorrow
-                      : <CircularProgress size={20} />,
-                },
-                {
-                  label: "Followup Later",
-                  icon: <MoreTime sx={{ color: "#0288D1" }} />,
-                  value:
-                    followupMetrics.followupLater !== undefined
-                      ? followupMetrics.followupLater
-                      : <CircularProgress size={20} />,
-                },
-                {
-                  label: "Lost Customers",
-                  icon: <Cancel sx={{ color: "#D32F2F" }} />,
-                  value:
-                    followupMetrics.lostCustomers !== undefined
-                      ? followupMetrics.lostCustomers
-                      : <CircularProgress size={20} />,
-                },
-              ].map(({ label, value, icon }) => (
-                <Grid item xs={12} sm={6} md={4} key={label}>
-                  <Box
-                    sx={{
-                      p: 2,
-                      display: "flex",
-                      alignItems: "center",
-                      borderRadius: 2,
-                      backgroundColor: "#F9FAFB",
-                      boxShadow: "0px 3px 10px rgba(0, 0, 0, 0.05)",
-                      transition: "0.3s",
-                      minHeight: "130px",
-                      width: "90%",
-                      margin: "0 auto",
-                      "&:hover": {
-                        transform: "translateY(-3px)",
-                        boxShadow: "0px 5px 15px rgba(0, 0, 0, 0.1)",
-                      },
-                    }}
-                    onClick={() => handleBoxClick(label)}
-                  >
-                    <Box sx={{ fontSize: 28, mr: 2 }}>{icon}</Box>
-                    <Box>
-                      <Typography variant="subtitle2" sx={{ color: "#555" }}>
-                        {label}
-                      </Typography>
-                      <Typography variant="h6" fontWeight="bold" sx={{ color: "#333" }}>
-                        {value !== undefined ? value : <CircularProgress size={18} />}
-                      </Typography>
-                    </Box>
-                  </Box>
-                </Grid>
-              ))}
-            </Grid>
-          </Box>
-        </>
-      )}
 
-      {/* 2) SHIPMENT SUMMARY */}
-      {selectedSummary === "Shipment Summary" && (
-        <Paper
-          sx={{
-            padding: { xs: 2, sm: 3, md: 4 },
-            marginTop: 3,
-            borderRadius: "8px",
-            boxShadow: "0px 4px 12px rgba(0, 0, 0, 0.1)",
-            width: "100%",
-            maxWidth: "1200px",
-            marginLeft: "auto",
-            marginRight: "auto",
-          }}
-        >
-          <Typography
-            variant="h5"
-            gutterBottom
-            sx={{
-              fontWeight: "bold",
-              textAlign: "center",
-              color: "#4F4F4F",
-              marginBottom: 2,
-              marginTop: -2,
-            }}
-          >
-            Shipment Status
-          </Typography>
+ const fetchShipmentSummary = useCallback(async (agentName, startDate, endDate) => {
+   setLoadingShipment(true);
+   try {
+     const response = await axios.get(`${API_BASE}/api/shipment-summary`, {
+       params: { agentName, startDate, endDate },
+     });
+     setShipmentSummary(Array.isArray(response?.data) ? response.data : []);
+   } catch (error) {
+     console.error("Error fetching shipment data:", error);
+     setShipmentSummary([]);
+   } finally {
+     setLoadingShipment(false);
+   }
+ }, []);
 
-          <TableContainer component={Paper} sx={{ borderRadius: "10px" }}>
-            <Table>
-              <TableHead>
-                <TableRow sx={{ backgroundColor: "#6D6D6D" }}>
-                  {["Category", "Count", "Amount", "Percentage"].map((header) => (
-                    <TableCell
-                      key={header}
-                      sx={{ backgroundColor: "#6D6D6D", textAlign: "center" }}
-                    >
-                      <Typography fontWeight="bold" sx={{ color: "#e8e8e8" }}>
-                        {header}
-                      </Typography>
-                    </TableCell>
-                  ))}
-                </TableRow>
-              </TableHead>
-              {applyingShipment && (
-                <TableBody>
-                  <TableRow>
-                    <TableCell colSpan={4} sx={{ padding: 0 }}>
-                      <LinearProgress
-                        variant="indeterminate"
-                        sx={{ width: "100%", height: "3px" }}
-                      />
-                    </TableCell>
-                  </TableRow>
-                </TableBody>
-              )}
-              {!applyingShipment && (
-                <TableBody>
-                  {shipmentSummary.length > 0 ? (
-                    shipmentSummary.map((row) => (
-                      <TableRow
-                        key={row.label}
-                        sx={{
-                          "&:nth-of-type(odd)": { backgroundColor: "#F5F5F5" },
-                          "&:nth-of-type(even)": { backgroundColor: "#FFFFFF" },
-                        }}
-                      >
-                        <TableCell sx={{ textAlign: "center" }}>
-                          <Typography fontWeight="bold">{row.label}</Typography>
-                        </TableCell>
-                        <TableCell sx={{ textAlign: "center" }}>
-                          {row.count}
-                        </TableCell>
-                        <TableCell sx={{ textAlign: "center" }}>
-                          {`₹${row.amount.toFixed(2)}`}
-                        </TableCell>
-                        <TableCell sx={{ textAlign: "center" }}>
-                          {`${row.percentage}%`}
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  ) : (
-                    <TableRow>
-                      <TableCell
-                        colSpan={4}
-                        align="center"
-                        sx={{ padding: "12px", color: "#888", fontStyle: "italic" }}
-                      >
-                        No data found.
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              )}
-            </Table>
-          </TableContainer>
-        </Paper>
-      )}
-    </Box>
-  );
+
+ const fetchAuxCards = useCallback(async (startDate, endDate) => {
+   if (!user?.fullName || !startDate || !endDate) return;
+   setLoadingAux(true);
+   try {
+     const [reachoutRes, dispositionRes] = await Promise.all([
+       axios.get(`${API_BASE}/api/reachout-logs/count`, {
+         params: {
+           startDate,
+           endDate,
+           healthExpertAssigned: user.fullName,
+         },
+       }),
+       axios.get(`${API_BASE}/api/reachout-logs/disposition-count`, {
+         params: {
+           startDate,
+           endDate,
+           healthExpertAssigned: user.fullName,
+         },
+       }),
+     ]);
+
+
+     setReachoutLogsCount(Number(reachoutRes?.data?.totalCount || 0));
+     setReachoutLogsWhatsApp(Number(reachoutRes?.data?.WhatsApp || 0));
+     setReachoutLogsCall(Number(reachoutRes?.data?.Call || 0));
+     setReachoutLogsBoth(Number(reachoutRes?.data?.Both || 0));
+     setDispositionCounts(dispositionRes?.data || {});
+   } catch (error) {
+     console.error("Error fetching auxiliary summary cards:", error);
+     setReachoutLogsCount(0);
+     setReachoutLogsWhatsApp(0);
+     setReachoutLogsCall(0);
+     setReachoutLogsBoth(0);
+     setDispositionCounts({});
+   } finally {
+     setLoadingAux(false);
+   }
+ }, [user?.fullName]);
+
+
+ const loadForRange = useCallback(async (startDate, endDate) => {
+   if (!user?.fullName || !startDate || !endDate) return;
+   setWindowLabel(`${prettyDate(startDate)} - ${prettyDate(endDate)}`);
+   await Promise.all([
+     fetchAllSummaryData(user.fullName, startDate, endDate),
+     fetchShipmentSummary(user.fullName, startDate, endDate),
+     fetchAuxCards(startDate, endDate),
+   ]);
+ }, [fetchAllSummaryData, fetchAuxCards, fetchShipmentSummary, user?.fullName]);
+
+
+ useEffect(() => {
+   if (!user?.fullName) return;
+   const initial = getDateRange("Today");
+   loadForRange(initial.startDate, initial.endDate);
+ }, [loadForRange, user?.fullName]);
+
+
+ useEffect(() => {
+   async function fetchTarget() {
+     if (!user?.fullName || !user?.email) return;
+     try {
+       const response = await axios.get(`${API_BASE}/api/employees`, {
+         params: {
+           fullName: user.fullName,
+           email: user.email,
+         },
+       });
+       if (response.data && response.data[0]) {
+         setTarget(Number(response.data[0].target || 0));
+       }
+     } catch (error) {
+       console.error("Error fetching employee target:", error);
+     }
+   }
+   fetchTarget();
+ }, [user?.email, user?.fullName]);
+
+
+ useEffect(() => {
+   async function fetchSalesProgress() {
+     if (!user?.fullName) return;
+     try {
+       const response = await axios.get(`${API_BASE}/api/retention-sales/progress`, {
+         params: { name: user.fullName },
+       });
+       setSalesProgress(Number(response?.data?.total || 0));
+     } catch (error) {
+       console.error("Error fetching retention sales progress:", error);
+     }
+   }
+   fetchSalesProgress();
+ }, [user?.fullName]);
+
+
+ const workingDaysLeft = useMemo(() => {
+   const today = new Date();
+   const year = today.getFullYear();
+   const month = today.getMonth();
+   const date = today.getDate();
+   const lastDay = new Date(year, month + 1, 0).getDate();
+
+
+   let days = 0;
+   for (let day = date; day <= lastDay; day += 1) {
+     const check = new Date(year, month, day);
+     if (check.getDay() !== 0) days += 1;
+   }
+   return days;
+ }, []);
+
+
+ const dailySalesRequired =
+   workingDaysLeft > 0 && target - salesProgress > 0
+     ? Math.ceil((target - salesProgress) / workingDaysLeft)
+     : 0;
+
+
+ const onRangeChange = async (value) => {
+   setSelectedRange(value);
+   if (value === "Custom range") return;
+   const range = getDateRange(value);
+   await loadForRange(range.startDate, range.endDate);
+ };
+
+
+ const applyCustomRange = async () => {
+   if (!customStart || !customEnd) return;
+   await loadForRange(customStart, customEnd);
+ };
+
+
+ const handleBoxClick = (filterType) => {
+   const clickable = [
+     "Active Customers",
+     "Lost Customers",
+     "Sales Done Today",
+     "Followup Today",
+     "No Followup Set",
+     "Followup Tomorrow",
+     "Followup Later",
+     "Followup Missed",
+   ];
+   if (clickable.includes(filterType)) {
+     window.open(`/retention/${filterType}`, "_blank");
+   }
+ };
+
+
+ const todayCards = [
+   {
+     label: "Active Customers",
+     value: Number(todayMetrics.activeCustomers || 0).toLocaleString("en-IN"),
+     sub: "Current active base",
+   },
+   {
+     label: "Sales Done Today",
+     value: Number(todayMetrics.salesDone || 0).toLocaleString("en-IN"),
+     sub: "Confirmed conversions",
+   },
+   {
+     label: "Total Sales",
+     value: `₹${Number(todayMetrics.totalSales || 0).toFixed(2)}`,
+     sub: "Gross revenue",
+   },
+   {
+     label: "Average Order Value",
+     value: `₹${Number(todayMetrics.avgOrderValue || 0).toFixed(2)}`,
+     sub: "Ticket quality",
+   },
+ ];
+
+
+ const followupCards = [
+   { label: "No Followup Set", key: "noFollowupSet" },
+   { label: "Followup Missed", key: "followupMissed" },
+   { label: "Followup Today", key: "followupToday" },
+   { label: "Followup Tomorrow", key: "followupTomorrow" },
+   { label: "Followup Later", key: "followupLater" },
+   { label: "Lost Customers", key: "lostCustomers" },
+ ];
+
+
+ const totalFollowupVolume = followupCards.reduce(
+   (sum, card) => sum + Number(followupMetrics?.[card.key] || 0),
+   0
+ );
+
+
+ const deliveredShipmentRow = shipmentSummary.find((row) =>
+   String(row?.label || "").toLowerCase().includes("deliver")
+ );
+ const deliveredShipmentCount = Number(deliveredShipmentRow?.count || 0);
+
+
+ const conversionRate = Number(todayMetrics.activeCustomers || 0)
+   ? ((Number(todayMetrics.salesDone || 0) / Number(todayMetrics.activeCustomers || 1)) * 100).toFixed(2)
+   : "0.00";
+
+
+ const followupCoverage = Number(followupMetrics.followupToday || 0) + Number(followupMetrics.followupTomorrow || 0);
+ const followupCoverageRate = totalFollowupVolume
+   ? ((followupCoverage / totalFollowupVolume) * 100).toFixed(1)
+   : "0.0";
+
+
+ const executiveKpis = [
+   { label: "Conversion Rate", value: `${conversionRate}%`, tone: "rd-chip-blue" },
+   { label: "Delivered Shipments", value: deliveredShipmentCount.toLocaleString("en-IN"), tone: "rd-chip-teal" },
+   { label: "Followup Coverage", value: `${followupCoverageRate}%`, tone: "rd-chip-violet" },
+   { label: "Live Range", value: selectedRange, tone: "rd-chip-gold" },
+ ];
+
+
+ return (
+   <div className="rd-page">
+     <div className="rd-shell">
+       <section className="rd-hero rd-fade-1">
+         <div>
+           <h1>{user?.fullName || "Retention Agent"} Dashboard</h1> 
+           <div className="rd-meta-line">
+             <span className="rd-dot" />
+             <span>{windowLabel}</span>
+           </div>
+         </div>
+
+
+         <div className="rd-hero-controls">
+           <div className="rd-filters">
+             <label htmlFor="rd-range">Date Range</label>
+             <select
+               id="rd-range"
+               value={selectedRange}
+               onChange={(event) => onRangeChange(event.target.value)}
+             >
+               {TIME_RANGE_OPTIONS.map((option) => (
+                 <option key={option} value={option}>
+                   {option}
+                 </option>
+               ))}
+             </select>
+           </div>
+
+
+           {canShowDrrPanel && (
+             <div className="rd-drr-panel">
+               <span className="rd-drr-text">
+                 DRR: <strong className="rd-drr-green">{dailySalesRequired > 0 ? `₹${dailySalesRequired}` : "₹0"}</strong>
+               </span>
+               <span className="rd-drr-divider" />
+               <span className="rd-drr-text">
+                 Target: ({Math.floor(salesProgress)}/{Math.floor(target)})
+                 <strong className="rd-drr-gold">
+                   {target > 0 ? `${Math.floor((salesProgress / target) * 100)}%` : "0%"}
+                 </strong>
+               </span>
+             </div>
+           )}
+         </div>
+       </section>
+
+
+       <section className="rd-kpi-ribbon rd-fade-2">
+         {executiveKpis.map((kpi) => (
+           <article key={kpi.label} className="rd-kpi-pill">
+             <span className={`rd-kpi-label ${kpi.tone}`}>{kpi.label}</span>
+             <strong>{kpi.value}</strong>
+           </article>
+         ))}
+       </section>
+
+
+       {selectedRange === "Custom range" && (
+         <section className="rd-custom-range rd-fade-3">
+           <div className="rd-field">
+             <label htmlFor="rd-start">Start Date</label>
+             <input
+               id="rd-start"
+               type="date"
+               value={customStart}
+               onChange={(event) => setCustomStart(event.target.value)}
+             />
+           </div>
+           <div className="rd-field">
+             <label htmlFor="rd-end">End Date</label>
+             <input
+               id="rd-end"
+               type="date"
+               value={customEnd}
+               onChange={(event) => setCustomEnd(event.target.value)}
+             />
+           </div>
+           <button type="button" className="rd-btn-primary" onClick={applyCustomRange}>
+             Apply
+           </button>
+         </section>
+       )}
+
+
+       {(loadingMain || loadingShipment || loadingAux) && (
+         <div className="rd-top-loader" aria-hidden="true" />
+       )}
+
+
+       <section className="rd-section rd-fade-3">
+         <div className="rd-section-head">
+           <h2>Today Summary</h2>
+         </div>
+         <div className="rd-card-grid rd-grid-4">
+           {todayCards.map((card) => (
+             <button
+               type="button"
+               key={card.label}
+               className={`rd-metric-card ${toneClassForMetric(card.label)}`}
+               onClick={() => handleBoxClick(card.label)}
+             >
+               <span className="rd-icon">{iconForMetric(card.label)}</span>
+               <span className="rd-label">{card.label}</span>
+               <span className="rd-value">{card.value}</span>
+               <span className="rd-sub">{card.sub}</span>
+             </button>
+           ))}
+         </div>
+       </section>
+
+
+       <section className="rd-section rd-fade-4">
+         <div className="rd-section-head">
+           <h2>Followup Summary</h2>
+         </div>
+         <div className="rd-card-grid rd-grid-3">
+           {followupCards.map((card) => (
+             <button
+               type="button"
+               key={card.label}
+               className={`rd-metric-card ${toneClassForMetric(card.label)}`}
+               onClick={() => handleBoxClick(card.label)}
+             >
+               <span className="rd-icon">{iconForMetric(card.label)}</span>
+               <span className="rd-label">{card.label}</span>
+               <span className="rd-value">
+                 {Number(followupMetrics?.[card.key] || 0).toLocaleString("en-IN")}
+               </span>
+             </button>
+           ))}
+         </div>
+       </section>
+
+
+       <section className="rd-section rd-fade-5">
+         <div className="rd-section-head">
+           <h2>Shipment Status</h2>
+         </div>
+         <div className="rd-table-wrap">
+           <table className="rd-table">
+             <thead>
+               <tr>
+                 <th>Category</th>
+                 <th>Count</th>
+                 <th>Amount</th>
+                 <th>Percentage</th>
+               </tr>
+             </thead>
+             <tbody>
+               {loadingShipment ? (
+                 <tr>
+                   <td colSpan={4} className="rd-empty">
+                     Loading shipment summary...
+                   </td>
+                 </tr>
+               ) : shipmentSummary.length > 0 ? (
+                 shipmentSummary.map((row, index) => (
+                   <tr key={`${row.label}-${index}`}>
+                     <td>
+                       <div className="rd-status">
+                         <span className={`rd-status-dot rd-${normalizeShipmentTone(row.label)}`} />
+                         <span>{row.label}</span>
+                       </div>
+                     </td>
+                     <td>{Number(row.count || 0).toLocaleString("en-IN")}</td>
+                     <td>₹{Number(row.amount || 0).toFixed(2)}</td>
+                     <td>
+                       <div className="rd-percent-cell">
+                         <span>{row.percentage}%</span>
+                         <div className="rd-progress rd-progress-tight">
+                           <span
+                             className="rd-progress-fill"
+                             style={{ width: `${clampPercent(row.percentage)}%` }}
+                           />
+                         </div>
+                       </div>
+                     </td>
+                   </tr>
+                 ))
+               ) : (
+                 <tr>
+                   <td colSpan={4} className="rd-empty">
+                     No shipment data found.
+                   </td>
+                 </tr>
+               )}
+             </tbody>
+           </table>
+         </div>
+       </section>
+
+
+       <IncentiveSummarySection agentName={user?.fullName} />
+
+
+       <section className="rd-bottom-grid rd-fade-6">
+         <article className="rd-mini-card">
+           <h3>Reachout Logs</h3>
+           <div className="rd-mini-row">
+             <span>Total</span>
+             <strong>{reachoutLogsCount.toLocaleString("en-IN")}</strong>
+           </div>
+           <div className="rd-mini-row">
+             <span>WhatsApp</span>
+             <strong>{reachoutLogsWhatsApp.toLocaleString("en-IN")}</strong>
+           </div>
+           <div className="rd-mini-row">
+             <span>Call</span>
+             <strong>{reachoutLogsCall.toLocaleString("en-IN")}</strong>
+           </div>
+           <div className="rd-mini-row">
+             <span>Both</span>
+             <strong>{reachoutLogsBoth.toLocaleString("en-IN")}</strong>
+           </div>
+         </article>
+
+
+         <article className="rd-mini-card">
+           <h3>Disposition Summary</h3>
+           {DISPOSITION_KEYS.map((label) => (
+             <div className="rd-mini-row" key={label}>
+               <span>{label}</span>
+               <strong>{Number(dispositionCounts?.[label] || 0).toLocaleString("en-IN")}</strong>
+             </div>
+           ))}
+         </article>
+       </section>
+     </div>
+   </div>
+ );
 };
 
+
 export default RetentionAgentDashboard;
+
+
+
