@@ -190,6 +190,14 @@ function normalizeStatus(s) {
   if (["failed", "error"].includes(v)) return "failed";
   return v;
 }
+function statusRank(status) {
+  const st = normalizeStatus(status);
+  if (st === "failed") return 99;
+  if (st === "read") return 3;
+  if (st === "delivered") return 2;
+  if (st === "sent") return 1;
+  return 0;
+}
 
 function MessageTicks({ status }) {
   const st = normalizeStatus(status);
@@ -810,6 +818,7 @@ export default function WhatsAppUI() {
     const desired = new Set(
       (conversations || []).map((c) => phone10(c?.phone)).filter(Boolean)
     );
+    if (activeP10) desired.add(activeP10);
 
     for (const p10 of desired) {
       const room = roomForPhone10(p10);
@@ -826,7 +835,7 @@ export default function WhatsAppUI() {
         joinedRoomsRef.current.delete(room);
       }
     }
-  }, [conversations, socketStatus]);
+  }, [activeP10, conversations, socketStatus]);
 
   useEffect(() => {
     const s = socketRef.current; if (!s) return;
@@ -872,11 +881,33 @@ export default function WhatsAppUI() {
     };
 
     const onStatus = (payload) => {
-      const waId = payload?.waId || payload?.id; const status = payload?.status; const p10 = phone10(payload?.phone10 || payload?.phone || "");
-      if (!waId || !status) return;
+      const liveIds = [
+        payload?.waId,
+        payload?.id,
+        payload?.providerTransactionId,
+        payload?.transactionId,
+      ].map((x) => String(x || "").trim()).filter(Boolean);
+      const status = normalizeStatus(payload?.status);
+      const p10 = phone10(payload?.phone10 || payload?.phone || "");
+
+      if (!liveIds.length || !status) return;
+
       const activeNow = activeP10Ref.current;
       if (p10 && activeNow && p10 !== activeNow) return;
-      setMessages((prev) => prev.map((m) => (m.waId === waId ? { ...m, status } : m)));
+
+      setMessages((prev) =>
+        prev.map((m) => {
+          const messageWaId = String(m?.waId || "").trim();
+          const providerTxnId = String(m?.providerTransactionId || "").trim();
+
+          if (liveIds.includes(messageWaId) || liveIds.includes(providerTxnId)) {
+            if (status !== "failed" && statusRank(m?.status) > statusRank(status)) return m;
+            return { ...m, status };
+          }
+
+          return m;
+        })
+      );
     };
 
     const onConversation = (payload) => {

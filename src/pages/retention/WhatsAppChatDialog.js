@@ -1,4 +1,4 @@
-// src/whatsapp/WhatsAppChatDrawer.jsx
+
 import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import {
   Box,
@@ -20,6 +20,8 @@ import {
   DialogContent,
   useMediaQuery,
   useTheme,
+  Avatar,
+  Stack,
 } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
 import WhatsAppIcon from "@mui/icons-material/WhatsApp";
@@ -35,20 +37,46 @@ import SearchIcon from "@mui/icons-material/Search";
 import ShoppingCartIcon from "@mui/icons-material/ShoppingCart";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import AddIcon from "@mui/icons-material/Add";
+import SendIcon from "@mui/icons-material/Send";
+import AccessTimeIcon from "@mui/icons-material/AccessTime";
+import LockOutlinedIcon from "@mui/icons-material/LockOutlined";
+import DescriptionOutlinedIcon from "@mui/icons-material/DescriptionOutlined";
 import axios from "axios";
 import { io } from "socket.io-client";
 
 import WhatsAppCartDrawer from "./WhatsAppCartDrawer";
 
-// ✅ Your API base
 const API_BASE = "https://muditamleads-14f32a10d7f7.herokuapp.com";
-// ✅ Socket URL (same server)
 const SOCKET_URL = API_BASE;
+
+const UI = {
+  brand: "#25D366",
+  brandDark: "#128C7E",
+  brandSoft: "rgba(37,211,102,0.12)",
+  blueRead: "#34B7F1",
+  appBg: "#f6f8fb",
+  headerBg: "rgba(255,255,255,0.88)",
+  headerBorder: "rgba(15,23,42,0.08)",
+  panelBg: "#efeae2",
+  panelPattern:
+    "url('https://cdn.shopify.com/s/files/1/0734/7155/7942/files/image_23.png?v=1776755371')",
+  inboundBg: "#ffffff",
+  outboundBg: "#dcf8c6",
+  composerBg: "rgba(255,255,255,0.92)",
+  surface: "#ffffff",
+  border: "#e6ebf2",
+  text: "#111827",
+  subtext: "#6b7280",
+  subtle: "#94a3b8",
+  warningBg: "#fff9db",
+  warningBorder: "#f6e58d",
+  warningText: "#7a5b00",
+};
+
+const EMOJIS = ["😊", "😂", "🙏", "👍", "❤️", "🔥", "😄", "😅", "😇", "🤝", "😎", "🥳", "😢", "😡", "✅", "✨"];
 
 const digitsOnly = (v = "") => String(v || "").replace(/\D/g, "");
 const last10 = (v = "") => digitsOnly(v).slice(-10);
-
-const EMOJIS = ["😊", "😂", "🙏", "👍", "❤️", "🔥", "😄", "😅", "😇", "🤝", "😎", "🥳", "😢", "😡", "✅", "✨"];
 
 function fmtRemaining(ms) {
   const s = Math.max(0, Math.floor(ms / 1000));
@@ -58,12 +86,12 @@ function fmtRemaining(ms) {
   return `${hh}h ${mm}m ${ss}s`;
 }
 
-// ---------- time helpers ----------
 function formatHM(d) {
   if (!d) return "";
   const dt = new Date(d);
   return dt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
+
 function dayKey(d) {
   if (!d) return "unknown";
   const dt = new Date(d);
@@ -72,6 +100,7 @@ function dayKey(d) {
   const da = String(dt.getDate()).padStart(2, "0");
   return `${y}-${m}-${da}`;
 }
+
 function formatDayLabel(key) {
   const [y, m, d] = key.split("-").map((x) => parseInt(x, 10));
   const dt = new Date(y, (m || 1) - 1, d || 1);
@@ -83,9 +112,22 @@ function formatDayLabel(key) {
   });
 }
 
-// --------------------
-// Template helpers
-// --------------------
+function initials(nameOrPhone = "") {
+  const s = String(nameOrPhone || "").trim();
+  if (!s) return "U";
+  if (/^\d+$/.test(s)) return s.slice(-2);
+  const parts = s.split(/\s+/).filter(Boolean);
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[1][0]).toUpperCase();
+}
+
+function avatarColor(seed = "") {
+  const colors = ["#00a884", "#1d4ed8", "#7c3aed", "#db2777", "#ea580c", "#0f766e"];
+  let hash = 0;
+  for (let i = 0; i < seed.length; i += 1) hash = seed.charCodeAt(i) + ((hash << 5) - hash);
+  return colors[Math.abs(hash) % colors.length];
+}
+
 function extractTemplateBodyText(tpl) {
   if (!tpl) return "";
   if (typeof tpl?.bodyText === "string") return tpl.bodyText;
@@ -98,6 +140,7 @@ function extractTemplateBodyText(tpl) {
   if (typeof bodyComp?.text === "string") return bodyComp.text;
   return "";
 }
+
 function extractPlaceholderCount(bodyText) {
   if (!bodyText) return 0;
   const re = /{{\s*(\d+)\s*}}/g;
@@ -109,6 +152,7 @@ function extractPlaceholderCount(bodyText) {
   }
   return max;
 }
+
 function applyTemplateVars(bodyText, vars) {
   if (!bodyText) return "";
   return bodyText.replace(/{{\s*(\d+)\s*}}/g, (_, num) => {
@@ -117,6 +161,7 @@ function applyTemplateVars(bodyText, vars) {
     return v != null && String(v).trim() !== "" ? String(v) : `{{${num}}}`;
   });
 }
+
 function getHeaderMediaFormatFromTemplate(tpl) {
   const comps = Array.isArray(tpl?.components) ? tpl.components : [];
   const header = comps.find((c) => String(c?.type || "").toUpperCase() === "HEADER");
@@ -125,9 +170,6 @@ function getHeaderMediaFormatFromTemplate(tpl) {
   return "";
 }
 
-// --------------------
-// Tick helper
-// --------------------
 function normalizeStatus(s) {
   const v = String(s || "").toLowerCase().trim();
   if (["read", "seen"].includes(v)) return "read";
@@ -136,8 +178,10 @@ function normalizeStatus(s) {
   if (["failed", "error"].includes(v)) return "failed";
   return v;
 }
+
 function MessageTicks({ status }) {
   const st = normalizeStatus(status);
+
   if (st === "failed") {
     return (
       <Typography component="span" sx={{ fontSize: 12, color: "error.main", ml: 0.5 }}>
@@ -145,35 +189,40 @@ function MessageTicks({ status }) {
       </Typography>
     );
   }
+
   if (st === "read") {
-    return <DoneAllIcon sx={{ fontSize: 16, ml: 0.5, color: "#1DA1F2", verticalAlign: "middle" }} />;
+    return <DoneAllIcon sx={{ fontSize: 16, ml: 0.5, color: UI.blueRead, verticalAlign: "middle" }} />;
   }
+
   if (st === "delivered") {
-    return <DoneAllIcon sx={{ fontSize: 16, ml: 0.5, color: "rgba(0,0,0,0.55)", verticalAlign: "middle" }} />;
+    return <DoneAllIcon sx={{ fontSize: 16, ml: 0.5, color: "rgba(0,0,0,0.48)", verticalAlign: "middle" }} />;
   }
-  return <DoneIcon sx={{ fontSize: 16, ml: 0.5, color: "rgba(0,0,0,0.55)", verticalAlign: "middle" }} />;
+
+  return <DoneIcon sx={{ fontSize: 16, ml: 0.5, color: "rgba(0,0,0,0.48)", verticalAlign: "middle" }} />;
 }
 
-// --------------------
-// Message upsert helper
-// --------------------
 function getMsgKey(m) {
-  return m?.waId || m?._id || null;
+  return m?.waId || m?._id || m?.providerTransactionId || null;
 }
+
 function getMsgTime(m) {
   const t = m?.timestamp || m?.createdAt;
   const ms = t ? new Date(t).getTime() : 0;
   return Number.isFinite(ms) ? ms : 0;
 }
+
 function upsertMessage(prev, incoming) {
   if (!incoming) return prev;
   const key = getMsgKey(incoming);
+
   if (!key) {
     const next = [...prev, incoming];
     next.sort((a, b) => getMsgTime(a) - getMsgTime(b));
     return next;
   }
+
   const idx = prev.findIndex((x) => getMsgKey(x) === key);
+
   let next;
   if (idx >= 0) {
     next = prev.slice();
@@ -181,16 +230,148 @@ function upsertMessage(prev, incoming) {
   } else {
     next = [...prev, incoming];
   }
+
   next.sort((a, b) => getMsgTime(a) - getMsgTime(b));
   return next;
 }
 
-// --------------------
-// Scroll helpers
-// --------------------
 function isNearBottom(el, thresholdPx = 140) {
   if (!el) return true;
   return el.scrollHeight - el.scrollTop - el.clientHeight < thresholdPx;
+}
+
+function statusPillText(privateMode, canSendFreeform, remainingMs) {
+  if (privateMode) return "Private Reply mode";
+  if (canSendFreeform && remainingMs != null) return `Conversation window closes in ${fmtRemaining(remainingMs)}`;
+  return "Session expired — only templates allowed";
+}
+
+function ActionPill({
+  title,
+  label,
+  icon,
+  onClick,
+  disabled = false,
+  loading = false,
+}) {
+  return (
+    <Tooltip title={title}>
+      <span>
+        <Button
+          size="small"
+          onClick={onClick}
+          disabled={disabled}
+          startIcon={loading ? <CircularProgress size={14} /> : icon}
+          sx={{
+            textTransform: "none",
+            borderRadius: 999,
+            px: 1.2,
+            py: 0.65,
+            minWidth: 0,
+            fontWeight: 800,
+            fontSize: 12,
+            color: UI.text,
+            bgcolor: "#fff",
+            border: `1px solid ${UI.border}`,
+            boxShadow: "0 1px 2px rgba(15,23,42,0.04)",
+            "&:hover": { bgcolor: "#f8fafc", borderColor: "#d8e1ec" },
+          }}
+        >
+          {label}
+        </Button>
+      </span>
+    </Tooltip>
+  );
+}
+
+function AttachmentPreviewDialog({
+  open,
+  pendingFile,
+  setPendingFile,
+  onClose,
+  onSend,
+  sending,
+}) {
+  const previewUrl = pendingFile?.previewUrl || "";
+  const mime = String(pendingFile?.type || "").toLowerCase();
+  const isImage = mime.startsWith("image/");
+  const isVideo = mime.startsWith("video/");
+  const isAudio = mime.startsWith("audio/");
+
+  return (
+    <Dialog open={open} onClose={() => !sending && onClose()} fullWidth maxWidth="sm">
+      <DialogTitle sx={{ fontWeight: 900 }}>Preview attachment</DialogTitle>
+      <DialogContent dividers>
+        <Box
+          sx={{
+            borderRadius: 3,
+            border: `1px solid ${UI.border}`,
+            bgcolor: "#f8fafc",
+            p: 2,
+          }}
+        >
+          {isImage ? (
+            <Box
+              component="img"
+              src={previewUrl}
+              alt={pendingFile?.file?.name || "attachment"}
+              sx={{ width: "100%", maxHeight: 320, objectFit: "contain", borderRadius: 2 }}
+            />
+          ) : isVideo ? (
+            <video
+              controls
+              src={previewUrl}
+              style={{ width: "100%", maxHeight: 320, borderRadius: 12, background: "#000" }}
+            />
+          ) : isAudio ? (
+            <audio controls src={previewUrl} style={{ width: "100%" }} />
+          ) : (
+            <Stack direction="row" spacing={1.25} alignItems="center">
+              <DescriptionOutlinedIcon />
+              <Box>
+                <Typography sx={{ fontWeight: 800, fontSize: 14 }}>
+                  {pendingFile?.file?.name || "attachment"}
+                </Typography>
+                <Typography variant="caption" color="text.secondary">
+                  {(pendingFile?.file?.size || 0) > 0
+                    ? `${Math.round((pendingFile.file.size / 1024 / 1024) * 100) / 100} MB`
+                    : "Document"}
+                </Typography>
+              </Box>
+            </Stack>
+          )}
+        </Box>
+
+        <TextField
+          fullWidth
+          multiline
+          minRows={2}
+          maxRows={4}
+          label="Caption (optional)"
+          value={pendingFile?.caption || ""}
+          onChange={(e) =>
+            setPendingFile((prev) => (prev ? { ...prev, caption: e.target.value } : prev))
+          }
+          sx={{ mt: 2 }}
+        />
+      </DialogContent>
+
+      <Box sx={{ p: 1.25, display: "flex", justifyContent: "flex-end", gap: 1 }}>
+        <Button variant="outlined" onClick={onClose} disabled={sending} sx={{ textTransform: "none" }}>
+          Cancel
+        </Button>
+        <Button
+          variant="contained"
+          onClick={onSend}
+          disabled={sending || !pendingFile?.file}
+          startIcon={sending ? <CircularProgress size={14} color="inherit" /> : <SendIcon />}
+          sx={{ textTransform: "none", fontWeight: 900 }}
+        >
+          {sending ? "Sending..." : "Send"}
+        </Button>
+      </Box>
+    </Dialog>
+  );
 }
 
 export default function WhatsAppChatDrawer({
@@ -205,16 +386,15 @@ export default function WhatsAppChatDrawer({
   const theme = useTheme();
   const isMdUp = useMediaQuery(theme.breakpoints.up("md"));
   const isSmUp = useMediaQuery(theme.breakpoints.up("sm"));
-  const chatWidthPx = isMdUp ? 620 : isSmUp ? 520 : 0;
+  const chatWidthPx = isMdUp ? 660 : isSmUp ? 560 : 0;
 
   const [loading, setLoading] = useState(false);
   const [messages, setMessages] = useState([]);
   const [templates, setTemplates] = useState([]);
   const [text, setText] = useState("");
 
-  // ✅ IMPORTANT: use lastInboundAt for session gating (NOT windowExpiresAt)
   const [lastInboundAt, setLastInboundAt] = useState(null);
-  const [windowExpiresAt, setWindowExpiresAt] = useState(null); // still keep for display/debug if needed
+  const [windowExpiresAt, setWindowExpiresAt] = useState(null);
   const [tick, setTick] = useState(0);
 
   const [quickAnchor, setQuickAnchor] = useState(null);
@@ -224,12 +404,14 @@ export default function WhatsAppChatDrawer({
   const [privateMode, setPrivateMode] = useState(false);
 
   const [cartOpen, setCartOpen] = useState(false);
-
   const [helpWriteLoading, setHelpWriteLoading] = useState(false);
 
   const [rephraseOpen, setRephraseOpen] = useState(false);
   const [rephraseStyle, setRephraseStyle] = useState("professional");
   const [rephraseLoading, setRephraseLoading] = useState(false);
+
+  const [pendingFile, setPendingFile] = useState(null);
+  const [attachmentSending, setAttachmentSending] = useState(false);
 
   const fileRef = useRef(null);
   const listRef = useRef(null);
@@ -262,7 +444,7 @@ export default function WhatsAppChatDrawer({
   }, [inboundExpiryMs, tick]);
 
   const canSendFreeform = useMemo(() => {
-    if (!remainingMs && remainingMs !== 0) return false;
+    if (remainingMs == null) return false;
     return remainingMs > 0;
   }, [remainingMs]);
 
@@ -279,7 +461,6 @@ export default function WhatsAppChatDrawer({
     []
   );
 
-  // ✅ Only UTILITY templates
   const utilityTemplates = useMemo(() => {
     return (templates || []).filter((t) => String(t?.category || "").toUpperCase() === "UTILITY");
   }, [templates]);
@@ -287,13 +468,8 @@ export default function WhatsAppChatDrawer({
   const filteredUtilityTemplates = useMemo(() => {
     const q = tplSearch.trim().toLowerCase();
     if (!q) return utilityTemplates;
-    return (utilityTemplates || []).filter((t) => {
-      const hay = [
-        t?.name,
-        t?.language,
-        t?.status,
-        extractTemplateBodyText(t),
-      ]
+    return utilityTemplates.filter((t) => {
+      const hay = [t?.name, t?.language, t?.status, extractTemplateBodyText(t)]
         .filter(Boolean)
         .join(" ")
         .toLowerCase();
@@ -301,13 +477,11 @@ export default function WhatsAppChatDrawer({
     });
   }, [utilityTemplates, tplSearch]);
 
-  // Template composer
   const [tplComposeOpen, setTplComposeOpen] = useState(false);
   const [activeTemplate, setActiveTemplate] = useState(null);
   const [tplVars, setTplVars] = useState([]);
-  const [tplSending, setTplSending] = useState(false); // ✅ Added loading state for send button
+  const [tplSending, setTplSending] = useState(false);
 
-  // ✅ Header media (attachment) support for templates
   const [tplHeaderFmt, setTplHeaderFmt] = useState("");
   const [tplHeaderFile, setTplHeaderFile] = useState(null);
   const [tplHeaderUploadLoading, setTplHeaderUploadLoading] = useState(false);
@@ -339,18 +513,13 @@ export default function WhatsAppChatDrawer({
     const list = Array.isArray(res.data) ? res.data : [];
     const found = list.find((c) => last10(c.phone) === phone10);
 
-    // ✅ only set if value exists (don’t nuke state)
     if (found?.windowExpiresAt) setWindowExpiresAt(found.windowExpiresAt);
-
-    if (found?.lastInboundAt) {
-      setLastInboundAt(found.lastInboundAt);
-    }
-    // else: keep existing lastInboundAt (from messages/socket)
+    if (found?.lastInboundAt) setLastInboundAt(found.lastInboundAt);
   };
+
   const fetchMessages = async () => {
     if (!phone10) return;
     const res = await axios.get(`${API_BASE}/api/whatsapp/messages`, { params: { phone: phone10 } });
-
     const list = Array.isArray(res.data) ? res.data : [];
     setMessages(list);
 
@@ -374,7 +543,6 @@ export default function WhatsAppChatDrawer({
       await Promise.all([fetchConversationMeta(), fetchMessages(), fetchTemplates()]);
     } finally {
       setLoading(false);
-      // drawer open + data refreshed -> go bottom
       if (open) {
         stickToBottomRef.current = true;
         scrollToBottomSoon("auto");
@@ -382,7 +550,6 @@ export default function WhatsAppChatDrawer({
     }
   };
 
-  // ✅ Socket: connect + join room + realtime events
   useEffect(() => {
     if (!open) return;
     if (!phone10) return;
@@ -401,9 +568,11 @@ export default function WhatsAppChatDrawer({
 
     const joinRoom = () => {
       if (!socket?.connected) return;
+
       if (joinedPhoneRef.current && joinedPhoneRef.current !== phone10) {
         socket.emit("wa:leave", { phone10: joinedPhoneRef.current });
       }
+
       socket.emit("wa:join", { phone10, leadId, userName: currentUserName });
       joinedPhoneRef.current = phone10;
     };
@@ -417,22 +586,36 @@ export default function WhatsAppChatDrawer({
 
       setMessages((prev) => upsertMessage(prev, msg));
 
-      // if user is at bottom, keep them at bottom on new incoming
+      if (String(msg?.direction || "").toUpperCase() !== "OUTBOUND") {
+        if (msg?.timestamp || msg?.createdAt) {
+          setLastInboundAt(msg.timestamp || msg.createdAt);
+        }
+      }
+
       if (stickToBottomRef.current) {
         scrollToBottomSoon("auto");
       }
     };
 
     const onWaStatus = (payload) => {
-      const waId = payload?.waId || payload?.id;
+      const liveId = String(payload?.waId || payload?.id || "").trim();
       const status = payload?.status;
       const p10 = payload?.phone10;
       if (p10 && p10 !== phone10) return;
-      if (!waId || !status) return;
-      setMessages((prev) => prev.map((m) => (m?.waId === waId ? { ...m, status } : m)));
+      if (!liveId || !status) return;
+
+      setMessages((prev) =>
+        prev.map((m) => {
+          const waId = String(m?.waId || "").trim();
+          const providerTransactionId = String(m?.providerTransactionId || "").trim();
+          if (waId === liveId || providerTransactionId === liveId) {
+            return { ...m, status };
+          }
+          return m;
+        })
+      );
     };
 
-    // ✅ backend emits { phone10, patch } (not windowExpiresAt at root)
     const onWaConversation = (payload) => {
       const p10 = payload?.phone10;
       if (p10 && p10 !== phone10) return;
@@ -440,8 +623,6 @@ export default function WhatsAppChatDrawer({
       const patch = payload?.patch || payload || {};
       if (patch?.windowExpiresAt) setWindowExpiresAt(patch.windowExpiresAt);
       if (patch?.lastInboundAt) setLastInboundAt(patch.lastInboundAt);
-
-      // if customer replied, allow free-form again (computed from lastInboundAt)
     };
 
     socket.on("connect", onConnect);
@@ -459,11 +640,11 @@ export default function WhatsAppChatDrawer({
     };
   }, [open, phone10, leadId, currentUserName, scrollToBottomSoon]);
 
-  // ✅ disconnect socket when drawer closes
   useEffect(() => {
     if (open) return;
     const socket = socketRef.current;
     if (!socket) return;
+
     if (joinedPhoneRef.current) {
       socket.emit("wa:leave", { phone10: joinedPhoneRef.current });
       joinedPhoneRef.current = null;
@@ -472,7 +653,6 @@ export default function WhatsAppChatDrawer({
     socketRef.current = null;
   }, [open]);
 
-  // ✅ When drawer opens: reset flags + load data + start timer
   useEffect(() => {
     if (!open) return;
 
@@ -492,19 +672,19 @@ export default function WhatsAppChatDrawer({
     setTplHeaderMediaId("");
     setTplHeaderUploadLoading(false);
 
+    setPendingFile(null);
+    setAttachmentSending(false);
+
     refreshAll();
 
     const t = setInterval(() => setTick((x) => x + 1), 1000);
     return () => clearInterval(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, phone10]);
 
-  // ✅ close cart drawer if chat drawer closes
   useEffect(() => {
     if (!open) setCartOpen(false);
   }, [open]);
 
-  // ✅ Track user scroll: if they scroll up, don't auto-pull them down
   useEffect(() => {
     const el = listRef.current;
     if (!el) return;
@@ -519,6 +699,7 @@ export default function WhatsAppChatDrawer({
 
   const grouped = useMemo(() => {
     const map = new Map();
+
     (messages || []).forEach((m) => {
       const k = dayKey(m.timestamp || m.createdAt || Date.now());
       if (!map.has(k)) map.set(k, []);
@@ -536,7 +717,6 @@ export default function WhatsAppChatDrawer({
     }));
   }, [messages]);
 
-  // ✅ Initial auto-scroll to bottom after first render of messages (once per open)
   useEffect(() => {
     if (!open) return;
     if (loading) return;
@@ -558,7 +738,6 @@ export default function WhatsAppChatDrawer({
       return;
     }
 
-    // ✅ hard gate on frontend (only allow if user replied within 24h)
     if (!canSendFreeform) {
       alert("WhatsApp session expired. You can only send templates until customer replies.");
       return;
@@ -577,62 +756,81 @@ export default function WhatsAppChatDrawer({
     }
   };
 
-  const sendTemplate = async (tpl, vars = [], renderedPreview = "", header = null) => {
-    try {
-      await axios.post(`${API_BASE}/api/whatsapp/send-template`, {
-        to: phone10,
-        templateName: tpl.name,
-        parameters: (vars || []).map((x) => String(x ?? "")),
-        renderedText: renderedPreview || "",
-        ...(header ? { headerMedia: header } : {}),
-      });
+  const closePendingFile = useCallback(() => {
+    setPendingFile((prev) => {
+      if (prev?.previewUrl && String(prev.previewUrl).startsWith("blob:")) {
+        try {
+          URL.revokeObjectURL(prev.previewUrl);
+        } catch {}
+      }
+      return null;
+    });
 
-      stickToBottomRef.current = true;
-      scrollToBottomSoon("auto");
-      await refreshAll();
-
-      // ✅ IMPORTANT: even after sending template, keep template-only mode
-      // until we receive an inbound message (lastInboundAt updates).
-    } catch (e) {
-      const msg = e?.response?.data?.message || "Template send failed.";
-      alert(msg);
-    }
-  };
+    if (fileRef.current) fileRef.current.value = "";
+  }, []);
 
   const onPickFile = async (file) => {
     if (!file) return;
+
     if (file.size > 15 * 1024 * 1024) {
       alert("Max attachment size is 15MB.");
       return;
     }
+
     if (privateMode) {
       alert("Attachments are disabled in Private Reply.");
       return;
     }
-    // ✅ if template-only mode, hide attachments anyway; extra guard
+
     if (templateOnlyMode) {
       alert("Session expired. Attachments are disabled. Send a template instead.");
       return;
     }
 
+    const previewUrl = URL.createObjectURL(file);
+    setPendingFile({
+      file,
+      previewUrl,
+      type: file.type || "application/octet-stream",
+      caption: "",
+    });
+  };
+
+  const sendPendingFile = async () => {
+    if (!pendingFile?.file) return;
+
+    setAttachmentSending(true);
     try {
       const fd = new FormData();
       fd.append("to", phone10);
-      fd.append("file", file);
+      fd.append("file", pendingFile.file);
+      if (pendingFile.caption?.trim()) fd.append("caption", pendingFile.caption.trim());
+
       await axios.post(`${API_BASE}/api/whatsapp/send-media`, fd, {
         headers: { "Content-Type": "multipart/form-data" },
       });
+
+      closePendingFile();
       stickToBottomRef.current = true;
       scrollToBottomSoon("auto");
       await refreshAll();
     } catch (e) {
       alert("Failed to send attachment.");
     } finally {
-      if (fileRef.current) fileRef.current.value = "";
+      setAttachmentSending(false);
     }
   };
 
   const insertEmoji = (emo) => setText((t) => t + emo);
+
+  async function uploadTemplateHeaderMedia(file) {
+    const fd = new FormData();
+    fd.append("file", file);
+    const r = await axios.post(`${API_BASE}/api/whatsapp/upload-template-media`, fd, {
+      headers: { "Content-Type": "multipart/form-data" },
+    });
+    return r?.data;
+  }
 
   const openTemplateComposer = (tpl) => {
     const bodyText = extractTemplateBodyText(tpl);
@@ -641,9 +839,8 @@ export default function WhatsAppChatDrawer({
     setActiveTemplate(tpl);
     setTplVars(Array.from({ length: count }, () => ""));
     setTplComposeOpen(true);
-    setTplSending(false); // ✅ Reset sending state
+    setTplSending(false);
 
-    // ✅ header attachment config
     const fmt = getHeaderMediaFormatFromTemplate(tpl);
     setTplHeaderFmt(fmt);
     setTplHeaderFile(null);
@@ -663,12 +860,14 @@ export default function WhatsAppChatDrawer({
     const u = String(url || "").trim();
     if (!u) return "";
     if (/^https?:\/\//i.test(u)) return u;
-    if (u.startsWith("/")) return `${API_BASE}${u}`; // relative -> API_BASE
+    if (u.startsWith("/")) return `${API_BASE}${u}`;
     return `${API_BASE}/${u}`;
   }
 
   function isProviderUrl(url = "") {
-    return /360dialog\.io|graph\.facebook\.com|lookaside\.facebook\.com|fbcdn\.net|facebook\.com/i.test(String(url || ""));
+    return /360dialog\.io|graph\.facebook\.com|lookaside\.facebook\.com|fbcdn\.net|facebook\.com/i.test(
+      String(url || "")
+    );
   }
 
   const renderMedia = (m) => {
@@ -676,27 +875,19 @@ export default function WhatsAppChatDrawer({
     const rawUrl = String(m?.media?.url || m?.mediaUrl || "").trim();
 
     const absRawUrl = rawUrl ? absolutizeUrl(rawUrl) : "";
-
     const url =
-      (!absRawUrl || isProviderUrl(absRawUrl))
-        ? (mediaId ? `${API_BASE}/api/whatsapp/media-proxy/${encodeURIComponent(mediaId)}` : "")
+      !absRawUrl || isProviderUrl(absRawUrl)
+        ? mediaId
+          ? `${API_BASE}/api/whatsapp/media-proxy/${encodeURIComponent(mediaId)}`
+          : ""
         : absRawUrl;
 
     if (!url) return null;
 
-    const rawMime =
-      m?.media?.mime ||
-      m?.media?.mimetype ||
-      m?.mime ||
-      m?.mediaMime ||
-      "";
-
+    const rawMime = m?.media?.mime || m?.media?.mimetype || m?.mime || m?.mediaMime || "";
     const mime = String(rawMime).toLowerCase();
 
-    const msgType = String(
-      m?.type || m?.messageType || m?.media?.type || m?.mediaType || ""
-    ).toLowerCase();
-
+    const msgType = String(m?.type || m?.messageType || m?.media?.type || m?.mediaType || "").toLowerCase();
     const filename = String(m?.media?.filename || m?.filename || "").toLowerCase();
 
     const isImg =
@@ -721,23 +912,20 @@ export default function WhatsAppChatDrawer({
       /\.(mp4|webm|mov)$/i.test(url) ||
       /\.(mp4|webm|mov)$/i.test(filename);
 
-    const isPdf =
-      mime.includes("pdf") ||
-      /\.pdf$/i.test(url) ||
-      /\.pdf$/i.test(filename);
+    const isPdf = mime.includes("pdf") || /\.pdf$/i.test(url) || /\.pdf$/i.test(filename);
 
     if (isImg) {
       return (
-        <Box sx={{ mt: 0.75 }}>
+        <Box sx={{ mt: 0.9 }}>
           <Box
             component="img"
             src={url}
             alt="attachment"
             sx={{
-              width: 220,
+              width: 230,
               maxWidth: "100%",
-              borderRadius: 1.5,
-              border: "1px solid #e5e5e5",
+              borderRadius: 2,
+              border: "1px solid rgba(0,0,0,0.06)",
               display: "block",
               cursor: "pointer",
             }}
@@ -750,9 +938,8 @@ export default function WhatsAppChatDrawer({
 
     if (isAudio) {
       const typeAttr = mime && mime !== "application/octet-stream" ? mime : undefined;
-
       return (
-        <Box sx={{ mt: 0.75 }}>
+        <Box sx={{ mt: 0.9 }}>
           <audio
             controls
             preload="none"
@@ -767,7 +954,7 @@ export default function WhatsAppChatDrawer({
 
     if (isVideo) {
       return (
-        <Box sx={{ mt: 0.75 }}>
+        <Box sx={{ mt: 0.9 }}>
           <video
             controls
             preload="metadata"
@@ -775,8 +962,8 @@ export default function WhatsAppChatDrawer({
             style={{
               width: "260px",
               maxWidth: "100%",
-              borderRadius: "10px",
-              border: "1px solid #e5e5e5",
+              borderRadius: "12px",
+              border: "1px solid rgba(0,0,0,0.08)",
             }}
             onLoadedMetadata={() => stickToBottomRef.current && scrollToBottomSoon("auto")}
           />
@@ -785,12 +972,12 @@ export default function WhatsAppChatDrawer({
     }
 
     return (
-      <Box sx={{ mt: 0.75 }}>
+      <Box sx={{ mt: 0.9 }}>
         <Button
           size="small"
           variant="outlined"
           onClick={() => window.open(url, "_blank", "noopener,noreferrer")}
-          sx={{ textTransform: "none" }}
+          sx={{ textTransform: "none", borderRadius: 999 }}
         >
           {isPdf ? "Open PDF" : "Open attachment"}
         </Button>
@@ -798,8 +985,6 @@ export default function WhatsAppChatDrawer({
     );
   };
 
-
-  // ✅ Help me write
   const helpMeWrite = async () => {
     if (!phone10) return;
     if (privateMode) {
@@ -816,6 +1001,7 @@ export default function WhatsAppChatDrawer({
       const lastInbound = [...(messages || [])]
         .reverse()
         .find((m) => String(m.direction || "").toUpperCase() !== "OUTBOUND");
+
       const goal = lastInbound?.text
         ? `Reply to the customer's last message: "${String(lastInbound.text).slice(0, 220)}"`
         : "Write a helpful next message to the customer based on the conversation.";
@@ -834,8 +1020,9 @@ export default function WhatsAppChatDrawer({
         alert("AI did not return a message.");
         return;
       }
+
       setText(suggestion);
-    } catch (e) {
+    } catch {
       alert("Help me write failed.");
     } finally {
       setHelpWriteLoading(false);
@@ -855,6 +1042,7 @@ export default function WhatsAppChatDrawer({
       alert("Type something first to rephrase.");
       return;
     }
+
     setRephraseStyle("professional");
     setRephraseOpen(true);
   };
@@ -862,67 +1050,61 @@ export default function WhatsAppChatDrawer({
   const doRephrase = async () => {
     const original = text.trim();
     if (!original) return;
+
     setRephraseLoading(true);
     try {
       const r = await axios.post(`${API_BASE}/api/whatsapp/rephrase`, {
         text: original,
         style: rephraseStyle,
       });
+
       const out = String(r?.data?.result || r?.data?.rephrased || "").trim();
       if (!out) {
         alert("AI did not return rephrased text.");
         return;
       }
+
       setText(out);
       setRephraseOpen(false);
-    } catch (e) {
+    } catch {
       alert("Rephrase failed.");
     } finally {
       setRephraseLoading(false);
     }
   };
 
-  // ✅ Upload header media for template attachments
-  const uploadTemplateHeaderMedia = async (file) => {
-    if (!file) return;
-    if (file.size > 15 * 1024 * 1024) {
-      alert("Max header media size is 15MB.");
-      return;
-    }
-    setTplHeaderUploadLoading(true);
-    try {
-      const fd = new FormData();
-      fd.append("file", file);
+  const templateOptions = useMemo(
+    () =>
+      utilityTemplates.slice().sort((a, b) => String(a?.name || "").localeCompare(String(b?.name || ""))),
+    [utilityTemplates]
+  );
 
-      const r = await axios.post(`${API_BASE}/api/whatsapp/upload-template-media`, fd, {
-        headers: { "Content-Type": "multipart/form-data" },
+  const sendTemplate = async (tpl, vars = [], renderedPreview = "", header = null) => {
+    try {
+      await axios.post(`${API_BASE}/api/whatsapp/send-template`, {
+        to: phone10,
+        templateName: tpl.name,
+        parameters: (vars || []).map((x) => String(x ?? "")),
+        renderedText: renderedPreview || "",
+        ...(header ? { headerMedia: header } : {}),
       });
 
-      const mediaId = String(r?.data?.mediaId || "").trim();
-      if (!mediaId) {
-        alert("Upload succeeded but mediaId missing.");
-        return;
-      }
-      setTplHeaderMediaId(mediaId);
+      stickToBottomRef.current = true;
+      scrollToBottomSoon("auto");
+      await refreshAll();
     } catch (e) {
-      const msg = e?.response?.data?.message || "Header upload failed.";
+      const msg = e?.response?.data?.message || "Template send failed.";
       alert(msg);
-    } finally {
-      setTplHeaderUploadLoading(false);
+      throw e;
     }
   };
 
   const bannerText = useMemo(() => {
-    if (privateMode) return "Private Reply mode (internal note)";
-    if (canSendFreeform && remainingMs != null) {
-      return `Whatsapp Conversation window will close in ${fmtRemaining(remainingMs)}`;
-    }
-    return "Whatsapp session expired. Only templates are allowed until customer replies.";
+    return statusPillText(privateMode, canSendFreeform, remainingMs);
   }, [privateMode, canSendFreeform, remainingMs]);
 
   return (
     <>
-      {/* ✅ Cart drawer sits to the LEFT of chat drawer */}
       <WhatsAppCartDrawer
         open={cartOpen}
         onClose={() => setCartOpen(false)}
@@ -944,23 +1126,61 @@ export default function WhatsAppChatDrawer({
         }}
         PaperProps={{
           sx: {
-            width: { xs: "100%", sm: 520, md: 620 },
+            width: { xs: "100%", sm: 560, md: 660 },
             maxWidth: "100vw",
             display: "flex",
             flexDirection: "column",
+            bgcolor: UI.appBg,
+            backgroundImage:
+              "linear-gradient(180deg, rgba(255,255,255,0.92) 0%, rgba(246,248,251,0.96) 100%)",
           },
         }}
       >
-        {/* Header */}
-        <Box sx={{ px: 2, py: 1.25, display: "flex", alignItems: "center", gap: 1 }}>
-          <WhatsAppIcon sx={{ color: "#25D366" }} />
+        <Box
+          sx={{
+            px: 2,
+            py: 1.4,
+            display: "flex",
+            alignItems: "center",
+            gap: 1.25,
+            position: "sticky",
+            top: 0,
+            zIndex: 5,
+            backdropFilter: "blur(16px)",
+            bgcolor: UI.headerBg,
+            borderBottom: `1px solid ${UI.headerBorder}`,
+          }}
+        >
+          <Avatar
+            sx={{
+              width: 42,
+              height: 42,
+              bgcolor: avatarColor(leadName || phone10),
+              fontWeight: 800,
+              fontSize: 15,
+            }}
+          >
+            {initials(leadName || phone10)}
+          </Avatar>
+
           <Box sx={{ minWidth: 0 }}>
-            <Typography sx={{ fontWeight: 900, lineHeight: 1.1 }} noWrap>
+            <Typography sx={{ fontWeight: 900, color: UI.text, lineHeight: 1.15 }} noWrap>
               {leadName || "Customer"}
             </Typography>
-            <Typography variant="caption" color="text.secondary" noWrap>
-              {phone10 || "—"}
-            </Typography>
+            <Stack direction="row" spacing={0.8} alignItems="center">
+              <Typography variant="caption" sx={{ color: UI.subtext }} noWrap>
+                {phone10 || "—"}
+              </Typography>
+              <Box
+                sx={{
+                  width: 7,
+                  height: 7,
+                  borderRadius: "50%",
+                  bgcolor: open ? UI.brand : UI.subtle,
+                  boxShadow: `0 0 0 4px ${UI.brandSoft}`,
+                }}
+              />
+            </Stack>
           </Box>
 
           <Box sx={{ ml: "auto", display: "flex", alignItems: "center", gap: 0.5 }}>
@@ -972,6 +1192,13 @@ export default function WhatsAppChatDrawer({
                     await refreshAll();
                   }}
                   disabled={loading}
+                  sx={{
+                    width: 38,
+                    height: 38,
+                    bgcolor: "#fff",
+                    border: `1px solid ${UI.border}`,
+                    "&:hover": { bgcolor: "#f8fafc" },
+                  }}
                 >
                   {loading ? <CircularProgress size={18} /> : <RefreshIcon />}
                 </IconButton>
@@ -979,118 +1206,201 @@ export default function WhatsAppChatDrawer({
             </Tooltip>
 
             <Tooltip title="Cart / Order">
-              <IconButton onClick={() => setCartOpen(true)}>
+              <IconButton
+                onClick={() => setCartOpen(true)}
+                sx={{
+                  width: 38,
+                  height: 38,
+                  bgcolor: "#fff",
+                  border: `1px solid ${UI.border}`,
+                  "&:hover": { bgcolor: "#f8fafc" },
+                }}
+              >
                 <ShoppingCartIcon />
               </IconButton>
             </Tooltip>
 
-            <IconButton onClick={onClose}>
+            <IconButton
+              onClick={onClose}
+              sx={{
+                width: 38,
+                height: 38,
+                bgcolor: "#fff",
+                border: `1px solid ${UI.border}`,
+                "&:hover": { bgcolor: "#f8fafc" },
+              }}
+            >
               <CloseIcon />
             </IconButton>
           </Box>
         </Box>
 
-        {/* Banner */}
         <Box
           sx={{
-            px: 2,
-            py: 0.75,
-            bgcolor: "#FFF8D6",
-            borderTop: "1px solid #F3E7A6",
-            borderBottom: "1px solid #F3E7A6",
+            mx: 2,
+            mt: 1.25,
+            mb: 1,
+            px: 1.25,
+            py: 0.95,
+            borderRadius: 2.5,
+            bgcolor: UI.warningBg,
+            border: `1px solid ${UI.warningBorder}`,
             display: "flex",
             alignItems: "center",
             gap: 1,
+            boxShadow: "0 1px 2px rgba(15,23,42,0.04)",
           }}
         >
-          <Typography sx={{ fontSize: 13, fontWeight: 700, color: "#7A5B00" }}>{bannerText}</Typography>
+          {privateMode ? (
+            <LockOutlinedIcon sx={{ fontSize: 18, color: UI.warningText }} />
+          ) : (
+            <AccessTimeIcon sx={{ fontSize: 18, color: UI.warningText }} />
+          )}
+          <Typography sx={{ fontSize: 12.5, fontWeight: 800, color: UI.warningText }}>
+            {bannerText}
+          </Typography>
         </Box>
 
-        {/* Messages */}
-        <Box sx={{ flex: 1, overflowY: "auto", p: 2, bgcolor: "#F7F7F7" }} ref={listRef}>
-          {loading ? (
-            <Box sx={{ display: "flex", justifyContent: "center", py: 6 }}>
-              <CircularProgress size={28} />
-            </Box>
-          ) : messages.length === 0 ? (
-            <Typography color="text.secondary" align="center">
-              No messages found.
-            </Typography>
-          ) : (
-            grouped.map((g) => (
-              <Box key={g.key} sx={{ mb: 2 }}>
-                <Box sx={{ display: "flex", justifyContent: "center", mb: 1 }}>
-                  <Paper
-                    elevation={0}
-                    sx={{
-                      px: 1.25,
-                      py: 0.5,
-                      borderRadius: 999,
-                      border: "1px solid #E6E6E6",
-                      bgcolor: "#FFFFFF",
-                    }}
-                  >
-                    <Typography sx={{ fontSize: 12, fontWeight: 800, color: "#444" }}>{g.label}</Typography>
-                  </Paper>
-                </Box>
+        <Box
+          sx={{
+            flex: 1,
+            overflowY: "auto",
+            px: 1.5,
+            py: 1.5,
+            bgcolor: UI.panelBg,
+            backgroundImage: UI.panelPattern,
+            backgroundSize: "cover",
+            backgroundPosition: "center",
+            position: "relative",
+          }}
+          ref={listRef}
+        >
+          <Box
+            sx={{
+              position: "absolute",
+              inset: 0,
+              background:
+                "linear-gradient(180deg, rgba(255,255,255,0.74) 0%, rgba(255,255,255,0.34) 45%, rgba(255,255,255,0.22) 100%)",
+              pointerEvents: "none",
+            }}
+          />
 
-                {g.items.map((m, idx) => {
-                  const outbound = String(m.direction || "").toUpperCase() === "OUTBOUND";
-                  const hm = formatHM(m.timestamp || m.createdAt);
-                  const showTicks = outbound;
-
-                  return (
-                    <Box
-                      key={m._id || m.waId || `${g.key}-${idx}`}
+          <Box sx={{ position: "relative", zIndex: 1 }}>
+            {loading ? (
+              <Box sx={{ display: "flex", justifyContent: "center", py: 6 }}>
+                <CircularProgress size={28} />
+              </Box>
+            ) : messages.length === 0 ? (
+              <Paper
+                elevation={0}
+                sx={{
+                  maxWidth: 340,
+                  mx: "auto",
+                  mt: 8,
+                  p: 2.25,
+                  textAlign: "center",
+                  borderRadius: 3,
+                  bgcolor: "rgba(255,255,255,0.86)",
+                  border: `1px solid ${UI.border}`,
+                  backdropFilter: "blur(8px)",
+                }}
+              >
+                <WhatsAppIcon sx={{ color: UI.brand, fontSize: 34, mb: 1 }} />
+                <Typography sx={{ fontWeight: 900, color: UI.text }}>No messages yet</Typography>
+                <Typography variant="body2" sx={{ color: UI.subtext, mt: 0.5 }}>
+                  Start the conversation or send a template to this contact.
+                </Typography>
+              </Paper>
+            ) : (
+              grouped.map((g) => (
+                <Box key={g.key} sx={{ mb: 2 }}>
+                  <Box sx={{ display: "flex", justifyContent: "center", mb: 1.25 }}>
+                    <Paper
+                      elevation={0}
                       sx={{
-                        display: "flex",
-                        justifyContent: outbound ? "flex-end" : "flex-start",
-                        mb: 1,
+                        px: 1.4,
+                        py: 0.55,
+                        borderRadius: 999,
+                        border: "1px solid rgba(255,255,255,0.78)",
+                        bgcolor: "rgba(255,255,255,0.72)",
+                        backdropFilter: "blur(12px)",
+                        boxShadow: "0 4px 18px rgba(15,23,42,0.06)",
                       }}
                     >
-                      <Paper
+                      <Typography sx={{ fontSize: 12, fontWeight: 900, color: "#475569" }}>
+                        {g.label}
+                      </Typography>
+                    </Paper>
+                  </Box>
+
+                  {g.items.map((m, idx) => {
+                    const outbound = String(m.direction || "").toUpperCase() === "OUTBOUND";
+                    const hm = formatHM(m.timestamp || m.createdAt);
+
+                    return (
+                      <Box
+                        key={m._id || m.waId || m.providerTransactionId || `${g.key}-${idx}`}
                         sx={{
-                          maxWidth: "78%",
-                          px: 1.25,
-                          py: 0.75,
-                          borderRadius: 2,
-                          bgcolor: outbound ? "#DCF8C6" : "#FFFFFF",
-                          border: "1px solid #EAEAEA",
+                          display: "flex",
+                          justifyContent: outbound ? "flex-end" : "flex-start",
+                          mb: 1,
                         }}
-                        elevation={0}
                       >
-                        {!!m.text && (
-                          <Typography sx={{ fontSize: 13, whiteSpace: "pre-wrap" }}>{m.text}</Typography>
-                        )}
-                        {renderMedia(m)}
-                        <Box
+                        <Paper
+                          elevation={0}
                           sx={{
-                            mt: 0.5,
-                            display: "flex",
-                            justifyContent: "flex-end",
-                            alignItems: "center",
-                            gap: 0.25,
+                            maxWidth: "79%",
+                            px: 1.35,
+                            py: 0.9,
+                            borderRadius: outbound ? "20px 20px 6px 20px" : "20px 20px 20px 6px",
+                            bgcolor: outbound ? UI.outboundBg : UI.inboundBg,
+                            border: "1px solid rgba(15,23,42,0.05)",
+                            boxShadow: "0 8px 24px rgba(15,23,42,0.08)",
                           }}
                         >
-                          <Typography variant="caption" sx={{ opacity: 0.65 }}>
-                            {hm}
-                          </Typography>
-                          {showTicks && <MessageTicks status={m.status} />}
-                        </Box>
-                      </Paper>
-                    </Box>
-                  );
-                })}
-              </Box>
-            ))
-          )}
+                          {!!m.text && (
+                            <Typography sx={{ fontSize: 13.5, whiteSpace: "pre-wrap", color: UI.text, lineHeight: 1.45 }}>
+                              {m.text}
+                            </Typography>
+                          )}
+
+                          {renderMedia(m)}
+
+                          <Box
+                            sx={{
+                              mt: 0.55,
+                              display: "flex",
+                              justifyContent: "flex-end",
+                              alignItems: "center",
+                              gap: 0.25,
+                            }}
+                          >
+                            <Typography variant="caption" sx={{ color: "rgba(17,24,39,0.58)" }}>
+                              {hm}
+                            </Typography>
+                            {outbound && <MessageTicks status={m.status} />}
+                          </Box>
+                        </Paper>
+                      </Box>
+                    );
+                  })}
+                </Box>
+              ))
+            )}
+          </Box>
         </Box>
 
         <Divider />
 
-        {/* ✅ Composer (SESSION EXPIRED => hide everything, show only Send Template button) */}
         {templateOnlyMode ? (
-          <Box sx={{ p: 1.5, bgcolor: "#FFF" }}>
+          <Box
+            sx={{
+              p: 1.5,
+              bgcolor: UI.composerBg,
+              backdropFilter: "blur(12px)",
+              borderTop: `1px solid ${UI.border}`,
+            }}
+          >
             <Button
               fullWidth
               variant="contained"
@@ -1099,7 +1409,13 @@ export default function WhatsAppChatDrawer({
                 setTplSearch("");
                 setTplAnchor(e.currentTarget);
               }}
-              sx={{ textTransform: "none", borderRadius: 1.25, fontWeight: 900, py: 1.1 }}
+              sx={{
+                textTransform: "none",
+                borderRadius: 2,
+                fontWeight: 900,
+                py: 1.2,
+                boxShadow: "none",
+              }}
             >
               Send Template
             </Button>
@@ -1108,18 +1424,25 @@ export default function WhatsAppChatDrawer({
             </Typography>
           </Box>
         ) : (
-          <Box sx={{ p: 1.5, bgcolor: "#FFF" }}>
+          <Box
+            sx={{
+              p: 1.5,
+              bgcolor: UI.composerBg,
+              backdropFilter: "blur(12px)",
+              borderTop: `1px solid ${UI.border}`,
+            }}
+          >
             {privateMode ? (
               <Box sx={{ mb: 1 }}>
-                <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 0.75 }}>
-                  <Typography sx={{ fontSize: 13, fontWeight: 800, color: "#222" }}>Reply Privately:</Typography>
+                <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                  <Typography sx={{ fontSize: 13, fontWeight: 800, color: UI.text }}>Reply Privately</Typography>
                   <Chip
                     label="Private Reply"
                     onDelete={() => setPrivateMode(false)}
                     variant="outlined"
-                    sx={{ fontWeight: 800 }}
+                    sx={{ fontWeight: 900 }}
                   />
-                </Box>
+                </Stack>
               </Box>
             ) : null}
 
@@ -1130,100 +1453,109 @@ export default function WhatsAppChatDrawer({
               onChange={(e) => setText(e.target.value)}
               multiline
               minRows={2}
-              sx={{ "& .MuiOutlinedInput-root": { borderRadius: 1.5 } }}
+              maxRows={5}
+              sx={{
+                "& .MuiOutlinedInput-root": {
+                  borderRadius: 2.25,
+                  bgcolor: "#fff",
+                  boxShadow: "0 1px 2px rgba(15,23,42,0.04)",
+                },
+              }}
             />
 
-            <Box sx={{ mt: 1, display: "flex", alignItems: "center", gap: 0.75, flexWrap: "wrap" }}>
-              <Button
-                variant="outlined"
-                size="small"
+            <Stack
+              direction="row"
+              spacing={0.75}
+              alignItems="center"
+              mt={1}
+              flexWrap="wrap"
+              useFlexGap
+            >
+              <ActionPill
+                title="Private Reply"
+                label="Private Reply"
+                icon={<LockOutlinedIcon sx={{ fontSize: 17 }} />}
                 onClick={() => setPrivateMode((v) => !v)}
-                sx={{ textTransform: "none", borderRadius: 1, fontWeight: 800 }}
-              >
-                Private Reply
-              </Button>
+              />
 
-              <Tooltip title="Quick Replies">
-                <IconButton size="small" onClick={(e) => setQuickAnchor(e.currentTarget)}>
-                  <FlashOnIcon />
-                </IconButton>
-              </Tooltip>
+              <ActionPill
+                title="Quick Replies"
+                label="Quick reply"
+                icon={<FlashOnIcon sx={{ fontSize: 17 }} />}
+                onClick={(e) => setQuickAnchor(e.currentTarget)}
+              />
 
-              <Tooltip title="Templates (UTILITY only)">
-                <IconButton size="small" onClick={(e) => {
+              <ActionPill
+                title="Templates"
+                label="Templates"
+                icon={<ViewListIcon sx={{ fontSize: 17 }} />}
+                onClick={(e) => {
                   setTplSearch("");
                   setTplAnchor(e.currentTarget);
-                }}>
-                  <ViewListIcon />
-                </IconButton>
-              </Tooltip>
+                }}
+              />
 
-              <Tooltip title={privateMode ? "Disabled in Private Reply" : "Attachment (≤ 15MB)"}>
-                <span>
-                  <IconButton size="small" disabled={privateMode} onClick={() => fileRef.current?.click()}>
-                    <AttachFileIcon />
-                  </IconButton>
-                </span>
-              </Tooltip>
+              <ActionPill
+                title={privateMode ? "Disabled in Private Reply" : "Attachment"}
+                label="Attach File"
+                icon={<AttachFileIcon sx={{ fontSize: 17 }} />}
+                onClick={() => fileRef.current?.click()}
+                disabled={privateMode}
+              />
               <input ref={fileRef} type="file" hidden onChange={(e) => onPickFile(e.target.files?.[0])} />
 
-              <Tooltip title="Emojis">
-                <IconButton size="small" onClick={(e) => setEmojiAnchor(e.currentTarget)}>
-                  <InsertEmoticonIcon />
-                </IconButton>
-              </Tooltip>
+              <ActionPill
+                title="Emoji"
+                label="Emojis"
+                icon={<InsertEmoticonIcon sx={{ fontSize: 17 }} />}
+                onClick={(e) => setEmojiAnchor(e.currentTarget)}
+              />
 
-              <Tooltip title={privateMode ? "Disabled in Private Reply" : "Help me write (AI)"}>
-                <span>
-                  <Button
-                    size="small"
-                    variant="outlined"
-                    disabled={privateMode || helpWriteLoading}
-                    onClick={helpMeWrite}
-                    startIcon={helpWriteLoading ? <CircularProgress size={14} /> : <AutoFixHighIcon />}
-                    sx={{ textTransform: "none", borderRadius: 1, fontWeight: 900 }}
-                  >
-                    Help me write
-                  </Button>
-                </span>
-              </Tooltip>
+              <ActionPill
+                title={privateMode ? "Disabled in Private Reply" : "Help me write"}
+                label="AI Write"
+                icon={<AutoFixHighIcon sx={{ fontSize: 17 }} />}
+                onClick={helpMeWrite}
+                disabled={privateMode || helpWriteLoading}
+                loading={helpWriteLoading}
+              />
 
-              <Tooltip title={privateMode ? "Disabled in Private Reply" : "Rephrase your current text"}>
-                <span>
-                  <Button
-                    size="small"
-                    variant="outlined"
-                    disabled={privateMode || !text.trim()}
-                    onClick={openRephraseDialog}
-                    startIcon={<AutorenewIcon />}
-                    sx={{ textTransform: "none", borderRadius: 1, fontWeight: 900 }}
-                  >
-                    Rephrase
-                  </Button>
-                </span>
-              </Tooltip>
+              <ActionPill
+                title={privateMode ? "Disabled in Private Reply" : "Rephrase"}
+                label="Rephrase"
+                icon={<AutorenewIcon sx={{ fontSize: 17 }} />}
+                onClick={openRephraseDialog}
+                disabled={privateMode || !text.trim()}
+              />
 
               <Box sx={{ ml: "auto" }}>
                 <Button
                   variant="contained"
                   onClick={sendText}
                   disabled={!text.trim()}
-                  sx={{ textTransform: "none", borderRadius: 1, px: 2 }}
+                  startIcon={<SendIcon sx={{ fontSize: 16 }} />}
+                  sx={{
+                    textTransform: "none",
+                    borderRadius: 999,
+                    px: 2.3,
+                    py: 0.95,
+                    fontWeight: 900,
+                    boxShadow: "none",
+                  }}
                 >
                   Send
                 </Button>
               </Box>
-            </Box>
+            </Stack>
           </Box>
         )}
 
-        {/* Quick replies */}
         <Menu anchorEl={quickAnchor} open={Boolean(quickAnchor)} onClose={() => setQuickAnchor(null)}>
           {QUICK_REPLIES.map((q) => (
             <MenuItem
               key={q}
               onClick={() => {
-                setText((t) => (t ? t + "\n" + q : q));
+                setText((t) => (t ? `${t}\n${q}` : q));
                 setQuickAnchor(null);
               }}
             >
@@ -1232,87 +1564,84 @@ export default function WhatsAppChatDrawer({
           ))}
         </Menu>
 
-        {/* Templates menu (UTILITY only) */}
         <Menu
-  anchorEl={tplAnchor}
-  open={Boolean(tplAnchor)}
-  onClose={() => {
-    setTplAnchor(null);
-    setTplSearch("");
-  }}
-  PaperProps={{ sx: { width: 380, overflow: "hidden" } }}
-  MenuListProps={{ disablePadding: true, autoFocusItem: false }}
->
-  {/* 🔎 Search bar */}
-  <Box sx={{ p: 1, position: "sticky", top: 0, bgcolor: "#fff", zIndex: 1 }}>
-    <TextField
-      size="small"
-      fullWidth
-      autoFocus
-      placeholder="Search templates…"
-      value={tplSearch}
-      onChange={(e) => setTplSearch(e.target.value)}
-      InputProps={{
-        startAdornment: (
-          <InputAdornment position="start">
-            <SearchIcon fontSize="small" />
-          </InputAdornment>
-        ),
-      }}
-    />
-  </Box>
+          anchorEl={tplAnchor}
+          open={Boolean(tplAnchor)}
+          onClose={() => {
+            setTplAnchor(null);
+            setTplSearch("");
+          }}
+          PaperProps={{ sx: { width: 390, overflow: "hidden", borderRadius: 2.5 } }}
+          MenuListProps={{ disablePadding: true, autoFocusItem: false }}
+        >
+          <Box sx={{ p: 1, position: "sticky", top: 0, bgcolor: "#fff", zIndex: 1 }}>
+            <TextField
+              size="small"
+              fullWidth
+              autoFocus
+              placeholder="Search templates…"
+              value={tplSearch}
+              onChange={(e) => setTplSearch(e.target.value)}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchIcon fontSize="small" />
+                  </InputAdornment>
+                ),
+              }}
+            />
+          </Box>
 
-  <Divider />
+          <Divider />
 
-  {/* 📃 List */}
-  <Box sx={{ maxHeight: 360, overflowY: "auto" }}>
-    {utilityTemplates.length === 0 ? (
-      <MenuItem disabled>No UTILITY templates found</MenuItem>
-    ) : filteredUtilityTemplates.length === 0 ? (
-      <MenuItem disabled>No matching templates</MenuItem>
-    ) : (
-      filteredUtilityTemplates.map((t) => {
-        const needsHeader = !!getHeaderMediaFormatFromTemplate(t);
-        return (
-          <MenuItem
-            key={t._id || t.name}
-            onClick={() => {
-              setTplAnchor(null);
-              setTplSearch("");
-              openTemplateComposer(t);
-            }}
-          >
-            <Box sx={{ minWidth: 0, width: "100%" }}>
-              <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                <Typography sx={{ fontWeight: 800 }} noWrap>
-                  {t.name}
-                </Typography>
-                {needsHeader ? (
-                  <Chip
-                    size="small"
-                    label="Attachment"
-                    variant="outlined"
-                    sx={{ ml: "auto", fontWeight: 800 }}
-                  />
-                ) : null}
-              </Box>
-              <Typography variant="caption" color="text.secondary" noWrap>
-                {t.language || "en"} · {t.status || ""}
-              </Typography>
-            </Box>
-          </MenuItem>
-        );
-      })
-    )}
-  </Box>
-</Menu>
+          <Box sx={{ maxHeight: 360, overflowY: "auto" }}>
+            {templateOptions.length === 0 ? (
+              <MenuItem disabled>No UTILITY templates found</MenuItem>
+            ) : filteredUtilityTemplates.length === 0 ? (
+              <MenuItem disabled>No matching templates</MenuItem>
+            ) : (
+              filteredUtilityTemplates.map((t) => {
+                const needsHeader = !!getHeaderMediaFormatFromTemplate(t);
+                return (
+                  <MenuItem
+                    key={t._id || t.name}
+                    onClick={() => {
+                      setTplAnchor(null);
+                      setTplSearch("");
+                      openTemplateComposer(t);
+                    }}
+                    sx={{ alignItems: "flex-start", py: 1.2 }}
+                  >
+                    <Box sx={{ minWidth: 0, width: "100%" }}>
+                      <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                        <Typography sx={{ fontWeight: 900 }} noWrap>
+                          {t.name}
+                        </Typography>
+                        {needsHeader ? (
+                          <Chip
+                            size="small"
+                            label="Attachment"
+                            variant="outlined"
+                            sx={{ ml: "auto", fontWeight: 900 }}
+                          />
+                        ) : null}
+                      </Box>
+                      <Typography variant="caption" color="text.secondary" noWrap>
+                        {t.language || "en"} · {t.status || ""}
+                      </Typography>
+                    </Box>
+                  </MenuItem>
+                );
+              })
+            )}
+          </Box>
+        </Menu>
 
-        {/* Emoji picker */}
         <Menu
           anchorEl={emojiAnchor}
           open={Boolean(emojiAnchor)}
           onClose={() => setEmojiAnchor(null)}
-          PaperProps={{ sx: { p: 1 } }}
+          PaperProps={{ sx: { p: 1, borderRadius: 2.5 } }}
         >
           <Box sx={{ display: "grid", gridTemplateColumns: "repeat(8, 1fr)", gap: 0.5 }}>
             {EMOJIS.map((e) => (
@@ -1330,13 +1659,13 @@ export default function WhatsAppChatDrawer({
           </Box>
         </Menu>
 
-        {/* ✅ Rephrase Dialog */}
         <Dialog open={rephraseOpen} onClose={() => setRephraseOpen(false)} fullWidth maxWidth="xs">
           <DialogTitle sx={{ fontWeight: 900 }}>Rephrase</DialogTitle>
           <DialogContent dividers>
             <Typography variant="body2" sx={{ mb: 1.25 }} color="text.secondary">
               Choose a style and we’ll rephrase your current message.
             </Typography>
+
             <Box sx={{ display: "grid", gap: 1 }}>
               {[
                 { key: "simple", label: "Simple" },
@@ -1392,8 +1721,7 @@ export default function WhatsAppChatDrawer({
           </Box>
         </Dialog>
 
-        {/* ✅ Template Composer (with attachment support if HEADER IMAGE/VIDEO/DOCUMENT) */}
-        <Dialog open={tplComposeOpen} onClose={() => setTplComposeOpen(false)} fullWidth maxWidth="sm">
+        <Dialog open={tplComposeOpen} onClose={() => !tplSending && setTplComposeOpen(false)} fullWidth maxWidth="sm">
           <DialogTitle sx={{ display: "flex", alignItems: "center", gap: 1 }}>
             <Typography sx={{ fontWeight: 900 }}>Template Preview</Typography>
             <Box sx={{ ml: "auto" }}>
@@ -1413,7 +1741,6 @@ export default function WhatsAppChatDrawer({
               </Typography>
             </Box>
 
-            {/* ✅ Attachment (Header media) section */}
             {tplHeaderFmt ? (
               <Box sx={{ mt: 2 }}>
                 <Typography sx={{ fontWeight: 900, mb: 1 }}>
@@ -1435,10 +1762,10 @@ export default function WhatsAppChatDrawer({
                         tplHeaderFmt === "IMAGE"
                           ? "image/*"
                           : tplHeaderFmt === "VIDEO"
-                            ? "video/*"
-                            : tplHeaderFmt === "DOCUMENT"
-                              ? ".pdf,.doc,.docx,.png,.jpg,.jpeg"
-                              : "*/*"
+                          ? "video/*"
+                          : tplHeaderFmt === "DOCUMENT"
+                          ? ".pdf,.doc,.docx,.png,.jpg,.jpeg"
+                          : "*/*"
                       }
                       onChange={(e) => {
                         const f = e.target.files?.[0] || null;
@@ -1454,7 +1781,29 @@ export default function WhatsAppChatDrawer({
 
                   <Button
                     variant="contained"
-                    onClick={() => uploadTemplateHeaderMedia(tplHeaderFile)}
+                    onClick={async () => {
+                      if (!tplHeaderFile) return;
+                      if (tplHeaderFile.size > 15 * 1024 * 1024) {
+                        alert("Max header media size is 15MB.");
+                        return;
+                      }
+
+                      setTplHeaderUploadLoading(true);
+                      try {
+                        const data = await uploadTemplateHeaderMedia(tplHeaderFile);
+                        const mediaId = String(data?.mediaId || "").trim();
+                        if (!mediaId) {
+                          alert("Upload succeeded but mediaId missing.");
+                          return;
+                        }
+                        setTplHeaderMediaId(mediaId);
+                      } catch (e) {
+                        const msg = e?.response?.data?.message || "Header upload failed.";
+                        alert(msg);
+                      } finally {
+                        setTplHeaderUploadLoading(false);
+                      }
+                    }}
                     disabled={!tplHeaderFile || tplHeaderUploadLoading || tplSending}
                     startIcon={tplHeaderUploadLoading ? <CircularProgress size={14} /> : null}
                     sx={{ textTransform: "none", fontWeight: 900 }}
@@ -1475,7 +1824,6 @@ export default function WhatsAppChatDrawer({
               </Box>
             ) : null}
 
-            {/* ✅ Preview moved ABOVE Variables */}
             <Box sx={{ mt: 2 }}>
               <Typography sx={{ fontWeight: 900, mb: 1 }}>Preview</Typography>
               <Paper
@@ -1493,7 +1841,6 @@ export default function WhatsAppChatDrawer({
               </Paper>
             </Box>
 
-            {/* ✅ Variables moved BELOW Preview */}
             <Box sx={{ mt: 2 }}>
               <Typography sx={{ fontWeight: 900, mb: 1 }}>Variables</Typography>
               {tplVars.length === 0 ? (
@@ -1524,7 +1871,6 @@ export default function WhatsAppChatDrawer({
             </Box>
           </DialogContent>
 
-          {/* Action Buttons */}
           <Box sx={{ p: 1.25, display: "flex", justifyContent: "flex-end", gap: 1 }}>
             <Button
               variant="outlined"
@@ -1535,7 +1881,6 @@ export default function WhatsAppChatDrawer({
               Cancel
             </Button>
 
-            {/* ✅ Button with sending state prevention */}
             <Button
               variant="contained"
               disabled={tplSending}
@@ -1554,12 +1899,9 @@ export default function WhatsAppChatDrawer({
                     : null;
 
                 setTplSending(true);
-
                 try {
                   await sendTemplate(activeTemplate, tplVars, templatePreview, headerMedia);
                   setTplComposeOpen(false);
-                } catch (error) {
-                  console.error("Failed to send template:", error);
                 } finally {
                   setTplSending(false);
                 }
@@ -1570,6 +1912,15 @@ export default function WhatsAppChatDrawer({
             </Button>
           </Box>
         </Dialog>
+
+        <AttachmentPreviewDialog
+          open={Boolean(pendingFile)}
+          pendingFile={pendingFile}
+          setPendingFile={setPendingFile}
+          onClose={closePendingFile}
+          onSend={sendPendingFile}
+          sending={attachmentSending}
+        />
       </Drawer>
     </>
   );
