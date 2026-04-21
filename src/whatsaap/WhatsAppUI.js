@@ -399,6 +399,64 @@ function DateSeparator({ date }) {
   );
 }
 
+function buildLocalPreviewText(type = "", filename = "") {
+  if (type === "image") return "📷 Photo";
+  if (type === "video") return "🎥 Video";
+  if (type === "audio") return "🎙️ Audio";
+  return filename ? `📎 ${filename}` : "📎 Attachment";
+}
+
+function ActionPillButton({
+  title,
+  label,
+  icon,
+  onClick,
+  disabled = false,
+  loading = false,
+}) {
+  return (
+    <Tooltip title={title}>
+      <span>
+        <Button
+          size="small"
+          onClick={onClick}
+          disabled={disabled}
+          startIcon={
+            loading ? (
+              <CircularProgress size={15} sx={{ color: "#22c55e" }} />
+            ) : (
+              icon
+            )
+          }
+          sx={{
+            textTransform: "none",
+            borderRadius: 99,
+            px: 1.25,
+            py: 0.55,
+            minWidth: 0,
+            color: LIGHT.subtext,
+            fontSize: 12,
+            fontWeight: 600,
+            bgcolor: "transparent",
+            border: `1px solid ${LIGHT.border}`,
+            "&:hover": {
+              color: LIGHT.text,
+              bgcolor: "rgba(0,0,0,0.04)",
+              borderColor: "#cfd8e3",
+            },
+            "&.Mui-disabled": {
+              color: "#9aa6b2",
+              borderColor: "#e5e7eb",
+            },
+          }}
+        >
+          {label}
+        </Button>
+      </span>
+    </Tooltip>
+  );
+}
+
 export default function WhatsAppUI() {
   const [conversations, setConversations] = useState([]);
   const [activeChat, setActiveChat] = useState(null);
@@ -427,12 +485,13 @@ export default function WhatsAppUI() {
   const isNearBottomRef = useRef(true);
   const openedCutoffRef = useRef(0);
   const socketRef = useRef(null);
-  const joinedRoomRef = useRef(null);
+  const joinedRoomsRef = useRef(new Set());
   const pendingReadRef = useRef(new Map());
   const [quickAnchor, setQuickAnchor] = useState(null);
   const [tplAnchor, setTplAnchor] = useState(null);
   const [emojiAnchor, setEmojiAnchor] = useState(null);
   const fileRef = useRef(null);
+  const bootstrapChatRef = useRef(null);
   const [fileUploading, setFileUploading] = useState(false);
   const [tplComposeOpen, setTplComposeOpen] = useState(false);
   const [activeTplForSend, setActiveTplForSend] = useState(null);
@@ -447,6 +506,8 @@ export default function WhatsAppUI() {
   const [newHeaderFormat, setNewHeaderFormat] = useState("");
   const [newHeaderFile, setNewHeaderFile] = useState(null);
   const [tplMenuSearch, setTplMenuSearch] = useState("");
+  const [attachmentPreviewOpen, setAttachmentPreviewOpen] = useState(false);
+  const [pendingAttachment, setPendingAttachment] = useState(null);
   const [nowTick, setNowTick] = useState(Date.now());
 
   useEffect(() => { const id = setInterval(() => setNowTick(Date.now()), 1000); return () => clearInterval(id); }, []);
@@ -492,6 +553,18 @@ export default function WhatsAppUI() {
     if (!name || name === activeP10) return activeP10 || "—";
     return name;
   }, [activeP10, activeConversation]);
+
+  const attachmentPreviewMsg = useMemo(() => {
+    if (!pendingAttachment) return null;
+    return {
+      type: pendingAttachment.type,
+      media: {
+        url: pendingAttachment.previewUrl || "",
+        mime: pendingAttachment.mime || "",
+        filename: pendingAttachment.filename || "attachment",
+      },
+    };
+  }, [pendingAttachment]);
 
   const setDraftFor = useCallback((p10, value) => { if (!p10) return; setDrafts((prev) => ({ ...prev, [p10]: String(value ?? "") })); }, []);
   const clearDraftFor = useCallback((p10) => {
@@ -567,38 +640,91 @@ export default function WhatsAppUI() {
 
   const refreshConversations = useCallback(async (selectPhone = null, { silent = false } = {}) => {
     if (!silent) setLoadingChats(true);
+
     try {
       const userName = sessionUser?.fullName || "";
       const userRole = sessionUser?.role || "";
-      const data = (await api(`/api/whatsapp/conversations?${new URLSearchParams({ role: userRole, userName })}`)) || [];
+      const data =
+        (await api(
+          `/api/whatsapp/conversations?${new URLSearchParams({
+            role: userRole,
+            userName,
+          })}`
+        )) || [];
+
       const serverList = Array.isArray(data) ? data : [];
       const now = Date.now();
+
       const list = serverList.map((c) => {
         const p10 = phone10(c.phone);
         const pending = pendingReadRef.current.get(p10);
-        if (pending && now - pending.at < 30000) return { ...c, unreadCount: 0, lastReadAt: pending.iso || c.lastReadAt };
+        if (pending && now - pending.at < 30000) {
+          return { ...c, unreadCount: 0, lastReadAt: pending.iso || c.lastReadAt };
+        }
         return c;
       });
+
       setConversations(list);
-      if (selectPhone) setActiveChat({ phone: selectPhone });
-      else if (!activeChat?.phone && list.length) setActiveChat({ phone: digitsOnly(list[0].phone) });
+
+      if (selectPhone) {
+        setActiveChat({ phone: digitsOnly(selectPhone) });
+      }
     } catch (e) {
-      if (!silent) showToast(e.message || "Failed to load conversations", "error");
+      if (!silent) {
+        showToast(e.message || "Failed to load conversations", "error");
+      }
     } finally {
       if (!silent) setLoadingChats(false);
     }
-  }, [activeChat?.phone, sessionUser?.fullName, sessionUser?.role, showToast]);
+  }, [sessionUser?.fullName, sessionUser?.role, showToast]);
 
-  const loadMessagesInitial = useCallback(async (phoneAnyDigits) => {
+  const mergeUniqueMessages = useCallback((seed = [], server = []) => {
+    const next = [...(Array.isArray(seed) ? seed : [])];
+
+    for (const item of Array.isArray(server) ? server : []) {
+      const itemWaId = String(item?.waId || "");
+      const exists = next.some((m) => {
+        if (itemWaId && String(m?.waId || "") === itemWaId) return true;
+        return msgKey(m) === msgKey(item);
+      });
+      if (!exists) next.push(item);
+    }
+
+    next.sort((a, b) => {
+      const aTs = new Date(a?.timestamp || a?.createdAt || 0).getTime();
+      const bTs = new Date(b?.timestamp || b?.createdAt || 0).getTime();
+      return aTs - bTs;
+    });
+
+    return next;
+  }, []);
+
+  const loadMessagesInitial = useCallback(async (phoneAnyDigits, options = {}) => {
     const q = digitsOnly(phoneAnyDigits);
+    const seedMessages = Array.isArray(options?.seedMessages)
+      ? options.seedMessages
+      : [];
+
     if (!q) return;
-    setChatError(""); setLoadingMessages(true);
+    setChatError("");
+    setLoadingMessages(true);
+
     try {
       const data = (await api(`/api/whatsapp/messages?phone=${encodeURIComponent(q)}`)) || [];
-      setMessages(Array.isArray(data) ? data : []);
-    } catch (e) { setChatError(e.message || "Failed to load messages"); setMessages([]); }
-    finally { setLoadingMessages(false); }
-  }, []);
+      const serverMessages = Array.isArray(data) ? data : [];
+
+      if (seedMessages.length) {
+        setMessages(mergeUniqueMessages(seedMessages, serverMessages));
+      } else {
+        setMessages(serverMessages);
+      }
+    } catch (e) {
+      setChatError(e.message || "Failed to load messages");
+      setMessages(seedMessages.length ? seedMessages : []);
+    } finally {
+      setLoadingMessages(false);
+    }
+  }, [mergeUniqueMessages]);
 
   const fetchTemplates = useCallback(async () => {
     setLoadingTemplates(true);
@@ -631,22 +757,76 @@ export default function WhatsAppUI() {
   useEffect(() => { refreshConversations(null, { silent: false }); fetchTemplates(); }, [refreshConversations, fetchTemplates]);
 
   useEffect(() => {
-    const s = io(API_BASE, { withCredentials: true, transports: ["websocket", "polling"], reconnection: true, reconnectionAttempts: Infinity, reconnectionDelay: 800 });
+    const s = io(API_BASE, {
+      withCredentials: true,
+      transports: ["websocket", "polling"],
+      reconnection: true,
+      reconnectionAttempts: Infinity,
+      reconnectionDelay: 800,
+    });
+
     socketRef.current = s;
-    const onConnect = () => { setSocketStatus("connected"); refreshConversations(null, { silent: true }); const p10 = activeP10Ref.current; if (p10) { s.emit("wa:join", { phone: p10 }); joinedRoomRef.current = roomForPhone10(p10); } };
-    const onDisconnect = () => setSocketStatus("disconnected");
-    const onError = () => setSocketStatus("error");
-    s.on("connect", onConnect); s.on("disconnect", onDisconnect); s.on("connect_error", onError);
-    return () => { try { s.off("connect", onConnect); s.off("disconnect", onDisconnect); s.off("connect_error", onError); s.disconnect(); } catch {} socketRef.current = null; joinedRoomRef.current = null; };
+
+    const onConnect = () => {
+      setSocketStatus("connected");
+      refreshConversations(null, { silent: true });
+    };
+
+    const onDisconnect = () => {
+      setSocketStatus("disconnected");
+      joinedRoomsRef.current.clear();
+    };
+
+    const onError = () => {
+      setSocketStatus("error");
+    };
+
+    s.on("connect", onConnect);
+    s.on("disconnect", onDisconnect);
+    s.on("connect_error", onError);
+
+    return () => {
+      try {
+        for (const room of Array.from(joinedRoomsRef.current)) {
+          const p10 = room.replace(/^wa:/, "");
+          s.emit("wa:leave", { phone10: p10 });
+        }
+        joinedRoomsRef.current.clear();
+
+        s.off("connect", onConnect);
+        s.off("disconnect", onDisconnect);
+        s.off("connect_error", onError);
+        s.disconnect();
+      } catch {}
+
+      socketRef.current = null;
+    };
   }, [refreshConversations]);
 
   useEffect(() => {
-    const s = socketRef.current; if (!s) return;
-    const p10 = activeP10;
-    const nextRoom = p10 ? roomForPhone10(p10) : null;
-    if (joinedRoomRef.current && joinedRoomRef.current !== nextRoom) { s.emit("wa:leave", { phone: joinedRoomRef.current.replace("wa:", "") }); joinedRoomRef.current = null; }
-    if (nextRoom && joinedRoomRef.current !== nextRoom) { s.emit("wa:join", { phone: p10 }); joinedRoomRef.current = nextRoom; }
-  }, [activeP10]);
+    const s = socketRef.current;
+    if (!s?.connected) return;
+
+    const desired = new Set(
+      (conversations || []).map((c) => phone10(c?.phone)).filter(Boolean)
+    );
+
+    for (const p10 of desired) {
+      const room = roomForPhone10(p10);
+      if (!joinedRoomsRef.current.has(room)) {
+        s.emit("wa:join", { phone10: p10 });
+        joinedRoomsRef.current.add(room);
+      }
+    }
+
+    for (const room of Array.from(joinedRoomsRef.current)) {
+      const p10 = room.replace(/^wa:/, "");
+      if (!desired.has(p10)) {
+        s.emit("wa:leave", { phone10: p10 });
+        joinedRoomsRef.current.delete(room);
+      }
+    }
+  }, [conversations, socketStatus]);
 
   useEffect(() => {
     const s = socketRef.current; if (!s) return;
@@ -722,9 +902,29 @@ export default function WhatsAppUI() {
 
   useEffect(() => {
     if (!activeDigits) return;
-    setSessionExpired(false); setChatError(""); setMessages([]); openedCutoffRef.current = Date.now();
+
+    const pendingBootstrap = bootstrapChatRef.current;
+    const seedMessages =
+      pendingBootstrap?.phone10 === phone10(activeDigits)
+        ? pendingBootstrap.messages || []
+        : [];
+
+    setSessionExpired(false);
+    setChatError("");
+
+    if (!seedMessages.length) {
+      setMessages([]);
+    }
+
+    openedCutoffRef.current = Date.now();
     markConversationRead(activeDigits, { optimisticOnly: false });
-    loadMessagesInitial(activeDigits).finally(() => markConversationRead(activeDigits, { optimisticOnly: false }));
+
+    loadMessagesInitial(activeDigits, { seedMessages }).finally(() => {
+      if (pendingBootstrap?.phone10 === phone10(activeDigits)) {
+        bootstrapChatRef.current = null;
+      }
+      markConversationRead(activeDigits, { optimisticOnly: false });
+    });
   }, [activeDigits, loadMessagesInitial, markConversationRead]);
 
   useEffect(() => {
@@ -739,12 +939,32 @@ export default function WhatsAppUI() {
     isNearBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 120;
   };
 
-  const openChat = useCallback((phone) => {
-    const p = digitsOnly(phone); if (!p) return;
+  const openChat = useCallback((phone, options = {}) => {
+    const p = digitsOnly(phone);
+    if (!p) return;
+
     const nextSearch = `?phone=${encodeURIComponent(p)}`;
-    if (location.search !== nextSearch) navigate(`/whatsaap/chat${nextSearch}`, { replace: true });
+    if (location.search !== nextSearch) {
+      navigate(`/whatsaap/chat${nextSearch}`, { replace: true });
+    }
+
+    const bootstrapMessages = Array.isArray(options?.bootstrapMessages)
+      ? options.bootstrapMessages
+      : [];
+
+    if (bootstrapMessages.length) {
+      bootstrapChatRef.current = {
+        phone10: phone10(p),
+        messages: bootstrapMessages,
+      };
+      setMessages(bootstrapMessages);
+    } else {
+      bootstrapChatRef.current = null;
+    }
+
     openedCutoffRef.current = Date.now();
-    setActiveChat({ phone: p }); setSearch("");
+    setActiveChat({ phone: p });
+    setSearch("");
     markConversationRead(p, { optimisticOnly: false });
   }, [location.search, markConversationRead, navigate]);
 
@@ -785,26 +1005,102 @@ export default function WhatsAppUI() {
     }
   };
 
+  const closeAttachmentPreview = useCallback(() => {
+    setAttachmentPreviewOpen(false);
+    setPendingAttachment((prev) => {
+      if (prev?.previewUrl && String(prev.previewUrl).startsWith("blob:")) {
+        try {
+          URL.revokeObjectURL(prev.previewUrl);
+        } catch {}
+      }
+      return null;
+    });
+    if (fileRef.current) fileRef.current.value = "";
+  }, []);
+
   const onPickFile = async (file) => {
     if (!file || !activeChat?.phone) return;
     const liveWindow = activeConversation?.windowExpiresAt && new Date(activeConversation.windowExpiresAt).getTime() > Date.now();
     if (sessionExpired && !liveWindow) return;
     if (sessionExpired && liveWindow) { setSessionExpired(false); setChatError(""); }
     if (file.size > 15 * 1024 * 1024) { showToast("Max attachment size is 15MB.", "error"); return; }
-    const to = normalizeToWa(activeChat.phone);
+
     const mime = file.type || "application/octet-stream";
-    const urlBlob = mime.startsWith("image/") || mime.startsWith("video/") || mime.startsWith("audio/") ? URL.createObjectURL(file) : "";
-    const optimisticType = mime.startsWith("image/") ? "image" : mime.startsWith("video/") ? "video" : mime.startsWith("audio/") ? "audio" : "document";
-    const optimistic = { _id: buildTempId("tmp_file"), direction: "OUTBOUND", text: "", type: optimisticType, timestamp: new Date().toISOString(), status: "sent", to, phone: to, media: { url: urlBlob || "", mime, filename: file.name } };
+    const type = mime.startsWith("image/")
+      ? "image"
+      : mime.startsWith("video/")
+      ? "video"
+      : mime.startsWith("audio/")
+      ? "audio"
+      : "document";
+
+    const previewUrl = URL.createObjectURL(file);
+
+    setPendingAttachment({
+      file,
+      mime,
+      filename: file.name,
+      type,
+      previewUrl,
+      caption: "",
+    });
+    setAttachmentPreviewOpen(true);
+  };
+
+  const sendPendingAttachment = async () => {
+    if (!pendingAttachment?.file || !activeChat?.phone) return;
+
+    const to = normalizeToWa(activeChat.phone);
+    const { file, mime, filename, type, caption = "" } = pendingAttachment;
+    const optimisticPreviewUrl = URL.createObjectURL(file);
+
+    const optimistic = {
+      _id: buildTempId("tmp_file"),
+      direction: "OUTBOUND",
+      text: caption.trim(),
+      type,
+      timestamp: new Date().toISOString(),
+      status: "sent",
+      to,
+      phone: to,
+      media: {
+        url: optimisticPreviewUrl,
+        mime,
+        filename,
+      },
+    };
+
     setMessages((prev) => [...prev, optimistic]);
-    updateConversationPreviewLocal(to, optimisticType === "image" ? "📷 Photo" : optimisticType === "video" ? "🎥 Video" : optimisticType === "audio" ? "🎙️ Audio" : `📎 ${file.name}`);
+    updateConversationPreviewLocal(
+      to,
+      caption.trim() || buildLocalPreviewText(type, filename)
+    );
+
+    setAttachmentPreviewOpen(false);
+    setPendingAttachment((prev) => {
+      if (prev?.previewUrl && String(prev.previewUrl).startsWith("blob:")) {
+        try {
+          URL.revokeObjectURL(prev.previewUrl);
+        } catch {}
+      }
+      return null;
+    });
+
     setFileUploading(true);
-    try { const fd = new FormData(); fd.append("to", to); fd.append("file", file); await apiForm(`/api/whatsapp/send-media`, fd); }
-    catch (e) {
+    try {
+      const fd = new FormData();
+      fd.append("to", to);
+      fd.append("file", file);
+      if (caption.trim()) fd.append("caption", caption.trim());
+      await apiForm(`/api/whatsapp/send-media`, fd);
+    } catch (e) {
       setMessages((prev) => prev.map((m) => m._id === optimistic._id ? { ...m, status: "failed" } : m));
       if (e?.data?.code === "SESSION_EXPIRED") { setSessionExpired(true); setChatError("Session expired. Please send a template message."); }
       showToast(extractApiErrorMessage(e, "Failed to send attachment."), "error");
-    } finally { setFileUploading(false); if (fileRef.current) fileRef.current.value = ""; }
+    } finally {
+      setFileUploading(false);
+      if (fileRef.current) fileRef.current.value = "";
+    }
   };
 
   const insertEmoji = (emo) => { setInput((t) => { const next = `${t}${emo}`; if (activeP10) setDraftFor(activeP10, next); return next; }); };
@@ -906,36 +1202,104 @@ export default function WhatsAppUI() {
     const to = digitsOnly(newChatPhone);
     if (!to) return setNewChatError("Enter phone number");
     if (!selectedTemplate) return setNewChatError("Select a template");
+
     const body = pickBodyTextFromTemplate(selectedTemplate);
     const idxs = extractVarIndexes(body);
     const params = idxs.map((i) => tplVars[String(i)]?.trim());
     if (params.some((v) => !v)) return setNewChatError("Fill all template variables");
-    let headerMedia = null, optimisticMedia = null;
+
+    let headerMedia = null;
+    let optimisticMedia = null;
+
     if (newHeaderFormat) {
       if (!newHeaderFile) return setNewChatError("This template requires a header attachment.");
       if (newHeaderFile.size > 15 * 1024 * 1024) return setNewChatError("Max attachment size is 15MB.");
+
       setCreatingChat(true);
       try {
         const up = await uploadTemplateHeaderMedia(newHeaderFile);
         const mediaId = up?.mediaId || up?.id;
-        if (!mediaId) { setCreatingChat(false); return setNewChatError("Upload failed: no mediaId returned."); }
-        headerMedia = { format: newHeaderFormat, id: mediaId, filename: newHeaderFile.name };
-        if (newHeaderFile.type?.startsWith("image/") || newHeaderFile.type?.startsWith("video/") || newHeaderFile.type?.startsWith("audio/"))
-          optimisticMedia = { url: URL.createObjectURL(newHeaderFile), mime: newHeaderFile.type, filename: newHeaderFile.name };
-      } catch (e) { setCreatingChat(false); return setNewChatError(e.message || "Failed to upload."); }
-    } else { setCreatingChat(true); }
-    setNewChatError(""); setActiveChat({ phone: to });
-    const optimistic = { _id: buildTempId("tmp_new_tpl"), direction: "OUTBOUND", type: "template", text: previewBody || `[TEMPLATE] ${selectedTemplate.name}`, timestamp: new Date().toISOString(), status: "sent", to, phone: to, ...(optimisticMedia ? { media: optimisticMedia } : {}), templateMeta: { name: selectedTemplate.name, language: selectedTemplate.language || "", parameters: params } };
-    setMessages((prev) => [...prev, optimistic]);
+        if (!mediaId) {
+          setCreatingChat(false);
+          return setNewChatError("Upload failed: no mediaId returned.");
+        }
+
+        headerMedia = {
+          format: newHeaderFormat,
+          id: mediaId,
+          filename: newHeaderFile.name,
+        };
+
+        if (
+          newHeaderFile.type?.startsWith("image/") ||
+          newHeaderFile.type?.startsWith("video/") ||
+          newHeaderFile.type?.startsWith("audio/")
+        ) {
+          optimisticMedia = {
+            url: URL.createObjectURL(newHeaderFile),
+            mime: newHeaderFile.type,
+            filename: newHeaderFile.name,
+          };
+        }
+      } catch (e) {
+        setCreatingChat(false);
+        return setNewChatError(e.message || "Failed to upload.");
+      }
+    } else {
+      setCreatingChat(true);
+    }
+
+    setNewChatError("");
+
+    const optimistic = {
+      _id: buildTempId("tmp_new_tpl"),
+      direction: "OUTBOUND",
+      type: "template",
+      text: previewBody || `[TEMPLATE] ${selectedTemplate.name}`,
+      timestamp: new Date().toISOString(),
+      status: "sent",
+      to,
+      phone: to,
+      ...(optimisticMedia ? { media: optimisticMedia } : {}),
+      templateMeta: {
+        name: selectedTemplate.name,
+        language: selectedTemplate.language || "",
+        parameters: params,
+      },
+    };
+
     updateConversationPreviewLocal(to, optimistic.text);
+    openChat(to, { bootstrapMessages: [optimistic] });
+
     try {
-      await api(`/api/whatsapp/send-template`, { method: "POST", body: JSON.stringify({ to, templateName: selectedTemplate.name, templateId: selectedTemplate.template_id || selectedTemplate.templateId || selectedTemplate.providerTemplateId || "", parameters: params, renderedText: previewBody || "", headerMedia }) });
-      setNewChatOpen(false); setNewChatPhone(""); setSelectedTemplate(null); setTplVars({}); setNewHeaderFormat(""); setNewHeaderFile(null);
+      await api(`/api/whatsapp/send-template`, {
+        method: "POST",
+        body: JSON.stringify({
+          to,
+          templateName: selectedTemplate.name,
+          templateId:
+            selectedTemplate.template_id ||
+            selectedTemplate.templateId ||
+            selectedTemplate.providerTemplateId ||
+            "",
+          parameters: params,
+          renderedText: previewBody || "",
+          headerMedia,
+        }),
+      });
+      setNewChatOpen(false);
+      setNewChatPhone("");
+      setSelectedTemplate(null);
+      setTplVars({});
+      setNewHeaderFormat("");
+      setNewHeaderFile(null);
       showToast("New chat started ✓", "success");
     } catch (e) {
       setMessages((prev) => prev.map((m) => m._id === optimistic._id ? { ...m, status: "failed" } : m));
       setNewChatError(extractApiErrorMessage(e, "Failed to send template"));
-    } finally { setCreatingChat(false); }
+    } finally {
+      setCreatingChat(false);
+    }
   };
 
   const hasActiveChat = !!activeChat?.phone;
@@ -1142,12 +1506,18 @@ export default function WhatsAppUI() {
       {/* ── Chat panel ──────────────────────────────────────────────────────── */}
       <Box flex={1} display="flex" flexDirection="column" sx={{ bgcolor: LIGHT.panelBg, position: "relative", minWidth: 0 }}>
         {/* Chat background pattern */}
-        <Box sx={{
-          position: "absolute", inset: 0, opacity: 0.04,
-          backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='1'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
-          pointerEvents: "none",
-          zIndex: 0,
-        }} />
+        <Box
+          sx={{
+            position: "absolute",
+            inset: 0,
+            backgroundImage: 'linear-gradient(rgba(255,255,255,0.72), rgba(255,255,255,0.72)), url("https://cdn.shopify.com/s/files/1/0734/7155/7942/files/image_23.png?v=1776755371")',
+            backgroundSize: "cover",
+            backgroundPosition: "center",
+            backgroundRepeat: "no-repeat",
+            pointerEvents: "none",
+            zIndex: 0,
+          }}
+        />
 
         {!hasActiveChat ? (
           /* Empty state */
@@ -1371,55 +1741,67 @@ export default function WhatsAppUI() {
               ) : (
                 <>
                   {/* Toolbar row */}
-                  <Stack direction="row" spacing={0.25} alignItems="center" mb={0.75}>
-                    <Tooltip title="Quick replies">
-                      <span>
-                        <IconButton size="small" onClick={(e) => setQuickAnchor(e.currentTarget)} disabled={!hasActiveChat}
-                          sx={{ color: LIGHT.subtext, "&:hover": { color: LIGHT.text, bgcolor: "rgba(0,0,0,0.05)" }, "&.Mui-disabled": { color: "#3B4A54" } }}>
-                          <FlashOnIcon sx={{ fontSize: 20 }} />
-                        </IconButton>
-                      </span>
-                    </Tooltip>
-                    <Tooltip title="Templates">
-                      <span>
-                        <IconButton size="small" onClick={(e) => { setTplMenuSearch(""); setTplAnchor(e.currentTarget); }} disabled={!hasActiveChat}
-                          sx={{ color: LIGHT.subtext, "&:hover": { color: LIGHT.text, bgcolor: "rgba(0,0,0,0.05)" }, "&.Mui-disabled": { color: "#3B4A54" } }}>
-                          <ViewListIcon sx={{ fontSize: 20 }} />
-                        </IconButton>
-                      </span>
-                    </Tooltip>
-                    <Tooltip title="Emoji">
-                      <span>
-                        <IconButton size="small" onClick={(e) => setEmojiAnchor(e.currentTarget)} disabled={!hasActiveChat}
-                          sx={{ color: LIGHT.subtext, "&:hover": { color: LIGHT.text, bgcolor: "rgba(0,0,0,0.05)" }, "&.Mui-disabled": { color: "#3B4A54" } }}>
-                          <InsertEmoticonIcon sx={{ fontSize: 20 }} />
-                        </IconButton>
-                      </span>
-                    </Tooltip>
-                    <Tooltip title={fileUploading ? "Uploading…" : "Attach file"}>
-                      <span>
-                        <IconButton size="small" disabled={!hasActiveChat || fileUploading} onClick={() => fileRef.current?.click()}
-                          sx={{ color: LIGHT.subtext, "&:hover": { color: LIGHT.text, bgcolor: "rgba(0,0,0,0.05)" }, "&.Mui-disabled": { color: "#3B4A54" } }}>
-                          {fileUploading ? <CircularProgress size={16} sx={{ color: "#25D366" }} /> : <AttachFileIcon sx={{ fontSize: 20 }} />}
-                        </IconButton>
-                      </span>
-                    </Tooltip>
-                    <Tooltip title="Help me write (AI)">
-                      <span>
-                        <IconButton size="small" disabled={!hasActiveChat || helpWriteLoading} onClick={helpMeWrite}
-                          sx={{ color: LIGHT.subtext, "&:hover": { color: LIGHT.text, bgcolor: "rgba(0,0,0,0.05)" }, "&.Mui-disabled": { color: "#3B4A54" } }}>
-                          {helpWriteLoading ? <CircularProgress size={16} sx={{ color: "#25D366" }} /> : <AutoFixHighIcon sx={{ fontSize: 20 }} />}
-                        </IconButton>
-                      </span>
-                    </Tooltip>
-                    <Tooltip title="Rephrase">
-                      <span>
-                        <IconButton size="small" disabled={!hasActiveChat || !input.trim()} onClick={openRephraseDialog}
-                          sx={{ color: LIGHT.subtext, "&:hover": { color: LIGHT.text, bgcolor: "rgba(0,0,0,0.05)" }, "&.Mui-disabled": { color: "#3B4A54" } }}>
-                          <AutorenewIcon sx={{ fontSize: 20 }} />
-                        </IconButton>
-                      </span>
-                    </Tooltip>
+                  <Stack
+                    direction="row"
+                    spacing={0.75}
+                    alignItems="center"
+                    mb={0.75}
+                    flexWrap="wrap"
+                    useFlexGap
+                  >
+                    <ActionPillButton
+                      title="Quick replies"
+                      label="Quick reply"
+                      icon={<FlashOnIcon sx={{ fontSize: 18 }} />}
+                      onClick={(e) => setQuickAnchor(e.currentTarget)}
+                      disabled={!hasActiveChat}
+                    />
+
+                    <ActionPillButton
+                      title="Templates"
+                      label="Templates"
+                      icon={<ViewListIcon sx={{ fontSize: 18 }} />}
+                      onClick={(e) => {
+                        setTplMenuSearch("");
+                        setTplAnchor(e.currentTarget);
+                      }}
+                      disabled={!hasActiveChat}
+                    />
+
+                    <ActionPillButton
+                      title="Emoji"
+                      label="Emojis"
+                      icon={<InsertEmoticonIcon sx={{ fontSize: 18 }} />}
+                      onClick={(e) => setEmojiAnchor(e.currentTarget)}
+                      disabled={!hasActiveChat}
+                    />
+
+                    <ActionPillButton
+                      title={fileUploading ? "Uploading..." : "Attach file"}
+                      label="Attach File"
+                      icon={<AttachFileIcon sx={{ fontSize: 18 }} />}
+                      onClick={() => fileRef.current?.click()}
+                      disabled={!hasActiveChat || fileUploading}
+                      loading={fileUploading}
+                    />
+
+                    <ActionPillButton
+                      title="Help me write (AI)"
+                      label="AI Write"
+                      icon={<AutoFixHighIcon sx={{ fontSize: 18 }} />}
+                      onClick={helpMeWrite}
+                      disabled={!hasActiveChat || helpWriteLoading}
+                      loading={helpWriteLoading}
+                    />
+
+                    <ActionPillButton
+                      title="Rephrase"
+                      label="Rephrase"
+                      icon={<AutorenewIcon sx={{ fontSize: 18 }} />}
+                      onClick={openRephraseDialog}
+                      disabled={!hasActiveChat || !input.trim()}
+                    />
+
                     <input ref={fileRef} type="file" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) onPickFile(f); }} />
                   </Stack>
 
@@ -1451,7 +1833,7 @@ export default function WhatsAppUI() {
                           "& fieldset": { border: "none" },
                           "&:hover fieldset": { border: "none" },
                           "&.Mui-focused fieldset": { border: "none" },
-                          "&.Mui-disabled": { bgcolor: "#1E2A30" },
+                          "&.Mui-disabled": { bgcolor: "#eef2f6" },
                         },
                         "& textarea::placeholder": { color: LIGHT.subtext, opacity: 1 },
                         "& textarea": { py: 0.5, lineHeight: 1.55 },
@@ -1587,7 +1969,7 @@ export default function WhatsAppUI() {
         fullWidth maxWidth="sm"
         PaperProps={{
           sx: {
-            bgcolor: "#233138", color: LIGHT.text, borderRadius: 3,
+            color: LIGHT.text, borderRadius: 3,
             border: `1px solid ${LIGHT.border}`, boxShadow: "0 24px 64px rgba(16,24,40,0.14)",
           },
         }}
@@ -1647,7 +2029,7 @@ export default function WhatsAppUI() {
         fullWidth maxWidth="sm"
         PaperProps={{
           sx: {
-            bgcolor: "#d0fec8", color: LIGHT.text, borderRadius: 3,
+            color: LIGHT.text, borderRadius: 3,
             border: `1px solid ${LIGHT.border}`, boxShadow: "0 24px 64px rgba(16,24,40,0.14)",
           },
         }}
@@ -1713,6 +2095,125 @@ export default function WhatsAppUI() {
         </DialogContent>
       </Dialog>
 
+      {/* ── Attachment preview dialog ───────────────────────────────────────── */}
+      <Dialog
+        open={attachmentPreviewOpen}
+        onClose={() => !fileUploading && closeAttachmentPreview()}
+        fullWidth
+        maxWidth="sm"
+        PaperProps={{
+          sx: {
+            bgcolor: "#fff",
+            color: LIGHT.text,
+            borderRadius: 3,
+            border: `1px solid ${LIGHT.border}`,
+            boxShadow: "0 24px 64px rgba(16,24,40,0.14)",
+          },
+        }}
+      >
+        <DialogTitle
+          sx={{
+            fontSize: 17,
+            fontWeight: 700,
+            pb: 1,
+            color: LIGHT.text,
+            borderBottom: `1px solid ${LIGHT.border}`,
+          }}
+        >
+          Preview attachment
+        </DialogTitle>
+
+        <DialogContent sx={{ pt: 2 }}>
+          {attachmentPreviewMsg ? (
+            <Box
+              sx={{
+                bgcolor: "#f8fafc",
+                borderRadius: 3,
+                border: `1px solid ${LIGHT.border}`,
+                p: 2,
+                mb: 2,
+              }}
+            >
+              <MessageMedia
+                msg={attachmentPreviewMsg}
+                isNearBottomRef={{ current: false }}
+                bottomRef={{ current: null }}
+              />
+              {!!pendingAttachment?.filename && (
+                <Typography sx={{ mt: 1, fontSize: 13, color: LIGHT.subtext }}>
+                  {pendingAttachment.filename}
+                </Typography>
+              )}
+            </Box>
+          ) : null}
+
+          <TextField
+            fullWidth
+            multiline
+            minRows={2}
+            maxRows={4}
+            size="small"
+            label="Caption (optional)"
+            value={pendingAttachment?.caption || ""}
+            onChange={(e) =>
+              setPendingAttachment((prev) =>
+                prev ? { ...prev, caption: e.target.value } : prev
+              )
+            }
+            sx={{
+              "& .MuiOutlinedInput-root": {
+                bgcolor: LIGHT.inputBg,
+                color: LIGHT.text,
+                borderRadius: 2,
+                "& fieldset": { borderColor: LIGHT.border },
+                "&.Mui-focused fieldset": { borderColor: "#22c55e" },
+              },
+              "& label": { color: LIGHT.subtext },
+              "& label.Mui-focused": { color: "#22c55e" },
+            }}
+          />
+
+          <Stack direction="row" justifyContent="flex-end" spacing={1.25} mt={2}>
+            <Button
+              onClick={closeAttachmentPreview}
+              disabled={fileUploading}
+              sx={{
+                textTransform: "none",
+                color: LIGHT.subtext,
+                "&:hover": { color: LIGHT.text },
+              }}
+            >
+              Cancel
+            </Button>
+
+            <Button
+              variant="contained"
+              onClick={sendPendingAttachment}
+              disabled={fileUploading || !pendingAttachment?.file}
+              startIcon={
+                fileUploading ? (
+                  <CircularProgress size={16} sx={{ color: "#fff" }} />
+                ) : (
+                  <SendIcon sx={{ fontSize: 16 }} />
+                )
+              }
+              sx={{
+                bgcolor: "#22c55e",
+                color: "#fff",
+                textTransform: "none",
+                fontWeight: 700,
+                borderRadius: 99,
+                px: 2,
+                boxShadow: "none",
+                "&:hover": { bgcolor: "#1ebe5d", boxShadow: "none" },
+              }}
+            >
+              Send
+            </Button>
+          </Stack>
+        </DialogContent>
+      </Dialog>
+
       {/* ── Rephrase dialog ──────────────────────────────────────────────────── */}
       <Dialog
         open={rephraseOpen}
@@ -1720,7 +2221,7 @@ export default function WhatsAppUI() {
         fullWidth maxWidth="xs"
         PaperProps={{
           sx: {
-            bgcolor: "#233138", color: LIGHT.text, borderRadius: 3,
+            color: LIGHT.text, borderRadius: 3,
             border: `1px solid ${LIGHT.border}`, boxShadow: "0 24px 64px rgba(16,24,40,0.14)",
           },
         }}
