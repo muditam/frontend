@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   Box,
   Button,
@@ -8,7 +8,6 @@ import {
   TableContainer,
   TableHead,
   TableRow,
-  Paper,
   TextField,
   MenuItem,
   IconButton,
@@ -21,8 +20,9 @@ import {
   TablePagination,
   InputLabel,
   CircularProgress,
+  Skeleton,
 } from "@mui/material";
-import { Delete, AddCircle } from "@mui/icons-material";
+import { AddCircle, Delete, FileDownload, FilterList } from "@mui/icons-material";
 import axios from "axios";
 
 const API_BASE = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "");
@@ -32,6 +32,11 @@ const api = axios.create({
   baseURL: API_BASE || "",
   withCredentials: true,
 });
+
+const TABLE_COLUMN_COUNT = 30;
+const DEFAULT_ROWS_PER_PAGE = 10;
+const MASTER_ROWS_PER_PAGE_OPTIONS = [5, 10, 20];
+const SKELETON_ROW_COUNT = 5;
  
 const defaultFilters = {
   startDate: "",
@@ -94,27 +99,23 @@ const LeadTable = () => {
   const [filterOpen, setFilterOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [validationErrors, setValidationErrors] = useState({});
-  const [rowsPerPage, setRowsPerPage] = useState(30);
+  const [rowsPerPage, setRowsPerPage] = useState(DEFAULT_ROWS_PER_PAGE);
   const [totalLeads, setTotalLeads] = useState(0);
   const [loading, setLoading] = useState(false);
   const [addingLead, setAddingLead] = useState(false);
   const [applyingFilters, setApplyingFilters] = useState(false);
   const [filters, setFilters] = useState(defaultFilters);
+  const [appliedFilters, setAppliedFilters] = useState(defaultFilters);
   const [newLead, setNewLead] = useState(defaultNewLead);
 
-  useEffect(() => {
-    fetchLeads(currentPage, rowsPerPage);
-    fetchEmployeesByRole("Sales Agent", setSalesAgents);
-    fetchEmployeesByRole("Retention Agent", setRetentionAgents);
-  }, [currentPage, rowsPerPage]);
-
-  const fetchLeads = async (page, limit, activeFilters = filters) => {
+  const fetchLeads = useCallback(async (page, limit, activeFilters) => {
     setLoading(true);
     try {
       const response = await api.get("/api/leads", {
         params: {
           page,
           limit,
+          view: "master-leads",
           filters: JSON.stringify(activeFilters),
         },
       });
@@ -126,7 +127,7 @@ const LeadTable = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   const fetchEmployeesByRole = async (role, setState) => {
     try {
@@ -138,6 +139,15 @@ const LeadTable = () => {
       console.error(`Failed to fetch ${role} employees`, error);
     }
   };
+
+  useEffect(() => {
+    fetchLeads(currentPage, rowsPerPage, appliedFilters);
+  }, [appliedFilters, currentPage, fetchLeads, rowsPerPage]);
+
+  useEffect(() => {
+    fetchEmployeesByRole("Sales Agent", setSalesAgents);
+    fetchEmployeesByRole("Retention Agent", setRetentionAgents);
+  }, []);
 
   const handleAddRow = async () => {
     setAddingLead(true);
@@ -269,7 +279,6 @@ const LeadTable = () => {
 
   const applyFilters = async () => {
     setApplyingFilters(true);
-    setCurrentPage(1);
 
     try {
       const activeFilters = { ...filters };
@@ -278,16 +287,8 @@ const LeadTable = () => {
       if (!activeFilters.endDate) delete activeFilters.endDate;
       if (!activeFilters.lastOrderDate) delete activeFilters.lastOrderDate;
 
-      const response = await api.get("/api/leads", {
-        params: {
-          page: 1,
-          limit: rowsPerPage,
-          filters: JSON.stringify(activeFilters),
-        },
-      });
-
-      setLeads(response.data.leads || []);
-      setTotalLeads(response.data.totalLeads || 0);
+      setCurrentPage(1);
+      setAppliedFilters(activeFilters);
     } catch (error) {
       console.error("Error applying filters:", error);
     } finally {
@@ -302,14 +303,12 @@ const LeadTable = () => {
 
   const handleChangePage = (event, newPage) => {
     setCurrentPage(newPage + 1);
-    fetchLeads(newPage + 1, rowsPerPage, filters);
   };
 
   const handleChangeRowsPerPage = (event) => {
     const newRowsPerPage = parseInt(event.target.value, 10);
     setRowsPerPage(newRowsPerPage);
     setCurrentPage(1);
-    fetchLeads(1, newRowsPerPage, filters);
   };
 
   const textFieldSx = {
@@ -378,78 +377,201 @@ const LeadTable = () => {
   };
 
   const styles = {
-    tableCell: {
-      backgroundColor: "white",
-      padding: "1px 25px",
-      paddingBottom: "1px",
-      whiteSpace: "nowrap",
-      textOverflow: "ellipsis",
-      overflow: "hidden",
-      maxWidth: "150px",
-      fontSize: "0.65rem",
-      textAlign: "center",
-      borderBottom: "1px solid gray",
-      height: "45px",
-    },
     tableHead: {
-      backgroundColor: "black",
-      color: "white",
+      backgroundColor: "#171717",
+      color: "#fff",
       whiteSpace: "nowrap",
       textOverflow: "ellipsis",
       textAlign: "center",
-      lineHeight: "10px",
-      minHeight: "25px",
-      height: "25px",
+      lineHeight: "14px",
+      minHeight: "36px",
+      height: "36px",
+      borderBottom: "none",
+      fontSize: "0.68rem",
+      fontWeight: 700,
+      letterSpacing: 0,
+      padding: "10px 14px",
     },
     tableRow: {
-      backgroundColor: "#fff",
-      height: "10px",
+      height: "54px",
+      transition: "transform 0.16s ease, box-shadow 0.16s ease",
       "&:hover": {
-        backgroundColor: "#f5f5f5",
+        transform: "translateY(-1px)",
+        "& .MuiTableCell-root": {
+          backgroundColor: "#fffdf5",
+          borderColor: "#f2d48a",
+        },
       },
     },
   };
 
+  const tableContainerSx = {
+    maxHeight: "calc(100vh - 230px)",
+    border: "1px solid #e7e2d5",
+    borderRadius: 2,
+    backgroundColor: "#f7f8fa",
+    boxShadow: "0 14px 34px rgba(17, 24, 39, 0.08)",
+    overflow: "auto",
+    "& .MuiTable-root": {
+      minWidth: 3200,
+      borderCollapse: "separate",
+      borderSpacing: "0 8px",
+      padding: "0 10px 10px",
+    },
+    "& .MuiTableHead-root .MuiTableCell-root": {
+      top: 0,
+      zIndex: 2,
+      backgroundColor: "#171717",
+      borderBottom: "1px solid #2f2f2f",
+    },
+    "& .MuiTableHead-root .MuiTableCell-root:first-of-type": {
+      borderRadius: "8px 0 0 8px",
+    },
+    "& .MuiTableHead-root .MuiTableCell-root:last-of-type": {
+      borderRadius: "0 8px 8px 0",
+    },
+    "& .MuiTableBody-root .MuiTableCell-root": {
+      backgroundColor: "#fff",
+      borderTop: "1px solid #edf0f2",
+      borderBottom: "1px solid #edf0f2",
+      color: "#1f2937",
+      fontSize: "0.72rem",
+      padding: "8px 10px",
+      textAlign: "center",
+      whiteSpace: "nowrap",
+    },
+    "& .MuiTableBody-root .MuiTableCell-root:first-of-type": {
+      borderLeft: "1px solid #edf0f2",
+      borderRadius: "8px 0 0 8px",
+    },
+    "& .MuiTableBody-root .MuiTableCell-root:last-of-type": {
+      borderRight: "1px solid #edf0f2",
+      borderRadius: "0 8px 8px 0",
+    },
+    "& .MuiTableBody-root .MuiOutlinedInput-root": {
+      minHeight: 34,
+      borderRadius: "6px",
+      backgroundColor: "#f9fafb",
+      fontSize: "0.72rem",
+    },
+    "& .MuiTableBody-root .MuiOutlinedInput-notchedOutline": {
+      borderColor: "#e5e7eb",
+    },
+    "& .MuiTableBody-root .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline": {
+      borderColor: "#d5a821",
+    },
+    "& .MuiTableBody-root .Mui-focused .MuiOutlinedInput-notchedOutline": {
+      borderColor: "#171717 !important",
+      borderWidth: "1px !important",
+    },
+    "& .MuiTableBody-root .MuiInputBase-input": {
+      padding: "7px 9px",
+    },
+    "& .MuiTableBody-root .MuiSelect-select": {
+      padding: "7px 28px 7px 9px",
+      minWidth: 118,
+      textAlign: "left",
+    },
+    "& .MuiTableBody-root .MuiIconButton-root": {
+      width: 32,
+      height: 32,
+      backgroundColor: "#fff1f2",
+      border: "1px solid #fecdd3",
+      "&:hover": {
+        backgroundColor: "#ffe4e6",
+      },
+    },
+    "& .MuiSkeleton-root": {
+      borderRadius: "6px",
+    },
+  };
+
+  const primaryButtonSx = {
+    backgroundColor: "#171717",
+    borderRadius: "8px",
+    boxShadow: "none",
+    textTransform: "none",
+    fontWeight: 700,
+    "&:hover": {
+      backgroundColor: "#2b2b2b",
+      boxShadow: "0 8px 18px rgba(23, 23, 23, 0.16)",
+    },
+  };
+
   return (
-    <Box sx={{ padding: 2 }}>
-      <Typography
-        variant="h5"
-        gutterBottom
+    <Box sx={{ minHeight: "100vh", backgroundColor: "#f4f5f2", padding: { xs: 1.5, md: 2.5 } }}>
+      <Box
         sx={{
-          fontWeight: "bold",
-          textAlign: "center",
-          color: "black",
-          marginBottom: 2,
+          mb: 2,
+          p: { xs: 1.5, md: 2 },
+          borderRadius: 2,
+          border: "1px solid #e7e2d5",
+          backgroundColor: "#fff",
+          boxShadow: "0 10px 28px rgba(17, 24, 39, 0.06)",
+          display: "flex",
+          flexWrap: "wrap",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 1.5,
         }}
       >
-        Master Data - Leads
-      </Typography>
+        <Box>
+          <Typography
+            variant="h5"
+            sx={{
+              fontWeight: 800,
+              color: "#171717",
+              letterSpacing: 0,
+              lineHeight: 1.2,
+            }}
+          >
+            Master Data - Leads
+          </Typography>
+          <Typography variant="body2" sx={{ color: "#6b7280", mt: 0.5 }}>
+            {totalLeads.toLocaleString("en-IN")} leads
+          </Typography>
+        </Box>
 
-      <Button
-        variant="contained"
-        startIcon={addingLead ? <CircularProgress size={20} /> : <AddCircle />}
-        onClick={handleAddRow}
-        sx={{ mb: 2, backgroundColor: "black" }}
-        disabled={addingLead}
-      >
-        Add Lead
-      </Button>
+        <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
+          <Button
+            variant="contained"
+            startIcon={addingLead ? <CircularProgress color="inherit" size={18} /> : <AddCircle />}
+            onClick={handleAddRow}
+            sx={primaryButtonSx}
+            disabled={addingLead}
+          >
+            Add Lead
+          </Button>
 
-      <Button
-        variant="contained"
-        onClick={() => setFilterOpen(true)}
-        sx={{ mb: 2, ml: 2, backgroundColor: "black" }}
-      >
-        Filter
-      </Button>
+          <Button
+            variant="contained"
+            startIcon={<FilterList />}
+            onClick={() => setFilterOpen(true)}
+            sx={primaryButtonSx}
+          >
+            Filter
+          </Button>
 
-      <Button
-        variant="contained"
-        onClick={exportToCSV}
-        sx={{ mb: 2, ml: 2, backgroundColor: "black" }}
-      >
-        Export to CSV
-      </Button>
+          <Button
+            variant="outlined"
+            startIcon={<FileDownload />}
+            onClick={exportToCSV}
+            sx={{
+              borderRadius: "8px",
+              borderColor: "#171717",
+              color: "#171717",
+              textTransform: "none",
+              fontWeight: 700,
+              "&:hover": {
+                borderColor: "#171717",
+                backgroundColor: "#fff7db",
+              },
+            }}
+          >
+            Export CSV
+          </Button>
+        </Box>
+      </Box>
 
       <Drawer
         anchor="right"
@@ -847,8 +969,8 @@ const LeadTable = () => {
             }}
             onClick={() => {
               setFilters(defaultFilters);
+              setAppliedFilters(defaultFilters);
               setCurrentPage(1);
-              fetchLeads(1, rowsPerPage, defaultFilters);
             }}
           >
             Reset Filters
@@ -856,7 +978,7 @@ const LeadTable = () => {
         </Box>
       </Drawer>
 
-      <TableContainer component={Paper} sx={{ maxHeight: 1000 }}>
+      <TableContainer component={Box} sx={tableContainerSx}>
         <Table stickyHeader aria-label="sticky table">
           <TableHead sx={styles.tableHead}>
             <TableRow>
@@ -895,11 +1017,25 @@ const LeadTable = () => {
 
           <TableBody>
             {loading ? (
-              <TableRow>
-                <TableCell colSpan={30} align="center">
-                  <CircularProgress />
-                </TableCell>
-              </TableRow>
+              Array.from({ length: SKELETON_ROW_COUNT }).map((_, rowIndex) => (
+                <TableRow key={`lead-skeleton-${rowIndex}`} sx={styles.tableRow}>
+                  {Array.from({ length: TABLE_COLUMN_COUNT }).map((__, cellIndex) => (
+                    <TableCell key={`lead-skeleton-${rowIndex}-${cellIndex}`}>
+                      {cellIndex === 0 ? (
+                        <Skeleton animation="wave" variant="circular" width={28} height={28} />
+                      ) : (
+                        <Skeleton
+                          animation="wave"
+                          variant="rounded"
+                          width={cellIndex % 4 === 0 ? 132 : 96}
+                          height={30}
+                          sx={{ mx: "auto" }}
+                        />
+                      )}
+                    </TableCell>
+                  ))}
+                </TableRow>
+              ))
             ) : (
               leads.map((lead, index) => (
                 <TableRow key={lead._id} sx={styles.tableRow}>
@@ -1423,7 +1559,18 @@ const LeadTable = () => {
         onPageChange={handleChangePage}
         rowsPerPage={rowsPerPage}
         onRowsPerPageChange={handleChangeRowsPerPage}
-        rowsPerPageOptions={[10, 30, 50, 100]}
+        rowsPerPageOptions={MASTER_ROWS_PER_PAGE_OPTIONS}
+        sx={{
+          mt: 1,
+          borderRadius: 2,
+          border: "1px solid #e7e2d5",
+          backgroundColor: "#fff",
+          boxShadow: "0 8px 18px rgba(17, 24, 39, 0.05)",
+          "& .MuiTablePagination-selectLabel, & .MuiTablePagination-displayedRows": {
+            color: "#4b5563",
+            fontSize: "0.82rem",
+          },
+        }}
       />
     </Box>
   );

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import {
  Alert,
@@ -55,6 +55,42 @@ const BRAND = {
  referral: "#1d4ed8",
  referralSoft: "#eff6ff",
 };
+
+
+const CONTAINED_BUTTON_SX = {
+ textTransform: "none",
+ borderRadius: 2,
+ boxShadow: "none",
+ backgroundColor: "#111827",
+ color: "#ffffff",
+ "&:hover": {
+   backgroundColor: "#0b1220",
+   boxShadow: "none",
+ },
+ "&.Mui-disabled": {
+   backgroundColor: "#d1d5db",
+   color: "#ffffff",
+ },
+};
+
+
+const OUTLINED_BUTTON_SX = {
+ textTransform: "none",
+ borderRadius: 2,
+ color: BRAND.text,
+ borderColor: "#cbd5e1",
+ "&:hover": {
+   borderColor: BRAND.text,
+   backgroundColor: "#f8fafc",
+ },
+ "&.Mui-disabled": {
+   borderColor: "#e5e7eb",
+   color: "#9ca3af",
+ },
+};
+
+
+const incentiveSummaryCache = new Map();
 
 
 function round2(value) {
@@ -152,15 +188,13 @@ function getSlabRange(revenueValue) {
  const revenue = Number(revenueValue || 0);
 
 
- if (revenue < 150000) return { currentPercent: 0, max: 150000, nextPercent: 1 };
- if (revenue < 200000) return { currentPercent: 1, max: 200000, nextPercent: 1.5 };
- if (revenue < 300000) return { currentPercent: 1.5, max: 300000, nextPercent: 2 };
- if (revenue < 400000) return { currentPercent: 2, max: 400000, nextPercent: 2.5 };
- if (revenue < 500000) return { currentPercent: 2.5, max: 500000, nextPercent: 3 };
- if (revenue < 600000) return { currentPercent: 3, max: 600000, nextPercent: 3.5 };
- if (revenue < 800000) return { currentPercent: 3.5, max: 800000, nextPercent: 4 };
- if (revenue < 1000000) return { currentPercent: 4, max: 1000000, nextPercent: null };
- return { currentPercent: 4, max: 1000000, nextPercent: null };
+ if (revenue < 200000) return { currentPercent: 1, max: 200000, nextPercent: 2.5 };
+ if (revenue < 300000) return { currentPercent: 2.5, max: 300000, nextPercent: 3.5 };
+ if (revenue < 400000) return { currentPercent: 3.5, max: 400000, nextPercent: 5 };
+ if (revenue < 500000) return { currentPercent: 5, max: 500000, nextPercent: 6 };
+ if (revenue < 600000) return { currentPercent: 6, max: 600000, nextPercent: 7 };
+ if (revenue < 800000) return { currentPercent: 7, max: 800000, nextPercent: null };
+ return { currentPercent: 7, max: 800000, nextPercent: null };
 }
 
 
@@ -212,9 +246,19 @@ function formatSignedCurrency(value, walletBucket) {
 }
 
 
-function WalletDistributionBar({ available = 0, coming = 0, reversed = 0, unknown = 0 }) {
- const total = available + coming + reversed + unknown;
+function WalletDistributionBar({ available = 0, coming = 0, atRisk = 0, reversed = 0, unknown = 0 }) {
+ const segments = [
+   { key: "available", label: "Available", value: Math.max(0, Number(available || 0)), color: BRAND.available },
+   { key: "coming", label: "Upcoming", value: Math.max(0, Number(coming || 0)), color: BRAND.coming },
+   { key: "atRisk", label: "At Risk", value: Math.max(0, Number(atRisk || 0)), color: BRAND.atRisk },
+   { key: "reversed", label: "Lost", value: Math.max(0, Number(reversed || 0)), color: BRAND.reversed },
+   { key: "unknown", label: "Unknown", value: Math.max(0, Number(unknown || 0)), color: BRAND.unknown },
+ ];
+ const total = segments.reduce((sum, segment) => sum + segment.value, 0);
  const pct = (value) => (total ? (value / total) * 100 : 0);
+ const legendSegments = segments.filter(
+   (segment) => segment.key !== "unknown" || segment.value > 0
+ );
 
 
  return (
@@ -229,24 +273,22 @@ function WalletDistributionBar({ available = 0, coming = 0, reversed = 0, unknow
          border: `1px solid ${BRAND.border}`,
        }}
      >
-       <Box sx={{ width: `${pct(available)}%`, background: BRAND.available }} />
-       <Box sx={{ width: `${pct(coming)}%`, background: BRAND.coming }} />
-       <Box sx={{ width: `${pct(reversed)}%`, background: BRAND.reversed }} />
-       <Box sx={{ width: `${pct(unknown)}%`, background: BRAND.unknown }} />
+       {segments.map((segment) => (
+         <Box
+           key={segment.key}
+           title={`${segment.label}: ${formatCurrency(segment.value)} (${pct(segment.value).toFixed(1)}%)`}
+           sx={{ width: `${pct(segment.value)}%`, background: segment.color }}
+         />
+       ))}
      </Box>
 
 
      <Stack direction="row" spacing={2} useFlexGap flexWrap="wrap" sx={{ mt: 1.25 }}>
-       {[
-         ["Available", BRAND.available],
-         ["Upcoming", BRAND.coming],
-         ["Lost", BRAND.reversed],
-         ["Unknown", BRAND.unknown],
-       ].map(([label, color]) => (
-         <Stack key={label} direction="row" spacing={1} alignItems="center">
-           <Box sx={{ width: 10, height: 10, borderRadius: "50%", background: color }} />
+       {legendSegments.map((segment) => (
+         <Stack key={segment.key} direction="row" spacing={1} alignItems="center">
+           <Box sx={{ width: 10, height: 10, borderRadius: "50%", background: segment.color }} />
            <Typography variant="caption" color="text.secondary">
-             {label}
+             {segment.label} {pct(segment.value).toFixed(1)}%
            </Typography>
          </Stack>
        ))}
@@ -399,10 +441,52 @@ export default function IncentiveSummarySection({ agentName }) {
  const headers = useMemo(() => getAuthHeaders(), []);
  const [data, setData] = useState(null);
  const [loading, setLoading] = useState(false);
+ const [loadingDetails, setLoadingDetails] = useState(false);
  const [error, setError] = useState("");
  const [cashOpen, setCashOpen] = useState(false);
  const [walletOpen, setWalletOpen] = useState(false);
  const [rulesOpen, setRulesOpen] = useState(false);
+ const startDate = useMemo(() => monthToStartDate(currentMonth), [currentMonth]);
+ const endDate = useMemo(() => monthToEndDate(currentMonth), [currentMonth]);
+ const requestKey = useMemo(
+   () => `${agentName || ""}|${startDate}|${endDate}`,
+   [agentName, endDate, startDate]
+ );
+
+
+ const fetchIncentiveData = useCallback(async ({ includeDetails = false } = {}) => {
+   if (!agentName) return null;
+
+
+   const cacheKey = `${requestKey}|${includeDetails ? "details" : "summary"}`;
+   if (incentiveSummaryCache.has(cacheKey)) {
+     return incentiveSummaryCache.get(cacheKey);
+   }
+
+
+   const request = axios
+     .get(`${API_BASE}/api/incentives-new`, {
+       headers,
+       params: {
+         agentName,
+         startDate,
+         endDate,
+         summaryOnly: includeDetails ? undefined : "true",
+       },
+     })
+     .then((res) => res.data);
+
+
+   incentiveSummaryCache.set(cacheKey, request);
+
+
+   try {
+     return await request;
+   } catch (err) {
+     incentiveSummaryCache.delete(cacheKey);
+     throw err;
+   }
+ }, [agentName, endDate, headers, requestKey, startDate]);
 
 
  useEffect(() => {
@@ -416,17 +500,8 @@ export default function IncentiveSummarySection({ agentName }) {
 
 
      try {
-       const res = await axios.get(`${API_BASE}/api/incentives-new`, {
-         headers,
-         params: {
-           agentName,
-           startDate: monthToStartDate(currentMonth),
-           endDate: monthToEndDate(currentMonth),
-         },
-       });
-
-
-       if (active) setData(res.data);
+       const nextData = await fetchIncentiveData({ includeDetails: false });
+       if (active) setData(nextData);
      } catch (err) {
        console.error("Error fetching dashboard incentive summary:", err);
        if (active) {
@@ -445,7 +520,39 @@ export default function IncentiveSummarySection({ agentName }) {
    return () => {
      active = false;
    };
- }, [agentName, currentMonth, headers]);
+ }, [agentName, fetchIncentiveData, requestKey]);
+
+
+ const ensureDetailsLoaded = useCallback(async () => {
+   if (data?.detailsIncluded) return;
+
+
+   setLoadingDetails(true);
+   setError("");
+
+
+   try {
+     const detailedData = await fetchIncentiveData({ includeDetails: true });
+     setData(detailedData);
+   } catch (err) {
+     console.error("Error fetching dashboard incentive details:", err);
+     setError(err?.response?.data?.message || "Failed to load incentive details");
+   } finally {
+     setLoadingDetails(false);
+   }
+ }, [data?.detailsIncluded, fetchIncentiveData]);
+
+
+ const openCashSummary = () => {
+   setCashOpen(true);
+   ensureDetailsLoaded();
+ };
+
+
+ const openWalletSummary = () => {
+   setWalletOpen(true);
+   ensureDetailsLoaded();
+ };
 
 
  const summary = data?.summary || {};
@@ -460,8 +567,8 @@ export default function IncentiveSummarySection({ agentName }) {
 
  const totalRevenueValue = Number(slab.totalRevenue || summary.totalRevenue || 0);
  const deliveredRevenueValue = Number(slab.deliveredRevenue || 0);
- const totalPercent = Number(slab.totalPercent || 0);
- const deliveredPercent = Number(slab.deliveredPercent ?? slab.incentivePercent ?? 0);
+ const totalPercent = getSlabRange(totalRevenueValue).currentPercent;
+ const deliveredPercent = getSlabRange(deliveredRevenueValue).currentPercent;
  const walletAchievementPercent = Number(walletTarget.achievementPercent ?? 0);
  const walletDeliveredOrders = Number(walletCoin.deliveredQualifyingOrders ?? summary.walletCoinDeliveredOrders ?? 0);
  const walletBaseEarnedCoins = Number(walletCoin.baseEarnedCoins ?? summary.walletCoinBaseEarned ?? 0);
@@ -505,14 +612,22 @@ export default function IncentiveSummarySection({ agentName }) {
                Cash Summary
              </Typography>
              <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
-               <Chip
-                 icon={<ArrowUpwardIcon />}
-                 label={`Current Delivered Slab: ${deliveredPercent}%`}
-                 sx={{ background: "#eff6ff", color: BRAND.primary, fontWeight: 700, border: "1px solid #bfdbfe" }}
-               />
-               <Button variant="contained" startIcon={<ViewIcon />} onClick={() => setCashOpen(true)} sx={{ textTransform: "none", borderRadius: 2, boxShadow: "none" }}>
-                 View Summary
-               </Button>
+	               <Chip
+	                 icon={<ArrowUpwardIcon />}
+	                 label={`Current Delivered Slab: ${deliveredPercent}%`}
+	                 sx={{
+                   background: "#f3f4f6",
+                   color: BRAND.text,
+                   fontWeight: 700,
+                   border: "1px solid #d1d5db",
+                   "& .MuiChip-icon": {
+                     color: "#4b5563",
+                   },
+                 }}
+	               />
+	               <Button variant="contained" startIcon={<ViewIcon />} onClick={openCashSummary} sx={CONTAINED_BUTTON_SX}>
+	                 View Summary
+	               </Button>
              </Stack>
            </Stack>
 
@@ -523,13 +638,14 @@ export default function IncentiveSummarySection({ agentName }) {
            <Stack direction={{ xs: "column", lg: "row" }} spacing={2.5}>
              <Box sx={{ flex: 1.15 }}>
                <Typography variant="body2" sx={{ color: BRAND.sub, fontWeight: 600, mb: 1.25 }}>
-                 Cash Distribution
+                 Incentive Cash Distribution
                </Typography>
                <WalletDistributionBar
                  available={summary.availableIncentive || 0}
                  coming={summary.comingIncentive || 0}
+                 atRisk={summary.atRiskIncentive || 0}
                  reversed={summary.reversedIncentive || 0}
-                 unknown={summary.unknownRevenue || 0}
+                 unknown={summary.unknownIncentive || 0}
                />
                <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5} sx={{ mt: 2, flexWrap: "wrap" }}>
                  <SummaryMetric title="Available Cash" value={formatCurrency(summary.availableIncentive)} sub={`${formatNumber(summary.deliveredOrders || 0)} delivered orders`} color={BRAND.available} />
@@ -557,14 +673,14 @@ export default function IncentiveSummarySection({ agentName }) {
                <Typography variant="body2" sx={{ color: BRAND.sub, mt: 0.5 }}>
                  {walletNote}
                </Typography>
-             </Box>
-             <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
-               <Button variant="contained" startIcon={<ViewIcon />} onClick={() => setWalletOpen(true)} sx={{ textTransform: "none", borderRadius: 2, boxShadow: "none" }}>
-                 View Summary
-               </Button>
-               <Button variant="outlined" onClick={() => setRulesOpen(true)} sx={{ textTransform: "none", borderRadius: 2 }}>
-                 Rules
-               </Button>
+	             </Box>
+	             <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
+	               <Button variant="contained" startIcon={<ViewIcon />} onClick={openWalletSummary} sx={CONTAINED_BUTTON_SX}>
+	                 View Summary
+	               </Button>
+	               <Button variant="outlined" onClick={() => setRulesOpen(true)} sx={OUTLINED_BUTTON_SX}>
+	                 Rules
+	               </Button>
              </Stack>
            </Stack>
 
@@ -624,8 +740,14 @@ export default function IncentiveSummarySection({ agentName }) {
                    </TableRow>
                  </TableHead>
                  <TableBody>
-                   {(data.rows || []).length ? (
-                     data.rows.map((row, index) => {
+	                   {loadingDetails ? (
+	                     <TableRow>
+	                       <TableCell colSpan={7} align="center" sx={{ py: 4 }}>
+	                         <CircularProgress size={24} />
+	                       </TableCell>
+	                     </TableRow>
+	                   ) : (data.rows || []).length ? (
+	                     data.rows.map((row, index) => {
                        const bucketMeta = getBucketMeta(row.walletBucket);
                        const statusMeta = getStatusMeta(row.deliveryStatus);
 
@@ -654,7 +776,7 @@ export default function IncentiveSummarySection({ agentName }) {
              </TableContainer>
            </DialogContent>
            <DialogActions sx={{ p: 2 }}>
-             <Button onClick={() => setCashOpen(false)} variant="outlined" sx={{ textTransform: "none", borderRadius: 2 }}>Close</Button>
+	           <Button onClick={() => setCashOpen(false)} variant="outlined" sx={OUTLINED_BUTTON_SX}>Close</Button>
            </DialogActions>
          </Dialog>
 
@@ -685,8 +807,14 @@ export default function IncentiveSummarySection({ agentName }) {
                    </TableRow>
                  </TableHead>
                  <TableBody>
-                   {walletRows.length ? (
-                     walletRows.map((row, index) => (
+	                   {loadingDetails ? (
+	                     <TableRow>
+	                       <TableCell colSpan={5} align="center" sx={{ py: 4 }}>
+	                         <CircularProgress size={24} />
+	                       </TableCell>
+	                     </TableRow>
+	                   ) : walletRows.length ? (
+	                     walletRows.map((row, index) => (
                        <TableRow key={`${row.orderId || "wallet"}-${index}`} hover>
                          <TableCell>{formatDate(row.date)}</TableCell>
                          <TableCell sx={{ fontWeight: 600 }}>{row.orderId || "-"}</TableCell>
@@ -705,7 +833,7 @@ export default function IncentiveSummarySection({ agentName }) {
              </TableContainer>
            </DialogContent>
            <DialogActions sx={{ p: 2 }}>
-             <Button onClick={() => setWalletOpen(false)} variant="outlined" sx={{ textTransform: "none", borderRadius: 2 }}>Close</Button>
+	             <Button onClick={() => setWalletOpen(false)} variant="outlined" sx={OUTLINED_BUTTON_SX}>Close</Button>
            </DialogActions>
          </Dialog>
 
@@ -726,7 +854,7 @@ export default function IncentiveSummarySection({ agentName }) {
              </Stack>
            </DialogContent>
            <DialogActions sx={{ p: 2 }}>
-             <Button onClick={() => setRulesOpen(false)} variant="outlined" sx={{ textTransform: "none", borderRadius: 2 }}>Close</Button>
+	             <Button onClick={() => setRulesOpen(false)} variant="outlined" sx={OUTLINED_BUTTON_SX}>Close</Button>
            </DialogActions>
          </Dialog>
        </>
@@ -734,6 +862,3 @@ export default function IncentiveSummarySection({ agentName }) {
    </Stack>
  );
 }
-
-
-

@@ -71,6 +71,37 @@ const BRAND = {
   referralSoft: "#eff6ff",
 };
 
+const CONTAINED_BUTTON_SX = {
+  textTransform: "none",
+  borderRadius: 2,
+  boxShadow: "none",
+  backgroundColor: "#111827",
+  color: "#ffffff",
+  "&:hover": {
+    backgroundColor: "#0b1220",
+    boxShadow: "none",
+  },
+  "&.Mui-disabled": {
+    backgroundColor: "#d1d5db",
+    color: "#ffffff",
+  },
+};
+
+const OUTLINED_BUTTON_SX = {
+  textTransform: "none",
+  borderRadius: 2,
+  color: BRAND.text,
+  borderColor: "#cbd5e1",
+  "&:hover": {
+    borderColor: BRAND.text,
+    backgroundColor: "#f8fafc",
+  },
+  "&.Mui-disabled": {
+    borderColor: "#e5e7eb",
+    color: "#9ca3af",
+  },
+};
+
 const TABLE_CELL_COMMON_SX = {
   py: 1.5,
   px: 2,
@@ -313,32 +344,26 @@ function formatSignedCurrency(value, walletBucket) {
 function getSlabRange(revenueValue) {
   const revenue = Number(revenueValue || 0);
 
-  if (revenue < 150000) {
-    return { currentPercent: 0, min: 0, max: 150000, nextPercent: 1 };
-  }
   if (revenue < 200000) {
-    return { currentPercent: 1, min: 150000, max: 200000, nextPercent: 1.5 };
+    return { currentPercent: 1, min: 0, max: 200000, nextPercent: 2.5 };
   }
   if (revenue < 300000) {
-    return { currentPercent: 1.5, min: 200000, max: 300000, nextPercent: 2 };
+    return { currentPercent: 2.5, min: 200000, max: 300000, nextPercent: 3.5 };
   }
   if (revenue < 400000) {
-    return { currentPercent: 2, min: 300000, max: 400000, nextPercent: 2.5 };
+    return { currentPercent: 3.5, min: 300000, max: 400000, nextPercent: 5 };
   }
   if (revenue < 500000) {
-    return { currentPercent: 2.5, min: 400000, max: 500000, nextPercent: 3 };
+    return { currentPercent: 5, min: 400000, max: 500000, nextPercent: 6 };
   }
   if (revenue < 600000) {
-    return { currentPercent: 3, min: 500000, max: 600000, nextPercent: 3.5 };
+    return { currentPercent: 6, min: 500000, max: 600000, nextPercent: 7 };
   }
   if (revenue < 800000) {
-    return { currentPercent: 3.5, min: 600000, max: 800000, nextPercent: 4 };
-  }
-  if (revenue < 1000000) {
-    return { currentPercent: 4, min: 800000, max: 1000000, nextPercent: null };
+    return { currentPercent: 7, min: 600000, max: 800000, nextPercent: null };
   }
 
-  return { currentPercent: 4, min: 1000000, max: 1000000, nextPercent: null };
+  return { currentPercent: 7, min: 800000, max: 800000, nextPercent: null };
 }
 
 function getSlabTone(percent = 0) {
@@ -458,15 +483,48 @@ function VKRTargetProgressBar({ value = 0, threshold = 60 }) {
 function WalletDistributionBar({
   available = 0,
   coming = 0,
+  atRisk = 0,
   reversed = 0,
   unknown = 0,
 }) {
-  const total = available + coming + reversed + unknown;
+  const segments = [
+    {
+      key: "available",
+      label: "Available",
+      value: Math.max(0, Number(available || 0)),
+      color: BRAND.available,
+    },
+    {
+      key: "coming",
+      label: "Upcoming",
+      value: Math.max(0, Number(coming || 0)),
+      color: BRAND.coming,
+    },
+    {
+      key: "atRisk",
+      label: "At Risk",
+      value: Math.max(0, Number(atRisk || 0)),
+      color: BRAND.atRisk,
+    },
+    {
+      key: "reversed",
+      label: "Lost",
+      value: Math.max(0, Number(reversed || 0)),
+      color: BRAND.reversed,
+    },
+    {
+      key: "unknown",
+      label: "Unknown",
+      value: Math.max(0, Number(unknown || 0)),
+      color: BRAND.unknown,
+    },
+  ];
 
-  const availablePct = total ? (available / total) * 100 : 0;
-  const comingPct = total ? (coming / total) * 100 : 0;
-  const reversedPct = total ? (reversed / total) * 100 : 0;
-  const unknownPct = total ? (unknown / total) * 100 : 0;
+  const total = segments.reduce((sum, segment) => sum + segment.value, 0);
+  const pct = (value) => (total ? (value / total) * 100 : 0);
+  const legendSegments = segments.filter(
+    (segment) => segment.key !== "unknown" || segment.value > 0
+  );
 
   return (
     <Box>
@@ -480,37 +538,24 @@ function WalletDistributionBar({
           border: `1px solid ${BRAND.border}`,
         }}
       >
-        <Box sx={{ width: `${availablePct}%`, background: BRAND.available }} />
-        <Box sx={{ width: `${comingPct}%`, background: BRAND.coming }} />
-        <Box sx={{ width: `${reversedPct}%`, background: BRAND.reversed }} />
-        <Box sx={{ width: `${unknownPct}%`, background: BRAND.unknown }} />
+        {segments.map((segment) => (
+          <Box
+            key={segment.key}
+            title={`${segment.label}: ${formatCurrency(segment.value)} (${pct(segment.value).toFixed(1)}%)`}
+            sx={{ width: `${pct(segment.value)}%`, background: segment.color }}
+          />
+        ))}
       </Box>
 
       <Stack direction="row" spacing={2} useFlexGap flexWrap="wrap" sx={{ mt: 1.25 }}>
-        <Stack direction="row" spacing={1} alignItems="center">
-          <Box sx={{ width: 10, height: 10, borderRadius: "50%", background: BRAND.available }} />
-          <Typography variant="caption" color="text.secondary">
-            Available
-          </Typography>
-        </Stack>
-        <Stack direction="row" spacing={1} alignItems="center">
-          <Box sx={{ width: 10, height: 10, borderRadius: "50%", background: BRAND.coming }} />
-          <Typography variant="caption" color="text.secondary">
-            Upcoming
-          </Typography>
-        </Stack>
-        <Stack direction="row" spacing={1} alignItems="center">
-          <Box sx={{ width: 10, height: 10, borderRadius: "50%", background: BRAND.reversed }} />
-          <Typography variant="caption" color="text.secondary">
-            Lost
-          </Typography>
-        </Stack>
-        <Stack direction="row" spacing={1} alignItems="center">
-          <Box sx={{ width: 10, height: 10, borderRadius: "50%", background: BRAND.unknown }} />
-          <Typography variant="caption" color="text.secondary">
-            Unknown
-          </Typography>
-        </Stack>
+        {legendSegments.map((segment) => (
+          <Stack key={segment.key} direction="row" spacing={1} alignItems="center">
+            <Box sx={{ width: 10, height: 10, borderRadius: "50%", background: segment.color }} />
+            <Typography variant="caption" color="text.secondary">
+              {segment.label} {pct(segment.value).toFixed(1)}%
+            </Typography>
+          </Stack>
+        ))}
       </Stack>
     </Box>
   );
@@ -1562,11 +1607,11 @@ export default function IncentivesPage() {
         : 0
   );
 
-  const deliveredPercent = Number(
+  const apiDeliveredPercent = Number(
     slab.deliveredPercent ?? slab.incentivePercent ?? 0
   );
 
-  const totalPercent = Number(slab.totalPercent ?? 0);
+  const apiTotalPercent = Number(slab.totalPercent ?? 0);
 
   const deliveredSlabRange = useMemo(() => {
     if (!isTeamData) return getSlabRange(deliveredRevenueValue);
@@ -1574,7 +1619,7 @@ export default function IncentivesPage() {
     const nextThreshold = getNextTeamThreshold(deliveredAchievementPercent);
 
     return {
-      currentPercent: deliveredPercent,
+      currentPercent: apiDeliveredPercent,
       min: 0,
       max: nextThreshold
         ? round2((teamTargetValue * nextThreshold.threshold) / 100)
@@ -1583,8 +1628,8 @@ export default function IncentivesPage() {
       nextThreshold: nextThreshold?.threshold || null,
     };
   }, [
+    apiDeliveredPercent,
     deliveredAchievementPercent,
-    deliveredPercent,
     deliveredRevenueValue,
     isTeamData,
     teamTargetValue,
@@ -1596,7 +1641,7 @@ export default function IncentivesPage() {
     const nextThreshold = getNextTeamThreshold(totalAchievementPercent);
 
     return {
-      currentPercent: totalPercent,
+      currentPercent: apiTotalPercent,
       min: 0,
       max: nextThreshold
         ? round2((teamTargetValue * nextThreshold.threshold) / 100)
@@ -1604,7 +1649,10 @@ export default function IncentivesPage() {
       nextPercent: nextThreshold ? nextThreshold.percent : null,
       nextThreshold: nextThreshold?.threshold || null,
     };
-  }, [isTeamData, teamTargetValue, totalAchievementPercent, totalPercent, totalRevenueValue]);
+  }, [apiTotalPercent, isTeamData, teamTargetValue, totalAchievementPercent, totalRevenueValue]);
+
+  const deliveredPercent = isTeamData ? apiDeliveredPercent : deliveredSlabRange.currentPercent;
+  const totalPercent = isTeamData ? apiTotalPercent : totalSlabRange.currentPercent;
 
   const deliveredProgress = useMemo(() => {
     if (!isTeamData) {
@@ -1870,7 +1918,7 @@ export default function IncentivesPage() {
                 variant="outlined"
                 onClick={handleCloseWalletPopover}
                 disabled={convertLoading}
-                sx={{ textTransform: "none", borderRadius: 2 }}
+                sx={OUTLINED_BUTTON_SX}
               >
                 Cancel
               </Button>
@@ -1878,7 +1926,7 @@ export default function IncentivesPage() {
                 variant="contained"
                 onClick={handleConvertCashToCoin}
                 disabled={convertLoading || !convertAmount}
-                sx={{ textTransform: "none", borderRadius: 2, boxShadow: "none" }}
+                sx={CONTAINED_BUTTON_SX}
               >
                 {convertLoading ? "Converting..." : "Convert"}
               </Button>
@@ -2015,10 +2063,8 @@ export default function IncentivesPage() {
                     (usingCombinedTeamView && teamAgents.length === 0)
                   }
                   sx={{
+                    ...CONTAINED_BUTTON_SX,
                     width: { xs: "100%", md: 100 },
-                    textTransform: "none",
-                    borderRadius: 2,
-                    boxShadow: "none",
                   }}
                 >
                   Apply
@@ -2028,9 +2074,8 @@ export default function IncentivesPage() {
                   variant="outlined"
                   onClick={handleResetFilters}
                   sx={{
+                    ...OUTLINED_BUTTON_SX,
                     width: { xs: "100%", md: 100 },
-                    textTransform: "none",
-                    borderRadius: 2,
                   }}
                 >
                   Reset
@@ -2096,9 +2141,8 @@ export default function IncentivesPage() {
                         !canUseWalletActions || Number(displayAvailableCoinValue || 0) <= 0
                       }
                       sx={{
-                        textTransform: "none",
+                        ...CONTAINED_BUTTON_SX,
                         borderRadius: 2.5,
-                        boxShadow: "none",
                         whiteSpace: "nowrap",
                       }}
                     >
@@ -2112,7 +2156,7 @@ export default function IncentivesPage() {
                         !canUseWalletActions || Number(displayAvailableCashValue || 0) <= 0
                       }
                       sx={{
-                        textTransform: "none",
+                        ...OUTLINED_BUTTON_SX,
                         borderRadius: 2.5,
                         whiteSpace: "nowrap",
                       }}
@@ -2165,10 +2209,13 @@ export default function IncentivesPage() {
                     icon={<ArrowUpwardIcon />}
                     label={`Current Delivered Slab: ${deliveredPercent}%`}
                     sx={{
-                      background: "#eff6ff",
-                      color: BRAND.primary,
+                      background: "#f3f4f6",
+                      color: BRAND.text,
                       fontWeight: 700,
-                      border: "1px solid #bfdbfe",
+                      border: "1px solid #d1d5db",
+                      "& .MuiChip-icon": {
+                        color: "#4b5563",
+                      },
                     }}
                   />
 
@@ -2176,11 +2223,7 @@ export default function IncentivesPage() {
                     variant="contained"
                     startIcon={<ViewIcon />}
                     onClick={() => setIncentiveSummaryOpen(true)}
-                    sx={{
-                      textTransform: "none",
-                      borderRadius: 2,
-                      boxShadow: "none",
-                    }}
+                    sx={CONTAINED_BUTTON_SX}
                   >
                     View Summary
                   </Button>
@@ -2195,14 +2238,15 @@ export default function IncentivesPage() {
                     variant="body2"
                     sx={{ color: BRAND.sub, fontWeight: 600, mb: 1.25 }}
                   >
-                    Cash Distribution
+                    Incentive Cash Distribution
                   </Typography>
 
                   <WalletDistributionBar
                     available={summary.availableIncentive || 0}
                     coming={summary.comingIncentive || 0}
+                    atRisk={summary.atRiskIncentive || 0}
                     reversed={summary.reversedIncentive || 0}
-                    unknown={summary.unknownRevenue || 0}
+                    unknown={summary.unknownIncentive || 0}
                   />
 
                   <Stack
@@ -2476,11 +2520,7 @@ export default function IncentivesPage() {
                     variant="contained"
                     startIcon={<ViewIcon />}
                     onClick={() => setWalletSummaryOpen(true)}
-                    sx={{
-                      textTransform: "none",
-                      borderRadius: 2,
-                      boxShadow: "none",
-                    }}
+                    sx={CONTAINED_BUTTON_SX}
                   >
                     View Summary
                   </Button>
@@ -2488,10 +2528,7 @@ export default function IncentivesPage() {
                   <Button
                     variant="outlined"
                     onClick={() => setWalletRulesOpen(true)}
-                    sx={{
-                      textTransform: "none",
-                      borderRadius: 2,
-                    }}
+                    sx={OUTLINED_BUTTON_SX}
                   >
                     Rules
                   </Button>
@@ -2595,7 +2632,7 @@ export default function IncentivesPage() {
                   <Button
                     onClick={() => setIncentiveSummaryOpen(false)}
                     variant="outlined"
-                    sx={{ textTransform: "none", borderRadius: 2 }}
+                    sx={OUTLINED_BUTTON_SX}
                   >
                     Close
                   </Button>
@@ -2628,8 +2665,7 @@ export default function IncentivesPage() {
                       onClick={() => setWalletAgentsOpen(true)}
                       disabled={!agentVkrRows.length}
                       sx={{
-                        textTransform: "none",
-                        borderRadius: 2,
+                        ...OUTLINED_BUTTON_SX,
                         fontWeight: 700,
                       }}
                     >
@@ -2748,7 +2784,7 @@ export default function IncentivesPage() {
                       setWalletAgentsOpen(false);
                     }}
                     variant="outlined"
-                    sx={{ textTransform: "none", borderRadius: 2 }}
+                    sx={OUTLINED_BUTTON_SX}
                   >
                     Close
                   </Button>
@@ -2810,7 +2846,7 @@ export default function IncentivesPage() {
                   <Button
                     onClick={() => setWalletAgentsOpen(false)}
                     variant="outlined"
-                    sx={{ textTransform: "none", borderRadius: 2 }}
+                    sx={OUTLINED_BUTTON_SX}
                   >
                     Close
                   </Button>
@@ -3030,7 +3066,7 @@ export default function IncentivesPage() {
                 <Button
                   onClick={() => setWalletRulesOpen(false)}
                   variant="outlined"
-                  sx={{ textTransform: "none", borderRadius: 2 }}
+                  sx={OUTLINED_BUTTON_SX}
                 >
                   Close
                 </Button>

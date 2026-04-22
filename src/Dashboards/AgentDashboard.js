@@ -1,42 +1,11 @@
-import React, { useEffect, useState } from "react";
-import {
-  Box,
-  Typography,
-  Grid,
-  Paper,
-  CircularProgress,
-  LinearProgress,
-  Button,
-  Table,
-  TableBody,
-  Select,
-  FormControl,
-  MenuItem,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  TextField,
-} from "@mui/material";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import axios from "axios";
-import PersonOutlineIcon from "@mui/icons-material/PersonOutline";
-import AssignmentTurnedInIcon from "@mui/icons-material/AssignmentTurnedIn";
-import LocalMallIcon from "@mui/icons-material/LocalMall";
-import TrendingUpIcon from "@mui/icons-material/TrendingUp";
-import {
-  CurrencyRupee,
-  CurrencyRupeeOutlined,
-  ExpandMore,
-  Schedule,
-  EventBusy,
-  Today,
-  EventAvailable,
-  MoreTime,
-} from "@mui/icons-material";
-import WarningAmberIcon from "@mui/icons-material/WarningAmber";
-import { styled } from "@mui/system";
+import IncentiveSummarySection from "../components/IncentiveSummarySection";
+import "./RetentionDashboard.css";
 
-const timeRangeOptions = [
+const API_BASE = "https://muditamleads-14f32a10d7f7.herokuapp.com";
+
+const TIME_RANGE_OPTIONS = [
   "Today",
   "Yesterday",
   "Last 7 days",
@@ -53,18 +22,29 @@ const timeRangeOptions = [
   "Custom range",
 ];
 
-const toISODate = (date) => date.toISOString().split("T")[0];
+const toISODate = (date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
 const getDateRange = (rangeValue) => {
   const now = new Date();
+  now.setHours(0, 0, 0, 0);
+
   let start = new Date(now);
   let end = new Date(now);
 
-  const getWeekStart = (d) => {
-    const day = d.getDay();
+  const getWeekStart = (date) => {
+    const copy = new Date(date);
+    const day = copy.getDay();
     const diff = day === 0 ? 6 : day - 1;
-    d.setDate(d.getDate() - diff);
-    return d;
+    copy.setDate(copy.getDate() - diff);
+    copy.setHours(0, 0, 0, 0);
+    return copy;
   };
+
   switch (rangeValue) {
     case "Today":
       break;
@@ -79,13 +59,15 @@ const getDateRange = (rangeValue) => {
       start.setDate(now.getDate() - 29);
       break;
     case "Week to date":
-      start = getWeekStart(new Date());
+      start = getWeekStart(now);
       break;
     case "Month to date":
       start = new Date(now.getFullYear(), now.getMonth(), 1);
+      start.setHours(0, 0, 0, 0);
       break;
     case "Year to date":
       start = new Date(now.getFullYear(), 0, 1);
+      start.setHours(0, 0, 0, 0);
       break;
     case "Last 90 days":
       start.setDate(now.getDate() - 89);
@@ -115,6 +97,7 @@ const getDateRange = (rangeValue) => {
       const currentMonth = now.getMonth();
       const quarterStartMonth = currentMonth - (currentMonth % 3);
       start = new Date(now.getFullYear(), quarterStartMonth, 1);
+      start.setHours(0, 0, 0, 0);
       break;
     }
     case "Custom range":
@@ -122,488 +105,614 @@ const getDateRange = (rangeValue) => {
     default:
       break;
   }
+
   return { startDate: toISODate(start), endDate: toISODate(end) };
 };
 
-const BlinkingIcon = styled(WarningAmberIcon)({
-  animation: "blink-animation 1.5s steps(2, start) infinite",
-  "@keyframes blink-animation": { "50%": { opacity: 0 } },
-  color: "red",
-});
+const prettyDate = (dateText = "") => {
+  if (!dateText) return "";
+  const date = new Date(`${dateText}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return dateText;
+  return date.toLocaleDateString("en-IN", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+};
+
+const clampPercent = (value) => {
+  const parsed = Number(value || 0);
+  if (!Number.isFinite(parsed)) return 0;
+  return Math.max(0, Math.min(100, parsed));
+};
+
+const formatMoney = (value) =>
+  `₹${Number(value || 0).toLocaleString("en-IN", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
+
+const iconForMetric = (key) => {
+  switch (key) {
+    case "Open Leads":
+      return "OL";
+    case "Leads Assigned Today":
+      return "LA";
+    case "Sales Done":
+      return "SD";
+    case "Conversion Rate":
+      return "CR";
+    case "Total Sales":
+      return "TS";
+    case "Average Order Value":
+      return "AOV";
+    case "No Followup Set":
+      return "NS";
+    case "Followup Missed":
+      return "FM";
+    case "Followup Today":
+      return "FT";
+    case "Followup Tomorrow":
+      return "FR";
+    case "Followup Later":
+      return "FL";
+    default:
+      return "•";
+  }
+};
+
+const toneClassForMetric = (key) => {
+  switch (key) {
+    case "Open Leads":
+      return "rd-tone-blue";
+    case "Leads Assigned Today":
+      return "rd-tone-green";
+    case "Sales Done":
+      return "rd-tone-orange";
+    case "Conversion Rate":
+      return "rd-tone-cyan";
+    case "Total Sales":
+      return "rd-tone-red";
+    case "Average Order Value":
+      return "rd-tone-amber";
+    case "No Followup Set":
+      return "rd-tone-slate";
+    case "Followup Missed":
+      return "rd-tone-red";
+    case "Followup Today":
+      return "rd-tone-green";
+    case "Followup Tomorrow":
+      return "rd-tone-amber";
+    case "Followup Later":
+      return "rd-tone-cyan";
+    default:
+      return "rd-tone-slate";
+  }
+};
+
+const normalizeShipmentTone = (label = "") => {
+  const value = String(label).toLowerCase();
+  if (value.includes("deliver")) return "good";
+  if (value.includes("rto") || value.includes("cancel") || value.includes("return")) return "bad";
+  if (value.includes("unknown") || value.includes("not available")) return "neutral";
+  return "info";
+};
 
 const AgentDashboard = () => {
-  const [user, setUser] = useState(null);
+  const [loadingMain, setLoadingMain] = useState(true);
+  const [loadingLeadSource, setLoadingLeadSource] = useState(false);
+  const [loadingShipment, setLoadingShipment] = useState(false);
+
   const [todayStats, setTodayStats] = useState({});
   const [followupStats, setFollowupStats] = useState({});
-  const [loading, setLoading] = useState(true);
   const [leadSourceData, setLeadSourceData] = useState([]);
   const [shipmentStatusSummary, setShipmentStatusSummary] = useState([]);
-  const [selectedSummary, setSelectedSummary] = useState("Sales & Followup Summary");
-  const [selectedRange, setSelectedRange] = useState("Today");
+
+  const [selectedRange, setSelectedRange] = useState("Month to date");
   const [customStart, setCustomStart] = useState("");
   const [customEnd, setCustomEnd] = useState("");
-  const [totals, setTotals] = useState({
-    leadsAssigned: 0,
-    leadsConverted: 0,
-    conversionRate: 0,
-    salesAmount: 0,
-  });
-  const [allTimeStats, setAllTimeStats] = useState({
-    totalLeads: 0,
-    salesDone: 0,
-    conversionRate: 0,
-    totalSales: 0,
-    avgOrderValue: 0,
-  });
+  const [windowLabel, setWindowLabel] = useState("Month to date");
+  const [target, setTarget] = useState(0);
+  const [salesProgress, setSalesProgress] = useState(0);
 
-  useEffect(() => {
-    const loggedInUser = JSON.parse(sessionStorage.getItem("user"));
-    if (loggedInUser) {
-      setUser(loggedInUser);
-      const { startDate, endDate } = getDateRange("Today");
-      fetchTodaySummaryData(loggedInUser.fullName, startDate, endDate);
-      fetchFollowupStatsData(loggedInUser.fullName, startDate, endDate);
-      fetchAllTimeData(loggedInUser.fullName);
-      if (selectedSummary === "Lead-Source & Delivery Summary") {
-        fetchLeadSourceSummaryLimited(startDate, endDate);
-        fetchShipmentStatusSummary(startDate, endDate);
-      }
-      setLoading(false);
+  const user = useMemo(() => {
+    try {
+      return JSON.parse(sessionStorage.getItem("user"));
+    } catch {
+      return null;
     }
   }, []);
 
-  const fetchTodaySummaryData = async (agentName, startDate, endDate) => {
-    try {
-      const response = await axios.get(
-        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/dashboard/today-summary-agent",
-        { params: { agentAssignedName: agentName, startDate, endDate } }
-      );
-      setTodayStats(response.data);
-    } catch (error) {
-      console.error("Error fetching today summary data:", error);
-    }
-  };
+  const canShowDrrPanel = Boolean(user?.permissions?.navbar?.drrPanel);
 
-  const fetchFollowupStatsData = async (agentName, startDate, endDate) => {
+  const fetchTodayAndFollowup = useCallback(async (agentName, startDate, endDate) => {
+    setLoadingMain(true);
     try {
-      const response = await axios.get(
-        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/dashboard/followup-summary-agent",
-        { params: { agentAssignedName: agentName, startDate, endDate } }
-      );
-      setFollowupStats(response.data);
-    } catch (error) {
-      console.error("Error fetching followup stats:", error);
-    }
-  };
+      const [todayRes, followupRes] = await Promise.all([
+        axios.get(`${API_BASE}/api/dashboard/today-summary-agent`, {
+          params: { agentAssignedName: agentName, startDate, endDate },
+        }),
+        axios.get(`${API_BASE}/api/dashboard/followup-summary-agent`, {
+          params: { agentAssignedName: agentName, startDate, endDate },
+        }),
+      ]);
 
-  const fetchAllTimeData = async (agentName) => {
+      setTodayStats(todayRes?.data || {});
+      setFollowupStats(followupRes?.data || {});
+    } catch (error) {
+      console.error("Error fetching sales dashboard summary:", error);
+      setTodayStats({});
+      setFollowupStats({});
+    } finally {
+      setLoadingMain(false);
+    }
+  }, []);
+
+  const fetchLeadSourceSummary = useCallback(async (agentName, startDate, endDate) => {
+    setLoadingLeadSource(true);
     try {
-      const response = await axios.get(
-        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads",
-        { params: { agentAssignedName: agentName, limit: 0 } }
-      );
-      const leads = response.data.leads || [];
-      const salesDoneLeads = leads.filter(lead => lead.salesStatus === "Sales Done");
-      const totalSales = salesDoneLeads.reduce((acc, lead) => acc + (lead.amountPaid || 0), 0);
-      setAllTimeStats({
-        totalLeads: leads.length,
-        salesDone: salesDoneLeads.length,
-        conversionRate: leads.length > 0 ? ((salesDoneLeads.length / leads.length) * 100).toFixed(2) : 0,
-        totalSales,
-        avgOrderValue: salesDoneLeads.length > 0 ? (totalSales / salesDoneLeads.length).toFixed(2) : 0,
+      const response = await axios.get(`${API_BASE}/api/dashboard/lead-source-summary-limited`, {
+        params: { agentAssignedName: agentName, startDate, endDate },
       });
-    } catch (error) {
-      console.error("Error fetching all-time data:", error);
-    }
-  };
-
-  const fetchLeadSourceSummaryLimited = async (startDate, endDate) => {
-    try {
-      setLoading(true);
-      const response = await axios.get(
-        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/dashboard/lead-source-summary-limited",
-        { params: { agentAssignedName: user?.fullName, startDate, endDate } }
-      );
-      const sourceSummary = response.data || [];
-      setLeadSourceData(sourceSummary);
-      const totalLeadsAssigned = sourceSummary.reduce((acc, row) => acc + (row.leadsAssigned || 0), 0);
-      const totalLeadsConverted = sourceSummary.reduce((acc, row) => acc + (row.leadsConverted || 0), 0);
-      const totalSalesAmount = sourceSummary.reduce((acc, row) => acc + (row.salesAmount || 0), 0);
-      setTotals({
-        leadsAssigned: totalLeadsAssigned,
-        leadsConverted: totalLeadsConverted,
-        conversionRate: totalLeadsAssigned > 0 ? ((totalLeadsConverted / totalLeadsAssigned) * 100).toFixed(2) : 0,
-        salesAmount: totalSalesAmount,
-      });
+      setLeadSourceData(Array.isArray(response?.data) ? response.data : []);
     } catch (error) {
       console.error("Error fetching lead source summary:", error);
+      setLeadSourceData([]);
     } finally {
-      setLoading(false);
+      setLoadingLeadSource(false);
     }
-  };
+  }, []);
 
-  const fetchShipmentStatusSummary = async (startDate, endDate) => {
+  const fetchShipmentStatusSummary = useCallback(async (agentName, startDate, endDate) => {
+    setLoadingShipment(true);
     try {
-      setLoading(true);
-      const response = await axios.get(
-        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/dashboard/shipment-status-summary",
-        { params: { agentName: user?.fullName, startDate, endDate } }
-      );
-      setShipmentStatusSummary(response.data.shipmentStatusSummary || []);
+      const response = await axios.get(`${API_BASE}/api/dashboard/shipment-status-summary`, {
+        params: { agentName, startDate, endDate },
+      });
+      setShipmentStatusSummary(Array.isArray(response?.data?.shipmentStatusSummary) ? response.data.shipmentStatusSummary : []);
     } catch (error) {
       console.error("Error fetching shipment status summary:", error);
+      setShipmentStatusSummary([]);
     } finally {
-      setLoading(false);
+      setLoadingShipment(false);
     }
-  };
+  }, []);
 
-  const handleSummaryChange = async (e) => {
-    const newSummary = e.target.value;
-    setSelectedSummary(newSummary);
-    let dates = selectedRange !== "Custom range" ? getDateRange(selectedRange) : { startDate: customStart, endDate: customEnd };
+  const loadForRange = useCallback(async (startDate, endDate) => {
+    if (!user?.fullName || !startDate || !endDate) return;
+    setWindowLabel(`${prettyDate(startDate)} - ${prettyDate(endDate)}`);
+    await Promise.all([
+      fetchTodayAndFollowup(user.fullName, startDate, endDate),
+      fetchLeadSourceSummary(user.fullName, startDate, endDate),
+      fetchShipmentStatusSummary(user.fullName, startDate, endDate),
+    ]);
+  }, [fetchLeadSourceSummary, fetchShipmentStatusSummary, fetchTodayAndFollowup, user?.fullName]);
+
+  useEffect(() => {
     if (!user?.fullName) return;
-    if (newSummary === "Sales & Followup Summary") {
-      await fetchTodaySummaryData(user.fullName, dates.startDate, dates.endDate);
-      await fetchFollowupStatsData(user.fullName, dates.startDate, dates.endDate);
-    } else if (newSummary === "Lead-Source & Delivery Summary") {
-      await fetchLeadSourceSummaryLimited(dates.startDate, dates.endDate);
-      await fetchShipmentStatusSummary(dates.startDate, dates.endDate);
-    }
-  };
+    const initial = getDateRange("Month to date");
+    loadForRange(initial.startDate, initial.endDate);
+  }, [loadForRange, user?.fullName]);
 
-  const handleTimeRangeChange = async (e) => {
-    const newRange = e.target.value;
-    setSelectedRange(newRange);
-    if (newRange !== "Custom range") {
-      const { startDate, endDate } = getDateRange(newRange);
-      if (!user?.fullName) return;
-      if (selectedSummary === "Sales & Followup Summary") {
-        await fetchTodaySummaryData(user.fullName, startDate, endDate);
-        await fetchFollowupStatsData(user.fullName, startDate, endDate);
-      } else if (selectedSummary === "Lead-Source & Delivery Summary") {
-        await fetchLeadSourceSummaryLimited(startDate, endDate);
-        await fetchShipmentStatusSummary(startDate, endDate);
+  useEffect(() => {
+    async function fetchTarget() {
+      if (!user?.fullName || !user?.email) return;
+      try {
+        const response = await axios.get(`${API_BASE}/api/employees`, {
+          params: {
+            fullName: user.fullName,
+            email: user.email,
+          },
+        });
+        if (response.data && response.data[0]) {
+          setTarget(Number(response.data[0].target || 0));
+        }
+      } catch (error) {
+        console.error("Error fetching employee target:", error);
       }
     }
+
+    fetchTarget();
+  }, [user?.email, user?.fullName]);
+
+  useEffect(() => {
+    async function fetchSalesProgress() {
+      if (!user?.fullName) return;
+      try {
+        const response = await axios.get(`${API_BASE}/api/retention-sales/progress`, {
+          params: { name: user.fullName },
+        });
+        setSalesProgress(Number(response?.data?.total || 0));
+      } catch (error) {
+        console.error("Error fetching sales progress:", error);
+      }
+    }
+
+    fetchSalesProgress();
+  }, [user?.fullName]);
+
+  const workingDaysLeft = useMemo(() => {
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = today.getMonth();
+    const date = today.getDate();
+    const lastDay = new Date(year, month + 1, 0).getDate();
+
+    let days = 0;
+    for (let day = date; day <= lastDay; day += 1) {
+      const check = new Date(year, month, day);
+      if (check.getDay() !== 0) days += 1;
+    }
+    return days;
+  }, []);
+
+  const dailySalesRequired =
+    workingDaysLeft > 0 && target - salesProgress > 0
+      ? Math.ceil((target - salesProgress) / workingDaysLeft)
+      : 0;
+
+  const onRangeChange = async (value) => {
+    setSelectedRange(value);
+    if (value === "Custom range") return;
+    const range = getDateRange(value);
+    await loadForRange(range.startDate, range.endDate);
   };
 
   const applyCustomRange = async () => {
-    if (!customStart || !customEnd || !user?.fullName) return;
-    if (selectedSummary === "Sales & Followup Summary") {
-      await fetchTodaySummaryData(user.fullName, customStart, customEnd);
-      await fetchFollowupStatsData(user.fullName, customStart, customEnd);
-    } else if (selectedSummary === "Lead-Source & Delivery Summary") {
-      await fetchLeadSourceSummaryLimited(customStart, customEnd);
-      await fetchShipmentStatusSummary(customStart, customEnd);
-    }
+    if (!customStart || !customEnd) return;
+    await loadForRange(customStart, customEnd);
   };
 
-  const stats1 = [
+  const handleBoxClick = (label) => {
+    if (label === "Sales Done" || label === "Total Sales" || label === "Average Order Value") {
+      window.open("/sales/my-sales", "_blank");
+      return;
+    }
+
+    window.open("/sales/my-leads", "_blank");
+  };
+
+  const salesCards = [
     {
       label: "Open Leads",
-      icon: <PersonOutlineIcon fontSize="medium" style={{ color: "#1976d2" }} />,
-      value: todayStats.openLeads !== undefined ? todayStats.openLeads : <CircularProgress size={20} />
+      value: Number(todayStats.openLeads || 0).toLocaleString("en-IN"),
+      sub: "Leads still in motion",
     },
     {
       label: "Leads Assigned Today",
-      icon: <AssignmentTurnedInIcon fontSize="medium" style={{ color: "#28a745" }} />,
-      value: todayStats.leadsAssignedToday !== undefined ? todayStats.leadsAssignedToday : <CircularProgress size={20} />
+      value: Number(todayStats.leadsAssignedToday || 0).toLocaleString("en-IN"),
+      sub: "Fresh ownership",
     },
     {
       label: "Sales Done",
-      icon: <LocalMallIcon fontSize="medium" style={{ color: "#f39c12" }} />,
-      value: todayStats.salesDone !== undefined ? todayStats.salesDone : <CircularProgress size={20} />
+      value: Number(todayStats.salesDone || 0).toLocaleString("en-IN"),
+      sub: "Confirmed conversions",
     },
     {
       label: "Conversion Rate",
-      icon: <TrendingUpIcon fontSize="medium" style={{ color: "#8e44ad" }} />,
-      value: todayStats.conversionRate !== undefined ? `${todayStats.conversionRate}%` : <CircularProgress size={20} />
+      value: `${Number(todayStats.conversionRate || 0).toFixed(2)}%`,
+      sub: "Lead to sale quality",
     },
     {
       label: "Total Sales",
-      icon: <CurrencyRupee fontSize="medium" style={{ color: "#e74c3c" }} />,
-      value: todayStats.totalSales !== undefined ? `₹${todayStats.totalSales}` : <CircularProgress size={20} />
+      value: formatMoney(todayStats.totalSales),
+      sub: "Gross revenue",
     },
     {
       label: "Average Order Value",
-      icon: <CurrencyRupeeOutlined fontSize="medium" style={{ color: "#f1c40f" }} />,
-      value: todayStats.avgOrderValue !== undefined ? `₹${todayStats.avgOrderValue}` : <CircularProgress size={20} />
+      value: formatMoney(todayStats.avgOrderValue),
+      sub: "Ticket quality",
     },
   ];
 
-  const stats2 = [
+  const followupCards = [
+    { label: "No Followup Set", key: "noFollowupSet" },
+    { label: "Followup Missed", key: "followupMissed" },
+    { label: "Followup Today", key: "followupToday" },
+    { label: "Followup Tomorrow", key: "followupTomorrow" },
+    { label: "Followup Later", key: "followupLater" },
+  ];
+
+  const leadSourceTotals = leadSourceData.reduce(
+    (total, row) => ({
+      leadsAssigned: total.leadsAssigned + Number(row.leadsAssigned || 0),
+      leadsConverted: total.leadsConverted + Number(row.leadsConverted || 0),
+      salesAmount: total.salesAmount + Number(row.salesAmount || 0),
+    }),
+    { leadsAssigned: 0, leadsConverted: 0, salesAmount: 0 }
+  );
+
+  const leadSourceTotalConversion = leadSourceTotals.leadsAssigned
+    ? ((leadSourceTotals.leadsConverted / leadSourceTotals.leadsAssigned) * 100).toFixed(2)
+    : "0.00";
+
+  const totalFollowupVolume = followupCards.reduce(
+    (sum, card) => sum + Number(followupStats?.[card.key] || 0),
+    0
+  );
+  const followupCoverage = Number(followupStats.followupToday || 0) + Number(followupStats.followupTomorrow || 0);
+  const followupCoverageRate = totalFollowupVolume
+    ? ((followupCoverage / totalFollowupVolume) * 100).toFixed(1)
+    : "0.0";
+
+  const deliveredShipmentRow = shipmentStatusSummary.find((row) =>
+    String(row?.category || "").toLowerCase().includes("deliver")
+  );
+  const deliveredShipmentCount = Number(deliveredShipmentRow?.totalOrders || 0);
+
+  const executiveKpis = [
     {
-      label: "No Followup Set",
-      icon: <Schedule sx={{ color: "#546E7A" }} />,
-      value: followupStats.noFollowupSet !== undefined ? followupStats.noFollowupSet : <CircularProgress size={20} />
+      label: "Conversion Rate",
+      value: `${Number(todayStats.conversionRate || 0).toFixed(2)}%`,
+      tone: "rd-chip-blue",
     },
     {
-      label: "Followup Missed",
-      icon: <EventBusy sx={{ color: "#D32F2F" }} />,
-      value: followupStats.followupMissed !== undefined ? followupStats.followupMissed : <CircularProgress size={20} />
+      label: "Delivered Shipments",
+      value: deliveredShipmentCount.toLocaleString("en-IN"),
+      tone: "rd-chip-teal",
     },
     {
-      label: "Followup Today",
-      icon: <Today sx={{ color: "#388E3C" }} />,
-      value: followupStats.followupToday !== undefined ? followupStats.followupToday : <CircularProgress size={20} />
+      label: "Followup Coverage",
+      value: `${followupCoverageRate}%`,
+      tone: "rd-chip-violet",
     },
     {
-      label: "Followup Tomorrow",
-      icon: <EventAvailable sx={{ color: "#FFA000" }} />,
-      value: followupStats.followupTomorrow !== undefined ? followupStats.followupTomorrow : <CircularProgress size={20} />
-    },
-    {
-      label: "Followup Later",
-      icon: <MoreTime sx={{ color: "#0288D1" }} />,
-      value: followupStats.followupLater !== undefined ? followupStats.followupLater : <CircularProgress size={20} />
+      label: "Live Range",
+      value: selectedRange,
+      tone: "rd-chip-gold",
     },
   ];
 
   return (
-    <Box sx={{ padding: { xs: 2, sm: 3, md: 4 }, width: { xs: "90%", sm: "85%", md: "85%", lg: "90%" }, marginLeft: "auto", marginRight: "auto" }}>
-      <Typography variant="h4" gutterBottom fontWeight={600} color="#000000" textAlign="center">
-        {user?.fullName ? `${user.fullName} - Sales Dashboard` : "Sales Dashboard"}
-      </Typography>
+    <div className="rd-page rd-sales-page">
+      <div className="rd-shell">
+        <section className="rd-hero rd-sales-hero rd-fade-1">
+          <div>
+            <h1>{user?.fullName || "Sales Agent"} Dashboard</h1>
+            <div className="rd-meta-line">
+              <span className="rd-dot" />
+              <span>{windowLabel}</span>
+            </div>
+          </div>
 
-      <Box sx={{ display: "flex", justifyContent: "center", gap: 2, flexWrap: "wrap", mb: 2, mt: 2 }}>
-        <FormControl fullWidth variant="outlined" sx={{ width: 300 }}>
-          <Select
-            value={selectedSummary}
-            onChange={handleSummaryChange}
-            displayEmpty
-            IconComponent={ExpandMore}
-            renderValue={(val) => (val ? val : "Summary:")}
-            sx={{
-              backgroundColor: "#fff",
-              color: "#333",
-              borderRadius: 2,
-              border: "1px solid #ccc",
-              "& .MuiOutlinedInput-notchedOutline": { borderColor: "#ccc" },
-              "&:hover .MuiOutlinedInput-notchedOutline": { borderColor: "#888" },
-            }}
-          >
-            <MenuItem value="Sales & Followup Summary">
-              <Typography variant="body2">Sales & Followup Summary</Typography>
-            </MenuItem>
-            <MenuItem value="Lead-Source & Delivery Summary">
-              <Typography variant="body2">Lead-Source & Delivery Summary</Typography>
-            </MenuItem>
-          </Select>
-        </FormControl>
+          <div className="rd-hero-controls">
+            <div className="rd-filters">
+              <label htmlFor="sales-range">Date Range</label>
+              <select
+                id="sales-range"
+                value={selectedRange}
+                onChange={(event) => onRangeChange(event.target.value)}
+              >
+                {TIME_RANGE_OPTIONS.map((option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))}
+              </select>
+            </div>
 
-        <FormControl fullWidth variant="outlined" sx={{ width: 300 }}>
-          <Select
-            value={selectedRange}
-            onChange={handleTimeRangeChange}
-            displayEmpty
-            IconComponent={ExpandMore}
-            renderValue={(val) => (val ? val : "Time Range")}
-            sx={{
-              backgroundColor: "#fff",
-              color: "#333",
-              borderRadius: 2,
-              border: "1px solid #ccc",
-              "& .MuiOutlinedInput-notchedOutline": { borderColor: "#ccc" },
-              "&:hover .MuiOutlinedInput-notchedOutline": { borderColor: "#888" },
-            }}
-          >
-            {timeRangeOptions.map((option) => (
-              <MenuItem key={option} value={option}>
-                <Typography variant="body2">{option}</Typography>
-              </MenuItem>
+            {canShowDrrPanel && (
+              <div className="rd-drr-panel">
+                <span className="rd-drr-text">
+                  DRR: <strong className="rd-drr-green">{dailySalesRequired > 0 ? formatMoney(dailySalesRequired) : "₹0"}</strong>
+                </span>
+                <span className="rd-drr-divider" />
+                <span className="rd-drr-text">
+                  Target: ({Math.floor(salesProgress)}/{Math.floor(target)})
+                  <strong className="rd-drr-gold">
+                    {target > 0 ? `${Math.floor((salesProgress / target) * 100)}%` : "0%"}
+                  </strong>
+                </span>
+              </div>
+            )}
+          </div>
+        </section>
+
+        <section className="rd-kpi-ribbon rd-fade-2">
+          {executiveKpis.map((kpi) => (
+            <article key={kpi.label} className="rd-kpi-pill">
+              <span className={`rd-kpi-label ${kpi.tone}`}>{kpi.label}</span>
+              <strong>{kpi.value}</strong>
+            </article>
+          ))}
+        </section>
+
+        {selectedRange === "Custom range" && (
+          <section className="rd-custom-range rd-fade-3">
+            <div className="rd-field">
+              <label htmlFor="sales-start">Start Date</label>
+              <input
+                id="sales-start"
+                type="date"
+                value={customStart}
+                onChange={(event) => setCustomStart(event.target.value)}
+              />
+            </div>
+            <div className="rd-field">
+              <label htmlFor="sales-end">End Date</label>
+              <input
+                id="sales-end"
+                type="date"
+                value={customEnd}
+                onChange={(event) => setCustomEnd(event.target.value)}
+              />
+            </div>
+            <button type="button" className="rd-btn-primary" onClick={applyCustomRange}>
+              Apply
+            </button>
+          </section>
+        )}
+
+        {(loadingMain || loadingLeadSource || loadingShipment) && (
+          <div className="rd-top-loader" aria-hidden="true" />
+        )}
+
+        <section className="rd-section rd-fade-3">
+          <div className="rd-section-head">
+            <h2>Sales Summary</h2>
+          </div>
+          <div className="rd-card-grid rd-grid-3">
+            {salesCards.map((card) => (
+              <button
+                type="button"
+                key={card.label}
+                className={`rd-metric-card ${toneClassForMetric(card.label)}`}
+                onClick={() => handleBoxClick(card.label)}
+              >
+                <span className="rd-icon">{iconForMetric(card.label)}</span>
+                <span className="rd-label">{card.label}</span>
+                <span className="rd-value">{card.value}</span>
+                <span className="rd-sub">{card.sub}</span>
+              </button>
             ))}
-          </Select>
-        </FormControl>
-      </Box>
+          </div>
+        </section>
 
-      {selectedRange === "Custom range" && (
-        <Box sx={{ display: "flex", justifyContent: "center", gap: 2, mb: 2, flexWrap: "wrap" }}>
-          <TextField label="Start Date" type="date" value={customStart} onChange={(e) => setCustomStart(e.target.value)} InputLabelProps={{ shrink: true }} sx={{ width: 180 }} />
-          <TextField label="End Date" type="date" value={customEnd} onChange={(e) => setCustomEnd(e.target.value)} InputLabelProps={{ shrink: true }} sx={{ width: 180 }} />
-          <Button variant="contained" onClick={applyCustomRange} sx={{ bgcolor: "#000000", color: "white", "&:hover": { bgcolor: "primary.dark" } }}>
-            Apply
-          </Button>
-        </Box>
-      )}
+        <section className="rd-section rd-fade-4">
+          <div className="rd-section-head">
+            <h2>Followup Summary</h2>
+          </div>
+          <div className="rd-card-grid rd-grid-3">
+            {followupCards.map((card) => (
+              <button
+                type="button"
+                key={card.label}
+                className={`rd-metric-card ${toneClassForMetric(card.label)}`}
+                onClick={() => handleBoxClick(card.label)}
+              >
+                <span className="rd-icon">{iconForMetric(card.label)}</span>
+                <span className="rd-label">{card.label}</span>
+                <span className="rd-value">
+                  {Number(followupStats?.[card.key] || 0).toLocaleString("en-IN")}
+                </span>
+              </button>
+            ))}
+          </div>
+        </section>
 
-      {selectedSummary === "Sales & Followup Summary" && (
-        <>
-          <Box sx={{ padding: 2, marginTop: 3, borderRadius: 2, backgroundColor: "#FFFFFF", display: "flex", flexDirection: "column", alignItems: "center", maxWidth: "1000px", margin: "0 auto", boxShadow: "0px 5px 15px rgba(0,0,0,0.05)" }}>
-            <Typography variant="h5" fontWeight={600} gutterBottom color="#000000" textAlign="center">
-              Sales Summary
-            </Typography>
-            <Grid container spacing={2} sx={{ width: "100%" }}>
-              {stats1.map(({ label, icon, value }) => (
-                <Grid item xs={12} sm={6} md={4} key={label}>
-                  <Box sx={{ p: 2, display: "flex", alignItems: "center", borderRadius: 2, backgroundColor: "#F9FAFB", boxShadow: "0px 3px 10px rgba(0,0,0,0.05)", transition: "0.3s", width: "90%", minHeight: "130px", margin: "0 auto", "&:hover": { transform: "translateY(-3px)", boxShadow: "0px 5px 15px rgba(0,0,0,0.1)" } }}>
-                    <Box sx={{ fontSize: 28, mr: 2 }}>{icon}</Box>
-                    <Box>
-                      <Typography variant="subtitle2" sx={{ color: "#555" }}>{label}</Typography>
-                      <Typography variant="h6" fontWeight="bold" sx={{ color: "#333" }}>
-                        {value !== undefined ? value : <CircularProgress size={18} />}
-                      </Typography>
-                    </Box>
-                  </Box>
-                </Grid>
-              ))}
-            </Grid>
-          </Box>
-
-          <Box sx={{ padding: 2, marginTop: 3, borderRadius: 2, backgroundColor: "#FFFFFF", display: "flex", flexDirection: "column", alignItems: "center", maxWidth: "1000px", margin: "0 auto", boxShadow: "0px 5px 15px rgba(0,0,0,0.05)" }}>
-            <Typography variant="h5" fontWeight={600} gutterBottom color="#000000" textAlign="center">
-              Followup Summary
-            </Typography>
-            <Grid container spacing={2} sx={{ width: "100%" }}>
-              {stats2.map(({ label, icon, value }) => (
-                <Grid item xs={12} sm={6} md={4} key={label}>
-                  <Box sx={{ p: 2, display: "flex", alignItems: "center", borderRadius: 2, backgroundColor: "#F9FAFB", boxShadow: "0px 3px 10px rgba(0,0,0,0.05)", transition: "0.3s", minHeight: "130px", width: "90%", margin: "0 auto", "&:hover": { transform: "translateY(-3px)", boxShadow: "0px 5px 15px rgba(0,0,0,0.1)" } }}>
-                    <Box sx={{ fontSize: 28, mr: 2 }}>{icon}</Box>
-                    <Box>
-                      <Typography variant="subtitle2" sx={{ color: "#555" }}>{label}</Typography>
-                      <Typography variant="h6" fontWeight="bold" sx={{ color: "#333" }}>
-                        {value !== undefined ? value : <CircularProgress size={18} />}
-                      </Typography> 
-                    </Box>
-                  </Box>
-                </Grid>
-              ))}
-            </Grid>
-          </Box>
-        </>
-      )}
-
-      {selectedSummary === "Lead-Source & Delivery Summary" && (
-        <>
-          {/* Lead Source Summary */}
-          <Paper sx={{ padding: { xs: 2, sm: 3, md: 4 }, marginTop: 3, borderRadius: "8px", boxShadow: "0px 4px 12px rgba(0,0,0,0.1)", width: "100%", maxWidth: "1000px", marginLeft: "auto", marginRight: "auto" }}>
-            <Typography variant="h5" fontWeight="bold" color="grey.800" gutterBottom textAlign="center">
-              Lead Source Summary
-            </Typography>
-            <TableContainer component={Paper} sx={{ borderRadius: 2, boxShadow: "none" }}>
-              <Table>
-                <TableHead>
-                  <TableRow sx={{ backgroundColor: "#6D6D6D" }}>
-                    {["Lead Source", "Lead Assigned", "Leads Converted", "Conversion Rate", "Sales Amount"].map((header, index) => (
-                      <TableCell key={index} align="center">
-                        <Typography fontWeight="bold" color="grey.50">{header}</Typography>
-                      </TableCell>
+        <section className="rd-section rd-fade-5">
+          <div className="rd-section-head">
+            <h2>Lead Source Summary</h2>
+          </div>
+          <div className="rd-table-wrap">
+            <table className="rd-table">
+              <thead>
+                <tr>
+                  <th>Lead Source</th>
+                  <th>Lead Assigned</th>
+                  <th>Leads Converted</th>
+                  <th>Conversion Rate</th>
+                  <th>Sales Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                {loadingLeadSource ? (
+                  <tr>
+                    <td colSpan={5} className="rd-empty">
+                      Loading lead source summary...
+                    </td>
+                  </tr>
+                ) : leadSourceData.length > 0 ? (
+                  <>
+                    {leadSourceData.map((row, index) => (
+                      <tr key={`${row.leadSource || "source"}-${index}`}>
+                        <td>{row.leadSource || "Unknown"}</td>
+                        <td>{Number(row.leadsAssigned || 0).toLocaleString("en-IN")}</td>
+                        <td>{Number(row.leadsConverted || 0).toLocaleString("en-IN")}</td>
+                        <td>
+                          <div className="rd-percent-cell">
+                            <span>{Number(row.conversionRate || 0).toFixed(2)}%</span>
+                            <div className="rd-progress rd-progress-tight">
+                              <span
+                                className="rd-progress-fill"
+                                style={{ width: `${clampPercent(row.conversionRate)}%` }}
+                              />
+                            </div>
+                          </div>
+                        </td>
+                        <td>{formatMoney(row.salesAmount)}</td>
+                      </tr>
                     ))}
-                  </TableRow>
-                </TableHead>
-                {loading ? (
-                  <TableBody>
-                    <TableRow>
-                      <TableCell colSpan={6} sx={{ p: 0 }}>
-                        <LinearProgress sx={{ width: "100%", height: "2px" }} />
-                      </TableCell>
-                    </TableRow>
-                  </TableBody>
+                    <tr>
+                      <td><strong>Total</strong></td>
+                      <td>{leadSourceTotals.leadsAssigned.toLocaleString("en-IN")}</td>
+                      <td>{leadSourceTotals.leadsConverted.toLocaleString("en-IN")}</td>
+                      <td>{leadSourceTotalConversion}%</td>
+                      <td>{formatMoney(leadSourceTotals.salesAmount)}</td>
+                    </tr>
+                  </>
                 ) : (
-                  <TableBody>
-                    {leadSourceData && leadSourceData.length > 0 ? (
-                      leadSourceData.map((row) => (
-                        <TableRow key={row.leadSource} sx={{ "&:nth-of-type(odd)": { backgroundColor: "grey.200" } }}>
-                          <TableCell sx={{ padding: "4px 8px" }}>
-                            <Typography fontWeight="medium" color="grey.800">{row.leadSource}</Typography>
-                          </TableCell>
-                          <TableCell align="center" sx={{ padding: "4px 8px" }}>
-                            <Typography color="grey.700">{row.leadsAssigned}</Typography>
-                          </TableCell>
-                          <TableCell align="center" sx={{ padding: "4px 8px" }}>
-                            <Typography color="grey.700">{row.leadsConverted}</Typography>
-                          </TableCell>
-                          <TableCell align="center" sx={{ padding: "4px 8px" }}>
-                            <Typography color="grey.700">{`${row.conversionRate}%`}</Typography>
-                          </TableCell>
-                          <TableCell align="center" sx={{ padding: "4px 8px" }}>
-                            <Typography color="grey.700">{`₹${row.salesAmount}`}</Typography>
-                          </TableCell>
-                        </TableRow>
-                      ))
-                    ) : (
-                      <TableRow>
-                        <TableCell colSpan={5} align="center"><CircularProgress size={24} /></TableCell>
-                      </TableRow>
-                    )}
-                    <TableRow sx={{ backgroundColor: "grey.400", "&:hover": { backgroundColor: "grey.500" } }}>
-                      <TableCell>
-                        <Typography fontWeight="bold" color="grey.800" sx={{ padding: "4px 8px" }}>Total</Typography>
-                      </TableCell>
-                      <TableCell align="center" sx={{ padding: "4px 8px" }}>
-                        {totals.leadsAssigned !== undefined ? <Typography color="grey.800" fontWeight="medium">{totals.leadsAssigned}</Typography> : <CircularProgress size={20} />}
-                      </TableCell>
-                      <TableCell align="center" sx={{ padding: "4px 8px" }}>
-                        {totals.leadsConverted !== undefined ? <Typography color="grey.800" fontWeight="medium">{totals.leadsConverted}</Typography> : <CircularProgress size={20} />}
-                      </TableCell>
-                      <TableCell align="center" sx={{ padding: "4px 8px" }}>
-                        {totals.conversionRate !== undefined ? <Typography color="grey.800" fontWeight="medium">{`${totals.conversionRate}%`}</Typography> : <CircularProgress size={20} />}
-                      </TableCell>
-                      <TableCell align="center" sx={{ padding: "4px 8px" }}>
-                        {totals.salesAmount !== undefined ? <Typography color="grey.800" fontWeight="medium">{`₹${totals.salesAmount}`}</Typography> : <CircularProgress size={20} />}
-                      </TableCell>
-                    </TableRow>
-                  </TableBody>
+                  <tr>
+                    <td colSpan={5} className="rd-empty">
+                      No lead source data found.
+                    </td>
+                  </tr>
                 )}
-              </Table>
-            </TableContainer>
-          </Paper>
+              </tbody>
+            </table>
+          </div>
+        </section>
 
-          {/* Shipment Status Summary */}
-          <Paper sx={{ padding: { xs: 2, sm: 3, md: 4 }, marginTop: 3, borderRadius: "8px", boxShadow: "0px 4px 12px rgba(0,0,0,0.1)", width: "100%", maxWidth: "1000px", marginLeft: "auto", marginRight: "auto", mt: 3 }}>
-            <Typography variant="h5" fontWeight="bold" color="grey.800" gutterBottom textAlign="center">
-              Shipment Status Summary
-            </Typography>
-            <TableContainer component={Paper} sx={{ borderRadius: 2 }}>
-              <Table>
-                <TableHead>
-                  <TableRow sx={{ backgroundColor: "#6D6D6D" }}>
-                    {["Category", "Total Orders", "Total Amount", "Percentage"].map((header, index) => (
-                      <TableCell key={index} align="center">
-                        <Typography fontWeight="bold" color="grey.50">{header}</Typography>
-                      </TableCell>
-                    ))}
-                  </TableRow>
-                </TableHead>
-                {loading ? (
-                  <TableBody>
-                    <TableRow>
-                      <TableCell colSpan={4} sx={{ p: 0 }}>
-                        <LinearProgress sx={{ width: "100%", height: "2px" }} />
-                      </TableCell>
-                    </TableRow>
-                  </TableBody>
+        <section className="rd-section rd-fade-6">
+          <div className="rd-section-head">
+            <h2>Shipment Status</h2>
+          </div>
+          <div className="rd-table-wrap">
+            <table className="rd-table">
+              <thead>
+                <tr>
+                  <th>Category</th>
+                  <th>Total Orders</th>
+                  <th>Total Amount</th>
+                  <th>Percentage</th>
+                </tr>
+              </thead>
+              <tbody>
+                {loadingShipment ? (
+                  <tr>
+                    <td colSpan={4} className="rd-empty">
+                      Loading shipment summary...
+                    </td>
+                  </tr>
+                ) : shipmentStatusSummary.length > 0 ? (
+                  shipmentStatusSummary.map((row, index) => (
+                    <tr key={`${row.category || "shipment"}-${index}`}>
+                      <td>
+                        <div className="rd-status">
+                          <span className={`rd-status-dot rd-${normalizeShipmentTone(row.category)}`} />
+                          <span>{row.category || "Unknown"}</span>
+                        </div>
+                      </td>
+                      <td>{Number(row.totalOrders || 0).toLocaleString("en-IN")}</td>
+                      <td>{formatMoney(row.totalAmount)}</td>
+                      <td>
+                        <div className="rd-percent-cell">
+                          <span>{Number(row.percentage || 0).toFixed(2)}%</span>
+                          <div className="rd-progress rd-progress-tight">
+                            <span
+                              className="rd-progress-fill"
+                              style={{ width: `${clampPercent(row.percentage)}%` }}
+                            />
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
                 ) : (
-                  <TableBody>
-                    {shipmentStatusSummary && shipmentStatusSummary.length > 0 ? (
-                      shipmentStatusSummary.map((row) => (
-                        <TableRow key={row.category} sx={{ "&:nth-of-type(odd)": { backgroundColor: "grey.200" }, "&:hover": { backgroundColor: "grey.500" } }}>
-                          <TableCell sx={{ padding: "4px 8px" }}>
-                            <Typography fontWeight="medium" color="grey.800">{row.category}</Typography>
-                          </TableCell>
-                          <TableCell align="center" sx={{ padding: "4px 8px" }}>
-                            <Typography color="grey.700">{row.totalOrders}</Typography>
-                          </TableCell>
-                          <TableCell align="center" sx={{ padding: "4px 8px" }}>
-                            <Typography color="grey.700">{`₹${row.totalAmount}`}</Typography>
-                          </TableCell>
-                          <TableCell align="center" sx={{ padding: "4px 8px" }}>
-                            <Typography color="grey.700">{`${row.percentage}%`}</Typography>
-                          </TableCell>
-                        </TableRow>
-                      ))
-                    ) : (
-                      <TableRow>
-                        <TableCell colSpan={4} align="center"><CircularProgress size={24} /></TableCell>
-                      </TableRow>
-                    )}
-                  </TableBody>
+                  <tr>
+                    <td colSpan={4} className="rd-empty">
+                      No shipment data found.
+                    </td>
+                  </tr>
                 )}
-              </Table>
-            </TableContainer>
-          </Paper>
-        </>
-      )}
-    </Box>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <IncentiveSummarySection agentName={user?.fullName} />
+      </div>
+    </div>
   );
 };
 

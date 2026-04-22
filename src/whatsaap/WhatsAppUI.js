@@ -39,7 +39,12 @@ import DoneAllIcon from "@mui/icons-material/DoneAll";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
 import { io } from "socket.io-client";
 
-const API_BASE = "https://muditamleads-14f32a10d7f7.herokuapp.com";
+const DEFAULT_API_BASE =
+  typeof window !== "undefined" &&
+  ["localhost", "127.0.0.1"].includes(window.location.hostname)
+    ? "http://localhost:5001"
+    : "https://muditamleads-14f32a10d7f7.herokuapp.com";
+const API_BASE = String(process.env.REACT_APP_API_BASE || DEFAULT_API_BASE).replace(/\/+$/, "");
 const DEBUG_SOCKET = false;
 
 const LIGHT = {
@@ -182,12 +187,70 @@ function msgKey(m) {
   return m?.waId || m?._id || m?.id ||
     `${m?.direction || "X"}_${m?.timestamp || m?.createdAt || ""}_${m?.text || ""}_${m?.media?.url || ""}_${m?.type || ""}`;
 }
+function messageIdentity(m) {
+  const waId = String(m?.waId || "").trim();
+  if (waId) return `wa:${waId}`;
+  const id = String(m?._id || m?.id || "").trim();
+  if (id && !id.startsWith("tmp_")) return `id:${id}`;
+  const dir = String(m?.direction || "").toUpperCase();
+  const from = phone10(m?.from || "");
+  const to = phone10(m?.to || "");
+  const phone = phone10(customerPhoneFromMsg(m) || "");
+  const text = String(m?.text || "").trim().toLowerCase();
+  const type = String(m?.type || "text").toLowerCase();
+  const mediaId = String(m?.media?.id || "").trim();
+  const mediaUrl = String(m?.media?.url || "").trim();
+  const tsRaw = m?.timestamp || m?.createdAt || "";
+  const tsMs = new Date(tsRaw || 0).getTime();
+  const tsBucket = Number.isFinite(tsMs) && tsMs > 0 ? Math.floor(tsMs / 1000) : String(tsRaw || "");
+  return `sig:${dir}|${from}|${to}|${phone}|${type}|${text}|${mediaId}|${mediaUrl}|${tsBucket}`;
+}
+function isLikelySameMessage(a, b) {
+  const aWa = String(a?.waId || "").trim();
+  const bWa = String(b?.waId || "").trim();
+  if (aWa && bWa && aWa === bWa) return true;
+  const aId = String(a?._id || a?.id || "").trim();
+  const bId = String(b?._id || b?.id || "").trim();
+  if (aId && bId && !aId.startsWith("tmp_") && !bId.startsWith("tmp_") && aId === bId) return true;
+
+  const aDir = String(a?.direction || "").toUpperCase();
+  const bDir = String(b?.direction || "").toUpperCase();
+  if (aDir !== bDir) return false;
+  const aType = String(a?.type || "text").toLowerCase();
+  const bType = String(b?.type || "text").toLowerCase();
+  if (aType !== bType) return false;
+  if (aType === "text" || aType === "template") {
+    if (String(a?.text || "").trim() !== String(b?.text || "").trim()) return false;
+  }
+
+  const aPhone = phone10(customerPhoneFromMsg(a) || "");
+  const bPhone = phone10(customerPhoneFromMsg(b) || "");
+  if (!aPhone || !bPhone || aPhone !== bPhone) return false;
+
+  const aMediaId = String(a?.media?.id || "").trim();
+  const bMediaId = String(b?.media?.id || "").trim();
+  if (aMediaId && bMediaId && aMediaId !== bMediaId) return false;
+
+  const aIsTemp = String(a?._id || "").startsWith("tmp_");
+  const bIsTemp = String(b?._id || "").startsWith("tmp_");
+  const aTs = new Date(a?.timestamp || a?.createdAt || 0).getTime();
+  const bTs = new Date(b?.timestamp || b?.createdAt || 0).getTime();
+  if (!aTs || !bTs) return aIsTemp || bIsTemp;
+  const delta = Math.abs(aTs - bTs);
+  if (aIsTemp || bIsTemp) return delta <= 120000;
+  return delta <= 2000;
+}
 function normalizeStatus(s) {
   const v = String(s || "").toLowerCase().trim();
-  if (["read", "seen"].includes(v)) return "read";
-  if (["delivered", "deliver", "received"].includes(v)) return "delivered";
-  if (["sent"].includes(v)) return "sent";
-  if (["failed", "error"].includes(v)) return "failed";
+  if (!v) return v;
+  if (["read", "seen"].includes(v) || v.includes("read") || v.includes("seen")) return "read";
+  if (
+    ["delivered", "deliver", "received"].includes(v) ||
+    v.includes("deliver") ||
+    v.includes("receive")
+  ) return "delivered";
+  if (["sent"].includes(v) || v.includes("sent") || v.includes("submit") || v.includes("queue") || v.includes("accept")) return "sent";
+  if (["failed", "error"].includes(v) || v.includes("fail") || v.includes("error") || v.includes("reject") || v.includes("undeliver")) return "failed";
   return v;
 }
 function statusRank(status) {
@@ -687,17 +750,47 @@ export default function WhatsAppUI() {
   }, [sessionUser?.fullName, sessionUser?.role, showToast]);
 
   const mergeUniqueMessages = useCallback((seed = [], server = []) => {
-    const next = [...(Array.isArray(seed) ? seed : [])];
+    const source = [...(Array.isArray(seed) ? seed : []), ...(Array.isArray(server) ? server : [])];
+    const list = [];
 
-    for (const item of Array.isArray(server) ? server : []) {
-      const itemWaId = String(item?.waId || "");
-      const exists = next.some((m) => {
-        if (itemWaId && String(m?.waId || "") === itemWaId) return true;
-        return msgKey(m) === msgKey(item);
-      });
-      if (!exists) next.push(item);
+    for (const item of source) {
+      const idx = list.findIndex((m) => isLikelySameMessage(m, item));
+      if (idx === -1) {
+        list.push(item);
+        continue;
+      }
+
+      const prev = list[idx];
+      const prevIsTemp = String(prev?._id || "").startsWith("tmp_");
+      const nextIsTemp = String(item?._id || "").startsWith("tmp_");
+      const prevRank = statusRank(prev?.status);
+      const nextRank = statusRank(item?.status);
+
+      if (prevIsTemp && !nextIsTemp) {
+        list[idx] = mergeServerMessageWithOptimistic(item, prev);
+        continue;
+      }
+      if (!prevIsTemp && nextIsTemp) {
+        continue;
+      }
+      if (nextRank >= prevRank) {
+        list[idx] = { ...prev, ...item };
+      }
     }
 
+    const byIdentity = new Map();
+    for (const item of list) {
+      const k = messageIdentity(item);
+      if (!byIdentity.has(k)) {
+        byIdentity.set(k, item);
+        continue;
+      }
+      const prev = byIdentity.get(k);
+      if (statusRank(item?.status) >= statusRank(prev?.status)) {
+        byIdentity.set(k, { ...prev, ...item });
+      }
+    }
+    const next = Array.from(byIdentity.values());
     next.sort((a, b) => {
       const aTs = new Date(a?.timestamp || a?.createdAt || 0).getTime();
       const bTs = new Date(b?.timestamp || b?.createdAt || 0).getTime();
@@ -720,12 +813,7 @@ export default function WhatsAppUI() {
     try {
       const data = (await api(`/api/whatsapp/messages?phone=${encodeURIComponent(q)}`)) || [];
       const serverMessages = Array.isArray(data) ? data : [];
-
-      if (seedMessages.length) {
-        setMessages(mergeUniqueMessages(seedMessages, serverMessages));
-      } else {
-        setMessages(serverMessages);
-      }
+      setMessages(mergeUniqueMessages(seedMessages, serverMessages));
     } catch (e) {
       setChatError(e.message || "Failed to load messages");
       setMessages(seedMessages.length ? seedMessages : []);
@@ -884,8 +972,11 @@ export default function WhatsAppUI() {
       const liveIds = [
         payload?.waId,
         payload?.id,
+        payload?.messageId,
+        payload?.message_id,
         payload?.providerTransactionId,
         payload?.transactionId,
+        payload?.transaction_id,
       ].map((x) => String(x || "").trim()).filter(Boolean);
       const status = normalizeStatus(payload?.status);
       const p10 = phone10(payload?.phone10 || payload?.phone || "");
@@ -957,6 +1048,18 @@ export default function WhatsAppUI() {
       markConversationRead(activeDigits, { optimisticOnly: false });
     });
   }, [activeDigits, loadMessagesInitial, markConversationRead]);
+
+  useEffect(() => {
+    if (!activeDigits) return undefined;
+    const id = setInterval(async () => {
+      try {
+        const data = (await api(`/api/whatsapp/messages?phone=${encodeURIComponent(activeDigits)}`)) || [];
+        const serverMessages = Array.isArray(data) ? data : [];
+        setMessages((prev) => mergeUniqueMessages(prev, serverMessages));
+      } catch {}
+    }, 5000);
+    return () => clearInterval(id);
+  }, [activeDigits, mergeUniqueMessages]);
 
   useEffect(() => {
     if (messages.length > prevLenRef.current && isNearBottomRef.current) {

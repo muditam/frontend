@@ -228,10 +228,10 @@ const RetentionAgentDashboard = () => {
  const [dispositionCounts, setDispositionCounts] = useState({});
 
 
- const [selectedRange, setSelectedRange] = useState("Today");
+ const [selectedRange, setSelectedRange] = useState("Month to date");
  const [customStart, setCustomStart] = useState("");
  const [customEnd, setCustomEnd] = useState("");
- const [windowLabel, setWindowLabel] = useState("Today");
+ const [windowLabel, setWindowLabel] = useState("Month to date");
  const [target, setTarget] = useState(0);
  const [salesProgress, setSalesProgress] = useState(0);
 
@@ -350,7 +350,7 @@ const RetentionAgentDashboard = () => {
 
  useEffect(() => {
    if (!user?.fullName) return;
-   const initial = getDateRange("Today");
+   const initial = getDateRange("Month to date");
    loadForRange(initial.startDate, initial.endDate);
  }, [loadForRange, user?.fullName]);
 
@@ -512,9 +512,9 @@ const RetentionAgentDashboard = () => {
 
 
  return (
-   <div className="rd-page">
+   <div className="rd-page rd-retention-page">
      <div className="rd-shell">
-       <section className="rd-hero rd-fade-1">
+       <section className="rd-hero rd-retention-hero rd-fade-1">
          <div>
            <h1>{user?.fullName || "Retention Agent"} Dashboard</h1> 
            <div className="rd-meta-line">
@@ -746,6 +746,5 @@ const RetentionAgentDashboard = () => {
 
 
 export default RetentionAgentDashboard;
-
 
 
