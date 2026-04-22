@@ -131,11 +131,12 @@ const getDateRange = (rangeValue) => {
 
 
 const iconForMetric = (key) => {
+ if (String(key).toLowerCase().startsWith("sales done")) {
+   return "SD";
+ }
  switch (key) {
    case "Active Customers":
      return "AC";
-   case "Sales Done Today":
-     return "SD";
    case "Total Sales":
      return "TS";
    case "Average Order Value":
@@ -154,6 +155,27 @@ const iconForMetric = (key) => {
      return "LC";
    default:
      return "•";
+ }
+};
+
+const getSummaryHeading = (rangeValue) => {
+ switch (rangeValue) {
+   case "Today":
+     return "Today Summary";
+   case "Yesterday":
+     return "Yesterday Summary";
+   case "Week to date":
+     return "Weekly Summary";
+   case "Month to date":
+     return "Monthly Summary";
+   case "Year to date":
+     return "Yearly Summary";
+   case "Quarter to date":
+     return "Quarterly Summary";
+   case "Custom range":
+     return "Custom Range Summary";
+   default:
+     return `${rangeValue} Summary`;
  }
 };
 
@@ -183,11 +205,12 @@ const prettyDate = (dateText = "") => {
 
 
 const toneClassForMetric = (key) => {
+ if (String(key).toLowerCase().startsWith("sales done")) {
+   return "rd-tone-orange";
+ }
  switch (key) {
    case "Active Customers":
      return "rd-tone-blue";
-   case "Sales Done Today":
-     return "rd-tone-orange";
    case "Total Sales":
      return "rd-tone-teal";
    case "Average Order Value":
@@ -206,6 +229,41 @@ const toneClassForMetric = (key) => {
      return "rd-tone-red";
    default:
      return "rd-tone-slate";
+ }
+};
+
+const getSalesDoneLabel = (rangeValue) => {
+ switch (rangeValue) {
+   case "Today":
+     return "Sales Done Today";
+   case "Yesterday":
+     return "Sales Done Yesterday";
+   case "Week to date":
+     return "Sales Done (Weekly)";
+   case "Month to date":
+     return "Sales Done (Monthly)";
+   case "Year to date":
+     return "Sales Done (Yearly)";
+   case "Last 7 days":
+     return "Sales Done (Last 7 Days)";
+   case "Last 30 days":
+     return "Sales Done (Last 30 Days)";
+   case "Last 90 days":
+     return "Sales Done (Last 90 Days)";
+   case "Last 365 days":
+     return "Sales Done (Last 365 Days)";
+   case "Last month":
+     return "Sales Done (Last Month)";
+   case "Last 12 months":
+     return "Sales Done (Last 12 Months)";
+   case "Last year":
+     return "Sales Done (Last Year)";
+   case "Quarter to date":
+     return "Sales Done (Quarterly)";
+   case "Custom range":
+     return "Sales Done (Custom Range)";
+   default:
+     return "Sales Done";
  }
 };
 
@@ -429,21 +487,27 @@ const RetentionAgentDashboard = () => {
  };
 
 
- const handleBoxClick = (filterType) => {
+  const handleBoxClick = (filterType) => {
    const clickable = [
      "Active Customers",
      "Lost Customers",
-     "Sales Done Today",
+     "Sales Done",
      "Followup Today",
      "No Followup Set",
      "Followup Tomorrow",
      "Followup Later",
      "Followup Missed",
    ];
-   if (clickable.includes(filterType)) {
-     window.open(`/retention/${filterType}`, "_blank");
+   const normalizedFilter = String(filterType).toLowerCase().startsWith("sales done")
+     ? (selectedRange === "Today" ? "Sales Done Today" : "Sales Done")
+     : filterType;
+   if (clickable.includes(normalizedFilter)) {
+     window.open(`/retention/${normalizedFilter}`, "_blank");
    }
  };
+
+ const salesDoneLabel = useMemo(() => getSalesDoneLabel(selectedRange), [selectedRange]);
+ const summaryHeading = useMemo(() => getSummaryHeading(selectedRange), [selectedRange]);
 
 
  const todayCards = [
@@ -453,7 +517,7 @@ const RetentionAgentDashboard = () => {
      sub: "Current active base",
    },
    {
-     label: "Sales Done Today",
+     label: salesDoneLabel,
      value: Number(todayMetrics.salesDone || 0).toLocaleString("en-IN"),
      sub: "Confirmed conversions",
    },
@@ -465,7 +529,7 @@ const RetentionAgentDashboard = () => {
    {
      label: "Average Order Value",
      value: `₹${Number(todayMetrics.avgOrderValue || 0).toFixed(2)}`,
-     sub: "Ticket quality",
+     sub: "",
    },
  ];
 
@@ -603,7 +667,7 @@ const RetentionAgentDashboard = () => {
 
        <section className="rd-section rd-fade-3">
          <div className="rd-section-head">
-           <h2>Today Summary</h2>
+           <h2>{summaryHeading}</h2>
          </div>
          <div className="rd-card-grid rd-grid-4">
            {todayCards.map((card) => (
@@ -616,7 +680,7 @@ const RetentionAgentDashboard = () => {
                <span className="rd-icon">{iconForMetric(card.label)}</span>
                <span className="rd-label">{card.label}</span>
                <span className="rd-value">{card.value}</span>
-               <span className="rd-sub">{card.sub}</span>
+               {card.sub ? <span className="rd-sub">{card.sub}</span> : null}
              </button>
            ))}
          </div>
@@ -746,5 +810,3 @@ const RetentionAgentDashboard = () => {
 
 
 export default RetentionAgentDashboard;
-
-

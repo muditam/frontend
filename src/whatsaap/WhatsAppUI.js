@@ -528,6 +528,22 @@ function ActionPillButton({
   );
 }
 
+const StableAutocompletePaper = React.forwardRef(function StableAutocompletePaper(props, ref) {
+  return (
+    <Paper
+      {...props}
+      ref={ref}
+      sx={{
+        bgcolor: LIGHT.inputBg,
+        borderRadius: 2,
+        border: `1px solid ${LIGHT.border}`,
+        color: LIGHT.text,
+        ...(props?.sx || {}),
+      }}
+    />
+  );
+});
+
 export default function WhatsAppUI() {
   const [conversations, setConversations] = useState([]);
   const [activeChat, setActiveChat] = useState(null);
@@ -545,6 +561,9 @@ export default function WhatsAppUI() {
   const [loadingTemplates, setLoadingTemplates] = useState(false);
   const [newChatOpen, setNewChatOpen] = useState(false);
   const [newChatPhone, setNewChatPhone] = useState("");
+  const [newChatLeadChoice, setNewChatLeadChoice] = useState(null);
+  const [newChatLeadOptions, setNewChatLeadOptions] = useState([]);
+  const [newChatLeadLoading, setNewChatLeadLoading] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState(null);
   const [creatingChat, setCreatingChat] = useState(false);
   const [newChatError, setNewChatError] = useState("");
@@ -1332,6 +1351,57 @@ export default function WhatsAppUI() {
 
   const previewBody = useMemo(() => applyVarsToBody(pickBodyTextFromTemplate(selectedTemplate), tplVars), [selectedTemplate, tplVars]);
 
+  useEffect(() => {
+    if (!newChatOpen) {
+      setNewChatLeadOptions([]);
+      setNewChatLeadLoading(false);
+      setNewChatLeadChoice(null);
+      return;
+    }
+
+    const query = String(newChatPhone || "").trim();
+    if (query.length < 2) {
+      setNewChatLeadOptions([]);
+      setNewChatLeadLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      setNewChatLeadLoading(true);
+      try {
+        const data = await api(`/api/search?${new URLSearchParams({ query })}`);
+        if (cancelled) return;
+
+        const rows = Array.isArray(data) ? data : [];
+        const onlyLeads = rows.filter(
+          (r) => String(r?.source || "").toLowerCase() === "lead"
+        );
+
+        const dedup = new Map();
+        for (const row of onlyLeads) {
+          const p10 = phone10(row?.contactNumber || "");
+          if (!p10 || dedup.has(p10)) continue;
+          dedup.set(p10, {
+            _id: row?._id || p10,
+            name: row?.name || "",
+            contactNumber: p10,
+          });
+        }
+        setNewChatLeadOptions(Array.from(dedup.values()));
+      } catch {
+        if (!cancelled) setNewChatLeadOptions([]);
+      } finally {
+        if (!cancelled) setNewChatLeadLoading(false);
+      }
+    }, 280);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [newChatOpen, newChatPhone]);
+
   const startNewChatWithTemplate = async () => {
     const to = digitsOnly(newChatPhone);
     if (!to) return setNewChatError("Enter phone number");
@@ -1423,6 +1493,8 @@ export default function WhatsAppUI() {
       });
       setNewChatOpen(false);
       setNewChatPhone("");
+      setNewChatLeadChoice(null);
+      setNewChatLeadOptions([]);
       setSelectedTemplate(null);
       setTplVars({});
       setNewHeaderFormat("");
@@ -1498,7 +1570,17 @@ export default function WhatsAppUI() {
             <Tooltip title="New chat">
               <IconButton
                 size="small"
-                onClick={() => setNewChatOpen(true)}
+                onClick={() => {
+                  setNewChatPhone("");
+                  setNewChatLeadChoice(null);
+                  setNewChatLeadOptions([]);
+                  setSelectedTemplate(null);
+                  setTplVars({});
+                  setNewChatError("");
+                  setNewHeaderFormat("");
+                  setNewHeaderFile(null);
+                  setNewChatOpen(true);
+                }}
                 sx={{ color: LIGHT.subtext, "&:hover": { color: LIGHT.text, bgcolor: "rgba(0,0,0,0.05)" }, borderRadius: 2 }}
               >
                 <AddIcon fontSize="small" />
@@ -2174,13 +2256,103 @@ export default function WhatsAppUI() {
         <DialogContent>
           <Stack spacing={2} mt={1.5}>
             {[
-              <TextField fullWidth size="small" label="Phone number" value={newChatPhone} onChange={(e) => setNewChatPhone(e.target.value)}
-                sx={{ "& .MuiOutlinedInput-root": { bgcolor: LIGHT.inputBg, color: LIGHT.text, borderRadius: 2, "& fieldset": { borderColor: LIGHT.border }, "&:hover fieldset": { borderColor: "#cbd5e1" }, "&.Mui-focused fieldset": { borderColor: "#22c55e" } }, "& label": { color: LIGHT.subtext }, "& label.Mui-focused": { color: "#22c55e" } }} />,
+              <Autocomplete
+                freeSolo
+                options={newChatLeadOptions}
+                loading={newChatLeadLoading}
+                value={newChatLeadChoice}
+                inputValue={newChatPhone}
+                onInputChange={(_, v, reason) => {
+                  setNewChatPhone(v || "");
+                  if (reason === "input") setNewChatLeadChoice(null);
+                  if (reason === "clear") setNewChatLeadChoice(null);
+                }}
+                onChange={(_, v) => {
+                  if (!v) {
+                    setNewChatLeadChoice(null);
+                    return;
+                  }
+                  if (typeof v === "string") {
+                    setNewChatLeadChoice(null);
+                    setNewChatPhone(v);
+                    return;
+                  }
+                  setNewChatLeadChoice(v);
+                  setNewChatPhone(v.contactNumber || "");
+                }}
+                filterOptions={(x) => x}
+                getOptionLabel={(o) =>
+                  typeof o === "string"
+                    ? o
+                    : `${o?.name || "Unknown"} (${o?.contactNumber || ""})`
+                }
+                isOptionEqualToValue={(o, v) =>
+                  String(o?.contactNumber || "") === String(v?.contactNumber || "")
+                }
+                PaperComponent={StableAutocompletePaper}
+                ListboxProps={{ style: { maxHeight: 260, overflowY: "auto" } }}
+                renderOption={(props, o) => {
+                  const { key, ...optionProps } = props;
+                  return (
+                    <Box
+                      component="li"
+                      key={key || `${o?._id || ""}_${o?.contactNumber || ""}`}
+                      {...optionProps}
+                      sx={{
+                        fontSize: 13,
+                        color: LIGHT.text,
+                        "&:hover": { bgcolor: "#f3f4f6 !important" },
+                      }}
+                    >
+                      <Box>
+                        <Typography sx={{ fontSize: 13, fontWeight: 600, color: LIGHT.text }}>
+                          {o?.name || "Unknown"}
+                        </Typography>
+                        <Typography sx={{ fontSize: 12, color: LIGHT.subtext }}>
+                          {o?.contactNumber || "-"}
+                        </Typography>
+                      </Box>
+                    </Box>
+                  );
+                }}
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    size="small"
+                    label="Phone number (or search lead name)"
+                    sx={{
+                      "& .MuiOutlinedInput-root": {
+                        bgcolor: LIGHT.inputBg,
+                        color: LIGHT.text,
+                        borderRadius: 2,
+                        "& fieldset": { borderColor: LIGHT.border },
+                        "&:hover fieldset": { borderColor: "#cbd5e1" },
+                        "&.Mui-focused fieldset": { borderColor: "#22c55e" },
+                      },
+                      "& label": { color: LIGHT.subtext },
+                      "& label.Mui-focused": { color: "#22c55e" },
+                    }}
+                  />
+                )}
+              />,
               <Autocomplete
                 options={templateOptions} value={selectedTemplate} onChange={(_, v) => setSelectedTemplate(v)}
                 getOptionLabel={(o) => o?.name || ""}
-                PaperComponent={({ children }) => <Box sx={{ bgcolor: LIGHT.inputBg, borderRadius: 2, border: `1px solid ${LIGHT.border}`, color: LIGHT.text }}>{children}</Box>}
-                renderOption={(props, o) => <Box component="li" {...props} sx={{ fontSize: 13, color: LIGHT.text, "&:hover": { bgcolor: "#f3f4f6 !important" } }}>{o.name}</Box>}
+                PaperComponent={StableAutocompletePaper}
+                ListboxProps={{ style: { maxHeight: 260, overflowY: "auto" } }}
+                renderOption={(props, o, state) => {
+                  const { key, ...optionProps } = props;
+                  return (
+                    <Box
+                      component="li"
+                      key={key || `${o?._id || o?.id || o?.template_id || o?.name || "tpl"}_${state.index}`}
+                      {...optionProps}
+                      sx={{ fontSize: 13, color: LIGHT.text, "&:hover": { bgcolor: "#f3f4f6 !important" } }}
+                    >
+                      {o.name}
+                    </Box>
+                  );
+                }}
                 renderInput={(params) => <TextField {...params} size="small" label="Select approved utility template"
                   sx={{ "& .MuiOutlinedInput-root": { bgcolor: LIGHT.inputBg, color: LIGHT.text, borderRadius: 2, "& fieldset": { borderColor: LIGHT.border }, "&.Mui-focused fieldset": { borderColor: "#22c55e" } }, "& label": { color: LIGHT.subtext }, "& label.Mui-focused": { color: "#22c55e" }, "& .MuiSvgIcon-root": { color: LIGHT.subtext } }} />}
               />,

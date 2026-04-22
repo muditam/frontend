@@ -133,13 +133,14 @@ const formatMoney = (value) =>
   })}`;
 
 const iconForMetric = (key) => {
+  if (String(key).toLowerCase().startsWith("sales done")) {
+    return "SD";
+  }
   switch (key) {
     case "Open Leads":
       return "OL";
     case "Leads Assigned Today":
       return "LA";
-    case "Sales Done":
-      return "SD";
     case "Conversion Rate":
       return "CR";
     case "Total Sales":
@@ -162,13 +163,14 @@ const iconForMetric = (key) => {
 };
 
 const toneClassForMetric = (key) => {
+  if (String(key).toLowerCase().startsWith("sales done")) {
+    return "rd-tone-orange";
+  }
   switch (key) {
     case "Open Leads":
       return "rd-tone-blue";
     case "Leads Assigned Today":
       return "rd-tone-green";
-    case "Sales Done":
-      return "rd-tone-orange";
     case "Conversion Rate":
       return "rd-tone-cyan";
     case "Total Sales":
@@ -187,6 +189,62 @@ const toneClassForMetric = (key) => {
       return "rd-tone-cyan";
     default:
       return "rd-tone-slate";
+  }
+};
+
+const getSummaryHeading = (rangeValue) => {
+  switch (rangeValue) {
+    case "Today":
+      return "Today Summary";
+    case "Yesterday":
+      return "Yesterday Summary";
+    case "Week to date":
+      return "Weekly Summary";
+    case "Month to date":
+      return "Monthly Summary";
+    case "Year to date":
+      return "Yearly Summary";
+    case "Quarter to date":
+      return "Quarterly Summary";
+    case "Custom range":
+      return "Custom Range Summary";
+    default:
+      return `${rangeValue} Summary`;
+  }
+};
+
+const getSalesDoneLabel = (rangeValue) => {
+  switch (rangeValue) {
+    case "Today":
+      return "Sales Done Today";
+    case "Yesterday":
+      return "Sales Done Yesterday";
+    case "Week to date":
+      return "Sales Done (Weekly)";
+    case "Month to date":
+      return "Sales Done (Monthly)";
+    case "Year to date":
+      return "Sales Done (Yearly)";
+    case "Last 7 days":
+      return "Sales Done (Last 7 Days)";
+    case "Last 30 days":
+      return "Sales Done (Last 30 Days)";
+    case "Last 90 days":
+      return "Sales Done (Last 90 Days)";
+    case "Last 365 days":
+      return "Sales Done (Last 365 Days)";
+    case "Last month":
+      return "Sales Done (Last Month)";
+    case "Last 12 months":
+      return "Sales Done (Last 12 Months)";
+    case "Last year":
+      return "Sales Done (Last Year)";
+    case "Quarter to date":
+      return "Sales Done (Quarterly)";
+    case "Custom range":
+      return "Sales Done (Custom Range)";
+    default:
+      return "Sales Done";
   }
 };
 
@@ -364,13 +422,19 @@ const AgentDashboard = () => {
   };
 
   const handleBoxClick = (label) => {
-    if (label === "Sales Done" || label === "Total Sales" || label === "Average Order Value") {
+    const normalizedLabel = String(label).toLowerCase().startsWith("sales done")
+      ? "Sales Done"
+      : label;
+    if (normalizedLabel === "Sales Done" || normalizedLabel === "Total Sales" || normalizedLabel === "Average Order Value") {
       window.open("/sales/my-sales", "_blank");
       return;
     }
 
     window.open("/sales/my-leads", "_blank");
   };
+
+  const salesDoneLabel = useMemo(() => getSalesDoneLabel(selectedRange), [selectedRange]);
+  const summaryHeading = useMemo(() => getSummaryHeading(selectedRange), [selectedRange]);
 
   const salesCards = [
     {
@@ -384,7 +448,7 @@ const AgentDashboard = () => {
       sub: "Fresh ownership",
     },
     {
-      label: "Sales Done",
+      label: salesDoneLabel,
       value: Number(todayStats.salesDone || 0).toLocaleString("en-IN"),
       sub: "Confirmed conversions",
     },
@@ -401,7 +465,7 @@ const AgentDashboard = () => {
     {
       label: "Average Order Value",
       value: formatMoney(todayStats.avgOrderValue),
-      sub: "Ticket quality",
+      sub: "",
     },
   ];
 
@@ -549,7 +613,7 @@ const AgentDashboard = () => {
 
         <section className="rd-section rd-fade-3">
           <div className="rd-section-head">
-            <h2>Sales Summary</h2>
+            <h2>{summaryHeading}</h2>
           </div>
           <div className="rd-card-grid rd-grid-3">
             {salesCards.map((card) => (
@@ -562,7 +626,7 @@ const AgentDashboard = () => {
                 <span className="rd-icon">{iconForMetric(card.label)}</span>
                 <span className="rd-label">{card.label}</span>
                 <span className="rd-value">{card.value}</span>
-                <span className="rd-sub">{card.sub}</span>
+                {card.sub ? <span className="rd-sub">{card.sub}</span> : null}
               </button>
             ))}
           </div>

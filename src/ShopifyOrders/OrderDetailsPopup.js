@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useMemo } from "react";
+import { createPortal } from "react-dom";
 import {
   Box,
   Button,
@@ -39,6 +40,20 @@ const flipVariants = {
   visible: { rotateY: 0, opacity: 1, transition: { duration: 0.35, ease: "easeOut" } },
 };
 
+const PRODUCT_ABBREVIATIONS = {
+  "Karela Jamun Fizz": "KJF",
+  "Sugar Defend Pro": "SDP",
+  "Vasant Kusmakar Ras": "VKR",
+  "Liver Fix": "L-Fx",
+  "Stress & Sleep": "S&S",
+  "Chandraprabha Vati": "CPV",
+  "Heart Defend Pro": "HDP",
+  "Performance Forever": "PF",
+  "Power Gut": "PGut",
+  "Shilajit with Gold": "Shilajit",
+  "Diabetes Management Kit": "Kit",
+};
+
 const currency = (n) => {
   const num = Number(n || 0);
   return num.toLocaleString("en-IN", { maximumFractionDigits: 0 });
@@ -47,12 +62,14 @@ const currency = (n) => {
 const OrderDetailsPopup = ({
   orderId,
   agentName,
+  customerPhone = "",
   discount: propDiscount,
   discountType,
   paymentMethod: propPaymentMethod,
   upsellAmount: propUpsellAmount,
   transactionId: propTransactionId,
   onClose,
+  zIndex = 3000,
 }) => {
   const [orderDetails, setOrderDetails] = useState(null);
   const [partialPayment, setPartialPayment] = useState("");
@@ -164,24 +181,9 @@ const OrderDetailsPopup = ({
     setEmployeeResults([]);
   };
 
-  // Abbreviations
-  const productAbbreviations = {
-    "Karela Jamun Fizz": "KJF",
-    "Sugar Defend Pro": "SDP",
-    "Vasant Kusmakar Ras": "VKR",
-    "Liver Fix": "L-Fx",
-    "Stress & Sleep": "S&S",
-    "Chandraprabha Vati": "CPV",
-    "Heart Defend Pro": "HDP",
-    "Performance Forever": "PF",
-    "Power Gut": "PGut",
-    "Shilajit with Gold": "Shilajit",
-    "Diabetes Management Kit": "Kit",
-  };
-
   const mappedProductOrdered = useMemo(() => {
     if (!orderDetails) return "N/A";
-    return productAbbreviations[orderDetails.productOrdered] || orderDetails.productOrdered;
+    return PRODUCT_ABBREVIATIONS[orderDetails.productOrdered] || orderDetails.productOrdered;
   }, [orderDetails]);
 
   // ✅ total should NOT increase by partial payment
@@ -205,6 +207,13 @@ const OrderDetailsPopup = ({
   const paidChipColor =
     (orderDetails?.paymentStatus || "").toLowerCase() === "paid" ? "success" : "warning";
 
+  const effectivePhone = useMemo(() => {
+    const apiPhone = String(orderDetails?.phone || "").trim();
+    if (apiPhone && apiPhone.toUpperCase() !== "N/A") return apiPhone;
+    const fallbackPhone = String(customerPhone || "").trim();
+    return fallbackPhone || "N/A";
+  }, [customerPhone, orderDetails?.phone]);
+
   // Copy & confirm
   const handleConfirmAndCopy = () => {
     if (!orderDetails) return;
@@ -212,7 +221,7 @@ const OrderDetailsPopup = ({
     let detailsText = `Order Created
 Order ID: ${orderDetails.orderId}
 Customer Name: ${orderDetails.customerName}
-Phone: ${orderDetails.phone}
+Phone: ${effectivePhone}
 Address: ${orderDetails.shippingAddress}
 Payment Status: ${orderDetails.paymentStatus}
 Product Ordered: ${orderDetails.productOrdered}
@@ -241,7 +250,7 @@ Dosage Ordered: ${dosageOrdered}`;
     try {
       const payload = {
         customerName: orderDetails.customerName,
-        phone: orderDetails.phone,
+        phone: effectivePhone,
         shippingAddress: orderDetails.shippingAddress,
         paymentStatus: orderDetails.paymentStatus,
         productOrdered: mappedProductOrdered,
@@ -271,7 +280,7 @@ Dosage Ordered: ${dosageOrdered}`;
     }
   };
 
-  return (
+  const modalContent = (
     <motion.div
       variants={flipVariants}
       initial="hidden"
@@ -280,13 +289,14 @@ Dosage Ordered: ${dosageOrdered}`;
         position: "fixed",
         inset: 0,
         background: "rgba(0,0,0,0.5)",
-        zIndex: 2100,
+        zIndex,
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
         padding: 12,
       }}
       onClick={(e) => e.stopPropagation()}
+      onMouseDown={(e) => e.stopPropagation()}
     >
       <Paper
         elevation={6}
@@ -300,6 +310,7 @@ Dosage Ordered: ${dosageOrdered}`;
           flexDirection: "column",
         }}
         onClick={(e) => e.stopPropagation()}
+        onMouseDown={(e) => e.stopPropagation()}
       >
         {/* Header */}
         <Box
@@ -389,7 +400,7 @@ Dosage Ordered: ${dosageOrdered}`;
                           Phone
                         </Typography>
                       </Stack>
-                      <Typography variant="body2">{orderDetails.phone}</Typography>
+                      <Typography variant="body2">{effectivePhone}</Typography>
                     </Stack>
                   </Grid>
 
@@ -447,9 +458,8 @@ Dosage Ordered: ${dosageOrdered}`;
                         value={paymentMethod || ""}
                         onChange={(e) => setPaymentMethod(e.target.value)}
                         MenuProps={{
-                          container: document.body,
-                          disablePortal: true,
-                          PaperProps: { style: { zIndex: 2200 } },
+                          disablePortal: false,
+                          PaperProps: { style: { zIndex: zIndex + 20 } },
                         }}
                       >
                         {["Partial Paid", "Razorpay", "COD", "UPI", "Bank Transfer", "PayPal"].map(
@@ -515,9 +525,8 @@ Dosage Ordered: ${dosageOrdered}`;
                       onChange={(e) => setDosageOrdered(e.target.value)}
                       SelectProps={{
                         MenuProps: {
-                          container: document.body,
-                          disablePortal: true,
-                          PaperProps: { style: { zIndex: 2200 } },
+                          disablePortal: false,
+                          PaperProps: { style: { zIndex: zIndex + 20 } },
                         },
                       }}
                     >
@@ -531,14 +540,16 @@ Dosage Ordered: ${dosageOrdered}`;
 
                   {/* Remark */}
                   <Grid item xs={12} sm={6}>
-                    <TextField
-                      fullWidth
-                      size="small"
-                      label="Self Remark"
-                      value={selfRemark || ""}
-                      onChange={(e) => setSelfRemark(e.target.value)}
-                    />
-                  </Grid>
+                      <TextField
+                        fullWidth
+                        size="small"
+                        label="Self Remark"
+                        value={selfRemark || ""}
+                        onChange={(e) => setSelfRemark(e.target.value)}
+                        onClick={(e) => e.stopPropagation()}
+                        onMouseDown={(e) => e.stopPropagation()}
+                      />
+                    </Grid>
 
                   {/* Agent */}
                   <Grid item xs={12}>
@@ -564,6 +575,8 @@ Dosage Ordered: ${dosageOrdered}`;
                           value={employeeSearch}
                           onChange={handleAgentSearchChange}
                           placeholder="Search employee..."
+                          onClick={(e) => e.stopPropagation()}
+                          onMouseDown={(e) => e.stopPropagation()}
                         />
                         {employeeResults.length > 0 && (
                           <Paper
@@ -681,6 +694,9 @@ Dosage Ordered: ${dosageOrdered}`;
       </Paper>
     </motion.div>
   );
+
+  if (typeof document === "undefined") return null;
+  return createPortal(modalContent, document.body);
 };
 
 export default OrderDetailsPopup;

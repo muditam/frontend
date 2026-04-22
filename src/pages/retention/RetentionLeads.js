@@ -220,11 +220,13 @@ const RetentionLeads = () => {
   const [logsModalOpen, setLogsModalOpen] = useState(false);
   const [logsData, setLogsData] = useState([]);
   const [selectedConditions, setSelectedConditions] = useState([]);
+  const [showAltNumberEditor, setShowAltNumberEditor] = useState(false);
+  const [altNumberDraft, setAltNumberDraft] = useState("");
   const [waOpen, setWaOpen] = useState(false);
 
 
   const [noteDraft, setNoteDraft] = useState("");
-  const [notesCollapsed, setNotesCollapsed] = useState(false);
+  const [notesCollapsed, setNotesCollapsed] = useState(true);
 
   const [sortMenuAnchorEl, setSortMenuAnchorEl] = useState(null);
 
@@ -667,6 +669,15 @@ const RetentionLeads = () => {
     setNoteDraft(latestVal);
   }, [selectedLeadIndex, leads]);
 
+  useEffect(() => {
+    setShowAltNumberEditor(false);
+    if (selectedLeadIndex == null) {
+      setAltNumberDraft("");
+      return;
+    }
+    setAltNumberDraft(leads[selectedLeadIndex]?.alternativeNumber || "");
+  }, [selectedLeadIndex, selectedLeadId, leads]);
+
 
   // ✅ UPDATED: Track profile and condition updates
   const handleInputChange = async (e, index, field) => {
@@ -1084,6 +1095,116 @@ const RetentionLeads = () => {
     letterSpacing: 0.2,
     boxShadow: "0 10px 20px rgba(15,23,42,0.16)",
   };
+  const headerIconButtonSx = {
+    width: 38,
+    height: 38,
+    borderRadius: "10px",
+    border: "1px solid #D6DEE8",
+    bgcolor: "rgba(255,255,255,0.88)",
+    boxShadow: "0 2px 8px rgba(15,23,42,0.06)",
+    flexShrink: 0,
+  };
+  const leadFormControlSx = {
+    width: "100%",
+    ...premiumInputSx,
+    "& .MuiOutlinedInput-root": {
+      ...premiumInputSx["& .MuiOutlinedInput-root"],
+      minHeight: 56,
+      borderRadius: "14px",
+      "& .MuiInputBase-input, & .MuiSelect-select": {
+        fontSize: "0.8rem",
+        fontWeight: 600,
+      },
+    },
+    "& .MuiInputLabel-root": {
+      color: "#64748B",
+      fontWeight: 600,
+      fontSize: "0.8rem",
+    },
+  };
+  const selectedAltNumber = selectedLeadIndex != null
+    ? (leads[selectedLeadIndex]?.alternativeNumber || "").trim()
+    : "";
+  const openAltNumberEditor = () => {
+    setAltNumberDraft(selectedAltNumber);
+    setShowAltNumberEditor(true);
+  };
+  const cancelAltNumberEditor = () => {
+    setAltNumberDraft(selectedAltNumber);
+    setShowAltNumberEditor(false);
+  };
+  const saveAltNumber = async () => {
+    if (selectedLeadIndex == null) return;
+    await handleInputChange(
+      { target: { value: (altNumberDraft || "").trim() } },
+      selectedLeadIndex,
+      "alternativeNumber"
+    );
+    setShowAltNumberEditor(false);
+  };
+  const altMetaButtonStyle = {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 6,
+    padding: "7px 11px",
+    minHeight: 34,
+    borderRadius: 999,
+    border: "1px solid #CAD5E3",
+    background: "#F7FAFF",
+    color: "#1E293B",
+    fontSize: "0.8rem",
+    fontWeight: 600,
+    lineHeight: 1,
+    cursor: "pointer",
+  };
+  const altEditorWrapStyle = {
+    display: "flex",
+    alignItems: "center",
+    gap: 6,
+    padding: "4px 6px",
+    minHeight: 34,
+    borderRadius: 999,
+    border: "1px solid #CAD5E3",
+    background: "#FFFFFF",
+    boxShadow: "0 6px 16px rgba(15,23,42,0.08)",
+  };
+  const altInputStyle = {
+    width: 130,
+    height: 26,
+    borderRadius: 999,
+    border: "1px solid #D4DEEA",
+    padding: "0 9px",
+    fontSize: "0.76rem",
+    fontWeight: 500,
+    color: "#0F172A",
+    outline: "none",
+  };
+  const altActionBtnStyle = {
+    height: 26,
+    borderRadius: 999,
+    border: "1px solid #C5D1E0",
+    background: "#F8FBFF",
+    color: "#1E293B",
+    padding: "0 8px",
+    fontSize: "0.7rem",
+    fontWeight: 600,
+    cursor: "pointer",
+  };
+  const metaPillSx = {
+    px: 1.2,
+    py: 0.45,
+    minHeight: 34,
+    borderRadius: 999,
+    border: "1px solid #D5DFEA",
+    bgcolor: "#EDF2F8",
+    color: "#1E293B",
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 0.6,
+    fontSize: "0.8rem",
+    fontWeight: 600,
+    lineHeight: 1,
+  };
   const notesExpanded = !notesCollapsed;
 
 
@@ -1127,17 +1248,13 @@ const RetentionLeads = () => {
             borderBottom: "1px solid #D7E0EA",
             borderRadius: "0 0 16px 16px",
           }}
-        >
-          <Box sx={{ mb: 1.1 }}>
-            <Typography sx={{ fontSize: "0.82rem", fontWeight: 700, color: "#0F172A", letterSpacing: 0.2 }}>
-              Retention Queue
-            </Typography>
-            <Typography sx={{ fontSize: "0.67rem", color: "#5B6B7F", mt: 0.25 }}>
-              Prioritized follow-ups with live filters
-            </Typography>
-          </Box>
-          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <Stack direction="row" spacing={2}>
+        > 
+          <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, flexWrap: "wrap" }}>
+            <Stack
+              direction="row"
+              spacing={0.75}
+              sx={{ flexWrap: "wrap", rowGap: 0.75, columnGap: 0.75, flex: "1 1 auto" }}
+            >
               {[
                 {
                   label: "All",
@@ -1175,7 +1292,7 @@ const RetentionLeads = () => {
                       <Typography>{label}</Typography>
                       <Typography
                         variant="caption"
-                        sx={{ fontSize: "0.65rem", opacity: 0.7 }}
+                        sx={{ fontSize: "0.65rem", opacity: 0.7, ml: 0.15 }}
                       >
                         ({count})
                       </Typography>
@@ -1196,12 +1313,10 @@ const RetentionLeads = () => {
                   }))
                 }
                 sx={{
-                  ml: 1,
+                  ...headerIconButtonSx,
                   border: "1px solid #D6DEE8",
-                  borderRadius: "12px",
                   bgcolor: filters.retentionStatus === "No-Call" ? "#E7EEF8" : "rgba(255,255,255,0.85)",
                   color: "#1B2430",
-                  boxShadow: "0 3px 10px rgba(15,23,42,0.08)",
                 }}
               >
                 <Badge
@@ -1216,7 +1331,7 @@ const RetentionLeads = () => {
             </Tooltip>
           </Box>
 
-          <Stack direction="row" spacing={0.75} mt={1.2} sx={{ flexWrap: "wrap", rowGap: 0.75 }}>
+          <Stack direction="row" spacing={0.65} mt={1} sx={{ flexWrap: "wrap", rowGap: 0.65 }}>
             {[
               { label: "Today", value: "Today" },
               { label: "Tomorrow", value: "Tomorrow" },
@@ -1239,8 +1354,8 @@ const RetentionLeads = () => {
                   sx={{
                     ...premiumPillSx(isSelected),
                     borderRadius: "10px",
-                    minWidth: "auto",
-                    px: 0.75,
+                    minWidth: 58,
+                    px: 0.65,
                     py: 0.35,
                   }}
                 >
@@ -1273,7 +1388,7 @@ const RetentionLeads = () => {
             })}
           </Stack>
 
-          <Box sx={{ display: "flex", alignItems: "center", mb: 0.5, gap: 0.75, mt: 1.2 }}>
+          <Box sx={{ display: "flex", alignItems: "center", mb: 0, gap: 0.6, mt: 1 }}>
             <TextField
               size="small"
               placeholder="Search leads..."
@@ -1309,7 +1424,7 @@ const RetentionLeads = () => {
                 // Optional: highlight when active
                 sx={{
                   borderRadius: "10px",
-                  border: "1px solid #D6DEE8",
+                  ...headerIconButtonSx,
                   bgcolor: filters.rtNextFollowupDate ? "#E7EEF8" : "rgba(255,255,255,0.88)",
                 }}
               >
@@ -1350,9 +1465,7 @@ const RetentionLeads = () => {
                   onClick={(e) => setFilterAnchorEl(e.currentTarget)}
                   aria-label={`Filter leads${orderPlacedFilter === "Acquired In" && dateRangeFilter ? `: ${dateRangeFilter}` : ''}`}
                   sx={{
-                    borderRadius: "10px",
-                    border: "1px solid #D6DEE8",
-                    bgcolor: "rgba(255,255,255,0.88)",
+                    ...headerIconButtonSx,
                   }}
                 >
                   <FilterListIcon sx={{ color: "#334155" }} />
@@ -1364,9 +1477,7 @@ const RetentionLeads = () => {
                 size="small"
                 onClick={(e) => setSortMenuAnchorEl(e.currentTarget)}
                 sx={{
-                  borderRadius: "10px",
-                  border: "1px solid #D6DEE8",
-                  bgcolor: "rgba(255,255,255,0.88)",
+                  ...headerIconButtonSx,
                 }}
               >
                 <SortIcon sx={{ color: "#334155" }} />
@@ -1882,7 +1993,7 @@ const RetentionLeads = () => {
               <Paper
                 sx={{
                   mb: 3,
-                  p: 2.25,
+                  p: 1.8,
                   borderRadius: 3,
                   boxShadow: "0 20px 38px rgba(15,23,42,0.12)",
                   border: "1px solid #D5DFEA",
@@ -2064,11 +2175,11 @@ const RetentionLeads = () => {
 
                     <Box
                       sx={{
-                        mt: 1,
+                        mt: 0.85,
                         display: "flex",
-                        alignItems: "center",
-                        gap: 1,
                         flexWrap: "wrap",
+                        alignItems: "center",
+                        gap: 0.75,
                       }}
                     >
                       {(() => {
@@ -2099,122 +2210,86 @@ const RetentionLeads = () => {
                         })();
 
                         return (
-                          <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap" }}>
-                            <Box
-                              sx={{
-                                px: 1.25,
-                                py: 0.5,
-                                borderRadius: 999,
-                                bgcolor: "#EAF0F8",
-                                color: "#1E293B",
-                                fontWeight: 600,
-                                fontSize: "0.8rem",
-                                border: "1px solid #D5DFEA",
-                              }}
-                            >
-                              CS – {since}
+                          <>
+                            <Box sx={{ ...metaPillSx, bgcolor: "#EAF0F8" }}>CS – {since}</Box>
+                            <Box sx={{ ...metaPillSx, bgcolor: "#EAF0F8" }}>Last Order – {lastDays}</Box>
+                            <Box sx={metaPillSx}>
+                              <Typography sx={{ color: "#667085", fontSize: "0.8rem" }}>Agent</Typography>
+                              <Typography sx={{ fontWeight: 700 }}>
+                                {leads[selectedLeadIndex]?.agentAssigned || "—"}
+                              </Typography>
                             </Box>
-                            <Box
-                              sx={{
-                                px: 1.25,
-                                py: 0.5,
-                                borderRadius: 999,
-                                bgcolor: "#EAF0F8",
-                                color: "#1E293B",
-                                fontWeight: 600,
-                                fontSize: "0.8rem",
-                                border: "1px solid #D5DFEA",
-                              }}
-                            >
-                              Last Order – {lastDays}
+                            <Box sx={metaPillSx}>
+                              <LanguageIcon sx={{ fontSize: 16, color: "#667085" }} />
+                              <Typography sx={{ fontWeight: 700 }}>
+                                {leads[selectedLeadIndex]?.preferredLanguage || "English"}
+                              </Typography>
                             </Box>
-                          </Stack>
+                            <Box sx={metaPillSx}>
+                              <PlaceIcon sx={{ fontSize: 16, color: "#667085" }} />
+                              <Typography sx={{ fontWeight: 700 }}>
+                                {(() => {
+                                  const province =
+                                    shopifyDatesMap[phone]?.orders?.[0]?.shipping_address?.province;
+                                  return province || "—";
+                                })()}
+                              </Typography>
+                            </Box>
+                          </>
                         );
                       })()}
-                      <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", alignItems: "center" }}>
-                        <Box
-                          sx={{
-                            px: 1,
-                            py: 0.5,
-                            borderRadius: 999,
-                            bgcolor: "#EDF2F8",
-                            color: "#333",
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 0.75,
-                            fontSize: "0.8rem",
-                            border: "1px solid #D5DFEA",
-                          }}
-                        >
-                          <Typography sx={{ color: "#667085", fontSize: "0.8rem" }}>Agent</Typography>
-                          <Typography sx={{ fontWeight: 600 }}>
-                            {leads[selectedLeadIndex]?.agentAssigned || "—"}
-                          </Typography>
-                        </Box>
 
-                        <Box
-                          sx={{
-                            px: 1,
-                            py: 0.5,
-                            borderRadius: 999,
-                            bgcolor: "#EDF2F8",
-                            color: "#333",
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 0.5,
-                            fontSize: "0.8rem",
-                            border: "1px solid #D5DFEA",
-                          }}
-                        >
-                          <LanguageIcon sx={{ fontSize: 16, color: "#667085" }} />
-                          <Typography sx={{ fontWeight: 600 }}>
-                            {leads[selectedLeadIndex]?.preferredLanguage || "English"}
-                          </Typography>
-                        </Box>
-
-                        <Box
-                          sx={{
-                            px: 1,
-                            py: 0.5,
-                            borderRadius: 999,
-                            bgcolor: "#EDF2F8",
-                            color: "#333",
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 0.5,
-                            fontSize: "0.8rem",
-                            border: "1px solid #D5DFEA",
-                          }}
-                        >
-                          <PlaceIcon sx={{ fontSize: 16, color: "#667085" }} />
-                          <Typography sx={{ fontWeight: 600 }}>
-                            {(() => {
-                              const phone = leads[selectedLeadIndex]?.contactNumber;
-                              const province =
-                                shopifyDatesMap[phone]?.orders?.[0]?.shipping_address?.province;
-                              return province || "—";
-                            })()}
-                          </Typography>
-                        </Box>
-
-                        <TextField
-                          label="Alternate Number"
-                          size="small"
-                          value={leads[selectedLeadIndex]?.alternativeNumber || ""}
-                          onChange={(e) => handleInputChange(e, selectedLeadIndex, "alternativeNumber")}
-                          sx={{
-                            minWidth: 170,
-                            ...premiumInputSx,
-                          }}
-                          InputLabelProps={{ shrink: true }}
-                        />
-                      </Stack>
+                      {showAltNumberEditor ? (
+                        <div style={altEditorWrapStyle}>
+                          <PhoneIcon sx={{ fontSize: 16, color: "#64748B" }} />
+                          <input
+                            type="tel"
+                            inputMode="numeric"
+                            placeholder="Alt number"
+                            value={altNumberDraft}
+                            onChange={(e) => setAltNumberDraft(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") saveAltNumber();
+                              if (e.key === "Escape") cancelAltNumberEditor();
+                            }}
+                            style={altInputStyle}
+                          />
+                          <button type="button" onClick={saveAltNumber} style={altActionBtnStyle}>
+                            Save
+                          </button>
+                          <button
+                            type="button"
+                            onClick={cancelAltNumberEditor}
+                            style={{ ...altActionBtnStyle, background: "#FFF" }}
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      ) : selectedAltNumber ? (
+                        <button type="button" onClick={openAltNumberEditor} style={altMetaButtonStyle}>
+                          <PhoneIcon sx={{ fontSize: 16, color: "#64748B" }} />
+                          <span>{`Alt. No- ${selectedAltNumber}`}</span>
+                        </button>
+                      ) : (
+                        <button type="button" onClick={openAltNumberEditor} style={altMetaButtonStyle}>
+                          <PhoneIcon sx={{ fontSize: 16, color: "#64748B" }} />
+                          <span>Add Alt No.</span>
+                        </button>
+                      )}
                     </Box>
 
-                    <Stack
-                      direction="row"
-                      spacing={1}
-                      sx={{ flexWrap: "wrap", alignItems: "center", mt: 2.5 }}
+                    <Box
+                      sx={{
+                        mt: 0.9,
+                        display: "grid",
+                        gap: 0.9,
+                        gridTemplateColumns: {
+                          xs: "minmax(0, 1fr)",
+                          sm: "repeat(2, minmax(0, 1fr))",
+                          md: "repeat(3, minmax(0, 1fr))",
+                          lg: "repeat(6, minmax(0, 1fr))",
+                        },
+                      }}
                     >
                       <TextField
                         label="Next Follow-up"
@@ -2223,10 +2298,9 @@ const RetentionLeads = () => {
                         onChange={(e) => handleInputChange(e, selectedLeadIndex, "rtNextFollowupDate")}
                         size="small"
                         sx={{
-                          minWidth: 150,
-                          ...premiumInputSx,
+                          ...leadFormControlSx,
                           "& .MuiOutlinedInput-root": {
-                            ...premiumInputSx["& .MuiOutlinedInput-root"],
+                            ...leadFormControlSx["& .MuiOutlinedInput-root"],
                             pr: 0,
                           },
                         }}
@@ -2246,7 +2320,7 @@ const RetentionLeads = () => {
                         InputLabelProps={{ shrink: true }}
                       />
 
-                      <FormControl size="small" sx={{ minWidth: 130, ...premiumInputSx }}>
+                      <FormControl size="small" sx={leadFormControlSx}>
                         <InputLabel>Retention Status</InputLabel>
 
                         <Select
@@ -2288,7 +2362,7 @@ You can mark Lost only after 60 days.`);
 
 
                       {/* Follow-up Status */}
-                      <FormControl size="small" sx={{ minWidth: 160, ...premiumInputSx }}>
+                      <FormControl size="small" sx={leadFormControlSx}>
                         <InputLabel>Follow-up Status</InputLabel>
                         <Select
                           label="Follow-up Status"
@@ -2319,7 +2393,7 @@ You can mark Lost only after 60 days.`);
                       </FormControl>
 
                       {/* Preferred Language */}
-                      <FormControl size="small" sx={{ minWidth: 140, ...premiumInputSx }}>
+                      <FormControl size="small" sx={leadFormControlSx}>
                         <InputLabel>Pref Language</InputLabel>
                         <Select
                           label="Pref Language"
@@ -2336,7 +2410,7 @@ You can mark Lost only after 60 days.`);
                       </FormControl>
 
                       {/* Preferred Method */}
-                      <FormControl size="small" sx={{ minWidth: 140, ...premiumInputSx }}>
+                      <FormControl size="small" sx={leadFormControlSx}>
                         <InputLabel>Pref Method</InputLabel>
                         <Select
                           label="Pref Method"
@@ -2354,14 +2428,11 @@ You can mark Lost only after 60 days.`);
 
                       <FormControl
                         size="small"
-                        sx={{ minWidth: 150, ...premiumInputSx }}
-                        error={(selectedConditions?.length ?? 0) === 0}
-                        focused // 👈 keep focused style always
+                        sx={leadFormControlSx}
                       >
                         <InputLabel
                           id="conditions-label"
                           shrink // 👈 keep label floating always
-                          error={(selectedConditions?.length ?? 0) === 0}
                         >
                           Conditions
                         </InputLabel>
@@ -2382,7 +2453,7 @@ You can mark Lost only after 60 days.`);
                             const s = Array.isArray(selected) ? selected : [];
                             if (s.length === 0) {
                               return (
-                                <span style={{ color: 'var(--mui-palette-error-main)', fontWeight: 700 }}>
+                                <span style={{ color: "#0F172A", fontWeight: 600 }}>
                                   Select 1
                                 </span>
                               );
@@ -2396,7 +2467,7 @@ You can mark Lost only after 60 days.`);
                           <MenuItem value="Cholesterol">Cholesterol</MenuItem>
                         </Select>
                       </FormControl>
-                    </Stack>
+                    </Box>
                   </Box>
                 </Box>
 

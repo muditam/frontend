@@ -1117,7 +1117,11 @@ export default function WhatsAppChatDrawer({
         anchor="right"
         open={open}
         onClose={onClose}
-        ModalProps={{ keepMounted: true }}
+        ModalProps={{
+          keepMounted: true,
+          disableAutoFocus: true,
+          disableEnforceFocus: true,
+        }}
         SlideProps={{
           onEntered: () => {
             stickToBottomRef.current = true;

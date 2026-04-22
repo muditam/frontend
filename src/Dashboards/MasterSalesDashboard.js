@@ -276,7 +276,10 @@ const ManagerSalesDashboard = () => {
     const cached = cacheGet(cacheKey);
     if (cached) { setAgents(cached); return; }
     try {
-      const res = await axios.get(`${API_BASE}/api/employees`, { params: { role: "Sales Agent" } });
+      const res = await axios.get(`${API_BASE}/api/employees`, {
+        params: { role: "Sales Agent" },
+        withCredentials: true,
+      });
       const list = ["All Agents", ...(res.data || []).filter((a) => a?.status === "active").map((a) => a.fullName).filter(Boolean)];
       setAgents(list);
       cacheSet(cacheKey, list);
@@ -316,8 +319,14 @@ const ManagerSalesDashboard = () => {
     setSalesLoading(true);
     try {
       const [metricsRes, overallRes] = await Promise.all([
-        axios.get(`${API_BASE}/api/orders/combined/sales-metrics`, { params: { startDate, endDate } }),
-        axios.get(`${API_BASE}/api/sales-summary`, { params: { startDate, endDate } }),
+        axios.get(`${API_BASE}/api/orders/combined/sales-metrics`, {
+          params: { startDate, endDate },
+          withCredentials: true,
+        }),
+        axios.get(`${API_BASE}/api/sales-summary`, {
+          params: { startDate, endDate },
+          withCredentials: true,
+        }),
       ]);
       const { salesDone, totalSales, avgOrderValue } = metricsRes.data || {};
       const overall = overallRes.data?.overall || {};
@@ -343,7 +352,10 @@ const ManagerSalesDashboard = () => {
     if (cached) { setFollowupStats(cached); return; }
     setFollowupLoading(true);
     try {
-      const res = await axios.get(`${API_BASE}/api/followup-summarys`, { params: { startDate, endDate } });
+      const res = await axios.get(`${API_BASE}/api/followup-summarys`, {
+        params: { startDate, endDate },
+        withCredentials: true,
+      });
       const list = res.data?.followup || [];
       setFollowupStats(list); cacheSet(cacheKey, list);
     } catch { setFollowupStats([]); } finally { setFollowupLoading(false); }
@@ -362,7 +374,10 @@ const ManagerSalesDashboard = () => {
     try {
       const params = { startDate, endDate };
       if (agentName && agentName !== "All Agents") params.agentName = agentName;
-      const res = await axios.get(`${API_BASE}/api/all-shipment-summary`, { params });
+      const res = await axios.get(`${API_BASE}/api/all-shipment-summary`, {
+        params,
+        withCredentials: true,
+      });
       const list = res.data || [];
       setShipmentData(list); cacheSet(cacheKey, list);
     } catch { setShipmentData([]); } finally { setShipmentLoading(false); }
@@ -379,7 +394,10 @@ const ManagerSalesDashboard = () => {
     if (cached) { setCodPrepaidStats(cached); return; }
     setCodLoading(true);
     try {
-      const res = await axios.get(`${API_BASE}/api/cod-prepaid-summary`, { params: { startDate, endDate } });
+      const res = await axios.get(`${API_BASE}/api/cod-prepaid-summary`, {
+        params: { startDate, endDate },
+        withCredentials: true,
+      });
       const list = res.data || [];
       setCodPrepaidStats(list); cacheSet(cacheKey, list);
     } catch { setCodPrepaidStats([]); } finally { setCodLoading(false); }
@@ -409,7 +427,10 @@ const ManagerSalesDashboard = () => {
   // -------------------------------------------
   const handleSalesDoneClick = async () => {
     try {
-      const res = await axios.get(`${API_BASE}/api/sales-order-ids`, { params: {} });
+      const res = await axios.get(`${API_BASE}/api/sales-order-ids`, {
+        params: {},
+        withCredentials: true,
+      });
       setOrderIds((res.data?.orderIds || []).join(", ") || "No order IDs available");
     } catch { setOrderIds("No order IDs available"); }
     setOrderIdsPopupOpen(true);
@@ -777,4 +798,3 @@ const ManagerSalesDashboard = () => {
 
 
 export default ManagerSalesDashboard;
-

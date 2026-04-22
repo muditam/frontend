@@ -6,15 +6,12 @@ import {
   Typography,
   CircularProgress,
   IconButton,
-  List,
-  ListItem,
-  Divider,
   Link,
-  Grid,
 } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
 import LocalShippingIcon from "@mui/icons-material/LocalShipping";
-import FileCopyIcon from "@mui/icons-material/FileCopy";
+import ContentCopyRoundedIcon from "@mui/icons-material/ContentCopyRounded";
+import LaunchRoundedIcon from "@mui/icons-material/LaunchRounded";
 import axios from "axios";
 
 const CUT_OFF_DATE = new Date("2026-03-06T00:00:00");
@@ -40,14 +37,30 @@ const DeliveryStatusChecker = ({ onClose }) => {
   };
 
   const getTrackingLink = (item) => {
-    const trackingNumber = item?.tracking_number?.trim();
+    const trackingNumber = String(item?.tracking_number || "").trim();
     if (!trackingNumber) return "";
 
     if (isBeforeCutoff(item?.order_date)) {
       return `https://track.shipway.com/t/${encodeURIComponent(trackingNumber)}`;
     }
 
-    return `https://www.bluedart.com/web/guest/trackdartresultthirdparty?trackFor=0&trackNo=${encodeURIComponent(
+    // After 6 March 2026:
+    // Delhivery => numeric and more than 13 digits
+    if (/^\d+$/.test(trackingNumber) && trackingNumber.length > 13) {
+      return `https://www.delhivery.com/track-v2/package/${encodeURIComponent(
+        trackingNumber
+      )}`;
+    }
+
+    // DTDC => alphanumeric pattern like 7X112735948
+    if (/^[A-Za-z0-9]+$/.test(trackingNumber) && /[A-Za-z]/.test(trackingNumber)) {
+      return `https://www.dtdc.com/track-your-shipment/?awb=${encodeURIComponent(
+        trackingNumber
+      )}`;
+    }
+
+    // Fallback => Blue Dart
+    return `https://www.bluedart.com/web/guest/trackdartresultthirdparty?trackFor=0&&trackNo=${encodeURIComponent(
       trackingNumber
     )}`;
   };
@@ -89,8 +102,33 @@ const DeliveryStatusChecker = ({ onClose }) => {
     }
   };
 
+  const formatOrderDate = (value) => {
+    if (!value) return "-";
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return "-";
+    return parsed.toLocaleDateString("en-IN", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    });
+  };
+
+  const statusMeta = (status = "") => {
+    const s = String(status).toLowerCase();
+    if (s.includes("deliver")) {
+      return { label: status, color: "#047857", dot: "#10b981" };
+    }
+    if (s.includes("rto") || s.includes("return") || s.includes("cancel")) {
+      return { label: status, color: "#b91c1c", dot: "#ef4444" };
+    }
+    if (s.includes("transit") || s.includes("out for delivery")) {
+      return { label: status, color: "#1d4ed8", dot: "#3b82f6" };
+    }
+    return { label: status || "Unknown", color: "#334155", dot: "#94a3b8" };
+  };
+
   return (
-    <Box sx={{ position: "relative", p: 2 }}>
+    <Box sx={{ position: "relative", p: { xs: 1.5, sm: 2 } }}>
       {onClose && (
         <IconButton
           onClick={onClose}
@@ -98,190 +136,243 @@ const DeliveryStatusChecker = ({ onClose }) => {
             position: "absolute",
             top: 8,
             right: 8,
-            zIndex: 10,
-            color: "#000",
+            color: "#64748b",
+            border: "1px solid #e2e8f0",
+            backgroundColor: "#fff",
+            "&:hover": { backgroundColor: "#f8fafc", color: "#0f172a" },
           }}
         >
-          <CloseIcon />
+          <CloseIcon fontSize="small" />
         </IconButton>
       )}
 
-      <Box sx={{ textAlign: "center", mb: 2 }}>
-        <LocalShippingIcon sx={{ fontSize: "1.6rem", color: "#000" }} />
-        <Typography
-          sx={{
-            fontWeight: 600,
-            fontSize: "1.2rem",
-            color: "#000",
-          }}
-        >
-          Delivery Status
-        </Typography>
+      <Box sx={{ display: "flex", alignItems: "center", gap: 1.2, mb: 2, pr: 5 }}>
         <Box
           sx={{
-            height: 3,
-            mt: 1,
-            width: "90%",
-            mx: "auto",
-            backgroundColor: "#FFD700",
-            borderRadius: "20px",
+            width: 34,
+            height: 34,
+            borderRadius: "10px",
+            display: "grid",
+            placeItems: "center",
+            bgcolor: "#0f172a",
+            color: "#fff",
           }}
-        />
+        >
+          <LocalShippingIcon sx={{ fontSize: 18 }} />
+        </Box>
+        <Box>
+          <Typography
+            sx={{
+              fontSize: "1.02rem",
+              fontWeight: 800,
+              color: "#0f172a",
+              lineHeight: 1.2,
+            }}
+          >
+            Delivery Status Checker
+          </Typography>
+          <Typography sx={{ fontSize: "0.78rem", color: "#64748b" }}>
+            Search by order ID or contact number
+          </Typography>
+        </Box>
       </Box>
 
-      <Typography
-        variant="body2"
+      <Box
         sx={{
-          textAlign: "center",
-          color: "#6a6868",
-          fontSize: "14px",
-          mb: 2,
-          mx: 2,
+          border: "1px solid #e2e8f0",
+          borderRadius: 2,
+          p: 1.2,
+          backgroundColor: "#fff",
         }}
       >
-        Enter Order ID or Contact Number to check delivery status.
-      </Typography>
+        <TextField
+          fullWidth
+          placeholder="Enter order ID or contact number"
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") handleSearch();
+          }}
+          inputProps={{ maxLength: 30 }}
+          sx={{
+            mb: 1,
+            "& .MuiOutlinedInput-root": {
+              backgroundColor: "#f8fafc",
+              borderRadius: 1.5,
+              "& fieldset": { borderColor: "#d1d5db" },
+              "&:hover fieldset": { borderColor: "#94a3b8" },
+              "&.Mui-focused fieldset": { borderColor: "#0f172a" },
+            },
+          }}
+        />
 
-      <TextField
-        fullWidth
-        placeholder="Enter Order ID or Contact Number"
-        value={input}
-        onChange={(e) => setInput(e.target.value)}
-        variant="outlined"
-        inputProps={{
-          maxLength: 30,
-          style: {
-            padding: "10px 12px",
-            fontSize: "14px",
-          },
-        }}
-        sx={{
-          background: "#fafbfc",
-          borderRadius: 2,
-          mb: 2,
-          "& .MuiOutlinedInput-root": {
-            "& fieldset": {
-              borderColor: "#ccc",
-            },
-            "&.Mui-focused fieldset": {
-              borderColor: "#000",
-            },
-            "&:hover fieldset": {
-              borderColor: "#000",
-            },
-          },
-        }}
-      />
-
-      <Button
-        variant="contained"
-        fullWidth
-        onClick={handleSearch}
-        disabled={loading}
-        sx={{
-          backgroundColor: "#000",
-          color: "#fff",
-          borderRadius: 2,
-          py: 1,
-          fontWeight: "bold",
-          mb: 1.5,
-          "&:hover": {
-            backgroundColor: "#222",
-          },
-        }}
-      >
-        {loading ? (
-          <CircularProgress size={22} sx={{ color: "#fff" }} />
-        ) : (
-          "CHECK"
-        )}
-      </Button>
+        <Button
+          variant="contained"
+          fullWidth
+          onClick={handleSearch}
+          disabled={loading}
+          sx={{
+            textTransform: "none",
+            borderRadius: 1.5,
+            py: 1,
+            fontWeight: 700,
+            fontSize: "0.9rem",
+            backgroundColor: "#0f172a",
+            "&:hover": { backgroundColor: "#111827" },
+          }}
+        >
+          {loading ? (
+            <CircularProgress size={18} sx={{ color: "#fff" }} />
+          ) : (
+            "Check Delivery"
+          )}
+        </Button>
+      </Box>
 
       {notFound && (
-        <Typography
-          sx={{ textAlign: "center", mt: 2, color: "red", fontWeight: 500 }}
+        <Box
+          sx={{
+            mt: 1.5,
+            borderRadius: 1.5,
+            border: "1px solid #fecaca",
+            backgroundColor: "#fff1f2",
+            px: 1.2,
+            py: 0.9,
+          }}
         >
-          No matching record found.
-        </Typography>
+          <Typography
+            sx={{
+              fontSize: "0.84rem",
+              color: "#b91c1c",
+              fontWeight: 600,
+              textAlign: "center",
+            }}
+          >
+            No matching record found.
+          </Typography>
+        </Box>
       )}
 
       {results.length > 0 && (
-        <List dense sx={{ mt: 2 }}>
+        <Box sx={{ mt: 1.5, display: "grid", gap: 1 }}>
           {results.map((item, idx) => {
             const trackingLink = getTrackingLink(item);
+            const status = statusMeta(item.shipment_status);
 
             return (
-              <React.Fragment key={idx}>
-                <ListItem>
-                  <Grid container spacing={2} alignItems="center">
-                    <Grid item xs={4}>
-                      <Typography sx={{ fontSize: "0.85rem", color: "#444" }}>
-                        Order Date:{" "}
-                        <span style={{ fontWeight: 600 }}>
-                          {item.order_date
-                            ? new Date(item.order_date).toLocaleDateString()
-                            : "-"}
-                        </span>
-                      </Typography>
-                    </Grid>
-
-                    <Grid item xs={4}>
-                      <Typography sx={{ fontSize: "0.9rem", fontWeight: 500 }}>
-                        Order ID:{" "}
-                        <span style={{ color: "#000", fontWeight: 700 }}>
-                          {item.order_id}
-                        </span>
-                      </Typography>
-                    </Grid>
-
-                    <Grid item xs={4}>
-                      <Typography sx={{ fontSize: "0.85rem", color: "#444" }}>
-                        Status:{" "}
-                        <span style={{ fontWeight: 600 }}>
-                          {item.shipment_status}
-                        </span>
-                      </Typography>
-                    </Grid>
-                  </Grid>
-
-                  <Box
-                    sx={{ ml: "auto", display: "flex", alignItems: "center" }}
+              <Box
+                key={idx}
+                sx={{
+                  border: "1px solid #e2e8f0",
+                  borderRadius: 2,
+                  backgroundColor: "#fff",
+                  p: 1.2,
+                }}
+              >
+                <Box
+                  sx={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    gap: 1,
+                    mb: 0.9,
+                  }}
+                >
+                  <Typography
+                    sx={{ fontSize: "0.92rem", fontWeight: 800, color: "#0f172a" }}
                   >
-                    {item.tracking_number && trackingLink && (
-                      <>
-                        <Link
-                          href={trackingLink}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          sx={{
-                            fontSize: "0.85rem",
-                            color: "#000",
-                            textDecoration: "none",
-                            mr: 1,
-                          }}
-                        >
-                          Track Here
-                        </Link>
+                    {item.order_id || "-"}
+                  </Typography>
 
-                        <IconButton
-                          onClick={() => handleCopy(trackingLink)}
-                          sx={{
-                            color: "#000",
-                            fontSize: "1rem",
-                          }}
-                        >
-                          <FileCopyIcon />
-                        </IconButton>
-                      </>
-                    )}
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 0.6 }}>
+                    <Box
+                      sx={{
+                        width: 8,
+                        height: 8,
+                        borderRadius: "50%",
+                        backgroundColor: status.dot,
+                      }}
+                    />
+                    <Typography
+                      sx={{ fontSize: "0.76rem", fontWeight: 700, color: status.color }}
+                    >
+                      {status.label}
+                    </Typography>
                   </Box>
-                </ListItem>
+                </Box>
 
-                {idx < results.length - 1 && <Divider />}
-              </React.Fragment>
+                <Box
+                  sx={{
+                    display: "grid",
+                    gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" },
+                    gap: 0.5,
+                    mb: trackingLink ? 1 : 0,
+                  }}
+                >
+                  <Typography sx={{ fontSize: "0.8rem", color: "#64748b" }}>
+                    Date:{" "}
+                    <Box component="span" sx={{ color: "#0f172a", fontWeight: 700 }}>
+                      {formatOrderDate(item.order_date)}
+                    </Box>
+                  </Typography>
+
+                  <Typography sx={{ fontSize: "0.8rem", color: "#64748b" }}>
+                    Tracking:{" "}
+                    <Box component="span" sx={{ color: "#0f172a", fontWeight: 700 }}>
+                      {item.tracking_number || "-"}
+                    </Box>
+                  </Typography>
+                </Box>
+
+                {trackingLink && (
+                  <Box sx={{ display: "flex", gap: 0.8, flexWrap: "wrap" }}>
+                    <Link
+                      href={trackingLink}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      sx={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 0.45,
+                        px: 0.9,
+                        py: 0.45,
+                        border: "1px solid #cbd5e1",
+                        borderRadius: 1.5,
+                        fontSize: "0.76rem",
+                        fontWeight: 700,
+                        color: "#0f172a",
+                        textDecoration: "none",
+                        "&:hover": { backgroundColor: "#f8fafc" },
+                      }}
+                    >
+                      Track <LaunchRoundedIcon sx={{ fontSize: 14 }} />
+                    </Link>
+
+                    <Button
+                      variant="text"
+                      size="small"
+                      onClick={() => handleCopy(trackingLink)}
+                      sx={{
+                        textTransform: "none",
+                        px: 0.9,
+                        py: 0.35,
+                        minWidth: "auto",
+                        borderRadius: 1.5,
+                        border: "1px solid #e2e8f0",
+                        color: "#334155",
+                        fontSize: "0.76rem",
+                        fontWeight: 700,
+                      }}
+                    >
+                      <ContentCopyRoundedIcon sx={{ fontSize: 14, mr: 0.4 }} />
+                      Copy
+                    </Button>
+                  </Box>
+                )}
+              </Box>
             );
           })}
-        </List>
+        </Box>
       )}
     </Box>
   );

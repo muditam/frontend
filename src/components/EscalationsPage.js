@@ -27,6 +27,7 @@ import {
 } from "@mui/material";
 import { Close, Delete as DeleteIcon, WarningAmber } from "@mui/icons-material";
 import axios from "axios";
+import { alpha } from "@mui/material/styles";
 
 
 const statusOptions = ["Open", "In Progress", "Closed"];
@@ -49,6 +50,15 @@ const productOptions = [
   { code: "Glucometer", label: "Glucometer" },
   { code: "Blood test", label: "Blood test" },
 ];
+
+const UI = {
+  bg: "#f6f8fc",
+  panel: "#ffffff",
+  border: "#dbe2ea",
+  text: "#0f172a",
+  subtext: "#475569",
+  accent: "#0f172a",
+};
 const EscalationsPage = () => {
   const [openForm, setOpenForm] = useState(false);
   const [openFileDialog, setOpenFileDialog] = useState(false);
@@ -329,33 +339,103 @@ const EscalationsPage = () => {
     setOpenFileDialog(true);
   };
 
+  const canManageEscalations =
+    user?.role === "Manager" || user?.role === "Operations";
+
+  const getRowSeverity = (esc) => {
+    if (esc.status === "Closed") return "closed";
+    const baseDate = esc.date ? new Date(esc.date) : new Date(esc.createdAt);
+    const now = new Date();
+    const hoursDifference = (now - baseDate) / (1000 * 3600);
+    const daysDifference = hoursDifference / 24;
+    if (daysDifference > 3) return "critical";
+    if (hoursDifference > 48) return "warning";
+    return "normal";
+  };
+
+  const getRowSx = (severity) => {
+    if (severity === "critical") {
+      return {
+        backgroundColor: alpha("#dc2626", 0.5),
+        "&:hover": { backgroundColor: alpha("#dc2626", 0.2) },
+      };
+    }
+    if (severity === "warning") {
+      return {
+        backgroundColor: alpha("#ea580c", 0.16),
+        "&:hover": { backgroundColor: alpha("#ea580c", 0.22) },
+      };
+    }
+    return {
+      "&:hover": { backgroundColor: "#f8fafc" },
+    };
+  };
+
+  const getStatusChipSx = (status) => {
+    const s = String(status || "").toLowerCase();
+    if (s.includes("open")) {
+      return { bgcolor: alpha("#dc2626", 0.1), color: "#991b1b", border: `1px solid ${alpha("#dc2626", 0.25)}` };
+    }
+    if (s.includes("progress")) {
+      return { bgcolor: alpha("#ea580c", 0.12), color: "#9a3412", border: `1px solid ${alpha("#ea580c", 0.3)}` };
+    }
+    return { bgcolor: alpha("#16a34a", 0.12), color: "#166534", border: `1px solid ${alpha("#16a34a", 0.3)}` };
+  };
+
 
   return (
-    <Box sx={{ padding: 3, bgcolor: "#fff", borderRadius: 2 }}>
-      <Typography
-        variant="h4"
+    <Box sx={{ p: { xs: 1.5, md: 2.5 }, bgcolor: UI.bg, borderRadius: 3, border: `1px solid ${UI.border}` }}>
+      <Paper
+        elevation={0}
         sx={{
-          fontWeight: "bold",
-          textAlign: "center",
-          color: "black",
-          marginBottom: 2,
+          mb: 2,
+          p: { xs: 1.5, md: 2 },
+          borderRadius: 3,
+          border: `1px solid ${UI.border}`,
+          background: "linear-gradient(140deg, #ffffff 0%, #f8fafc 60%, #eef2ff 100%)",
         }}
       >
-        Escalations
-      </Typography>
+        <Box sx={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 1.25 }}>
+          <Box>
+            <Typography variant="h4" sx={{ fontWeight: 800, fontSize: { xs: "1.35rem", md: "1.85rem" }, color: UI.text }}>
+              Escalations
+            </Typography>
+          </Box>
+          <Button
+            variant="contained"
+            onClick={() => setOpenForm(true)}
+            sx={{
+              backgroundColor: UI.accent,
+              borderRadius: 999,
+              px: 2.2,
+              py: 0.9,
+              textTransform: "none",
+              fontWeight: 700,
+              boxShadow: "none",
+              "&:hover": { backgroundColor: "#020617", boxShadow: "none" },
+            }}
+          >
+            Add Escalation
+          </Button>
+        </Box>
+      </Paper>
 
-
-      <Box sx={{ display: "flex", justifyContent: "space-between", mb: 2 }}>
-        <Button
-          variant="contained"
-          onClick={() => setOpenForm(true)}
-          sx={{ mb: 2, backgroundColor: "black" }}
-        >
-          Add Escalation
-        </Button>
-
-
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+      <Paper
+        elevation={0}
+        sx={{
+          mb: 2,
+          p: 1.5,
+          borderRadius: 2.5,
+          border: `1px solid ${UI.border}`,
+          display: "flex",
+          flexWrap: "wrap",
+          gap: 1.2,
+          alignItems: "center",
+          justifyContent: "space-between",
+          backgroundColor: UI.panel,
+        }}
+      >
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, flexWrap: "wrap" }}>
           <TextField
             select
             size="small"
@@ -364,7 +444,7 @@ const EscalationsPage = () => {
               setAssignedToFilter(e.target.value);
               setPage(0);
             }}
-            sx={{ minWidth: 220, bgcolor: "#fff" }}
+            sx={{ minWidth: 220 }}
             SelectProps={{ displayEmpty: true }}
           >
             <MenuItem value="">
@@ -385,7 +465,7 @@ const EscalationsPage = () => {
               setReasonFilter(e.target.value);
               setPage(0);
             }}
-            sx={{ minWidth: 240, bgcolor: "#fff" }}
+            sx={{ minWidth: 240 }}
             SelectProps={{ displayEmpty: true }}
           >
             <MenuItem value="">
@@ -401,40 +481,58 @@ const EscalationsPage = () => {
           <Button
             variant={showClosedOnly ? "contained" : "outlined"}
             sx={{
-              backgroundColor: showClosedOnly ? "black" : "transparent",
-              color: showClosedOnly ? "white" : "black",
+              backgroundColor: showClosedOnly ? UI.accent : "transparent",
+              color: showClosedOnly ? "#fff" : UI.text,
+              borderColor: UI.border,
+              textTransform: "none",
+              borderRadius: 999,
+              fontWeight: 700,
+              px: 1.8,
+              "&:hover": {
+                borderColor: "#94a3b8",
+                backgroundColor: showClosedOnly ? "#020617" : "#f8fafc",
+              },
             }}
             onClick={() => setShowClosedOnly(!showClosedOnly)}
           >
             {showClosedOnly ? "Show Open / In Progress" : "Show Closed"}
           </Button>
         </Box>
-      </Box>
+        <Chip
+          label={`Records: ${totalCount}`}
+          size="small"
+          sx={{
+            fontWeight: 700,
+            bgcolor: "#e2e8f0",
+            color: UI.text,
+            border: `1px solid ${UI.border}`,
+          }}
+        />
+      </Paper>
 
 
       <Dialog open={openForm} onClose={() => setOpenForm(false)} maxWidth="sm" fullWidth>
         <DialogTitle
           sx={{
-            backgroundColor: "transparent",
-            color: "black",
-            fontWeight: "bold",
+            color: UI.text,
+            fontWeight: 800,
             textAlign: "center",
-            fontSize: "1.5rem",
-            pb: 1,
+            fontSize: "1.35rem",
+            pb: 0.7,
           }}
         >
           Add New Escalation
         </DialogTitle>
         <Box
           sx={{
-            height: "4px",
-            backgroundColor: "#FFD700",
+            height: "3px",
+            backgroundColor: "#94a3b8",
             width: "100%",
-            mt: 1,
+            mt: 0.5,
             borderRadius: "2px",
           }}
         />
-        <DialogContent sx={{ p: 4, backgroundColor: "#f9f9f9" }}>
+        <DialogContent sx={{ p: 3, backgroundColor: "#f8fafc" }}>
           <Box
             component="form"
             sx={{ display: "flex", flexDirection: "column", gap: 2 }}
@@ -687,7 +785,7 @@ const EscalationsPage = () => {
                 variant="outlined"
                 component="label"
                 color="black"
-                sx={{ borderRadius: 1, px: 2, width: 200 }}
+                sx={{ borderRadius: 999, px: 2.2, width: 220, textTransform: "none", fontWeight: 700 }}
               >
                 Attach Files
                 <input
@@ -729,7 +827,7 @@ const EscalationsPage = () => {
                 disabled={loading}
                 variant="outlined"
                 color="black"
-                sx={{ borderRadius: 1, px: 2 }}
+                sx={{ borderRadius: 999, px: 2.2, textTransform: "none", fontWeight: 700 }}
               >
                 Cancel
               </Button>
@@ -740,7 +838,7 @@ const EscalationsPage = () => {
                   loading ? <CircularProgress size={20} color="inherit" /> : null
                 }
                 variant="contained"
-                sx={{ borderRadius: 1, px: 2, background: "black" }}
+                sx={{ borderRadius: 999, px: 2.4, background: UI.accent, textTransform: "none", fontWeight: 700 }}
               >
                 Submit
               </Button>
@@ -753,21 +851,23 @@ const EscalationsPage = () => {
       <TableContainer
         component={Paper}
         sx={{
-          borderRadius: 2,
-          boxShadow: "0 4px 10px rgb(0 0 0 / 0.1)",
-          bgcolor: "#fafafa",
+          borderRadius: 3,
+          boxShadow: "none",
+          border: `1px solid ${UI.border}`,
+          bgcolor: "#fff",
         }}
       >
         <Table stickyHeader size="small">
           <TableHead>
-            <TableRow sx={{ bgcolor: "black" }}>
+            <TableRow sx={{ bgcolor: UI.accent }}>
               <TableCell
                 sx={{
-                  fontWeight: "bold",
-                  color: "white",
+                  fontWeight: 800,
+                  color: "#fff",
                   textAlign: "center",
-                  backgroundColor: "black",
+                  backgroundColor: UI.accent,
                   whiteSpace: "nowrap",
+                  borderBottom: `1px solid ${alpha("#ffffff", 0.2)}`,
                 }}
               >
                 S. No.
@@ -793,11 +893,12 @@ const EscalationsPage = () => {
                 <TableCell
                   key={head}
                   sx={{
-                    fontWeight: "bold",
-                    color: "white",
+                    fontWeight: 800,
+                    color: "#fff",
                     textAlign: "center",
-                    backgroundColor: "black",
+                    backgroundColor: UI.accent,
                     whiteSpace: "nowrap",
+                    borderBottom: `1px solid ${alpha("#ffffff", 0.2)}`,
                   }}
                 >
                   {head}
@@ -814,17 +915,7 @@ const EscalationsPage = () => {
               </TableRow>
             ) : (
               escalations.map((esc, index) => {
-                const baseDate = esc.date ? new Date(esc.date) : new Date(esc.createdAt);
-                const now = new Date();
-                const hoursDifference = (now - baseDate) / (1000 * 3600);
-                const daysDifference = hoursDifference / 24;
-
-
-                let backgroundColor = "transparent";
-                if (esc.status !== "Closed") {
-                  if (daysDifference > 3) backgroundColor = "lightcoral";
-                  else if (hoursDifference > 48) backgroundColor = "orange";
-                }
+                const severity = getRowSeverity(esc);
 
 
                 return (
@@ -832,10 +923,10 @@ const EscalationsPage = () => {
                     key={esc._id}
                     hover
                     sx={{
-                      "&:hover": { bgcolor: "#e0e0e0" },
                       cursor: "pointer",
                       whiteSpace: "nowrap",
-                      backgroundColor,
+                      "& td": { borderBottom: `1px solid ${alpha(UI.border, 0.7)}` },
+                      ...getRowSx(severity),
                     }}
                   >
                     <TableCell align="center">
@@ -931,7 +1022,7 @@ const EscalationsPage = () => {
 
 
                     <TableCell align="center">
-                      {user?.role === "Manager" || user?.role === "Operations" ? (
+                      {canManageEscalations ? (
                         <TextField
                           select
                           size="small"
@@ -946,11 +1037,11 @@ const EscalationsPage = () => {
                           ))}
                         </TextField>
                       ) : (
-                        esc.status
+                        <Chip label={esc.status} size="small" sx={{ ...getStatusChipSx(esc.status), fontWeight: 700 }} />
                       )}
                     </TableCell>
                     <TableCell align="center">
-                      {user?.role === "Manager" || user?.role === "Operations" ? (
+                      {canManageEscalations ? (
                         <TextField
                           select
                           size="small"
@@ -971,7 +1062,7 @@ const EscalationsPage = () => {
 
 
                     <TableCell sx={{ minWidth: 350 }}>
-                      {user?.role === "Manager" || user?.role === "Operations" ? (
+                      {canManageEscalations ? (
                         <TextField
                           key={`${esc._id}:${esc.remark ?? ""}`}
                           size="small"
@@ -995,7 +1086,7 @@ const EscalationsPage = () => {
 
 
                     <TableCell align="center">
-                      {user?.role === "Manager" || user?.role === "Operations" ? (
+                      {canManageEscalations ? (
                         <TextField
                           type="date"
                           size="small"
@@ -1009,7 +1100,7 @@ const EscalationsPage = () => {
                       )}
                     </TableCell>
                     <TableCell align="right">
-                      {user?.role === "Manager" || user?.role === "Operations" ? (
+                      {canManageEscalations ? (
                         <IconButton
                           color="error"
                           onClick={() => {
@@ -1056,9 +1147,9 @@ const EscalationsPage = () => {
           <Typography>Are you sure you want to delete this escalation?</Typography>
         </DialogContent>
         <DialogActions sx={{ justifyContent: "space-between", px: 2, pb: 1 }}>
-          <button onClick={handleCancelDelete} style={{ background: 'none', border: 'none', color: 'black', cursor: 'pointer' }}>
+          <Button onClick={handleCancelDelete} variant="text" sx={{ textTransform: "none" }}>
             Cancel
-          </button>
+          </Button>
           <Button onClick={handleConfirmDelete} color="error" variant="contained">
             Delete
           </Button>
@@ -1103,4 +1194,3 @@ const EscalationsPage = () => {
 
 
 export default EscalationsPage;
-
