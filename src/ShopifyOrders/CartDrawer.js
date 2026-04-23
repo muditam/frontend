@@ -2008,6 +2008,9 @@ const CartDrawer = ({ closeDrawer }) => {
           <OrderDetailsPopup
             orderId={orderId}
             agentName={loggedInAgentName}
+            discount={Number(appliedDiscount || 0)}
+            discountType={discountType}
+            paymentMethod={paymentMethod}
             transactionId={transactionId}
             onClose={() => setShowOrderDetailsPopup(false)}
           />

@@ -82,6 +82,7 @@ const OrderDetailsPopup = ({
   const [editingAgent, setEditingAgent] = useState(false);
   const [employeeSearch, setEmployeeSearch] = useState("");
   const [employeeResults, setEmployeeResults] = useState([]);
+  const [allEmployees, setAllEmployees] = useState([]);
 
   // NEW fields
   const [dosageOrdered, setDosageOrdered] = useState("10-Days");
@@ -139,24 +140,28 @@ const OrderDetailsPopup = ({
     setSelectedAgent(agentName || fallbackAgent);
   }, [agentName]);
 
-  // Sync prop changes
+  // Fetch employee list once and filter client-side for smooth search
   useEffect(() => {
-    if (propPaymentMethod) setPaymentMethod(propPaymentMethod);
-    if (propUpsellAmount) {
-      setUpsellChecked(true);
-      setUpsellAmount(propUpsellAmount);
-    }
-    if (propDiscount) setDiscount(propDiscount);
-  }, [propPaymentMethod, propUpsellAmount, propDiscount]);
+    const fetchEmployees = async () => {
+      try {
+        const response = await axios.get(
+          "https://muditamleads-14f32a10d7f7.herokuapp.com/api/employees"
+        );
+        setAllEmployees(Array.isArray(response.data) ? response.data : []);
+      } catch (error) {
+        console.error("Error fetching employees:", error);
+      }
+    };
+    fetchEmployees();
+  }, []);
 
-  // Employee search (client filter)
-  const searchEmployees = async (query) => {
+  const searchEmployees = (query) => {
     try {
-      const response = await axios.get(
-        `https://muditamleads-14f32a10d7f7.herokuapp.com/api/employees`
-      );
-      const filtered = response.data.filter((emp) =>
-        emp.fullName.toLowerCase().includes(query.toLowerCase())
+      const q = String(query || "").trim().toLowerCase();
+      const filtered = allEmployees.filter((emp) =>
+        String(emp?.fullName || "")
+          .toLowerCase()
+          .includes(q)
       );
       setEmployeeResults(filtered);
     } catch (error) {
@@ -166,9 +171,10 @@ const OrderDetailsPopup = ({
 
   const handleAgentSearchChange = (e) => {
     const value = e.target.value;
-    setEmployeeSearch(value);
-    if (value.length >= 2) {
-      searchEmployees(value);
+    const next = String(value || "");
+    setEmployeeSearch(next);
+    if (next.length >= 2) {
+      searchEmployees(next);
     } else {
       setEmployeeResults([]);
     }
@@ -458,11 +464,11 @@ Dosage Ordered: ${dosageOrdered}`;
                         value={paymentMethod || ""}
                         onChange={(e) => setPaymentMethod(e.target.value)}
                         MenuProps={{
-                          disablePortal: false,
-                          PaperProps: { style: { zIndex: zIndex + 20 } },
+                          disablePortal: true,
+                          PaperProps: { sx: { zIndex: zIndex + 2 } },
                         }}
                       >
-                        {["Partial Paid", "Razorpay", "COD", "UPI", "Bank Transfer", "PayPal"].map(
+                        {["Prepaid", "Partial Paid", "Razorpay", "COD", "UPI", "Bank Transfer", "PayPal"].map(
                           (option) => (
                             <MenuItem key={option} value={option}>
                               {option}
@@ -525,8 +531,8 @@ Dosage Ordered: ${dosageOrdered}`;
                       onChange={(e) => setDosageOrdered(e.target.value)}
                       SelectProps={{
                         MenuProps: {
-                          disablePortal: false,
-                          PaperProps: { style: { zIndex: zIndex + 20 } },
+                          disablePortal: true,
+                          PaperProps: { sx: { zIndex: zIndex + 2 } },
                         },
                       }}
                     >

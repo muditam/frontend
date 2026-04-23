@@ -1,21 +1,11 @@
 import React, { useState, useEffect } from "react";
-import {
-  List,
-  ListItem,
-  Collapse,
-  Typography,
-  Box,
-  Drawer,
-  Avatar,
-  IconButton,
-} from "@mui/material";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import LogoutIcon from "@mui/icons-material/Logout";
 import UnfoldMoreIcon from "@mui/icons-material/UnfoldMore";
 import HomeIcon from "@mui/icons-material/Home";
 import AssignmentIcon from "@mui/icons-material/Assessment";
 import DescriptionIcon from "@mui/icons-material/Description";
 import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
-import KeyboardArrowRightIcon from "@mui/icons-material/KeyboardArrowRight";
 import PersonAddIcon from "@mui/icons-material/PersonAdd";
 import FolderIcon from "@mui/icons-material/Folder";
 import PersonIcon from "@mui/icons-material/Person";
@@ -43,31 +33,386 @@ import VideoLibraryIcon from "@mui/icons-material/VideoLibrary";
 import ViewCarouselIcon from "@mui/icons-material/ViewCarousel";
 import AccountBalanceWalletOutlinedIcon from "@mui/icons-material/AccountBalanceWalletOutlined";
 import StorefrontIcon from "@mui/icons-material/Storefront";
-import { Link, useNavigate } from "react-router-dom";
+
+const styles = `
+  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Syne:wght@600;700&display=swap');
+
+  .sidebar {
+    width: 280px;
+    height: 100vh;
+    background: #f8fafc;
+    border-right: 1px solid #e2e8f0;
+    display: flex;
+    flex-direction: column;
+    font-family: 'DM Sans', sans-serif;
+    position: fixed;
+    left: 0;
+    top: 0;
+    z-index: 1200;
+    overflow: hidden;
+  }
+
+  .sidebar-header {
+    padding: 20px 20px 16px;
+    border-bottom: 1px solid #e2e8f0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+    background: #ffffff;
+  }
+
+  .sidebar-brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .brand-icon {
+    width: 34px;
+    height: 34px;
+    background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+    border-radius: 9px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .brand-icon svg {
+    font-size: 18px !important;
+    color: #fff !important;
+  }
+
+  .brand-text {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .brand-name {
+    font-family: 'Syne', sans-serif;
+    font-size: 15px;
+    font-weight: 700;
+    color: #0f172a;
+    letter-spacing: 0.3px;
+    line-height: 1.2;
+  }
+
+  .brand-subtitle {
+    font-size: 10.5px;
+    color: #64748b;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    font-weight: 500;
+  }
+
+  .workspace-toggle {
+    background: #f1f5f9;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    padding: 4px;
+    cursor: pointer;
+    color: #64748b;
+    display: flex;
+    align-items: center;
+    transition: all 0.15s ease;
+  }
+
+  .workspace-toggle:hover {
+    background: #e2e8f0;
+    color: #334155;
+  }
+
+  .workspace-toggle svg {
+    font-size: 16px !important;
+  }
+
+  .nav-scroll {
+    flex: 1;
+    overflow-y: auto;
+    padding: 10px 10px 80px;
+    scrollbar-width: thin;
+    scrollbar-color: #cbd5e1 transparent;
+  }
+
+  .nav-scroll::-webkit-scrollbar {
+    width: 3px;
+  }
+
+  .nav-scroll::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .nav-scroll::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 2px;
+  }
+
+  .nav-section-label {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 1.2px;
+    text-transform: uppercase;
+    color: #64748b;
+    padding: 14px 12px 4px;
+    user-select: none;
+  }
+
+  .nav-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8.5px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    text-decoration: none;
+    color: #334155;
+    font-size: 13.5px;
+    font-weight: 400;
+    transition: all 0.15s ease;
+    position: relative;
+    margin: 1px 0;
+  }
+
+  .nav-item:hover {
+    background: #eef2f7;
+    color: #0f172a;
+  }
+
+  .nav-item.active {
+    background: #e8f0ff;
+    color: #1d4ed8;
+  }
+
+  .nav-item.active::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 3px;
+    height: 18px;
+    background: #2563eb;
+    border-radius: 0 2px 2px 0;
+  }
+
+  .nav-item-icon {
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    opacity: 0.75;
+  }
+
+  .nav-item.active .nav-item-icon,
+  .nav-item:hover .nav-item-icon {
+    opacity: 1;
+  }
+
+  .nav-item-icon svg {
+    font-size: 17px !important;
+  }
+
+  .nav-item-text {
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .nav-item-arrow {
+    width: 16px;
+    height: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0.55;
+    transition: transform 0.2s ease;
+    flex-shrink: 0;
+  }
+
+  .nav-item-arrow svg {
+    font-size: 15px !important;
+  }
+
+  .nav-item-arrow.open {
+    transform: rotate(180deg);
+    opacity: 0.9;
+  }
+
+  .dropdown-group {
+    overflow: hidden;
+    transition: max-height 0.25s ease, opacity 0.2s ease;
+    max-height: 0;
+    opacity: 0;
+  }
+
+  .dropdown-group.open {
+    max-height: 500px;
+    opacity: 1;
+  }
+
+  .sub-item {
+    display: flex;
+    align-items: center;
+    padding: 7px 12px 7px 38px;
+    border-radius: 7px;
+    cursor: pointer;
+    text-decoration: none;
+    color: #475569;
+    font-size: 12.5px;
+    font-weight: 400;
+    transition: all 0.15s ease;
+    margin: 0.5px 0;
+    position: relative;
+  }
+
+  .sub-item::before {
+    content: '';
+    position: absolute;
+    left: 20px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: #cbd5e1;
+    transition: background 0.15s ease;
+  }
+
+  .sub-item:hover {
+    background: #eef2f7;
+    color: #1e40af;
+  }
+
+  .sub-item:hover::before {
+    background: #2563eb;
+  }
+
+  .sub-item.active {
+    color: #1d4ed8;
+    font-weight: 600;
+  }
+
+  .sub-item.active::before {
+    background: #2563eb;
+  }
+
+  .sidebar-footer {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    padding: 12px 14px;
+    background: rgba(248, 250, 252, 0.96);
+    backdrop-filter: blur(8px);
+    border-top: 1px solid #e2e8f0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .user-info {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex: 1;
+    overflow: hidden;
+  }
+
+  .user-avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Syne', sans-serif;
+    font-size: 13px;
+    font-weight: 700;
+    color: #fff;
+    flex-shrink: 0;
+    overflow: hidden;
+  }
+
+  .user-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 8px;
+  }
+
+  .user-details {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .user-name {
+    font-size: 13px;
+    font-weight: 500;
+    color: #0f172a;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .user-email {
+    font-size: 11px;
+    color: #64748b;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .logout-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 7px;
+    color: #64748b;
+    transition: all 0.15s ease;
+    flex-shrink: 0;
+  }
+
+  .logout-btn:hover {
+    background: #fee2e2;
+    color: #dc2626;
+  }
+
+  .logout-btn svg {
+    font-size: 16px !important;
+  }
+
+  .divider {
+    height: 1px;
+    background: #e2e8f0;
+    margin: 6px 12px;
+  }
+`;
 
 const MenuBar = ({ toggleDrawer }) => {
   const [openDropdown, setOpenDropdown] = useState({});
-  const [role, setRole] = useState(null);
+  const [user, setUser] = useState(null);
   const navigate = useNavigate();
-
-  const getUserFromSession = () => {
-    try {
-      return JSON.parse(sessionStorage.getItem("user"));
-    } catch {
-      return null;
-    }
-  };
-
-  const [user, setUser] = useState(getUserFromSession());
-  const hasTeam = user && user.hasTeam;
+  const location = useLocation();
 
   useEffect(() => {
-    if (user && user.role) {
-      setRole(user.role);
-    }
-  }, [user]);
+    try {
+      const u = JSON.parse(sessionStorage.getItem("user"));
+      setUser(u);
+    } catch {}
+  }, []);
 
-  // 🔐 Permission helper
+  const hasTeam = user?.hasTeam;
   const menubarPerms = user?.permissions?.menubar || {};
   const can = (key) => !!menubarPerms[key];
 
@@ -81,2100 +426,417 @@ const MenuBar = ({ toggleDrawer }) => {
     navigate("/login");
   };
 
-  const menuItemStyle = {
-    display: "flex",
-    alignItems: "center",
-    padding: "10px 20px",
-    borderRadius: "4px",
-    margin: "4px 0",
-    transition: "background-color 0.3s, transform 0.2s",
-    "&:hover": {
-      backgroundColor: "#e0f7fa",
-      color: "#007aff",
-      transform: "scale(1.02)",
-    },
+  const isActive = (path) => location.pathname === path;
+  const isActiveSub = (path) => location.pathname.startsWith(path);
+
+  const getInitials = (name) => {
+    if (!name) return "U";
+    return name.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase();
   };
 
-  const dropdownStyle = {
-    ...menuItemStyle,
-    justifyContent: "space-between",
-  };
+  const NavItem = ({ to, icon, label, onClick }) => (
+    <Link
+      to={to}
+      className={`nav-item${isActive(to) ? " active" : ""}`}
+      onClick={() => { onClick?.(); toggleDrawer?.(); }}
+    >
+      <span className="nav-item-icon">{icon}</span>
+      <span className="nav-item-text">{label}</span>
+    </Link>
+  );
 
-  const nestedListStyle = {
-    borderLeft: "2px solid #007aff",
-    marginLeft: "24px",
-    paddingLeft: "4px",
-  };
+  const DropdownGroup = ({ id, icon, label, children }) => (
+    <>
+      <div
+        className={`nav-item${openDropdown[id] ? " active" : ""}`}
+        onClick={() => handleDropdownClick(id)}
+        style={{ userSelect: "none" }}
+      >
+        <span className="nav-item-icon">{icon}</span>
+        <span className="nav-item-text">{label}</span>
+        <span className={`nav-item-arrow${openDropdown[id] ? " open" : ""}`}>
+          <KeyboardArrowDownIcon />
+        </span>
+      </div>
+      <div className={`dropdown-group${openDropdown[id] ? " open" : ""}`}>
+        {children}
+      </div>
+    </>
+  );
+
+  const SubItem = ({ to, label }) => (
+    <Link
+      to={to}
+      className={`sub-item${isActiveSub(to) ? " active" : ""}`}
+      onClick={toggleDrawer}
+    >
+      {label}
+    </Link>
+  );
 
   return (
-    <Drawer
-      sx={{
-        "& .MuiDrawer-paper": {
-          width: 310,
-          mt: "64px",
-          height: "calc(100vh - 64px)",
-          boxSizing: "border-box",
-        },
-      }}
-      variant="permanent"
-      anchor="left"
-    >
-      <List sx={{ paddingBottom: "80px" }}>
+    <>
+      <style>{styles}</style>
+      <div className="sidebar">
         {/* Header */}
-        <ListItem
-          sx={{
-            display: "flex",
-            alignItems: "center",
-            padding: "16px 20px",
-            borderBottom: "1px solid #ddd",
-            justifyContent: "space-between",
-          }}
-        >
-          <Box sx={{ display: "flex", alignItems: "center" }}>
-            <AssignmentIcon sx={{ width: 35, height: 35, marginRight: 1 }} />
-            <Box sx={{ display: "flex", flexDirection: "column" }}>
-              <Typography
-                variant="h6"
-                sx={{
-                  fontSize: "16px",
-                  fontWeight: "bold",
-                  letterSpacing: "1px",
-                }}
-              >
-                Muditam
-              </Typography>
-              <Typography
-                variant="body2"
-                sx={{
-                  fontSize: "12px",
-                  color: "gray",
-                  letterSpacing: "1px",
-                }}
-              >
-                Lead Management
-              </Typography>
-            </Box>
-          </Box>
-          <UnfoldMoreIcon />
-        </ListItem>
-
-        {/* Everything below should respect permissions */}
-
-        {user && can("home") && (
-          <ListItem
-            button
-            sx={menuItemStyle}
-            component={Link}
-            to="/"
-            onClick={toggleDrawer}
-          >
-            <HomeIcon sx={{ marginRight: "12px" }} />
-            <Typography variant="body1" style={{ fontSize: "14px" }}>
-              Home
-            </Typography>
-          </ListItem>
-        )}
-
-        {user && can("myTemplates") && (
-          <ListItem
-            button
-            component={Link}
-            sx={menuItemStyle}
-            to="/my-templates"
-            onClick={toggleDrawer}
-          >
-            <DescriptionIcon sx={{ marginRight: "12px" }} />
-            <Typography variant="body1" style={{ fontSize: "14px" }}>
-              My Templates
-            </Typography>
-          </ListItem>
-        )}
-
-        {user && can("invoices") && (
-          <ListItem
-            button
-            component={Link}
-            sx={menuItemStyle}
-            to="/invoices"
-            onClick={toggleDrawer}
-          >
-            <ReceiptLongIcon sx={{ marginRight: "12px" }} />
-            <Typography variant="body1" style={{ fontSize: "14px" }}>
-              Invoices
-            </Typography>
-          </ListItem>
-        )}
-
-        {user && can("accessManagement") && (
-          <ListItem
-            button
-            component={Link}
-            sx={menuItemStyle}
-            to="/access-management"
-            onClick={toggleDrawer}
-          >
-            <AssignmentIcon sx={{ marginRight: "12px" }} />
-            <Typography variant="body1" style={{ fontSize: "14px" }}>
-              Access Management
-            </Typography>
-          </ListItem>
-        )}
-
-        {user && can("adminAccessRequests") && (
-          <ListItem
-            button
-            component={Link}
-            sx={menuItemStyle}
-            to="/admin-requests-admin"
-            onClick={toggleDrawer}
-          >
-            <AssignmentIcon sx={{ marginRight: "12px" }} />
-            <Typography variant="body1" style={{ fontSize: "14px" }}>
-              Admin Access Requests
-            </Typography>
-          </ListItem>
-        )}
-
-
-        {user && can("consultation") && (
-          <ListItem
-            button
-            component={Link}
-            sx={menuItemStyle}
-            to="/leadmanagement"
-            onClick={toggleDrawer}
-          >
-            <ChatBubbleIcon sx={{ marginRight: "12px" }} />
-            <Typography variant="body1" style={{ fontSize: "14px" }}>
-              Consultation
-            </Typography>
-          </ListItem>
-        )}
-
-        {user && can("whatsaapChats") && (
-          <ListItem
-            button
-            component={Link}
-            sx={menuItemStyle}
-            to="/whatsaap/chat"
-            onClick={toggleDrawer}
-          >
-            <WhatsAppIcon sx={{ marginRight: "12px" }} />
-            <Typography variant="body1" style={{ fontSize: "14px" }}>
-              Whatsapp Chats
-            </Typography>
-          </ListItem>
-        )}
-
-        {user && can("escalations") && (
-          <ListItem
-            button
-            component={Link}
-            to="/escalations"
-            sx={menuItemStyle}
-            onClick={toggleDrawer}
-          >
-            <AssignmentIcon sx={{ fontSize: 18, marginRight: "8px" }} />
-            <Typography variant="body1" sx={{ fontSize: "14px" }}>
-              Escalations
-            </Typography>
-          </ListItem>
-        )}
-
-        {user && hasTeam && can("team") && (
-          <ListItem
-            button
-            component={Link}
-            to="/team"
-            sx={menuItemStyle}
-            onClick={toggleDrawer}
-          >
-            <PersonIcon sx={{ marginRight: "12px" }} />
-            <Typography variant="body1" style={{ fontSize: "14px" }}>
-              Team
-            </Typography>
-          </ListItem>
-        )}
-
-        {user && can("abandonedCart") && (
-          <ListItem
-            button
-            component={Link}
-            to="/aband"
-            sx={menuItemStyle}
-            onClick={toggleDrawer}
-          >
-            <Inventory2Icon sx={{ fontSize: 18, marginRight: "8px" }} />
-            <Typography variant="body1" sx={{ fontSize: "14px" }}>
-              Abandoned Cart
-            </Typography>
-          </ListItem>
-        )}
-
-        {/* Order Confirmations dropdown */}
-        {user && can("orderConfirmationsMenu") && (
-          <>
-            <ListItem
-              button
-              onClick={() => handleDropdownClick("orderConfirmations")}
-              sx={dropdownStyle}
-            >
-              <Box sx={{ display: "flex", alignItems: "center" }}>
-                <ShoppingCartIcon sx={{ fontSize: 18, marginRight: "8px" }} />
-                <Typography variant="body1" sx={{ fontSize: "14px" }}>
-                  Order Confirmations
-                </Typography>
-              </Box>
-              {openDropdown.orderConfirmations ? (
-                <KeyboardArrowDownIcon />
-              ) : (
-                <KeyboardArrowRightIcon />
-              )}
-            </ListItem>
-
-            <Collapse
-              in={openDropdown.orderConfirmations}
-              timeout="auto"
-              unmountOnExit
-            >
-              <List sx={nestedListStyle}>
-                {can("orderConfirmationPage") && (
-                  <ListItem
-                    button
-                    component={Link}
-                    to="/order-confirmations"
-                    onClick={toggleDrawer}
-                  >
-                    <Typography variant="body2" sx={{ fontSize: "13px" }}>
-                      Order Confirmation
-                    </Typography>
-                  </ListItem>
-                )}
-
-                {can("orderAnalyticsPage") && (
-                  <ListItem
-                    button
-                    component={Link}
-                    to="/order-confirmations/analytics"
-                    onClick={toggleDrawer}
-                  >
-                    <Typography variant="body2" sx={{ fontSize: "13px" }}>
-                      Order Analytics
-                    </Typography>
-                  </ListItem>
-                )}
-              </List>
-            </Collapse>
-          </>
-        )}
-
-        {user && can("unassignedDeliveredOrders") && (
-          <ListItem
-            button
-            component={Link}
-            sx={menuItemStyle}
-            to="/unassigned-delivered-orders"
-            onClick={toggleDrawer}
-          >
-            <LocalShippingIcon sx={{ marginRight: "12px" }} />
-            <Typography variant="body1" style={{ fontSize: "14px" }}>
-              Unassigned Delivered Orders
-            </Typography>
-          </ListItem>
-        )}
-
-        {/* My RTOs */}
-        {user && can("myRTOs") && (
-          <ListItem
-            button
-            component={Link}
-            to="/Agent-return"
-            sx={menuItemStyle}
-            onClick={toggleDrawer}
-          >
-            <AssignmentReturnedIcon
-              sx={{ fontSize: 24, marginRight: "12px" }}
-            />
-            <Typography variant="body1" style={{ fontSize: "14px" }}>
-              MY RTOs
-            </Typography>
-          </ListItem>
-        )}
-
-        {/* Manager / Admin-type stuff via permissions (no role check) */}
-        {user && can("addEmployee") && (
-          <ListItem
-            button
-            component={Link}
-            to="/add-employee"
-            sx={menuItemStyle}
-            onClick={toggleDrawer}
-          >
-            <PersonAddIcon sx={{ fontSize: 18, marginRight: "8px" }} />
-            <Typography variant="body1" sx={{ fontSize: "14px" }}>
-              Add Employee
-            </Typography>
-          </ListItem>
-        )}
-
-        {user && can("masterDataMenu") && (
-          <>
-            <ListItem
-              button
-              onClick={() => handleDropdownClick("masterData")}
-              sx={dropdownStyle}
-            >
-              <Box sx={{ display: "flex", alignItems: "center" }}>
-                <FolderIcon sx={{ fontSize: 18, marginRight: "8px" }} />
-                <Typography variant="body1" sx={{ fontSize: "14px" }}>
-                  Master Data
-                </Typography>
-              </Box>
-              {openDropdown.masterData ? (
-                <KeyboardArrowDownIcon />
-              ) : (
-                <KeyboardArrowRightIcon />
-              )}
-            </ListItem>
-            <Collapse in={openDropdown.masterData} timeout="auto" unmountOnExit>
-              <List sx={nestedListStyle}>
-                {can("masterAllLeads") && (
-                  <ListItem
-                    button
-                    component={Link}
-                    to="/master/leads"
-                    onClick={toggleDrawer}
-                  >
-                    <Typography
-                      variant="body2"
-                      sx={{ fontSize: "13px" }}
-                      onClick={toggleDrawer}
-                    >
-                      All Leads
-                    </Typography>
-                  </ListItem>
-                )}
-                {can("masterRetentionLeads") && (
-                  <ListItem
-                    button
-                    component={Link}
-                    to="/master/retention"
-                    onClick={toggleDrawer}
-                  >
-                    <Typography variant="body2" sx={{ fontSize: "13px" }}>
-                      Retention Leads
-                    </Typography>
-                  </ListItem>
-                )}
-                {can("masterRetentionOrders") && (
-                  <ListItem
-                    button
-                    component={Link}
-                    to="/master/retention-orders"
-                    onClick={toggleDrawer}
-                  >
-                    <Typography variant="body2" sx={{ fontSize: "13px" }}>
-                      Retention Orders
-                    </Typography>
-                  </ListItem>
-                )}
-                {can("masterNewOrders") && (
-                  <ListItem
-                    button
-                    component={Link}
-                    to="/master/new-orders"
-                    onClick={toggleDrawer}
-                  >
-                    <Typography variant="body2" sx={{ fontSize: "13px" }}>
-                      Acquisition Orders
-                    </Typography>
-                  </ListItem>
-                )}
-                {can("masterDuplicates") && (
-                  <ListItem
-                    button
-                    component={Link}
-                    to="/master/Duplicates"
-                    onClick={toggleDrawer}
-                  >
-                    <Typography variant="body2" sx={{ fontSize: "13px" }}>
-                      Duplicate Data
-                    </Typography>
-                  </ListItem>
-                )}
-              </List>
-            </Collapse>
-          </>
-        )}
-
-        {user && can("lostDataMenu") && (
-          <>
-            <ListItem
-              button
-              onClick={() => handleDropdownClick("lostData")}
-              sx={dropdownStyle}
-            >
-              <Box sx={{ display: "flex", alignItems: "center" }}>
-                <DeleteIcon sx={{ fontSize: 18, marginRight: "8px" }} />
-                <Typography variant="body1" sx={{ fontSize: "14px" }}>
-                  Lost Data
-                </Typography>
-              </Box>
-              {openDropdown.lostData ? (
-                <KeyboardArrowDownIcon />
-              ) : (
-                <KeyboardArrowRightIcon />
-              )}
-            </ListItem>
-
-            <Collapse
-              in={openDropdown.lostData}
-              timeout="auto"
-              unmountOnExit
-            >
-              <List sx={nestedListStyle}>
-                {can("lostAcquisition") && (
-                  <ListItem
-                    button
-                    component={Link}
-                    to="/lost/acquisition"
-                    onClick={toggleDrawer}
-                  >
-                    <Typography variant="body2" sx={{ fontSize: "13px" }}>
-                      Acquisition Lost
-                    </Typography>
-                  </ListItem>
-                )}
-                {can("lostRetention") && (
-                  <ListItem
-                    button
-                    component={Link}
-                    to="/lost/retention"
-                    onClick={toggleDrawer}
-                  >
-                    <Typography variant="body2" sx={{ fontSize: "13px" }}>
-                      Retention Lost
-                    </Typography>
-                  </ListItem>
-                )}
-              </List>
-            </Collapse>
-          </>
-        )}
-
-        {user && can("onlineOrders") && (
-          <ListItem
-            button
-            component={Link}
-            to="/online-orders"
-            sx={menuItemStyle}
-            onClick={toggleDrawer}
-          >
-            <ShoppingCartIcon sx={{ fontSize: 18, marginRight: "8px" }} />
-            <Typography variant="body1" sx={{ fontSize: "14px" }}>
-              Online Orders
-            </Typography>
-          </ListItem>
-        )}
-
-        {/* Sales Agent dropdown */}
-        {user && can("salesAgentMenu") && (
-          <>
-            <ListItem
-              button
-              onClick={() => handleDropdownClick("salesAgent")}
-              sx={dropdownStyle}
-            >
-              <Box sx={{ display: "flex", alignItems: "center" }}>
-                <PersonIcon sx={{ fontSize: 18, marginRight: "10px" }} />
-                <Typography variant="body1" sx={{ fontSize: "14px" }}>
-                  Sales Agent
-                </Typography>
-              </Box>
-              {openDropdown.salesAgent ? (
-                <KeyboardArrowDownIcon />
-              ) : (
-                <KeyboardArrowRightIcon />
-              )}
-            </ListItem>
-
-            <Collapse
-              in={openDropdown.salesAgent}
-              timeout="auto"
-              unmountOnExit
-            >
-              <List sx={nestedListStyle}>
-                {can("salesMyLeads") && (
-                  <ListItem
-                    button
-                    component={Link}
-                    to="/sales/my-leads"
-                    onClick={toggleDrawer}
-                  >
-                    <Typography variant="body2" sx={{ fontSize: "13px" }}>
-                      My Leads
-                    </Typography>
-                  </ListItem>
-                )}
-
-                {can("salesMySales") && (
-                  <ListItem
-                    button
-                    component={Link}
-                    to="/sales/my-sales"
-                    onClick={toggleDrawer}
-                  >
-                    <Typography variant="body2" sx={{ fontSize: "13px" }}>
-                      My Sales
-                    </Typography>
-                  </ListItem>
-                )}
-              </List>
-            </Collapse>
-          </>
-        )}
-
-        {/* Retention Agent dropdown */}
-        {user && can("retentionAgentMenu") && (
-          <>
-            <ListItem
-              button
-              onClick={() => handleDropdownClick("retentionAgent")}
-              sx={dropdownStyle}
-            >
-              <Box sx={{ display: "flex", alignItems: "center" }}>
-                <PersonIcon sx={{ fontSize: 18, marginRight: "10px" }} />
-                <Typography variant="body1" sx={{ fontSize: "14px" }}>
-                  Retention Agent
-                </Typography>
-              </Box>
-              <Box
-                sx={{
-                  width: "24px",
-                  display: "flex",
-                  justifyContent: "center",
-                }}
-              >
-                {openDropdown.retentionAgent ? (
-                  <KeyboardArrowDownIcon />
-                ) : (
-                  <KeyboardArrowRightIcon />
-                )}
-              </Box>
-            </ListItem>
-
-            <Collapse
-              in={openDropdown.retentionAgent}
-              timeout="auto"
-              unmountOnExit
-            >
-              <List sx={nestedListStyle}>
-                {can("retentionLeads") && (
-                  <ListItem
-                    button
-                    component={Link}
-                    to="/retention/leads"
-                    onClick={toggleDrawer}
-                  >
-                    <Typography variant="body2" sx={{ fontSize: "13px" }}>
-                      Retention Leads
-                    </Typography>
-                  </ListItem>
-                )}
-
-                {can("retentionSales") && (
-                  <ListItem
-                    button
-                    component={Link}
-                    to="/retention/sales"
-                    onClick={toggleDrawer}
-                  >
-                    <Typography variant="body2" sx={{ fontSize: "13px" }}>
-                      Retention Sales
-                    </Typography>
-                  </ListItem>
-                )}
-              </List>
-            </Collapse>
-          </>
-        )}
-
-        {/* Task Manager dropdown */}
-        {user && can("taskManagerMenu") && (
-          <>
-            <ListItem
-              button
-              onClick={() => handleDropdownClick("taskManager")}
-              sx={dropdownStyle}
-            >
-              <Box sx={{ display: "flex", alignItems: "center" }}>
-                <CheckBoxIcon sx={{ marginRight: "12px" }} />
-                <Typography variant="body1" sx={{ fontSize: "14px" }}>
-                  Task Manager
-                </Typography>
-              </Box>
-              {openDropdown.taskManager ? (
-                <KeyboardArrowDownIcon />
-              ) : (
-                <KeyboardArrowRightIcon />
-              )}
-            </ListItem>
-
-            <Collapse
-              in={openDropdown.taskManager}
-              timeout="auto"
-              unmountOnExit
-            >
-              <List sx={nestedListStyle}>
-                {can("taskBoard") && (
-                  <ListItem
-                    button
-                    component={Link}
-                    to="/task-board"
-                    onClick={toggleDrawer}
-                  >
-                    <Typography variant="body2" sx={{ fontSize: "13px" }}>
-                      Task Management
-                    </Typography>
-                  </ListItem>
-                )}
-
-                {can("myReporting") && (
-                  <ListItem
-                    button
-                    component={Link}
-                    to="/my-reporting"
-                    onClick={toggleDrawer}
-                  >
-                    <Typography variant="body2" sx={{ fontSize: "13px" }}>
-                      My Reporting
-                    </Typography>
-                  </ListItem>
-                )}
-              </List>
-            </Collapse>
-          </>
-        )}
-
-        {/* Smartflo dropdown */}
-        {user && can("smartfloMenu") && (
-          <>
-            <ListItem
-              button
-              onClick={() => handleDropdownClick("smartflo")}
-              sx={dropdownStyle}
-            >
-              <Box sx={{ display: "flex", alignItems: "center" }}>
-                <PhoneInTalkIcon sx={{ fontSize: 20, marginRight: "12px" }} />
-                <Typography variant="body1" sx={{ fontSize: "14px" }}>
-                  Smartflo
-                </Typography>
-              </Box>
-              {openDropdown.smartflo ? (
-                <KeyboardArrowDownIcon />
-              ) : (
-                <KeyboardArrowRightIcon />
-              )}
-            </ListItem>
-
-            <Collapse in={openDropdown.smartflo} timeout="auto" unmountOnExit>
-              <List sx={nestedListStyle}>
-                {can("smartfloCallLogs") && (
-                  <ListItem
-                    button
-                    component={Link}
-                    to="/smartflo/call-logs"
-                    onClick={toggleDrawer}
-                  >
-                    <Typography variant="body2" sx={{ fontSize: "13px" }}>
-                      Call Logs
-                    </Typography>
-                  </ListItem>
-                )}
-                {can("smartfloDataAnalytics") && (
-                  <ListItem
-                    button
-                    component={Link}
-                    to="/smartflo/data-analytics"
-                    onClick={toggleDrawer}
-                  >
-                    <Typography variant="body2" sx={{ fontSize: "13px" }}>
-                      Data Analytics
-                    </Typography>
-                  </ListItem>
-                )}
-              </List>
-            </Collapse>
-          </>
-        )}
-
-        {user && can("allAnalyticsMenu") && (
-          <>
-            <ListItem
-              button
-              onClick={() => handleDropdownClick("analytics")}
-              sx={dropdownStyle}
-            >
-              <Box sx={{ display: "flex", alignItems: "center" }}>
-                <QueryStatsIcon sx={{ fontSize: 22, marginRight: "12px" }} />
-                <Typography variant="body1" sx={{ fontSize: "14px" }}>
-                  Analytics
-                </Typography>
-              </Box>
-              {openDropdown.analytics ? (
-                <KeyboardArrowDownIcon />
-              ) : (
-                <KeyboardArrowRightIcon />
-              )}
-            </ListItem>
-
-            <Collapse in={openDropdown.analytics} timeout="auto" unmountOnExit>
-              <List sx={nestedListStyle}>
-                {can("superAdminAnalytics") && (
-                  <ListItem
-                    button
-                    component={Link}
-                    to="/super-admin-analytics"
-                    onClick={toggleDrawer}
-                  >
-                    <Typography variant="body2" sx={{ fontSize: "13px" }}>
-                      Super Admin Analytics
-                    </Typography>
-                  </ListItem>
-                )}
-
-                {can("abandonedAnalytics") && (
-                  <ListItem
-                    button
-                    component={Link}
-                    to="/abandoned-analytics"
-                    onClick={toggleDrawer}
-                  >
-                    <Typography variant="body2" sx={{ fontSize: "13px" }}>
-                      Abandoned Analytics
-                    </Typography>
-                  </ListItem>
-                )}
-              </List>
-            </Collapse>
-          </>
-        )}
-
-        {/* Finance-related menus */}
-        {user && can("financeOrderSummary") && (
-          <ListItem
-            button
-            component={Link}
-            to="/order-summary"
-            sx={menuItemStyle}
-            onClick={toggleDrawer}
-          >
-            <FactCheckIcon sx={{ fontSize: 18, marginRight: "8px" }} />
-            <Typography variant="body1" sx={{ fontSize: "14px" }}>
-              Order Summary
-            </Typography>
-          </ListItem>
-        )}
-
-        {user && can("financePrepaidRemittanceMenu") && (
-          <>
-            <ListItem
-              button
-              onClick={() => handleDropdownClick("paymentGateway")}
-              sx={dropdownStyle}
-            >
-              <Box sx={{ display: "flex", alignItems: "center" }}>
-                <CompareArrowsIcon sx={{ fontSize: 18, marginRight: "8px" }} />
-                <Typography variant="body1" sx={{ fontSize: "14px" }}>
-                  Prepaid Remittance
-                </Typography>
-              </Box>
-              {openDropdown.paymentGateway ? (
-                <KeyboardArrowDownIcon />
-              ) : (
-                <KeyboardArrowRightIcon />
-              )}
-            </ListItem>
-
-            <Collapse
-              in={openDropdown.paymentGateway}
-              timeout="auto"
-              unmountOnExit
-            >
-              <List sx={nestedListStyle}>
-                {can("financePrepaidRazorpay") && (
-                  <ListItem
-                    button
-                    component={Link}
-                    to="/gateway/razorpay"
-                    onClick={toggleDrawer}
-                  >
-                    <Typography variant="body2" sx={{ fontSize: "13px" }}>
-                      Razorpay
-                    </Typography>
-                  </ListItem>
-                )}
-                {can("financePrepaidPhonePe") && (
-                  <ListItem
-                    button
-                    component={Link}
-                    to="/gateway/phonepe"
-                    onClick={toggleDrawer}
-                  >
-                    <Typography variant="body2" sx={{ fontSize: "13px" }}>
-                      PhonePe
-                    </Typography>
-                  </ListItem>
-                )}
-                {can("financePrepaidEasebuzz") && (
-                  <ListItem
-                    button
-                    component={Link}
-                    to="/gateway/easebuzz"
-                    onClick={toggleDrawer}
-                  >
-                    <Typography variant="body2" sx={{ fontSize: "13px" }}>
-                      Easebuzz
-                    </Typography>
-                  </ListItem>
-                )}
-                {can("financePrepaidCashfree") && (
-                  <ListItem
-                    button
-                    component={Link}
-                    to="/gateway/cashfree"
-                    onClick={toggleDrawer}
-                  >
-                    <Typography variant="body2" sx={{ fontSize: "13px" }}>
-                      Cashfree
-                    </Typography>
-                  </ListItem>
-                )}
-
-                {can("financePrepaidBankTransfer") && (
-                  <ListItem
-                    button
-                    component={Link}
-                    to="/gateway/bank-transfer"
-                    onClick={toggleDrawer}
-                  >
-                    <Typography variant="body2" sx={{ fontSize: "13px" }}>
-                      Bank Transfer
-                    </Typography>
-                  </ListItem>
-                )}
-              </List>
-            </Collapse>
-          </>
-        )}
-
-        {user && can("marketingMenu") && (
-          <>
-            <ListItem
-              button
-              onClick={() => handleDropdownClick("marketingDropdown")}
-              sx={dropdownStyle}
-            >
-              <Box sx={{ display: "flex", alignItems: "center" }}>
-                <StorefrontIcon sx={{ fontSize: 18, marginRight: "8px" }} />
-                <Typography variant="body1" sx={{ fontSize: "14px" }}>
-                  Scripted Videos
-                </Typography>
-              </Box>
-              {openDropdown.marketingDropdown ? (
-                <KeyboardArrowDownIcon />
-              ) : (
-                <KeyboardArrowRightIcon />
-              )}
-            </ListItem>
-
-            <Collapse
-              in={openDropdown.marketingDropdown}
-              timeout="auto"
-              unmountOnExit
-            >
-              <List sx={nestedListStyle}>
-                {can("scriptPage") && (
-                  <ListItem
-                    button
-                    component={Link}
-                    to="/marketing/script"
-                    onClick={toggleDrawer}
-                  >
-                    <Typography variant="body2" sx={{ fontSize: "13px" }}>
-                      Script
-                    </Typography>
-                  </ListItem>
-                )}
-                {can("shootPage") && (
-                  <ListItem
-                    button
-                    component={Link}
-                    to="/marketing/shoot"
-                    onClick={toggleDrawer}
-                  >
-                    <Typography variant="body2" sx={{ fontSize: "13px" }}>
-                      Shoot
-                    </Typography>
-                  </ListItem>
-                )}
-                {can("cutPage") && (
-                  <ListItem
-                    button
-                    component={Link}
-                    to="/marketing/cut"
-                    onClick={toggleDrawer}
-                  >
-                    <Typography variant="body2" sx={{ fontSize: "13px" }}>
-                      Cut
-                    </Typography>
-                  </ListItem>
-                )}
-
-                {can("editPage") && (
-                  <ListItem
-                    button
-                    component={Link}
-                    to="/marketing/edit"
-                    onClick={toggleDrawer}
-                  >
-                    <Typography variant="body2" sx={{ fontSize: "13px" }}>
-                      Edit
-                    </Typography>
-                  </ListItem>
-                )}
-                {can("postPage") && (
-                  <ListItem
-                    button
-                    component={Link}
-                    to="/marketing/post"
-                    onClick={toggleDrawer}
-                  >
-                    <Typography variant="body2" sx={{ fontSize: "13px" }}>
-                      Post
-                    </Typography>
-                  </ListItem>
-                )}
-              </List>
-            </Collapse>
-          </>
-        )}
-
-        {user && can("OthervideoMenu") && (
-          <>
-            <ListItem
-              button
-              onClick={() => handleDropdownClick("othervideoDropdown")}
-              sx={dropdownStyle}
-            >
-              <Box sx={{ display: "flex", alignItems: "center" }}>
-                <VideoLibraryIcon sx={{ fontSize: 18, marginRight: "8px" }} />
-                <Typography variant="body1" sx={{ fontSize: "14px" }}>
-                  Other Video
-                </Typography>
-              </Box>
-              {openDropdown.othervideoDropdown ? (
-                <KeyboardArrowDownIcon />
-              ) : (
-                <KeyboardArrowRightIcon />
-              )}
-            </ListItem>
-
-            <Collapse
-              in={openDropdown.othervideoDropdown}
-              timeout="auto"
-              unmountOnExit
-            >
-              <List sx={nestedListStyle}>
-                {can("OtherscriptPage") && (
-                  <ListItem
-                    button
-                    component={Link}
-                    to="/OtherVideo/Ideation"
-                    onClick={toggleDrawer}
-                  >
-                    <Typography variant="body2" sx={{ fontSize: "13px" }}>
-                      Ideation
-                    </Typography>
-                  </ListItem>
-                )}
-                {can("OthershootPage") && (
-                  <ListItem
-                    button
-                    component={Link}
-                    to="/OtherVideo/shoot"
-                    onClick={toggleDrawer}
-                  >
-                    <Typography variant="body2" sx={{ fontSize: "13px" }}>
-                      Shoot
-                    </Typography>
-                  </ListItem>
-                )}
-                {can("OthercutPage") && (
-                  <ListItem
-                    button
-                    component={Link}
-                    to="/OtherVideo/cut"
-                    onClick={toggleDrawer}
-                  >
-                    <Typography variant="body2" sx={{ fontSize: "13px" }}>
-                      Cut
-                    </Typography>
-                  </ListItem>
-                )}
-
-                {can("OthereditPage") && (
-                  <ListItem
-                    button
-                    component={Link}
-                    to="/OtherVideo/edit"
-                    onClick={toggleDrawer}
-                  >
-                    <Typography variant="body2" sx={{ fontSize: "13px" }}>
-                      Edit
-                    </Typography>
-                  </ListItem>
-                )}
-                {can("OtherpostPage") && (
-                  <ListItem
-                    button
-                    component={Link}
-                    to="/OtherVideo/post"
-                    onClick={toggleDrawer}
-                  >
-                    <Typography variant="body2" sx={{ fontSize: "13px" }}>
-                      Post
-                    </Typography>
-                  </ListItem>
-                )}
-              </List>
-            </Collapse>
-          </>
-        )}
-
-        {user && can("StaticCarouselMenu") && (
-          <>
-            <ListItem
-              button
-              onClick={() => handleDropdownClick("StaticCarouselDropdown")}
-              sx={dropdownStyle}
-            >
-              <Box sx={{ display: "flex", alignItems: "center" }}>
-                <ViewCarouselIcon sx={{ fontSize: 18, marginRight: "8px" }} />
-                <Typography variant="body1" sx={{ fontSize: "14px" }}>
-                  Static Carousel
-                </Typography>
-              </Box>
-              {openDropdown.StaticCarouselDropdown ? (
-                <KeyboardArrowDownIcon />
-              ) : (
-                <KeyboardArrowRightIcon />
-              )}
-            </ListItem>
-
-            <Collapse
-              in={openDropdown.StaticCarouselDropdown}
-              timeout="auto"
-              unmountOnExit
-            >
-              <List sx={nestedListStyle}>
-                {can("StaticCarouselscriptPage") && (
-                  <ListItem
-                    button
-                    component={Link}
-                    to="/staticCarousel/Ideation"
-                    onClick={toggleDrawer}
-                  >
-                    <Typography variant="body2" sx={{ fontSize: "13px" }}>
-                      Ideation
-                    </Typography>
-                  </ListItem>
-                )}
-                {can("StaticCarouselshootPage") && (
-                  <ListItem
-                    button
-                    component={Link}
-                    to="/staticCarousel/shoot"
-                    onClick={toggleDrawer}
-                  >
-                    <Typography variant="body2" sx={{ fontSize: "13px" }}>
-                      Shoot
-                    </Typography>
-                  </ListItem>
-                )}
-                {can("StaticCarouselcutPage") && (
-                  <ListItem
-                    button
-                    component={Link}
-                    to="/staticCarousel/cut"
-                    onClick={toggleDrawer}
-                  >
-                    <Typography variant="body2" sx={{ fontSize: "13px" }}>
-                      Cut
-                    </Typography>
-                  </ListItem>
-                )}
-
-                {can("StaticCarouseleditPage") && (
-                  <ListItem
-                    button
-                    component={Link}
-                    to="/staticCarousel/edit"
-                    onClick={toggleDrawer}
-                  >
-                    <Typography variant="body2" sx={{ fontSize: "13px" }}>
-                      Edit
-                    </Typography>
-                  </ListItem>
-                )}
-                {can("StaticCarouselpostPage") && (
-                  <ListItem
-                    button
-                    component={Link}
-                    to="/staticCarousel/post"
-                    onClick={toggleDrawer}
-                  >
-                    <Typography variant="body2" sx={{ fontSize: "13px" }}>
-                      Post
-                    </Typography>
-                  </ListItem>
-                )}
-              </List>
-            </Collapse>
-          </>
-        )}
-
-        {user && can("adsMenu") && (
-          <>
-            <ListItem
-              button
-              onClick={() => handleDropdownClick("AdsDropdown")}
-              sx={dropdownStyle}
-            >
-              <Box sx={{ display: "flex", alignItems: "center" }}>
-                <CampaignIcon sx={{ fontSize: 18, marginRight: "8px" }} />
-                <Typography variant="body1" sx={{ fontSize: "14px" }}>
-                  Ads
-                </Typography>
-              </Box>
-              {openDropdown.AdsDropdown ? (
-                <KeyboardArrowDownIcon />
-              ) : (
-                <KeyboardArrowRightIcon />
-              )}
-            </ListItem>
-
-            <Collapse
-              in={openDropdown.AdsDropdown}
-              timeout="auto"
-              unmountOnExit
-            >
-              <List sx={nestedListStyle}>
-                {can("adsscriptPage") && (
-                  <ListItem
-                    button
-                    component={Link}
-                    to="/Ads/Ideation"
-                    onClick={toggleDrawer}
-                  >
-                    <Typography variant="body2" sx={{ fontSize: "13px" }}>
-                      Ideation
-                    </Typography>
-                  </ListItem>
-                )}
-                {can("adsshootPage") && (
-                  <ListItem
-                    button
-                    component={Link}
-                    to="/Ads/shoot"
-                    onClick={toggleDrawer}
-                  >
-                    <Typography variant="body2" sx={{ fontSize: "13px" }}>
-                      Shoot
-                    </Typography>
-                  </ListItem>
-                )}
-                {can("adscutPage") && (
-                  <ListItem
-                    button
-                    component={Link}
-                    to="/Ads/cut"
-                    onClick={toggleDrawer}
-                  >
-                    <Typography variant="body2" sx={{ fontSize: "13px" }}>
-                      Cut
-                    </Typography>
-                  </ListItem>
-                )}
-
-                {can("adseditPage") && (
-                  <ListItem
-                    button
-                    component={Link}
-                    to="/Ads/edit"
-                    onClick={toggleDrawer}
-                  >
-                    <Typography variant="body2" sx={{ fontSize: "13px" }}>
-                      Edit
-                    </Typography>
-                  </ListItem>
-                )}
-                {can("adspostPage") && (
-                  <ListItem
-                    button
-                    component={Link}
-                    to="/Ads/post"
-                    onClick={toggleDrawer}
-                  >
-                    <Typography variant="body2" sx={{ fontSize: "13px" }}>
-                      Post
-                    </Typography>
-                  </ListItem>
-                )}
-              </List>
-            </Collapse>
-          </>
-        )}
-
-        {user && can("financeCodRemittanceMenu") && (
-          <>
-            <ListItem
-              button
-              onClick={() => handleDropdownClick("remittance")}
-              sx={dropdownStyle}
-            >
-              <Box sx={{ display: "flex", alignItems: "center" }}>
-                <TrendingUpIcon sx={{ fontSize: 18, marginRight: "8px" }} />
-                <Typography variant="body1" sx={{ fontSize: "14px" }}>
-                  COD Remittance
-                </Typography>
-              </Box>
-              {openDropdown.remittance ? (
-                <KeyboardArrowDownIcon />
-              ) : (
-                <KeyboardArrowRightIcon />
-              )}
-            </ListItem>
-
-            <Collapse in={openDropdown.remittance} timeout="auto" unmountOnExit>
-              <List sx={nestedListStyle}>
-                {can("financeCodBluedart") && (
-                  <ListItem
-                    button
-                    component={Link}
-                    to="/remittance/bluedart"
-                    onClick={toggleDrawer}
-                  >
-                    <Typography variant="body2" sx={{ fontSize: "13px" }}>
-                      Bluedart
-                    </Typography>
-                  </ListItem>
-                )}
-                {can("financeCodDTDC") && (
-                  <ListItem
-                    button
-                    component={Link}
-                    to="/remittance/dtdc"
-                    onClick={toggleDrawer}
-                  >
-                    <Typography variant="body2" sx={{ fontSize: "13px" }}>
-                      DTDC
-                    </Typography>
-                  </ListItem>
-                )}
-                {can("financeCodDelhivery") && (
-                  <ListItem
-                    button
-                    component={Link}
-                    to="/remittance/delhivery"
-                    onClick={toggleDrawer}
-                  >
-                    <Typography variant="body2" sx={{ fontSize: "13px" }}>
-                      Delhivery
-                    </Typography>
-                  </ListItem>
-                )}
-                {can("financeCodShiprocket") && (
-                  <ListItem
-                    button
-                    component={Link}
-                    to="/remittance/shiprocket"
-                    onClick={toggleDrawer}
-                  >
-                    <Typography variant="body2" sx={{ fontSize: "13px" }}>
-                      Shiprocket
-                    </Typography>
-                  </ListItem>
-                )}
-              </List>
-            </Collapse>
-          </>
-        )}
-
-        {user && can("incentivesWallet") && (
-          <>
-            <ListItem
-              button
-              onClick={() => handleDropdownClick("incentivesWallet")}
-              sx={dropdownStyle}
-            >
-              <Box sx={{ display: "flex", alignItems: "center" }}>
-                <AccountBalanceWalletOutlinedIcon
-                  sx={{ fontSize: 18, marginRight: "8px" }}
-                />
-                <Typography variant="body1" sx={{ fontSize: "14px" }}>
-                  Wallet
-                </Typography>
-              </Box>
-              {openDropdown.incentivesWallet ? (
-                <KeyboardArrowDownIcon />
-              ) : (
-                <KeyboardArrowRightIcon />
-              )}
-            </ListItem>
-
-            <Collapse in={openDropdown.incentivesWallet} timeout="auto" unmountOnExit>
-              <List sx={nestedListStyle}>
-                {can("incentivesWallet") && (
-                  <ListItem
-                    button
-                    component={Link}
-                    to="/incentives"
-                    onClick={toggleDrawer}
-                  >
-                    <Typography variant="body2" sx={{ fontSize: "13px" }}>
-                      Incentives Details
-                    </Typography>
-                  </ListItem>
-                )}
-
-                {can("sops") && (
-                  <ListItem
-                    button
-                    component={Link}
-                    to="/SOP-creation"
-                    onClick={toggleDrawer}
-                  >
-                    <Typography variant="body2" sx={{ fontSize: "13px" }}>
-                      SOPs
-                    </Typography>
-                  </ListItem>
-                )}
-
-                {can("RewardsAdminPage") && (
-                  <ListItem
-                    button
-                    component={Link}
-                    to="/Rewards-Admin-Page"
-                    onClick={toggleDrawer}
-                  >
-                    <Typography variant="body2" sx={{ fontSize: "13px" }}>
-                      Rewards Creation
-                    </Typography>
-                  </ListItem>
-                )}
-              </List>
-            </Collapse>
-          </>
-        )}
-
-        {/* Operations */}
-        {user && can("opsUndeliveredOrders") && (
-          <ListItem
-            button
-            component={Link}
-            to="/operations/undelivered-orders"
-            sx={menuItemStyle}
-            onClick={toggleDrawer}
-          >
-            <ErrorOutlineIcon sx={{ fontSize: 20, marginRight: "12px" }} />
-            <Typography variant="body1" style={{ fontSize: "14px" }}>
-              Undelivered Orders
-            </Typography>
-          </ListItem>
-        )}
-
-        {user && can("opsRtoDelivered") && (
-          <ListItem
-            button
-            component={Link}
-            to="/operations/rto-delivered"
-            sx={menuItemStyle}
-            onClick={toggleDrawer}
-          >
-            <LocalShippingIcon sx={{ fontSize: 20, marginRight: "12px" }} />
-            <Typography variant="body1" style={{ fontSize: "14px" }}>
-              RTO Delivered
-            </Typography>
-          </ListItem>
-        )}
-
-        {user && can("opsEmailUndelivered") && (
-          <ListItem
-            button
-            component={Link}
-            to="/operations/undelivered"
-            sx={menuItemStyle}
-            onClick={toggleDrawer}
-          >
-            <EmailIcon sx={{ fontSize: 20, marginRight: "12px" }} />
-            <Typography variant="body1" style={{ fontSize: "14px" }}>
-              Email Undelivered
-            </Typography>
-          </ListItem>
-        )}
-
-        {user && can("opsOnlyOrderConfirmation") && (
-          <ListItem
-            button
-            component={Link}
-            to="/only-order-confirmation"
-            sx={menuItemStyle}
-            onClick={toggleDrawer}
-          >
-            <AssignmentTurnedInIcon sx={{ fontSize: 20, marginRight: "12px" }} />
-            <Typography variant="body1" style={{ fontSize: "14px" }}>
-              Only Order Confirmation
-            </Typography>
-          </ListItem>
-        )}
-
-
-        {user && can("deliveredSalesRecord") && (
-          <ListItem
-            button
-            component={Link}
-            to="/delivered-sales-record"
-            sx={menuItemStyle}
-            onClick={toggleDrawer}
-          >
-            <FactCheckIcon sx={{ fontSize: 20, marginRight: "12px" }} />
-            <Typography variant="body1" style={{ fontSize: "14px" }}>
-              Delivered Sales Record
-            </Typography>
-          </ListItem>
-        )}
-
-        {/* HR - Assets */}
-        {user && can("hrAddNewAssets") && (
-          <ListItem
-            button
-            component={Link}
-            to="/add-new-asset"
-            sx={menuItemStyle}
-            onClick={toggleDrawer}
-          >
-            <Inventory2Icon sx={{ fontSize: 20, marginRight: "12px" }} />
-            <Typography variant="body1" style={{ fontSize: "14px" }}>
-              Add New Assets
-            </Typography>
-          </ListItem>
-        )}
-
-        {user && can("hrAssetAllotment") && (
-          <ListItem
-            button
-            component={Link}
-            to="/AssetAllotment"
-            sx={menuItemStyle}
-            onClick={toggleDrawer}
-          >
-            <Inventory2Icon sx={{ fontSize: 20, marginRight: "12px" }} />
-            <Typography variant="body1" style={{ fontSize: "14px" }}>
-              Asset Allotment
-            </Typography>
-          </ListItem>
-        )}
-
-        {user && can("myAssets") && (
-          <ListItem
-            button
-            component={Link}
-            to="/my-assets"
-            sx={menuItemStyle}
-            onClick={toggleDrawer}
-          >
-            <Inventory2Icon sx={{ marginRight: "12px" }} />
-            <Typography variant="body1" sx={{ fontSize: "14px" }}>
-              My Assets
-            </Typography>
-          </ListItem>
-        )}
-
-        {/* Finance records */}
-        {user && can("financeRecordsMenu") && (
-          <>
-            <ListItem
-              button
-              onClick={() => handleDropdownClick("records")}
-              sx={dropdownStyle}
-            >
-              <Box sx={{ display: "flex", alignItems: "center" }}>
-                <AnalyticsIcon sx={{ fontSize: 20, marginRight: "12px" }} />
-                <Typography variant="body1" sx={{ fontSize: "14px" }}>
-                  Records
-                </Typography>
-              </Box>
-              {openDropdown.records ? (
-                <KeyboardArrowDownIcon />
-              ) : (
-                <KeyboardArrowRightIcon />
-              )}
-            </ListItem>
-
-            <Collapse in={openDropdown.records} timeout="auto" unmountOnExit>
-              <List sx={nestedListStyle}>
-                {can("financePurchaseRecords") && (
-                  <ListItem
-                    button
-                    component={Link}
-                    to="/purchase-record"
-                    onClick={toggleDrawer}
-                  >
-                    <Typography variant="body2" sx={{ fontSize: "13px" }}>
-                      Purchase Records
-                    </Typography>
-                  </ListItem>
-                )}
-
-                {can("financePaymentRecords") && (
-                  <ListItem
-                    button
-                    component={Link}
-                    to="/payment-record"
-                    onClick={toggleDrawer}
-                  >
-                    <Typography variant="body2" sx={{ fontSize: "13px" }}>
-                      Payment Records
-                    </Typography>
-                  </ListItem>
-                )}
-
-                {can("financeVendors") && (
-                  <ListItem
-                    button
-                    component={Link}
-                    to="/vendors"
-                    onClick={toggleDrawer}
-                  >
-                    <Typography variant="body2" sx={{ fontSize: "13px" }}>
-                      My Vendors
-                    </Typography>
-                  </ListItem>
-                )}
-              </List>
-            </Collapse>
-          </>
-        )}
-
-        {user && can("financeBankReconciliationMenu") && (
-          <>
-            <ListItem
-              button
-              onClick={() => handleDropdownClick("bankReconciliation")}
-              sx={dropdownStyle}
-            >
-              <Box sx={{ display: "flex", alignItems: "center" }}>
-                <Inventory2Icon sx={{ fontSize: 20, marginRight: "12px" }} />
-                <Typography variant="body1" sx={{ fontSize: "14px" }}>
-                  Bank Reconciliation
-                </Typography>
-              </Box>
-              {openDropdown.bankReconciliation ? (
-                <KeyboardArrowDownIcon />
-              ) : (
-                <KeyboardArrowRightIcon />
-              )}
-            </ListItem>
-
-            <Collapse
-              in={openDropdown.bankReconciliation}
-              timeout="auto"
-              unmountOnExit
-            >
-              <List sx={nestedListStyle}>
-                {can("bankCapital6389") && (
-                  <ListItem
-                    button
-                    component={Link}
-                    to="/BankCapital6389"
-                    onClick={toggleDrawer}
-                  >
-                    <Typography variant="body2" sx={{ fontSize: "13px" }}>
-                      Bank - Capital 6389
-                    </Typography>
-                  </ListItem>
-                )}
-
-                {can("bankAxis3361") && (
-                  <ListItem
-                    button
-                    component={Link}
-                    to="/BankAxis3361"
-                    onClick={toggleDrawer}
-                  >
-                    <Typography variant="body2" sx={{ fontSize: "13px" }}>
-                      Axis - 3361
-                    </Typography>
-                  </ListItem>
-                )}
-
-                {can("bankCc1101") && (
-                  <ListItem
-                    button
-                    component={Link}
-                    to="/BankCc1101"
-                    onClick={toggleDrawer}
-                  >
-                    <Typography variant="body2" sx={{ fontSize: "13px" }}>
-                      CC 1101
-                    </Typography>
-                  </ListItem>
-                )}
-
-                {can("bankSbi8285") && (
-                  <ListItem
-                    button
-                    component={Link}
-                    to="/BankReconciliation"
-                    onClick={toggleDrawer}
-                  >
-                    <Typography variant="body2" sx={{ fontSize: "13px" }}>
-                      SBI Current 8285
-                    </Typography>
-                  </ListItem>
-                )}
-
-                {can("bankYesCcTejasv") && (
-                  <ListItem
-                    button
-                    component={Link}
-                    to="/BankYesCcTejasv"
-                    onClick={toggleDrawer}
-                  >
-                    <Typography variant="body2" sx={{ fontSize: "13px" }}>
-                      Yes CC - Tejasv
-                    </Typography>
-                  </ListItem>
-                )}
-
-                {can("bankYesCcAbhay") && (
-                  <ListItem
-                    button
-                    component={Link}
-                    to="/BankYesCcAbhay"
-                    onClick={toggleDrawer}
-                  >
-                    <Typography variant="body2" sx={{ fontSize: "13px" }}>
-                      Yes CC - Abhay
-                    </Typography>
-                  </ListItem>
-                )}
-
-                {can("bankKotak") && (
-                  <ListItem
-                    button
-                    component={Link}
-                    to="/BankKotak"
-                    onClick={toggleDrawer}
-                  >
-                    <Typography variant="body2" sx={{ fontSize: "13px" }}>
-                      Bank - Kotak
-                    </Typography>
-                  </ListItem>
-                )}
-
-              </List>
-            </Collapse>
-          </>
-        )}
-
-        {/* Leaderboard */}
-        {user && can("leaderboardMenu") && (
-          <>
-            <ListItem
-              button
-              onClick={() => handleDropdownClick("leaderboard")}
-              sx={dropdownStyle}
-            >
-              <Box sx={{ display: "flex", alignItems: "center" }}>
-                <EmojiEventsIcon sx={{ fontSize: 24, marginRight: "12px" }} />
-                <Typography variant="body1" sx={{ fontSize: "14px" }}>
-                  Leaderboard
-                </Typography>
-              </Box>
-              {openDropdown.leaderboard ? (
-                <KeyboardArrowDownIcon />
-              ) : (
-                <KeyboardArrowRightIcon />
-              )}
-            </ListItem>
-
-            <Collapse
-              in={openDropdown.leaderboard}
-              timeout="auto"
-              unmountOnExit
-            >
-              <List sx={nestedListStyle}>
-                {can("leaderboardAll") && (
-                  <ListItem
-                    button
-                    component={Link}
-                    to="/leaderboard"
-                    onClick={toggleDrawer}
-                  >
-                    <Typography variant="body2" sx={{ fontSize: "13px" }}>
-                      All Leaderboard
-                    </Typography>
-                  </ListItem>
-                )}
-                {can("leaderboardBloom") && (
-                  <ListItem
-                    button
-                    component={Link}
-                    to="/bloom-leaderboard"
-                    onClick={toggleDrawer}
-                  >
-                    <Typography variant="body2" sx={{ fontSize: "13px" }}>
-                      Bloom Leaderboard
-                    </Typography>
-                  </ListItem>
-                )}
-              </List>
-            </Collapse>
-          </>
-        )}
-
-        {/* Manager "Others" via permissions */}
-        {user && can("othersMenu") && (
-          <>
-            <ListItem
-              button
-              onClick={() => handleDropdownClick("others")}
-              sx={dropdownStyle}
-            >
-              <Box sx={{ display: "flex", alignItems: "center" }}>
-                <FolderIcon sx={{ fontSize: 18, marginRight: "8px" }} />
-                <Typography variant="body1" sx={{ fontSize: "14px" }}>
-                  Others
-                </Typography>
-              </Box>
-              {openDropdown.others ? (
-                <KeyboardArrowDownIcon />
-              ) : (
-                <KeyboardArrowRightIcon />
-              )}
-            </ListItem>
-
-            <Collapse in={openDropdown.others} timeout="auto" unmountOnExit>
-              <List sx={nestedListStyle}>
-                {can("othersSwitchDashboards") && (
-                  <ListItem
-                    button
-                    component={Link}
-                    to="/switch-dashboard"
-                    onClick={toggleDrawer}
-                  >
-                    <Typography variant="body2" sx={{ fontSize: "13px" }}>
-                      Switch Dashboards
-                    </Typography>
-                  </ListItem>
-                )}
-
-                {can("othersIncentiveCreation") && (
-                  <ListItem
-                    button
-                    component={Link}
-                    to="/incentive-creation"
-                    onClick={toggleDrawer}
-                  >
-                    <Typography variant="body2" sx={{ fontSize: "13px" }}>
-                      Incentive Creation
-                    </Typography>
-                  </ListItem>
-                )}
-
-                {can("othersScheduleCalls") && (
-                  <ListItem
-                    button
-                    component={Link}
-                    to="/schedule-calls"
-                    onClick={toggleDrawer}
-                  >
-                    <Typography variant="body2" sx={{ fontSize: "13px" }}>
-                      Schedule Calls
-                    </Typography>
-                  </ListItem>
-                )}
-
-                {can("othersAllProducts") && (
-                  <ListItem
-                    button
-                    component={Link}
-                    to="/all-products"
-                    onClick={toggleDrawer}
-                  >
-                    <Typography variant="body2" sx={{ fontSize: "13px" }}>
-                      All Products
-                    </Typography>
-                  </ListItem>
-                )}
-
-                {can("otherswhatsaaptemplates") && (
-                  <ListItem
-                    button
-                    component={Link}
-                    to="/template/chat"
-                    onClick={toggleDrawer}
-                  >
-                    <Typography variant="body2" sx={{ fontSize: "13px" }}>
-                      Whatsapp Templates
-                    </Typography>
-                  </ListItem>
-                )}
-
-                {can("othersLeadMigration") && (
-                  <ListItem
-                    button
-                    component={Link}
-                    to="/lead-migration"
-                    onClick={toggleDrawer}
-                  >
-                    <Typography variant="body2" sx={{ fontSize: "13px" }}>
-                      Leads Migrate
-                    </Typography>
-                  </ListItem>
-                )}
-
-                {can("othersDietTemplate") && (
-                  <ListItem
-                    button
-                    component={Link}
-                    to="/diet-template"
-                    onClick={toggleDrawer}
-                  >
-                    <Typography variant="body2" sx={{ fontSize: "13px" }}>
-                      Diet Plan Builder
-                    </Typography>
-                  </ListItem>
-                )}
-
-                {can("othersAllShopifyOrders") && (
-                  <ListItem
-                    button
-                    component={Link}
-                    to="/all-shopify-orders"
-                    onClick={toggleDrawer}
-                  >
-                    <Typography variant="body2" sx={{ fontSize: "13px" }}>
-                      All Shopify Orders
-                    </Typography>
-                  </ListItem>
-                )}
-
-                {can("othersTransferRequests") && (
-                  <ListItem
-                    button
-                    component={Link}
-                    to="/transfer-requests"
-                    onClick={toggleDrawer}
-                  >
-                    <Typography variant="body2" sx={{ fontSize: "13px" }}>
-                      Lead Transfer Requests
-                    </Typography>
-                  </ListItem>
-                )}
-
-                {can("othersBulkDataUpload") && (
-                  <ListItem
-                    button
-                    component={Link}
-                    to="/bulk-data-upload"
-                    onClick={toggleDrawer}
-                  >
-                    <Typography variant="body2" sx={{ fontSize: "13px" }}>
-                      Bulk data Upload
-                    </Typography>
-                  </ListItem>
-                )}
-              </List>
-            </Collapse>
-          </>
-        )}
-
-        {/* International Agent menus via permissions */}
-        {user && can("globalShopifyMenu") && (
-          <>
-            <ListItem
-              button
-              onClick={() => handleDropdownClick("globalShopify")}
-              sx={dropdownStyle}
-            >
-              <Box sx={{ display: "flex", alignItems: "center" }}>
-                <ShoppingCartIcon sx={{ fontSize: 18, marginRight: "8px" }} />
-                <Typography variant="body1" sx={{ fontSize: "14px" }}>
-                  Global Shopify Orders
-                </Typography>
-              </Box>
-              {openDropdown.globalShopify ? (
-                <KeyboardArrowDownIcon />
-              ) : (
-                <KeyboardArrowRightIcon />
-              )}
-            </ListItem>
-
-            <Collapse
-              in={openDropdown.globalShopify}
-              timeout="auto"
-              unmountOnExit
-            >
-              <List sx={nestedListStyle}>
-                {can("globalShopifyOrders") && (
-                  <ListItem
-                    button
-                    component={Link}
-                    to="/global-shopify-orders"
-                    onClick={toggleDrawer}
-                  >
-                    <Typography variant="body2" sx={{ fontSize: "13px" }}>
-                      Shopify Orders
-                    </Typography>
-                  </ListItem>
-                )}
-
-                {can("globalAbandonedCart") && (
-                  <ListItem
-                    button
-                    component={Link}
-                    to="/global-aband"
-                    onClick={toggleDrawer}
-                  >
-                    <Typography variant="body2" sx={{ fontSize: "13px" }}>
-                      Abandoned Cart
-                    </Typography>
-                  </ListItem>
-                )}
-              </List>
-            </Collapse>
-          </>
-        )}
-
-        {user && can("globalRetentionMenu") && (
-          <>
-            <ListItem
-              button
-              onClick={() => handleDropdownClick("globalRetention")}
-              sx={dropdownStyle}
-            >
-              <Box sx={{ display: "flex", alignItems: "center" }}>
-                <PersonIcon sx={{ fontSize: 18, marginRight: "8px" }} />
-                <Typography variant="body1" sx={{ fontSize: "14px" }}>
-                  Global Retention
-                </Typography>
-              </Box>
-              {openDropdown.globalRetention ? (
-                <KeyboardArrowDownIcon />
-              ) : (
-                <KeyboardArrowRightIcon />
-              )}
-            </ListItem>
-
-            <Collapse
-              in={openDropdown.globalRetention}
-              timeout="auto"
-              unmountOnExit
-            >
-              <List sx={nestedListStyle}>
-                {can("globalRetentionLeads") && (
-                  <ListItem
-                    button
-                    component={Link}
-                    to="/global-retention-leads"
-                    onClick={toggleDrawer}
-                  >
-                    <Typography variant="body2" sx={{ fontSize: "13px" }}>
-                      Global Retention Leads
-                    </Typography>
-                  </ListItem>
-                )}
-
-                {can("globalRetentionSales") && (
-                  <ListItem
-                    button
-                    component={Link}
-                    to="/global-retention-sales"
-                    onClick={toggleDrawer}
-                  >
-                    <Typography variant="body2" sx={{ fontSize: "13px" }}>
-                      Global Retention Sales
-                    </Typography>
-                  </ListItem>
-                )}
-              </List>
-            </Collapse>
-          </>
-        )}
-
-        {/* Growth at Muditam */}
-        {user && can("myGrowthPlan") && (
-          <ListItem
-            button
-            component={Link}
-            to="/my-growth-plan"
-            sx={menuItemStyle}
-            onClick={toggleDrawer}
-          >
-            <TrendingUpIcon sx={{ fontSize: 24, marginRight: "12px" }} />
-            <Typography variant="body1" style={{ fontSize: "14px" }}>
-              Growth At Muditam
-            </Typography>
-          </ListItem>
-        )}
-
-        {/* Bottom user info + logout */}
+        <div className="sidebar-header">
+          <div className="sidebar-brand">
+            <div className="brand-icon">
+              <AssignmentIcon />
+            </div>
+            <div className="brand-text">
+              <span className="brand-name">Muditam</span>
+              <span className="brand-subtitle">Lead Management</span>
+            </div>
+          </div>
+          <button className="workspace-toggle">
+            <UnfoldMoreIcon />
+          </button>
+        </div>
+
+        {/* Nav */}
+        <div className="nav-scroll">
+          {user && can("home") && (
+            <NavItem to="/" icon={<HomeIcon />} label="Home" />
+          )}
+
+          {user && can("consultation") && (
+            <NavItem to="/leadmanagement" icon={<ChatBubbleIcon />} label="Consultation" />
+          )}
+
+          {user && can("whatsaapChats") && (
+            <NavItem to="/whatsaap/chat" icon={<WhatsAppIcon />} label="WhatsApp Chats" />
+          )}
+
+          {user && can("myTemplates") && (
+            <NavItem to="/my-templates" icon={<DescriptionIcon />} label="My Templates" />
+          )}
+
+          {user && can("invoices") && (
+            <NavItem to="/invoices" icon={<ReceiptLongIcon />} label="Invoices" />
+          )}
+
+          {user && can("escalations") && (
+            <NavItem to="/escalations" icon={<ErrorOutlineIcon />} label="Escalations" />
+          )}
+
+          {user && hasTeam && can("team") && (
+            <NavItem to="/team" icon={<PersonIcon />} label="Team" />
+          )}
+
+          {user && can("abandonedCart") && (
+            <NavItem to="/aband" icon={<Inventory2Icon />} label="Abandoned Cart" />
+          )}
+
+          {user && can("accessManagement") && (
+            <div className="divider" />
+          )}
+
+          {user && can("accessManagement") && (
+            <NavItem to="/access-management" icon={<AssignmentIcon />} label="Access Management" />
+          )}
+
+          {user && can("adminAccessRequests") && (
+            <NavItem to="/admin-requests-admin" icon={<AssignmentIcon />} label="Admin Access Requests" />
+          )}
+
+          {user && can("addEmployee") && (
+            <NavItem to="/add-employee" icon={<PersonAddIcon />} label="Add Employee" />
+          )}
+
+          {/* Order Confirmations */}
+          {user && can("orderConfirmationsMenu") && (
+            <DropdownGroup id="orderConfirmations" icon={<ShoppingCartIcon />} label="Order Confirmations">
+              {can("orderConfirmationPage") && <SubItem to="/order-confirmations" label="Order Confirmation" />}
+              {can("orderAnalyticsPage") && <SubItem to="/order-confirmations/analytics" label="Order Analytics" />}
+            </DropdownGroup>
+          )}
+
+          {user && can("unassignedDeliveredOrders") && (
+            <NavItem to="/unassigned-delivered-orders" icon={<LocalShippingIcon />} label="Unassigned Delivered Orders" />
+          )}
+
+          {user && can("myRTOs") && (
+            <NavItem to="/Agent-return" icon={<AssignmentReturnedIcon />} label="My RTOs" />
+          )}
+
+          {/* Master Data */}
+          {user && can("masterDataMenu") && (
+            <DropdownGroup id="masterData" icon={<FolderIcon />} label="Master Data">
+              {can("masterAllLeads") && <SubItem to="/master/leads" label="All Leads" />}
+              {can("masterRetentionLeads") && <SubItem to="/master/retention" label="Retention Leads" />}
+              {can("masterRetentionOrders") && <SubItem to="/master/retention-orders" label="Retention Orders" />}
+              {can("masterNewOrders") && <SubItem to="/master/new-orders" label="Acquisition Orders" />}
+              {can("masterDuplicates") && <SubItem to="/master/Duplicates" label="Duplicate Data" />}
+            </DropdownGroup>
+          )}
+
+          {/* Lost Data */}
+          {user && can("lostDataMenu") && (
+            <DropdownGroup id="lostData" icon={<DeleteIcon />} label="Lost Data">
+              {can("lostAcquisition") && <SubItem to="/lost/acquisition" label="Acquisition Lost" />}
+              {can("lostRetention") && <SubItem to="/lost/retention" label="Retention Lost" />}
+            </DropdownGroup>
+          )}
+
+          {user && can("onlineOrders") && (
+            <NavItem to="/online-orders" icon={<ShoppingCartIcon />} label="Online Orders" />
+          )}
+
+          {/* Sales Agent */}
+          {user && can("salesAgentMenu") && (
+            <DropdownGroup id="salesAgent" icon={<PersonIcon />} label="Sales Agent">
+              {can("salesMyLeads") && <SubItem to="/sales/my-leads" label="My Leads" />}
+              {can("salesMySales") && <SubItem to="/sales/my-sales" label="My Sales" />}
+            </DropdownGroup>
+          )}
+
+          {/* Retention Agent */}
+          {user && can("retentionAgentMenu") && (
+            <DropdownGroup id="retentionAgent" icon={<PersonIcon />} label="Retention Agent">
+              {can("retentionLeads") && <SubItem to="/retention/leads" label="Retention Leads" />}
+              {can("retentionSales") && <SubItem to="/retention/sales" label="Retention Sales" />}
+            </DropdownGroup>
+          )}
+
+          {/* Task Manager */}
+          {user && can("taskManagerMenu") && (
+            <DropdownGroup id="taskManager" icon={<CheckBoxIcon />} label="Task Manager">
+              {can("taskBoard") && <SubItem to="/task-board" label="Task Management" />}
+              {can("myReporting") && <SubItem to="/my-reporting" label="My Reporting" />}
+            </DropdownGroup>
+          )}
+
+          {/* Smartflo */}
+          {user && can("smartfloMenu") && (
+            <DropdownGroup id="smartflo" icon={<PhoneInTalkIcon />} label="Smartflo">
+              {can("smartfloCallLogs") && <SubItem to="/smartflo/call-logs" label="Call Logs" />}
+              {can("smartfloDataAnalytics") && <SubItem to="/smartflo/data-analytics" label="Data Analytics" />}
+            </DropdownGroup>
+          )}
+
+          {/* Analytics */}
+          {user && can("allAnalyticsMenu") && (
+            <DropdownGroup id="analytics" icon={<QueryStatsIcon />} label="Analytics">
+              {can("superAdminAnalytics") && <SubItem to="/super-admin-analytics" label="Super Admin Analytics" />}
+              {can("abandonedAnalytics") && <SubItem to="/abandoned-analytics" label="Abandoned Analytics" />}
+            </DropdownGroup>
+          )}
+
+          {/* Finance */}
+          {user && (can("financeOrderSummary") || can("financePrepaidRemittanceMenu") || can("financeCodRemittanceMenu") || can("financeRecordsMenu") || can("financeBankReconciliationMenu")) && (
+            <div className="nav-section-label">Finance</div>
+          )}
+
+          {user && can("financeOrderSummary") && (
+            <NavItem to="/order-summary" icon={<FactCheckIcon />} label="Order Summary" />
+          )}
+
+          {user && can("financePrepaidRemittanceMenu") && (
+            <DropdownGroup id="paymentGateway" icon={<CompareArrowsIcon />} label="Prepaid Remittance">
+              {can("financePrepaidRazorpay") && <SubItem to="/gateway/razorpay" label="Razorpay" />}
+              {can("financePrepaidPhonePe") && <SubItem to="/gateway/phonepe" label="PhonePe" />}
+              {can("financePrepaidEasebuzz") && <SubItem to="/gateway/easebuzz" label="Easebuzz" />}
+              {can("financePrepaidCashfree") && <SubItem to="/gateway/cashfree" label="Cashfree" />}
+              {can("financePrepaidBankTransfer") && <SubItem to="/gateway/bank-transfer" label="Bank Transfer" />}
+            </DropdownGroup>
+          )}
+
+          {user && can("financeCodRemittanceMenu") && (
+            <DropdownGroup id="remittance" icon={<TrendingUpIcon />} label="COD Remittance">
+              {can("financeCodBluedart") && <SubItem to="/remittance/bluedart" label="Bluedart" />}
+              {can("financeCodDTDC") && <SubItem to="/remittance/dtdc" label="DTDC" />}
+              {can("financeCodDelhivery") && <SubItem to="/remittance/delhivery" label="Delhivery" />}
+              {can("financeCodShiprocket") && <SubItem to="/remittance/shiprocket" label="Shiprocket" />}
+            </DropdownGroup>
+          )}
+
+          {user && can("financeRecordsMenu") && (
+            <DropdownGroup id="records" icon={<AnalyticsIcon />} label="Records">
+              {can("financePurchaseRecords") && <SubItem to="/purchase-record" label="Purchase Records" />}
+              {can("financePaymentRecords") && <SubItem to="/payment-record" label="Payment Records" />}
+              {can("financeVendors") && <SubItem to="/vendors" label="My Vendors" />}
+            </DropdownGroup>
+          )}
+
+          {user && can("financeBankReconciliationMenu") && (
+            <DropdownGroup id="bankReconciliation" icon={<Inventory2Icon />} label="Bank Reconciliation">
+              {can("bankCapital6389") && <SubItem to="/BankCapital6389" label="Capital 6389" />}
+              {can("bankAxis3361") && <SubItem to="/BankAxis3361" label="Axis 3361" />}
+              {can("bankCc1101") && <SubItem to="/BankCc1101" label="CC 1101" />}
+              {can("bankSbi8285") && <SubItem to="/BankReconciliation" label="SBI Current 8285" />}
+              {can("bankYesCcTejasv") && <SubItem to="/BankYesCcTejasv" label="Yes CC – Tejasv" />}
+              {can("bankYesCcAbhay") && <SubItem to="/BankYesCcAbhay" label="Yes CC – Abhay" />}
+              {can("bankKotak") && <SubItem to="/BankKotak" label="Kotak" />}
+            </DropdownGroup>
+          )}
+
+          {/* Marketing */}
+          {user && (can("marketingMenu") || can("OthervideoMenu") || can("StaticCarouselMenu") || can("adsMenu")) && (
+            <div className="nav-section-label">Marketing</div>
+          )}
+
+          {user && can("marketingMenu") && (
+            <DropdownGroup id="marketingDropdown" icon={<StorefrontIcon />} label="Scripted Videos">
+              {can("scriptPage") && <SubItem to="/marketing/script" label="Script" />}
+              {can("shootPage") && <SubItem to="/marketing/shoot" label="Shoot" />}
+              {can("cutPage") && <SubItem to="/marketing/cut" label="Cut" />}
+              {can("editPage") && <SubItem to="/marketing/edit" label="Edit" />}
+              {can("postPage") && <SubItem to="/marketing/post" label="Post" />}
+            </DropdownGroup>
+          )}
+
+          {user && can("OthervideoMenu") && (
+            <DropdownGroup id="othervideoDropdown" icon={<VideoLibraryIcon />} label="Other Video">
+              {can("OtherscriptPage") && <SubItem to="/OtherVideo/Ideation" label="Ideation" />}
+              {can("OthershootPage") && <SubItem to="/OtherVideo/shoot" label="Shoot" />}
+              {can("OthercutPage") && <SubItem to="/OtherVideo/cut" label="Cut" />}
+              {can("OthereditPage") && <SubItem to="/OtherVideo/edit" label="Edit" />}
+              {can("OtherpostPage") && <SubItem to="/OtherVideo/post" label="Post" />}
+            </DropdownGroup>
+          )}
+
+          {user && can("StaticCarouselMenu") && (
+            <DropdownGroup id="StaticCarouselDropdown" icon={<ViewCarouselIcon />} label="Static Carousel">
+              {can("StaticCarouselscriptPage") && <SubItem to="/staticCarousel/Ideation" label="Ideation" />}
+              {can("StaticCarouselshootPage") && <SubItem to="/staticCarousel/shoot" label="Shoot" />}
+              {can("StaticCarouselcutPage") && <SubItem to="/staticCarousel/cut" label="Cut" />}
+              {can("StaticCarouseleditPage") && <SubItem to="/staticCarousel/edit" label="Edit" />}
+              {can("StaticCarouselpostPage") && <SubItem to="/staticCarousel/post" label="Post" />}
+            </DropdownGroup>
+          )}
+
+          {user && can("adsMenu") && (
+            <DropdownGroup id="AdsDropdown" icon={<CampaignIcon />} label="Ads">
+              {can("adsscriptPage") && <SubItem to="/Ads/Ideation" label="Ideation" />}
+              {can("adsshootPage") && <SubItem to="/Ads/shoot" label="Shoot" />}
+              {can("adscutPage") && <SubItem to="/Ads/cut" label="Cut" />}
+              {can("adseditPage") && <SubItem to="/Ads/edit" label="Edit" />}
+              {can("adspostPage") && <SubItem to="/Ads/post" label="Post" />}
+            </DropdownGroup>
+          )}
+
+          {/* Operations */}
+          {user && (can("opsUndeliveredOrders") || can("opsRtoDelivered") || can("opsEmailUndelivered") || can("opsOnlyOrderConfirmation") || can("deliveredSalesRecord")) && (
+            <div className="nav-section-label">Operations</div>
+          )}
+
+          {user && can("opsUndeliveredOrders") && (
+            <NavItem to="/operations/undelivered-orders" icon={<ErrorOutlineIcon />} label="Undelivered Orders" />
+          )}
+
+          {user && can("opsRtoDelivered") && (
+            <NavItem to="/operations/rto-delivered" icon={<LocalShippingIcon />} label="RTO Delivered" />
+          )}
+
+          {user && can("opsEmailUndelivered") && (
+            <NavItem to="/operations/undelivered" icon={<EmailIcon />} label="Email Undelivered" />
+          )}
+
+          {user && can("opsOnlyOrderConfirmation") && (
+            <NavItem to="/only-order-confirmation" icon={<AssignmentTurnedInIcon />} label="Only Order Confirmation" />
+          )}
+
+          {user && can("deliveredSalesRecord") && (
+            <NavItem to="/delivered-sales-record" icon={<FactCheckIcon />} label="Delivered Sales Record" />
+          )}
+
+          {/* HR */}
+          {user && (can("hrAddNewAssets") || can("hrAssetAllotment") || can("myAssets")) && (
+            <div className="nav-section-label">HR & Assets</div>
+          )}
+
+          {user && can("hrAddNewAssets") && (
+            <NavItem to="/add-new-asset" icon={<Inventory2Icon />} label="Add New Assets" />
+          )}
+
+          {user && can("hrAssetAllotment") && (
+            <NavItem to="/AssetAllotment" icon={<Inventory2Icon />} label="Asset Allotment" />
+          )}
+
+          {user && can("myAssets") && (
+            <NavItem to="/my-assets" icon={<Inventory2Icon />} label="My Assets" />
+          )}
+
+          {/* Wallet / Incentives */}
+          {user && can("incentivesWallet") && (
+            <DropdownGroup id="incentivesWallet" icon={<AccountBalanceWalletOutlinedIcon />} label="Wallet">
+              {can("incentivesWallet") && <SubItem to="/incentives" label="Incentives Details" />}
+              {can("sops") && <SubItem to="/SOP-creation" label="SOPs" />}
+              {can("RewardsAdminPage") && <SubItem to="/Rewards-Admin-Page" label="Rewards Creation" />}
+            </DropdownGroup>
+          )}
+
+          {/* Leaderboard */}
+          {user && can("leaderboardMenu") && (
+            <DropdownGroup id="leaderboard" icon={<EmojiEventsIcon />} label="Leaderboard">
+              {can("leaderboardAll") && <SubItem to="/leaderboard" label="All Leaderboard" />}
+              {can("leaderboardBloom") && <SubItem to="/bloom-leaderboard" label="Bloom Leaderboard" />}
+            </DropdownGroup>
+          )}
+
+          {/* Global */}
+          {user && (can("globalShopifyMenu") || can("globalRetentionMenu")) && (
+            <div className="nav-section-label">International</div>
+          )}
+
+          {user && can("globalShopifyMenu") && (
+            <DropdownGroup id="globalShopify" icon={<ShoppingCartIcon />} label="Global Shopify Orders">
+              {can("globalShopifyOrders") && <SubItem to="/global-shopify-orders" label="Shopify Orders" />}
+              {can("globalAbandonedCart") && <SubItem to="/global-aband" label="Abandoned Cart" />}
+            </DropdownGroup>
+          )}
+
+          {user && can("globalRetentionMenu") && (
+            <DropdownGroup id="globalRetention" icon={<PersonIcon />} label="Global Retention">
+              {can("globalRetentionLeads") && <SubItem to="/global-retention-leads" label="Global Retention Leads" />}
+              {can("globalRetentionSales") && <SubItem to="/global-retention-sales" label="Global Retention Sales" />}
+            </DropdownGroup>
+          )}
+
+          {/* Others */}
+          {user && can("othersMenu") && (
+            <DropdownGroup id="others" icon={<FolderIcon />} label="Others">
+              {can("othersSwitchDashboards") && <SubItem to="/switch-dashboard" label="Switch Dashboards" />}
+              {can("othersIncentiveCreation") && <SubItem to="/incentive-creation" label="Incentive Creation" />}
+              {can("othersScheduleCalls") && <SubItem to="/schedule-calls" label="Schedule Calls" />}
+              {can("othersAllProducts") && <SubItem to="/all-products" label="All Products" />}
+              {can("otherswhatsaaptemplates") && <SubItem to="/template/chat" label="WhatsApp Templates" />}
+              {can("othersLeadMigration") && <SubItem to="/lead-migration" label="Leads Migrate" />}
+              {can("othersDietTemplate") && <SubItem to="/diet-template" label="Diet Plan Builder" />}
+              {can("othersAllShopifyOrders") && <SubItem to="/all-shopify-orders" label="All Shopify Orders" />}
+              {can("othersTransferRequests") && <SubItem to="/transfer-requests" label="Lead Transfer Requests" />}
+              {can("othersBulkDataUpload") && <SubItem to="/bulk-data-upload" label="Bulk Data Upload" />}
+            </DropdownGroup>
+          )}
+
+          {user && can("myGrowthPlan") && (
+            <NavItem to="/my-growth-plan" icon={<TrendingUpIcon />} label="Growth At Muditam" />
+          )}
+        </div>
+
+        {/* Footer */}
         {user && (
-          <Box
-            sx={{
-              display: "flex",
-              alignItems: "center",
-              padding: "16px",
-              justifyContent: "space-between",
-              borderTop: "1px solid #ddd",
-              position: "fixed",
-              backgroundColor: "#fff",
-              bottom: 0,
-              width: "300px",
-            }}
-          >
-            <Box sx={{ display: "flex", alignItems: "center" }}>
-              <Avatar
-                sx={{ width: 30, height: 30, marginRight: 1 }}
-                alt={user.fullName}
-                src={user.avatarUrl}
-              />
-              <Box sx={{ display: "flex", flexDirection: "column" }}>
-                <Typography
-                  variant="body1"
-                  sx={{ fontSize: "14px", fontWeight: "bold" }}
-                >
-                  {user.fullName}
-                </Typography>
-                <Typography
-                  variant="body2"
-                  sx={{ fontSize: "12px", color: "gray" }}
-                >
-                  {user.email}
-                </Typography>
-              </Box>
-            </Box>
-
-            <IconButton onClick={handleLogout} sx={{ color: "gray" }}>
+          <div className="sidebar-footer">
+            <div className="user-info">
+              <div className="user-avatar">
+                {user.avatarUrl
+                  ? <img src={user.avatarUrl} alt={user.fullName} />
+                  : getInitials(user.fullName)
+                }
+              </div>
+              <div className="user-details">
+                <span className="user-name">{user.fullName}</span>
+                <span className="user-email">{user.email}</span>
+              </div>
+            </div>
+            <button className="logout-btn" onClick={handleLogout} title="Logout">
               <LogoutIcon />
-            </IconButton>
-          </Box>
+            </button>
+          </div>
         )}
-      </List>
-    </Drawer>
+      </div>
+    </>
   );
 };
 
