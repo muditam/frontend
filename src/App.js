@@ -114,6 +114,7 @@ import UnicommerceOrdersPage from "./components/UnicommerceOrdersPage";
 import IncentivesPage from "./pages/IncentivesPage";
 import SOPMasterPage from "./pages/SOPMasterPage"; 
 import RewardsAdminPage from "./pages/RewardsAdminPage"; 
+import KnowledgeBaseManager from "./pages/KnowledgeBaseManager";
 
 const App = () => {
   return (
@@ -168,6 +169,7 @@ const App = () => {
           <Route path="/incentives" element={<IncentivesPage />} />
           <Route path="/SOP-creation" element={<SOPMasterPage />} /> 
           <Route path="/Rewards-Admin-Page" element={<RewardsAdminPage />} /> 
+          <Route path="/knowledge-base" element={<KnowledgeBaseManager />} />
 
           <Route
             path="/"

@@ -88,6 +88,7 @@ const DEFAULT_PERMISSIONS = {
   menubar: {
     home: false,
     myTemplates: false,
+    knowledgeBase: false,
     consultation: false,
     escalations: false,
     team: false,
@@ -1216,6 +1217,7 @@ const AddEmployee = () => {
                 {[
                   ["home", "Home"],
                   ["myTemplates", "My Templates"],
+                  ["knowledgeBase", "Knowledge Base"],
                   ["consultation", "Consultation"],
                   ["escalations", "Escalations"],
                   ["team", "Team"],

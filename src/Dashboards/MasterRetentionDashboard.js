@@ -342,8 +342,8 @@ const rowHoverSx = {
 
 
 const ManagerRetentionDashboard = () => {
-  const initialDates = useMemo(() => getDateRange("Today"), []);
-  const [range, setRange] = useState("Today");
+  const initialDates = useMemo(() => getDateRange("Month to date"), []);
+  const [range, setRange] = useState("Month to date");
   const [customStart, setCustomStart] = useState("");
   const [customEnd, setCustomEnd] = useState("");
   const [effectiveStart, setEffectiveStart] = useState(initialDates.startDate);

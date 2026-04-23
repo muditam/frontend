@@ -32,6 +32,7 @@ import CampaignIcon from "@mui/icons-material/Campaign";
 import VideoLibraryIcon from "@mui/icons-material/VideoLibrary";
 import ViewCarouselIcon from "@mui/icons-material/ViewCarousel";
 import AccountBalanceWalletOutlinedIcon from "@mui/icons-material/AccountBalanceWalletOutlined";
+import MenuBookIcon from "@mui/icons-material/MenuBook";
 import StorefrontIcon from "@mui/icons-material/Storefront";
 
 const styles = `
@@ -411,7 +412,7 @@ const MenuBar = ({ toggleDrawer }) => {
       setUser(u);
     } catch {}
   }, []);
-
+ 
   const hasTeam = user?.hasTeam;
   const menubarPerms = user?.permissions?.menubar || {};
   const can = (key) => !!menubarPerms[key];
@@ -808,6 +809,10 @@ const MenuBar = ({ toggleDrawer }) => {
               {can("othersTransferRequests") && <SubItem to="/transfer-requests" label="Lead Transfer Requests" />}
               {can("othersBulkDataUpload") && <SubItem to="/bulk-data-upload" label="Bulk Data Upload" />}
             </DropdownGroup>
+          )}
+
+          {user && can("knowledgeBase") && (
+            <NavItem to="/knowledge-base" icon={<MenuBookIcon />} label="Knowledge Base" />
           )}
 
           {user && can("myGrowthPlan") && (
