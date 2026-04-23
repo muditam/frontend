@@ -605,8 +605,7 @@ export default function WhatsAppUI() {
   const activeDigits = useMemo(() => digitsOnly(activeChat?.phone), [activeChat?.phone]);
   const activeP10 = useMemo(() => phone10(activeChat?.phone), [activeChat?.phone]);
   const activeP10Ref = useRef("");
-  const activeDigitsRef = useRef("");
-  useEffect(() => { activeP10Ref.current = activeP10 || ""; activeDigitsRef.current = activeDigits || ""; }, [activeP10, activeDigits]);
+  useEffect(() => { activeP10Ref.current = activeP10 || ""; }, [activeP10]);
 
   const sessionUser = useMemo(() => {
     try { const raw = sessionStorage.getItem("user"); return raw ? JSON.parse(raw) : null; } catch { return null; }
@@ -981,8 +980,6 @@ export default function WhatsAppUI() {
         });
         if (String(normalizedMsg?.direction || "").toUpperCase() === "INBOUND") {
           setSessionExpired(false); setChatError("");
-          const ad = activeDigitsRef.current;
-          if (ad) markConversationRead(ad, { optimisticOnly: false });
         }
       }
     };
@@ -1037,7 +1034,7 @@ export default function WhatsAppUI() {
 
     s.on("wa:message", onMessage); s.on("wa:status", onStatus); s.on("wa:conversation", onConversation);
     return () => { s.off("wa:message", onMessage); s.off("wa:status", onStatus); s.off("wa:conversation", onConversation); };
-  }, [markConversationRead, upsertConversationFromMessage]);
+  }, [upsertConversationFromMessage]);
 
   useEffect(() => { if (activeP10) setInput(drafts[activeP10] || ""); else setInput(""); }, [activeP10, drafts]);
 
@@ -1058,15 +1055,13 @@ export default function WhatsAppUI() {
     }
 
     openedCutoffRef.current = Date.now();
-    markConversationRead(activeDigits, { optimisticOnly: false });
 
     loadMessagesInitial(activeDigits, { seedMessages }).finally(() => {
       if (pendingBootstrap?.phone10 === phone10(activeDigits)) {
         bootstrapChatRef.current = null;
       }
-      markConversationRead(activeDigits, { optimisticOnly: false });
     });
-  }, [activeDigits, loadMessagesInitial, markConversationRead]);
+  }, [activeDigits, loadMessagesInitial]);
 
   useEffect(() => {
     if (!activeDigits) return undefined;
@@ -1756,9 +1751,9 @@ export default function WhatsAppUI() {
               alignItems="center"
               justifyContent="space-between"
               sx={{ bgcolor: LIGHT.sidebarHeaderBg, zIndex: 2, flexShrink: 0 }}
-            >
-              <Stack direction="row" spacing={1.5} alignItems="center">
-                <WaAvatar name={activeConversation ? chatDisplayName(activeConversation) : activeP10} size={40} />
+	            >
+	              <Stack direction="row" spacing={1.5} alignItems="center">
+	                <WaAvatar name={activeConversation ? chatDisplayName(activeConversation) : activeP10} size={40} />
                 <Box>
                   <Typography sx={{ fontWeight: 600, fontSize: 15, color: LIGHT.text, lineHeight: 1.2 }}>
                     {activeHeaderTitle}
@@ -1779,10 +1774,10 @@ export default function WhatsAppUI() {
                         {sessionInfo.expired ? "⏱ Session expired" : `⏱ ${sessionInfo.label}`}
                       </Typography>
                     )}
-                  </Stack>
-                </Box>
-              </Stack>
-            </Box>
+	                  </Stack>
+	                </Box>
+	              </Stack>
+	            </Box>
 
             {/* Messages area */}
             <Box
