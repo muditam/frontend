@@ -759,7 +759,7 @@ export default function KnowledgeBaseManager() {
 
    setLeadSaving(true);
    try {
-     await api("/api/leads", {
+     await api("/api/knowledge-leads", {
        method: "POST",
        body: JSON.stringify({
          name,
@@ -1695,7 +1695,6 @@ export default function KnowledgeBaseManager() {
    </div>
  );
 }
-
 
 
 

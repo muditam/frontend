@@ -109,6 +109,11 @@ const LeadTable = () => {
   const [appliedFilters, setAppliedFilters] = useState(defaultFilters);
   const [newLead, setNewLead] = useState(defaultNewLead);
 
+  const generateDraftPhone = () => {
+    const seed = `${Date.now()}${Math.floor(Math.random() * 10)}`;
+    return `9${seed.slice(-9)}`;
+  };
+
   const fetchLeads = useCallback(async (page, limit, activeFilters) => {
     setLoading(true);
     try {
@@ -160,6 +165,9 @@ const LeadTable = () => {
 
     const newLeadData = {
       ...newLead,
+      name: String(newLead.name || "").trim() || "New Lead",
+      contactNumber:
+        String(newLead.contactNumber || "").trim() || generateDraftPhone(),
       date: formattedDate,
       time: formattedTime,
       __draft: true,
