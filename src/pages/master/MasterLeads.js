@@ -34,8 +34,8 @@ const api = axios.create({
 });
 
 const TABLE_COLUMN_COUNT = 30;
-const DEFAULT_ROWS_PER_PAGE = 10;
-const MASTER_ROWS_PER_PAGE_OPTIONS = [5, 10, 20];
+const DEFAULT_ROWS_PER_PAGE = 30;
+const MASTER_ROWS_PER_PAGE_OPTIONS = [10, 30, 50, 100];
 const SKELETON_ROW_COUNT = 5;
  
 const defaultFilters = {
@@ -103,6 +103,7 @@ const LeadTable = () => {
   const [totalLeads, setTotalLeads] = useState(0);
   const [loading, setLoading] = useState(false);
   const [addingLead, setAddingLead] = useState(false);
+  const [addLeadError, setAddLeadError] = useState("");
   const [applyingFilters, setApplyingFilters] = useState(false);
   const [filters, setFilters] = useState(defaultFilters);
   const [appliedFilters, setAppliedFilters] = useState(defaultFilters);
@@ -151,6 +152,7 @@ const LeadTable = () => {
 
   const handleAddRow = async () => {
     setAddingLead(true);
+    setAddLeadError("");
 
     const currentDate = new Date();
     const formattedDate = currentDate.toISOString().split("T")[0];
@@ -160,6 +162,7 @@ const LeadTable = () => {
       ...newLead,
       date: formattedDate,
       time: formattedTime,
+      __draft: true,
     };
 
     try {
@@ -172,6 +175,10 @@ const LeadTable = () => {
       }
     } catch (error) {
       console.error("Error adding lead:", error);
+      setAddLeadError(
+        error.response?.data?.message ||
+          "Unable to add lead. Please try again."
+      );
     } finally {
       setAddingLead(false);
     }
@@ -572,6 +579,19 @@ const LeadTable = () => {
           </Button>
         </Box>
       </Box>
+
+      {addLeadError ? (
+        <Typography
+          variant="body2"
+          sx={{
+            mb: 1.5,
+            color: "#b91c1c",
+            fontWeight: 600,
+          }}
+        >
+          {addLeadError}
+        </Typography>
+      ) : null}
 
       <Drawer
         anchor="right"
