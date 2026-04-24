@@ -1,16 +1,9 @@
 // src/pages/MyReporting.jsx
-import React, {
-  useCallback,
-  useEffect,
-  useMemo,
-  useState,
-} from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Box,
   Paper,
   Typography,
-  Tabs,
-  Tab,
   Stack,
   TextField,
   Alert,
@@ -23,11 +16,9 @@ import {
   TableContainer,
   IconButton,
   Autocomplete,
-  Card,
-  CardContent,
   Chip,
-  Divider,
 } from "@mui/material";
+import { createTheme, ThemeProvider } from "@mui/material/styles";
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import CheckIcon from "@mui/icons-material/Check";
 import CloseIcon from "@mui/icons-material/Close";
@@ -35,956 +26,615 @@ import AssignmentIndIcon from "@mui/icons-material/AssignmentInd";
 import QueryStatsIcon from "@mui/icons-material/QueryStats";
 import AccessTimeIcon from "@mui/icons-material/AccessTime";
 import DoneAllIcon from "@mui/icons-material/DoneAll";
+import CalendarTodayIcon from "@mui/icons-material/CalendarToday";
+import DateRangeIcon from "@mui/icons-material/DateRange";
+import EventNoteIcon from "@mui/icons-material/EventNote";
+import TrendingUpIcon from "@mui/icons-material/TrendingUp";
 import axios from "axios";
+
+// ── Google Font ──────────────────────────────────────────────
+const fontLink = document.createElement("link");
+fontLink.rel = "stylesheet";
+fontLink.href =
+  "https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap";
+document.head.appendChild(fontLink);
+
+// ── Theme ────────────────────────────────────────────────────
+const theme = createTheme({
+  palette: {
+    mode: "light",
+    primary: { main: "#2563EB" },
+    background: { default: "#F0F4FF", paper: "#FFFFFF" },
+  },
+  typography: { fontFamily: "'DM Sans', 'Segoe UI', sans-serif" },
+  components: {
+    MuiPaper: { styleOverrides: { root: { backgroundImage: "none" } } },
+    MuiTableCell: {
+      styleOverrides: {
+        root: { fontFamily: "'DM Sans', 'Segoe UI', sans-serif" },
+      },
+    },
+  },
+});
 
 const API_BASE_URL = "https://muditamleads-14f32a10d7f7.herokuapp.com";
 
-const COLUMN_IDS = {
-  NEW: "NEW",
-  OPEN: "OPEN",
-  PAUSED: "PAUSED",
-  CLOSED: "CLOSED",
-};
+const COLUMN_IDS = { NEW: "NEW", OPEN: "OPEN", PAUSED: "PAUSED", CLOSED: "CLOSED" };
 
-// -------- date helpers --------
+// ── Date helpers ─────────────────────────────────────────────
 const formatYMD = (d) => {
   const date = d instanceof Date ? d : new Date(d);
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 };
-
 const todayYMD = () => formatYMD(new Date());
-
 const getCurrentMonthValue = () => {
   const d = new Date();
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  return `${y}-${m}`; // for <input type="month" />
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 };
-
 const isSameDay = (dateVal, ymd) => {
   if (!dateVal || !ymd) return false;
-  const d = new Date(dateVal);
-  return formatYMD(d) === ymd;
+  return formatYMD(new Date(dateVal)) === ymd;
 };
-
 const isBetweenInclusive = (dateVal, startYMD, endYMD) => {
   if (!dateVal || !startYMD || !endYMD) return false;
   const t = new Date(dateVal).getTime();
-  const s = new Date(startYMD).getTime();
-  const e = new Date(endYMD).getTime();
-  return t >= s && t <= e;
+  return t >= new Date(startYMD).getTime() && t <= new Date(endYMD).getTime();
 };
-
 const isInMonth = (dateVal, ym) => {
   if (!dateVal || !ym) return false;
   const d = new Date(dateVal);
   const [yStr, mStr] = ym.split("-");
-  const y = Number(yStr);
-  const m = Number(mStr) - 1;
-  return d.getFullYear() === y && d.getMonth() === m;
+  return d.getFullYear() === Number(yStr) && d.getMonth() === Number(mStr) - 1;
 };
-
 const getCurrentWeekRange = () => {
   const now = new Date();
-  const day = now.getDay(); // 0 = Sun
-  const diffToMonday = (day + 6) % 7; // 0 for Monday, 6 for Sunday
-  const monday = new Date(
-    now.getFullYear(),
-    now.getMonth(),
-    now.getDate() - diffToMonday
-  );
-  const sunday = new Date(
-    monday.getFullYear(),
-    monday.getMonth(),
-    monday.getDate() + 6
-  );
-  return {
-    start: formatYMD(monday),
-    end: formatYMD(sunday),
-  };
+  const diffToMonday = (now.getDay() + 6) % 7;
+  const monday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - diffToMonday);
+  const sunday = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + 6);
+  return { start: formatYMD(monday), end: formatYMD(sunday) };
 };
 
-// time helpers
 const timeToFinishHours = (task) => {
   if (!task) return null;
-  if (task.totalActiveSeconds) {
-    return +(Number(task.totalActiveSeconds) / 3600).toFixed(2);
-  }
+  if (task.totalActiveSeconds) return +(Number(task.totalActiveSeconds) / 3600).toFixed(2);
   if (task.startedAt && task.closedAt) {
-    const start = new Date(task.startedAt).getTime();
-    const end = new Date(task.closedAt).getTime();
-    if (end > start) {
-      return +((end - start) / (1000 * 60 * 60)).toFixed(2);
-    }
+    const diff = new Date(task.closedAt).getTime() - new Date(task.startedAt).getTime();
+    if (diff > 0) return +(diff / (1000 * 60 * 60)).toFixed(2);
   }
   return null;
 };
 
 const formatDateTime = (val) => {
-  if (!val) return "";
-  const d = new Date(val);
-  return d.toLocaleString("en-IN", {
-    dateStyle: "short",
-    timeStyle: "short",
-  });
+  if (!val) return "—";
+  return new Date(val).toLocaleString("en-IN", { dateStyle: "short", timeStyle: "short" });
 };
 
-// small stat card
-const StatCard = ({ icon, label, value, helper }) => (
-  <Card
-    elevation={0}
+// ── Field style ───────────────────────────────────────────────
+const fieldSx = {
+  "& .MuiOutlinedInput-root": {
+    borderRadius: "10px",
+    bgcolor: "#F8FAFC",
+    "&:hover .MuiOutlinedInput-notchedOutline": { borderColor: "#93C5FD" },
+    "&.Mui-focused .MuiOutlinedInput-notchedOutline": { borderColor: "#2563EB", borderWidth: 2 },
+  },
+  "& .MuiInputLabel-root.Mui-focused": { color: "#2563EB" },
+};
+
+// ── Stat Card ─────────────────────────────────────────────────
+const StatCard = ({ icon, label, value, helper, accent = "#2563EB", accentBg = "#EFF6FF" }) => (
+  <Box
     sx={{
       flex: 1,
-      borderRadius: 3,
-      border: "1px solid",
-      borderColor: "divider",
-      bgcolor: "#f9fafb",
+      borderRadius: "16px",
+      bgcolor: "#FFFFFF",
+      border: "1px solid #E2E8F0",
+      p: 2.5,
+      boxShadow: "0 1px 4px rgba(0,0,0,0.04)",
+      display: "flex",
+      alignItems: "center",
+      gap: 2,
     }}
   >
-    <CardContent sx={{ py: 2 }}>
-      <Stack direction="row" spacing={1.5} alignItems="center">
-        <Box
-          sx={{
-            width: 36,
-            height: 36,
-            borderRadius: 2,
-            bgcolor: "primary.light",
-            color: "primary.main",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            fontSize: 18,
-          }}
-        >
-          {icon}
-        </Box>
-        <Box>
-          <Typography
-            variant="caption"
-            sx={{ fontWeight: 600, color: "text.secondary" }}
-          >
-            {label}
-          </Typography>
-          <Typography
-            variant="h6"
-            sx={{ fontWeight: 800, lineHeight: 1.2, mt: 0.5 }}
-          >
-            {value}
-          </Typography>
-          {helper && (
-            <Typography
-              variant="caption"
-              sx={{ color: "text.secondary" }}
-            >
-              {helper}
-            </Typography>
-          )}
-        </Box>
-      </Stack>
-    </CardContent>
-  </Card>
+    <Box
+      sx={{
+        width: 48,
+        height: 48,
+        borderRadius: "14px",
+        bgcolor: accentBg,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        flexShrink: 0,
+      }}
+    >
+      <Box sx={{ color: accent, display: "flex" }}>{icon}</Box>
+    </Box>
+    <Box>
+      <Typography sx={{ fontSize: 12, fontWeight: 600, color: "#64748B", mb: 0.25 }}>
+        {label}
+      </Typography>
+      <Typography sx={{ fontSize: 28, fontWeight: 800, color: "#0F172A", lineHeight: 1 }}>
+        {value}
+      </Typography>
+      {helper && (
+        <Typography sx={{ fontSize: 12, color: "#94A3B8", mt: 0.5 }}>{helper}</Typography>
+      )}
+    </Box>
+  </Box>
 );
 
-// -------- main component --------
+// ── Tab button ────────────────────────────────────────────────
+const TabBtn = ({ label, icon, active, onClick }) => (
+  <Button
+    onClick={onClick}
+    disableElevation
+    sx={{
+      textTransform: "none",
+      fontWeight: 600,
+      fontSize: 13,
+      px: 2.5,
+      py: 1,
+      borderRadius: "10px",
+      color: active ? "#2563EB" : "#64748B",
+      bgcolor: active ? "#EFF6FF" : "transparent",
+      border: active ? "1.5px solid #BFDBFE" : "1.5px solid transparent",
+      gap: 0.75,
+      "&:hover": { bgcolor: active ? "#EFF6FF" : "#F8FAFC" },
+      transition: "all 0.15s",
+    }}
+    startIcon={icon}
+  >
+    {label}
+  </Button>
+);
+
+// ── Table styles ──────────────────────────────────────────────
+const thCellSx = {
+  fontSize: 11,
+  fontWeight: 700,
+  color: "#64748B",
+  textTransform: "uppercase",
+  letterSpacing: 0.5,
+  bgcolor: "#F8FAFC",
+  borderBottom: "1px solid #E2E8F0",
+  py: 1.25,
+  px: 2,
+};
+
+const tdCellSx = {
+  fontSize: 13,
+  color: "#334155",
+  borderBottom: "1px solid #F1F5F9",
+  py: 1.25,
+  px: 2,
+};
+
+// ════════════════════════════════════════════════════════════
+// MAIN COMPONENT
+// ════════════════════════════════════════════════════════════
 const MyReporting = () => {
   const [activeTab, setActiveTab] = useState("daily");
-
   const [selectedDate, setSelectedDate] = useState(todayYMD());
   const [weekRange, setWeekRange] = useState(() => getCurrentWeekRange());
-  const [selectedMonth, setSelectedMonth] =
-    useState(getCurrentMonthValue());
-
+  const [selectedMonth, setSelectedMonth] = useState(getCurrentMonthValue());
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState("");
-
   const [employees, setEmployees] = useState([]);
   const [showReportInline, setShowReportInline] = useState(false);
   const [selectedViewer, setSelectedViewer] = useState(null);
-
   const [viewingUserId, setViewingUserId] = useState(null);
   const [viewingUserName, setViewingUserName] = useState("");
 
   const [currentUser] = useState(() => {
-    try {
-      const raw = sessionStorage.getItem("user");
-      return raw ? JSON.parse(raw) : null;
-    } catch {
-      return null;
-    }
-  }); 
+    try { const raw = sessionStorage.getItem("user"); return raw ? JSON.parse(raw) : null; }
+    catch { return null; }
+  });
 
-  const isManagerOrSuperAdmin =
-  currentUser?.role === "Manager" || currentUser?.role === "Super Admin";
+  const isManagerOrSuperAdmin = currentUser?.role === "Manager" || currentUser?.role === "Super Admin";
+  const currentUserId = useMemo(() => (currentUser && (currentUser._id || currentUser.id)) || null, [currentUser]);
+  const viewingOwn = useMemo(() => !!currentUserId && viewingUserId === currentUserId, [currentUserId, viewingUserId]);
+  const headingPrefix = viewingUserName || currentUser?.fullName || "My";
 
-  const currentUserId = useMemo(
-    () => (currentUser && (currentUser._id || currentUser.id)) || null,
-    [currentUser]
-  );
-
-  const viewingOwn = useMemo(
-    () => !!currentUserId && viewingUserId === currentUserId,
-    [currentUserId, viewingUserId]
-  );
-
-  const headingPrefix =
-    viewingUserName || currentUser?.fullName || "My";
-
-  // initial viewing user = current user
   useEffect(() => {
     if (currentUserId && !viewingUserId) {
       setViewingUserId(currentUserId);
-      setViewingUserName(
-        currentUser?.fullName || currentUser?.name || "Me"
-      );
+      setViewingUserName(currentUser?.fullName || currentUser?.name || "Me");
     }
   }, [currentUserId, currentUser, viewingUserId]);
 
-  // fetch employees (for View Report)
   const fetchEmployees = useCallback(async () => {
     try {
       const res = await axios.get(`${API_BASE_URL}/api/employees`);
-      const raw = res.data || [];
-      const active = raw
-        .filter(
-          (emp) => (emp.status || "").toLowerCase() === "active"
-        )
-        .sort((a, b) =>
-          (a.fullName || a.name || "").localeCompare(
-            b.fullName || b.name || ""
-          )
-        );
+      const active = (res.data || [])
+        .filter((e) => (e.status || "").toLowerCase() === "active")
+        .sort((a, b) => (a.fullName || a.name || "").localeCompare(b.fullName || b.name || ""));
       setEmployees(active);
-    } catch (e) {
-      console.error("Failed to fetch employees", e);
-      setEmployees([]);
-    }
+    } catch { setEmployees([]); }
   }, []);
 
-  useEffect(() => {
-    fetchEmployees();
-  }, [fetchEmployees]);
+  useEffect(() => { fetchEmployees(); }, [fetchEmployees]);
 
-  // fetch tasks for current viewingUserId
-  const fetchTasks = useCallback(
-    async (ownerId) => {
-      const targetId = ownerId || viewingUserId || currentUserId;
-      if (!targetId) return;
-
-      try {
-        setLoading(true);
-        setLoadError("");
-        const { data } = await axios.get(
-          `${API_BASE_URL}/api/tasks/board`,
-          { params: { userId: targetId } }
-        );
-        const loaded = (data.tasks || []).map((t) => ({
-          id: String(t.id || t._id),
-          title: t.title,
-          description: t.description || "",
-          status: t.status,
-          assigneeId: t.assigneeId || null,
-          assigneeName: t.assigneeName || "",
-          assignedById: t.assignedById || null,
-          assignedByName: t.assignedByName || "",
-          assignedDate: t.assignedDate || null,
-          dueDate: t.dueDate || null,
-          totalActiveSeconds: t.totalActiveSeconds || 0,
-          startedAt: t.startedAt || null,
-          activeSince: t.activeSince || null,
-          closedAt: t.closedAt || null,
-          createdAt: t.createdAt || null,
-        }));
-        setTasks(loaded);
-      } catch (e) {
-        console.error("Failed to load tasks for reporting", e);
-        setLoadError(e?.message || "Failed to load report data");
-        setTasks([]);
-      } finally {
-        setLoading(false);
-      }
-    },
-    [viewingUserId, currentUserId]
-  );
+  const fetchTasks = useCallback(async (ownerId) => {
+    const targetId = ownerId || viewingUserId || currentUserId;
+    if (!targetId) return;
+    try {
+      setLoading(true); setLoadError("");
+      const { data } = await axios.get(`${API_BASE_URL}/api/tasks/board`, { params: { userId: targetId } });
+      setTasks((data.tasks || []).map((t) => ({
+        id: String(t.id || t._id), title: t.title, description: t.description || "",
+        status: t.status, assigneeId: t.assigneeId || null, assigneeName: t.assigneeName || "",
+        assignedById: t.assignedById || null, assignedByName: t.assignedByName || "",
+        assignedDate: t.assignedDate || null, dueDate: t.dueDate || null,
+        totalActiveSeconds: t.totalActiveSeconds || 0, startedAt: t.startedAt || null,
+        activeSince: t.activeSince || null, closedAt: t.closedAt || null, createdAt: t.createdAt || null,
+      })));
+    } catch (e) {
+      setLoadError(e?.message || "Failed to load report data");
+      setTasks([]);
+    } finally { setLoading(false); }
+  }, [viewingUserId, currentUserId]);
 
   useEffect(() => {
-    if (viewingUserId || currentUserId) {
-      fetchTasks(viewingUserId || currentUserId);
-    }
+    if (viewingUserId || currentUserId) fetchTasks(viewingUserId || currentUserId);
   }, [fetchTasks, viewingUserId, currentUserId]);
 
-  // -------- filtering logic --------
-  const closedTasks = useMemo(
-    () => tasks.filter((t) => t.status === COLUMN_IDS.CLOSED),
-    [tasks]
-  );
+  const closedTasks = useMemo(() => tasks.filter((t) => t.status === COLUMN_IDS.CLOSED), [tasks]);
+  const openTasks = useMemo(() => tasks.filter((t) => t.status === COLUMN_IDS.OPEN), [tasks]);
 
-  const openTasks = useMemo(
-    () => tasks.filter((t) => t.status === COLUMN_IDS.OPEN),
-    [tasks]
-  );
+  const dailyClosed = useMemo(() => closedTasks.filter((t) => isSameDay(t.closedAt, selectedDate)), [closedTasks, selectedDate]);
+  const weeklyClosed = useMemo(() => closedTasks.filter((t) => isBetweenInclusive(t.closedAt, weekRange.start, weekRange.end)), [closedTasks, weekRange]);
+  const monthlyClosed = useMemo(() => closedTasks.filter((t) => isInMonth(t.closedAt, selectedMonth)), [closedTasks, selectedMonth]);
 
-  const dailyClosed = useMemo(
-    () =>
-      closedTasks.filter((t) =>
-        isSameDay(t.closedAt, selectedDate)
-      ),
-    [closedTasks, selectedDate]
-  );
-
-  const weeklyClosed = useMemo(
-    () =>
-      closedTasks.filter((t) =>
-        isBetweenInclusive(
-          t.closedAt,
-          weekRange.start,
-          weekRange.end
-        )
-      ),
-    [closedTasks, weekRange]
-  );
-
-  const monthlyClosed = useMemo(
-    () =>
-      closedTasks.filter((t) => isInMonth(t.closedAt, selectedMonth)),
-    [closedTasks, selectedMonth]
-  );
-
-  const summarizeTasks = (list) => {
+  const summarize = (list) => {
     const count = list.length;
-    const totalHours = list.reduce((acc, t) => {
-      const h = timeToFinishHours(t);
-      return acc + (h || 0);
-    }, 0);
-    return { count, totalHours: +totalHours.toFixed(2) };
+    const totalHours = +list.reduce((acc, t) => acc + (timeToFinishHours(t) || 0), 0).toFixed(2);
+    return { count, totalHours };
   };
 
-  const dailySummary = summarizeTasks(dailyClosed);
-  const weeklySummary = summarizeTasks(weeklyClosed);
-  const monthlySummary = summarizeTasks(monthlyClosed);
-
-  // -------- View Report logic --------
-  const openInlinePicker = () => {
-    setShowReportInline(true);
-    setSelectedViewer(null);
-  };
+  const dailySummary = summarize(dailyClosed);
+  const weeklySummary = summarize(weeklyClosed);
+  const monthlySummary = summarize(monthlyClosed);
 
   const confirmOpenViewedReport = () => {
     if (!selectedViewer) return;
     const id = selectedViewer._id || selectedViewer.id;
     if (!id) return;
-
     setViewingUserId(id);
-    setViewingUserName(
-      selectedViewer.fullName || selectedViewer.name || "User"
-    );
+    setViewingUserName(selectedViewer.fullName || selectedViewer.name || "User");
     setShowReportInline(false);
   };
 
   const closeInlinePickerAndRevert = () => {
-    if (!currentUserId) {
-      setShowReportInline(false);
-      return;
-    }
+    if (!currentUserId) { setShowReportInline(false); return; }
     setViewingUserId(currentUserId);
-    setViewingUserName(
-      currentUser?.fullName || currentUser?.name || "Me"
-    );
+    setViewingUserName(currentUser?.fullName || currentUser?.name || "Me");
     setSelectedViewer(null);
     setShowReportInline(false);
   };
 
-  const headerBtnSx = {
-    textTransform: "none",
-    borderRadius: 999,
-    bgcolor: "#0f172a",
-    color: "#ffffff",
-    border: "1px solid #0f172a",
-    px: 2.2,
-    "&:hover": { bgcolor: "#111827" },
-  };
-
-  // -------- table row renderer --------
-  const renderRows = (list) =>
-    list.map((t) => {
+  // ── Table renderers ───────────────────────────────────────
+  const renderClosedRows = (list) =>
+    list.length === 0 ? (
+      <TableRow>
+        <TableCell colSpan={6} sx={{ ...tdCellSx, py: 3, textAlign: "center" }}>
+          <Typography sx={{ fontSize: 13, color: "#94A3B8" }}>No closed tasks for this period.</Typography>
+        </TableCell>
+      </TableRow>
+    ) : list.map((t) => {
       const hours = timeToFinishHours(t);
       return (
-        <TableRow key={t.id} hover>
-          <TableCell>{t.title}</TableCell>
-          <TableCell>{t.assigneeName || "-"}</TableCell>
-          <TableCell>{t.assignedByName || "-"}</TableCell>
-          <TableCell>{formatDateTime(t.startedAt)}</TableCell>
-          <TableCell>{formatDateTime(t.closedAt)}</TableCell>
-          <TableCell align="right">
-            {hours !== null ? `${hours} h` : "-"}
+        <TableRow key={t.id} sx={{ "&:hover": { bgcolor: "#F8FAFC" }, transition: "background 0.1s" }}>
+          <TableCell sx={{ ...tdCellSx, fontWeight: 600, color: "#0F172A", maxWidth: 220 }}>
+            <Typography sx={{ fontSize: 13, fontWeight: 600, color: "#0F172A" }}>{t.title}</Typography>
+            {t.description && (
+              <Typography sx={{ fontSize: 11, color: "#94A3B8", mt: 0.25, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 200 }}>
+                {t.description}
+              </Typography>
+            )}
+          </TableCell>
+          <TableCell sx={tdCellSx}>
+            {t.assigneeName ? (
+              <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                <Box sx={{ width: 22, height: 22, borderRadius: "50%", bgcolor: "#E0E7FF", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: 700, color: "#4338CA", flexShrink: 0 }}>
+                  {t.assigneeName.charAt(0).toUpperCase()}
+                </Box>
+                <Typography sx={{ fontSize: 13 }}>{t.assigneeName}</Typography>
+              </Box>
+            ) : <Typography sx={{ fontSize: 13, color: "#CBD5E1" }}>—</Typography>}
+          </TableCell>
+          <TableCell sx={tdCellSx}>
+            {t.assignedByName || <Typography sx={{ fontSize: 13, color: "#CBD5E1" }}>—</Typography>}
+          </TableCell>
+          <TableCell sx={{ ...tdCellSx, whiteSpace: "nowrap" }}>{formatDateTime(t.startedAt)}</TableCell>
+          <TableCell sx={{ ...tdCellSx, whiteSpace: "nowrap" }}>{formatDateTime(t.closedAt)}</TableCell>
+          <TableCell sx={{ ...tdCellSx, textAlign: "right" }}>
+            {hours !== null ? (
+              <Box sx={{ display: "inline-flex", alignItems: "center", gap: 0.5, px: 1.25, py: 0.35, borderRadius: "8px", bgcolor: "#F0FDF4", border: "1px solid #BBF7D0" }}>
+                <AccessTimeIcon sx={{ fontSize: 11, color: "#16A34A" }} />
+                <Typography sx={{ fontSize: 12, fontWeight: 700, color: "#16A34A" }}>{hours}h</Typography>
+              </Box>
+            ) : <Typography sx={{ fontSize: 13, color: "#CBD5E1" }}>—</Typography>}
           </TableCell>
         </TableRow>
       );
     });
 
   const renderOpenRows = (list) =>
-    list.map((t) => (
-      <TableRow key={t.id} hover>
-        <TableCell>{t.title}</TableCell>
-        <TableCell>{t.assigneeName || "-"}</TableCell>
-        <TableCell>{t.assignedByName || "-"}</TableCell>
-        <TableCell>{formatDateTime(t.startedAt)}</TableCell>
-        <TableCell>{formatDateTime(t.dueDate)}</TableCell>
-        <TableCell align="right">
-          <Chip
-            size="small"
-            label="Open"
-            sx={{
-              bgcolor: "success.light",
-              color: "success.main",
-              fontWeight: 600,
-            }}
-          />
+    list.length === 0 ? (
+      <TableRow>
+        <TableCell colSpan={6} sx={{ ...tdCellSx, py: 3, textAlign: "center" }}>
+          <Typography sx={{ fontSize: 13, color: "#94A3B8" }}>No open tasks.</Typography>
+        </TableCell>
+      </TableRow>
+    ) : list.map((t) => (
+      <TableRow key={t.id} sx={{ "&:hover": { bgcolor: "#F8FAFC" }, transition: "background 0.1s" }}>
+        <TableCell sx={{ ...tdCellSx, fontWeight: 600, color: "#0F172A", maxWidth: 220 }}>
+          <Typography sx={{ fontSize: 13, fontWeight: 600, color: "#0F172A" }}>{t.title}</Typography>
+        </TableCell>
+        <TableCell sx={tdCellSx}>
+          {t.assigneeName ? (
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+              <Box sx={{ width: 22, height: 22, borderRadius: "50%", bgcolor: "#E0E7FF", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: 700, color: "#4338CA", flexShrink: 0 }}>
+                {t.assigneeName.charAt(0).toUpperCase()}
+              </Box>
+              <Typography sx={{ fontSize: 13 }}>{t.assigneeName}</Typography>
+            </Box>
+          ) : <Typography sx={{ fontSize: 13, color: "#CBD5E1" }}>—</Typography>}
+        </TableCell>
+        <TableCell sx={tdCellSx}>{t.assignedByName || "—"}</TableCell>
+        <TableCell sx={{ ...tdCellSx, whiteSpace: "nowrap" }}>{formatDateTime(t.startedAt)}</TableCell>
+        <TableCell sx={{ ...tdCellSx, whiteSpace: "nowrap" }}>{formatDateTime(t.dueDate)}</TableCell>
+        <TableCell sx={{ ...tdCellSx, textAlign: "right" }}>
+          <Box sx={{ display: "inline-flex", alignItems: "center", gap: 0.5, px: 1.25, py: 0.35, borderRadius: "8px", bgcolor: "#ECFDF5", border: "1px solid #6EE7B7" }}>
+            <Box sx={{ width: 6, height: 6, borderRadius: "50%", bgcolor: "#10B981", animation: "pulse 1.5s infinite", "@keyframes pulse": { "0%,100%": { opacity: 1 }, "50%": { opacity: 0.4 } } }} />
+            <Typography sx={{ fontSize: 12, fontWeight: 700, color: "#059669" }}>Active</Typography>
+          </Box>
         </TableCell>
       </TableRow>
     ));
 
+  const TableSection = ({ title, children }) => (
+    <Box sx={{ mb: 3 }}>
+      <Typography sx={{ fontSize: 13, fontWeight: 700, color: "#374151", mb: 1.25, display: "flex", alignItems: "center", gap: 0.75 }}>
+        {title}
+      </Typography>
+      <Box sx={{ borderRadius: "12px", overflow: "hidden", border: "1px solid #E2E8F0", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
+        {children}
+      </Box>
+    </Box>
+  );
+
+  const ClosedTable = ({ list }) => (
+    <TableSection title="Closed Tasks">
+      <Table size="small">
+        <TableHead>
+          <TableRow>
+            {["Task", "Assignee", "Assigned By", "Started At", "Closed At", "Time Spent"].map((h, i) => (
+              <TableCell key={h} sx={{ ...thCellSx, textAlign: i === 5 ? "right" : "left" }}>{h}</TableCell>
+            ))}
+          </TableRow>
+        </TableHead>
+        <TableBody>{renderClosedRows(list)}</TableBody>
+      </Table>
+    </TableSection>
+  );
+
   return (
-    <Box
-      sx={{
-        position: "relative",
-        minHeight: "100vh",
-        bgcolor: "#f3f4f6",
-        py: 2,
-      }}
-    >
-      <Box
-        sx={{
-          maxWidth: 1200,
-          mx: "auto",
-          px: { xs: 1.5, md: 2 },
-        }}
-      >
-        {/* header */}
-        <Box
-          sx={{
-            mb: 2,
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: { xs: "flex-start", sm: "center" },
-            gap: 2,
-          }}
-        >
-          <Box>
-            <Stack direction="row" spacing={1} alignItems="center">
-              <Box
-                sx={{
-                  width: 32,
-                  height: 32,
-                  borderRadius: 2,
-                  bgcolor: "#0f172a",
-                  color: "#e5e7eb",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
-                <QueryStatsIcon fontSize="small" />
-              </Box>
-              <Typography
-                variant="h6"
-                sx={{
-                  fontWeight: 700,
-                  letterSpacing: 0.2,
-                  color: "#0f172a",
-                }}
-              >
-                {headingPrefix} – Performance Reporting
+    <ThemeProvider theme={theme}>
+      <Box sx={{ minHeight: "100vh", bgcolor: "#F0F4FF" }}>
+
+        {/* ── Top bar ── */}
+        <Box sx={{ bgcolor: "#FFFFFF", borderBottom: "1px solid #E5E7EB", px: 3, py: 1.75, display: "flex", alignItems: "center", justifyContent: "space-between", boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+            <Box sx={{ width: 36, height: 36, borderRadius: "10px", background: "linear-gradient(135deg, #7C3AED, #2563EB)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <QueryStatsIcon sx={{ fontSize: 18, color: "#fff" }} />
+            </Box>
+            <Box>
+              <Typography sx={{ fontWeight: 700, fontSize: 16, color: "#0F172A", lineHeight: 1.2 }}>
+                {headingPrefix} — Performance Report
               </Typography>
-            </Stack>
-            <Typography
-              variant="body2"
-              sx={{ color: "text.secondary", mt: 0.5 }}
-            >
-              {loading
-                ? "Loading report..."
-                : `${tasks.length} task${tasks.length === 1 ? "" : "s"} in this workspace`}
-            </Typography>
+              <Typography sx={{ fontSize: 12, color: "#94A3B8" }}>
+                {loading ? "Loading…" : `${tasks.length} task${tasks.length === 1 ? "" : "s"} in workspace`}
+              </Typography>
+            </Box>
           </Box>
 
           <Stack direction="row" spacing={1} alignItems="center">
-  {isManagerOrSuperAdmin && (
-    !showReportInline ? (
-      <Button
-        variant="contained"
-        onClick={openInlinePicker}
-        sx={headerBtnSx}
-        startIcon={<VisibilityIcon />}
-      >
-        View Report
-      </Button>
-    ) : (
-      <Box
-        sx={{
-          display: "flex",
-          alignItems: "center",
-          gap: 1,
-          px: 1,
-          py: 0.7,
-          borderRadius: 999,
-          border: "1px solid #d1d5db",
-          bgcolor: "#ffffff",
-          minWidth: { xs: 260, sm: 360 },
-        }}
-      >
-        <Autocomplete
-          sx={{ flex: 1 }}
-          size="small"
-          options={employees}
-          value={selectedViewer}
-          onChange={(_, v) => setSelectedViewer(v)}
-          getOptionLabel={(opt) => opt.fullName || opt.name || ""}
-          isOptionEqualToValue={(o, v) =>
-            (o._id || o.id) === (v?._id || v?.id)
-          }
-          renderInput={(params) => (
-            <TextField
-              {...params}
-              size="small"
-              placeholder="Search employee…"
-            />
-          )}
-        />
+            {viewingOwn && (
+              <Chip
+                size="small"
+                icon={<AssignmentIndIcon sx={{ fontSize: 13 }} />}
+                label="My Report"
+                sx={{ bgcolor: "#EFF6FF", color: "#2563EB", border: "1px solid #BFDBFE", fontWeight: 600, fontSize: 12 }}
+              />
+            )}
 
-        <IconButton
-          size="small"
-          onClick={confirmOpenViewedReport}
-          disabled={!selectedViewer}
-          sx={{ color: "#0f172a" }}
-          title="Open report"
-        >
-          <CheckIcon fontSize="small" />
-        </IconButton>
-
-        <IconButton
-          size="small"
-          onClick={closeInlinePickerAndRevert}
-          sx={{ color: "#6b7280" }}
-          title="Close and revert to my report"
-        >
-          <CloseIcon fontSize="small" />
-        </IconButton>
-      </Box>
-    )
-  )}
-
-  {viewingOwn && (
-    <Chip
-      size="small"
-      icon={<AssignmentIndIcon sx={{ fontSize: 16 }} />}
-      label="My report"
-      sx={{
-        bgcolor: "#e5e7eb",
-        color: "#111827",
-        fontWeight: 500,
-      }}
-    />
-  )}
-</Stack>
-
+            {isManagerOrSuperAdmin && (!showReportInline ? (
+              <Button
+                variant="outlined"
+                onClick={() => { setShowReportInline(true); setSelectedViewer(null); }}
+                startIcon={<VisibilityIcon sx={{ fontSize: 14 }} />}
+                sx={{ textTransform: "none", borderRadius: "10px", fontWeight: 600, fontSize: 13, px: 2, py: 0.75, color: "#374151", borderColor: "#E5E7EB", bgcolor: "#FFFFFF", "&:hover": { bgcolor: "#F9FAFB", borderColor: "#D1D5DB" } }}
+              >
+                View Report
+              </Button>
+            ) : (
+              <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, px: 1.5, py: 0.75, borderRadius: "10px", border: "1px solid #BFDBFE", bgcolor: "#EFF6FF", minWidth: 300 }}>
+                <Autocomplete
+                  sx={{ flex: 1 }}
+                  size="small"
+                  options={employees}
+                  value={selectedViewer}
+                  onChange={(_, v) => setSelectedViewer(v)}
+                  getOptionLabel={(opt) => opt.fullName || opt.name || ""}
+                  isOptionEqualToValue={(o, v) => (o._id || o.id) === (v?._id || v?.id)}
+                  renderInput={(params) => (
+                    <TextField {...params} size="small" placeholder="Search employee…"
+                      sx={{ "& .MuiOutlinedInput-root": { bgcolor: "#fff", borderRadius: "8px" } }} />
+                  )}
+                />
+                <IconButton size="small" onClick={confirmOpenViewedReport} disabled={!selectedViewer}
+                  sx={{ bgcolor: "#2563EB", color: "#fff", width: 28, height: 28, borderRadius: "8px", "&:hover": { bgcolor: "#1D4ED8" }, "&.Mui-disabled": { bgcolor: "#BFDBFE", color: "#93C5FD" } }}>
+                  <CheckIcon sx={{ fontSize: 14 }} />
+                </IconButton>
+                <IconButton size="small" onClick={closeInlinePickerAndRevert}
+                  sx={{ bgcolor: "#F1F5F9", color: "#64748B", width: 28, height: 28, borderRadius: "8px", "&:hover": { bgcolor: "#E2E8F0" } }}>
+                  <CloseIcon sx={{ fontSize: 14 }} />
+                </IconButton>
+              </Box>
+            ))}
+          </Stack>
         </Box>
 
-        {loadError && (
-          <Box mb={2}>
-            <Alert severity="warning" variant="outlined">
-              {String(loadError)}
-            </Alert>
-          </Box>
-        )}
+        {/* ── Content ── */}
+        <Box sx={{ maxWidth: 1200, mx: "auto", px: { xs: 2, md: 3 }, py: 3 }}>
+          {loadError && (
+            <Alert severity="warning" sx={{ borderRadius: "10px", mb: 2 }}>{String(loadError)}</Alert>
+          )}
 
-        {/* main card */}
-        <Paper
-          elevation={0}
-          sx={{
-            borderRadius: 3,
-            border: "1px solid #e5e7eb",
-            bgcolor: "#ffffff",
-            overflow: "hidden",
-          }}
-        >
-          {/* tabs */}
-          <Box
-            sx={{
-              px: 2,
-              pt: 1.5,
-              borderBottom: "1px solid #e5e7eb",
-              bgcolor: "#f9fafb",
-            }}
-          >
-            <Tabs
-              value={activeTab}
-              onChange={(_, v) => setActiveTab(v)}
-              textColor="primary"
-              indicatorColor="primary"
-              sx={{
-                "& .MuiTab-root": {
-                  textTransform: "none",
-                  fontWeight: 600,
-                  minHeight: 40,
-                  fontSize: 14,
-                },
-              }}
-            >
-              <Tab label="Daily" value="daily" />
-              <Tab label="Weekly" value="weekly" />
-              <Tab label="Monthly" value="monthly" />
-            </Tabs>
-          </Box>
+          {/* Period tabs */}
+          <Box sx={{ bgcolor: "#FFFFFF", borderRadius: "16px", border: "1px solid #E2E8F0", boxShadow: "0 1px 4px rgba(0,0,0,0.04)", p: 3 }}>
+            <Stack direction="row" spacing={1} sx={{ mb: 3 }}>
+              <TabBtn label="Daily" icon={<CalendarTodayIcon sx={{ fontSize: 14 }} />} active={activeTab === "daily"} onClick={() => setActiveTab("daily")} />
+              <TabBtn label="Weekly" icon={<DateRangeIcon sx={{ fontSize: 14 }} />} active={activeTab === "weekly"} onClick={() => setActiveTab("weekly")} />
+              <TabBtn label="Monthly" icon={<EventNoteIcon sx={{ fontSize: 14 }} />} active={activeTab === "monthly"} onClick={() => setActiveTab("monthly")} />
+            </Stack>
 
-          <Box sx={{ px: 2.5, py: 2.5 }}>
-            {/* filters */}
+            {/* ── Filters ── */}
+            <Box sx={{ mb: 3, p: 2, borderRadius: "12px", bgcolor: "#F8FAFC", border: "1px solid #E2E8F0" }}>
+              {activeTab === "daily" && (
+                <Stack direction={{ xs: "column", sm: "row" }} spacing={2} alignItems={{ xs: "flex-start", sm: "center" }}>
+                  <TextField label="Date" type="date" size="small" InputLabelProps={{ shrink: true }}
+                    value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)}
+                    sx={{ ...fieldSx, minWidth: 200 }} />
+                  <Typography sx={{ fontSize: 13, color: "#64748B" }}>
+                    Showing closed tasks for the selected date, plus all currently open tasks.
+                  </Typography>
+                </Stack>
+              )}
+              {activeTab === "weekly" && (
+                <Stack direction={{ xs: "column", sm: "row" }} spacing={2} alignItems={{ xs: "flex-start", sm: "center" }}>
+                  <TextField label="Week start" type="date" size="small" InputLabelProps={{ shrink: true }}
+                    value={weekRange.start} onChange={(e) => setWeekRange((p) => ({ ...p, start: e.target.value }))}
+                    sx={{ ...fieldSx, minWidth: 190 }} />
+                  <Box sx={{ display: "flex", alignItems: "center", color: "#94A3B8" }}>
+                    <Box sx={{ width: 20, height: 1.5, bgcolor: "#CBD5E1" }} />
+                  </Box>
+                  <TextField label="Week end" type="date" size="small" InputLabelProps={{ shrink: true }}
+                    value={weekRange.end} onChange={(e) => setWeekRange((p) => ({ ...p, end: e.target.value }))}
+                    sx={{ ...fieldSx, minWidth: 190 }} />
+                  <Typography sx={{ fontSize: 13, color: "#64748B" }}>Closed tasks in selected range.</Typography>
+                </Stack>
+              )}
+              {activeTab === "monthly" && (
+                <Stack direction={{ xs: "column", sm: "row" }} spacing={2} alignItems={{ xs: "flex-start", sm: "center" }}>
+                  <TextField label="Month" type="month" size="small" InputLabelProps={{ shrink: true }}
+                    value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)}
+                    sx={{ ...fieldSx, minWidth: 200 }} />
+                  <Typography sx={{ fontSize: 13, color: "#64748B" }}>Closed tasks for the selected month.</Typography>
+                </Stack>
+              )}
+            </Box>
+
+            {/* ── Stat cards ── */}
             {activeTab === "daily" && (
-              <Stack
-                direction={{ xs: "column", sm: "row" }}
-                spacing={2}
-                alignItems={{ xs: "flex-start", sm: "center" }}
-                sx={{ mb: 2 }}
-              >
-                <TextField
-                  label="Date"
-                  type="date"
-                  size="small"
-                  InputLabelProps={{ shrink: true }}
-                  value={selectedDate}
-                  onChange={(e) => setSelectedDate(e.target.value)}
-                  sx={{ minWidth: 200 }}
-                />
-                <Typography
-                  variant="body2"
-                  sx={{ color: "text.secondary" }}
-                >
-                  Closed tasks for the selected date, plus all current
-                  open tasks.
-                </Typography>
-              </Stack>
-            )}
-
-            {activeTab === "weekly" && (
-              <Stack
-                direction={{ xs: "column", sm: "row" }}
-                spacing={2}
-                alignItems={{ xs: "flex-start", sm: "center" }}
-                sx={{ mb: 2 }}
-              >
-                <TextField
-                  label="Week start"
-                  type="date"
-                  size="small"
-                  InputLabelProps={{ shrink: true }}
-                  value={weekRange.start}
-                  onChange={(e) =>
-                    setWeekRange((prev) => ({
-                      ...prev,
-                      start: e.target.value,
-                    }))
-                  }
-                  sx={{ minWidth: 200 }}
-                />
-                <TextField
-                  label="Week end"
-                  type="date"
-                  size="small"
-                  InputLabelProps={{ shrink: true }}
-                  value={weekRange.end}
-                  onChange={(e) =>
-                    setWeekRange((prev) => ({
-                      ...prev,
-                      end: e.target.value,
-                    }))
-                  }
-                  sx={{ minWidth: 200 }}
-                />
-                <Typography
-                  variant="body2"
-                  sx={{ color: "text.secondary" }}
-                >
-                  Closed tasks between the selected dates.
-                </Typography>
-              </Stack>
-            )}
-
-            {activeTab === "monthly" && (
-              <Stack
-                direction={{ xs: "column", sm: "row" }}
-                spacing={2}
-                alignItems={{ xs: "flex-start", sm: "center" }}
-                sx={{ mb: 2 }}
-              >
-                <TextField
-                  label="Month"
-                  type="month"
-                  size="small"
-                  InputLabelProps={{ shrink: true }}
-                  value={selectedMonth}
-                  onChange={(e) =>
-                    setSelectedMonth(e.target.value)
-                  }
-                  sx={{ minWidth: 200 }}
-                />
-                <Typography
-                  variant="body2"
-                  sx={{ color: "text.secondary" }}
-                >
-                  Closed tasks for the selected month.
-                </Typography>
-              </Stack>
-            )}
-
-            <Divider sx={{ mb: 2 }} />
-
-            {/* summaries + tables */}
-            {activeTab === "daily" && (
-              <Box sx={{ mb: 2 }}>
-                <Stack
-                  direction={{ xs: "column", md: "row" }}
-                  spacing={2}
-                  sx={{ mb: 3 }}
-                >
+              <>
+                <Stack direction={{ xs: "column", md: "row" }} spacing={2} sx={{ mb: 3 }}>
                   <StatCard
-                    icon={<DoneAllIcon fontSize="small" />}
-                    label="Closed today"
+                    icon={<DoneAllIcon />}
+                    label="Closed Today"
                     value={dailySummary.count}
-                    helper={`${dailySummary.totalHours} h focused time`}
+                    helper={`${dailySummary.totalHours}h focused time`}
+                    accent="#2563EB" accentBg="#EFF6FF"
                   />
                   <StatCard
-                    icon={<AccessTimeIcon fontSize="small" />}
-                    label="Currently open"
+                    icon={<AccessTimeIcon />}
+                    label="Currently Active"
                     value={openTasks.length}
                     helper="Tasks still in progress"
+                    accent="#10B981" accentBg="#ECFDF5"
+                  />
+                  <StatCard
+                    icon={<TrendingUpIcon />}
+                    label="Total Tasks"
+                    value={tasks.length}
+                    helper="Across all statuses"
+                    accent="#7C3AED" accentBg="#F5F3FF"
                   />
                 </Stack>
 
-                {/* closed tasks table */}
-                <Typography
-                  variant="subtitle2"
-                  sx={{ mb: 1, fontWeight: 600 }}
-                >
-                  Closed tasks
-                </Typography>
-                <TableContainer
-                  component={Paper}
-                  variant="outlined"
-                  sx={{
-                    borderRadius: 2,
-                    mb: 3,
-                    "& .MuiTableHead-root": {
-                      bgcolor: "#f3f4f6",
-                    },
-                  }}
-                >
-                  <Table size="small">
-                    <TableHead>
-                      <TableRow>
-                        <TableCell>Title</TableCell>
-                        <TableCell>Assignee</TableCell>
-                        <TableCell>Assigned by</TableCell>
-                        <TableCell>Started at</TableCell>
-                        <TableCell>Closed at</TableCell>
-                        <TableCell align="right">
-                          Time spent (h)
-                        </TableCell>
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {dailyClosed.length === 0 ? (
-                        <TableRow>
-                          <TableCell colSpan={6}>
-                            <Typography variant="body2">
-                              No closed tasks for this date.
-                            </Typography>
-                          </TableCell>
-                        </TableRow>
-                      ) : (
-                        renderRows(dailyClosed)
-                      )}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
+                <ClosedTable list={dailyClosed} />
 
-                {/* open tasks table */}
-                <Typography
-                  variant="subtitle2"
-                  sx={{ mb: 1, fontWeight: 600 }}
-                >
-                  Open tasks (current)
-                </Typography>
-                <TableContainer
-                  component={Paper}
-                  variant="outlined"
-                  sx={{
-                    borderRadius: 2,
-                    mb: 1,
-                    "& .MuiTableHead-root": {
-                      bgcolor: "#f3f4f6",
-                    },
-                  }}
-                >
+                <TableSection title="Active Tasks">
                   <Table size="small">
                     <TableHead>
                       <TableRow>
-                        <TableCell>Title</TableCell>
-                        <TableCell>Assignee</TableCell>
-                        <TableCell>Assigned by</TableCell>
-                        <TableCell>Started at</TableCell>
-                        <TableCell>Due date</TableCell>
-                        <TableCell align="right">
-                          Status
-                        </TableCell>
+                        {["Task", "Assignee", "Assigned By", "Started At", "Due Date", "Status"].map((h, i) => (
+                          <TableCell key={h} sx={{ ...thCellSx, textAlign: i === 5 ? "right" : "left" }}>{h}</TableCell>
+                        ))}
                       </TableRow>
                     </TableHead>
-                    <TableBody>
-                      {openTasks.length === 0 ? (
-                        <TableRow>
-                          <TableCell colSpan={6}>
-                            <Typography variant="body2">
-                              No open tasks.
-                            </Typography>
-                          </TableCell>
-                        </TableRow>
-                      ) : (
-                        renderOpenRows(openTasks)
-                      )}
-                    </TableBody>
+                    <TableBody>{renderOpenRows(openTasks)}</TableBody>
                   </Table>
-                </TableContainer>
-              </Box>
+                </TableSection>
+              </>
             )}
 
             {activeTab === "weekly" && (
-              <Box sx={{ mb: 2 }}>
-                <Stack
-                  direction={{ xs: "column", md: "row" }}
-                  spacing={2}
-                  sx={{ mb: 3 }}
-                >
+              <>
+                <Stack direction={{ xs: "column", md: "row" }} spacing={2} sx={{ mb: 3 }}>
                   <StatCard
-                    icon={<DoneAllIcon fontSize="small" />}
-                    label="Closed this week"
+                    icon={<DoneAllIcon />}
+                    label="Closed This Week"
                     value={weeklySummary.count}
-                    helper={`${weeklySummary.totalHours} h focused time`}
+                    helper={`${weeklySummary.totalHours}h focused time`}
+                    accent="#2563EB" accentBg="#EFF6FF"
+                  />
+                  <StatCard
+                    icon={<TrendingUpIcon />}
+                    label="Daily Average"
+                    value={weeklySummary.count > 0 ? (weeklySummary.count / 7).toFixed(1) : "0"}
+                    helper="Tasks closed per day"
+                    accent="#F59E0B" accentBg="#FFFBEB"
                   />
                 </Stack>
-
-                <Typography
-                  variant="subtitle2"
-                  sx={{ mb: 1, fontWeight: 600 }}
-                >
-                  Closed tasks
-                </Typography>
-                <TableContainer
-                  component={Paper}
-                  variant="outlined"
-                  sx={{
-                    borderRadius: 2,
-                    "& .MuiTableHead-root": {
-                      bgcolor: "#f3f4f6",
-                    },
-                  }}
-                >
-                  <Table size="small">
-                    <TableHead>
-                      <TableRow>
-                        <TableCell>Title</TableCell>
-                        <TableCell>Assignee</TableCell>
-                        <TableCell>Assigned by</TableCell>
-                        <TableCell>Started at</TableCell>
-                        <TableCell>Closed at</TableCell>
-                        <TableCell align="right">
-                          Time spent (h)
-                        </TableCell>
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {weeklyClosed.length === 0 ? (
-                        <TableRow>
-                          <TableCell colSpan={6}>
-                            <Typography variant="body2">
-                              No closed tasks in this week.
-                            </Typography>
-                          </TableCell>
-                        </TableRow>
-                      ) : (
-                        renderRows(weeklyClosed)
-                      )}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
-              </Box>
+                <ClosedTable list={weeklyClosed} />
+              </>
             )}
 
             {activeTab === "monthly" && (
-              <Box sx={{ mb: 2 }}>
-                <Stack
-                  direction={{ xs: "column", md: "row" }}
-                  spacing={2}
-                  sx={{ mb: 3 }}
-                >
+              <>
+                <Stack direction={{ xs: "column", md: "row" }} spacing={2} sx={{ mb: 3 }}>
                   <StatCard
-                    icon={<DoneAllIcon fontSize="small" />}
-                    label="Closed this month"
+                    icon={<DoneAllIcon />}
+                    label="Closed This Month"
                     value={monthlySummary.count}
-                    helper={`${monthlySummary.totalHours} h focused time`}
+                    helper={`${monthlySummary.totalHours}h focused time`}
+                    accent="#2563EB" accentBg="#EFF6FF"
+                  />
+                  <StatCard
+                    icon={<TrendingUpIcon />}
+                    label="Daily Average"
+                    value={monthlySummary.count > 0 ? (monthlySummary.count / 30).toFixed(1) : "0"}
+                    helper="Tasks closed per day"
+                    accent="#F59E0B" accentBg="#FFFBEB"
+                  />
+                  <StatCard
+                    icon={<AccessTimeIcon />}
+                    label="Avg. Time / Task"
+                    value={monthlySummary.count > 0 ? `${(monthlySummary.totalHours / monthlySummary.count).toFixed(1)}h` : "—"}
+                    helper="Average hours per closed task"
+                    accent="#10B981" accentBg="#ECFDF5"
                   />
                 </Stack>
-
-                <Typography
-                  variant="subtitle2"
-                  sx={{ mb: 1, fontWeight: 600 }}
-                >
-                  Closed tasks
-                </Typography>
-                <TableContainer
-                  component={Paper}
-                  variant="outlined"
-                  sx={{
-                    borderRadius: 2,
-                    "& .MuiTableHead-root": {
-                      bgcolor: "#f3f4f6",
-                    },
-                  }}
-                >
-                  <Table size="small">
-                    <TableHead>
-                      <TableRow>
-                        <TableCell>Title</TableCell>
-                        <TableCell>Assignee</TableCell>
-                        <TableCell>Assigned by</TableCell>
-                        <TableCell>Started at</TableCell>
-                        <TableCell>Closed at</TableCell>
-                        <TableCell align="right">
-                          Time spent (h)
-                        </TableCell>
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {monthlyClosed.length === 0 ? (
-                        <TableRow>
-                          <TableCell colSpan={6}>
-                            <Typography variant="body2">
-                              No closed tasks in this month.
-                            </Typography>
-                          </TableCell>
-                        </TableRow>
-                      ) : (
-                        renderRows(monthlyClosed)
-                      )}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
-              </Box>
+                <ClosedTable list={monthlyClosed} />
+              </>
             )}
           </Box>
-        </Paper>
-      </Box>  
-    </Box>
+        </Box>
+      </Box>
+    </ThemeProvider>
   );
 };
 

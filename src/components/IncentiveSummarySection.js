@@ -578,6 +578,7 @@ export default function IncentiveSummarySection({ agentName }) {
  const walletUpcomingRows = walletRows.filter(
    (row) => !row?.isDelivered && isUpcomingWalletCoinStatus(row?.shipmentStatus || "")
  );
+ const walletUpcomingOrders = walletUpcomingRows.length;
  const walletUpcomingCoins = round2(
    walletUpcomingRows.reduce((sum, row) => sum + Number(row?.coinsIfDelivered || 0), 0)
  );
@@ -700,12 +701,12 @@ export default function IncentiveSummarySection({ agentName }) {
                        {walletAchievementPercent}%
                      </Typography>
                      <Typography variant="caption" sx={{ color: BRAND.sub }}>
-                       Target: {formatNumber(walletTargetVisibleOrders)} / {formatNumber(walletTarget.monthlyTargetCount || 0)}
+                      Target: {formatNumber(walletTargetVisibleOrders)} / {formatNumber(walletTarget.monthlyTargetCount || 0)}
                      </Typography>
                    </Box>
                    <Stack direction={{ xs: "column", sm: "row" }} spacing={1.25} sx={{ width: { xs: "100%", md: "auto" }, minWidth: { md: 570 } }}>
-                     <SummaryMetric title="Earned Coins" value={formatNumber(walletBaseEarnedCoins)} sub={`${formatNumber(walletDeliveredOrders)} delivered qualifying orders`} color={BRAND.coin} bg="#ffffff" borderColor={BRAND.coinBorder} />
-                     <SummaryMetric title="Upcoming Coins" value={formatNumber(walletUpcomingCoins)} sub={`${formatNumber(walletUpcomingRows.length)} upcoming qualifying orders`} color={BRAND.coming} bg="#ffffff" borderColor="#fde68a" />
+                    <SummaryMetric title="Earned Coins" value={formatNumber(walletBaseEarnedCoins)} sub={`${formatNumber(walletDeliveredOrders)} delivered qualifying orders`} color={BRAND.coin} bg="#ffffff" borderColor={BRAND.coinBorder} />
+                    <SummaryMetric title="Upcoming Coins" value={formatNumber(walletUpcomingCoins)} sub={`${formatNumber(walletUpcomingOrders)} upcoming qualifying orders`} color={BRAND.coming} bg="#ffffff" borderColor="#fde68a" />
                      <SummaryMetric title="Lapsed Coins" value={formatNumber(walletLapsedCoins)} sub={`${walletAchievementPercent}% achievement`} color={BRAND.reversed} bg="#ffffff" borderColor="#fecaca" />
                    </Stack>
                  </Stack>

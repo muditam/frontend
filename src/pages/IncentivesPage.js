@@ -1513,7 +1513,7 @@ export default function IncentivesPage() {
     )
   );
 
-  const walletTargetVisibleOrders = Number(walletDeliveredOrders || 0) + walletUpcomingOrders;
+  const walletTargetVisibleOrders = Number(walletTarget.deliveredCount ?? 0);
 
   const prepaidCoins = Number(
     summary.prepaidCoins ?? walletCoin.prepaidCoins ?? data?.extraCoins?.prepaidCoins ?? 0
