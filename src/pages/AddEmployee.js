@@ -32,8 +32,7 @@ import {
   Delete,
   AdminPanelSettings,
 } from "@mui/icons-material";
-import axios from "axios";
-import RewardsAdminPage from "./RewardsAdminPage";
+import axios from "axios"; 
 
 const API_BASE = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "");
 

@@ -577,6 +577,7 @@ export default function WhatsAppUI() {
   const socketRef = useRef(null);
   const joinedRoomsRef = useRef(new Set());
   const pendingReadRef = useRef(new Map());
+  const inboxRefreshTimerRef = useRef(null);
   const [quickAnchor, setQuickAnchor] = useState(null);
   const [tplAnchor, setTplAnchor] = useState(null);
   const [emojiAnchor, setEmojiAnchor] = useState(null);
@@ -910,6 +911,10 @@ export default function WhatsAppUI() {
         s.off("connect", onConnect);
         s.off("disconnect", onDisconnect);
         s.off("connect_error", onError);
+        if (inboxRefreshTimerRef.current) {
+          clearTimeout(inboxRefreshTimerRef.current);
+          inboxRefreshTimerRef.current = null;
+        }
         s.disconnect();
       } catch {}
 
@@ -947,6 +952,13 @@ export default function WhatsAppUI() {
     const s = socketRef.current; if (!s) return;
     const unwrapMessage = (payload) => payload?.message || payload?.msg || payload;
     const resolveP10FromPayload = (payload, msg) => { const p10FromPayload = phone10(payload?.phone10 || payload?.phone || ""); if (p10FromPayload) return p10FromPayload; return phone10(customerPhoneFromMsg(msg)); };
+    const scheduleInboxRefresh = () => {
+      if (inboxRefreshTimerRef.current) clearTimeout(inboxRefreshTimerRef.current);
+      inboxRefreshTimerRef.current = setTimeout(() => {
+        inboxRefreshTimerRef.current = null;
+        refreshConversations(null, { silent: true });
+      }, 250);
+    };
 
     const onMessage = (payload) => {
       const msg = unwrapMessage(payload); if (!msg) return;
@@ -1032,9 +1044,9 @@ export default function WhatsAppUI() {
       if (activeNow && p10 === activeNow && (patch?.lastInboundAt || patch?.windowExpiresAt)) { setSessionExpired(false); setChatError(""); }
     };
 
-    s.on("wa:message", onMessage); s.on("wa:status", onStatus); s.on("wa:conversation", onConversation);
-    return () => { s.off("wa:message", onMessage); s.off("wa:status", onStatus); s.off("wa:conversation", onConversation); };
-  }, [upsertConversationFromMessage]);
+    s.on("wa:message", onMessage); s.on("wa:status", onStatus); s.on("wa:conversation", onConversation); s.on("wa:inbox:update", scheduleInboxRefresh);
+    return () => { s.off("wa:message", onMessage); s.off("wa:status", onStatus); s.off("wa:conversation", onConversation); s.off("wa:inbox:update", scheduleInboxRefresh); };
+  }, [refreshConversations, upsertConversationFromMessage]);
 
   useEffect(() => { if (activeP10) setInput(drafts[activeP10] || ""); else setInput(""); }, [activeP10, drafts]);
 
