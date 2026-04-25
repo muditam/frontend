@@ -39,7 +39,12 @@ import DoneAllIcon from "@mui/icons-material/DoneAll";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
 import { io } from "socket.io-client";
  
-const API_BASE = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "");
+const DEFAULT_API_BASE =
+  typeof window !== "undefined" &&
+  ["localhost", "127.0.0.1"].includes(window.location.hostname)
+    ? "http://localhost:5001"
+    : "https://muditamleads-14f32a10d7f7.herokuapp.com";
+const API_BASE = String(process.env.REACT_APP_API_BASE || DEFAULT_API_BASE).replace(/\/+$/, "");
 const DEBUG_SOCKET = false;
 
 const LIGHT = {
@@ -572,7 +577,6 @@ export default function WhatsAppUI() {
   const socketRef = useRef(null);
   const joinedRoomsRef = useRef(new Set());
   const pendingReadRef = useRef(new Map());
-  const inboxRefreshTimerRef = useRef(null);
   const [quickAnchor, setQuickAnchor] = useState(null);
   const [tplAnchor, setTplAnchor] = useState(null);
   const [emojiAnchor, setEmojiAnchor] = useState(null);
@@ -906,10 +910,6 @@ export default function WhatsAppUI() {
         s.off("connect", onConnect);
         s.off("disconnect", onDisconnect);
         s.off("connect_error", onError);
-        if (inboxRefreshTimerRef.current) {
-          clearTimeout(inboxRefreshTimerRef.current);
-          inboxRefreshTimerRef.current = null;
-        }
         s.disconnect();
       } catch {}
 
@@ -947,13 +947,6 @@ export default function WhatsAppUI() {
     const s = socketRef.current; if (!s) return;
     const unwrapMessage = (payload) => payload?.message || payload?.msg || payload;
     const resolveP10FromPayload = (payload, msg) => { const p10FromPayload = phone10(payload?.phone10 || payload?.phone || ""); if (p10FromPayload) return p10FromPayload; return phone10(customerPhoneFromMsg(msg)); };
-    const scheduleInboxRefresh = () => {
-      if (inboxRefreshTimerRef.current) clearTimeout(inboxRefreshTimerRef.current);
-      inboxRefreshTimerRef.current = setTimeout(() => {
-        inboxRefreshTimerRef.current = null;
-        refreshConversations(null, { silent: true });
-      }, 250);
-    };
 
     const onMessage = (payload) => {
       const msg = unwrapMessage(payload); if (!msg) return;
@@ -1039,9 +1032,9 @@ export default function WhatsAppUI() {
       if (activeNow && p10 === activeNow && (patch?.lastInboundAt || patch?.windowExpiresAt)) { setSessionExpired(false); setChatError(""); }
     };
 
-    s.on("wa:message", onMessage); s.on("wa:status", onStatus); s.on("wa:conversation", onConversation); s.on("wa:inbox:update", scheduleInboxRefresh);
-    return () => { s.off("wa:message", onMessage); s.off("wa:status", onStatus); s.off("wa:conversation", onConversation); s.off("wa:inbox:update", scheduleInboxRefresh); };
-  }, [refreshConversations, upsertConversationFromMessage]);
+    s.on("wa:message", onMessage); s.on("wa:status", onStatus); s.on("wa:conversation", onConversation);
+    return () => { s.off("wa:message", onMessage); s.off("wa:status", onStatus); s.off("wa:conversation", onConversation); };
+  }, [markConversationRead, upsertConversationFromMessage]);
 
   useEffect(() => { if (activeP10) setInput(drafts[activeP10] || ""); else setInput(""); }, [activeP10, drafts]);
 
