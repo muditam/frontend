@@ -96,6 +96,8 @@ const getEntityId = (entity) => String(entity?._id || entity?.id || "").trim();
 const getLeaderId = (member = {}) =>
   member?.teamLeader?._id || member?.teamLeader?.id || member?.teamLeader || "";
 
+const TEAM_COMBINED_OPTION = "__TEAM_COMBINED__";
+
 const isTeamLeaderRole = (role = "") => {
   const normalized = String(role || "").trim().toLowerCase().replace(/[-_]+/g, " ");
   return normalized === "team leader";
@@ -569,13 +571,13 @@ export default function TeamLeaderDashboard() {
         setLeaderName(current?.fullName || sessionUser?.fullName || "Team Leader");
         setRows(excludeSelfTarget ? memberRows : [selfRow, ...memberRows]);
         setTeamMemberNames(memberNames);
-        setSelectedHealthExpert(memberNames[0] || "");
+        setSelectedHealthExpert(TEAM_COMBINED_OPTION);
       } catch (error) {
         console.error("Failed to load team leader dashboard context:", error);
         setLeaderName("Team Leader");
         setRows([]);
         setTeamMemberNames([]);
-        setSelectedHealthExpert("");
+        setSelectedHealthExpert(TEAM_COMBINED_OPTION);
       } finally {
         setLoading(false);
       }
@@ -921,12 +923,34 @@ export default function TeamLeaderDashboard() {
   ]);
 
   useEffect(() => {
-    if (!selectedHealthExpert || !teamNameSet.has(selectedHealthExpert)) {
+    if (!selectedHealthExpert || selectedHealthExpert === TEAM_COMBINED_OPTION) {
+      setAgentShipmentSummary([]);
+      return;
+    }
+    if (!teamNameSet.has(selectedHealthExpert)) {
       setAgentShipmentSummary([]);
       return;
     }
     fetchAgentShipment(selectedHealthExpert, effectiveStart, effectiveEnd);
   }, [selectedHealthExpert, effectiveStart, effectiveEnd, teamNameSet, fetchAgentShipment]);
+
+  const healthExpertShipmentOptions = useMemo(
+    () => [TEAM_COMBINED_OPTION, ...(teamMemberNames || [])],
+    [teamMemberNames]
+  );
+
+  const isTeamCombinedSelected = selectedHealthExpert === TEAM_COMBINED_OPTION;
+
+  const displayedShipmentRows = useMemo(() => {
+    if (isTeamCombinedSelected) {
+      return (shipmentSummary || []).filter(
+        (row) => String(row?.category || "").trim().toLowerCase() !== "total orders"
+      );
+    }
+    return agentShipmentSummary;
+  }, [isTeamCombinedSelected, shipmentSummary, agentShipmentSummary]);
+
+  const displayedShipmentLoading = isTeamCombinedSelected ? shipmentLoading : agentShipmentLoading;
 
   const totals = useMemo(() => {
     const target = rows.reduce((sum, row) => sum + Number(row?.target || 0), 0);
@@ -1751,12 +1775,16 @@ export default function TeamLeaderDashboard() {
               <Autocomplete
                 disablePortal
                 openOnFocus
+                disableClearable
                 size="small"
-                options={teamMemberNames}
-                value={selectedHealthExpert || null}
-                onChange={(_, v) => setSelectedHealthExpert(v || "")}
+                options={healthExpertShipmentOptions}
+                value={selectedHealthExpert || TEAM_COMBINED_OPTION}
+                onChange={(_, v) => setSelectedHealthExpert(v || TEAM_COMBINED_OPTION)}
                 isOptionEqualToValue={(a, b) => a === b}
                 sx={{ minWidth: 280, ...fieldSx }}
+                getOptionLabel={(option) =>
+                  option === TEAM_COMBINED_OPTION ? "Team (Combined)" : String(option || "")
+                }
                 renderInput={(params) => (
                   <TextField {...params} size="small" placeholder="Search health expert..." />
                 )}
@@ -1776,7 +1804,7 @@ export default function TeamLeaderDashboard() {
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {agentShipmentLoading && (
+                  {displayedShipmentLoading && (
                     <TableRow>
                       <TableCell colSpan={4} sx={{ p: 0 }}>
                         <LinearProgress />
@@ -1784,23 +1812,25 @@ export default function TeamLeaderDashboard() {
                     </TableRow>
                   )}
 
-                  {!agentShipmentLoading && !selectedHealthExpert && (
+                  {!displayedShipmentLoading && !selectedHealthExpert && (
                     <TableRow>
                       <TableCell colSpan={4} align="center" sx={{ py: 2, color: DS.palette.textMuted }}>
-                        Please select a Health Expert.
+                        Please select a view.
                       </TableCell>
                     </TableRow>
                   )}
 
-                  {!agentShipmentLoading && selectedHealthExpert && agentShipmentSummary.length === 0 && (
+                  {!displayedShipmentLoading && selectedHealthExpert && displayedShipmentRows.length === 0 && (
                     <TableRow>
                       <TableCell colSpan={4} align="center" sx={{ py: 2, color: DS.palette.textMuted }}>
-                        No shipment data for this Health Expert.
+                        {isTeamCombinedSelected
+                          ? "No shipment data for this team."
+                          : "No shipment data for this Health Expert."}
                       </TableCell>
                     </TableRow>
                   )}
 
-                  {!agentShipmentLoading && selectedHealthExpert && agentShipmentSummary.map((row, idx) => (
+                  {!displayedShipmentLoading && selectedHealthExpert && displayedShipmentRows.map((row, idx) => (
                     <TableRow key={`${row.category}-${idx}`} sx={{ backgroundColor: idx % 2 === 0 ? "#FFFFFF" : "#FBFDFF", ...rowHoverSx }}>
                       <TableCell sx={{ fontWeight: 800, color: DS.palette.ink }} align="center">{row.category}</TableCell>
                       <TableCell align="center">{fmt0(row.count)}</TableCell>

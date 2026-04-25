@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect } from "react";
 import "./global.css";
 import { BrowserRouter as Router, Route, Routes } from "react-router-dom";
 import BulkDataUpload from "./components/BulkDataUpload";
@@ -118,6 +118,64 @@ import KnowledgeBaseManager from "./pages/KnowledgeBaseManager";
 import OrganisationTree from "./pages/OrganisationTree";
 
 const App = () => {
+  useEffect(() => {
+    const replaceAgentText = (text) => text.replace(/\bAgent\b/g, "Expert");
+
+    const shouldSkipNode = (node) => {
+      const parentTag = node.parentElement?.tagName;
+      return (
+        parentTag === "SCRIPT" ||
+        parentTag === "STYLE" ||
+        parentTag === "NOSCRIPT" ||
+        parentTag === "TEXTAREA"
+      );
+    };
+
+    const processTextNode = (node) => {
+      if (!node || shouldSkipNode(node) || !node.nodeValue?.includes("Agent")) return;
+      node.nodeValue = replaceAgentText(node.nodeValue);
+    };
+
+    const processSubtree = (root) => {
+      if (!root) return;
+
+      if (root.nodeType === Node.TEXT_NODE) {
+        processTextNode(root);
+        return;
+      }
+
+      const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+      let current = walker.nextNode();
+      while (current) {
+        processTextNode(current);
+        current = walker.nextNode();
+      }
+    };
+
+    processSubtree(document.body);
+
+    const observer = new MutationObserver((mutations) => {
+      for (const mutation of mutations) {
+        if (mutation.type === "characterData") {
+          processTextNode(mutation.target);
+          continue;
+        }
+
+        for (const node of mutation.addedNodes) {
+          processSubtree(node);
+        }
+      }
+    });
+
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true,
+      characterData: true,
+    });
+
+    return () => observer.disconnect();
+  }, []);
+
   return (
     <Router>
       <div>

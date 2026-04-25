@@ -37,7 +37,11 @@ import AutorenewIcon from "@mui/icons-material/Autorenew";
 import DoneIcon from "@mui/icons-material/Done";
 import DoneAllIcon from "@mui/icons-material/DoneAll";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
+import StarBorderIcon from "@mui/icons-material/StarBorder";
+import StarIcon from "@mui/icons-material/Star";
+import ShoppingCartIcon from "@mui/icons-material/ShoppingCart";
 import { io } from "socket.io-client";
+import WhatsAppCartDrawer from "../pages/retention/WhatsAppCartDrawer";
  
 const DEFAULT_API_BASE =
   typeof window !== "undefined" &&
@@ -48,6 +52,7 @@ const API_BASE = String(process.env.REACT_APP_API_BASE || DEFAULT_API_BASE).repl
 const DEBUG_SOCKET = false;
 const NOTIF_SOUND_URL =
   "https://cdn.shopify.com/s/files/1/0734/7155/7942/files/new-notification-014-363678.mp3?v=1769002522";
+const MESSAGE_PAGE_SIZE = 15;
 
 const LIGHT = {
   appBg: "#f7f8fa",
@@ -556,6 +561,7 @@ export default function WhatsAppUI() {
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [search, setSearch] = useState("");
   const [agentFilter, setAgentFilter] = useState("all");
+  const [chatTab, setChatTab] = useState("all"); // all | unread | favourite
   const [chatError, setChatError] = useState("");
   const [toast, setToast] = useState({ open: false, message: "", severity: "success" });
   const showToast = useCallback((message, severity = "success") => setToast({ open: true, message, severity }), []);
@@ -576,10 +582,16 @@ export default function WhatsAppUI() {
   const bottomRef = useRef(null);
   const prevLenRef = useRef(0);
   const isNearBottomRef = useRef(true);
+  const chatScrollRef = useRef(null);
   const openedCutoffRef = useRef(0);
   const socketRef = useRef(null);
   const joinedRoomsRef = useRef(new Set());
   const pendingReadRef = useRef(new Map());
+  const [hasMoreOlder, setHasMoreOlder] = useState(false);
+  const [loadingOlder, setLoadingOlder] = useState(false);
+  const [oldestCursor, setOldestCursor] = useState("");
+  const [favoritePhones, setFavoritePhones] = useState({});
+  const [cartOpen, setCartOpen] = useState(false);
   const [quickAnchor, setQuickAnchor] = useState(null);
   const [tplAnchor, setTplAnchor] = useState(null);
   const [emojiAnchor, setEmojiAnchor] = useState(null);
@@ -708,13 +720,28 @@ export default function WhatsAppUI() {
   const sessionUser = useMemo(() => {
     try { const raw = sessionStorage.getItem("user"); return raw ? JSON.parse(raw) : null; } catch { return null; }
   }, []);
+  const favoritesStorageKey = useMemo(
+    () => `wa:favorites:${String(sessionUser?._id || sessionUser?.id || sessionUser?.email || "anon")}`,
+    [sessionUser?._id, sessionUser?.id, sessionUser?.email]
+  );
   const sessionRoleNorm = useMemo(
     () => String(sessionUser?.role || "").trim().toLowerCase(),
     [sessionUser?.role]
   );
+  const hasTeamRole = Boolean(sessionUser?.hasTeam);
+  const isAssistantTeamLeadEffective = useMemo(
+    () =>
+      sessionRoleNorm === "assistant team lead" ||
+      (sessionRoleNorm === "retention agent" && hasTeamRole),
+    [sessionRoleNorm, hasTeamRole]
+  );
   const canFilterByAgent = useMemo(
-    () => sessionRoleNorm === "manager" || sessionRoleNorm === "team leader" || sessionRoleNorm === "team-leader",
-    [sessionRoleNorm]
+    () =>
+      sessionRoleNorm === "manager" ||
+      sessionRoleNorm === "team leader" ||
+      sessionRoleNorm === "team-leader" ||
+      isAssistantTeamLeadEffective,
+    [sessionRoleNorm, isAssistantTeamLeadEffective]
   );
 
   const navigate = useNavigate();
@@ -723,10 +750,51 @@ export default function WhatsAppUI() {
   const lastUrlOpenedRef = useRef("");
   const agentName = useMemo(() => sessionUser?.fullName || "", [sessionUser?.fullName]);
 
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(favoritesStorageKey);
+      const parsed = raw ? JSON.parse(raw) : {};
+      setFavoritePhones(parsed && typeof parsed === "object" ? parsed : {});
+    } catch {
+      setFavoritePhones({});
+    }
+  }, [favoritesStorageKey]);
+
+  const persistFavorites = useCallback(
+    (next) => {
+      setFavoritePhones(next);
+      try {
+        localStorage.setItem(favoritesStorageKey, JSON.stringify(next || {}));
+      } catch {}
+    },
+    [favoritesStorageKey]
+  );
+
+  const isFavourite = useCallback(
+    (phoneAny = "") => Boolean(favoritePhones[phone10(phoneAny)]),
+    [favoritePhones]
+  );
+
+  const toggleFavourite = useCallback(
+    (phoneAny = "") => {
+      const p10 = phone10(phoneAny);
+      if (!p10) return;
+      const next = { ...favoritePhones };
+      if (next[p10]) delete next[p10];
+      else next[p10] = true;
+      persistFavorites(next);
+    },
+    [favoritePhones, persistFavorites]
+  );
+
   const activeConversation = useMemo(() => {
     if (!activeP10) return null;
     return conversations.find((c) => phone10(c.phone) === activeP10) || null;
   }, [activeP10, conversations]);
+  const activeIsFavourite = useMemo(
+    () => Boolean(activeP10 && isFavourite(activeP10)),
+    [activeP10, isFavourite]
+  );
 
   const sessionInfo = useMemo(() => {
     const exp = activeConversation?.windowExpiresAt ? new Date(activeConversation.windowExpiresAt).getTime() : 0;
@@ -775,18 +843,42 @@ export default function WhatsAppUI() {
 
   const EMOJIS = useMemo(() => ["😊", "😂", "🙏", "👍", "❤️", "🔥", "😄", "😅", "😇", "🤝", "😎", "🥳", "😢", "😡", "✅", "✨"], []);
 
-  const filteredConversations = useMemo(() => {
-    const raw = String(search || "").trim();
-    const byAgent = (conversations || []).filter((c) => {
+  const baseScopedConversations = useMemo(
+    () =>
+      (conversations || []).filter((c) => {
       if (!canFilterByAgent || agentFilter === "all") return true;
       return String(c?.assignedToLabel || "").trim().toLowerCase() === agentFilter;
-    });
-    if (!raw) return byAgent;
+      }),
+    [conversations, canFilterByAgent, agentFilter]
+  );
+
+  const tabScopedConversations = useMemo(() => {
+    if (chatTab === "unread") {
+      return baseScopedConversations.filter((c) => Number(c?.unreadCount || 0) > 0);
+    }
+    if (chatTab === "favourite") {
+      return baseScopedConversations.filter((c) => isFavourite(c?.phone));
+    }
+    return baseScopedConversations;
+  }, [baseScopedConversations, chatTab, isFavourite]);
+
+  const chatTabCounts = useMemo(
+    () => ({
+      all: baseScopedConversations.length,
+      unread: baseScopedConversations.filter((c) => Number(c?.unreadCount || 0) > 0).length,
+      favourite: baseScopedConversations.filter((c) => isFavourite(c?.phone)).length,
+    }),
+    [baseScopedConversations, isFavourite]
+  );
+
+  const filteredConversations = useMemo(() => {
+    const raw = String(search || "").trim();
+    if (!raw) return tabScopedConversations;
     const q = raw.toLowerCase();
     const typedDigits = digitsOnly(raw);
     const p10Query = phone10(typedDigits);
     const tokens = q.split(/\s+/).filter(Boolean);
-    return byAgent.filter((c) => {
+    return tabScopedConversations.filter((c) => {
       const phoneDigits = digitsOnly(c?.phone || "");
       const phoneP10 = phone10(c?.phone || "");
       const nameHaystack = [c?.displayName, c?.assignedToLabel, c?.lastMessageText].filter(Boolean).join(" ").toLowerCase();
@@ -794,7 +886,7 @@ export default function WhatsAppUI() {
       const matchesPhone = typedDigits ? phoneDigits.includes(typedDigits) || (p10Query && phoneP10.includes(p10Query)) : false;
       return matchesName || matchesPhone;
     });
-  }, [conversations, search, canFilterByAgent, agentFilter]);
+  }, [tabScopedConversations, search]);
 
   const agentFilterOptions = useMemo(() => {
     const names = Array.from(
@@ -870,7 +962,8 @@ export default function WhatsAppUI() {
         normalizedRole === "team leader" ||
         normalizedRole === "team-leader" ||
         normalizedRole === "assistant team lead" ||
-        normalizedRole === "retention agent";
+        (normalizedRole === "retention agent" &&
+          Boolean(sessionUser?.hasTeam));
       const data =
         (await api(
           `/api/whatsapp/conversations?${new URLSearchParams({
@@ -958,6 +1051,18 @@ export default function WhatsAppUI() {
     return next;
   }, []);
 
+  const fetchMessagesPage = useCallback(async (phoneAnyDigits, { before = "", limit = MESSAGE_PAGE_SIZE } = {}) => {
+    const q = digitsOnly(phoneAnyDigits);
+    if (!q) return [];
+    const params = new URLSearchParams({
+      phone: q,
+      limit: String(limit || MESSAGE_PAGE_SIZE),
+    });
+    if (before) params.set("before", String(before));
+    const data = (await api(`/api/whatsapp/messages?${params.toString()}`)) || [];
+    return Array.isArray(data) ? data : [];
+  }, []);
+
   const loadMessagesInitial = useCallback(async (phoneAnyDigits, options = {}) => {
     const q = digitsOnly(phoneAnyDigits);
     const seedMessages = Array.isArray(options?.seedMessages)
@@ -969,16 +1074,23 @@ export default function WhatsAppUI() {
     setLoadingMessages(true);
 
     try {
-      const data = (await api(`/api/whatsapp/messages?phone=${encodeURIComponent(q)}`)) || [];
-      const serverMessages = Array.isArray(data) ? data : [];
-      setMessages(mergeUniqueMessages(seedMessages, serverMessages));
+      const serverMessages = await fetchMessagesPage(q, { limit: MESSAGE_PAGE_SIZE });
+      const merged = mergeUniqueMessages(seedMessages, serverMessages);
+      setMessages(merged);
+      const oldest = merged[0]?.timestamp || merged[0]?.createdAt || "";
+      setOldestCursor(oldest ? String(oldest) : "");
+      setHasMoreOlder(serverMessages.length >= MESSAGE_PAGE_SIZE);
     } catch (e) {
       setChatError(e.message || "Failed to load messages");
-      setMessages(seedMessages.length ? seedMessages : []);
+      const merged = seedMessages.length ? mergeUniqueMessages(seedMessages, []) : [];
+      setMessages(merged);
+      const oldest = merged[0]?.timestamp || merged[0]?.createdAt || "";
+      setOldestCursor(oldest ? String(oldest) : "");
+      setHasMoreOlder(false);
     } finally {
       setLoadingMessages(false);
     }
-  }, [mergeUniqueMessages]);
+  }, [mergeUniqueMessages, fetchMessagesPage]);
 
   const fetchTemplates = useCallback(async () => {
     setLoadingTemplates(true);
@@ -1203,6 +1315,9 @@ export default function WhatsAppUI() {
 
     setSessionExpired(false);
     setChatError("");
+    setHasMoreOlder(false);
+    setOldestCursor("");
+    setLoadingOlder(false);
 
     if (!seedMessages.length) {
       setMessages([]);
@@ -1214,6 +1329,9 @@ export default function WhatsAppUI() {
       if (pendingBootstrap?.phone10 === phone10(activeDigits)) {
         bootstrapChatRef.current = null;
       }
+      setTimeout(() => {
+        bottomRef.current?.scrollIntoView({ behavior: "auto" });
+      }, 40);
     });
   }, [activeDigits, loadMessagesInitial]);
 
@@ -1221,13 +1339,12 @@ export default function WhatsAppUI() {
     if (!activeDigits) return undefined;
     const id = setInterval(async () => {
       try {
-        const data = (await api(`/api/whatsapp/messages?phone=${encodeURIComponent(activeDigits)}`)) || [];
-        const serverMessages = Array.isArray(data) ? data : [];
+        const serverMessages = await fetchMessagesPage(activeDigits, { limit: MESSAGE_PAGE_SIZE });
         setMessages((prev) => mergeUniqueMessages(prev, serverMessages));
       } catch {}
     }, 5000);
     return () => clearInterval(id);
-  }, [activeDigits, mergeUniqueMessages]);
+  }, [activeDigits, mergeUniqueMessages, fetchMessagesPage]);
 
   useEffect(() => {
     if (messages.length > prevLenRef.current && isNearBottomRef.current) {
@@ -1236,9 +1353,44 @@ export default function WhatsAppUI() {
     prevLenRef.current = messages.length;
   }, [messages.length]);
 
+  const loadOlderMessages = useCallback(async () => {
+    if (!activeDigits || !oldestCursor || !hasMoreOlder || loadingOlder) return;
+    const el = chatScrollRef.current;
+    if (!el) return;
+    setLoadingOlder(true);
+    const previousHeight = el.scrollHeight;
+    const previousTop = el.scrollTop;
+    try {
+      const older = await fetchMessagesPage(activeDigits, {
+        before: oldestCursor,
+        limit: MESSAGE_PAGE_SIZE,
+      });
+      if (!older.length) {
+        setHasMoreOlder(false);
+        return;
+      }
+      setMessages((prev) => mergeUniqueMessages(older, prev));
+      const oldest = older[0]?.timestamp || older[0]?.createdAt || "";
+      if (oldest) setOldestCursor(String(oldest));
+      if (older.length < MESSAGE_PAGE_SIZE) setHasMoreOlder(false);
+      requestAnimationFrame(() => {
+        const nowHeight = el.scrollHeight;
+        el.scrollTop = previousTop + (nowHeight - previousHeight);
+      });
+    } catch {
+      // keep previous state on failure
+    } finally {
+      setLoadingOlder(false);
+    }
+  }, [activeDigits, oldestCursor, hasMoreOlder, loadingOlder, fetchMessagesPage, mergeUniqueMessages]);
+
   const onChatScroll = (e) => {
     const el = e.currentTarget;
+    chatScrollRef.current = el;
     isNearBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 120;
+    if (el.scrollTop <= 24) {
+      loadOlderMessages();
+    }
   };
 
   const openChat = useCallback((phone, options = {}) => {
@@ -1265,6 +1417,7 @@ export default function WhatsAppUI() {
     }
 
     openedCutoffRef.current = Date.now();
+    isNearBottomRef.current = true;
     setActiveChat({ phone: p });
     setSearch("");
     markConversationRead(p, { optimisticOnly: false });
@@ -1795,6 +1948,56 @@ export default function WhatsAppUI() {
             }}
           />
         </Box>
+        <Box px={1.5} pb={1} sx={{ bgcolor: LIGHT.sidebarBg }}>
+          <Stack direction="row" spacing={1}>
+            <Button
+              size="small"
+              onClick={() => setChatTab("all")}
+              sx={{
+                textTransform: "none",
+                borderRadius: 99,
+                px: 2,
+                border: "1px solid #d5dbe3",
+                bgcolor: chatTab === "all" ? "#bfe7bf" : "#f4f6f8",
+                color: chatTab === "all" ? "#1f6f1f" : "#475467",
+                fontWeight: 700,
+              }}
+            >
+              {`All (${chatTabCounts.all})`}
+            </Button>
+            <Button
+              size="small"
+              onClick={() => setChatTab("unread")}
+              sx={{
+                textTransform: "none",
+                borderRadius: 99,
+                px: 2,
+                border: "1px solid #d5dbe3",
+                bgcolor: chatTab === "unread" ? "#e6f0ff" : "#f4f6f8",
+                color: chatTab === "unread" ? "#175cd3" : "#475467",
+                fontWeight: 700,
+              }}
+            >
+              {`Unread (${chatTabCounts.unread})`}
+            </Button>
+            <Button
+              size="small"
+              onClick={() => setChatTab("favourite")}
+              startIcon={<StarIcon sx={{ fontSize: 14 }} />}
+              sx={{
+                textTransform: "none",
+                borderRadius: 99,
+                px: 2,
+                border: "1px solid #d5dbe3",
+                bgcolor: chatTab === "favourite" ? "#fff7e0" : "#f4f6f8",
+                color: chatTab === "favourite" ? "#b54708" : "#475467",
+                fontWeight: 700,
+              }}
+            >
+              {`Favourites (${chatTabCounts.favourite})`}
+            </Button>
+          </Stack>
+        </Box>
         {canFilterByAgent && (
           <Box px={1.5} pb={1} sx={{ bgcolor: LIGHT.sidebarBg }}>
             <TextField
@@ -1860,41 +2063,56 @@ export default function WhatsAppUI() {
                 const isActive = phone10(activeChat?.phone) === phone10(chat.phone);
                 const unread = Number(chat?.unreadCount || 0);
                 const displayName = chatDisplayName(chat);
+                const fav = isFavourite(chat.phone);
+                const unreadPreview = unread > 0 ? String(chat?.lastMessageText || "Unread messages") : "";
                 return (
-                  <Box
-                    key={chat._id || chat.phone}
-                    onClick={() => openChat(chat.phone)}
-                    sx={{
-                      display: "flex", alignItems: "center", gap: 1.5,
-                      px: 2, py: 1.25,
-                      cursor: "pointer",
-                      bgcolor: isActive ? LIGHT.activeRowBg : "transparent",
-                      "&:hover": { bgcolor: isActive ? LIGHT.activeRowBg : LIGHT.hoverRowBg },
-                      transition: "background 0.15s",
-                      borderBottom: `1px solid ${LIGHT.border}`,
-                      position: "relative",
-                    }}
-                  >
-                    <WaAvatar name={displayName} size={49} />
-                    <Box flex={1} minWidth={0}>
-                      <Stack direction="row" alignItems="center" justifyContent="space-between" gap={1} mb={0.3}>
-                        <Typography sx={{ fontSize: 15, fontWeight: unread > 0 ? 700 : 500, color: LIGHT.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                          {displayName}
-                        </Typography>
-                        <Typography sx={{ fontSize: 11, color: unread > 0 ? "#128C7E" : LIGHT.subtext, whiteSpace: "nowrap", flexShrink: 0 }}>
-                          {formatLastActive(chat.lastMessageAt)}
-                        </Typography>
-                      </Stack>
-                      <Stack direction="row" alignItems="center" justifyContent="space-between">
-                        <Typography sx={{ fontSize: 13, color: LIGHT.subtext, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, fontWeight: unread > 0 ? 600 : 400 }}>
-                          {chat.lastMessageText || assignedToText(chat) || ""}
-                        </Typography>
-                        <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, flexShrink: 0 }}>
-                          <UnreadBadge count={unread} />
-                        </Box>
-                      </Stack>
+                  <Tooltip key={chat._id || chat.phone} title={unreadPreview} placement="right" disableHoverListener={!unreadPreview}>
+                    <Box
+                      onClick={() => openChat(chat.phone)}
+                      sx={{
+                        display: "flex", alignItems: "center", gap: 1.5,
+                        px: 2, py: 1.25,
+                        cursor: "pointer",
+                        bgcolor: isActive ? LIGHT.activeRowBg : "transparent",
+                        "&:hover": { bgcolor: isActive ? LIGHT.activeRowBg : LIGHT.hoverRowBg },
+                        transition: "background 0.15s",
+                        borderBottom: `1px solid ${LIGHT.border}`,
+                        position: "relative",
+                      }}
+                    >
+                      <WaAvatar name={displayName} size={49} />
+                      <Box flex={1} minWidth={0}>
+                        <Stack direction="row" alignItems="center" justifyContent="space-between" gap={1} mb={0.3}>
+                          <Typography sx={{ fontSize: 15, fontWeight: unread > 0 ? 700 : 500, color: LIGHT.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                            {displayName}
+                          </Typography>
+                          <Stack direction="row" spacing={0.25} alignItems="center" sx={{ flexShrink: 0 }}>
+                            <IconButton
+                              size="small"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                toggleFavourite(chat.phone);
+                              }}
+                              sx={{ p: 0.25, color: fav ? "#f59e0b" : "#98a2b3" }}
+                            >
+                              {fav ? <StarIcon sx={{ fontSize: 16 }} /> : <StarBorderIcon sx={{ fontSize: 16 }} />}
+                            </IconButton>
+                            <Typography sx={{ fontSize: 11, color: unread > 0 ? "#128C7E" : LIGHT.subtext, whiteSpace: "nowrap" }}>
+                              {formatLastActive(chat.lastMessageAt)}
+                            </Typography>
+                          </Stack>
+                        </Stack>
+                        <Stack direction="row" alignItems="center" justifyContent="space-between">
+                          <Typography sx={{ fontSize: 13, color: LIGHT.subtext, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, fontWeight: unread > 0 ? 600 : 400 }}>
+                            {chat.lastMessageText || assignedToText(chat) || ""}
+                          </Typography>
+                          <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, flexShrink: 0 }}>
+                            <UnreadBadge count={unread} />
+                          </Box>
+                        </Stack>
+                      </Box>
                     </Box>
-                  </Box>
+                  </Tooltip>
                 );
               })}
 
@@ -1971,11 +2189,51 @@ export default function WhatsAppUI() {
                   </Stack>
 	                </Box>
 	              </Stack>
+              <Stack direction="row" spacing={0.75} alignItems="center">
+                <Tooltip title="Create order">
+                  <IconButton
+                    onClick={() => setCartOpen(true)}
+                    sx={{
+                      width: 34,
+                      height: 34,
+                      bgcolor: "#fff",
+                      border: `1px solid ${LIGHT.border}`,
+                      color: LIGHT.subtext,
+                      "&:hover": { bgcolor: "#f8fafc", color: LIGHT.text },
+                    }}
+                  >
+                    <ShoppingCartIcon sx={{ fontSize: 19 }} />
+                  </IconButton>
+                </Tooltip>
+                <Tooltip title={activeIsFavourite ? "Remove favourite" : "Mark favourite"}>
+                  <IconButton
+                    onClick={() => toggleFavourite(activeChat?.phone || activeP10)}
+                    sx={{
+                      width: 34,
+                      height: 34,
+                      bgcolor: "#fff",
+                      border: `1px solid ${LIGHT.border}`,
+                      color: activeIsFavourite ? "#f59e0b" : LIGHT.subtext,
+                      "&:hover": {
+                        bgcolor: "#f8fafc",
+                        color: activeIsFavourite ? "#d97706" : LIGHT.text,
+                      },
+                    }}
+                  >
+                    {activeIsFavourite ? (
+                      <StarIcon sx={{ fontSize: 19 }} />
+                    ) : (
+                      <StarBorderIcon sx={{ fontSize: 19 }} />
+                    )}
+                  </IconButton>
+                </Tooltip>
+              </Stack>
 	            </Box>
 
             {/* Messages area */}
             <Box
               flex={1}
+              ref={chatScrollRef}
               p={2}
               overflow="auto"
               onScroll={onChatScroll}
@@ -1989,6 +2247,11 @@ export default function WhatsAppUI() {
                 <Stack alignItems="center" mt={8}><CircularProgress size={24} sx={{ color: "#25D366" }} /></Stack>
               ) : (
                 <Stack spacing={0.5}>
+                  {loadingOlder && (
+                    <Stack alignItems="center" mb={1}>
+                      <CircularProgress size={16} sx={{ color: "#25D366" }} />
+                    </Stack>
+                  )}
                   {!!chatError && (
                     <Box sx={{
                       bgcolor: "#fff1f0", border: "1px solid #f4c7c3",
@@ -2746,6 +3009,14 @@ export default function WhatsAppUI() {
           </Stack>
         </DialogContent>
       </Dialog>
+
+      <WhatsAppCartDrawer
+        open={cartOpen}
+        onClose={() => setCartOpen(false)}
+        chatWidthPx={0}
+        phone10={activeP10}
+        leadName={activeHeaderTitle}
+      />
 
       {/* ── Toast ─────────────────────────────────────────────────────────────── */}
       <Snackbar

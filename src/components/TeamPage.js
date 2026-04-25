@@ -10,7 +10,7 @@ import { ArrowDownward, GroupAdd } from "@mui/icons-material";
 import axios from "axios";
 
 
-const API_BASE = "http://localhost:5001";
+const API_BASE = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "");
 const api = axios.create({
  baseURL: API_BASE,
  withCredentials: true,
@@ -20,9 +20,6 @@ const api = axios.create({
 // --- HELPERS ---
 const fmt0 = (n) =>
  Number(n ?? 0).toLocaleString("en-IN", { maximumFractionDigits: 0 });
-
-
-
 
 const getManagerId = () =>
  (JSON.parse(sessionStorage.getItem("user")) || {}).id || "";
