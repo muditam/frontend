@@ -1291,9 +1291,10 @@ export default function WhatsAppUI() {
     const to = normalizeToWa(activeChat?.phone);
     const text = input.trim();
     if (!to || !text) return;
-    const liveWindow = activeConversation?.windowExpiresAt && new Date(activeConversation.windowExpiresAt).getTime() > Date.now();
-    if (sessionExpired && !liveWindow) return;
-    if (sessionExpired && liveWindow) { setSessionExpired(false); setChatError(""); }
+    if (templateOnlyMode) {
+      setChatError("Only templates allowed. Chat window expired.");
+      return;
+    }
     const p10 = phone10(to);
     const optimistic = { _id: buildTempId("tmp_text"), direction: "OUTBOUND", type: "text", text, timestamp: new Date().toISOString(), status: "sent", to, phone: to };
     setMessages((prev) => [...prev, optimistic]);
@@ -1322,9 +1323,10 @@ export default function WhatsAppUI() {
 
   const onPickFile = async (file) => {
     if (!file || !activeChat?.phone) return;
-    const liveWindow = activeConversation?.windowExpiresAt && new Date(activeConversation.windowExpiresAt).getTime() > Date.now();
-    if (sessionExpired && !liveWindow) return;
-    if (sessionExpired && liveWindow) { setSessionExpired(false); setChatError(""); }
+    if (templateOnlyMode) {
+      setChatError("Only templates allowed. Chat window expired.");
+      return;
+    }
     if (file.size > 15 * 1024 * 1024) { showToast("Max attachment size is 15MB.", "error"); return; }
 
     const mime = file.type || "application/octet-stream";
@@ -1351,6 +1353,10 @@ export default function WhatsAppUI() {
 
   const sendPendingAttachment = async () => {
     if (!pendingAttachment?.file || !activeChat?.phone) return;
+    if (templateOnlyMode) {
+      setChatError("Only templates allowed. Chat window expired.");
+      return;
+    }
 
     const to = normalizeToWa(activeChat.phone);
     const { file, mime, filename, type, caption = "" } = pendingAttachment;
@@ -1658,7 +1664,8 @@ export default function WhatsAppUI() {
   };
 
   const hasActiveChat = !!activeChat?.phone;
-  const expiredMode = hasActiveChat && sessionExpired;
+  const templateOnlyMode = hasActiveChat && (sessionExpired || !sessionInfo.has || sessionInfo.expired);
+  const expiredMode = templateOnlyMode;
 
   /* ─── Grouped messages with date separators ─────────────────────────────── */
   const groupedMessages = useMemo(() => {
@@ -1951,14 +1958,14 @@ export default function WhatsAppUI() {
                         {assignedToText(activeConversation)}
                       </Typography>
                     )}
-                    {sessionInfo.has && (
+                    {hasActiveChat && (
                       <Typography sx={{
                         fontSize: 12,
-                        color: sessionInfo.expired ? "#EA4335" : "#128C7E",
+                        color: templateOnlyMode ? "#EA4335" : "#128C7E",
                         fontWeight: 600,
                         fontVariantNumeric: "tabular-nums",
                       }}>
-                        {sessionInfo.expired ? "⏱ Chat window expired" : `⏱ ${sessionInfo.label}`}
+                        {templateOnlyMode ? "Only templates allowed" : `⏱ ${sessionInfo.label}`}
                       </Typography>
                     )}
                   </Stack>
