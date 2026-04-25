@@ -21,6 +21,7 @@ const api = axios.create({
 const fmt0 = (n) =>
  Number(n ?? 0).toLocaleString("en-IN", { maximumFractionDigits: 0 });
 
+
 const getManagerId = () =>
  (JSON.parse(sessionStorage.getItem("user")) || {}).id || "";
 
