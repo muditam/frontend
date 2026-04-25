@@ -26,8 +26,7 @@ import {
 import axios from "axios";
 import PhoneIcon from "@mui/icons-material/Phone";
 import TuneIcon from "@mui/icons-material/Tune";
-
-// const API_BASE = "http://localhost:5001";
+ 
 const API_BASE = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "");
 
 const api = axios.create({

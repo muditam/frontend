@@ -70,8 +70,7 @@ const TOP_FILTERS = [
   { key: "Lost", label: "Lost" },
 ];
 
-const PAGE_SIZE = 20;
-// const API_BASE = "http://localhost:5001";
+const PAGE_SIZE = 20; 
 const API_BASE = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "");
 
 const API_URL = `${API_BASE}/api/leads/retention`;

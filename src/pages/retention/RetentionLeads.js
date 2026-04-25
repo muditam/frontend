@@ -64,8 +64,7 @@ import ShoppingBagOutlinedIcon from "@mui/icons-material/ShoppingBagOutlined";
 
 import CreateDietPlanPopup from "./CreateDietPlanPopup";
 import WhatsAppChatDialog from "./WhatsAppChatDialog";
-
-// const API_BASE = "http://localhost:5001";
+ 
 const API_BASE = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "");
 
 const api = axios.create({

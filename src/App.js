@@ -115,6 +115,7 @@ import IncentivesPage from "./pages/IncentivesPage";
 import SOPMasterPage from "./pages/SOPMasterPage"; 
 import RewardsAdminPage from "./pages/RewardsAdminPage"; 
 import KnowledgeBaseManager from "./pages/KnowledgeBaseManager";
+import OrganisationTree from "./pages/OrganisationTree";
 
 const App = () => {
   return (
@@ -170,6 +171,17 @@ const App = () => {
           <Route path="/SOP-creation" element={<SOPMasterPage />} /> 
           <Route path="/Rewards-Admin-Page" element={<RewardsAdminPage />} /> 
           <Route path="/knowledge-base" element={<KnowledgeBaseManager />} />
+
+          <Route
+           path="/organisation-tree"
+           element={
+             <PrivateRoute>
+               <ManagerRoute>
+                 <OrganisationTree />
+               </ManagerRoute>
+             </PrivateRoute>
+           }
+         />
 
           <Route
             path="/"

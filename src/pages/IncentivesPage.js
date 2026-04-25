@@ -14,6 +14,7 @@ import {
   Divider,
   FormControlLabel,
   LinearProgress,
+  MenuItem,
   Paper,
   Popover,
   Stack,
@@ -24,6 +25,7 @@ import {
   TableContainer,
   TableHead,
   TableRow,
+  TableSortLabel,
   TextField,
   Typography,
 } from "@mui/material";
@@ -35,10 +37,11 @@ import {
   VisibilityOutlined as ViewIcon,
   AccountBalanceWalletOutlined as WalletBalanceIcon,
   RedeemOutlined as RedeemIcon,
+  UnfoldMore as UnfoldMoreIcon,
 } from "@mui/icons-material";
 import WalletRedeemDialog from "./WalletRedeemDialog";
 
-const API_BASE = "https://muditamleads-14f32a10d7f7.herokuapp.com";
+const API_BASE = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "");
 const MIN_WALLET_MONTH = "2026-04";
 
 const TEAM_INCENTIVE_STEPS = [
@@ -139,9 +142,63 @@ function normalizeComparable(value = "") {
   return String(value || "").trim().toLowerCase();
 }
 
+function isSalesDepartment(employee = {}) {
+  return normalizeComparable(employee?.department) === "sales";
+}
+
+function isIncentiveEligibleRole(employee = {}) {
+  const role = normalizeComparable(employee?.role);
+  return role === "sales agent" || role === "retention agent";
+}
+
 function getEntityId(entity) {
   if (!entity) return "";
   return String(entity._id || entity.id || "").trim();
+}
+
+function getExpandedSalesTeamMembers(seedMembers = [], allEmployees = []) {
+  const byId = new Map(
+    (Array.isArray(allEmployees) ? allEmployees : [])
+      .filter((emp) => getEntityId(emp))
+      .map((emp) => [getEntityId(emp), emp])
+  );
+
+  const queue = [...(Array.isArray(seedMembers) ? seedMembers : [])];
+  const visited = new Set();
+  const expanded = [];
+
+  while (queue.length) {
+    const member = queue.shift();
+    const memberId = getEntityId(member);
+    if (!memberId || visited.has(memberId)) continue;
+    visited.add(memberId);
+
+    const resolved = byId.get(memberId) || member;
+    if (!resolved || resolved?.status !== "active" || !isSalesDepartment(resolved)) {
+      continue;
+    }
+
+    expanded.push(resolved);
+
+    const directReports = (Array.isArray(allEmployees) ? allEmployees : []).filter((emp) => {
+      const leaderId =
+        emp?.teamLeader?._id || emp?.teamLeader?.id || emp?.teamLeader || "";
+      return (
+        String(leaderId) === memberId &&
+        emp?.status === "active" &&
+        isSalesDepartment(emp)
+      );
+    });
+
+    directReports.forEach((emp) => {
+      const id = getEntityId(emp);
+      if (id && !visited.has(id)) {
+        queue.push(emp);
+      }
+    });
+  }
+
+  return expanded;
 }
 
 function getAuthHeaders() {
@@ -431,6 +488,15 @@ function getNextTeamThreshold(achievementPercent = 0) {
   return TEAM_INCENTIVE_STEPS.find((item) => safeValue < item.threshold) || null;
 }
 
+function getTeamSlabBucket(achievementPercent = 0) {
+  const safeValue = Number(achievementPercent || 0);
+  if (safeValue >= 120) return ">=120%";
+  if (safeValue >= 110) return "110-119%";
+  if (safeValue >= 100) return "100-109%";
+  if (safeValue >= 90) return "90-99%";
+  return "<90%";
+}
+
 function VKRTargetProgressBar({ value = 0, threshold = 60 }) {
   const safeValue = Math.max(0, Math.min(100, Number(value || 0)));
   const safeThreshold = Math.max(0, Math.min(100, Number(threshold || 60)));
@@ -657,13 +723,21 @@ function buildTeamAggregateData(responses = [], members = [], label = "Team") {
   const rows = flattenedRows.map((row) => {
     const walletBucket = row.walletBucket || "unknown";
     const amount = toNumber(row.amount, 0);
+    const incentivePercent =
+      walletBucket === "available" || walletBucket === "coming" || walletBucket === "reversed"
+        ? deliveredPercent
+        : 0;
+    const incentiveAmount =
+      walletBucket === "available" || walletBucket === "coming" || walletBucket === "reversed"
+        ? round2((amount * incentivePercent) / 100)
+        : 0;
 
     return {
       ...row,
       amount,
       walletBucket,
-      incentivePercent: toNumber(row.incentivePercent, 0),
-      incentiveAmount: toNumber(row.incentiveAmount, 0),
+      incentivePercent,
+      incentiveAmount,
     };
   });
 
@@ -690,55 +764,19 @@ function buildTeamAggregateData(responses = [], members = [], label = "Team") {
   );
 
   const availableIncentive = round2(
-    safeResponses.reduce(
-      (sum, response) => sum + toNumber(response?.summary?.availableIncentive, 0),
-      0
-    )
+    availableRows.reduce((sum, row) => sum + toNumber(row.incentiveAmount, 0), 0)
   );
 
   const comingIncentive = round2(
-    safeResponses.reduce(
-      (sum, response) => sum + toNumber(response?.summary?.comingIncentive, 0),
-      0
-    )
+    comingRows.reduce((sum, row) => sum + toNumber(row.incentiveAmount, 0), 0)
   );
 
   const atRiskIncentive = round2(
-    safeResponses.reduce(
-      (sum, response) => sum + toNumber(response?.summary?.atRiskIncentive, 0),
-      0
-    )
+    atRiskRows.reduce((sum, row) => sum + toNumber(row.incentiveAmount, 0), 0)
   );
 
   const reversedIncentive = round2(
-    safeResponses.reduce(
-      (sum, response) => sum + toNumber(response?.summary?.reversedIncentive, 0),
-      0
-    )
-  );
-
-  const walletAvailableCash = round2(
-    safeResponses.reduce(
-      (sum, response) =>
-        sum +
-        toNumber(
-          response?.wallet?.availableCash ?? response?.summary?.availableIncentive,
-          0
-        ),
-      0
-    )
-  );
-
-  const walletAvailableCoin = round2(
-    safeResponses.reduce(
-      (sum, response) =>
-        sum +
-        toNumber(
-          response?.wallet?.availableCoin ?? response?.walletCoin?.availableCoin,
-          0
-        ),
-      0
-    )
+    reversedRows.reduce((sum, row) => sum + toNumber(row.incentiveAmount, 0), 0)
   );
 
   const totalCashConverted = round2(
@@ -761,6 +799,22 @@ function buildTeamAggregateData(responses = [], members = [], label = "Team") {
         toNumber(
           response?.wallet?.totalCoinReceived ??
           response?.summary?.convertedCoinAdded,
+          0
+        ),
+      0
+    )
+  );
+
+  const walletAvailableCash = round2(
+    Math.max(0, availableIncentive - totalCashConverted)
+  );
+
+  const walletAvailableCoin = round2(
+    safeResponses.reduce(
+      (sum, response) =>
+        sum +
+        toNumber(
+          response?.wallet?.availableCoin ?? response?.walletCoin?.availableCoin,
           0
         ),
       0
@@ -1059,11 +1113,14 @@ export default function IncentivesPage() {
 
   const hasTeam = sessionUser?.hasTeam === true;
   const isManagerWithTeam = sessionRole === "manager" && hasTeam;
-  const isRetentionWithTeam = sessionRole === "retention agent" && hasTeam;
-  const isAdminLike = ["admin", "manager", "super-admin", "team-leader"].includes(
-    sessionRole
-  );
+  const isTeamLeaderWithTeam =
+    ["team leader", "team-leader"].includes(sessionRole) && hasTeam;
+  const isRetentionWithTeam =
+    ["retention agent", "assistant team lead"].includes(sessionRole) && hasTeam;
+  const isSuperAdmin = ["super-admin", "super admin"].includes(sessionRole);
+  const isAdminLike = ["admin", "manager", "super-admin", "super admin"].includes(sessionRole);
   const canManageAgents = isAdminLike;
+  const isSelfAndTeamRole = isRetentionWithTeam || isTeamLeaderWithTeam;
 
   const selfAgent = useMemo(() => {
     const fullName = sessionUser?.fullName || "";
@@ -1090,6 +1147,7 @@ export default function IncentivesPage() {
   const [error, setError] = useState("");
   const [data, setData] = useState(null);
   const [balanceData, setBalanceData] = useState(null);
+  const [viewerBalanceData, setViewerBalanceData] = useState(null);
 
   const [incentiveSummaryOpen, setIncentiveSummaryOpen] = useState(false);
   const [walletSummaryOpen, setWalletSummaryOpen] = useState(false);
@@ -1104,16 +1162,20 @@ export default function IncentivesPage() {
   const [walletOverride, setWalletOverride] = useState(null);
   const [redeemOpen, setRedeemOpen] = useState(false);
 
-  const [teamViewEnabled, setTeamViewEnabled] = useState(false);
+  const [teamViewEnabled, setTeamViewEnabled] = useState(
+    Boolean(sessionUser?.hasTeam)
+  );
+  const [teamInsightsSort, setTeamInsightsSort] = useState("achievement:desc");
+  const [coinInsightsSort, setCoinInsightsSort] = useState("achievement:desc");
 
   const derivedStartDate = useMemo(() => monthToStartDate(startMonth), [startMonth]);
   const derivedEndDate = useMemo(() => monthToEndDate(endMonth), [endMonth]);
 
   useEffect(() => {
-    if (!isRetentionWithTeam) {
+    if (!isSelfAndTeamRole) {
       setTeamViewEnabled(false);
     }
-  }, [isRetentionWithTeam]);
+  }, [isSelfAndTeamRole]);
 
   const currentEmployeeRecord = useMemo(() => {
     return (
@@ -1151,7 +1213,7 @@ export default function IncentivesPage() {
       return (
         memberIds.has(empId) &&
         emp?.status === "active" &&
-        (emp?.role === "Sales Agent" || emp?.role === "Retention Agent")
+        isSalesDepartment(emp)
       );
     });
   }, [currentEmployeeRecord, employees, sessionUser]);
@@ -1161,28 +1223,30 @@ export default function IncentivesPage() {
       return !selectedAgent;
     }
 
-    if (isRetentionWithTeam) {
+    if (isSelfAndTeamRole) {
       return teamViewEnabled;
     }
 
     return false;
-  }, [isManagerWithTeam, isRetentionWithTeam, selectedAgent, teamViewEnabled]);
+  }, [isManagerWithTeam, isSelfAndTeamRole, selectedAgent, teamViewEnabled]);
 
-  const canShowAgentDropdown =
-    canManageAgents || (isRetentionWithTeam && !usingCombinedTeamView);
+  const canShowAgentDropdown = canManageAgents;
+
+  const allSalesAgents = useMemo(
+    () => employees.filter((emp) => emp?.status === "active" && isSalesDepartment(emp)),
+    [employees]
+  );
+  const allIncentiveAgents = useMemo(
+    () => allSalesAgents.filter((emp) => isIncentiveEligibleRole(emp)),
+    [allSalesAgents]
+  );
 
   const agentOptions = useMemo(() => {
-    const filtered = employees.filter(
-      (emp) =>
-        emp?.status === "active" &&
-        (emp?.role === "Sales Agent" || emp?.role === "Retention Agent")
-    );
-
     if (canManageAgents) {
-      return filtered;
+      return allSalesAgents;
     }
 
-    if (isRetentionWithTeam) {
+    if (isSelfAndTeamRole) {
       const selfId = getEntityId(selfAgent);
       const uniqueTeamAgents = teamAgents.filter(
         (emp) => getEntityId(emp) !== selfId
@@ -1193,9 +1257,9 @@ export default function IncentivesPage() {
 
     return selfAgent ? [selfAgent] : [];
   }, [
+    allSalesAgents,
     canManageAgents,
-    employees,
-    isRetentionWithTeam,
+    isSelfAndTeamRole,
     selfAgent,
     teamAgents,
   ]);
@@ -1233,7 +1297,7 @@ export default function IncentivesPage() {
 
       if (isManagerWithTeam) {
         setSelectedAgent(null);
-      } else if (isRetentionWithTeam) {
+      } else if (isSelfAndTeamRole) {
         setSelectedAgent(null);
       } else if (!canManageAgents && selfAgent) {
         setSelectedAgent(selfAgent);
@@ -1244,7 +1308,7 @@ export default function IncentivesPage() {
     } finally {
       setLoadingAgents(false);
     }
-  }, [canManageAgents, hasTeam, headers, isManagerWithTeam, isRetentionWithTeam, selfAgent]);
+  }, [canManageAgents, hasTeam, headers, isManagerWithTeam, isSelfAndTeamRole, selfAgent]);
 
   const fetchIncentivesForAgent = useCallback(
     async (agentName, startDate, endDate) => {
@@ -1262,18 +1326,97 @@ export default function IncentivesPage() {
     [headers]
   );
 
+  useEffect(() => {
+    const viewerName = sessionUser?.fullName || selfAgent?.fullName || "";
+    if (!viewerName || !derivedEndDate) {
+      setViewerBalanceData(null);
+      return;
+    }
+
+    let isMounted = true;
+
+    fetchIncentivesForAgent(viewerName, cumulativeStartDate, derivedEndDate)
+      .then((res) => {
+        if (isMounted) {
+          setViewerBalanceData(res || null);
+        }
+      })
+      .catch(() => {
+        if (isMounted) {
+          setViewerBalanceData(null);
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [
+    cumulativeStartDate,
+    derivedEndDate,
+    fetchIncentivesForAgent,
+    selfAgent,
+    sessionUser,
+  ]);
+
   const buildAgentVkrRow = useCallback((response, fallbackAgent = {}) => {
-    const vkrCountTotal = round2(
+    const deliveredCount = round2(
       response?.walletCoin?.target?.deliveredCount ??
       response?.walletCoin?.deliveredQualifyingOrders ??
       response?.summary?.walletCoinDeliveredOrders ??
       0
     );
+    const monthlyTargetCount = round2(
+      response?.walletCoin?.target?.monthlyTargetCount ??
+      response?.walletCoin?.qualifyingOrders ??
+      response?.summary?.walletCoinQualifyingOrders ??
+      0
+    );
+    const achievementPercent = monthlyTargetCount
+      ? round2((deliveredCount / monthlyTargetCount) * 100)
+      : round2(response?.walletCoin?.target?.achievementPercent ?? 0);
+    const earnedCoinsRaw = round2(
+      response?.walletCoin?.baseEarnedCoins ??
+      response?.walletCoin?.earnedCoins ??
+      response?.summary?.walletCoinBaseEarned ??
+      0
+    );
+    const projectedCoins = round2(
+      response?.walletCoin?.projectedCoins ??
+      response?.summary?.walletCoinProjected ??
+      earnedCoins
+    );
+    const lapsedCoins = round2(
+      response?.walletCoin?.lapsedCoins ??
+      response?.summary?.walletCoinLapsed ??
+      0
+    );
+    const availableCoins = round2(
+      response?.wallet?.availableCoin ??
+      response?.walletCoin?.availableCoin ??
+      response?.summary?.availableWalletCoin ??
+      earnedCoinsRaw
+    );
+    const earnedCoins = earnedCoinsRaw > 0 ? earnedCoinsRaw : Math.max(0, availableCoins);
+    const minAchievementToRetain = Number(
+      response?.walletCoin?.target?.minAchievementPercentToRetain ?? 60
+    );
+    const requiredDeliveredAtMin = round2((monthlyTargetCount * minAchievementToRetain) / 100);
+    const gapToMinimum = round2(Math.max(0, requiredDeliveredAtMin - deliveredCount));
+    const upcomingCoins = round2(Math.max(0, projectedCoins - earnedCoinsRaw));
 
     return {
       agentName: response?.agentName || fallbackAgent?.fullName || "-",
       role: response?.role || fallbackAgent?.role || "",
-      vkrCountTotal,
+      vkrCountTotal: deliveredCount,
+      vkrTargetCount: monthlyTargetCount,
+      achievementPercent,
+      earnedCoins,
+      projectedCoins,
+      upcomingCoins,
+      lapsedCoins,
+      availableCoins,
+      minAchievementToRetain,
+      gapToMinimum,
     };
   }, []);
 
@@ -1293,6 +1436,46 @@ export default function IncentivesPage() {
     setWalletOverride(null);
 
     try {
+      const loadAggregateData = async (members = [], label = "Team", emptyMessage = "No sales team members found.") => {
+        if (!members.length) {
+          setData(null);
+          setBalanceData(null);
+          setAgentVkrRows([]);
+          setError(emptyMessage);
+          setLoadingData(false);
+          return true;
+        }
+
+        const [selectedResponses, cumulativeResponses] = await Promise.all([
+          Promise.all(
+            members.map((member) =>
+              fetchIncentivesForAgent(member.fullName, derivedStartDate, derivedEndDate)
+            )
+          ),
+          Promise.all(
+            members.map((member) =>
+              fetchIncentivesForAgent(member.fullName, cumulativeStartDate, derivedEndDate)
+            )
+          ),
+        ]);
+
+        const selectedTeamData = buildTeamAggregateData(selectedResponses, members, label);
+        const cumulativeTeamData = buildTeamAggregateData(cumulativeResponses, members, label);
+
+        const nextAgentVkrRows = cumulativeResponses
+          .map((response, index) => buildAgentVkrRow(response, members[index]))
+          .sort(
+            (a, b) =>
+              b.vkrCountTotal - a.vkrCountTotal ||
+              String(a.agentName).localeCompare(String(b.agentName))
+          );
+
+        setData(selectedTeamData);
+        setBalanceData(cumulativeTeamData);
+        setAgentVkrRows(nextAgentVkrRows);
+        return true;
+      };
+
       if (usingCombinedTeamView) {
         if (!teamAgents.length) {
           setData(null);
@@ -1303,46 +1486,66 @@ export default function IncentivesPage() {
           return;
         }
 
-        const [selectedResponses, cumulativeResponses] = await Promise.all([
-          Promise.all(
-            teamAgents.map((member) =>
-              fetchIncentivesForAgent(member.fullName, derivedStartDate, derivedEndDate)
-            )
-          ),
-          Promise.all(
-            teamAgents.map((member) =>
-              fetchIncentivesForAgent(member.fullName, cumulativeStartDate, derivedEndDate)
-            )
-          ),
-        ]);
+        const seedMembers = isRetentionWithTeam
+          ? currentEmployeeRecord?.hasTeam && isSalesDepartment(currentEmployeeRecord)
+            ? [currentEmployeeRecord, ...teamAgents]
+            : selfAgent
+              ? [selfAgent, ...teamAgents]
+              : [...teamAgents]
+          : [...teamAgents];
 
-        const selectedTeamData = buildTeamAggregateData(
-          selectedResponses,
-          teamAgents,
-          `${sessionUser?.fullName || "Team"} Team`
+        const aggregateMembers = getExpandedSalesTeamMembers(seedMembers, employees).filter(
+          (member) => isIncentiveEligibleRole(member)
         );
-
-        const cumulativeTeamData = buildTeamAggregateData(
-          cumulativeResponses,
-          teamAgents,
-          `${sessionUser?.fullName || "Team"} Team`
+        const handled = await loadAggregateData(
+          aggregateMembers,
+          `${sessionUser?.fullName || "Team"} Team`,
+          "No sales team members found for this user."
         );
-
-        const nextAgentVkrRows = cumulativeResponses
-          .map((response, index) => buildAgentVkrRow(response, teamAgents[index]))
-          .sort(
-            (a, b) =>
-              b.vkrCountTotal - a.vkrCountTotal ||
-              String(a.agentName).localeCompare(String(b.agentName))
-          );
-
-        setData(selectedTeamData);
-        setBalanceData(cumulativeTeamData);
-        setAgentVkrRows(nextAgentVkrRows);
+        if (handled) {
+          return;
+        }
       } else {
+        if (isSuperAdmin && !selectedAgent) {
+          await loadAggregateData(
+            allIncentiveAgents,
+            "All Sales Agents",
+            "No active sales agents found."
+          );
+          return;
+        }
+
+        if (selectedAgent?.hasTeam && isSalesDepartment(selectedAgent)) {
+          const aggregateMembers = getExpandedSalesTeamMembers([selectedAgent], employees).filter(
+            (member) => isIncentiveEligibleRole(member)
+          );
+          const handled = await loadAggregateData(
+            aggregateMembers,
+            `${selectedAgent?.fullName || "Team"} Team`,
+            "No sales team members found for this leader."
+          );
+          if (handled) {
+            return;
+          }
+        }
+
+        if (selectedAgent && !isIncentiveEligibleRole(selectedAgent)) {
+          const aggregateMembers = getExpandedSalesTeamMembers([selectedAgent], employees).filter(
+            (member) => isIncentiveEligibleRole(member)
+          );
+          const handled = await loadAggregateData(
+            aggregateMembers,
+            `${selectedAgent?.fullName || "Team"} Team`,
+            "No eligible sales agents found under this employee."
+          );
+          if (handled) {
+            return;
+          }
+        }
+
         const effectiveAgentName =
           selectedAgent?.fullName ||
-          (!canManageAgents && !isRetentionWithTeam ? selfAgent?.fullName : "");
+          (!canManageAgents ? selfAgent?.fullName : "");
 
         if (!effectiveAgentName) {
           setError(canManageAgents ? "Please select an agent" : "Agent not found in session");
@@ -1374,14 +1577,19 @@ export default function IncentivesPage() {
       setLoadingData(false);
     }
   }, [
+    allIncentiveAgents,
     buildAgentVkrRow,
     canManageAgents,
     cumulativeStartDate,
+    currentEmployeeRecord,
     derivedEndDate,
     derivedStartDate,
     endMonth,
+    employees,
     fetchIncentivesForAgent,
     isRetentionWithTeam,
+    isSelfAndTeamRole,
+    isSuperAdmin,
     selectedAgent,
     selfAgent,
     sessionUser,
@@ -1391,9 +1599,11 @@ export default function IncentivesPage() {
   ]);
 
   const handleResetFilters = useCallback(() => {
-    if (isManagerWithTeam) {
+    if (isSuperAdmin) {
       setSelectedAgent(null);
-    } else if (isRetentionWithTeam) {
+    } else if (isManagerWithTeam) {
+      setSelectedAgent(null);
+    } else if (isSelfAndTeamRole) {
       setSelectedAgent(null);
     } else {
       setSelectedAgent(selfAgent || null);
@@ -1402,8 +1612,9 @@ export default function IncentivesPage() {
     setStartMonth(defaultMonth);
     setEndMonth(defaultMonth);
 
-    if (isRetentionWithTeam) {
-      setTeamViewEnabled(false);
+    if (isSelfAndTeamRole) {
+      setSelectedAgent(null);
+      setTeamViewEnabled(true);
     }
 
     clearPageState();
@@ -1411,7 +1622,8 @@ export default function IncentivesPage() {
     clearPageState,
     defaultMonth,
     isManagerWithTeam,
-    isRetentionWithTeam,
+    isSelfAndTeamRole,
+    isSuperAdmin,
     selfAgent,
   ]);
 
@@ -1422,18 +1634,23 @@ export default function IncentivesPage() {
   useEffect(() => {
     if (!startMonth || !endMonth || data) return;
 
+    if (isSuperAdmin && !selectedAgent) {
+      fetchIncentives();
+      return;
+    }
+
     if (isManagerWithTeam && teamAgents.length && !selectedAgent) {
       fetchIncentives();
       return;
     }
 
-    if (isRetentionWithTeam) {
+    if (isSelfAndTeamRole) {
       if (usingCombinedTeamView && teamAgents.length) {
         fetchIncentives();
         return;
       }
 
-      if (!usingCombinedTeamView && selectedAgent?.fullName) {
+      if (!usingCombinedTeamView && selfAgent?.fullName) {
         fetchIncentives();
         return;
       }
@@ -1450,7 +1667,8 @@ export default function IncentivesPage() {
     endMonth,
     fetchIncentives,
     isManagerWithTeam,
-    isRetentionWithTeam,
+    isSelfAndTeamRole,
+    isSuperAdmin,
     selectedAgent,
     selfAgent,
     startMonth,
@@ -1463,6 +1681,9 @@ export default function IncentivesPage() {
   const rows = data?.rows || [];
   const walletCoin = data?.walletCoin || {};
   const walletData = data?.wallet || {};
+  const viewerBalanceSummary = viewerBalanceData?.summary || {};
+  const viewerBalanceWallet = viewerBalanceData?.wallet || {};
+  const viewerBalanceWalletCoin = viewerBalanceData?.walletCoin || {};
 
   const balanceSummary = balanceData?.summary || {};
   const balanceWallet = balanceData?.wallet || {};
@@ -1513,7 +1734,7 @@ export default function IncentivesPage() {
     )
   );
 
-  const walletTargetVisibleOrders = Number(walletTarget.deliveredCount ?? 0);
+  const walletTargetVisibleOrders = Number(walletDeliveredOrders || 0) + walletUpcomingOrders;
 
   const prepaidCoins = Number(
     summary.prepaidCoins ?? walletCoin.prepaidCoins ?? data?.extraCoins?.prepaidCoins ?? 0
@@ -1547,6 +1768,9 @@ export default function IncentivesPage() {
 
   const displayAvailableCoinValue = Number(
     walletOverride?.availableCoin ??
+    viewerBalanceWallet.availableCoin ??
+    viewerBalanceWalletCoin.availableCoin ??
+    viewerBalanceSummary.availableWalletCoin ??
     balanceWallet.availableCoin ??
     balanceWalletCoin.availableCoin ??
     balanceSummary.availableWalletCoin ??
@@ -1559,6 +1783,8 @@ export default function IncentivesPage() {
 
   const displayAvailableCashValue = Number(
     walletOverride?.availableCash ??
+    viewerBalanceWallet.availableCash ??
+    viewerBalanceSummary.availableIncentive ??
     balanceWallet.availableCash ??
     balanceSummary.availableIncentive ??
     walletData.availableCash ??
@@ -1567,6 +1793,8 @@ export default function IncentivesPage() {
   );
 
   const displayedConvertedCash = Number(
+    viewerBalanceWallet.totalCashConverted ??
+    viewerBalanceSummary.totalCashConverted ??
     balanceWallet.totalCashConverted ??
     balanceSummary.totalCashConverted ??
     walletData.totalCashConverted ??
@@ -1575,6 +1803,8 @@ export default function IncentivesPage() {
   );
 
   const displayedConvertedCoin = Number(
+    viewerBalanceWallet.totalCoinReceived ??
+    viewerBalanceSummary.convertedCoinAdded ??
     balanceWallet.totalCoinReceived ??
     balanceSummary.convertedCoinAdded ??
     walletData.totalCoinReceived ??
@@ -1712,12 +1942,261 @@ export default function IncentivesPage() {
   const walletPopoverOpen = Boolean(walletAnchorEl);
   const canUseWalletActions = !usingCombinedTeamView && Boolean(data);
 
+  const teamInsights = useMemo(() => {
+    if (!isTeamData) {
+      return {
+        rows: [],
+        topPerformers: [],
+        laggers: [],
+        slabDistribution: [
+          { key: "<90%", count: 0 },
+          { key: "90-99%", count: 0 },
+          { key: "100-109%", count: 0 },
+          { key: "110-119%", count: 0 },
+          { key: ">=120%", count: 0 },
+        ],
+      };
+    }
+
+    const members = Array.isArray(data?.teamMembers) ? data.teamMembers : [];
+    const sourceRows = Array.isArray(data?.rows) ? data.rows : [];
+
+    const byMember = new Map();
+
+    const ensureMember = (name, payload = {}) => {
+      const cleanName = String(name || "").trim();
+      if (!cleanName) return null;
+      const key = normalizeComparable(cleanName);
+      if (!byMember.has(key)) {
+        byMember.set(key, {
+          key,
+          agentName: cleanName,
+          role: payload.role || "",
+          target: toNumber(payload.target, 0),
+          deliveredRevenue: 0,
+          totalRevenue: 0,
+          deliveredOrders: 0,
+          upcomingOrders: 0,
+          atRiskOrders: 0,
+          lostOrders: 0,
+        });
+      }
+
+      const existing = byMember.get(key);
+      if (!existing.role && payload.role) existing.role = payload.role;
+      if (!existing.target && payload.target) existing.target = toNumber(payload.target, 0);
+      return existing;
+    };
+
+    members.forEach((member) => ensureMember(member?.fullName, member));
+    sourceRows.forEach((row) => ensureMember(row?.agentName || row?.name || ""));
+
+    sourceRows.forEach((row) => {
+      const entry = ensureMember(row?.agentName || row?.name || "");
+      if (!entry) return;
+
+      const amount = toNumber(row?.amount, 0);
+      const bucket = String(row?.walletBucket || "unknown").toLowerCase();
+      entry.totalRevenue += amount;
+
+      if (bucket === "available") {
+        entry.deliveredRevenue += amount;
+        entry.deliveredOrders += 1;
+      } else if (bucket === "coming") {
+        entry.upcomingOrders += 1;
+        if (row?.isAtRisk) entry.atRiskOrders += 1;
+      } else if (bucket === "reversed") {
+        entry.lostOrders += 1;
+      }
+    });
+
+    const computed = [...byMember.values()].map((item) => {
+      const deliveredRevenue = round2(item.deliveredRevenue);
+      const target = round2(item.target);
+      const achievementPercent = target
+        ? round2((deliveredRevenue / target) * 100)
+        : 0;
+      const memberSlab = getSlabRange(deliveredRevenue);
+      const slabPercent = memberSlab.currentPercent;
+      const amountToNextSlab = memberSlab.nextPercent
+        ? round2(Math.max(0, memberSlab.max - deliveredRevenue))
+        : 0;
+      const remainingTarget = target
+        ? round2(Math.max(0, target - deliveredRevenue))
+        : 0;
+      const attributedIncentive = round2((deliveredRevenue * slabPercent) / 100);
+
+      return {
+        ...item,
+        deliveredRevenue,
+        totalRevenue: round2(item.totalRevenue),
+        target,
+        achievementPercent,
+        slabPercent,
+        nextSlabThreshold: memberSlab.nextPercent || null,
+        amountToNextSlab,
+        remainingTarget,
+        attributedIncentive,
+        slabBucket: getTeamSlabBucket(achievementPercent),
+      };
+    });
+
+    const slabBuckets = ["<90%", "90-99%", "100-109%", "110-119%", ">=120%"];
+    const slabDistribution = slabBuckets.map((bucket) => ({
+      key: bucket,
+      count: computed.filter((row) => row.slabBucket === bucket).length,
+    }));
+
+    const workingSet = computed;
+
+    const [sortField, sortDirection = "desc"] = String(teamInsightsSort).split(":");
+    const sortDir = sortDirection === "asc" ? 1 : -1;
+    const valueByField = (row) => {
+      switch (sortField) {
+        case "member":
+          return String(row.agentName || "");
+        case "target":
+          return Number(row.target || 0);
+        case "achieved":
+          return Number(row.deliveredRevenue || 0);
+        case "remaining":
+          return Number(row.remainingTarget || 0);
+        case "achievement":
+          return Number(row.achievementPercent || 0);
+        case "slab":
+          return Number(row.slabPercent || 0);
+        case "incentive":
+          return Number(row.attributedIncentive || 0);
+        case "gap":
+          return Number(row.amountToNextSlab || 0);
+        default:
+          return Number(row.achievementPercent || 0);
+      }
+    };
+
+    const sortedRows = [...workingSet].sort((a, b) => {
+      const av = valueByField(a);
+      const bv = valueByField(b);
+
+      if (typeof av === "string" || typeof bv === "string") {
+        return String(av).localeCompare(String(bv)) * sortDir;
+      }
+
+      return (av - bv) * sortDir;
+    });
+
+    const topPerformers = [...computed]
+      .sort(
+        (a, b) =>
+          b.achievementPercent - a.achievementPercent ||
+          b.deliveredRevenue - a.deliveredRevenue
+      )
+      .slice(0, 4);
+
+    const laggers = [...computed]
+      .filter((row) => row.remainingTarget > 0)
+      .sort(
+        (a, b) =>
+          b.remainingTarget - a.remainingTarget ||
+          a.achievementPercent - b.achievementPercent
+      )
+      .slice(0, 4);
+
+    return {
+      rows: sortedRows,
+      topPerformers,
+      laggers,
+      slabDistribution,
+    };
+  }, [data, isTeamData, teamInsightsSort]);
+
+  const coinTeamInsights = useMemo(() => {
+    if (!isTeamData) return [];
+
+    const rows = Array.isArray(agentVkrRows) ? [...agentVkrRows] : [];
+    const [sortField, sortDirection = "desc"] = String(coinInsightsSort).split(":");
+    const dir = sortDirection === "asc" ? 1 : -1;
+
+    const pickValue = (row) => {
+      switch (sortField) {
+        case "member":
+          return String(row.agentName || "");
+        case "target":
+          return Number(row.vkrTargetCount || 0);
+        case "delivered":
+          return Number(row.vkrCountTotal || 0);
+        case "achievement":
+          return Number(row.achievementPercent || 0);
+        case "earned":
+          return Number(row.earnedCoins || 0);
+        case "upcoming":
+          return Number(row.upcomingCoins || 0);
+        case "lapsed":
+          return Number(row.lapsedCoins || 0);
+        case "available":
+          return Number(row.availableCoins || 0);
+        case "gap":
+          return Number(row.gapToMinimum || 0);
+        default:
+          return Number(row.achievementPercent || 0);
+      }
+    };
+
+    return rows.sort((a, b) => {
+      const av = pickValue(a);
+      const bv = pickValue(b);
+      if (typeof av === "string" || typeof bv === "string") {
+        return String(av).localeCompare(String(bv)) * dir;
+      }
+      return (av - bv) * dir;
+    });
+  }, [agentVkrRows, coinInsightsSort, isTeamData]);
+
   const handleOpenConvertPopover = (event) => {
     if (!canUseWalletActions) return;
     setWalletAnchorEl(event.currentTarget);
     setConvertAmount("");
     setConvertError("");
   };
+
+  const handleTeamInsightsHeaderSort = (field) => {
+    const [currentField, currentDirection = "desc"] = String(teamInsightsSort).split(":");
+    if (currentField === field) {
+      setTeamInsightsSort(`${field}:${currentDirection === "asc" ? "desc" : "asc"}`);
+      return;
+    }
+
+    const defaultDirection = field === "member" || field === "gap" ? "asc" : "desc";
+    setTeamInsightsSort(`${field}:${defaultDirection}`);
+  };
+
+  const getTeamSortDirection = (field) => {
+    const [currentField, currentDirection = "desc"] = String(teamInsightsSort).split(":");
+    if (currentField !== field) return "asc";
+    return currentDirection === "asc" ? "asc" : "desc";
+  };
+
+  const isTeamSortActive = (field) =>
+    String(teamInsightsSort).split(":")[0] === field;
+
+  const handleCoinInsightsHeaderSort = (field) => {
+    const [currentField, currentDirection = "desc"] = String(coinInsightsSort).split(":");
+    if (currentField === field) {
+      setCoinInsightsSort(`${field}:${currentDirection === "asc" ? "desc" : "asc"}`);
+      return;
+    }
+    const defaultDirection = field === "member" || field === "gap" ? "asc" : "desc";
+    setCoinInsightsSort(`${field}:${defaultDirection}`);
+  };
+
+  const getCoinSortDirection = (field) => {
+    const [currentField, currentDirection = "desc"] = String(coinInsightsSort).split(":");
+    if (currentField !== field) return "asc";
+    return currentDirection === "asc" ? "asc" : "desc";
+  };
+
+  const isCoinSortActive = (field) =>
+    String(coinInsightsSort).split(":")[0] === field;
 
   const handleCloseWalletPopover = () => {
     if (convertLoading) return;
@@ -2001,7 +2480,23 @@ export default function IncentivesPage() {
                   />
                 )}
 
-                {isRetentionWithTeam && (
+                {isSuperAdmin && (
+                  <Chip
+                    label={
+                      selectedAgent?.fullName
+                        ? "Selected Employee View"
+                        : `All Sales Agents View • ${allIncentiveAgents.length} members`
+                    }
+                    sx={{
+                      height: 40,
+                      fontWeight: 700,
+                      border: `1px solid ${BRAND.border}`,
+                      background: "#f8fafc",
+                    }}
+                  />
+                )}
+
+                {isSelfAndTeamRole && (
                   <FormControlLabel
                     sx={{ ml: 0 }}
                     control={
@@ -2009,14 +2504,12 @@ export default function IncentivesPage() {
                         checked={teamViewEnabled}
                         onChange={(e) => {
                           setTeamViewEnabled(e.target.checked);
-                          if (e.target.checked) {
-                            setSelectedAgent(null);
-                          }
+                          setSelectedAgent(e.target.checked ? null : selfAgent || null);
                           clearPageState();
                         }}
                       />
                     }
-                    label="Team All View"
+                    label="Team View"
                   />
                 )}
 
@@ -2056,11 +2549,13 @@ export default function IncentivesPage() {
                     !startMonth ||
                     !endMonth ||
                     (!usingCombinedTeamView &&
-                      !(selectedAgent?.fullName ||
-                        (!canManageAgents && !isRetentionWithTeam
+                        !(selectedAgent?.fullName ||
+                        isSuperAdmin ||
+                        (!canManageAgents
                           ? selfAgent?.fullName
                           : ""))) ||
-                    (usingCombinedTeamView && teamAgents.length === 0)
+                    (usingCombinedTeamView && teamAgents.length === 0) ||
+                    (isSuperAdmin && !selectedAgent && allIncentiveAgents.length === 0)
                   }
                   sx={{
                     ...CONTAINED_BUTTON_SX,
@@ -2491,6 +2986,254 @@ export default function IncentivesPage() {
                 </Box>
               </Stack>
             </Paper>
+
+            {isTeamData ? (
+              <Paper
+                sx={{
+                  p: 2.5,
+                  borderRadius: 3,
+                  border: `1px solid ${BRAND.border}`,
+                  boxShadow: "0 8px 30px rgba(15, 23, 42, 0.04)",
+                }}
+              >
+                <Stack
+                  direction={{ xs: "column", md: "row" }}
+                  justifyContent="space-between"
+                  alignItems={{ xs: "flex-start", md: "center" }}
+                  spacing={2}
+                >
+                  <Box>
+                    <Typography variant="h6" sx={{ fontWeight: 800, color: BRAND.text }}>
+                      Team Performance Drilldown
+                    </Typography>
+                    <Typography variant="body2" sx={{ color: BRAND.sub, mt: 0.5 }}>
+                      Track who is hitting targets, lagging, current slab, and next-slab gap.
+                    </Typography>
+                  </Box>
+
+                  <Stack direction="row" spacing={1.25} useFlexGap flexWrap="wrap">
+                    <TextField
+                      select
+                      size="small"
+                      label="Sort By"
+                      value={teamInsightsSort}
+                      onChange={(e) => setTeamInsightsSort(e.target.value)}
+                      sx={{ minWidth: 210 }}
+                    >
+                      <MenuItem value="achievement:desc">Achievement % (High to Low)</MenuItem>
+                      <MenuItem value="remaining:desc">Remaining Target (High to Low)</MenuItem>
+                      <MenuItem value="incentive:desc">Incentive Earned (High to Low)</MenuItem>
+                      <MenuItem value="gap:asc">Gap to Next Slab (Low to High)</MenuItem>
+                    </TextField>
+
+                  </Stack>
+                </Stack>
+
+                <Divider sx={{ my: 2 }} />
+
+                <Stack direction={{ xs: "column", lg: "row" }} spacing={2}>
+                  <Box sx={{ flex: 1 }}>
+                    <Typography variant="body2" sx={{ color: BRAND.sub, fontWeight: 700, mb: 1 }}>
+                      Top Performers
+                    </Typography>
+                    <Stack spacing={1}>
+                      {teamInsights.topPerformers.map((row) => (
+                        <Box
+                          key={`top-${row.key}`}
+                          sx={{
+                            p: 1.5,
+                            borderRadius: 2,
+                            border: `1px solid ${BRAND.border}`,
+                            background: "#f8fbff",
+                          }}
+                        >
+                          <Stack direction="row" justifyContent="space-between" alignItems="center">
+                            <Typography sx={{ fontWeight: 700, color: BRAND.text }}>
+                              {row.agentName}
+                            </Typography>
+                            <Chip label={`${row.achievementPercent}%`} color="success" size="small" />
+                          </Stack>
+                          <Typography variant="body2" sx={{ color: BRAND.sub, mt: 0.5 }}>
+                            Achieved {formatCurrency(row.deliveredRevenue)} | Incentive {formatCurrency(row.attributedIncentive)}
+                          </Typography>
+                        </Box>
+                      ))}
+                    </Stack>
+                  </Box>
+
+                  <Box sx={{ flex: 1 }}>
+                    <Typography variant="body2" sx={{ color: BRAND.sub, fontWeight: 700, mb: 1 }}>
+                      Lag Contributors
+                    </Typography>
+                    <Stack spacing={1}>
+                      {teamInsights.laggers.map((row) => (
+                        <Box
+                          key={`lag-${row.key}`}
+                          sx={{
+                            p: 1.5,
+                            borderRadius: 2,
+                            border: `1px solid ${BRAND.border}`,
+                            background: "#fffaf9",
+                          }}
+                        >
+                          <Stack direction="row" justifyContent="space-between" alignItems="center">
+                            <Typography sx={{ fontWeight: 700, color: BRAND.text }}>
+                              {row.agentName}
+                            </Typography>
+                            <Chip label={`Lag ${formatCurrency(row.remainingTarget)}`} color="warning" size="small" />
+                          </Stack>
+                          <Typography variant="body2" sx={{ color: BRAND.sub, mt: 0.5 }}>
+                            Slab {row.slabPercent}% | Need {formatCurrency(row.amountToNextSlab)} to next slab
+                          </Typography>
+                        </Box>
+                      ))}
+                    </Stack>
+                  </Box>
+                </Stack>
+
+                <TableContainer sx={{ mt: 2, border: `1px solid ${BRAND.border}`, borderRadius: 2 }}>
+                  <Table sx={{ minWidth: 1080 }}>
+                    <TableHead>
+                      <TableRow
+                        sx={{
+                          background:
+                            "linear-gradient(90deg, #1d4ed8 0%, #2563eb 50%, #1e40af 100%)",
+                        }}
+                      >
+                        <TableCell align="center" sx={{ color: "#fff", fontWeight: 700 }}>
+                          <TableSortLabel
+                            active={isTeamSortActive("member")}
+                            direction={getTeamSortDirection("member")}
+                            onClick={() => handleTeamInsightsHeaderSort("member")}
+                            IconComponent={UnfoldMoreIcon}
+                            sx={{ color: "#fff !important", "& .MuiTableSortLabel-icon": { color: "#fff !important", opacity: 0.95 } }}
+                          >
+                            Member
+                          </TableSortLabel>
+                        </TableCell>
+                        <TableCell sx={{ color: "#fff", fontWeight: 700 }} align="center">
+                          <TableSortLabel
+                            active={isTeamSortActive("target")}
+                            direction={getTeamSortDirection("target")}
+                            onClick={() => handleTeamInsightsHeaderSort("target")}
+                            IconComponent={UnfoldMoreIcon}
+                            sx={{ color: "#fff !important", "& .MuiTableSortLabel-icon": { color: "#fff !important", opacity: 0.95 }, justifyContent: "center", width: "100%" }}
+                          >
+                            Target
+                          </TableSortLabel>
+                        </TableCell>
+                        <TableCell sx={{ color: "#fff", fontWeight: 700 }} align="center">
+                          <TableSortLabel
+                            active={isTeamSortActive("achieved")}
+                            direction={getTeamSortDirection("achieved")}
+                            onClick={() => handleTeamInsightsHeaderSort("achieved")}
+                            IconComponent={UnfoldMoreIcon}
+                            sx={{ color: "#fff !important", "& .MuiTableSortLabel-icon": { color: "#fff !important", opacity: 0.95 }, justifyContent: "center", width: "100%" }}
+                          >
+                            Achieved
+                          </TableSortLabel>
+                        </TableCell>
+                        <TableCell sx={{ color: "#fff", fontWeight: 700 }} align="center">
+                          <TableSortLabel
+                            active={isTeamSortActive("remaining")}
+                            direction={getTeamSortDirection("remaining")}
+                            onClick={() => handleTeamInsightsHeaderSort("remaining")}
+                            IconComponent={UnfoldMoreIcon}
+                            sx={{ color: "#fff !important", "& .MuiTableSortLabel-icon": { color: "#fff !important", opacity: 0.95 }, justifyContent: "center", width: "100%" }}
+                          >
+                            Remaining
+                          </TableSortLabel>
+                        </TableCell>
+                        <TableCell sx={{ color: "#fff", fontWeight: 700 }} align="center">
+                          <TableSortLabel
+                            active={isTeamSortActive("achievement")}
+                            direction={getTeamSortDirection("achievement")}
+                            onClick={() => handleTeamInsightsHeaderSort("achievement")}
+                            IconComponent={UnfoldMoreIcon}
+                            sx={{ color: "#fff !important", "& .MuiTableSortLabel-icon": { color: "#fff !important", opacity: 0.95 }, justifyContent: "center", width: "100%" }}
+                          >
+                            Achievement %
+                          </TableSortLabel>
+                        </TableCell>
+                        <TableCell sx={{ color: "#fff", fontWeight: 700 }} align="center">
+                          <TableSortLabel
+                            active={isTeamSortActive("slab")}
+                            direction={getTeamSortDirection("slab")}
+                            onClick={() => handleTeamInsightsHeaderSort("slab")}
+                            IconComponent={UnfoldMoreIcon}
+                            sx={{ color: "#fff !important", "& .MuiTableSortLabel-icon": { color: "#fff !important", opacity: 0.95 }, justifyContent: "center", width: "100%" }}
+                          >
+                            Current Slab
+                          </TableSortLabel>
+                        </TableCell>
+                        <TableCell sx={{ color: "#fff", fontWeight: 700 }} align="center">
+                          <TableSortLabel
+                            active={isTeamSortActive("incentive")}
+                            direction={getTeamSortDirection("incentive")}
+                            onClick={() => handleTeamInsightsHeaderSort("incentive")}
+                            IconComponent={UnfoldMoreIcon}
+                            sx={{ color: "#fff !important", "& .MuiTableSortLabel-icon": { color: "#fff !important", opacity: 0.95 }, justifyContent: "center", width: "100%" }}
+                          >
+                            Incentive Earned
+                          </TableSortLabel>
+                        </TableCell>
+                        <TableCell sx={{ color: "#fff", fontWeight: 700 }} align="center">
+                          <TableSortLabel
+                            active={isTeamSortActive("gap")}
+                            direction={getTeamSortDirection("gap")}
+                            onClick={() => handleTeamInsightsHeaderSort("gap")}
+                            IconComponent={UnfoldMoreIcon}
+                            sx={{ color: "#fff !important", "& .MuiTableSortLabel-icon": { color: "#fff !important", opacity: 0.95 }, justifyContent: "center", width: "100%" }}
+                          >
+                            Gap to Next Slab
+                          </TableSortLabel>
+                        </TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {teamInsights.rows.length ? (
+                        teamInsights.rows.map((row) => (
+                          <TableRow key={row.key} hover>
+                            <TableCell align="center" sx={{ fontWeight: 700, color: BRAND.text }}>
+                              {row.agentName}
+                            </TableCell>
+                            <TableCell align="center">{formatCurrency(row.target)}</TableCell>
+                            <TableCell align="center" sx={{ color: BRAND.available, fontWeight: 700 }}>
+                              {formatCurrency(row.deliveredRevenue)}
+                            </TableCell>
+                            <TableCell align="center" sx={{ color: row.remainingTarget > 0 ? BRAND.reversed : BRAND.available, fontWeight: 700 }}>
+                              {formatCurrency(row.remainingTarget)}
+                            </TableCell>
+                            <TableCell align="center">
+                              <Chip
+                                label={`${row.achievementPercent}%`}
+                                size="small"
+                                color={row.achievementPercent >= 100 ? "success" : row.achievementPercent >= 90 ? "warning" : "default"}
+                              />
+                            </TableCell>
+                            <TableCell align="center" sx={{ fontWeight: 700 }}>
+                              {row.slabPercent}%
+                            </TableCell>
+                            <TableCell align="center" sx={{ fontWeight: 700 }}>
+                              {formatCurrency(row.attributedIncentive)}
+                            </TableCell>
+                            <TableCell align="center" sx={{ color: BRAND.sub }}>
+                              {row.nextSlabThreshold ? formatCurrency(row.amountToNextSlab) : "Highest slab"}
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      ) : (
+                        <TableRow>
+                          <TableCell colSpan={8} align="center" sx={{ py: 4 }}>
+                            No team members found for the selected filters.
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              </Paper>
+            ) : null}
 
             <Paper
               sx={{
@@ -2971,6 +3714,145 @@ export default function IncentivesPage() {
                   />
                 </Box>
               </Stack>
+
+              {isTeamData ? (
+                <>
+                  <Divider sx={{ my: 2 }} />
+                  <Stack
+                    direction={{ xs: "column", md: "row" }}
+                    justifyContent="space-between"
+                    alignItems={{ xs: "flex-start", md: "center" }}
+                    spacing={1.5}
+                    sx={{ mb: 1.5 }}
+                  >
+                    <Typography variant="body2" sx={{ color: BRAND.sub, fontWeight: 700 }}>
+                      Team Coins Drilldown
+                    </Typography>
+                    <TextField
+                      select
+                      size="small"
+                      label="Sort By"
+                      value={coinInsightsSort}
+                      onChange={(e) => setCoinInsightsSort(e.target.value)}
+                      sx={{ minWidth: 230 }}
+                    >
+                      <MenuItem value="achievement:desc">Achievement % (High to Low)</MenuItem>
+                      <MenuItem value="earned:desc">Earned Coins (High to Low)</MenuItem>
+                      <MenuItem value="available:desc">Available Coins (High to Low)</MenuItem>
+                      <MenuItem value="gap:asc">Gap to 60% Target (Low to High)</MenuItem>
+                    </TextField>
+                  </Stack>
+
+                  <TableContainer sx={{ border: `1px solid ${BRAND.border}`, borderRadius: 2 }}>
+                    <Table sx={{ minWidth: 1220 }}>
+                      <TableHead>
+                        <TableRow
+                          sx={{
+                            background:
+                              "linear-gradient(90deg, #7c3aed 0%, #6d28d9 55%, #5b21b6 100%)",
+                          }}
+                        >
+                          <TableCell align="center" sx={{ color: "#fff", fontWeight: 700 }}>
+                            <TableSortLabel
+                              active={isCoinSortActive("member")}
+                              direction={getCoinSortDirection("member")}
+                              onClick={() => handleCoinInsightsHeaderSort("member")}
+                              IconComponent={UnfoldMoreIcon}
+                              sx={{ color: "#fff !important", "& .MuiTableSortLabel-icon": { color: "#fff !important", opacity: 0.95 } }}
+                            >
+                              Member
+                            </TableSortLabel>
+                          </TableCell>
+                          <TableCell align="center" sx={{ color: "#fff", fontWeight: 700 }}>
+                            <TableSortLabel active={isCoinSortActive("target")} direction={getCoinSortDirection("target")} onClick={() => handleCoinInsightsHeaderSort("target")} IconComponent={UnfoldMoreIcon} sx={{ color: "#fff !important", "& .MuiTableSortLabel-icon": { color: "#fff !important", opacity: 0.95 }, justifyContent: "center", width: "100%" }}>
+                              VKR Target
+                            </TableSortLabel>
+                          </TableCell>
+                          <TableCell align="center" sx={{ color: "#fff", fontWeight: 700 }}>
+                            <TableSortLabel active={isCoinSortActive("delivered")} direction={getCoinSortDirection("delivered")} onClick={() => handleCoinInsightsHeaderSort("delivered")} IconComponent={UnfoldMoreIcon} sx={{ color: "#fff !important", "& .MuiTableSortLabel-icon": { color: "#fff !important", opacity: 0.95 }, justifyContent: "center", width: "100%" }}>
+                              VKR Achieved
+                            </TableSortLabel>
+                          </TableCell>
+                          <TableCell align="center" sx={{ color: "#fff", fontWeight: 700 }}>
+                            <TableSortLabel active={isCoinSortActive("achievement")} direction={getCoinSortDirection("achievement")} onClick={() => handleCoinInsightsHeaderSort("achievement")} IconComponent={UnfoldMoreIcon} sx={{ color: "#fff !important", "& .MuiTableSortLabel-icon": { color: "#fff !important", opacity: 0.95 }, justifyContent: "center", width: "100%" }}>
+                              Achievement %
+                            </TableSortLabel>
+                          </TableCell>
+                          <TableCell align="center" sx={{ color: "#fff", fontWeight: 700 }}>
+                            <TableSortLabel active={isCoinSortActive("earned")} direction={getCoinSortDirection("earned")} onClick={() => handleCoinInsightsHeaderSort("earned")} IconComponent={UnfoldMoreIcon} sx={{ color: "#fff !important", "& .MuiTableSortLabel-icon": { color: "#fff !important", opacity: 0.95 }, justifyContent: "center", width: "100%" }}>
+                              Earned Coins
+                            </TableSortLabel>
+                          </TableCell>
+                          <TableCell align="center" sx={{ color: "#fff", fontWeight: 700 }}>
+                            <TableSortLabel active={isCoinSortActive("upcoming")} direction={getCoinSortDirection("upcoming")} onClick={() => handleCoinInsightsHeaderSort("upcoming")} IconComponent={UnfoldMoreIcon} sx={{ color: "#fff !important", "& .MuiTableSortLabel-icon": { color: "#fff !important", opacity: 0.95 }, justifyContent: "center", width: "100%" }}>
+                              Upcoming Coins
+                            </TableSortLabel>
+                          </TableCell>
+                          <TableCell align="center" sx={{ color: "#fff", fontWeight: 700 }}>
+                            <TableSortLabel active={isCoinSortActive("lapsed")} direction={getCoinSortDirection("lapsed")} onClick={() => handleCoinInsightsHeaderSort("lapsed")} IconComponent={UnfoldMoreIcon} sx={{ color: "#fff !important", "& .MuiTableSortLabel-icon": { color: "#fff !important", opacity: 0.95 }, justifyContent: "center", width: "100%" }}>
+                              Lapsed Coins
+                            </TableSortLabel>
+                          </TableCell>
+                          <TableCell align="center" sx={{ color: "#fff", fontWeight: 700 }}>
+                            <TableSortLabel active={isCoinSortActive("available")} direction={getCoinSortDirection("available")} onClick={() => handleCoinInsightsHeaderSort("available")} IconComponent={UnfoldMoreIcon} sx={{ color: "#fff !important", "& .MuiTableSortLabel-icon": { color: "#fff !important", opacity: 0.95 }, justifyContent: "center", width: "100%" }}>
+                              Available Coins
+                            </TableSortLabel>
+                          </TableCell>
+                          <TableCell align="center" sx={{ color: "#fff", fontWeight: 700 }}>
+                            <TableSortLabel active={isCoinSortActive("gap")} direction={getCoinSortDirection("gap")} onClick={() => handleCoinInsightsHeaderSort("gap")} IconComponent={UnfoldMoreIcon} sx={{ color: "#fff !important", "& .MuiTableSortLabel-icon": { color: "#fff !important", opacity: 0.95 }, justifyContent: "center", width: "100%" }}>
+                              Gap to 60% Target
+                            </TableSortLabel>
+                          </TableCell>
+                        </TableRow>
+                      </TableHead>
+
+                      <TableBody>
+                        {coinTeamInsights.length ? (
+                          coinTeamInsights.map((row) => (
+                            <TableRow key={`coin-${row.agentName}-${row.role}`} hover>
+                              <TableCell align="center" sx={{ fontWeight: 700, color: BRAND.text }}>
+                                {row.agentName}
+                              </TableCell>
+                              <TableCell align="center">{formatNumber(row.vkrTargetCount)}</TableCell>
+                              <TableCell align="center" sx={{ color: BRAND.coin, fontWeight: 700 }}>
+                                {formatNumber(row.vkrCountTotal)}
+                              </TableCell>
+                              <TableCell align="center">
+                                <Chip
+                                  label={`${round2(row.achievementPercent)}%`}
+                                  size="small"
+                                  color={row.achievementPercent >= 60 ? "success" : "warning"}
+                                />
+                              </TableCell>
+                              <TableCell align="center" sx={{ fontWeight: 700, color: BRAND.coin }}>
+                                {formatNumber(row.earnedCoins)}
+                              </TableCell>
+                              <TableCell align="center" sx={{ color: BRAND.coming, fontWeight: 700 }}>
+                                {formatNumber(row.upcomingCoins)}
+                              </TableCell>
+                              <TableCell align="center" sx={{ color: BRAND.reversed, fontWeight: 700 }}>
+                                {formatNumber(row.lapsedCoins)}
+                              </TableCell>
+                              <TableCell align="center" sx={{ fontWeight: 700 }}>
+                                {formatNumber(row.availableCoins)}
+                              </TableCell>
+                              <TableCell align="center" sx={{ color: BRAND.sub }}>
+                                {formatNumber(row.gapToMinimum)}
+                              </TableCell>
+                            </TableRow>
+                          ))
+                        ) : (
+                          <TableRow>
+                            <TableCell colSpan={9} align="center" sx={{ py: 4 }}>
+                              No team coin data found.
+                            </TableCell>
+                          </TableRow>
+                        )}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                </>
+              ) : null}
             </Paper>
 
 
@@ -3078,3 +3960,5 @@ export default function IncentivesPage() {
     </Box>
   );
 }
+
+

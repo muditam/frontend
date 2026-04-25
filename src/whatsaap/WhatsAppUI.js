@@ -38,13 +38,8 @@ import DoneIcon from "@mui/icons-material/Done";
 import DoneAllIcon from "@mui/icons-material/DoneAll";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
 import { io } from "socket.io-client";
-
-const DEFAULT_API_BASE =
-  typeof window !== "undefined" &&
-  ["localhost", "127.0.0.1"].includes(window.location.hostname)
-    ? "http://localhost:5001"
-    : "https://muditamleads-14f32a10d7f7.herokuapp.com";
-const API_BASE = String(process.env.REACT_APP_API_BASE || DEFAULT_API_BASE).replace(/\/+$/, "");
+ 
+const API_BASE = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "");
 const DEBUG_SOCKET = false;
 
 const LIGHT = {

@@ -25,8 +25,7 @@ import {
 import { AddCircle, Delete, FileDownload, FilterList } from "@mui/icons-material";
 import axios from "axios";
 
-const API_BASE = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "");
-// const API_BASE = "http://localhost:5001"; 
+const API_BASE = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, ""); 
 
 const api = axios.create({
   baseURL: API_BASE || "",
