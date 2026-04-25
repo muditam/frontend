@@ -45,7 +45,16 @@ const SOCKET_URL = API_BASE;
 const NOTIF_SOUND_URL =
   "https://cdn.shopify.com/s/files/1/0734/7155/7942/files/new-notification-014-363678.mp3?v=1769002522";
 
-const ALLOWED_ROLES = new Set(["Manager", "Sales Agent", "Retention Agent"]);
+const ALLOWED_ROLES = new Set([
+  "manager",
+  "sales agent",
+  "retention agent",
+  "team leader",
+  "assistant team lead",
+  "admin",
+  "super admin",
+  "developer",
+]);
 
 // ─── Design tokens (Light WhatsApp theme) ─────────────────────────────────────
 const COLORS = {
@@ -923,8 +932,21 @@ export default function WhatsAppInboxWidget({ onOpenChat }) {
   const myNameRaw = useMemo(() => String(sessionUser?.fullName || "").trim(), [sessionUser?.fullName]);
   const myName = useMemo(() => myNameRaw.toLowerCase(), [myNameRaw]);
   const myRole = useMemo(() => String(sessionUser?.role || "").trim(), [sessionUser?.role]);
+  const myRoleNorm = useMemo(() => myRole.toLowerCase(), [myRole]);
+  const myUserId = useMemo(() => String(sessionUser?._id || sessionUser?.id || "").trim(), [sessionUser?._id, sessionUser?.id]);
+  const hasTeamEffective = useMemo(
+    () =>
+      Boolean(sessionUser?.hasTeam) ||
+      myRoleNorm === "team leader" ||
+      myRoleNorm === "team-leader" ||
+      myRoleNorm === "assistant team lead",
+    [sessionUser?.hasTeam, myRoleNorm]
+  );
 
-  const allowed = useMemo(() => !!myNameRaw && ALLOWED_ROLES.has(myRole), [myNameRaw, myRole]);
+  const allowed = useMemo(
+    () => !!myNameRaw && ALLOWED_ROLES.has(myRoleNorm),
+    [myNameRaw, myRoleNorm]
+  );
   const shouldShowWidget = useMemo(() => !isLoginRoute && allowed, [isLoginRoute, allowed]);
 
   useEffect(() => {
@@ -946,12 +968,13 @@ export default function WhatsAppInboxWidget({ onOpenChat }) {
 
   const visibleConvos = useMemo(() => {
     const list = Array.isArray(convos) ? convos.slice() : [];
-    if (myRole === "Manager") return list;
+    if (["manager", "admin", "super admin", "developer"].includes(myRoleNorm)) return list;
+    if (["team leader", "team-leader", "assistant team lead"].includes(myRoleNorm)) return list;
     return list.filter((c) => {
       const assigned = String(c?.assignedToLabel || "").trim().toLowerCase();
       return assigned && assigned === myName;
     });
-  }, [convos, myRole, myName]);
+  }, [convos, myRoleNorm, myName]);
 
   const sortedConvos = useMemo(() => {
     const sorted = visibleConvos.slice().sort((a, b) => {
@@ -979,13 +1002,24 @@ export default function WhatsAppInboxWidget({ onOpenChat }) {
     try {
       const r = await axios.get(`${API_BASE}/api/whatsapp/conversations`, {
         withCredentials: true,
-        params: { role: myRole || "", userName: myNameRaw || "" },
+        params: {
+          role: myRole || "",
+          userName: myNameRaw || "",
+          userId: myUserId || "",
+          hasTeam: hasTeamEffective ? "true" : "false",
+          chatScope:
+            myRoleNorm === "team leader" || myRoleNorm === "team-leader"
+              ? "team"
+              : hasTeamEffective && myRoleNorm === "assistant team lead"
+              ? "combined"
+              : "self",
+        },
       });
       setConvos(Array.isArray(r.data) ? r.data : []);
     } finally {
       setLoading(false);
     }
-  }, [shouldShowWidget, myNameRaw, myRole]);
+  }, [shouldShowWidget, myNameRaw, myRole, myUserId, hasTeamEffective, myRoleNorm]);
 
   const fetchMessages = useCallback(
     async (p10) => {

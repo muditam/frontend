@@ -46,6 +46,8 @@ const DEFAULT_API_BASE =
     : "https://muditamleads-14f32a10d7f7.herokuapp.com";
 const API_BASE = String(process.env.REACT_APP_API_BASE || DEFAULT_API_BASE).replace(/\/+$/, "");
 const DEBUG_SOCKET = false;
+const NOTIF_SOUND_URL =
+  "https://cdn.shopify.com/s/files/1/0734/7155/7942/files/new-notification-014-363678.mp3?v=1769002522";
 
 const LIGHT = {
   appBg: "#f7f8fa",
@@ -553,6 +555,7 @@ export default function WhatsAppUI() {
   const [loadingChats, setLoadingChats] = useState(true);
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [search, setSearch] = useState("");
+  const [agentFilter, setAgentFilter] = useState("all");
   const [chatError, setChatError] = useState("");
   const [toast, setToast] = useState({ open: false, message: "", severity: "success" });
   const showToast = useCallback((message, severity = "success") => setToast({ open: true, message, severity }), []);
@@ -599,8 +602,103 @@ export default function WhatsAppUI() {
   const [attachmentPreviewOpen, setAttachmentPreviewOpen] = useState(false);
   const [pendingAttachment, setPendingAttachment] = useState(null);
   const [nowTick, setNowTick] = useState(Date.now());
+  const notifAudioRef = useRef(null);
+  const notifAudioUnlockedRef = useRef(false);
+  const notifAudioCtxRef = useRef(null);
+  const lastNotifKeyRef = useRef("");
 
   useEffect(() => { const id = setInterval(() => setNowTick(Date.now()), 1000); return () => clearInterval(id); }, []);
+
+  const playFallbackBeep = useCallback(async () => {
+    try {
+      if (typeof window === "undefined") return;
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return;
+      if (!notifAudioCtxRef.current) {
+        notifAudioCtxRef.current = new AC();
+      }
+      const ctx = notifAudioCtxRef.current;
+      if (ctx.state === "suspended") {
+        await ctx.resume();
+      }
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.value = 880;
+      gain.gain.setValueAtTime(0.0001, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.04, ctx.currentTime + 0.01);
+      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.18);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.2);
+    } catch {}
+  }, []);
+
+  const prepareNotifAudio = useCallback(() => {
+    if (notifAudioRef.current) return notifAudioRef.current;
+    try {
+      const a = new Audio(NOTIF_SOUND_URL);
+      a.preload = "auto";
+      a.volume = 0.9;
+      notifAudioRef.current = a;
+      return a;
+    } catch {
+      return null;
+    }
+  }, []);
+
+  const unlockNotifAudio = useCallback(async () => {
+    if (notifAudioUnlockedRef.current) return;
+    const a = prepareNotifAudio();
+    try {
+      if (a) {
+        const prevVol = a.volume;
+        a.volume = 0;
+        await a.play();
+        a.pause();
+        a.currentTime = 0;
+        a.volume = prevVol;
+      }
+      if (typeof window !== "undefined") {
+        const AC = window.AudioContext || window.webkitAudioContext;
+        if (AC && !notifAudioCtxRef.current) notifAudioCtxRef.current = new AC();
+        if (notifAudioCtxRef.current?.state === "suspended") {
+          await notifAudioCtxRef.current.resume();
+        }
+      }
+      notifAudioUnlockedRef.current = true;
+    } catch {}
+  }, [prepareNotifAudio]);
+
+  const playNotif = useCallback(async (key = "") => {
+    if (key && lastNotifKeyRef.current === key) return;
+    lastNotifKeyRef.current = key || "";
+    const a = prepareNotifAudio();
+    if (!a || !notifAudioUnlockedRef.current) {
+      await playFallbackBeep();
+      return;
+    }
+    try {
+      a.pause();
+      a.currentTime = 0;
+      await a.play();
+    } catch {
+      await playFallbackBeep();
+    }
+  }, [prepareNotifAudio, playFallbackBeep]);
+
+  useEffect(() => {
+    const onInteract = () => { unlockNotifAudio(); };
+    document.addEventListener("pointerdown", onInteract, { passive: true });
+    document.addEventListener("keydown", onInteract, { passive: true });
+    document.addEventListener("touchstart", onInteract, { passive: true });
+    return () => {
+      document.removeEventListener("pointerdown", onInteract);
+      document.removeEventListener("keydown", onInteract);
+      document.removeEventListener("touchstart", onInteract);
+    };
+  }, [unlockNotifAudio]);
 
   const activeDigits = useMemo(() => digitsOnly(activeChat?.phone), [activeChat?.phone]);
   const activeP10 = useMemo(() => phone10(activeChat?.phone), [activeChat?.phone]);
@@ -610,6 +708,14 @@ export default function WhatsAppUI() {
   const sessionUser = useMemo(() => {
     try { const raw = sessionStorage.getItem("user"); return raw ? JSON.parse(raw) : null; } catch { return null; }
   }, []);
+  const sessionRoleNorm = useMemo(
+    () => String(sessionUser?.role || "").trim().toLowerCase(),
+    [sessionUser?.role]
+  );
+  const canFilterByAgent = useMemo(
+    () => sessionRoleNorm === "manager" || sessionRoleNorm === "team leader" || sessionRoleNorm === "team-leader",
+    [sessionRoleNorm]
+  );
 
   const navigate = useNavigate();
   const location = useLocation();
@@ -631,7 +737,7 @@ export default function WhatsAppUI() {
     const hh = String(Math.floor(s / 3600)).padStart(2, "0");
     const mm = String(Math.floor((s % 3600) / 60)).padStart(2, "0");
     const ss = String(s % 60).padStart(2, "0");
-    return { has: true, expired, msLeft, label: expired ? "Session expired" : `${hh}:${mm}:${ss}` };
+    return { has: true, expired, msLeft, label: expired ? "Chat window expired" : `${hh}:${mm}:${ss}` };
   }, [activeConversation?.windowExpiresAt, nowTick]);
 
   useEffect(() => { if (!activeChat?.phone || !sessionInfo.has) return; setSessionExpired(sessionInfo.expired); }, [activeChat?.phone, sessionInfo.has, sessionInfo.expired]);
@@ -671,12 +777,16 @@ export default function WhatsAppUI() {
 
   const filteredConversations = useMemo(() => {
     const raw = String(search || "").trim();
-    if (!raw) return conversations;
+    const byAgent = (conversations || []).filter((c) => {
+      if (!canFilterByAgent || agentFilter === "all") return true;
+      return String(c?.assignedToLabel || "").trim().toLowerCase() === agentFilter;
+    });
+    if (!raw) return byAgent;
     const q = raw.toLowerCase();
     const typedDigits = digitsOnly(raw);
     const p10Query = phone10(typedDigits);
     const tokens = q.split(/\s+/).filter(Boolean);
-    return conversations.filter((c) => {
+    return byAgent.filter((c) => {
       const phoneDigits = digitsOnly(c?.phone || "");
       const phoneP10 = phone10(c?.phone || "");
       const nameHaystack = [c?.displayName, c?.assignedToLabel, c?.lastMessageText].filter(Boolean).join(" ").toLowerCase();
@@ -684,20 +794,40 @@ export default function WhatsAppUI() {
       const matchesPhone = typedDigits ? phoneDigits.includes(typedDigits) || (p10Query && phoneP10.includes(p10Query)) : false;
       return matchesName || matchesPhone;
     });
-  }, [conversations, search]);
+  }, [conversations, search, canFilterByAgent, agentFilter]);
+
+  const agentFilterOptions = useMemo(() => {
+    const names = Array.from(
+      new Set(
+        (conversations || [])
+          .map((c) => String(c?.assignedToLabel || "").trim())
+          .filter(Boolean)
+      )
+    );
+    names.sort((a, b) => a.localeCompare(b));
+    return names;
+  }, [conversations]);
+
+  useEffect(() => {
+    if (!canFilterByAgent && agentFilter !== "all") {
+      setAgentFilter("all");
+    }
+  }, [canFilterByAgent, agentFilter]);
 
   const canShowQuickChat = useMemo(() => phone10(search).length === 10, [search]);
 
   const sortedConversations = useMemo(() => {
     const list = filteredConversations.slice();
     list.sort((a, b) => {
-      const au = Number(a?.unreadCount || 0) > 0 ? 1 : 0;
-      const bu = Number(b?.unreadCount || 0) > 0 ? 1 : 0;
-      if (au !== bu) return bu - au;
       return new Date(b?.lastMessageAt || 0) - new Date(a?.lastMessageAt || 0);
     });
     return list;
   }, [filteredConversations]);
+
+  const totalUnreadCount = useMemo(
+    () => (conversations || []).reduce((sum, c) => sum + Number(c?.unreadCount || 0), 0),
+    [conversations]
+  );
 
   const upsertConversationFromMessage = useCallback((msg) => {
     const customerPhone = customerPhoneFromMsg(msg);
@@ -733,11 +863,21 @@ export default function WhatsAppUI() {
     try {
       const userName = sessionUser?.fullName || "";
       const userRole = sessionUser?.role || "";
+      const userId = sessionUser?._id || sessionUser?.id || "";
+      const normalizedRole = String(userRole || "").trim().toLowerCase();
+      const effectiveHasTeam =
+        Boolean(sessionUser?.hasTeam) ||
+        normalizedRole === "team leader" ||
+        normalizedRole === "team-leader" ||
+        normalizedRole === "assistant team lead" ||
+        normalizedRole === "retention agent";
       const data =
         (await api(
           `/api/whatsapp/conversations?${new URLSearchParams({
             role: userRole,
             userName,
+            userId,
+            hasTeam: effectiveHasTeam ? "true" : "false",
           })}`
         )) || [];
 
@@ -765,7 +905,7 @@ export default function WhatsAppUI() {
     } finally {
       if (!silent) setLoadingChats(false);
     }
-  }, [sessionUser?.fullName, sessionUser?.role, showToast]);
+  }, [sessionUser?._id, sessionUser?.id, sessionUser?.fullName, sessionUser?.role, sessionUser?.hasTeam, showToast]);
 
   const mergeUniqueMessages = useCallback((seed = [], server = []) => {
     const source = [...(Array.isArray(seed) ? seed : []), ...(Array.isArray(server) ? server : [])];
@@ -870,6 +1010,14 @@ export default function WhatsAppUI() {
 
   useEffect(() => { refreshConversations(null, { silent: false }); fetchTemplates(); }, [refreshConversations, fetchTemplates]);
 
+  // Fallback polling for left chat list so it stays fresh even if socket transport is unstable.
+  useEffect(() => {
+    const id = setInterval(() => {
+      refreshConversations(null, { silent: true });
+    }, 8000);
+    return () => clearInterval(id);
+  }, [refreshConversations]);
+
   useEffect(() => {
     const s = io(API_BASE, {
       withCredentials: true,
@@ -953,6 +1101,12 @@ export default function WhatsAppUI() {
       const p10 = resolveP10FromPayload(payload, msg); if (!p10) return;
       const customerPhone = customerPhoneFromMsg(msg);
       const normalizedMsg = { ...msg, phone: customerPhone || p10 };
+      if (String(normalizedMsg?.direction || "").toUpperCase() === "INBOUND") {
+        const activeNow = activeP10Ref.current;
+        if (!activeNow || activeNow !== p10) {
+          playNotif(String(normalizedMsg?.waId || normalizedMsg?._id || `${p10}-${normalizedMsg?.timestamp || Date.now()}`));
+        }
+      }
       upsertConversationFromMessage(normalizedMsg);
       const activeNow = activeP10Ref.current;
       if (activeNow && p10 === activeNow) {
@@ -1034,7 +1188,7 @@ export default function WhatsAppUI() {
 
     s.on("wa:message", onMessage); s.on("wa:status", onStatus); s.on("wa:conversation", onConversation);
     return () => { s.off("wa:message", onMessage); s.off("wa:status", onStatus); s.off("wa:conversation", onConversation); };
-  }, [markConversationRead, upsertConversationFromMessage]);
+  }, [markConversationRead, upsertConversationFromMessage, playNotif]);
 
   useEffect(() => { if (activeP10) setInput(drafts[activeP10] || ""); else setInput(""); }, [activeP10, drafts]);
 
@@ -1148,7 +1302,7 @@ export default function WhatsAppUI() {
     catch (e) {
       setMessages((prev) => removeMessageById(prev, optimistic._id));
       setInput(text); setDraftFor(p10, text);
-      if (e.data?.code === "SESSION_EXPIRED") { setSessionExpired(true); setChatError("Session expired. Please send a template message."); }
+      if (e.data?.code === "SESSION_EXPIRED") { setSessionExpired(true); setChatError("Only templates allowed. Chat window expired."); }
       else showToast(e.message || "Send failed", "error");
     }
   };
@@ -1243,7 +1397,7 @@ export default function WhatsAppUI() {
       await apiForm(`/api/whatsapp/send-media`, fd);
     } catch (e) {
       setMessages((prev) => prev.map((m) => m._id === optimistic._id ? { ...m, status: "failed" } : m));
-      if (e?.data?.code === "SESSION_EXPIRED") { setSessionExpired(true); setChatError("Session expired. Please send a template message."); }
+      if (e?.data?.code === "SESSION_EXPIRED") { setSessionExpired(true); setChatError("Only templates allowed. Chat window expired."); }
       showToast(extractApiErrorMessage(e, "Failed to send attachment."), "error");
     } finally {
       setFileUploading(false);
@@ -1560,6 +1714,7 @@ export default function WhatsAppUI() {
             <Typography sx={{ fontWeight: 600, fontSize: 17, color: LIGHT.text }}>
               Chats
             </Typography>
+            <UnreadBadge count={totalUnreadCount} />
           </Stack>
           <Stack direction="row" spacing={0.5}>
             <Tooltip title="New chat">
@@ -1633,6 +1788,38 @@ export default function WhatsAppUI() {
             }}
           />
         </Box>
+        {canFilterByAgent && (
+          <Box px={1.5} pb={1} sx={{ bgcolor: LIGHT.sidebarBg }}>
+            <TextField
+              select
+              fullWidth
+              size="small"
+              label="Filter by agent"
+              value={agentFilter}
+              onChange={(e) => setAgentFilter(String(e.target.value || "all"))}
+              sx={{
+                "& .MuiOutlinedInput-root": {
+                  bgcolor: LIGHT.sidebarHeaderBg,
+                  borderRadius: 2,
+                  fontSize: 13,
+                  color: LIGHT.text,
+                  "& fieldset": { border: "none" },
+                  "&:hover fieldset": { border: "none" },
+                  "&.Mui-focused fieldset": { border: "none" },
+                },
+                "& .MuiInputLabel-root": { color: LIGHT.subtext, fontSize: 12 },
+                "& .MuiSelect-select": { py: 1 },
+              }}
+            >
+              <MenuItem value="all">All agents</MenuItem>
+              {agentFilterOptions.map((name) => (
+                <MenuItem key={name} value={name.toLowerCase()}>
+                  {name}
+                </MenuItem>
+              ))}
+            </TextField>
+          </Box>
+        )}
 
         {/* Conversation list */}
         <Box flex={1} overflow="auto" sx={{
@@ -1771,10 +1958,10 @@ export default function WhatsAppUI() {
                         fontWeight: 600,
                         fontVariantNumeric: "tabular-nums",
                       }}>
-                        {sessionInfo.expired ? "⏱ Session expired" : `⏱ ${sessionInfo.label}`}
+                        {sessionInfo.expired ? "⏱ Chat window expired" : `⏱ ${sessionInfo.label}`}
                       </Typography>
                     )}
-	                  </Stack>
+                  </Stack>
 	                </Box>
 	              </Stack>
 	            </Box>
@@ -1928,8 +2115,8 @@ export default function WhatsAppUI() {
                   display: "flex", alignItems: "center", justifyContent: "space-between", gap: 2,
                 }}>
                   <Box>
-                    <Typography sx={{ fontSize: 13, color: "#EA4335", fontWeight: 600 }}>Session expired</Typography>
-                    <Typography sx={{ fontSize: 12, color: LIGHT.subtext }}>Send a template to reopen the 24h window</Typography>
+                    <Typography sx={{ fontSize: 13, color: "#EA4335", fontWeight: 600 }}>Only templates allowed</Typography>
+                    <Typography sx={{ fontSize: 12, color: LIGHT.subtext }}>Chat window expired. Send a template to reopen the 24h window.</Typography>
                   </Box>
                   <Tooltip title="Send template">
                     <Button
