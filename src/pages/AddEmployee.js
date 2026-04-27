@@ -465,6 +465,7 @@ const AddEmployee = () => {
    (employeeData.department || "").trim().toLowerCase() === "sales";
  const isSalesTeamLeader = isEditMode && isSalesDepartment && currentEmployeeHasTeam;
  const isCoreOnlyRole = ["Manager", "Super Admin"].includes(employeeData.role);
+ const shouldShowReportsTo = employeeData.role !== "Super Admin";
 
 
  const normalizeOptionValue = (value) => {
@@ -1162,7 +1163,7 @@ const AddEmployee = () => {
            />
 
 
-           {!isCoreOnlyRole && (
+          {shouldShowReportsTo && (
              <Autocomplete
                options={allActiveEmployees.filter(
                  (employee) => employee._id !== currentEmployeeId
@@ -2084,5 +2085,4 @@ const AddEmployee = () => {
 
 
 export default AddEmployee;
-
 

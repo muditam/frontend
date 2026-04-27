@@ -28,6 +28,8 @@ const getManagerId = () =>
 
 const isSalesDepartment = (emp = {}) =>
  String(emp.department || "").trim().toLowerCase() === "sales";
+const isTargetEligible = (emp = {}) =>
+ isSalesDepartment(emp) && emp?.isDoctor !== true;
 
 
 
@@ -103,7 +105,7 @@ const TeamPage = ({ managerId: managerIdProp }) => {
  const fetchLeaderAndAgentLists = async () => {
    const { data } = await api.get("/api/employees");
    const activeSalesEmployees = (data || []).filter(
-     (emp) => emp.status === "active" && isSalesDepartment(emp)
+     (emp) => emp.status === "active" && isTargetEligible(emp)
    );
 
 
@@ -149,7 +151,7 @@ const TeamPage = ({ managerId: managerIdProp }) => {
      .get(`/api/employees/${selectedLeaderId}`)
      .then(({ data }) => {
        const members = (data.teamMembers || []).filter(
-         (emp) => emp.status === "active" && isSalesDepartment(emp)
+         (emp) => emp.status === "active" && isTargetEligible(emp)
        );
        setTeamMembers(members);
      })
@@ -279,7 +281,7 @@ const TeamPage = ({ managerId: managerIdProp }) => {
    try {
      const updatedIds = [...teamMembers.map(tm => tm._id), ...searchValue.map(a => a._id)].filter((v, i, arr) => arr.indexOf(v) === i);
      const { data } = await api.put(`/api/employees/${selectedLeaderId}/team`, { teamMembers: updatedIds });
-     setTeamMembers((data.manager.teamMembers || []).filter(isSalesDepartment));
+     setTeamMembers((data.manager.teamMembers || []).filter(isTargetEligible));
      await fetchLeaderAndAgentLists();
      setAddOpen(false);
      setSearchValue([]);
@@ -295,7 +297,7 @@ const TeamPage = ({ managerId: managerIdProp }) => {
    try {
      const updatedIds = teamMembers.filter(emp => emp._id !== id).map(emp => emp._id);
      const { data } = await api.put(`/api/employees/${selectedLeaderId}/team`, { teamMembers: updatedIds });
-     setTeamMembers((data.manager.teamMembers || []).filter(isSalesDepartment));
+     setTeamMembers((data.manager.teamMembers || []).filter(isTargetEligible));
      await fetchLeaderAndAgentLists();
    } catch (e) { alert("Failed to update team."); } finally { setTableProgress(p => ({ ...p, [id]: false })); }
  };
@@ -468,6 +470,5 @@ const TeamPage = ({ managerId: managerIdProp }) => {
 
 
 export default TeamPage;
-
 
 

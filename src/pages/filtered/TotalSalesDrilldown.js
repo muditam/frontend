@@ -2,7 +2,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import {
  Dialog,
- DialogTitle,
  DialogContent,
  Box,
  Grid,
@@ -35,7 +34,9 @@ import {
  TrendingUp,
  Close,
  Payments,
- ChevronRight
+ ChevronRight,
+ KeyboardArrowDown,
+ KeyboardArrowUp
 } from "@mui/icons-material";
 import axios from "axios";
 
@@ -53,6 +54,8 @@ const RANGE_OPTIONS = ["Today", "Yesterday", "Last 2 days", "Last one week", "Cu
 const toISODate = (d) => d.toISOString().split("T")[0];
 const isSalesDepartment = (emp = {}) =>
  String(emp.department || "").trim().toLowerCase() === "sales";
+const isTargetEligible = (emp = {}) =>
+ isSalesDepartment(emp) && emp?.isDoctor !== true;
 const getLeaderId = (member = {}) =>
  member?.teamLeader?._id || member?.teamLeader?.id || member?.teamLeader || "";
 
@@ -122,6 +125,7 @@ export default function TotalSalesDrilldown({ open, onClose, initialDates }) {
  const [results, setResults] = useState([]);
  const [resultsError, setResultsError] = useState("");
  const [daywiseResults, setDaywiseResults] = useState([]);
+ const [expandedRows, setExpandedRows] = useState({});
 
 
 
@@ -134,7 +138,7 @@ export default function TotalSalesDrilldown({ open, onClose, initialDates }) {
        const list = data || [];
        setEmployees(list);
        setLeaders(
-         list.filter((e) => e.status === "active" && isSalesDepartment(e) && e.hasTeam === true)
+         list.filter((e) => e.status === "active" && isTargetEligible(e) && e.hasTeam === true)
        );
      })
      .catch(() => { setEmployees([]); setLeaders([]); });
@@ -145,7 +149,7 @@ export default function TotalSalesDrilldown({ open, onClose, initialDates }) {
 
  // -------------------- Derived Logic --------------------
  const activeAgents = useMemo(() =>
-   employees.filter((e) => e.status === "active" && isSalesDepartment(e)),
+   employees.filter((e) => e.status === "active" && isTargetEligible(e)),
    [employees]
  );
 
@@ -194,6 +198,7 @@ export default function TotalSalesDrilldown({ open, onClose, initialDates }) {
  // -------------------- Actions --------------------
  const handleApply = async () => {
    setResultsError(""); setResults([]); setDaywiseResults([]); setResultsLoading(true);
+   setExpandedRows({});
    const { startDate, endDate } = effectiveDates;
    try {
      let names = [];
@@ -202,7 +207,7 @@ export default function TotalSalesDrilldown({ open, onClose, initialDates }) {
      } else if (tabMode === "manager" && selectedLeader?._id) {
        const { data: mgr } = await api.get(`/api/employees/${selectedLeader._id}`);
        names = (mgr?.teamMembers || [])
-         .filter((m) => m?.status === "active" && isSalesDepartment(m))
+         .filter((m) => m?.status === "active" && isTargetEligible(m))
          .map((m) => m.fullName);
      }
    
@@ -216,17 +221,22 @@ export default function TotalSalesDrilldown({ open, onClose, initialDates }) {
      );
      const getContributorsForRow = (name) => {
        const emp = employeeByName.get(name);
-       if (!emp?.hasTeam || !emp?._id) return [name];
+       if (!emp?.hasTeam || !emp?._id) {
+         return { contributors: [name], teamMemberNames: [] };
+       }
        const directReportNames = employees
          .filter(
            (member) =>
-             member?.status === "active" &&
-             isSalesDepartment(member) &&
-             String(getLeaderId(member)) === String(emp._id)
+            member?.status === "active" &&
+            isTargetEligible(member) &&
+            String(getLeaderId(member)) === String(emp._id)
          )
          .map((member) => member.fullName)
          .filter(Boolean);
-       return [...new Set([name, ...directReportNames])];
+       return {
+         contributors: [...new Set([name, ...directReportNames])],
+         teamMemberNames: directReportNames.filter((memberName) => memberName !== name),
+       };
      };
 
 
@@ -235,36 +245,54 @@ export default function TotalSalesDrilldown({ open, onClose, initialDates }) {
      if (isDaywise) {
        const rows = await Promise.all(
          names.map(async (name) => {
-           const contributors = getContributorsForRow(name);
+           const { contributors, teamMemberNames } = getContributorsForRow(name);
            const { data } = await api.post("/api/retention-sales/daywise-matrix", {
              names: contributors,
              startDate,
              endDate,
            });
 
-
-           const perDateTotals = {};
-           (data || []).forEach((contributorRow) => {
-             (contributorRow?.perDay || []).forEach((d) => {
-               const key = String(d.date || "");
-               perDateTotals[key] = (perDateTotals[key] || 0) + Number(d.total || 0);
-             });
+           const perDayByName = new Map(
+             (data || []).map((contributorRow) => [contributorRow?.name, contributorRow?.perDay || []])
+           );
+           const allDates = new Set();
+           perDayByName.forEach((perDay) => {
+             (perDay || []).forEach((d) => allDates.add(String(d?.date || "")));
            });
-
-
-           const perDay = Object.keys(perDateTotals)
-             .sort((a, b) => new Date(a) - new Date(b))
-             .map((date) => ({
+           const sortedDates = [...allDates].filter(Boolean).sort((a, b) => new Date(a) - new Date(b));
+           const normalizedContributorRows = contributors.map((contributorName) => {
+             const totalsByDate = new Map(
+               (perDayByName.get(contributorName) || []).map((d) => [String(d?.date || ""), Number(d?.total || 0)])
+             );
+             const perDay = sortedDates.map((date) => ({
                date,
-               total: perDateTotals[date],
+               total: Number(totalsByDate.get(date) || 0),
                label: toDisplayDate(date),
              }));
+             return {
+               name: contributorName,
+               perDay,
+               grandTotal: perDay.reduce((sum, d) => sum + Number(d.total || 0), 0),
+             };
+           });
+           const perDay = sortedDates.map((date) => ({
+             date,
+             total: normalizedContributorRows.reduce((sum, contributorRow) => {
+               const day = contributorRow.perDay.find((d) => d.date === date);
+               return sum + Number(day?.total || 0);
+             }, 0),
+             label: toDisplayDate(date),
+           }));
+           const teamMembers = normalizedContributorRows.filter(
+             (contributorRow) => contributorRow.name !== name && teamMemberNames.includes(contributorRow.name)
+           );
 
 
            return {
              name,
              perDay,
              grandTotal: perDay.reduce((sum, d) => sum + Number(d.total || 0), 0),
+             teamMembers,
            };
          })
        );
@@ -274,20 +302,26 @@ export default function TotalSalesDrilldown({ open, onClose, initialDates }) {
      } else {
        const rows = await Promise.all(
          names.map(async (name) => {
-           const contributors = getContributorsForRow(name);
-           const totals = await Promise.all(
+           const { contributors, teamMemberNames } = getContributorsForRow(name);
+           const contributorTotals = await Promise.all(
              contributors.map((contributorName) =>
                api
                  .get("/api/retention-sales/progress", {
                    params: { name: contributorName, from: startDate, to: endDate },
                  })
-                 .then(({ data }) => Number(data?.total || 0))
-                 .catch(() => 0)
+                 .then(({ data }) => ({
+                   name: contributorName,
+                   total: Number(data?.total || 0),
+                 }))
+                 .catch(() => ({ name: contributorName, total: 0 }))
              )
            );
            return {
              name,
-             total: totals.reduce((sum, value) => sum + Number(value || 0), 0),
+             total: contributorTotals.reduce((sum, value) => sum + Number(value.total || 0), 0),
+             teamMembers: contributorTotals.filter(
+               (row) => row.name !== name && teamMemberNames.includes(row.name)
+             ),
            };
          })
        );
@@ -307,9 +341,14 @@ export default function TotalSalesDrilldown({ open, onClose, initialDates }) {
    setRange("Today");
    setResults([]);
    setDaywiseResults([]);
+   setExpandedRows({});
    setSelectedLeader(null);
    setSelectedAgents([]);
    setResultsError("");
+ };
+
+ const toggleRow = (name) => {
+   setExpandedRows((prev) => ({ ...prev, [name]: !prev[name] }));
  };
 
 
@@ -460,18 +499,71 @@ export default function TotalSalesDrilldown({ open, onClose, initialDates }) {
                        </TableRow>
                      </TableHead>
                      <TableBody>
-                       {isDaywise ? daywiseResults.map((row) => (
-                         <TableRow key={row.name} hover>
-                           <TableCell sx={{ fontWeight: 700, position: "sticky", left: 0, bgcolor: "#fff", zIndex: 5, borderRight: "2px solid #f1f1f1" }}>{row.name}</TableCell>
-                           {row.perDay.map((d, i) => <TableCell key={i} align="right">{fmtINR(d.total)}</TableCell>)}
-                           <TableCell align="right" sx={{ fontWeight: 900, bgcolor: "#f8f9fa" }}>{fmtINR(row.grandTotal)}</TableCell>
-                         </TableRow>
-                       )) : results.map((r) => (
-                         <TableRow key={r.name} hover>
-                           <TableCell sx={{ fontWeight: 700 }}>{r.name}</TableCell>
-                           <TableCell align="right" sx={{ fontWeight: 900, color: "primary.main" }}>{fmtINR(r.total)}</TableCell>
-                         </TableRow>
-                       ))}
+                       {isDaywise ? daywiseResults.map((row) => {
+                         const hasTeamMembers = row.teamMembers?.length > 0;
+                         const isExpanded = Boolean(expandedRows[row.name]);
+                         return (
+                           <React.Fragment key={row.name}>
+                             <TableRow hover>
+                               <TableCell sx={{ fontWeight: 700, position: "sticky", left: 0, bgcolor: "#fff", zIndex: 5, borderRight: "2px solid #f1f1f1" }}>
+                                 <Stack direction="row" spacing={0.5} alignItems="center">
+                                   {hasTeamMembers ? (
+                                     <IconButton size="small" onClick={() => toggleRow(row.name)} sx={{ p: 0.25 }}>
+                                       {isExpanded ? <KeyboardArrowUp fontSize="small" /> : <KeyboardArrowDown fontSize="small" />}
+                                     </IconButton>
+                                   ) : (
+                                     <Box sx={{ width: 22 }} />
+                                   )}
+                                   <Typography variant="body2" fontWeight={700}>{row.name}</Typography>
+                                 </Stack>
+                               </TableCell>
+                               {row.perDay.map((d, i) => <TableCell key={i} align="right">{fmtINR(d.total)}</TableCell>)}
+                               <TableCell align="right" sx={{ fontWeight: 900, bgcolor: "#f8f9fa" }}>{fmtINR(row.grandTotal)}</TableCell>
+                             </TableRow>
+                             {isExpanded && (row.teamMembers || []).map((member) => (
+                               <TableRow key={`${row.name}-${member.name}`}>
+                                 <TableCell sx={{ position: "sticky", left: 0, bgcolor: "#fafafa", zIndex: 4, borderRight: "2px solid #f1f1f1", pl: 4, color: "text.secondary" }}>
+                                   {member.name}
+                                 </TableCell>
+                                 {member.perDay.map((d, i) => <TableCell key={i} align="right" sx={{ bgcolor: "#fafafa" }}>{fmtINR(d.total)}</TableCell>)}
+                                 <TableCell align="right" sx={{ fontWeight: 700, bgcolor: "#f3f3f3" }}>{fmtINR(member.grandTotal)}</TableCell>
+                               </TableRow>
+                             ))}
+                           </React.Fragment>
+                         );
+                       }) : results.map((r) => {
+                         const hasTeamMembers = r.teamMembers?.length > 0;
+                         const isExpanded = Boolean(expandedRows[r.name]);
+                         return (
+                           <React.Fragment key={r.name}>
+                             <TableRow hover>
+                               <TableCell sx={{ fontWeight: 700 }}>
+                                 <Stack direction="row" spacing={0.5} alignItems="center">
+                                   {hasTeamMembers ? (
+                                     <IconButton size="small" onClick={() => toggleRow(r.name)} sx={{ p: 0.25 }}>
+                                       {isExpanded ? <KeyboardArrowUp fontSize="small" /> : <KeyboardArrowDown fontSize="small" />}
+                                     </IconButton>
+                                   ) : (
+                                     <Box sx={{ width: 22 }} />
+                                   )}
+                                   <Typography variant="body2" fontWeight={700}>{r.name}</Typography>
+                                 </Stack>
+                               </TableCell>
+                               <TableCell align="right" sx={{ fontWeight: 900, color: "primary.main" }}>{fmtINR(r.total)}</TableCell>
+                             </TableRow>
+                             {isExpanded && (r.teamMembers || []).map((member) => (
+                               <TableRow key={`${r.name}-${member.name}`}>
+                                 <TableCell sx={{ pl: 4, color: "text.secondary", bgcolor: "#fafafa" }}>
+                                   {member.name}
+                                 </TableCell>
+                                 <TableCell align="right" sx={{ fontWeight: 700, color: "text.secondary", bgcolor: "#fafafa" }}>
+                                   {fmtINR(member.total)}
+                                 </TableCell>
+                               </TableRow>
+                             ))}
+                           </React.Fragment>
+                         );
+                       })}
                      </TableBody>
                      {/* --- Added Footer for Date-wise Totals --- */}
                      {isDaywise && (
@@ -502,5 +594,3 @@ export default function TotalSalesDrilldown({ open, onClose, initialDates }) {
    </Dialog>
  );
 }
-
-
