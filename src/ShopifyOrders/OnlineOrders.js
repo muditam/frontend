@@ -455,7 +455,7 @@ export default function ShopifyOrdersTable() {
                     </TableCell>
                     <TableCell sx={{ fontWeight: 700 }}>Mode of Payment</TableCell>
                     <TableCell sx={{ fontWeight: 700 }}>Products Ordered</TableCell>
-                    <TableCell sx={{ fontWeight: 700 }}>Agent Assigned</TableCell>
+                    <TableCell sx={{ fontWeight: 700 }}>Expert Assigned</TableCell>
                     <TableCell sx={{ fontWeight: 700 }}>Health Expert Assigned</TableCell>
                     <TableCell sx={{ fontWeight: 700 }}>Channel Name</TableCell>
                     <TableCell sx={{ fontWeight: 700 }}>State</TableCell>
@@ -580,4 +580,3 @@ export default function ShopifyOrdersTable() {
     </Box>
   );
 }
-

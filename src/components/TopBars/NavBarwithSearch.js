@@ -68,6 +68,12 @@ const getAvatarUrl = (name) =>
    name
  )}&backgroundType=gradientLinear&radius=50`;
 
+const API_BASE_URL = "https://muditamleads-14f32a10d7f7.herokuapp.com";
+const SWITCH_API_BASE = "/api/switch-dashboard";
+const LEGACY_SWITCH_API_BASE = "/api/employees";
+const PRIMARY_SWITCH_API_BASE = LEGACY_SWITCH_API_BASE;
+const SECONDARY_SWITCH_API_BASE = SWITCH_API_BASE;
+
 
 const NavbarWithSearch = () => {
  const [query, setQuery] = useState("");
@@ -95,6 +101,7 @@ const NavbarWithSearch = () => {
  const [notifAnchorEl, setNotifAnchorEl] = useState(null);
  const [marketingQuickCreateOpen, setMarketingQuickCreateOpen] = useState(false);
  const [unreadCount, setUnreadCount] = useState(0);
+ const [revertLoading, setRevertLoading] = useState(false);
 
 
  const navigate = useNavigate();
@@ -102,6 +109,16 @@ const NavbarWithSearch = () => {
 
 
  const user = JSON.parse(sessionStorage.getItem("user"));
+ const originalUserRaw = sessionStorage.getItem("originalUser");
+ const isImpersonating = !!originalUserRaw;
+ const originalUser = (() => {
+   if (!originalUserRaw) return null;
+   try {
+     return JSON.parse(originalUserRaw);
+   } catch {
+     return null;
+   }
+ })();
 
 
  // 🔐 Navbar permissions
@@ -329,6 +346,74 @@ const NavbarWithSearch = () => {
  const showTaskBoardIcon = canNav("taskBoardIcon", false);
  const showMyReportingIcon = canNav("myReportingIcon", false);
  const showTaskIcons = showTaskBoardIcon || showMyReportingIcon;
+
+ const handleGlobalRevert = async () => {
+   try {
+     setRevertLoading(true);
+
+     // Legacy backend keeps stale impersonation session fields across cycles.
+     // Frontend originalUser is the reliable source for "return to own dashboard".
+     const originalStr = sessionStorage.getItem("originalUser");
+     if (originalStr) {
+       const original = JSON.parse(originalStr);
+       sessionStorage.setItem("user", JSON.stringify(original));
+       sessionStorage.removeItem("originalUser");
+       sessionStorage.removeItem("switchMeta");
+       navigate("/switch-dashboard", { replace: true });
+       return;
+     }
+
+     let data;
+     try {
+       ({ data } = await axios.post(
+         `${API_BASE_URL}${PRIMARY_SWITCH_API_BASE}/revert`,
+         {},
+         { withCredentials: true }
+       ));
+      } catch (err) {
+        const status = err?.response?.status;
+        if (status === 404 || status === 400) {
+          try {
+            ({ data } = await axios.post(
+              `${API_BASE_URL}${SECONDARY_SWITCH_API_BASE}/revert`,
+              {},
+              { withCredentials: true }
+            ));
+          } catch (secondaryErr) {
+            const originalStr = sessionStorage.getItem("originalUser");
+            if (!originalStr) throw secondaryErr;
+            const original = JSON.parse(originalStr);
+            sessionStorage.setItem("user", JSON.stringify(original));
+            sessionStorage.removeItem("originalUser");
+            sessionStorage.removeItem("switchMeta");
+            navigate("/switch-dashboard", { replace: true });
+            return;
+          }
+        } else {
+          throw err;
+        }
+      }
+
+      if (data?.user) {
+        sessionStorage.setItem(
+          "user",
+          JSON.stringify({ ...data.user, _id: data.user._id || data.user.id })
+        );
+      } else {
+        const originalStr = sessionStorage.getItem("originalUser");
+        if (originalStr) {
+          const original = JSON.parse(originalStr);
+          sessionStorage.setItem("user", JSON.stringify(original));
+        }
+      }
+      sessionStorage.removeItem("originalUser");
+      sessionStorage.removeItem("switchMeta");
+      navigate("/switch-dashboard", { replace: true });
+   } catch (error) {
+     console.error("Error while reverting impersonation:", error);
+     setRevertLoading(false);
+   }
+ };
 
 
  return (
@@ -977,6 +1062,60 @@ const NavbarWithSearch = () => {
        </Toolbar>
      </AppBar>
 
+     {isImpersonating && originalUser && (
+       <Box
+         sx={{
+           px: 2,
+           py: 1,
+           backgroundColor: "#FFF3CD",
+           border: "1px solid #FFEEBA",
+         }}
+       >
+         <Box
+           sx={{
+             maxWidth: 1280,
+             mx: "auto",
+             display: "flex",
+             alignItems: "center",
+             justifyContent: { xs: "center", md: "space-between" },
+             flexDirection: { xs: "column", md: "row" },
+             gap: 1.5,
+           }}
+         >
+           <Typography
+             sx={{
+               fontSize: 14,
+               color: "#856404",
+               textAlign: { xs: "center", md: "left" },
+             }}
+           >
+             You are viewing dashboard as{" "}
+             <strong>{user?.fullName || "another user"}</strong>. Logged in as{" "}
+             <strong>{originalUser.fullName || originalUser.email}</strong>. Click
+             to return to your own dashboard.
+           </Typography>
+
+           <Button
+             variant="contained"
+             size="small"
+             onClick={handleGlobalRevert}
+             disabled={revertLoading}
+             sx={{
+               textTransform: "none",
+               backgroundColor: "#856404",
+               "&:hover": { backgroundColor: "#704f07" },
+               alignSelf: { xs: "center", md: "auto" },
+               minWidth: { xs: "auto", md: 260 },
+             }}
+           >
+             {revertLoading
+               ? "Returning..."
+               : `Back to ${originalUser.fullName || "my"} dashboard`}
+           </Button>
+         </Box>
+       </Box>
+     )}
+
 
      <TaskNotifications
        anchorEl={notifAnchorEl}
@@ -1373,6 +1512,3 @@ const NavbarWithSearch = () => {
 
 
 export default NavbarWithSearch;
-
-
-

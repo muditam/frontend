@@ -338,7 +338,7 @@ export default function TotalSalesDrilldown({ open, onClose, initialDates }) {
              sx={{ mb: 3, minHeight: 44, bgcolor: "#f1f1f1", p: 0.5, borderRadius: 2.5, "& .MuiTabs-indicator": { display: "none" } }}
            >
              <Tab icon={<Group sx={{ fontSize: 18 }} />} label="Team" value="manager" sx={{ flex: 1, textTransform: "none", fontWeight: 700, borderRadius: 2, "&.Mui-selected": { bgcolor: "#fff", color: "#000" } }} />
-             <Tab icon={<PersonSearch sx={{ fontSize: 18 }} />} label="Agents" value="agents" sx={{ flex: 1, textTransform: "none", fontWeight: 700, borderRadius: 2, "&.Mui-selected": { bgcolor: "#fff", color: "#000" } }} />
+             <Tab icon={<PersonSearch sx={{ fontSize: 18 }} />} label="Experts" value="agents" sx={{ flex: 1, textTransform: "none", fontWeight: 700, borderRadius: 2, "&.Mui-selected": { bgcolor: "#fff", color: "#000" } }} />
            </Tabs>
 
 
@@ -369,7 +369,7 @@ export default function TotalSalesDrilldown({ open, onClose, initialDates }) {
 
 
              <Box>
-               <Typography variant="body2" fontWeight={700} sx={{ mb: 1 }}>{tabMode === "manager" ? "Select Manager" : "Select Agents"}</Typography>
+               <Typography variant="body2" fontWeight={700} sx={{ mb: 1 }}>{tabMode === "manager" ? "Select Manager" : "Select Experts"}</Typography>
                {tabMode === "manager" ? (
                  <Autocomplete
                    options={leaders} getOptionLabel={(o) => o?.fullName || ""}
@@ -380,7 +380,7 @@ export default function TotalSalesDrilldown({ open, onClose, initialDates }) {
                  <Autocomplete
                    multiple options={activeAgents} getOptionLabel={(o) => o?.fullName || ""}
                    value={selectedAgents} onChange={(_, v) => setSelectedAgents(v)}
-                   renderInput={(params) => <TextField {...params} placeholder="Select agents..." size="small" />}
+                   renderInput={(params) => <TextField {...params} placeholder="Select experts..." size="small" />}
                  />
                )}
              </Box>
@@ -502,6 +502,5 @@ export default function TotalSalesDrilldown({ open, onClose, initialDates }) {
    </Dialog>
  );
 }
-
 
 

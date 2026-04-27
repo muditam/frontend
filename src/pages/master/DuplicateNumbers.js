@@ -84,7 +84,7 @@ const DuplicateNumbers = () => {
             <th>Delete</th>
             <th>Contact Number</th>
             <th>Name</th>
-            <th>Agent Assigned</th>
+            <th>Expert Assigned</th>
             <th>Lead Status</th>
             <th>Sales Status</th>
             <th>Health Expert</th>

@@ -874,7 +874,7 @@ export default function OrderConfirmations() {
 
 
                 {/* Round-robin button – visible to all; backend should only assign to Active OC + Operations */}
-                <Tooltip title="Round-robin: assign all unassigned, pending & unfulfilled orders to ACTIVE Operations agents">
+                <Tooltip title="Round-robin: assign all unassigned, pending & unfulfilled orders to ACTIVE Operations experts">
                   <span>
                     <IconButton
                       onClick={doRoundRobinAssign}

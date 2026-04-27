@@ -515,7 +515,7 @@ const SalesMySales = () => {
               <TableCell>Mode of Payment *</TableCell>
               <TableCell>Order Id</TableCell>
               <TableCell>Shipment Status</TableCell>
-              <TableCell>Agents Remarks *</TableCell>
+              <TableCell>Experts Remarks *</TableCell>
               <TableCell align="center">Action</TableCell>
             </TableRow>
           </TableHead>

@@ -561,12 +561,12 @@ Dosage Ordered: ${dosageOrdered}`;
                   <Grid item xs={12}>
                     <Stack direction="row" alignItems="center" spacing={1}>
                       <Typography variant="caption" color="text.secondary">
-                        Agent
+                        Expert
                       </Typography>
                       <Typography variant="body2" fontWeight={600}>
                         {selectedAgent}
                       </Typography>
-                      <Tooltip title="Change agent">
+                      <Tooltip title="Change expert">
                         <IconButton size="small" onClick={() => setEditingAgent(true)}>
                           <EditIcon fontSize="small" />
                         </IconButton>

@@ -707,10 +707,10 @@ const LeadTable = () => {
             />
 
             <FormControl fullWidth sx={formControlSx}>
-              <InputLabel>Agent Assigned</InputLabel>
+              <InputLabel>Expert Assigned</InputLabel>
               <Select
                 multiple
-                label="Agent Assigned"
+                label="Expert Assigned"
                 value={filters.agentAssigned}
                 onChange={(e) =>
                   setFilters((prev) => ({
@@ -1009,13 +1009,13 @@ const LeadTable = () => {
               <TableCell sx={styles.tableHead}>Lead Source *</TableCell>
               <TableCell sx={styles.tableHead}>Enquiry For *</TableCell>
               <TableCell sx={styles.tableHead}>Customer Type *</TableCell>
-              <TableCell sx={styles.tableHead}>Agent Assigned *</TableCell>
+              <TableCell sx={styles.tableHead}>Expert Assigned *</TableCell>
               <TableCell sx={styles.tableHead}>Product Pitched</TableCell>
               <TableCell sx={styles.tableHead}>Lead Status</TableCell>
               <TableCell sx={styles.tableHead}>Sales Status</TableCell>
               <TableCell sx={styles.tableHead}>Next Followup</TableCell>
               <TableCell sx={styles.tableHead}>Reminder</TableCell>
-              <TableCell sx={styles.tableHead}>Agent's Remarks</TableCell>
+              <TableCell sx={styles.tableHead}>Expert's Remarks</TableCell>
               <TableCell sx={styles.tableHead}>Order Date</TableCell>
               <TableCell sx={styles.tableHead}>Products Ordered</TableCell>
               <TableCell sx={styles.tableHead}>Dosage Ordered</TableCell>

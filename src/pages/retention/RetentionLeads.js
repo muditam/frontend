@@ -2213,7 +2213,7 @@ const RetentionLeads = () => {
                             <Box sx={{ ...metaPillSx, bgcolor: "#EAF0F8" }}>CS – {since}</Box>
                             <Box sx={{ ...metaPillSx, bgcolor: "#EAF0F8" }}>Last Order – {lastDays}</Box>
                             <Box sx={metaPillSx}>
-                              <Typography sx={{ color: "#667085", fontSize: "0.8rem" }}>Agent</Typography>
+                              <Typography sx={{ color: "#667085", fontSize: "0.8rem" }}>Expert</Typography>
                               <Typography sx={{ fontWeight: 700 }}>
                                 {leads[selectedLeadIndex]?.agentAssigned || "—"}
                               </Typography>
@@ -3309,5 +3309,4 @@ You can mark Lost only after 60 days.`);
 };
 
 export default RetentionLeads;
-
 

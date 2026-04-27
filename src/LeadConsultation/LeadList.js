@@ -906,9 +906,9 @@ const LeadList = ({
               <MenuItem disableGutters>
                 <Box width={180}>
                   <FormControl size="small" fullWidth>
-                    <InputLabel>Agents</InputLabel>
+                    <InputLabel>Experts</InputLabel>
                     <Select
-                      label="Agents"
+                      label="Experts"
                       multiple
                       value={filterAgent}
                       onChange={(e) => {

@@ -2004,7 +2004,7 @@ export default function WhatsAppUI() {
               select
               fullWidth
               size="small"
-              label="Filter by agent"
+              label="Filter by expert"
               value={agentFilter}
               onChange={(e) => setAgentFilter(String(e.target.value || "all"))}
               sx={{
@@ -2021,7 +2021,7 @@ export default function WhatsAppUI() {
                 "& .MuiSelect-select": { py: 1 },
               }}
             >
-              <MenuItem value="all">All agents</MenuItem>
+              <MenuItem value="all">All experts</MenuItem>
               {agentFilterOptions.map((name) => (
                 <MenuItem key={name} value={name.toLowerCase()}>
                   {name}

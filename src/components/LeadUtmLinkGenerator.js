@@ -188,7 +188,7 @@ export default function LeadUtmLinkGenerator() {
           <Grid container spacing={2}>
             <Grid item xs={12} md={3}>
               <TextField
-                label="Agent Name"
+                label="Expert Name"
                 value={agentName}
                 onChange={(e) => setAgentName(e.target.value)}
                 fullWidth
@@ -198,7 +198,7 @@ export default function LeadUtmLinkGenerator() {
 
             <Grid item xs={12} md={3}>
               <TextField
-                label="Agent Code"
+                label="Expert Code"
                 value={agentCode}
                 onChange={(e) => setAgentCode(e.target.value)}
                 fullWidth

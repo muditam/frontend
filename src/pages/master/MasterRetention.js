@@ -604,7 +604,7 @@ export default function RetentionTable() {
                   <Box><b>Enquiry For:</b> {leads[selectedIdx]?.enquiryFor || "--"}</Box>
                   <Box><b>Customer Type:</b> {leads[selectedIdx]?.customerType || "--"}</Box>
                   <Box><b>Order ID:</b> {leads[selectedIdx]?.orderId || "--"}</Box>
-                  <Box><b>Agent Assigned:</b> {leads[selectedIdx]?.agentAssigned || "--"}</Box>
+                  <Box><b>Expert Assigned:</b> {leads[selectedIdx]?.agentAssigned || "--"}</Box>
                   <Box><b>Sales Status:</b> {leads[selectedIdx]?.salesStatus || "--"}</Box>
                   <Box><b>Lead Status:</b> {leads[selectedIdx]?.leadStatus || "--"}</Box> 
                 </Stack>

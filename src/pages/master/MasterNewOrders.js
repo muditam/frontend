@@ -282,7 +282,7 @@ const NewOrders = () => {
               if (key === "agentName") {
                 return (
                   <FormControl key={key} fullWidth sx={{ marginBottom: 2 }}>
-                    <InputLabel>Agent Name</InputLabel>
+                    <InputLabel>Expert Name</InputLabel>
                     <Select
                       multiple
                       value={filters.agentName}
@@ -380,7 +380,7 @@ const NewOrders = () => {
               <TableCell>Order Date</TableCell>
               <TableCell>Name</TableCell>
               <TableCell>Contact No</TableCell>
-              <TableCell>Agent Name</TableCell>
+              <TableCell>Expert Name</TableCell>
               <TableCell>Products Ordered</TableCell>
               <TableCell>Dosage Ordered</TableCell>
               <TableCell>Health Expert Assigned *</TableCell>

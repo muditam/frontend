@@ -200,8 +200,8 @@ export default function SmartfloCallLogs() {
                 <TableCell>Time</TableCell>
                 <TableCell>Dir</TableCell>
                 <TableCell>Status</TableCell>
-                <TableCell>Agent</TableCell>
-                <TableCell>Agent Ext</TableCell>
+                <TableCell>Expert</TableCell>
+                <TableCell>Expert Ext</TableCell>
                 <TableCell>Client</TableCell>
                 <TableCell>DID</TableCell>
                 <TableCell align="right">Dur (s)</TableCell>

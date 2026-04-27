@@ -392,7 +392,7 @@ const LeadDetail = () => {
         </Grid>
         <Grid item xs={12} sm={6}>
           <TextField
-            label="Agent's Remarks"
+            label="Expert's Remarks"
             name="agentsRemarks"
             value={formData.agentsRemarks || ""}
             onChange={handleInputChange}
@@ -760,7 +760,7 @@ const LeadDetail = () => {
               <strong>Next Follow-up:</strong> {lead.nextFollowup}
             </Typography>
             <Typography variant="subtitle1" sx={{ color: "#455a64" }}>
-              <strong>Agent's Remarks:</strong> {lead.agentsRemarks}
+              <strong>Expert's Remarks:</strong> {lead.agentsRemarks}
             </Typography>
             <Typography variant="subtitle1" sx={{ color: "#455a64" }}>
               <strong>RT Follow-up Status:</strong> {lead.rtFollowupStatus}
@@ -778,7 +778,7 @@ const LeadDetail = () => {
               <strong>RT Next Follow-up Date:</strong> {lead.rtNextFollowupDate}
             </Typography>
             <Typography variant="subtitle1" sx={{ color: "#455a64" }}>
-              <strong>Agent Assigned:</strong> {lead.agentAssigned}
+              <strong>Expert Assigned:</strong> {lead.agentAssigned}
             </Typography>
             <Typography variant="subtitle1" sx={{ color: "#455a64" }}>
               <strong>Health Expert Assigned:</strong>{" "}

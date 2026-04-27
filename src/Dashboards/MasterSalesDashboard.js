@@ -576,12 +576,12 @@ const ManagerSalesDashboard = () => {
         {showAgentPerformance && (
           <Box sx={{ mt: 2.5 }}>
             <Divider sx={{ my: 2 }} />
-            <Typography variant="subtitle1" sx={{ fontWeight: 900, color: "#0F172A", mb: 1 }}>Agent Performance</Typography>
+            <Typography variant="subtitle1" sx={{ fontWeight: 900, color: "#0F172A", mb: 1 }}>Expert Performance</Typography>
             <TableContainer sx={{ borderRadius: 2, border: "1px solid #E6E8EC" }}>
               <Table size="small">
                 <TableHead>
                   <TableRow sx={{ backgroundColor: "#F8FAFC" }}>
-                    {["Agent Name", "Open Leads", "Leads Assigned", "Sales Done", "Conversion Rate", "Total Sales", "Average Order Value"].map((h) => (
+                    {["Expert Name", "Open Leads", "Leads Assigned", "Sales Done", "Conversion Rate", "Total Sales", "Average Order Value"].map((h) => (
                       <TableCell key={h} align="center" sx={{ fontWeight: 900, color: "#334155", py: 1.2 }}>{h}</TableCell>
                     ))}
                   </TableRow>

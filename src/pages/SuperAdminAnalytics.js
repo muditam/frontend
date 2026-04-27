@@ -2960,7 +2960,7 @@ export default function SuperAdminAnalytics() {
 
 
       <Dialog open={deliveredOpen} onClose={() => setDeliveredOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle sx={{ fontWeight: 700 }}>Delivered Sales Per Agent</DialogTitle>
+        <DialogTitle sx={{ fontWeight: 700 }}>Delivered Sales Per Expert</DialogTitle>
         <DialogContent dividers sx={{ p: 2 }}>
           {deliveredLoading ? (
             <Skeleton height={40} />
@@ -3003,5 +3003,4 @@ export default function SuperAdminAnalytics() {
     </Box>
   );
 }
-
 

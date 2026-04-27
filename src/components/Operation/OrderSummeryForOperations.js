@@ -481,7 +481,7 @@ const UndeliveredOrders = () => {
                 renderInput={(params) => (
                   <TextField
                     {...params}
-                    label="Assigned Agent"
+                    label="Assigned Expert"
                     InputProps={{
                       ...params.InputProps,
                       startAdornment: (
@@ -577,7 +577,7 @@ const UndeliveredOrders = () => {
                   </TableCell>
                 ))}
                 {viewTab === 1 && (
-                  <TableCell sx={{ bgcolor: "#f1f3f5", fontWeight: 700 }}>Assign Agent</TableCell>
+                  <TableCell sx={{ bgcolor: "#f1f3f5", fontWeight: 700 }}>Assign Expert</TableCell>
                 )}
                 <TableCell sx={{ bgcolor: "#f1f3f5", fontWeight: 700 }}>Last Updated</TableCell>
               </TableRow>

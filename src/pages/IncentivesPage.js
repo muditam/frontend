@@ -2459,7 +2459,7 @@ export default function IncentivesPage() {
                         : ""
                     }
                     renderInput={(params) => (
-                      <TextField {...params} label="Select Agent" size="small" />
+                      <TextField {...params} label="Select Expert" size="small" />
                     )}
                   />
                 )}
@@ -3302,7 +3302,7 @@ export default function IncentivesPage() {
                           <TableCell sx={{ fontWeight: 700 }}>Order ID</TableCell>
                           <TableCell sx={{ fontWeight: 700 }}>Customer</TableCell>
                           {data?.isTeamAggregate ? (
-                            <TableCell sx={{ fontWeight: 700 }}>Agent</TableCell>
+                            <TableCell sx={{ fontWeight: 700 }}>Expert</TableCell>
                           ) : null}
                           <TableCell sx={{ fontWeight: 700 }}>Amount</TableCell>
                           <TableCell sx={{ fontWeight: 700 }}>Shipment Status</TableCell>
@@ -3477,7 +3477,7 @@ export default function IncentivesPage() {
                           <TableCell sx={{ fontWeight: 700 }}>Customer</TableCell>
                           <TableCell sx={{ fontWeight: 700 }}>Phone Number</TableCell>
                           {data?.isTeamAggregate ? (
-                            <TableCell sx={{ fontWeight: 700 }}>Agent</TableCell>
+                            <TableCell sx={{ fontWeight: 700 }}>Expert</TableCell>
                           ) : null}
                           <TableCell sx={{ fontWeight: 700 }}>Shipment Status</TableCell>
                         </TableRow>
@@ -3549,7 +3549,7 @@ export default function IncentivesPage() {
                     <Table sx={{ minWidth: 520 }}>
                       <TableHead>
                         <TableRow sx={{ backgroundColor: "#f8fafc" }}>
-                          <TableCell sx={{ fontWeight: 700 }}>Agent Name</TableCell>
+                          <TableCell sx={{ fontWeight: 700 }}>Expert Name</TableCell>
                           <TableCell sx={{ fontWeight: 700 }}>Role</TableCell>
                           <TableCell sx={{ fontWeight: 700 }} align="right">
                             VKR Count Total
@@ -3960,5 +3960,4 @@ export default function IncentivesPage() {
     </Box>
   );
 }
-
 

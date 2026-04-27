@@ -189,7 +189,7 @@ const Incentives = () => {
               value={selectedAgents}
               onChange={(_, v) => setSelectedAgents(v)}
               renderInput={(params) => (
-                <TextField {...params} label="Select Agents" />
+                <TextField {...params} label="Select Experts" />
               )}
             />
           </Grid>
@@ -257,7 +257,7 @@ const Incentives = () => {
           <Table size="small">
             <TableHead>
               <TableRow>
-                <TableCell>Agent</TableCell>
+                <TableCell>Expert</TableCell>
                 <TableCell>Date</TableCell>
                 <TableCell>Name</TableCell>
                 <TableCell>Order ID</TableCell>

@@ -232,7 +232,7 @@ const RetentionData = () => {
               <TableRow>
                 <TableCell>Name</TableCell>
                 <TableCell>Contact No</TableCell>
-                <TableCell>Sales Agent Assigned</TableCell>
+                <TableCell>Sales Expert Assigned</TableCell>
                 <TableCell>Product Pitched</TableCell>
                 <TableCell>Products Ordered</TableCell>
                 <TableCell>Dosage Ordered</TableCell>
@@ -285,6 +285,5 @@ const RetentionData = () => {
 
 
 export default RetentionData;
-
 
 

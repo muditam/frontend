@@ -7,7 +7,7 @@ import ManagerRetentionDashboard from "../../Dashboards/MasterRetentionDashboard
 import TeamLeaderDashboard from "../../Dashboards/TeamLeaderDashboard";
 import FinanceDashboard from "../../Dashboards/FinanceDashboard";
 import OperationsDashboard from "../../Dashboards/OperationsDashboard";
-import { Box, Button, Typography } from "@mui/material";
+import { Box } from "@mui/material";
 // import TeamLeaderDashboardRetentionOnly from "../../Dashboards/TeamLeaderDashboard";
 import MarketingDashboard from "../../Dashboards/MarketingDashboard";
 import SuperAdminAnalytics from "../../pages/SuperAdminAnalytics";
@@ -17,10 +17,7 @@ import ItManagerDashboard from "../../Dashboards/ITManagerDashboard";
 const SalesDashboard = () => {
  const [role, setRole] = useState(null);
  const [activeTab, setActiveTab] = useState("Sales");
- const [isImpersonating, setIsImpersonating] = useState(false);
- const [revertLoading, setRevertLoading] = useState(false);
  const [currentUser, setCurrentUser] = useState(null);   
- const [originalUser, setOriginalUser] = useState(null);
 
 
  const navigate = useNavigate();
@@ -56,21 +53,6 @@ const storedTab = sessionStorage.getItem("activeTab");
 if (storedTab === "Retention" || storedTab === "Analytics") {
  setActiveTab(storedTab);
 }
-
-
-   // check if we are impersonating
-   const originalStr = sessionStorage.getItem("originalUser");
-   if (originalStr) {
-     setIsImpersonating(true);
-     try {
-       setOriginalUser(JSON.parse(originalStr));
-     } catch {
-       // if parse fails, clear it so banner doesn't show incorrectly
-       sessionStorage.removeItem("originalUser");
-       sessionStorage.removeItem("switchMeta");
-       setIsImpersonating(false);
-     }
-   }
  }, [navigate]);
 
 
@@ -79,109 +61,11 @@ if (storedTab === "Retention" || storedTab === "Analytics") {
    sessionStorage.setItem("activeTab", tabName);
  };
 
-
- // FRONT-END ONLY revert: restore originalUser from sessionStorage
- const handleRevert = () => {
-   try {
-     setRevertLoading(true);
-
-
-     const originalStr = sessionStorage.getItem("originalUser");
-     if (!originalStr) {
-       console.warn("No originalUser found in sessionStorage");
-       setRevertLoading(false);
-       return;
-     }
-
-
-     const original = JSON.parse(originalStr);
-
-
-     // restore real user
-     sessionStorage.setItem("user", JSON.stringify(original));
-
-
-     // clear impersonation so button disappears and you can switch to others again
-     sessionStorage.removeItem("originalUser");
-     sessionStorage.removeItem("switchMeta");
-     // full reload so entire app picks up correct user
-     window.location.reload();
-   } catch (e) {
-     console.error("Error while reverting impersonation:", e);
-     setRevertLoading(false);
-   }
- };
-
-
  if (!role) return <div>Loading...</div>;
 
 
  return (
  <div>
-   {isImpersonating && originalUser && (
-     <Box
-       sx={{
-         position: "sticky",
-         top: 0,
-         zIndex: (t) => t.zIndex.appBar + 2,
-         px: 2,
-         py: 1,
-         mb: 2,
-         backgroundColor: "#FFF3CD",
-         border: "1px solid #FFEEBA",
-       }}
-     >
-       <Box
-         sx={{
-           maxWidth: 1280,
-           mx: "auto",
-           display: "flex",
-           alignItems: "center",
-           justifyContent: { xs: "center", md: "space-between" },
-           flexDirection: { xs: "column", md: "row" },
-           gap: 1.5,
-         }}
-       >
-         <Typography
-           sx={{
-             fontSize: 14,
-             color: "#856404",
-             textAlign: { xs: "center", md: "left" },
-           }}
-         >
-           You are viewing dashboard as{" "}
-           <strong>{currentUser?.fullName || "another user"}</strong>. Logged in
-           as <strong>{originalUser.fullName || originalUser.email}</strong>.
-           Click to return to your own dashboard.
-         </Typography>
-
-
-
-
-         <Button
-           variant="contained"
-           size="small"
-           onClick={handleRevert}
-           disabled={revertLoading}
-           sx={{
-             textTransform: "none",
-             backgroundColor: "#856404",
-             "&:hover": { backgroundColor: "#704f07" },
-             alignSelf: { xs: "center", md: "auto" },
-             minWidth: { xs: "auto", md: 260 },
-           }}
-         >
-           {revertLoading
-             ? "Returning..."
-             : `Back to ${originalUser.fullName || "my"} dashboard`}
-         </Button>
-       </Box>
-     </Box>
-   )}
-
-
-
-
    {isManagerStyleDashboardRole && (
      <>
        {/* Tabs Section */}
@@ -351,6 +235,5 @@ if (storedTab === "Retention" || storedTab === "Analytics") {
 
 
 export default SalesDashboard;
-
 
 

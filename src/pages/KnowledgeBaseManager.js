@@ -1667,7 +1667,7 @@ export default function KnowledgeBaseManager() {
 
      <Modal
        open={documentModalOpen}
-       title="Upload Sales Agent Brain Document"
+       title="Upload Sales Expert Brain Document"
        onClose={() => !documentUploading && setDocumentModalOpen(false)}
        actions={
          <>
@@ -1695,7 +1695,6 @@ export default function KnowledgeBaseManager() {
    </div>
  );
 }
-
 
 
 

@@ -1093,7 +1093,7 @@ const ManagerRetentionDashboard = () => {
               <Table size="small">
                 <TableHead>
                   <TableRow>
-                    <TableCell sx={headerCellSx}>Agent Name</TableCell>
+                    <TableCell sx={headerCellSx}>Expert Name</TableCell>
                     <TableCell sx={headerCellSx}>Assigned</TableCell>
                     <TableCell sx={headerCellSx}>Diet Plans</TableCell>
                     <TableCell sx={headerCellSx}>Profile Updates</TableCell>
@@ -1645,5 +1645,4 @@ const ManagerRetentionDashboard = () => {
 
 
 export default ManagerRetentionDashboard;
-
 

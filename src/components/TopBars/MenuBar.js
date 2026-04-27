@@ -586,7 +586,7 @@ const MenuBar = ({ toggleDrawer }) => {
 
           {/* Sales Agent */}
           {user && can("salesAgentMenu") && (
-            <DropdownGroup id="salesAgent" icon={<PersonIcon />} label="Sales Agent">
+            <DropdownGroup id="salesAgent" icon={<PersonIcon />} label="Sales Expert">
               {can("salesMyLeads") && <SubItem to="/sales/my-leads" label="My Leads" />}
               {can("salesMySales") && <SubItem to="/sales/my-sales" label="My Sales" />}
             </DropdownGroup>
@@ -594,7 +594,7 @@ const MenuBar = ({ toggleDrawer }) => {
 
           {/* Retention Agent */}
           {user && can("retentionAgentMenu") && (
-            <DropdownGroup id="retentionAgent" icon={<PersonIcon />} label="Retention Agent">
+            <DropdownGroup id="retentionAgent" icon={<PersonIcon />} label="Retention Expert">
               {can("retentionLeads") && <SubItem to="/retention/leads" label="Retention Leads" />}
               {can("retentionSales") && <SubItem to="/retention/sales" label="Retention Sales" />}
             </DropdownGroup>
@@ -805,6 +805,7 @@ const MenuBar = ({ toggleDrawer }) => {
               {can("otherswhatsaaptemplates") && <SubItem to="/template/chat" label="WhatsApp Templates" />}
               {can("othersLeadMigration") && <SubItem to="/lead-migration" label="Leads Migrate" />}
               {can("othersDietTemplate") && <SubItem to="/diet-template" label="Diet Plan Builder" />}
+              {can("othersDietTemplate") && <SubItem to="/diet-image-migration-admin" label="Diet Image Migration" />}
               {can("othersAllShopifyOrders") && <SubItem to="/all-shopify-orders" label="All Shopify Orders" />}
               {can("othersTransferRequests") && <SubItem to="/transfer-requests" label="Lead Transfer Requests" />}
               {can("othersBulkDataUpload") && <SubItem to="/bulk-data-upload" label="Bulk Data Upload" />}
