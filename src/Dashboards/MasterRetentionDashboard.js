@@ -58,6 +58,7 @@ import {
 import Autocomplete, { createFilterOptions } from "@mui/material/Autocomplete";
 
 import TotalSalesDrilldown from "../pages/filtered/TotalSalesDrilldown";
+import RetentionOverviewCombined from "../pages/retention/RetentionOverviewCombined";
 
 const API_BASE = "https://muditamleads-14f32a10d7f7.herokuapp.com";
 const CACHE_TTL_MS = 5 * 60 * 1000;
@@ -941,7 +942,6 @@ const ManagerRetentionDashboard = () => {
         </Box>
       </Paper>
 
-
       {/* ===================== 1) HEALTH EXPERT SUMMARY ===================== */}
       <Paper sx={{ ...sectionPaperSx, maxWidth: 1220, mx: "auto", mb: 2.5 }}>
         <Box sx={{ display: "flex", gap: 2, alignItems: "center", justifyContent: "space-between" }}>
@@ -1639,10 +1639,14 @@ const ManagerRetentionDashboard = () => {
           </Box>
         )}
       </Paper>
+
+      {/* ===================== NEW) RETENTION OVERVIEW COMBINED ===================== */}
+      <Paper sx={{ ...sectionPaperSx, maxWidth: 1220, mx: "auto", mb: 2.5, p: 0 }}>
+        <RetentionOverviewCombined />
+      </Paper>
     </Box>
   );
 };
 
 
 export default ManagerRetentionDashboard;
-

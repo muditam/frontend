@@ -1,8 +1,8 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import "./KnowledgeBaseManager.css";
 
 
-const DEFAULT_API_BASE = "https://muditamleads-14f32a10d7f7.herokuapp.com";
+const DEFAULT_API_BASE = (process.env.REACT_APP_API_BASE_URL || "http://localhost:5001").replace(/\/+$/, "");
 
 const API_BASE = String(process.env.REACT_APP_API_BASE || DEFAULT_API_BASE).replace(/\/+$/, "");
 
@@ -27,6 +27,8 @@ const INTENT_OPTIONS = ["sales", "support", "complaint", "order", "refund"];
 const STAGE_OPTIONS = ["new_user", "existing_customer"];
 const PRIORITY_OPTIONS = ["high", "medium", "low"];
 const NEXT_ACTION_OPTIONS = ["none", "collect_lead", "suggest_product", "handoff"];
+const LOCAL_AUTO_REPLY_SETTINGS_KEY = "kb_auto_reply_settings_v1";
+const LOCAL_AUTO_REPLY_API_404_KEY = "kb_auto_reply_api_404_v1";
 
 
 function safeStr(v) {
@@ -301,6 +303,13 @@ export default function KnowledgeBaseManager() {
  const [aiCredits, setAiCredits] = useState(null);
  const [aiCreditsLoading, setAiCreditsLoading] = useState(false);
  const [aiCreditsError, setAiCreditsError] = useState("");
+ const [settingsAutoReplyEnabled, setSettingsAutoReplyEnabled] = useState(true);
+ const [settingsAutoReplyDelayMinutes, setSettingsAutoReplyDelayMinutes] = useState("15");
+ const [settingsLoading, setSettingsLoading] = useState(false);
+ const [settingsSaving, setSettingsSaving] = useState(false);
+ const [settingsLoaded, setSettingsLoaded] = useState(false);
+ const [settingsApiUnavailable, setSettingsApiUnavailable] = useState(false);
+ const settingsFetchAttemptedRef = useRef(false);
 
 
  const [toast, setToast] = useState({ open: false, severity: "success", message: "" });
@@ -555,6 +564,113 @@ export default function KnowledgeBaseManager() {
  }, []);
 
 
+ const fetchAutoReplySettings = useCallback(async () => {
+   if (settingsFetchAttemptedRef.current) return;
+   settingsFetchAttemptedRef.current = true;
+
+   let localApi404 = false;
+   try {
+     localApi404 = window.localStorage.getItem(LOCAL_AUTO_REPLY_API_404_KEY) === "1";
+   } catch {
+     localApi404 = false;
+   }
+
+   if (localApi404) {
+     setSettingsApiUnavailable(true);
+     setSettingsLoaded(true);
+     return;
+   }
+
+   setSettingsLoading(true);
+   setSettingsApiUnavailable(false);
+   try {
+     const result = await api("/api/whatsapp/auto-reply-settings");
+     const settings = result?.settings || {};
+     const parsedDelay = Number(settings?.delayMinutes);
+     const safeDelay = Number.isFinite(parsedDelay) ? Math.max(1, parsedDelay) : 15;
+     setSettingsAutoReplyEnabled(Boolean(settings?.enabled));
+     setSettingsAutoReplyDelayMinutes(String(safeDelay));
+     setSettingsLoaded(true);
+     try {
+       window.localStorage.setItem(
+         LOCAL_AUTO_REPLY_SETTINGS_KEY,
+         JSON.stringify({
+           enabled: Boolean(settings?.enabled),
+           delayMinutes: safeDelay,
+           updatedAt: Date.now(),
+         })
+       );
+       window.localStorage.removeItem(LOCAL_AUTO_REPLY_API_404_KEY);
+     } catch {}
+   } catch (e) {
+     const status = Number(e?.status || 0);
+     if (status === 404) {
+       setSettingsApiUnavailable(true);
+       setSettingsLoaded(true);
+       try {
+         window.localStorage.setItem(LOCAL_AUTO_REPLY_API_404_KEY, "1");
+       } catch {}
+     } else {
+       showToast(e.message || "Failed to fetch auto reply settings", "error");
+     }
+   } finally {
+     setSettingsLoading(false);
+   }
+ }, [showToast]);
+
+
+ const saveAutoReplySettings = useCallback(async () => {
+   const parsedDelay = Number(settingsAutoReplyDelayMinutes);
+   const delayMinutes = Number.isFinite(parsedDelay) ? Math.max(1, parsedDelay) : 15;
+   try {
+     window.localStorage.setItem(
+       LOCAL_AUTO_REPLY_SETTINGS_KEY,
+       JSON.stringify({
+         enabled: Boolean(settingsAutoReplyEnabled),
+         delayMinutes,
+         updatedAt: Date.now(),
+       })
+     );
+   } catch {}
+
+   if (settingsApiUnavailable) {
+     setSettingsAutoReplyDelayMinutes(String(delayMinutes));
+     showToast("Settings saved locally. Deploy backend API to make this live for auto-reply engine.", "warn");
+     return;
+   }
+
+   setSettingsSaving(true);
+   try {
+     await api("/api/whatsapp/auto-reply-settings", {
+       method: "PATCH",
+       body: JSON.stringify({
+         enabled: Boolean(settingsAutoReplyEnabled),
+         delayMinutes,
+       }),
+     });
+     setSettingsAutoReplyDelayMinutes(String(delayMinutes));
+     showToast("Settings saved", "success");
+   } catch (e) {
+     showToast(e.message || "Failed to save settings", "error");
+   } finally {
+     setSettingsSaving(false);
+   }
+ }, [settingsAutoReplyDelayMinutes, settingsAutoReplyEnabled, showToast]);
+
+
+ useEffect(() => {
+   try {
+     const raw = window.localStorage.getItem(LOCAL_AUTO_REPLY_SETTINGS_KEY);
+     if (!raw) return;
+     const parsed = JSON.parse(raw);
+     const parsedDelay = Number(parsed?.delayMinutes);
+     const safeDelay = Number.isFinite(parsedDelay) ? Math.max(1, parsedDelay) : 15;
+     setSettingsAutoReplyEnabled(Boolean(parsed?.enabled));
+     setSettingsAutoReplyDelayMinutes(String(safeDelay));
+   } catch {}
+ }, []);
+
+
  const refreshAll = useCallback(async () => {
    await Promise.all([fetchGaps(), fetchDocuments()]);
  }, [fetchGaps, fetchDocuments]);
@@ -575,6 +691,13 @@ export default function KnowledgeBaseManager() {
    if (aiCredits || aiCreditsLoading) return;
    fetchAICredits();
  }, [tab, aiCredits, aiCreditsLoading, fetchAICredits]);
+
+
+ useEffect(() => {
+   if (tab !== "settings") return;
+   if (settingsLoaded || settingsLoading) return;
+   fetchAutoReplySettings();
+ }, [tab, settingsLoaded, settingsLoading, fetchAutoReplySettings]);
 
 
  const askKnowledgeBase = async () => {
@@ -996,6 +1119,7 @@ export default function KnowledgeBaseManager() {
          <button type="button" className={`kb-tab ${tab === "docs" ? "is-active" : ""}`} onClick={() => setTab("docs")}>Documents Brain</button>
          <button type="button" className={`kb-tab ${tab === "ask" ? "is-active" : ""}`} onClick={() => setTab("ask")}>Ask AI</button>
          <button type="button" className={`kb-tab ${tab === "credits" ? "is-active" : ""}`} onClick={() => setTab("credits")}>AI Credits</button>
+         <button type="button" className={`kb-tab ${tab === "settings" ? "is-active" : ""}`} onClick={() => setTab("settings")}>Settings</button>
        </nav>
 
 
@@ -1534,6 +1658,75 @@ export default function KnowledgeBaseManager() {
            </div>
          </section>
        )}
+
+
+       {tab === "settings" && (
+         <section className="kb-panel">
+           <div className="kb-section-head">
+             <h2>Settings</h2>
+           </div>
+           <p className="kb-subtle" style={{ marginBottom: 10 }}>
+             Configure AI auto reply behavior for WhatsApp conversations.
+           </p>
+
+           <div className="kb-settings-grid">
+             <label className="kb-settings-card">
+               <div>
+                 <div className="kb-settings-title">AI Auto Replies</div>
+                 <div className="kb-settings-text">Turn automatic AI replies on or off.</div>
+               </div>
+               <button
+                 type="button"
+                 className={`kb-switch ${settingsAutoReplyEnabled ? "is-on" : ""}`}
+                 role="switch"
+                 aria-checked={settingsAutoReplyEnabled}
+                 onClick={() => setSettingsAutoReplyEnabled((prev) => !prev)}
+               >
+                 <span className="kb-switch-knob" />
+               </button>
+             </label>
+
+             <label className="kb-settings-card">
+               <div>
+                 <div className="kb-settings-title">Auto Reply Delay (minutes)</div>
+                 <div className="kb-settings-text">Send auto reply only after this many minutes of customer inactivity.</div>
+               </div>
+               <input
+                 type="number"
+                 min="1"
+                 step="1"
+                 value={settingsAutoReplyDelayMinutes}
+                 onChange={(e) => setSettingsAutoReplyDelayMinutes(e.target.value)}
+               />
+             </label>
+           </div>
+
+           {settingsApiUnavailable && (
+             <p className="kb-subtle" style={{ marginTop: 10 }}>
+               Backend settings API is unavailable (404). Changes are saved locally in browser until backend is deployed.
+             </p>
+           )}
+
+           <div className="kb-inline-actions">
+             <button
+               type="button"
+               className="kb-btn kb-btn--primary"
+               onClick={saveAutoReplySettings}
+               disabled={settingsLoading || settingsSaving}
+             >
+               {settingsSaving ? "Saving..." : "Save Settings"}
+             </button>
+             <button
+               type="button"
+               className="kb-btn kb-btn--ghost"
+               onClick={fetchAutoReplySettings}
+               disabled={settingsLoading || settingsSaving}
+             >
+               {settingsLoading ? "Refreshing..." : "Refresh"}
+             </button>
+            </div>
+          </section>
+        )}
      </div>
 
 
@@ -1695,6 +1888,3 @@ export default function KnowledgeBaseManager() {
    </div>
  );
 }
-
-
-

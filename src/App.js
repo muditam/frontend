@@ -12,6 +12,8 @@ import SalesMyLeads from "./pages/sales/SalesMyLeads";
 import SalesMySales from "./pages/sales/SalesMySales";
 import RetentionLeads from "./pages/retention/RetentionLeads";
 import RetentionSales from "./pages/retention/RetentionSales";
+import RetentionOverviewCombined from "./pages/retention/RetentionOverviewCombined";
+import RetentionOverviewCategoryDetails from "./pages/retention/RetentionOverviewCategoryDetails";
 import ShipwayOrders from "./pages/Home";
 import Login from "./pages/Login";
 import NavbarWithSearch from "./components/TopBars/NavBarwithSearch";
@@ -321,6 +323,22 @@ const App = () => {
             element={
               <PrivateRoute>
                 <RetentionSales />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/retention/overview-combined"
+            element={
+              <PrivateRoute>
+                <RetentionOverviewCombined />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/retention/overview-combined/details/:category"
+            element={
+              <PrivateRoute>
+                <RetentionOverviewCategoryDetails />
               </PrivateRoute>
             }
           />

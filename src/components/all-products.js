@@ -22,13 +22,21 @@ import {
   Stack,
   Divider,
   IconButton,
+  TableSortLabel,
 } from "@mui/material";
 import FilterListIcon from "@mui/icons-material/FilterList";
 import CloseIcon from "@mui/icons-material/Close";
 import axios from "axios";
 
-const API_BASE =
-  process.env.REACT_APP_API_BASE || "https://muditamleads-14f32a10d7f7.herokuapp.com";
+const API_BASE = (process.env.REACT_APP_API_BASE_URL || "http://localhost:5001").replace(/\/+$/, "");
+
+const sortLabelSx = {
+  color: "white !important",
+  "& .MuiTableSortLabel-icon": {
+    opacity: 1,
+    color: "white !important",
+  },
+};
 
 const MONTH_OPTIONS = [
   "10 Days",
@@ -42,7 +50,7 @@ const MONTH_OPTIONS = [
 
 export default function AllProducts() {
   const [page, setPage] = useState(0); // 0-indexed (MUI)
-  const [limit, setLimit] = useState(250);
+  const [limit, setLimit] = useState(100);
   const [rows, setRows] = useState([]);
   const [total, setTotal] = useState(0); // server total (kept for info)
   const [loading, setLoading] = useState(true);
@@ -56,6 +64,12 @@ export default function AllProducts() {
   const [nameFilter, setNameFilter] = useState(""); // filter by title/name
   const [priceMin, setPriceMin] = useState("");
   const [priceMax, setPriceMax] = useState("");
+  const [sortBy, setSortBy] = useState("title");
+  const [sortOrder, setSortOrder] = useState("asc");
+  const [draftStartDate, setDraftStartDate] = useState("");
+  const [draftEndDate, setDraftEndDate] = useState("");
+  const [appliedStartDate, setAppliedStartDate] = useState("");
+  const [appliedEndDate, setAppliedEndDate] = useState("");
 
   // Primary color helpers (black)
   const blackBtn = {
@@ -92,7 +106,12 @@ export default function AllProducts() {
     try {
       setLoading(true);
       const res = await axios.get(`${API_BASE}/api/products/from-orders`, {
-        params: { page: page + 1, limit },
+        params: {
+          page: 1,
+          limit: 5000,
+          startDate: appliedStartDate || undefined,
+          endDate: appliedEndDate || undefined,
+        },
       });
       const list = res.data?.data || [];
       setRows(list);
@@ -108,7 +127,7 @@ export default function AllProducts() {
   useEffect(() => {
     fetchData();
     // eslint-disable-next-line
-  }, [page, limit]);
+  }, [appliedStartDate, appliedEndDate]);
 
   // Client-side filtering over the currently loaded rows
   const filteredRows = useMemo(() => {
@@ -116,14 +135,42 @@ export default function AllProducts() {
     const min = priceMin === "" ? null : Number(priceMin);
     const max = priceMax === "" ? null : Number(priceMax);
 
-    return rows.filter((r) => {
+    const filtered = rows.filter((r) => {
       const nameOk = n ? (r.title || "").toLowerCase().includes(n) : true;
       const price = Number(r.price ?? 0);
       const minOk = min == null || price >= min;
       const maxOk = max == null || price <= max;
       return nameOk && minOk && maxOk;
     });
-  }, [rows, nameFilter, priceMin, priceMax]);
+
+    return [...filtered].sort((a, b) => {
+      const dir = sortOrder === "asc" ? 1 : -1;
+      const aNumPrice = Number(a.price ?? 0);
+      const bNumPrice = Number(b.price ?? 0);
+      const aNumVid = Number(a.variantId ?? 0);
+      const bNumVid = Number(b.variantId ?? 0);
+      const aMonth = (rowInputs[keyFor(a)]?.month || a.month || "").toLowerCase();
+      const bMonth = (rowInputs[keyFor(b)]?.month || b.month || "").toLowerCase();
+      const aCohort = (rowInputs[keyFor(a)]?.cohort || a.cohort || "").toLowerCase();
+      const bCohort = (rowInputs[keyFor(b)]?.cohort || b.cohort || "").toLowerCase();
+
+      switch (sortBy) {
+        case "variantId":
+          return (aNumVid - bNumVid) * dir;
+        case "soldCount":
+          return (Number(a.soldCount || 0) - Number(b.soldCount || 0)) * dir;
+        case "price":
+          return (aNumPrice - bNumPrice) * dir;
+        case "month":
+          return aMonth.localeCompare(bMonth) * dir;
+        case "cohort":
+          return aCohort.localeCompare(bCohort) * dir;
+        case "title":
+        default:
+          return (a.title || "").localeCompare(b.title || "") * dir;
+      }
+    });
+  }, [rows, nameFilter, priceMin, priceMax, sortBy, sortOrder, rowInputs]);
 
   // Pagination should reflect filtered length
   const pagedRows = useMemo(() => {
@@ -135,6 +182,18 @@ export default function AllProducts() {
   useEffect(() => {
     setPage(0);
   }, [nameFilter, priceMin, priceMax]);
+
+  useEffect(() => {
+    const today = new Date();
+    const end = today.toISOString().slice(0, 10);
+    const start = new Date(today);
+    start.setDate(start.getDate() - 6);
+    const startStr = start.toISOString().slice(0, 10);
+    setDraftStartDate(startStr);
+    setDraftEndDate(end);
+    setAppliedStartDate(startStr);
+    setAppliedEndDate(end);
+  }, []);
 
   const handleChangePage = (_, newPage) => setPage(newPage);
   const handleChangeRowsPerPage = (e) => {
@@ -199,6 +258,26 @@ export default function AllProducts() {
     setPriceMax("");
   };
 
+  const onSort = (key) => {
+    if (sortBy === key) {
+      setSortOrder((s) => (s === "asc" ? "desc" : "asc"));
+      return;
+    }
+    setSortBy(key);
+    setSortOrder("asc");
+  };
+
+  const totalSoldCount = useMemo(
+    () => filteredRows.reduce((sum, r) => sum + Number(r.soldCount || 0), 0),
+    [filteredRows]
+  );
+
+  const applyDateRange = () => {
+    setAppliedStartDate(draftStartDate || "");
+    setAppliedEndDate(draftEndDate || "");
+    setPage(0);
+  };
+
   return (
     <Box sx={{ p: { xs: 1.5, md: 2 }, maxWidth: 1200, mx: "auto" }}>
       {/* Header Bar */}
@@ -225,9 +304,31 @@ export default function AllProducts() {
               <>&nbsp;· Filtered</>
             ) : null}
           </Typography>
+          <Typography variant="body2" sx={{ color: "#111", fontWeight: 600, mt: 0.5 }}>
+            Variants Sold Count: {totalSoldCount}
+          </Typography>
         </Box>
 
         <Stack direction="row" spacing={1.5} alignItems="center">
+          <TextField
+            size="small"
+            type="date"
+            label="Start Date"
+            value={draftStartDate}
+            onChange={(e) => setDraftStartDate(e.target.value)}
+            InputLabelProps={{ shrink: true }}
+          />
+          <TextField
+            size="small"
+            type="date"
+            label="End Date"
+            value={draftEndDate}
+            onChange={(e) => setDraftEndDate(e.target.value)}
+            InputLabelProps={{ shrink: true }}
+          />
+          <Button sx={blackBtn} variant="contained" onClick={applyDateRange}>
+            Calculate
+          </Button>
           <Button
             startIcon={<FilterListIcon />}
             onClick={() => setFiltersOpen(true)}
@@ -277,11 +378,66 @@ export default function AllProducts() {
                   },
                 }}
               >
-                <TableCell align="left">Title</TableCell>
-                <TableCell align="center">Variant ID</TableCell>
-                <TableCell align="center">Price</TableCell>
-                <TableCell align="center">Month</TableCell>
-                <TableCell align="center">Cohort</TableCell>
+                <TableCell align="left">
+                  <TableSortLabel
+                    active={sortBy === "title"}
+                    direction={sortBy === "title" ? sortOrder : "asc"}
+                    onClick={() => onSort("title")}
+                    sx={sortLabelSx}
+                  >
+                    Title
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell align="center">
+                  <TableSortLabel
+                    active={sortBy === "variantId"}
+                    direction={sortBy === "variantId" ? sortOrder : "asc"}
+                    onClick={() => onSort("variantId")}
+                    sx={sortLabelSx}
+                  >
+                    Variant ID
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell align="center">
+                  <TableSortLabel
+                    active={sortBy === "soldCount"}
+                    direction={sortBy === "soldCount" ? sortOrder : "asc"}
+                    onClick={() => onSort("soldCount")}
+                    sx={sortLabelSx}
+                  >
+                    Variant Sold
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell align="center">
+                  <TableSortLabel
+                    active={sortBy === "price"}
+                    direction={sortBy === "price" ? sortOrder : "asc"}
+                    onClick={() => onSort("price")}
+                    sx={sortLabelSx}
+                  >
+                    Price
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell align="center">
+                  <TableSortLabel
+                    active={sortBy === "month"}
+                    direction={sortBy === "month" ? sortOrder : "asc"}
+                    onClick={() => onSort("month")}
+                    sx={sortLabelSx}
+                  >
+                    Month
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell align="center">
+                  <TableSortLabel
+                    active={sortBy === "cohort"}
+                    direction={sortBy === "cohort" ? sortOrder : "asc"}
+                    onClick={() => onSort("cohort")}
+                    sx={sortLabelSx}
+                  >
+                    Cohort
+                  </TableSortLabel>
+                </TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -298,6 +454,9 @@ export default function AllProducts() {
                   >
                     <TableCell sx={{ fontWeight: 600 }}>{r.title || "-"}</TableCell>
                     <TableCell>{r.variantId || "-"}</TableCell>
+                    <TableCell align="center" sx={{ fontWeight: 600 }}>
+                      {Number(r.soldCount || 0)}
+                    </TableCell>
                     <TableCell align="right" sx={{ fontWeight: 600 }}>
                       {formatPrice(r.price)}
                     </TableCell>
@@ -345,7 +504,7 @@ export default function AllProducts() {
               })}
               {!loading && pagedRows.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={5} align="center" sx={{ py: 6 }}>
+                  <TableCell colSpan={6} align="center" sx={{ py: 6 }}>
                     No products found.
                   </TableCell>
                 </TableRow>

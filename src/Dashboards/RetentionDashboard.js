@@ -2,10 +2,11 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import IncentiveSummarySection from "../components/IncentiveSummarySection";
 import "./RetentionDashboard.css";
+import OpenInNewIcon from "@mui/icons-material/OpenInNew";
+import { Skeleton } from "@mui/material";
 
 
-const API_BASE = "https://muditamleads-14f32a10d7f7.herokuapp.com";
-
+const API_BASE = (process.env.REACT_APP_API_BASE_URL || "http://localhost:5001").replace(/\/+$/, "");
 
 const TIME_RANGE_OPTIONS = [
  "Today",
@@ -284,6 +285,14 @@ const RetentionAgentDashboard = () => {
  const [reachoutLogsCall, setReachoutLogsCall] = useState(0);
  const [reachoutLogsBoth, setReachoutLogsBoth] = useState(0);
  const [dispositionCounts, setDispositionCounts] = useState({});
+ const [retentionOverviewMine, setRetentionOverviewMine] = useState({
+   totalActiveCustomers: 0,
+   finished: 0,
+   next10Days: 0,
+   next10to20Days: 0,
+   supply20PlusDays: 0,
+ });
+ const [retentionOverviewLoading, setRetentionOverviewLoading] = useState(true);
 
 
  const [selectedRange, setSelectedRange] = useState("Month to date");
@@ -449,6 +458,44 @@ const RetentionAgentDashboard = () => {
    fetchSalesProgress();
  }, [user?.fullName]);
 
+ useEffect(() => {
+   const fetchMyRetentionOverview = async () => {
+     if (!user?.fullName) return;
+     setRetentionOverviewLoading(true);
+     try {
+       const response = await axios.get(`${API_BASE}/cohart-dataApi/active-customers-expert-summary`, {
+         params: { lookbackDays: 540 },
+       });
+       const rows = Array.isArray(response?.data?.experts) ? response.data.experts : [];
+       const mine = rows.find(
+         (r) =>
+           String(r?.healthExpert || "").trim().toLowerCase() ===
+           String(user.fullName || "").trim().toLowerCase()
+       );
+       setRetentionOverviewMine({
+         totalActiveCustomers: Number(mine?.totalActiveCustomers || 0),
+         finished: Number(mine?.finished || 0),
+         next10Days: Number(mine?.next10Days || 0),
+         next10to20Days: Number(mine?.next10to20Days || 0),
+         supply20PlusDays: Number(mine?.supply20PlusDays || 0),
+       });
+     } catch (error) {
+       console.error("Error fetching retention overview for logged-in user:", error);
+       setRetentionOverviewMine({
+         totalActiveCustomers: 0,
+         finished: 0,
+         next10Days: 0,
+         next10to20Days: 0,
+         supply20PlusDays: 0,
+       });
+     } finally {
+       setRetentionOverviewLoading(false);
+     }
+   };
+
+   fetchMyRetentionOverview();
+ }, [user?.fullName]);
+
 
  const workingDaysLeft = useMemo(() => {
    const today = new Date();
@@ -574,6 +621,31 @@ const RetentionAgentDashboard = () => {
    { label: "Live Range", value: selectedRange, tone: "rd-chip-gold" },
  ];
 
+ const myTotalActive = Number(retentionOverviewMine.totalActiveCustomers || 0);
+ const myPct = (count) =>
+   myTotalActive > 0
+     ? ((Number(count || 0) / myTotalActive) * 100).toFixed(1)
+     : "0.0";
+
+ const openOverviewCategoryInNewTab = (category) => {
+   try {
+     const rawUser = sessionStorage.getItem("user");
+     if (rawUser) {
+       const userObj = JSON.parse(rawUser);
+       localStorage.setItem(
+         "session:user:bridge",
+         JSON.stringify({ user: userObj, ts: Date.now() })
+       );
+     }
+   } catch {
+     // no-op
+   }
+   const qp = new URLSearchParams({
+     healthExpert: String(user?.fullName || ""),
+   });
+   window.open(`/retention/overview-combined/details/${category}?${qp.toString()}`, "_blank", "noopener,noreferrer");
+ };
+
 
  return (
    <div className="rd-page rd-retention-page">
@@ -684,6 +756,83 @@ const RetentionAgentDashboard = () => {
              </button>
            ))}
          </div>
+       </section>
+
+       <section className="rd-section rd-fade-3">
+         <div className="rd-section-head">
+           <h2>Retention Overview</h2>
+         </div>
+         <section
+           className="rd-kpi-ribbon"
+           style={{
+             marginTop: 0,
+             display: "grid",
+             gridTemplateColumns: "repeat(5, minmax(0, 1fr))",
+             gap: "12px",
+           }}
+         >
+           {retentionOverviewLoading ? (
+             Array.from({ length: 5 }).map((_, idx) => (
+               <article key={`ro-shimmer-${idx}`} className="rd-kpi-pill" style={{ minHeight: 72 }}>
+                 <Skeleton variant="rounded" height={16} width="55%" />
+                 <Skeleton variant="text" height={34} width="80%" sx={{ mt: 0.6 }} />
+               </article>
+             ))
+           ) : (
+             <>
+               <article
+                 className="rd-kpi-pill"
+                 style={{ cursor: "pointer", position: "relative" }}
+                 onClick={() => openOverviewCategoryInNewTab("totalActive")}
+                 title="Open details in new tab"
+               >
+                 <OpenInNewIcon sx={{ position: "absolute", top: 10, right: 10, fontSize: 16, opacity: 0.75 }} />
+                 <span className="rd-kpi-label rd-chip-blue">Total Active</span>
+                 <strong>{myTotalActive.toLocaleString("en-IN")} (100.0%)</strong>
+               </article>
+               <article
+                 className="rd-kpi-pill"
+                 style={{ cursor: "pointer", position: "relative" }}
+                 onClick={() => openOverviewCategoryInNewTab("finished")}
+                 title="Open details in new tab"
+               >
+                 <OpenInNewIcon sx={{ position: "absolute", top: 10, right: 10, fontSize: 16, opacity: 0.75 }} />
+                 <span className="rd-kpi-label rd-chip-red">Finished</span>
+                 <strong>{retentionOverviewMine.finished.toLocaleString("en-IN")} ({myPct(retentionOverviewMine.finished)}%)</strong>
+               </article>
+               <article
+                 className="rd-kpi-pill"
+                 style={{ cursor: "pointer", position: "relative" }}
+                 onClick={() => openOverviewCategoryInNewTab("next10Days")}
+                 title="Open details in new tab"
+               >
+                 <OpenInNewIcon sx={{ position: "absolute", top: 10, right: 10, fontSize: 16, opacity: 0.75 }} />
+                 <span className="rd-kpi-label rd-chip-gold">Finishing in 10 Days</span>
+                 <strong>{retentionOverviewMine.next10Days.toLocaleString("en-IN")} ({myPct(retentionOverviewMine.next10Days)}%)</strong>
+               </article>
+               <article
+                 className="rd-kpi-pill"
+                 style={{ cursor: "pointer", position: "relative" }}
+                 onClick={() => openOverviewCategoryInNewTab("next10to20Days")}
+                 title="Open details in new tab"
+               >
+                 <OpenInNewIcon sx={{ position: "absolute", top: 10, right: 10, fontSize: 16, opacity: 0.75 }} />
+                 <span className="rd-kpi-label rd-chip-amber">10–20 Days</span>
+                 <strong>{retentionOverviewMine.next10to20Days.toLocaleString("en-IN")} ({myPct(retentionOverviewMine.next10to20Days)}%)</strong>
+               </article>
+               <article
+                 className="rd-kpi-pill"
+                 style={{ cursor: "pointer", position: "relative" }}
+                 onClick={() => openOverviewCategoryInNewTab("supply20PlusDays")}
+                 title="Open details in new tab"
+               >
+                 <OpenInNewIcon sx={{ position: "absolute", top: 10, right: 10, fontSize: 16, opacity: 0.75 }} />
+                 <span className="rd-kpi-label rd-chip-green">20+ Days</span>
+                 <strong>{retentionOverviewMine.supply20PlusDays.toLocaleString("en-IN")} ({myPct(retentionOverviewMine.supply20PlusDays)}%)</strong>
+               </article>
+             </>
+           )}
+         </section>
        </section>
 
 
