@@ -305,6 +305,7 @@ export default function KnowledgeBaseManager() {
  const [aiCreditsError, setAiCreditsError] = useState("");
  const [settingsAutoReplyEnabled, setSettingsAutoReplyEnabled] = useState(true);
  const [settingsAutoReplyDelayMinutes, setSettingsAutoReplyDelayMinutes] = useState("15");
+ const [settingsAutoReplyAISignature, setSettingsAutoReplyAISignature] = useState("~ AI ✨");
  const [settingsLoading, setSettingsLoading] = useState(false);
  const [settingsSaving, setSettingsSaving] = useState(false);
  const [settingsLoaded, setSettingsLoaded] = useState(false);
@@ -564,8 +565,8 @@ export default function KnowledgeBaseManager() {
  }, []);
 
 
- const fetchAutoReplySettings = useCallback(async () => {
-   if (settingsFetchAttemptedRef.current) return;
+ const fetchAutoReplySettings = useCallback(async (force = false) => {
+   if (!force && settingsFetchAttemptedRef.current) return;
    settingsFetchAttemptedRef.current = true;
 
    let localApi404 = false;
@@ -575,10 +576,10 @@ export default function KnowledgeBaseManager() {
      localApi404 = false;
    }
 
-   if (localApi404) {
+   if (localApi404 && !force) {
      setSettingsApiUnavailable(true);
      setSettingsLoaded(true);
-     return;
+     return { unavailable: true };
    }
 
    setSettingsLoading(true);
@@ -590,6 +591,7 @@ export default function KnowledgeBaseManager() {
      const safeDelay = Number.isFinite(parsedDelay) ? Math.max(1, parsedDelay) : 15;
      setSettingsAutoReplyEnabled(Boolean(settings?.enabled));
      setSettingsAutoReplyDelayMinutes(String(safeDelay));
+     setSettingsAutoReplyAISignature(safeStr(settings?.aiSignature || "~ AI ✨"));
      setSettingsLoaded(true);
      try {
        window.localStorage.setItem(
@@ -597,11 +599,13 @@ export default function KnowledgeBaseManager() {
          JSON.stringify({
            enabled: Boolean(settings?.enabled),
            delayMinutes: safeDelay,
+           aiSignature: safeStr(settings?.aiSignature || "~ AI ✨"),
            updatedAt: Date.now(),
          })
        );
        window.localStorage.removeItem(LOCAL_AUTO_REPLY_API_404_KEY);
      } catch {}
+     return { unavailable: false };
    } catch (e) {
      const status = Number(e?.status || 0);
      if (status === 404) {
@@ -610,33 +614,45 @@ export default function KnowledgeBaseManager() {
        try {
          window.localStorage.setItem(LOCAL_AUTO_REPLY_API_404_KEY, "1");
        } catch {}
+       return { unavailable: true };
      } else {
        showToast(e.message || "Failed to fetch auto reply settings", "error");
+       return { unavailable: false, error: e };
      }
    } finally {
      setSettingsLoading(false);
    }
+   return { unavailable: false };
  }, [showToast]);
 
 
  const saveAutoReplySettings = useCallback(async () => {
    const parsedDelay = Number(settingsAutoReplyDelayMinutes);
    const delayMinutes = Number.isFinite(parsedDelay) ? Math.max(1, parsedDelay) : 15;
+   const aiSignature = safeStr(settingsAutoReplyAISignature).slice(0, 80);
    try {
      window.localStorage.setItem(
        LOCAL_AUTO_REPLY_SETTINGS_KEY,
        JSON.stringify({
          enabled: Boolean(settingsAutoReplyEnabled),
          delayMinutes,
+         aiSignature,
          updatedAt: Date.now(),
        })
      );
    } catch {}
 
    if (settingsApiUnavailable) {
-     setSettingsAutoReplyDelayMinutes(String(delayMinutes));
-     showToast("Settings saved locally. Deploy backend API to make this live for auto-reply engine.", "warn");
-     return;
+     let unavailableNow = true;
+     try {
+       const result = await fetchAutoReplySettings(true);
+       unavailableNow = Boolean(result?.unavailable);
+     } catch {}
+     if (unavailableNow) {
+       setSettingsAutoReplyDelayMinutes(String(delayMinutes));
+       showToast("Settings saved locally. Backend API is still unavailable.", "warn");
+       return;
+     }
    }
 
    setSettingsSaving(true);
@@ -646,16 +662,18 @@ export default function KnowledgeBaseManager() {
        body: JSON.stringify({
          enabled: Boolean(settingsAutoReplyEnabled),
          delayMinutes,
+         aiSignature,
        }),
      });
      setSettingsAutoReplyDelayMinutes(String(delayMinutes));
+     setSettingsAutoReplyAISignature(aiSignature || "~ AI ✨");
      showToast("Settings saved", "success");
    } catch (e) {
      showToast(e.message || "Failed to save settings", "error");
    } finally {
      setSettingsSaving(false);
    }
- }, [settingsAutoReplyDelayMinutes, settingsAutoReplyEnabled, showToast]);
+ }, [settingsApiUnavailable, settingsAutoReplyDelayMinutes, settingsAutoReplyEnabled, settingsAutoReplyAISignature, showToast, fetchAutoReplySettings]);
 
 
  useEffect(() => {
@@ -667,6 +685,7 @@ export default function KnowledgeBaseManager() {
      const safeDelay = Number.isFinite(parsedDelay) ? Math.max(1, parsedDelay) : 15;
      setSettingsAutoReplyEnabled(Boolean(parsed?.enabled));
      setSettingsAutoReplyDelayMinutes(String(safeDelay));
+     setSettingsAutoReplyAISignature(safeStr(parsed?.aiSignature || "~ AI ✨"));
    } catch {}
  }, []);
 
@@ -1699,6 +1718,20 @@ export default function KnowledgeBaseManager() {
                  onChange={(e) => setSettingsAutoReplyDelayMinutes(e.target.value)}
                />
              </label>
+
+             <label className="kb-settings-card">
+               <div>
+                 <div className="kb-settings-title">AI Signature</div>
+                 <div className="kb-settings-text">Text added at the end of AI auto replies.</div>
+               </div>
+               <input
+                 type="text"
+                 maxLength={80}
+                 value={settingsAutoReplyAISignature}
+                 onChange={(e) => setSettingsAutoReplyAISignature(e.target.value)}
+                 placeholder="~ AI ✨"
+               />
+             </label>
            </div>
 
            {settingsApiUnavailable && (
@@ -1719,7 +1752,7 @@ export default function KnowledgeBaseManager() {
              <button
                type="button"
                className="kb-btn kb-btn--ghost"
-               onClick={fetchAutoReplySettings}
+               onClick={() => fetchAutoReplySettings(true)}
                disabled={settingsLoading || settingsSaving}
              >
                {settingsLoading ? "Refreshing..." : "Refresh"}

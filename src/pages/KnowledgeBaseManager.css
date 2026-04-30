@@ -598,6 +598,24 @@
  outline: none;
 }
 
+.kb-settings-card input[type="text"] {
+ width: 280px;
+ max-width: 100%;
+ border: 1px solid #c8d4c9;
+ border-radius: 10px;
+ background: #fff;
+ color: #1f2a1f;
+ padding: 8px 10px;
+ font-size: 0.95rem;
+ outline: none;
+}
+
+.kb-settings-card input[type="text"]:focus,
+.kb-settings-card input[type="number"]:focus {
+ border-color: #58865d;
+ box-shadow: 0 0 0 3px rgba(84, 131, 90, 0.18);
+}
+
 
 .kb-switch {
  width: 54px;

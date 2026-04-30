@@ -6,7 +6,7 @@ import OpenInNewIcon from "@mui/icons-material/OpenInNew";
 import { Skeleton } from "@mui/material";
 
 
-const API_BASE = (process.env.REACT_APP_API_BASE_URL || "http://localhost:5001").replace(/\/+$/, "");
+const API_BASE = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "");
 
 const TIME_RANGE_OPTIONS = [
  "Today",

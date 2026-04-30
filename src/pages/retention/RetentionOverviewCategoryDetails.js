@@ -17,7 +17,7 @@ import {
 } from "@mui/material";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 
-const API_BASE = (process.env.REACT_APP_API_BASE_URL || "http://localhost:5001").replace(/\/+$/, "");
+const API_BASE = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "");
 
 const LABELS = {
   totalActive: "Total Active Customers",

@@ -29,7 +29,8 @@ export default function RetentionOverviewCombined() {
   const [sortBy, setSortBy] = useState("totalActiveCustomers");
   const [sortDir, setSortDir] = useState("desc");
 
-  const API_BASE = (process.env.REACT_APP_API_BASE_URL || "http://localhost:5001").replace(/\/+$/, "");
+  const API_BASE = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "");
+  
   const buildUrl = (path) => `${API_BASE}${path}`;
 
   const fetchJson = async (path) => {
