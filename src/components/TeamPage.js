@@ -6,7 +6,12 @@ import {
  Stack, CircularProgress, Tooltip
 } from "@mui/material";
 import DeleteIcon from "@mui/icons-material/Delete";
-import { ArrowDownward, GroupAdd } from "@mui/icons-material";
+import {
+ ArrowDownward,
+ GroupAdd,
+ KeyboardArrowDown,
+ KeyboardArrowUp,
+} from "@mui/icons-material";
 import axios from "axios";
 
 
@@ -25,11 +30,59 @@ const fmt0 = (n) =>
 const getManagerId = () =>
  (JSON.parse(sessionStorage.getItem("user")) || {}).id || "";
 
+const getCurrentUser = () =>
+ (JSON.parse(sessionStorage.getItem("user")) || {});
+
+const normalizeRole = (role = "") =>
+ String(role || "").trim().toLowerCase().replace(/[-_]+/g, " ");
+
+const isManagerRole = (role = "") => normalizeRole(role) === "manager";
+const isTeamLeaderRole = (role = "") => normalizeRole(role) === "team leader";
+
 
 const isSalesDepartment = (emp = {}) =>
  String(emp.department || "").trim().toLowerCase() === "sales";
 const isTargetEligible = (emp = {}) =>
  isSalesDepartment(emp) && emp?.isDoctor !== true;
+const shouldIncludeLeaderSelfRow = (emp = {}) =>
+ Boolean(emp?.hasTeam) && isTargetEligible(emp) && !isTeamLeaderRole(emp?.role);
+const getActiveTargetMembers = (members = []) =>
+ (members || []).filter((emp) => emp.status === "active" && isTargetEligible(emp));
+const getUniqueEmployeesById = (members = []) => {
+ const unique = new Map();
+ (members || []).forEach((emp) => {
+   const id = String(emp?._id || "");
+   if (id && !unique.has(id)) {
+     unique.set(id, emp);
+   }
+ });
+ return Array.from(unique.values());
+};
+const getLeaderDisplayName = (teamLeader) => {
+ if (!teamLeader) return "--";
+ if (typeof teamLeader === "string") return teamLeader;
+ if (typeof teamLeader === "object") {
+   return teamLeader.fullName || teamLeader.email || "--";
+ }
+ return "--";
+};
+const mergeDisplayedMembers = (leader, members = []) => {
+ const filteredMembers = getActiveTargetMembers(members);
+
+ if (!shouldIncludeLeaderSelfRow(leader)) {
+   return filteredMembers;
+ }
+
+ const uniqueMembers = new Map();
+ [leader, ...filteredMembers].forEach((emp) => {
+   const id = String(emp?._id || "");
+   if (id) {
+     uniqueMembers.set(id, emp);
+   }
+ });
+
+ return Array.from(uniqueMembers.values());
+};
 
 
 
@@ -46,6 +99,17 @@ function getRemainingWorkingDays() {
  }
  return count;
 }
+
+const fetchAchievedByName = async (fullName) => {
+ try {
+   const { data } = await api.get(
+     `/api/retention-sales/progress?name=${encodeURIComponent(fullName)}`
+   );
+   return Number(data?.total || 0);
+ } catch (e) {
+   return 0;
+ }
+};
 
 
 
@@ -84,7 +148,11 @@ const KPICard = ({ title, value, subValue, trendColor = "#10b981" }) => (
 
 
 const TeamPage = ({ managerId: managerIdProp }) => {
+ const currentUser = getCurrentUser();
  const managerId = managerIdProp || getManagerId();
+ const canSelectAnyLeader = isManagerRole(currentUser?.role);
+ const isManagerView = isManagerRole(currentUser?.role);
+ const workingDaysLeft = getRemainingWorkingDays();
 
 
 
@@ -98,7 +166,9 @@ const TeamPage = ({ managerId: managerIdProp }) => {
  const [searchValue, setSearchValue] = useState([]);
  const [addLoading, setAddLoading] = useState(false);
  const [tableProgress, setTableProgress] = useState({});
- const [tableRows, setTableRows] = useState([]);
+  const [tableRows, setTableRows] = useState([]);
+ const [nestedRowsByParent, setNestedRowsByParent] = useState({});
+ const [expandedRows, setExpandedRows] = useState({});
  const [sortConfig, setSortConfig] = useState({ key: "", direction: "asc" });
 
 
@@ -126,7 +196,9 @@ const TeamPage = ({ managerId: managerIdProp }) => {
    setLoading(true);
    fetchLeaderAndAgentLists()
      .then((leaders) => {
-       const defaultLeaderId = leaders.find((l) => l._id === managerId)?._id || leaders[0]?._id || "";
+       const defaultLeaderId = canSelectAnyLeader
+         ? leaders.find((l) => l._id === managerId)?._id || leaders[0]?._id || ""
+         : managerId;
        setSelectedLeaderId(defaultLeaderId);
      })
      .catch(() => {
@@ -136,12 +208,14 @@ const TeamPage = ({ managerId: managerIdProp }) => {
        setSelectedLeaderId("");
      })
      .finally(() => setLoading(false));
- }, [managerId]);
+ }, [canSelectAnyLeader, managerId]);
 
 
  useEffect(() => {
    if (!selectedLeaderId) {
      setTeamMembers([]);
+     setExpandedRows({});
+     setNestedRowsByParent({});
      return;
    }
 
@@ -150,96 +224,165 @@ const TeamPage = ({ managerId: managerIdProp }) => {
    api
      .get(`/api/employees/${selectedLeaderId}`)
      .then(({ data }) => {
-       const members = (data.teamMembers || []).filter(
-         (emp) => emp.status === "active" && isTargetEligible(emp)
-       );
-       setTeamMembers(members);
+       const nextMembers = isManagerView
+         ? getActiveTargetMembers(data.teamMembers || [])
+         : mergeDisplayedMembers(data, data.teamMembers || []);
+       setTeamMembers(nextMembers);
+       setExpandedRows({});
+       setNestedRowsByParent({});
      })
-     .catch(() => setTeamMembers([]))
+     .catch(() => {
+       setTeamMembers([]);
+       setExpandedRows({});
+       setNestedRowsByParent({});
+     })
      .finally(() => setLoading(false));
- }, [selectedLeaderId]);
+ }, [isManagerView, selectedLeaderId]);
 
 
  useEffect(() => {
    if (!teamMembers.length) {
      setTableRows([]);
+     setNestedRowsByParent({});
      return;
    }
+   let active = true;
    setLoading(true);
 
+   const buildMetricRow = (emp, achieved, overrides = {}) => {
+     const targetValue = Number(overrides.monthlyTarget ?? emp?.target ?? 0);
+     const pending = Math.max(0, targetValue - achieved);
+     const dailyRequired = workingDaysLeft > 0 && pending > 0
+       ? Math.ceil(pending / workingDaysLeft)
+       : 0;
+     const pctAch = targetValue === 0 ? 0 : (achieved / targetValue) * 100;
 
-   const getLeaderId = (member) =>
-     member?.teamLeader?._id || member?.teamLeader?.id || member?.teamLeader || "";
-
-
-   const fetchAchievedByName = async (fullName) => {
-     try {
-       const { data } = await api.get(
-         `/api/retention-sales/progress?name=${encodeURIComponent(fullName)}`
-       );
-       return Number(data?.total || 0);
-     } catch (e) {
-       return 0;
-     }
+     return {
+       id: overrides.id || emp?._id,
+       renderKey:
+         overrides.renderKey ||
+         `${overrides.type || "member"}:${overrides.parentId || "root"}:${overrides.id || emp?._id}`,
+       sourceId: emp?._id || "",
+       name: overrides.name || emp?.fullName || "--",
+       teamLeader: overrides.teamLeader ?? getLeaderDisplayName(emp?.teamLeader),
+       hasOwnTeam: Boolean(overrides.hasOwnTeam ?? emp?.hasTeam),
+       isSelfRow: Boolean(overrides.isSelfRow),
+       type: overrides.type || "member",
+       expandable: Boolean(overrides.expandable),
+       parentId: overrides.parentId || null,
+       isManagerView,
+       isRemovable: Boolean(overrides.isRemovable),
+       monthlyTarget: targetValue,
+       achieved,
+       pending,
+       dailyRequired,
+       pctAch,
+       targetLabel: overrides.targetLabel || "",
+     };
    };
 
+   const getCurrentEmployee = (emp) =>
+     allAgents.find((agent) => String(agent._id) === String(emp?._id)) || emp;
 
-   Promise.all(
-     teamMembers.map(async emp => {
-       const current = allAgents.find((a) => a._id === emp._id) || emp;
-       const selfTarget = Number(current.target || 0);
-       const hasOwnTeam = !!current.hasTeam;
-       const selfAchieved = await fetchAchievedByName(emp.fullName);
+   const buildManagerAggregateRows = async (member, directMemberIds) => {
+     const current = getCurrentEmployee(member);
+     const [{ data: memberData }, selfAchieved] = await Promise.all([
+       api.get(`/api/employees/${current._id}`),
+       fetchAchievedByName(current.fullName),
+     ]);
+
+     const nestedMembers = getUniqueEmployeesById(
+       getActiveTargetMembers(memberData?.teamMembers || []).filter(
+         (nestedMember) => String(nestedMember?._id) !== String(current._id)
+       )
+     );
+     const childRows = await Promise.all(
+       nestedMembers.map(async (nestedMember) => {
+         const nestedCurrent = getCurrentEmployee(nestedMember);
+         const nestedAchieved = await fetchAchievedByName(nestedCurrent.fullName);
+         return buildMetricRow(nestedCurrent, nestedAchieved, {
+           id: `${current._id}__member__${nestedCurrent._id}`,
+           type: "member",
+           parentId: current._id,
+           isRemovable: directMemberIds.has(String(nestedCurrent._id)),
+           targetLabel: "Self target",
+         });
+       })
+     );
+
+     const teamTarget = childRows.reduce((sum, row) => sum + row.monthlyTarget, 0);
+     const teamAchieved = childRows.reduce((sum, row) => sum + row.achieved, 0);
+     const hasSelfMetrics = Number(current.target || 0) > 0 || selfAchieved > 0;
+     const selfRow = hasSelfMetrics
+       ? buildMetricRow(current, selfAchieved, {
+           id: `${current._id}__self`,
+           renderKey: `self:${current._id}__self`,
+           name: `${current.fullName} (Self)`,
+           type: "self",
+           parentId: current._id,
+           isRemovable: false,
+           targetLabel: "Self target",
+         })
+       : null;
+
+     return {
+       row: buildMetricRow(current, teamAchieved, {
+         renderKey: `aggregate:${current._id}`,
+         type: "aggregate",
+         monthlyTarget: teamTarget,
+         expandable: childRows.length > 0 || Boolean(selfRow),
+         isRemovable: false,
+         targetLabel: "Team target",
+       }),
+       children: selfRow ? [selfRow, ...childRows] : childRows,
+     };
+   };
+
+   const loadRows = async () => {
+     const directMemberIds = new Set(teamMembers.map((member) => String(member._id)));
+     const nextNestedRows = {};
+     const rows = await Promise.all(
+       teamMembers.map(async (member) => {
+         const current = getCurrentEmployee(member);
+         if (isManagerView && current?.hasTeam) {
+           const aggregate = await buildManagerAggregateRows(current, directMemberIds);
+           nextNestedRows[String(current._id)] = aggregate.children;
+           return aggregate.row;
+         }
+
+         const achieved = await fetchAchievedByName(current.fullName);
+         return buildMetricRow(current, achieved, {
+           type: "member",
+           isSelfRow: String(current?._id) === String(selectedLeaderId),
+           isRemovable: String(current?._id) !== String(selectedLeaderId),
+           targetLabel: isManagerView || current?.hasTeam ? "Self target" : "",
+         });
+       })
+     );
+
+     if (!active) return;
+     setNestedRowsByParent(nextNestedRows);
+     setTableRows(rows);
+     setLoading(false);
+   };
+
+   loadRows().catch(() => {
+     if (!active) return;
+     setNestedRowsByParent({});
+     setTableRows([]);
+     setLoading(false);
+   });
+
+   return () => {
+     active = false;
+   };
+ }, [allAgents, isManagerView, selectedLeaderId, teamMembers, workingDaysLeft]);
 
 
-       // Compute leader's team target from live reporting links.
-       const directReports = allAgents.filter(
-         (member) => String(getLeaderId(member)) === String(emp._id)
-       );
 
 
-       const teamTarget = directReports
-         .reduce((sum, member) => sum + Number(member?.target || 0), 0);
-
-
-       let teamAchieved = 0;
-       if (hasOwnTeam && directReports.length) {
-         const achievedParts = await Promise.all(
-           directReports.map((member) => fetchAchievedByName(member.fullName))
-         );
-         teamAchieved = achievedParts.reduce((sum, value) => sum + Number(value || 0), 0);
-       }
-
-
-       const achieved = hasOwnTeam ? selfAchieved + teamAchieved : selfAchieved;
-
-
-       const monthlyTarget = hasOwnTeam ? selfTarget + teamTarget : selfTarget;
-       const pending = Math.max(0, monthlyTarget - achieved);
-       const pctAch = monthlyTarget === 0 ? 0 : (achieved / monthlyTarget) * 100;
-       return {
-         id: emp._id,
-         name: emp.fullName,
-         teamLeader: emp.teamLeader || "--",
-         hasOwnTeam,
-         selfTarget,
-         teamTarget,
-         monthlyTarget,
-         achieved,
-         pending,
-         pctAch,
-       };
-     })
-   )
-     .then(rows => setTableRows(rows))
-     .finally(() => setLoading(false));
- }, [teamMembers, allAgents]);
-
-
-
-
- const getProcessedRows = () => {
-   let filtered = [...tableRows];
+ const getProcessedRows = (rows = tableRows) => {
+   let filtered = [...rows];
    if (!sortConfig.key) return filtered;
    return filtered.sort((a, b) => {
      const aVal = a[sortConfig.key];
@@ -254,10 +397,19 @@ const TeamPage = ({ managerId: managerIdProp }) => {
 
 
 
- const filteredRows = getProcessedRows();
- const filteredAchieved = filteredRows.reduce((acc, row) => acc + row.achieved, 0);
- const filteredTarget = filteredRows.reduce((acc, row) => acc + row.monthlyTarget, 0);
- const workingDaysLeft = getRemainingWorkingDays();
+ const topLevelRows = getProcessedRows();
+ const getDisplayRows = () => {
+   if (!isManagerView) return topLevelRows;
+
+   return topLevelRows.flatMap((row) => {
+     const childRows = expandedRows[row.id] ? (nestedRowsByParent[row.id] || []) : [];
+     return [row, ...childRows];
+   });
+ };
+
+ const filteredRows = getDisplayRows();
+ const filteredAchieved = topLevelRows.reduce((acc, row) => acc + row.achieved, 0);
+ const filteredTarget = topLevelRows.reduce((acc, row) => acc + row.monthlyTarget, 0);
  const filteredPending = Math.max(0, filteredTarget - filteredAchieved);
  const filteredDailyRequired = workingDaysLeft > 0 && filteredPending > 0 ? Math.ceil(filteredPending / workingDaysLeft) : 0;
  const filteredPctAch = filteredTarget === 0 ? 0 : (filteredAchieved / filteredTarget) * 100;
@@ -272,6 +424,13 @@ const TeamPage = ({ managerId: managerIdProp }) => {
    }));
  };
 
+ const toggleRowExpansion = (rowId) => {
+   setExpandedRows((prev) => ({
+     ...prev,
+     [rowId]: !prev[rowId],
+   }));
+ };
+
 
 
 
@@ -281,7 +440,10 @@ const TeamPage = ({ managerId: managerIdProp }) => {
    try {
      const updatedIds = [...teamMembers.map(tm => tm._id), ...searchValue.map(a => a._id)].filter((v, i, arr) => arr.indexOf(v) === i);
      const { data } = await api.put(`/api/employees/${selectedLeaderId}/team`, { teamMembers: updatedIds });
-     setTeamMembers((data.manager.teamMembers || []).filter(isTargetEligible));
+     const nextMembers = isManagerView
+       ? getActiveTargetMembers(data.manager.teamMembers || [])
+       : mergeDisplayedMembers(data.manager, data.manager.teamMembers || []);
+     setTeamMembers(nextMembers);
      await fetchLeaderAndAgentLists();
      setAddOpen(false);
      setSearchValue([]);
@@ -297,7 +459,10 @@ const TeamPage = ({ managerId: managerIdProp }) => {
    try {
      const updatedIds = teamMembers.filter(emp => emp._id !== id).map(emp => emp._id);
      const { data } = await api.put(`/api/employees/${selectedLeaderId}/team`, { teamMembers: updatedIds });
-     setTeamMembers((data.manager.teamMembers || []).filter(isTargetEligible));
+     const nextMembers = isManagerView
+       ? getActiveTargetMembers(data.manager.teamMembers || [])
+       : mergeDisplayedMembers(data.manager, data.manager.teamMembers || []);
+     setTeamMembers(nextMembers);
      await fetchLeaderAndAgentLists();
    } catch (e) { alert("Failed to update team."); } finally { setTableProgress(p => ({ ...p, [id]: false })); }
  };
@@ -320,21 +485,23 @@ const TeamPage = ({ managerId: managerIdProp }) => {
 
 
        <Stack direction="row" spacing={2}>
-         <TextField
-           select
-           value={selectedLeaderId}
-           onChange={(e) => setSelectedLeaderId(e.target.value)}
-           SelectProps={{ native: true }}
-           size="small"
-           sx={{ minWidth: 220, bgcolor: "#fff", "& .MuiOutlinedInput-root": { borderRadius: 3, fontWeight: 600 } }}
-         >
-           <option value="">Select Team Leader</option>
-           {leaderOptions.map((leader) => (
-             <option key={leader._id} value={leader._id}>
-               {leader.fullName}
-             </option>
-           ))}
-         </TextField>
+         {canSelectAnyLeader ? (
+           <TextField
+             select
+             value={selectedLeaderId}
+             onChange={(e) => setSelectedLeaderId(e.target.value)}
+             SelectProps={{ native: true }}
+             size="small"
+             sx={{ minWidth: 220, bgcolor: "#fff", "& .MuiOutlinedInput-root": { borderRadius: 3, fontWeight: 600 } }}
+           >
+             <option value="">Select Team Leader</option>
+             {leaderOptions.map((leader) => (
+               <option key={leader._id} value={leader._id}>
+                 {leader.fullName}
+               </option>
+             ))}
+           </TextField>
+         ) : null}
          <Button variant="contained" startIcon={<GroupAdd />} onClick={() => setAddOpen(true)} sx={{ bgcolor: "#1e293b", borderRadius: 3, fontWeight: 700, textTransform: "none", px: 3 }}>
            Add Member
          </Button>
@@ -361,7 +528,7 @@ const TeamPage = ({ managerId: managerIdProp }) => {
        <Table>
          <TableHead sx={{ bgcolor: "#f8fafc" }}>
            <TableRow>
-             {[{ label: "Agent", key: "name" }, { label: "Leader", key: null }, { label: "Target", key: "monthlyTarget" }, { label: "Achieved", key: "achieved" }, { label: "Remaining", key: "pending" },{ label: "Daily Req.", key: "pending" }, { label: "Progress", key: "pctAch" }, { label: "", key: null }].map(({ label, key }) => (
+             {[{ label: "Agent", key: "name" }, { label: "Leader", key: null }, { label: "Target", key: "monthlyTarget" }, { label: "Achieved", key: "achieved" }, { label: "Remaining", key: "pending" },{ label: "Daily Req.", key: "dailyRequired" }, { label: "Progress", key: "pctAch" }, { label: "", key: null }].map(({ label, key }) => (
                <TableCell key={label} sx={{ py: 2, fontWeight: 800, color: "#64748b", fontSize: "0.7rem", textTransform: "uppercase" }}>
                  <Stack direction="row" alignItems="center" spacing={0.5}>
                    <span>{label}</span>
@@ -381,21 +548,34 @@ const TeamPage = ({ managerId: managerIdProp }) => {
            ) : filteredRows.map(row => {
                const remainingAmt = Math.max(0, row.monthlyTarget - row.achieved);
                const remainingPct = Math.max(0, 100 - row.pctAch).toFixed(1);
+               const isChildRow = Boolean(row.parentId);
+               const isExpanded = Boolean(expandedRows[row.id]);
 
 
 
 
                return (
-             <TableRow key={row.id} sx={{ "&:hover": { bgcolor: "#f1f5f9" } }}>
-             <TableCell sx={{ fontWeight: 700, color: "#1e293b" }}>{row.name}</TableCell>
+             <TableRow key={row.renderKey || row.id} sx={{ "&:hover": { bgcolor: "#f1f5f9" } }}>
+             <TableCell sx={{ fontWeight: 700, color: "#1e293b" }}>
+               <Stack direction="row" spacing={0.5} alignItems="center" sx={{ pl: isChildRow ? 2 : 0 }}>
+                 {row.expandable ? (
+                   <IconButton size="small" onClick={() => toggleRowExpansion(row.id)} sx={{ p: 0.25 }}>
+                     {isExpanded ? <KeyboardArrowUp fontSize="small" /> : <KeyboardArrowDown fontSize="small" />}
+                   </IconButton>
+                 ) : (
+                   <Box sx={{ width: 22, flexShrink: 0 }} />
+                 )}
+                 <Typography variant="body2" fontWeight={700}>{row.name}</Typography>
+               </Stack>
+             </TableCell>
              <TableCell sx={{ color: "#475569" }}>{row.teamLeader}</TableCell>
              <TableCell sx={{ fontWeight: 600 }}>
                ₹{fmt0(row.monthlyTarget)}
-               {row.hasOwnTeam && (
+               {row.targetLabel ? (
                  <Typography variant="caption" sx={{ display: "block", color: "#64748b", mt: 0.2 }}>
-                   Self ₹{fmt0(row.selfTarget)} + Team ₹{fmt0(row.teamTarget)}
+                   {row.targetLabel}
                  </Typography>
-               )}
+               ) : null}
              </TableCell>
                <TableCell sx={{ color: "#10b981", fontWeight: 800 }}>₹{fmt0(row.achieved)}</TableCell>
                <TableCell sx={{ color: "#ef4444", fontWeight: 600 }}>
@@ -428,9 +608,11 @@ const TeamPage = ({ managerId: managerIdProp }) => {
                  </Tooltip>
                </TableCell>
                <TableCell align="right">
-                 <IconButton onClick={() => handleRemove(row.id)} disabled={!!tableProgress[row.id]} sx={{ color: "#cbd5e1", "&:hover": { color: "#ef4444" } }}>
-                   {tableProgress[row.id] ? <CircularProgress size={20} /> : <DeleteIcon fontSize="small" />}
-                 </IconButton>
+                 {!row.isRemovable ? null : (
+                   <IconButton onClick={() => handleRemove(row.id)} disabled={!!tableProgress[row.id]} sx={{ color: "#cbd5e1", "&:hover": { color: "#ef4444" } }}>
+                     {tableProgress[row.id] ? <CircularProgress size={20} /> : <DeleteIcon fontSize="small" />}
+                   </IconButton>
+                 )}
                </TableCell>
              </TableRow>
            )})}
@@ -470,5 +652,3 @@ const TeamPage = ({ managerId: managerIdProp }) => {
 
 
 export default TeamPage;
-
-

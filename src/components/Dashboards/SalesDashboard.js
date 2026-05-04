@@ -12,6 +12,7 @@ import { Box } from "@mui/material";
 import MarketingDashboard from "../../Dashboards/MarketingDashboard";
 import SuperAdminAnalytics from "../../pages/SuperAdminAnalytics";
 import ItManagerDashboard from "../../Dashboards/ITManagerDashboard";
+import SuperAdminDashboard from "../../Dashboards/SuperAdminDashboard";
 
 
 const SalesDashboard = () => {
@@ -229,6 +230,7 @@ if (storedTab === "Retention" || storedTab === "Analytics") {
    {normalizedRole === "operations" && <OperationsDashboard />}
    {normalizedRole === "marketing" && <MarketingDashboard />}
    {normalizedRole === "human resource" && <ItManagerDashboard />}
+   {(normalizedRole === "super admin" || normalizedRole === "superadmin" || normalizedRole === "super-admin") && <SuperAdminDashboard />}
  </div>
 );
 };

@@ -44,7 +44,6 @@ const api = axios.create({
  withCredentials: true,
 });
 
-
 const DEFAULT_ROLES = [
  "Manager",
  "Sales Agent",
@@ -122,6 +121,17 @@ const getActorName = () => {
 
 
  return readFrom(sessionStorage) || readFrom(localStorage) || "Unknown";
+};
+
+const sortEmployeesByName = (list = []) =>
+  [...list].sort((a, b) => a.fullName.localeCompare(b.fullName));
+
+const mergeEmployeeById = (list = [], employee) => {
+  if (!employee?._id) return sortEmployeesByName(list);
+  const next = list.some((item) => item._id === employee._id)
+    ? list.map((item) => (item._id === employee._id ? employee : item))
+    : [...list, employee];
+  return sortEmployeesByName(next);
 };
 
 
@@ -327,10 +337,12 @@ const AddEmployee = () => {
    confirmPassword: "",
    status: "active",
    target: "",
+   hasTeam: false,
    isDoctor: false,
    teamLeader: "",
    joiningDate: "",
    joiningSalary: "",
+   currentSalary: "",
    languages: [],
    permissions: { ...DEFAULT_PERMISSIONS },
  };
@@ -344,7 +356,6 @@ const AddEmployee = () => {
  const [showPassword, setShowPassword] = useState(false);
  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
  const [currentEmployeeId, setCurrentEmployeeId] = useState(null);
- const [currentEmployeeHasTeam, setCurrentEmployeeHasTeam] = useState(false);
  const [employeeData, setEmployeeData] = useState(EMPTY_EMPLOYEE_DATA);
  const [error, setError] = useState("");
  const [viewInactive, setViewInactive] = useState(false);
@@ -457,13 +468,16 @@ const AddEmployee = () => {
    String(departmentInputValue || employeeData.department || "").trim();
 
 
- const getEffectiveRole = () =>
-   String(roleInputValue || employeeData.role || "").trim();
+const getEffectiveRole = () =>
+  String(roleInputValue || employeeData.role || "").trim();
 
+ const isTeamLeaderRole = /^(team leader|team-leader|teamleader)$/i.test(
+   String(employeeData.role || "").trim()
+ );
 
  const isSalesDepartment =
    (employeeData.department || "").trim().toLowerCase() === "sales";
- const isSalesTeamLeader = isEditMode && isSalesDepartment && currentEmployeeHasTeam;
+ const isSalesTeamLeader = isSalesDepartment && isTeamLeaderRole;
  const isCoreOnlyRole = ["Manager", "Super Admin"].includes(employeeData.role);
  const shouldShowReportsTo = employeeData.role !== "Super Admin";
 
@@ -544,6 +558,7 @@ const AddEmployee = () => {
      target,
      joiningDate,
      joiningSalary,
+     currentSalary,
    } = employeeData;
    const department = getEffectiveDepartment();
    const role = getEffectiveRole();
@@ -566,8 +581,8 @@ const AddEmployee = () => {
    }
 
 
-   if (!isEditMode && (!joiningDate || joiningSalary === "")) {
-     setError("Joining Date and Joining Salary are required for new employees.");
+   if (!isEditMode && (!joiningDate || joiningSalary === "" || currentSalary === "")) {
+     setError("Joining Date, Joining Salary and Current Salary are required for new employees.");
      return false;
    }
 
@@ -586,6 +601,11 @@ const AddEmployee = () => {
 
    if (joiningSalary !== "" && !/^\d+(\.\d+)?$/.test(String(joiningSalary))) {
      setError("Joining salary must be a valid number.");
+     return false;
+   }
+
+   if (currentSalary !== "" && !/^\d+(\.\d+)?$/.test(String(currentSalary))) {
+     setError("Current salary must be a valid number.");
      return false;
    }
 
@@ -656,6 +676,7 @@ const AddEmployee = () => {
        isSalesDepartmentForSubmit && !employeeData.isDoctor && !isSalesTeamLeader
          ? employeeData.target
          : 0,
+     hasTeam: !!employeeData.hasTeam,
    };
 
 
@@ -663,6 +684,12 @@ const AddEmployee = () => {
      payload.joiningSalary = Number(employeeData.joiningSalary);
    } else {
      delete payload.joiningSalary;
+   }
+
+   if (employeeData.currentSalary !== "") {
+     payload.currentSalary = Number(employeeData.currentSalary);
+   } else {
+     delete payload.currentSalary;
    }
 
 
@@ -678,7 +705,29 @@ const AddEmployee = () => {
 
    try {
      if (isEditMode) {
-       await api.put(`/api/employees/${currentEmployeeId}`, payload, config);
+       const response = await api.put(
+         `/api/employees/${currentEmployeeId}`,
+         payload,
+         config
+       );
+       const savedEmployee = response?.data?.employee;
+       if (savedEmployee?._id) {
+         setEmployees((prev) => {
+           const nextViewInactive = payload.status === "inactive";
+           const matchingStatus = nextViewInactive
+             ? savedEmployee.status === "inactive"
+             : savedEmployee.status === "active";
+           const baseList = prev.filter((item) => item._id !== savedEmployee._id);
+           return matchingStatus
+             ? mergeEmployeeById(baseList, savedEmployee)
+             : sortEmployeesByName(baseList);
+         });
+         setAllActiveEmployees((prev) =>
+           savedEmployee.status === "active"
+             ? mergeEmployeeById(prev, savedEmployee)
+             : sortEmployeesByName(prev.filter((item) => item._id !== savedEmployee._id))
+         );
+       }
      } else {
        await api.post("/api/employees", payload, config);
      }
@@ -686,14 +735,13 @@ const AddEmployee = () => {
 
      // Keep inactive/active view aligned with saved status.
      setViewInactive(payload.status === "inactive");
-     fetchEmployees();
+     await fetchEmployees();
      setOpen(false);
      setError("");
      setEmployeeData(EMPTY_EMPLOYEE_DATA);
      setRoleInputValue("");
      setDepartmentInputValue("");
      setCurrentEmployeeId(null);
-     setCurrentEmployeeHasTeam(false);
      setIsEditMode(false);
    } catch (error) {
      console.error("Error submitting employee data:", error);
@@ -725,6 +773,7 @@ const AddEmployee = () => {
      confirmPassword: "",
      status: employee.status,
      target: employee.target || "",
+     hasTeam: !!employee.hasTeam,
      isDoctor: !!employee.isDoctor,
      teamLeader: employee.teamLeader?._id || "",
      languages: Array.isArray(employee.languages) ? employee.languages : [],
@@ -734,6 +783,10 @@ const AddEmployee = () => {
      joiningSalary:
        employee.joiningSalary !== null && employee.joiningSalary !== undefined
          ? String(employee.joiningSalary)
+         : "",
+     currentSalary:
+       employee.currentSalary !== null && employee.currentSalary !== undefined
+         ? String(employee.currentSalary)
          : "",
      permissions: employee.permissions
        ? {
@@ -751,7 +804,6 @@ const AddEmployee = () => {
    setRoleInputValue(employee.role || "");
    setDepartmentInputValue(employee.department || "");
    setCurrentEmployeeId(employee._id);
-   setCurrentEmployeeHasTeam(!!employee.hasTeam);
    setIsEditMode(true);
    setOpen(true);
  };
@@ -876,7 +928,6 @@ const AddEmployee = () => {
              setRoleInputValue("");
              setDepartmentInputValue("");
              setOpen(true);
-             setCurrentEmployeeHasTeam(false);
            }}
          >
            Add Employee
@@ -1236,6 +1287,25 @@ const AddEmployee = () => {
            />
 
 
+           <TextField
+             required={!isEditMode}
+             fullWidth
+             label="Current Salary"
+             name="currentSalary"
+             type="number"
+             value={employeeData.currentSalary}
+             onChange={handleChange}
+             variant="filled"
+             InputLabelProps={{
+               sx: { "& .MuiFormLabel-asterisk": { color: "error.main" } },
+             }}
+             InputProps={{
+               disableUnderline: true,
+               sx: { backgroundColor: "#fff", borderRadius: 1, px: 1 },
+             }}
+           />
+
+
            <Autocomplete
              freeSolo
              options={availableRoles}
@@ -1291,6 +1361,35 @@ const AddEmployee = () => {
                />
              )}
            />
+
+           {!isCoreOnlyRole && (
+             <Box
+               sx={{
+                 display: "flex",
+                 alignItems: "center",
+                 gap: 3,
+                 pl: 1,
+                 mt: -1,
+                 mb: 1,
+                 flexWrap: "wrap",
+               }}
+             >
+               <FormControlLabel
+                 control={
+                   <Checkbox
+                     checked={!!employeeData.hasTeam}
+                     onChange={handleChange}
+                     name="hasTeam"
+                     color="primary"
+                   />
+                 }
+                 label="Has Team"
+               />
+               <Typography variant="caption" sx={{ color: "#64748b" }}>
+                 Turn this on for Assistant Team Leads or agents who manage their own team.
+               </Typography>
+             </Box>
+           )}
 
 
            {isSalesDepartment && (
@@ -2085,4 +2184,3 @@ const AddEmployee = () => {
 
 
 export default AddEmployee;
-

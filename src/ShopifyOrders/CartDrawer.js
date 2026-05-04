@@ -19,6 +19,10 @@ import {
   useMediaQuery,
   InputAdornment,
   CircularProgress,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
 } from "@mui/material";
 import { motion } from "framer-motion";
 import AddShoppingCartIcon from "@mui/icons-material/AddShoppingCart";
@@ -168,6 +172,11 @@ const CartDrawer = ({ closeDrawer }) => {
   // Local state for new customer details
   const [newCustomerFirstName, setNewCustomerFirstName] = useState("");
   const [newCustomerLastName, setNewCustomerLastName] = useState("");
+  const [showCreateCustomerPopup, setShowCreateCustomerPopup] = useState(false);
+  const [isAddingCustomer, setIsAddingCustomer] = useState(false);
+  const [customerPromptMessage, setCustomerPromptMessage] = useState("");
+  const [customerPopupError, setCustomerPopupError] = useState("");
+  const [addressFetchMessage, setAddressFetchMessage] = useState("");
 
   const [isOrderLoading, setIsOrderLoading] = useState(false);
 
@@ -338,6 +347,11 @@ const CartDrawer = ({ closeDrawer }) => {
     // 2. Clear local states
     setNewCustomerFirstName("");
     setNewCustomerLastName("");
+    setShowCreateCustomerPopup(false);
+    setIsAddingCustomer(false);
+    setCustomerPromptMessage("");
+    setCustomerPopupError("");
+    setAddressFetchMessage("");
     setSearchQuery("");
     setFilteredProducts(products); // Reset to the full product list
     setShowOrderSuccess(false);
@@ -407,23 +421,38 @@ const CartDrawer = ({ closeDrawer }) => {
   // ----- PHONE CHECK & ADDRESSES -----
   const handleCheckPhone = async () => {
     try {
+      setCustomerPromptMessage("");
+      setCustomerPopupError("");
+      setAddressFetchMessage("");
+      setShowCreateCustomerPopup(false);
+
       // Standardize the phone number before use
       const standardizedPhone = standardizePhoneNumber(phoneNumber);
       // (Optional) Update state with standardized value
       dispatch(setPhoneNumber(standardizedPhone));
 
       // Fetch previous orders (addresses)
-      const ordersRes = await axios.get(
-        `https://muditamleads-14f32a10d7f7.herokuapp.com/api/shopify/customer-orders?phone=${standardizedPhone}`
-      );
-      const fetchedAddresses = ordersRes.data.addresses || [];
-      dispatch(setAddresses(fetchedAddresses));
+      try {
+        const ordersRes = await axios.get(
+          `https://muditamleads-14f32a10d7f7.herokuapp.com/api/shopify/customer-orders?phone=${standardizedPhone}`
+        );
+        const fetchedAddresses = ordersRes.data.addresses || [];
+        dispatch(setAddresses(fetchedAddresses));
 
-      if (fetchedAddresses.length === 0) {
+        if (fetchedAddresses.length === 0) {
+          dispatch(setAddressCategory("new"));
+        } else {
+          dispatch(setAddressCategory("existing"));
+          dispatch(setSelectedAddressIndex(0));
+        }
+      } catch (addressErr) {
+        console.error("Error fetching customer addresses:", addressErr);
+        dispatch(setAddresses([]));
         dispatch(setAddressCategory("new"));
-      } else {
-        dispatch(setAddressCategory("existing"));
-        dispatch(setSelectedAddressIndex(0));
+        dispatch(setSelectedAddressIndex(null));
+        setAddressFetchMessage(
+          "Could not load saved addresses right now. You can still check or add the customer name."
+        );
       }
 
       // Check for existing customer by phone
@@ -431,7 +460,11 @@ const CartDrawer = ({ closeDrawer }) => {
         `https://muditamleads-14f32a10d7f7.herokuapp.com/api/shopify/customer?phone=${standardizedPhone}`
       );
       const customerData = customerRes.data;
-      if (customerData && customerData.id && customerData.first_name) {
+      if (
+        customerData &&
+        customerData.id &&
+        String(customerData.first_name || "").trim()
+      ) {
         dispatch(setCustomerId(customerData.id));
         dispatch(
           setCustomerName(
@@ -441,9 +474,12 @@ const CartDrawer = ({ closeDrawer }) => {
       } else {
         dispatch(setCustomerId(""));
         dispatch(setCustomerName(""));
+        setShowCreateCustomerPopup(true);
       }
     } catch (err) {
       console.error("Error checking phone:", err);
+      setCustomerPromptMessage("");
+      setCustomerPopupError("");
     }
   };
 
@@ -451,14 +487,16 @@ const CartDrawer = ({ closeDrawer }) => {
   // New function to create a customer on Shopify
   const handleCreateCustomer = async () => {
     if (!phoneNumber) {
-      alert("Please enter phone number");
+      setCustomerPopupError("Please enter phone number.");
       return;
     }
     if (!newCustomerFirstName || !newCustomerLastName) {
-      alert("Please enter both first name and last name");
+      setCustomerPopupError("Please enter both first name and last name.");
       return;
     }
     try {
+      setIsAddingCustomer(true);
+      setCustomerPopupError("");
       const response = await axios.post(
         "https://muditamleads-14f32a10d7f7.herokuapp.com/api/shopify/create-customer",
         {
@@ -467,19 +505,28 @@ const CartDrawer = ({ closeDrawer }) => {
           last_name: newCustomerLastName,
         }
       );
-      const customerData = response.data.customer;
-      if (customerData && customerData.id) {
-        dispatch(setCustomerId(customerData.id));
-        dispatch(
-          setCustomerName(
-            `${customerData.first_name} ${customerData.last_name}`.trim()
-          )
-        );
+      if (response.data.customer) {
+        dispatch(setCustomerId(""));
+        dispatch(setCustomerName(""));
+        setShowCreateCustomerPopup(false);
+        setNewCustomerFirstName("");
+        setNewCustomerLastName("");
+        setCustomerPromptMessage("Customer added on Shopify. Click Check again.");
       }
     } catch (error) {
       console.error("Error creating customer:", error);
-      alert("Error creating customer");
+      setCustomerPopupError(
+        error?.response?.data?.message || "Error creating customer."
+      );
+    } finally {
+      setIsAddingCustomer(false);
     }
+  };
+
+  const handleCloseCreateCustomerPopup = () => {
+    if (isAddingCustomer) return;
+    setShowCreateCustomerPopup(false);
+    setCustomerPopupError("");
   };
 
   const handleSelectAddress = (index) => {
@@ -1340,36 +1387,17 @@ const CartDrawer = ({ closeDrawer }) => {
                 </Button>
               </Box>
 
-              {/* If no customer exists, show input fields for creating customer */}
-              {!customerId && phoneNumber && (
+              {customerPromptMessage && (
                 <Box sx={{ mb: 2 }}>
-                  <TextField
-                    label="First Name"
-                    fullWidth
-                    size="small"
-                    margin="dense"
-                    value={newCustomerFirstName}
-                    onChange={(e) =>
-                      setNewCustomerFirstName(e.target.value)
-                    }
-                  />
-                  <TextField
-                    label="Last Name"
-                    fullWidth
-                    size="small"
-                    margin="dense"
-                    value={newCustomerLastName}
-                    onChange={(e) =>
-                      setNewCustomerLastName(e.target.value)
-                    }
-                  />
-                  <Button
-                    variant="contained"
-                    onClick={handleCreateCustomer}
-                    sx={buttonStyle}
-                  >
-                    Create Customer
-                  </Button>
+                  <Typography variant="body2">{customerPromptMessage}</Typography>
+                </Box>
+              )}
+
+              {addressFetchMessage && (
+                <Box sx={{ mb: 2 }}>
+                  <Typography variant="body2" color="warning.main">
+                    {addressFetchMessage}
+                  </Typography>
                 </Box>
               )}
 
@@ -1412,6 +1440,58 @@ const CartDrawer = ({ closeDrawer }) => {
                 }
                 label="Billing & shipping address is same"
               />
+
+              <Dialog
+                open={showCreateCustomerPopup}
+                onClose={handleCloseCreateCustomerPopup}
+                fullWidth
+                maxWidth="xs"
+              >
+                <DialogTitle>Customer name not found on Shopify</DialogTitle>
+                <DialogContent>
+                  <Typography variant="body2" sx={{ mb: 2 }}>
+                    Add the customer name, then click Check again to continue.
+                  </Typography>
+                  <TextField
+                    label="First Name"
+                    fullWidth
+                    size="small"
+                    margin="dense"
+                    value={newCustomerFirstName}
+                    onChange={(e) => setNewCustomerFirstName(e.target.value)}
+                  />
+                  <TextField
+                    label="Last Name"
+                    fullWidth
+                    size="small"
+                    margin="dense"
+                    value={newCustomerLastName}
+                    onChange={(e) => setNewCustomerLastName(e.target.value)}
+                  />
+                  {customerPopupError && (
+                    <Typography color="error" variant="body2" sx={{ mt: 1 }}>
+                      {customerPopupError}
+                    </Typography>
+                  )}
+                </DialogContent>
+                <DialogActions sx={{ px: 3, pb: 2 }}>
+                  <Button
+                    onClick={handleCloseCreateCustomerPopup}
+                    disabled={isAddingCustomer}
+                    sx={buttonStyle}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    variant="contained"
+                    onClick={handleCreateCustomer}
+                    disabled={isAddingCustomer}
+                    sx={buttonStyle}
+                  >
+                    {isAddingCustomer ? "Adding..." : "Add"}
+                  </Button>
+                </DialogActions>
+              </Dialog>
 
               {addresses.length > 0 ? (
                 !addressConfirmed &&

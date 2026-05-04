@@ -357,7 +357,7 @@ function isUpcomingWalletCoinStatus(status = "") {
   const s = String(status || "").toUpperCase();
 
   if (!s) return false;
-  if (s.includes("DELIVERED")) return false;
+  if (s.includes("DELIVERED") || s.includes("COMPLETE")) return false;
   if (isReversedWalletCoinStatus(s)) return false;
 
   return (
@@ -373,6 +373,12 @@ function isUpcomingWalletCoinStatus(status = "") {
     s.includes("REACHED HUB") ||
     s.includes("AT HUB")
   );
+}
+
+function isDeliveredWalletCoinStatus(status = "", rowDeliveredFlag = false) {
+  if (rowDeliveredFlag) return true;
+  const s = String(status || "").toUpperCase();
+  return s.includes("DELIVERED") || s.includes("COMPLETE");
 }
 
 function formatSignedCurrency(value, walletBucket) {
@@ -497,10 +503,11 @@ function getTeamSlabBucket(achievementPercent = 0) {
   return "<90%";
 }
 
-function VKRTargetProgressBar({ value = 0, threshold = 60 }) {
-  const safeValue = Math.max(0, Math.min(100, Number(value || 0)));
+function VKRTargetProgressBar({ deliveredValue = 0, totalValue = 0, threshold = 60 }) {
+  const safeDelivered = Math.max(0, Math.min(100, Number(deliveredValue || 0)));
+  const safeTotal = Math.max(0, Math.min(100, Number(totalValue || 0)));
   const safeThreshold = Math.max(0, Math.min(100, Number(threshold || 60)));
-  const isSafe = safeValue >= safeThreshold;
+  const isSafe = safeDelivered >= safeThreshold;
 
   return (
     <Box sx={{ width: "100%" }}>
@@ -517,15 +524,26 @@ function VKRTargetProgressBar({ value = 0, threshold = 60 }) {
         <Box
           sx={{
             height: "100%",
-            width: `${safeValue}%`,
+            width: `${safeDelivered}%`,
             background: isSafe ? "#16a34a" : "#dc2626",
             transition: "width 0.35s ease",
             borderRadius: 999,
           }}
         />
+        <Box
+          sx={{
+            position: "absolute",
+            left: `${safeThreshold}%`,
+            top: -2,
+            bottom: -2,
+            width: 2,
+            transform: "translateX(-1px)",
+            background: "#0f172a",
+            opacity: 0.55,
+          }}
+        />
       </Box>
-
-      <Stack direction="row" justifyContent="space-between" sx={{ mt: 0.75 }}>
+      <Stack direction="row" justifyContent="space-between" sx={{ mt: 0.6 }}>
         <Typography variant="caption" sx={{ color: BRAND.sub, fontWeight: 600 }}>
           0%
         </Typography>
@@ -540,6 +558,14 @@ function VKRTargetProgressBar({ value = 0, threshold = 60 }) {
         </Typography>
         <Typography variant="caption" sx={{ color: BRAND.sub, fontWeight: 600 }}>
           100%
+        </Typography>
+      </Stack>
+      <Stack direction="row" spacing={1.25} sx={{ mt: 0.5 }} useFlexGap flexWrap="wrap">
+        <Typography variant="caption" sx={{ color: "#475569", fontWeight: 600 }}>
+          Delivered: {safeDelivered.toFixed(2)}%
+        </Typography>
+        <Typography variant="caption" sx={{ color: "#2563eb", fontWeight: 600 }}>
+          Total: {safeTotal.toFixed(2)}%
         </Typography>
       </Stack>
     </Box>
@@ -1689,17 +1715,10 @@ export default function IncentivesPage() {
   const balanceWallet = balanceData?.wallet || {};
   const balanceWalletCoin = balanceData?.walletCoin || {};
 
-  const walletProjectedCoins = Number(
+  const walletProjectedCoinsRaw = Number(
     walletCoin.projectedCoins ?? summary.walletCoinProjected ?? 0
   );
 
-  const walletBaseEarnedCoins = Number(
-    walletCoin.baseEarnedCoins ?? summary.walletCoinBaseEarned ?? 0
-  );
-
-  const walletLapsedCoins = Number(
-    walletCoin.lapsedCoins ?? summary.walletCoinLapsed ?? 0
-  );
 
   const walletQualifyingOrders = Number(
     walletCoin.qualifyingOrders ?? summary.walletCoinQualifyingOrders ?? 0
@@ -1718,23 +1737,67 @@ export default function IncentivesPage() {
   const walletRows = walletCoin.rows || [];
   const walletRules = walletCoin.rules || {};
   const walletAchievementPercent = Number(walletTarget.achievementPercent ?? 0);
+  const walletDeliveredVkrCount = Number(walletTarget.deliveredCount ?? 0);
 
   const walletUpcomingRows = walletRows.filter(
     (row) =>
-      !row?.isDelivered &&
+      !isDeliveredWalletCoinStatus(row?.shipmentStatus || "", row?.isDelivered) &&
       isUpcomingWalletCoinStatus(row?.shipmentStatus || "")
   );
 
   const walletUpcomingOrders = walletUpcomingRows.length;
+  const walletUpcomingVkrCount = round2(
+    walletUpcomingRows.reduce((sum, row) => sum + Number(row?.vkrCount || 0), 0)
+  );
 
-  const walletUpcomingCoins = round2(
-    walletUpcomingRows.reduce(
-      (sum, row) => sum + Number(row?.coinsIfDelivered || 0),
+  const walletTargetVisibleVkrCount = round2(
+    walletDeliveredVkrCount + walletUpcomingVkrCount
+  );
+  const totalVkr = round2(
+    walletRows.reduce((sum, row) => sum + Number(row?.vkrCount || 0), 0)
+  );
+  const deliveredVkr = round2(
+    walletRows.reduce(
+      (sum, row) =>
+        sum +
+        (isDeliveredWalletCoinStatus(row?.shipmentStatus || "", row?.isDelivered)
+          ? Number(row?.vkrCount || 0)
+          : 0),
       0
     )
   );
-
-  const walletTargetVisibleOrders = Number(walletDeliveredOrders || 0) + walletUpcomingOrders;
+  const undeliveredVkr = round2(Math.max(0, totalVkr - deliveredVkr));
+  const walletValuePerCount = Number(walletSop.valuePerCount || 0);
+  const walletMonthlyTargetCount = Number(walletTarget.monthlyTargetCount || 0);
+  const walletMinAchievementToRetain = Number(
+    walletTarget.minAchievementPercentToRetain ?? 60
+  );
+  const walletAchievementByDeliveredPct = walletMonthlyTargetCount
+    ? round2((deliveredVkr / walletMonthlyTargetCount) * 100)
+    : 0;
+  const walletAchievementByTotalPct = walletMonthlyTargetCount
+    ? round2((totalVkr / walletMonthlyTargetCount) * 100)
+    : 0;
+  const derivedDeliveredCoins = round2(deliveredVkr * walletValuePerCount);
+  const derivedUpcomingCoins = round2(undeliveredVkr * walletValuePerCount);
+  const derivedProjectedCoins = round2(derivedDeliveredCoins + derivedUpcomingCoins);
+  const walletBaseEarnedCoins =
+    walletAchievementByDeliveredPct >= walletMinAchievementToRetain
+      ? derivedDeliveredCoins
+      : 0;
+  const walletLapsedCoins =
+    walletAchievementByDeliveredPct < walletMinAchievementToRetain
+      ? derivedDeliveredCoins
+      : 0;
+  const walletUpcomingCoins =
+    derivedUpcomingCoins > 0 ? derivedUpcomingCoins : round2(
+      walletUpcomingRows.reduce(
+        (sum, row) => sum + Number(row?.coinsIfDelivered || 0),
+        0
+      )
+    );
+  const walletProjectedCoins =
+    derivedProjectedCoins > 0 ? derivedProjectedCoins : walletProjectedCoinsRaw;
 
   const prepaidCoins = Number(
     summary.prepaidCoins ?? walletCoin.prepaidCoins ?? data?.extraCoins?.prepaidCoins ?? 0
@@ -3474,6 +3537,7 @@ export default function IncentivesPage() {
                         <TableRow sx={{ backgroundColor: "#f8fafc" }}>
                           <TableCell sx={{ fontWeight: 700 }}>Date</TableCell>
                           <TableCell sx={{ fontWeight: 700 }}>Order ID</TableCell>
+                          <TableCell sx={{ fontWeight: 700 }}>VKR Count</TableCell>
                           <TableCell sx={{ fontWeight: 700 }}>Customer</TableCell>
                           <TableCell sx={{ fontWeight: 700 }}>Phone Number</TableCell>
                           {data?.isTeamAggregate ? (
@@ -3489,6 +3553,9 @@ export default function IncentivesPage() {
                             <TableRow key={`${row.orderId || "wallet"}-${index}`} hover>
                               <TableCell>{formatDate(row.date)}</TableCell>
                               <TableCell sx={{ fontWeight: 600 }}>{row.orderId || "-"}</TableCell>
+                              <TableCell sx={{ fontWeight: 600 }}>
+                                {formatNumber(Number(row.vkrCount || 0))}
+                              </TableCell>
                               <TableCell>{row.customerName || "-"}</TableCell>
                               <TableCell>{row.contactNumber || "-"}</TableCell>
                               {data?.isTeamAggregate ? (
@@ -3498,8 +3565,8 @@ export default function IncentivesPage() {
                                 <Chip
                                   size="small"
                                   label={row.shipmentStatus || "Unknown"}
-                                  color={row.isDelivered ? "success" : "default"}
-                                  variant={row.isDelivered ? "filled" : "outlined"}
+                                  color={isDeliveredWalletCoinStatus(row.shipmentStatus || "", row.isDelivered) ? "success" : "default"}
+                                  variant={isDeliveredWalletCoinStatus(row.shipmentStatus || "", row.isDelivered) ? "filled" : "outlined"}
                                 />
                               </TableCell>
                             </TableRow>
@@ -3507,7 +3574,7 @@ export default function IncentivesPage() {
                         ) : (
                           <TableRow>
                             <TableCell
-                              colSpan={data?.isTeamAggregate ? 6 : 5}
+                              colSpan={data?.isTeamAggregate ? 7 : 6}
                               align="center"
                               sx={{ py: 4 }}
                             >
@@ -3625,13 +3692,30 @@ export default function IncentivesPage() {
                           variant="h5"
                           sx={{ color: BRAND.coin, fontWeight: 800, lineHeight: 1.1 }}
                         >
-                          {walletAchievementPercent}%
+                          {walletAchievementByDeliveredPct}%
+                        </Typography>
+                        <Typography variant="caption" sx={{ color: BRAND.sub, display: "block", mt: 0.2 }}>
+                          Total: {walletAchievementByTotalPct}%
                         </Typography>
 
                         <Typography variant="caption" sx={{ color: BRAND.sub }}>
-                          Target: {formatNumber(walletTargetVisibleOrders)} /{" "}
-                          {formatNumber(walletTarget.monthlyTargetCount || 0)}
+                          Target: {formatNumber(walletTargetVisibleVkrCount)} /{" "}
+                          {formatNumber(walletTarget.monthlyTargetCount || 0)} VKR
                         </Typography>
+                        <Stack spacing={0.35} sx={{ mt: 0.75 }}>
+                          <Typography variant="caption" sx={{ color: BRAND.sub, display: "block" }}>
+                            Delivered VKR:{" "}
+                            <Box component="span" sx={{ color: BRAND.available, fontWeight: 700 }}>
+                              {formatNumber(deliveredVkr)}
+                            </Box>
+                          </Typography>
+                          <Typography variant="caption" sx={{ color: BRAND.sub, display: "block" }}>
+                            Undelivered VKR:{" "}
+                            <Box component="span" sx={{ color: BRAND.coming, fontWeight: 700 }}>
+                              {formatNumber(undeliveredVkr)}
+                            </Box>
+                          </Typography>
+                        </Stack>
                       </Box>
 
                       <Stack
@@ -3645,7 +3729,7 @@ export default function IncentivesPage() {
                         <SummaryMetric
                           title="Earned Coins"
                           value={formatNumber(walletBaseEarnedCoins)}
-                          sub={`${formatNumber(walletDeliveredOrders)} delivered qualifying orders`}
+                          sub={`${formatNumber(walletDeliveredOrders)} delivered qualifying orders (${formatNumber(deliveredVkr)} VKR)`}
                           color={BRAND.coin}
                           bg="#ffffff"
                           borderColor={BRAND.coinBorder}
@@ -3654,7 +3738,7 @@ export default function IncentivesPage() {
                         <SummaryMetric
                           title="Upcoming Coins"
                           value={formatNumber(walletUpcomingCoins)}
-                          sub={`${formatNumber(walletUpcomingOrders)} upcoming qualifying orders`}
+                          sub={`${formatNumber(walletUpcomingOrders)} upcoming qualifying orders (${formatNumber(undeliveredVkr)} VKR)`}
                           color={BRAND.coming}
                           bg="#ffffff"
                           borderColor="#fde68a"
@@ -3663,7 +3747,7 @@ export default function IncentivesPage() {
                         <SummaryMetric
                           title="Lapsed Coins"
                           value={formatNumber(walletLapsedCoins)}
-                          sub={`${walletAchievementPercent}% achievement`}
+                          sub={`${walletAchievementByDeliveredPct}% achievement`}
                           color={BRAND.reversed}
                           bg="#ffffff"
                           borderColor="#fecaca"
@@ -3673,7 +3757,8 @@ export default function IncentivesPage() {
 
                     <Box sx={{ mt: 0.5 }}>
                       <VKRTargetProgressBar
-                        value={walletAchievementPercent}
+                        deliveredValue={walletAchievementByDeliveredPct}
+                        totalValue={walletAchievementByTotalPct}
                         threshold={walletTarget.minAchievementPercentToRetain || 60}
                       />
                     </Box>
@@ -3960,4 +4045,3 @@ export default function IncentivesPage() {
     </Box>
   );
 }
-
