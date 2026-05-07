@@ -57,9 +57,9 @@ import OrderConfirmations from "./components/OrderConfirmations";
 import LeadExpertMigration from "./components/LeadExpertMigration";
 import AssetManager from "./components/AssetManager";
 import ScheduleCall from "./components/ScheduleCallsData";
-import OrderConfirmAnalytics from "./components/OrderConfirmAnalytics";  
-import AssetsManagerRole from "./components/AddAsset"; 
-import AssetAllotment from "./components/AssetAllotment"; 
+import OrderConfirmAnalytics from "./components/OrderConfirmAnalytics";
+import AssetsManagerRole from "./components/AddAsset";
+import AssetAllotment from "./components/AssetAllotment";
 import MyAssets from "./components/MyAssets";
 import BankReconciliation from "./components/Finance/BankReconciliation";
 import BankCapital6389 from "./components/Finance/BankCapital6389";
@@ -70,7 +70,7 @@ import BankYesCcAbhay from "./components/Finance/BankYesCcAbhay";
 import BankKotak from "./components/Finance/BankKotak";
 import TaskBoard from "./components/Dashboards/TaskBoard";
 import MyReporting from "./components/Dashboards/MyReporting";
-import PurchaseRecord from "./components/Finance/PurchaseRecordsPage"; 
+import PurchaseRecord from "./components/Finance/PurchaseRecordsPage";
 import PaymentRecords from "./components/Finance/PaymentRecordsPage";
 import Vendors from "./components/Finance/VendorPage";
 import SwitchDashboard from "./components/Finance/SwitchDashboard";
@@ -79,24 +79,24 @@ import GlobalShopifyOrders from "./International/Shopify/GlobalShopifyOrders";
 import GlobalAbandonedCarts from "./International/Shopify/GlobalAbandonedCarts";
 import GlobalRetentionLeads from "./International/InternationlLeads/GlobalRetentionLeads";
 import GlobalRetentionSales from "./International/InternationlLeads/GlobalRetentionSales";
-import AccessManagement from "./components/AccessManagement"; 
+import AccessManagement from "./components/AccessManagement";
 import AdminAccessRequests from "./components/AdminAccessRequests";
 import Invoices from "./pages/Invoices";
 import UnassignedDeliveredOrders from "./components/UnassignedDeliveredOrders";
-import SuperAdminAnalytics from "./pages/SuperAdminAnalytics"; 
+import SuperAdminAnalytics from "./pages/SuperAdminAnalytics";
 import AbandonedAnalyticsPage from "./pages/AbandonedAnalytics";
 import IncentiveCreation from "./components/TopBars/IncentiveCreation";
 import WhatsAppUI from "./whatsaap/WhatsAppUI"
 import TemplatePanel from "./whatsaap/TemplatesPanel"
-import "./realtime/IncomingCallSSEBoot"; 
+import "./realtime/IncomingCallSSEBoot";
 import WhatsAppNotification from "./whatsaap/WhatsAppNotification";
 import ManagerRoute from "./components/ManagerRoute";
 import Cutpage from './Marketing/Cutpage';
 import Postpage from './Marketing/Postpage';
 import Editpage from './Marketing/Editpage';
 import Scriptpage from './Marketing/Scriptpage';
-import ShootPage from "./Marketing/Shootpage"; 
-import OtherVideoIdeationPage from "./Marketing/othervideo/OtherVideoIdeationPage"; 
+import ShootPage from "./Marketing/Shootpage";
+import OtherVideoIdeationPage from "./Marketing/othervideo/OtherVideoIdeationPage";
 import OtherVideoShootPage from "./Marketing/othervideo/OtherVideoShootPage";
 import OtherVideoCutPage from "./Marketing/othervideo/OtherVideoCutPage";
 import OtherVideoEditPage from "./Marketing/othervideo/OtherVideoEditPage";
@@ -110,15 +110,17 @@ import AdsIdeationPage from "./Marketing/ads/AdsIdeationPage";
 import AdsShootPage from "./Marketing/ads/AdsShootPage";
 import AdsCutPage from "./Marketing/ads/AdsCutPage";
 import AdsEditPage from "./Marketing/ads/AdsEditPage";
-import AdsPostPage from "./Marketing/ads/AdsPostPage"; 
+import AdsPostPage from "./Marketing/ads/AdsPostPage";
 import LeadUtmLinkGenerator from "./components/LeadUtmLinkGenerator";
 import UnicommerceOrdersPage from "./components/UnicommerceOrdersPage";
 import IncentivesPage from "./pages/IncentivesPage";
-import SOPMasterPage from "./pages/SOPMasterPage"; 
-import RewardsAdminPage from "./pages/RewardsAdminPage"; 
+import SOPMasterPage from "./pages/SOPMasterPage";
+import RewardsAdminPage from "./pages/RewardsAdminPage";
 import KnowledgeBaseManager from "./pages/KnowledgeBaseManager";
 import OrganisationTree from "./pages/OrganisationTree";
 import DietImageMigrationAdmin from "./components/DietImageMigrationAdmin";
+import RedcliffeBookingPage from "./pages/RedcliffeBookingPage";
+import RedcliffeDashboardPage from "./pages/RedcliffeDashboardPage";
 
 const App = () => {
   return (
@@ -139,53 +141,21 @@ const App = () => {
           <Route path="/pages/Home" element={<ShipwayOrders />} />
           <Route path="/smartflo/call-logs" element={<SmartfloCallLogs />} />
           <Route path="/smartflo/data-analytics" element={<SmartfloDataAnalytics />} />
-          <Route path="/AssetAllotment" element={<AssetAllotment />} />
-          <Route path="/BankReconciliation" element={<BankReconciliation />} />
-          <Route path="/BankCapital6389" element={<BankCapital6389 />} />
-          <Route path="/BankAxis3361" element={<BankAxis3361 />} />
-          <Route path="/BankCc1101" element={<BankCc1101 />} />
-          <Route path="/BankYesCcTejasv" element={<BankYesCcTejasv />} />
-          <Route path="/BankYesCcAbhay" element={<BankYesCcAbhay />} />
-          <Route path="/BankKotak" element={<BankKotak />} />
-          <Route path="/purchase-record" element={<PurchaseRecord />} />
-          <Route path="/payment-record" element={<PaymentRecords />} />
-          <Route path="/vendors" element={<Vendors />} />
-          <Route path="/super-admin-analytics" element={<SuperAdminAnalytics />} /> 
-          <Route path="/abandoned-analytics" element={<AbandonedAnalyticsPage />} />
-          <Route path="/whatsaap/chat" element={<WhatsAppUI />} />
-          <Route path="/OtherVideo/Ideation" element={<OtherVideoIdeationPage />} />
-          <Route path="/OtherVideo/Shoot" element={<OtherVideoShootPage />} />
-          <Route path="/OtherVideo/Cut" element={<OtherVideoCutPage />} />
-          <Route path="/OtherVideo/Edit" element={<OtherVideoEditPage />} />
-          <Route path="/OtherVideo/Post" element={<OtherVideoPostPage />} />
-          <Route path="/staticCarousel/Ideation" element={<StaticCarouselIdeationPage />} />
-          <Route path="/staticCarousel/Shoot" element={<StaticCarouselShootPage />} />
-          <Route path="/staticCarousel/Cut" element={<StaticCarouselCutPage />} />
-          <Route path="/staticCarousel/Edit" element={<StaticCarouselEditPage />} />
-          <Route path="/staticCarousel/Post" element={<StaticCarouselPostPage />} />
-          <Route path="/Ads/Ideation" element={<AdsIdeationPage />} />
-          <Route path="/Ads/Shoot" element={<AdsShootPage />} />
-          <Route path="/Ads/Cut" element={<AdsCutPage />} />
-          <Route path="/Ads/Edit" element={<AdsEditPage />} />
-          <Route path="/Ads/Post" element={<AdsPostPage />} /> 
           <Route path="/utmlink-generator" element={<LeadUtmLinkGenerator />} />
           <Route path="/unicommerce" element={<UnicommerceOrdersPage />} />
-          <Route path="/incentives" element={<IncentivesPage />} />
-          <Route path="/SOP-creation" element={<SOPMasterPage />} /> 
-          <Route path="/Rewards-Admin-Page" element={<RewardsAdminPage />} /> 
           <Route path="/knowledge-base" element={<KnowledgeBaseManager />} />
-          <Route path="/diet-image-migration-admin" element={ <DietImageMigrationAdmin /> } />
+          <Route path="/diet-image-migration-admin" element={<DietImageMigrationAdmin />} />
 
           <Route
-           path="/organisation-tree"
-           element={
-             <PrivateRoute>
-               <ManagerRoute>
-                 <OrganisationTree />
-               </ManagerRoute>
-             </PrivateRoute>
-           }
-         />
+            path="/organisation-tree"
+            element={
+              <PrivateRoute>
+                <ManagerRoute>
+                  <OrganisationTree />
+                </ManagerRoute>
+              </PrivateRoute>
+            }
+          />
 
           <Route
             path="/"
@@ -217,6 +187,22 @@ const App = () => {
             element={
               <PrivateRoute>
                 <LeadManagement />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/redcliffe-booking"
+            element={
+              <PrivateRoute>
+                <RedcliffeBookingPage />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/redcliffe-dashboard"
+            element={
+              <PrivateRoute>
+                <RedcliffeDashboardPage />
               </PrivateRoute>
             }
           />
@@ -583,181 +569,437 @@ const App = () => {
               </PrivateRoute>
             }
           />
-          <Route 
-            path="/global-shopify-orders" 
+          <Route
+            path="/global-shopify-orders"
             element={
               <PrivateRoute>
-            <GlobalShopifyOrders />
-            </PrivateRoute>
-            } 
+                <GlobalShopifyOrders />
+              </PrivateRoute>
+            }
           />
-          <Route 
-            path="/global-aband" 
+          <Route
+            path="/global-aband"
             element={
               <PrivateRoute>
                 <GlobalAbandonedCarts />
               </PrivateRoute>
-            } 
+            }
           />
-          <Route 
-            path="/global-retention-leads" 
+          <Route
+            path="/global-retention-leads"
             element={
               <PrivateRoute>
                 <GlobalRetentionLeads />
               </PrivateRoute>
-            } 
+            }
           />
-          <Route 
-            path="/global-retention-sales" 
+          <Route
+            path="/global-retention-sales"
             element={
               <PrivateRoute>
                 <GlobalRetentionSales />
               </PrivateRoute>
-            } 
+            }
           />
-          <Route 
-            path="/access-management" 
+          <Route
+            path="/access-management"
             element={
               <PrivateRoute>
                 <AccessManagement />
               </PrivateRoute>
-            } 
+            }
           />
-          <Route 
-            path="/admin-requests-admin" 
+          <Route
+            path="/admin-requests-admin"
             element={
               <PrivateRoute>
                 <AdminAccessRequests />
               </PrivateRoute>
-            } 
+            }
           />
-          <Route 
-            path="/unassigned-delivered-orders" 
+          <Route
+            path="/unassigned-delivered-orders"
             element={
               <PrivateRoute>
                 <UnassignedDeliveredOrders />
               </PrivateRoute>
-            } 
+            }
           />
-          <Route 
-            path="/switch-dashboard" 
+          <Route
+            path="/switch-dashboard"
             element={
               <PrivateRoute>
                 <SwitchDashboard />
               </PrivateRoute>
-            } 
+            }
           />
-          <Route 
-            path="/only-order-confirmation" 
+          <Route
+            path="/only-order-confirmation"
             element={
               <PrivateRoute>
                 <ConfirmedOrder />
               </PrivateRoute>
-            } 
+            }
           />
-          <Route 
-            path="/invoices" 
+          <Route
+            path="/invoices"
             element={
               <PrivateRoute>
                 <Invoices />
               </PrivateRoute>
-            } 
+            }
           />
-          <Route 
-            path="/task-board" 
+          <Route
+            path="/task-board"
             element={
               <PrivateRoute>
                 <TaskBoard />
               </PrivateRoute>
-            } 
+            }
           />
-          <Route 
-            path="/my-reporting" 
+          <Route
+            path="/my-reporting"
             element={
               <PrivateRoute>
                 <MyReporting />
               </PrivateRoute>
-            } 
+            }
           />
-          <Route 
-            path="/assets" 
+          <Route
+            path="/assets"
             element={
               <PrivateRoute>
                 <AssetManager />
               </PrivateRoute>
-            } 
+            }
           />
-          <Route 
-            path="/add-new-asset" 
+          <Route
+            path="/add-new-asset"
             element={
               <PrivateRoute>
                 <AssetsManagerRole />
               </PrivateRoute>
-            } 
+            }
           />
-          <Route 
-            path="/incentive-creation" 
+          <Route
+            path="/incentive-creation"
             element={
               <PrivateRoute>
                 <IncentiveCreation />
               </PrivateRoute>
-            } 
+            }
           />
-          <Route 
-            path="/template/chat" 
+          <Route
+            path="/template/chat"
             element={
               <PrivateRoute>
                 <TemplatePanel />
               </PrivateRoute>
-            } 
+            }
           />
-          <Route 
-            path="/my-assets" 
+          <Route
+            path="/my-assets"
             element={
               <PrivateRoute>
                 <MyAssets />
               </PrivateRoute>
-            } 
+            }
           />
-          <Route 
-            path="/marketing/cut" 
+          <Route
+            path="/marketing/cut"
             element={
               <PrivateRoute>
                 <Cutpage />
               </PrivateRoute>
-            } 
+            }
           />
-          <Route 
-            path="/marketing/post" 
+          <Route
+            path="/marketing/post"
             element={
               <PrivateRoute>
                 <Postpage />
               </PrivateRoute>
-            } 
+            }
           />
-          <Route 
-            path="/marketing/edit" 
+          <Route
+            path="/marketing/edit"
             element={
               <PrivateRoute>
                 <Editpage />
               </PrivateRoute>
-            } 
+            }
           />
-          <Route 
-            path="/marketing/script" 
+          <Route
+            path="/marketing/script"
             element={
               <PrivateRoute>
                 <Scriptpage />
               </PrivateRoute>
-            } 
+            }
           />
-          <Route 
-            path="/marketing/shoot" 
+          <Route
+            path="/marketing/shoot"
             element={
               <PrivateRoute>
                 <ShootPage />
               </PrivateRoute>
-            } 
+            }
+          />
+          <Route
+            path="/AssetAllotment"
+            element={
+              <PrivateRoute>
+                <AssetAllotment />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/BankReconciliation"
+            element={
+              <PrivateRoute>
+                <BankReconciliation />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/BankCapital6389"
+            element={
+              <PrivateRoute>
+                <BankCapital6389 />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/BankAxis3361"
+            element={
+              <PrivateRoute>
+                <BankAxis3361 />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/BankCc1101"
+            element={
+              <PrivateRoute>
+                <BankCc1101 />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/BankYesCcTejasv"
+            element={
+              <PrivateRoute>
+                <BankYesCcTejasv />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/BankYesCcAbhay"
+            element={
+              <PrivateRoute>
+                <BankYesCcAbhay />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/BankKotak"
+            element={
+              <PrivateRoute>
+                <BankKotak />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/purchase-record"
+            element={
+              <PrivateRoute>
+                <PurchaseRecord />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/payment-record"
+            element={
+              <PrivateRoute>
+                <PaymentRecords />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/vendors"
+            element={
+              <PrivateRoute>
+                <Vendors />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/super-admin-analytics"
+            element={
+              <PrivateRoute>
+                <SuperAdminAnalytics />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/abandoned-analytics"
+            element={
+              <PrivateRoute>
+                <AbandonedAnalyticsPage />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/whatsaap/chat"
+            element={
+              <PrivateRoute>
+                <WhatsAppUI />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/OtherVideo/Ideation"
+            element={
+              <PrivateRoute>
+                <OtherVideoIdeationPage />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/OtherVideo/Shoot"
+            element={
+              <PrivateRoute>
+                <OtherVideoShootPage />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/OtherVideo/Cut"
+            element={
+              <PrivateRoute>
+                <OtherVideoCutPage />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/OtherVideo/Edit"
+            element={
+              <PrivateRoute>
+                <OtherVideoEditPage />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/OtherVideo/Post"
+            element={
+              <PrivateRoute>
+                <OtherVideoPostPage />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/staticCarousel/Ideation"
+            element={
+              <PrivateRoute>
+                <StaticCarouselIdeationPage />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/staticCarousel/Shoot"
+            element={
+              <PrivateRoute>
+                <StaticCarouselShootPage />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/staticCarousel/Cut"
+            element={
+              <PrivateRoute>
+                <StaticCarouselCutPage />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/staticCarousel/Edit"
+            element={
+              <PrivateRoute>
+                <StaticCarouselEditPage />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/staticCarousel/Post"
+            element={
+              <PrivateRoute>
+                <StaticCarouselPostPage />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/Ads/Ideation"
+            element={
+              <PrivateRoute>
+                <AdsIdeationPage />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/Ads/Shoot"
+            element={
+              <PrivateRoute>
+                <AdsShootPage />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/Ads/Cut"
+            element={
+              <PrivateRoute>
+                <AdsCutPage />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/Ads/Edit"
+            element={
+              <PrivateRoute>
+                <AdsEditPage />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/Ads/Post"
+            element={
+              <PrivateRoute>
+                <AdsPostPage />
+              </PrivateRoute>
+            }
+          />
+          <Route 
+            path="/incentives" 
+            element={
+              <PrivateRoute>
+                <IncentivesPage />
+              </PrivateRoute>
+            }
+          />
+          <Route 
+            path="/SOP-creation" 
+            element={
+              <PrivateRoute>
+                <SOPMasterPage />
+              </PrivateRoute>
+            }
+          />
+          <Route 
+            path="/Rewards-Admin-Page" 
+            element={
+              <PrivateRoute>
+                <RewardsAdminPage />
+              </PrivateRoute>
+            }
           />
         </Routes>
       </div>
