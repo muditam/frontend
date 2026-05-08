@@ -10,6 +10,7 @@ import {
   Grid,
   LinearProgress,
   Paper,
+  Skeleton,
   Stack,
   Table,
   TableBody,
@@ -419,6 +420,8 @@ export default function TeamLeaderDashboard() {
   const [leaderName, setLeaderName] = useState("");
   const [rows, setRows] = useState([]);
   const [teamMemberNames, setTeamMemberNames] = useState([]);
+  const [currentLeader, setCurrentLeader] = useState(null);
+  const [teamMembers, setTeamMembers] = useState([]);
 
   const [range, setRange] = useState("Month to date");
   const [customStart, setCustomStart] = useState("");
@@ -440,6 +443,7 @@ export default function TeamLeaderDashboard() {
   const [shipmentLoading, setShipmentLoading] = useState(false);
   const [codLoading, setCodLoading] = useState(false);
   const [agentShipmentLoading, setAgentShipmentLoading] = useState(false);
+  const [rowsLoading, setRowsLoading] = useState(false);
 
   const [healthExpertSummary, setHealthExpertSummary] = useState({
     totalActiveCustomers: 0,
@@ -524,57 +528,16 @@ export default function TeamLeaderDashboard() {
           .map((member) => String(member?.fullName || "").trim())
           .filter(Boolean);
 
-        const progressByName = {};
-        const fetchProgress = async (name) => {
-          if (!name) return 0;
-          if (Object.prototype.hasOwnProperty.call(progressByName, name)) return progressByName[name];
-          try {
-            const { data: progress } = await api.get(
-              `/api/retention-sales/progress?name=${encodeURIComponent(name)}`
-            );
-            progressByName[name] = Number(progress?.total || 0);
-            return progressByName[name];
-          } catch {
-            progressByName[name] = 0;
-            return 0;
-          }
-        };
-
-        const selfTarget = Number(current?.target || 0);
-        const selfAchieved = await fetchProgress(current?.fullName || sessionUser?.fullName || "");
-        const excludeSelfTarget = isTeamLeaderRole(current?.role);
-
-        const memberRows = await Promise.all(
-          teamMembers.map(async (member) => {
-            const target = Number(member?.target || 0);
-            const achieved = await fetchProgress(member?.fullName || "");
-            return {
-              id: getEntityId(member),
-              name: member?.fullName || "-",
-              target,
-              achieved,
-              pending: Math.max(0, target - achieved),
-              progress: pct(achieved, target),
-            };
-          })
-        );
-
-        const selfRow = {
-          id: getEntityId(current) || "self",
-          name: `${current?.fullName || sessionUser?.fullName || "Self"} (Self)`,
-          target: 0,
-          achieved: 0,
-          pending: 0,
-          progress: 0,
-        };
-
         setLeaderName(current?.fullName || sessionUser?.fullName || "Team Leader");
-        setRows(excludeSelfTarget ? memberRows : [selfRow, ...memberRows]);
+        setCurrentLeader(current || null);
+        setTeamMembers(teamMembers);
         setTeamMemberNames(memberNames);
         setSelectedHealthExpert(TEAM_COMBINED_OPTION);
       } catch (error) {
         console.error("Failed to load team leader dashboard context:", error);
         setLeaderName("Team Leader");
+        setCurrentLeader(null);
+        setTeamMembers([]);
         setRows([]);
         setTeamMemberNames([]);
         setSelectedHealthExpert(TEAM_COMBINED_OPTION);
@@ -585,6 +548,76 @@ export default function TeamLeaderDashboard() {
 
     loadContext();
   }, []);
+
+  useEffect(() => {
+    const loadRowsForRange = async () => {
+      if (!currentLeader || !effectiveStart || !effectiveEnd) {
+        setRows([]);
+        return;
+      }
+
+      setRowsLoading(true);
+      const progressByName = {};
+      const fetchProgress = async (name) => {
+        const normalizedName = String(name || "").trim();
+        if (!normalizedName) return 0;
+        if (Object.prototype.hasOwnProperty.call(progressByName, normalizedName)) {
+          return progressByName[normalizedName];
+        }
+        try {
+          const { data: progress } = await api.get("/api/retention-sales/progress", {
+            params: {
+              name: normalizedName,
+              from: effectiveStart,
+              to: effectiveEnd,
+            },
+          });
+          progressByName[normalizedName] = Number(progress?.total || 0);
+          return progressByName[normalizedName];
+        } catch {
+          progressByName[normalizedName] = 0;
+          return 0;
+        }
+      };
+
+      const excludeSelfTarget = isTeamLeaderRole(currentLeader?.role);
+      const selfTarget = Number(currentLeader?.target || 0);
+      const selfAchieved = await fetchProgress(currentLeader?.fullName || "");
+
+      const memberRows = await Promise.all(
+        (teamMembers || []).map(async (member) => {
+          const target = Number(member?.target || 0);
+          const achieved = await fetchProgress(member?.fullName || "");
+          return {
+            id: getEntityId(member),
+            name: member?.fullName || "-",
+            target,
+            achieved,
+            pending: Math.max(0, target - achieved),
+            progress: pct(achieved, target),
+          };
+        })
+      );
+
+      const selfRow = {
+        id: getEntityId(currentLeader) || "self",
+        name: `${currentLeader?.fullName || "Self"} (Self)`,
+        target: selfTarget,
+        achieved: selfAchieved,
+        pending: Math.max(0, selfTarget - selfAchieved),
+        progress: pct(selfAchieved, selfTarget),
+      };
+
+      setRows(excludeSelfTarget ? memberRows : [selfRow, ...memberRows]);
+    };
+
+    loadRowsForRange().catch((error) => {
+      console.error("Failed to load team leader dashboard rows:", error);
+      setRows([]);
+    }).finally(() => {
+      setRowsLoading(false);
+    });
+  }, [currentLeader, teamMembers, effectiveStart, effectiveEnd]);
 
   const normalizeCustomDates = useCallback((a, b) => {
     if (!a || !b) return null;
@@ -1012,6 +1045,14 @@ export default function TeamLeaderDashboard() {
 
   const windowLabel = `${effectiveStart || "—"} - ${effectiveEnd || "—"}`;
   const summaryHeading = useMemo(() => getSummaryHeading(range), [range]);
+  const dashboardRefreshing =
+    rowsLoading ||
+    summaryLoading ||
+    activityLoading ||
+    followupLoading ||
+    shipmentLoading ||
+    codLoading ||
+    agentShipmentLoading;
   const workingDaysLeft = getWorkingDaysLeft();
   const dailySalesRequired =
     workingDaysLeft > 0 && totals.pending > 0
@@ -1147,6 +1188,15 @@ export default function TeamLeaderDashboard() {
             <div className="rd-meta-line">
               <span className="rd-dot" />
               <span>{windowLabel}</span>
+              {dashboardRefreshing ? (
+                <>
+                  <span className="rd-dot" />
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                    <CircularProgress size={12} />
+                    Updating
+                  </span>
+                </>
+              ) : null}
             </div>
           </div>
 
@@ -1220,6 +1270,7 @@ export default function TeamLeaderDashboard() {
         )}
 
         <Paper sx={{ ...sectionPaperSx, maxWidth: 1400, mx: "auto", width: "100%" }}>
+          {rowsLoading && <LinearProgress sx={{ mb: 1.5, borderRadius: 999 }} />}
           <Box sx={{ mb: 1.25 }}>
             <Typography variant="h6" sx={sectionTitleSx}>{summaryHeading}</Typography>
           </Box>
@@ -1233,10 +1284,33 @@ export default function TeamLeaderDashboard() {
               },
             }}
           >
-            <MetricCard title="TOTAL TARGET" value={`₹${fmt0(totals.target)}`} sub="Self + Team" />
-            <MetricCard title="ACHIEVED" value={`₹${fmt0(totals.achieved)}`} />
-            <MetricCard title="REMAINING" value={`₹${fmt0(totals.pending)}`} />
-            <MetricCard title="PROGRESS" value={`${fmt1(totals.progress)}%`} />
+            {rowsLoading ? (
+              Array.from({ length: 4 }).map((_, idx) => (
+                <Paper
+                  key={`summary-skeleton-${idx}`}
+                  elevation={0}
+                  sx={{
+                    p: 3,
+                    flex: "1 1 200px",
+                    minWidth: 200,
+                    border: "1px solid #e2e8f0",
+                    borderRadius: 4,
+                    bgcolor: "#fff",
+                  }}
+                >
+                  <Skeleton variant="text" width="45%" height={18} />
+                  <Skeleton variant="text" width="72%" height={44} sx={{ mt: 1 }} />
+                  <Skeleton variant="text" width="40%" height={18} sx={{ mt: 1 }} />
+                </Paper>
+              ))
+            ) : (
+              <>
+                <MetricCard title="TOTAL TARGET" value={`₹${fmt0(totals.target)}`} sub="Self + Team" />
+                <MetricCard title="ACHIEVED" value={`₹${fmt0(totals.achieved)}`} />
+                <MetricCard title="REMAINING" value={`₹${fmt0(totals.pending)}`} />
+                <MetricCard title="PROGRESS" value={`${fmt1(totals.progress)}%`} />
+              </>
+            )}
           </Box>
 
           <Box sx={{ mt: 1.5, display: "flex", alignItems: "center", justifyContent: "space-between", mb: 1 }}>
@@ -1331,7 +1405,23 @@ export default function TeamLeaderDashboard() {
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {sortedMemberRows.map((row) => {
+                  {rowsLoading && (
+                    <>
+                      <TableRow><TableCell colSpan={7} sx={{ p: 0 }}><LinearProgress /></TableCell></TableRow>
+                      {Array.from({ length: 4 }).map((_, idx) => (
+                        <TableRow key={`member-skeleton-${idx}`}>
+                          <TableCell><Skeleton variant="text" width="60%" /></TableCell>
+                          <TableCell align="right"><Skeleton variant="text" width={60} sx={{ ml: "auto" }} /></TableCell>
+                          <TableCell align="right"><Skeleton variant="text" width={60} sx={{ ml: "auto" }} /></TableCell>
+                          <TableCell align="right"><Skeleton variant="text" width={60} sx={{ ml: "auto" }} /></TableCell>
+                          <TableCell align="right"><Skeleton variant="text" width={60} sx={{ ml: "auto" }} /></TableCell>
+                          <TableCell align="right"><Skeleton variant="text" width={50} sx={{ ml: "auto" }} /></TableCell>
+                          <TableCell align="right"><Skeleton variant="text" width={60} sx={{ ml: "auto" }} /></TableCell>
+                        </TableRow>
+                      ))}
+                    </>
+                  )}
+                  {!rowsLoading && sortedMemberRows.map((row) => {
                     const overAchieved = row.target > 0 && row.achieved >= row.target;
                     return (
                     <TableRow key={row.id} sx={overAchieved ? { backgroundColor: "#f0fdf4" } : {}}>
@@ -1374,7 +1464,21 @@ export default function TeamLeaderDashboard() {
             <Grid item xs={12} md={6}>
               <Typography sx={{ color: DS.palette.textMuted, fontWeight: 800, mb: 1 }}>Top Performers</Typography>
               <Stack spacing={1}>
-                {topPerformers.map((member) => (
+                {(rowsLoading ? Array.from({ length: 4 }) : topPerformers).map((member, idx) => (
+                  rowsLoading ? (
+                    <Box
+                      key={`top-skeleton-${idx}`}
+                      sx={{
+                        border: `1px solid ${DS.palette.border}`,
+                        borderRadius: 2,
+                        p: 1.3,
+                        backgroundColor: "#F9FBFF",
+                      }}
+                    >
+                      <Skeleton variant="text" width="48%" />
+                      <Skeleton variant="text" width="74%" />
+                    </Box>
+                  ) : (
                   <Box
                     key={`top-${member.id}`}
                     sx={{
@@ -1402,13 +1506,28 @@ export default function TeamLeaderDashboard() {
                       sx={{ backgroundColor: "#2E7D32", color: "#fff", fontWeight: 800 }}
                     />
                   </Box>
+                  )
                 ))}
               </Stack>
             </Grid>
             <Grid item xs={12} md={6}>
               <Typography sx={{ color: DS.palette.textMuted, fontWeight: 800, mb: 1 }}>Lag Contributors</Typography>
               <Stack spacing={1}>
-                {lagContributors.map((member) => (
+                {(rowsLoading ? Array.from({ length: 4 }) : lagContributors).map((member, idx) => (
+                  rowsLoading ? (
+                    <Box
+                      key={`lag-skeleton-${idx}`}
+                      sx={{
+                        border: `1px solid ${DS.palette.border}`,
+                        borderRadius: 2,
+                        p: 1.3,
+                        backgroundColor: "#FFFAF6",
+                      }}
+                    >
+                      <Skeleton variant="text" width="48%" />
+                      <Skeleton variant="text" width="74%" />
+                    </Box>
+                  ) : (
                   <Box
                     key={`lag-${member.id}`}
                     sx={{
@@ -1436,6 +1555,7 @@ export default function TeamLeaderDashboard() {
                       sx={{ backgroundColor: "#EF6C00", color: "#fff", fontWeight: 800 }}
                     />
                   </Box>
+                  )
                 ))}
               </Stack>
             </Grid>

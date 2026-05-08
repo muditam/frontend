@@ -111,7 +111,6 @@ import AdsShootPage from "./Marketing/ads/AdsShootPage";
 import AdsCutPage from "./Marketing/ads/AdsCutPage";
 import AdsEditPage from "./Marketing/ads/AdsEditPage";
 import AdsPostPage from "./Marketing/ads/AdsPostPage";
-import LeadUtmLinkGenerator from "./components/LeadUtmLinkGenerator";
 import UnicommerceOrdersPage from "./components/UnicommerceOrdersPage";
 import IncentivesPage from "./pages/IncentivesPage";
 import SOPMasterPage from "./pages/SOPMasterPage";
@@ -130,18 +129,11 @@ const App = () => {
         <WhatsAppNotification />
 
         <Routes>
-          <Route
-            path="/shipment-details"
-            element={
-              <ShipmentDetails />
-            }
-          />
-
+          <Route path="/shipment-details" element={ <ShipmentDetails />} />
           <Route path="/login" element={<Login />} />
           <Route path="/pages/Home" element={<ShipwayOrders />} />
           <Route path="/smartflo/call-logs" element={<SmartfloCallLogs />} />
-          <Route path="/smartflo/data-analytics" element={<SmartfloDataAnalytics />} />
-          <Route path="/utmlink-generator" element={<LeadUtmLinkGenerator />} />
+          <Route path="/smartflo/data-analytics" element={<SmartfloDataAnalytics />} /> 
           <Route path="/unicommerce" element={<UnicommerceOrdersPage />} />
           <Route path="/knowledge-base" element={<KnowledgeBaseManager />} />
           <Route path="/diet-image-migration-admin" element={<DietImageMigrationAdmin />} />

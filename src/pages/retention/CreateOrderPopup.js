@@ -47,6 +47,7 @@ const CreateOrderPopup = ({ open, onClose, prefillCustomer = {} }) => {
 
   // Payment states
   const [paymentMethod, setPaymentMethod] = useState("COD");
+  const [partialPayment, setPartialPayment] = useState("");
   const [paymentLink, setPaymentLink] = useState("");
   const [transactionId, setTransactionId] = useState("");
   const [generatingPaymentLink, setGeneratingPaymentLink] = useState(false);
@@ -66,6 +67,7 @@ const CreateOrderPopup = ({ open, onClose, prefillCustomer = {} }) => {
     });
     setAllAddresses([]);
     setSelectedAddressId(null);
+    setPartialPayment("");
     setPaymentLink("");
     setTransactionId("");
     setPaymentMethod("COD");
@@ -184,13 +186,23 @@ const CreateOrderPopup = ({ open, onClose, prefillCustomer = {} }) => {
 
   // Payment link handler
   const handleGeneratePaymentLink = async () => {
+    const requestedAmount =
+      paymentMethod === "Partial Paid"
+        ? Number(partialPayment || 0)
+        : Number(total || 0);
+
+    if (paymentMethod === "Partial Paid" && requestedAmount <= 0) {
+      alert("Enter a valid partial payment amount.");
+      return;
+    }
+
     setGeneratingPaymentLink(true);
     try {
       const res = await axios.post("https://muditamleads-14f32a10d7f7.herokuapp.com/api/razorpay/generate-link", {
         customerName: customer.name,
         customerPhone: customer.phone,
         customerAddress: customer.address.formatted || customer.address,
-        amount: total,
+        amount: requestedAmount,
       });
       setPaymentLink(res.data.paymentLink);
     } catch (err) {
@@ -202,12 +214,40 @@ const CreateOrderPopup = ({ open, onClose, prefillCustomer = {} }) => {
 
   // Place Order Handler (no notes, always enabled after address select)
   const handlePlaceOrder = async () => {
+    const partialAmount = Number(partialPayment || 0);
+    const payableTotal = Number(total || 0);
+
+    if (paymentMethod === "Prepaid" && !String(transactionId || "").trim()) {
+      alert("Transaction ID is required for prepaid orders.");
+      return;
+    }
+
+    if (paymentMethod === "Partial Paid") {
+      if (!(partialAmount > 0)) {
+        alert("Enter a valid partial payment amount.");
+        return;
+      }
+      if (partialAmount >= payableTotal) {
+        alert("Partial payment must be less than the total order amount.");
+        return;
+      }
+      if (!String(transactionId || "").trim()) {
+        alert("Transaction ID is required for partial payment orders.");
+        return;
+      }
+    }
+
     try {
       const payload = {
         customer,
         cartItems,
         paymentMethod,
-        transactionId: paymentMethod === "Prepaid" ? transactionId : undefined,
+        transactionId:
+          paymentMethod === "Prepaid" || paymentMethod === "Partial Paid"
+            ? transactionId
+            : undefined,
+        partialPaidAmount: paymentMethod === "Partial Paid" ? partialAmount : 0,
+        orderTotal: payableTotal,
         shippingCharge,
         discount,
         discountType,
@@ -626,21 +666,46 @@ const CreateOrderPopup = ({ open, onClose, prefillCustomer = {} }) => {
                 value={paymentMethod}
                 onChange={e => {
                   setPaymentMethod(e.target.value);
+                  setPartialPayment("");
                   setPaymentLink("");
                   setTransactionId("");
                 }}
               >
                 <FormControlLabel value="Prepaid" control={<Radio />} label="Prepaid" />
                 <FormControlLabel value="COD" control={<Radio />} label="Cash on Delivery (COD)" />
+                <FormControlLabel value="Partial Paid" control={<Radio />} label="Partial Paid" />
               </RadioGroup>
 
-              {paymentMethod === "Prepaid" && (
+              {(paymentMethod === "Prepaid" || paymentMethod === "Partial Paid") && (
                 <Box sx={{ mt: 1 }}>
+                  {paymentMethod === "Partial Paid" && (
+                    <TextField
+                      fullWidth
+                      label="Partial Payment Amount"
+                      size="small"
+                      type="number"
+                      value={partialPayment}
+                      onChange={e => {
+                        setPartialPayment(e.target.value);
+                        setPaymentLink("");
+                        setTransactionId("");
+                      }}
+                      sx={{ mb: 1 }}
+                      helperText={`Remaining COD: ₹${Math.max(0, Number(total || 0) - Number(partialPayment || 0)).toFixed(2)}`}
+                    />
+                  )}
+
                   <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
                     <Button
                       variant="outlined"
                       onClick={handleGeneratePaymentLink}
-                      disabled={generatingPaymentLink || !!paymentLink || !customer.address}
+                      disabled={
+                        generatingPaymentLink ||
+                        !!paymentLink ||
+                        !customer.address ||
+                        (paymentMethod === "Partial Paid" &&
+                          (!(Number(partialPayment || 0) > 0) || Number(partialPayment || 0) >= Number(total || 0)))
+                      }
                     >
                       {generatingPaymentLink
                         ? "Generating..."

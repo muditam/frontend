@@ -58,6 +58,7 @@ const getUniqueEmployeesById = (members = []) => {
  });
  return Array.from(unique.values());
 };
+const getEmployeeId = (emp = {}) => String(emp?._id || "");
 const getLeaderDisplayName = (teamLeader) => {
  if (!teamLeader) return "--";
  if (typeof teamLeader === "string") return teamLeader;
@@ -284,16 +285,18 @@ const TeamPage = ({ managerId: managerIdProp }) => {
    const getCurrentEmployee = (emp) =>
      allAgents.find((agent) => String(agent._id) === String(emp?._id)) || emp;
 
-   const buildManagerAggregateRows = async (member, directMemberIds) => {
+   const buildManagerAggregateRows = async (member, directMemberIds, preloadedMemberData = null) => {
      const current = getCurrentEmployee(member);
-     const [{ data: memberData }, selfAchieved] = await Promise.all([
-       api.get(`/api/employees/${current._id}`),
+     const [memberData, selfAchieved] = await Promise.all([
+       preloadedMemberData
+         ? Promise.resolve(preloadedMemberData)
+         : api.get(`/api/employees/${current._id}`).then(({ data }) => data),
        fetchAchievedByName(current.fullName),
      ]);
 
      const nestedMembers = getUniqueEmployeesById(
        getActiveTargetMembers(memberData?.teamMembers || []).filter(
-         (nestedMember) => String(nestedMember?._id) !== String(current._id)
+         (nestedMember) => getEmployeeId(nestedMember) !== getEmployeeId(current)
        )
      );
      const childRows = await Promise.all(
@@ -310,8 +313,8 @@ const TeamPage = ({ managerId: managerIdProp }) => {
        })
      );
 
-     const teamTarget = childRows.reduce((sum, row) => sum + row.monthlyTarget, 0);
-     const teamAchieved = childRows.reduce((sum, row) => sum + row.achieved, 0);
+     const childTarget = childRows.reduce((sum, row) => sum + row.monthlyTarget, 0);
+     const childAchieved = childRows.reduce((sum, row) => sum + row.achieved, 0);
      const hasSelfMetrics = Number(current.target || 0) > 0 || selfAchieved > 0;
      const selfRow = hasSelfMetrics
        ? buildMetricRow(current, selfAchieved, {
@@ -324,37 +327,70 @@ const TeamPage = ({ managerId: managerIdProp }) => {
            targetLabel: "Self target",
          })
        : null;
+     const children = childRows.length > 0
+       ? (selfRow ? [selfRow, ...childRows] : childRows)
+       : [];
+     const teamTarget = childTarget + (selfRow?.monthlyTarget || 0);
+     const teamAchieved = childAchieved + (selfRow?.achieved || 0);
 
      return {
        row: buildMetricRow(current, teamAchieved, {
          renderKey: `aggregate:${current._id}`,
          type: "aggregate",
          monthlyTarget: teamTarget,
-         expandable: childRows.length > 0 || Boolean(selfRow),
+         expandable: children.length > 0,
          isRemovable: false,
          targetLabel: "Team target",
        }),
-       children: selfRow ? [selfRow, ...childRows] : childRows,
+       children,
      };
    };
 
    const loadRows = async () => {
-     const directMemberIds = new Set(teamMembers.map((member) => String(member._id)));
+     const directMemberIds = new Set(teamMembers.map((member) => getEmployeeId(member)));
      const nextNestedRows = {};
-     const rows = await Promise.all(
+     const memberDetails = await Promise.all(
        teamMembers.map(async (member) => {
          const current = getCurrentEmployee(member);
+         if (!isManagerView || !current?.hasTeam) {
+           return { current, memberData: null };
+         }
+
+         const { data } = await api.get(`/api/employees/${current._id}`);
+         return { current, memberData: data };
+       })
+     );
+
+     const nestedMemberIds = new Set();
+     memberDetails.forEach(({ current, memberData }) => {
+       if (!isManagerView || !current?.hasTeam || !memberData) return;
+
+       getUniqueEmployeesById(
+         getActiveTargetMembers(memberData.teamMembers || []).filter(
+           (nestedMember) => getEmployeeId(nestedMember) !== getEmployeeId(current)
+         )
+       ).forEach((nestedMember) => {
+         nestedMemberIds.add(getEmployeeId(nestedMember));
+       });
+     });
+
+     const visibleMembers = isManagerView
+       ? memberDetails.filter(({ current }) => !nestedMemberIds.has(getEmployeeId(current)))
+       : memberDetails;
+
+     const rows = await Promise.all(
+       visibleMembers.map(async ({ current, memberData }) => {
          if (isManagerView && current?.hasTeam) {
-           const aggregate = await buildManagerAggregateRows(current, directMemberIds);
-           nextNestedRows[String(current._id)] = aggregate.children;
+           const aggregate = await buildManagerAggregateRows(current, directMemberIds, memberData);
+           nextNestedRows[getEmployeeId(current)] = aggregate.children;
            return aggregate.row;
          }
 
          const achieved = await fetchAchievedByName(current.fullName);
          return buildMetricRow(current, achieved, {
            type: "member",
-           isSelfRow: String(current?._id) === String(selectedLeaderId),
-           isRemovable: String(current?._id) !== String(selectedLeaderId),
+           isSelfRow: getEmployeeId(current) === String(selectedLeaderId),
+           isRemovable: getEmployeeId(current) !== String(selectedLeaderId),
            targetLabel: isManagerView || current?.hasTeam ? "Self target" : "",
          });
        })

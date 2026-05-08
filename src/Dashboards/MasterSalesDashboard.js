@@ -1,4 +1,3 @@
-// ✅ Fixed: compact shipment cards | COD cards only + breakdown option | decoupled agent filters
 import React, { useEffect, useMemo, useState, useCallback } from "react";
 import {
   Box,
@@ -41,17 +40,13 @@ import {
   LocalShipping,
   DirectionsBike,
   AssignmentReturn,
-  MoreHoriz,
   ExpandMore as ExpandMoreIcon,
   ExpandLess as ExpandLessIcon,
 } from "@mui/icons-material";
 import { Inventory } from "@mui/icons-material";
 
-
-// -------------------------------------------
-// Config
-// -------------------------------------------
-const API_BASE = "https://muditamleads-14f32a10d7f7.herokuapp.com"; // Change to your actual backend URL
+ 
+const API_BASE = "https://muditamleads-14f32a10d7f7.herokuapp.com";  
 const CACHE_TTL_MS = 3 * 60 * 1000;
 
 
@@ -113,7 +108,6 @@ const getDateRange = (rangeValue) => {
 // -------------------------------------------
 const fmt0 = (n) => Number(n ?? 0).toLocaleString("en-IN", { maximumFractionDigits: 0 });
 const fmt2 = (n) => Number(n ?? 0).toLocaleString("en-IN", { maximumFractionDigits: 2 });
-
 
 // -------------------------------------------
 // Cache helpers
@@ -318,22 +312,82 @@ const ManagerSalesDashboard = () => {
     if (cached) { setSalesSummary(cached.salesSummary); setTodayStats(cached.todayStats); return; }
     setSalesLoading(true);
     try {
-      const [metricsRes, overallRes] = await Promise.all([
-        axios.get(`${API_BASE}/api/orders/combined/sales-metrics`, {
-          params: { startDate, endDate },
-          withCredentials: true,
-        }),
+      const [overallRes, employeesRes] = await Promise.all([
         axios.get(`${API_BASE}/api/sales-summary`, {
           params: { startDate, endDate },
           withCredentials: true,
         }),
+        axios.get(`${API_BASE}/api/employees`, {
+          params: { role: "Sales Agent" },
+          withCredentials: true,
+        }),
       ]);
-      const { salesDone, totalSales, avgOrderValue } = metricsRes.data || {};
+
+      const activeAgentNames = (employeesRes.data || [])
+        .filter(
+          (agent) =>
+            agent?.status === "active" &&
+            agent?.fullName &&
+            !["Admin", "Online Order"].includes(String(agent.fullName).trim())
+        )
+        .map((agent) => agent.fullName);
+
+      const perAgentSalesMetrics = await Promise.all(
+        activeAgentNames.map(async (agentName) => {
+          const { data } = await axios.get(`${API_BASE}/api/dashboard/today-summary-agent`, {
+            params: { agentAssignedName: agentName, startDate, endDate },
+            withCredentials: true,
+          });
+          return { agentName, metrics: data || {} };
+        })
+      );
+
       const overall = overallRes.data?.overall || {};
+      const leadRows = Array.isArray(overallRes.data?.perAgent) ? overallRes.data.perAgent : [];
+      const leadMap = new Map(
+        leadRows.map((row) => [String(row?.agentName || "").trim().toLowerCase(), row])
+      );
+
+      const ts = perAgentSalesMetrics
+        .map(({ agentName, metrics }) => {
+          const leadRow = leadMap.get(String(agentName || "").trim().toLowerCase()) || {};
+          const leadsAssigned = Number(leadRow?.leadsAssigned || 0);
+          const salesDone = Number(metrics?.salesDone || 0);
+          const totalSales = Number(metrics?.totalSales || 0);
+          const conversionRate = leadsAssigned > 0 ? Number(((salesDone / leadsAssigned) * 100).toFixed(2)) : 0;
+          const avgOrderValue = salesDone > 0 ? Number((totalSales / salesDone).toFixed(2)) : 0;
+
+          return {
+            agentName,
+            openLeads: Number(leadRow?.openLeads || 0),
+            leadsAssigned,
+            salesDone,
+            conversionRate,
+            totalSales,
+            avgOrderValue,
+          };
+        })
+        .filter((row) =>
+          row.openLeads > 0 ||
+          row.leadsAssigned > 0 ||
+          row.salesDone > 0 ||
+          row.totalSales > 0
+        );
+
+      const salesDone = ts.reduce((sum, row) => sum + Number(row.salesDone || 0), 0);
+      const totalSales = ts.reduce((sum, row) => sum + Number(row.totalSales || 0), 0);
       const leadsAssigned = Number(overall.leadsAssigned || 0);
-      const conversionRate = leadsAssigned > 0 ? ((Number(salesDone || 0) / leadsAssigned) * 100).toFixed(2) : "0.00";
-      const ss = { openLeads: overall.openLeads ?? 0, leadsAssigned: overall.leadsAssigned ?? 0, salesDone: salesDone ?? 0, conversionRate, totalSales: totalSales ?? 0, avgOrderValue: avgOrderValue ?? 0 };
-      const ts = overallRes.data?.perAgent || [];
+      const conversionRate = leadsAssigned > 0 ? ((salesDone / leadsAssigned) * 100).toFixed(2) : "0.00";
+      const avgOrderValue = salesDone > 0 ? Number((totalSales / salesDone).toFixed(2)) : 0;
+      const ss = {
+        openLeads: overall.openLeads ?? 0,
+        leadsAssigned,
+        salesDone,
+        conversionRate,
+        totalSales,
+        avgOrderValue,
+      };
+
       setSalesSummary(ss); setTodayStats(ts);
       cacheSet(cacheKey, { salesSummary: ss, todayStats: ts });
     } catch {

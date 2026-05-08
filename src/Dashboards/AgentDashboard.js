@@ -139,6 +139,7 @@ const iconForMetric = (key) => {
   switch (key) {
     case "Open Leads":
       return "OL";
+    case "Lead Assign":
     case "Leads Assigned Today":
       return "LA";
     case "Conversion Rate":
@@ -169,6 +170,7 @@ const toneClassForMetric = (key) => {
   switch (key) {
     case "Open Leads":
       return "rd-tone-blue";
+    case "Lead Assign":
     case "Leads Assigned Today":
       return "rd-tone-green";
     case "Conversion Rate":
@@ -286,16 +288,38 @@ const AgentDashboard = () => {
   const fetchTodayAndFollowup = useCallback(async (agentName, startDate, endDate) => {
     setLoadingMain(true);
     try {
-      const [todayRes, followupRes] = await Promise.all([
+      const [todayRes, followupRes, salesSummaryRes] = await Promise.all([
         axios.get(`${API_BASE}/api/dashboard/today-summary-agent`, {
           params: { agentAssignedName: agentName, startDate, endDate },
         }),
         axios.get(`${API_BASE}/api/dashboard/followup-summary-agent`, {
           params: { agentAssignedName: agentName, startDate, endDate },
         }),
+        axios.get(`${API_BASE}/api/sales-summary`, {
+          params: { startDate, endDate },
+        }),
       ]);
 
-      setTodayStats(todayRes?.data || {});
+      const todayData = todayRes?.data || {};
+      const perAgentSummary = Array.isArray(salesSummaryRes?.data?.perAgent)
+        ? salesSummaryRes.data.perAgent
+        : [];
+      const summaryRow =
+        perAgentSummary.find(
+          (row) => String(row?.agentName || "").trim().toLowerCase() === String(agentName || "").trim().toLowerCase()
+        ) || {};
+
+      const leadsAssigned = Number(summaryRow?.leadsAssigned || 0);
+      const salesDone = Number(todayData?.salesDone || 0);
+      const conversionRate = leadsAssigned > 0 ? Number(((salesDone / leadsAssigned) * 100).toFixed(2)) : 0;
+
+      setTodayStats({
+        ...todayData,
+        openLeads: Number(summaryRow?.openLeads || 0),
+        leadsAssigned,
+        leadsAssignedToday: leadsAssigned,
+        conversionRate,
+      });
       setFollowupStats(followupRes?.data || {});
     } catch (error) {
       console.error("Error fetching sales dashboard summary:", error);
@@ -443,9 +467,9 @@ const AgentDashboard = () => {
       sub: "Leads still in motion",
     },
     {
-      label: "Leads Assigned Today",
-      value: Number(todayStats.leadsAssignedToday || 0).toLocaleString("en-IN"),
-      sub: "Fresh ownership",
+      label: "Lead Assign",
+      value: Number(todayStats.leadsAssigned || todayStats.leadsAssignedToday || 0).toLocaleString("en-IN"),
+      sub: "Assigned leads",
     },
     {
       label: salesDoneLabel,
