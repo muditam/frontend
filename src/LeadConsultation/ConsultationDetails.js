@@ -39,6 +39,7 @@ import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import ScheduleIcon from "@mui/icons-material/Schedule";
 import HistoryIcon from "@mui/icons-material/History";
 import WhatsAppIcon from "@mui/icons-material/WhatsApp";
+import PhoneInTalkIcon from "@mui/icons-material/PhoneInTalk";
 import WhatsAppChatDialog from "../pages/retention/WhatsAppChatDialog";
 
 const API_BASE = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "");
@@ -151,6 +152,17 @@ const ConsultationDetails = ({ customerId, reloadTrigger, onReload }) => {
       return "";
     }
   })();
+
+  const openZoomCallSheet = (rawPhone) => {
+    const digits = String(rawPhone || "").replace(/\D/g, "");
+    if (!digits) return;
+    const phoneNumber = digits.length === 10 ? `+91${digits}` : `+${digits}`;
+    window.dispatchEvent(
+      new CustomEvent("zoom:open-sheet", {
+        detail: { phoneNumber },
+      })
+    );
+  };
 
   useEffect(() => {
     api
@@ -572,6 +584,23 @@ const ConsultationDetails = ({ customerId, reloadTrigger, onReload }) => {
             <TableCell>
               <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, whiteSpace: "nowrap" }}>
                 <span>{customer.phone}</span>
+                <IconButton
+                  size="small"
+                  title="Open Zoom call panel"
+                  aria-label="Open Zoom call panel"
+                  onClick={() => openZoomCallSheet(customer.phone)}
+                  disabled={!customer.phone}
+                  sx={{
+                    color: "#1976d2",
+                    border: "1px solid #DBEAFE",
+                    bgcolor: "#EFF6FF",
+                    "&:hover": {
+                      bgcolor: "#DBEAFE",
+                    },
+                  }}
+                >
+                  <PhoneInTalkIcon fontSize="small" />
+                </IconButton>
                 <IconButton
                   size="small"
                   title="Open WhatsApp chat"

@@ -34,6 +34,7 @@ import CohortDataCustomer from "./CohortDataCustomer";
 import Dialog from "@mui/material/Dialog";
 import DialogTitle from "@mui/material/DialogTitle";
 import DialogContent from "@mui/material/DialogContent";
+import CloseIcon from "@mui/icons-material/Close";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import FormatColorFillIcon from "@mui/icons-material/FormatColorFill";
 import PhoneIcon from "@mui/icons-material/Phone";
@@ -64,7 +65,6 @@ import ShoppingBagOutlinedIcon from "@mui/icons-material/ShoppingBagOutlined";
 
 import CreateDietPlanPopup from "./CreateDietPlanPopup";
 import WhatsAppChatDialog from "./WhatsAppChatDialog";
-import { requestZoomDial } from "../../calling/dialer";
  
 const API_BASE = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "");
 
@@ -202,6 +202,12 @@ const RetentionLeads = () => {
   const [loggedInUser, setLoggedInUser] = useState({});
   const [loading, setLoading] = useState(false);
   const [callingMessage, setCallingMessage] = useState("");
+  const [zoomDialerOpen, setZoomDialerOpen] = useState(false);
+  const [zoomDialNumber, setZoomDialNumber] = useState("");
+  const [callStatus, setCallStatus] = useState("Idle");
+  const [callStartedAt, setCallStartedAt] = useState(null);
+  const [callDurationSec, setCallDurationSec] = useState(0);
+  const [callLeadName, setCallLeadName] = useState("");
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [selectedLeadIndex, setSelectedLeadIndex] = useState(null);
@@ -917,17 +923,113 @@ const RetentionLeads = () => {
   }, [selectedLeadIndex]);
 
   const handleCallIconClick = async (contactNumber) => {
-    const key = String(contactNumber || "").trim();
-    if (!key) return;
+    const selected = leads?.[selectedLeadIndex] || {};
+    const resolvedNumber =
+      String(contactNumber || "").trim() ||
+      String(selected?.contactNumber || "").trim() ||
+      String(selected?.phone || "").trim();
 
+    if (!resolvedNumber) {
+      setCallingMessage("No contact number found for this lead.");
+      return;
+    }
 
-    if (callLockMap[key]) return;
-    setCallLockMap((prev) => ({ ...prev, [key]: true }));
+    if (callLockMap[resolvedNumber]) return;
+    setCallLockMap((prev) => ({ ...prev, [resolvedNumber]: true }));
 
     setLoading(true);
-    const ok = requestZoomDial(key, { source: "retention_leads" });
-    setCallingMessage(ok ? `Opening Calling Center for ${key}...` : "Invalid call number");
-    setLoading(false);
+    try {
+      const dialTarget = String(resolvedNumber || "").trim();
+      if (!dialTarget) {
+        setCallingMessage("Invalid call number");
+        return;
+      }
+
+      setZoomDialNumber(dialTarget);
+      setCallLeadName(String(selected?.name || "Unknown"));
+      setCallStatus("Dialing");
+      setCallStartedAt(null);
+      setCallDurationSec(0);
+      setZoomDialerOpen(true);
+      setCallingMessage(`Opening Zoom Phone for ${dialTarget}...`);
+    } finally {
+      setLoading(false);
+      // Release lock so the same lead can be dialed again if needed.
+      setTimeout(() => {
+        setCallLockMap((prev) => {
+          const next = { ...prev };
+          delete next[resolvedNumber];
+          return next;
+        });
+      }, 1500);
+    }
+  };
+
+  const handleZoomDialerFrameLoad = () => {
+    try {
+      if (!zoomDialNumber) return;
+      const iframe = document.getElementById("retention-zoom-phone-frame");
+      iframe?.contentWindow?.postMessage(
+        { type: "zp-make-call", phoneNumber: String(zoomDialNumber).trim() },
+        "https://applications.zoom.us"
+      );
+    } catch (_) {}
+  };
+
+  useEffect(() => {
+    const onZoomMessage = (event) => {
+      if (event.origin !== "https://applications.zoom.us") return;
+      const { type, data } = event.data || {};
+      if (type === "zp-softphone-ready") {
+        setCallingMessage((prev) => prev || "Zoom softphone ready.");
+      }
+      if (type === "zp-call-state-change") {
+        const state = data?.state || "updated";
+        const normalized = String(state).toLowerCase();
+        if (normalized.includes("ring")) {
+          setCallStatus("Ringing");
+        } else if (normalized.includes("dial")) {
+          setCallStatus("Dialing");
+        } else if (normalized.includes("connect") || normalized.includes("active") || normalized.includes("talk")) {
+          setCallStatus("Connected");
+          setCallStartedAt((prev) => prev || new Date());
+        } else if (normalized.includes("end") || normalized.includes("hang") || normalized.includes("term")) {
+          setCallStatus("Ended");
+          setCallStartedAt(null);
+        } else {
+          setCallStatus(state);
+        }
+        setCallingMessage(`Call state: ${state}`);
+      }
+      if (type === "zp-error") {
+        setCallStatus("Error");
+        setCallStartedAt(null);
+        setCallingMessage("Zoom softphone reported an error.");
+      }
+    };
+    window.addEventListener("message", onZoomMessage);
+    return () => window.removeEventListener("message", onZoomMessage);
+  }, []);
+
+  useEffect(() => {
+    if (!zoomDialerOpen || !callStartedAt) return undefined;
+    const id = setInterval(() => {
+      const secs = Math.max(0, Math.floor((Date.now() - new Date(callStartedAt).getTime()) / 1000));
+      setCallDurationSec(secs);
+    }, 1000);
+    return () => clearInterval(id);
+  }, [zoomDialerOpen, callStartedAt]);
+
+  const handleEndFloatingCall = () => {
+    try {
+      const iframe = document.getElementById("retention-zoom-phone-frame");
+      iframe?.contentWindow?.postMessage(
+        { type: "zp-end-call" },
+        "https://applications.zoom.us"
+      );
+    } catch (_) {}
+    setZoomDialerOpen(false);
+    setCallStatus("Ended");
   };
 
 
@@ -3273,6 +3375,66 @@ You can mark Lost only after 60 days.`);
           </>
         )}
       </Box>
+
+      {zoomDialerOpen && (
+        <Box
+          sx={{
+            position: "fixed",
+            right: 88,
+            bottom: 18,
+            zIndex: 2500,
+            width: 320,
+            borderRadius: "18px",
+            bgcolor: "rgba(17,24,39,0.88)",
+            border: "1px solid rgba(255,255,255,0.14)",
+            boxShadow: "0 20px 46px rgba(2,6,23,0.42)",
+            backdropFilter: "blur(10px)",
+            color: "#fff",
+            p: 1.35,
+          }}
+        >
+          <Stack direction="row" spacing={1.25} alignItems="center">
+            <Avatar sx={{ width: 38, height: 38, bgcolor: "#111827", fontWeight: 700 }}>
+              {(callLeadName || "U").slice(0, 1).toUpperCase()}
+            </Avatar>
+            <Box sx={{ minWidth: 0, flex: 1 }}>
+              <Typography sx={{ fontWeight: 700, fontSize: 20, lineHeight: 1.1 }} noWrap>
+                {callLeadName || "Unknown"}
+              </Typography>
+              <Typography sx={{ color: "rgba(255,255,255,0.72)", fontSize: 13 }} noWrap>
+                {zoomDialNumber || "N/A"}
+              </Typography>
+              <Typography sx={{ color: "rgba(255,255,255,0.8)", fontSize: 12.5, mt: 0.25 }}>
+                {callStatus} • {new Date(callDurationSec * 1000).toISOString().slice(14, 19)}
+              </Typography>
+            </Box>
+            <IconButton
+              size="small"
+              onClick={handleEndFloatingCall}
+              sx={{
+                width: 44,
+                height: 44,
+                bgcolor: "#ef4444",
+                color: "#fff",
+                "&:hover": { bgcolor: "#dc2626" },
+              }}
+            >
+              <PhoneDisabledIcon fontSize="small" />
+            </IconButton>
+          </Stack>
+
+          <Box sx={{ position: "absolute", width: 1, height: 1, overflow: "hidden", opacity: 0, pointerEvents: "none" }}>
+            <iframe
+              id="retention-zoom-phone-frame"
+              title="Retention Zoom Phone"
+              src="https://applications.zoom.us/integration/phone/embeddablephone/home"
+              onLoad={handleZoomDialerFrameLoad}
+              style={{ width: 1, height: 1, border: 0 }}
+              allow="microphone; speaker"
+            />
+          </Box>
+        </Box>
+      )}
     </Box>
   );
 };

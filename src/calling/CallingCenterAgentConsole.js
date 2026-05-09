@@ -74,12 +74,14 @@ export default function CallingCenterAgentConsole() {
 
   return (
     <div className="calling-center-page">
+      <div className="cc-title">Calling Center</div>
+      <div className="cc-subtitle">Fast dialing, live call state, and structured notes for high-quality follow-ups.</div>
       <div className="cc-grid">
         <div className="cc-card">
           <div className="cc-head">
             <div>
               <strong>Calling Center · Agent Console</strong>
-              <div style={{ fontSize: 12, color: "#5f6b7a" }}>{status}</div>
+              <div className="cc-status-line">{status}</div>
             </div>
             <span className="cc-pill">{connected ? "Ready" : "Booting"}</span>
           </div>

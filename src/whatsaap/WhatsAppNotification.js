@@ -22,8 +22,10 @@ import {
   DialogActions,
   MenuItem,
   Tooltip,
+  Slide,
 } from "@mui/material";
 import WhatsAppIcon from "@mui/icons-material/WhatsApp";
+import PhoneInTalkIcon from "@mui/icons-material/PhoneInTalk";
 import CloseIcon from "@mui/icons-material/Close";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import OpenInNewIcon from "@mui/icons-material/OpenInNew";
@@ -834,6 +836,7 @@ export default function WhatsAppInboxWidget({ onOpenChat }) {
   const isLoginRoute = useMemo(() => location?.pathname === "/login", [location?.pathname]);
 
   const fabRef = useRef(null);
+  const callFabRef = useRef(null);
   const socketRef = useRef(null);
   const joinedRoomsRef = useRef(new Set());
   const messagesEndRef = useRef(null);
@@ -863,6 +866,8 @@ export default function WhatsAppInboxWidget({ onOpenChat }) {
   const [tplParamCount, setTplParamCount] = useState(0);
   const [tplParams, setTplParams] = useState([]);
   const [tplBodyPreview, setTplBodyPreview] = useState("");
+  const [callAnchorEl, setCallAnchorEl] = useState(null);
+  const [callDialNumber, setCallDialNumber] = useState("");
 
   const [blobUrlByMediaId, setBlobUrlByMediaId] = useState({});
 
@@ -1328,10 +1333,66 @@ export default function WhatsAppInboxWidget({ onOpenChat }) {
 
   const hasDraft = String(draft || "").trim().length > 0;
 
+  const openCallSheet = useCallback(() => {
+    if (callAnchorEl) {
+      setCallAnchorEl(null);
+      return;
+    }
+    const activePhone = String(phone10Active || "").trim();
+    setCallDialNumber(activePhone ? `+91${activePhone}` : "");
+    setCallAnchorEl(callFabRef.current);
+  }, [callAnchorEl, phone10Active]);
+
+  const triggerEmbeddedDial = useCallback((num) => {
+    try {
+      const phoneNumber = String(num || "").trim();
+      if (!phoneNumber) return;
+      const iframe = document.getElementById("global-zoom-phone-frame");
+      iframe?.contentWindow?.postMessage(
+        { type: "zp-make-call", phoneNumber },
+        "https://applications.zoom.us"
+      );
+    } catch {}
+  }, []);
+
+  const onCallSheetFrameLoad = useCallback(() => {
+    if (callDialNumber) {
+      setTimeout(() => triggerEmbeddedDial(callDialNumber), 700);
+    }
+  }, [callDialNumber, triggerEmbeddedDial]);
+
+  useEffect(() => {
+    const onOpenZoomSheet = (e) => {
+      const raw = String(e?.detail?.phoneNumber || "").trim();
+      if (raw) setCallDialNumber(raw.startsWith("+") ? raw : `+91${raw.replace(/\D/g, "")}`);
+      setCallAnchorEl(callFabRef.current);
+    };
+    window.addEventListener("zoom:open-sheet", onOpenZoomSheet);
+    return () => window.removeEventListener("zoom:open-sheet", onOpenZoomSheet);
+  }, []);
+
   if (!shouldShowWidget) return null;
 
   return (
     <>
+      {/* Global Call FAB (above WhatsApp) */}
+      <Box sx={{ position: "fixed", right: 22, bottom: 130, zIndex: 4001 }}>
+        <Fab
+          ref={callFabRef}
+          onClick={openCallSheet}
+          sx={{
+            width: 50,
+            height: 50,
+            bgcolor: "#1976d2",
+            "&:hover": { bgcolor: "#115293", transform: "scale(1.07)" },
+            boxShadow: "0 8px 22px rgba(25,118,210,0.42)",
+            transition: "all 0.2s cubic-bezier(0.34,1.56,0.64,1)",
+          }}
+        >
+          <PhoneInTalkIcon sx={{ color: "#fff", fontSize: 24 }} />
+        </Fab>
+      </Box>
+
       {/* FAB */}
       <Box sx={{ position: "fixed", right: 22, bottom: 68, zIndex: 4000 }}>
         <Badge
@@ -1645,6 +1706,52 @@ export default function WhatsAppInboxWidget({ onOpenChat }) {
               </Box>
             </Box>
           )}
+        </Box>
+      </Popover>
+
+      {/* Bottom-slide Zoom call panel */}
+      <Popover
+        open={Boolean(callAnchorEl)}
+        anchorEl={callAnchorEl}
+        onClose={() => setCallAnchorEl(null)}
+        anchorOrigin={{ vertical: "top", horizontal: "left" }}
+        transformOrigin={{ vertical: "bottom", horizontal: "right" }}
+        PaperProps={{
+          sx: {
+            width: 360,
+            maxWidth: "calc(100vw - 24px)",
+            borderRadius: "16px 16px 10px 10px",
+            overflow: "hidden",
+            border: "1px solid #d7e3f4",
+            boxShadow: "0 22px 45px rgba(2,6,23,0.3)",
+          },
+        }}
+      >
+        <Box
+          sx={{
+            bgcolor: "#2d6cdf",
+            color: "#fff",
+            px: 1.4,
+            py: 1,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+          }}
+        >
+          <Typography sx={{ fontWeight: 700, fontSize: 15 }}>Zoom Phone</Typography>
+          <IconButton size="small" onClick={() => setCallAnchorEl(null)} sx={{ color: "#fff" }}>
+            <CloseIcon fontSize="small" />
+          </IconButton>
+        </Box>
+        <Box sx={{ bgcolor: "#fff" }}>
+          <iframe
+            id="global-zoom-phone-frame"
+            title="Global Zoom Phone"
+            src="https://applications.zoom.us/integration/phone/embeddablephone/home"
+            onLoad={onCallSheetFrameLoad}
+            style={{ width: "100%", height: 520, border: 0 }}
+            allow="microphone; speaker"
+          />
         </Box>
       </Popover>
 
