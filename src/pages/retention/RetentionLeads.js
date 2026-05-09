@@ -64,6 +64,7 @@ import ShoppingBagOutlinedIcon from "@mui/icons-material/ShoppingBagOutlined";
 
 import CreateDietPlanPopup from "./CreateDietPlanPopup";
 import WhatsAppChatDialog from "./WhatsAppChatDialog";
+import { requestZoomDial } from "../../calling/dialer";
  
 const API_BASE = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "");
 
@@ -924,41 +925,9 @@ const RetentionLeads = () => {
     setCallLockMap((prev) => ({ ...prev, [key]: true }));
 
     setLoading(true);
-    setCallingMessage(`Calling ${key}...`);
-
-    try {
-      const { async, agentNumber, callerId } = await fetchUserDetails(loggedInUser);
-
-      if (!key || !agentNumber || !callerId) {
-        setCallingMessage("Error: Missing call parameters");
-        console.error("Missing parameters:", { contactNumber: key, agentNumber, callerId });
-        return;
-      }
-
-      const requestBody = {
-        destination_number: key,
-        async: 1,
-        agent_number: agentNumber.toString().trim(),
-        caller_id: callerId.toString().trim(),
-      };
-
-      const response = await axios.post("https://muditamleads-14f32a10d7f7.herokuapp.com/api/click_to_call", requestBody);
-
-      if (response.data.status === "success") {
-        setCallingMessage(`Successfully called ${key}`);
-      } else {
-        setCallingMessage("Failed to place the call. Please try again.");
-        console.error("Backend Error Response:", response.data);
-
-
-      }
-    } catch (error) {
-      console.error("Error placing the call", error.response?.data || error);
-      setCallingMessage("There was an error placing the call.");
-
-    } finally {
-      setLoading(false);
-    }
+    const ok = requestZoomDial(key, { source: "retention_leads" });
+    setCallingMessage(ok ? `Opening Calling Center for ${key}...` : "Invalid call number");
+    setLoading(false);
   };
 
 
@@ -3309,4 +3278,3 @@ You can mark Lost only after 60 days.`);
 };
 
 export default RetentionLeads;
-

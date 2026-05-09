@@ -26,6 +26,7 @@ import {
 import axios from "axios";
 import PhoneIcon from "@mui/icons-material/Phone";
 import TuneIcon from "@mui/icons-material/Tune";
+import { requestZoomDial } from "../../calling/dialer";
  
 const API_BASE = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "");
 
@@ -308,48 +309,9 @@ const SalesMyLeads = () => {
 
   const handleCallIconClick = async (contactNumber) => {
     setLoading(true);
-    setCallingMessage(`Calling ${contactNumber}...`);
-
-    try {
-      const loggedInUser = JSON.parse(sessionStorage.getItem("user"));
-      if (!loggedInUser) {
-        setCallingMessage("Error: User not logged in.");
-        setLoading(false);
-        return;
-      }
-
-      const { async, agentNumber, callerId } = await fetchUserDetails(loggedInUser);
-
-      if (!contactNumber || !agentNumber || !callerId) {
-        setCallingMessage("Error: Missing call parameters");
-        console.error("Missing parameters:", { contactNumber, agentNumber, callerId });
-        setLoading(false);
-        return;
-      }
-
-      const requestBody = {
-        destination_number: contactNumber,
-        async: 1,
-        agent_number: agentNumber.toString().trim(),
-        caller_id: callerId.toString().trim(),
-      };
-
-      const response = await api.post("/api/click_to_call", requestBody);
-
-      console.log("Backend Response:", response.data);
-
-      if (response.data.status === "success") {
-        setCallingMessage(`Successfully called ${contactNumber}`);
-      } else {
-        setCallingMessage("Failed to place the call. Please try again.");
-        console.error("Backend Error Response:", response.data);
-      }
-    } catch (error) {
-      console.error("Error placing the call", error.response?.data || error);
-      setCallingMessage("There was an error placing the call.");
-    } finally {
-      setLoading(false);
-    }
+    const ok = requestZoomDial(contactNumber, { source: "sales_my_leads" });
+    setCallingMessage(ok ? `Opening Calling Center for ${contactNumber}...` : "Invalid contact number");
+    setLoading(false);
   };
 
   const textFieldSx = {
@@ -1033,4 +995,3 @@ const SalesMyLeads = () => {
 
 
 export default SalesMyLeads;
-

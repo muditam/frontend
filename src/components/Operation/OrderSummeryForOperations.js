@@ -34,6 +34,7 @@ import {
 } from "@mui/icons-material";
 import axios from "axios";
 import dayjs from "dayjs";
+import { requestZoomDial } from "../../calling/dialer";
  
 const API_BASE = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "");
 
@@ -256,30 +257,8 @@ const UndeliveredOrders = () => {
   );
 
   const handleCallIconClick = async (contactNumber) => {
-    setCallingMessage(`Initiating call to ${contactNumber}...`);
-    try {
-      const loggedInUser = JSON.parse(sessionStorage.getItem("user"));
-      if (!loggedInUser) {
-        setCallingMessage("Error: User not logged in.");
-        setTimeout(() => setCallingMessage(""), 3000);
-        return;
-      }
-
-      const agentNumber = loggedInUser.phone || loggedInUser.agentNumber || "";
-      const callerId = process.env.REACT_APP_CALLER_ID || "";
-
-      const requestBody = {
-        destination_number: contactNumber,
-        async: 1,
-        agent_number: agentNumber.toString().trim(),
-        caller_id: callerId.toString().trim(),
-      };
-
-      const response = await api.post("/api/click_to_call", requestBody);
-      setCallingMessage(response.data.status === "success" ? `Connected to ${contactNumber}` : "Call failed.");
-    } catch (error) {
-      setCallingMessage("Error placing the call.");
-    }
+    const ok = requestZoomDial(contactNumber, { source: "operations_undelivered" });
+    setCallingMessage(ok ? `Opening Calling Center for ${contactNumber}...` : "Invalid call number.");
     setTimeout(() => setCallingMessage(""), 5000);
   };
 

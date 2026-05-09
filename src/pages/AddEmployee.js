@@ -204,6 +204,10 @@ const DEFAULT_PERMISSIONS = {
    smartfloMenu: false,
    smartfloCallLogs: false,
    smartfloDataAnalytics: false,
+   callingCenterMenu: false,
+   callingCenterAgent: false,
+   callingCenterManager: false,
+   callingCenterQA: false,
 
 
    marketingMenu: false,
@@ -1820,7 +1824,7 @@ const getEffectiveRole = () =>
                variant="caption"
                sx={{ fontWeight: 600, mt: 1 }}
              >
-               Task Manager & Smartflo
+               Task Manager & Calling
              </Typography>
              <Box sx={{ display: "flex", flexDirection: "column" }}>
                {[
@@ -1830,6 +1834,10 @@ const getEffectiveRole = () =>
                  ["smartfloMenu", "Smartflo Menu"],
                  ["smartfloCallLogs", "Smartflo: Call Logs"],
                  ["smartfloDataAnalytics", "Smartflo: Data Analytics"],
+                 ["callingCenterMenu", "Calling Center Menu"],
+                 ["callingCenterAgent", "Calling: Agent Console"],
+                 ["callingCenterManager", "Calling: Manager Dashboard"],
+                 ["callingCenterQA", "Calling: QA Review"],
                ].map(([key, label]) => (
                  <FormControlLabel
                    key={key}

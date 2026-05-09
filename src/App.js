@@ -50,6 +50,9 @@ import AbandonedCheckouts from "./components/AbandonedCheckouts";
 import UndeliveredOrders from "./components/Operation/UndeliveredOrders";
 import SmartfloCallLogs from "./components/SmartfloCallLogs";
 import SmartfloDataAnalytics from "./components/SmartfloDataAnalytics";
+import CallingCenterAgentConsole from "./calling/CallingCenterAgentConsole";
+import CallingCenterManagerDashboard from "./calling/CallingCenterManagerDashboard";
+import CallingCenterQAReview from "./calling/CallingCenterQAReview";
 import ReturnDeliveredOrders from "./components/ReturnDeliveredOrders";
 import DietTemplateAdmin from "./components/DietTemplateAdmin";
 import AllProducts from "./components/all-products";
@@ -132,8 +135,40 @@ const App = () => {
           <Route path="/shipment-details" element={ <ShipmentDetails />} />
           <Route path="/login" element={<Login />} />
           <Route path="/pages/Home" element={<ShipwayOrders />} />
-          <Route path="/smartflo/call-logs" element={<SmartfloCallLogs />} />
-          <Route path="/smartflo/data-analytics" element={<SmartfloDataAnalytics />} /> 
+          {String(process.env.REACT_APP_ZOOM_PHONE_CUTOVER || "true").toLowerCase() === "false" && (
+            <Route path="/smartflo/call-logs" element={<SmartfloCallLogs />} />
+          )}
+          {String(process.env.REACT_APP_ZOOM_PHONE_CUTOVER || "true").toLowerCase() === "false" && (
+            <Route path="/smartflo/data-analytics" element={<SmartfloDataAnalytics />} />
+          )}
+          <Route
+            path="/calling-center"
+            element={
+              <PrivateRoute>
+                <CallingCenterAgentConsole />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/calling-center/manager"
+            element={
+              <PrivateRoute>
+                <ManagerRoute>
+                  <CallingCenterManagerDashboard />
+                </ManagerRoute>
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/calling-center/qa"
+            element={
+              <PrivateRoute>
+                <ManagerRoute>
+                  <CallingCenterQAReview />
+                </ManagerRoute>
+              </PrivateRoute>
+            }
+          />
           <Route path="/unicommerce" element={<UnicommerceOrdersPage />} />
           <Route path="/knowledge-base" element={<KnowledgeBaseManager />} />
           <Route path="/diet-image-migration-admin" element={<DietImageMigrationAdmin />} />

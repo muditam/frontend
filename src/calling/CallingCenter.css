@@ -1,0 +1,104 @@
+:root {
+  --cc-bg: #f4f7fb;
+  --cc-card: #ffffff;
+  --cc-text: #0f172a;
+  --cc-muted: #5f6b7a;
+  --cc-border: #d9e2ec;
+  --cc-accent: #0f766e;
+  --cc-accent-soft: #dff5f2;
+  --cc-danger: #b42318;
+  --cc-shadow: 0 16px 30px rgba(15, 23, 42, 0.08);
+}
+
+.calling-center-page {
+  min-height: calc(100vh - 64px);
+  background: linear-gradient(160deg, #f8fbff 0%, #edf3fa 100%);
+  padding: 18px;
+  color: var(--cc-text);
+}
+
+.cc-grid {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr;
+  gap: 14px;
+}
+
+.cc-card {
+  background: var(--cc-card);
+  border: 1px solid var(--cc-border);
+  border-radius: 16px;
+  box-shadow: var(--cc-shadow);
+}
+
+.cc-head {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--cc-border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.cc-body { padding: 14px 16px; }
+
+.cc-pill {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 5px 10px;
+  font-size: 12px;
+  font-weight: 700;
+  background: var(--cc-accent-soft);
+  color: var(--cc-accent);
+}
+
+.cc-iframe-wrap {
+  border-radius: 14px;
+  overflow: hidden;
+  border: 1px solid var(--cc-border);
+}
+
+.cc-iframe {
+  width: 100%;
+  min-height: 520px;
+  border: 0;
+  background: #f8fafc;
+}
+
+.cc-kpi {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.cc-kpi-card {
+  border: 1px solid var(--cc-border);
+  border-radius: 12px;
+  padding: 12px;
+  background: #fff;
+}
+
+.cc-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.cc-table th, .cc-table td {
+  border-bottom: 1px solid var(--cc-border);
+  padding: 10px 8px;
+  text-align: left;
+}
+
+.cc-search { width: 100%; padding: 10px 12px; border: 1px solid var(--cc-border); border-radius: 10px; }
+
+.cc-note { width: 100%; min-height: 100px; border: 1px solid var(--cc-border); border-radius: 10px; padding: 10px; }
+
+.cc-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+.cc-btn { border: 1px solid var(--cc-border); background: #fff; border-radius: 10px; padding: 9px 12px; cursor: pointer; }
+.cc-btn-primary { background: var(--cc-accent); color: #fff; border-color: var(--cc-accent); }
+
+@media (max-width: 900px) {
+  .cc-grid { grid-template-columns: 1fr; }
+  .cc-kpi { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .cc-iframe { min-height: 420px; }
+}

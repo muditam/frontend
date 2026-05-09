@@ -415,7 +415,13 @@ const MenuBar = ({ toggleDrawer }) => {
  
   const hasTeam = user?.hasTeam;
   const menubarPerms = user?.permissions?.menubar || {};
-  const can = (key) => !!menubarPerms[key];
+  const can = (key) => {
+    if (Object.prototype.hasOwnProperty.call(menubarPerms, key)) {
+      return !!menubarPerms[key];
+    }
+    if (String(key || "").startsWith("callingCenter")) return true;
+    return false;
+  };
 
   const handleDropdownClick = (menu) => {
     setOpenDropdown((prev) => ({ ...prev, [menu]: !prev[menu] }));
@@ -610,10 +616,18 @@ const MenuBar = ({ toggleDrawer }) => {
           )}
 
           {/* Smartflo */}
-          {user && can("smartfloMenu") && (
+          {String(process.env.REACT_APP_ZOOM_PHONE_CUTOVER || "true").toLowerCase() === "false" && user && can("smartfloMenu") && (
             <DropdownGroup id="smartflo" icon={<PhoneInTalkIcon />} label="Smartflo">
               {can("smartfloCallLogs") && <SubItem to="/smartflo/call-logs" label="Call Logs" />}
               {can("smartfloDataAnalytics") && <SubItem to="/smartflo/data-analytics" label="Data Analytics" />}
+            </DropdownGroup>
+          )}
+
+          {user && can("callingCenterMenu") && (
+            <DropdownGroup id="callingCenter" icon={<PhoneInTalkIcon />} label="Calling Center">
+              {can("callingCenterAgent") && <SubItem to="/calling-center" label="Agent Console" />}
+              {can("callingCenterManager") && <SubItem to="/calling-center/manager" label="Manager Dashboard" />}
+              {can("callingCenterQA") && <SubItem to="/calling-center/qa" label="QA Review" />}
             </DropdownGroup>
           )}
 
