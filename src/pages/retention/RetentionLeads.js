@@ -3013,7 +3013,13 @@ You can mark Lost only after 60 days.`);
                   <Tooltip title="Call">
                     <IconButton
                       size="small"
-                      onClick={() => handleCallIconClick(leads[selectedLeadIndex]?.contactNumber)}
+                      onClick={() => {
+                        const num = String(leads[selectedLeadIndex]?.contactNumber || "").trim();
+                        if (!num) return;
+                        window.dispatchEvent(
+                          new CustomEvent("zoom:open-sheet", { detail: { phoneNumber: num } })
+                        );
+                      }}
                       sx={{ border: "1px solid #D1DDEB", bgcolor: "#fff", color: "#0F766E" }}
                     >
                       <PhoneIcon fontSize="small" />
