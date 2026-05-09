@@ -38,6 +38,8 @@ import ChatIcon from "@mui/icons-material/Chat";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import ScheduleIcon from "@mui/icons-material/Schedule";
 import HistoryIcon from "@mui/icons-material/History";
+import WhatsAppIcon from "@mui/icons-material/WhatsApp";
+import WhatsAppChatDialog from "../pages/retention/WhatsAppChatDialog";
 
 const API_BASE = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "");
 
@@ -140,6 +142,15 @@ const ConsultationDetails = ({ customerId, reloadTrigger, onReload }) => {
   const [employees, setEmployees] = useState([]);
   const [subLeadStatus, setSubLeadStatus] = useState("");
   const [fetchError, setFetchError] = useState("");
+  const [waOpen, setWaOpen] = useState(false);
+
+  const currentUserName = (() => {
+    try {
+      return JSON.parse(sessionStorage.getItem("user") || "{}")?.fullName || "";
+    } catch {
+      return "";
+    }
+  })();
 
   useEffect(() => {
     api
@@ -511,6 +522,15 @@ const ConsultationDetails = ({ customerId, reloadTrigger, onReload }) => {
         </DialogActions>
       </Dialog>
 
+      <WhatsAppChatDialog
+        open={waOpen}
+        onClose={() => setWaOpen(false)}
+        phone={customer.phone || ""}
+        leadId={customer._id || customerId}
+        leadName={customer.name || ""}
+        currentUserName={currentUserName}
+      />
+
       <Table sx={{ mb: 2 }}>
         <TableHead sx={{ backgroundColor: "black" }}>
           <TableRow>
@@ -549,7 +569,28 @@ const ConsultationDetails = ({ customerId, reloadTrigger, onReload }) => {
         <TableBody>
           <TableRow>
             <TableCell>{customer.name}</TableCell>
-            <TableCell>{customer.phone}</TableCell>
+            <TableCell>
+              <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, whiteSpace: "nowrap" }}>
+                <span>{customer.phone}</span>
+                <IconButton
+                  size="small"
+                  title="Open WhatsApp chat"
+                  aria-label="Open WhatsApp chat"
+                  onClick={() => setWaOpen(true)}
+                  disabled={!customer.phone}
+                  sx={{
+                    color: "#25D366",
+                    border: "1px solid #D1FAE5",
+                    bgcolor: "#ECFDF5",
+                    "&:hover": {
+                      bgcolor: "#D1FAE5",
+                    },
+                  }}
+                >
+                  <WhatsAppIcon fontSize="small" />
+                </IconButton>
+              </Box>
+            </TableCell>
             <TableCell>{customer.age}</TableCell>
             <TableCell>{customer.location}</TableCell>
             <TableCell>{customer.lookingFor}</TableCell>

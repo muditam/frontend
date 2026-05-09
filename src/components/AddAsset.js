@@ -55,6 +55,7 @@ const TYPES = [
   "Keyboard",
   "Monitor",
   "NeckBand",
+  "Barcode",
 ];
  
 const BRANDS = [
@@ -513,7 +514,9 @@ function AddEditDialog({ open, onClose, initial, onSaved, allAssets }) {
       const company = brand || "NA"; // backend needs company
 
       // 1) Upload images to Wasabi (if any)
-      let imageUrls = [];
+      let imageUrls = (form.images || []).filter(
+        (src) => typeof src === "string" && !src.startsWith("data:")
+      );
       if (form.images && form.images.length) {
         const fd = new FormData();
         form.images.forEach((src, idx) => {
@@ -530,17 +533,20 @@ function AddEditDialog({ open, onClose, initial, onSaved, allAssets }) {
             .toLowerCase()}`
         );
 
-        const uploadRes = await axios.post(
-          `${API_BASE_URL}/api/assets/upload`,
-          fd,
-          {
-            headers: { "Content-Type": "multipart/form-data" },
-          }
-        );
+        if (fd.has("files")) {
+          const uploadRes = await axios.post(
+            `${API_BASE_URL}/api/assets/upload`,
+            fd,
+            {
+              headers: { "Content-Type": "multipart/form-data" },
+            }
+          );
 
-        imageUrls = Array.isArray(uploadRes.data?.urls)
-          ? uploadRes.data.urls
-          : [];
+          imageUrls = [
+            ...imageUrls,
+            ...(Array.isArray(uploadRes.data?.urls) ? uploadRes.data.urls : []),
+          ];
+        }
       }
 
       // 2) Build payload exactly as backend expects
@@ -937,7 +943,7 @@ export default function AssetsManagerRole() {
 const fetchAssets = async () => {
   try {
     setLoadingAssets(true);
-    const res = await axios.get(`${API_BASE_URL}/api/assets`);
+    const res = await axios.get(`${API_BASE_URL}/api/assets?light=1`);
     const data = Array.isArray(res.data) ? res.data : [];
 
     const mapped = data.map((a) => ({
@@ -964,6 +970,22 @@ const fetchAssets = async () => {
   useEffect(() => {
     fetchAssets();
   }, []);
+
+  const fetchAssetDetails = async (asset) => {
+    if (!asset?._id) return asset;
+    try {
+      const { data } = await axios.get(`${API_BASE_URL}/api/assets/${asset._id}`);
+      return {
+        ...asset,
+        ...data,
+        allocatedTo: data.allocatedTo || data.allottedTo || asset.allocatedTo || "",
+        employeeId: data.employeeId || data.emp_id || asset.employeeId || "",
+      };
+    } catch (err) {
+      console.error("Failed to fetch asset details", err);
+      return asset;
+    }
+  };
 
   const getItemsArr = (a) => {
     if (Array.isArray(a.items) && a.items.length) return a.items;
@@ -1217,8 +1239,9 @@ const totalUnassigned = useMemo(
 
   const handleAssignSave = async (assetId, payload) => {
     try {
-      const existing = items.find((a) => a._id === assetId);
-      if (!existing) return;
+      const listAsset = items.find((a) => a._id === assetId);
+      if (!listAsset) return;
+      const existing = await fetchAssetDetails(listAsset);
 
       // 1️⃣ Update local state only (no localStorage)
       setItems((prev) =>
@@ -1596,7 +1619,10 @@ const totalUnassigned = useMemo(
                 const groups = groupByType(allItems);
 
                 const first3Imgs = imgs.slice(0, 3);
-                const moreImgs = Math.max(imgs.length - 3, 0);
+                const imageCount = Number.isFinite(a.imageCount)
+                  ? a.imageCount
+                  : imgs.length;
+                const moreImgs = Math.max(imageCount - first3Imgs.length, 0);
 const isAssigned = !!(
     a.allocatedTo ||
     a.allottedTo ||
@@ -1830,7 +1856,9 @@ const isAssigned = !!(
 
                     <TableCell align="right">
                       <Tooltip title="Edit">
-                        <IconButton onClick={() => setEditAsset(a)}>
+                        <IconButton
+                          onClick={async () => setEditAsset(await fetchAssetDetails(a))}
+                        >
                           <EditIcon />
                         </IconButton>
                       </Tooltip>

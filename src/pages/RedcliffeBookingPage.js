@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import "./RedcliffeBookingPage.css";
+import CreateOrderPopup from "./retention/CreateOrderPopup";
 
 const API_BASE = "http://localhost:5001";
 
@@ -32,6 +33,7 @@ const initialForm = {
   isCredit: "true",
   centerDiscount: "",
   referenceData: "",
+  orderId: "",
 };
 
 const createAdditionalMember = () => ({
@@ -67,17 +69,6 @@ function normalizeSlotTime(value) {
   }
   return raw;
 }
-
-const initialAddressDraft = {
-  localityQuery: "",
-  selectedEloc: "",
-  localityLabel: "",
-  placeAddress: "",
-  houseNumber: "",
-  addressLine2: "",
-  landmark: "",
-  pincode: "",
-};
 
 function SectionTitle({ step, title, subtitle }) {
   return (
@@ -168,6 +159,21 @@ function getLandmarkValue(location) {
   ).trim();
 }
 
+function cleanAddressText(value) {
+  return String(value || "")
+    .replace(/^[,\s.-]+/, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function pickAddressPart(address = {}, keys = []) {
+  for (const key of keys) {
+    const value = cleanAddressText(address?.[key]);
+    if (value) return value;
+  }
+  return "";
+}
+
 function formatLocationOption(item) {
   const locality = String(item?.placeName || "").trim();
   const address = String(item?.placeAddress || "").trim();
@@ -183,11 +189,6 @@ export default function RedcliffeBookingPage() {
   const [slots, setSlots] = useState([]);
   const [showLocationSuggestions, setShowLocationSuggestions] = useState(false);
   const [isLocationFieldFocused, setIsLocationFieldFocused] = useState(false);
-  const [showAddressDialog, setShowAddressDialog] = useState(false);
-  const [addressDraft, setAddressDraft] = useState(initialAddressDraft);
-  const [addressMatches, setAddressMatches] = useState([]);
-  const [addressSearchMessage, setAddressSearchMessage] = useState("");
-  const [isAddressLocalityFocused, setIsAddressLocalityFocused] = useState(false);
   const [slotStatus, setSlotStatus] = useState("");
   const [slotError, setSlotError] = useState("");
   const [activeSlotBucket, setActiveSlotBucket] = useState("Morning");
@@ -197,20 +198,32 @@ export default function RedcliffeBookingPage() {
   const [packageLookupMessage, setPackageLookupMessage] = useState("");
   const [additionalMembers, setAdditionalMembers] = useState([]);
   const [memberPackageSearch, setMemberPackageSearch] = useState({});
+  const [showMemberPackagePicker, setShowMemberPackagePicker] = useState({});
   const [temporaryBooking, setTemporaryBooking] = useState(null);
   const [confirmedBooking, setConfirmedBooking] = useState(null);
   const [areaStatus, setAreaStatus] = useState("");
   const [areaError, setAreaError] = useState("");
   const [bookingStatus, setBookingStatus] = useState("");
   const [bookingError, setBookingError] = useState("");
+  const [customerError, setCustomerError] = useState("");
+  const [packageError, setPackageError] = useState("");
+  const [mobileLookupPhone, setMobileLookupPhone] = useState("");
+  const [mobileLookupStatus, setMobileLookupStatus] = useState("");
+  const [mobileLookupError, setMobileLookupError] = useState("");
+  const [mobileLookupAddresses, setMobileLookupAddresses] = useState([]);
+  const [mobileLookupCustomerEmail, setMobileLookupCustomerEmail] = useState("");
+  const [selectedMobileAddressKey, setSelectedMobileAddressKey] = useState("");
+  const [serviceabilityState, setServiceabilityState] = useState("idle");
+  const [isWhatsappSameAsPhone, setIsWhatsappSameAsPhone] = useState(false);
+  const [shopifyOrderPopupOpen, setShopifyOrderPopupOpen] = useState(false);
+  const [shopifyOrderOpenError, setShopifyOrderOpenError] = useState("");
   const [loading, setLoading] = useState({
     locations: false,
-    addressSearch: false,
-    addressApply: false,
     slots: false,
     packages: false,
     create: false,
     confirm: false,
+    phoneLookup: false,
   });
 
   const selectedLocation = useMemo(
@@ -264,13 +277,8 @@ export default function RedcliffeBookingPage() {
 
   useEffect(() => {
     const query = form.placeQuery.trim();
-    if (
-      showAddressDialog ||
-      !isLocationFieldFocused ||
-      !showLocationSuggestions ||
-      query.length < 3
-    ) {
-      if (!showAddressDialog && !query) {
+    if (!isLocationFieldFocused || !showLocationSuggestions || query.length < 3) {
+      if (!query) {
         setLocations([]);
         setShowLocationSuggestions(false);
       }
@@ -299,49 +307,46 @@ export default function RedcliffeBookingPage() {
     }, 300);
 
     return () => clearTimeout(timer);
-  }, [form.placeQuery, isLocationFieldFocused, showAddressDialog, showLocationSuggestions]);
+  }, [form.placeQuery, isLocationFieldFocused, showLocationSuggestions]);
 
   useEffect(() => {
-    if (!showAddressDialog || !isAddressLocalityFocused) return undefined;
+    if (!mobileLookupStatus) return undefined;
+    const timer = window.setTimeout(() => {
+      setMobileLookupStatus("");
+    }, 3000);
+    return () => window.clearTimeout(timer);
+  }, [mobileLookupStatus]);
 
-    const query = addressDraft.localityQuery.trim();
-    if (query.length < 3) {
-      setAddressMatches([]);
-      setAddressSearchMessage(query ? "Enter at least 3 characters." : "");
-      return undefined;
-    }
+  useEffect(() => {
+    if (!areaStatus) return undefined;
+    const timer = window.setTimeout(() => {
+      setAreaStatus("");
+    }, 3000);
+    return () => window.clearTimeout(timer);
+  }, [areaStatus]);
 
-    const timer = setTimeout(async () => {
-      setLoading((prev) => ({ ...prev, addressSearch: true }));
-      setAddressSearchMessage("");
-      try {
-        const { data } = await api.get("/api/redcliffe/location-search", {
-          params: { place_query: query },
-        });
-
-        const results = Array.isArray(data?.results)
-          ? data.results
-          : Array.isArray(data?.data)
-            ? data.data
-            : [];
-        setAddressMatches(results);
-        setAddressSearchMessage(
-          results.length ? "Select a matching locality." : "No localities found."
-        );
-      } catch (_error) {
-        setAddressMatches([]);
-        setAddressSearchMessage("Unable to search localities.");
-      } finally {
-        setLoading((prev) => ({ ...prev, addressSearch: false }));
-      }
-    }, 300);
-
-    return () => clearTimeout(timer);
-  }, [addressDraft.localityQuery, isAddressLocalityFocused, showAddressDialog]);
+  useEffect(() => {
+    const handleOutsideClick = (event) => {
+      if (event.target.closest(".redcliffe-picker")) return;
+      setShowPackagePicker(false);
+      setShowMemberPackagePicker({});
+    };
+    document.addEventListener("mousedown", handleOutsideClick);
+    return () => document.removeEventListener("mousedown", handleOutsideClick);
+  }, []);
 
   const setField = (field, value) => {
     setForm((prev) => ({ ...prev, [field]: value }));
+    if (customerError) setCustomerError("");
   };
+
+  useEffect(() => {
+    if (!isWhatsappSameAsPhone) return;
+    setForm((prev) => {
+      if (prev.customerWhatsappPhone === prev.customerPhone) return prev;
+      return { ...prev, customerWhatsappPhone: prev.customerPhone };
+    });
+  }, [form.customerPhone, isWhatsappSameAsPhone]);
 
   const resetBookingMessages = () => {
     setBookingStatus("");
@@ -361,12 +366,14 @@ export default function RedcliffeBookingPage() {
     setSlotError("");
     setAreaStatus("");
     setAreaError("");
+    setServiceabilityState("checking");
     setShowLocationSuggestions(false);
     setIsLocationFieldFocused(false);
 
     if (!eloc) {
       setField("latitude", "");
       setField("longitude", "");
+      setServiceabilityState("idle");
       return;
     }
 
@@ -376,17 +383,29 @@ export default function RedcliffeBookingPage() {
       });
 
       const matched = locationItem || locations.find((item) => item.eloc === eloc);
-      if (matched?.placeName || matched?.placeAddress) {
-        setField("placeQuery", matched.placeName || matched.placeAddress);
+      const resolvedLatitude = data?.latitude ?? "";
+      const resolvedLongitude = data?.longitude ?? "";
+      const isServiceable = resolvedLatitude !== "" && resolvedLongitude !== "";
+
+      setForm((prev) => ({
+        ...prev,
+        placeQuery: matched ? formatLocationOption(matched) : prev.placeQuery,
+        latitude: resolvedLatitude,
+        longitude: resolvedLongitude,
+        pincode: getLocationPincode(matched) || prev.pincode,
+        customerAddress: getHouseAddress(matched) || prev.customerAddress,
+        addressLine2: buildSecondaryAddress(matched) || prev.addressLine2,
+        customerLandmark: getLandmarkValue(matched) || prev.customerLandmark,
+      }));
+      if (isServiceable) {
+        setAreaStatus("Locality is serviceable.");
+        setAreaError("");
+        setServiceabilityState("serviceable");
+      } else {
+        setAreaStatus("");
+        setAreaError("Locality is not serviceable.");
+        setServiceabilityState("unserviceable");
       }
-      setField("latitude", data?.latitude ?? "");
-      setField("longitude", data?.longitude ?? "");
-      setField("pincode", getLocationPincode(matched));
-      setField("customerAddress", getHouseAddress(matched));
-      setField("addressLine2", buildSecondaryAddress(matched));
-      setField("customerLandmark", getLandmarkValue(matched));
-      setAreaStatus("Location selected and coordinates fetched.");
-      setAreaError("");
       setSlotStatus("");
       setSlotError("");
     } catch (err) {
@@ -396,86 +415,90 @@ export default function RedcliffeBookingPage() {
           "Failed to fetch coordinates."
       );
       setAreaStatus("");
+      setServiceabilityState("unserviceable");
     }
   };
 
-  const openAddressDialog = () => {
-    setAddressDraft({
-      localityQuery: form.placeQuery || "",
-      selectedEloc: form.selectedEloc || "",
-      localityLabel:
-        selectedLocation?.placeName ||
-        selectedLocation?.placeAddress ||
-        form.placeQuery ||
-        "",
-      placeAddress: selectedLocation?.placeAddress || "",
-      houseNumber: form.customerAddress || "",
-      addressLine2: form.addressLine2 || "",
-      landmark: form.customerLandmark || "",
-      pincode: form.pincode || getLocationPincode(selectedLocation) || "",
-    });
-    setAddressMatches([]);
-    setAddressSearchMessage("");
-    setIsAddressLocalityFocused(false);
-    setShowAddressDialog(true);
-  };
+  const handleStep1Continue = () => {
+    const house = String(form.customerAddress || "").trim();
+    const landmark = String(form.customerLandmark || "").trim();
+    const pincode = String(form.pincode || "").trim();
 
-  const closeAddressDialog = () => {
-    setShowAddressDialog(false);
-    setAddressMatches([]);
-    setAddressSearchMessage("");
-    setIsAddressLocalityFocused(false);
-  };
+    const missingFields = [];
+    if (!house) missingFields.push("House/Plot/Flat Number");
+    if (!landmark) missingFields.push("Landmark/Sublocality");
+    if (!pincode) missingFields.push("Pincode");
 
-  const selectAddressCandidate = (item) => {
-    setAddressDraft((prev) => ({
-      ...prev,
-      selectedEloc: item.eloc,
-      localityLabel: item.placeName || item.placeAddress || item.eloc,
-      placeAddress: item.placeAddress || "",
-      pincode: getLocationPincode(item) || prev.pincode || "",
-      localityQuery: item.placeName || item.placeAddress || item.eloc,
-      houseNumber: getHouseAddress(item),
-      addressLine2: buildSecondaryAddress(item),
-      landmark: getLandmarkValue(item),
-    }));
-    setIsAddressLocalityFocused(false);
-  };
-
-  const applyAddressDraft = async () => {
-    if (!addressDraft.selectedEloc) {
-      setAreaError("Select a locality before saving the address.");
+    if (missingFields.length) {
+      const message =
+        missingFields.length === 1
+          ? `Please fill ${missingFields[0]}.`
+          : `Please fill: ${missingFields.join(", ")}.`;
+      setAreaStatus("");
+      setAreaError(message);
       return;
     }
 
-    setAreaStatus("");
-    setAreaError("");
-    setLoading((prev) => ({ ...prev, addressApply: true }));
-
-    try {
-      await selectLocation(addressDraft.selectedEloc, {
-        eloc: addressDraft.selectedEloc,
-        placeName: addressDraft.localityLabel,
-        placeAddress: addressDraft.placeAddress,
-        address: { pincode: addressDraft.pincode },
-      });
-
-      setForm((prev) => ({
-        ...prev,
-        customerAddress: addressDraft.houseNumber || prev.customerAddress,
-        addressLine2: addressDraft.addressLine2,
-        customerLandmark: addressDraft.landmark,
-        pincode: addressDraft.pincode || prev.pincode,
-      }));
-      closeAddressDialog();
-      setAreaStatus("Address updated successfully.");
-      setAreaError("");
-    } catch (_error) {
-      setAreaError("Unable to update the address.");
-    } finally {
-      setLoading((prev) => ({ ...prev, addressApply: false }));
+    if (!form.selectedEloc || !form.latitude || !form.longitude) {
+      setAreaStatus("");
+      setAreaError("Please select a serviceable locality first.");
+      return;
     }
+
+    setAreaError("");
+    setActiveStep((prev) => Math.min(totalSteps, prev + 1));
   };
+
+  const handleStep3Continue = () => {
+    const missingPrimary = [];
+    if (!String(form.customerName || "").trim()) missingPrimary.push("Customer name");
+    if (!String(form.customerAge || "").trim()) missingPrimary.push("Customer age");
+    if (!String(form.customerGender || "").trim()) missingPrimary.push("Customer gender");
+    if (!String(form.customerPhone || "").replace(/\D/g, "").trim()) missingPrimary.push("Phone");
+    if (!String(form.customerEmail || "").trim()) missingPrimary.push("Customer email");
+
+    if (missingPrimary.length) {
+      setCustomerError(`Please fill: ${missingPrimary.join(", ")}.`);
+      return;
+    }
+
+    const phoneDigits = String(form.customerPhone || "").replace(/\D/g, "");
+    if (phoneDigits.length !== 10) {
+      setCustomerError("Please enter a valid 10-digit phone number.");
+      return;
+    }
+
+    const emailValue = String(form.customerEmail || "").trim();
+    const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailPattern.test(emailValue)) {
+      setCustomerError("Please enter a valid customer email.");
+      return;
+    }
+
+    const incompleteMemberIndex = additionalMembers.findIndex((member) => {
+      const hasAnyValue =
+        String(member.customerName || "").trim() ||
+        String(member.customerAge || "").trim() ||
+        String(member.customerGender || "").trim();
+      if (!hasAnyValue) return false;
+      return !(
+        String(member.customerName || "").trim() &&
+        String(member.customerAge || "").trim() &&
+        String(member.customerGender || "").trim()
+      );
+    });
+
+    if (incompleteMemberIndex >= 0) {
+      setCustomerError(
+        `Please complete all required fields for Additional Member ${incompleteMemberIndex + 1}.`
+      );
+      return;
+    }
+
+    setCustomerError("");
+    goNextStep();
+  };
+
 
   const fetchSlots = async () => {
     if (!form.collectionDate || !form.latitude || !form.longitude) {
@@ -589,6 +612,11 @@ export default function RedcliffeBookingPage() {
       delete next[memberId];
       return next;
     });
+    setShowMemberPackagePicker((prev) => {
+      const next = { ...prev };
+      delete next[memberId];
+      return next;
+    });
   };
 
   const setMemberField = (memberId, field, value) => {
@@ -623,6 +651,91 @@ export default function RedcliffeBookingPage() {
     });
   };
 
+  const toggleMemberPackagePicker = (memberId) => {
+    setShowMemberPackagePicker((prev) => ({
+      ...prev,
+      [memberId]: !prev[memberId],
+    }));
+  };
+
+  const lookupCustomerByMobile = async () => {
+    const digits = String(mobileLookupPhone || "").replace(/\D/g, "").slice(-10);
+    if (digits.length !== 10) {
+      setMobileLookupError("Enter a valid 10-digit mobile number.");
+      setMobileLookupStatus("");
+      return;
+    }
+
+    setMobileLookupError("");
+    setMobileLookupStatus("");
+    setMobileLookupAddresses([]);
+    setMobileLookupCustomerEmail("");
+    setSelectedMobileAddressKey("");
+    setLoading((prev) => ({ ...prev, phoneLookup: true }));
+
+    try {
+      const { data } = await api.get("/api/shopify/customer-orders", {
+        params: { phone: digits },
+      });
+
+      const addresses = Array.isArray(data?.addresses) ? data.addresses : [];
+      const lookupEmail = String(
+        data?.customerEmail || data?.email || data?.customer_email || ""
+      ).trim();
+      setMobileLookupCustomerEmail(lookupEmail);
+
+      if (!addresses.length) {
+        setMobileLookupStatus("No customer found for this mobile number.");
+        if (lookupEmail) {
+          setForm((prev) => ({
+            ...prev,
+            customerEmail: prev.customerEmail || lookupEmail,
+          }));
+        }
+        return;
+      }
+
+      if (lookupEmail) {
+        setForm((prev) => ({
+          ...prev,
+          customerEmail: prev.customerEmail || lookupEmail,
+        }));
+      }
+      setMobileLookupAddresses(addresses);
+      setMobileLookupStatus("Customer found. Select an address below.");
+    } catch (_err) {
+      setMobileLookupError("Unable to fetch customer details right now.");
+    } finally {
+      setLoading((prev) => ({ ...prev, phoneLookup: false }));
+    }
+  };
+
+  const selectCustomerAddress = (address, optionKey) => {
+    const line1 = String(address?.address1 || "").trim();
+    const line2Parts = [address?.address2, address?.city, address?.state]
+      .map((item) => String(item || "").trim())
+      .filter(Boolean);
+    const line2 = line2Parts.join(", ");
+    const selectedPincode = String(address?.pincode || "").trim();
+    const selectedEmail = String(
+      address?.email || address?.customerEmail || address?.customer_email || ""
+    ).trim();
+
+    setForm((prev) => ({
+      ...prev,
+      customerName: String(address?.fullName || prev.customerName || "").trim(),
+      customerPhone: String(mobileLookupPhone || prev.customerPhone).replace(/\D/g, "").slice(-10),
+      customerWhatsappPhone: String(mobileLookupPhone || prev.customerWhatsappPhone).replace(/\D/g, "").slice(-10),
+      customerEmail: selectedEmail || mobileLookupCustomerEmail || prev.customerEmail,
+      customerAddress: line1 || prev.customerAddress,
+      addressLine2: line2 || prev.addressLine2,
+      customerLandmark: String(address?.address2 || prev.customerLandmark || "").trim(),
+      pincode: selectedPincode || prev.pincode,
+    }));
+    setMobileLookupStatus("Address selected and applied.");
+    setSelectedMobileAddressKey(optionKey);
+  };
+
   const createBooking = async () => {
     resetBookingMessages();
     setLoading((prev) => ({ ...prev, create: true }));
@@ -648,6 +761,8 @@ export default function RedcliffeBookingPage() {
         customer_longitude: form.longitude,
         customer_latitude: form.latitude,
         booking_type: "Homedx",
+        order_id: String(form.orderId || "").trim(),
+        reference_data: String(form.orderId || form.referenceData || "").trim(),
         additional_member: additionalMembers
           .filter(
             (member) =>
@@ -668,8 +783,10 @@ export default function RedcliffeBookingPage() {
       setTemporaryBooking(data);
       setConfirmedBooking(null);
       setBookingStatus(data?.message || "Temporary booking created.");
+      return data;
     } catch (err) {
       applyRequestError(err, "Failed to create booking.");
+      return null;
     } finally {
       setLoading((prev) => ({ ...prev, create: false }));
     }
@@ -704,32 +821,312 @@ export default function RedcliffeBookingPage() {
     }
   };
 
+  const createAndConfirmBooking = async () => {
+    if (confirmedBooking) return;
+    resetBookingMessages();
+    const created = await createBooking();
+    const bookingId = created?.booking_id || created?.pk;
+    if (!bookingId) return;
+
+    setLoading((prev) => ({ ...prev, confirm: true }));
+    try {
+      const { data } = await api.post("/api/redcliffe/bookings/confirm", {
+        booking_id: bookingId,
+        is_confirmed: true,
+      });
+      setConfirmedBooking(data);
+      setBookingStatus(data?.message || "Booking confirmed.");
+    } catch (err) {
+      applyRequestError(err, "Failed to confirm booking.");
+    } finally {
+      setLoading((prev) => ({ ...prev, confirm: false }));
+    }
+  };
+
+  const openShopifyOrderPopup = () => {
+    const name = String(form.customerName || "").trim();
+    const phone = String(form.customerPhone || "").replace(/\D/g, "").slice(-10);
+    if (!name || phone.length !== 10) {
+      setShopifyOrderOpenError(
+        "Please fill customer name and valid 10-digit phone before creating Shopify order."
+      );
+      return;
+    }
+    setShopifyOrderOpenError("");
+    setShopifyOrderPopupOpen(true);
+  };
+
+  const startNewBooking = () => {
+    setForm(initialForm);
+    setLocations([]);
+    setSlots([]);
+    setShowLocationSuggestions(false);
+    setIsLocationFieldFocused(false);
+    setSlotStatus("");
+    setSlotError("");
+    setActiveSlotBucket("Morning");
+    setAvailablePackages([]);
+    setShowPackagePicker(false);
+    setPackageSearch("");
+    setPackageLookupMessage("");
+    setAdditionalMembers([]);
+    setMemberPackageSearch({});
+    setShowMemberPackagePicker({});
+    setTemporaryBooking(null);
+    setConfirmedBooking(null);
+    setAreaStatus("");
+    setAreaError("");
+    setBookingStatus("");
+    setBookingError("");
+    setCustomerError("");
+    setMobileLookupPhone("");
+    setMobileLookupStatus("");
+    setMobileLookupError("");
+    setMobileLookupAddresses([]);
+    setMobileLookupCustomerEmail("");
+    setSelectedMobileAddressKey("");
+    setServiceabilityState("idle");
+    setIsWhatsappSameAsPhone(false);
+    setShopifyOrderPopupOpen(false);
+    setShopifyOrderOpenError("");
+    setActiveStep(1);
+  };
+
+  const [activeStep, setActiveStep] = useState(1);
+  const totalSteps = 5;
+  const progressPercent = Math.round((activeStep / totalSteps) * 100);
+  const isBookingConfirmed = Boolean(confirmedBooking);
+
+  const stepperItems = [
+    { index: 1, title: "Collection area", subtitle: "Locality & address" },
+    { index: 2, title: "Date & slot", subtitle: "Pick available time" },
+    { index: 3, title: "Customer", subtitle: "Patient & members" },
+    { index: 4, title: "Packages", subtitle: "Tests to run" },
+    { index: 5, title: "Confirm", subtitle: "Payment & book" },
+  ];
+
+  const goNextStep = () => setActiveStep((prev) => Math.min(totalSteps, prev + 1));
+  const goPrevStep = () => setActiveStep((prev) => Math.max(1, prev - 1));
+
+  const canContinueFromPackages = useMemo(() => {
+    const hasPrimaryPackage = toArray(form.packageCodes).length > 0;
+    if (!hasPrimaryPackage) return false;
+    return additionalMembers.every(
+      (member) => toArray(member.packageCodes).length > 0
+    );
+  }, [form.packageCodes, additionalMembers]);
+
+  const handleStep4Continue = () => {
+    if (!toArray(form.packageCodes).length) {
+      setPackageError("Select at least one package for the primary customer.");
+      return;
+    }
+    const incompleteMember = additionalMembers.find(
+      (member) => !toArray(member.packageCodes).length
+    );
+    if (incompleteMember) {
+      setPackageError(
+        `Select at least one package for ${incompleteMember.customerName || "each additional member"}.`
+      );
+      return;
+    }
+    setPackageError("");
+    goNextStep();
+  };
+
   return (
     <div className="redcliffe-page">
       <div className="redcliffe-shell">
-        <section className="redcliffe-hero">
-          <div className="redcliffe-badge">Redcliffe Booking</div>
-          <h1>Book Lab Test</h1> 
+        <section className="redcliffe-hero redcliffe-hero-flat">
+          <div>
+            <h1>Book a Redcliffe lab test</h1>
+          </div>
+          <div className="redcliffe-top-actions">
+            <button
+              type="button"
+              className="redcliffe-btn redcliffe-btn-outline"
+              onClick={startNewBooking}
+            >
+              Create new booking
+            </button>
+          </div>
         </section>
-
         <div className="redcliffe-layout">
+          <aside className="redcliffe-steps-rail">
+            {stepperItems.map((item) => (
+              <button
+                type="button"
+                key={item.index}
+                className={`redcliffe-rail-item${activeStep === item.index ? " active" : ""}`}
+                onClick={() => setActiveStep(item.index)}
+              >
+                <span className="redcliffe-rail-index">{item.index}</span>
+                <span className="redcliffe-rail-copy">
+                  <strong>{item.title}</strong>
+                  <small>{item.subtitle}</small>
+                </span>
+              </button>
+            ))}
+            <div className="redcliffe-rail-progress">
+              <div>Progress</div>
+              <div className="redcliffe-rail-progress-track">
+                <span style={{ width: `${progressPercent}%` }} />
+              </div>
+              <p>{progressPercent}% complete</p>
+            </div>
+          </aside>
+
           <div className="redcliffe-main">
+            {activeStep === 1 ? (
             <section className="redcliffe-card">
               <div className="redcliffe-card-body">
-                <SectionTitle
-                  step="1"
-                  title="Collection Area"
-                  subtitle="Search the serviceable area and confirm the collection location."
-                />
+                <div className="redcliffe-content-head">
+                  <h2>Where are we collecting?</h2>
+                  <p>Search customer by mobile, then enter locality and verify serviceability.</p>
+                </div>
 
                 <div className="redcliffe-grid">
-                  <Field className="span-12" label="Search area">
+                  <Field className="span-12" label="Search by mobile number">
+                    <div className="redcliffe-mobile-lookup">
+                      <input
+                        value={mobileLookupPhone}
+                        onChange={(event) => {
+                          setMobileLookupPhone(event.target.value);
+                          if (mobileLookupError) setMobileLookupError("");
+                        }}
+                        placeholder="Enter mobile number"
+                        inputMode="numeric"
+                      />
+                      <button
+                        type="button"
+                        className="redcliffe-btn redcliffe-btn-accent"
+                        onClick={lookupCustomerByMobile}
+                        disabled={loading.phoneLookup}
+                      >
+                        {loading.phoneLookup ? "Searching..." : "Search"}
+                      </button>
+                    </div>
+                    {mobileLookupStatus ? (
+                      <div className="redcliffe-inline-note success">
+                        {mobileLookupStatus}
+                      </div>
+                    ) : null}
+                    {mobileLookupError ? (
+                      <div className="redcliffe-inline-note error">
+                        {mobileLookupError}
+                      </div>
+                    ) : null}
+                    {mobileLookupAddresses.length ? (
+                      <div className="redcliffe-mobile-address-panel" style={{ marginTop: 8 }}>
+                        <div className="redcliffe-mobile-address-list">
+                          {mobileLookupAddresses.map((address, index) => {
+                            const line1 = pickAddressPart(address, [
+                              "address1",
+                              "address",
+                              "line1",
+                              "customer_address",
+                              "house",
+                            ]);
+                            const line2 = [
+                              pickAddressPart(address, ["address2", "line2", "street"]),
+                              pickAddressPart(address, ["city", "district", "locality"]),
+                              pickAddressPart(address, ["state", "province"]),
+                            ]
+                              .map((item) => cleanAddressText(item))
+                              .filter(Boolean)
+                              .join(", ");
+                            const pincode = pickAddressPart(address, [
+                              "pincode",
+                              "pin",
+                              "postal_code",
+                              "zipcode",
+                            ]);
+                            const title = cleanAddressText(
+                              address?.fullName || address?.name || address?.customerName || "Address"
+                            );
+                            const combinedAddress = [line1, line2, pincode].filter(Boolean).join(" | ");
+                            const optionKey = `${address?.id || "addr"}-${index}`;
+                            return (
+                              <div
+                                key={optionKey}
+                                className={`redcliffe-mobile-address-option${selectedMobileAddressKey === optionKey ? " selected" : ""}`}
+                                role="radio"
+                                aria-checked={selectedMobileAddressKey === optionKey}
+                                tabIndex={0}
+                                onClick={() => selectCustomerAddress(address, optionKey)}
+                                onKeyDown={(event) => {
+                                  if (event.key === "Enter" || event.key === " ") {
+                                    event.preventDefault();
+                                    selectCustomerAddress(address, optionKey);
+                                  }
+                                }}
+                              >
+                                <input
+                                  type="radio"
+                                  name="mobile_address_select"
+                                  checked={selectedMobileAddressKey === optionKey}
+                                  onChange={() => selectCustomerAddress(address, optionKey)}
+                                />
+                                <div className="redcliffe-mobile-address-copy">
+                                  <div className="redcliffe-mobile-address-name">{title || "Address"}</div>
+                                  <div className="redcliffe-mobile-address-line">
+                                    {combinedAddress || "Address unavailable"}
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ) : null}
+                  </Field>
+
+                  <Field className="span-6" label="House/Plot/Flat Number *">
+                    <input
+                      value={form.customerAddress}
+                      onChange={(event) => setField("customerAddress", event.target.value)}
+                      placeholder="Type here..."
+                    />
+                  </Field>
+
+                  <Field className="span-6" label="Apartment/Building /Colony">
+                    <input
+                      value={form.addressLine2}
+                      onChange={(event) => setField("addressLine2", event.target.value)}
+                      placeholder="Type here..."
+                    />
+                  </Field>
+
+                  <Field className="span-8" label="Landmark/Sublocality *">
+                    <input
+                      value={form.customerLandmark}
+                      onChange={(event) => setField("customerLandmark", event.target.value)}
+                      placeholder="Ex: School/College/Restaurant/Shop/Bank"
+                    />
+                  </Field>
+
+                  <Field className="span-4" label="Pincode *">
+                    <input
+                      value={form.pincode}
+                      onChange={(event) => {
+                        setField("pincode", event.target.value);
+                      }}
+                      placeholder="Enter pincode"
+                    />
+                  </Field>
+
+                  <Field className="span-12" label="Search locality, area or pincode *">
                     <div className="redcliffe-location-search">
                       <input
                         value={form.placeQuery}
                         onChange={(e) => {
                           setField("placeQuery", e.target.value);
                           setField("selectedEloc", "");
+                          setField("latitude", "");
+                          setField("longitude", "");
+                          setServiceabilityState("idle");
+                          setAreaStatus("");
+                          setAreaError("");
                           setShowLocationSuggestions(true);
                           setIsLocationFieldFocused(true);
                         }}
@@ -744,6 +1141,16 @@ export default function RedcliffeBookingPage() {
                         }}
                         placeholder="Search locality"
                       />
+                      {serviceabilityState === "serviceable" ? (
+                        <span className="redcliffe-serviceability-indicator ok" title="Serviceable">
+                          ✓
+                        </span>
+                      ) : null}
+                      {serviceabilityState === "unserviceable" ? (
+                        <span className="redcliffe-serviceability-indicator bad" title="Not serviceable">
+                          ✕
+                        </span>
+                      ) : null}
                       {isLocationFieldFocused &&
                       showLocationSuggestions &&
                       locations.length ? (
@@ -753,7 +1160,10 @@ export default function RedcliffeBookingPage() {
                               type="button"
                               key={item.eloc}
                               className="redcliffe-location-suggestion"
-                              onClick={() => selectLocation(item.eloc, item)}
+                              onMouseDown={(event) => {
+                                event.preventDefault();
+                                selectLocation(item.eloc, item);
+                              }}
                             >
                               {formatLocationOption(item)}
                             </button>
@@ -761,8 +1171,10 @@ export default function RedcliffeBookingPage() {
                         </div>
                       ) : null}
                     </div>
+                    <small style={{ color: "#627279", fontSize: 12 }}>
+                      Start typing locality and select one suggestion to check serviceability.
+                    </small>
                   </Field>
-
                 </div>
 
                 {selectedLocation ? (
@@ -789,13 +1201,6 @@ export default function RedcliffeBookingPage() {
                         <strong>{addressPreview.landmark}</strong>
                       </div>
                     </div>
-                    <button
-                      type="button"
-                      className="redcliffe-location-edit-btn"
-                      onClick={openAddressDialog}
-                    >
-                      Edit address
-                    </button>
                   </div>
                 ) : null}
                 {areaStatus ? (
@@ -808,19 +1213,30 @@ export default function RedcliffeBookingPage() {
                     {areaError}
                   </div>
                 ) : null}
+                <div className="redcliffe-step-actions">
+                  <button type="button" className="redcliffe-btn redcliffe-btn-outline" disabled>Back</button>
+                  <button
+                    type="button"
+                    className="redcliffe-btn redcliffe-btn-accent"
+                    onClick={handleStep1Continue}
+                  >
+                    Continue
+                  </button>
+                </div>
               </div>
             </section>
+            ) : null}
 
+            {activeStep === 2 ? (
             <section className="redcliffe-card">
               <div className="redcliffe-card-body">
-                <SectionTitle
-                  step="2"
-                  title="Get Collection Slot"
-                  subtitle="Use the selected location and date to fetch available slots."
-                />
+                <div className="redcliffe-content-head">
+                  <h2>Pick a collection date & time</h2>
+                  <p>Slots fill up fast. Pick the best available time.</p>
+                </div>
 
                 <div className="redcliffe-grid">
-                  <Field className="span-4" label="Collection date">
+                  <Field className="span-4" label="Collection date *">
                     <input
                       type="date"
                       value={form.collectionDate}
@@ -841,7 +1257,7 @@ export default function RedcliffeBookingPage() {
                   </Field>
 
                   <div className="redcliffe-field span-12">
-                    <label>Available slot</label>
+                    <label>Available slot *</label>
                     {slots.length ? (
                       <div className="redcliffe-slot-buckets">
                         <div className="redcliffe-slot-tabs" role="tablist" aria-label="Slot time buckets">
@@ -918,94 +1334,46 @@ export default function RedcliffeBookingPage() {
                     ) : null}
                   </div>
                 </div>
+                <div className="redcliffe-step-actions">
+                  <button type="button" className="redcliffe-btn redcliffe-btn-outline" onClick={goPrevStep}>Back</button>
+                  <button
+                    type="button"
+                    className="redcliffe-btn redcliffe-btn-accent"
+                    onClick={handleStep4Continue}
+                    disabled={!canContinueFromPackages}
+                  >
+                    Continue
+                  </button>
+                </div>
+                {packageError ? <p className="redcliffe-inline-error">{packageError}</p> : null}
               </div>
             </section>
+            ) : null}
 
+            {activeStep === 3 ? (
             <section className="redcliffe-card">
               <div className="redcliffe-card-body">
-                <SectionTitle
-                  step="3"
-                  title="Create Booking"
-                  subtitle="Fill only the required details needed to create the booking."
-                />
+                <div className="redcliffe-content-head">
+                  <h2>Customer details</h2>
+                  <p>Add patient and member details.</p>
+                </div>
 
                 <div className="redcliffe-grid">
-                  <Field className="span-12" label="Package details">
-                    <div className="redcliffe-picker">
-                      <button
-                        type="button"
-                        className="redcliffe-picker-trigger"
-                        onClick={loadPartnerPackages}
-                      >
-                        <span>
-                          {selectedPackages.length
-                            ? `${selectedPackages.length} package(s) selected`
-                            : "Select package(s)"}
-                        </span>
-                        <strong>{loading.packages ? "Loading..." : "Choose"}</strong>
-                      </button>
-
-                      {showPackagePicker ? (
-                        <div className="redcliffe-picker-panel">
-                          <input
-                            value={packageSearch}
-                            onChange={(e) => setPackageSearch(e.target.value)}
-                            placeholder="Search package name or code"
-                          />
-
-                          <div className="redcliffe-picker-results">
-                            {filteredPackages.map((pkg) => {
-                              const checked = toArray(form.packageCodes).includes(pkg.code);
-                              return (
-                                <label
-                                  key={pkg.code}
-                                  className={`redcliffe-picker-option checkbox${checked ? " selected" : ""}`}
-                                >
-                                  <input
-                                    type="checkbox"
-                                    checked={checked}
-                                    onChange={() => togglePrimaryPackage(pkg.code)}
-                                  />
-                                  <span>{pkg.name}</span>
-                                  <strong>{pkg.code}</strong>
-                                </label>
-                              );
-                            })}
-                            {!loading.packages && !filteredPackages.length ? (
-                              <div className="redcliffe-picker-empty">
-                                {packageLookupMessage || "No packages found."}
-                              </div>
-                            ) : null}
-                          </div>
-                          <div className="redcliffe-picker-actions">
-                            <button
-                              type="button"
-                              className="redcliffe-btn redcliffe-btn-outline"
-                              onClick={() => setShowPackagePicker(false)}
-                            >
-                              Done
-                            </button>
-                          </div>
-                        </div>
-                      ) : null}
-                    </div>
-                  </Field>
-
-                  <Field className="span-4" label="Customer name">
+                  <Field className="span-4" label="Customer name *">
                     <input
                       value={form.customerName}
                       onChange={(e) => setField("customerName", e.target.value)}
                     />
                   </Field>
 
-                  <Field className="span-4" label="Customer age">
+                  <Field className="span-4" label="Customer age *">
                     <input
                       value={form.customerAge}
                       onChange={(e) => setField("customerAge", e.target.value)}
                     />
                   </Field>
 
-                  <Field className="span-4" label="Customer gender">
+                  <Field className="span-4" label="Customer gender *">
                     <select
                       value={form.customerGender}
                       onChange={(e) => setField("customerGender", e.target.value)}
@@ -1016,7 +1384,7 @@ export default function RedcliffeBookingPage() {
                     </select>
                   </Field>
 
-                  <Field className="span-4" label="Phone">
+                  <Field className="span-4" label="Phone *">
                     <input
                       value={form.customerPhone}
                       onChange={(e) => setField("customerPhone", e.target.value)}
@@ -1029,10 +1397,25 @@ export default function RedcliffeBookingPage() {
                       onChange={(e) =>
                         setField("customerWhatsappPhone", e.target.value)
                       }
+                      disabled={isWhatsappSameAsPhone}
                     />
+                    <label className="redcliffe-checkbox-inline">
+                      <input
+                        type="checkbox"
+                        checked={isWhatsappSameAsPhone}
+                        onChange={(e) => {
+                          const checked = e.target.checked;
+                          setIsWhatsappSameAsPhone(checked);
+                          if (checked) {
+                            setField("customerWhatsappPhone", form.customerPhone);
+                          }
+                        }}
+                      />
+                      Same as phone
+                    </label>
                   </Field>
 
-                  <Field className="span-4" label="Customer email">
+                  <Field className="span-4" label="Customer email *">
                     <input
                       value={form.customerEmail}
                       onChange={(e) => setField("customerEmail", e.target.value)}
@@ -1096,93 +1479,225 @@ export default function RedcliffeBookingPage() {
                           </select>
                         </Field>
 
-                        <Field className="span-12" label="Package details (multi-select)">
-                          <div className="redcliffe-member-packages">
-                            {availablePackages.length ? (
-                              <>
-                                <input
-                                  className="redcliffe-member-search"
-                                  value={memberPackageSearch[member.id] || ""}
-                                  onChange={(e) =>
-                                    setMemberPackageSearch((prev) => ({
-                                      ...prev,
-                                      [member.id]: e.target.value,
-                                    }))
-                                  }
-                                  placeholder="Search package name or code"
-                                />
-                                {getFilteredMemberPackages(member.id).map((pkg) => {
-                                  const checked = toArray(member.packageCodes).includes(pkg.code);
-                                  return (
-                                    <label key={`${member.id}-${pkg.code}`} className="redcliffe-member-pkg-chip">
-                                    <input
-                                      type="checkbox"
-                                      checked={checked}
-                                      onChange={() => toggleMemberPackage(member.id, pkg.code)}
-                                    />
-                                    <span>{pkg.name}</span>
-                                    <strong>{pkg.code}</strong>
-                                    </label>
-                                  );
-                                })}
-                              </>
-                            ) : (
-                              <div className="redcliffe-picker-empty">
-                                Load package details first from the primary package selector.
-                              </div>
-                            )}
-                          </div>
-                        </Field>
                       </div>
                     </div>
                   ))}
                 </div>
+                {customerError ? (
+                  <div className="redcliffe-inline-note error" style={{ marginTop: 14 }}>
+                    {customerError}
+                  </div>
+                ) : null}
+                <div className="redcliffe-step-actions">
+                  <button type="button" className="redcliffe-btn redcliffe-btn-outline" onClick={goPrevStep}>Back</button>
+                  <button type="button" className="redcliffe-btn redcliffe-btn-accent" onClick={handleStep3Continue}>Continue</button>
+                </div>
               </div>
             </section>
+            ) : null}
 
+            {activeStep === 4 ? (
             <section className="redcliffe-card">
               <div className="redcliffe-card-body">
-                <SectionTitle
-                  step="4"
-                  title="Booking Confirmation"
-                  subtitle="Create the booking request and then confirm or cancel it."
-                />
+                <div className="redcliffe-content-head">
+                  <h2>Packages to run</h2>
+                  <p>Search by code or name. Selected packages stack as chips.</p>
+                </div>
+                <div className="redcliffe-grid">
+                  <Field
+                    className="span-12"
+                    label={`Select blood test for ${form.customerName || "Customer"} *`}
+                  >
+                    <div className="redcliffe-picker">
+                      <button
+                        type="button"
+                        className="redcliffe-picker-trigger"
+                        onClick={loadPartnerPackages}
+                      >
+                        <span>
+                          {selectedPackages.length
+                            ? `${selectedPackages.length} package(s) selected`
+                            : "Select package(s)"}
+                        </span>
+                        <strong>{loading.packages ? "Loading..." : "Choose"}</strong>
+                      </button>
+                      {showPackagePicker ? (
+                        <div className="redcliffe-picker-panel">
+                          <div className="redcliffe-picker-panel-head">
+                            <button
+                              type="button"
+                              className="redcliffe-picker-close"
+                              onClick={() => setShowPackagePicker(false)}
+                              aria-label="Close package list"
+                            >
+                              ×
+                            </button>
+                          </div>
+                          <input
+                            value={packageSearch}
+                            onChange={(e) => setPackageSearch(e.target.value)}
+                            placeholder="Search package name or code"
+                          />
+                          <div className="redcliffe-picker-results">
+                            {filteredPackages.map((pkg) => {
+                              const checked = toArray(form.packageCodes).includes(pkg.code);
+                              return (
+                                <label
+                                  key={pkg.code}
+                                  className={`redcliffe-picker-option checkbox${checked ? " selected" : ""}`}
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={checked}
+                                    onChange={() => togglePrimaryPackage(pkg.code)}
+                                  />
+                                  <span>{pkg.name}</span>
+                                  <strong>{pkg.code}</strong>
+                                </label>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ) : null}
+                    </div>
+                  </Field>
+                  {additionalMembers.length ? (
+                    <Field className="span-12" label="Member packages (optional)">
+                      <div className="redcliffe-member-packages">
+                        {additionalMembers.map((member) => (
+                          <div key={`mp-${member.id}`} className="redcliffe-member-package-card">
+                            <strong className="redcliffe-member-package-name">{member.customerName || "Member"}</strong>
+                            <div className="redcliffe-picker">
+                              <button
+                                type="button"
+                                className="redcliffe-picker-trigger"
+                                onClick={() => toggleMemberPackagePicker(member.id)}
+                              >
+                                <span>
+                                  {toArray(member.packageCodes).length
+                                    ? `${toArray(member.packageCodes).length} package(s) selected`
+                                    : "Select package(s)"}
+                                </span>
+                                <strong>Choose</strong>
+                              </button>
+                              {showMemberPackagePicker[member.id] ? (
+                                <div className="redcliffe-picker-panel">
+                                  <div className="redcliffe-picker-panel-head">
+                                    <button
+                                      type="button"
+                                      className="redcliffe-picker-close"
+                                      onClick={() =>
+                                        setShowMemberPackagePicker((prev) => ({
+                                          ...prev,
+                                          [member.id]: false,
+                                        }))
+                                      }
+                                      aria-label="Close member package list"
+                                    >
+                                      ×
+                                    </button>
+                                  </div>
+                                  <input
+                                    value={String(memberPackageSearch[member.id] || "")}
+                                    onChange={(e) =>
+                                      setMemberPackageSearch((prev) => ({
+                                        ...prev,
+                                        [member.id]: e.target.value,
+                                      }))
+                                    }
+                                    placeholder="Search package name or code"
+                                  />
+                                  <div className="redcliffe-picker-results">
+                                    {getFilteredMemberPackages(member.id).map((pkg) => {
+                                      const checked = toArray(member.packageCodes).includes(pkg.code);
+                                      return (
+                                        <label
+                                          key={`${member.id}-${pkg.code}`}
+                                          className={`redcliffe-picker-option checkbox${checked ? " selected" : ""}`}
+                                        >
+                                          <input
+                                            type="checkbox"
+                                            checked={checked}
+                                            onChange={() => toggleMemberPackage(member.id, pkg.code)}
+                                          />
+                                          <span>{pkg.name}</span>
+                                          <strong>{pkg.code}</strong>
+                                        </label>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              ) : null}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </Field>
+                  ) : null}
+                </div>
+                <div className="redcliffe-step-actions">
+                  <button type="button" className="redcliffe-btn redcliffe-btn-outline" onClick={goPrevStep}>Back</button>
+                  <button type="button" className="redcliffe-btn redcliffe-btn-accent" onClick={goNextStep}>Continue</button>
+                </div>
+              </div>
+            </section>
+            ) : null}
 
-                <div className="redcliffe-actions">
-                  <div className="redcliffe-action-field">
-                    <label>Payment mode</label>
-                    <select
-                      value={form.isCredit}
-                      onChange={(e) => setField("isCredit", e.target.value)}
+            {activeStep === 5 ? (
+            <section className="redcliffe-card">
+              <div className="redcliffe-card-body">
+                <div className="redcliffe-content-head">
+                  <h2>Confirm & book</h2>
+                  <p>Create Shopify order, select payment mode, then create booking.</p>
+                </div>
+
+                <div className="redcliffe-grid">
+                  <Field className="span-6" label="Create order">
+                    <button
+                      type="button"
+                      className="redcliffe-btn redcliffe-btn-outline redcliffe-btn-block"
+                      onClick={openShopifyOrderPopup}
+                      disabled={shopifyOrderPopupOpen}
                     >
-                      <option value="true">Credit / prepaid</option>
-                      <option value="false">COD / collect at Redcliffe</option>
+                      Create Order on Shopify
+                    </button>
+                  </Field>
+
+                  <Field className="span-6" label="Payment mode">
+                    <select
+                      value={form.isCredit === "true" ? "prepaid" : "cash_on_collection"}
+                      onChange={(e) =>
+                        setField(
+                          "isCredit",
+                          e.target.value === "prepaid" ? "true" : "false"
+                        )
+                      }
+                    >
+                      <option value="prepaid">Prepaid</option>
+                      <option value="cash_on_collection">Cash on collection</option>
                     </select>
-                  </div>
-                  <button
-                    className="redcliffe-btn redcliffe-btn-primary"
-                    onClick={createBooking}
-                    disabled={loading.create}
-                  >
-                    {loading.create
-                      ? "Creating temporary booking..."
-                      : "Create temporary booking"}
-                  </button>
+                  </Field>
 
-                  <button
-                    className="redcliffe-btn redcliffe-btn-outline"
-                    onClick={() => confirmBooking(true)}
-                    disabled={loading.confirm}
-                  >
-                    {loading.confirm ? "Confirming..." : "Confirm booking"}
-                  </button>
+                  <Field className="span-12" label="Order ID">
+                    <input
+                      value={form.orderId}
+                      onChange={(e) => setField("orderId", e.target.value)}
+                      placeholder="Enter Shopify order ID"
+                    />
+                  </Field>
+                </div>
 
+                <div className="redcliffe-actions" style={{ marginTop: 14 }}>
                   <button
-                    className="redcliffe-btn redcliffe-btn-danger"
-                    onClick={() => confirmBooking(false)}
-                    disabled={loading.confirm}
+                    className={`redcliffe-btn ${isBookingConfirmed ? "redcliffe-btn-confirmed" : "redcliffe-btn-accent"}`}
+                    onClick={createAndConfirmBooking}
+                    disabled={loading.create || loading.confirm || isBookingConfirmed}
                   >
-                    Cancel booking
+                    {isBookingConfirmed
+                      ? "Confirmed ✓"
+                      : loading.create || loading.confirm
+                      ? "Processing..."
+                      : "Create & confirm"}
                   </button>
                 </div>
                 {bookingStatus ? (
@@ -1195,24 +1710,41 @@ export default function RedcliffeBookingPage() {
                     {bookingError}
                   </div>
                 ) : null}
+                {shopifyOrderOpenError ? (
+                  <div className="redcliffe-inline-note error" style={{ marginTop: 14 }}>
+                    {shopifyOrderOpenError}
+                  </div>
+                ) : null}
+                <div className="redcliffe-step-actions">
+                  <button type="button" className="redcliffe-btn redcliffe-btn-outline" onClick={goPrevStep}>Back</button>
+                </div>
               </div>
             </section>
+            ) : null}
 
           </div>
 
           <aside className="redcliffe-side">
             <section className="redcliffe-summary-box">
-              <h3>Booking Summary</h3>
-              <div className="redcliffe-summary-row">
-                <span>Area query</span>
-                <span>{form.placeQuery || "—"}</span>
+              <div className="redcliffe-summary-head">
+                <h3>Summary</h3>
+                <span>Draft</span>
               </div>
+              <p className="redcliffe-summary-sub">Auto-fills as you go.</p>
               <div className="redcliffe-summary-row">
-                <span>Location</span>
+                <span>Locality</span>
                 <span>{selectedLocation?.placeName || selectedLocation?.placeAddress || "—"}</span>
               </div>
               <div className="redcliffe-summary-row">
-                <span>Collection date</span>
+                <span>Coordinates</span>
+                <span>{form.latitude && form.longitude ? `${form.latitude}, ${form.longitude}` : "—"}</span>
+              </div>
+              <div className="redcliffe-summary-row">
+                <span>Booking date</span>
+                <span>{todayIso()}</span>
+              </div>
+              <div className="redcliffe-summary-row">
+                <span>Date</span>
                 <span>{form.collectionDate || "—"}</span>
               </div>
               <div className="redcliffe-summary-row">
@@ -1236,161 +1768,61 @@ export default function RedcliffeBookingPage() {
                 <span>{form.customerName || "—"}</span>
               </div>
               <div className="redcliffe-summary-row">
+                <span>Customer age</span>
+                <span>{form.customerAge || "—"}</span>
+              </div>
+              <div className="redcliffe-summary-row">
+                <span>Customer gender</span>
+                <span>{form.customerGender || "—"}</span>
+              </div>
+              <div className="redcliffe-summary-row">
+                <span>Customer email</span>
+                <span>{form.customerEmail || "—"}</span>
+              </div>
+              <div className="redcliffe-summary-row">
                 <span>Phone</span>
                 <span>{form.customerPhone || "—"}</span>
               </div>
               <div className="redcliffe-summary-row">
-                <span>Temp booking ID</span>
-                <span>
-                  {temporaryBooking?.booking_id || temporaryBooking?.pk || "—"}
-                </span>
+                <span>Address</span>
+                <span>{form.customerAddress || "—"}</span>
               </div>
               <div className="redcliffe-summary-row">
-                <span>Confirmed booking ID</span>
-                <span>{confirmedBooking?.booking_id || "—"}</span>
+                <span>Landmark</span>
+                <span>{form.customerLandmark || "—"}</span>
+              </div>
+              <div className="redcliffe-summary-row">
+                <span>Pincode</span>
+                <span>{form.pincode || "—"}</span>
+              </div>
+              <div className="redcliffe-summary-row">
+                <span>Members</span>
+                <span>{additionalMembers.length || "—"}</span>
+              </div>
+              <div className="redcliffe-summary-row">
+                <span>Payment</span>
+                <span>{form.isCredit === "true" ? "Credit / prepaid" : "Cash on collection"}</span>
+              </div>
+              <div className="redcliffe-summary-row">
+                <span>Order ID</span>
+                <span>{form.orderId || "—"}</span>
               </div>
             </section>
           </aside>
         </div>
       </div>
 
-      {showAddressDialog ? (
-        <div className="redcliffe-address-modal-backdrop">
-          <div className="redcliffe-address-modal">
-            <div className="redcliffe-address-modal-head">
-              <h3>Add New Address</h3>
-            </div>
+      <CreateOrderPopup
+        open={shopifyOrderPopupOpen}
+        onClose={() => setShopifyOrderPopupOpen(false)}
+        prefillCustomer={{
+          name: String(form.customerName || "").trim(),
+          phone: String(form.customerPhone || "").replace(/\D/g, "").slice(-10),
+        }}
+      />
 
-            <label className="redcliffe-address-field">
-              <span>Locality</span>
-              <input
-                value={addressDraft.localityQuery}
-                onFocus={() => setIsAddressLocalityFocused(true)}
-                onBlur={() => {
-                  window.setTimeout(() => {
-                    setIsAddressLocalityFocused(false);
-                  }, 120);
-                }}
-                onChange={(event) =>
-                  setAddressDraft((prev) => ({
-                    ...prev,
-                    localityQuery: event.target.value,
-                    selectedEloc: "",
-                    localityLabel: "",
-                    placeAddress: "",
-                  }))
-                }
-                placeholder="Search Locality"
-              />
-            </label>
-
-            {loading.addressSearch ? (
-              <div className="redcliffe-address-search-note">Searching localities...</div>
-            ) : null}
-
-            {isAddressLocalityFocused && addressMatches.length ? (
-              <div className="redcliffe-address-result-list">
-                {addressMatches.map((item) => {
-                  const isSelected = addressDraft.selectedEloc === item.eloc;
-                  return (
-                    <button
-                      type="button"
-                      key={item.eloc}
-                      className={`redcliffe-address-result${isSelected ? " selected" : ""}`}
-                      onClick={() => selectAddressCandidate(item)}
-                    >
-                      {formatLocationOption(item)}
-                    </button>
-                  );
-                })}
-              </div>
-            ) : null}
-
-            {addressSearchMessage && !addressMatches.length ? (
-              <div className="redcliffe-address-search-note">{addressSearchMessage}</div>
-            ) : null}
-
-            <div className="redcliffe-address-modal-grid">
-              <label className="redcliffe-address-field">
-                <span>House No./Plot No./Flat No./Door No./Shop/c/o</span>
-                <input
-                  value={addressDraft.houseNumber}
-                  onChange={(event) =>
-                    setAddressDraft((prev) => ({
-                      ...prev,
-                      houseNumber: event.target.value,
-                    }))
-                  }
-                  placeholder="Type Here..."
-                />
-                <small>Max Length 30</small>
-              </label>
-
-              <label className="redcliffe-address-field">
-                <span>Apartment/Building /Colony/Block/Sector/Street/ Gali/Road/Chawl</span>
-                <input
-                  value={addressDraft.addressLine2}
-                  onChange={(event) =>
-                    setAddressDraft((prev) => ({
-                      ...prev,
-                      addressLine2: event.target.value,
-                    }))
-                  }
-                  placeholder="Type Here..."
-                />
-                <small>Max Length 30</small>
-              </label>
-            </div>
-
-            <label className="redcliffe-address-field">
-              <span>Landmark/Sublocality</span>
-              <input
-                value={addressDraft.landmark}
-                onChange={(event) =>
-                  setAddressDraft((prev) => ({
-                    ...prev,
-                    landmark: event.target.value,
-                  }))
-                }
-                placeholder="Ex: School/College/Restaurant/Shop/Bank/Government Office"
-              />
-              <small>Max Length 100</small>
-            </label>
-
-            <label className="redcliffe-address-field">
-              <span>Pincode</span>
-              <input
-                value={addressDraft.pincode}
-                onChange={(event) =>
-                  setAddressDraft((prev) => ({
-                    ...prev,
-                    pincode: event.target.value,
-                  }))
-                }
-                placeholder="Enter pincode"
-              />
-            </label>
-
-            <div className="redcliffe-address-modal-actions">
-              <button
-                type="button"
-                className="redcliffe-address-dialog-btn ghost"
-                onClick={closeAddressDialog}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                className="redcliffe-address-dialog-btn primary"
-                onClick={applyAddressDraft}
-                disabled={loading.addressApply}
-              >
-                {loading.addressApply ? "Saving..." : "Select"}
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
     </div>
   );
 }
+
+

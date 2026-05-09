@@ -372,7 +372,7 @@ export default function ITManagerDashboard() {
       setLoading(true);
 
       const [assetsRes, allotmentsRes, employeesRes] = await Promise.all([
-        axios.get(`${API_BASE}/api/assets`),
+        axios.get(`${API_BASE}/api/assets?light=1`),
         axios.get(`${API_BASE}/api/asset-allotments`),
         axios.get(`${API_BASE}/api/assets/employees`),
       ]);

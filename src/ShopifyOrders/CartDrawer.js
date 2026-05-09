@@ -539,7 +539,7 @@ const CartDrawer = ({ closeDrawer }) => {
   };
 
   // Copy address logic
-  const handleCopyAddress = () => {
+  const handleCopyAddress = async () => {
     let addressString = "";
     if (addressCategory === "existing" && selectedAddressIndex !== null) {
       const addr = addresses[selectedAddressIndex];
@@ -547,7 +547,8 @@ const CartDrawer = ({ closeDrawer }) => {
     } else {
       addressString = `${newAddress.fullName}, ${newAddress.address1}, ${newAddress.address2}, ${newAddress.city}, ${newAddress.state}, ${newAddress.country}, ${newAddress.pincode}`;
     }
-    navigator.clipboard.writeText(addressString);
+    const copied = await copyToClipboardSafely(addressString);
+    setCopyStatus(copied ? "Address copied." : "Copy blocked by browser permissions.");
   };
 
   // Check if user has selected or filled an address
@@ -1860,6 +1861,11 @@ const CartDrawer = ({ closeDrawer }) => {
                     : "Confirm Address"}
                 </Button>
               </Box>
+              {copyStatus ? (
+                <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 2 }}>
+                  {copyStatus}
+                </Typography>
+              ) : null}
 
               {/* Payment Method */}
               {addressConfirmed && (
@@ -1934,11 +1940,14 @@ const CartDrawer = ({ closeDrawer }) => {
                           </Typography>
                           <Button
                             variant="outlined"
-                            onClick={() =>
-                              navigator.clipboard.writeText(
-                                razorpayLink
-                              )
-                            }
+                            onClick={async () => {
+                              const copied = await copyToClipboardSafely(razorpayLink);
+                              setCopyStatus(
+                                copied
+                                  ? "Payment link copied."
+                                  : "Copy blocked by browser permissions."
+                              );
+                            }}
                             sx={buttonStyle}
                           >
                             Copy Link
@@ -2101,3 +2110,31 @@ const CartDrawer = ({ closeDrawer }) => {
 };
 
 export default CartDrawer;
+  const copyToClipboardSafely = async (text) => {
+    const value = String(text || "");
+    try {
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(value);
+        return true;
+      }
+    } catch (error) {
+      // Fall through to legacy copy fallback.
+    }
+
+    try {
+      const textarea = document.createElement("textarea");
+      textarea.value = value;
+      textarea.setAttribute("readonly", "readonly");
+      textarea.style.position = "fixed";
+      textarea.style.left = "-9999px";
+      document.body.appendChild(textarea);
+      textarea.select();
+      const copied = document.execCommand("copy");
+      document.body.removeChild(textarea);
+      return Boolean(copied);
+    } catch (error) {
+      return false;
+    }
+  };
+
+
