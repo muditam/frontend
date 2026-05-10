@@ -1,8 +1,6 @@
 import React from "react";
 import { Navigate } from "react-router-dom";
-
-
-
+import { isManagerRole } from "../utils/managerRoles";
 
 const ManagerRoute = ({ children }) => {
   const storedUser = sessionStorage.getItem("user");
@@ -14,7 +12,7 @@ const ManagerRoute = ({ children }) => {
   }
 
 
-  if (!["Manager", "Super Admin"].includes(user.role)) {
+  if (!isManagerRole(user?.role || "")) {
     return <Navigate to="/403" replace />;
   }
 

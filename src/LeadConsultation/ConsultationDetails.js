@@ -41,6 +41,7 @@ import HistoryIcon from "@mui/icons-material/History";
 import WhatsAppIcon from "@mui/icons-material/WhatsApp";
 import PhoneInTalkIcon from "@mui/icons-material/PhoneInTalk";
 import WhatsAppChatDialog from "../pages/retention/WhatsAppChatDialog";
+import { openZoomPhoneDialer } from "../utils/zoomPhoneDialer";
 
 const API_BASE = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "");
 
@@ -153,15 +154,21 @@ const ConsultationDetails = ({ customerId, reloadTrigger, onReload }) => {
     }
   })();
 
-  const openZoomCallSheet = (rawPhone) => {
-    const digits = String(rawPhone || "").replace(/\D/g, "");
-    if (!digits) return;
-    const phoneNumber = digits.length === 10 ? `+91${digits}` : `+${digits}`;
-    window.dispatchEvent(
-      new CustomEvent("zoom:open-sheet", {
-        detail: { phoneNumber },
-      })
-    );
+  const openZoomCallSheet = async (rawPhone) => {
+    try {
+      const { data } = await api.post("/api/zoom/call-intents", {
+        leadId: String(customerId || ""),
+        phoneNumber: String(rawPhone || ""),
+        sourcePage: "/leadmanagement",
+        sourceContext: {
+          customerName: String(customer?.name || ""),
+          leadSource: String(customer?.leadSource || ""),
+        },
+      });
+      openZoomPhoneDialer(data?.dialNumberE164 || rawPhone);
+    } catch (_) {
+      openZoomPhoneDialer(rawPhone);
+    }
   };
 
   useEffect(() => {

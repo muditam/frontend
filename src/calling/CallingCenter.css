@@ -97,6 +97,23 @@
   gap: 10px;
 }
 
+.cc-analytics-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.cc-inner-card {
+  border-radius: 14px;
+}
+
+.cc-mini-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: #496481;
+  margin-bottom: 6px;
+}
+
 .cc-kpi-card {
   border: 1px solid #d7e5f7;
   border-radius: 14px;
@@ -195,5 +212,6 @@
   .cc-title { font-size: 24px; }
   .cc-grid { grid-template-columns: 1fr; }
   .cc-kpi { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .cc-analytics-grid { grid-template-columns: 1fr; }
   .cc-iframe { min-height: 420px; }
 }

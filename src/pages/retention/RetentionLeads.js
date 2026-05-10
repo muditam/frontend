@@ -65,6 +65,7 @@ import ShoppingBagOutlinedIcon from "@mui/icons-material/ShoppingBagOutlined";
 
 import CreateDietPlanPopup from "./CreateDietPlanPopup";
 import WhatsAppChatDialog from "./WhatsAppChatDialog";
+import { openZoomPhoneDialer } from "../../utils/zoomPhoneDialer";
  
 const API_BASE = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "");
 
@@ -3013,12 +3014,24 @@ You can mark Lost only after 60 days.`);
                   <Tooltip title="Call">
                     <IconButton
                       size="small"
-                      onClick={() => {
-                        const num = String(leads[selectedLeadIndex]?.contactNumber || "").trim();
+                      onClick={async () => {
+                        const selectedLead = leads[selectedLeadIndex] || {};
+                        const num = String(selectedLead?.contactNumber || "").trim();
                         if (!num) return;
-                        window.dispatchEvent(
-                          new CustomEvent("zoom:open-sheet", { detail: { phoneNumber: num } })
-                        );
+                        try {
+                          const { data } = await api.post("/api/zoom/call-intents", {
+                            leadId: String(selectedLead?._id || selectedLeadId || ""),
+                            phoneNumber: num,
+                            sourcePage: "/retention/leads",
+                            sourceContext: {
+                              customerName: String(selectedLead?.name || ""),
+                              retentionStatus: String(selectedLead?.retentionStatus || ""),
+                            },
+                          });
+                          openZoomPhoneDialer(data?.dialNumberE164 || num);
+                        } catch (_) {
+                          openZoomPhoneDialer(num);
+                        }
                       }}
                       sx={{ border: "1px solid #D1DDEB", bgcolor: "#fff", color: "#0F766E" }}
                     >
