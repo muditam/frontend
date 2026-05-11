@@ -61,6 +61,7 @@ export default function CallingCenterManagerDashboard() {
     perAgent: [],
   });
   const [live, setLive] = useState(false);
+  const [error, setError] = useState("");
   const [preset, setPreset] = useState("today");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
@@ -80,8 +81,19 @@ export default function CallingCenterManagerDashboard() {
   };
 
   const load = async () => {
-    const { data } = await api.get("/api/zoom/calls/manager/overview", { params: getRangeParams() });
-    setData(data || {});
+    try {
+      setError("");
+      const { data } = await api.get("/api/zoom/calls/manager/overview", { params: getRangeParams() });
+      setData(data || {});
+    } catch (err) {
+      const message =
+        err?.response?.data?.message ||
+        err?.message ||
+        "Failed to load manager dashboard data";
+      setError(message);
+      console.error("Calling center manager dashboard load failed:", message, err);
+      throw err;
+    }
   };
 
   useEffect(() => {
@@ -171,6 +183,7 @@ export default function CallingCenterManagerDashboard() {
       <div className="cc-card">
         <div className="cc-head"><strong>Calling Center · Manager Dashboard</strong><button className="cc-btn" onClick={load}>Refresh{live ? " · Live" : ""}</button></div>
         <div className="cc-body">
+          {error ? <div className="cc-empty" style={{ marginBottom: 12 }}>{error}</div> : null}
           <div className="cc-actions" style={{ marginBottom: 12 }}>
             <select className="cc-search" style={{ maxWidth: 190 }} value={preset} onChange={(e) => setPreset(e.target.value)}>
               {PRESETS.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
