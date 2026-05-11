@@ -749,7 +749,7 @@ export default function WhatsAppChatDrawer({
     }
 
     try {
-      await axios.post(`${API_BASE}/api/whatsapp/send-text`, { to: phone10, text: body });
+      await api.post(`/api/whatsapp/send-text`, { to: phone10, text: body });
       setText("");
       stickToBottomRef.current = true;
       scrollToBottomSoon("auto");
@@ -811,7 +811,7 @@ export default function WhatsAppChatDrawer({
       fd.append("file", pendingFile.file);
       if (pendingFile.caption?.trim()) fd.append("caption", pendingFile.caption.trim());
 
-      await axios.post(`${API_BASE}/api/whatsapp/send-media`, fd, {
+      await api.post(`/api/whatsapp/send-media`, fd, {
         headers: { "Content-Type": "multipart/form-data" },
       });
 
@@ -831,7 +831,7 @@ export default function WhatsAppChatDrawer({
   async function uploadTemplateHeaderMedia(file) {
     const fd = new FormData();
     fd.append("file", file);
-    const r = await axios.post(`${API_BASE}/api/whatsapp/upload-template-media`, fd, {
+    const r = await api.post(`/api/whatsapp/upload-template-media`, fd, {
       headers: { "Content-Type": "multipart/form-data" },
     });
     return r?.data;
@@ -1011,7 +1011,7 @@ export default function WhatsAppChatDrawer({
         ? `Reply to the customer's last message: "${String(lastInbound.text).slice(0, 220)}"`
         : "Write a helpful next message to the customer based on the conversation.";
 
-      const r = await axios.post(`${API_BASE}/api/whatsapp/help-me-write`, {
+      const r = await api.post(`/api/whatsapp/help-me-write`, {
         phone: phone10,
         leadName: leadName || "",
         agentName: currentUserName || "",
@@ -1058,7 +1058,7 @@ export default function WhatsAppChatDrawer({
 
     setRephraseLoading(true);
     try {
-      const r = await axios.post(`${API_BASE}/api/whatsapp/rephrase`, {
+      const r = await api.post(`/api/whatsapp/rephrase`, {
         text: original,
         style: rephraseStyle,
       });
@@ -1086,7 +1086,7 @@ export default function WhatsAppChatDrawer({
 
   const sendTemplate = async (tpl, vars = [], renderedPreview = "", header = null) => {
     try {
-      await axios.post(`${API_BASE}/api/whatsapp/send-template`, {
+      await api.post(`/api/whatsapp/send-template`, {
         to: phone10,
         templateName: tpl.name,
         parameters: (vars || []).map((x) => String(x ?? "")),

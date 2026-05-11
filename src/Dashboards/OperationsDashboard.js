@@ -26,7 +26,12 @@ import CurrencyExchangeRoundedIcon from "@mui/icons-material/CurrencyExchangeRou
 import { alpha, useTheme } from "@mui/material/styles";
 import axios from "axios";
 
-const API_BASE = "https://muditamleads-14f32a10d7f7.herokuapp.com";
+const API_BASE = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "");
+
+const api = axios.create({
+  baseURL: API_BASE,
+  withCredentials: true,
+});
 
 // ==== Auth helper ====
 const getLoggedIn = () => {
@@ -205,7 +210,7 @@ export default function OpsDashboard() {
         rangeEnd = end;
       }
 
-      const { data } = await axios.get(`${API_BASE}/api/ops-dashboard/metrics`, { params });
+      const { data } = await api.get(`/api/ops-dashboard/metrics`, { params });
 
       setMetrics({
         today: {
