@@ -70,9 +70,7 @@ const getAvatarUrl = (name) =>
 
 const API_BASE_URL = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "");
 const SWITCH_API_BASE = "/api/switch-dashboard";
-const LEGACY_SWITCH_API_BASE = "/api/employees";
 const PRIMARY_SWITCH_API_BASE = SWITCH_API_BASE;
-const SECONDARY_SWITCH_API_BASE = LEGACY_SWITCH_API_BASE;
 
 const readJsonStorage = (storage, key, fallback = null) => {
   try {
@@ -99,6 +97,11 @@ const isSameUser = (a, b) => {
 const clearSwitchMarkers = () => {
   sessionStorage.removeItem("originalUser");
   sessionStorage.removeItem("switchMeta");
+};
+
+const getSessionUserHeaders = () => {
+  const user = readJsonStorage(sessionStorage, "user", null);
+  return user ? { "x-session-user": JSON.stringify(user) } : {};
 };
 
 
@@ -392,25 +395,16 @@ const NavbarWithSearch = () => {
      setRevertLoading(true);
 
      let data;
-     try {
-       ({ data } = await axios.post(
-         `${API_BASE_URL}${PRIMARY_SWITCH_API_BASE}/revert`,
-         {},
-         { withCredentials: true }
-       ));
+      try {
+        ({ data } = await axios.post(
+          `${API_BASE_URL}${PRIMARY_SWITCH_API_BASE}/revert`,
+          {},
+          { withCredentials: true, headers: getSessionUserHeaders() }
+        ));
       } catch (err) {
         const status = err?.response?.status;
-        if (status === 404 || status === 400) {
-          try {
-            ({ data } = await axios.post(
-              `${API_BASE_URL}${SECONDARY_SWITCH_API_BASE}/revert`,
-              {},
-              { withCredentials: true }
-            ));
-          } catch (secondaryErr) {
-            if (restoreOriginalLocally()) return;
-            throw secondaryErr;
-          }
+        if (status === 400) {
+          if (restoreOriginalLocally()) return;
         } else if (status === 401) {
           if (restoreOriginalLocally()) return;
           throw err;

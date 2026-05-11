@@ -22,11 +22,10 @@ import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 
 
-const API_BASE_URL = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "");
+const API_BASE_URL = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, ""); 
+
 const SWITCH_API_BASE = '/api/switch-dashboard';
-const LEGACY_SWITCH_API_BASE = '/api/employees';
 const PRIMARY_SWITCH_API_BASE = SWITCH_API_BASE;
-const SECONDARY_SWITCH_API_BASE = LEGACY_SWITCH_API_BASE;
 const dicebearAvatar = (seed = "Somya") =>
   `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(
     seed || "Somya"
@@ -59,6 +58,11 @@ const clearSwitchMarkers = () => {
   sessionStorage.removeItem('switchMeta');
 };
 
+const getSessionUserHeaders = () => {
+  const user = readJsonStorage(sessionStorage, 'user', null);
+  return user ? { 'x-session-user': JSON.stringify(user) } : {};
+};
+
 
 
 
@@ -84,6 +88,7 @@ const SwitchDashboard = () => {
     return readJsonStorage(sessionStorage, 'originalUser', null);
   }, []);
 
+  const isImpersonating = !!(currentUser && originalUser && !isSameUser(currentUser, originalUser));
   const hasOriginalUser = !!originalUser;
 
   const storedProfile = useMemo(() => {
@@ -104,25 +109,29 @@ const SwitchDashboard = () => {
 
 
   useEffect(() => {
-    const getWithFallback = async (path = '', config = {}) => {
+    const getSwitchRoute = async (path = '', config = {}) => {
       const normalizedPath = path.startsWith('/') ? path : `/${path}`;
-      try {
-        return await axios.get(
-          `${API_BASE_URL}${PRIMARY_SWITCH_API_BASE}${normalizedPath}`,
-          config
-        );
-      } catch (err) {
-        if (err?.response?.status !== 404) throw err;
-        return axios.get(
-          `${API_BASE_URL}${SECONDARY_SWITCH_API_BASE}${normalizedPath}`,
-          config
-        );
-      }
+      return axios.get(
+        `${API_BASE_URL}${PRIMARY_SWITCH_API_BASE}${normalizedPath}`,
+        {
+          ...config,
+          headers: {
+            ...(config.headers || {}),
+            ...getSessionUserHeaders(),
+          },
+        }
+      );
     };
 
     const loadEmployees = async () => {
+      if (isImpersonating) {
+        setAllEmployees([]);
+        setLoadingList(false);
+        return;
+      }
+
       try {
-        const { data } = await getWithFallback('', {
+        const { data } = await getSwitchRoute('', {
           params: { all: true },
           withCredentials: true,
         });
@@ -132,59 +141,54 @@ const SwitchDashboard = () => {
         );
         setAllEmployees(filtered);
       } catch (err) {
+        if (err?.response?.status === 409) {
+          setAllEmployees([]);
+          setSnackbar({
+            open: true,
+            message: 'Return to your original account before switching again.',
+            severity: 'info',
+          });
+          return;
+        }
         console.error("Failed loading employees:", err);
       } finally {
         setLoadingList(false);
       }
     };
     loadEmployees();
-  }, [currentUser, loggedInEmployeeId]);
+  }, [currentUser, isImpersonating, loggedInEmployeeId]);
 
 
   const handleSwitch = async () => {
     if (!selectedEmployee || switching) return;
+    if (isImpersonating) {
+      setSnackbar({
+        open: true,
+        message: 'Return to your original account before switching again.',
+        severity: 'info',
+      });
+      return;
+    }
     try {
       setSwitching(true);
       const actor = currentUser;
       if (actor && !sessionStorage.getItem('originalUser')) {
         sessionStorage.setItem('originalUser', JSON.stringify(actor));
       }
-      const postWithFallback = async (path = '', primaryBody = {}, secondaryBody = null) => {
+      const postToSwitchRoute = async (path = '', body = {}) => {
         const normalizedPath = path.startsWith('/') ? path : `/${path}`;
-        const fallbackBody = secondaryBody || primaryBody;
-        const primaryUrl = `${API_BASE_URL}${PRIMARY_SWITCH_API_BASE}${normalizedPath}`;
-        const secondaryUrl = `${API_BASE_URL}${SECONDARY_SWITCH_API_BASE}${normalizedPath}`;
-        try {
-          return await axios.post(
-            primaryUrl,
-            primaryBody,
-            { withCredentials: true }
-          );
-        } catch (err) {
-          const status = err?.response?.status;
-          if (status === 403 && secondaryBody) {
-            try {
-              return await axios.post(primaryUrl, fallbackBody, { withCredentials: true });
-            } catch (retryErr) {
-              if (retryErr?.response?.status !== 404) throw retryErr;
-              return axios.post(secondaryUrl, fallbackBody, { withCredentials: true });
-            }
-          }
-          if (status !== 404) throw err;
-          return axios.post(secondaryUrl, fallbackBody, { withCredentials: true });
-        }
+        return axios.post(
+          `${API_BASE_URL}${PRIMARY_SWITCH_API_BASE}${normalizedPath}`,
+          body,
+          { withCredentials: true, headers: getSessionUserHeaders() }
+        );
       };
 
-      const { data } = await postWithFallback(
+      const { data } = await postToSwitchRoute(
         '/impersonate',
         {
           employeeId: selectedEmployee._id,
           actorRole: actor?.role || '',
-          actorEmail: actor?.email || '',
-        },
-        {
-          employeeId: selectedEmployee._id,
-          actorDepartment: actor?.department || '',
           actorEmail: actor?.email || '',
         }
       );
@@ -198,7 +202,11 @@ const SwitchDashboard = () => {
       }
       navigate('/', { replace: true });
     } catch (err) {
-      setSnackbar({ open: true, message: 'Switch failed', severity: 'error' });
+      const message =
+        err?.response?.status === 409
+          ? 'Return to your original account before switching again.'
+          : 'Switch failed';
+      setSnackbar({ open: true, message, severity: err?.response?.status === 409 ? 'info' : 'error' });
     } finally {
       setSwitching(false);
     }
@@ -229,17 +237,11 @@ const SwitchDashboard = () => {
         ({ data } = await axios.post(
           `${API_BASE_URL}${PRIMARY_SWITCH_API_BASE}/revert`,
           {},
-          { withCredentials: true }
+          { withCredentials: true, headers: getSessionUserHeaders() }
         ));
       } catch (err) {
         const status = err?.response?.status;
-        if (status === 404) {
-          ({ data } = await axios.post(
-            `${API_BASE_URL}${SECONDARY_SWITCH_API_BASE}/revert`,
-            {},
-            { withCredentials: true }
-          ));
-        } else if (status === 400 || status === 401) {
+        if (status === 400 || status === 401) {
           if (restoreOriginalLocally()) return;
           throw err;
         } else {
@@ -336,11 +338,17 @@ const SwitchDashboard = () => {
             <Typography variant="caption" sx={{ color: '#71717a', fontWeight: 800, mb: 1, display: 'block', textTransform: 'uppercase', letterSpacing: 0.5 }}>
               Find Employee
             </Typography>
+          {isImpersonating && (
+            <Alert severity="info" sx={{ mb: 2, borderRadius: 2 }}>
+              Return to your original account before switching to another employee.
+            </Alert>
+          )}
           <Autocomplete
   fullWidth
   options={allEmployees}
   loading={loadingList}
   value={selectedEmployee}
+  disabled={isImpersonating}
   isOptionEqualToValue={(opt, val) => opt?._id === val?._id}
   getOptionLabel={(option) => option?.fullName || option?.email || ""}
   onChange={(e, value) => setSelectedEmployee(value || null)}
@@ -498,7 +506,7 @@ const SwitchDashboard = () => {
                   <Button
                     fullWidth
                     variant="contained"
-                    disabled={switching}
+                    disabled={switching || isImpersonating}
                     onClick={() => !switching && handleSwitch()}
                     sx={{
                       bgcolor: '#09090b',
