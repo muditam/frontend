@@ -32,6 +32,11 @@ import BusinessOutlinedIcon from "@mui/icons-material/BusinessOutlined";
 
 const API_BASE = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "");
 
+const api = axios.create({
+  baseURL: API_BASE,
+  withCredentials: true,
+});
+
 const safeArr = (v) => (Array.isArray(v) ? v : []);
 
 const fmtDate = (d) => {
@@ -200,8 +205,8 @@ function JourneyDialog({ open, onClose, assetCode }) {
       setLoading(true);
       setError("");
       try {
-        const { data } = await axios.get(
-          `${API_BASE}/api/asset-allotments/journey/${encodeURIComponent(assetCode)}`
+        const { data } = await api.get(
+          `/api/asset-allotments/journey/${encodeURIComponent(assetCode)}`
         );
         if (!active) return;
         setRows(safeArr(data));
@@ -372,9 +377,9 @@ export default function ITManagerDashboard() {
       setLoading(true);
 
       const [assetsRes, allotmentsRes, employeesRes] = await Promise.all([
-        axios.get(`${API_BASE}/api/assets?light=1`),
-        axios.get(`${API_BASE}/api/asset-allotments`),
-        axios.get(`${API_BASE}/api/assets/employees`),
+        api.get(`/api/assets?light=1`),
+        api.get(`/api/asset-allotments`),
+        api.get(`/api/assets/employees`),
       ]);
 
       const mappedAssets = safeArr(assetsRes.data).map((a) => ({

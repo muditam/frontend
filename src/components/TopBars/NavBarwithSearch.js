@@ -74,6 +74,33 @@ const LEGACY_SWITCH_API_BASE = "/api/employees";
 const PRIMARY_SWITCH_API_BASE = SWITCH_API_BASE;
 const SECONDARY_SWITCH_API_BASE = LEGACY_SWITCH_API_BASE;
 
+const readJsonStorage = (storage, key, fallback = null) => {
+  try {
+    const raw = storage.getItem(key);
+    return raw ? JSON.parse(raw) : fallback;
+  } catch {
+    return fallback;
+  }
+};
+
+const normalizeIdentity = (user = {}) => ({
+  id: String(user?._id || user?.id || "").trim(),
+  email: String(user?.email || "").trim().toLowerCase(),
+});
+
+const isSameUser = (a, b) => {
+  const left = normalizeIdentity(a);
+  const right = normalizeIdentity(b);
+  if (left.id && right.id) return left.id === right.id;
+  if (left.email && right.email) return left.email === right.email;
+  return false;
+};
+
+const clearSwitchMarkers = () => {
+  sessionStorage.removeItem("originalUser");
+  sessionStorage.removeItem("switchMeta");
+};
+
 
 const NavbarWithSearch = () => {
  const [query, setQuery] = useState("");
@@ -108,17 +135,15 @@ const NavbarWithSearch = () => {
  const location = useLocation();
 
 
- const user = JSON.parse(sessionStorage.getItem("user"));
- const originalUserRaw = sessionStorage.getItem("originalUser");
- const isImpersonating = !!originalUserRaw;
- const originalUser = (() => {
-   if (!originalUserRaw) return null;
-   try {
-     return JSON.parse(originalUserRaw);
-   } catch {
-     return null;
+ const user = readJsonStorage(sessionStorage, "user", null);
+ const originalUser = readJsonStorage(sessionStorage, "originalUser", null);
+ const isImpersonating = !!originalUser;
+
+ useEffect(() => {
+   if (user && originalUser && isSameUser(user, originalUser)) {
+     clearSwitchMarkers();
    }
- })();
+ }, [user, originalUser]);
 
 
  // 🔐 Navbar permissions
@@ -348,20 +373,23 @@ const NavbarWithSearch = () => {
  const showTaskIcons = showTaskBoardIcon || showMyReportingIcon;
 
  const handleGlobalRevert = async () => {
-   try {
-     setRevertLoading(true);
-
-     // Legacy backend keeps stale impersonation session fields across cycles.
-     // Frontend originalUser is the reliable source for "return to own dashboard".
+   const restoreOriginalLocally = () => {
      const originalStr = sessionStorage.getItem("originalUser");
-     if (originalStr) {
+     if (!originalStr) return false;
+     try {
        const original = JSON.parse(originalStr);
        sessionStorage.setItem("user", JSON.stringify(original));
-       sessionStorage.removeItem("originalUser");
-       sessionStorage.removeItem("switchMeta");
+       clearSwitchMarkers();
        navigate("/switch-dashboard", { replace: true });
-       return;
+       return true;
+     } catch {
+       clearSwitchMarkers();
+       return false;
      }
+   };
+
+   try {
+     setRevertLoading(true);
 
      let data;
      try {
@@ -380,15 +408,12 @@ const NavbarWithSearch = () => {
               { withCredentials: true }
             ));
           } catch (secondaryErr) {
-            const originalStr = sessionStorage.getItem("originalUser");
-            if (!originalStr) throw secondaryErr;
-            const original = JSON.parse(originalStr);
-            sessionStorage.setItem("user", JSON.stringify(original));
-            sessionStorage.removeItem("originalUser");
-            sessionStorage.removeItem("switchMeta");
-            navigate("/switch-dashboard", { replace: true });
-            return;
+            if (restoreOriginalLocally()) return;
+            throw secondaryErr;
           }
+        } else if (status === 401) {
+          if (restoreOriginalLocally()) return;
+          throw err;
         } else {
           throw err;
         }
@@ -400,14 +425,9 @@ const NavbarWithSearch = () => {
           JSON.stringify({ ...data.user, _id: data.user._id || data.user.id })
         );
       } else {
-        const originalStr = sessionStorage.getItem("originalUser");
-        if (originalStr) {
-          const original = JSON.parse(originalStr);
-          sessionStorage.setItem("user", JSON.stringify(original));
-        }
+        if (restoreOriginalLocally()) return;
       }
-      sessionStorage.removeItem("originalUser");
-      sessionStorage.removeItem("switchMeta");
+      clearSwitchMarkers();
       navigate("/switch-dashboard", { replace: true });
    } catch (error) {
      console.error("Error while reverting impersonation:", error);

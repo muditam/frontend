@@ -38,7 +38,7 @@ api.interceptors.request.use((config) => {
 });
 
 export default function CallingCenterManagerDashboard() {
-  const [data, setData] = useState({
+  const EMPTY_DATA = {
     total: 0,
     answered: 0,
     missed: 0,
@@ -59,9 +59,13 @@ export default function CallingCenterManagerDashboard() {
     topRepeatDestinations: [],
     topRepeatSources: [],
     perAgent: [],
+  };
+  const [data, setData] = useState({
+    ...EMPTY_DATA,
   });
   const [live, setLive] = useState(false);
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(true);
   const [preset, setPreset] = useState("today");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
@@ -80,8 +84,9 @@ export default function CallingCenterManagerDashboard() {
     return params;
   };
 
-  const load = async () => {
+  const load = async ({ silent = false } = {}) => {
     try {
+      if (!silent) setLoading(true);
       setError("");
       const { data } = await api.get("/api/zoom/calls/manager/overview", { params: getRangeParams() });
       setData(data || {});
@@ -93,6 +98,8 @@ export default function CallingCenterManagerDashboard() {
       setError(message);
       console.error("Calling center manager dashboard load failed:", message, err);
       throw err;
+    } finally {
+      if (!silent) setLoading(false);
     }
   };
 
@@ -109,7 +116,7 @@ export default function CallingCenterManagerDashboard() {
     const startPolling = () => {
       if (pollRef.current) return;
       pollRef.current = setInterval(() => {
-        load().catch(() => {});
+        load({ silent: true }).catch(() => {});
       }, 15000);
     };
 
@@ -149,6 +156,7 @@ export default function CallingCenterManagerDashboard() {
         try {
           const payload = JSON.parse(event.data || "{}");
           setData(payload || {});
+          setLoading(false);
         } catch (_) {
           // noop
         }
@@ -166,6 +174,7 @@ export default function CallingCenterManagerDashboard() {
       };
     };
 
+    setLoading(true);
     load()
       .catch(() => {})
       .finally(() => connectStream());
@@ -181,7 +190,7 @@ export default function CallingCenterManagerDashboard() {
   return (
     <div className="calling-center-page">
       <div className="cc-card">
-        <div className="cc-head"><strong>Calling Center · Manager Dashboard</strong><button className="cc-btn" onClick={load}>Refresh{live ? " · Live" : ""}</button></div>
+        <div className="cc-head"><strong>Calling Center · Manager Dashboard</strong><button className="cc-btn" onClick={() => load()} disabled={loading}>Refresh{live ? " · Live" : ""}</button></div>
         <div className="cc-body">
           {error ? <div className="cc-empty" style={{ marginBottom: 12 }}>{error}</div> : null}
           <div className="cc-actions" style={{ marginBottom: 12 }}>
@@ -195,7 +204,7 @@ export default function CallingCenterManagerDashboard() {
               </>
             )}
           </div>
-          <div className="cc-kpi" style={{ marginBottom: 14 }}>
+          <div className={`cc-kpi ${loading ? "cc-loading-block" : ""}`} style={{ marginBottom: 14 }}>
             <div className="cc-kpi-card"><div>Total Calls</div><strong>{data.total}</strong></div>
             <div className="cc-kpi-card"><div>Answered</div><strong>{data.answered}</strong></div>
             <div className="cc-kpi-card"><div>Missed</div><strong>{data.missed}</strong></div>
@@ -208,6 +217,7 @@ export default function CallingCenterManagerDashboard() {
             <div className="cc-kpi-card"><div>Voicemail Y/N</div><strong>{Number(data.voicemailStats?.yes || 0)}/{Number(data.voicemailStats?.no || 0)}</strong></div>
             <div className="cc-kpi-card"><div>Recorded Y/N</div><strong>{Number(data.recordedStats?.yes || 0)}/{Number(data.recordedStats?.no || 0)}</strong></div>
           </div>
+          <div className={loading ? "cc-loading-block" : ""}>
           <table className="cc-table">
             <thead><tr><th>Agent</th><th>Calls</th><th>Answered</th><th>Missed</th><th>In</th><th>Out</th><th>Avg Dur</th><th>Answer %</th><th>Duration</th></tr></thead>
             <tbody>
@@ -216,8 +226,9 @@ export default function CallingCenterManagerDashboard() {
               ))}
             </tbody>
           </table>
+          </div>
 
-          <div className="cc-analytics-grid" style={{ marginTop: 14 }}>
+          <div className={`cc-analytics-grid ${loading ? "cc-loading-block" : ""}`} style={{ marginTop: 14 }}>
             <div className="cc-card cc-inner-card">
               <div className="cc-head"><strong>Call Results</strong></div>
               <div className="cc-body">

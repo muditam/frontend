@@ -186,6 +186,21 @@
 }
 
 .cc-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+.cc-pagination {
+  margin-top: 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.cc-pagination-meta,
+.cc-page-indicator {
+  font-size: 12px;
+  color: var(--cc-muted);
+}
+
 .cc-btn {
   border: 1px solid var(--cc-border);
   background: #fff;
@@ -198,6 +213,10 @@
 .cc-btn:hover {
   background: #f6faff;
 }
+.cc-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
 .cc-btn-primary {
   background: linear-gradient(135deg, #0f766e 0%, #11857b 100%);
   color: #fff;
@@ -205,6 +224,29 @@
 }
 .cc-btn-primary:hover {
   filter: brightness(0.98);
+}
+
+.cc-loading-block {
+  position: relative;
+  overflow: hidden;
+  opacity: 0.72;
+  transition: opacity 0.2s ease;
+}
+
+.cc-loading-block::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.55) 50%, rgba(255,255,255,0) 100%);
+  transform: translateX(-100%);
+  animation: cc-shimmer 1.4s infinite;
+  pointer-events: none;
+}
+
+@keyframes cc-shimmer {
+  100% {
+    transform: translateX(100%);
+  }
 }
 
 @media (max-width: 900px) {

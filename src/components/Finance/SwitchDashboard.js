@@ -32,6 +32,33 @@ const dicebearAvatar = (seed = "Somya") =>
     seed || "Somya"
   )}&backgroundType=gradientLinear&radius=50`;
 
+const readJsonStorage = (storage, key, fallback = null) => {
+  try {
+    const raw = storage.getItem(key);
+    return raw ? JSON.parse(raw) : fallback;
+  } catch {
+    return fallback;
+  }
+};
+
+const normalizeIdentity = (user = {}) => ({
+  id: String(user?._id || user?.id || '').trim(),
+  email: String(user?.email || '').trim().toLowerCase(),
+});
+
+const isSameUser = (a, b) => {
+  const left = normalizeIdentity(a);
+  const right = normalizeIdentity(b);
+  if (left.id && right.id) return left.id === right.id;
+  if (left.email && right.email) return left.email === right.email;
+  return false;
+};
+
+const clearSwitchMarkers = () => {
+  sessionStorage.removeItem('originalUser');
+  sessionStorage.removeItem('switchMeta');
+};
+
 
 
 
@@ -49,24 +76,18 @@ const SwitchDashboard = () => {
 
 
   const navigate = useNavigate();
-  const hasOriginalUser = !!sessionStorage.getItem('originalUser');
-
-
   const currentUser = useMemo(() => {
-    try {
-      return JSON.parse(sessionStorage.getItem('user') || 'null');
-    } catch {
-      return null;
-    }
+    return readJsonStorage(sessionStorage, 'user', null);
   }, []);
 
+  const originalUser = useMemo(() => {
+    return readJsonStorage(sessionStorage, 'originalUser', null);
+  }, []);
+
+  const hasOriginalUser = !!originalUser;
 
   const storedProfile = useMemo(() => {
-    try {
-      return JSON.parse(localStorage.getItem('userProfile') || '{}');
-    } catch {
-      return {};
-    }
+    return readJsonStorage(localStorage, 'userProfile', {});
   }, []);
 
 
@@ -74,6 +95,12 @@ const SwitchDashboard = () => {
     () => storedProfile?._id || storedProfile?.user?._id || currentUser?._id || '',
     [storedProfile, currentUser]
   );
+
+  useEffect(() => {
+    if (currentUser && originalUser && isSameUser(currentUser, originalUser)) {
+      clearSwitchMarkers();
+    }
+  }, [currentUser, originalUser]);
 
 
   useEffect(() => {
@@ -179,19 +206,23 @@ const SwitchDashboard = () => {
 
 
   const handleRevert = async () => {
-    try {
-      setReverting(true);
-
-      // Frontend originalUser is authoritative for current impersonation cycle.
+    const restoreOriginalLocally = () => {
       const originalStr = sessionStorage.getItem('originalUser');
-      if (originalStr) {
+      if (!originalStr) return false;
+      try {
         const original = JSON.parse(originalStr);
         sessionStorage.setItem('user', JSON.stringify(original));
-        sessionStorage.removeItem('originalUser');
-        sessionStorage.removeItem('switchMeta');
+        clearSwitchMarkers();
         navigate('/switch-dashboard', { replace: true });
-        return;
+        return true;
+      } catch {
+        clearSwitchMarkers();
+        return false;
       }
+    };
+
+    try {
+      setReverting(true);
 
       let data;
       try {
@@ -201,18 +232,26 @@ const SwitchDashboard = () => {
           { withCredentials: true }
         ));
       } catch (err) {
-        if (err?.response?.status !== 404) throw err;
-        ({ data } = await axios.post(
-          `${API_BASE_URL}${SECONDARY_SWITCH_API_BASE}/revert`,
-          {},
-          { withCredentials: true }
-        ));
+        const status = err?.response?.status;
+        if (status === 404) {
+          ({ data } = await axios.post(
+            `${API_BASE_URL}${SECONDARY_SWITCH_API_BASE}/revert`,
+            {},
+            { withCredentials: true }
+          ));
+        } else if (status === 400 || status === 401) {
+          if (restoreOriginalLocally()) return;
+          throw err;
+        } else {
+          throw err;
+        }
       }
       if (data?.user) {
         sessionStorage.setItem('user', JSON.stringify({ ...data.user, _id: data.user._id || data.user.id }));
+      } else if (restoreOriginalLocally()) {
+        return;
       }
-      sessionStorage.removeItem('originalUser');
-      sessionStorage.removeItem('switchMeta');
+      clearSwitchMarkers();
       navigate('/switch-dashboard', { replace: true });
     } catch (err) {
       setSnackbar({ open: true, message: 'Unable to revert', severity: 'error' });
