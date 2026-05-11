@@ -39,7 +39,12 @@ import HistoryIcon from "@mui/icons-material/History";
 import axios from "axios";
 
 
-const API_BASE_URL = "https://muditamleads-14f32a10d7f7.herokuapp.com";
+const API_BASE_URL = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "");
+
+const api = axios.create({
+  baseURL: API_BASE_URL,
+  withCredentials: true,
+});
 
 
 const getUser = () => {
@@ -96,8 +101,8 @@ export default function MyAssets() {
 
 
       // ✅ get both active + returned for this employee
-      const { data } = await axios.get(
-        `${API_BASE_URL}/api/asset-allotments/employee/${userId}?includeReturned=1`
+      const { data } = await api.get(
+        `/api/asset-allotments/employee/${userId}?includeReturned=1`
       );
 
 
@@ -765,6 +770,5 @@ export default function MyAssets() {
     </Box>
   );
 }
-
 
 

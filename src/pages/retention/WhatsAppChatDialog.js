@@ -46,8 +46,13 @@ import { io } from "socket.io-client";
 
 import WhatsAppCartDrawer from "./WhatsAppCartDrawer";
 
-const API_BASE = "https://muditamleads-14f32a10d7f7.herokuapp.com";
+const API_BASE = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "");
 const SOCKET_URL = API_BASE;
+
+const api = axios.create({
+  baseURL: API_BASE,
+  withCredentials: true,
+});
 
 const UI = {
   brand: "#25D366",
@@ -509,7 +514,7 @@ export default function WhatsAppChatDrawer({
   }, []);
 
   const fetchConversationMeta = async () => {
-    const res = await axios.get(`${API_BASE}/api/whatsapp/conversations`);
+    const res = await api.get(`/api/whatsapp/conversations`);
     const list = Array.isArray(res.data) ? res.data : [];
     const found = list.find((c) => last10(c.phone) === phone10);
 
@@ -519,7 +524,7 @@ export default function WhatsAppChatDrawer({
 
   const fetchMessages = async () => {
     if (!phone10) return;
-    const res = await axios.get(`${API_BASE}/api/whatsapp/messages`, { params: { phone: phone10 } });
+    const res = await api.get(`/api/whatsapp/messages`, { params: { phone: phone10 } });
     const list = Array.isArray(res.data) ? res.data : [];
     setMessages(list);
 
@@ -532,7 +537,7 @@ export default function WhatsAppChatDrawer({
   };
 
   const fetchTemplates = async () => {
-    const res = await axios.get(`${API_BASE}/api/whatsapp/templates`);
+    const res = await api.get(`/api/whatsapp/templates`);
     setTemplates(Array.isArray(res.data) ? res.data : []);
   };
 

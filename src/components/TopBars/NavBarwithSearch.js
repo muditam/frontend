@@ -68,11 +68,11 @@ const getAvatarUrl = (name) =>
    name
  )}&backgroundType=gradientLinear&radius=50`;
 
-const API_BASE_URL = "https://muditamleads-14f32a10d7f7.herokuapp.com";
+const API_BASE_URL = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "");
 const SWITCH_API_BASE = "/api/switch-dashboard";
 const LEGACY_SWITCH_API_BASE = "/api/employees";
-const PRIMARY_SWITCH_API_BASE = LEGACY_SWITCH_API_BASE;
-const SECONDARY_SWITCH_API_BASE = SWITCH_API_BASE;
+const PRIMARY_SWITCH_API_BASE = SWITCH_API_BASE;
+const SECONDARY_SWITCH_API_BASE = LEGACY_SWITCH_API_BASE;
 
 
 const NavbarWithSearch = () => {
