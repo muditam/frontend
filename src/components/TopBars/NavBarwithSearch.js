@@ -140,13 +140,19 @@ const NavbarWithSearch = () => {
 
  const user = readJsonStorage(sessionStorage, "user", null);
  const originalUser = readJsonStorage(sessionStorage, "originalUser", null);
- const isImpersonating = !!originalUser;
+ const isImpersonating = !!(user && originalUser && !isSameUser(user, originalUser));
 
  useEffect(() => {
    if (user && originalUser && isSameUser(user, originalUser)) {
      clearSwitchMarkers();
    }
  }, [user, originalUser]);
+
+ useEffect(() => {
+   if (location.pathname) {
+     setRevertLoading(false);
+   }
+ }, [location.pathname]);
 
 
  // 🔐 Navbar permissions
@@ -425,6 +431,7 @@ const NavbarWithSearch = () => {
       navigate("/switch-dashboard", { replace: true });
    } catch (error) {
      console.error("Error while reverting impersonation:", error);
+   } finally {
      setRevertLoading(false);
    }
  };

@@ -42,7 +42,12 @@ import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
 import PersonIcon from "@mui/icons-material/Person";
 import axios from "axios";
 
-const API_BASE = "https://muditamleads-14f32a10d7f7.herokuapp.com";
+const API_BASE = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "");
+
+const api = axios.create({
+  baseURL: API_BASE,
+  withCredentials: true,
+});
 
 function LazyImage({
   src,
@@ -217,7 +222,7 @@ export default function AssetAllotment() {
   const fetchEmployees = async () => {
     setLoadingEmployees(true);
     try {
-      const { data } = await axios.get(`${API_BASE}/api/employees`);
+      const { data } = await api.get(`/api/employees`);
       setEmployees(Array.isArray(data) ? data : []);
     } catch (e) {
       console.error(e);
@@ -230,7 +235,7 @@ export default function AssetAllotment() {
   const fetchAllotments = async () => {
     setLoadingAllotments(true);
     try {
-      const { data } = await axios.get(`${API_BASE}/api/asset-allotments`);
+      const { data } = await api.get(`/api/asset-allotments`);
       setAllotments(Array.isArray(data) ? data : []);
     } catch (e) {
       console.error(e);
@@ -268,7 +273,7 @@ export default function AssetAllotment() {
     const fd = new FormData();
     for (const f of fileList) fd.append("files", f);
     fd.append("prefix", prefix || "allotments/asset");
-    const { data } = await axios.post(`${API_BASE}/api/assets/upload`, fd, {
+    const { data } = await api.post(`/api/assets/upload`, fd, {
       headers: { "Content-Type": "multipart/form-data" },
     });
     return data?.urls || [];
@@ -304,7 +309,7 @@ export default function AssetAllotment() {
         allotmentImageUrls: urls,
       };
 
-      await axios.post(`${API_BASE}/api/asset-allotments`, payload);
+      await api.post(`/api/asset-allotments`, payload);
       setSnack({ severity: "success", msg: "Asset allotted" });
 
       setForm(initialForm);
@@ -456,8 +461,8 @@ export default function AssetAllotment() {
         returnImageUrls: returnUrls,
       };
 
-      const { data: updated } = await axios.patch(
-        `${API_BASE}/api/asset-allotments/${id}/collect`,
+      const { data: updated } = await api.patch(
+        `/api/asset-allotments/${id}/collect`,
         payload
       );
 
@@ -491,7 +496,7 @@ export default function AssetAllotment() {
       try {
         const assetCode = collectDialog.allotment.assetCode;
         if (assetCode) {
-          const resAssets = await axios.get(`${API_BASE}/api/assets`);
+          const resAssets = await api.get(`/api/assets`);
           const assetsList = Array.isArray(resAssets.data)
             ? resAssets.data
             : [];
@@ -517,8 +522,8 @@ export default function AssetAllotment() {
               emp_id: "",
             };
 
-            await axios.put(
-              `${API_BASE}/api/assets/${assetDoc._id}`,
+            await api.put(
+              `/api/assets/${assetDoc._id}`,
               clearPayload
             );
           }

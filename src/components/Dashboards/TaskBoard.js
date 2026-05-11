@@ -66,7 +66,12 @@ fontLink.href =
   "https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap";
 document.head.appendChild(fontLink);
 
-const API_BASE_URL = "https://muditamleads-14f32a10d7f7.herokuapp.com";
+const API_BASE_URL = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "");
+
+const api = axios.create({
+  baseURL: API_BASE_URL,
+  withCredentials: true,
+});
 
 export const COLUMN_IDS = {
   NEW: "NEW",
@@ -1207,7 +1212,7 @@ const TaskBoard = () => {
 
   const fetchEmployees = useCallback(async () => {
     try {
-      const res = await axios.get(`${API_BASE_URL}/api/employees`);
+      const res = await api.get(`/api/employees`);
       const raw = res.data || [];
       const active = raw
         .filter((emp) => (emp.status || "").toLowerCase() === "active")
@@ -1229,7 +1234,7 @@ const TaskBoard = () => {
     if (!targetId) return;
     try {
       setLoading(true); setLoadError(null);
-      const { data } = await axios.get(`${API_BASE_URL}/api/tasks/board`, { params: { userId: targetId } });
+      const { data } = await api.get(`/api/tasks/board`, { params: { userId: targetId } });
       const finalColsRaw = normalizeColumns(data?.columns || []);
       const finalCols = isEmptyArray(finalColsRaw) ? DEFAULT_COLUMNS.slice() : finalColsRaw.sort((a, b) => a.order - b.order);
       const validColumnIds = new Set(finalCols.map((c) => c.id));
@@ -1291,7 +1296,7 @@ const TaskBoard = () => {
       newCols.splice(destination.index, 0, movedCol);
       setColumns(newCols);
       try {
-        await axios.patch(`${API_BASE_URL}/api/tasks/columns/reorder`, { userId: ownerKey, orderedIds: newCols.map((c) => c.id) });
+        await api.patch(`/api/tasks/columns/reorder`, { userId: ownerKey, orderedIds: newCols.map((c) => c.id) });
       } catch (e) { console.error("Failed to reorder columns", e); }
       return;
     }
@@ -1349,9 +1354,9 @@ const TaskBoard = () => {
           ids.splice(destIndex, 0, movedId);
           return ids;
         })();
-        await axios.patch(`${API_BASE_URL}/api/tasks/reorder`, { status: destColId, orderedIds, userId: ownerKey });
+        await api.patch(`/api/tasks/reorder`, { status: destColId, orderedIds, userId: ownerKey });
       } else {
-        const { data: updatedTask } = await axios.patch(`${API_BASE_URL}/api/tasks/${draggableId}/status`, { from: sourceColId, to: destColId, destIndex, userId: ownerKey });
+        const { data: updatedTask } = await api.patch(`/api/tasks/${draggableId}/status`, { from: sourceColId, to: destColId, destIndex, userId: ownerKey });
         setTasks((prev) => prev.map((t) => String(t.id) === String(draggableId)
           ? { ...t, status: updatedTask.status || t.status, totalActiveSeconds: updatedTask.totalActiveSeconds ?? t.totalActiveSeconds, activeSince: updatedTask.activeSince || null, startedAt: updatedTask.startedAt || t.startedAt, closedAt: updatedTask.closedAt || null }
           : t));
@@ -1398,14 +1403,14 @@ const TaskBoard = () => {
     setSavingTask(true);
     try {
       if (editingTask) {
-        const { data } = await axios.put(`${API_BASE_URL}/api/tasks/${editingTask.id}`, payloadForApi);
+        const { data } = await api.put(`/api/tasks/${editingTask.id}`, payloadForApi);
         const updated = { id: String(data.id || data._id || editingTask.id), title: data.title, description: data.description || "", status: data.status, assigneeName: data.assigneeName || "", assigneeId: data.assigneeId || null, assignedByName: data.assignedByName || "", assignedById: data.assignedById || null, assignedDate: data.assignedDate || "", dueDate: data.dueDate || "", attachments: Array.isArray(data.attachments) ? data.attachments : data.attachmentUrl ? [data.attachmentUrl] : [], totalActiveSeconds: data.totalActiveSeconds ?? 0, activeSince: data.activeSince || null, startedAt: data.startedAt || null, closedAt: data.closedAt || null, createdAt: data.createdAt || null, recurring: !!draftTask.recurring, recurringInterval: draftTask.recurringInterval || "DAILY" };
         setTasks((prev) => prev.map((t) => t.id === editingTask.id ? updated : t));
         showSnackbar("Task updated", "success");
       } else {
         tempId = generateId();
         setTasks((prev) => [...prev, { ...payloadForApi, id: tempId, startedAt: safeStatus === COLUMN_IDS.OPEN ? new Date().toISOString() : null, totalActiveSeconds: 0, activeSince: safeStatus === COLUMN_IDS.OPEN ? new Date().toISOString() : null }]);
-        const { data } = await axios.post(`${API_BASE_URL}/api/tasks`, payloadForApi);
+        const { data } = await api.post(`/api/tasks`, payloadForApi);
         const created = { id: String(data.id || data._id || tempId), title: data.title, description: data.description || "", status: data.status, assigneeName: data.assigneeName || "", assigneeId: data.assigneeId || null, assignedByName: data.assignedByName || "", assignedById: data.assignedById || null, assignedDate: data.assignedDate || "", dueDate: data.dueDate || "", attachments: Array.isArray(data.attachments) ? data.attachments : data.attachmentUrl ? [data.attachmentUrl] : [], totalActiveSeconds: data.totalActiveSeconds ?? 0, activeSince: data.activeSince || null, startedAt: data.startedAt || null, closedAt: data.closedAt || null, createdAt: data.createdAt || null, recurring: !!draftTask.recurring, recurringInterval: draftTask.recurringInterval || "DAILY" };
         setTasks((prev) => prev.map((t) => t.id === tempId ? created : t));
         showSnackbar("Task created", "success");
@@ -1421,7 +1426,7 @@ const TaskBoard = () => {
     if (task.assignedById && task.assignedById !== ownerKey) { setConstraintError("You cannot delete a task assigned by someone else."); return; }
     if (!window.confirm("Delete this card?")) return;
     try {
-      await axios.delete(`${API_BASE_URL}/api/tasks/${task.id}`, { data: { userId: ownerKey } });
+      await api.delete(`/api/tasks/${task.id}`, { data: { userId: ownerKey } });
       setTasks((prev) => prev.filter((t) => t.id !== task.id));
       showSnackbar("Task deleted", "success");
     } catch (e) { console.error("Failed to delete task", e); }
@@ -1434,7 +1439,7 @@ const TaskBoard = () => {
       const title = newListTitle.trim();
       const tempCol = { id: TITLE_TO_ID[title] || slugify(title), title, order: columns.length, _temp: true };
       setColumns((prev) => [...prev, tempCol]);
-      const { data } = await axios.post(`${API_BASE_URL}/api/tasks/columns`, { title, userId: ownerKey, order: tempCol.order });
+      const { data } = await api.post(`/api/tasks/columns`, { title, userId: ownerKey, order: tempCol.order });
       const realCol = { id: String(data.id || data._id || TITLE_TO_ID[data.title] || slugify(data.title)), title: data.title, order: data.order ?? tempCol.order };
       setColumns((prev) => prev.map((c) => c._temp && c.title === tempCol.title ? realCol : c));
     } catch (e) { console.error("Failed to create list", e); setColumns((prev) => prev.filter((c) => !c._temp)); }
@@ -1447,7 +1452,7 @@ const TaskBoard = () => {
     if (Object.values(COLUMN_IDS).includes(column.id)) return;
     if (!window.confirm(`Delete list "${column.title}"? Cards will move to "New".`)) return;
     try {
-      await axios.delete(`${API_BASE_URL}/api/tasks/columns/${column.id}`, { data: { userId: ownerKey } });
+      await api.delete(`/api/tasks/columns/${column.id}`, { data: { userId: ownerKey } });
       setColumns((prev) => prev.filter((c) => c.id !== column.id));
       setTasks((prev) => prev.map((t) => t.status === column.id ? { ...t, status: COLUMN_IDS.NEW } : t));
     } catch (e) { console.error("Failed to delete column", e); }
@@ -1462,10 +1467,10 @@ const TaskBoard = () => {
     let tempId;
     setAssigningTask(true);
     try {
-      await axios.post(`${API_BASE_URL}/api/tasks`, { ...baseTask, userId: assigneeId });
+      await api.post(`/api/tasks`, { ...baseTask, userId: assigneeId });
       tempId = generateId();
       if (viewingUserId === managerId) setTasks((prev) => [...prev, { ...baseTask, userId: managerId, id: tempId }]);
-      const { data } = await axios.post(`${API_BASE_URL}/api/tasks`, { ...baseTask, userId: managerId });
+      const { data } = await api.post(`/api/tasks`, { ...baseTask, userId: managerId });
       const newId = String(data.id || data._id || tempId);
       if (viewingUserId === managerId) setTasks((prev) => prev.map((t) => t.id === tempId ? { ...t, id: newId } : t));
       showSnackbar("Task assigned", "success");

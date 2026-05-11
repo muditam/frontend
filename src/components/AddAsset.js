@@ -74,7 +74,12 @@ const BRANDS = [
   "Zebronics",
 ];
 
-const API_BASE_URL = "https://muditamleads-14f32a10d7f7.herokuapp.com"; 
+const API_BASE_URL = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "");
+
+const api = axios.create({
+  baseURL: API_BASE_URL,
+  withCredentials: true,
+});
 
 const fmtDate = (d) => {
   if (!d) return "—";
@@ -534,8 +539,8 @@ function AddEditDialog({ open, onClose, initial, onSaved, allAssets }) {
         );
 
         if (fd.has("files")) {
-          const uploadRes = await axios.post(
-            `${API_BASE_URL}/api/assets/upload`,
+          const uploadRes = await api.post(
+            `/api/assets/upload`,
             fd,
             {
               headers: { "Content-Type": "multipart/form-data" },
@@ -563,9 +568,9 @@ function AddEditDialog({ open, onClose, initial, onSaved, allAssets }) {
 
       // 3) Create / Update in DB
       if (initial?._id) {
-        await axios.put(`${API_BASE_URL}/api/assets/${initial._id}`, payload);
+        await api.put(`/api/assets/${initial._id}`, payload);
       } else {
-        await axios.post(`${API_BASE_URL}/api/assets`, payload);
+        await api.post(`/api/assets`, payload);
       }
 
       // 4) Refresh list from DB in parent
@@ -921,7 +926,7 @@ export default function AssetsManagerRole() {
     const fetchEmployees = async () => {
       try {
         setLoadingEmployees(true);
-        const res = await axios.get(`${API_BASE_URL}/api/assets/employees`);
+        const res = await api.get(`/api/assets/employees`);
         const data = Array.isArray(res.data) ? res.data : [];
         setEmployeeList(data);
       } catch (err) {
@@ -943,7 +948,7 @@ export default function AssetsManagerRole() {
 const fetchAssets = async () => {
   try {
     setLoadingAssets(true);
-    const res = await axios.get(`${API_BASE_URL}/api/assets?light=1`);
+    const res = await api.get(`/api/assets?light=1`);
     const data = Array.isArray(res.data) ? res.data : [];
 
     const mapped = data.map((a) => ({
@@ -974,7 +979,7 @@ const fetchAssets = async () => {
   const fetchAssetDetails = async (asset) => {
     if (!asset?._id) return asset;
     try {
-      const { data } = await axios.get(`${API_BASE_URL}/api/assets/${asset._id}`);
+      const { data } = await api.get(`/api/assets/${asset._id}`);
       return {
         ...asset,
         ...data,
@@ -1110,7 +1115,7 @@ const totalUnassigned = useMemo(
     )
       return;
     try {
-      await axios.delete(`${API_BASE_URL}/api/assets/${asset._id}`);
+      await api.delete(`/api/assets/${asset._id}`);
       setSnack({ open: true, msg: "Asset deleted", severity: "success" });
       fetchAssets();
     } catch (err) {
@@ -1128,8 +1133,8 @@ const totalUnassigned = useMemo(
       const payload = { isFaulty: value };
       if (typeof remark === "string") payload.remark = remark;
 
-      const { data } = await axios.patch(
-        `${API_BASE_URL}/api/assets/${assetId}/faulty`,
+      const { data } = await api.patch(
+        `/api/assets/${assetId}/faulty`,
         payload
       );
 
@@ -1194,8 +1199,8 @@ const totalUnassigned = useMemo(
     };
 
     try {
-      const res = await axios.get(
-        `${API_BASE_URL}/api/asset-allotments/journey/${asset.assetCode}`
+      const res = await api.get(
+        `/api/asset-allotments/journey/${asset.assetCode}`
       );
       const rows = Array.isArray(res.data) ? res.data : [];
 
@@ -1281,8 +1286,8 @@ const totalUnassigned = useMemo(
           issuedDate: payload.issuedDate || "",
         };
 
-        await axios.put(
-          `${API_BASE_URL}/api/assets/${assetId}`,
+        await api.put(
+          `/api/assets/${assetId}`,
           assignPayload
         );
       } catch (e) {
@@ -1293,7 +1298,7 @@ const totalUnassigned = useMemo(
       let employeeMongoId = null;
       if (payload.allocatedTo) {
         try {
-          const res = await axios.get(`${API_BASE_URL}/api/employees`);
+          const res = await api.get(`/api/employees`);
           const list = Array.isArray(res.data) ? res.data : [];
 
           const emp = list.find(
@@ -1338,8 +1343,8 @@ const totalUnassigned = useMemo(
             (payload.employeeId || updatedAsset.employeeId || "").trim(),
         };
 
-        await axios.post(
-          `${API_BASE_URL}/api/asset-allotments`,
+        await api.post(
+          `/api/asset-allotments`,
           allotmentPayload
         );
       } else {
@@ -2289,7 +2294,5 @@ const isAssigned = !!(
     </Box>
   );
 }
-
-
 
 
