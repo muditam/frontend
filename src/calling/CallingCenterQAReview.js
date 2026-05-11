@@ -38,6 +38,22 @@ export default function CallingCenterQAReview() {
     row?.calleeNumber ||
     "-";
 
+  const getCallerLabel = (row) =>
+    row?.displayCaller ||
+    row?.callerNumber ||
+    row?.metadata?.caller_number ||
+    row?.metadata?.from_phone_number ||
+    row?.metadata?.from_number ||
+    "-";
+
+  const getCalleeLabel = (row) =>
+    row?.displayCallee ||
+    row?.calleeNumber ||
+    row?.metadata?.callee_number ||
+    row?.metadata?.to_phone_number ||
+    row?.metadata?.to_number ||
+    "-";
+
   const getCallTime = (row) => {
     const raw = row?.startTime || row?.createdAt;
     if (!raw) return "-";
@@ -110,8 +126,8 @@ export default function CallingCenterQAReview() {
             {!selected ? <div style={{ color: "#5f6b7a" }}>Select a call to review recording/transcript.</div> : (
               <>
                 <div style={{ marginBottom: 10 }}><strong>Phone:</strong> {getPhoneLabel(selected)}</div>
-                <div style={{ marginBottom: 10 }}><strong>Caller:</strong> {selected.callerNumber || "-"}</div>
-                <div style={{ marginBottom: 10 }}><strong>Callee:</strong> {selected.calleeNumber || "-"}</div>
+                <div style={{ marginBottom: 10 }}><strong>Caller:</strong> {getCallerLabel(selected)}</div>
+                <div style={{ marginBottom: 10 }}><strong>Callee:</strong> {getCalleeLabel(selected)}</div>
                 <div style={{ marginBottom: 10 }}><strong>Direction:</strong> {selected.direction || "-"}</div>
                 <div style={{ marginBottom: 10 }}><strong>Status:</strong> {selected.status || "-"}</div>
                 <div style={{ marginBottom: 10 }}><strong>Started:</strong> {getCallTime(selected)}</div>

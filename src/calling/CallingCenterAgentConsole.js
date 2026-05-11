@@ -32,9 +32,21 @@ export default function CallingCenterAgentConsole() {
   const [selected, setSelected] = useState(null);
   const [note, setNote] = useState("");
 
+  const getPhoneLabel = (row) =>
+    row?.displayPhone ||
+    row?.phoneNumber ||
+    row?.callerNumber ||
+    row?.calleeNumber ||
+    "-";
+
   const fetchCalls = async () => {
     const { data } = await api.get("/api/zoom/calls", { params: { page: 1, limit: 20 } });
-    setCalls(data?.rows || []);
+    const nextRows = data?.rows || [];
+    setCalls(nextRows);
+    setSelected((prev) => {
+      if (!prev?.callId) return nextRows[0] || null;
+      return nextRows.find((row) => row.callId === prev.callId) || nextRows[0] || null;
+    });
   };
 
   useEffect(() => {
@@ -136,7 +148,7 @@ export default function CallingCenterAgentConsole() {
                 <tbody>
                   {calls.map((c) => (
                     <tr key={c.callId} onClick={() => { setSelected(c); setNote(c.notes || ""); }} style={{ cursor: "pointer", background: selected?.callId === c.callId ? "#f2fbfa" : "#fff" }}>
-                      <td>{c.phoneNumber || "-"}</td><td>{c.direction || "-"}</td><td>{c.duration || 0}s</td>
+                      <td>{getPhoneLabel(c)}</td><td>{c.direction || "-"}</td><td>{c.duration || 0}s</td>
                     </tr>
                   ))}
                 </tbody>
