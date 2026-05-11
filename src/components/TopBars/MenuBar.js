@@ -615,14 +615,6 @@ const MenuBar = ({ toggleDrawer }) => {
             </DropdownGroup>
           )}
 
-          {/* Smartflo */}
-          {String(process.env.REACT_APP_ZOOM_PHONE_CUTOVER || "true").toLowerCase() === "false" && user && can("smartfloMenu") && (
-            <DropdownGroup id="smartflo" icon={<PhoneInTalkIcon />} label="Smartflo">
-              {can("smartfloCallLogs") && <SubItem to="/smartflo/call-logs" label="Call Logs" />}
-              {can("smartfloDataAnalytics") && <SubItem to="/smartflo/data-analytics" label="Data Analytics" />}
-            </DropdownGroup>
-          )}
-
           {user && can("callingCenterMenu") && (
             <DropdownGroup id="callingCenter" icon={<PhoneInTalkIcon />} label="Calling Center">
               {can("callingCenterAgent") && <SubItem to="/calling-center" label="Agent Console" />}

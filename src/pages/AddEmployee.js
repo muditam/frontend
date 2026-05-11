@@ -200,10 +200,6 @@ const DEFAULT_PERMISSIONS = {
    taskBoard: false,
    myReporting: false,
 
-
-   smartfloMenu: false,
-   smartfloCallLogs: false,
-   smartfloDataAnalytics: false,
    callingCenterMenu: false,
    callingCenterAgent: false,
    callingCenterManager: false,
@@ -1831,9 +1827,6 @@ const getEffectiveRole = () =>
                  ["taskManagerMenu", "Task Manager Menu"],
                  ["taskBoard", "Task Board"],
                  ["myReporting", "My Reporting"],
-                 ["smartfloMenu", "Smartflo Menu"],
-                 ["smartfloCallLogs", "Smartflo: Call Logs"],
-                 ["smartfloDataAnalytics", "Smartflo: Data Analytics"],
                  ["callingCenterMenu", "Calling Center Menu"],
                  ["callingCenterAgent", "Calling: Agent Console"],
                  ["callingCenterManager", "Calling: Manager Dashboard"],

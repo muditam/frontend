@@ -30,6 +30,7 @@ export default function CallingCenterQAReview() {
   const [limit] = useState(25);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [detailLoading, setDetailLoading] = useState(false);
 
   const getPhoneLabel = (row) =>
     row?.displayPhone ||
@@ -62,6 +63,17 @@ export default function CallingCenterQAReview() {
     return dt.toLocaleString();
   };
 
+  const loadDetail = async (callId) => {
+    if (!callId) return;
+    setDetailLoading(true);
+    try {
+      const { data } = await api.get(`/api/zoom/calls/${encodeURIComponent(callId)}`);
+      setSelected(data || null);
+    } finally {
+      setDetailLoading(false);
+    }
+  };
+
   const search = async (nextPage = page) => {
     setLoading(true);
     try {
@@ -70,10 +82,15 @@ export default function CallingCenterQAReview() {
       setRows(nextRows);
       setTotal(Number(data?.total || 0));
       setPage(Number(data?.page || nextPage));
-      setSelected((prev) => {
-        if (!prev?.callId) return nextRows[0] || null;
-        return nextRows.find((row) => row.callId === prev.callId) || nextRows[0] || null;
-      });
+      const nextSelected =
+        !selected?.callId
+          ? nextRows[0] || null
+          : nextRows.find((row) => row.callId === selected.callId) || nextRows[0] || null;
+      if (nextSelected?.callId) {
+        await loadDetail(nextSelected.callId);
+      } else {
+        setSelected(null);
+      }
     } finally {
       setLoading(false);
     }
@@ -100,7 +117,7 @@ export default function CallingCenterQAReview() {
               <thead><tr><th>Phone</th><th>Direction</th><th>Rec</th><th>Transcript</th></tr></thead>
               <tbody>
                 {rows.map((r) => (
-                  <tr key={r.callId} onClick={() => setSelected(r)} style={{ cursor: "pointer" }}>
+                  <tr key={r.callId} onClick={() => loadDetail(r.callId)} style={{ cursor: "pointer" }}>
                     <td>{getPhoneLabel(r)}</td><td>{r.direction || "-"}</td><td>{r.recordingStatus || "none"}</td><td>{r.transcriptStatus || "none"}</td>
                   </tr>
                 ))}
@@ -123,6 +140,7 @@ export default function CallingCenterQAReview() {
         <div className="cc-card">
           <div className="cc-head"><strong>Review Detail</strong></div>
           <div className="cc-body">
+            {detailLoading ? <div style={{ color: "#5f6b7a", marginBottom: 10 }}>Loading detail...</div> : null}
             {!selected ? <div style={{ color: "#5f6b7a" }}>Select a call to review recording/transcript.</div> : (
               <>
                 <div style={{ marginBottom: 10 }}><strong>Phone:</strong> {getPhoneLabel(selected)}</div>

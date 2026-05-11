@@ -48,8 +48,6 @@ import OrderSummeryForOperations from "./components/Operation/OrderSummeryForOpe
 import ReturnOrders from "./components/Operation/ReturnOrders";
 import AbandonedCheckouts from "./components/AbandonedCheckouts";
 import UndeliveredOrders from "./components/Operation/UndeliveredOrders";
-import SmartfloCallLogs from "./components/SmartfloCallLogs";
-import SmartfloDataAnalytics from "./components/SmartfloDataAnalytics";
 import CallingCenterAgentConsole from "./calling/CallingCenterAgentConsole";
 import CallingCenterManagerDashboard from "./calling/CallingCenterManagerDashboard";
 import CallingCenterQAReview from "./calling/CallingCenterQAReview";
@@ -135,12 +133,6 @@ const App = () => {
           <Route path="/shipment-details" element={ <ShipmentDetails />} />
           <Route path="/login" element={<Login />} />
           <Route path="/pages/Home" element={<ShipwayOrders />} />
-          {String(process.env.REACT_APP_ZOOM_PHONE_CUTOVER || "true").toLowerCase() === "false" && (
-            <Route path="/smartflo/call-logs" element={<SmartfloCallLogs />} />
-          )}
-          {String(process.env.REACT_APP_ZOOM_PHONE_CUTOVER || "true").toLowerCase() === "false" && (
-            <Route path="/smartflo/data-analytics" element={<SmartfloDataAnalytics />} />
-          )}
           <Route
             path="/calling-center"
             element={
