@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 
-const API_BASE = process.env.REACT_APP_API_BASE || 'https://muditamleads-14f32a10d7f7.herokuapp.com';
+const API_BASE = (process.env.REACT_APP_API_BASE_URL || '').replace(/\/+$/, '');
 
 export default function LeadMigration() {
   const [experts, setExperts] = useState([]);
@@ -19,7 +19,9 @@ export default function LeadMigration() {
       setLoading(true);
       setMsg('');
       try {
-        const r = await fetch(`${API_BASE}/api/lead-migration/experts`);
+        const r = await fetch(`${API_BASE}/api/lead-migration/experts`, {
+          credentials: 'include',
+        });
         const j = await r.json();
         setExperts(j.experts || []);
       } catch (e) {
@@ -38,7 +40,9 @@ export default function LeadMigration() {
     setMsg('');
     try {
       const url = `${API_BASE}/api/lead-migration/experts/${encodeURIComponent(expert)}/leads?q=${encodeURIComponent(q)}${activeOnly ? '&onlyActive=1' : ''}`;
-      const r = await fetch(url);
+      const r = await fetch(url, {
+        credentials: 'include',
+      });
       const j = await r.json();
       const items = (j.items || []).map(x => ({ ...x, checked: false }));
       setLeads(items);
@@ -95,6 +99,7 @@ export default function LeadMigration() {
     try {
       const r = await fetch(`${API_BASE}/api/lead-migration/migrate`, {
         method: 'POST',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           leadIds: selectedIds,
