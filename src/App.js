@@ -88,7 +88,6 @@ import AbandonedAnalyticsPage from "./pages/AbandonedAnalytics";
 import IncentiveCreation from "./components/TopBars/IncentiveCreation";
 import WhatsAppUI from "./whatsaap/WhatsAppUI"
 import TemplatePanel from "./whatsaap/TemplatesPanel"
-import "./realtime/IncomingCallSSEBoot";
 import WhatsAppNotification from "./whatsaap/WhatsAppNotification";
 import ManagerRoute from "./components/ManagerRoute";
 import Cutpage from './Marketing/Cutpage';

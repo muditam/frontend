@@ -3,7 +3,7 @@ import axios from "axios";
 import "./RedcliffeBookingPage.css";
 import CreateOrderPopup from "./retention/CreateOrderPopup";
 
-const API_BASE = "http://localhost:5001";
+const API_BASE = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, ""); 
 
 const api = axios.create({
   baseURL: API_BASE,
@@ -68,6 +68,12 @@ function normalizeSlotTime(value) {
     return `${parts[0].padStart(2, "0")}:${parts[1].padStart(2, "0")}`;
   }
   return raw;
+}
+
+function formatCurrency(value) {
+  const amount = Number(value);
+  if (!Number.isFinite(amount)) return "";
+  return `Rs ${amount.toFixed(Number.isInteger(amount) ? 0 : 2)}`;
 }
 
 function SectionTitle({ step, title, subtitle }) {
@@ -499,6 +505,20 @@ export default function RedcliffeBookingPage() {
     goNextStep();
   };
 
+  const canContinueFromSlotStep = useMemo(
+    () => Boolean(String(form.selectedSlotId || "").trim()),
+    [form.selectedSlotId]
+  );
+
+  const handleStep2Continue = () => {
+    if (!String(form.selectedSlotId || "").trim()) {
+      setSlotError("Please select an available slot.");
+      return;
+    }
+    setSlotError("");
+    goNextStep();
+  };
+
 
   const fetchSlots = async () => {
     if (!form.collectionDate || !form.latitude || !form.longitude) {
@@ -558,22 +578,8 @@ export default function RedcliffeBookingPage() {
 
     setLoading((prev) => ({ ...prev, packages: true }));
     try {
-      const { data } = await api.get("/api/redcliffe/bookings");
-      const records = Array.isArray(data?.results) ? data.results : [];
-      const packageMap = new Map();
-
-      records.forEach((record) => {
-        toArray(record?.packages).forEach((pkg) => {
-          const code = String(pkg?.code || "").trim();
-          if (!code || packageMap.has(code)) return;
-          packageMap.set(code, {
-            code,
-            name: String(pkg?.name || code).trim(),
-          });
-        });
-      });
-
-      const packages = Array.from(packageMap.values()).sort((a, b) =>
+      const { data } = await api.get("/api/redcliffe/packages");
+      const packages = (Array.isArray(data?.results) ? data.results : []).sort((a, b) =>
         `${a.name} ${a.code}`.localeCompare(`${b.name} ${b.code}`)
       );
 
@@ -1339,8 +1345,8 @@ export default function RedcliffeBookingPage() {
                   <button
                     type="button"
                     className="redcliffe-btn redcliffe-btn-accent"
-                    onClick={handleStep4Continue}
-                    disabled={!canContinueFromPackages}
+                    onClick={handleStep2Continue}
+                    disabled={!canContinueFromSlotStep}
                   >
                     Continue
                   </button>
@@ -1552,7 +1558,14 @@ export default function RedcliffeBookingPage() {
                                     onChange={() => togglePrimaryPackage(pkg.code)}
                                   />
                                   <span>{pkg.name}</span>
-                                  <strong>{pkg.code}</strong>
+                                  <strong>
+                                    {pkg.code}
+                                    {formatCurrency(pkg.price) ? (
+                                      <small style={{ display: "block", marginTop: 4 }}>
+                                        {formatCurrency(pkg.price)}
+                                      </small>
+                                    ) : null}
+                                  </strong>
                                 </label>
                               );
                             })}
@@ -1621,7 +1634,14 @@ export default function RedcliffeBookingPage() {
                                             onChange={() => toggleMemberPackage(member.id, pkg.code)}
                                           />
                                           <span>{pkg.name}</span>
-                                          <strong>{pkg.code}</strong>
+                                          <strong>
+                                            {pkg.code}
+                                            {formatCurrency(pkg.price) ? (
+                                              <small style={{ display: "block", marginTop: 4 }}>
+                                                {formatCurrency(pkg.price)}
+                                              </small>
+                                            ) : null}
+                                          </strong>
                                         </label>
                                       );
                                     })}
@@ -1824,5 +1844,3 @@ export default function RedcliffeBookingPage() {
     </div>
   );
 }
-
-

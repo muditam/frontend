@@ -110,6 +110,7 @@ export default function ShopifyOrdersTable() {
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(50);
   const [loading, setLoading] = useState(false);
+  const [syncing, setSyncing] = useState(false);
   const [err, setErr] = useState("");
 
   const [agents, setAgents] = useState([]);
@@ -311,121 +312,165 @@ export default function ShopifyOrdersTable() {
     }
   };
 
+  const handleSyncNew = async () => {
+    try {
+      setSyncing(true);
+      const { data } = await api.get("/api/orders-shopify/sync-new");
+      setSnack({
+        open: true,
+        msg: data?.message || "Shopify sync completed.",
+        severity: "success",
+      });
+
+      if (hasFetched) {
+        await fetchRows(page, rowsPerPage, true);
+      } else {
+        await refreshMetaOnly();
+      }
+    } catch (e) {
+      console.error("Sync new orders failed", e);
+      setSnack({
+        open: true,
+        msg:
+          e?.response?.data?.message ||
+          e?.response?.data?.error ||
+          "Failed to sync Shopify orders.",
+        severity: "error",
+      });
+    } finally {
+      setSyncing(false);
+    }
+  };
+
   return (
     <Box sx={{ p: 2 }}>
       <Paper elevation={1} sx={{ p: 2 }}>
-        <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap" sx={{ mb: 2 }}>
-          <TextField
-            label="Start Date"
-            type="date"
-            value={startDate}
-            onChange={(e) => setStartDate(e.target.value)}
-            size="small"
-            InputLabelProps={{ shrink: true }}
-          />
-          <TextField
-            label="End Date"
-            type="date"
-            value={endDate}
-            onChange={(e) => setEndDate(e.target.value)}
-            size="small"
-            InputLabelProps={{ shrink: true }}
-          />
+        <Stack spacing={2} sx={{ mb: 2 }}>
+          <Stack direction="row" justifyContent="space-between" alignItems="flex-start" flexWrap="wrap" gap={2}>
+            <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap">
+              <TextField
+                label="Start Date"
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                size="small"
+                InputLabelProps={{ shrink: true }}
+              />
+              <TextField
+                label="End Date"
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                size="small"
+                InputLabelProps={{ shrink: true }}
+              />
 
-          <FormControl size="small" sx={{ minWidth: 180 }}>
-            <InputLabel id="shipment-status-label">Shipment Status</InputLabel>
-            <Select
-              labelId="shipment-status-label"
-              label="Shipment Status"
-              value={status}
-              onChange={(e) => setStatus(e.target.value)}
-              displayEmpty
-            >
-              <MenuItem value="">
-                <em>All</em>
-              </MenuItem>
-              {availableStatuses.map((s) => (
-                <MenuItem key={s.status || "-"} value={s.status || "-"}>
-                  {s.status || "-"}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
+              <FormControl size="small" sx={{ minWidth: 180 }}>
+                <InputLabel id="shipment-status-label">Shipment Status</InputLabel>
+                <Select
+                  labelId="shipment-status-label"
+                  label="Shipment Status"
+                  value={status}
+                  onChange={(e) => setStatus(e.target.value)}
+                  displayEmpty
+                >
+                  <MenuItem value="">
+                    <em>All</em>
+                  </MenuItem>
+                  {availableStatuses.map((s) => (
+                    <MenuItem key={s.status || "-"} value={s.status || "-"}>
+                      {s.status || "-"}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
 
-          <FormControl size="small" sx={{ minWidth: 180 }}>
-            <InputLabel id="state-filter-label">State</InputLabel>
-            <Select
-              labelId="state-filter-label"
-              label="State"
-              value={stateFilter}
-              onChange={(e) => setStateFilter(e.target.value)}
-              displayEmpty
-            >
-              <MenuItem value="">
-                <em>All</em>
-              </MenuItem>
-              {availableStates.map((s) => (
-                <MenuItem key={s.state || "-"} value={s.state || "-"}>
-                  {s.state || "-"}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
+              <FormControl size="small" sx={{ minWidth: 180 }}>
+                <InputLabel id="state-filter-label">State</InputLabel>
+                <Select
+                  labelId="state-filter-label"
+                  label="State"
+                  value={stateFilter}
+                  onChange={(e) => setStateFilter(e.target.value)}
+                  displayEmpty
+                >
+                  <MenuItem value="">
+                    <em>All</em>
+                  </MenuItem>
+                  {availableStates.map((s) => (
+                    <MenuItem key={s.state || "-"} value={s.state || "-"}>
+                      {s.state || "-"}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
 
-          <FormControl size="small" sx={{ minWidth: 200 }}>
-            <InputLabel id="mode-filter-label">Mode of Payment</InputLabel>
-            <Select
-              labelId="mode-filter-label"
-              label="Mode of Payment"
-              value={modeFilter}
-              onChange={(e) => setModeFilter(e.target.value)}
-              displayEmpty
-            >
-              <MenuItem value="">
-                <em>All</em>
-              </MenuItem>
-              {availableModes.map((m) => (
-                <MenuItem key={m.mode || "-"} value={m.mode || "-"}>
-                  {m.mode || "-"}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
+              <FormControl size="small" sx={{ minWidth: 200 }}>
+                <InputLabel id="mode-filter-label">Mode of Payment</InputLabel>
+                <Select
+                  labelId="mode-filter-label"
+                  label="Mode of Payment"
+                  value={modeFilter}
+                  onChange={(e) => setModeFilter(e.target.value)}
+                  displayEmpty
+                >
+                  <MenuItem value="">
+                    <em>All</em>
+                  </MenuItem>
+                  {availableModes.map((m) => (
+                    <MenuItem key={m.mode || "-"} value={m.mode || "-"}>
+                      {m.mode || "-"}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
 
-          <FormControl size="small" sx={{ minWidth: 180 }}>
-            <InputLabel id="assigned-filter-label">Assigned</InputLabel>
-            <Select
-              labelId="assigned-filter-label"
-              label="Assigned"
-              value={assigned}
-              onChange={(e) => setAssigned(e.target.value)}
-              displayEmpty
-            >
-              <MenuItem value="">
-                <em>All</em>
-              </MenuItem>
-              <MenuItem value="assigned">Assigned</MenuItem>
-              <MenuItem value="unassigned">Unassigned</MenuItem>
-            </Select>
-          </FormControl>
+              <FormControl size="small" sx={{ minWidth: 180 }}>
+                <InputLabel id="assigned-filter-label">Assigned</InputLabel>
+                <Select
+                  labelId="assigned-filter-label"
+                  label="Assigned"
+                  value={assigned}
+                  onChange={(e) => setAssigned(e.target.value)}
+                  displayEmpty
+                >
+                  <MenuItem value="">
+                    <em>All</em>
+                  </MenuItem>
+                  <MenuItem value="assigned">Assigned</MenuItem>
+                  <MenuItem value="unassigned">Unassigned</MenuItem>
+                </Select>
+              </FormControl>
 
-          <Stack direction="row" spacing={1}>
+              <Stack direction="row" spacing={1}>
+                <Button
+                  onClick={handleGetOrders}
+                  variant="contained"
+                  startIcon={<RefreshIcon />}
+                  disabled={loading || syncing}
+                >
+                  Get Orders
+                </Button>
+
+                <Button
+                  onClick={refreshMetaOnly}
+                  variant="text"
+                  disabled={loading || syncing}
+                  title="Refresh available filters (fast)"
+                >
+                  Refresh Filters
+                </Button>
+              </Stack>
+            </Stack>
+
             <Button
-              onClick={handleGetOrders}
-              variant="contained"
-              startIcon={<RefreshIcon />}
-              disabled={loading}
+              onClick={handleSyncNew}
+              variant="outlined"
+              startIcon={syncing ? <CircularProgress size={16} /> : <RefreshIcon />}
+              disabled={syncing || loading}
+              sx={{ alignSelf: "flex-start" }}
             >
-              Get Orders
-            </Button>
-
-            <Button
-              onClick={refreshMetaOnly}
-              variant="text"
-              disabled={loading}
-              title="Refresh available filters (fast)"
-            >
-              Refresh Filters
+              {syncing ? "Syncing..." : "Sync"}
             </Button>
           </Stack>
         </Stack>
