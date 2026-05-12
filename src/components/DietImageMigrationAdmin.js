@@ -46,6 +46,14 @@ const COLLECTION_CONFIGS = {
    prefix: "Packaged",
    downloadPrefix: "packaged-image-migration",
  },
+ restaurants: {
+   label: "Restaurants",
+   idHeader: "_id",
+   nameHeader: "Food",
+   imageHeaders: ["imageId", "brandLogo"],
+   prefix: "Restaurants",
+   downloadPrefix: "restaurants-image-migration",
+ },
 };
 
 
@@ -949,6 +957,5 @@ const DietImageMigrationAdmin = () => {
 
 
 export default DietImageMigrationAdmin;
-
 
 
