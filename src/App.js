@@ -50,7 +50,6 @@ import AbandonedCheckouts from "./components/AbandonedCheckouts";
 import UndeliveredOrders from "./components/Operation/UndeliveredOrders";
 import CallingCenterAgentConsole from "./calling/CallingCenterAgentConsole";
 import CallingCenterManagerDashboard from "./calling/CallingCenterManagerDashboard";
-import CallingCenterQAReview from "./calling/CallingCenterQAReview";
 import ReturnDeliveredOrders from "./components/ReturnDeliveredOrders";
 import DietTemplateAdmin from "./components/DietTemplateAdmin";
 import AllProducts from "./components/all-products";
@@ -147,16 +146,6 @@ const App = () => {
               <PrivateRoute>
                 <ManagerRoute>
                   <CallingCenterManagerDashboard />
-                </ManagerRoute>
-              </PrivateRoute>
-            }
-          />
-          <Route
-            path="/calling-center/qa"
-            element={
-              <PrivateRoute>
-                <ManagerRoute>
-                  <CallingCenterQAReview />
                 </ManagerRoute>
               </PrivateRoute>
             }

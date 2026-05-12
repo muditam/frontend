@@ -19,11 +19,16 @@ import {
   Divider,
 } from "@mui/material";
 
-const LIVE_API = "http://localhost:5001/api/shopify-orders-live";
-const BACKFILL_API =
-  "http://localhost:5001/api/orders/backfill-shopify-to-order";
-const DELETE_API =
-  "http://localhost:5001/api/orders/delete-after-date";
+const API_BASE = "http://localhost:5001"; 
+
+const api = axios.create({
+  baseURL: API_BASE,
+  withCredentials: true,
+});
+
+const LIVE_API = "/api/shopify-orders-live";
+const BACKFILL_API = "/api/orders/backfill-shopify-to-order";
+const DELETE_API = "/api/orders/delete-after-date";
 
 function getChipColor(status) {
   switch (status) {
@@ -70,7 +75,7 @@ export default function ShopifyUnicommerceOrdersPage() {
       setLoading(true);
       setError("");
 
-      const res = await axios.get(LIVE_API, {
+      const res = await api.get(LIVE_API, {
         params: {
           page: page + 1,
           limit: rowsPerPage,
@@ -142,7 +147,7 @@ export default function ShopifyUnicommerceOrdersPage() {
       if (filters.endDate) payload.endDate = filters.endDate;
       if (filters.search) payload.search = filters.search;
 
-      const res = await axios.post(BACKFILL_API, payload);
+      const res = await api.post(BACKFILL_API, payload);
 
       setSuccessMessage(
         res.data?.message || "Orders backfilled successfully."
@@ -169,7 +174,7 @@ export default function ShopifyUnicommerceOrdersPage() {
       setBackfillSummary(null);
       setDeleteSummary(null);
 
-      const res = await axios.delete(DELETE_API, {
+      const res = await api.delete(DELETE_API, {
         data: {
           startDate: filters.startDate || "2026-03-06",
         },

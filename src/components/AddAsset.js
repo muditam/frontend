@@ -56,6 +56,7 @@ const TYPES = [
   "Monitor",
   "NeckBand",
   "Barcode",
+  "Camera",
 ];
  
 const BRANDS = [
@@ -72,6 +73,10 @@ const BRANDS = [
   "JBL",
   "Logitech",
   "Zebronics",
+  "Canon",
+  "Nikon",
+  "Sony",
+  "GoPro",
 ];
 
 const API_BASE_URL = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "");
@@ -2294,5 +2299,4 @@ const isAssigned = !!(
     </Box>
   );
 }
-
 

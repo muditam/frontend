@@ -619,7 +619,6 @@ const MenuBar = ({ toggleDrawer }) => {
             <DropdownGroup id="callingCenter" icon={<PhoneInTalkIcon />} label="Calling Center">
               {can("callingCenterAgent") && <SubItem to="/calling-center" label="Agent Console" />}
               {can("callingCenterManager") && <SubItem to="/calling-center/manager" label="Manager Dashboard" />}
-              {can("callingCenterQA") && <SubItem to="/calling-center/qa" label="QA Review" />}
             </DropdownGroup>
           )}
 

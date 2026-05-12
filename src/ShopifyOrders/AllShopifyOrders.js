@@ -11,6 +11,13 @@ import {
   TablePagination
 } from '@mui/material';
 
+const API_BASE = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "");
+
+const api = axios.create({
+  baseURL: API_BASE,
+  withCredentials: true,
+});
+
 const OrdersTable = () => {
   const [orders, setOrders] = useState([]);
   const [currentPage, setCurrentPage] = useState(0);
@@ -36,7 +43,7 @@ const OrdersTable = () => {
   useEffect(() => {
     const fetchShopifyOrders = async () => {
       try {
-        const response = await axios.get('https://muditamleads-14f32a10d7f7.herokuapp.com/api/orders', {
+        const response = await api.get('/api/orders', {
           params: { startDate, endDate }
         });
         if (response.data && Array.isArray(response.data)) {

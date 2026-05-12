@@ -203,7 +203,6 @@ const DEFAULT_PERMISSIONS = {
    callingCenterMenu: false,
    callingCenterAgent: false,
    callingCenterManager: false,
-   callingCenterQA: false,
 
 
    marketingMenu: false,
@@ -1830,7 +1829,6 @@ const getEffectiveRole = () =>
                  ["callingCenterMenu", "Calling Center Menu"],
                  ["callingCenterAgent", "Calling: Agent Console"],
                  ["callingCenterManager", "Calling: Manager Dashboard"],
-                 ["callingCenterQA", "Calling: QA Review"],
                ].map(([key, label]) => (
                  <FormControlLabel
                    key={key}
