@@ -139,7 +139,14 @@ function chatDisplayName(chat) { return chat?.displayName || phone10(chat?.phone
 function assignedToText(chat) { return chat?.assignedToLabel || ""; }
 function extractApiErrorMessage(err, fallback = "Request failed") {
   const data = err?.data || {};
-  return data?.providerError?.errors?.[0]?.message || data?.providerError?.message || data?.message || err?.message || fallback;
+  return (
+    data?.message ||
+    data?.providerError?.errors?.[0]?.message ||
+    data?.providerError?.message ||
+    data?.providerError?.error ||
+    err?.message ||
+    fallback
+  );
 }
 function statusChipProps(statusRaw) {
   const s = String(statusRaw || "").toUpperCase();
