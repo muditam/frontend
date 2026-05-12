@@ -2,10 +2,11 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import "./RedcliffeDashboardPage.css";
 
-const API_BASE = "http://localhost:5001";
+const API_BASE = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, ""); 
 
 const api = axios.create({
   baseURL: API_BASE,
+  withCredentials: true,
 });
 
 const initialFilters = {
@@ -399,22 +400,8 @@ export default function RedcliffeDashboardPage() {
     setPackageLookupLoading(true);
     setPackageLookupMessage("");
     try {
-      const { data } = await api.get("/api/redcliffe/bookings");
-      const records = Array.isArray(data?.results) ? data.results : [];
-      const packageMap = new Map();
-
-      records.forEach((record) => {
-        (Array.isArray(record?.packages) ? record.packages : []).forEach((pkg) => {
-          const code = String(pkg?.code || "").trim();
-          if (!code || packageMap.has(code)) return;
-          packageMap.set(code, {
-            code,
-            name: String(pkg?.name || code).trim(),
-          });
-        });
-      });
-
-      const packages = Array.from(packageMap.values()).sort((a, b) =>
+      const { data } = await api.get("/api/redcliffe/packages");
+      const packages = (Array.isArray(data?.results) ? data.results : []).sort((a, b) =>
         `${a.name} ${a.code}`.localeCompare(`${b.name} ${b.code}`)
       );
       setAvailablePackages(packages);
@@ -1686,5 +1673,4 @@ export default function RedcliffeDashboardPage() {
     </div>
   );
 }
-
 

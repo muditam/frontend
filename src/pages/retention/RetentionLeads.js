@@ -2189,6 +2189,42 @@ const RetentionLeads = () => {
                             <ContentCopyIcon fontSize="inherit" />
                           </IconButton>
                         </Tooltip>
+                        <Tooltip title="Call">
+                          <IconButton
+                            size="small"
+                            sx={{ color: "#0F766E", p: 0.5 }}
+                            onClick={async () => {
+                              const selectedLead = leads[selectedLeadIndex] || {};
+                              const num = String(selectedLead?.contactNumber || "").trim();
+                              if (!num) return;
+                              try {
+                                const { data } = await api.post("/api/zoom/call-intents", {
+                                  leadId: String(selectedLead?._id || selectedLeadId || ""),
+                                  phoneNumber: num,
+                                  sourcePage: "/retention/leads",
+                                  sourceContext: {
+                                    customerName: String(selectedLead?.name || ""),
+                                    retentionStatus: String(selectedLead?.retentionStatus || ""),
+                                  },
+                                });
+                                openZoomPhoneDialer(data?.dialNumberE164 || num);
+                              } catch (_) {
+                                openZoomPhoneDialer(num);
+                              }
+                            }}
+                          >
+                            <PhoneIcon fontSize="inherit" />
+                          </IconButton>
+                        </Tooltip>
+                        <Tooltip title="WhatsApp">
+                          <IconButton
+                            size="small"
+                            sx={{ color: "#25D366", p: 0.5 }}
+                            onClick={() => setWaOpen(true)}
+                          >
+                            <WhatsAppIcon fontSize="inherit" />
+                          </IconButton>
+                        </Tooltip>
                       </Stack>
 
                       <Stack direction="row" spacing={1} alignItems="center">
@@ -3009,42 +3045,6 @@ You can mark Lost only after 60 days.`);
                       sx={{ border: "1px solid #D1DDEB", bgcolor: "#fff", color: "#1E293B" }}
                     >
                       <StickyNote2Icon fontSize="small" />
-                    </IconButton>
-                  </Tooltip>
-                  <Tooltip title="Call">
-                    <IconButton
-                      size="small"
-                      onClick={async () => {
-                        const selectedLead = leads[selectedLeadIndex] || {};
-                        const num = String(selectedLead?.contactNumber || "").trim();
-                        if (!num) return;
-                        try {
-                          const { data } = await api.post("/api/zoom/call-intents", {
-                            leadId: String(selectedLead?._id || selectedLeadId || ""),
-                            phoneNumber: num,
-                            sourcePage: "/retention/leads",
-                            sourceContext: {
-                              customerName: String(selectedLead?.name || ""),
-                              retentionStatus: String(selectedLead?.retentionStatus || ""),
-                            },
-                          });
-                          openZoomPhoneDialer(data?.dialNumberE164 || num);
-                        } catch (_) {
-                          openZoomPhoneDialer(num);
-                        }
-                      }}
-                      sx={{ border: "1px solid #D1DDEB", bgcolor: "#fff", color: "#0F766E" }}
-                    >
-                      <PhoneIcon fontSize="small" />
-                    </IconButton>
-                  </Tooltip>
-                  <Tooltip title="WhatsApp">
-                    <IconButton
-                      size="small"
-                      onClick={() => setWaOpen(true)}
-                      sx={{ border: "1px solid #D1DDEB", bgcolor: "#fff", color: "#25D366" }}
-                    >
-                      <WhatsAppIcon fontSize="small" />
                     </IconButton>
                   </Tooltip>
                   <Tooltip title="Diet Plan">
