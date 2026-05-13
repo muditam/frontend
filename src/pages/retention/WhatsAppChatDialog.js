@@ -1826,12 +1826,12 @@ export default function WhatsAppChatDrawer({
                     Upload
                   </Button>
 
-                  {tplHeaderMediaId ? (
+                  {tplHeaderMediaId || tplHeaderMediaUrl ? (
                     <Chip label="Uploaded" color="success" size="small" sx={{ fontWeight: 900 }} />
                   ) : null}
                 </Box>
 
-                {!tplHeaderMediaId ? (
+                {!tplHeaderMediaId && !tplHeaderMediaUrl ? (
                   <Typography variant="caption" sx={{ display: "block", mt: 1 }} color="text.secondary">
                     Upload is required before sending this template.
                   </Typography>
