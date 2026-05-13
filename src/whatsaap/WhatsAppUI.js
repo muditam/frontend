@@ -1603,9 +1603,10 @@ export default function WhatsAppUI() {
       setTplSending(true);
       try {
         const up = await uploadTemplateHeaderMedia(tplHeaderFile);
-        const mediaId = up?.mediaId || up?.id;
-        if (!mediaId) { showToast("Upload failed: no mediaId returned.", "error"); setTplSending(false); return; }
-        headerMedia = { format: tplHeaderFormat, id: mediaId, filename: tplHeaderFile.name };
+        const mediaId = up?.mediaId || up?.id || "";
+        const mediaUrl = up?.url || "";
+        if (!mediaId && !mediaUrl) { showToast("Upload failed: no media reference returned.", "error"); setTplSending(false); return; }
+        headerMedia = { format: tplHeaderFormat, ...(mediaId ? { id: mediaId } : {}), ...(mediaUrl ? { url: mediaUrl, mime: tplHeaderFile.type || "" } : {}), filename: tplHeaderFile.name };
         if (tplHeaderFile.type?.startsWith("image/") || tplHeaderFile.type?.startsWith("video/") || tplHeaderFile.type?.startsWith("audio/"))
           optimisticMedia = { url: URL.createObjectURL(tplHeaderFile), mime: tplHeaderFile.type, filename: tplHeaderFile.name };
       } catch (e) { showToast(e.message || "Failed to upload.", "error"); setTplSending(false); return; }
@@ -1737,15 +1738,17 @@ export default function WhatsAppUI() {
       setCreatingChat(true);
       try {
         const up = await uploadTemplateHeaderMedia(newHeaderFile);
-        const mediaId = up?.mediaId || up?.id;
-        if (!mediaId) {
+        const mediaId = up?.mediaId || up?.id || "";
+        const mediaUrl = up?.url || "";
+        if (!mediaId && !mediaUrl) {
           setCreatingChat(false);
-          return setNewChatError("Upload failed: no mediaId returned.");
+          return setNewChatError("Upload failed: no media reference returned.");
         }
 
         headerMedia = {
           format: newHeaderFormat,
-          id: mediaId,
+          ...(mediaId ? { id: mediaId } : {}),
+          ...(mediaUrl ? { url: mediaUrl, mime: newHeaderFile.type || "" } : {}),
           filename: newHeaderFile.name,
         };
 

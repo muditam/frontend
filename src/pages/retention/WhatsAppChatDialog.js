@@ -491,6 +491,7 @@ export default function WhatsAppChatDrawer({
   const [tplHeaderFile, setTplHeaderFile] = useState(null);
   const [tplHeaderUploadLoading, setTplHeaderUploadLoading] = useState(false);
   const [tplHeaderMediaId, setTplHeaderMediaId] = useState("");
+  const [tplHeaderMediaUrl, setTplHeaderMediaUrl] = useState("");
 
   const scrollToBottomSoon = useCallback((behavior = "auto") => {
     const el = listRef.current;
@@ -675,6 +676,7 @@ export default function WhatsAppChatDrawer({
     setTplHeaderFmt("");
     setTplHeaderFile(null);
     setTplHeaderMediaId("");
+    setTplHeaderMediaUrl("");
     setTplHeaderUploadLoading(false);
 
     setPendingFile(null);
@@ -850,6 +852,7 @@ export default function WhatsAppChatDrawer({
     setTplHeaderFmt(fmt);
     setTplHeaderFile(null);
     setTplHeaderMediaId("");
+    setTplHeaderMediaUrl("");
     setTplHeaderUploadLoading(false);
   };
 
@@ -1780,6 +1783,7 @@ export default function WhatsAppChatDrawer({
                         const f = e.target.files?.[0] || null;
                         setTplHeaderFile(f);
                         setTplHeaderMediaId("");
+                        setTplHeaderMediaUrl("");
                       }}
                     />
                   </Button>
@@ -1800,12 +1804,14 @@ export default function WhatsAppChatDrawer({
                       setTplHeaderUploadLoading(true);
                       try {
                         const data = await uploadTemplateHeaderMedia(tplHeaderFile);
-                        const mediaId = String(data?.mediaId || "").trim();
-                        if (!mediaId) {
-                          alert("Upload succeeded but mediaId missing.");
+                        const mediaId = String(data?.mediaId || data?.id || "").trim();
+                        const mediaUrl = String(data?.url || "").trim();
+                        if (!mediaId && !mediaUrl) {
+                          alert("Upload succeeded but no media reference returned.");
                           return;
                         }
                         setTplHeaderMediaId(mediaId);
+                        setTplHeaderMediaUrl(mediaUrl);
                       } catch (e) {
                         const msg = e?.response?.data?.message || "Header upload failed.";
                         alert(msg);
@@ -1897,14 +1903,19 @@ export default function WhatsAppChatDrawer({
               onClick={async () => {
                 if (!activeTemplate) return;
 
-                if (tplHeaderFmt && !tplHeaderMediaId) {
+                if (tplHeaderFmt && !tplHeaderMediaId && !tplHeaderMediaUrl) {
                   alert(`This template requires a HEADER ${tplHeaderFmt} attachment. Please upload first.`);
                   return;
                 }
 
                 const headerMedia =
-                  tplHeaderFmt && tplHeaderMediaId
-                    ? { format: tplHeaderFmt, id: tplHeaderMediaId, filename: tplHeaderFile?.name || "" }
+                  tplHeaderFmt && (tplHeaderMediaId || tplHeaderMediaUrl)
+                    ? {
+                        format: tplHeaderFmt,
+                        ...(tplHeaderMediaId ? { id: tplHeaderMediaId } : {}),
+                        ...(tplHeaderMediaUrl ? { url: tplHeaderMediaUrl, mime: tplHeaderFile?.type || "" } : {}),
+                        filename: tplHeaderFile?.name || "",
+                      }
                     : null;
 
                 setTplSending(true);
