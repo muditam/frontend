@@ -1176,6 +1176,7 @@ export default function IncentivesPage() {
   const [viewerBalanceData, setViewerBalanceData] = useState(null);
 
   const [incentiveSummaryOpen, setIncentiveSummaryOpen] = useState(false);
+  const [cashSummaryShipmentStatus, setCashSummaryShipmentStatus] = useState("all");
   const [walletSummaryOpen, setWalletSummaryOpen] = useState(false);
   const [walletRulesOpen, setWalletRulesOpen] = useState(false);
   const [walletAgentsOpen, setWalletAgentsOpen] = useState(false);
@@ -1196,6 +1197,24 @@ export default function IncentivesPage() {
 
   const derivedStartDate = useMemo(() => monthToStartDate(startMonth), [startMonth]);
   const derivedEndDate = useMemo(() => monthToEndDate(endMonth), [endMonth]);
+  const cashSummaryShipmentStatuses = useMemo(() => {
+    const statusMap = new Map();
+    (data?.rows || []).forEach((row) => {
+      const rawStatus = String(row?.deliveryStatus || "").trim();
+      const normalizedStatus = normalizeComparable(rawStatus);
+      if (!normalizedStatus || statusMap.has(normalizedStatus)) return;
+      statusMap.set(normalizedStatus, rawStatus);
+    });
+    return Array.from(statusMap.values()).sort((a, b) => a.localeCompare(b));
+  }, [data?.rows]);
+  const filteredCashSummaryRows = useMemo(() => {
+    if (cashSummaryShipmentStatus === "all") return data?.rows || [];
+    return (data?.rows || []).filter(
+      (row) =>
+        normalizeComparable(row?.deliveryStatus) ===
+        normalizeComparable(cashSummaryShipmentStatus)
+    );
+  }, [cashSummaryShipmentStatus, data?.rows]);
 
   useEffect(() => {
     if (!isSelfAndTeamRole) {
@@ -3348,7 +3367,29 @@ export default function IncentivesPage() {
                 maxWidth="xl"
               >
                 <DialogTitle sx={{ fontWeight: 800, color: BRAND.text }}>
-                  Cash Summary
+                  <Stack
+                    direction={{ xs: "column", sm: "row" }}
+                    spacing={2}
+                    alignItems={{ xs: "stretch", sm: "center" }}
+                    justifyContent="space-between"
+                  >
+                    <Box>Cash Summary</Box>
+                    <TextField
+                      select
+                      size="small"
+                      label="Shipment Status"
+                      value={cashSummaryShipmentStatus}
+                      onChange={(e) => setCashSummaryShipmentStatus(e.target.value)}
+                      sx={{ minWidth: { xs: "100%", sm: 260 } }}
+                    >
+                      <MenuItem value="all">All Statuses</MenuItem>
+                      {cashSummaryShipmentStatuses.map((status) => (
+                        <MenuItem key={status} value={status}>
+                          {status}
+                        </MenuItem>
+                      ))}
+                    </TextField>
+                  </Stack>
                 </DialogTitle>
 
                 <DialogContent dividers sx={{ p: 0 }}>
@@ -3377,8 +3418,8 @@ export default function IncentivesPage() {
                       </TableHead>
 
                       <TableBody>
-                        {data?.rows?.length ? (
-                          data.rows.map((row, index) => {
+                        {filteredCashSummaryRows.length ? (
+                          filteredCashSummaryRows.map((row, index) => {
                             const bucketMeta = getBucketMeta(row.walletBucket);
                             const statusMeta = getStatusMeta(row.deliveryStatus);
 
@@ -3425,7 +3466,7 @@ export default function IncentivesPage() {
                               align="center"
                               sx={{ py: 4 }}
                             >
-                              No records found
+                              No records found for the selected shipment status
                             </TableCell>
                           </TableRow>
                         )}

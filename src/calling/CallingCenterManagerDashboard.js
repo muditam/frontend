@@ -28,6 +28,12 @@ function joinApiBase(path) {
   return API_BASE ? `${API_BASE}${path}` : path;
 }
 
+function formatMinutesFromSeconds(value) {
+  const minutes = Number(value || 0) / 60;
+  if (!Number.isFinite(minutes)) return "0 min";
+  return `${minutes.toFixed(1)} min`;
+}
+
 api.interceptors.request.use((config) => {
   const header = getSessionUserHeader();
   if (header) {
@@ -222,7 +228,7 @@ export default function CallingCenterManagerDashboard() {
             <thead><tr><th>Agent</th><th>Calls</th><th>Answered</th><th>Missed</th><th>In</th><th>Out</th><th>Avg Dur</th><th>Answer %</th><th>Duration</th></tr></thead>
             <tbody>
               {(data.perAgent || []).map((a) => (
-                <tr key={a.agentId}><td>{a.agentName || a.agentId}</td><td>{a.calls}</td><td>{a.answered}</td><td>{a.missed}</td><td>{a.incoming || 0}</td><td>{a.outgoing || 0}</td><td>{a.avgDuration || 0}s</td><td>{Number(a.answerRate || 0).toFixed(2)}%</td><td>{a.duration}s</td></tr>
+                <tr key={a.agentId}><td>{a.agentName || a.agentId}</td><td>{a.calls}</td><td>{a.answered}</td><td>{a.missed}</td><td>{a.incoming || 0}</td><td>{a.outgoing || 0}</td><td>{a.avgDuration || 0}s</td><td>{Number(a.answerRate || 0).toFixed(2)}%</td><td>{formatMinutesFromSeconds(a.duration)}</td></tr>
               ))}
             </tbody>
           </table>
