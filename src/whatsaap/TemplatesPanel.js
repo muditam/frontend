@@ -32,8 +32,24 @@ import CloseIcon from "@mui/icons-material/Close";
 import PlayArrowRoundedIcon from "@mui/icons-material/PlayArrowRounded";
 import DownloadRoundedIcon from "@mui/icons-material/DownloadRounded";
 
-const API_BASE = "https://muditamleads-14f32a10d7f7.herokuapp.com";
+const API_BASE = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "");
 const ACCENT = "#0aa59a";
+
+function readJsonStorage(storage, key, fallback = null) {
+  try {
+    const raw = storage?.getItem?.(key);
+    if (!raw) return fallback;
+    const parsed = JSON.parse(raw);
+    return parsed ?? fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function getSessionUserHeaders() {
+  const user = readJsonStorage(sessionStorage, "user", null);
+  return user ? { "x-session-user": JSON.stringify(user) } : {};
+}
 
 async function safeJson(res) {
   const text = await res.text();
@@ -234,8 +250,11 @@ export default function TemplatesPanel() {
 
     try {
       const res = await fetch(`${API_BASE}/api/whatsapp/templates`, {
-        credentials: "omit",
-        headers: { Accept: "application/json" },
+        credentials: "include",
+        headers: {
+          Accept: "application/json",
+          ...getSessionUserHeaders(),
+        },
       });
 
       const data = await safeJson(res);
@@ -272,8 +291,12 @@ export default function TemplatesPanel() {
     try {
       const res = await fetch(`${API_BASE}/api/whatsapp/templates/sync`, {
         method: "POST",
-        credentials: "omit",
-        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+          ...getSessionUserHeaders(),
+        },
       });
 
       const data = await safeJson(res);
@@ -309,8 +332,11 @@ export default function TemplatesPanel() {
     try {
       const res = await fetch(`${API_BASE}/api/whatsapp/templates/${id}`, {
         method: "DELETE",
-        credentials: "omit",
-        headers: { Accept: "application/json" },
+        credentials: "include",
+        headers: {
+          Accept: "application/json",
+          ...getSessionUserHeaders(),
+        },
       });
       if (!res.ok) await fetchTemplates({ silent: true });
     } catch (e) {
@@ -407,8 +433,12 @@ export default function TemplatesPanel() {
 
       const res = await fetch(`${API_BASE}/api/whatsapp/templates`, {
         method: "POST",
-        credentials: "omit",
-        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+          ...getSessionUserHeaders(),
+        },
         body: JSON.stringify(payload),
       });
 
