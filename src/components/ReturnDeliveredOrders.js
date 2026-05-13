@@ -6,6 +6,29 @@ import {
   TableRow, TableCell, CircularProgress, TablePagination, Stack, Select, MenuItem, FormControl, InputLabel
 } from "@mui/material";
 
+const API_BASE = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "");
+
+const readJsonStorage = (storage, key, fallback = null) => {
+  try {
+    const raw = storage?.getItem?.(key);
+    if (!raw) return fallback;
+    const parsed = JSON.parse(raw);
+    return parsed ?? fallback;
+  } catch {
+    return fallback;
+  }
+};
+
+const getSessionUserHeaders = () => {
+  const user = readJsonStorage(sessionStorage, "user", null);
+  return user ? { "x-session-user": JSON.stringify(user) } : {};
+};
+
+const api = axios.create({
+  baseURL: API_BASE,
+  withCredentials: true,
+});
+
 const RtoDeliveredOrders = () => {
   const [rows, setRows] = useState([]);
   const [total, setTotal] = useState(0);
@@ -25,18 +48,19 @@ const RtoDeliveredOrders = () => {
     if (!agentName) return;
     setLoading(true);
     try {
-      const res = await axios.get(
-        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/rto-delivered",
-        {
-          headers: { "x-agent-name": agentName },
-          params: {
-            page: p + 1,
-            limit,
-            statusGroup: group, // 'all' | 'delivered' | 'non_delivered'
-            // statuses: statuses, // if you want to target exact statuses via CSV
-          },
-        }
-      );
+      const res = await api.get("/api/rto-delivered", {
+        headers: {
+          ...getSessionUserHeaders(),
+          "x-agent-name": agentName,
+        },
+        params: {
+          page: p + 1,
+          limit,
+          statusGroup: group, // 'all' | 'delivered' | 'non_delivered'
+          agentName,
+          // statuses: statuses, // if you want to target exact statuses via CSV
+        },
+      });
       setRows(res.data.data || []);
       setTotal(res.data.total || 0);
     } catch (err) {
