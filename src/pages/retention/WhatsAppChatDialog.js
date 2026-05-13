@@ -633,7 +633,13 @@ export default function WhatsAppChatDrawer({
     if (!phone10) return;
     const res = await api.get(`/api/whatsapp/messages`, { params: { phone: phone10 } });
     const list = Array.isArray(res.data) ? res.data : [];
-    setMessages(list);
+    setMessages((prev) => {
+      let next = prev.slice();
+      for (const msg of list) {
+        next = upsertMessage(next, msg);
+      }
+      return next;
+    });
 
     const lastInbound = [...list].reverse().find(
       (m) => String(m.direction || "").toUpperCase() !== "OUTBOUND"
@@ -791,6 +797,7 @@ export default function WhatsAppChatDrawer({
     didInitialScrollRef.current = false;
     stickToBottomRef.current = true;
 
+    setMessages([]);
     setText("");
     setPrivateMode(false);
 
