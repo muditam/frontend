@@ -628,7 +628,10 @@ export default function WhatsAppChatDrawer({
 
       const patch = payload?.patch || payload || {};
       if (patch?.windowExpiresAt) setWindowExpiresAt(patch.windowExpiresAt);
-      if (patch?.lastInboundAt) setLastInboundAt(patch.lastInboundAt);
+      if (patch?.lastInboundAt) {
+        setLastInboundAt(patch.lastInboundAt);
+        fetchMessages().catch(() => {});
+      }
     };
 
     socket.on("connect", onConnect);
