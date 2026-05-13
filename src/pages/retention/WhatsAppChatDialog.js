@@ -879,8 +879,9 @@ export default function WhatsAppChatDrawer({
   }
 
   const renderMedia = (m) => {
-    const mediaId = String(m?.media?.id || "").trim();
-    const rawUrl = String(m?.media?.url || m?.mediaUrl || "").trim();
+    const mediaId = String(m?.media?.id || m?.mediaId || m?.templateMeta?.headerMedia?.id || "").trim();
+    const directUrl = String(m?.media?.url || m?.mediaUrl || m?.templateMeta?.headerMedia?.url || "").trim();
+    const rawUrl = directUrl || (/^https?:\/\//i.test(mediaId) ? mediaId : "");
 
     const absRawUrl = rawUrl ? absolutizeUrl(rawUrl) : "";
     const url =
@@ -896,7 +897,12 @@ export default function WhatsAppChatDrawer({
     const mime = String(rawMime).toLowerCase();
 
     const msgType = String(m?.type || m?.messageType || m?.media?.type || m?.mediaType || "").toLowerCase();
-    const filename = String(m?.media?.filename || m?.filename || "").toLowerCase();
+    const filename = String(
+      m?.templateMeta?.headerMedia?.filename ||
+      m?.media?.filename ||
+      m?.filename ||
+      ""
+    ).toLowerCase();
 
     const isImg =
       msgType === "image" ||

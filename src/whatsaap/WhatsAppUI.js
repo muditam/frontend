@@ -301,7 +301,12 @@ function UnreadBadge({ count }) {
 }
 
 function mediaIdFromMsg(m) { return m?.media?.id || m?.mediaId || m?.templateMeta?.headerMedia?.id || ""; }
-function mediaUrlFromMsg(m) { return m?.media?.url || m?.mediaUrl || m?.templateMeta?.headerMedia?.url || ""; }
+function mediaUrlFromMsg(m) {
+  const directUrl = m?.media?.url || m?.mediaUrl || m?.templateMeta?.headerMedia?.url || "";
+  if (directUrl) return directUrl;
+  const legacyUrlId = m?.media?.id || m?.mediaId || m?.templateMeta?.headerMedia?.id || "";
+  return /^https?:\/\//i.test(String(legacyUrlId || "").trim()) ? legacyUrlId : "";
+}
 function mediaMimeFromMsg(m) {
   const tplFmt = m?.templateMeta?.headerMedia?.format;
   let guessedMime = "";
@@ -310,7 +315,17 @@ function mediaMimeFromMsg(m) {
   if (tplFmt === "VIDEO") guessedMime = "video/mp4";
   return m?.media?.mime || m?.mime || guessedMime || "";
 }
-function mediaFilenameFromMsg(m) { return m?.media?.filename || m?.filename || m?.templateMeta?.headerMedia?.filename || "attachment"; }
+function mediaFilenameFromMsg(m) {
+  const candidates = [
+    m?.templateMeta?.headerMedia?.filename,
+    m?.media?.filename,
+    m?.filename,
+  ]
+    .map((v) => String(v || "").trim())
+    .filter(Boolean);
+  const specific = candidates.find((v) => v.toLowerCase() !== "attachment");
+  return specific || candidates[0] || "attachment";
+}
 function detectMediaKind({ url = "", mime = "", fallbackType = "" }) {
   const u = String(url || ""), m = String(mime || "").toLowerCase(), t = String(fallbackType || "").toLowerCase();
   if (m.startsWith("image/") || /\.(png|jpg|jpeg|webp|gif)$/i.test(u) || t === "image" || t === "sticker") return "image";
@@ -1607,12 +1622,11 @@ export default function WhatsAppUI() {
         const mediaUrl = up?.url || "";
         if (!mediaId && !mediaUrl) { showToast("Upload failed: no media reference returned.", "error"); setTplSending(false); return; }
         headerMedia = { format: tplHeaderFormat, ...(mediaId ? { id: mediaId } : {}), ...(mediaUrl ? { url: mediaUrl, mime: tplHeaderFile.type || "" } : {}), filename: tplHeaderFile.name };
-        if (tplHeaderFile.type?.startsWith("image/") || tplHeaderFile.type?.startsWith("video/") || tplHeaderFile.type?.startsWith("audio/"))
-          optimisticMedia = { url: URL.createObjectURL(tplHeaderFile), mime: tplHeaderFile.type, filename: tplHeaderFile.name };
+        optimisticMedia = { url: URL.createObjectURL(tplHeaderFile), mime: tplHeaderFile.type || "", filename: tplHeaderFile.name };
       } catch (e) { showToast(e.message || "Failed to upload.", "error"); setTplSending(false); return; }
     } else { setTplSending(true); }
 
-    const optimistic = { _id: buildTempId("tmp_tpl"), direction: "OUTBOUND", type: "template", text: tplSendPreview || `[TEMPLATE] ${activeTplForSend.name}`, timestamp: new Date().toISOString(), status: "sent", to, phone: to, ...(optimisticMedia ? { media: optimisticMedia } : {}), templateMeta: { name: activeTplForSend.name, language: activeTplForSend.language || "", parameters: params } };
+    const optimistic = { _id: buildTempId("tmp_tpl"), direction: "OUTBOUND", type: "template", text: tplSendPreview || `[TEMPLATE] ${activeTplForSend.name}`, timestamp: new Date().toISOString(), status: "sent", to, phone: to, ...(optimisticMedia ? { media: optimisticMedia } : {}), templateMeta: { name: activeTplForSend.name, language: activeTplForSend.language || "", parameters: params, ...(headerMedia ? { headerMedia } : {}) } };
     setMessages((prev) => [...prev, optimistic]);
     updateConversationPreviewLocal(to, optimistic.text);
     try {
@@ -1751,18 +1765,11 @@ export default function WhatsAppUI() {
           ...(mediaUrl ? { url: mediaUrl, mime: newHeaderFile.type || "" } : {}),
           filename: newHeaderFile.name,
         };
-
-        if (
-          newHeaderFile.type?.startsWith("image/") ||
-          newHeaderFile.type?.startsWith("video/") ||
-          newHeaderFile.type?.startsWith("audio/")
-        ) {
-          optimisticMedia = {
-            url: URL.createObjectURL(newHeaderFile),
-            mime: newHeaderFile.type,
-            filename: newHeaderFile.name,
-          };
-        }
+        optimisticMedia = {
+          url: URL.createObjectURL(newHeaderFile),
+          mime: newHeaderFile.type || "",
+          filename: newHeaderFile.name,
+        };
       } catch (e) {
         setCreatingChat(false);
         return setNewChatError(e.message || "Failed to upload.");
