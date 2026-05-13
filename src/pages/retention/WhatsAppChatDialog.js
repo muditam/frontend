@@ -46,7 +46,14 @@ import { io } from "socket.io-client";
 
 import WhatsAppCartDrawer from "./WhatsAppCartDrawer";
 
-const API_BASE = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "");
+const DEFAULT_API_BASE =
+  typeof window !== "undefined" &&
+  ["localhost", "127.0.0.1"].includes(window.location.hostname)
+    ? "http://localhost:5001"
+    : "https://muditamleads-14f32a10d7f7.herokuapp.com";
+const API_BASE = String(
+  process.env.REACT_APP_API_BASE_URL || process.env.REACT_APP_API_BASE || DEFAULT_API_BASE
+).replace(/\/+$/, "");
 const SOCKET_URL = API_BASE;
 
 const api = axios.create({
@@ -82,6 +89,8 @@ const EMOJIS = ["😊", "😂", "🙏", "👍", "❤️", "🔥", "😄", "😅"
 
 const digitsOnly = (v = "") => String(v || "").replace(/\D/g, "");
 const last10 = (v = "") => digitsOnly(v).slice(-10);
+const buildTempId = (prefix = "tmp") =>
+  `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 
 function fmtRemaining(ms) {
   const s = Math.max(0, Math.floor(ms / 1000));
@@ -184,6 +193,25 @@ function normalizeStatus(s) {
   return v;
 }
 
+function statusRank(status) {
+  const normalized = normalizeStatus(status);
+  if (normalized === "failed") return 99;
+  if (normalized === "read") return 4;
+  if (normalized === "delivered") return 3;
+  if (normalized === "sent") return 2;
+  if (normalized) return 1;
+  return 0;
+}
+
+function inferOutgoingMediaType(file) {
+  const mime = String(file?.type || "").toLowerCase();
+  const name = String(file?.name || "").toLowerCase();
+  if (mime.startsWith("image/") || /\.(png|jpe?g|webp|gif)$/i.test(name)) return "image";
+  if (mime.startsWith("video/") || /\.(mp4|mov|webm)$/i.test(name)) return "video";
+  if (mime.startsWith("audio/") || /\.(mp3|wav|ogg|opus|m4a)$/i.test(name)) return "audio";
+  return "document";
+}
+
 function MessageTicks({ status }) {
   const st = normalizeStatus(status);
 
@@ -206,8 +234,87 @@ function MessageTicks({ status }) {
   return <DoneIcon sx={{ fontSize: 16, ml: 0.5, color: "rgba(0,0,0,0.48)", verticalAlign: "middle" }} />;
 }
 
+function customerPhoneFromMsg(msg) {
+  const dir = String(msg?.direction || "").toUpperCase();
+  if (dir === "OUTBOUND") return msg?.to || "";
+  if (dir === "INBOUND") return msg?.from || "";
+  return msg?.phone || msg?.to || msg?.from || "";
+}
+
 function getMsgKey(m) {
-  return m?.waId || m?._id || m?.providerTransactionId || null;
+  return m?.waId || m?.providerTransactionId || m?._id || m?.id || null;
+}
+
+function messageIdentity(m) {
+  const waId = String(m?.waId || "").trim();
+  if (waId) return `wa:${waId}`;
+
+  const providerTxnId = String(m?.providerTransactionId || "").trim();
+  if (providerTxnId) return `txn:${providerTxnId}`;
+
+  const dbId = String(m?._id || m?.id || "").trim();
+  if (dbId && !dbId.startsWith("tmp_")) return `id:${dbId}`;
+
+  const dir = String(m?.direction || "").toUpperCase();
+  const from = last10(m?.from || "");
+  const to = last10(m?.to || "");
+  const phone = last10(customerPhoneFromMsg(m) || "");
+  const text = String(m?.text || "").trim().toLowerCase();
+  const type = String(m?.type || "text").toLowerCase();
+  const mediaId = String(m?.media?.id || "").trim();
+  const mediaUrl = String(m?.media?.url || "").trim();
+  const tsRaw = m?.timestamp || m?.createdAt || "";
+  const tsMs = new Date(tsRaw || 0).getTime();
+  const tsBucket = Number.isFinite(tsMs) && tsMs > 0 ? Math.floor(tsMs / 1000) : String(tsRaw || "");
+
+  return `sig:${dir}|${from}|${to}|${phone}|${type}|${text}|${mediaId}|${mediaUrl}|${tsBucket}`;
+}
+
+function isLikelySameMessage(a, b) {
+  const aWa = String(a?.waId || "").trim();
+  const bWa = String(b?.waId || "").trim();
+  if (aWa && bWa && aWa === bWa) return true;
+
+  const aTxn = String(a?.providerTransactionId || "").trim();
+  const bTxn = String(b?.providerTransactionId || "").trim();
+  if (aTxn && bTxn && aTxn === bTxn) return true;
+
+  const aId = String(a?._id || a?.id || "").trim();
+  const bId = String(b?._id || b?.id || "").trim();
+  if (aId && bId && !aId.startsWith("tmp_") && !bId.startsWith("tmp_") && aId === bId) return true;
+
+  const aDir = String(a?.direction || "").toUpperCase();
+  const bDir = String(b?.direction || "").toUpperCase();
+  if (aDir !== bDir) return false;
+
+  const aType = String(a?.type || "text").toLowerCase();
+  const bType = String(b?.type || "text").toLowerCase();
+  if (aType !== bType) return false;
+
+  if (String(a?.text || "").trim() !== String(b?.text || "").trim()) return false;
+
+  const aPhone = last10(customerPhoneFromMsg(a) || "");
+  const bPhone = last10(customerPhoneFromMsg(b) || "");
+  if (!aPhone || !bPhone || aPhone !== bPhone) return false;
+
+  const aMediaId = String(a?.media?.id || "").trim();
+  const bMediaId = String(b?.media?.id || "").trim();
+  if (aMediaId && bMediaId && aMediaId !== bMediaId) return false;
+
+  const aMediaUrl = String(a?.media?.url || "").trim();
+  const bMediaUrl = String(b?.media?.url || "").trim();
+  if (aMediaUrl && bMediaUrl && aMediaUrl !== bMediaUrl) return false;
+
+  const aIsTemp = String(a?._id || "").startsWith("tmp_");
+  const bIsTemp = String(b?._id || "").startsWith("tmp_");
+  const aTs = new Date(a?.timestamp || a?.createdAt || 0).getTime();
+  const bTs = new Date(b?.timestamp || b?.createdAt || 0).getTime();
+
+  if (!aTs || !bTs) return aIsTemp || bIsTemp;
+
+  const delta = Math.abs(aTs - bTs);
+  if (aIsTemp || bIsTemp) return delta <= 120000;
+  return delta <= 2000;
 }
 
 function getMsgTime(m) {
@@ -219,14 +326,13 @@ function getMsgTime(m) {
 function upsertMessage(prev, incoming) {
   if (!incoming) return prev;
   const key = getMsgKey(incoming);
-
-  if (!key) {
-    const next = [...prev, incoming];
-    next.sort((a, b) => getMsgTime(a) - getMsgTime(b));
-    return next;
-  }
-
-  const idx = prev.findIndex((x) => getMsgKey(x) === key);
+  const identity = messageIdentity(incoming);
+  const idx = prev.findIndex((x) => {
+    const existingKey = getMsgKey(x);
+    if (key && existingKey && existingKey === key) return true;
+    if (messageIdentity(x) === identity) return true;
+    return isLikelySameMessage(x, incoming);
+  });
 
   let next;
   if (idx >= 0) {
@@ -444,8 +550,8 @@ export default function WhatsAppChatDrawer({
   }, [lastInboundAt, windowExpiresAt]);
 
   const remainingMs = useMemo(() => {
-    if (!inboundExpiryMs) return null;
-    return inboundExpiryMs - Date.now();
+    void tick;
+    return inboundExpiryMs ? inboundExpiryMs - Date.now() : null;
   }, [inboundExpiryMs, tick]);
 
   const canSendFreeform = useMemo(() => {
@@ -514,16 +620,16 @@ export default function WhatsAppChatDrawer({
     setTimeout(doScroll, 320);
   }, []);
 
-  const fetchConversationMeta = async () => {
+  const fetchConversationMeta = useCallback(async () => {
     const res = await api.get(`/api/whatsapp/conversations`);
     const list = Array.isArray(res.data) ? res.data : [];
     const found = list.find((c) => last10(c.phone) === phone10);
 
     if (found?.windowExpiresAt) setWindowExpiresAt(found.windowExpiresAt);
     if (found?.lastInboundAt) setLastInboundAt(found.lastInboundAt);
-  };
+  }, [phone10]);
 
-  const fetchMessages = async () => {
+  const fetchMessages = useCallback(async () => {
     if (!phone10) return;
     const res = await api.get(`/api/whatsapp/messages`, { params: { phone: phone10 } });
     const list = Array.isArray(res.data) ? res.data : [];
@@ -535,14 +641,14 @@ export default function WhatsAppChatDrawer({
     if (lastInbound?.timestamp || lastInbound?.createdAt) {
       setLastInboundAt(lastInbound.timestamp || lastInbound.createdAt);
     }
-  };
+  }, [phone10]);
 
-  const fetchTemplates = async () => {
+  const fetchTemplates = useCallback(async () => {
     const res = await api.get(`/api/whatsapp/templates`);
     setTemplates(Array.isArray(res.data) ? res.data : []);
-  };
+  }, []);
 
-  const refreshAll = async () => {
+  const refreshAll = useCallback(async () => {
     if (!phone10) return;
     setLoading(true);
     try {
@@ -554,7 +660,7 @@ export default function WhatsAppChatDrawer({
         scrollToBottomSoon("auto");
       }
     }
-  };
+  }, [phone10, fetchConversationMeta, fetchMessages, fetchTemplates, open, scrollToBottomSoon]);
 
   useEffect(() => {
     if (!open) return;
@@ -587,14 +693,21 @@ export default function WhatsAppChatDrawer({
 
     const onWaMessage = (payload) => {
       const msg = payload?.message || payload;
-      const p10 = payload?.phone10 || last10(msg?.from) || last10(msg?.to) || "";
+      const p10 =
+        last10(payload?.phone10 || payload?.phone || "") ||
+        last10(customerPhoneFromMsg(msg) || "");
       if (p10 && p10 !== phone10) return;
 
-      setMessages((prev) => upsertMessage(prev, msg));
+      const normalizedMsg = {
+        ...msg,
+        ...(customerPhoneFromMsg(msg) ? { phone: customerPhoneFromMsg(msg) } : {}),
+      };
 
-      if (String(msg?.direction || "").toUpperCase() !== "OUTBOUND") {
-        if (msg?.timestamp || msg?.createdAt) {
-          setLastInboundAt(msg.timestamp || msg.createdAt);
+      setMessages((prev) => upsertMessage(prev, normalizedMsg));
+
+      if (String(normalizedMsg?.direction || "").toUpperCase() !== "OUTBOUND") {
+        if (normalizedMsg?.timestamp || normalizedMsg?.createdAt) {
+          setLastInboundAt(normalizedMsg.timestamp || normalizedMsg.createdAt);
         }
       }
 
@@ -604,17 +717,30 @@ export default function WhatsAppChatDrawer({
     };
 
     const onWaStatus = (payload) => {
-      const liveId = String(payload?.waId || payload?.id || "").trim();
-      const status = payload?.status;
-      const p10 = payload?.phone10;
+      const liveIds = [
+        payload?.waId,
+        payload?.id,
+        payload?.messageId,
+        payload?.message_id,
+        payload?.providerTransactionId,
+        payload?.transactionId,
+        payload?.transaction_id,
+      ]
+        .map((x) => String(x || "").trim())
+        .filter(Boolean);
+      const status = normalizeStatus(payload?.status);
+      const p10 = last10(payload?.phone10 || payload?.phone || "");
       if (p10 && p10 !== phone10) return;
-      if (!liveId || !status) return;
+      if (!liveIds.length || !status) return;
 
       setMessages((prev) =>
         prev.map((m) => {
           const waId = String(m?.waId || "").trim();
           const providerTransactionId = String(m?.providerTransactionId || "").trim();
-          if (waId === liveId || providerTransactionId === liveId) {
+          if (liveIds.includes(waId) || liveIds.includes(providerTransactionId)) {
+            if (status !== "failed" && statusRank(m?.status) > statusRank(status)) {
+              return m;
+            }
             return { ...m, status };
           }
           return m;
@@ -623,15 +749,12 @@ export default function WhatsAppChatDrawer({
     };
 
     const onWaConversation = (payload) => {
-      const p10 = payload?.phone10;
+      const p10 = last10(payload?.phone10 || payload?.phone || "");
       if (p10 && p10 !== phone10) return;
 
       const patch = payload?.patch || payload || {};
       if (patch?.windowExpiresAt) setWindowExpiresAt(patch.windowExpiresAt);
-      if (patch?.lastInboundAt) {
-        setLastInboundAt(patch.lastInboundAt);
-        fetchMessages().catch(() => {});
-      }
+      if (patch?.lastInboundAt) setLastInboundAt(patch.lastInboundAt);
     };
 
     socket.on("connect", onConnect);
@@ -689,7 +812,7 @@ export default function WhatsAppChatDrawer({
 
     const t = setInterval(() => setTick((x) => x + 1), 1000);
     return () => clearInterval(t);
-  }, [open, phone10]);
+  }, [open, phone10, refreshAll]);
 
   useEffect(() => {
     if (!open) setCartOpen(false);
@@ -753,7 +876,7 @@ export default function WhatsAppChatDrawer({
       return;
     }
 
-    const optimisticId = `tmp_text_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const optimisticId = buildTempId("tmp_text");
     const optimisticMessage = {
       _id: optimisticId,
       direction: "OUTBOUND",
@@ -770,8 +893,10 @@ export default function WhatsAppChatDrawer({
     scrollToBottomSoon("auto");
 
     try {
-      await api.post(`/api/whatsapp/send-text`, { to: phone10, text: body });
-      await refreshAll();
+      const res = await api.post(`/api/whatsapp/send-text`, { to: phone10, text: body });
+      if (res?.data?.message) {
+        setMessages((prev) => upsertMessage(prev, res.data.message));
+      }
     } catch (e) {
       setMessages((prev) =>
         prev.map((m) => (m?._id === optimisticId ? { ...m, status: "failed" } : m))
@@ -826,22 +951,53 @@ export default function WhatsAppChatDrawer({
   const sendPendingFile = async () => {
     if (!pendingFile?.file) return;
 
+    const optimisticId = buildTempId("tmp_media");
+
     setAttachmentSending(true);
     try {
+      const mediaType = inferOutgoingMediaType(pendingFile.file);
+      const optimisticMessage = {
+        _id: optimisticId,
+        direction: "OUTBOUND",
+        type: mediaType,
+        text: String(pendingFile.caption || "").trim(),
+        status: "sent",
+        to: phone10,
+        phone: phone10,
+        timestamp: new Date().toISOString(),
+        media: {
+          url: pendingFile.previewUrl,
+          mime: pendingFile.type || pendingFile.file.type || "application/octet-stream",
+          filename: pendingFile.file.name || "attachment",
+        },
+      };
+
+      setMessages((prev) => upsertMessage(prev, optimisticMessage));
+      stickToBottomRef.current = true;
+      scrollToBottomSoon("auto");
+
       const fd = new FormData();
       fd.append("to", phone10);
       fd.append("file", pendingFile.file);
       if (pendingFile.caption?.trim()) fd.append("caption", pendingFile.caption.trim());
 
-      await api.post(`/api/whatsapp/send-media`, fd, {
+      const res = await api.post(`/api/whatsapp/send-media`, fd, {
         headers: { "Content-Type": "multipart/form-data" },
       });
+      if (res?.data?.message) {
+        setMessages((prev) => upsertMessage(prev, res.data.message));
+      }
 
       closePendingFile();
       stickToBottomRef.current = true;
       scrollToBottomSoon("auto");
-      await refreshAll();
     } catch (e) {
+      setMessages((prev) =>
+        prev.map((m) => {
+          if (String(m?._id || "") !== optimisticId) return m;
+          return { ...m, status: "failed" };
+        })
+      );
       alert("Failed to send attachment.");
     } finally {
       setAttachmentSending(false);
@@ -1114,19 +1270,62 @@ export default function WhatsAppChatDrawer({
   );
 
   const sendTemplate = async (tpl, vars = [], renderedPreview = "", header = null) => {
+    const optimisticId = buildTempId("tmp_tpl");
+    const optimisticMessage = {
+      _id: optimisticId,
+      direction: "OUTBOUND",
+      type: "template",
+      text: renderedPreview || `[TEMPLATE] ${tpl?.name || ""}`.trim(),
+      status: "sent",
+      to: phone10,
+      phone: phone10,
+      timestamp: new Date().toISOString(),
+      ...(header?.url
+        ? {
+            media: {
+              url: header.url,
+              mime: header.mime || "",
+              filename: header.filename || "attachment",
+            },
+          }
+        : {}),
+      templateMeta: {
+        name: tpl?.name || "",
+        language: tpl?.language || "",
+        parameters: (vars || []).map((x) => String(x ?? "")),
+        ...(header
+          ? {
+              headerMedia: {
+                format: header.format || "",
+                id: header.id || "",
+                url: header.url || "",
+                mime: header.mime || "",
+                filename: header.filename || "",
+              },
+            }
+          : {}),
+      },
+    };
+
+    setMessages((prev) => upsertMessage(prev, optimisticMessage));
+    stickToBottomRef.current = true;
+    scrollToBottomSoon("auto");
+
     try {
-      await api.post(`/api/whatsapp/send-template`, {
+      const res = await api.post(`/api/whatsapp/send-template`, {
         to: phone10,
         templateName: tpl.name,
         parameters: (vars || []).map((x) => String(x ?? "")),
         renderedText: renderedPreview || "",
         ...(header ? { headerMedia: header } : {}),
       });
-
-      stickToBottomRef.current = true;
-      scrollToBottomSoon("auto");
-      await refreshAll();
+      if (res?.data?.message) {
+        setMessages((prev) => upsertMessage(prev, res.data.message));
+      }
     } catch (e) {
+      setMessages((prev) =>
+        prev.map((m) => (m?._id === optimisticId ? { ...m, status: "failed" } : m))
+      );
       const msg = e?.response?.data?.message || "Template send failed.";
       alert(msg);
       throw e;
