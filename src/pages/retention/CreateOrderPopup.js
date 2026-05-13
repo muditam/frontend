@@ -28,7 +28,7 @@ const normalizePhone = (phone) => {
 };
 
 
-const CreateOrderPopup = ({ open, onClose, prefillCustomer = {} }) => {
+const CreateOrderPopup = ({ open, onClose, prefillCustomer = {}, onOrderCreated }) => {
  const [products, setProducts] = useState([]);
  const [expanded, setExpanded] = useState({}); // productId -> boolean
  const [loading, setLoading] = useState(false);
@@ -53,6 +53,7 @@ const CreateOrderPopup = ({ open, onClose, prefillCustomer = {} }) => {
  const [paymentMethod, setPaymentMethod] = useState("COD");
  const [paymentLink, setPaymentLink] = useState("");
  const [transactionId, setTransactionId] = useState("");
+ const [partialPaidAmount, setPartialPaidAmount] = useState("");
  const [generatingPaymentLink, setGeneratingPaymentLink] = useState(false);
  const [copyStatus, setCopyStatus] = useState("");
 
@@ -75,6 +76,7 @@ const CreateOrderPopup = ({ open, onClose, prefillCustomer = {} }) => {
    setSelectedAddressId(null);
    setPaymentLink("");
    setTransactionId("");
+   setPartialPaidAmount("");
    setPaymentMethod("COD");
    const formattedPhone = normalizePhone(prefillCustomer.phone);
    fetchCustomerAddresses(formattedPhone);
@@ -210,7 +212,9 @@ const CreateOrderPopup = ({ open, onClose, prefillCustomer = {} }) => {
        customerName: customer.name,
        customerPhone: customer.phone,
        customerAddress: customer.address.formatted || customer.address,
-       amount: total,
+       amount: paymentMethod === "Partial Paid"
+         ? Number(partialPaidAmount || 0)
+         : total,
      });
      setPaymentLink(res.data.paymentLink);
    } catch (err) {
@@ -251,11 +255,34 @@ const CreateOrderPopup = ({ open, onClose, prefillCustomer = {} }) => {
  // Place Order Handler (no notes, always enabled after address select)
  const handlePlaceOrder = async () => {
    try {
+     const isPartialPaid = paymentMethod === "Partial Paid";
+     const numericPartialPaidAmount = Number(partialPaidAmount || 0);
+
+     if (isPartialPaid) {
+       if (!(numericPartialPaidAmount > 0)) {
+         alert("Enter a valid partial paid amount.");
+         return;
+       }
+       if (numericPartialPaidAmount >= total) {
+         alert("Partial paid amount must be less than the order total.");
+         return;
+       }
+       if (!String(transactionId || "").trim()) {
+         alert("Transaction ID is required for partial paid orders.");
+         return;
+       }
+     }
+
      const payload = {
        customer,
        cartItems,
        paymentMethod,
-       transactionId: paymentMethod === "Prepaid" ? transactionId : undefined,
+       transactionId:
+         paymentMethod === "Prepaid" || paymentMethod === "Partial Paid"
+           ? transactionId
+           : undefined,
+       partialPaidAmount: isPartialPaid ? numericPartialPaidAmount : undefined,
+       orderTotal: total,
        shippingCharge,
        discount,
        discountType,
@@ -263,10 +290,19 @@ const CreateOrderPopup = ({ open, onClose, prefillCustomer = {} }) => {
 
 
      const res = await axios.post("https://muditamleads-14f32a10d7f7.herokuapp.com/api/shopify/place-order", payload);
-     const newOrderId = res.data?.shopifyOrder?.id;
+     const createdOrder = res.data?.shopifyOrder || null;
+     const newOrderId = createdOrder?.id;
+     const newOrderName = String(createdOrder?.name || "").trim();
 
 
      setLatestOrderId(newOrderId || null);
+     if (typeof onOrderCreated === "function" && newOrderName) {
+       onOrderCreated({
+         orderId: newOrderId || null,
+         orderName: newOrderName,
+         order: createdOrder,
+       });
+     }
      setShowNoteDialog(true); // open note dialog after placing the order
    } catch (err) {
      alert("Order placement failed.");
@@ -706,20 +742,39 @@ const CreateOrderPopup = ({ open, onClose, prefillCustomer = {} }) => {
                  setPaymentMethod(e.target.value);
                  setPaymentLink("");
                  setTransactionId("");
+                 setPartialPaidAmount("");
+                 setCopyStatus("");
                }}
              >
                <FormControlLabel value="Prepaid" control={<Radio />} label="Prepaid" />
+               <FormControlLabel value="Partial Paid" control={<Radio />} label="Partial Paid" />
                <FormControlLabel value="COD" control={<Radio />} label="Cash on Delivery (COD)" />
              </RadioGroup>
 
-
-             {paymentMethod === "Prepaid" && (
+             {(paymentMethod === "Prepaid" || paymentMethod === "Partial Paid") && (
                <Box sx={{ mt: 1 }}>
+                 {paymentMethod === "Partial Paid" && (
+                   <TextField
+                     fullWidth
+                     label="Partial Paid Amount"
+                     size="small"
+                     type="number"
+                     value={partialPaidAmount}
+                     onChange={e => setPartialPaidAmount(e.target.value)}
+                     sx={{ mb: 1 }}
+                     helperText={`Order total: Rs ${total.toFixed(2)}`}
+                   />
+                 )}
                  <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
                    <Button
                      variant="outlined"
                      onClick={handleGeneratePaymentLink}
-                     disabled={generatingPaymentLink || !!paymentLink || !customer.address}
+                     disabled={
+                       generatingPaymentLink ||
+                       !!paymentLink ||
+                       !customer.address ||
+                       (paymentMethod === "Partial Paid" && !(Number(partialPaidAmount || 0) > 0))
+                     }
                    >
                      {generatingPaymentLink
                        ? "Generating..."
@@ -827,6 +882,4 @@ const CreateOrderPopup = ({ open, onClose, prefillCustomer = {} }) => {
 
 
 export default CreateOrderPopup;
-
-
 

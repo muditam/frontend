@@ -57,7 +57,11 @@ const theme = createTheme({
   },
 });
 
-const API_BASE_URL = "https://muditamleads-14f32a10d7f7.herokuapp.com";
+const API_BASE_URL = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "");
+const api = axios.create({
+  baseURL: API_BASE_URL,
+  withCredentials: true,
+});
 
 const COLUMN_IDS = { NEW: "NEW", OPEN: "OPEN", PAUSED: "PAUSED", CLOSED: "CLOSED" };
 
@@ -245,7 +249,7 @@ const MyReporting = () => {
 
   const fetchEmployees = useCallback(async () => {
     try {
-      const res = await axios.get(`${API_BASE_URL}/api/employees`);
+      const res = await api.get("/api/employees");
       const active = (res.data || [])
         .filter((e) => (e.status || "").toLowerCase() === "active")
         .sort((a, b) => (a.fullName || a.name || "").localeCompare(b.fullName || b.name || ""));
@@ -260,7 +264,7 @@ const MyReporting = () => {
     if (!targetId) return;
     try {
       setLoading(true); setLoadError("");
-      const { data } = await axios.get(`${API_BASE_URL}/api/tasks/board`, { params: { userId: targetId } });
+      const { data } = await api.get("/api/tasks/board", { params: { userId: targetId } });
       setTasks((data.tasks || []).map((t) => ({
         id: String(t.id || t._id), title: t.title, description: t.description || "",
         status: t.status, assigneeId: t.assigneeId || null, assigneeName: t.assigneeName || "",

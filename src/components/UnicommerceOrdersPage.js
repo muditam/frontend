@@ -23,12 +23,11 @@ const API_BASE = "http://localhost:5001";
 
 const api = axios.create({
   baseURL: API_BASE,
-  withCredentials: true,
 });
 
-const LIVE_API = "/api/shopify-orders-live";
-const BACKFILL_API = "/api/orders/backfill-shopify-to-order";
-const DELETE_API = "/api/orders/delete-after-date";
+const LIVE_API = "/unicommerce-api/shopify-orders-live";
+const BACKFILL_API = "/unicommerce-api/orders/backfill-shopify-to-order";
+const DELETE_API = "/unicommerce-api/orders/delete-after-date";
 
 function getChipColor(status) {
   switch (status) {

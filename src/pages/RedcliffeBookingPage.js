@@ -9,7 +9,20 @@ const api = axios.create({
   baseURL: API_BASE,
 });
 
-const todayIso = () => new Date().toISOString().slice(0, 10);
+function formatLocalIsoDate(date = new Date()) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+const todayIso = () => formatLocalIsoDate(new Date());
+
+function addDaysIso(days) {
+  const date = new Date();
+  date.setDate(date.getDate() + days);
+  return formatLocalIsoDate(date);
+}
 
 const initialForm = {
   placeQuery: "",
@@ -190,6 +203,8 @@ function formatLocationOption(item) {
 }
 
 export default function RedcliffeBookingPage() {
+  const minCollectionDate = todayIso();
+  const maxCollectionDate = addDaysIso(4);
   const [form, setForm] = useState(initialForm);
   const [locations, setLocations] = useState([]);
   const [slots, setSlots] = useState([]);
@@ -346,6 +361,26 @@ export default function RedcliffeBookingPage() {
     if (customerError) setCustomerError("");
   };
 
+  const setCollectionDate = (value) => {
+    const nextValue = String(value || "").trim();
+    if (!nextValue) {
+      setField("collectionDate", "");
+      return;
+    }
+
+    if (nextValue < minCollectionDate) {
+      setField("collectionDate", minCollectionDate);
+      return;
+    }
+
+    if (nextValue > maxCollectionDate) {
+      setField("collectionDate", maxCollectionDate);
+      return;
+    }
+
+    setField("collectionDate", nextValue);
+  };
+
   useEffect(() => {
     if (!isWhatsappSameAsPhone) return;
     setForm((prev) => {
@@ -357,6 +392,12 @@ export default function RedcliffeBookingPage() {
   const resetBookingMessages = () => {
     setBookingStatus("");
     setBookingError("");
+  };
+
+  const getNormalizedOrderName = (value) => {
+    const trimmed = String(value || "").trim();
+    if (!trimmed) return "";
+    return trimmed.startsWith("#") ? trimmed : `#${trimmed}`;
   };
 
   const applyRequestError = (err, fallbackMessage) => {
@@ -744,6 +785,11 @@ export default function RedcliffeBookingPage() {
 
   const createBooking = async () => {
     resetBookingMessages();
+    const normalizedOrderId = getNormalizedOrderName(form.orderId);
+    if (!normalizedOrderId) {
+      setBookingError("Order ID is required. Please create/select a Shopify order first.");
+      return null;
+    }
     setLoading((prev) => ({ ...prev, create: true }));
 
     try {
@@ -767,8 +813,8 @@ export default function RedcliffeBookingPage() {
         customer_longitude: form.longitude,
         customer_latitude: form.latitude,
         booking_type: "Homedx",
-        order_id: String(form.orderId || "").trim(),
-        reference_data: String(form.orderId || form.referenceData || "").trim(),
+        order_id: normalizedOrderId,
+        reference_data: normalizedOrderId,
         additional_member: additionalMembers
           .filter(
             (member) =>
@@ -862,6 +908,20 @@ export default function RedcliffeBookingPage() {
     setShopifyOrderPopupOpen(true);
   };
 
+  const handleShopifyOrderCreated = (payload) => {
+    const orderName = getNormalizedOrderName(payload?.orderName || payload?.orderId);
+    if (!orderName) return;
+    setForm((prev) => ({
+      ...prev,
+      orderId: orderName,
+      referenceData: orderName,
+    }));
+    setShopifyOrderPopupOpen(false);
+    setShopifyOrderOpenError("");
+    setBookingError("");
+    setBookingStatus(`Shopify order selected: ${orderName}`);
+  };
+
   const startNewBooking = () => {
     setForm(initialForm);
     setLocations([]);
@@ -902,6 +962,11 @@ export default function RedcliffeBookingPage() {
   const totalSteps = 5;
   const progressPercent = Math.round((activeStep / totalSteps) * 100);
   const isBookingConfirmed = Boolean(confirmedBooking);
+  const hasCreatedBooking = Boolean(
+    confirmedBooking ||
+      temporaryBooking?.booking_id ||
+      temporaryBooking?.pk
+  );
 
   const stepperItems = [
     { index: 1, title: "Collection area", subtitle: "Locality & address" },
@@ -1245,10 +1310,10 @@ export default function RedcliffeBookingPage() {
                   <Field className="span-4" label="Collection date *">
                     <input
                       type="date"
+                      min={minCollectionDate}
+                      max={maxCollectionDate}
                       value={form.collectionDate}
-                      onChange={(e) =>
-                        setField("collectionDate", e.target.value)
-                      }
+                      onChange={(e) => setCollectionDate(e.target.value)}
                     />
                   </Field>
 
@@ -1701,7 +1766,7 @@ export default function RedcliffeBookingPage() {
                   <Field className="span-12" label="Order ID">
                     <input
                       value={form.orderId}
-                      onChange={(e) => setField("orderId", e.target.value)}
+                      onChange={(e) => setField("orderId", getNormalizedOrderName(e.target.value))}
                       placeholder="Enter Shopify order ID"
                     />
                   </Field>
@@ -1736,7 +1801,23 @@ export default function RedcliffeBookingPage() {
                   </div>
                 ) : null}
                 <div className="redcliffe-step-actions">
-                  <button type="button" className="redcliffe-btn redcliffe-btn-outline" onClick={goPrevStep}>Back</button>
+                  {hasCreatedBooking ? (
+                    <button
+                      type="button"
+                      className="redcliffe-btn redcliffe-btn-outline"
+                      onClick={startNewBooking}
+                    >
+                      Create new booking
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      className="redcliffe-btn redcliffe-btn-outline"
+                      onClick={goPrevStep}
+                    >
+                      Back
+                    </button>
+                  )}
                 </div>
               </div>
             </section>
@@ -1835,6 +1916,7 @@ export default function RedcliffeBookingPage() {
       <CreateOrderPopup
         open={shopifyOrderPopupOpen}
         onClose={() => setShopifyOrderPopupOpen(false)}
+        onOrderCreated={handleShopifyOrderCreated}
         prefillCustomer={{
           name: String(form.customerName || "").trim(),
           phone: String(form.customerPhone || "").replace(/\D/g, "").slice(-10),
