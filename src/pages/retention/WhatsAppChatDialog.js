@@ -750,13 +750,30 @@ export default function WhatsAppChatDrawer({
       return;
     }
 
+    const optimisticId = `tmp_text_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const optimisticMessage = {
+      _id: optimisticId,
+      direction: "OUTBOUND",
+      type: "text",
+      text: body,
+      status: "sent",
+      to: phone10,
+      timestamp: new Date().toISOString(),
+    };
+
+    setText("");
+    setMessages((prev) => upsertMessage(prev, optimisticMessage));
+    stickToBottomRef.current = true;
+    scrollToBottomSoon("auto");
+
     try {
       await api.post(`/api/whatsapp/send-text`, { to: phone10, text: body });
-      setText("");
-      stickToBottomRef.current = true;
-      scrollToBottomSoon("auto");
       await refreshAll();
     } catch (e) {
+      setMessages((prev) =>
+        prev.map((m) => (m?._id === optimisticId ? { ...m, status: "failed" } : m))
+      );
+      setText(body);
       const code = e?.response?.data?.code;
       if (code === "SESSION_EXPIRED") alert("Session expired. Please use a template message.");
       else alert("Failed to send message.");
