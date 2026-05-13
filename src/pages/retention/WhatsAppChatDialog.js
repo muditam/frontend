@@ -242,10 +242,13 @@ function customerPhoneFromMsg(msg) {
 }
 
 function getMsgKey(m) {
-  return m?.waId || m?.providerTransactionId || m?._id || m?.id || null;
+  return m?.waId || m?.providerTransactionId || m?.clientTempId || m?._id || m?.id || null;
 }
 
 function messageIdentity(m) {
+  const clientTempId = String(m?.clientTempId || "").trim();
+  if (clientTempId) return `tmp:${clientTempId}`;
+
   const waId = String(m?.waId || "").trim();
   if (waId) return `wa:${waId}`;
 
@@ -253,7 +256,7 @@ function messageIdentity(m) {
   if (providerTxnId) return `txn:${providerTxnId}`;
 
   const dbId = String(m?._id || m?.id || "").trim();
-  if (dbId && !dbId.startsWith("tmp_")) return `id:${dbId}`;
+  if (dbId) return dbId.startsWith("tmp_") ? `tmp:${dbId}` : `id:${dbId}`;
 
   const dir = String(m?.direction || "").toUpperCase();
   const from = last10(m?.from || "");
@@ -271,6 +274,17 @@ function messageIdentity(m) {
 }
 
 function isLikelySameMessage(a, b) {
+  const aClientTempId = String(a?.clientTempId || a?._id || "").trim();
+  const bClientTempId = String(b?.clientTempId || b?._id || "").trim();
+  if (
+    aClientTempId &&
+    bClientTempId &&
+    (aClientTempId.startsWith("tmp_") || bClientTempId.startsWith("tmp_")) &&
+    aClientTempId === bClientTempId
+  ) {
+    return true;
+  }
+
   const aWa = String(a?.waId || "").trim();
   const bWa = String(b?.waId || "").trim();
   if (aWa && bWa && aWa === bWa) return true;
@@ -886,6 +900,7 @@ export default function WhatsAppChatDrawer({
     const optimisticId = buildTempId("tmp_text");
     const optimisticMessage = {
       _id: optimisticId,
+      clientTempId: optimisticId,
       direction: "OUTBOUND",
       type: "text",
       text: body,
@@ -900,7 +915,11 @@ export default function WhatsAppChatDrawer({
     scrollToBottomSoon("auto");
 
     try {
-      const res = await api.post(`/api/whatsapp/send-text`, { to: phone10, text: body });
+      const res = await api.post(`/api/whatsapp/send-text`, {
+        to: phone10,
+        text: body,
+        clientTempId: optimisticId,
+      });
       if (res?.data?.message) {
         setMessages((prev) => upsertMessage(prev, res.data.message));
       }
@@ -965,6 +984,7 @@ export default function WhatsAppChatDrawer({
       const mediaType = inferOutgoingMediaType(pendingFile.file);
       const optimisticMessage = {
         _id: optimisticId,
+        clientTempId: optimisticId,
         direction: "OUTBOUND",
         type: mediaType,
         text: String(pendingFile.caption || "").trim(),
@@ -985,6 +1005,7 @@ export default function WhatsAppChatDrawer({
 
       const fd = new FormData();
       fd.append("to", phone10);
+      fd.append("clientTempId", optimisticId);
       fd.append("file", pendingFile.file);
       if (pendingFile.caption?.trim()) fd.append("caption", pendingFile.caption.trim());
 
@@ -1280,6 +1301,7 @@ export default function WhatsAppChatDrawer({
     const optimisticId = buildTempId("tmp_tpl");
     const optimisticMessage = {
       _id: optimisticId,
+      clientTempId: optimisticId,
       direction: "OUTBOUND",
       type: "template",
       text: renderedPreview || `[TEMPLATE] ${tpl?.name || ""}`.trim(),
@@ -1321,6 +1343,7 @@ export default function WhatsAppChatDrawer({
     try {
       const res = await api.post(`/api/whatsapp/send-template`, {
         to: phone10,
+        clientTempId: optimisticId,
         templateName: tpl.name,
         parameters: (vars || []).map((x) => String(x ?? "")),
         renderedText: renderedPreview || "",
