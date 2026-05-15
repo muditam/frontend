@@ -990,15 +990,6 @@ export default function RedcliffeDashboardPage() {
                                     ? "Loading..."
                                     : "Consolidated PDF"}
                                 </button>
-                                <button
-                                  className="redcliffe-dashboard-inline-btn redcliffe-dashboard-inline-btn-mini"
-                                  onClick={() => fetchBookingReport(booking.bookingId, "digital")}
-                                  disabled={Boolean(reportLoadingByBooking[`${booking.bookingId}-digital`])}
-                                >
-                                  {reportLoadingByBooking[`${booking.bookingId}-digital`]
-                                    ? "Loading..."
-                                    : "Digital report"}
-                                </button>
                                 {String(booking.reportStatus || "").trim().toLowerCase() !== "none" ? (
                                   <span className="redcliffe-dashboard-pill coral">
                                     {booking.reportStatus}
@@ -1439,15 +1430,6 @@ export default function RedcliffeDashboardPage() {
                                   {reportLoadingByBooking[`${booking.bookingId}-consolidated`]
                                     ? "Loading..."
                                     : "Consolidated PDF"}
-                                </button>
-                                <button
-                                  className="redcliffe-dashboard-inline-btn"
-                                  onClick={() => fetchBookingReport(booking.bookingId, "digital")}
-                                  disabled={Boolean(reportLoadingByBooking[`${booking.bookingId}-digital`])}
-                                >
-                                  {reportLoadingByBooking[`${booking.bookingId}-digital`]
-                                    ? "Loading..."
-                                    : "Digital report"}
                                 </button>
                                 {String(booking.reportStatus || "").trim().toLowerCase() !== "none" ? (
                                   <span className="redcliffe-dashboard-pill coral">
