@@ -685,6 +685,20 @@
 }
 
 
+.redcliffe-dashboard-pill.blue {
+ background: #ddecff;
+ color: #184f8f;
+ border: 1px solid #c5dafc;
+}
+
+
+.redcliffe-dashboard-pill.amber {
+ background: #f8e8cc;
+ color: #7a5312;
+ border: 1px solid #edd4a5;
+}
+
+
 .redcliffe-dashboard-pill.yellow {
  background: #f4e6d7;
  color: #7a4f2d;

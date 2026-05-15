@@ -274,26 +274,81 @@ function prettifyWebhookType(value) {
 
 function getReportUrlFromResponse(data) {
   if (!data || typeof data !== "object") return "";
-  if (typeof data.report_url === "string" && data.report_url.trim()) {
-    return data.report_url.trim();
-  }
-  if (data.data && typeof data.data === "object") {
-    if (typeof data.data.report_url === "string" && data.data.report_url.trim()) {
-      return data.data.report_url.trim();
-    }
-    if (Array.isArray(data.data) && data.data.length) {
-      const nested = data.data[0];
-      if (nested && typeof nested.report_url === "string" && nested.report_url.trim()) {
-        return nested.report_url.trim();
+  const queue = [data];
+  const visited = new Set();
+  while (queue.length) {
+    const current = queue.shift();
+    if (!current || typeof current !== "object" || visited.has(current)) continue;
+    visited.add(current);
+
+    for (const key of [
+      "report_url",
+      "reportUrl",
+      "report_link",
+      "reportLink",
+      "digital_report_url",
+      "consolidated_report_url",
+      "url",
+      "link",
+      "pdf_url",
+      "pdfUrl",
+      "file_url",
+      "fileUrl",
+    ]) {
+      if (typeof current[key] === "string" && current[key].trim()) {
+        return current[key].trim();
       }
     }
+
+    Object.values(current).forEach((value) => {
+      if (value && typeof value === "object") {
+        queue.push(value);
+      }
+    });
   }
   return "";
 }
 
+function getPhleboTrackingState(booking, lifecycleEvents = []) {
+  const phlebo = booking?.phleboDetail || {};
+  const lifecycle = lifecycleEvents.map((event) => safeLower(event?.hookType));
+  const hasPickup = lifecycle.some((value) => value.includes("pickup"));
+  const hasEnded = lifecycle.some((value) => value.includes("phlebo_end_journey"));
+  const hasStarted = lifecycle.some((value) => value.includes("phlebo_started_journey"));
+  const hasAssigned = lifecycle.some((value) => value.includes("phleboassigned"));
+  const hasHold = lifecycle.some((value) => value.includes("pickup_hold"));
+
+  let label = "Not assigned";
+  let tone = "slate";
+
+  if (hasHold) {
+    label = "Pickup hold";
+    tone = "coral";
+  } else if (hasPickup) {
+    label = "Sample picked";
+    tone = "green";
+  } else if (hasEnded) {
+    label = "Reached location";
+    tone = "green";
+  } else if (hasStarted) {
+    label = "On the way";
+    tone = "blue";
+  } else if (hasAssigned || phlebo?.name || phlebo?.contact) {
+    label = "Assigned";
+    tone = "amber";
+  }
+
+  return {
+    label,
+    tone,
+    name: String(phlebo?.name || "").trim() || "NA",
+    contact: String(phlebo?.contact || "").trim() || "",
+  };
+}
+
 export default function RedcliffeDashboardPage() {
   const [filters, setFilters] = useState(initialFilters);
-  const [searchText, setSearchText] = useState("");
+  const [searchDraft, setSearchDraft] = useState(initialFilters);
   const [bookings, setBookings] = useState([]);
   const [summary, setSummary] = useState(null);
   const [openPage, setOpenPage] = useState(1);
@@ -479,19 +534,16 @@ export default function RedcliffeDashboardPage() {
   }, [activeActionType, activeActionBookingId, actionForms.collectionDate, bookings]);
 
   const searchBookings = () => {
-    const query = String(searchText || "").trim();
-    if (!query) {
+    const bookingId = String(searchDraft.bookingId || "").trim();
+    const phone = String(searchDraft.phone || "").replace(/\D/g, "").slice(-10);
+    if (!bookingId && !phone) {
       resetFilters();
       return;
     }
 
-    const digitsOnly = query.replace(/\D/g, "");
-    const isPhoneLike =
-      digitsOnly.length === 10 && /^[\d\s()+-]+$/.test(query);
-
     const nextFilters = {
-      bookingId: isPhoneLike ? "" : query,
-      phone: isPhoneLike ? digitsOnly : "",
+      bookingId,
+      phone,
     };
 
     setOpenPage(1);
@@ -503,6 +555,7 @@ export default function RedcliffeDashboardPage() {
   const resetFilters = () => {
     setOpenPage(1);
     setClosedPage(1);
+    setSearchDraft(initialFilters);
     setFilters(initialFilters);
     fetchBookings(initialFilters);
   };
@@ -776,15 +829,37 @@ export default function RedcliffeDashboardPage() {
             <div className="redcliffe-dashboard-filter-shell">
               <div className="redcliffe-dashboard-search-col">
                 <label>Search</label>
-                <input
-                  className="redcliffe-dashboard-search-input"
-                  value={searchText}
-                  onChange={(event) => setSearchText(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter") searchBookings();
-                  }}
-                  placeholder="Search by mobile number or booking ID"
-                />
+                <div className="redcliffe-dashboard-inline-fields">
+                  <input
+                    className="redcliffe-dashboard-search-input"
+                    value={searchDraft.bookingId}
+                    onChange={(event) =>
+                      setSearchDraft((prev) => ({
+                        ...prev,
+                        bookingId: event.target.value,
+                      }))
+                    }
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") searchBookings();
+                    }}
+                    placeholder="Search by booking ID"
+                  />
+                  <input
+                    className="redcliffe-dashboard-search-input"
+                    value={searchDraft.phone}
+                    onChange={(event) =>
+                      setSearchDraft((prev) => ({
+                        ...prev,
+                        phone: event.target.value,
+                      }))
+                    }
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") searchBookings();
+                    }}
+                    placeholder="Search by phone number"
+                    inputMode="numeric"
+                  />
+                </div>
               </div>
               <div className="redcliffe-dashboard-search-actions">
                 <button
@@ -797,7 +872,6 @@ export default function RedcliffeDashboardPage() {
                 <button
                   className="redcliffe-dashboard-btn secondary"
                   onClick={() => {
-                    setSearchText("");
                     resetFilters();
                   }}
                   disabled={loading.bookings}
@@ -823,6 +897,7 @@ export default function RedcliffeDashboardPage() {
                       <th>Collection</th>
                       <th>Slot</th>
                       <th>Status</th>
+                      <th>Phlebo</th>
                       <th>Pickup</th>
                       <th>Reports</th>
                       <th></th>
@@ -835,6 +910,12 @@ export default function RedcliffeDashboardPage() {
                         const additionalMembers = getBookingMembers(booking).slice(1);
                         const isExpanded = Boolean(
                           expandedBookingIds[String(booking.bookingId)]
+                        );
+                        const lifecycleEvents =
+                          lifecycleByBooking[String(booking.bookingId)] || [];
+                        const phleboTracking = getPhleboTrackingState(
+                          booking,
+                          lifecycleEvents
                         );
                         return (
                           <React.Fragment key={`open-${booking.bookingId || Math.random()}`}>
@@ -885,8 +966,8 @@ export default function RedcliffeDashboardPage() {
                               <td>{getCollectionSlotLabel(booking)}</td>
                               <td>
                               <div className="redcliffe-dashboard-lifecycle">
-                                {(lifecycleByBooking[String(booking.bookingId)] || []).length ? (
-                                  (lifecycleByBooking[String(booking.bookingId)] || [])
+                                {lifecycleEvents.length ? (
+                                  lifecycleEvents
                                     .slice(0, 4)
                                     .map((event, index) => (
                                       <small key={`${booking.bookingId}-open-life-${index}`}>
@@ -899,6 +980,19 @@ export default function RedcliffeDashboardPage() {
                                   </span>
                                 )}
                               </div>
+                              </td>
+                              <td>
+                                <div className="redcliffe-dashboard-lifecycle">
+                                  <span className={`redcliffe-dashboard-pill ${phleboTracking.tone}`}>
+                                    {phleboTracking.label}
+                                  </span>
+                                  {phleboTracking.name !== "NA" ? (
+                                    <small>{phleboTracking.name}</small>
+                                  ) : null}
+                                  {phleboTracking.contact ? (
+                                    <small>{phleboTracking.contact}</small>
+                                  ) : null}
+                                </div>
                               </td>
                               <td>
                                 <span className="redcliffe-dashboard-pill yellow">
@@ -936,7 +1030,7 @@ export default function RedcliffeDashboardPage() {
                             </tr>
                             {activeActionBookingId === booking.bookingId ? (
                               <tr>
-                                <td colSpan="11">
+                                <td colSpan="12">
                                   <div className="redcliffe-dashboard-action-panel">
                                     <div className="redcliffe-dashboard-action-menu">
                                       <button
@@ -1205,7 +1299,7 @@ export default function RedcliffeDashboardPage() {
                       })
                     ) : (
                       <tr>
-                        <td colSpan="11">
+                        <td colSpan="12">
                           <div className="redcliffe-dashboard-empty">
                             No open bookings matched the current filters.
                           </div>
@@ -1253,6 +1347,7 @@ export default function RedcliffeDashboardPage() {
                       <th>Collection</th>
                       <th>Slot</th>
                       <th>Status</th>
+                      <th>Phlebo</th>
                       <th>Pickup</th>
                       <th>Reports</th>
                       <th></th>
@@ -1265,6 +1360,12 @@ export default function RedcliffeDashboardPage() {
                         const additionalMembers = getBookingMembers(booking).slice(1);
                         const isExpanded = Boolean(
                           expandedBookingIds[String(booking.bookingId)]
+                        );
+                        const lifecycleEvents =
+                          lifecycleByBooking[String(booking.bookingId)] || [];
+                        const phleboTracking = getPhleboTrackingState(
+                          booking,
+                          lifecycleEvents
                         );
                         return (
                           <React.Fragment key={`closed-${booking.bookingId || Math.random()}`}>
@@ -1315,8 +1416,8 @@ export default function RedcliffeDashboardPage() {
                               <td>{getCollectionSlotLabel(booking)}</td>
                               <td>
                               <div className="redcliffe-dashboard-lifecycle">
-                                {(lifecycleByBooking[String(booking.bookingId)] || []).length ? (
-                                  (lifecycleByBooking[String(booking.bookingId)] || [])
+                                {lifecycleEvents.length ? (
+                                  lifecycleEvents
                                     .slice(0, 4)
                                     .map((event, index) => (
                                       <small key={`${booking.bookingId}-closed-life-${index}`}>
@@ -1330,6 +1431,19 @@ export default function RedcliffeDashboardPage() {
                                 )}
                               </div>
                             </td>
+                              <td>
+                                <div className="redcliffe-dashboard-lifecycle">
+                                  <span className={`redcliffe-dashboard-pill ${phleboTracking.tone}`}>
+                                    {phleboTracking.label}
+                                  </span>
+                                  {phleboTracking.name !== "NA" ? (
+                                    <small>{phleboTracking.name}</small>
+                                  ) : null}
+                                  {phleboTracking.contact ? (
+                                    <small>{phleboTracking.contact}</small>
+                                  ) : null}
+                                </div>
+                              </td>
                               <td>
                                 <span className="redcliffe-dashboard-pill yellow">
                                   {booking.pickupStatus || "NA"}
@@ -1366,7 +1480,7 @@ export default function RedcliffeDashboardPage() {
                             </tr>
                             {activeActionBookingId === booking.bookingId ? (
                               <tr>
-                                <td colSpan="11">
+                                <td colSpan="12">
                                   <div className="redcliffe-dashboard-action-panel">
                                     <div className="redcliffe-dashboard-action-menu">
                                       <button
@@ -1635,7 +1749,7 @@ export default function RedcliffeDashboardPage() {
                       })
                     ) : (
                       <tr>
-                        <td colSpan="11">
+                        <td colSpan="12">
                           <div className="redcliffe-dashboard-empty">
                             No closed bookings matched the current filters.
                           </div>
