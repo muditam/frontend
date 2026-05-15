@@ -26,6 +26,7 @@ import RetentionData from "./pages/filtered/Retention";
 import AcquisitionLost from "./Lostdata/AcquisitionLost";
 import RetentionLost from "./Lostdata/RetentionLost";
 import PrivateRoute from "./components/PrivateRoute";
+import PermissionRoute from "./components/PermissionRoute";
 import MyTemplates from "./components/MyTemplates";
 import LeadManagement from './LeadConsultation/LeadManagement';
 import EscalationsPage from './components/EscalationsPage';
@@ -135,7 +136,9 @@ const App = () => {
             path="/calling-center"
             element={
               <PrivateRoute>
-                <CallingCenterAgentConsole />
+                <PermissionRoute permissionKey="callingCenterAgent">
+                  <CallingCenterAgentConsole />
+                </PermissionRoute>
               </PrivateRoute>
             }
           />
@@ -143,9 +146,11 @@ const App = () => {
             path="/calling-center/manager"
             element={
               <PrivateRoute>
-                <ManagerRoute>
-                  <CallingCenterManagerDashboard />
-                </ManagerRoute>
+                <PermissionRoute permissionKey="callingCenterManager">
+                  <ManagerRoute>
+                    <CallingCenterManagerDashboard />
+                  </ManagerRoute>
+                </PermissionRoute>
               </PrivateRoute>
             }
           />
@@ -201,7 +206,9 @@ const App = () => {
             path="/redcliffe-booking"
             element={
               <PrivateRoute>
-                <RedcliffeBookingPage />
+                <PermissionRoute permissionKey="redcliffeBooking">
+                  <RedcliffeBookingPage />
+                </PermissionRoute>
               </PrivateRoute>
             }
           />
@@ -209,7 +216,9 @@ const App = () => {
             path="/redcliffe-dashboard"
             element={
               <PrivateRoute>
-                <RedcliffeDashboardPage />
+                <PermissionRoute permissionKey="redcliffeDashboard">
+                  <RedcliffeDashboardPage />
+                </PermissionRoute>
               </PrivateRoute>
             }
           />

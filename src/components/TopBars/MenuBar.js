@@ -419,7 +419,6 @@ const MenuBar = ({ toggleDrawer }) => {
     if (Object.prototype.hasOwnProperty.call(menubarPerms, key)) {
       return !!menubarPerms[key];
     }
-    if (String(key || "").startsWith("callingCenter")) return true;
     return false;
   };
 
@@ -619,6 +618,13 @@ const MenuBar = ({ toggleDrawer }) => {
             <DropdownGroup id="callingCenter" icon={<PhoneInTalkIcon />} label="Calling Center">
               {can("callingCenterAgent") && <SubItem to="/calling-center" label="Agent Console" />}
               {can("callingCenterManager") && <SubItem to="/calling-center/manager" label="Manager Dashboard" />}
+            </DropdownGroup>
+          )}
+
+          {user && can("redcliffeMenu") && (
+            <DropdownGroup id="redcliffe" icon={<StorefrontIcon />} label="Redcliffe">
+              {can("redcliffeBooking") && <SubItem to="/redcliffe-booking" label="Booking" />}
+              {can("redcliffeDashboard") && <SubItem to="/redcliffe-dashboard" label="Dashboard" />}
             </DropdownGroup>
           )}
 

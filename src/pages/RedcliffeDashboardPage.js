@@ -348,7 +348,7 @@ function getPhleboTrackingState(booking, lifecycleEvents = []) {
 
 export default function RedcliffeDashboardPage() {
   const [filters, setFilters] = useState(initialFilters);
-  const [searchDraft, setSearchDraft] = useState(initialFilters);
+  const [searchText, setSearchText] = useState("");
   const [bookings, setBookings] = useState([]);
   const [summary, setSummary] = useState(null);
   const [openPage, setOpenPage] = useState(1);
@@ -426,8 +426,7 @@ export default function RedcliffeDashboardPage() {
     setError(payload.message || payload.detail || fallback);
   };
 
-  const fetchBookings = useCallback(async (overrideFilters) => {
-    const activeFilters = overrideFilters || filters;
+  const fetchBookings = useCallback(async (activeFilters = initialFilters) => {
     clearPageMessages();
     setLoading((prev) => ({ ...prev, bookings: true }));
 
@@ -448,7 +447,7 @@ export default function RedcliffeDashboardPage() {
     } finally {
       setLoading((prev) => ({ ...prev, bookings: false }));
     }
-  }, [filters]);
+  }, []);
 
   const loadPartnerPackages = useCallback(async () => {
     if (availablePackages.length || packageLookupLoading) return;
@@ -534,16 +533,19 @@ export default function RedcliffeDashboardPage() {
   }, [activeActionType, activeActionBookingId, actionForms.collectionDate, bookings]);
 
   const searchBookings = () => {
-    const bookingId = String(searchDraft.bookingId || "").trim();
-    const phone = String(searchDraft.phone || "").replace(/\D/g, "").slice(-10);
-    if (!bookingId && !phone) {
+    const query = String(searchText || "").trim();
+    if (!query) {
       resetFilters();
       return;
     }
 
+    const digitsOnly = query.replace(/\D/g, "");
+    const isPhoneLike =
+      digitsOnly.length === 10 && /^[\d\s()+-]+$/.test(query);
+
     const nextFilters = {
-      bookingId,
-      phone,
+      bookingId: isPhoneLike ? "" : query,
+      phone: isPhoneLike ? digitsOnly : "",
     };
 
     setOpenPage(1);
@@ -555,7 +557,7 @@ export default function RedcliffeDashboardPage() {
   const resetFilters = () => {
     setOpenPage(1);
     setClosedPage(1);
-    setSearchDraft(initialFilters);
+    setSearchText("");
     setFilters(initialFilters);
     fetchBookings(initialFilters);
   };
@@ -829,37 +831,15 @@ export default function RedcliffeDashboardPage() {
             <div className="redcliffe-dashboard-filter-shell">
               <div className="redcliffe-dashboard-search-col">
                 <label>Search</label>
-                <div className="redcliffe-dashboard-inline-fields">
-                  <input
-                    className="redcliffe-dashboard-search-input"
-                    value={searchDraft.bookingId}
-                    onChange={(event) =>
-                      setSearchDraft((prev) => ({
-                        ...prev,
-                        bookingId: event.target.value,
-                      }))
-                    }
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter") searchBookings();
-                    }}
-                    placeholder="Search by booking ID"
-                  />
-                  <input
-                    className="redcliffe-dashboard-search-input"
-                    value={searchDraft.phone}
-                    onChange={(event) =>
-                      setSearchDraft((prev) => ({
-                        ...prev,
-                        phone: event.target.value,
-                      }))
-                    }
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter") searchBookings();
-                    }}
-                    placeholder="Search by phone number"
-                    inputMode="numeric"
-                  />
-                </div>
+                <input
+                  className="redcliffe-dashboard-search-input"
+                  value={searchText}
+                  onChange={(event) => setSearchText(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") searchBookings();
+                  }}
+                  placeholder="Search by mobile number or booking ID"
+                />
               </div>
               <div className="redcliffe-dashboard-search-actions">
                 <button
