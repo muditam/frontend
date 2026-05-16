@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 
 
-const API = 'http://localhost:5001';
+const API = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "");
 
 
 const C = {

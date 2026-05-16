@@ -2,8 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 
 
-const API        = 'http://localhost:5001';
-const PUBLIC_API = 'http://localhost:5001/api/diet-public';
+const API        = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "");
+const PUBLIC_API = 'https://muditamleads-14f32a10d7f7.herokuapp.com/api/diet-public';
 
 
 const C = {

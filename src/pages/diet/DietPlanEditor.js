@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 
-const API = 'http://localhost:5001';
+const API = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "");
 
 const C = {
   page: '#f4f7fb',

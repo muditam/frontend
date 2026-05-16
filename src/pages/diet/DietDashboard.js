@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 
-const API         = 'http://localhost:5001';
+const API         = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "");
 const FRONTEND    = window.location.origin || 'http://localhost:3000';
 
 
