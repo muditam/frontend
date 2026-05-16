@@ -1,6 +1,6 @@
 import React from "react";
 import "./global.css";
-import { BrowserRouter as Router, Route, Routes } from "react-router-dom";
+import { BrowserRouter as Router, Route, Routes, useLocation } from "react-router-dom";
 import BulkDataUpload from "./components/BulkDataUpload";
 import AddEmployee from "./pages/AddEmployee";
 import LeadTable from "./pages/master/MasterLeads";
@@ -120,13 +120,19 @@ import OrganisationTree from "./pages/OrganisationTree";
 import DietImageMigrationAdmin from "./components/DietImageMigrationAdmin";
 import RedcliffeBookingPage from "./pages/RedcliffeBookingPage";
 import RedcliffeDashboardPage from "./pages/RedcliffeDashboardPage";
+import DietOnboarding from "./pages/diet/DietOnboarding";
+import SmartDietPlanView from "./pages/diet/SmartDietPlanView";
+import DietDashboard from "./pages/diet/DietDashboard";
+import DietPlanEditor from "./pages/diet/DietPlanEditor";
 
-const App = () => {
+function AppLayout() {
+  const location = useLocation();
+  const isDietPublicRoute = location.pathname === "/diet-onboarding" || location.pathname === "/smart-diet-plan"
+
   return (
-    <Router>
-      <div>
-        <NavbarWithSearch />
-        <WhatsAppNotification />
+    <div>
+      {!isDietPublicRoute && <NavbarWithSearch />}
+      {!isDietPublicRoute && <WhatsAppNotification />}
 
         <Routes>
           <Route path="/shipment-details" element={ <ShipmentDetails />} />
@@ -1017,10 +1023,21 @@ const App = () => {
               </PrivateRoute>
             }
           />
-        </Routes>
-      </div>
-    </Router>
-  );
+        <Route path="/diet-dashboard"  element={<PrivateRoute><DietDashboard /></PrivateRoute>} />
+        <Route path="/diet-plan-editor" element={<PrivateRoute><DietPlanEditor /></PrivateRoute>} />
+         <Route path="/smart-diet-plan" element={<SmartDietPlanView />} /> 
+         <Route path="/diet-onboarding" element={<DietOnboarding />} />
+     </Routes>
+   </div>
+ );
+}
+
+const App = () => {
+ return (
+   <Router>
+     <AppLayout />
+   </Router>
+ );
 };
 
 export default App;
