@@ -52,6 +52,7 @@ const API_BASE = String(process.env.REACT_APP_API_BASE || DEFAULT_API_BASE).repl
 const DEBUG_SOCKET = false;
 const NOTIF_SOUND_URL =
   "https://cdn.shopify.com/s/files/1/0734/7155/7942/files/new-notification-014-363678.mp3?v=1769002522";
+const CONVERSATION_PAGE_SIZE = 50;
 const MESSAGE_PAGE_SIZE = 15;
 
 const LIGHT = {
@@ -90,6 +91,29 @@ function customerPhoneFromMsg(msg) {
 }
 function sameCustomer(msg, p10) { return phone10(customerPhoneFromMsg(msg)) === p10; }
 function removeMessageById(list, id) { return list.filter((m) => m?._id !== id); }
+function mergeConversationLists(existing = [], incoming = []) {
+  const byPhone = new Map();
+  for (const chat of existing || []) {
+    const key = phone10(chat?.phone) || String(chat?._id || "");
+    if (!key) continue;
+    byPhone.set(key, chat);
+  }
+  for (const chat of incoming || []) {
+    const key = phone10(chat?.phone) || String(chat?._id || "");
+    if (!key) continue;
+    byPhone.set(key, { ...(byPhone.get(key) || {}), ...chat });
+  }
+  return Array.from(byPhone.values());
+}
+
+function useDebouncedValue(value, delay = 250) {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const timer = setTimeout(() => setDebounced(value), delay);
+    return () => clearTimeout(timer);
+  }, [value, delay]);
+  return debounced;
+}
 
 async function api(path, options = {}) {
   const res = await fetch(`${API_BASE}${path}`, {
@@ -580,6 +604,11 @@ export default function WhatsAppUI() {
   const [drafts, setDrafts] = useState({});
   const [input, setInput] = useState("");
   const [loadingChats, setLoadingChats] = useState(true);
+  const [loadingMoreChats, setLoadingMoreChats] = useState(false);
+  const [hasMoreChats, setHasMoreChats] = useState(false);
+  const [conversationCursor, setConversationCursor] = useState("");
+  const [serverChatCounts, setServerChatCounts] = useState({ all: 0, unread: 0, favourite: 0 });
+  const [serverAgentOptions, setServerAgentOptions] = useState([]);
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [search, setSearch] = useState("");
   const [agentFilter, setAgentFilter] = useState("all");
@@ -602,6 +631,7 @@ export default function WhatsAppUI() {
   const [tplVars, setTplVars] = useState({});
   const [socketStatus, setSocketStatus] = useState("disconnected");
   const bottomRef = useRef(null);
+  const conversationListRef = useRef(null);
   const prevLenRef = useRef(0);
   const isNearBottomRef = useRef(true);
   const chatScrollRef = useRef(null);
@@ -839,6 +869,13 @@ export default function WhatsAppUI() {
     return name;
   }, [activeP10, activeConversation]);
 
+  const favoritePhoneList = useMemo(
+    () => Object.keys(favoritePhones || {}).map((value) => phone10(value)).filter(Boolean),
+    [favoritePhones]
+  );
+  const favoritePhoneCsv = useMemo(() => favoritePhoneList.join(","), [favoritePhoneList]);
+  const debouncedSearch = useDebouncedValue(search, 250);
+
   const attachmentPreviewMsg = useMemo(() => {
     if (!pendingAttachment) return null;
     return {
@@ -865,62 +902,21 @@ export default function WhatsAppUI() {
 
   const EMOJIS = useMemo(() => ["😊", "😂", "🙏", "👍", "❤️", "🔥", "😄", "😅", "😇", "🤝", "😎", "🥳", "😢", "😡", "✅", "✨"], []);
 
-  const baseScopedConversations = useMemo(
-    () =>
-      (conversations || []).filter((c) => {
-      if (!canFilterByAgent || agentFilter === "all") return true;
-      return String(c?.assignedToLabel || "").trim().toLowerCase() === agentFilter;
-      }),
-    [conversations, canFilterByAgent, agentFilter]
-  );
-
-  const tabScopedConversations = useMemo(() => {
-    if (chatTab === "unread") {
-      return baseScopedConversations.filter((c) => Number(c?.unreadCount || 0) > 0);
-    }
-    if (chatTab === "favourite") {
-      return baseScopedConversations.filter((c) => isFavourite(c?.phone));
-    }
-    return baseScopedConversations;
-  }, [baseScopedConversations, chatTab, isFavourite]);
-
   const chatTabCounts = useMemo(
     () => ({
-      all: baseScopedConversations.length,
-      unread: baseScopedConversations.filter((c) => Number(c?.unreadCount || 0) > 0).length,
-      favourite: baseScopedConversations.filter((c) => isFavourite(c?.phone)).length,
+      all: Number(serverChatCounts?.all || 0),
+      unread: Number(serverChatCounts?.unread || 0),
+      favourite: Number(serverChatCounts?.favourite || 0),
     }),
-    [baseScopedConversations, isFavourite]
+    [serverChatCounts]
   );
 
-  const filteredConversations = useMemo(() => {
-    const raw = String(search || "").trim();
-    if (!raw) return tabScopedConversations;
-    const q = raw.toLowerCase();
-    const typedDigits = digitsOnly(raw);
-    const p10Query = phone10(typedDigits);
-    const tokens = q.split(/\s+/).filter(Boolean);
-    return tabScopedConversations.filter((c) => {
-      const phoneDigits = digitsOnly(c?.phone || "");
-      const phoneP10 = phone10(c?.phone || "");
-      const nameHaystack = [c?.displayName, c?.assignedToLabel, c?.lastMessageText].filter(Boolean).join(" ").toLowerCase();
-      const matchesName = tokens.length > 0 && tokens.every((t) => nameHaystack.includes(t));
-      const matchesPhone = typedDigits ? phoneDigits.includes(typedDigits) || (p10Query && phoneP10.includes(p10Query)) : false;
-      return matchesName || matchesPhone;
-    });
-  }, [tabScopedConversations, search]);
+  const filteredConversations = useMemo(() => conversations || [], [conversations]);
 
-  const agentFilterOptions = useMemo(() => {
-    const names = Array.from(
-      new Set(
-        (conversations || [])
-          .map((c) => String(c?.assignedToLabel || "").trim())
-          .filter(Boolean)
-      )
-    );
-    names.sort((a, b) => a.localeCompare(b));
-    return names;
-  }, [conversations]);
+  const agentFilterOptions = useMemo(
+    () => (Array.isArray(serverAgentOptions) ? serverAgentOptions.slice() : []),
+    [serverAgentOptions]
+  );
 
   useEffect(() => {
     if (!canFilterByAgent && agentFilter !== "all") {
@@ -939,8 +935,8 @@ export default function WhatsAppUI() {
   }, [filteredConversations]);
 
   const totalUnreadCount = useMemo(
-    () => (conversations || []).reduce((sum, c) => sum + Number(c?.unreadCount || 0), 0),
-    [conversations]
+    () => Number(serverChatCounts?.unread || 0),
+    [serverChatCounts]
   );
 
   const upsertConversationFromMessage = useCallback((msg) => {
@@ -971,8 +967,15 @@ export default function WhatsAppUI() {
     });
   }, []);
 
-  const refreshConversations = useCallback(async (selectPhone = null, { silent = false } = {}) => {
-    if (!silent) setLoadingChats(true);
+  const refreshConversations = useCallback(async (
+    selectPhone = null,
+    { silent = false, append = false, cursor = "" } = {}
+  ) => {
+    if (append) {
+      setLoadingMoreChats(true);
+    } else if (!silent) {
+      setLoadingChats(true);
+    }
 
     try {
       const userName = sessionUser?.fullName || "";
@@ -986,17 +989,46 @@ export default function WhatsAppUI() {
         normalizedRole === "assistant team lead" ||
         (normalizedRole === "retention agent" &&
           Boolean(sessionUser?.hasTeam));
+      const params = new URLSearchParams({
+        role: userRole,
+        userName,
+        userId,
+        hasTeam: effectiveHasTeam ? "true" : "false",
+        paginated: "true",
+        limit: String(CONVERSATION_PAGE_SIZE),
+        includeCounts: "true",
+        includeAgentOptions: canFilterByAgent ? "true" : "false",
+        chatScope:
+          normalizedRole === "team leader" || normalizedRole === "team-leader"
+            ? "team"
+            : effectiveHasTeam && normalizedRole === "assistant team lead"
+              ? "combined"
+              : "self",
+        tab: chatTab,
+      });
+      if (agentFilter && agentFilter !== "all") {
+        params.set("assignedTo", agentFilter);
+      }
+      if (favoritePhoneCsv) {
+        params.set("favoritePhones", favoritePhoneCsv);
+      }
+      const trimmedSearch = String(debouncedSearch || "").trim();
+      if (trimmedSearch) {
+        params.set("search", trimmedSearch);
+      }
+      if (cursor) {
+        params.set("cursor", cursor);
+      }
       const data =
         (await api(
-          `/api/whatsapp/conversations?${new URLSearchParams({
-            role: userRole,
-            userName,
-            userId,
-            hasTeam: effectiveHasTeam ? "true" : "false",
-          })}`
+          `/api/whatsapp/conversations?${params.toString()}`
         )) || [];
 
-      const serverList = Array.isArray(data) ? data : [];
+      const serverList = Array.isArray(data)
+        ? data
+        : Array.isArray(data?.items)
+        ? data.items
+        : [];
       const now = Date.now();
 
       const list = serverList.map((c) => {
@@ -1008,7 +1040,23 @@ export default function WhatsAppUI() {
         return c;
       });
 
-      setConversations(list);
+      setConversations((prev) => (append ? mergeConversationLists(prev, list) : list));
+      setHasMoreChats(Boolean(data?.hasMore));
+      setConversationCursor(String(data?.nextCursor || ""));
+      if (data?.counts) {
+        setServerChatCounts({
+          all: Number(data.counts?.all || 0),
+          unread: Number(data.counts?.unread || 0),
+          favourite: Number(data.counts?.favourite || 0),
+        });
+      } else if (!append) {
+        setServerChatCounts({ all: 0, unread: 0, favourite: 0 });
+      }
+      if (Array.isArray(data?.agentOptions)) {
+        setServerAgentOptions(data.agentOptions);
+      } else if (!append && canFilterByAgent) {
+        setServerAgentOptions([]);
+      }
 
       if (selectPhone) {
         setActiveChat({ phone: digitsOnly(selectPhone) });
@@ -1018,9 +1066,43 @@ export default function WhatsAppUI() {
         showToast(e.message || "Failed to load conversations", "error");
       }
     } finally {
-      if (!silent) setLoadingChats(false);
+      if (append) {
+        setLoadingMoreChats(false);
+      } else if (!silent) {
+        setLoadingChats(false);
+      }
     }
-  }, [sessionUser?._id, sessionUser?.id, sessionUser?.fullName, sessionUser?.role, sessionUser?.hasTeam, showToast]);
+  }, [
+    agentFilter,
+    canFilterByAgent,
+    chatTab,
+    debouncedSearch,
+    favoritePhoneCsv,
+    sessionUser?._id,
+    sessionUser?.id,
+    sessionUser?.fullName,
+    sessionUser?.role,
+    sessionUser?.hasTeam,
+    showToast,
+  ]);
+
+  const loadMoreConversations = useCallback(() => {
+    if (loadingChats || loadingMoreChats || !hasMoreChats || !conversationCursor) {
+      return;
+    }
+    refreshConversations(null, { silent: true, append: true, cursor: conversationCursor });
+  }, [conversationCursor, hasMoreChats, loadingChats, loadingMoreChats, refreshConversations]);
+
+  const handleConversationListScroll = useCallback((event) => {
+    const el = event?.currentTarget;
+    if (!el || loadingChats || loadingMoreChats || !hasMoreChats || !conversationCursor) {
+      return;
+    }
+    const remaining = el.scrollHeight - el.scrollTop - el.clientHeight;
+    if (remaining < 240) {
+      loadMoreConversations();
+    }
+  }, [conversationCursor, hasMoreChats, loadMoreConversations, loadingChats, loadingMoreChats]);
 
   const mergeUniqueMessages = useCallback((seed = [], server = []) => {
     const source = [...(Array.isArray(seed) ? seed : []), ...(Array.isArray(server) ? server : [])];
@@ -1137,12 +1219,24 @@ export default function WhatsAppUI() {
     if (!p10) return;
     const nowIso = new Date().toISOString();
     pendingReadRef.current.set(p10, { at: Date.now(), iso: nowIso });
-    setConversations((prev) => prev.map((c) => (phone10(c.phone) === p10 ? { ...c, unreadCount: 0, lastReadAt: nowIso } : c)));
+    let clearedUnread = 0;
+    setConversations((prev) => prev.map((c) => {
+      if (phone10(c.phone) !== p10) return c;
+      clearedUnread = Number(c?.unreadCount || 0);
+      return { ...c, unreadCount: 0, lastReadAt: nowIso };
+    }));
+    if (clearedUnread > 0) {
+      setServerChatCounts((prev) => ({
+        ...prev,
+        unread: Math.max(0, Number(prev?.unread || 0) - clearedUnread),
+      }));
+    }
     if (optimisticOnly) return;
     try { await api(`/api/whatsapp/conversations/mark-read`, { method: "POST", body: JSON.stringify({ phone }) }); } catch {}
   }, []);
 
-  useEffect(() => { refreshConversations(null, { silent: false }); fetchTemplates(); }, [refreshConversations, fetchTemplates]);
+  useEffect(() => { refreshConversations(null, { silent: false }); }, [refreshConversations]);
+  useEffect(() => { fetchTemplates(); }, [fetchTemplates]);
 
   // Fallback polling for left chat list so it stays fresh even if socket transport is unstable.
   useEffect(() => {
@@ -1308,21 +1402,33 @@ export default function WhatsAppUI() {
     const onConversation = (payload) => {
       const p10 = phone10(payload?.phone10 || payload?.phone || ""); if (!p10) return;
       const patch = payload?.patch ? payload.patch : payload; if (!patch) return;
-      setConversations((prev) => prev.map((c) => {
-        if (phone10(c.phone) !== p10) return c;
-        const delta = Number(patch?.unreadCountDelta || 0);
-        const hasAbsolute = typeof patch?.unreadCount === "number";
-        const nextUnread = hasAbsolute ? patch.unreadCount : Math.max(0, Number(c.unreadCount || 0) + delta);
-        const cleanedPatch = { ...patch }; delete cleanedPatch.unreadCountDelta;
-        return { ...c, ...cleanedPatch, unreadCount: nextUnread };
-      }));
+      if (debouncedSearch || chatTab !== "all" || agentFilter !== "all") {
+        refreshConversations(null, { silent: true });
+      } else {
+        let unreadDeltaForCounts = Number(patch?.unreadCountDelta || 0);
+        setConversations((prev) => prev.map((c) => {
+          if (phone10(c.phone) !== p10) return c;
+          const prevUnread = Number(c.unreadCount || 0);
+          const hasAbsolute = typeof patch?.unreadCount === "number";
+          const nextUnread = hasAbsolute ? patch.unreadCount : Math.max(0, prevUnread + unreadDeltaForCounts);
+          if (hasAbsolute) unreadDeltaForCounts = nextUnread - prevUnread;
+          const cleanedPatch = { ...patch }; delete cleanedPatch.unreadCountDelta;
+          return { ...c, ...cleanedPatch, unreadCount: nextUnread };
+        }));
+        if (unreadDeltaForCounts) {
+          setServerChatCounts((prev) => ({
+            ...prev,
+            unread: Math.max(0, Number(prev?.unread || 0) + unreadDeltaForCounts),
+          }));
+        }
+      }
       const activeNow = activeP10Ref.current;
       if (activeNow && p10 === activeNow && (patch?.lastInboundAt || patch?.windowExpiresAt)) { setSessionExpired(false); setChatError(""); }
     };
 
     s.on("wa:message", onMessage); s.on("wa:status", onStatus); s.on("wa:conversation", onConversation);
     return () => { s.off("wa:message", onMessage); s.off("wa:status", onStatus); s.off("wa:conversation", onConversation); };
-  }, [markConversationRead, upsertConversationFromMessage, playNotif]);
+  }, [agentFilter, chatTab, debouncedSearch, markConversationRead, playNotif, refreshConversations, upsertConversationFromMessage]);
 
   useEffect(() => { if (activeP10) setInput(drafts[activeP10] || ""); else setInput(""); }, [activeP10, drafts]);
 
@@ -2049,7 +2155,12 @@ export default function WhatsAppUI() {
         )}
 
         {/* Conversation list */}
-        <Box flex={1} overflow="auto" sx={{
+        <Box
+          ref={conversationListRef}
+          flex={1}
+          overflow="auto"
+          onScroll={handleConversationListScroll}
+          sx={{
           "&::-webkit-scrollbar": { width: 4 },
           "&::-webkit-scrollbar-thumb": { bgcolor: "#c7ced6", borderRadius: 2 },
         }}>
@@ -2136,6 +2247,23 @@ export default function WhatsAppUI() {
               {!sortedConversations.length && !canShowQuickChat && (
                 <Stack alignItems="center" mt={8} spacing={1}>
                   <Typography sx={{ fontSize: 14, color: LIGHT.subtext }}>No conversations found</Typography>
+                </Stack>
+              )}
+
+              {(loadingMoreChats || hasMoreChats) && sortedConversations.length > 0 && (
+                <Stack alignItems="center" py={1.5} spacing={1}>
+                  {loadingMoreChats ? (
+                    <CircularProgress size={18} sx={{ color: "#25D366" }} />
+                  ) : (
+                    <Button
+                      size="small"
+                      variant="text"
+                      onClick={loadMoreConversations}
+                      sx={{ textTransform: "none", color: "#128C7E", fontWeight: 700 }}
+                    >
+                      Load more chats
+                    </Button>
+                  )}
                 </Stack>
               )}
             </>

@@ -635,7 +635,9 @@ export default function WhatsAppChatDrawer({
   }, []);
 
   const fetchConversationMeta = useCallback(async () => {
-    const res = await api.get(`/api/whatsapp/conversations`);
+    const res = await api.get(`/api/whatsapp/conversations`, {
+      params: { phone: phone10 },
+    });
     const list = Array.isArray(res.data) ? res.data : [];
     const found = list.find((c) => last10(c.phone) === phone10);
 

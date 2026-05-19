@@ -41,7 +41,12 @@ import GridViewIcon from "@mui/icons-material/GridView";
 import axios from "axios";
 import { io } from "socket.io-client";
 
-const API_BASE = "https://muditamleads-14f32a10d7f7.herokuapp.com";
+const DEFAULT_API_BASE =
+  typeof window !== "undefined" &&
+  ["localhost", "127.0.0.1"].includes(window.location.hostname)
+    ? "http://localhost:5001"
+    : "https://muditamleads-14f32a10d7f7.herokuapp.com";
+const API_BASE = String(process.env.REACT_APP_API_BASE || DEFAULT_API_BASE).replace(/\/+$/, "");
 const SOCKET_URL = API_BASE;
 
 const NOTIF_SOUND_URL =
@@ -57,6 +62,15 @@ const ALLOWED_ROLES = new Set([
   "super admin",
   "developer",
 ]);
+
+function useDebouncedValue(value, delay = 250) {
+  const [debounced, setDebounced] = React.useState(value);
+  React.useEffect(() => {
+    const timer = setTimeout(() => setDebounced(value), delay);
+    return () => clearTimeout(timer);
+  }, [value, delay]);
+  return debounced;
+}
 
 // ─── Design tokens (Light WhatsApp theme) ─────────────────────────────────────
 const COLORS = {
@@ -188,6 +202,28 @@ function upsertMessage(prev, incoming) {
     }
   }
   return sortMessagesAsc(next);
+}
+
+function mergeConversationLists(existing = [], incoming = []) {
+  const byPhone = new Map();
+  for (const item of existing || []) {
+    const key = last10(item?.phone || item?._id || "");
+    if (!key) continue;
+    byPhone.set(key, item);
+  }
+  for (const item of incoming || []) {
+    const key = last10(item?.phone || item?._id || "");
+    if (!key) continue;
+    byPhone.set(key, { ...(byPhone.get(key) || {}), ...item });
+  }
+  return Array.from(byPhone.values());
+}
+
+function customerPhoneFromMsg(msg) {
+  const dir = String(msg?.direction || "").toUpperCase();
+  if (dir === "OUTBOUND") return msg?.to || "";
+  if (dir === "INBOUND") return msg?.from || "";
+  return msg?.phone || msg?.to || msg?.from || "";
 }
 
 function isProviderUrl(url = "") {
@@ -841,12 +877,17 @@ export default function WhatsAppInboxWidget({ onOpenChat }) {
   const joinedRoomsRef = useRef(new Set());
   const messagesEndRef = useRef(null);
   const chatScrollRef = useRef(null);
+  const refreshTimerRef = useRef(null);
 
   const [anchorEl, setAnchorEl] = useState(null);
   const open = Boolean(anchorEl);
 
   const [loading, setLoading] = useState(false);
+  const [socketStatus, setSocketStatus] = useState("disconnected");
   const [convos, setConvos] = useState([]);
+  const [hasMoreConvos, setHasMoreConvos] = useState(false);
+  const [conversationCursor, setConversationCursor] = useState("");
+  const [serverCounts, setServerCounts] = useState({ all: 0, unread: 0, favourite: 0 });
 
   const [view, setView] = useState("list");
   const [active, setActive] = useState(null);
@@ -858,6 +899,7 @@ export default function WhatsAppInboxWidget({ onOpenChat }) {
 
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const debouncedSearchQuery = useDebouncedValue(searchQuery, 250);
 
   const [tplLoading, setTplLoading] = useState(false);
   const [templates, setTemplates] = useState([]);
@@ -935,7 +977,6 @@ export default function WhatsAppInboxWidget({ onOpenChat }) {
   }, []);
 
   const myNameRaw = useMemo(() => String(sessionUser?.fullName || "").trim(), [sessionUser?.fullName]);
-  const myName = useMemo(() => myNameRaw.toLowerCase(), [myNameRaw]);
   const myRole = useMemo(() => String(sessionUser?.role || "").trim(), [sessionUser?.role]);
   const myRoleNorm = useMemo(() => myRole.toLowerCase(), [myRole]);
   const myUserId = useMemo(() => String(sessionUser?._id || sessionUser?.id || "").trim(), [sessionUser?._id, sessionUser?.id]);
@@ -967,22 +1008,14 @@ export default function WhatsAppInboxWidget({ onOpenChat }) {
 
   const phone10Active = useMemo(() => last10(active?.phone || ""), [active]);
   const totalUnread = useMemo(
-    () => (convos || []).reduce((s, c) => s + (Number(c?.unreadCount) || 0), 0),
-    [convos]
+    () => Number(serverCounts?.unread || 0),
+    [serverCounts]
   );
 
-  const visibleConvos = useMemo(() => {
-    const list = Array.isArray(convos) ? convos.slice() : [];
-    if (["manager", "admin", "super admin", "developer"].includes(myRoleNorm)) return list;
-    if (["team leader", "team-leader", "assistant team lead"].includes(myRoleNorm)) return list;
-    return list.filter((c) => {
-      const assigned = String(c?.assignedToLabel || "").trim().toLowerCase();
-      return assigned && assigned === myName;
-    });
-  }, [convos, myRoleNorm, myName]);
+  const visibleConvos = useMemo(() => (Array.isArray(convos) ? convos.slice() : []), [convos]);
 
   const sortedConvos = useMemo(() => {
-    const sorted = visibleConvos.slice().sort((a, b) => {
+    return visibleConvos.slice().sort((a, b) => {
       const au = Number(a?.unreadCount) || 0;
       const bu = Number(b?.unreadCount) || 0;
       if (au !== bu) return bu - au;
@@ -991,17 +1024,9 @@ export default function WhatsAppInboxWidget({ onOpenChat }) {
         (a?.lastMessageAt ? new Date(a.lastMessageAt).getTime() : 0)
       );
     });
-    if (!searchQuery.trim()) return sorted;
-    const q = searchQuery.trim().toLowerCase();
-    return sorted.filter((c) => {
-      const name = String(c?.displayName || "").toLowerCase();
-      const phone = String(c?.phone || "");
-      const last = String(c?.lastMessageText || "").toLowerCase();
-      return name.includes(q) || phone.includes(q) || last.includes(q);
-    });
-  }, [visibleConvos, searchQuery]);
+  }, [visibleConvos]);
 
-  const fetchConversations = useCallback(async () => {
+  const fetchConversations = useCallback(async ({ append = false, cursor = "" } = {}) => {
     if (!shouldShowWidget) return;
     setLoading(true);
     try {
@@ -1012,6 +1037,11 @@ export default function WhatsAppInboxWidget({ onOpenChat }) {
           userName: myNameRaw || "",
           userId: myUserId || "",
           hasTeam: hasTeamEffective ? "true" : "false",
+          paginated: "true",
+          includeCounts: "true",
+          limit: 30,
+          ...(debouncedSearchQuery.trim() ? { search: debouncedSearchQuery.trim() } : {}),
+          ...(cursor ? { cursor } : {}),
           chatScope:
             myRoleNorm === "team leader" || myRoleNorm === "team-leader"
               ? "team"
@@ -1020,11 +1050,40 @@ export default function WhatsAppInboxWidget({ onOpenChat }) {
               : "self",
         },
       });
-      setConvos(Array.isArray(r.data) ? r.data : []);
+      const items = Array.isArray(r.data?.items) ? r.data.items : [];
+      setConvos((prev) => (append ? mergeConversationLists(prev, items) : items));
+      setHasMoreConvos(Boolean(r.data?.hasMore));
+      setConversationCursor(String(r.data?.nextCursor || ""));
+      if (r.data?.counts) {
+        setServerCounts({
+          all: Number(r.data.counts?.all || 0),
+          unread: Number(r.data.counts?.unread || 0),
+          favourite: Number(r.data.counts?.favourite || 0),
+        });
+      }
+    } catch (error) {
+      if (!append) {
+        setHasMoreConvos(false);
+        setConversationCursor("");
+      }
+      if (axios.isAxiosError?.(error)) {
+        console.error("WhatsApp widget conversation fetch failed:", error.message);
+      } else {
+        console.error("WhatsApp widget conversation fetch failed:", error);
+      }
     } finally {
       setLoading(false);
     }
-  }, [shouldShowWidget, myNameRaw, myRole, myUserId, hasTeamEffective, myRoleNorm]);
+  }, [shouldShowWidget, myNameRaw, myRole, myUserId, hasTeamEffective, myRoleNorm, debouncedSearchQuery]);
+
+  const scheduleConversationRefresh = useCallback((delay = 400) => {
+    if (!shouldShowWidget) return;
+    if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+    refreshTimerRef.current = setTimeout(() => {
+      refreshTimerRef.current = null;
+      fetchConversations();
+    }, delay);
+  }, [shouldShowWidget, fetchConversations]);
 
   const fetchMessages = useCallback(
     async (p10) => {
@@ -1036,6 +1095,8 @@ export default function WhatsAppInboxWidget({ onOpenChat }) {
           params: { phone: p10 },
         });
         setMessages(sortMessagesAsc(Array.isArray(r.data) ? r.data : []));
+      } catch (error) {
+        console.error("WhatsApp widget messages fetch failed:", error?.message || error);
       } finally {
         setChatLoading(false);
       }
@@ -1046,9 +1107,20 @@ export default function WhatsAppInboxWidget({ onOpenChat }) {
   const markRead = useCallback(
     async (p10) => {
       if (!shouldShowWidget || !p10) return;
+      let clearedUnread = 0;
       setConvos((prev) =>
-        prev.map((c) => (last10(c?.phone) === p10 ? { ...c, unreadCount: 0 } : c))
+        prev.map((c) => {
+          if (last10(c?.phone) !== p10) return c;
+          clearedUnread = Number(c?.unreadCount || 0);
+          return { ...c, unreadCount: 0 };
+        })
       );
+      if (clearedUnread > 0) {
+        setServerCounts((prev) => ({
+          ...prev,
+          unread: Math.max(0, Number(prev?.unread || 0) - clearedUnread),
+        }));
+      }
       try {
         await axios.post(
           `${API_BASE}/api/whatsapp/conversations/mark-read`,
@@ -1114,37 +1186,86 @@ export default function WhatsAppInboxWidget({ onOpenChat }) {
     });
     const socket = socketRef.current;
 
+    socket.on("connect", () => {
+      setSocketStatus("connected");
+      fetchConversations();
+    });
+    socket.on("disconnect", () => {
+      setSocketStatus("disconnected");
+      joinedRoomsRef.current.clear();
+    });
+    socket.on("connect_error", () => {
+      setSocketStatus("error");
+    });
+
     socket.on("wa:conversation", (payload) => {
       const p10 = payload?.phone10;
       if (!p10) return;
+      let found = false;
       setConvos((prev) => {
         const idx = prev.findIndex((c) => last10(c?.phone) === p10);
         if (idx < 0) return prev;
+        found = true;
         const next = prev.slice();
-        next[idx] = { ...next[idx], ...(payload?.patch || {}) };
+        const patch = payload?.patch || {};
+        const prevUnread = Number(next[idx]?.unreadCount || 0);
+        const hasAbsolute = typeof patch?.unreadCount === "number";
+        const delta = Number(patch?.unreadCountDelta || 0);
+        const nextUnread = hasAbsolute ? Number(patch.unreadCount || 0) : Math.max(0, prevUnread + delta);
+        next[idx] = { ...next[idx], ...patch, unreadCount: nextUnread };
         return next;
       });
+      if (found) {
+        const patch = payload?.patch || {};
+        const hasAbsolute = typeof patch?.unreadCount === "number";
+        const delta = hasAbsolute ? 0 : Number(patch?.unreadCountDelta || 0);
+        if (delta) {
+          setServerCounts((prev) => ({
+            ...prev,
+            unread: Math.max(0, Number(prev?.unread || 0) + delta),
+          }));
+        }
+      } else {
+        scheduleConversationRefresh();
+      }
     });
 
     socket.on("wa:message", (payload) => {
       const msg = payload?.message || payload;
-      const p10 = payload?.phone10 || last10(msg?.from) || last10(msg?.to) || "";
+      const p10 = payload?.phone10 || last10(customerPhoneFromMsg(msg)) || last10(msg?.from) || last10(msg?.to) || "";
       if (!p10) return;
       if (String(msg?.direction || "").toUpperCase() === "INBOUND") {
         prepareNotifAudio();
         playNotif(msg?.waId || msg?._id || `${p10}-${msg?.timestamp || Date.now()}`);
       }
+      let found = false;
       setConvos((prev) => {
         const idx = prev.findIndex((c) => last10(c?.phone) === p10);
         if (idx < 0) return prev;
+        found = true;
         const next = prev.slice();
+        const isInbound = String(msg?.direction || "").toUpperCase() === "INBOUND";
+        const isActiveChat = Boolean(phone10Active && p10 === phone10Active);
         next[idx] = {
           ...next[idx],
+          phone: next[idx]?.phone || customerPhoneFromMsg(msg) || p10,
           lastMessageAt: msg?.timestamp || new Date(),
           lastMessageText: String(msg?.text || "").slice(0, 200) || next[idx]?.lastMessageText,
+          unreadCount: isInbound && !isActiveChat
+            ? Number(next[idx]?.unreadCount || 0) + 1
+            : Number(next[idx]?.unreadCount || 0),
         };
         return next;
       });
+      if (String(msg?.direction || "").toUpperCase() === "INBOUND" && (!phone10Active || p10 !== phone10Active)) {
+        setServerCounts((prev) => ({
+          ...prev,
+          unread: Number(prev?.unread || 0) + 1,
+        }));
+      }
+      if (!found) {
+        scheduleConversationRefresh(250);
+      }
       if (phone10Active && p10 === phone10Active) {
         setMessages((prev) => upsertMessage(prev, msg));
         setTimeout(() => scrollToBottom(true), 0);
@@ -1152,10 +1273,19 @@ export default function WhatsAppInboxWidget({ onOpenChat }) {
     });
 
     return () => {
+      if (refreshTimerRef.current) {
+        clearTimeout(refreshTimerRef.current);
+        refreshTimerRef.current = null;
+      }
+      socket.off("connect");
+      socket.off("disconnect");
+      socket.off("connect_error");
       socket.off("wa:conversation");
       socket.off("wa:message");
+      try { socket.close(); } catch {}
+      socketRef.current = null;
     };
-  }, [shouldShowWidget, phone10Active, scrollToBottom, prepareNotifAudio, playNotif]);
+  }, [shouldShowWidget, phone10Active, scrollToBottom, prepareNotifAudio, playNotif, fetchConversations, scheduleConversationRefresh]);
 
   // Join rooms
   useEffect(() => {
@@ -1181,9 +1311,22 @@ export default function WhatsAppInboxWidget({ onOpenChat }) {
   useEffect(() => {
     if (!shouldShowWidget) return;
     fetchConversations();
-    const t = setInterval(fetchConversations, 25000);
-    return () => clearInterval(t);
   }, [shouldShowWidget, fetchConversations]);
+
+  useEffect(() => {
+    if (!shouldShowWidget) return;
+    if (socketStatus === "connected" && !open) return;
+    const intervalMs = open ? 30000 : 60000;
+    const t = setInterval(() => {
+      fetchConversations();
+    }, intervalMs);
+    return () => clearInterval(t);
+  }, [shouldShowWidget, socketStatus, open, fetchConversations]);
+
+  const loadMoreConversations = useCallback(() => {
+    if (!shouldShowWidget || loading || !hasMoreConvos || !conversationCursor) return;
+    fetchConversations({ append: true, cursor: conversationCursor });
+  }, [shouldShowWidget, loading, hasMoreConvos, conversationCursor, fetchConversations]);
 
   const handleOpen = () => { prepareNotifAudio(); setAnchorEl(fabRef.current); };
   const handleClose = () => {
@@ -1557,11 +1700,28 @@ export default function WhatsAppInboxWidget({ onOpenChat }) {
                     </Typography>
                   </Box>
                 ) : (
-                  <List disablePadding>
-                    {sortedConvos.map((c) => (
-                      <ConvoRow key={c?._id || last10(c?.phone)} c={c} onClick={() => openChatInline(c)} />
-                    ))}
-                  </List>
+                  <>
+                    <List disablePadding>
+                      {sortedConvos.map((c) => (
+                        <ConvoRow key={c?._id || last10(c?.phone)} c={c} onClick={() => openChatInline(c)} />
+                      ))}
+                    </List>
+                    {(hasMoreConvos || loading) && (
+                      <Box sx={{ display: "flex", justifyContent: "center", py: 1.25 }}>
+                        {loading && sortedConvos.length ? (
+                          <CircularProgress size={18} sx={{ color: COLORS.brand }} />
+                        ) : hasMoreConvos ? (
+                          <Button
+                            size="small"
+                            onClick={loadMoreConversations}
+                            sx={{ textTransform: "none", color: COLORS.brandDark, fontWeight: 700 }}
+                          >
+                            Load more chats
+                          </Button>
+                        ) : null}
+                      </Box>
+                    )}
+                  </>
                 )}
               </Box>
             </Box>

@@ -128,11 +128,12 @@ import DietPlanEditor from "./pages/diet/DietPlanEditor";
 function AppLayout() {
   const location = useLocation();
   const isDietPublicRoute = location.pathname === "/diet-onboarding" || location.pathname === "/smart-diet-plan"
+  const isWhatsAppChatRoute = location.pathname === "/whatsaap/chat";
 
   return (
     <div>
       {!isDietPublicRoute && <NavbarWithSearch />}
-      {!isDietPublicRoute && <WhatsAppNotification />}
+      {!isDietPublicRoute && !isWhatsAppChatRoute && <WhatsAppNotification />}
 
         <Routes>
           <Route path="/shipment-details" element={ <ShipmentDetails />} />
