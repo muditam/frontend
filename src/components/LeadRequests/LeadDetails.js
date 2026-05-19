@@ -16,7 +16,6 @@ import {
   Edit as EditIcon,
   Check as CheckIcon,
   Close as CloseIcon,
-  LoginRounded,
 } from "@mui/icons-material";
 import axios from "axios";
 
@@ -27,8 +26,6 @@ const LeadDetail = () => {
   const [loading, setLoading] = useState(true);
   const [editMode, setEditMode] = useState(false);
   const [formData, setFormData] = useState({});
-  const [transferRequestStatus, setTransferRequestStatus] = useState("");
-  const [transferRequest, setTransferRequest] = useState(null);
   const [isEditingLeadStatus, setIsEditingLeadStatus] = useState(false);
   const [isEditingSalesStatus, setIsEditingSalesStatus] = useState(false);
   const [isEditingRTRemark, setIsEditingRTRemark] = useState(false);
@@ -73,31 +70,6 @@ const LeadDetail = () => {
   }, [id]);
 
 
-  // Fetch transfer request status
-  useEffect(() => {
-    const fetchTransferRequest = async () => {
-      try {
-        const response = await axios.get(
-          `https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/transfer-requests`
-        );
-        const req = response.data.find(
-          (r) =>
-            r.leadId === id ||
-            (typeof r.leadId === "object" && r.leadId.toString() === id)
-        );
-        if (req && req.requestedBy === loggedInUser.fullName) {
-          setTransferRequest(req);
-        }
-      } catch (error) {
-        console.error("Error fetching transfer request status:", error);
-      }
-    };
-
-
-    fetchTransferRequest();
-  }, [id, loggedInUser.fullName]);
-
-
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
@@ -114,26 +86,6 @@ const LeadDetail = () => {
       setEditMode(false);
     } catch (error) {
       console.error("Error saving lead:", error);
-    }
-  };
-
-
-  const handleTransfer = async () => {
-    if (transferRequest) return;
-    try {
-      const response = await axios.post(
-        `https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads/transfer-request`,
-        {
-          leadId: id,
-          requestedBy: loggedInUser.fullName,
-          role: loggedInUser.role,
-        }
-      );
-      setTransferRequest(response.data.request);
-      setTransferRequestStatus("Transfer request sent for approval");
-    } catch (error) {
-      console.error("Error sending transfer request:", error);
-      setTransferRequestStatus("Failed to send transfer request");
     }
   };
 
@@ -821,46 +773,8 @@ const LeadDetail = () => {
             <Button variant="contained" onClick={() => setEditMode(true)} sx={{color:"white", backgroundColor:"black"}}>
               Edit Lead
             </Button>
-          ) : (
-            <>
-              {transferRequest ? (
-                <Button
-                  variant="contained"
-                  disabled
-                  sx={{
-                    backgroundColor:
-                      transferRequest.status === "approved"
-                        ? "#a5d6a7"
-                        : "#ccc",
-                  }}
-                >
-                  {transferRequest.status === "approved"
-                    ? "Transfer Converted"
-                    : "Transfer Requested"}
-                </Button>
-              ) : (
-                loggedInUser.role === "Retention Agent" ||
-                (loggedInUser.role === "Sales Agent" && (
-                  <Button
-                    variant="contained"
-                    color="secondary"
-                    onClick={handleTransfer}
-                    sx={{color:"white", backgroundColor:"black"}}
-                  >
-                    Lead Transfer
-                  </Button>
-                ))
-              )}
-            </>
-          )}
+          ) : null}
         </Box>
-
-
-        {transferRequestStatus && !transferRequest && (
-          <Typography variant="body2" sx={{ mt: 2, color: "red" }}>
-            {transferRequestStatus}
-          </Typography>
-        )}
       </Paper>
     </Box>
   );

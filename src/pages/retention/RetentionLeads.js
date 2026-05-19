@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback, useDeferredValue } from "react";
 import {
   Box,
   Paper,
@@ -275,6 +275,8 @@ const RetentionLeads = () => {
     lastOrderDateTo: "",
     retentionStatus: "All",
   });
+  const [searchInput, setSearchInput] = useState("");
+  const deferredSearchInput = useDeferredValue(searchInput);
 
   const leadsPerPage = 50;
 
@@ -873,6 +875,23 @@ const RetentionLeads = () => {
   }, [filters, orderPlacedFilter, dateRangeFilter]);
 
   useEffect(() => {
+    const normalizedSearch = deferredSearchInput.trimStart();
+    const timeoutId = window.setTimeout(() => {
+      setFilters((prev) =>
+        prev.name === normalizedSearch
+          ? prev
+          : { ...prev, name: normalizedSearch }
+      );
+    }, 250);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [deferredSearchInput]);
+
+  useEffect(() => {
+    setSearchInput((prev) => (prev === filters.name ? prev : filters.name));
+  }, [filters.name]);
+
+  useEffect(() => {
     (async () => {
       for (const l of leads) {
         if (l?._id && planCountMap[l._id] == null && !planCountLoading[l._id]) {
@@ -1465,10 +1484,8 @@ const RetentionLeads = () => {
               placeholder="Search leads..."
               variant="outlined"
               fullWidth
-              value={filters.name}
-              onChange={(e) =>
-                setFilters((prev) => ({ ...prev, name: e.target.value }))
-              }
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
               InputProps={{
                 sx: {
                   borderRadius: "12px",

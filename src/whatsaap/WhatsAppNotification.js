@@ -57,10 +57,6 @@ const ALLOWED_ROLES = new Set([
   "sales agent",
   "retention agent",
   "team leader",
-  "assistant team lead",
-  "admin",
-  "super admin",
-  "developer",
 ]);
 
 function useDebouncedValue(value, delay = 250) {

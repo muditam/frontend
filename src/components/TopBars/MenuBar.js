@@ -514,10 +514,6 @@ const MenuBar = ({ toggleDrawer }) => {
             <NavItem to="/whatsaap/chat" icon={<WhatsAppIcon />} label="WhatsApp Chats" />
           )}
 
-          {user && can("myTemplates") && (
-            <NavItem to="/my-templates" icon={<DescriptionIcon />} label="My Templates" />
-          )}
-
           {user && can("invoices") && (
             <NavItem to="/invoices" icon={<ReceiptLongIcon />} label="Invoices" />
           )}
@@ -760,11 +756,11 @@ const MenuBar = ({ toggleDrawer }) => {
           )}
 
           {user && can("hrAddNewAssets") && (
-            <NavItem to="/add-new-asset" icon={<Inventory2Icon />} label="Add New Assets" />
+            <NavItem to="/add-new-asset" icon={<StorefrontIcon />} label="Add New Assets" />
           )}
 
           {user && can("hrAssetAllotment") && (
-            <NavItem to="/AssetAllotment" icon={<Inventory2Icon />} label="Asset Allotment" />
+            <NavItem to="/AssetAllotment" icon={<CompareArrowsIcon />} label="Asset Allotment" />
           )}
 
           {user && can("myAssets") && (
@@ -812,14 +808,11 @@ const MenuBar = ({ toggleDrawer }) => {
             <DropdownGroup id="others" icon={<FolderIcon />} label="Others">
               {can("othersSwitchDashboards") && <SubItem to="/switch-dashboard" label="Switch Dashboards" />}
               {can("othersIncentiveCreation") && <SubItem to="/incentive-creation" label="Incentive Creation" />}
-              {can("othersScheduleCalls") && <SubItem to="/schedule-calls" label="Schedule Calls" />}
               {can("othersAllProducts") && <SubItem to="/all-products" label="All Products" />}
               {can("otherswhatsaaptemplates") && <SubItem to="/template/chat" label="WhatsApp Templates" />}
               {can("othersLeadMigration") && <SubItem to="/lead-migration" label="Leads Migrate" />}
               {can("othersDietTemplate") && <SubItem to="/diet-template" label="Diet Plan Builder" />}
-              {can("othersDietTemplate") && <SubItem to="/diet-image-migration-admin" label="Diet Image Migration" />}
               {can("othersAllShopifyOrders") && <SubItem to="/all-shopify-orders" label="All Shopify Orders" />}
-              {can("othersTransferRequests") && <SubItem to="/transfer-requests" label="Lead Transfer Requests" />}
               {can("othersBulkDataUpload") && <SubItem to="/bulk-data-upload" label="Bulk Data Upload" />}
             </DropdownGroup>
           )}

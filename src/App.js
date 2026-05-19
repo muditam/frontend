@@ -20,14 +20,12 @@ import NavbarWithSearch from "./components/TopBars/NavBarwithSearch";
 import SalesDashboard from "./components/Dashboards/SalesDashboard";
 import OrdersTable from "./ShopifyOrders/AllShopifyOrders";
 import OnlineOrders from "./ShopifyOrders/OnlineOrders";
-import TransferRequests from "./components/LeadRequests/TransferRequest";
 import LeadDetail from "./components/LeadRequests/LeadDetails";
 import RetentionData from "./pages/filtered/Retention";
 import AcquisitionLost from "./Lostdata/AcquisitionLost";
 import RetentionLost from "./Lostdata/RetentionLost";
 import PrivateRoute from "./components/PrivateRoute";
 import PermissionRoute from "./components/PermissionRoute";
-import MyTemplates from "./components/MyTemplates";
 import LeadManagement from './LeadConsultation/LeadManagement';
 import EscalationsPage from './components/EscalationsPage';
 import TeamPage from "./components/TeamPage";
@@ -57,7 +55,6 @@ import AllProducts from "./components/all-products";
 import OrderConfirmations from "./components/OrderConfirmations";
 import LeadExpertMigration from "./components/LeadExpertMigration";
 import AssetManager from "./components/AssetManager";
-import ScheduleCall from "./components/ScheduleCallsData";
 import OrderConfirmAnalytics from "./components/OrderConfirmAnalytics";
 import AssetsManagerRole from "./components/AddAsset";
 import AssetAllotment from "./components/AssetAllotment";
@@ -117,7 +114,6 @@ import SOPMasterPage from "./pages/SOPMasterPage";
 import RewardsAdminPage from "./pages/RewardsAdminPage";
 import KnowledgeBaseManager from "./pages/KnowledgeBaseManager";
 import OrganisationTree from "./pages/OrganisationTree";
-import DietImageMigrationAdmin from "./components/DietImageMigrationAdmin";
 import RedcliffeBookingPage from "./pages/RedcliffeBookingPage";
 import RedcliffeDashboardPage from "./pages/RedcliffeDashboardPage";
 import DietOnboarding from "./pages/diet/DietOnboarding";
@@ -163,7 +159,6 @@ function AppLayout() {
           />
           <Route path="/unicommerce" element={<UnicommerceOrdersPage />} />
           <Route path="/knowledge-base" element={<KnowledgeBaseManager />} />
-          <Route path="/diet-image-migration-admin" element={<DietImageMigrationAdmin />} />
 
           <Route
             path="/organisation-tree"
@@ -190,14 +185,6 @@ function AppLayout() {
             element={
               <PrivateRoute>
                 <LeadDetail />
-              </PrivateRoute>
-            }
-          />
-          <Route
-            path="/transfer-requests"
-            element={
-              <PrivateRoute>
-                <TransferRequests />
               </PrivateRoute>
             }
           />
@@ -381,14 +368,6 @@ function AppLayout() {
             element={
               <PrivateRoute>
                 <RetentionLost />
-              </PrivateRoute>
-            }
-          />
-          <Route
-            path="/my-templates"
-            element={
-              <PrivateRoute>
-                <MyTemplates />
               </PrivateRoute>
             }
           />
@@ -581,14 +560,6 @@ function AppLayout() {
             element={
               <PrivateRoute>
                 <OrderConfirmAnalytics />
-              </PrivateRoute>
-            }
-          />
-          <Route
-            path="/schedule-calls"
-            element={
-              <PrivateRoute>
-                <ScheduleCall />
               </PrivateRoute>
             }
           />

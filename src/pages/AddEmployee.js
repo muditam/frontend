@@ -139,7 +139,6 @@ const mergeEmployeeById = (list = [], employee) => {
 const DEFAULT_PERMISSIONS = {
  menubar: {
    home: false,
-   myTemplates: false,
    knowledgeBase: false,
    consultation: false,
    escalations: false,
@@ -283,13 +282,11 @@ const DEFAULT_PERMISSIONS = {
 
    othersMenu: false,
    othersSwitchDashboards: false,
-   othersScheduleCalls: false,
    othersAllProducts: false,
    otherswhatsaaptemplates: false,
    othersLeadMigration: false,
    othersDietTemplate: false,
    othersAllShopifyOrders: false,
-   othersTransferRequests: false,
    othersBulkDataUpload: false,
    othersIncentiveCreation: false,
 
@@ -1693,7 +1690,6 @@ const getEffectiveRole = () =>
              <Box sx={{ display: "flex", flexDirection: "column" }}>
                {[
                  ["home", "Home"],
-                 ["myTemplates", "My Templates"],
                  ["knowledgeBase", "Knowledge Base"],
                  ["consultation", "Consultation"],
                  ["escalations", "Escalations"],
@@ -2033,13 +2029,11 @@ const getEffectiveRole = () =>
                  ["othersMenu", "Others Menu"],
                  ["othersSwitchDashboards", "Switch Dashboards"],
                  ["othersIncentiveCreation", "Incentive Creation"],
-                 ["othersScheduleCalls", "Schedule Calls"],
                  ["othersAllProducts", "All Products"],
                  ["othersLeadMigration", "Leads Migrate"],
                  ["otherswhatsaaptemplates", "Whatsaap Template"],
                  ["othersDietTemplate", "Diet Plan Builder"],
                  ["othersAllShopifyOrders", "All Shopify Orders"],
-                 ["othersTransferRequests", "Lead Transfer Requests"],
                  ["othersBulkDataUpload", "Bulk Data Upload"],
                  ["globalShopifyMenu", "Global Shopify Menu"],
                  ["globalShopifyOrders", "Global Shopify Orders"],

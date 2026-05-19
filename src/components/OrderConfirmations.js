@@ -49,7 +49,6 @@ import CancelOutlinedIcon from "@mui/icons-material/CancelOutlined";
 import LinkOutlinedIcon from "@mui/icons-material/LinkOutlined";
 import SearchIcon from "@mui/icons-material/Search";
 import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
-import ScheduleCallDialog from "./ScheduleCallDialog";
 import axios from "axios";
 import { ThemeProvider, createTheme } from "@mui/material/styles";
 
@@ -259,7 +258,6 @@ export default function OrderConfirmations() {
   const [cancelingRow, setCancelingRow] = useState({});
   const [confirmCancel, setConfirmCancel] = useState({ open: false, row: null, reason: "" });
   const [expandedId, setExpandedId] = useState(null);
-  const [scheduleDlg, setScheduleDlg] = useState({ open: false, row: null });
   const [historyDlg, setHistoryDlg] = useState({ open: false, phone: "", items: [], loading: false });
   const [channel, setChannel] = useState("");
   const [todayConfirmedCount, setTodayConfirmedCount] = useState(0);
@@ -521,9 +519,6 @@ export default function OrderConfirmations() {
     return Number(discounted.toFixed(2));
   }, [payDlg.amount, payDlg.discountPct]);
 
-  const openScheduleDialog = (row) => setScheduleDlg({ open: true, row });
-  const closeScheduleDialog = () => setScheduleDlg({ open: false, row: null });
-
   const setRowSaving = (id, yes) => setSavingRow((s) => ({ ...s, [id]: yes }));
 
   const patchOrder = async (id, payload, msgOnSuccess = "Saved") => {
@@ -564,15 +559,6 @@ export default function OrderConfirmations() {
     }
   };
   const closeHistoryDlg = () => setHistoryDlg({ open: false, phone: "", items: [], loading: false });
-
-  const submitSchedule = async (payload) => {
-    const id = scheduleDlg.row?._id;
-    if (!id) return;
-    const updated = await patchOrder(id, payload, "Call scheduled");
-    setItems((rows) =>
-      rows.map((r) => (r._id === id ? { ...r, orderConfirmOps: { ...(r.orderConfirmOps || {}), ...(updated?.orderConfirmOps || {}) } } : r))
-    );
-  };
 
   const statusToNote = (val) => statusValueToLabel(val);
 
@@ -1323,26 +1309,6 @@ export default function OrderConfirmations() {
                                   exclusive
                                   size="small"
                                   color="primary"
-                                  value={triValue(row?.orderConfirmOps, "doctorCallNeeded")}
-                                  onChange={(_, val) => {
-                                    if (val === "yes") {
-                                      patchOrder(row._id, { doctorCallNeeded: true }, "Saved")
-                                        .then(() => openScheduleDialog(row))
-                                        .catch(() => { });
-                                    } else if (val === "no") {
-                                      patchOrder(row._id, { doctorCallNeeded: false }, "Saved").catch(() => { });
-                                      closeScheduleDialog();
-                                    }
-                                  }}
-                                >
-                                  <ToggleButton value="yes">Yes</ToggleButton>
-                                  <ToggleButton value="no">No</ToggleButton>
-                                </ToggleButtonGroup>
-
-                                <ToggleButtonGroup
-                                  exclusive
-                                  size="small"
-                                  color="primary"
                                   value={triValue(row?.orderConfirmOps, "dietPlanNeeded")}
                                   onChange={(_, val) => {
                                     if (!val) return;
@@ -1376,42 +1342,9 @@ export default function OrderConfirmations() {
                                   <ToggleButton value="no">No</ToggleButton>
                                 </ToggleButtonGroup>
 
-                                {row?.orderConfirmOps?.assignedExpert ? (
-                                  <Stack direction="row" spacing={1} alignItems="center">
-                                    <Typography variant="body2" sx={{ minWidth: 140 }}>
-                                      Assigned expert
-                                    </Typography>
-                                    <Chip size="small" label={row.orderConfirmOps.assignedExpert} variant="outlined" />
-                                  </Stack>
-                                ) : null}
                               </Stack>
                             ) : (
                               <Stack direction="row" spacing={3} alignItems="center" useFlexGap flexWrap="wrap">
-                                <Stack direction="row" spacing={1} alignItems="center">
-                                  <Typography variant="body2" sx={{ minWidth: 140 }}>
-                                    Doctor call needed
-                                  </Typography>
-                                  <ToggleButtonGroup
-                                    exclusive
-                                    size="small"
-                                    color="primary"
-                                    value={boolToChoice(row?.orderConfirmOps?.doctorCallNeeded)}
-                                    onChange={(_, val) => {
-                                      if (val === "yes") {
-                                        patchOrder(row._id, { doctorCallNeeded: true }, "Saved")
-                                          .then(() => openScheduleDialog(row))
-                                          .catch(() => { });
-                                      } else if (val === "no") {
-                                        patchOrder(row._id, { doctorCallNeeded: false }, "Saved").catch(() => { });
-                                        closeScheduleDialog();
-                                      }
-                                    }}
-                                  >
-                                    <ToggleButton value="yes">Yes</ToggleButton>
-                                    <ToggleButton value="no">No</ToggleButton>
-                                  </ToggleButtonGroup>
-                                </Stack>
-
                                 <Stack direction="row" spacing={1} alignItems="center">
                                   <Typography variant="body2" sx={{ minWidth: 140 }}>
                                     Diet plan needed
@@ -1534,23 +1467,6 @@ export default function OrderConfirmations() {
                               </Stack>
                             )}
 
-                            <ScheduleCallDialog
-                              open={scheduleDlg.open}
-                              onClose={() => setScheduleDlg({ open: false, row: null })}
-                              agents={agents}
-                              orderId={scheduleDlg.row?._id}
-                              customerId={scheduleDlg.row?.customerId}
-                              createdBy={""}
-                              onScheduled={(mirror) => {
-                                const id = scheduleDlg.row?._id;
-                                if (!id) return;
-                                setItems((rows) =>
-                                  rows.map((r) =>
-                                    r._id === id ? { ...r, orderConfirmOps: { ...(r.orderConfirmOps || {}), ...mirror } } : r
-                                  )
-                                );
-                              }}
-                            />
                           </Box>
                         </Collapse>
                       </TableCell>

@@ -75,6 +75,16 @@ const API_BASE = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "");
 
 const API_URL = `${API_BASE}/api/leads/retention`;
 
+function getAuthHeaders() {
+  try {
+    const raw = sessionStorage.getItem("user");
+    const user = raw ? JSON.parse(raw) : null;
+    return user ? { "x-session-user": JSON.stringify(user) } : {};
+  } catch {
+    return {};
+  }
+}
+
 export default function RetentionTable() {
   // State
   const [leads, setLeads] = useState([]);
@@ -112,14 +122,20 @@ export default function RetentionTable() {
         if (selectedAgents.length > 0) params.append("agentAssigned", selectedAgents.join(","));
         if (selectedHealthExperts.length > 0) params.append("healthExpertAssigned", selectedHealthExperts.join(","));
 
-        const res = await fetch(`${API_URL}?${params}`);
+        const headers = getAuthHeaders();
+        const res = await fetch(`${API_URL}?${params}`, {
+          credentials: "include",
+          headers,
+        });
         const data = await res.json();
-        setLeads((prev) => (reset ? data.leads : [...prev, ...data.leads]));
+        const nextLeads = Array.isArray(data?.leads) ? data.leads : [];
+        setLeads((prev) => (reset ? nextLeads : [...prev, ...nextLeads]));
         setCounts(data.counts || {});
         setTopCounts(data.topCounts || {});
-        setHasMore(data.leads.length === PAGE_SIZE);
+        setHasMore(nextLeads.length === PAGE_SIZE);
       } catch (err) {
         setHasMore(false);
+        if (reset) setLeads([]);
       }
       setLoading(false);
     },
@@ -136,13 +152,28 @@ export default function RetentionTable() {
   useEffect(() => {
     // Only active employees, and specific roles
     const fetchEmployees = async () => {
-      const agentsRes = await fetch(`${API_BASE}/api/employees?role=Sales%20Agent`);
+      const headers = getAuthHeaders();
+      const agentsRes = await fetch(`${API_BASE}/api/employees?role=Sales%20Agent`, {
+        credentials: "include",
+        headers,
+      });
       const agentsData = await agentsRes.json();
-      setAgents(agentsData.filter((emp) => emp.status === "active"));
+      setAgents(
+        Array.isArray(agentsData)
+          ? agentsData.filter((emp) => emp.status === "active")
+          : []
+      );
 
-      const healthRes = await fetch(`${API_BASE}/api/employees?role=Retention%20Agent`);
+      const healthRes = await fetch(`${API_BASE}/api/employees?role=Retention%20Agent`, {
+        credentials: "include",
+        headers,
+      });
       const healthData = await healthRes.json();
-      setHealthExperts(healthData.filter((emp) => emp.status === "active"));
+      setHealthExperts(
+        Array.isArray(healthData)
+          ? healthData.filter((emp) => emp.status === "active")
+          : []
+      );
     };
     fetchEmployees();
   }, []);
@@ -246,15 +277,15 @@ export default function RetentionTable() {
                   pb: 0.4,
                   minWidth: 0,
                   fontSize: 11,
-                  fontWeight: 500,
-                  borderRadius: 2.5,
-                  borderColor: "#ccc",
-                  boxShadow: selected ? 1 : 0,
-                  bgcolor: selected ? pill.color || "#222" : "#fff",
-                  color: selected ? "#fff" : "#222",
-                  position: "relative",
-                  flexDirection: "column",
-                  transition: "all 0.15s",
+                fontWeight: 500,
+                borderRadius: 2.5,
+                borderColor: "#ccc",
+                boxShadow: selected ? 1 : 0,
+                bgcolor: selected ? pill.color || "#222" : "#fff",
+                color: selected ? "#fff" : "#222",
+                position: "relative",
+                flexDirection: "column",
+                transition: "all 0.15s",
                   "&:hover": {
                     bgcolor: selected ? pill.color || "#222" : "#f3f3f3",
                   },

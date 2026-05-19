@@ -638,6 +638,7 @@ export default function WhatsAppUI() {
   const openedCutoffRef = useRef(0);
   const socketRef = useRef(null);
   const joinedRoomsRef = useRef(new Set());
+  const refreshTimerRef = useRef(null);
   const pendingReadRef = useRef(new Map());
   const [hasMoreOlder, setHasMoreOlder] = useState(false);
   const [loadingOlder, setLoadingOlder] = useState(false);
@@ -1086,6 +1087,14 @@ export default function WhatsAppUI() {
     showToast,
   ]);
 
+  const scheduleConversationRefresh = useCallback((delay = 400) => {
+    if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+    refreshTimerRef.current = setTimeout(() => {
+      refreshTimerRef.current = null;
+      refreshConversations(null, { silent: true });
+    }, delay);
+  }, [refreshConversations]);
+
   const loadMoreConversations = useCallback(() => {
     if (loadingChats || loadingMoreChats || !hasMoreChats || !conversationCursor) {
       return;
@@ -1240,11 +1249,12 @@ export default function WhatsAppUI() {
 
   // Fallback polling for left chat list so it stays fresh even if socket transport is unstable.
   useEffect(() => {
+    if (socketStatus === "connected") return undefined;
     const id = setInterval(() => {
       refreshConversations(null, { silent: true });
-    }, 8000);
+    }, 30000);
     return () => clearInterval(id);
-  }, [refreshConversations]);
+  }, [refreshConversations, socketStatus]);
 
   useEffect(() => {
     const s = io(API_BASE, {
@@ -1276,6 +1286,10 @@ export default function WhatsAppUI() {
     s.on("connect_error", onError);
 
     return () => {
+      if (refreshTimerRef.current) {
+        clearTimeout(refreshTimerRef.current);
+        refreshTimerRef.current = null;
+      }
       try {
         for (const room of Array.from(joinedRoomsRef.current)) {
           const p10 = room.replace(/^wa:/, "");
@@ -1403,7 +1417,7 @@ export default function WhatsAppUI() {
       const p10 = phone10(payload?.phone10 || payload?.phone || ""); if (!p10) return;
       const patch = payload?.patch ? payload.patch : payload; if (!patch) return;
       if (debouncedSearch || chatTab !== "all" || agentFilter !== "all") {
-        refreshConversations(null, { silent: true });
+        scheduleConversationRefresh();
       } else {
         let unreadDeltaForCounts = Number(patch?.unreadCountDelta || 0);
         setConversations((prev) => prev.map((c) => {
@@ -1428,7 +1442,7 @@ export default function WhatsAppUI() {
 
     s.on("wa:message", onMessage); s.on("wa:status", onStatus); s.on("wa:conversation", onConversation);
     return () => { s.off("wa:message", onMessage); s.off("wa:status", onStatus); s.off("wa:conversation", onConversation); };
-  }, [agentFilter, chatTab, debouncedSearch, markConversationRead, playNotif, refreshConversations, upsertConversationFromMessage]);
+  }, [agentFilter, chatTab, debouncedSearch, markConversationRead, playNotif, scheduleConversationRefresh, upsertConversationFromMessage]);
 
   useEffect(() => { if (activeP10) setInput(drafts[activeP10] || ""); else setInput(""); }, [activeP10, drafts]);
 
@@ -1465,14 +1479,15 @@ export default function WhatsAppUI() {
 
   useEffect(() => {
     if (!activeDigits) return undefined;
+    if (socketStatus === "connected") return undefined;
     const id = setInterval(async () => {
       try {
         const serverMessages = await fetchMessagesPage(activeDigits, { limit: MESSAGE_PAGE_SIZE });
         setMessages((prev) => mergeUniqueMessages(prev, serverMessages));
       } catch {}
-    }, 5000);
+    }, 15000);
     return () => clearInterval(id);
-  }, [activeDigits, mergeUniqueMessages, fetchMessagesPage]);
+  }, [activeDigits, mergeUniqueMessages, fetchMessagesPage, socketStatus]);
 
   useEffect(() => {
     if (messages.length > prevLenRef.current && isNearBottomRef.current) {
