@@ -57,6 +57,7 @@ const TYPES = [
   "NeckBand",
   "Barcode",
   "Camera",
+  "Others",
 ];
  
 const BRANDS = [
@@ -2299,4 +2300,3 @@ const isAssigned = !!(
     </Box>
   );
 }
-
