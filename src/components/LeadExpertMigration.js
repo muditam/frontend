@@ -8,7 +8,7 @@ export default function LeadMigration() {
   const [toExpert, setToExpert] = useState(''); 
   const [leads, setLeads] = useState([]); // { _id, name, contactNumber, healthExpertAssigned, retentionStatus, checked }
   const [query, setQuery] = useState('');
-  const [onlyActive, setOnlyActive] = useState(false); 
+  const [statusFilter, setStatusFilter] = useState('all');
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState('');
@@ -33,20 +33,30 @@ export default function LeadMigration() {
   }, []);
 
   // Load leads for a selected expert
-  const loadLeads = async (expert, q = '', activeOnly = false) => {
+  const loadLeads = async (expert, q = '', selectedStatus = 'all') => {
     if (!expert) return;
     setLoading(true);
     setLeads([]);
     setMsg('');
     try {
-      const url = `${API_BASE}/api/lead-migration/experts/${encodeURIComponent(expert)}/leads?q=${encodeURIComponent(q)}${activeOnly ? '&onlyActive=1' : ''}`;
+      const statusParam =
+        selectedStatus && selectedStatus !== 'all'
+          ? `&status=${encodeURIComponent(selectedStatus)}`
+          : '';
+      const url = `${API_BASE}/api/lead-migration/experts/${encodeURIComponent(expert)}/leads?q=${encodeURIComponent(q)}${statusParam}`;
       const r = await fetch(url, {
         credentials: 'include',
       });
       const j = await r.json();
       const items = (j.items || []).map(x => ({ ...x, checked: false }));
       setLeads(items);
-      setMsg(`Loaded ${items.length} leads for "${expert}"${activeOnly ? ' (Active only)' : ''}`);
+      const statusLabel =
+        selectedStatus === 'active'
+          ? ' • Active only'
+          : selectedStatus === 'lost'
+          ? ' • Lost only'
+          : '';
+      setMsg(`Loaded ${items.length} leads for "${expert}"${statusLabel}`);
     } catch (e) {
       setMsg('Failed to load leads');
     } finally {
@@ -58,20 +68,20 @@ export default function LeadMigration() {
     const value = e.target.value;
     setFromExpert(value);
     setLeads([]);
-    if (value) loadLeads(value, query, onlyActive);
+    if (value) loadLeads(value, query, statusFilter);
   };
 
   const doSearch = () => {
-    if (fromExpert) loadLeads(fromExpert, query, onlyActive);
+    if (fromExpert) loadLeads(fromExpert, query, statusFilter);
   };
 
-  // When onlyActive toggles, reload if we already picked an expert
+  // When status filter changes, reload if we already picked an expert
   useEffect(() => {
     if (fromExpert) {
-      loadLeads(fromExpert, query, onlyActive);
+      loadLeads(fromExpert, query, statusFilter);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [onlyActive]);
+  }, [statusFilter]);
 
   const toggleOne = (id) => {
     setLeads(prev => prev.map(x => x._id === id ? { ...x, checked: !x.checked } : x));
@@ -109,7 +119,7 @@ export default function LeadMigration() {
       const j = await r.json();
       if (j.ok) {
         setMsg(`Migrated ${j.modified ?? 0} lead(s) to "${j.toExpert}"`);
-        await loadLeads(fromExpert, query, onlyActive); // refresh
+        await loadLeads(fromExpert, query, statusFilter); // refresh
       } else {
         setMsg(j.error || 'Failed to migrate');
       }
@@ -397,20 +407,38 @@ export default function LeadMigration() {
             </span>
           </label>
 
-          {/* New: Select only Active */}
-          <label className="lm-hint" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <input
-              type="checkbox"
-              checked={onlyActive}
-              onChange={(e) => setOnlyActive(e.target.checked)}
-              style={{ width: 18, height: 18 }}
-              disabled={!fromExpert || loading}
-            />
-            <span><strong>Select only Active</strong></span>
-          </label>
+          {[
+            { value: 'all', label: 'Select all' },
+            { value: 'active', label: 'Active' },
+            { value: 'lost', label: 'Lost' },
+          ].map((option) => (
+            <label
+              key={option.value}
+              className="lm-hint"
+              style={{ display: 'flex', alignItems: 'center', gap: 10 }}
+            >
+              <input
+                type="radio"
+                name="lead-migration-status-filter"
+                checked={statusFilter === option.value}
+                onChange={() => setStatusFilter(option.value)}
+                style={{ width: 18, height: 18 }}
+                disabled={!fromExpert || loading}
+              />
+              <span><strong>{option.label}</strong></span>
+            </label>
+          ))}
 
           <span className="lm-hint">
-            {fromExpert ? `Showing leads assigned to "${fromExpert}"${onlyActive ? ' • Active only' : ''}` : 'Pick a From Expert to load leads'}
+            {fromExpert
+              ? `Showing leads assigned to "${fromExpert}"${
+                  statusFilter === 'active'
+                    ? ' • Active only'
+                    : statusFilter === 'lost'
+                    ? ' • Lost only'
+                    : ''
+                }`
+              : 'Pick a From Expert to load leads'}
           </span>
         </div>
 
