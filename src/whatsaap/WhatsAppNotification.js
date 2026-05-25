@@ -22,7 +22,6 @@ import {
   DialogActions,
   MenuItem,
   Tooltip,
-  Slide,
 } from "@mui/material";
 import WhatsAppIcon from "@mui/icons-material/WhatsApp";
 import PhoneInTalkIcon from "@mui/icons-material/PhoneInTalk";
@@ -158,6 +157,15 @@ function normalizeStatus(s) {
   if (["sent"].includes(v)) return "sent";
   if (["failed", "error"].includes(v)) return "failed";
   return v;
+}
+
+function statusRank(status) {
+  const st = normalizeStatus(status);
+  if (st === "failed") return 99;
+  if (st === "read") return 3;
+  if (st === "delivered") return 2;
+  if (st === "sent") return 1;
+  return 0;
 }
 
 function MessageTicks({ status }) {
@@ -874,6 +882,8 @@ export default function WhatsAppInboxWidget({ onOpenChat }) {
   const messagesEndRef = useRef(null);
   const chatScrollRef = useRef(null);
   const refreshTimerRef = useRef(null);
+  const messageCacheRef = useRef(new Map());
+  const messageLoadSeqRef = useRef(0);
 
   const [anchorEl, setAnchorEl] = useState(null);
   const open = Boolean(anchorEl);
@@ -1084,17 +1094,27 @@ export default function WhatsAppInboxWidget({ onOpenChat }) {
   const fetchMessages = useCallback(
     async (p10) => {
       if (!shouldShowWidget || !p10) return;
+      const requestSeq = ++messageLoadSeqRef.current;
+      const cached = messageCacheRef.current.get(p10);
+      if (Array.isArray(cached) && cached.length) {
+        setMessages(sortMessagesAsc(cached));
+      }
       setChatLoading(true);
       try {
         const r = await axios.get(`${API_BASE}/api/whatsapp/messages`, {
           withCredentials: true,
           params: { phone: p10 },
         });
-        setMessages(sortMessagesAsc(Array.isArray(r.data) ? r.data : []));
+        if (requestSeq !== messageLoadSeqRef.current) return;
+        const next = sortMessagesAsc(Array.isArray(r.data) ? r.data : []);
+        setMessages(next);
+        messageCacheRef.current.set(p10, next);
       } catch (error) {
         console.error("WhatsApp widget messages fetch failed:", error?.message || error);
       } finally {
-        setChatLoading(false);
+        if (requestSeq === messageLoadSeqRef.current) {
+          setChatLoading(false);
+        }
       }
     },
     [shouldShowWidget]
@@ -1169,6 +1189,14 @@ export default function WhatsAppInboxWidget({ onOpenChat }) {
     prefetch();
     return () => { cancelled = true; };
   }, [shouldShowWidget, messages]); // eslint-disable-line
+
+  useEffect(() => {
+    if (!phone10Active) return;
+    messageCacheRef.current.set(
+      phone10Active,
+      Array.isArray(messages) ? messages.slice() : []
+    );
+  }, [phone10Active, messages]);
 
   // Socket
   useEffect(() => {
@@ -1263,9 +1291,41 @@ export default function WhatsAppInboxWidget({ onOpenChat }) {
         scheduleConversationRefresh(250);
       }
       if (phone10Active && p10 === phone10Active) {
-        setMessages((prev) => upsertMessage(prev, msg));
+        setMessages((prev) => {
+          const next = upsertMessage(prev, msg);
+          messageCacheRef.current.set(p10, next);
+          return next;
+        });
         setTimeout(() => scrollToBottom(true), 0);
       }
+    });
+
+    socket.on("wa:status", (payload) => {
+      const liveIds = [
+        payload?.waId,
+        payload?.id,
+        payload?.messageId,
+        payload?.message_id,
+        payload?.providerTransactionId,
+        payload?.transactionId,
+        payload?.transaction_id,
+      ].map((x) => String(x || "").trim()).filter(Boolean);
+      const status = normalizeStatus(payload?.status);
+      const p10 = last10(payload?.phone10 || payload?.phone || "");
+      if (!liveIds.length || !status || !phone10Active || p10 !== phone10Active) return;
+      setMessages((prev) => {
+        const next = prev.map((m) => {
+          const waId = String(m?.waId || "").trim();
+          const providerTxnId = String(m?.providerTransactionId || "").trim();
+          if (liveIds.includes(waId) || liveIds.includes(providerTxnId)) {
+            if (status !== "failed" && statusRank(m?.status) > statusRank(status)) return m;
+            return { ...m, status };
+          }
+          return m;
+        });
+        messageCacheRef.current.set(p10, next);
+        return next;
+      });
     });
 
     return () => {
@@ -1278,6 +1338,7 @@ export default function WhatsAppInboxWidget({ onOpenChat }) {
       socket.off("connect_error");
       socket.off("wa:conversation");
       socket.off("wa:message");
+      socket.off("wa:status");
       try { socket.close(); } catch {}
       socketRef.current = null;
     };
@@ -1311,13 +1372,34 @@ export default function WhatsAppInboxWidget({ onOpenChat }) {
 
   useEffect(() => {
     if (!shouldShowWidget) return;
-    if (socketStatus === "connected" && !open) return;
-    const intervalMs = open ? 30000 : 60000;
+    const intervalMs = socketStatus === "connected" ? 60000 : open ? 30000 : 60000;
     const t = setInterval(() => {
+      if (typeof document !== "undefined" && document.visibilityState === "hidden") {
+        return;
+      }
       fetchConversations();
     }, intervalMs);
     return () => clearInterval(t);
   }, [shouldShowWidget, socketStatus, open, fetchConversations]);
+
+  useEffect(() => {
+    if (!shouldShowWidget) return undefined;
+    const syncVisibleData = () => {
+      if (typeof document !== "undefined" && document.visibilityState === "hidden") {
+        return;
+      }
+      fetchConversations();
+      if (phone10Active) {
+        fetchMessages(phone10Active);
+      }
+    };
+    window.addEventListener("focus", syncVisibleData);
+    document.addEventListener("visibilitychange", syncVisibleData);
+    return () => {
+      window.removeEventListener("focus", syncVisibleData);
+      document.removeEventListener("visibilitychange", syncVisibleData);
+    };
+  }, [shouldShowWidget, fetchConversations, fetchMessages, phone10Active]);
 
   const loadMoreConversations = useCallback(() => {
     if (!shouldShowWidget || loading || !hasMoreConvos || !conversationCursor) return;
@@ -1344,6 +1426,10 @@ export default function WhatsAppInboxWidget({ onOpenChat }) {
   setActive(c);
   setView("chat");
   const p10 = last10(c?.phone);
+  const cached = messageCacheRef.current.get(p10);
+  if (Array.isArray(cached)) {
+    setMessages(sortMessagesAsc(cached));
+  }
   await fetchMessages(p10);
   await markRead(p10);
   setTimeout(() => scrollToBottom(false), 60);

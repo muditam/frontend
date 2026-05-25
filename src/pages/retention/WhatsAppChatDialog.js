@@ -543,6 +543,8 @@ export default function WhatsAppChatDrawer({
 
   const socketRef = useRef(null);
   const joinedPhoneRef = useRef(null);
+  const messageCacheRef = useRef(new Map());
+  const messageLoadSeqRef = useRef(0);
 
   const didInitialScrollRef = useRef(false);
   const stickToBottomRef = useRef(true);
@@ -647,15 +649,12 @@ export default function WhatsAppChatDrawer({
 
   const fetchMessages = useCallback(async () => {
     if (!phone10) return;
+    const requestSeq = ++messageLoadSeqRef.current;
     const res = await api.get(`/api/whatsapp/messages`, { params: { phone: phone10 } });
     const list = Array.isArray(res.data) ? res.data : [];
-    setMessages((prev) => {
-      let next = prev.slice();
-      for (const msg of list) {
-        next = upsertMessage(next, msg);
-      }
-      return next;
-    });
+    if (requestSeq !== messageLoadSeqRef.current) return;
+    setMessages(list);
+    messageCacheRef.current.set(phone10, list);
 
     const lastInbound = [...list].reverse().find(
       (m) => String(m.direction || "").toUpperCase() !== "OUTBOUND"
@@ -725,7 +724,11 @@ export default function WhatsAppChatDrawer({
         ...(customerPhoneFromMsg(msg) ? { phone: customerPhoneFromMsg(msg) } : {}),
       };
 
-      setMessages((prev) => upsertMessage(prev, normalizedMsg));
+      setMessages((prev) => {
+        const next = upsertMessage(prev, normalizedMsg);
+        messageCacheRef.current.set(phone10, next);
+        return next;
+      });
 
       if (String(normalizedMsg?.direction || "").toUpperCase() !== "OUTBOUND") {
         if (normalizedMsg?.timestamp || normalizedMsg?.createdAt) {
@@ -755,8 +758,8 @@ export default function WhatsAppChatDrawer({
       if (p10 && p10 !== phone10) return;
       if (!liveIds.length || !status) return;
 
-      setMessages((prev) =>
-        prev.map((m) => {
+      setMessages((prev) => {
+        const next = prev.map((m) => {
           const waId = String(m?.waId || "").trim();
           const providerTransactionId = String(m?.providerTransactionId || "").trim();
           if (liveIds.includes(waId) || liveIds.includes(providerTransactionId)) {
@@ -766,8 +769,10 @@ export default function WhatsAppChatDrawer({
             return { ...m, status };
           }
           return m;
-        })
-      );
+        });
+        messageCacheRef.current.set(phone10, next);
+        return next;
+      });
     };
 
     const onWaConversation = (payload) => {
@@ -813,7 +818,7 @@ export default function WhatsAppChatDrawer({
     didInitialScrollRef.current = false;
     stickToBottomRef.current = true;
 
-    setMessages([]);
+    setMessages(messageCacheRef.current.get(phone10) || []);
     setText("");
     setPrivateMode(false);
 
@@ -836,6 +841,27 @@ export default function WhatsAppChatDrawer({
     const t = setInterval(() => setTick((x) => x + 1), 1000);
     return () => clearInterval(t);
   }, [open, phone10, refreshAll]);
+
+  useEffect(() => {
+    if (!open || !phone10) return;
+    const syncVisibleData = () => {
+      if (typeof document !== "undefined" && document.visibilityState === "hidden") {
+        return;
+      }
+      refreshAll();
+    };
+    window.addEventListener("focus", syncVisibleData);
+    document.addEventListener("visibilitychange", syncVisibleData);
+    return () => {
+      window.removeEventListener("focus", syncVisibleData);
+      document.removeEventListener("visibilitychange", syncVisibleData);
+    };
+  }, [open, phone10, refreshAll]);
+
+  useEffect(() => {
+    if (!phone10) return;
+    messageCacheRef.current.set(phone10, Array.isArray(messages) ? messages.slice() : []);
+  }, [phone10, messages]);
 
   useEffect(() => {
     if (!open) setCartOpen(false);

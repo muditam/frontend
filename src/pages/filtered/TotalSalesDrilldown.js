@@ -219,25 +219,40 @@ export default function TotalSalesDrilldown({ open, onClose, initialDates }) {
          .filter((e) => e?.fullName)
          .map((e) => [e.fullName, e])
      );
+     const getDirectReportNames = (emp = {}) =>
+       employees
+         .filter(
+           (member) =>
+            member?.status === "active" &&
+            isTargetEligible(member) &&
+            String(getLeaderId(member)) === String(emp?._id || "")
+         )
+         .map((member) => member.fullName)
+         .filter(Boolean);
      const getContributorsForRow = (name) => {
        const emp = employeeByName.get(name);
        if (!emp?.hasTeam || !emp?._id) {
          return { contributors: [name], teamMemberNames: [] };
        }
-       const directReportNames = employees
-         .filter(
-           (member) =>
-            member?.status === "active" &&
-            isTargetEligible(member) &&
-            String(getLeaderId(member)) === String(emp._id)
-         )
-         .map((member) => member.fullName)
-         .filter(Boolean);
+       const directReportNames = getDirectReportNames(emp);
        return {
          contributors: [...new Set([name, ...directReportNames])],
          teamMemberNames: directReportNames.filter((memberName) => memberName !== name),
        };
      };
+     if (tabMode === "manager") {
+       const canStayTopLevel = (name) => {
+         const emp = employeeByName.get(name);
+         return Boolean(emp?.hasTeam) && getDirectReportNames(emp).length > 0;
+       };
+       const nestedMemberNames = new Set(
+         names.flatMap((name) => {
+           const emp = employeeByName.get(name);
+           return emp?.hasTeam ? getDirectReportNames(emp) : [];
+         })
+       );
+       names = names.filter((name) => !nestedMemberNames.has(name) || canStayTopLevel(name));
+     }
 
 
 
