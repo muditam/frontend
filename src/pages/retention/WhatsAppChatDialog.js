@@ -360,6 +360,14 @@ function upsertMessage(prev, incoming) {
   return next;
 }
 
+function reconcileServerAck(prev = [], serverMsg, optimisticId = "") {
+  if (!serverMsg) return prev;
+  const incomingWithTemp = optimisticId && !serverMsg.clientTempId
+    ? { ...serverMsg, clientTempId: optimisticId }
+    : serverMsg;
+  return upsertMessage(prev, incomingWithTemp);
+}
+
 function isNearBottom(el, thresholdPx = 140) {
   if (!el) return true;
   return el.scrollHeight - el.scrollTop - el.clientHeight < thresholdPx;
@@ -545,6 +553,7 @@ export default function WhatsAppChatDrawer({
   const joinedPhoneRef = useRef(null);
   const messageCacheRef = useRef(new Map());
   const messageLoadSeqRef = useRef(0);
+  const metaRequestRef = useRef({ inFlight: false, lastStartedAt: 0 });
 
   const didInitialScrollRef = useRef(false);
   const stickToBottomRef = useRef(true);
@@ -669,12 +678,26 @@ export default function WhatsAppChatDrawer({
     setTemplates(Array.isArray(res.data) ? res.data : []);
   }, []);
 
-  const refreshAll = useCallback(async () => {
+  const refreshAll = useCallback(async ({ includeTemplates = false, silent = false } = {}) => {
     if (!phone10) return;
+    const nowMs = Date.now();
+    if (metaRequestRef.current.inFlight) {
+      if (silent) return;
+    }
+    if (
+      silent &&
+      nowMs - Number(metaRequestRef.current.lastStartedAt || 0) < 10000
+    ) {
+      return;
+    }
+    metaRequestRef.current = { inFlight: true, lastStartedAt: nowMs };
     setLoading(true);
     try {
-      await Promise.all([fetchConversationMeta(), fetchMessages(), fetchTemplates()]);
+      const jobs = [fetchConversationMeta(), fetchMessages()];
+      if (includeTemplates) jobs.push(fetchTemplates());
+      await Promise.all(jobs);
     } finally {
+      metaRequestRef.current.inFlight = false;
       setLoading(false);
       if (open) {
         stickToBottomRef.current = true;
@@ -836,7 +859,7 @@ export default function WhatsAppChatDrawer({
     setPendingFile(null);
     setAttachmentSending(false);
 
-    refreshAll();
+    refreshAll({ includeTemplates: true });
 
     const t = setInterval(() => setTick((x) => x + 1), 1000);
     return () => clearInterval(t);
@@ -848,7 +871,7 @@ export default function WhatsAppChatDrawer({
       if (typeof document !== "undefined" && document.visibilityState === "hidden") {
         return;
       }
-      refreshAll();
+      refreshAll({ silent: true });
     };
     window.addEventListener("focus", syncVisibleData);
     document.addEventListener("visibilitychange", syncVisibleData);
@@ -949,7 +972,7 @@ export default function WhatsAppChatDrawer({
         clientTempId: optimisticId,
       });
       if (res?.data?.message) {
-        setMessages((prev) => upsertMessage(prev, res.data.message));
+        setMessages((prev) => reconcileServerAck(prev, res.data.message, optimisticId));
       }
     } catch (e) {
       setMessages((prev) =>
@@ -1041,7 +1064,7 @@ export default function WhatsAppChatDrawer({
         headers: { "Content-Type": "multipart/form-data" },
       });
       if (res?.data?.message) {
-        setMessages((prev) => upsertMessage(prev, res.data.message));
+        setMessages((prev) => reconcileServerAck(prev, res.data.message, optimisticId));
       }
 
       closePendingFile();
@@ -1378,7 +1401,7 @@ export default function WhatsAppChatDrawer({
         ...(header ? { headerMedia: header } : {}),
       });
       if (res?.data?.message) {
-        setMessages((prev) => upsertMessage(prev, res.data.message));
+        setMessages((prev) => reconcileServerAck(prev, res.data.message, optimisticId));
       }
     } catch (e) {
       setMessages((prev) =>
