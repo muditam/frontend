@@ -382,30 +382,6 @@ function mergeServerMessageWithOptimistic(serverMsg, tempMsg) {
   };
 }
 
-function reconcileServerAck(prev = [], serverMsg, optimisticId = "") {
-  if (!serverMsg) return prev;
-  let matched = false;
-  const next = (Array.isArray(prev) ? prev : []).map((msg) => {
-    const msgId = String(msg?._id || "");
-    if (
-      (optimisticId && msgId === optimisticId) ||
-      isLikelySameMessage(msg, serverMsg) ||
-      (serverMsg?.waId && String(msg?.waId || "") === String(serverMsg.waId))
-    ) {
-      matched = true;
-      return mergeServerMessageWithOptimistic(serverMsg, msg);
-    }
-    return msg;
-  });
-  if (!matched) next.push(serverMsg);
-  next.sort((a, b) => {
-    const aTs = new Date(a?.timestamp || a?.createdAt || 0).getTime();
-    const bTs = new Date(b?.timestamp || b?.createdAt || 0).getTime();
-    return aTs - bTs;
-  });
-  return next;
-}
-
 function MessageMedia({ msg, isNearBottomRef, bottomRef }) {
   const mediaId = mediaIdFromMsg(msg);
   const mime = mediaMimeFromMsg(msg);
@@ -662,9 +638,6 @@ export default function WhatsAppUI() {
   const joinedRoomsRef = useRef(new Set());
   const refreshTimerRef = useRef(null);
   const pendingReadRef = useRef(new Map());
-  const messageCacheRef = useRef(new Map());
-  const messageLoadSeqRef = useRef(0);
-  const conversationRequestRef = useRef({ inFlight: false, lastStartedAt: 0 });
   const [hasMoreOlder, setHasMoreOlder] = useState(false);
   const [loadingOlder, setLoadingOlder] = useState(false);
   const [oldestCursor, setOldestCursor] = useState("");
@@ -674,7 +647,6 @@ export default function WhatsAppUI() {
   const [tplAnchor, setTplAnchor] = useState(null);
   const [emojiAnchor, setEmojiAnchor] = useState(null);
   const fileRef = useRef(null);
-  const bootstrapChatRef = useRef(null);
   const [fileUploading, setFileUploading] = useState(false);
   const [tplComposeOpen, setTplComposeOpen] = useState(false);
   const [activeTplForSend, setActiveTplForSend] = useState(null);
@@ -995,20 +967,8 @@ export default function WhatsAppUI() {
 
   const refreshConversations = useCallback(async (
     selectPhone = null,
-    { silent = false, append = false, cursor = "", includeCounts = !silent && !append, includeAgentOptions = !silent && !append } = {}
+    { silent = false, append = false, cursor = "" } = {}
   ) => {
-    const nowMs = Date.now();
-    if (conversationRequestRef.current.inFlight) {
-      if (silent || append) return;
-    }
-    if (
-      silent &&
-      nowMs - Number(conversationRequestRef.current.lastStartedAt || 0) < 10000
-    ) {
-      return;
-    }
-    conversationRequestRef.current = { inFlight: true, lastStartedAt: nowMs };
-
     if (append) {
       setLoadingMoreChats(true);
     } else if (!silent) {
@@ -1034,8 +994,8 @@ export default function WhatsAppUI() {
         hasTeam: effectiveHasTeam ? "true" : "false",
         paginated: "true",
         limit: String(CONVERSATION_PAGE_SIZE),
-        includeCounts: includeCounts ? "true" : "false",
-        includeAgentOptions: canFilterByAgent && includeAgentOptions ? "true" : "false",
+        includeCounts: "true",
+        includeAgentOptions: canFilterByAgent ? "true" : "false",
         chatScope:
           normalizedRole === "team leader" || normalizedRole === "team-leader"
             ? "team"
@@ -1087,12 +1047,12 @@ export default function WhatsAppUI() {
           unread: Number(data.counts?.unread || 0),
           favourite: Number(data.counts?.favourite || 0),
         });
-      } else if (includeCounts && !append) {
+      } else if (!append) {
         setServerChatCounts({ all: 0, unread: 0, favourite: 0 });
       }
       if (Array.isArray(data?.agentOptions)) {
         setServerAgentOptions(data.agentOptions);
-      } else if (includeAgentOptions && !append && canFilterByAgent) {
+      } else if (!append && canFilterByAgent) {
         setServerAgentOptions([]);
       }
 
@@ -1104,7 +1064,6 @@ export default function WhatsAppUI() {
         showToast(e.message || "Failed to load conversations", "error");
       }
     } finally {
-      conversationRequestRef.current.inFlight = false;
       if (append) {
         setLoadingMoreChats(false);
       } else if (!silent) {
@@ -1129,7 +1088,7 @@ export default function WhatsAppUI() {
     if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
     refreshTimerRef.current = setTimeout(() => {
       refreshTimerRef.current = null;
-      refreshConversations(null, { silent: true, includeCounts: false, includeAgentOptions: false });
+      refreshConversations(null, { silent: true });
     }, delay);
   }, [refreshConversations]);
 
@@ -1137,7 +1096,7 @@ export default function WhatsAppUI() {
     if (loadingChats || loadingMoreChats || !hasMoreChats || !conversationCursor) {
       return;
     }
-    refreshConversations(null, { silent: true, append: true, cursor: conversationCursor, includeCounts: false, includeAgentOptions: false });
+    refreshConversations(null, { silent: true, append: true, cursor: conversationCursor });
   }, [conversationCursor, hasMoreChats, loadingChats, loadingMoreChats, refreshConversations]);
 
   const handleConversationListScroll = useCallback((event) => {
@@ -1214,57 +1173,27 @@ export default function WhatsAppUI() {
     return Array.isArray(data) ? data : [];
   }, []);
 
-  const cacheMessagesForPhone = useCallback((phoneAnyDigits, list) => {
-    const p10 = phone10(phoneAnyDigits);
-    if (!p10) return;
-    messageCacheRef.current.set(
-      p10,
-      Array.isArray(list) ? list.slice() : []
-    );
-  }, []);
-
-  const loadMessagesInitial = useCallback(async (phoneAnyDigits, options = {}) => {
+  const loadMessagesInitial = useCallback(async (phoneAnyDigits) => {
     const q = digitsOnly(phoneAnyDigits);
-    const activeP10 = phone10(q);
-    const seedMessages = Array.isArray(options?.seedMessages)
-      ? options.seedMessages
-      : [];
-    const cachedMessages = messageCacheRef.current.get(activeP10) || [];
-    const initialMessages = seedMessages.length
-      ? mergeUniqueMessages(seedMessages, cachedMessages)
-      : cachedMessages;
-    const requestSeq = ++messageLoadSeqRef.current;
-
     if (!q) return;
     setChatError("");
     setLoadingMessages(true);
 
     try {
       const serverMessages = await fetchMessagesPage(q, { limit: MESSAGE_PAGE_SIZE });
-      const merged = mergeUniqueMessages(initialMessages, serverMessages);
-      if (requestSeq !== messageLoadSeqRef.current) return;
-      setMessages(merged);
-      cacheMessagesForPhone(activeP10, merged);
-      const oldest = merged[0]?.timestamp || merged[0]?.createdAt || "";
+      setMessages(serverMessages);
+      const oldest = serverMessages[0]?.timestamp || serverMessages[0]?.createdAt || "";
       setOldestCursor(oldest ? String(oldest) : "");
       setHasMoreOlder(serverMessages.length >= MESSAGE_PAGE_SIZE);
     } catch (e) {
-      if (requestSeq !== messageLoadSeqRef.current) return;
       setChatError(e.message || "Failed to load messages");
-      const merged = initialMessages.length
-        ? mergeUniqueMessages(initialMessages, [])
-        : [];
-      setMessages(merged);
-      cacheMessagesForPhone(activeP10, merged);
-      const oldest = merged[0]?.timestamp || merged[0]?.createdAt || "";
-      setOldestCursor(oldest ? String(oldest) : "");
+      setMessages([]);
+      setOldestCursor("");
       setHasMoreOlder(false);
     } finally {
-      if (requestSeq === messageLoadSeqRef.current) {
-        setLoadingMessages(false);
-      }
+      setLoadingMessages(false);
     }
-  }, [mergeUniqueMessages, fetchMessagesPage, cacheMessagesForPhone]);
+  }, [fetchMessagesPage]);
 
   const fetchTemplates = useCallback(async () => {
     setLoadingTemplates(true);
@@ -1308,37 +1237,6 @@ export default function WhatsAppUI() {
   useEffect(() => { refreshConversations(null, { silent: false }); }, [refreshConversations]);
   useEffect(() => { fetchTemplates(); }, [fetchTemplates]);
 
-  // Fallback polling for left chat list so it stays fresh even if socket transport is unstable.
-  useEffect(() => {
-    if (socketStatus === "connected") return undefined;
-    const id = setInterval(() => {
-      if (typeof document !== "undefined" && document.visibilityState === "hidden") {
-        return;
-      }
-      refreshConversations(null, { silent: true, includeCounts: false, includeAgentOptions: false });
-    }, 60000);
-    return () => clearInterval(id);
-  }, [refreshConversations, socketStatus]);
-
-  useEffect(() => {
-    if (socketStatus === "connected") return undefined;
-    const syncVisibleData = () => {
-      if (typeof document !== "undefined" && document.visibilityState === "hidden") {
-        return;
-      }
-      refreshConversations(null, { silent: true, includeCounts: false, includeAgentOptions: false });
-      if (activeDigits) {
-        loadMessagesInitial(activeDigits);
-      }
-    };
-    window.addEventListener("focus", syncVisibleData);
-    document.addEventListener("visibilitychange", syncVisibleData);
-    return () => {
-      window.removeEventListener("focus", syncVisibleData);
-      document.removeEventListener("visibilitychange", syncVisibleData);
-    };
-  }, [activeDigits, loadMessagesInitial, refreshConversations, socketStatus]);
-
   useEffect(() => {
     const s = io(API_BASE, {
       withCredentials: true,
@@ -1353,7 +1251,7 @@ export default function WhatsAppUI() {
 
     const onConnect = () => {
       setSocketStatus("connected");
-      refreshConversations(null, { silent: true, includeCounts: false, includeAgentOptions: false });
+      refreshConversations(null, { silent: true });
     };
 
     const onDisconnect = () => {
@@ -1455,16 +1353,13 @@ export default function WhatsAppUI() {
             if (tempIndex !== -1) {
               const next = [...prev];
               next[tempIndex] = mergeServerMessageWithOptimistic(normalizedMsg, next[tempIndex]);
-              cacheMessagesForPhone(p10, next);
               return next;
             }
           }
           if (normalizedMsg?.waId && prev.some((m) => String(m?.waId || "") === String(normalizedMsg.waId))) return prev;
           const k = msgKey(normalizedMsg);
           if (prev.some((m) => msgKey(m) === k)) return prev;
-          const next = [...prev, normalizedMsg];
-          cacheMessagesForPhone(p10, next);
-          return next;
+          return [...prev, normalizedMsg];
         });
         if (String(normalizedMsg?.direction || "").toUpperCase() === "INBOUND") {
           setSessionExpired(false); setChatError("");
@@ -1502,9 +1397,6 @@ export default function WhatsAppUI() {
 
           return m;
         });
-        if (activeNow) {
-          cacheMessagesForPhone(activeNow, next);
-        }
         return next;
       });
     };
@@ -1538,18 +1430,12 @@ export default function WhatsAppUI() {
 
     s.on("wa:message", onMessage); s.on("wa:status", onStatus); s.on("wa:conversation", onConversation);
     return () => { s.off("wa:message", onMessage); s.off("wa:status", onStatus); s.off("wa:conversation", onConversation); };
-  }, [agentFilter, cacheMessagesForPhone, chatTab, debouncedSearch, markConversationRead, playNotif, scheduleConversationRefresh, upsertConversationFromMessage]);
+  }, [agentFilter, chatTab, debouncedSearch, markConversationRead, playNotif, scheduleConversationRefresh, upsertConversationFromMessage]);
 
   useEffect(() => { if (activeP10) setInput(drafts[activeP10] || ""); else setInput(""); }, [activeP10, drafts]);
 
   useEffect(() => {
     if (!activeDigits) return;
-
-    const pendingBootstrap = bootstrapChatRef.current;
-    const seedMessages =
-      pendingBootstrap?.phone10 === phone10(activeDigits)
-        ? pendingBootstrap.messages || []
-        : messageCacheRef.current.get(phone10(activeDigits)) || [];
 
     setSessionExpired(false);
     setChatError("");
@@ -1557,14 +1443,11 @@ export default function WhatsAppUI() {
     setOldestCursor("");
     setLoadingOlder(false);
 
-    setMessages(seedMessages);
+    setMessages([]);
 
     openedCutoffRef.current = Date.now();
 
-    loadMessagesInitial(activeDigits, { seedMessages }).finally(() => {
-      if (pendingBootstrap?.phone10 === phone10(activeDigits)) {
-        bootstrapChatRef.current = null;
-      }
+    loadMessagesInitial(activeDigits).finally(() => {
       setTimeout(() => {
         bottomRef.current?.scrollIntoView({ behavior: "auto" });
       }, 40);
@@ -1607,9 +1490,7 @@ export default function WhatsAppUI() {
         return;
       }
       setMessages((prev) => {
-        const merged = mergeUniqueMessages(older, prev);
-        cacheMessagesForPhone(activeDigits, merged);
-        return merged;
+        return mergeUniqueMessages(older, prev);
       });
       const oldest = older[0]?.timestamp || older[0]?.createdAt || "";
       if (oldest) setOldestCursor(String(oldest));
@@ -1623,12 +1504,7 @@ export default function WhatsAppUI() {
     } finally {
       setLoadingOlder(false);
     }
-  }, [activeDigits, oldestCursor, hasMoreOlder, loadingOlder, fetchMessagesPage, mergeUniqueMessages, cacheMessagesForPhone]);
-
-  useEffect(() => {
-    if (!activeP10) return;
-    cacheMessagesForPhone(activeP10, messages);
-  }, [activeP10, messages, cacheMessagesForPhone]);
+  }, [activeDigits, oldestCursor, hasMoreOlder, loadingOlder, fetchMessagesPage, mergeUniqueMessages]);
 
   const onChatScroll = (e) => {
     const el = e.currentTarget;
@@ -1646,20 +1522,6 @@ export default function WhatsAppUI() {
     const nextSearch = `?phone=${encodeURIComponent(p)}`;
     if (location.search !== nextSearch) {
       navigate(`/whatsaap/chat${nextSearch}`, { replace: true });
-    }
-
-    const bootstrapMessages = Array.isArray(options?.bootstrapMessages)
-      ? options.bootstrapMessages
-      : [];
-
-    if (bootstrapMessages.length) {
-      bootstrapChatRef.current = {
-        phone10: phone10(p),
-        messages: bootstrapMessages,
-      };
-      setMessages(bootstrapMessages);
-    } else {
-      bootstrapChatRef.current = null;
     }
 
     openedCutoffRef.current = Date.now();
@@ -1699,10 +1561,7 @@ export default function WhatsAppUI() {
     setMessages((prev) => [...prev, optimistic]);
     setInput(""); clearDraftFor(p10); updateConversationPreviewLocal(to, text);
     try {
-      const res = await api(`/api/whatsapp/send-text`, { method: "POST", body: JSON.stringify({ to, text, clientTempId: optimistic._id }) });
-      if (res?.message) {
-        setMessages((prev) => reconcileServerAck(prev, res.message, optimistic._id));
-      }
+      await api(`/api/whatsapp/send-text`, { method: "POST", body: JSON.stringify({ to, text }) });
     }
     catch (e) {
       setMessages((prev) => removeMessageById(prev, optimistic._id));
@@ -1804,11 +1663,7 @@ export default function WhatsAppUI() {
       fd.append("to", to);
       fd.append("file", file);
       if (caption.trim()) fd.append("caption", caption.trim());
-      fd.append("clientTempId", optimistic._id);
-      const res = await apiForm(`/api/whatsapp/send-media`, fd);
-      if (res?.message) {
-        setMessages((prev) => reconcileServerAck(prev, res.message, optimistic._id));
-      }
+      await apiForm(`/api/whatsapp/send-media`, fd);
     } catch (e) {
       setMessages((prev) => prev.map((m) => m._id === optimistic._id ? { ...m, status: "failed" } : m));
       if (e?.data?.code === "SESSION_EXPIRED") { setSessionExpired(true); setChatError("Only templates allowed. Chat window expired."); }
@@ -1863,10 +1718,7 @@ export default function WhatsAppUI() {
     setMessages((prev) => [...prev, optimistic]);
     updateConversationPreviewLocal(to, optimistic.text);
     try {
-      const res = await api(`/api/whatsapp/send-template`, { method: "POST", body: JSON.stringify({ to, clientTempId: optimistic._id, templateName: activeTplForSend.name, templateId: activeTplForSend.template_id || activeTplForSend.templateId || activeTplForSend.providerTemplateId || "", parameters: params, renderedText: tplSendPreview || "", headerMedia }) });
-      if (res?.message) {
-        setMessages((prev) => reconcileServerAck(prev, res.message, optimistic._id));
-      }
+      await api(`/api/whatsapp/send-template`, { method: "POST", body: JSON.stringify({ to, templateName: activeTplForSend.name, templateId: activeTplForSend.template_id || activeTplForSend.templateId || activeTplForSend.providerTemplateId || "", parameters: params, renderedText: tplSendPreview || "", headerMedia }) });
       setTplComposeOpen(false); setActiveTplForSend(null); setTplSendVars({}); setTplHeaderFormat(""); setTplHeaderFile(null);
       showToast("Template sent ✓", "success");
     } catch (e) {
