@@ -46,6 +46,7 @@ const blackTheme = createTheme({
 const ShipmentDetails = () => {
   const query = useQuery();
   const category = query.get('category') || 'All';
+  const group = query.get('group') || '';
   const agent = query.get('agent') || '';
   const startDate = query.get('startDate') || '';
   const endDate = query.get('endDate') || '';
@@ -63,18 +64,15 @@ const ShipmentDetails = () => {
         if (agent) params.orderCreatedBy = agent;
         if (startDate) params.startDate = startDate;
         if (endDate) params.endDate = endDate;
+        if (category) params.category = category;
+        if (group) params.group = group;
 
         const { data } = await axios.get(
-          'https://muditamleads-14f32a10d7f7.herokuapp.com/api/retention-sales/allnew',
+          'https://muditamleads-14f32a10d7f7.herokuapp.com/api/retention-sales/shipment-details',
           { params }
         );
 
-        const filtered = data.filter((r) => {
-          if (category !== 'Total Orders' && (r.shipway_status || '').trim() !== category) return false;
-          return true;
-        });
-
-        setRecords(filtered);
+        setRecords(Array.isArray(data) ? data : []);
       } catch (err) {
         console.error('Error fetching shipment details:', err);
       } finally {
@@ -83,7 +81,7 @@ const ShipmentDetails = () => {
     };
 
     fetchAndFilter();
-  }, [category, agent, startDate, endDate]);
+  }, [category, group, agent, startDate, endDate]);
 
   const handleStatusChange = async (idx, orderId, newStatus) => {
     try {

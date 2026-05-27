@@ -1219,9 +1219,9 @@ const ManagerRetentionDashboard = () => {
           columns={{ xs: 12, sm: 12, md: 10, lg: 10, xl: 10 }}
         >
           {shipmentCards.cards.map((card) => {
-            const firstCategory = card.matched?.[0]?.category;
-            const to = firstCategory
-              ? `/shipment-details?category=${encodeURIComponent(firstCategory)}&startDate=${shipmentDates.startDate}&endDate=${shipmentDates.endDate}`
+            const hasMatches = (card.matched?.length || 0) > 0;
+            const to = hasMatches
+              ? `/shipment-details?category=${encodeURIComponent(card.label)}&group=${encodeURIComponent(card.key)}&startDate=${shipmentDates.startDate}&endDate=${shipmentDates.endDate}`
               : null;
 
             return (

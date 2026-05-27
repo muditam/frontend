@@ -1,4 +1,11 @@
-const MANAGER_ROLE_SET = new Set(["manager", "super admin", "admin", "developer"]);
+const MANAGER_ROLE_SET = new Set([
+  "manager",
+  "super admin",
+  "admin",
+  "developer",
+  "team leader",
+  "teamleader",
+]);
 
 export function normalizeRole(role = "") {
   return String(role || "")
