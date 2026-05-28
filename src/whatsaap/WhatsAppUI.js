@@ -1212,25 +1212,14 @@ export default function WhatsAppUI() {
 
   const fetchMessagesPage = useCallback(async (phoneAnyDigits, { before = "", limit = MESSAGE_PAGE_SIZE } = {}) => {
     const q = digitsOnly(phoneAnyDigits);
-    if (!q) return { items: [], hasMore: false, nextCursor: "" };
+    if (!q) return [];
     const params = new URLSearchParams({
       phone: q,
       limit: String(limit || MESSAGE_PAGE_SIZE),
     });
     if (before) params.set("before", String(before));
     const data = (await api(`/api/whatsapp/messages?${params.toString()}`)) || [];
-    if (Array.isArray(data)) {
-      return {
-        items: data,
-        hasMore: data.length >= (limit || MESSAGE_PAGE_SIZE),
-        nextCursor: "",
-      };
-    }
-    return {
-      items: Array.isArray(data?.items) ? data.items : [],
-      hasMore: Boolean(data?.hasMore),
-      nextCursor: String(data?.nextCursor || ""),
-    };
+    return Array.isArray(data) ? data : [];
   }, []);
 
   const loadMessagesInitial = useCallback(async (phoneAnyDigits) => {
@@ -1240,10 +1229,11 @@ export default function WhatsAppUI() {
     setLoadingMessages(true);
 
     try {
-      const page = await fetchMessagesPage(q, { limit: MESSAGE_PAGE_SIZE });
-      setMessages(page.items);
-      setOldestCursor(page.nextCursor || "");
-      setHasMoreOlder(Boolean(page.hasMore));
+      const serverMessages = await fetchMessagesPage(q, { limit: MESSAGE_PAGE_SIZE });
+      setMessages(serverMessages);
+      const oldest = serverMessages[0]?.timestamp || serverMessages[0]?.createdAt || "";
+      setOldestCursor(oldest ? String(oldest) : "");
+      setHasMoreOlder(serverMessages.length >= MESSAGE_PAGE_SIZE);
     } catch (e) {
       setChatError(e.message || "Failed to load messages");
       setMessages([]);
@@ -1547,8 +1537,8 @@ export default function WhatsAppUI() {
     if (socketStatus === "connected") return undefined;
     const id = setInterval(async () => {
       try {
-        const page = await fetchMessagesPage(activeDigits, { limit: MESSAGE_PAGE_SIZE });
-        setMessages((prev) => mergeUniqueMessages(prev, page.items));
+        const serverMessages = await fetchMessagesPage(activeDigits, { limit: MESSAGE_PAGE_SIZE });
+        setMessages((prev) => mergeUniqueMessages(prev, serverMessages));
       } catch {}
     }, 15000);
     return () => clearInterval(id);
@@ -1569,19 +1559,20 @@ export default function WhatsAppUI() {
     const previousHeight = el.scrollHeight;
     const previousTop = el.scrollTop;
     try {
-      const page = await fetchMessagesPage(activeDigits, {
+      const older = await fetchMessagesPage(activeDigits, {
         before: oldestCursor,
         limit: MESSAGE_PAGE_SIZE,
       });
-      if (!page.items.length) {
+      if (!older.length) {
         setHasMoreOlder(false);
         return;
       }
       setMessages((prev) => {
-        return mergeUniqueMessages(page.items, prev);
+        return mergeUniqueMessages(older, prev);
       });
-      setOldestCursor(page.nextCursor || "");
-      setHasMoreOlder(Boolean(page.hasMore));
+      const oldest = older[0]?.timestamp || older[0]?.createdAt || "";
+      if (oldest) setOldestCursor(String(oldest));
+      if (older.length < MESSAGE_PAGE_SIZE) setHasMoreOlder(false);
       requestAnimationFrame(() => {
         const nowHeight = el.scrollHeight;
         el.scrollTop = previousTop + (nowHeight - previousHeight);
