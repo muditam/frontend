@@ -36,6 +36,15 @@ const api = axios.create({
   withCredentials: true,
 });
 
+api.interceptors.request.use((config) => {
+  const rawUser = sessionStorage.getItem("user") || localStorage.getItem("user");
+  if (rawUser) {
+    config.headers = config.headers || {};
+    config.headers["x-session-user"] = rawUser;
+  }
+  return config;
+});
+
 const PRODUCT_ABBREV = {
   "Karela Jamun Fizz": "KJF",
   "Sugar Defend Pro": "SDP",
@@ -169,7 +178,8 @@ export default function ShopifyOrdersTable() {
     [startDate, endDate, status, stateFilter, modeFilter, assigned]
   );
 
-  // Initial: load agents and initial META only (fast)
+  // Initial: load agents only. Meta is fetched on demand because onlyMeta queries
+  // still hit a heavy backend aggregation and can overload the dyno.
   useEffect(() => {
     (async () => {
       try {
@@ -181,18 +191,6 @@ export default function ShopifyOrdersTable() {
       } catch (e) {
         // agent list failure shouldn't block table
         console.error("Failed to fetch agents", e);
-      }
-
-      // Initial meta (shipment statuses, states, modes) with onlyMeta=1 (no rows)
-      try {
-        const { data: meta } = await api.get("/api/shopify/orders-table", {
-          params: { onlyMeta: 1, page: 1, limit: 1 },
-        });
-        setAvailableStatuses(Array.isArray(meta?.statuses) ? meta.statuses : []);
-        setAvailableStates(Array.isArray(meta?.states) ? meta.states : []);
-        setAvailableModes(Array.isArray(meta?.modes) ? meta.modes : []);
-      } catch (e) {
-        console.error("Failed to fetch initial meta", e);
       }
     })();
 
@@ -247,9 +245,10 @@ export default function ShopifyOrdersTable() {
   }, [page, rowsPerPage, hasFetched]);
 
   const handleGetOrders = () => {
+    if (loading || syncing) return;
     setHasFetched(true);
     setPage(0);
-    fetchRows(0, rowsPerPage, true); // fetch rows + meta aligned to current filters
+    fetchRows(0, rowsPerPage, false);
   };
 
   const handleChangePage = (_e, newPage) => setPage(newPage);
@@ -323,9 +322,12 @@ export default function ShopifyOrdersTable() {
       });
 
       if (hasFetched) {
-        await fetchRows(page, rowsPerPage, true);
+        await fetchRows(page, rowsPerPage, false);
       } else {
-        await refreshMetaOnly();
+        setSnack((prev) => ({
+          ...prev,
+          msg: `${data?.message || "Shopify sync completed."} Use Refresh Filters if you need updated filter options.`,
+        }));
       }
     } catch (e) {
       console.error("Sync new orders failed", e);
