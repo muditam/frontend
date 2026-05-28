@@ -563,6 +563,30 @@ function renderTemplatePreview(body = "", params = []) {
   });
   return out;
 }
+function templateComponents(tpl) {
+  return Array.isArray(tpl?.components) ? tpl.components : [];
+}
+function extractTemplateButtons(source) {
+  const directButtons = Array.isArray(source?.templateMeta?.buttons) ? source.templateMeta.buttons : [];
+  if (directButtons.length) return directButtons;
+  const components = templateComponents(source);
+  const buttonComponent = components.find((component) => String(component?.type || "").toUpperCase() === "BUTTONS");
+  const rawButtons = Array.isArray(buttonComponent?.buttons)
+    ? buttonComponent.buttons
+    : Array.isArray(buttonComponent?.componentData?.buttons)
+      ? buttonComponent.componentData.buttons
+      : Array.isArray(buttonComponent?.data?.buttons)
+        ? buttonComponent.data.buttons
+        : [];
+  return rawButtons
+    .map((button) => ({
+      type: String(button?.type || "").trim().toUpperCase(),
+      text: String(button?.text || button?.title || "").trim(),
+      url: String(button?.url || "").trim(),
+      phoneNumber: String(button?.phone_number || button?.phoneNumber || button?.phone || "").trim(),
+    }))
+    .filter((button) => button.type || button.text || button.url || button.phoneNumber);
+}
 
 const AVATAR_COLORS = [
   "#00796B", "#0288D1", "#7B1FA2", "#C62828",
@@ -820,6 +844,8 @@ function ChatBubble({ m, blobUrlByMediaId }) {
   const outbound = String(m?.direction || "").toUpperCase() === "OUTBOUND";
   const time = fmtTime(m?.timestamp || m?.createdAt);
   const hasMedia = !!(m?.media || ["image", "audio", "voice", "ptt", "video", "document"].includes(String(m?.type || "").toLowerCase()));
+  const isTemplate = String(m?.type || "").toLowerCase() === "template";
+  const templateButtons = extractTemplateButtons(m);
 
   return (
     <Box
@@ -857,6 +883,48 @@ function ChatBubble({ m, blobUrlByMediaId }) {
           >
             {m.text}
           </Typography>
+        )}
+
+        {isTemplate && templateButtons.length > 0 && (
+          <Box sx={{ mt: 0.75, display: "grid", gap: 0.6 }}>
+            {templateButtons.map((button, index) => (
+              <Box
+                key={`${button.type || "BTN"}_${button.text || button.url || button.phoneNumber || index}`}
+                sx={{
+                  px: 1,
+                  py: 0.8,
+                  borderRadius: "9px",
+                  border: `1px solid ${COLORS.border}`,
+                  bgcolor: "rgba(0,168,132,0.06)",
+                }}
+              >
+                <Typography
+                  sx={{
+                    fontFamily: FONTS.ui,
+                    fontSize: 12.5,
+                    fontWeight: 600,
+                    color: COLORS.brandDark,
+                    lineHeight: 1.3,
+                  }}
+                >
+                  {button.text || button.url || button.phoneNumber || "Button"}
+                </Typography>
+                {!!(button.url || button.phoneNumber) && (
+                  <Typography
+                    sx={{
+                      mt: 0.2,
+                      fontFamily: FONTS.ui,
+                      fontSize: 11,
+                      color: COLORS.subText,
+                      wordBreak: "break-all",
+                    }}
+                  >
+                    {button.url || button.phoneNumber}
+                  </Typography>
+                )}
+              </Box>
+            ))}
+          </Box>
         )}
 
         <Box sx={{ display: "flex", justifyContent: "flex-end", alignItems: "center", mt: 0.3, gap: 0.25 }}>
@@ -1474,6 +1542,17 @@ export default function WhatsAppInboxWidget({ onOpenChat }) {
         text: tplBodyPreview ? String(tplBodyPreview).slice(0, 4000) : `Template: ${tplSelected}`,
         status: "sent",
         timestamp: new Date(),
+        templateMeta: {
+          name: tplSelected,
+          templateId:
+            selectedTemplateObj?.template_id ||
+            selectedTemplateObj?.templateId ||
+            selectedTemplateObj?.providerTemplateId ||
+            "",
+          language: selectedTemplateObj?.language || "",
+          parameters: params,
+          buttons: extractTemplateButtons(selectedTemplateObj),
+        },
       };
       setMessages((prev) => upsertMessage(prev, optimistic));
       setTimeout(() => scrollToBottom(true), 0);

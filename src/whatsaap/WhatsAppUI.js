@@ -218,6 +218,27 @@ function acceptForHeaderFormat(fmt) {
   if (f === "DOCUMENT") return ".pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,application/pdf";
   return "*/*";
 }
+function extractTemplateButtons(source) {
+  const directButtons = Array.isArray(source?.templateMeta?.buttons) ? source.templateMeta.buttons : [];
+  if (directButtons.length) return directButtons;
+  const components = templateComponents(source);
+  const buttonComponent = components.find((c) => String(c?.type || "").toUpperCase() === "BUTTONS");
+  const rawButtons = Array.isArray(buttonComponent?.buttons)
+    ? buttonComponent.buttons
+    : Array.isArray(buttonComponent?.componentData?.buttons)
+      ? buttonComponent.componentData.buttons
+      : Array.isArray(buttonComponent?.data?.buttons)
+        ? buttonComponent.data.buttons
+        : [];
+  return rawButtons
+    .map((button) => ({
+      type: String(button?.type || "").trim().toUpperCase(),
+      text: String(button?.text || button?.title || "").trim(),
+      url: String(button?.url || "").trim(),
+      phoneNumber: String(button?.phone_number || button?.phoneNumber || button?.phone || "").trim(),
+    }))
+    .filter((button) => button.type || button.text || button.url || button.phoneNumber);
+}
 
 function msgKey(m) {
   return m?.waId || m?._id || m?.id ||
@@ -382,7 +403,7 @@ function mergeServerMessageWithOptimistic(serverMsg, tempMsg) {
   };
 }
 
-function MessageMedia({ msg, isNearBottomRef, bottomRef }) {
+function MessageMedia({ msg, isNearBottomRef, bottomRef, onPreview }) {
   const mediaId = mediaIdFromMsg(msg);
   const mime = mediaMimeFromMsg(msg);
   const filename = mediaFilenameFromMsg(msg);
@@ -420,7 +441,7 @@ function MessageMedia({ msg, isNearBottomRef, bottomRef }) {
         <Box component="img" src={resolvedUrl} alt={filename || "attachment"} loading="lazy"
           sx={{ width: 240, maxWidth: "100%", display: "block", cursor: "pointer", transition: "opacity 0.2s", "&:hover": { opacity: 0.9 } }}
           onLoad={() => { if (isNearBottomRef?.current) bottomRef?.current?.scrollIntoView({ behavior: "auto" }); }}
-          onClick={() => window.open(resolvedUrl, "_blank", "noopener,noreferrer")} />
+          onClick={() => onPreview?.({ kind: "image", url: resolvedUrl, mime, filename })} />
       </Box>
     );
   }
@@ -428,7 +449,8 @@ function MessageMedia({ msg, isNearBottomRef, bottomRef }) {
     return (
       <Box sx={{ mt: 0.5, borderRadius: 2, overflow: "hidden" }}>
         <Box component="video" controls playsInline preload="metadata"
-          sx={{ width: 280, maxWidth: "100%", display: "block", backgroundColor: "#000" }}
+          sx={{ width: 280, maxWidth: "100%", display: "block", backgroundColor: "#000", cursor: "pointer" }}
+          onClick={() => onPreview?.({ kind: "video", url: resolvedUrl, mime, filename })}
           onLoadedMetadata={() => { if (isNearBottomRef?.current) bottomRef?.current?.scrollIntoView({ behavior: "auto" }); }}>
           <source src={resolvedUrl} type={mime || undefined} />
         </Box>
@@ -465,16 +487,42 @@ function MessageMedia({ msg, isNearBottomRef, bottomRef }) {
   );
 }
 
-function TemplateBubble({ msg }) {
+function TemplateBubble({ msg, onPreview }) {
   const text = msg?.text || "";
   const tplName = msg?.templateMeta?.name || "";
+  const buttons = extractTemplateButtons(msg);
   const hasMedia = !!String(msg?.media?.id || "").trim() || !!String(msg?.media?.url || "").trim() ||
     !!String(msg?.templateMeta?.headerMedia?.id || "").trim() || !!String(msg?.templateMeta?.headerMedia?.url || "").trim();
   return (
     <Box>
-      {hasMedia && <MessageMedia msg={msg} isNearBottomRef={{ current: true }} bottomRef={{ current: null }} />}
+      {hasMedia && <MessageMedia msg={msg} isNearBottomRef={{ current: true }} bottomRef={{ current: null }} onPreview={onPreview} />}
       {!!text && <Typography fontSize={14} whiteSpace="pre-wrap" sx={{ mt: hasMedia ? 0.75 : 0, lineHeight: 1.5 }}>{text}</Typography>}
       {!text && !hasMedia && <Typography fontSize={13} color="text.secondary" fontStyle="italic">[Template: {tplName || "unknown"}]</Typography>}
+      {!!buttons.length && (
+        <Box sx={{ mt: 1, display: "grid", gap: 0.75 }}>
+          {buttons.map((button, index) => (
+            <Box
+              key={`${button.type || "BTN"}_${button.text || button.url || button.phoneNumber || index}`}
+              sx={{
+                px: 1.25,
+                py: 0.9,
+                borderRadius: 2,
+                border: "1px solid rgba(18, 140, 126, 0.22)",
+                bgcolor: "rgba(18, 140, 126, 0.06)",
+              }}
+            >
+              <Typography sx={{ fontSize: 13, fontWeight: 600, color: "#128C7E", lineHeight: 1.3 }}>
+                {button.text || button.url || button.phoneNumber || "Button"}
+              </Typography>
+              {!!(button.url || button.phoneNumber) && (
+                <Typography sx={{ mt: 0.2, fontSize: 11.5, color: LIGHT.subtext, wordBreak: "break-all" }}>
+                  {button.url || button.phoneNumber}
+                </Typography>
+              )}
+            </Box>
+          ))}
+        </Box>
+      )}
       <Box sx={{ mt: 0.75 }}>
         <Chip size="small" label={tplName ? `⚡ ${tplName}` : "⚡ Template"}
           sx={{ fontSize: 10, height: 18, bgcolor: "rgba(37,211,102,0.12)", color: "#128C7E", fontWeight: 600, border: "1px solid rgba(37,211,102,0.25)" }} />
@@ -616,6 +664,7 @@ export default function WhatsAppUI() {
   const showToast = useCallback((message, severity = "success") => setToast({ open: true, message, severity }), []);
   const hideToast = useCallback(() => setToast((t) => ({ ...t, open: false })), []);
   const [templates, setTemplates] = useState([]);
+  const [mediaPreview, setMediaPreview] = useState(null);
   const [loadingTemplates, setLoadingTemplates] = useState(false);
   const [newChatOpen, setNewChatOpen] = useState(false);
   const [newChatPhone, setNewChatPhone] = useState("");
@@ -1163,14 +1212,25 @@ export default function WhatsAppUI() {
 
   const fetchMessagesPage = useCallback(async (phoneAnyDigits, { before = "", limit = MESSAGE_PAGE_SIZE } = {}) => {
     const q = digitsOnly(phoneAnyDigits);
-    if (!q) return [];
+    if (!q) return { items: [], hasMore: false, nextCursor: "" };
     const params = new URLSearchParams({
       phone: q,
       limit: String(limit || MESSAGE_PAGE_SIZE),
     });
     if (before) params.set("before", String(before));
     const data = (await api(`/api/whatsapp/messages?${params.toString()}`)) || [];
-    return Array.isArray(data) ? data : [];
+    if (Array.isArray(data)) {
+      return {
+        items: data,
+        hasMore: data.length >= (limit || MESSAGE_PAGE_SIZE),
+        nextCursor: "",
+      };
+    }
+    return {
+      items: Array.isArray(data?.items) ? data.items : [],
+      hasMore: Boolean(data?.hasMore),
+      nextCursor: String(data?.nextCursor || ""),
+    };
   }, []);
 
   const loadMessagesInitial = useCallback(async (phoneAnyDigits) => {
@@ -1180,11 +1240,10 @@ export default function WhatsAppUI() {
     setLoadingMessages(true);
 
     try {
-      const serverMessages = await fetchMessagesPage(q, { limit: MESSAGE_PAGE_SIZE });
-      setMessages(serverMessages);
-      const oldest = serverMessages[0]?.timestamp || serverMessages[0]?.createdAt || "";
-      setOldestCursor(oldest ? String(oldest) : "");
-      setHasMoreOlder(serverMessages.length >= MESSAGE_PAGE_SIZE);
+      const page = await fetchMessagesPage(q, { limit: MESSAGE_PAGE_SIZE });
+      setMessages(page.items);
+      setOldestCursor(page.nextCursor || "");
+      setHasMoreOlder(Boolean(page.hasMore));
     } catch (e) {
       setChatError(e.message || "Failed to load messages");
       setMessages([]);
@@ -1408,15 +1467,44 @@ export default function WhatsAppUI() {
         scheduleConversationRefresh();
       } else {
         let unreadDeltaForCounts = Number(patch?.unreadCountDelta || 0);
-        setConversations((prev) => prev.map((c) => {
-          if (phone10(c.phone) !== p10) return c;
-          const prevUnread = Number(c.unreadCount || 0);
+        setConversations((prev) => {
+          const idx = prev.findIndex((c) => phone10(c.phone) === p10);
+          const cleanedPatch = { ...patch };
+          delete cleanedPatch.unreadCountDelta;
+
+          if (idx === -1) {
+            const inserted = {
+              phone: payload?.phone || p10,
+              displayName: "",
+              assignedToLabel: "",
+              ...cleanedPatch,
+              unreadCount:
+                typeof patch?.unreadCount === "number"
+                  ? patch.unreadCount
+                  : Math.max(0, unreadDeltaForCounts),
+            };
+            return [inserted, ...prev];
+          }
+
+          const next = [...prev];
+          const current = next[idx];
+          const prevUnread = Number(current?.unreadCount || 0);
           const hasAbsolute = typeof patch?.unreadCount === "number";
-          const nextUnread = hasAbsolute ? patch.unreadCount : Math.max(0, prevUnread + unreadDeltaForCounts);
+          const nextUnread = hasAbsolute
+            ? patch.unreadCount
+            : Math.max(0, prevUnread + unreadDeltaForCounts);
+
           if (hasAbsolute) unreadDeltaForCounts = nextUnread - prevUnread;
-          const cleanedPatch = { ...patch }; delete cleanedPatch.unreadCountDelta;
-          return { ...c, ...cleanedPatch, unreadCount: nextUnread };
-        }));
+
+          next[idx] = {
+            ...current,
+            ...cleanedPatch,
+            unreadCount: nextUnread,
+          };
+
+          const [updated] = next.splice(idx, 1);
+          return [updated, ...next];
+        });
         if (unreadDeltaForCounts) {
           setServerChatCounts((prev) => ({
             ...prev,
@@ -1459,8 +1547,8 @@ export default function WhatsAppUI() {
     if (socketStatus === "connected") return undefined;
     const id = setInterval(async () => {
       try {
-        const serverMessages = await fetchMessagesPage(activeDigits, { limit: MESSAGE_PAGE_SIZE });
-        setMessages((prev) => mergeUniqueMessages(prev, serverMessages));
+        const page = await fetchMessagesPage(activeDigits, { limit: MESSAGE_PAGE_SIZE });
+        setMessages((prev) => mergeUniqueMessages(prev, page.items));
       } catch {}
     }, 15000);
     return () => clearInterval(id);
@@ -1481,20 +1569,19 @@ export default function WhatsAppUI() {
     const previousHeight = el.scrollHeight;
     const previousTop = el.scrollTop;
     try {
-      const older = await fetchMessagesPage(activeDigits, {
+      const page = await fetchMessagesPage(activeDigits, {
         before: oldestCursor,
         limit: MESSAGE_PAGE_SIZE,
       });
-      if (!older.length) {
+      if (!page.items.length) {
         setHasMoreOlder(false);
         return;
       }
       setMessages((prev) => {
-        return mergeUniqueMessages(older, prev);
+        return mergeUniqueMessages(page.items, prev);
       });
-      const oldest = older[0]?.timestamp || older[0]?.createdAt || "";
-      if (oldest) setOldestCursor(String(oldest));
-      if (older.length < MESSAGE_PAGE_SIZE) setHasMoreOlder(false);
+      setOldestCursor(page.nextCursor || "");
+      setHasMoreOlder(Boolean(page.hasMore));
       requestAnimationFrame(() => {
         const nowHeight = el.scrollHeight;
         el.scrollTop = previousTop + (nowHeight - previousHeight);
@@ -1714,7 +1801,7 @@ export default function WhatsAppUI() {
       } catch (e) { showToast(e.message || "Failed to upload.", "error"); setTplSending(false); return; }
     } else { setTplSending(true); }
 
-    const optimistic = { _id: buildTempId("tmp_tpl"), direction: "OUTBOUND", type: "template", text: tplSendPreview || `[TEMPLATE] ${activeTplForSend.name}`, timestamp: new Date().toISOString(), status: "sent", to, phone: to, ...(optimisticMedia ? { media: optimisticMedia } : {}), templateMeta: { name: activeTplForSend.name, language: activeTplForSend.language || "", parameters: params, ...(headerMedia ? { headerMedia } : {}) } };
+    const optimistic = { _id: buildTempId("tmp_tpl"), direction: "OUTBOUND", type: "template", text: tplSendPreview || `[TEMPLATE] ${activeTplForSend.name}`, timestamp: new Date().toISOString(), status: "sent", to, phone: to, ...(optimisticMedia ? { media: optimisticMedia } : {}), templateMeta: { name: activeTplForSend.name, templateId: activeTplForSend.template_id || activeTplForSend.templateId || activeTplForSend.providerTemplateId || "", language: activeTplForSend.language || "", parameters: params, buttons: extractTemplateButtons(activeTplForSend), ...(headerMedia ? { headerMedia } : {}) } };
     setMessages((prev) => [...prev, optimistic]);
     updateConversationPreviewLocal(to, optimistic.text);
     try {
@@ -1880,8 +1967,14 @@ export default function WhatsAppUI() {
       ...(optimisticMedia ? { media: optimisticMedia } : {}),
       templateMeta: {
         name: selectedTemplate.name,
+        templateId:
+          selectedTemplate.template_id ||
+          selectedTemplate.templateId ||
+          selectedTemplate.providerTemplateId ||
+          "",
         language: selectedTemplate.language || "",
         parameters: params,
+        buttons: extractTemplateButtons(selectedTemplate),
       },
     };
 
@@ -2461,7 +2554,7 @@ export default function WhatsAppUI() {
                             }}
                           >
                             {isTemplate ? (
-                              <TemplateBubble msg={msg} />
+                              <TemplateBubble msg={msg} onPreview={setMediaPreview} />
                             ) : (
                               <>
                                 {!!bubbleText && (
@@ -2477,7 +2570,7 @@ export default function WhatsAppUI() {
                                     {bubbleText}
                                   </Typography>
                                 )}
-                                {hasMedia && <MessageMedia msg={msg} isNearBottomRef={isNearBottomRef} bottomRef={bottomRef} />}
+                                {hasMedia && <MessageMedia msg={msg} isNearBottomRef={isNearBottomRef} bottomRef={bottomRef} onPreview={setMediaPreview} />}
                               </>
                             )}
                             <Box sx={{ display: "flex", justifyContent: "flex-end", alignItems: "center", mt: 0.25, gap: 0.25 }}>
@@ -2616,7 +2709,10 @@ export default function WhatsAppUI() {
                         if (activeP10) setDraftFor(activeP10, val);
                       }}
                       onKeyDown={(e) => {
-                        if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendText(); }
+                        if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent?.isComposing) {
+                          e.preventDefault();
+                          sendText();
+                        }
                       }}
                       disabled={!hasActiveChat}
                       sx={{
@@ -3023,6 +3119,7 @@ export default function WhatsAppUI() {
                 msg={attachmentPreviewMsg}
                 isNearBottomRef={{ current: false }}
                 bottomRef={{ current: null }}
+                onPreview={setMediaPreview}
               />
               {!!pendingAttachment?.filename && (
                 <Typography sx={{ mt: 1, fontSize: 13, color: LIGHT.subtext }}>
@@ -3144,6 +3241,77 @@ export default function WhatsAppUI() {
         phone10={activeP10}
         leadName={activeHeaderTitle}
       />
+
+      <Dialog
+        open={!!mediaPreview}
+        onClose={() => setMediaPreview(null)}
+        fullWidth
+        maxWidth="lg"
+        PaperProps={{
+          sx: {
+            bgcolor: "rgba(17, 24, 39, 0.96)",
+            backgroundImage: "none",
+            color: "#fff",
+            boxShadow: "none",
+            overflow: "hidden",
+          },
+        }}
+      >
+        <DialogTitle
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 2,
+            borderBottom: "1px solid rgba(255,255,255,0.1)",
+          }}
+        >
+          <Typography sx={{ fontSize: 14, fontWeight: 600, color: "#fff" }} noWrap>
+            {mediaPreview?.filename || (mediaPreview?.kind === "video" ? "Video" : "Image")}
+          </Typography>
+          <IconButton onClick={() => setMediaPreview(null)} sx={{ color: "#fff" }}>
+            ✕
+          </IconButton>
+        </DialogTitle>
+        <DialogContent
+          sx={{
+            p: 0,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            minHeight: { xs: 320, md: 560 },
+            bgcolor: "transparent",
+          }}
+        >
+          {mediaPreview?.kind === "image" ? (
+            <Box
+              component="img"
+              src={mediaPreview?.url || ""}
+              alt={mediaPreview?.filename || "preview"}
+              sx={{
+                maxWidth: "100%",
+                maxHeight: "78vh",
+                objectFit: "contain",
+                display: "block",
+              }}
+            />
+          ) : mediaPreview?.kind === "video" ? (
+            <Box
+              component="video"
+              src={mediaPreview?.url || ""}
+              controls
+              autoPlay
+              playsInline
+              sx={{
+                maxWidth: "100%",
+                maxHeight: "78vh",
+                backgroundColor: "#000",
+                display: "block",
+              }}
+            />
+          ) : null}
+        </DialogContent>
+      </Dialog>
 
       {/* ── Toast ─────────────────────────────────────────────────────────────── */}
       <Snackbar

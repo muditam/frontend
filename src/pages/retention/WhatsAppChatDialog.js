@@ -499,6 +499,81 @@ function AttachmentPreviewDialog({
   );
 }
 
+function MediaPreviewDialog({ media, onClose }) {
+  return (
+    <Dialog
+      open={!!media}
+      onClose={onClose}
+      fullWidth
+      maxWidth="lg"
+      PaperProps={{
+        sx: {
+          bgcolor: "rgba(17, 24, 39, 0.96)",
+          backgroundImage: "none",
+          color: "#fff",
+          boxShadow: "none",
+          overflow: "hidden",
+        },
+      }}
+    >
+      <DialogTitle
+        sx={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 2,
+          borderBottom: "1px solid rgba(255,255,255,0.1)",
+        }}
+      >
+        <Typography sx={{ fontSize: 14, fontWeight: 700, color: "#fff" }} noWrap>
+          {media?.filename || (media?.kind === "video" ? "Video" : "Image")}
+        </Typography>
+        <IconButton onClick={onClose} sx={{ color: "#fff" }}>
+          <CloseIcon />
+        </IconButton>
+      </DialogTitle>
+      <DialogContent
+        sx={{
+          p: 0,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          minHeight: { xs: 320, md: 560 },
+          bgcolor: "transparent",
+        }}
+      >
+        {media?.kind === "image" ? (
+          <Box
+            component="img"
+            src={media?.url || ""}
+            alt={media?.filename || "preview"}
+            sx={{
+              maxWidth: "100%",
+              maxHeight: "78vh",
+              objectFit: "contain",
+              display: "block",
+            }}
+          />
+        ) : media?.kind === "video" ? (
+          <Box
+            component="video"
+            src={media?.url || ""}
+            controls
+            autoPlay
+            playsInline
+            sx={{
+              maxWidth: "100%",
+              maxHeight: "78vh",
+              backgroundColor: "#000",
+              display: "block",
+            }}
+          />
+        ) : null}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export default function WhatsAppChatDrawer({
   open,
   onClose,
@@ -537,6 +612,7 @@ export default function WhatsAppChatDrawer({
 
   const [pendingFile, setPendingFile] = useState(null);
   const [attachmentSending, setAttachmentSending] = useState(false);
+  const [mediaPreview, setMediaPreview] = useState(null);
 
   const fileRef = useRef(null);
   const listRef = useRef(null);
@@ -1152,7 +1228,7 @@ export default function WhatsAppChatDrawer({
               cursor: "pointer",
             }}
             onLoad={() => stickToBottomRef.current && scrollToBottomSoon("auto")}
-            onClick={() => window.open(url, "_blank", "noopener,noreferrer")}
+            onClick={() => setMediaPreview({ kind: "image", url, mime, filename })}
           />
         </Box>
       );
@@ -1186,7 +1262,9 @@ export default function WhatsAppChatDrawer({
               maxWidth: "100%",
               borderRadius: "12px",
               border: "1px solid rgba(0,0,0,0.08)",
+              cursor: "pointer",
             }}
+            onClick={() => setMediaPreview({ kind: "video", url, mime, filename })}
             onLoadedMetadata={() => stickToBottomRef.current && scrollToBottomSoon("auto")}
           />
         </Box>
@@ -1717,6 +1795,12 @@ export default function WhatsAppChatDrawer({
               placeholder={privateMode ? "Type your private reply here" : "Type your message here"}
               value={text}
               onChange={(e) => setText(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent?.isComposing) {
+                  e.preventDefault();
+                  sendText();
+                }
+              }}
               multiline
               minRows={2}
               maxRows={5}
@@ -2195,6 +2279,7 @@ export default function WhatsAppChatDrawer({
           onSend={sendPendingFile}
           sending={attachmentSending}
         />
+        <MediaPreviewDialog media={mediaPreview} onClose={() => setMediaPreview(null)} />
       </Drawer>
     </>
   );

@@ -33,6 +33,7 @@ import JumpIcon from "@mui/icons-material/KeyboardDoubleArrowDown";
 import Popover from "@mui/material/Popover";
 import { Badge } from "@mui/material";
 import axios from "axios";
+import { isManagerRole } from "../utils/managerRoles";
 
 const API_BASE = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "");
 
@@ -188,7 +189,7 @@ const LeadList = ({
     return JSON.parse(sessionStorage.getItem("user"));
   }, []);
 
-  const isManager = loggedInUser?.role === "Manager";
+  const isManager = isManagerRole(loggedInUser?.role);
 
   const isWonLead = (customer) => customer?.leadStatus === "Sales Done";
 
