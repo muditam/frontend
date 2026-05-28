@@ -50,9 +50,9 @@ const SOCKET_URL = API_BASE;
 
 const NOTIF_SOUND_URL =
   "https://cdn.shopify.com/s/files/1/0734/7155/7942/files/new-notification-014-363678.mp3?v=1769002522";
+const CONVERSATION_REFRESH_COOLDOWN_MS = 4000;
 
 const ALLOWED_ROLES = new Set([
-  "manager",
   "sales agent",
   "retention agent",
   "team leader",
@@ -942,6 +942,10 @@ function ChatBubble({ m, blobUrlByMediaId }) {
 export default function WhatsAppInboxWidget({ onOpenChat }) {
   const location = useLocation();
   const isLoginRoute = useMemo(() => location?.pathname === "/login", [location?.pathname]);
+  const isOnlineOrdersRoute = useMemo(
+    () => location?.pathname === "/online-orders",
+    [location?.pathname]
+  );
 
   const fabRef = useRef(null);
   const callFabRef = useRef(null);
@@ -950,6 +954,8 @@ export default function WhatsAppInboxWidget({ onOpenChat }) {
   const messagesEndRef = useRef(null);
   const chatScrollRef = useRef(null);
   const refreshTimerRef = useRef(null);
+  const lastConversationFetchAtRef = useRef(0);
+  const conversationFetchInFlightRef = useRef(false);
   const [anchorEl, setAnchorEl] = useState(null);
   const open = Boolean(anchorEl);
 
@@ -1064,7 +1070,11 @@ export default function WhatsAppInboxWidget({ onOpenChat }) {
     () => !!myNameRaw && ALLOWED_ROLES.has(myRoleNorm),
     [myNameRaw, myRoleNorm]
   );
-  const shouldShowWidget = useMemo(() => !isLoginRoute && allowed, [isLoginRoute, allowed]);
+  const shouldShowWidget = useMemo(
+    () => !isLoginRoute && !isOnlineOrdersRoute && allowed,
+    [isLoginRoute, isOnlineOrdersRoute, allowed]
+  );
+  const isWidgetActive = useMemo(() => shouldShowWidget && open, [shouldShowWidget, open]);
 
   useEffect(() => {
     if (!shouldShowWidget) {
@@ -1097,8 +1107,25 @@ export default function WhatsAppInboxWidget({ onOpenChat }) {
     });
   }, [visibleConvos]);
 
-  const fetchConversations = useCallback(async ({ append = false, cursor = "" } = {}) => {
-    if (!shouldShowWidget) return;
+  const fetchConversations = useCallback(async ({ append = false, cursor = "", force = false } = {}) => {
+    if (!isWidgetActive) return;
+    const now = Date.now();
+    if (
+      !force &&
+      !append &&
+      conversationFetchInFlightRef.current
+    ) {
+      return;
+    }
+    if (
+      !force &&
+      !append &&
+      now - lastConversationFetchAtRef.current < CONVERSATION_REFRESH_COOLDOWN_MS
+    ) {
+      return;
+    }
+    conversationFetchInFlightRef.current = true;
+    lastConversationFetchAtRef.current = now;
     setLoading(true);
     try {
       const r = await axios.get(`${API_BASE}/api/whatsapp/conversations`, {
@@ -1143,22 +1170,23 @@ export default function WhatsAppInboxWidget({ onOpenChat }) {
         console.error("WhatsApp widget conversation fetch failed:", error);
       }
     } finally {
+      conversationFetchInFlightRef.current = false;
       setLoading(false);
     }
-  }, [shouldShowWidget, myNameRaw, myRole, myUserId, hasTeamEffective, myRoleNorm, debouncedSearchQuery]);
+  }, [isWidgetActive, myNameRaw, myRole, myUserId, hasTeamEffective, myRoleNorm, debouncedSearchQuery]);
 
-  const scheduleConversationRefresh = useCallback((delay = 400) => {
-    if (!shouldShowWidget) return;
+  const scheduleConversationRefresh = useCallback((delay = 400, options = {}) => {
+    if (!isWidgetActive) return;
     if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
     refreshTimerRef.current = setTimeout(() => {
       refreshTimerRef.current = null;
-      fetchConversations();
+      fetchConversations(options);
     }, delay);
-  }, [shouldShowWidget, fetchConversations]);
+  }, [isWidgetActive, fetchConversations]);
 
   const fetchMessages = useCallback(
     async (p10) => {
-      if (!shouldShowWidget || !p10) return;
+      if (!isWidgetActive || !p10) return;
       setChatLoading(true);
       try {
         const r = await axios.get(`${API_BASE}/api/whatsapp/messages`, {
@@ -1173,12 +1201,12 @@ export default function WhatsAppInboxWidget({ onOpenChat }) {
         setChatLoading(false);
       }
     },
-    [shouldShowWidget]
+    [isWidgetActive]
   );
 
   const markRead = useCallback(
     async (p10) => {
-      if (!shouldShowWidget || !p10) return;
+      if (!isWidgetActive || !p10) return;
       let clearedUnread = 0;
       setConvos((prev) =>
         prev.map((c) => {
@@ -1201,7 +1229,7 @@ export default function WhatsAppInboxWidget({ onOpenChat }) {
         );
       } catch {}
     },
-    [shouldShowWidget]
+    [isWidgetActive]
   );
 
   const scrollToBottom = useCallback((smooth = false) => {
@@ -1217,7 +1245,7 @@ export default function WhatsAppInboxWidget({ onOpenChat }) {
 
   // Audio blob prefetch
   useEffect(() => {
-    if (!shouldShowWidget) return;
+    if (!isWidgetActive || view !== "chat" || !active) return;
     let cancelled = false;
     async function prefetch() {
       for (const m of messages || []) {
@@ -1244,11 +1272,11 @@ export default function WhatsAppInboxWidget({ onOpenChat }) {
     }
     prefetch();
     return () => { cancelled = true; };
-  }, [shouldShowWidget, messages]); // eslint-disable-line
+  }, [isWidgetActive, view, active, messages]); // eslint-disable-line
 
   // Socket
   useEffect(() => {
-    if (!shouldShowWidget || socketRef.current) return;
+    if (!isWidgetActive || socketRef.current) return;
     socketRef.current = io(SOCKET_URL, {
       transports: ["websocket", "polling"],
       withCredentials: true,
@@ -1260,7 +1288,7 @@ export default function WhatsAppInboxWidget({ onOpenChat }) {
 
     socket.on("connect", () => {
       setSocketStatus("connected");
-      fetchConversations();
+      fetchConversations({ force: true });
     });
     socket.on("disconnect", () => {
       setSocketStatus("disconnected");
@@ -1335,8 +1363,8 @@ export default function WhatsAppInboxWidget({ onOpenChat }) {
           unread: Number(prev?.unread || 0) + 1,
         }));
       }
-      if (!found) {
-        scheduleConversationRefresh(250);
+      if (!found && view !== "chat") {
+        scheduleConversationRefresh(800);
       }
       if (phone10Active && p10 === phone10Active) {
         setMessages((prev) => upsertMessage(prev, msg));
@@ -1385,20 +1413,15 @@ export default function WhatsAppInboxWidget({ onOpenChat }) {
       try { socket.close(); } catch {}
       socketRef.current = null;
     };
-  }, [shouldShowWidget, phone10Active, scrollToBottom, prepareNotifAudio, playNotif, fetchConversations, scheduleConversationRefresh]);
+  }, [isWidgetActive, phone10Active, scrollToBottom, prepareNotifAudio, playNotif, fetchConversations, scheduleConversationRefresh, view]);
 
-  // Join rooms
+  // Join only the active chat room while the widget chat is open.
   useEffect(() => {
     const socket = socketRef.current;
-    if (!shouldShowWidget || !socket?.connected) return;
-    const desired = new Set((visibleConvos || []).map((c) => last10(c?.phone)).filter(Boolean));
-    for (const p10 of desired) {
-      const room = roomForPhone10(p10);
-      if (!joinedRoomsRef.current.has(room)) {
-        socket.emit("wa:join", { phone10: p10, userName: myNameRaw });
-        joinedRoomsRef.current.add(room);
-      }
-    }
+    if (!isWidgetActive || !socket?.connected) return;
+    const desired = new Set(
+      view === "chat" && phone10Active ? [phone10Active] : []
+    );
     for (const room of Array.from(joinedRoomsRef.current)) {
       const p10 = room.replace(/^wa:/, "");
       if (!desired.has(p10)) {
@@ -1406,17 +1429,24 @@ export default function WhatsAppInboxWidget({ onOpenChat }) {
         joinedRoomsRef.current.delete(room);
       }
     }
-  }, [shouldShowWidget, visibleConvos, myNameRaw]);
+    for (const p10 of desired) {
+      const room = roomForPhone10(p10);
+      if (!joinedRoomsRef.current.has(room)) {
+        socket.emit("wa:join", { phone10: p10, userName: myNameRaw });
+        joinedRoomsRef.current.add(room);
+      }
+    }
+  }, [isWidgetActive, view, phone10Active, myNameRaw]);
 
   useEffect(() => {
-    if (!shouldShowWidget) return;
-    fetchConversations();
-  }, [shouldShowWidget, fetchConversations]);
+    if (!isWidgetActive) return;
+    fetchConversations({ force: true });
+  }, [isWidgetActive, fetchConversations]);
 
   const loadMoreConversations = useCallback(() => {
-    if (!shouldShowWidget || loading || !hasMoreConvos || !conversationCursor) return;
+    if (!isWidgetActive || loading || !hasMoreConvos || !conversationCursor) return;
     fetchConversations({ append: true, cursor: conversationCursor });
-  }, [shouldShowWidget, loading, hasMoreConvos, conversationCursor, fetchConversations]);
+  }, [isWidgetActive, loading, hasMoreConvos, conversationCursor, fetchConversations]);
 
   const handleOpen = () => { prepareNotifAudio(); setAnchorEl(fabRef.current); };
   const handleClose = () => {

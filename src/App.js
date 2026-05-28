@@ -125,11 +125,12 @@ function AppLayout() {
   const location = useLocation();
   const isDietPublicRoute = location.pathname === "/diet-onboarding" || location.pathname === "/smart-diet-plan"
   const isWhatsAppChatRoute = location.pathname === "/whatsaap/chat";
+  const isOnlineOrdersRoute = location.pathname === "/online-orders";
 
   return (
     <div>
       {!isDietPublicRoute && <NavbarWithSearch />}
-      {!isDietPublicRoute && !isWhatsAppChatRoute && <WhatsAppNotification />}
+      {!isDietPublicRoute && !isWhatsAppChatRoute && !isOnlineOrdersRoute && <WhatsAppNotification />}
 
         <Routes>
           <Route path="/shipment-details" element={ <ShipmentDetails />} />
