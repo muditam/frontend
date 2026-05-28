@@ -849,7 +849,13 @@ export default function WhatsAppUI() {
   );
 
   const sessionInfo = useMemo(() => {
-    const exp = activeConversation?.windowExpiresAt ? new Date(activeConversation.windowExpiresAt).getTime() : 0;
+    const inboundExpiry = activeConversation?.lastInboundAt
+      ? new Date(activeConversation.lastInboundAt).getTime() + 24 * 60 * 60 * 1000
+      : 0;
+    const storedExpiry = activeConversation?.windowExpiresAt
+      ? new Date(activeConversation.windowExpiresAt).getTime()
+      : 0;
+    const exp = inboundExpiry || storedExpiry;
     if (!exp) return { has: false, expired: false, msLeft: 0, label: "—" };
     const msLeft = exp - nowTick;
     const expired = msLeft <= 0;
@@ -858,7 +864,7 @@ export default function WhatsAppUI() {
     const mm = String(Math.floor((s % 3600) / 60)).padStart(2, "0");
     const ss = String(s % 60).padStart(2, "0");
     return { has: true, expired, msLeft, label: expired ? "Chat window expired" : `${hh}:${mm}:${ss}` };
-  }, [activeConversation?.windowExpiresAt, nowTick]);
+  }, [activeConversation?.lastInboundAt, activeConversation?.windowExpiresAt, nowTick]);
 
   useEffect(() => { if (!activeChat?.phone || !sessionInfo.has) return; setSessionExpired(sessionInfo.expired); }, [activeChat?.phone, sessionInfo.has, sessionInfo.expired]);
 

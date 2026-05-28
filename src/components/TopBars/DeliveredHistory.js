@@ -14,6 +14,14 @@ import {
 } from "@mui/material";
 import axios from "axios";
 
+const isTechHelperDepartment = (employee = {}) =>
+  (employee?.department || "").toLowerCase().trim() === "tech helper";
+
+const sortByFullName = (left = {}, right = {}) =>
+  (left?.fullName || "").localeCompare(right?.fullName || "", undefined, {
+    sensitivity: "base",
+  });
+
 const DeliveredHistory = () => {
   const [agents, setAgents] = useState([]);
   const [monthKeys, setMonthKeys] = useState([]);
@@ -34,7 +42,9 @@ const DeliveredHistory = () => {
       },
     });
 
-    const filteredAgents = res.data || [];
+    const filteredAgents = (res.data || [])
+      .filter((emp) => !isTechHelperDepartment(emp))
+      .sort(sortByFullName);
     setAgents(filteredAgents);
 
     const start = new Date("2024-03-01");

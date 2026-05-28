@@ -15,6 +15,14 @@ import {
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
 
+const isTechHelperDepartment = (employee = {}) =>
+  (employee?.department || "").toLowerCase().trim() === "tech helper";
+
+const sortByFullName = (left = {}, right = {}) =>
+  (left?.fullName || "").localeCompare(right?.fullName || "", undefined, {
+    sensitivity: "base",
+  });
+
 const DeliveredSalesRecord = () => {
   const [employees, setEmployees] = useState([]);
   const navigate = useNavigate();
@@ -33,7 +41,9 @@ const DeliveredSalesRecord = () => {
           },
         });
 
-        const activeEmployees = (res.data || []).filter((emp) => emp.status === "active");
+        const activeEmployees = (res.data || []).filter(
+          (emp) => emp.status === "active" && !isTechHelperDepartment(emp)
+        );
 
         let filtered = [];
         if (userRole === "sales agent" || userRole === "retention agent") {
@@ -47,7 +57,7 @@ const DeliveredSalesRecord = () => {
           );
         }
 
-        setEmployees(filtered);
+        setEmployees([...filtered].sort(sortByFullName));
       } catch (err) {
         console.error("Failed to fetch delivered history:", err);
         setEmployees([]);
