@@ -218,27 +218,6 @@ function acceptForHeaderFormat(fmt) {
   if (f === "DOCUMENT") return ".pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,application/pdf";
   return "*/*";
 }
-function extractTemplateButtons(source) {
-  const directButtons = Array.isArray(source?.templateMeta?.buttons) ? source.templateMeta.buttons : [];
-  if (directButtons.length) return directButtons;
-  const components = templateComponents(source);
-  const buttonComponent = components.find((c) => String(c?.type || "").toUpperCase() === "BUTTONS");
-  const rawButtons = Array.isArray(buttonComponent?.buttons)
-    ? buttonComponent.buttons
-    : Array.isArray(buttonComponent?.componentData?.buttons)
-      ? buttonComponent.componentData.buttons
-      : Array.isArray(buttonComponent?.data?.buttons)
-        ? buttonComponent.data.buttons
-        : [];
-  return rawButtons
-    .map((button) => ({
-      type: String(button?.type || "").trim().toUpperCase(),
-      text: String(button?.text || button?.title || "").trim(),
-      url: String(button?.url || "").trim(),
-      phoneNumber: String(button?.phone_number || button?.phoneNumber || button?.phone || "").trim(),
-    }))
-    .filter((button) => button.type || button.text || button.url || button.phoneNumber);
-}
 
 function msgKey(m) {
   return m?.waId || m?._id || m?.id ||
@@ -490,7 +469,6 @@ function MessageMedia({ msg, isNearBottomRef, bottomRef, onPreview }) {
 function TemplateBubble({ msg, onPreview }) {
   const text = msg?.text || "";
   const tplName = msg?.templateMeta?.name || "";
-  const buttons = extractTemplateButtons(msg);
   const hasMedia = !!String(msg?.media?.id || "").trim() || !!String(msg?.media?.url || "").trim() ||
     !!String(msg?.templateMeta?.headerMedia?.id || "").trim() || !!String(msg?.templateMeta?.headerMedia?.url || "").trim();
   return (
@@ -498,31 +476,6 @@ function TemplateBubble({ msg, onPreview }) {
       {hasMedia && <MessageMedia msg={msg} isNearBottomRef={{ current: true }} bottomRef={{ current: null }} onPreview={onPreview} />}
       {!!text && <Typography fontSize={14} whiteSpace="pre-wrap" sx={{ mt: hasMedia ? 0.75 : 0, lineHeight: 1.5 }}>{text}</Typography>}
       {!text && !hasMedia && <Typography fontSize={13} color="text.secondary" fontStyle="italic">[Template: {tplName || "unknown"}]</Typography>}
-      {!!buttons.length && (
-        <Box sx={{ mt: 1, display: "grid", gap: 0.75 }}>
-          {buttons.map((button, index) => (
-            <Box
-              key={`${button.type || "BTN"}_${button.text || button.url || button.phoneNumber || index}`}
-              sx={{
-                px: 1.25,
-                py: 0.9,
-                borderRadius: 2,
-                border: "1px solid rgba(18, 140, 126, 0.22)",
-                bgcolor: "rgba(18, 140, 126, 0.06)",
-              }}
-            >
-              <Typography sx={{ fontSize: 13, fontWeight: 600, color: "#128C7E", lineHeight: 1.3 }}>
-                {button.text || button.url || button.phoneNumber || "Button"}
-              </Typography>
-              {!!(button.url || button.phoneNumber) && (
-                <Typography sx={{ mt: 0.2, fontSize: 11.5, color: LIGHT.subtext, wordBreak: "break-all" }}>
-                  {button.url || button.phoneNumber}
-                </Typography>
-              )}
-            </Box>
-          ))}
-        </Box>
-      )}
       <Box sx={{ mt: 0.75 }}>
         <Chip size="small" label={tplName ? `⚡ ${tplName}` : "⚡ Template"}
           sx={{ fontSize: 10, height: 18, bgcolor: "rgba(37,211,102,0.12)", color: "#128C7E", fontWeight: 600, border: "1px solid rgba(37,211,102,0.25)" }} />
@@ -1792,7 +1745,7 @@ export default function WhatsAppUI() {
       } catch (e) { showToast(e.message || "Failed to upload.", "error"); setTplSending(false); return; }
     } else { setTplSending(true); }
 
-    const optimistic = { _id: buildTempId("tmp_tpl"), direction: "OUTBOUND", type: "template", text: tplSendPreview || `[TEMPLATE] ${activeTplForSend.name}`, timestamp: new Date().toISOString(), status: "sent", to, phone: to, ...(optimisticMedia ? { media: optimisticMedia } : {}), templateMeta: { name: activeTplForSend.name, templateId: activeTplForSend.template_id || activeTplForSend.templateId || activeTplForSend.providerTemplateId || "", language: activeTplForSend.language || "", parameters: params, buttons: extractTemplateButtons(activeTplForSend), ...(headerMedia ? { headerMedia } : {}) } };
+    const optimistic = { _id: buildTempId("tmp_tpl"), direction: "OUTBOUND", type: "template", text: tplSendPreview || `[TEMPLATE] ${activeTplForSend.name}`, timestamp: new Date().toISOString(), status: "sent", to, phone: to, ...(optimisticMedia ? { media: optimisticMedia } : {}), templateMeta: { name: activeTplForSend.name, templateId: activeTplForSend.template_id || activeTplForSend.templateId || activeTplForSend.providerTemplateId || "", language: activeTplForSend.language || "", parameters: params, ...(headerMedia ? { headerMedia } : {}) } };
     setMessages((prev) => [...prev, optimistic]);
     updateConversationPreviewLocal(to, optimistic.text);
     try {
@@ -1965,7 +1918,6 @@ export default function WhatsAppUI() {
           "",
         language: selectedTemplate.language || "",
         parameters: params,
-        buttons: extractTemplateButtons(selectedTemplate),
       },
     };
 
