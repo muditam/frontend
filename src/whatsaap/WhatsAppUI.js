@@ -262,8 +262,14 @@ function extractTemplateButtons(tpl) {
   });
 
   const jsonStruct = parseTemplateJsonStruct(tpl);
-  if (Array.isArray(jsonStruct?.buttons) && jsonStruct.buttons.length) {
-    buttonItems.push(...jsonStruct.buttons);
+  const jsonButtons = Array.isArray(jsonStruct?.buttons)
+    ? jsonStruct.buttons
+    : Array.isArray(jsonStruct?.buttons?.buttons)
+    ? jsonStruct.buttons.buttons
+    : [];
+
+  if (jsonButtons.length) {
+    buttonItems.push(...jsonButtons);
   }
 
   return buttonItems
