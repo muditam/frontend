@@ -911,6 +911,10 @@ export default function WhatsAppUI() {
   const canFilterByAgent = useMemo(
     () =>
       sessionRoleNorm === "manager" ||
+      sessionRoleNorm === "super admin" ||
+      sessionRoleNorm === "super-admin" ||
+      sessionRoleNorm === "admin" ||
+      sessionRoleNorm === "developer" ||
       sessionRoleNorm === "team leader" ||
       sessionRoleNorm === "team-leader" ||
       isAssistantTeamLeadEffective,
@@ -1155,7 +1159,9 @@ export default function WhatsAppUI() {
         chatScope:
           normalizedRole === "team leader" || normalizedRole === "team-leader"
             ? "team"
-            : effectiveHasTeam && normalizedRole === "assistant team lead"
+            : effectiveHasTeam &&
+              (normalizedRole === "assistant team lead" ||
+                normalizedRole === "retention agent")
               ? "combined"
               : "self",
         tab: chatTab,

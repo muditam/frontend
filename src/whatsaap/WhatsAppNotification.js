@@ -1078,7 +1078,9 @@ export default function WhatsAppInboxWidget({ onOpenChat }) {
           chatScope:
             myRoleNorm === "team leader" || myRoleNorm === "team-leader"
               ? "team"
-              : hasTeamEffective && myRoleNorm === "assistant team lead"
+              : hasTeamEffective &&
+                (myRoleNorm === "assistant team lead" ||
+                  myRoleNorm === "retention agent")
               ? "combined"
               : "self",
         },
