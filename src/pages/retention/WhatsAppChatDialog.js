@@ -184,6 +184,49 @@ function getHeaderMediaFormatFromTemplate(tpl) {
   return "";
 }
 
+function extractTemplateButtons(tpl) {
+  const directButtons = Array.isArray(tpl?.templateMeta?.buttons)
+    ? tpl.templateMeta.buttons
+    : Array.isArray(tpl?.buttons)
+    ? tpl.buttons
+    : null;
+
+  if (directButtons?.length) {
+    return directButtons
+      .map((button) => ({
+        type: String(button?.type || "").trim().toUpperCase(),
+        text: String(button?.text || button?.title || button?.label || "").trim(),
+        url: String(button?.url || button?.href || "").trim(),
+        phoneNumber: String(button?.phoneNumber || button?.phone_number || "").trim(),
+        payload: String(button?.payload || button?.id || "").trim(),
+      }))
+      .filter((button) => button.type || button.text || button.url || button.phoneNumber || button.payload);
+  }
+
+  const comps = Array.isArray(tpl?.components) ? tpl.components : [];
+  const buttonItems = [];
+
+  comps.forEach((component) => {
+    const type = String(component?.type || "").trim().toUpperCase();
+    if (type !== "BUTTONS" && type !== "BUTTON") return;
+    if (Array.isArray(component?.buttons) && component.buttons.length) {
+      buttonItems.push(...component.buttons);
+      return;
+    }
+    buttonItems.push(component);
+  });
+
+  return buttonItems
+    .map((button) => ({
+      type: String(button?.type || button?.sub_type || button?.buttonType || "").trim().toUpperCase(),
+      text: String(button?.text || button?.title || button?.label || "").trim(),
+      url: String(button?.url || button?.href || "").trim(),
+      phoneNumber: String(button?.phoneNumber || button?.phone_number || button?.phone || button?.value || "").trim(),
+      payload: String(button?.payload || button?.id || button?.value || "").trim(),
+    }))
+    .filter((button) => button.type || button.text || button.url || button.phoneNumber || button.payload);
+}
+
 function normalizeStatus(s) {
   const v = String(s || "").toLowerCase().trim();
   if (["read", "seen"].includes(v)) return "read";
@@ -1285,6 +1328,51 @@ export default function WhatsAppChatDrawer({
     );
   };
 
+  const renderTemplateButtons = (m) => {
+    const buttons = extractTemplateButtons(m);
+    if (!buttons.length) return null;
+
+    return (
+      <Stack spacing={0.75} sx={{ mt: 1 }}>
+        {buttons.map((button, index) => {
+          const type = String(button?.type || "").toUpperCase();
+          const label =
+            button?.text ||
+            (type === "URL"
+              ? button?.url
+              : type === "PHONE_NUMBER"
+              ? button?.phoneNumber
+              : button?.payload) ||
+            `Button ${index + 1}`;
+
+          return (
+            <Button
+              key={`${type || "button"}_${index}_${label}`}
+              size="small"
+              variant="outlined"
+              disabled
+              fullWidth
+              sx={{
+                justifyContent: "flex-start",
+                textTransform: "none",
+                borderRadius: 2,
+                color: UI.brandDark,
+                borderColor: "rgba(18,140,126,0.25)",
+                bgcolor: "rgba(37,211,102,0.06)",
+                "&.Mui-disabled": {
+                  color: UI.brandDark,
+                  borderColor: "rgba(18,140,126,0.2)",
+                },
+              }}
+            >
+              {label}
+            </Button>
+          );
+        })}
+      </Stack>
+    );
+  };
+
   const helpMeWrite = async () => {
     if (!phone10) return;
     if (privateMode) {
@@ -1381,6 +1469,7 @@ export default function WhatsAppChatDrawer({
 
   const sendTemplate = async (tpl, vars = [], renderedPreview = "", header = null) => {
     const optimisticId = buildTempId("tmp_tpl");
+    const templateButtons = extractTemplateButtons(tpl);
     const optimisticMessage = {
       _id: optimisticId,
       direction: "OUTBOUND",
@@ -1403,6 +1492,7 @@ export default function WhatsAppChatDrawer({
         name: tpl?.name || "",
         language: tpl?.language || "",
         parameters: (vars || []).map((x) => String(x ?? "")),
+        buttons: templateButtons,
         ...(header
           ? {
               headerMedia: {
@@ -1709,6 +1799,7 @@ export default function WhatsAppChatDrawer({
                           )}
 
                           {renderMedia(m)}
+                          {String(m?.type || "").toLowerCase() === "template" && renderTemplateButtons(m)}
 
                           <Box
                             sx={{
@@ -2192,6 +2283,8 @@ export default function WhatsAppChatDrawer({
               >
                 {templatePreview || "—"}
               </Paper>
+
+              {activeTemplate ? renderTemplateButtons(activeTemplate) : null}
             </Box>
 
             <Box sx={{ mt: 2 }}>

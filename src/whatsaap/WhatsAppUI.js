@@ -211,6 +211,46 @@ function getHeaderMediaFormat(tpl) {
   const format = String(header?.format || "").toUpperCase();
   return ["IMAGE", "VIDEO", "DOCUMENT"].includes(format) ? format : "";
 }
+function extractTemplateButtons(tpl) {
+  const directButtons = Array.isArray(tpl?.templateMeta?.buttons)
+    ? tpl.templateMeta.buttons
+    : Array.isArray(tpl?.buttons)
+    ? tpl.buttons
+    : null;
+
+  if (directButtons?.length) {
+    return directButtons
+      .map((button) => ({
+        type: String(button?.type || "").trim().toUpperCase(),
+        text: String(button?.text || button?.title || button?.label || "").trim(),
+        url: String(button?.url || button?.href || "").trim(),
+        phoneNumber: String(button?.phoneNumber || button?.phone_number || "").trim(),
+        payload: String(button?.payload || button?.id || "").trim(),
+      }))
+      .filter((button) => button.type || button.text || button.url || button.phoneNumber || button.payload);
+  }
+
+  const buttonItems = [];
+  templateComponents(tpl).forEach((component) => {
+    const type = String(component?.type || "").trim().toUpperCase();
+    if (type !== "BUTTONS" && type !== "BUTTON") return;
+    if (Array.isArray(component?.buttons) && component.buttons.length) {
+      buttonItems.push(...component.buttons);
+      return;
+    }
+    buttonItems.push(component);
+  });
+
+  return buttonItems
+    .map((button) => ({
+      type: String(button?.type || button?.sub_type || button?.buttonType || "").trim().toUpperCase(),
+      text: String(button?.text || button?.title || button?.label || "").trim(),
+      url: String(button?.url || button?.href || "").trim(),
+      phoneNumber: String(button?.phoneNumber || button?.phone_number || button?.phone || button?.value || "").trim(),
+      payload: String(button?.payload || button?.id || button?.value || "").trim(),
+    }))
+    .filter((button) => button.type || button.text || button.url || button.phoneNumber || button.payload);
+}
 function acceptForHeaderFormat(fmt) {
   const f = String(fmt || "").toUpperCase();
   if (f === "IMAGE") return "image/*";
@@ -370,15 +410,25 @@ function mergeServerMessageWithOptimistic(serverMsg, tempMsg) {
   const serverHasMediaUrl = Boolean(resolveBestMediaUrl(serverMsg));
   const tempHasMediaUrl = Boolean(resolveBestMediaUrl(tempMsg));
   const isTemplate = String(serverMsg?.type || "").toLowerCase() === "template";
-  if (!isTemplate || serverHasMediaUrl || !tempHasMediaUrl) return serverMsg;
+  if (!isTemplate) return serverMsg;
   const mergedHeaderMedia = { ...(tempMsg?.templateMeta?.headerMedia || {}), ...(serverMsg?.templateMeta?.headerMedia || {}) };
-  if (!mergedHeaderMedia.url && tempMsg?.media?.url) mergedHeaderMedia.url = tempMsg.media.url;
+  if ((!serverHasMediaUrl || !mergedHeaderMedia.url) && tempHasMediaUrl && tempMsg?.media?.url) mergedHeaderMedia.url = tempMsg.media.url;
   if (!mergedHeaderMedia.mime && tempMsg?.media?.mime) mergedHeaderMedia.mime = tempMsg.media.mime;
   if (!mergedHeaderMedia.filename && tempMsg?.media?.filename) mergedHeaderMedia.filename = tempMsg.media.filename;
+  const mergedButtons = Array.isArray(serverMsg?.templateMeta?.buttons) && serverMsg.templateMeta.buttons.length
+    ? serverMsg.templateMeta.buttons
+    : Array.isArray(tempMsg?.templateMeta?.buttons)
+    ? tempMsg.templateMeta.buttons
+    : [];
   return {
     ...serverMsg,
     media: serverMsg?.media?.url ? serverMsg.media : tempMsg.media,
-    templateMeta: { ...(tempMsg?.templateMeta || {}), ...(serverMsg?.templateMeta || {}), headerMedia: Object.keys(mergedHeaderMedia).length ? mergedHeaderMedia : undefined },
+    templateMeta: {
+      ...(tempMsg?.templateMeta || {}),
+      ...(serverMsg?.templateMeta || {}),
+      ...(mergedButtons.length ? { buttons: mergedButtons } : {}),
+      headerMedia: Object.keys(mergedHeaderMedia).length ? mergedHeaderMedia : undefined,
+    },
   };
 }
 
@@ -469,6 +519,7 @@ function MessageMedia({ msg, isNearBottomRef, bottomRef, onPreview }) {
 function TemplateBubble({ msg, onPreview }) {
   const text = msg?.text || "";
   const tplName = msg?.templateMeta?.name || "";
+  const buttons = extractTemplateButtons(msg);
   const hasMedia = !!String(msg?.media?.id || "").trim() || !!String(msg?.media?.url || "").trim() ||
     !!String(msg?.templateMeta?.headerMedia?.id || "").trim() || !!String(msg?.templateMeta?.headerMedia?.url || "").trim();
   return (
@@ -476,6 +527,45 @@ function TemplateBubble({ msg, onPreview }) {
       {hasMedia && <MessageMedia msg={msg} isNearBottomRef={{ current: true }} bottomRef={{ current: null }} onPreview={onPreview} />}
       {!!text && <Typography fontSize={14} whiteSpace="pre-wrap" sx={{ mt: hasMedia ? 0.75 : 0, lineHeight: 1.5 }}>{text}</Typography>}
       {!text && !hasMedia && <Typography fontSize={13} color="text.secondary" fontStyle="italic">[Template: {tplName || "unknown"}]</Typography>}
+      {!!buttons.length && (
+        <Stack spacing={0.75} sx={{ mt: 1 }}>
+          {buttons.map((button, index) => {
+            const type = String(button?.type || "").toUpperCase();
+            const label =
+              button?.text ||
+              (type === "URL"
+                ? button?.url
+                : type === "PHONE_NUMBER"
+                ? button?.phoneNumber
+                : button?.payload) ||
+              `Button ${index + 1}`;
+
+            return (
+              <Button
+                key={`${type || "button"}_${index}_${label}`}
+                size="small"
+                variant="outlined"
+                disabled
+                fullWidth
+                sx={{
+                  justifyContent: "flex-start",
+                  textTransform: "none",
+                  borderRadius: 2,
+                  color: "#128C7E",
+                  borderColor: "rgba(18,140,126,0.22)",
+                  bgcolor: "rgba(37,211,102,0.06)",
+                  "&.Mui-disabled": {
+                    color: "#128C7E",
+                    borderColor: "rgba(18,140,126,0.18)",
+                  },
+                }}
+              >
+                {label}
+              </Button>
+            );
+          })}
+        </Stack>
+      )}
       <Box sx={{ mt: 0.75 }}>
         <Chip size="small" label={tplName ? `⚡ ${tplName}` : "⚡ Template"}
           sx={{ fontSize: 10, height: 18, bgcolor: "rgba(37,211,102,0.12)", color: "#128C7E", fontWeight: 600, border: "1px solid rgba(37,211,102,0.25)" }} />
@@ -849,8 +939,15 @@ export default function WhatsAppUI() {
   );
 
   const sessionInfo = useMemo(() => {
-    const inboundExpiry = activeConversation?.lastInboundAt
-      ? new Date(activeConversation.lastInboundAt).getTime() + 24 * 60 * 60 * 1000
+    const latestInboundMessage = [...messages].reverse().find(
+      (m) => String(m?.direction || "").toUpperCase() === "INBOUND"
+    );
+    const inboundSource = latestInboundMessage?.timestamp ||
+      latestInboundMessage?.createdAt ||
+      activeConversation?.lastInboundAt ||
+      "";
+    const inboundExpiry = inboundSource
+      ? new Date(inboundSource).getTime() + 24 * 60 * 60 * 1000
       : 0;
     const storedExpiry = activeConversation?.windowExpiresAt
       ? new Date(activeConversation.windowExpiresAt).getTime()
@@ -864,7 +961,7 @@ export default function WhatsAppUI() {
     const mm = String(Math.floor((s % 3600) / 60)).padStart(2, "0");
     const ss = String(s % 60).padStart(2, "0");
     return { has: true, expired, msLeft, label: expired ? "Chat window expired" : `${hh}:${mm}:${ss}` };
-  }, [activeConversation?.lastInboundAt, activeConversation?.windowExpiresAt, nowTick]);
+  }, [activeConversation?.lastInboundAt, activeConversation?.windowExpiresAt, messages, nowTick]);
 
   useEffect(() => { if (!activeChat?.phone || !sessionInfo.has) return; setSessionExpired(sessionInfo.expired); }, [activeChat?.phone, sessionInfo.has, sessionInfo.expired]);
 
@@ -952,6 +1049,9 @@ export default function WhatsAppUI() {
     const isInbound = String(msg?.direction || "").toUpperCase() === "INBOUND";
     const isActive = activeP10Ref.current && p10 === activeP10Ref.current;
     const nowIso = msg?.timestamp || new Date().toISOString();
+    const inboundExpiryIso = isInbound
+      ? new Date(new Date(nowIso).getTime() + 24 * 60 * 60 * 1000).toISOString()
+      : "";
     const url = resolveBestMediaUrl(msg);
     const mime = mediaMimeFromMsg(msg);
     const kind = detectMediaKind({ url, mime, fallbackType: msg?.type });
@@ -962,12 +1062,29 @@ export default function WhatsAppUI() {
       const pending = pendingReadRef.current.get(p10);
       const forceRead = pending && Date.now() - pending.at < 30000;
       if (idx === -1) {
-        return [{ phone: customerPhone, displayName: "", assignedToLabel: "", lastMessageAt: nowIso, lastMessageText: lastText, unreadCount: isInbound && !isActive && !forceRead ? 1 : 0, lastReadAt: isActive || forceRead ? (pending?.iso || nowIso) : null }, ...prev];
+        return [{
+          phone: customerPhone,
+          displayName: "",
+          assignedToLabel: "",
+          lastMessageAt: nowIso,
+          lastMessageText: lastText,
+          unreadCount: isInbound && !isActive && !forceRead ? 1 : 0,
+          lastReadAt: isActive || forceRead ? (pending?.iso || nowIso) : null,
+          ...(isInbound ? { lastInboundAt: nowIso, windowExpiresAt: inboundExpiryIso } : {}),
+        }, ...prev];
       }
       const next = [...prev];
       const existing = next[idx];
       const newUnread = forceRead ? 0 : isInbound ? isActive ? 0 : Number(existing?.unreadCount || 0) + 1 : Number(existing?.unreadCount || 0);
-      next[idx] = { ...existing, phone: existing?.phone || customerPhone, lastMessageAt: nowIso, lastMessageText: lastText || existing?.lastMessageText || "", unreadCount: newUnread, lastReadAt: isActive || forceRead ? (pending?.iso || nowIso) : existing?.lastReadAt };
+      next[idx] = {
+        ...existing,
+        phone: existing?.phone || customerPhone,
+        lastMessageAt: nowIso,
+        lastMessageText: lastText || existing?.lastMessageText || "",
+        unreadCount: newUnread,
+        lastReadAt: isActive || forceRead ? (pending?.iso || nowIso) : existing?.lastReadAt,
+        ...(isInbound ? { lastInboundAt: nowIso, windowExpiresAt: inboundExpiryIso } : {}),
+      };
       const [item] = next.splice(idx, 1);
       return [item, ...next];
     });
@@ -1190,6 +1307,21 @@ export default function WhatsAppUI() {
     try {
       const serverMessages = await fetchMessagesPage(q, { limit: MESSAGE_PAGE_SIZE });
       setMessages(serverMessages);
+      const lastInbound = [...serverMessages].reverse().find(
+        (m) => String(m?.direction || "").toUpperCase() === "INBOUND"
+      );
+      const lastInboundIso = lastInbound?.timestamp || lastInbound?.createdAt || "";
+      if (lastInboundIso) {
+        const inboundExpiryIso = new Date(
+          new Date(lastInboundIso).getTime() + 24 * 60 * 60 * 1000
+        ).toISOString();
+        const p10 = phone10(q);
+        setConversations((prev) => prev.map((c) => (
+          phone10(c?.phone) === p10
+            ? { ...c, lastInboundAt: lastInboundIso, windowExpiresAt: inboundExpiryIso }
+            : c
+        )));
+      }
       const oldest = serverMessages[0]?.timestamp || serverMessages[0]?.createdAt || "";
       setOldestCursor(oldest ? String(oldest) : "");
       setHasMoreOlder(serverMessages.length >= MESSAGE_PAGE_SIZE);
@@ -1751,7 +1883,7 @@ export default function WhatsAppUI() {
       } catch (e) { showToast(e.message || "Failed to upload.", "error"); setTplSending(false); return; }
     } else { setTplSending(true); }
 
-    const optimistic = { _id: buildTempId("tmp_tpl"), direction: "OUTBOUND", type: "template", text: tplSendPreview || `[TEMPLATE] ${activeTplForSend.name}`, timestamp: new Date().toISOString(), status: "sent", to, phone: to, ...(optimisticMedia ? { media: optimisticMedia } : {}), templateMeta: { name: activeTplForSend.name, templateId: activeTplForSend.template_id || activeTplForSend.templateId || activeTplForSend.providerTemplateId || "", language: activeTplForSend.language || "", parameters: params, ...(headerMedia ? { headerMedia } : {}) } };
+    const optimistic = { _id: buildTempId("tmp_tpl"), direction: "OUTBOUND", type: "template", text: tplSendPreview || `[TEMPLATE] ${activeTplForSend.name}`, timestamp: new Date().toISOString(), status: "sent", to, phone: to, ...(optimisticMedia ? { media: optimisticMedia } : {}), templateMeta: { name: activeTplForSend.name, templateId: activeTplForSend.template_id || activeTplForSend.templateId || activeTplForSend.providerTemplateId || "", language: activeTplForSend.language || "", parameters: params, buttons: extractTemplateButtons(activeTplForSend), ...(headerMedia ? { headerMedia } : {}) } };
     setMessages((prev) => [...prev, optimistic]);
     updateConversationPreviewLocal(to, optimistic.text);
     try {
@@ -1924,6 +2056,7 @@ export default function WhatsAppUI() {
           "",
         language: selectedTemplate.language || "",
         parameters: params,
+        buttons: extractTemplateButtons(selectedTemplate),
       },
     };
 
