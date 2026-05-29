@@ -211,6 +211,26 @@ function getHeaderMediaFormat(tpl) {
   const format = String(header?.format || "").toUpperCase();
   return ["IMAGE", "VIDEO", "DOCUMENT"].includes(format) ? format : "";
 }
+function parseTemplateJsonStruct(tpl) {
+  const candidates = [
+    tpl?.jsonstruct,
+    tpl?.template?.jsonstruct,
+    tpl?.data?.jsonstruct,
+    tpl?.raw360?.jsonstruct,
+    tpl?.raw360?.template?.jsonstruct,
+  ];
+
+  for (const candidate of candidates) {
+    if (!candidate) continue;
+    if (typeof candidate === "object") return candidate;
+    if (typeof candidate !== "string") continue;
+    try {
+      return JSON.parse(candidate);
+    } catch {}
+  }
+
+  return null;
+}
 function extractTemplateButtons(tpl) {
   const directButtons = Array.isArray(tpl?.templateMeta?.buttons)
     ? tpl.templateMeta.buttons
@@ -240,6 +260,11 @@ function extractTemplateButtons(tpl) {
     }
     buttonItems.push(component);
   });
+
+  const jsonStruct = parseTemplateJsonStruct(tpl);
+  if (Array.isArray(jsonStruct?.buttons) && jsonStruct.buttons.length) {
+    buttonItems.push(...jsonStruct.buttons);
+  }
 
   return buttonItems
     .map((button) => ({
