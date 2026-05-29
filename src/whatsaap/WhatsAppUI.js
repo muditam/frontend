@@ -2508,6 +2508,7 @@ export default function WhatsAppUI() {
                 <Box>
                   <Typography sx={{ fontWeight: 600, fontSize: 15, color: LIGHT.text, lineHeight: 1.2 }}>
                     {activeHeaderTitle}
+                    {activeP10 ? ` (${activeP10})` : ""}
                   </Typography>
                   <Stack direction="row" spacing={1} alignItems="center">
                     {activeConversation?.assignedToLabel && (
