@@ -83,21 +83,9 @@ function ProgressBar({ value, max, color }) {
 }
 
 
-function isConsumedFood(food) {
- if (!food || typeof food !== 'object') return false;
- if (food.isConsumed === true || food.consumed === true || food.taken === true || food.completed === true) return true;
- const status = String(food.status || '').toLowerCase();
- return ['consumed', 'eaten', 'taken', 'completed', 'logged'].includes(status);
-}
-
-
 function sumDayFromFoods(daySlots = []) {
  const foods = (daySlots || []).flatMap(slot => slot?.foods || []);
- const consumedFoods = foods.filter(isConsumedFood);
- const pool = consumedFoods;
-
-
- return pool.reduce((acc, food) => {
+ return foods.reduce((acc, food) => {
    acc.calories += Number(food?.calories || 0);
    acc.protein += Number(food?.protein || 0);
    acc.carbs += Number(food?.carbs || 0);

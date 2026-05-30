@@ -45,6 +45,7 @@ const initialForm = {
   pincode: "",
   isCredit: "true",
   centerDiscount: "",
+  centerDiscountType: "amount",
   referenceData: "",
   orderId: "",
 };
@@ -87,6 +88,11 @@ function formatCurrency(value) {
   const amount = Number(value);
   if (!Number.isFinite(amount)) return "";
   return `Rs ${amount.toFixed(Number.isInteger(amount) ? 0 : 2)}`;
+}
+
+function toMoneyNumber(value) {
+  const amount = Number(value);
+  return Number.isFinite(amount) ? amount : 0;
 }
 
 function SectionTitle({ step, title, subtitle }) {
@@ -263,6 +269,42 @@ export default function RedcliffeBookingPage() {
     const selectedSet = new Set(toArray(form.packageCodes).map((code) => String(code).trim()));
     return availablePackages.filter((item) => selectedSet.has(String(item.code || "").trim()));
   }, [availablePackages, form.packageCodes]);
+
+  const packagePriceByCode = useMemo(() => {
+    const map = new Map();
+    availablePackages.forEach((pkg) => {
+      const code = String(pkg.code || "").trim();
+      if (code) map.set(code, toMoneyNumber(pkg.price));
+    });
+    return map;
+  }, [availablePackages]);
+
+  const selectedPackageSubtotal = useMemo(() => {
+    const primaryTotal = toArray(form.packageCodes).reduce(
+      (total, code) => total + (packagePriceByCode.get(String(code).trim()) || 0),
+      0
+    );
+    const memberTotal = additionalMembers.reduce((total, member) => {
+      return (
+        total +
+        toArray(member.packageCodes).reduce(
+          (sum, code) => sum + (packagePriceByCode.get(String(code).trim()) || 0),
+          0
+        )
+      );
+    }, 0);
+    return primaryTotal + memberTotal;
+  }, [additionalMembers, form.packageCodes, packagePriceByCode]);
+
+  const centerDiscountAmount = useMemo(() => {
+    const rawDiscount = Math.max(0, toMoneyNumber(form.centerDiscount));
+    if (!rawDiscount || form.isCredit === "true") return 0;
+    if (form.centerDiscountType === "percentage") {
+      const percentage = Math.min(100, rawDiscount);
+      return Number(((selectedPackageSubtotal * percentage) / 100).toFixed(2));
+    }
+    return Number(Math.min(rawDiscount, selectedPackageSubtotal || rawDiscount).toFixed(2));
+  }, [form.centerDiscount, form.centerDiscountType, form.isCredit, selectedPackageSubtotal]);
 
   const filteredPackages = useMemo(() => {
     const query = packageSearch.trim().toLowerCase();
@@ -790,6 +832,32 @@ export default function RedcliffeBookingPage() {
       setBookingError("Order ID is required. Please create/select a Shopify order first.");
       return null;
     }
+    const isCashOnCollection = form.isCredit !== "true";
+    const rawCenterDiscount = toMoneyNumber(form.centerDiscount);
+    if (isCashOnCollection && rawCenterDiscount < 0) {
+      setBookingError("Discount cannot be negative.");
+      return null;
+    }
+    if (isCashOnCollection && rawCenterDiscount > 0) {
+      if (form.centerDiscountType === "percentage") {
+        if (rawCenterDiscount > 100) {
+          setBookingError("Discount percentage cannot be more than 100.");
+          return null;
+        }
+        if (!selectedPackageSubtotal) {
+          setBookingError("Package prices are required to calculate percentage discount.");
+          return null;
+        }
+      }
+      if (
+        form.centerDiscountType === "amount" &&
+        selectedPackageSubtotal > 0 &&
+        rawCenterDiscount > selectedPackageSubtotal
+      ) {
+        setBookingError("Discount amount cannot be more than package subtotal.");
+        return null;
+      }
+    }
     setLoading((prev) => ({ ...prev, create: true }));
 
     try {
@@ -830,6 +898,10 @@ export default function RedcliffeBookingPage() {
             packageCode: member.packageCodes,
           })),
       };
+
+      if (isCashOnCollection && centerDiscountAmount > 0) {
+        payload.center_discount = centerDiscountAmount;
+      }
 
       const { data } = await api.post("/api/redcliffe/bookings/create", payload);
       setTemporaryBooking(data);
@@ -1752,16 +1824,64 @@ export default function RedcliffeBookingPage() {
                     <select
                       value={form.isCredit === "true" ? "prepaid" : "cash_on_collection"}
                       onChange={(e) =>
-                        setField(
-                          "isCredit",
-                          e.target.value === "prepaid" ? "true" : "false"
-                        )
+                        setForm((prev) => ({
+                          ...prev,
+                          isCredit: e.target.value === "prepaid" ? "true" : "false",
+                        }))
                       }
                     >
                       <option value="prepaid">Prepaid</option>
                       <option value="cash_on_collection">Cash on collection</option>
                     </select>
                   </Field>
+
+                  {form.isCredit !== "true" ? (
+                    <>
+                      <Field className="span-6" label="Discount type">
+                        <select
+                          value={form.centerDiscountType}
+                          onChange={(e) =>
+                            setForm((prev) => ({
+                              ...prev,
+                              centerDiscountType: e.target.value,
+                              centerDiscount: "",
+                            }))
+                          }
+                        >
+                          <option value="amount">Amount</option>
+                          <option value="percentage">Percentage</option>
+                        </select>
+                      </Field>
+
+                      <Field
+                        className="span-6"
+                        label={
+                          form.centerDiscountType === "percentage"
+                            ? "Discount %"
+                            : "Discount amount"
+                        }
+                      >
+                        <input
+                          type="number"
+                          min="0"
+                          max={form.centerDiscountType === "percentage" ? "100" : undefined}
+                          step="0.01"
+                          value={form.centerDiscount}
+                          onChange={(e) => setField("centerDiscount", e.target.value)}
+                          placeholder={
+                            form.centerDiscountType === "percentage"
+                              ? "e.g. 10"
+                              : "e.g. 200"
+                          }
+                        />
+                      </Field>
+
+                      <div className="redcliffe-inline-note success span-12">
+                        Redcliffe discount to apply: {formatCurrency(centerDiscountAmount) || "Rs 0"}
+                        {selectedPackageSubtotal ? ` on ${formatCurrency(selectedPackageSubtotal)}` : ""}
+                      </div>
+                    </>
+                  ) : null}
 
                   <Field className="span-12" label="Order ID">
                     <input
@@ -1904,6 +2024,23 @@ export default function RedcliffeBookingPage() {
                 <span>Payment</span>
                 <span>{form.isCredit === "true" ? "Credit / prepaid" : "Cash on collection"}</span>
               </div>
+              {form.isCredit !== "true" ? (
+                <>
+                  <div className="redcliffe-summary-row">
+                    <span>Package subtotal</span>
+                    <span>{formatCurrency(selectedPackageSubtotal) || "Rs 0"}</span>
+                  </div>
+                  <div className="redcliffe-summary-row">
+                    <span>Redcliffe discount</span>
+                    <span>
+                      {formatCurrency(centerDiscountAmount) || "Rs 0"}
+                      {form.centerDiscountType === "percentage" && form.centerDiscount
+                        ? ` (${form.centerDiscount}%)`
+                        : ""}
+                    </span>
+                  </div>
+                </>
+              ) : null}
               <div className="redcliffe-summary-row">
                 <span>Order ID</span>
                 <span>{form.orderId || "—"}</span>
