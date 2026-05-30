@@ -699,6 +699,45 @@ export default function WhatsAppChatDrawer({
   const stickToBottomRef = useRef(true);
 
   const phone10 = useMemo(() => last10(phone), [phone]);
+  const sessionUser = useMemo(() => {
+    try {
+      const raw = sessionStorage.getItem("user");
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
+    }
+  }, []);
+  const whatsappAccessPayload = useMemo(() => {
+    const role = sessionUser?.role || "";
+    const roleNorm = String(role || "").trim().toLowerCase();
+    const hasTeam =
+      Boolean(sessionUser?.hasTeam) ||
+      roleNorm === "team leader" ||
+      roleNorm === "team-leader" ||
+      roleNorm === "assistant team lead" ||
+      (roleNorm === "retention agent" && Boolean(sessionUser?.hasTeam));
+
+    return {
+      role,
+      userName: sessionUser?.fullName || currentUserName || "",
+      userId: sessionUser?._id || sessionUser?.id || "",
+      hasTeam: hasTeam ? "true" : "false",
+      chatScope:
+        roleNorm === "team leader" || roleNorm === "team-leader"
+          ? "team"
+          : hasTeam &&
+            (roleNorm === "assistant team lead" || roleNorm === "retention agent")
+          ? "combined"
+          : "self",
+    };
+  }, [
+    currentUserName,
+    sessionUser?._id,
+    sessionUser?.id,
+    sessionUser?.fullName,
+    sessionUser?.role,
+    sessionUser?.hasTeam,
+  ]);
 
   const inboundExpiryMs = useMemo(() => {
     if (lastInboundAt) {
@@ -787,18 +826,20 @@ export default function WhatsAppChatDrawer({
 
   const fetchConversationMeta = useCallback(async () => {
     const res = await api.get(`/api/whatsapp/conversations`, {
-      params: { phone: phone10 },
+      params: { ...whatsappAccessPayload, phone: phone10 },
     });
     const list = Array.isArray(res.data) ? res.data : [];
     const found = list.find((c) => last10(c.phone) === phone10);
 
     if (found?.windowExpiresAt) setWindowExpiresAt(found.windowExpiresAt);
     if (found?.lastInboundAt) setLastInboundAt(found.lastInboundAt);
-  }, [phone10]);
+  }, [phone10, whatsappAccessPayload]);
 
   const fetchMessages = useCallback(async () => {
     if (!phone10) return;
-    const res = await api.get(`/api/whatsapp/messages`, { params: { phone: phone10 } });
+    const res = await api.get(`/api/whatsapp/messages`, {
+      params: { ...whatsappAccessPayload, phone: phone10 },
+    });
     const list = Array.isArray(res.data) ? res.data : [];
     setMessages(list);
 
@@ -808,7 +849,7 @@ export default function WhatsAppChatDrawer({
     if (lastInbound?.timestamp || lastInbound?.createdAt) {
       setLastInboundAt(lastInbound.timestamp || lastInbound.createdAt);
     }
-  }, [phone10]);
+  }, [phone10, whatsappAccessPayload]);
 
   const fetchTemplates = useCallback(async () => {
     const res = await api.get(`/api/whatsapp/templates`);

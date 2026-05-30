@@ -34,6 +34,7 @@ import ViewCarouselIcon from "@mui/icons-material/ViewCarousel";
 import AccountBalanceWalletOutlinedIcon from "@mui/icons-material/AccountBalanceWalletOutlined";
 import MenuBookIcon from "@mui/icons-material/MenuBook";
 import StorefrontIcon from "@mui/icons-material/Storefront";
+import RestaurantIcon from "@mui/icons-material/Restaurant";
 
 const styles = `
   @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Syne:wght@600;700&display=swap');
@@ -451,6 +452,19 @@ const MenuBar = ({ toggleDrawer }) => {
     </Link>
   );
 
+  const ExternalNavItem = ({ href, icon, label }) => (
+    <a
+      href={href}
+      className="nav-item"
+      target="_blank"
+      rel="noopener noreferrer"
+      onClick={toggleDrawer}
+    >
+      <span className="nav-item-icon">{icon}</span>
+      <span className="nav-item-text">{label}</span>
+    </a>
+  );
+
   const DropdownGroup = ({ id, icon, label, children }) => (
     <>
       <div
@@ -622,6 +636,18 @@ const MenuBar = ({ toggleDrawer }) => {
               {can("redcliffeBooking") && <SubItem to="/redcliffe-booking" label="Booking" />}
               {can("redcliffeDashboard") && <SubItem to="/redcliffe-dashboard" label="Dashboard" />}
             </DropdownGroup>
+          )}
+
+          {user && can("smartDietPlanner") && (
+            <NavItem to="/diet-dashboard" icon={<RestaurantIcon />} label="Smart Diet Planner" />
+          )}
+
+          {user && can("appDashboard") && (
+            <ExternalNavItem
+              href="https://muditam-app-dashboard.vercel.app"
+              icon={<AnalyticsIcon />}
+              label="App Dashboard"
+            />
           )}
 
           {/* Analytics */}

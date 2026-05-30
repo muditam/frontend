@@ -1000,6 +1000,23 @@ export default function WhatsAppInboxWidget({ onOpenChat }) {
       myRoleNorm === "assistant team lead",
     [sessionUser?.hasTeam, myRoleNorm]
   );
+  const whatsappAccessPayload = useMemo(
+    () => ({
+      role: myRole || "",
+      userName: myNameRaw || "",
+      userId: myUserId || "",
+      hasTeam: hasTeamEffective ? "true" : "false",
+      chatScope:
+        myRoleNorm === "team leader" || myRoleNorm === "team-leader"
+          ? "team"
+          : hasTeamEffective &&
+            (myRoleNorm === "assistant team lead" ||
+              myRoleNorm === "retention agent")
+          ? "combined"
+          : "self",
+    }),
+    [hasTeamEffective, myNameRaw, myRole, myRoleNorm, myUserId]
+  );
 
   const allowed = useMemo(
     () => !!myNameRaw && ALLOWED_ROLES.has(myRoleNorm),
@@ -1128,7 +1145,7 @@ export default function WhatsAppInboxWidget({ onOpenChat }) {
       try {
         const r = await axios.get(`${API_BASE}/api/whatsapp/messages`, {
           withCredentials: true,
-          params: { phone: p10 },
+          params: { ...whatsappAccessPayload, phone: p10 },
         });
         const next = sortMessagesAsc(Array.isArray(r.data) ? r.data : []);
         setMessages(next);
@@ -1138,7 +1155,7 @@ export default function WhatsAppInboxWidget({ onOpenChat }) {
         setChatLoading(false);
       }
     },
-    [isWidgetActive]
+    [isWidgetActive, whatsappAccessPayload]
   );
 
   const markRead = useCallback(
@@ -1161,12 +1178,12 @@ export default function WhatsAppInboxWidget({ onOpenChat }) {
       try {
         await axios.post(
           `${API_BASE}/api/whatsapp/conversations/mark-read`,
-          { phone: p10 },
+          { phone: p10, ...whatsappAccessPayload },
           { withCredentials: true }
         );
       } catch {}
     },
-    [isWidgetActive]
+    [isWidgetActive, whatsappAccessPayload]
   );
 
   const scrollToBottom = useCallback((smooth = false) => {

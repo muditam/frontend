@@ -926,6 +926,37 @@ export default function WhatsAppUI() {
   const urlPhone = useMemo(() => { const p = new URLSearchParams(location.search).get("phone") || ""; return digitsOnly(p); }, [location.search]);
   const lastUrlOpenedRef = useRef("");
   const agentName = useMemo(() => sessionUser?.fullName || "", [sessionUser?.fullName]);
+  const getWhatsAppAccessPayload = useCallback(() => {
+    const userRole = sessionUser?.role || "";
+    const normalizedRole = String(userRole || "").trim().toLowerCase();
+    const effectiveHasTeam =
+      Boolean(sessionUser?.hasTeam) ||
+      normalizedRole === "team leader" ||
+      normalizedRole === "team-leader" ||
+      normalizedRole === "assistant team lead" ||
+      (normalizedRole === "retention agent" && Boolean(sessionUser?.hasTeam));
+
+    return {
+      role: userRole,
+      userName: sessionUser?.fullName || "",
+      userId: sessionUser?._id || sessionUser?.id || "",
+      hasTeam: effectiveHasTeam ? "true" : "false",
+      chatScope:
+        normalizedRole === "team leader" || normalizedRole === "team-leader"
+          ? "team"
+          : effectiveHasTeam &&
+            (normalizedRole === "assistant team lead" ||
+              normalizedRole === "retention agent")
+          ? "combined"
+          : "self",
+    };
+  }, [
+    sessionUser?._id,
+    sessionUser?.id,
+    sessionUser?.fullName,
+    sessionUser?.role,
+    sessionUser?.hasTeam,
+  ]);
 
   useEffect(() => {
     try {
@@ -1136,34 +1167,13 @@ export default function WhatsAppUI() {
     }
 
     try {
-      const userName = sessionUser?.fullName || "";
-      const userRole = sessionUser?.role || "";
-      const userId = sessionUser?._id || sessionUser?.id || "";
-      const normalizedRole = String(userRole || "").trim().toLowerCase();
-      const effectiveHasTeam =
-        Boolean(sessionUser?.hasTeam) ||
-        normalizedRole === "team leader" ||
-        normalizedRole === "team-leader" ||
-        normalizedRole === "assistant team lead" ||
-        (normalizedRole === "retention agent" &&
-          Boolean(sessionUser?.hasTeam));
+      const accessPayload = getWhatsAppAccessPayload();
       const params = new URLSearchParams({
-        role: userRole,
-        userName,
-        userId,
-        hasTeam: effectiveHasTeam ? "true" : "false",
+        ...accessPayload,
         paginated: "true",
         limit: String(CONVERSATION_PAGE_SIZE),
         includeCounts: "true",
         includeAgentOptions: canFilterByAgent ? "true" : "false",
-        chatScope:
-          normalizedRole === "team leader" || normalizedRole === "team-leader"
-            ? "team"
-            : effectiveHasTeam &&
-              (normalizedRole === "assistant team lead" ||
-                normalizedRole === "retention agent")
-              ? "combined"
-              : "self",
         tab: chatTab,
       });
       if (agentFilter && agentFilter !== "all") {
@@ -1238,11 +1248,7 @@ export default function WhatsAppUI() {
     chatTab,
     debouncedSearch,
     favoritePhoneCsv,
-    sessionUser?._id,
-    sessionUser?.id,
-    sessionUser?.fullName,
-    sessionUser?.role,
-    sessionUser?.hasTeam,
+    getWhatsAppAccessPayload,
     showToast,
   ]);
 
@@ -1327,13 +1333,14 @@ export default function WhatsAppUI() {
     const q = digitsOnly(phoneAnyDigits);
     if (!q) return [];
     const params = new URLSearchParams({
+      ...getWhatsAppAccessPayload(),
       phone: q,
       limit: String(limit || MESSAGE_PAGE_SIZE),
     });
     if (before) params.set("before", String(before));
     const data = (await api(`/api/whatsapp/messages?${params.toString()}`)) || [];
     return Array.isArray(data) ? data : [];
-  }, []);
+  }, [getWhatsAppAccessPayload]);
 
   const loadMessagesInitial = useCallback(async (phoneAnyDigits) => {
     const q = digitsOnly(phoneAnyDigits);
@@ -1408,8 +1415,13 @@ export default function WhatsAppUI() {
       }));
     }
     if (optimisticOnly) return;
-    try { await api(`/api/whatsapp/conversations/mark-read`, { method: "POST", body: JSON.stringify({ phone }) }); } catch {}
-  }, []);
+    try {
+      await api(`/api/whatsapp/conversations/mark-read`, {
+        method: "POST",
+        body: JSON.stringify({ phone, ...getWhatsAppAccessPayload() }),
+      });
+    } catch {}
+  }, [getWhatsAppAccessPayload]);
 
   useEffect(() => { refreshConversations(null, { silent: false }); }, [refreshConversations]);
   useEffect(() => { fetchTemplates(); }, [fetchTemplates]);
@@ -1591,17 +1603,9 @@ export default function WhatsAppUI() {
           delete cleanedPatch.unreadCountDelta;
 
           if (idx === -1) {
-            const inserted = {
-              phone: payload?.phone || p10,
-              displayName: "",
-              assignedToLabel: "",
-              ...cleanedPatch,
-              unreadCount:
-                typeof patch?.unreadCount === "number"
-                  ? patch.unreadCount
-                  : Math.max(0, unreadDeltaForCounts),
-            };
-            return [inserted, ...prev];
+            scheduleConversationRefresh();
+            unreadDeltaForCounts = 0;
+            return prev;
           }
 
           const next = [...prev];

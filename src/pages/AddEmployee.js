@@ -205,6 +205,8 @@ const DEFAULT_PERMISSIONS = {
    redcliffeMenu: false,
    redcliffeBooking: false,
    redcliffeDashboard: false,
+   smartDietPlanner: false,
+   appDashboard: false,
 
 
    marketingMenu: false,
@@ -1831,6 +1833,8 @@ const getEffectiveRole = () =>
                  ["redcliffeMenu", "Redcliffe Menu"],
                  ["redcliffeBooking", "Redcliffe: Booking"],
                  ["redcliffeDashboard", "Redcliffe: Dashboard"],
+                 ["smartDietPlanner", "Smart Diet Planner"],
+                 ["appDashboard", "App Dashboard"],
                ].map(([key, label]) => (
                  <FormControlLabel
                    key={key}
