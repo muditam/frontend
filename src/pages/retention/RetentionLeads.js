@@ -546,6 +546,7 @@ const RetentionLeads = () => {
         profileUpdatedAt: new Date().toISOString(),
         profileUpdatedBy: currentUserName,
       });
+      setNoteDraft("");
     } catch (error) {
       console.error("Error saving subcells:", error);
     }
@@ -671,11 +672,7 @@ const RetentionLeads = () => {
       setNoteDraft("");
       return;
     }
-    const lead = leads[selectedLeadIndex];
-    const latestVal = lead?.rtSubcells?.length
-      ? lead.rtSubcells[lead.rtSubcells.length - 1]?.value || ""
-      : lead?.rtRemark || "";
-    setNoteDraft(latestVal);
+    setNoteDraft("");
   }, [selectedLeadIndex, leads]);
 
   useEffect(() => {
@@ -3114,7 +3111,7 @@ You can mark Lost only after 60 days.`);
                     fontSize: "0.85rem",
                     display: "flex",
                     flexDirection: "column",
-                    overflowY: "auto",
+                    overflow: "hidden",
                     color: "black",
                     transition: "all .18s ease",
                   }}
@@ -3123,9 +3120,10 @@ You can mark Lost only after 60 days.`);
                   <Box
                     sx={{
                       mt: 0.5,
-                      height: '50vh',
+                      height: '100%',
+                      minHeight: 0,
                       display: 'flex',
-                      flexDirection: 'column'
+                      flexDirection: 'column',
                     }}
                   >
                     <Stack direction="row" alignItems="center" justifyContent="space-between" mb={1}>
@@ -3185,14 +3183,7 @@ You can mark Lost only after 60 days.`);
                         <Button
                           variant="outlined"
                           size="small"
-                          onClick={() => {
-                            if (selectedLeadIndex == null) return;
-                            const lead = leads[selectedLeadIndex];
-                            const latestVal = lead?.rtSubcells?.length
-                              ? lead.rtSubcells[lead.rtSubcells.length - 1]?.value || ""
-                              : lead?.rtRemark || "";
-                            setNoteDraft(latestVal);
-                          }}
+                          onClick={() => setNoteDraft("")}
                           sx={{ textTransform: 'none', borderColor: '#C6D3E2', color: '#1E293B', borderRadius: "10px" }}
                         >
                           Reset
@@ -3200,15 +3191,16 @@ You can mark Lost only after 60 days.`);
                       </Box>
                     </Box>
 
-                    {/* Scrollable history */}
+                    {/* Scrollable saved notes */}
                     <Box
                       ref={remarksBodyRef}
                       sx={{
                         mt: 1,
-                        pr: 1,
-                        overflowY: remarksExpanded ? 'auto' : 'hidden',
-                        height: remarksExpanded ? '56vh' : '44vh',
-                        position: 'relative'
+                        pr: 0.5,
+                        flex: 1,
+                        minHeight: 0,
+                        overflowY: 'auto',
+                        overflowX: 'hidden',
                       }}
                     >
                       <Box sx={{ mt: 1 }}>
@@ -3241,7 +3233,7 @@ You can mark Lost only after 60 days.`);
                           </Box>
                         )}
 
-                        {/* Dated subcells as cards */}
+                        {/* Saved notes as separate cards */}
                         {(() => {
                           const list = [...(leads[selectedLeadIndex]?.rtSubcells || [])];
 
@@ -3254,91 +3246,16 @@ You can mark Lost only after 60 days.`);
                             return tb - ta;
                           });
 
-                          const dated = {};
-                          const invalid = {};
+                          return list.map((sub, idx) => {
+                            const dayKey = getISTDayKey(sub?.date);
+                            const dayLabel = dayKey ? formatDayHeaderIST(dayKey) : (String(sub?.date ?? "").trim() || "—");
+                            const timeLabel = formatTimeIST(sub?.date);
+                            const userLabel = normalizeUser(sub?.by);
+                            const noteText = sub?.value?.trim() || "—";
 
-                          const getInvalidLabel = (raw) => {
-                            const s = String(raw ?? "").trim();
-                            return s || "—";
-                          };
-
-                          list.forEach((sub) => {
-                            const key = getISTDayKey(sub?.date);
-                            if (key) {
-                              (dated[key] ||= []).push(sub);
-                            } else {
-                              const label = getInvalidLabel(sub?.date);
-                              (invalid[label] ||= []).push(sub);
-                            }
-                          });
-
-                          const blocks = [];
-
-                          Object.keys(dated)
-                            .sort((a, b) => (a > b ? -1 : 1))
-                            .forEach((dayKey) => {
-                              const items = dated[dayKey];
-
-                              items.sort((a, b) => {
-                                const ta = toDateSafe(a?.date)?.getTime() ?? -Infinity;
-                                const tb = toDateSafe(b?.date)?.getTime() ?? -Infinity;
-                                return tb - ta;
-                              });
-
-                              const usersLabel = Array.from(
-                                new Set(items.map(s => normalizeUser(s?.by)))
-                              ).join(', ');
-
-                              const firstTime = formatTimeIST(items[0]?.date);
-                              const notesJoined = items
-                                .map((s) => (s?.value?.trim() ? s.value.trim() : "—"))
-                                .join(" | ");
-
-                              blocks.push(
-                                <Box
-                                  key={`dated-${dayKey}`}
-                                  sx={{
-                                    mb: 1,
-                                    p: 1.1,
-                                    borderRadius: 1.8,
-                                    border: "1px solid #D1DDEB",
-                                    bgcolor: "#FFFFFF",
-                                    boxShadow: "0 8px 16px rgba(15,23,42,0.08)",
-                                  }}
-                                >
-                                  <Typography variant="body2" sx={{ fontWeight: 700, color: "#0F172A" }}>
-                                    {`${formatDayHeaderIST(dayKey)} (${usersLabel})`}
-                                  </Typography>
-                                  <Typography
-                                    variant="body2"
-                                    sx={{
-                                      whiteSpace: "pre-wrap",
-                                      wordBreak: "break-word",
-                                      overflowWrap: "anywhere",
-                                      lineHeight: 1.4,
-                                      mt: 0.25,
-                                    }}
-                                  >
-                                    {firstTime && firstTime !== "—"
-                                      ? `${firstTime} — ${notesJoined}`
-                                      : notesJoined}
-                                  </Typography>
-                                </Box>
-                              );
-                            });
-
-                          Object.keys(invalid).forEach((label) => {
-                            const items = invalid[label];
-                            const usersLabel = Array.from(
-                              new Set(items.map(s => normalizeUser(s?.by)))
-                            ).join(', ');
-                            const notesJoined = items
-                              .map((s) => (s?.value?.trim() ? s.value.trim() : "—"))
-                              .join(" | ");
-
-                            blocks.push(
+                            return (
                               <Box
-                                key={`invalid-${label}`}
+                                key={`${sub?.date || "note"}-${idx}`}
                                 sx={{
                                   mb: 1,
                                   p: 1.1,
@@ -3349,7 +3266,7 @@ You can mark Lost only after 60 days.`);
                                 }}
                               >
                                 <Typography variant="body2" sx={{ fontWeight: 700, color: "#0F172A" }}>
-                                  {`${label} (${usersLabel})`}
+                                  {`${dayLabel} (${userLabel})`}
                                 </Typography>
                                 <Typography
                                   variant="body2"
@@ -3361,48 +3278,15 @@ You can mark Lost only after 60 days.`);
                                     mt: 0.25,
                                   }}
                                 >
-                                  {notesJoined}
+                                  {timeLabel && timeLabel !== "—"
+                                    ? `${timeLabel} — ${noteText}`
+                                    : noteText}
                                 </Typography>
                               </Box>
                             );
                           });
-
-                          return blocks;
                         })()}
                       </Box>
-
-                      {!remarksExpanded && showRemarksMore && (
-                        <Box
-                          sx={{
-                            position: 'absolute',
-                            left: 0,
-                            right: 0,
-                            bottom: 0,
-                            height: 56,
-                            background:
-                              'linear-gradient(to bottom, rgba(255,255,255,0), rgba(255,255,255,1))',
-                            display: 'flex',
-                            alignItems: 'flex-end',
-                            justifyContent: 'center',
-                            pb: 0.5,
-                            zIndex: 1,
-                          }}
-                        >
-                          <Button
-                            size="small"
-                            variant="outlined"
-                            onClick={() => setRemarksExpanded(true)}
-                            sx={{
-                              textTransform: 'none',
-                              color: '#1E293B',
-                              borderColor: '#C6D3E2',
-                              borderRadius: "10px"
-                            }}
-                          >
-                            Load more
-                          </Button>
-                        </Box>
-                      )}
                     </Box>
                   </Box>
                 </Paper>
