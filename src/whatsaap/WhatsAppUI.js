@@ -1672,7 +1672,7 @@ export default function WhatsAppUI() {
         const serverMessages = await fetchMessagesPage(activeDigits, { limit: MESSAGE_PAGE_SIZE });
         setMessages((prev) => mergeUniqueMessages(prev, serverMessages));
       } catch {}
-    }, 15000);
+    }, 31000);
     return () => clearInterval(id);
   }, [activeDigits, mergeUniqueMessages, fetchMessagesPage, socketStatus]);
 

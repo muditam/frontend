@@ -47,9 +47,6 @@ import pincodeData from "../../LeadConsultation/ProcessTracker/pincodeData";
 import DeliveryStatusChecker from "./DeliveryStatusChecker";
 import LeaderboardPopover from "./LeaderboardPopover";
 import DownloadIcon from "@mui/icons-material/Download";
-import NotificationsIcon from "@mui/icons-material/Notifications";
-import Badge from "@mui/material/Badge";
-import TaskNotifications from "./Notifications";
 import CheckBoxIcon from "@mui/icons-material/CheckBox";
 import CampaignIcon from "@mui/icons-material/Campaign";
 import AssessmentIcon from "@mui/icons-material/Assessment";
@@ -128,9 +125,7 @@ const NavbarWithSearch = () => {
  const [leaderboardOpen, setLeaderboardOpen] = useState(false);
  const [deliveryDialogOpen, setDeliveryDialogOpen] = useState(false);
  const [bloomOpen, setBloomOpen] = useState(false);
- const [notifAnchorEl, setNotifAnchorEl] = useState(null);
  const [marketingQuickCreateOpen, setMarketingQuickCreateOpen] = useState(false);
- const [unreadCount, setUnreadCount] = useState(0);
  const [revertLoading, setRevertLoading] = useState(false);
 
 
@@ -956,18 +951,6 @@ const NavbarWithSearch = () => {
              >
                <DownloadIcon />
              </IconButton> */}
-
-
-           {/* <IconButton
-             color="inherit"
-             onClick={(e) => setNotifAnchorEl(e.currentTarget)}
-           >
-             <Badge badgeContent={unreadCount} color="error">
-               <NotificationsIcon />
-             </Badge>
-           </IconButton> */}
-
-
            {user && canNav("cartIcon") && (
              <IconButton
                color="inherit"
@@ -1136,16 +1119,6 @@ const NavbarWithSearch = () => {
          </Box>
        </Box>
      )}
-
-
-     <TaskNotifications
-       anchorEl={notifAnchorEl}
-       onClose={() => setNotifAnchorEl(null)}
-       user={user}
-       onUnreadChange={setUnreadCount}
-     />
-
-
      {/* Delivery Status Dialog */}
      <Dialog
        open={deliveryDialogOpen}

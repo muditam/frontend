@@ -50,7 +50,7 @@ const SOCKET_URL = API_BASE;
 
 const NOTIF_SOUND_URL =
   "https://cdn.shopify.com/s/files/1/0734/7155/7942/files/new-notification-014-363678.mp3?v=1769002522";
-const CONVERSATION_REFRESH_COOLDOWN_MS = 4000;
+const CONVERSATION_REFRESH_COOLDOWN_MS = 11000;
 
 const ALLOWED_ROLES = new Set([
   "sales agent",
