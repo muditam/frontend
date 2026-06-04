@@ -16,6 +16,11 @@ import {
   Select,
   Skeleton,
   LinearProgress,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  CircularProgress,
 } from "@mui/material";
 
 
@@ -104,6 +109,15 @@ export default function CustomerCohortHeatmap() {
 
   const [metric, setMetric] = useState("retention");
   const [show36, setShow36] = useState(false);
+  const [detailDialog, setDetailDialog] = useState({
+    open: false,
+    loading: false,
+    cohort: "",
+    rows: [],
+    summary: null,
+    error: "",
+  });
+  const [healthExpertFilter, setHealthExpertFilter] = useState("all");
 
 
   const loadCohort = async () => {
@@ -171,6 +185,53 @@ export default function CustomerCohortHeatmap() {
 
   }, [show36]);
 
+  const closeDetailDialog = () => {
+    setHealthExpertFilter("all");
+    setDetailDialog({
+      open: false,
+      loading: false,
+      cohort: "",
+      rows: [],
+      summary: null,
+      error: "",
+    });
+  };
+
+  const loadCohortCustomers = async (cohortKey) => {
+    setDetailDialog({
+      open: true,
+      loading: true,
+      cohort: cohortKey,
+      rows: [],
+      summary: null,
+      error: "",
+    });
+
+    try {
+      const res = await axios.get(
+        `${API}/api/super-admin/analytics/cohort-analysis/customers`,
+        { params: { cohort: cohortKey } }
+      );
+
+      setHealthExpertFilter("all");
+      setDetailDialog({
+        open: true,
+        loading: false,
+        cohort: cohortKey,
+        rows: res.data.rows || [],
+        summary: res.data.summary || null,
+        error: "",
+      });
+    } catch (err) {
+      console.error("COHORT DETAIL ERROR:", err);
+      setDetailDialog((prev) => ({
+        ...prev,
+        loading: false,
+        error: "Failed to load customer details for this cohort.",
+      }));
+    }
+  };
+
 
   function formatCohortLabel(key) {
     const [y, m] = key.split("-");
@@ -199,6 +260,17 @@ function getMaxMonthsToShow(cohortKey) {
   return Math.min(diff + 1, show36 ? 36 : 12);
 }
 
+  function formatDate(value) {
+    if (!value) return "—";
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return "—";
+    return date.toLocaleDateString("en-IN", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    });
+  }
+
 
 
 
@@ -221,6 +293,35 @@ function getMaxMonthsToShow(cohortKey) {
     }
     return maxVal;
   }, [cohorts, metric, show36]);
+
+  const healthExpertOptions = useMemo(() => {
+    return Array.from(
+      new Set(
+        (detailDialog.rows || [])
+          .map((row) => String(row.healthExpertAssigned || "").trim())
+          .filter(Boolean)
+      )
+    ).sort((a, b) => a.localeCompare(b));
+  }, [detailDialog.rows]);
+
+  const filteredDetailRows = useMemo(() => {
+    if (healthExpertFilter === "all") return detailDialog.rows || [];
+    if (healthExpertFilter === "__unassigned__") {
+      return (detailDialog.rows || []).filter(
+        (row) => !String(row.healthExpertAssigned || "").trim()
+      );
+    }
+
+    return (detailDialog.rows || []).filter(
+      (row) => String(row.healthExpertAssigned || "").trim() === healthExpertFilter
+    );
+  }, [detailDialog.rows, healthExpertFilter]);
+
+  const selectedHealthExpertLabel = useMemo(() => {
+    if (healthExpertFilter === "all") return "All Health Experts";
+    if (healthExpertFilter === "__unassigned__") return "Unassigned";
+    return healthExpertFilter;
+  }, [healthExpertFilter]);
 
 
 function computeSummary(row) {
@@ -420,7 +521,20 @@ function computeSummary(row) {
                 return (
                   <TableRow key={row.cohort}>
                     <TableCell>{formatCohortLabel(row.cohort)}</TableCell>
-                    <TableCell>{row.customers.toLocaleString()}</TableCell>
+                    <TableCell>
+                      <Button
+                        variant="text"
+                        onClick={() => loadCohortCustomers(row.cohort)}
+                        sx={{
+                          minWidth: 0,
+                          p: 0,
+                          fontWeight: 700,
+                          textTransform: "none",
+                        }}
+                      >
+                        {row.customers.toLocaleString()}
+                      </Button>
+                    </TableCell>
 
 
                    
@@ -469,7 +583,107 @@ function computeSummary(row) {
           </TableBody>
         </Table>
       </Card>
+
+      <Dialog
+        open={detailDialog.open}
+        onClose={closeDetailDialog}
+        fullWidth
+        maxWidth="lg"
+      >
+        <DialogTitle>
+          {detailDialog.cohort
+            ? `Cohort Customers • ${formatCohortLabel(detailDialog.cohort)}`
+            : "Cohort Customers"}
+        </DialogTitle>
+        <DialogContent dividers>
+          {detailDialog.loading ? (
+            <Box sx={{ py: 6, display: "flex", justifyContent: "center" }}>
+              <CircularProgress />
+            </Box>
+          ) : detailDialog.error ? (
+            <Typography color="error">{detailDialog.error}</Typography>
+          ) : (
+            <>
+              <Stack
+                direction="row"
+                spacing={2}
+                alignItems="center"
+                justifyContent="space-between"
+                flexWrap="wrap"
+                sx={{ mb: 2 }}
+              >
+                <Select
+                  size="small"
+                  value={healthExpertFilter}
+                  onChange={(e) => setHealthExpertFilter(e.target.value)}
+                  sx={{ minWidth: 260 }}
+                >
+                  <MenuItem value="all">All Health Experts</MenuItem>
+                  <MenuItem value="__unassigned__">Unassigned</MenuItem>
+                  {healthExpertOptions.map((expert) => (
+                    <MenuItem key={expert} value={expert}>
+                      {expert}
+                    </MenuItem>
+                  ))}
+                </Select>
+
+                <Stack direction="row" spacing={3} flexWrap="wrap" justifyContent="flex-end">
+                  {detailDialog.summary && (
+                    <>
+                      <Typography variant="body2">
+                        Total Customers: <strong>{detailDialog.summary.totalCustomers || 0}</strong>
+                      </Typography>
+                      <Typography variant="body2">
+                        Assigned: <strong>{detailDialog.summary.assignedCustomers || 0}</strong>
+                      </Typography>
+                      <Typography variant="body2">
+                        Unassigned: <strong>{detailDialog.summary.unassignedCustomers || 0}</strong>
+                      </Typography>
+                    </>
+                  )}
+                  <Typography variant="body2">
+                    {selectedHealthExpertLabel} Count: <strong>{filteredDetailRows.length}</strong>
+                  </Typography>
+                </Stack>
+              </Stack>
+
+              <Table size="small">
+                <TableHead sx={{ background: "#F5F5F5" }}>
+                  <TableRow>
+                    <TableCell sx={{ fontWeight: 700 }}>Customer Name</TableCell>
+                    <TableCell sx={{ fontWeight: 700 }}>Contact Number</TableCell>
+                    <TableCell sx={{ fontWeight: 700 }}>Health Expert Assigned</TableCell>
+                    <TableCell sx={{ fontWeight: 700 }}>First Order Date</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {filteredDetailRows.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={4} align="center">
+                        <Typography color="text.secondary" sx={{ py: 3 }}>
+                          No customer details available for this cohort
+                        </Typography>
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    filteredDetailRows.map((customer, index) => (
+                      <TableRow key={`${customer.contactNumber}-${index}`}>
+                        <TableCell>{customer.customerName || "—"}</TableCell>
+                        <TableCell>{customer.contactNumber || "—"}</TableCell>
+                        <TableCell>{customer.healthExpertAssigned || "Unassigned"}</TableCell>
+                        <TableCell>{formatDate(customer.firstOrderDate)}</TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={closeDetailDialog}>Close</Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }
-

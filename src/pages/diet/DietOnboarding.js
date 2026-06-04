@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { ALLERGY_OPTIONS, HEALTH_CONDITION_OPTIONS } from './dietProfileOptions';
 
 
 const API        = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "");
@@ -96,25 +97,6 @@ const COMMUNITY_OPTIONS = [
  { code: 'R', label: 'Karnataka' },
  // Telangana uses existing backend-compatible code `H` (legacy Hyderabad slot).
  { code: 'H', label: 'Telangana' },
-];
-
-
-const HEALTH_CONDITIONS = [
- 'weightLoss', 'diabetes', 'pcos', 'cholesterol', 'hypertension',
- 'muscleGain', 'fatShredding', 'thyroid', 'ibs', 'kidneyStonesOxalate',
- 'pregnancy', 'lactation', 'glp1', 'anemia', 'osteoporosis',
- 'uricAcid', 'heartDisease', 'liverDisease', 'immunityBooster',
- 'skinHealth', 'hairHealth',
-];
-
-
-const ALLERGY_OPTIONS = [
- { code: 'SF', label: '🐟 Seafood' },
- { code: 'ML', label: '🥛 Dairy / Milk' },
- { code: 'F',  label: '🍎 Fruits' },
- { code: 'E',  label: '🥚 Eggs' },
- { code: 'N',  label: '🥜 Nuts' },
- { code: 'G',  label: '🌾 Gluten' },
 ];
 
 
@@ -1126,14 +1108,13 @@ export default function DietOnboarding() {
              </div>
              <div style={{ borderTop: `1px solid ${C.border}`, marginBottom: 12 }} />
              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-               {(showAllHealth ? HEALTH_CONDITIONS : HEALTH_CONDITIONS.slice(0, 6)).map(cond => {
-                 const active = form.healthConditions.includes(cond);
-                 const label = cond.replace(/([A-Z])/g, ' $1').replace(/^./, s => s.toUpperCase());
+               {(showAllHealth ? HEALTH_CONDITION_OPTIONS : HEALTH_CONDITION_OPTIONS.slice(0, 6)).map(cond => {
+                 const active = form.healthConditions.includes(cond.value);
                  return (
                    <button
-                     key={cond}
+                     key={cond.value}
                      type="button"
-                     onClick={() => toggleArr('healthConditions', cond)}
+                     onClick={() => toggleArr('healthConditions', cond.value)}
                      style={{
                        background: 'transparent',
                        border: 'none',
@@ -1160,32 +1141,30 @@ export default function DietOnboarding() {
                        justifyContent: 'center',
                        flexShrink: 0,
                      }}>{active ? '✓' : ''}</span>
-                     <span style={{ fontSize: 15, color: C.text }}>{label}</span>
+                     <span style={{ fontSize: 15, color: C.text }}>{cond.label}</span>
                    </button>
                  );
                })}
              </div>
-             {!showAllHealth && (
-               <button
-                 type="button"
-                 onClick={() => setShowAllHealth(true)}
-                 style={{
-                   width: '100%',
-                   marginTop: 10,
-                   padding: '12px 14px',
-                   borderRadius: 999,
-                   background: '#fff',
-                   border: `2px solid ${C.primary}`,
-                   color: C.primary,
-                   fontSize: 16,
-                   fontWeight: 700,
-                   cursor: 'pointer',
-                   fontFamily: 'inherit',
-                 }}
-               >
-                 Show More
-               </button>
-             )}
+             <button
+               type="button"
+               onClick={() => setShowAllHealth(prev => !prev)}
+               style={{
+                 width: '100%',
+                 marginTop: 10,
+                 padding: '12px 14px',
+                 borderRadius: 999,
+                 background: '#fff',
+                 border: `2px solid ${C.primary}`,
+                 color: C.primary,
+                 fontSize: 16,
+                 fontWeight: 700,
+                 cursor: 'pointer',
+                 fontFamily: 'inherit',
+               }}
+             >
+               {showAllHealth ? 'Show Less' : 'Show More'}
+             </button>
            </div>
 
 
@@ -1197,13 +1176,12 @@ export default function DietOnboarding() {
              <div style={{ borderTop: `1px solid ${C.border}`, marginBottom: 12 }} />
              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                {ALLERGY_OPTIONS.map(opt => {
-                 const active = (form.allergies || []).includes(opt.code);
-                 const label = opt.label.replace(/^[^\s]+\s/, '');
+                 const active = (form.allergies || []).includes(opt.value);
                  return (
                    <button
-                     key={opt.code}
+                     key={opt.value}
                      type="button"
-                     onClick={() => toggleArr('allergies', opt.code)}
+                     onClick={() => toggleArr('allergies', opt.value)}
                      style={{
                        background: 'transparent',
                        border: 'none',
@@ -1230,7 +1208,7 @@ export default function DietOnboarding() {
                        justifyContent: 'center',
                        flexShrink: 0,
                      }}>{active ? '✓' : ''}</span>
-                     <span style={{ fontSize: 15, color: C.text }}>{label}</span>
+                     <span style={{ fontSize: 15, color: C.text }}>{opt.label}</span>
                    </button>
                  );
                })}
@@ -1441,6 +1419,5 @@ export default function DietOnboarding() {
    </MobilePage>
  );
 }
-
 
 

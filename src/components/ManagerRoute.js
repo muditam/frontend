@@ -1,6 +1,6 @@
 import React from "react";
 import { Navigate } from "react-router-dom";
-import { isManagerRole } from "../utils/managerRoles";
+import { canAccessCallingCenterManagerDashboard } from "../utils/managerRoles";
 
 const ManagerRoute = ({ children }) => {
   const storedUser = sessionStorage.getItem("user");
@@ -12,7 +12,7 @@ const ManagerRoute = ({ children }) => {
   }
 
 
-  if (!isManagerRole(user?.role || "")) {
+  if (!canAccessCallingCenterManagerDashboard(user)) {
     return <Navigate to="/403" replace />;
   }
 

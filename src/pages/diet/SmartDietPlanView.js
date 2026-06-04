@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
+import { ALLERGY_LABELS, HEALTH_CONDITION_LABELS } from './dietProfileOptions';
 
 
 const API = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "");
@@ -406,8 +407,8 @@ function ProfileDetailModal({ profile, leadName, onClose }) {
    ['Target Weight', profile?.targetWeightKg ? `${Number(profile.targetWeightKg).toFixed(1)} kg` : '-'],
    ['Diet', cleanText(profile?.dietType) || '-'],
    ['Activity', cleanText(profile?.activityLevel) || '-'],
-   ['Conditions', (profile?.healthConditions || []).length ? profile.healthConditions.join(', ') : '-'],
-   ['Allergies', (profile?.allergies || []).length ? profile.allergies.join(', ') : '-'],
+   ['Conditions', (profile?.healthConditions || []).length ? profile.healthConditions.map(code => HEALTH_CONDITION_LABELS[code] || code).join(', ') : '-'],
+   ['Allergies', (profile?.allergies || []).length ? profile.allergies.map(code => ALLERGY_LABELS[code] || code).join(', ') : '-'],
    ['Communities', (profile?.communityCodes || []).length ? profile.communityCodes.join(', ') : '-'],
  ];
 
@@ -1166,6 +1167,5 @@ export default function SmartDietPlanView() {
    </div>
  );
 }
-
 
 

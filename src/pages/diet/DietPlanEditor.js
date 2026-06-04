@@ -1,5 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import {
+  ALLERGY_LABELS,
+  ALLERGY_OPTIONS,
+  HEALTH_CONDITION_LABELS,
+  HEALTH_CONDITION_OPTIONS,
+} from './dietProfileOptions';
 
 const API = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "");
 
@@ -111,17 +117,7 @@ const COMMUNITY_OPTIONS = [
 ];
 
 const GOAL_OPTIONS = Object.entries(GOAL_LABELS).map(([value, label]) => ({ value, label }));
-const CONDITION_OPTIONS = GOAL_OPTIONS;
-const ALLERGY_OPTIONS = [
-  { value: 'SF', label: 'Seafood' },
-  { value: 'ML', label: 'Milk / Lactose' },
-  { value: 'F', label: 'Fruits' },
-  { value: 'E', label: 'Eggs' },
-  { value: 'N', label: 'Nuts' },
-  { value: 'G', label: 'Gluten' },
-];
-
-const ALLERGY_LABELS = Object.fromEntries(ALLERGY_OPTIONS.map(option => [option.value, option.label]));
+const CONDITION_OPTIONS = HEALTH_CONDITION_OPTIONS;
 
 function getSessionUserHeaders() {
   try {
@@ -614,7 +610,7 @@ function EditorProfileSummary({
     ['Country', 'India'],
     ['Community', shortText(listText(profile?.communityCodes, code => COMMUNITY_LABELS[code] || code), 14)],
     ['Allergy', shortText(listText(profile?.allergies, code => ALLERGY_LABELS[code] || code), 16)],
-    ['Diseases', shortText(listText(profile?.healthConditions, code => GOAL_LABELS[code] || code), 16)],
+    ['Diseases', shortText(listText(profile?.healthConditions, code => HEALTH_CONDITION_LABELS[code] || code), 16)],
   ];
 
   return (
@@ -1152,8 +1148,8 @@ export default function DietPlanEditor() {
             <SummaryField label="Food Pref." value={shortText(DIET_LABELS[profile?.dietType] || profile?.dietType)} />
             <SummaryField label="Country" value="India" />
             <SummaryField label="Community" value={shortText((profile?.communityCodes || []).map(code => COMMUNITY_LABELS[code] || code).join(', '), 20)} />
-            <SummaryField label="Allergy" value={shortText((profile?.allergies || []).join(', '), 20)} />
-            <SummaryField label="Diseases" value={shortText((profile?.healthConditions || []).join(', '), 20)} />
+            <SummaryField label="Allergy" value={shortText(listText(profile?.allergies, code => ALLERGY_LABELS[code] || code), 20)} />
+            <SummaryField label="Diseases" value={shortText(listText(profile?.healthConditions, code => HEALTH_CONDITION_LABELS[code] || code), 20)} />
             <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', borderRadius: 18, background: '#fffaf6', border: `1px solid ${C.line}` }}>
               <div>
                 <div style={{ fontSize: 11, color: C.sub, marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 700 }}>Calories</div>

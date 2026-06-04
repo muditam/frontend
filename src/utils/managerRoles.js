@@ -18,3 +18,14 @@ export function normalizeRole(role = "") {
 export function isManagerRole(role = "") {
   return MANAGER_ROLE_SET.has(normalizeRole(role));
 }
+
+export function canAccessCallingCenterManagerDashboard(user = {}) {
+  const normalizedRole = normalizeRole(user?.role || "");
+  const hasTeam = user?.hasTeam === true;
+
+  if (isManagerRole(normalizedRole)) return true;
+  if (normalizedRole === "team leader" && hasTeam) return true;
+  if (normalizedRole === "retention agent" && hasTeam) return true;
+
+  return false;
+}
