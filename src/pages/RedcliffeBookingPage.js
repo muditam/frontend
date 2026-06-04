@@ -306,6 +306,11 @@ export default function RedcliffeBookingPage() {
     return Number(Math.min(rawDiscount, selectedPackageSubtotal || rawDiscount).toFixed(2));
   }, [form.centerDiscount, form.centerDiscountType, form.isCredit, selectedPackageSubtotal]);
 
+  const totalAmount = useMemo(() => {
+    if (form.isCredit === "true") return selectedPackageSubtotal;
+    return Math.max(0, Number((selectedPackageSubtotal - centerDiscountAmount).toFixed(2)));
+  }, [centerDiscountAmount, form.isCredit, selectedPackageSubtotal]);
+
   const filteredPackages = useMemo(() => {
     const query = packageSearch.trim().toLowerCase();
     if (!query) return availablePackages;
@@ -2038,6 +2043,10 @@ export default function RedcliffeBookingPage() {
                         ? ` (${form.centerDiscount}%)`
                         : ""}
                     </span>
+                  </div>
+                  <div className="redcliffe-summary-row">
+                    <span>Total Amount</span>
+                    <span>{formatCurrency(totalAmount) || "Rs 0"}</span>
                   </div>
                 </>
               ) : null}

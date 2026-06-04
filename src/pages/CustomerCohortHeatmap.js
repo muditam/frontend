@@ -21,6 +21,10 @@ import {
   DialogContent,
   DialogActions,
   CircularProgress,
+  Chip,
+  InputLabel,
+  FormControl,
+  Paper,
 } from "@mui/material";
 
 
@@ -589,13 +593,53 @@ function computeSummary(row) {
         onClose={closeDetailDialog}
         fullWidth
         maxWidth="lg"
+        PaperProps={{
+          sx: {
+            borderRadius: 4,
+            overflow: "hidden",
+            boxShadow: "0 24px 80px rgba(15, 23, 42, 0.18)",
+          },
+        }}
       >
-        <DialogTitle>
-          {detailDialog.cohort
-            ? `Cohort Customers • ${formatCohortLabel(detailDialog.cohort)}`
-            : "Cohort Customers"}
+        <DialogTitle
+          sx={{
+            px: 3,
+            py: 2.5,
+            color: "#fff",
+            background: "linear-gradient(135deg, #1f4d5c 0%, #2c5f6f 45%, #4d8d8f 100%)",
+          }}
+        >
+          <Stack
+            direction="row"
+            justifyContent="space-between"
+            alignItems="center"
+            spacing={2}
+            flexWrap="wrap"
+          >
+            <Box>
+              <Typography variant="overline" sx={{ letterSpacing: 1.4, opacity: 0.85 }}>
+                Cohort Customers
+              </Typography>
+              <Typography variant="h5" sx={{ fontWeight: 800, lineHeight: 1.15 }}>
+                {detailDialog.cohort
+                  ? formatCohortLabel(detailDialog.cohort)
+                  : "Customer Details"}
+              </Typography>
+            </Box>
+            {detailDialog.summary && (
+              <Chip
+                label={`${detailDialog.summary.totalCustomers || 0} customers`}
+                sx={{
+                  color: "#16333d",
+                  bgcolor: "rgba(255,255,255,0.9)",
+                  fontWeight: 700,
+                  borderRadius: "999px",
+                }}
+              />
+            )}
+          </Stack>
         </DialogTitle>
-        <DialogContent dividers>
+        <DialogContent dividers sx={{ px: 3, py: 3, bgcolor: "#f7fafb" }}>
           {detailDialog.loading ? (
             <Box sx={{ py: 6, display: "flex", justifyContent: "center" }}>
               <CircularProgress />
@@ -604,84 +648,143 @@ function computeSummary(row) {
             <Typography color="error">{detailDialog.error}</Typography>
           ) : (
             <>
-              <Stack
-                direction="row"
-                spacing={2}
-                alignItems="center"
-                justifyContent="space-between"
-                flexWrap="wrap"
-                sx={{ mb: 2 }}
-              >
-                <Select
-                  size="small"
-                  value={healthExpertFilter}
-                  onChange={(e) => setHealthExpertFilter(e.target.value)}
-                  sx={{ minWidth: 260 }}
+              <Stack spacing={2.5}>
+                <Paper
+                  elevation={0}
+                  sx={{
+                    p: 2,
+                    borderRadius: 3,
+                    border: "1px solid #dbe7ea",
+                    bgcolor: "#ffffff",
+                  }}
                 >
-                  <MenuItem value="all">All Health Experts</MenuItem>
-                  <MenuItem value="__unassigned__">Unassigned</MenuItem>
-                  {healthExpertOptions.map((expert) => (
-                    <MenuItem key={expert} value={expert}>
-                      {expert}
-                    </MenuItem>
-                  ))}
-                </Select>
+                  <Stack
+                    direction="row"
+                    spacing={2}
+                    alignItems="center"
+                    justifyContent="space-between"
+                    flexWrap="wrap"
+                  >
+                    <FormControl size="small" sx={{ minWidth: 280 }}>
+                      <InputLabel id="health-expert-filter-label">Health Expert</InputLabel>
+                      <Select
+                        labelId="health-expert-filter-label"
+                        value={healthExpertFilter}
+                        label="Health Expert"
+                        onChange={(e) => setHealthExpertFilter(e.target.value)}
+                        sx={{ borderRadius: 2 }}
+                      >
+                        <MenuItem value="all">All Health Experts</MenuItem>
+                        <MenuItem value="__unassigned__">Unassigned</MenuItem>
+                        {healthExpertOptions.map((expert) => (
+                          <MenuItem key={expert} value={expert}>
+                            {expert}
+                          </MenuItem>
+                        ))}
+                      </Select>
+                    </FormControl>
 
-                <Stack direction="row" spacing={3} flexWrap="wrap" justifyContent="flex-end">
-                  {detailDialog.summary && (
-                    <>
-                      <Typography variant="body2">
-                        Total Customers: <strong>{detailDialog.summary.totalCustomers || 0}</strong>
-                      </Typography>
-                      <Typography variant="body2">
-                        Assigned: <strong>{detailDialog.summary.assignedCustomers || 0}</strong>
-                      </Typography>
-                      <Typography variant="body2">
-                        Unassigned: <strong>{detailDialog.summary.unassignedCustomers || 0}</strong>
-                      </Typography>
-                    </>
-                  )}
-                  <Typography variant="body2">
-                    {selectedHealthExpertLabel} Count: <strong>{filteredDetailRows.length}</strong>
-                  </Typography>
-                </Stack>
-              </Stack>
+                    <Stack direction="row" spacing={1.25} flexWrap="wrap" justifyContent="flex-end">
+                      {detailDialog.summary && (
+                        <>
+                          <Chip
+                            label={`Total ${detailDialog.summary.totalCustomers || 0}`}
+                            sx={{ bgcolor: "#edf6f7", color: "#17404b", fontWeight: 700 }}
+                          />
+                          <Chip
+                            label={`Assigned ${detailDialog.summary.assignedCustomers || 0}`}
+                            sx={{ bgcolor: "#e8f7ef", color: "#17603c", fontWeight: 700 }}
+                          />
+                          <Chip
+                            label={`Unassigned ${detailDialog.summary.unassignedCustomers || 0}`}
+                            sx={{ bgcolor: "#fff2e8", color: "#9a4b16", fontWeight: 700 }}
+                          />
+                        </>
+                      )}
+                      <Chip
+                        label={`${selectedHealthExpertLabel}: ${filteredDetailRows.length}`}
+                        sx={{ bgcolor: "#2c5f6f", color: "#fff", fontWeight: 700 }}
+                      />
+                    </Stack>
+                  </Stack>
+                </Paper>
 
-              <Table size="small">
-                <TableHead sx={{ background: "#F5F5F5" }}>
-                  <TableRow>
-                    <TableCell sx={{ fontWeight: 700 }}>Customer Name</TableCell>
-                    <TableCell sx={{ fontWeight: 700 }}>Contact Number</TableCell>
-                    <TableCell sx={{ fontWeight: 700 }}>Health Expert Assigned</TableCell>
-                    <TableCell sx={{ fontWeight: 700 }}>First Order Date</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {filteredDetailRows.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={4} align="center">
-                        <Typography color="text.secondary" sx={{ py: 3 }}>
-                          No customer details available for this cohort
-                        </Typography>
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    filteredDetailRows.map((customer, index) => (
-                      <TableRow key={`${customer.contactNumber}-${index}`}>
-                        <TableCell>{customer.customerName || "—"}</TableCell>
-                        <TableCell>{customer.contactNumber || "—"}</TableCell>
-                        <TableCell>{customer.healthExpertAssigned || "Unassigned"}</TableCell>
-                        <TableCell>{formatDate(customer.firstOrderDate)}</TableCell>
+                <Paper
+                  elevation={0}
+                  sx={{
+                    borderRadius: 3,
+                    border: "1px solid #dbe7ea",
+                    overflow: "hidden",
+                    bgcolor: "#fff",
+                  }}
+                >
+                  <Table size="small">
+                    <TableHead sx={{ background: "#eef5f6" }}>
+                      <TableRow>
+                        <TableCell sx={{ fontWeight: 800, color: "#23414a" }}>Customer Name</TableCell>
+                        <TableCell sx={{ fontWeight: 800, color: "#23414a" }}>Contact Number</TableCell>
+                        <TableCell sx={{ fontWeight: 800, color: "#23414a" }}>Health Expert Assigned</TableCell>
+                        <TableCell sx={{ fontWeight: 800, color: "#23414a" }}>First Order Date</TableCell>
                       </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
+                    </TableHead>
+                    <TableBody>
+                      {filteredDetailRows.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={4} align="center">
+                            <Typography color="text.secondary" sx={{ py: 5 }}>
+                              No customer details available for this filter
+                            </Typography>
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        filteredDetailRows.map((customer, index) => (
+                          <TableRow
+                            key={`${customer.contactNumber}-${index}`}
+                            hover
+                            sx={{
+                              "&:nth-of-type(even)": { backgroundColor: "#fbfdfe" },
+                            }}
+                          >
+                            <TableCell sx={{ fontWeight: 600, color: "#18333b" }}>
+                              {customer.customerName || "—"}
+                            </TableCell>
+                            <TableCell>{customer.contactNumber || "—"}</TableCell>
+                            <TableCell>
+                              <Chip
+                                size="small"
+                                label={customer.healthExpertAssigned || "Unassigned"}
+                                sx={{
+                                  bgcolor: customer.healthExpertAssigned ? "#edf6f7" : "#f3f4f6",
+                                  color: customer.healthExpertAssigned ? "#17404b" : "#5b6470",
+                                  fontWeight: 700,
+                                }}
+                              />
+                            </TableCell>
+                            <TableCell>{formatDate(customer.firstOrderDate)}</TableCell>
+                          </TableRow>
+                        ))
+                      )}
+                    </TableBody>
+                  </Table>
+                </Paper>
+              </Stack>
             </>
           )}
         </DialogContent>
-        <DialogActions>
-          <Button onClick={closeDetailDialog}>Close</Button>
+        <DialogActions sx={{ px: 3, py: 2, bgcolor: "#f7fafb" }}>
+          <Button
+            onClick={closeDetailDialog}
+            variant="contained"
+            sx={{
+              borderRadius: 999,
+              px: 3,
+              textTransform: "none",
+              bgcolor: "#2c5f6f",
+              "&:hover": { bgcolor: "#234d59" },
+            }}
+          >
+            Close
+          </Button>
         </DialogActions>
       </Dialog>
     </Box>
