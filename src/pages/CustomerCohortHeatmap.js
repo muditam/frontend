@@ -99,7 +99,7 @@ function getTextColor(bg) {
 
 
 export default function CustomerCohortHeatmap() {
-  const API = "https://muditamleads-14f32a10d7f7.herokuapp.com";
+  const API = "http://localhost:5001";
 
 
   const [cohorts, setCohorts] = useState([]);
@@ -326,6 +326,14 @@ function getMaxMonthsToShow(cohortKey) {
     if (healthExpertFilter === "__unassigned__") return "Unassigned";
     return healthExpertFilter;
   }, [healthExpertFilter]);
+
+  const retainedCount = useMemo(() => {
+    return filteredDetailRows.filter((customer) => {
+      const first = customer?.firstOrderDate ? new Date(customer.firstOrderDate).getTime() : NaN;
+      const last = customer?.lastOrderDate ? new Date(customer.lastOrderDate).getTime() : NaN;
+      return Number.isFinite(first) && Number.isFinite(last) && last > first;
+    }).length;
+  }, [filteredDetailRows]);
 
 
 function computeSummary(row) {
@@ -705,6 +713,10 @@ function computeSummary(row) {
                         label={`${selectedHealthExpertLabel}: ${filteredDetailRows.length}`}
                         sx={{ bgcolor: "#2c5f6f", color: "#fff", fontWeight: 700 }}
                       />
+                      <Chip
+                        label={`Retained ${retainedCount}`}
+                        sx={{ bgcolor: "#e7f8ec", color: "#166534", fontWeight: 700 }}
+                      />
                     </Stack>
                   </Stack>
                 </Paper>
@@ -721,16 +733,18 @@ function computeSummary(row) {
                   <Table size="small">
                     <TableHead sx={{ background: "#eef5f6" }}>
                       <TableRow>
+                        <TableCell sx={{ width: 44 }} />
                         <TableCell sx={{ fontWeight: 800, color: "#23414a" }}>Customer Name</TableCell>
                         <TableCell sx={{ fontWeight: 800, color: "#23414a" }}>Contact Number</TableCell>
                         <TableCell sx={{ fontWeight: 800, color: "#23414a" }}>Health Expert Assigned</TableCell>
                         <TableCell sx={{ fontWeight: 800, color: "#23414a" }}>First Order Date</TableCell>
+                        <TableCell sx={{ fontWeight: 800, color: "#23414a" }}>Last Order Date</TableCell>
                       </TableRow>
                     </TableHead>
                     <TableBody>
                       {filteredDetailRows.length === 0 ? (
                         <TableRow>
-                          <TableCell colSpan={4} align="center">
+                          <TableCell colSpan={6} align="center">
                             <Typography color="text.secondary" sx={{ py: 5 }}>
                               No customer details available for this filter
                             </Typography>
@@ -745,6 +759,26 @@ function computeSummary(row) {
                               "&:nth-of-type(even)": { backgroundColor: "#fbfdfe" },
                             }}
                           >
+                            <TableCell>
+                              {(() => {
+                                const first = customer?.firstOrderDate ? new Date(customer.firstOrderDate).getTime() : NaN;
+                                const last = customer?.lastOrderDate ? new Date(customer.lastOrderDate).getTime() : NaN;
+                                const isRetained = Number.isFinite(first) && Number.isFinite(last) && last > first;
+                                if (!isRetained) return null;
+                                return (
+                                  <Box
+                                    sx={{
+                                      width: 10,
+                                      height: 10,
+                                      borderRadius: "50%",
+                                      bgcolor: "#16a34a",
+                                      mx: "auto",
+                                      boxShadow: "0 0 0 4px rgba(22, 163, 74, 0.14)",
+                                    }}
+                                  />
+                                );
+                              })()}
+                            </TableCell>
                             <TableCell sx={{ fontWeight: 600, color: "#18333b" }}>
                               {customer.customerName || "—"}
                             </TableCell>
@@ -761,6 +795,7 @@ function computeSummary(row) {
                               />
                             </TableCell>
                             <TableCell>{formatDate(customer.firstOrderDate)}</TableCell>
+                            <TableCell>{formatDate(customer.lastOrderDate)}</TableCell>
                           </TableRow>
                         ))
                       )}

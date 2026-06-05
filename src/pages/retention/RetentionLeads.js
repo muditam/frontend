@@ -676,6 +676,16 @@ const RetentionLeads = () => {
   }, [selectedLeadIndex, leads]);
 
   useEffect(() => {
+    if (selectedLeadIndex == null) {
+      setSelectedConditions([]);
+      return;
+    }
+
+    const leadConditions = leads[selectedLeadIndex]?.conditions;
+    setSelectedConditions(Array.isArray(leadConditions) ? leadConditions : []);
+  }, [selectedLeadIndex, leads]);
+
+  useEffect(() => {
     setShowAltNumberEditor(false);
     if (selectedLeadIndex == null) {
       setAltNumberDraft("");
@@ -1053,6 +1063,36 @@ const RetentionLeads = () => {
   const handleCreateOrderClick = (lead) => {
     setSelectedLead(lead);
     setOrderPopupOpen(true);
+  };
+
+  const handleConditionsChange = async (event) => {
+    if (selectedLeadIndex == null) return;
+
+    const nextConditions =
+      typeof event.target.value === "string"
+        ? event.target.value.split(",")
+        : event.target.value;
+
+    setSelectedConditions(nextConditions);
+
+    const leadId = leads[selectedLeadIndex]?._id;
+    if (!leadId) return;
+
+    setLeads((prevLeads) =>
+      prevLeads.map((lead, idx) =>
+        idx === selectedLeadIndex ? { ...lead, conditions: nextConditions } : lead
+      )
+    );
+
+    try {
+      await api.put(`/api/leads/${leadId}`, {
+        conditions: nextConditions,
+        conditionsUpdatedAt: new Date().toISOString(),
+        conditionsUpdatedBy: currentUserName,
+      });
+    } catch (error) {
+      console.error("Error updating conditions:", error);
+    }
   };
 
   const updateLeadDetails = async (contactNumber, newDetails) => {
@@ -2565,11 +2605,7 @@ You can mark Lost only after 60 days.`);
                           displayEmpty
                           label="Conditions"
                           value={selectedConditions || []}
-                          onChange={(e) =>
-                            setSelectedConditions(
-                              typeof e.target.value === "string" ? e.target.value.split(",") : e.target.value
-                            )
-                          }
+                          onChange={handleConditionsChange}
                           renderValue={(selected) => {
                             const s = Array.isArray(selected) ? selected : [];
                             if (s.length === 0) {
