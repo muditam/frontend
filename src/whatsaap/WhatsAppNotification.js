@@ -51,6 +51,7 @@ const SOCKET_URL = API_BASE;
 const NOTIF_SOUND_URL =
   "https://cdn.shopify.com/s/files/1/0734/7155/7942/files/new-notification-014-363678.mp3?v=1769002522";
 const CONVERSATION_REFRESH_COOLDOWN_MS = 11000;
+const USER_SYNC_INTERVAL_MS = 15000;
 
 const ALLOWED_ROLES = new Set([
   "sales agent",
@@ -221,6 +222,18 @@ function mergeConversationLists(existing = [], incoming = []) {
     byPhone.set(key, { ...(byPhone.get(key) || {}), ...item });
   }
   return Array.from(byPhone.values());
+}
+
+function sortConversations(list = []) {
+  return (Array.isArray(list) ? list.slice() : []).sort((a, b) => {
+    const au = Number(a?.unreadCount) || 0;
+    const bu = Number(b?.unreadCount) || 0;
+    if (au !== bu) return bu - au;
+    return (
+      (b?.lastMessageAt ? new Date(b.lastMessageAt).getTime() : 0) -
+      (a?.lastMessageAt ? new Date(a.lastMessageAt).getTime() : 0)
+    );
+  });
 }
 
 function customerPhoneFromMsg(msg) {
@@ -886,6 +899,13 @@ export default function WhatsAppInboxWidget({ onOpenChat }) {
   const callFabRef = useRef(null);
   const socketRef = useRef(null);
   const joinedRoomsRef = useRef(new Set());
+  const unreadByPhoneRef = useRef(new Map());
+  const pendingReadRef = useRef(new Map());
+  const isWidgetOpenRef = useRef(false);
+  const phone10ActiveRef = useRef("");
+  const viewRef = useRef("list");
+  const fetchConversationsRef = useRef(null);
+  const markReadRef = useRef(null);
   const messagesEndRef = useRef(null);
   const chatScrollRef = useRef(null);
   const refreshTimerRef = useRef(null);
@@ -979,11 +999,15 @@ export default function WhatsAppInboxWidget({ onOpenChat }) {
     sync();
     window.addEventListener("storage", sync);
     window.addEventListener("muditam:user-changed", sync);
-    const t = setInterval(sync, 1200);
+    window.addEventListener("focus", sync);
+    document.addEventListener("visibilitychange", sync);
+    const t = setInterval(sync, USER_SYNC_INTERVAL_MS);
     return () => {
       alive = false;
       window.removeEventListener("storage", sync);
       window.removeEventListener("muditam:user-changed", sync);
+      window.removeEventListener("focus", sync);
+      document.removeEventListener("visibilitychange", sync);
       clearInterval(t);
     };
   }, []);
@@ -1026,7 +1050,10 @@ export default function WhatsAppInboxWidget({ onOpenChat }) {
     () => !isLoginRoute && !isOnlineOrdersRoute && allowed,
     [isLoginRoute, isOnlineOrdersRoute, allowed]
   );
-  const isWidgetActive = useMemo(() => shouldShowWidget && open, [shouldShowWidget, open]);
+  const isWidgetConnected = shouldShowWidget;
+  const isWidgetOpen = shouldShowWidget && open;
+  useEffect(() => { isWidgetOpenRef.current = isWidgetOpen; }, [isWidgetOpen]);
+  useEffect(() => { viewRef.current = view; }, [view]);
 
   useEffect(() => {
     if (!shouldShowWidget) {
@@ -1040,6 +1067,7 @@ export default function WhatsAppInboxWidget({ onOpenChat }) {
   }, [shouldShowWidget, clearBlobUrls]);
 
   const phone10Active = useMemo(() => last10(active?.phone || ""), [active]);
+  useEffect(() => { phone10ActiveRef.current = phone10Active || ""; }, [phone10Active]);
   const totalUnread = useMemo(
     () => Number(serverCounts?.unread || 0),
     [serverCounts]
@@ -1047,20 +1075,10 @@ export default function WhatsAppInboxWidget({ onOpenChat }) {
 
   const visibleConvos = useMemo(() => (Array.isArray(convos) ? convos.slice() : []), [convos]);
 
-  const sortedConvos = useMemo(() => {
-    return visibleConvos.slice().sort((a, b) => {
-      const au = Number(a?.unreadCount) || 0;
-      const bu = Number(b?.unreadCount) || 0;
-      if (au !== bu) return bu - au;
-      return (
-        (b?.lastMessageAt ? new Date(b.lastMessageAt).getTime() : 0) -
-        (a?.lastMessageAt ? new Date(a.lastMessageAt).getTime() : 0)
-      );
-    });
-  }, [visibleConvos]);
+  const sortedConvos = useMemo(() => sortConversations(visibleConvos), [visibleConvos]);
 
   const fetchConversations = useCallback(async ({ append = false, cursor = "", force = false } = {}) => {
-    if (!isWidgetActive) return;
+    if (!isWidgetOpen) return;
     const now = Date.now();
     if (
       !force &&
@@ -1103,6 +1121,11 @@ export default function WhatsAppInboxWidget({ onOpenChat }) {
         },
       });
       const items = Array.isArray(r.data?.items) ? r.data.items : [];
+      for (const item of items) {
+        const p10 = last10(item?.phone || item?._id || "");
+        if (!p10) continue;
+        unreadByPhoneRef.current.set(p10, Number(item?.unreadCount || 0));
+      }
       setConvos((prev) => (append ? mergeConversationLists(prev, items) : items));
       setHasMoreConvos(Boolean(r.data?.hasMore));
       setConversationCursor(String(r.data?.nextCursor || ""));
@@ -1127,20 +1150,37 @@ export default function WhatsAppInboxWidget({ onOpenChat }) {
       conversationFetchInFlightRef.current = false;
       setLoading(false);
     }
-  }, [isWidgetActive, myNameRaw, myRole, myUserId, hasTeamEffective, myRoleNorm, debouncedSearchQuery]);
+  }, [isWidgetOpen, myNameRaw, myRole, myUserId, hasTeamEffective, myRoleNorm, debouncedSearchQuery]);
+  useEffect(() => { fetchConversationsRef.current = fetchConversations; }, [fetchConversations]);
 
   const scheduleConversationRefresh = useCallback((delay = 400, options = {}) => {
-    if (!isWidgetActive) return;
+    if (!isWidgetOpen) return;
     if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
     refreshTimerRef.current = setTimeout(() => {
       refreshTimerRef.current = null;
       fetchConversations(options);
     }, delay);
-  }, [isWidgetActive, fetchConversations]);
+  }, [isWidgetOpen, fetchConversations]);
+
+  const fetchUnreadSummary = useCallback(async () => {
+    if (!isWidgetConnected) return;
+    try {
+      const r = await axios.get(`${API_BASE}/api/whatsapp/conversations/summary`, {
+        withCredentials: true,
+        params: whatsappAccessPayload,
+      });
+      setServerCounts((prev) => ({
+        ...prev,
+        unread: Number(r.data?.unread || 0),
+      }));
+    } catch (error) {
+      console.error("WhatsApp widget summary fetch failed:", error?.message || error);
+    }
+  }, [isWidgetConnected, whatsappAccessPayload]);
 
   const fetchMessages = useCallback(
     async (p10) => {
-      if (!isWidgetActive || !p10) return;
+      if (!isWidgetOpen || !p10) return;
       setChatLoading(true);
       try {
         const r = await axios.get(`${API_BASE}/api/whatsapp/messages`, {
@@ -1155,18 +1195,21 @@ export default function WhatsAppInboxWidget({ onOpenChat }) {
         setChatLoading(false);
       }
     },
-    [isWidgetActive, whatsappAccessPayload]
+    [isWidgetOpen, whatsappAccessPayload]
   );
 
   const markRead = useCallback(
     async (p10) => {
-      if (!isWidgetActive || !p10) return;
+      if (!isWidgetOpen || !p10) return;
+      const nowIso = new Date().toISOString();
+      pendingReadRef.current.set(p10, { at: Date.now(), iso: nowIso });
+      unreadByPhoneRef.current.set(p10, 0);
       let clearedUnread = 0;
       setConvos((prev) =>
         prev.map((c) => {
           if (last10(c?.phone) !== p10) return c;
           clearedUnread = Number(c?.unreadCount || 0);
-          return { ...c, unreadCount: 0 };
+          return { ...c, unreadCount: 0, lastReadAt: nowIso };
         })
       );
       if (clearedUnread > 0) {
@@ -1183,8 +1226,9 @@ export default function WhatsAppInboxWidget({ onOpenChat }) {
         );
       } catch {}
     },
-    [isWidgetActive, whatsappAccessPayload]
+    [isWidgetOpen, whatsappAccessPayload]
   );
+  useEffect(() => { markReadRef.current = markRead; }, [markRead]);
 
   const scrollToBottom = useCallback((smooth = false) => {
     try {
@@ -1199,7 +1243,7 @@ export default function WhatsAppInboxWidget({ onOpenChat }) {
 
   // Audio blob prefetch
   useEffect(() => {
-    if (!isWidgetActive || view !== "chat" || !active) return;
+    if (!isWidgetOpen || view !== "chat" || !active) return;
     let cancelled = false;
     async function prefetch() {
       for (const m of messages || []) {
@@ -1226,11 +1270,26 @@ export default function WhatsAppInboxWidget({ onOpenChat }) {
     }
     prefetch();
     return () => { cancelled = true; };
-  }, [isWidgetActive, view, active, messages]); // eslint-disable-line
+  }, [isWidgetOpen, view, active, messages]); // eslint-disable-line
+
+  useEffect(() => {
+    if (!isWidgetConnected) return;
+    fetchUnreadSummary();
+    const onFocus = () => fetchUnreadSummary();
+    const onVisible = () => {
+      if (!document.hidden) fetchUnreadSummary();
+    };
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [isWidgetConnected, fetchUnreadSummary]);
 
   // Socket
   useEffect(() => {
-    if (!isWidgetActive || socketRef.current) return;
+    if (!isWidgetConnected || socketRef.current) return;
     socketRef.current = io(SOCKET_URL, {
       transports: ["websocket", "polling"],
       withCredentials: true,
@@ -1242,7 +1301,10 @@ export default function WhatsAppInboxWidget({ onOpenChat }) {
 
     socket.on("connect", () => {
       setSocketStatus("connected");
-      fetchConversations({ force: true });
+      fetchUnreadSummary();
+      if (isWidgetOpenRef.current) {
+        fetchConversationsRef.current?.({ force: true });
+      }
     });
     socket.on("disconnect", () => {
       setSocketStatus("disconnected");
@@ -1255,36 +1317,53 @@ export default function WhatsAppInboxWidget({ onOpenChat }) {
     socket.on("wa:conversation", (payload) => {
       const p10 = payload?.phone10;
       if (!p10) return;
+      const patch = payload?.patch || {};
+      const hasAbsolute = typeof patch?.unreadCount === "number";
+      const deltaFromPatch = Number(patch?.unreadCountDelta || 0);
+      const pending = pendingReadRef.current.get(p10);
+      const forceRead = pending && Date.now() - pending.at < 30000;
+      const hadUnread = unreadByPhoneRef.current.has(p10);
+      const prevUnread = hadUnread ? Number(unreadByPhoneRef.current.get(p10) || 0) : 0;
+      const nextUnread = forceRead
+        ? 0
+        : hasAbsolute
+        ? Number(patch.unreadCount || 0)
+        : Math.max(0, prevUnread + deltaFromPatch);
+      const delta = hasAbsolute
+        ? (hadUnread ? nextUnread - prevUnread : null)
+        : deltaFromPatch;
+
+      unreadByPhoneRef.current.set(p10, nextUnread);
       let found = false;
       setConvos((prev) => {
+        if (!isWidgetOpenRef.current) return prev;
         const idx = prev.findIndex((c) => last10(c?.phone) === p10);
         if (idx < 0) return prev;
         found = true;
         const next = prev.slice();
-        const patch = payload?.patch || {};
-        const prevUnread = Number(next[idx]?.unreadCount || 0);
-        const hasAbsolute = typeof patch?.unreadCount === "number";
-        const delta = Number(patch?.unreadCountDelta || 0);
-        const nextUnread = hasAbsolute ? Number(patch.unreadCount || 0) : Math.max(0, prevUnread + delta);
-        next[idx] = { ...next[idx], ...patch, unreadCount: nextUnread };
-        return next;
+        next[idx] = {
+          ...next[idx],
+          ...patch,
+          unreadCount: nextUnread,
+          ...(forceRead ? { lastReadAt: pending?.iso || next[idx]?.lastReadAt } : {}),
+        };
+        return sortConversations(next);
       });
-      if (found) {
-        const patch = payload?.patch || {};
-        const hasAbsolute = typeof patch?.unreadCount === "number";
-        const delta = hasAbsolute ? 0 : Number(patch?.unreadCountDelta || 0);
-        if (delta) {
-          setServerCounts((prev) => ({
-            ...prev,
-            unread: Math.max(0, Number(prev?.unread || 0) + delta),
-          }));
-        }
-      } else {
+      if (isWidgetOpenRef.current && !found) {
         scheduleConversationRefresh();
+      }
+      if (delta === null) {
+        fetchUnreadSummary();
+      } else if (delta) {
+        setServerCounts((prev) => ({
+          ...prev,
+          unread: Math.max(0, Number(prev?.unread || 0) + delta),
+        }));
       }
     });
 
     socket.on("wa:message", (payload) => {
+      if (!isWidgetOpenRef.current) return;
       const msg = payload?.message || payload;
       const p10 = payload?.phone10 || last10(customerPhoneFromMsg(msg)) || last10(msg?.from) || last10(msg?.to) || "";
       if (!p10) return;
@@ -1299,7 +1378,7 @@ export default function WhatsAppInboxWidget({ onOpenChat }) {
         found = true;
         const next = prev.slice();
         const isInbound = String(msg?.direction || "").toUpperCase() === "INBOUND";
-        const isActiveChat = Boolean(phone10Active && p10 === phone10Active);
+        const isActiveChat = Boolean(phone10ActiveRef.current && p10 === phone10ActiveRef.current);
         next[idx] = {
           ...next[idx],
           phone: next[idx]?.phone || customerPhoneFromMsg(msg) || p10,
@@ -1309,20 +1388,17 @@ export default function WhatsAppInboxWidget({ onOpenChat }) {
             ? Number(next[idx]?.unreadCount || 0) + 1
             : Number(next[idx]?.unreadCount || 0),
         };
-        return next;
+        return sortConversations(next);
       });
-      if (String(msg?.direction || "").toUpperCase() === "INBOUND" && (!phone10Active || p10 !== phone10Active)) {
-        setServerCounts((prev) => ({
-          ...prev,
-          unread: Number(prev?.unread || 0) + 1,
-        }));
-      }
-      if (!found && view !== "chat") {
+      if (!found && viewRef.current !== "chat") {
         scheduleConversationRefresh(800);
       }
-      if (phone10Active && p10 === phone10Active) {
+      if (phone10ActiveRef.current && p10 === phone10ActiveRef.current) {
         setMessages((prev) => upsertMessage(prev, msg));
         setTimeout(() => scrollToBottom(true), 0);
+        if (String(msg?.direction || "").toUpperCase() === "INBOUND") {
+          markReadRef.current?.(p10);
+        }
       }
     });
 
@@ -1338,7 +1414,7 @@ export default function WhatsAppInboxWidget({ onOpenChat }) {
       ].map((x) => String(x || "").trim()).filter(Boolean);
       const status = normalizeStatus(payload?.status);
       const p10 = last10(payload?.phone10 || payload?.phone || "");
-      if (!liveIds.length || !status || !phone10Active || p10 !== phone10Active) return;
+      if (!liveIds.length || !status || !phone10ActiveRef.current || p10 !== phone10ActiveRef.current) return;
       setMessages((prev) => {
         const next = prev.map((m) => {
           const waId = String(m?.waId || "").trim();
@@ -1367,14 +1443,14 @@ export default function WhatsAppInboxWidget({ onOpenChat }) {
       try { socket.close(); } catch {}
       socketRef.current = null;
     };
-  }, [isWidgetActive, phone10Active, scrollToBottom, prepareNotifAudio, playNotif, fetchConversations, scheduleConversationRefresh, view]);
+  }, [isWidgetConnected, scrollToBottom, prepareNotifAudio, playNotif, fetchUnreadSummary, scheduleConversationRefresh]);
 
   // Join only the active chat room while the widget chat is open.
   useEffect(() => {
     const socket = socketRef.current;
-    if (!isWidgetActive || !socket?.connected) return;
+    if (!isWidgetConnected || !socket?.connected) return;
     const desired = new Set(
-      view === "chat" && phone10Active ? [phone10Active] : []
+      isWidgetOpen && view === "chat" && phone10Active ? [phone10Active] : []
     );
     for (const room of Array.from(joinedRoomsRef.current)) {
       const p10 = room.replace(/^wa:/, "");
@@ -1390,17 +1466,17 @@ export default function WhatsAppInboxWidget({ onOpenChat }) {
         joinedRoomsRef.current.add(room);
       }
     }
-  }, [isWidgetActive, view, phone10Active, myNameRaw]);
+  }, [isWidgetConnected, isWidgetOpen, view, phone10Active, myNameRaw]);
 
   useEffect(() => {
-    if (!isWidgetActive) return;
+    if (!isWidgetOpen) return;
     fetchConversations({ force: true });
-  }, [isWidgetActive, fetchConversations]);
+  }, [isWidgetOpen, fetchConversations]);
 
   const loadMoreConversations = useCallback(() => {
-    if (!isWidgetActive || loading || !hasMoreConvos || !conversationCursor) return;
+    if (!isWidgetOpen || loading || !hasMoreConvos || !conversationCursor) return;
     fetchConversations({ append: true, cursor: conversationCursor });
-  }, [isWidgetActive, loading, hasMoreConvos, conversationCursor, fetchConversations]);
+  }, [isWidgetOpen, loading, hasMoreConvos, conversationCursor, fetchConversations]);
 
   const handleOpen = () => { prepareNotifAudio(); setAnchorEl(fabRef.current); };
   const handleClose = () => {

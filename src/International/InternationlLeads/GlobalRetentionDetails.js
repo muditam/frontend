@@ -179,6 +179,8 @@ const SectionCard = ({ icon, title, headerRight, children }) => (
       justifyContent="space-between"
       sx={{ mb: 1.5 }}
       spacing={1.5}
+      flexWrap="wrap"
+      useFlexGap
     >
       <Stack direction="row" alignItems="center" spacing={1.5}>
         {icon}
@@ -188,7 +190,7 @@ const SectionCard = ({ icon, title, headerRight, children }) => (
       </Stack>
 
       {headerRight ? (
-        <Box sx={{ minWidth: 220, maxWidth: 320 }}>{headerRight}</Box>
+        <Box sx={{ minWidth: 220, maxWidth: 320, width: "100%" }}>{headerRight}</Box>
       ) : null}
     </Stack>
 
@@ -203,7 +205,7 @@ const GlobalRetentionDetails = ({
   onDetailsUpdate,
   activeConditions = [],
 }) => {
-  const [open, setOpen] = useState(false); // start collapsed
+  const [open, setOpen] = useState(true);
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState(initialFormState);
 
@@ -371,12 +373,14 @@ const GlobalRetentionDetails = ({
           alignItems="center"
           justifyContent="space-between"
           gap={2}
+          flexWrap="wrap"
+          useFlexGap
         >
           <Stack
             direction={{ xs: "column", sm: "row" }}
             alignItems={{ xs: "flex-start", sm: "center" }}
             spacing={1.5}
-            sx={{ flex: 1, mx: 1 }}
+            sx={{ flex: 1, mx: 1, minWidth: 0, maxWidth: "100%" }}
           >
             <Stack direction="row" spacing={1} alignItems="center">
               <HealthAndSafetyRounded fontSize="small" />
@@ -389,7 +393,7 @@ const GlobalRetentionDetails = ({
               </Typography>
             </Stack>
 
-            <Stack direction="row" flexWrap="wrap" gap={1}>
+            <Stack direction="row" flexWrap="wrap" gap={1} sx={{ minWidth: 0, maxWidth: "100%" }}>
               {/* Age */}
               <Chip
                 size="small"
@@ -403,7 +407,17 @@ const GlobalRetentionDetails = ({
                 size="small"
                 icon={<HealthAndSafetyRounded />}
                 label={`Conditions: ${conditionsLabel}`}
-                sx={{ color: "white", bgcolor: "rgba(255,255,255,0.16)" }}
+                sx={{
+                  color: "white",
+                  bgcolor: "rgba(255,255,255,0.16)",
+                  maxWidth: { xs: "100%", sm: 340, md: 420 },
+                  "& .MuiChip-label": {
+                    display: "block",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                  },
+                }}
               />
 
               {/* HbA1c only if Diabetes is selected */}
@@ -425,7 +439,13 @@ const GlobalRetentionDetails = ({
             </Stack>
           </Stack>
 
-          <Stack direction="row" alignItems="center" spacing={1.25}>
+          <Stack
+            direction="row"
+            alignItems="center"
+            spacing={1.25}
+            sx={{ flexWrap: "wrap", justifyContent: "flex-end", maxWidth: "100%" }}
+            useFlexGap
+          >
             <Stack direction="row" alignItems="center" spacing={1}>
               {saveState === "saving" && (
                 <>
@@ -1403,4 +1423,3 @@ const GlobalRetentionDetails = ({
 };
 
 export default GlobalRetentionDetails;
-

@@ -4,14 +4,9 @@ import {
   Grid,
   Paper,
   Typography,
-  Tabs,
-  Tab,
   TextField,
   InputAdornment,
   List,
-  ListItem,
-  ListItemAvatar,
-  ListItemText,
   Avatar,
   Chip,
   Button,
@@ -23,8 +18,11 @@ import {
   DialogActions,
   IconButton,
   MenuItem,
+  Stack,
+  Tooltip,
 } from "@mui/material";
 import axios from "axios";
+import { useLocation, useNavigate } from "react-router-dom";
 import SearchIcon from "@mui/icons-material/Search";
 import PhoneIcon from "@mui/icons-material/Phone";
 import AddIcon from "@mui/icons-material/Add";
@@ -45,6 +43,24 @@ const CONDITION_OPTIONS = [
   "Thyroid",
   "Others",
 ];
+
+const normalizeConditions = (...values) => {
+  const flattened = values
+    .flatMap((value) => {
+      if (Array.isArray(value)) return value;
+      if (typeof value === "string") {
+        return value
+          .split(",")
+          .map((item) => item.trim())
+          .filter(Boolean);
+      }
+      return [];
+    })
+    .map((item) => String(item).trim())
+    .filter(Boolean);
+
+  return [...new Set(flattened)];
+};
 
 const statusChipColor = (status) => {
   const s = (status || "").toLowerCase().trim();
@@ -131,6 +147,8 @@ const computeFollowupLabel = (lead) => {
 };
 
 const GlobalRetentionLeads = () => {
+  const location = useLocation();
+  const navigate = useNavigate();
   const [tab, setTab] = useState("all");
   const [followupFilter, setFollowupFilter] = useState("all");
   const [search, setSearch] = useState("");
@@ -147,7 +165,7 @@ const GlobalRetentionLeads = () => {
     name: "",
     number: "",
     age: "",
-    lookingFor: "",
+    lookingFor: [],
   });
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
@@ -166,7 +184,7 @@ const GlobalRetentionLeads = () => {
   const [retentionStatusLocal, setRetentionStatusLocal] = useState("");
   const [followupStatusLocal, setFollowupStatusLocal] = useState("");
   const [prefMethodLocal, setPrefMethodLocal] = useState("");
-  const [conditionLocal, setConditionLocal] = useState("");
+  const [conditionLocal, setConditionLocal] = useState([]);
 
   const [minFollowupDate, setMinFollowupDate] = useState("");
   const [maxFollowupDate, setMaxFollowupDate] = useState("");
@@ -212,6 +230,23 @@ const GlobalRetentionLeads = () => {
     fetchLeads();
   }, [fetchLeads]);
 
+  useEffect(() => {
+    const prefill = location.state?.prefillLead;
+    if (!location.state?.openAddDialog || !prefill) return;
+
+    setSaveError("");
+    setSaveSuccess("");
+    setNewLead({
+      name: prefill.name || "",
+      number: prefill.number || "",
+      age: prefill.age || "",
+      lookingFor: normalizeConditions(prefill.lookingFor),
+    });
+    setAddDialogOpen(true);
+
+    navigate(location.pathname, { replace: true, state: null });
+  }, [location.pathname, location.state, navigate]);
+
   // Sync local UI state with selectedLead
   useEffect(() => {
     if (!selectedLead) return;
@@ -234,12 +269,13 @@ const GlobalRetentionLeads = () => {
     const pm = selectedLead.prefMethod || selectedLead.communicationMethod || "";
     setPrefMethodLocal(pm);
 
-    const cond =
-      selectedLead.condition ||
-      selectedLead.enquiryFor ||
-      selectedLead.lookingFor ||
-      "";
-    setConditionLocal(cond);
+    setConditionLocal(
+      normalizeConditions(
+        selectedLead.condition,
+        selectedLead.enquiryFor,
+        selectedLead.lookingFor
+      )
+    );
   }, [selectedLead]);
 
   // Ensure selectedLead is always in the list
@@ -296,7 +332,7 @@ const GlobalRetentionLeads = () => {
         name: newLead.name.trim(),
         phoneNumber: newLead.number.trim(),
         age: newLead.age ? Number(newLead.age) : null,
-        lookingFor: newLead.lookingFor.trim(),
+        lookingFor: normalizeConditions(newLead.lookingFor),
       };
 
       if (!payload.name || !payload.phoneNumber) {
@@ -315,7 +351,7 @@ const GlobalRetentionLeads = () => {
         name: "",
         number: "",
         age: "",
-        lookingFor: "",
+        lookingFor: [],
       });
 
       await fetchLeads();
@@ -372,6 +408,7 @@ const GlobalRetentionLeads = () => {
         .map((p) => p[0])
         .join("")
         .slice(0, 2) || "U";
+    const leadContactNumber = lead.contactNumber || lead.phoneNumber || "";
 
     const lastOrderText = lead.lastOrderDays
       ? `Last Order • ${lead.lastOrderDays} days`
@@ -385,69 +422,118 @@ const GlobalRetentionLeads = () => {
     const isSelected = selectedLead && selectedLead._id === lead._id;
 
     return (
-      <ListItem
+      <Box
         key={lead._id || lead.id || index}
-        button
-        selected={isSelected}
         onClick={() => setSelectedLead(lead)}
         sx={{
           mb: 1,
-          borderRadius: 2,
-          bgcolor: isSelected ? "#e3f2fd" : "#fff",
-          border: "1px solid #eee",
-          boxShadow: isSelected ? "0 0 0 1px #000000" : "none",
-          "&.Mui-selected": {
-            backgroundColor: "#e3f2fd",
+          px: 1.1,
+          py: 1,
+          borderRadius: "16px",
+          border: isSelected ? "1px solid transparent" : "1px solid #D8E2EE",
+          background: isSelected
+            ? "linear-gradient(135deg, #1F3B57 0%, #345B81 100%)"
+            : "linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(247,250,253,0.98) 100%)",
+          boxShadow: isSelected
+            ? "0 14px 28px rgba(31,59,87,0.26)"
+            : "0 8px 18px rgba(15,23,42,0.06)",
+          cursor: "pointer",
+          transition: "transform 140ms ease, box-shadow 140ms ease, background 140ms ease",
+          "&:hover": {
+            transform: "translateY(-1px)",
+            boxShadow: isSelected
+              ? "0 18px 32px rgba(31,59,87,0.3)"
+              : "0 12px 24px rgba(15,23,42,0.1)",
           },
         }}
       >
-        <Typography
-          variant="body2"
-          sx={{
-            width: 32,
-            textAlign: "center",
-            fontWeight: 600,
-            fontSize: 14,
-            mr: 1,
-          }}
-        >
-          {index + 1}
-        </Typography>
+        <Box sx={{ display: "flex", alignItems: "flex-start", gap: 1.1 }}>
+          <Typography
+            variant="body2"
+            sx={{
+              minWidth: 26,
+              textAlign: "center",
+              fontWeight: 700,
+              fontSize: 13,
+              mt: 0.5,
+              color: isSelected ? "rgba(255,255,255,0.82)" : "#52657A",
+            }}
+          >
+            {index + 1}
+          </Typography>
 
-        <ListItemAvatar>
-          <Avatar sx={{ bgcolor: "#000000", color: "#fff", fontSize: 17 }}>
+          <Avatar
+            sx={{
+              width: 42,
+              height: 42,
+              bgcolor: isSelected ? "rgba(255,255,255,0.16)" : "#1F3B57",
+              color: "#fff",
+              fontSize: 16,
+              fontWeight: 700,
+            }}
+          >
             {initials}
           </Avatar>
-        </ListItemAvatar>
-        <ListItemText
-          primary={
+
+          <Box sx={{ flex: 1, minWidth: 0 }}>
             <Box
               sx={{
                 display: "flex",
-                alignItems: "center",
+                alignItems: "flex-start",
                 justifyContent: "space-between",
+                gap: 1,
               }}
             >
-              <Typography sx={{ fontWeight: 600, fontSize: 18 }}>
+              <Typography
+                sx={{
+                  fontWeight: 700,
+                  fontSize: 15,
+                  color: isSelected ? "#FFFFFF" : "#0F172A",
+                  lineHeight: 1.25,
+                }}
+              >
                 {lead.name || lead.fullName}
               </Typography>
               <Chip
                 label={statusLabel}
                 size="small"
                 color={statusChipColor(statusLabel)}
-                sx={{ fontSize: 15 }}
+                sx={{
+                  height: 24,
+                  fontSize: 11,
+                  fontWeight: 700,
+                  ...(isSelected
+                    ? {
+                        bgcolor: "rgba(255,255,255,0.16)",
+                        color: "#FFFFFF",
+                        "& .MuiChip-label": { px: 1 },
+                      }
+                    : {}),
+                }}
               />
             </Box>
-          }
-          secondary={
+
+            {leadContactNumber && (
+              <Typography
+                variant="body2"
+                sx={{
+                  mt: 0.35,
+                  fontSize: 12.5,
+                  color: isSelected ? "rgba(255,255,255,0.78)" : "#60758D",
+                }}
+              >
+                {leadContactNumber}
+              </Typography>
+            )}
+
             <Box sx={{ mt: 0.5 }}>
               {lastOrderText && (
                 <Typography
                   variant="caption"
                   sx={{
                     display: "block",
-                    color: "text.secondary",
-                    fontSize: 14,
+                    color: isSelected ? "rgba(255,255,255,0.72)" : "#6B7280",
+                    fontSize: 11.5,
                   }}
                 >
                   {lastOrderText}
@@ -458,17 +544,17 @@ const GlobalRetentionLeads = () => {
                   variant="caption"
                   sx={{
                     display: "block",
-                    color: "text.secondary",
-                    fontSize: 14,
+                    color: isSelected ? "rgba(255,255,255,0.72)" : "#6B7280",
+                    fontSize: 11.5,
                   }}
                 >
                   {lastReachedText}
                 </Typography>
               )}
             </Box>
-          }
-        />
-      </ListItem>
+          </Box>
+        </Box>
+      </Box>
     );
   };
 
@@ -538,230 +624,317 @@ const GlobalRetentionLeads = () => {
     setNoteInput("");
   };
 
-  // 🔹 derive activeConditions for GlobalRetentionDetails
-  const activeConditions = conditionLocal
-    ? [conditionLocal]
-    : detail.condition
-    ? [detail.condition]
-    : detail.lookingFor
-    ? [detail.lookingFor]
-    : [];
+  const activeConditions =
+    conditionLocal.length > 0
+      ? conditionLocal
+      : normalizeConditions(detail.condition, detail.enquiryFor, detail.lookingFor);
+
+  const statusTabs = [
+    { label: "All", value: "all" },
+    { label: "Active", value: "active" },
+    { label: "Lost", value: "lost" },
+  ];
+
+  const followupChips = [
+    { key: "today", label: "Today" },
+    { key: "tomorrow", label: "Tomorrow" },
+    { key: "later", label: "Later" },
+    { key: "missed", label: "Missed" },
+    { key: "notset", label: "Not Set" },
+  ];
+
+  const premiumPillSx = (isSelected) => ({
+    minWidth: 0,
+    textTransform: "none",
+    borderRadius: "12px",
+    px: 1.1,
+    py: 0.55,
+    border: isSelected ? "1px solid transparent" : "1px solid #D6DEE8",
+    color: isSelected ? "#FFFFFF" : "#1E293B",
+    bgcolor: isSelected ? "#1F3B57" : "rgba(255,255,255,0.88)",
+    boxShadow: isSelected
+      ? "0 10px 20px rgba(31,59,87,0.22)"
+      : "0 2px 8px rgba(15,23,42,0.06)",
+    "&:hover": {
+      borderColor: isSelected ? "transparent" : "#C8D2DE",
+      bgcolor: isSelected ? "#244564" : "rgba(255,255,255,1)",
+    },
+  });
+
+  const headerIconButtonSx = {
+    width: 38,
+    height: 38,
+    borderRadius: "10px",
+    border: "1px solid #D6DEE8",
+    bgcolor: "rgba(255,255,255,0.88)",
+    boxShadow: "0 2px 8px rgba(15,23,42,0.06)",
+    color: "#1B2430",
+    flexShrink: 0,
+    "&:hover": {
+      bgcolor: "#FFFFFF",
+    },
+  };
+
+  const premiumInputSx = {
+    "& .MuiOutlinedInput-root": {
+      borderRadius: "12px",
+      backgroundColor: "rgba(255,255,255,0.92)",
+      "& .MuiOutlinedInput-notchedOutline": { borderColor: "#D6DEE8" },
+      "&:hover .MuiOutlinedInput-notchedOutline": { borderColor: "#C8D2DE" },
+      "&.Mui-focused .MuiOutlinedInput-notchedOutline": {
+        borderColor: "#8EA9C7",
+      },
+    },
+    "& .MuiInputLabel-root": { color: "#5B6B7F" },
+  };
+
+  const leadFieldSx = {
+    ...premiumInputSx,
+    "& .MuiOutlinedInput-root": {
+      ...premiumInputSx["& .MuiOutlinedInput-root"],
+      minHeight: 54,
+    },
+    "& .MuiInputBase-input, & .MuiSelect-select": {
+      fontSize: 14,
+      fontWeight: 600,
+    },
+    "& .MuiInputLabel-root": {
+      color: "#64748B",
+      fontSize: 13,
+      fontWeight: 600,
+    },
+  };
+
+  const metaPillSx = {
+    px: 1.2,
+    py: 0.45,
+    minHeight: 32,
+    borderRadius: 999,
+    border: "1px solid #D5DFEA",
+    bgcolor: "#EDF2F8",
+    color: "#1E293B",
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 0.6,
+    fontSize: 12.5,
+    fontWeight: 600,
+    lineHeight: 1,
+  };
 
   return (
-    <Box sx={{ p: 2, height: "calc(100vh - 80px)", bgcolor: "#f3f4f6" }}>
-      <Grid
-        container
-        spacing={2}
-        sx={{ height: "100%" }}
-        columns={{ xs: 1, md: 100 }}
+    <Box
+      sx={{
+        display: "flex",
+        height: "100vh",
+        fontFamily: '"Segoe UI", sans-serif',
+        backgroundColor: "background.default",
+        color: "black",
+      }}
+    >
+      <Box
+        sx={{
+          width: { xs: "100%", md: "22%" },
+          minWidth: { md: 290 },
+          borderRight: "1px solid #D7E0EA",
+          display: "flex",
+          flexDirection: "column",
+          px: 1.25,
+          pb: 1.25,
+          background:
+            "radial-gradient(140% 90% at 0% 0%, #F6F9FC 0%, #EEF3F9 55%, #E9EEF5 100%)",
+          overflowY: "auto",
+        }}
       >
-        {/* LEFT PANEL */}
-        <Grid item xs={1} md={21} sx={{ height: "100%" }}>
-          <Paper
-            elevation={2}
-            sx={{
-              height: "100%",
-              display: "flex",
-              flexDirection: "column",
-              p: 1.5,
-              borderRadius: 3,
-            }}
-          >
+        <Box
+          sx={{
+            position: "sticky",
+            top: 0,
+            zIndex: 10,
+            backdropFilter: "blur(8px)",
+            background:
+              "linear-gradient(180deg, rgba(241,246,252,0.97) 0%, rgba(241,246,252,0.92) 100%)",
+            pt: 1.25,
+            pb: 1.1,
+            borderBottom: "1px solid #D7E0EA",
+            borderRadius: "0 0 16px 16px",
+          }}
+        >
+          <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, flexWrap: "wrap" }}>
+            <Tooltip title="Add lead">
+              <IconButton size="small" onClick={handleOpenAddDialog} sx={headerIconButtonSx}>
+                <PersonAddIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+
+            <Stack
+              direction="row"
+              spacing={0.75}
+              sx={{ flexWrap: "wrap", rowGap: 0.75, columnGap: 0.75, flex: "1 1 auto" }}
+            >
+              {statusTabs.map(({ label, value }) => {
+                const isSelected = tab === value;
+                return (
+                  <Button
+                    key={value}
+                    variant={isSelected ? "contained" : "outlined"}
+                    onClick={() => handleTabChange(null, value)}
+                    size="small"
+                    sx={premiumPillSx(isSelected)}
+                  >
+                    {label}
+                  </Button>
+                );
+              })}
+            </Stack>
+          </Box>
+
+          <Stack direction="row" spacing={0.65} mt={1} sx={{ flexWrap: "wrap", rowGap: 0.65 }}>
+            {followupChips.map((item) => {
+              const isSelected = followupFilter === item.key;
+              return (
+                <Button
+                  key={item.key}
+                  variant={isSelected ? "contained" : "outlined"}
+                  onClick={() => handleFollowupChipClick(item.key)}
+                  size="small"
+                  sx={{
+                    ...premiumPillSx(isSelected),
+                    borderRadius: "10px",
+                    minWidth: 58,
+                    px: 0.7,
+                    py: 0.35,
+                    fontSize: 12,
+                  }}
+                >
+                  {item.label}
+                </Button>
+              );
+            })}
+          </Stack>
+
+          <Box sx={{ display: "flex", alignItems: "center", mb: 0, gap: 0.6, mt: 1 }}>
+            <TextField
+              size="small"
+              fullWidth
+              placeholder="Search leads..."
+              value={search}
+              onChange={handleSearchChange}
+              sx={premiumInputSx}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchIcon sx={{ color: "#60758D" }} />
+                  </InputAdornment>
+                ),
+              }}
+            />
+          </Box>
+        </Box>
+
+        <Box
+          sx={{
+            mt: 1.2,
+            flex: 1,
+            overflowY: "auto",
+            pr: 0.25,
+          }}
+        >
+          {loading ? (
             <Box
               sx={{
                 display: "flex",
                 alignItems: "center",
-                gap: 1.5,
-                mb: 1,
+                justifyContent: "center",
+                height: "100%",
               }}
             >
-              <IconButton
-                size="small"
-                onClick={handleOpenAddDialog}
-                sx={{
-                  border: "1px solid #000000",
-                  bgcolor: "#fff",
-                  color: "#000000",
-                  "&:hover": { bgcolor: "#f2f2f2" },
-                }}
-              >
-                <PersonAddIcon fontSize="small" />
-              </IconButton>
-
-              <Tabs
-                value={tab}
-                onChange={handleTabChange}
-                variant="fullWidth"
-                scrollButtons={false}
-                sx={{
-                  flex: 1,
-                  minHeight: 36,
-                  "& .MuiTab-root": {
-                    fontSize: 16,
-                    textTransform: "none",
-                    minHeight: 36,
-                    color: "#000000",
-                  },
-                }}
-                TabIndicatorProps={{
-                  style: {
-                    height: 3,
-                    borderRadius: 999,
-                    background: "#000000",
-                  },
-                }}
-              >
-                <Tab label="All" value="all" />
-                <Tab label="Active" value="active" />
-                <Tab label="Lost" value="lost" />
-              </Tabs>
+              <CircularProgress size={28} />
             </Box>
-
-            <Box
+          ) : error ? (
+            <Alert severity="error">{error}</Alert>
+          ) : leads.length === 0 ? (
+            <Typography
+              variant="body2"
               sx={{
-                mt: 0.5,
-                display: "flex",
-                flexWrap: "wrap",
-                gap: 0.5,
+                mt: 2,
+                textAlign: "center",
+                color: "text.secondary",
+                fontSize: 15,
               }}
             >
-              {[
-                { key: "today", label: "Today" },
-                { key: "tomorrow", label: "Tomorrow" },
-                { key: "later", label: "Later" },
-                { key: "missed", label: "Missed" },
-                { key: "notset", label: "Not Set" },
-              ].map((item) => (
-                <Chip
-                  key={item.key}
-                  label={item.label}
-                  size="small"
-                  variant={
-                    followupFilter === item.key ? "filled" : "outlined"
-                  }
-                  color={followupFilter === item.key ? "primary" : "default"}
-                  sx={{
-                    fontSize: 15,
-                    "&.MuiChip-filledPrimary": {
-                      backgroundColor: "#000000",
-                    },
-                  }}
-                  onClick={() => handleFollowupChipClick(item.key)}
-                />
-              ))}
-            </Box>
+              No leads found.
+            </Typography>
+          ) : (
+            <List dense disablePadding>
+              {leads.map((lead, idx) => renderLeadItem(lead, idx))}
+            </List>
+          )}
+        </Box>
+      </Box>
 
-            <Box sx={{ mt: 1.5 }}>
-              <TextField
-                size="small"
-                fullWidth
-                placeholder="Search leads..."
-                value={search}
-                onChange={handleSearchChange}
-                InputProps={{
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <SearchIcon fontSize="small" sx={{ color: "#000000" }} />
-                    </InputAdornment>
-                  ),
-                  sx: { fontSize: 16 },
-                }}
-              />
-            </Box>
-
-            <Box
-              sx={{
-                mt: 1.5,
-                flex: 1,
-                overflowY: "auto",
-                pr: 0.5,
-              }}
-            >
-              {loading ? (
-                <Box
-                  sx={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    height: "100%",
-                  }}
-                >
-                  <CircularProgress size={28} />
-                </Box>
-              ) : error ? (
-                <Alert severity="error">{error}</Alert>
-              ) : leads.length === 0 ? (
-                <Typography
-                  variant="body2"
-                  sx={{
-                    mt: 2,
-                    textAlign: "center",
-                    color: "text.secondary",
-                    fontSize: 16,
-                  }}
-                >
-                  No leads found.
-                </Typography>
-              ) : (
-                <List dense>
-                  {leads.map((lead, idx) => renderLeadItem(lead, idx))}
-                </List>
-              )}
-            </Box>
-          </Paper>
-        </Grid>
-
-        {/* RIGHT PANEL */}
-        <Grid item xs={1} md={79} sx={{ height: "100%" }}>
-          <Paper
-            elevation={2}
-            sx={{
-              height: "100%",
-              p: 2,
-              display: "flex",
-              flexDirection: "column",
-              borderRadius: 3,
-            }}
-          >
+      <Box
+        sx={{
+          flex: 1,
+          minWidth: 0,
+          p: 1.5,
+          background:
+            "linear-gradient(180deg, rgba(250,252,255,0.98) 0%, rgba(243,247,252,0.98) 100%)",
+          overflow: "auto",
+        }}
+      >
+        <Paper
+          elevation={0}
+          sx={{
+            minHeight: "100%",
+            p: 1.5,
+            display: "flex",
+            flexDirection: "column",
+            borderRadius: 3,
+            border: "1px solid #D7E1ED",
+            background:
+              "linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(246,249,253,0.98) 100%)",
+          }}
+        >
             {selectedLead ? (
               <Box
                 sx={{
-                  mt: 1,
                   display: "flex",
                   alignItems: "flex-start",
                   gap: 2,
                   flex: 1,
                   minHeight: 0,
+                  flexDirection: { xs: "column", lg: "row" },
                 }}
               >
-                {/* LEFT MAIN BOX */}
                 <Box sx={{ flex: 1, minWidth: 0 }}>
                   <Box
                     sx={{
-                      borderRadius: 2,
-                      border: "1px solid #e5e7eb",
+                      borderRadius: 3,
+                      border: "1px solid #D8E2EE",
                       p: 2,
                       bgcolor: "#ffffff",
+                      boxShadow: "0 10px 26px rgba(15,23,42,0.06)",
                       display: "flex",
                       flexDirection: "column",
-                      gap: 2,
+                      gap: 1.25,
                     }}
                   >
-                    {/* HEADER ROW */}
                     <Box
                       sx={{
                         display: "flex",
-                        alignItems: "center",
+                        alignItems: "flex-start",
                         gap: 1.5,
+                        flexWrap: "wrap",
                       }}
                     >
                       <Avatar
                         sx={{
-                          width: 40,
-                          height: 40,
-                          bgcolor: "#000000",
+                          width: 52,
+                          height: 52,
+                          bgcolor: "#1F3B57",
                           color: "#ffffff",
                           fontSize: 20,
+                          fontWeight: 700,
                         }}
                       >
                         {(detail.name || detail.fullName || "U")
@@ -771,211 +944,242 @@ const GlobalRetentionLeads = () => {
                           .slice(0, 2)}
                       </Avatar>
 
-                      <Box
-                        sx={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 1,
-                          flexWrap: "wrap",
-                        }}
-                      >
+                      <Box sx={{ flex: 1, minWidth: 0 }}>
                         <Typography
                           sx={{
-                            fontWeight: 600,
-                            fontSize: 20,
-                            color: "#000000",
+                            fontWeight: 700,
+                            fontSize: 24,
+                            color: "#0F172A",
+                            lineHeight: 1.2,
                           }}
                         >
                           {detail.name || detail.fullName}
                         </Typography>
 
-                        {contactNumber && (
-                          <Typography
-                            variant="body2"
-                            sx={{
-                              color: "text.secondary",
-                              fontSize: 16,
-                            }}
-                          >
-                            {contactNumber}
-                          </Typography>
-                        )}
+                        <Box
+                          sx={{
+                            mt: 0.75,
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 1,
+                            flexWrap: "wrap",
+                          }}
+                        >
+                          {contactNumber && (
+                            <Box sx={metaPillSx}>{contactNumber}</Box>
+                          )}
+                        {activeConditions.map((condition) => (
+                          <Box key={condition} sx={metaPillSx}>
+                            {condition}
+                          </Box>
+                        ))}
+                          {detail.age && <Box sx={metaPillSx}>Age {detail.age}</Box>}
+                        </Box>
+                      </Box>
 
+                      <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, flexWrap: "wrap" }}>
                         {contactNumber && (
+                          <Tooltip title="Copy number">
+                            <IconButton
+                              size="small"
+                              onClick={handleCopyNumber}
+                              sx={headerIconButtonSx}
+                            >
+                              <ContentCopyIcon sx={{ fontSize: 18 }} />
+                            </IconButton>
+                          </Tooltip>
+                        )}
+                        <Tooltip title="Add log">
                           <IconButton
                             size="small"
-                            onClick={handleCopyNumber}
-                            sx={{ color: "#000000" }}
+                            onClick={handleOpenLogDialog}
+                            sx={headerIconButtonSx}
                           >
-                            <ContentCopyIcon sx={{ fontSize: 20 }} />
+                            <PlaylistAddIcon sx={{ fontSize: 20 }} />
                           </IconButton>
-                        )}
-                        <IconButton
-                          size="small"
-                          onClick={handleOpenLogDialog}
-                          sx={{ color: "#000000" }}
-                        >
-                          <PlaylistAddIcon sx={{ fontSize: 24 }} />
-                        </IconButton>
-                        <IconButton
-                          size="small"
-                          onClick={() => setHistoryDialogOpen(true)}
-                          sx={{ color: "#000000" }}
-                        >
-                          <HistoryIcon sx={{ fontSize: 24 }} />
-                        </IconButton>
+                        </Tooltip>
+                        <Tooltip title="History">
+                          <IconButton
+                            size="small"
+                            onClick={() => setHistoryDialogOpen(true)}
+                            sx={headerIconButtonSx}
+                          >
+                            <HistoryIcon sx={{ fontSize: 20 }} />
+                          </IconButton>
+                        </Tooltip>
                       </Box>
                     </Box>
 
-                    {/* FIELDS BELOW HEADER */}
-                    <Grid container spacing={2}>
-                      {/* 🔹 Next Follow-up - SAVE ON CHANGE */}
-                      <Grid item xs={12} md={2}>
-                        <TextField
-                          label="Next Follow-up"
-                          type="date"
-                          size="small"
-                          fullWidth
-                          value={nextFollowupLocal}
-                          onChange={(e) => {
-                            const v = e.target.value;
-                            setNextFollowupLocal(v);
-                            handleAutoSaveField("nextFollowup", v);
-                          }}
-                          InputLabelProps={{ shrink: true }}
-                          InputProps={{
-                            sx: { fontSize: 16 },
-                            inputProps: {
-                              min: minFollowupDate || undefined,
-                              max: maxFollowupDate || undefined,
-                            },
-                          }}
-                        />
-                      </Grid>
+                    <Box
+                      sx={{
+                        mt: 0.35,
+                        display: "grid",
+                        gap: 1,
+                        gridTemplateColumns: {
+                          xs: "minmax(0, 1fr)",
+                          sm: "repeat(2, minmax(0, 1fr))",
+                          xl: "repeat(5, minmax(0, 1fr))",
+                        },
+                      }}
+                    >
+                      <TextField
+                        label="Next Follow-up"
+                        type="date"
+                        size="small"
+                        fullWidth
+                        value={nextFollowupLocal}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          setNextFollowupLocal(v);
+                          handleAutoSaveField("nextFollowup", v);
+                        }}
+                        sx={leadFieldSx}
+                        InputLabelProps={{ shrink: true }}
+                        InputProps={{
+                          inputProps: {
+                            min: minFollowupDate || undefined,
+                            max: maxFollowupDate || undefined,
+                          },
+                        }}
+                      />
 
-                      {/* 🔹 Retention Status - SAVE ON CHANGE */}
-                      <Grid item xs={12} md={2}>
-                        <TextField
-                          label="Retention Status"
-                          size="small"
-                          fullWidth
-                          select
-                          value={retentionStatusLocal}
-                          onChange={(e) => {
-                            const v = e.target.value;
-                            setRetentionStatusLocal(v);
-                            handleAutoSaveField("retentionStatus", v);
-                          }}
-                          InputProps={{ sx: { fontSize: 16 } }}
-                        >
-                          <MenuItem value="">Select</MenuItem>
-                          <MenuItem value="Active">Active</MenuItem>
-                          <MenuItem value="Lost">Lost</MenuItem>
-                        </TextField>
-                      </Grid>
+                      <TextField
+                        label="Retention Status"
+                        size="small"
+                        fullWidth
+                        select
+                        value={retentionStatusLocal}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          setRetentionStatusLocal(v);
+                          handleAutoSaveField("retentionStatus", v);
+                        }}
+                        sx={leadFieldSx}
+                      >
+                        <MenuItem value="">Select</MenuItem>
+                        <MenuItem value="Active">Active</MenuItem>
+                        <MenuItem value="Lost">Lost</MenuItem>
+                      </TextField>
 
-                      {/* 🔹 Followup Status - SAVE ON CHANGE */}
-                      <Grid item xs={12} md={2}>
-                        <TextField
-                          label="Followup Status"
-                          size="small"
-                          fullWidth
-                          select
-                          value={followupStatusLocal}
-                          onChange={(e) => {
-                            const v = e.target.value;
-                            setFollowupStatusLocal(v);
-                            handleAutoSaveField("followupStatus", v);
-                          }}
-                          InputProps={{ sx: { fontSize: 16 } }}
-                        >
-                          <MenuItem value="">Select</MenuItem>
-                          <MenuItem value="Good result">
-                            Good result
-                          </MenuItem>
-                          <MenuItem value="No result">No result</MenuItem>
-                          <MenuItem value="Call back requested">
-                            Call back requested
-                          </MenuItem>
-                          <MenuItem value="Could not connect">
-                            Could not connect
-                          </MenuItem>
-                          <MenuItem value="Not interested">
-                            Not interested
-                          </MenuItem>
-                        </TextField>
-                      </Grid>
+                      <TextField
+                        label="Followup Status"
+                        size="small"
+                        fullWidth
+                        select
+                        value={followupStatusLocal}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          setFollowupStatusLocal(v);
+                          handleAutoSaveField("followupStatus", v);
+                        }}
+                        sx={leadFieldSx}
+                      >
+                        <MenuItem value="">Select</MenuItem>
+                        <MenuItem value="Good result">Good result</MenuItem>
+                        <MenuItem value="No result">No result</MenuItem>
+                        <MenuItem value="Call back requested">Call back requested</MenuItem>
+                        <MenuItem value="Could not connect">Could not connect</MenuItem>
+                        <MenuItem value="Not interested">Not interested</MenuItem>
+                      </TextField>
 
-                      {/* 🔹 Pref Method - SAVE ON CHANGE */}
-                      <Grid item xs={12} md={2}>
-                        <TextField
-                          label="Pref Method"
-                          size="small"
-                          fullWidth
-                          select
-                          value={prefMethodLocal}
-                          onChange={(e) => {
-                            const v = e.target.value;
-                            setPrefMethodLocal(v);
-                            handleAutoSaveField("prefMethod", v);
-                          }}
-                          InputProps={{ sx: { fontSize: 16 } }}
-                        >
-                          <MenuItem value="">Select</MenuItem>
-                          <MenuItem value="Call">Call</MenuItem>
-                          <MenuItem value="WhatsApp">WhatsApp</MenuItem>
-                          <MenuItem value="Both">Both</MenuItem>
-                        </TextField>
-                      </Grid>
+                      <TextField
+                        label="Pref Method"
+                        size="small"
+                        fullWidth
+                        select
+                        value={prefMethodLocal}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          setPrefMethodLocal(v);
+                          handleAutoSaveField("prefMethod", v);
+                        }}
+                        sx={leadFieldSx}
+                      >
+                        <MenuItem value="">Select</MenuItem>
+                        <MenuItem value="Call">Call</MenuItem>
+                        <MenuItem value="WhatsApp">WhatsApp</MenuItem>
+                        <MenuItem value="Both">Both</MenuItem>
+                      </TextField>
 
-                      {/* 🔹 Condition - SAVE ON CHANGE */}
-                      <Grid item xs={12} md={2}>
-                        <TextField
-                          label="Condition"
-                          size="small"
-                          fullWidth
-                          select
-                          value={conditionLocal}
-                          onChange={(e) => {
-                            const v = e.target.value;
-                            setConditionLocal(v);
-                            handleAutoSaveField("condition", v);
-                          }}
-                          InputProps={{ sx: { fontSize: 16 } }}
-                        >
-                          <MenuItem value="">Select</MenuItem>
-                          {CONDITION_OPTIONS.map((opt) => (
-                            <MenuItem key={opt} value={opt}>
-                              {opt}
-                            </MenuItem>
-                          ))}
-                        </TextField>
-                      </Grid>
-                    </Grid>
+                      <TextField
+                        label="Condition"
+                        size="small"
+                        fullWidth
+                        select
+                        value={conditionLocal}
+                        onChange={(e) => {
+                          const value = Array.isArray(e.target.value)
+                            ? e.target.value
+                            : normalizeConditions(e.target.value);
+                          setConditionLocal(value);
+                          handleAutoSaveField("condition", value);
+                        }}
+                        sx={leadFieldSx}
+                        SelectProps={{
+                          multiple: true,
+                          displayEmpty: true,
+                          renderValue: (selected) => {
+                            const values = Array.isArray(selected) ? selected : [];
+                            if (values.length === 0) {
+                              return (
+                                <Typography sx={{ color: "#94A3B8", fontSize: 14 }}>
+                                  Select conditions
+                                </Typography>
+                              );
+                            }
+                            return (
+                              <Box
+                                sx={{
+                                  display: "flex",
+                                  flexWrap: "wrap",
+                                  gap: 0.5,
+                                  maxWidth: "100%",
+                                }}
+                              >
+                                {values.map((value) => (
+                                  <Chip
+                                    key={value}
+                                    label={value}
+                                    size="small"
+                                    sx={{ height: 22, fontSize: 11, fontWeight: 600 }}
+                                  />
+                                ))}
+                              </Box>
+                            );
+                          },
+                        }}
+                      >
+                        {CONDITION_OPTIONS.map((opt) => (
+                          <MenuItem key={opt} value={opt}>
+                            {opt}
+                          </MenuItem>
+                        ))}
+                      </TextField>
+                    </Box>
                   </Box>
 
-                  {/* 🔹 Global Retention Details form */}
-                  <GlobalRetentionDetails
-                    leadId={detail._id}
-                    contactNumber={contactNumber}
-                    activeConditions={activeConditions}
-                  />
+                  <Box sx={{ mt: 1.5 }}>
+                    <GlobalRetentionDetails
+                      leadId={detail._id}
+                      contactNumber={contactNumber}
+                      activeConditions={activeConditions}
+                    />
+                  </Box>
                 </Box>
 
-                {/* RIGHT NOTES BOX */}
                 <Box
                   sx={{
-                    width: { xs: "100%", md: 340 },
+                    width: { xs: "100%", lg: 340 },
                     flexShrink: 0,
                   }}
                 >
                   <Box
                     sx={{
-                      borderRadius: 2,
-                      border: "1px solid #e5e7eb",
+                      borderRadius: 3,
+                      border: "1px solid #D8E2EE",
                       bgcolor: "#ffffff",
                       p: 2,
-                      boxShadow: "0 4px 10px rgba(0,0,0,0.04)",
+                      boxShadow: "0 10px 24px rgba(15,23,42,0.06)",
                       display: "flex",
                       flexDirection: "column",
                       height: "100%",
@@ -984,10 +1188,10 @@ const GlobalRetentionLeads = () => {
                     <Typography
                       variant="subtitle2"
                       sx={{
-                        fontWeight: 600,
+                        fontWeight: 700,
                         mb: 1,
                         fontSize: 18,
-                        color: "#000000",
+                        color: "#0F172A",
                       }}
                     >
                       Notes
@@ -1001,7 +1205,8 @@ const GlobalRetentionLeads = () => {
                       placeholder="Add / update note"
                       value={noteInput}
                       onChange={(e) => setNoteInput(e.target.value)}
-                      InputProps={{ sx: { fontSize: 16 } }}
+                      sx={premiumInputSx}
+                      InputProps={{ sx: { fontSize: 14 } }}
                     />
                     <Box
                       sx={{
@@ -1016,8 +1221,8 @@ const GlobalRetentionLeads = () => {
                         size="small"
                         onClick={handleSaveNote}
                         sx={{
-                          bgcolor: "#000000",
-                          "&:hover": { bgcolor: "#333333" },
+                          ...premiumPillSx(true),
+                          borderRadius: "10px",
                         }}
                       >
                         Save
@@ -1026,7 +1231,10 @@ const GlobalRetentionLeads = () => {
                         variant="outlined"
                         size="small"
                         onClick={handleResetNote}
-                        sx={{ borderColor: "#000000", color: "#000000" }}
+                        sx={{
+                          ...premiumPillSx(false),
+                          borderRadius: "10px",
+                        }}
                       >
                         Reset
                       </Button>
@@ -1055,20 +1263,21 @@ const GlobalRetentionLeads = () => {
                             key={n.id}
                             sx={{
                               mb: 1.5,
-                              p: 1,
-                              borderRadius: 1,
-                              bgcolor: "#f9fafb",
+                              p: 1.15,
+                              borderRadius: 2,
+                              border: "1px solid #D8E2EE",
+                              bgcolor: "#F8FBFF",
                             }}
                           >
                             <Typography
                               variant="body2"
-                              sx={{ fontSize: 17, mb: 0.5 }}
+                              sx={{ fontSize: 14, mb: 0.5, color: "#0F172A" }}
                             >
                               {n.text}
                             </Typography>
                             <Typography
                               variant="caption"
-                              sx={{ color: "text.secondary", fontSize: 14 }}
+                              sx={{ color: "text.secondary", fontSize: 12 }}
                             >
                               {formatDateTime(n.when)}
                             </Typography>
@@ -1094,9 +1303,8 @@ const GlobalRetentionLeads = () => {
                 </Typography>
               </Box>
             )}
-          </Paper>
-        </Grid>
-      </Grid>
+        </Paper>
+      </Box>
 
       {/* Add Lead Dialog */}
       <Dialog
@@ -1160,10 +1368,23 @@ const GlobalRetentionLeads = () => {
                   size="small"
                   label="Condition"
                   value={newLead.lookingFor}
-                  onChange={onChangeNewLeadField("lookingFor")}
+                  onChange={(e) => {
+                    const value = Array.isArray(e.target.value)
+                      ? e.target.value
+                      : normalizeConditions(e.target.value);
+                    setNewLead((prev) => ({ ...prev, lookingFor: value }));
+                  }}
                   InputProps={{ sx: { fontSize: 16 } }}
+                  SelectProps={{
+                    multiple: true,
+                    displayEmpty: true,
+                    renderValue: (selected) => {
+                      const values = Array.isArray(selected) ? selected : [];
+                      if (values.length === 0) return "Select";
+                      return values.join(", ");
+                    },
+                  }}
                 >
-                  <MenuItem value="">Select</MenuItem>
                   {CONDITION_OPTIONS.map((opt) => (
                     <MenuItem key={opt} value={opt}>
                       {opt}

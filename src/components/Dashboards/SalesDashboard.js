@@ -13,6 +13,7 @@ import MarketingDashboard from "../../Dashboards/MarketingDashboard";
 import SuperAdminAnalytics from "../../pages/SuperAdminAnalytics";
 import ItManagerDashboard from "../../Dashboards/ITManagerDashboard";
 import SuperAdminDashboard from "../../Dashboards/SuperAdminDashboard";
+import InternationalAgentDashboard from "../../Dashboards/InternationalAgentDashboard";
 
 
 const SalesDashboard = () => {
@@ -229,6 +230,7 @@ if (storedTab === "Retention" || storedTab === "Analytics") {
    {normalizedRole === "finance" && <FinanceDashboard />}
    {normalizedRole === "operations" && <OperationsDashboard />}
    {normalizedRole === "marketing" && <MarketingDashboard />}
+   {normalizedRole === "international agent" && <InternationalAgentDashboard />}
    {normalizedRole === "human resource" && <ItManagerDashboard />}
    {(normalizedRole === "super admin" || normalizedRole === "superadmin" || normalizedRole === "super-admin") && <SuperAdminDashboard />}
  </div>
@@ -237,5 +239,4 @@ if (storedTab === "Retention" || storedTab === "Analytics") {
 
 
 export default SalesDashboard;
-
 
