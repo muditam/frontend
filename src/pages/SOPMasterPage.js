@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import axios from "axios";
+import { clearCachedData, getCachedData } from "../utils/apiCache";
 import {
   Alert,
   Box,
@@ -33,6 +34,7 @@ import {
 } from "@mui/icons-material";
 
 const API_BASE = "https://muditamleads-14f32a10d7f7.herokuapp.com";
+const SOPS_CACHE_TTL_MS = 5 * 60 * 1000;
 
 const BRAND = {
   bg: "#f5f7fb",
@@ -124,11 +126,24 @@ export default function SOPMasterPage() {
     setSnack({ open: true, message, severity });
   };
 
-  const fetchSops = useCallback(async () => {
+  const fetchSops = useCallback(async (forceFresh = false) => {
     setLoading(true);
     try {
-      const res = await axios.get(`${API_BASE}/api/sops`, { headers });
-      setSops(res.data?.sops || []);
+      const cacheKey = "sops:list";
+      if (forceFresh) {
+        clearCachedData(cacheKey);
+      }
+
+      const list = await getCachedData(
+        cacheKey,
+        async () => {
+          const res = await axios.get(`${API_BASE}/api/sops`, { headers });
+          return res.data?.sops || [];
+        },
+        SOPS_CACHE_TTL_MS
+      );
+
+      setSops(list);
     } catch (error) {
       console.error("Error fetching SOPs:", error);
       showSnack(
@@ -174,7 +189,9 @@ export default function SOPMasterPage() {
       setForm(initialForm());
       setCreateOpen(false);
       showSnack("SOP created successfully");
-      fetchSops();
+      clearCachedData("sops:");
+      clearCachedData("incentives:");
+      fetchSops(true);
     } catch (error) {
       console.error("Error creating SOP:", error);
       showSnack(
@@ -229,7 +246,9 @@ export default function SOPMasterPage() {
       setEditOpen(false);
       setEditingSop(null);
       showSnack("SOP updated successfully");
-      fetchSops();
+      clearCachedData("sops:");
+      clearCachedData("incentives:");
+      fetchSops(true);
     } catch (error) {
       console.error("Error updating SOP:", error);
       showSnack(
@@ -248,7 +267,9 @@ export default function SOPMasterPage() {
     try {
       await axios.delete(`${API_BASE}/api/sops/${sop._id}`, { headers });
       showSnack("SOP deleted successfully");
-      fetchSops();
+      clearCachedData("sops:");
+      clearCachedData("incentives:");
+      fetchSops(true);
     } catch (error) {
       console.error("Error deleting SOP:", error);
       showSnack(

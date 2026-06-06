@@ -1,8 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import "./RetentionDashboard.css";
+import { getCachedData } from "../utils/apiCache";
 
 const API_BASE = (process.env.REACT_APP_API_BASE_URL || "http://localhost:5001").replace(/\/+$/, "");
+const DASHBOARD_STATS_CACHE_TTL_MS = 60 * 1000;
 
 const TIME_RANGE_OPTIONS = [
   "Today",
@@ -212,41 +214,49 @@ export default function InternationalAgentDashboard() {
     }
   }, []);
 
-  const fetchStats = useCallback(async () => {
+  const fetchStats = useCallback(async (startDate = "", endDate = "") => {
     try {
       setLoadingMain(true);
       setError("");
 
-      const [
-        shopifyRes,
-        abandonedRes,
-        retentionRes,
-        activeRes,
-        lostRes,
-        todayRes,
-        missedRes,
-        salesRes,
-      ] = await Promise.all([
-        axios.get(`${API_BASE}/api/global-shopify-orders`, { params: { page: 1, limit: 1 } }),
-        axios.get(`${API_BASE}/api/global-aband`, { params: { page: 1, limit: 1 } }),
-        axios.get(`${API_BASE}/api/global-retention-leads`, { params: { page: 1, limit: 1 } }),
-        axios.get(`${API_BASE}/api/global-retention-leads`, { params: { page: 1, limit: 1, status: "active" } }),
-        axios.get(`${API_BASE}/api/global-retention-leads`, { params: { page: 1, limit: 1, status: "lost" } }),
-        axios.get(`${API_BASE}/api/global-retention-leads`, { params: { page: 1, limit: 1, followupFilter: "today" } }),
-        axios.get(`${API_BASE}/api/global-retention-leads`, { params: { page: 1, limit: 1, followupFilter: "missed" } }),
-        axios.get(`${API_BASE}/api/global-retention-sales`, { params: { page: 1, limit: 1 } }),
-      ]);
+      const nextStats = await getCachedData(
+        `international-agent:stats:${startDate}:${endDate}`,
+        async () => {
+          const [
+            shopifyRes,
+            abandonedRes,
+            retentionRes,
+            activeRes,
+            lostRes,
+            todayRes,
+            missedRes,
+            salesRes,
+          ] = await Promise.all([
+            axios.get(`${API_BASE}/api/global-shopify-orders`, { params: { page: 1, limit: 1 } }),
+            axios.get(`${API_BASE}/api/global-aband`, { params: { page: 1, limit: 1 } }),
+            axios.get(`${API_BASE}/api/global-retention-leads`, { params: { page: 1, limit: 1 } }),
+            axios.get(`${API_BASE}/api/global-retention-leads`, { params: { page: 1, limit: 1, status: "active" } }),
+            axios.get(`${API_BASE}/api/global-retention-leads`, { params: { page: 1, limit: 1, status: "lost" } }),
+            axios.get(`${API_BASE}/api/global-retention-leads`, { params: { page: 1, limit: 1, followupFilter: "today" } }),
+            axios.get(`${API_BASE}/api/global-retention-leads`, { params: { page: 1, limit: 1, followupFilter: "missed" } }),
+            axios.get(`${API_BASE}/api/global-retention-sales`, { params: { page: 1, limit: 1 } }),
+          ]);
 
-      setStats({
-        shopifyOrders: Number(shopifyRes.data?.total || 0),
-        abandonedCarts: Number(abandonedRes.data?.total || 0),
-        retentionLeads: Number(retentionRes.data?.totalCount || 0),
-        activeLeads: Number(activeRes.data?.totalCount || 0),
-        lostLeads: Number(lostRes.data?.totalCount || 0),
-        followupToday: Number(todayRes.data?.totalCount || 0),
-        missedFollowups: Number(missedRes.data?.totalCount || 0),
-        retentionSales: Number(salesRes.data?.totalCount || 0),
-      });
+          return {
+            shopifyOrders: Number(shopifyRes.data?.total || 0),
+            abandonedCarts: Number(abandonedRes.data?.total || 0),
+            retentionLeads: Number(retentionRes.data?.totalCount || 0),
+            activeLeads: Number(activeRes.data?.totalCount || 0),
+            lostLeads: Number(lostRes.data?.totalCount || 0),
+            followupToday: Number(todayRes.data?.totalCount || 0),
+            missedFollowups: Number(missedRes.data?.totalCount || 0),
+            retentionSales: Number(salesRes.data?.totalCount || 0),
+          };
+        },
+        DASHBOARD_STATS_CACHE_TTL_MS
+      );
+
+      setStats(nextStats);
     } catch (err) {
       console.error("Failed to load international dashboard:", err);
       setError(err.response?.data?.message || "Failed to load international dashboard.");
@@ -268,7 +278,7 @@ export default function InternationalAgentDashboard() {
   const loadForRange = useCallback(
     async (startDate, endDate) => {
       setWindowLabel(`${prettyDate(startDate)} - ${prettyDate(endDate)}`);
-      await fetchStats();
+      await fetchStats(startDate, endDate);
     },
     [fetchStats]
   );

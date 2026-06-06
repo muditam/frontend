@@ -15,6 +15,11 @@ import {
   MenuItem,
 } from "@mui/material";
 import CardGiftcardIcon from "@mui/icons-material/CardGiftcard";
+import { getCachedData } from "../utils/apiCache";
+
+const API_BASE = "https://muditamleads-14f32a10d7f7.herokuapp.com";
+const LEADERBOARD_CACHE_TTL_MS = 60 * 1000;
+const LEADERBOARD_EMPLOYEE_CACHE_TTL_MS = 5 * 60 * 1000;
 
 // rewards same as before
 const giftPrizes = [
@@ -165,10 +170,14 @@ const Leaderboard = () => {
   useEffect(() => {
     const fetchEmployees = async () => {
       try {
-        const res = await fetch(
-          "https://muditamleads-14f32a10d7f7.herokuapp.com/api/employees"
+        const all = await getCachedData(
+          "leaderboard:employees",
+          async () => {
+            const res = await fetch(`${API_BASE}/api/employees`);
+            return res.json();
+          },
+          LEADERBOARD_EMPLOYEE_CACHE_TTL_MS
         );
-        const all = await res.json();
         const today = new Date();
         const agents = all.filter(
           (e) =>
@@ -190,57 +199,69 @@ const Leaderboard = () => {
   const loadMonthlyDataCurrent = useCallback(async (agents) => {
     const agentNames = agents.map((a) => a.fullName);
     if (!agentNames.length) return [];
-    const progressRes = await fetch(
-      "https://muditamleads-14f32a10d7f7.herokuapp.com/api/retention-sales/progress-multiple",
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ names: agentNames }),
-      }
+    const cacheKey = `leaderboard:monthly-current:${agentNames.join("|")}`;
+
+    return getCachedData(
+      cacheKey,
+      async () => {
+        const progressRes = await fetch(`${API_BASE}/api/retention-sales/progress-multiple`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ names: agentNames }),
+        });
+        const salesData = await progressRes.json();
+        const withSales = agents.map((agent) => {
+          const match = salesData.find((x) => x.name === agent.fullName);
+          return {
+            name: agent.fullName,
+            sales: match?.total || 0,
+          };
+        });
+        return withSales
+          .filter((x) => x.sales > 0 && x.name.trim() !== "Online Order")
+          .sort((a, b) => b.sales - a.sales);
+      },
+      LEADERBOARD_CACHE_TTL_MS
     );
-    const salesData = await progressRes.json();
-    const withSales = agents.map((agent) => {
-      const match = salesData.find((x) => x.name === agent.fullName);
-      return {
-        name: agent.fullName,
-        sales: match?.total || 0,
-      };
-    });
-    const sorted = withSales
-      .filter((x) => x.sales > 0 && x.name.trim() !== "Online Order")
-      .sort((a, b) => b.sales - a.sales);
-    return sorted;
   }, []);
 
   // helper to load MONTHLY data (ANY selected month – per agent)
   const loadMonthlyDataForMonth = useCallback(
     async (agents, from, to) => {
-      const rows = await Promise.all(
-        agents.map(async (agent) => {
-          try {
-            const url = new URL(
-              "https://muditamleads-14f32a10d7f7.herokuapp.com/api/retention-sales/progress"
-            );
-            url.searchParams.set("name", agent.fullName);
-            url.searchParams.set("from", from);
-            url.searchParams.set("to", to);
-            const res = await fetch(url.toString());
-            const data = await res.json();
-            return {
-              name: agent.fullName,
-              sales: Number(data?.total || 0),
-            };
-          } catch (err) {
-            return {
-              name: agent.fullName,
-              sales: 0,
-            };
-          }
-        })
+      const cacheKey = `leaderboard:monthly-range:${from}:${to}:${agents
+        .map((agent) => agent.fullName)
+        .join("|")}`;
+
+      return getCachedData(
+        cacheKey,
+        async () => {
+          const rows = await Promise.all(
+            agents.map(async (agent) => {
+              try {
+                const url = new URL(`${API_BASE}/api/retention-sales/progress`);
+                url.searchParams.set("name", agent.fullName);
+                url.searchParams.set("from", from);
+                url.searchParams.set("to", to);
+                const res = await fetch(url.toString());
+                const data = await res.json();
+                return {
+                  name: agent.fullName,
+                  sales: Number(data?.total || 0),
+                };
+              } catch (err) {
+                return {
+                  name: agent.fullName,
+                  sales: 0,
+                };
+              }
+            })
+          );
+          return rows
+            .filter((x) => x.sales > 0 && x.name.trim() !== "Online Order")
+            .sort((a, b) => b.sales - a.sales);
+        },
+        LEADERBOARD_CACHE_TTL_MS
       );
-      return rows
-        .filter((x) => x.sales > 0 && x.name.trim() !== "Online Order")
-        .sort((a, b) => b.sales - a.sales);
     },
     []
   );
@@ -248,33 +269,41 @@ const Leaderboard = () => {
   // helper to load WEEKLY data
   const loadWeeklyData = useCallback(
     async (agents, from, to) => {
-      const rows = await Promise.all(
-        agents.map(async (agent) => {
-          try {
-            const url = new URL(
-              "https://muditamleads-14f32a10d7f7.herokuapp.com/api/retention-sales/progress"
-            );
-            url.searchParams.set("name", agent.fullName);
-            url.searchParams.set("from", from);
-            url.searchParams.set("to", to);
-            const res = await fetch(url.toString());
-            const data = await res.json();
-            return {
-              name: agent.fullName,
-              sales: Number(data?.total || 0),
-            };
-          } catch (err) {
-            return {
-              name: agent.fullName,
-              sales: 0,
-            };
-          }
-        })
-      );
+      const cacheKey = `leaderboard:weekly:${from}:${to}:${agents
+        .map((agent) => agent.fullName)
+        .join("|")}`;
 
-      return rows
-        .filter((x) => x.sales > 0 && x.name.trim() !== "Online Order")
-        .sort((a, b) => b.sales - a.sales);
+      return getCachedData(
+        cacheKey,
+        async () => {
+          const rows = await Promise.all(
+            agents.map(async (agent) => {
+              try {
+                const url = new URL(`${API_BASE}/api/retention-sales/progress`);
+                url.searchParams.set("name", agent.fullName);
+                url.searchParams.set("from", from);
+                url.searchParams.set("to", to);
+                const res = await fetch(url.toString());
+                const data = await res.json();
+                return {
+                  name: agent.fullName,
+                  sales: Number(data?.total || 0),
+                };
+              } catch (err) {
+                return {
+                  name: agent.fullName,
+                  sales: 0,
+                };
+              }
+            })
+          );
+
+          return rows
+            .filter((x) => x.sales > 0 && x.name.trim() !== "Online Order")
+            .sort((a, b) => b.sales - a.sales);
+        },
+        LEADERBOARD_CACHE_TTL_MS
+      );
     },
     []
   );

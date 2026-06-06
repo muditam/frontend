@@ -41,8 +41,11 @@ import ImageIcon from "@mui/icons-material/Image";
 import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
 import PersonIcon from "@mui/icons-material/Person";
 import axios from "axios";
+import { clearCachedData, getCachedData } from "../utils/apiCache";
 
 const API_BASE = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "");
+const ASSET_ALLOTMENT_CACHE_TTL_MS = 60 * 1000;
+const ASSET_ALLOTMENT_EMPLOYEE_CACHE_TTL_MS = 5 * 60 * 1000;
 
 const api = axios.create({
   baseURL: API_BASE,
@@ -224,7 +227,14 @@ export default function AssetAllotment() {
   const fetchEmployees = async () => {
     setLoadingEmployees(true);
     try {
-      const { data } = await api.get(`/api/employees`);
+      const data = await getCachedData(
+        "asset-allotment:employees",
+        async () => {
+          const res = await api.get(`/api/employees`);
+          return res.data;
+        },
+        ASSET_ALLOTMENT_EMPLOYEE_CACHE_TTL_MS
+      );
       setEmployees(Array.isArray(data) ? data : []);
     } catch (e) {
       console.error(e);
@@ -237,7 +247,14 @@ export default function AssetAllotment() {
   const fetchAllotments = async () => {
     setLoadingAllotments(true);
     try {
-      const { data } = await api.get(`/api/asset-allotments`);
+      const data = await getCachedData(
+        "asset-allotment:list",
+        async () => {
+          const res = await api.get(`/api/asset-allotments`);
+          return res.data;
+        },
+        ASSET_ALLOTMENT_CACHE_TTL_MS
+      );
       setAllotments(Array.isArray(data) ? data : []);
     } catch (e) {
       console.error(e);
@@ -312,6 +329,10 @@ export default function AssetAllotment() {
       };
 
       await api.post(`/api/asset-allotments`, payload);
+      clearCachedData("asset-allotment:");
+      clearCachedData("add-assets:");
+      clearCachedData("my-assets:");
+      clearCachedData("hr:");
       setSnack({ severity: "success", msg: "Asset allotted" });
 
       setForm(initialForm);
@@ -467,6 +488,10 @@ export default function AssetAllotment() {
         `/api/asset-allotments/${id}/collect`,
         payload
       );
+      clearCachedData("asset-allotment:");
+      clearCachedData("add-assets:");
+      clearCachedData("my-assets:");
+      clearCachedData("hr:");
 
       try {
         const LS_KEY = "org_hw_assets_v2";

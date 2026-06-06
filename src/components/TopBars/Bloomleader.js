@@ -3,7 +3,11 @@ import React, { useState, useEffect } from "react";
 import { Popover, Box, Typography, Button, IconButton, Slide } from "@mui/material";
 import CardGiftcardIcon from "@mui/icons-material/CardGiftcard";
 import EmojiEventsIcon from "@mui/icons-material/EmojiEvents";
+import { getCachedData } from "../../utils/apiCache";
 
+const API_BASE = "https://muditamleads-14f32a10d7f7.herokuapp.com";
+const BLOOM_POPOVER_CACHE_TTL_MS = 60 * 1000;
+const BLOOM_POPOVER_EMPLOYEE_CACHE_TTL_MS = 5 * 60 * 1000;
 
 const getRankSuffix = (num) => {
   if (num === 1) return "1st";
@@ -80,10 +84,14 @@ export default function Bloomleader({ open, anchorEl, onClose }) {
   const fetchData = async () => {
     setLoading(true); 
     try {
-      const empRes = await fetch(
-        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/employees"
+      const employees = await getCachedData(
+        "bloom-popover:employees",
+        async () => {
+          const empRes = await fetch(`${API_BASE}/api/employees`);
+          return empRes.json();
+        },
+        BLOOM_POPOVER_EMPLOYEE_CACHE_TTL_MS
       );
-      const employees = await empRes.json();
 
       const now = new Date();
  
@@ -126,20 +134,27 @@ export default function Bloomleader({ open, anchorEl, onClose }) {
         ? currentDay.toISOString().slice(0, 10) 
         : lastDay;
  
-      const sales = await Promise.all(
-        newJoiners.map(async (emp) => {
-          try {
-            const res = await fetch(
-              `https://muditamleads-14f32a10d7f7.herokuapp.com/api/retention-sales/progress?name=${encodeURIComponent(
-                emp.fullName
-              )}&from=${from}&to=${to}`
-            );
-            const d = await res.json();
-            return { name: emp.fullName, sales: d.total || 0 };
-          } catch {
-            return { name: emp.fullName, sales: 0 };
-          }
-        })
+      const sales = await getCachedData(
+        `bloom-popover:${isWeekly ? "weekly" : "monthly"}:${from}:${to}:${newJoiners
+          .map((emp) => emp.fullName)
+          .join("|")}`,
+        async () =>
+          Promise.all(
+            newJoiners.map(async (emp) => {
+              try {
+                const res = await fetch(
+                  `${API_BASE}/api/retention-sales/progress?name=${encodeURIComponent(
+                    emp.fullName
+                  )}&from=${from}&to=${to}`
+                );
+                const d = await res.json();
+                return { name: emp.fullName, sales: d.total || 0 };
+              } catch {
+                return { name: emp.fullName, sales: 0 };
+              }
+            })
+          ),
+        BLOOM_POPOVER_CACHE_TTL_MS
       );
  
       const filtered = sales

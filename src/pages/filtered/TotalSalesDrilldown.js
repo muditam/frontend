@@ -39,9 +39,12 @@ import {
  KeyboardArrowUp
 } from "@mui/icons-material";
 import axios from "axios";
+import { getCachedData } from "../../utils/apiCache";
 
 
 const API_BASE = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "");
+const DRILLDOWN_CACHE_TTL_MS = 60 * 1000;
+const EMPLOYEE_CACHE_TTL_MS = 5 * 60 * 1000;
 
 const api = axios.create({
  baseURL: API_BASE,
@@ -133,8 +136,15 @@ export default function TotalSalesDrilldown({ open, onClose, initialDates }) {
  // -------------------- Effects --------------------
  useEffect(() => {
    if (!open) return;
-   api.get("/api/employees")
-     .then(({ data }) => {
+   getCachedData(
+     "sales-drilldown:employees",
+     async () => {
+       const { data } = await api.get("/api/employees");
+       return data;
+     },
+     EMPLOYEE_CACHE_TTL_MS
+   )
+     .then((data) => {
        const list = data || [];
        setEmployees(list);
        setLeaders(
@@ -205,7 +215,14 @@ export default function TotalSalesDrilldown({ open, onClose, initialDates }) {
      if (tabMode === "agents") {
        names = selectedAgents.map(a => a.fullName).filter(Boolean);
      } else if (tabMode === "manager" && selectedLeader?._id) {
-       const { data: mgr } = await api.get(`/api/employees/${selectedLeader._id}`);
+       const mgr = await getCachedData(
+         `sales-drilldown:manager:${selectedLeader._id}`,
+         async () => {
+           const { data } = await api.get(`/api/employees/${selectedLeader._id}`);
+           return data;
+         },
+         EMPLOYEE_CACHE_TTL_MS
+       );
        names = (mgr?.teamMembers || [])
          .filter((m) => m?.status === "active" && isTargetEligible(m))
          .map((m) => m.fullName);
@@ -261,11 +278,19 @@ export default function TotalSalesDrilldown({ open, onClose, initialDates }) {
        const rows = await Promise.all(
          names.map(async (name) => {
            const { contributors, teamMemberNames } = getContributorsForRow(name);
-           const { data } = await api.post("/api/retention-sales/daywise-matrix", {
-             names: contributors,
-             startDate,
-             endDate,
-           });
+           const contributorsKey = contributors.slice().sort().join("|");
+           const data = await getCachedData(
+             `sales-drilldown:daywise:${contributorsKey}:${startDate}:${endDate}`,
+             async () => {
+               const res = await api.post("/api/retention-sales/daywise-matrix", {
+                 names: contributors,
+                 startDate,
+                 endDate,
+               });
+               return res.data;
+             },
+             DRILLDOWN_CACHE_TTL_MS
+           );
 
            const perDayByName = new Map(
              (data || []).map((contributorRow) => [contributorRow?.name, contributorRow?.perDay || []])
@@ -320,11 +345,17 @@ export default function TotalSalesDrilldown({ open, onClose, initialDates }) {
            const { contributors, teamMemberNames } = getContributorsForRow(name);
            const contributorTotals = await Promise.all(
              contributors.map((contributorName) =>
-               api
-                 .get("/api/retention-sales/progress", {
-                   params: { name: contributorName, from: startDate, to: endDate },
-                 })
-                 .then(({ data }) => ({
+               getCachedData(
+                 `sales-drilldown:progress:${contributorName}:${startDate}:${endDate}`,
+                 async () => {
+                   const { data } = await api.get("/api/retention-sales/progress", {
+                     params: { name: contributorName, from: startDate, to: endDate },
+                   });
+                   return data;
+                 },
+                 DRILLDOWN_CACHE_TTL_MS
+               )
+                 .then((data) => ({
                    name: contributorName,
                    total: Number(data?.total || 0),
                  }))

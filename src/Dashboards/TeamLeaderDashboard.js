@@ -48,8 +48,11 @@ import {
   Update,
 } from "@mui/icons-material";
 import "./RetentionDashboard.css";
+import { getCachedData } from "../utils/apiCache";
 
 const API_BASE = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "");
+const DASHBOARD_CACHE_TTL_MS = 60 * 1000;
+const PROFILE_CACHE_TTL_MS = 5 * 60 * 1000;
 
 const api = axios.create({
   baseURL: API_BASE,
@@ -500,7 +503,14 @@ export default function TeamLeaderDashboard() {
         const sessionUser = JSON.parse(sessionStorage.getItem("user") || "{}");
         const sessionUserId = String(sessionUser?._id || sessionUser?.id || "").trim();
 
-        const { data } = await api.get("/api/employees");
+        const data = await getCachedData(
+          "team-leader:employees",
+          async () => {
+            const res = await api.get("/api/employees");
+            return res.data;
+          },
+          PROFILE_CACHE_TTL_MS
+        );
         const employees = Array.isArray(data) ? data : [];
         const activeEmployees = employees.filter((emp) => String(emp?.status || "").toLowerCase() === "active");
 
@@ -565,13 +575,20 @@ export default function TeamLeaderDashboard() {
           return progressByName[normalizedName];
         }
         try {
-          const { data: progress } = await api.get("/api/retention-sales/progress", {
-            params: {
-              name: normalizedName,
-              from: effectiveStart,
-              to: effectiveEnd,
+          const progress = await getCachedData(
+            `team-leader:progress:${normalizedName}:${effectiveStart}:${effectiveEnd}`,
+            async () => {
+              const { data } = await api.get("/api/retention-sales/progress", {
+                params: {
+                  name: normalizedName,
+                  from: effectiveStart,
+                  to: effectiveEnd,
+                },
+              });
+              return data;
             },
-          });
+            DASHBOARD_CACHE_TTL_MS
+          );
           progressByName[normalizedName] = Number(progress?.total || 0);
           return progressByName[normalizedName];
         } catch {
@@ -659,13 +676,21 @@ export default function TeamLeaderDashboard() {
   const fetchHealthSummary = useCallback(async (startDate, endDate, namesSet, names) => {
     setSummaryLoading(true);
     try {
-      const [activeCountsRes, aggregatedRes] = await Promise.all([
-        api.get("/api/leads/retention/active-counts"),
-        api.get("/api/retention-sales/aggregated", { params: { startDate, endDate } }),
-      ]);
-
-      const activeCountsArr = Array.isArray(activeCountsRes?.data) ? activeCountsRes.data : [];
-      const aggregatedSales = Array.isArray(aggregatedRes?.data) ? aggregatedRes.data : [];
+      const namesKey = (names || []).join("|");
+      const [activeCountsArr, aggregatedSales] = await getCachedData(
+        `team-leader:health:${namesKey}:${startDate}:${endDate}`,
+        async () => {
+          const [activeCountsRes, aggregatedRes] = await Promise.all([
+            api.get("/api/leads/retention/active-counts"),
+            api.get("/api/retention-sales/aggregated", { params: { startDate, endDate } }),
+          ]);
+          return [
+            Array.isArray(activeCountsRes?.data) ? activeCountsRes.data : [],
+            Array.isArray(aggregatedRes?.data) ? aggregatedRes.data : [],
+          ];
+        },
+        DASHBOARD_CACHE_TTL_MS
+      );
 
       const metrics = (names || []).map((name) => {
         const activeCustomers = Number(
@@ -703,17 +728,24 @@ export default function TeamLeaderDashboard() {
   const fetchActivitySummary = useCallback(async (startDate, endDate, namesSet, names) => {
     setActivityLoading(true);
     try {
-      const [conditionRes, activityRes] = await Promise.all([
-        api.get("/api/retention-activity/condition-cards", {
-          params: { agentNames: (names || []).join(",") },
-        }),
-        api.get("/api/retention-activity/health-expert-activity-summary", {
-          params: { startDate, endDate },
-        }),
-      ]);
+      const namesKey = (names || []).join("|");
+      const [conditionData, activityData] = await getCachedData(
+        `team-leader:activity:${namesKey}:${startDate}:${endDate}`,
+        async () => {
+          const [conditionRes, activityRes] = await Promise.all([
+            api.get("/api/retention-activity/condition-cards", {
+              params: { agentNames: (names || []).join(",") },
+            }),
+            api.get("/api/retention-activity/health-expert-activity-summary", {
+              params: { startDate, endDate },
+            }),
+          ]);
+          return [conditionRes?.data || {}, activityRes?.data || {}];
+        },
+        DASHBOARD_CACHE_TTL_MS
+      );
 
-      const conditionData = conditionRes?.data || {};
-      const rows = Array.isArray(activityRes?.data?.rows) ? activityRes.data.rows : [];
+      const rows = Array.isArray(activityData?.rows) ? activityData.rows : [];
       const filteredRows = rows.filter((row) => namesSet.has(String(row?.agentName || "").trim()));
 
       const totals = filteredRows.reduce(
@@ -777,9 +809,16 @@ export default function TeamLeaderDashboard() {
   const fetchFollowupSummary = useCallback(async (startDate, endDate, namesSet) => {
     setFollowupLoading(true);
     try {
-      const { data } = await api.get("/api/retention-sales/aggregated-followup", {
-        params: { startDate, endDate },
-      });
+      const data = await getCachedData(
+        `team-leader:followup:${startDate}:${endDate}`,
+        async () => {
+          const res = await api.get("/api/retention-sales/aggregated-followup", {
+            params: { startDate, endDate },
+          });
+          return res.data;
+        },
+        DASHBOARD_CACHE_TTL_MS
+      );
       const rows = Array.isArray(data?.summary)
         ? data.summary
         : Array.isArray(data)
@@ -831,13 +870,18 @@ export default function TeamLeaderDashboard() {
   const fetchShipmentSummary = useCallback(async (startDate, endDate, names) => {
     setShipmentLoading(true);
     try {
-      const perAgent = await Promise.all(
-        (names || []).map(async (agentName) => {
-          const { data } = await api.get("/api/retention-sales/shipment-summary/agent", {
-            params: { agentName, startDate, endDate },
-          });
-          return Array.isArray(data) ? data : [];
-        })
+      const namesKey = (names || []).join("|");
+      const perAgent = await getCachedData(
+        `team-leader:shipment:${namesKey}:${startDate}:${endDate}`,
+        () => Promise.all(
+          (names || []).map(async (agentName) => {
+            const { data } = await api.get("/api/retention-sales/shipment-summary/agent", {
+              params: { agentName, startDate, endDate },
+            });
+            return Array.isArray(data) ? data : [];
+          })
+        ),
+        DASHBOARD_CACHE_TTL_MS
       );
 
       const categoryMap = {};
@@ -895,9 +939,16 @@ export default function TeamLeaderDashboard() {
     }
     setAgentShipmentLoading(true);
     try {
-      const { data } = await api.get("/api/retention-sales/shipment-summary/agent", {
-        params: { agentName: healthExpertName, startDate, endDate },
-      });
+      const data = await getCachedData(
+        `team-leader:agent-shipment:${healthExpertName}:${startDate}:${endDate}`,
+        async () => {
+          const res = await api.get("/api/retention-sales/shipment-summary/agent", {
+            params: { agentName: healthExpertName, startDate, endDate },
+          });
+          return res.data;
+        },
+        DASHBOARD_CACHE_TTL_MS
+      );
       const rows = Array.isArray(data) ? data : [];
       setAgentShipmentSummary(
         rows.filter((row) => String(row?.category || "").trim().toLowerCase() !== "total orders")
@@ -913,9 +964,16 @@ export default function TeamLeaderDashboard() {
   const fetchCodPrepaid = useCallback(async (startDate, endDate, namesSet) => {
     setCodLoading(true);
     try {
-      const { data } = await api.get("/api/retention-sales/cod-prepaid-summary", {
-        params: { startDate, endDate },
-      });
+      const data = await getCachedData(
+        `team-leader:cod:${startDate}:${endDate}`,
+        async () => {
+          const res = await api.get("/api/retention-sales/cod-prepaid-summary", {
+            params: { startDate, endDate },
+          });
+          return res.data;
+        },
+        DASHBOARD_CACHE_TTL_MS
+      );
       const rows = Array.isArray(data) ? data : [];
       setCodRows(rows.filter((row) => namesSet.has(String(row?.agentName || "").trim())));
     } catch (error) {

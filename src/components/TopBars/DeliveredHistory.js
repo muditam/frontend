@@ -11,8 +11,13 @@ import {
   Paper,
   TextField,
   Button,
+  CircularProgress,
 } from "@mui/material";
 import axios from "axios";
+import { clearCachedData, getCachedData } from "../../utils/apiCache";
+
+const API_BASE = "https://muditamleads-14f32a10d7f7.herokuapp.com";
+const DELIVERED_HISTORY_CACHE_TTL_MS = 5 * 60 * 1000;
 
 const isTechHelperDepartment = (employee = {}) =>
   (employee?.department || "").toLowerCase().trim() === "tech helper";
@@ -25,6 +30,7 @@ const sortByFullName = (left = {}, right = {}) =>
 const DeliveredHistory = () => {
   const [agents, setAgents] = useState([]);
   const [monthKeys, setMonthKeys] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
   const storedUser = JSON.parse(sessionStorage.getItem("user") || "{}");
@@ -32,29 +38,52 @@ const DeliveredHistory = () => {
 
   useEffect(() => {
     fetchData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const fetchData = async () => {
-    const res = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/deliver-history", {
-      params: {
-        role: storedUser.role,
-        fullName: storedUser.fullName,
-      },
-    });
+  const fetchData = async (forceFresh = false) => {
+    setLoading(true);
+    try {
+      const cacheKey = `delivered-history:list:${storedUser?.role || "all"}:${storedUser?.fullName || "all"}`;
+      if (forceFresh) {
+        clearCachedData(cacheKey);
+      }
 
-    const filteredAgents = (res.data || [])
-      .filter((emp) => !isTechHelperDepartment(emp))
-      .sort(sortByFullName);
-    setAgents(filteredAgents);
+      const list = await getCachedData(
+        cacheKey,
+        async () => {
+          const res = await axios.get(`${API_BASE}/api/deliver-history`, {
+            params: {
+              role: storedUser.role,
+              fullName: storedUser.fullName,
+            },
+          });
 
-    const start = new Date("2024-03-01");
-    const now = new Date();
-    const months = [];
-    while (start <= now) {
-      months.push(start.toLocaleString("default", { month: "short", year: "2-digit" }));
-      start.setMonth(start.getMonth() + 1);
+          return res.data || [];
+        },
+        DELIVERED_HISTORY_CACHE_TTL_MS
+      );
+
+      const filteredAgents = list
+        .filter((emp) => !isTechHelperDepartment(emp))
+        .sort(sortByFullName);
+      setAgents(filteredAgents);
+
+      const start = new Date("2024-03-01");
+      const now = new Date();
+      const months = [];
+      while (start <= now) {
+        months.push(start.toLocaleString("default", { month: "short", year: "2-digit" }));
+        start.setMonth(start.getMonth() + 1);
+      }
+      setMonthKeys(months.reverse());
+    } catch (err) {
+      console.error("Failed to fetch delivered history:", err);
+      setAgents([]);
+      setMonthKeys([]);
+    } finally {
+      setLoading(false);
     }
-    setMonthKeys(months.reverse());
   };
 
   const handleSave = async () => {
@@ -62,13 +91,14 @@ const DeliveredHistory = () => {
     try {
       for (const emp of agents) {
         await axios.put(
-          `https://muditamleads-14f32a10d7f7.herokuapp.com/api/deliver-history/${emp._id}/monthly-sales`,
+          `${API_BASE}/api/deliver-history/${emp._id}/monthly-sales`,
           {
             monthlyDeliveredSales: emp.monthlyDeliveredSales || {},
           }
         );
       }
-      fetchData();
+      clearCachedData("delivered-history:");
+      fetchData(true);
     } catch (err) {
       console.error("Failed to save:", err);
     } finally {
@@ -134,7 +164,14 @@ const DeliveredHistory = () => {
           </TableHead>
 
           <TableBody>
-            {agents.map((emp) => (
+            {loading ? (
+              <TableRow>
+                <TableCell colSpan={Math.max(2 + monthKeys.length, 2)} align="center" sx={{ py: 6 }}>
+                  <CircularProgress size={34} />
+                </TableCell>
+              </TableRow>
+            ) : agents.length ? (
+              agents.map((emp) => (
               <TableRow key={emp._id}>
                 <TableCell
                   sx={{
@@ -211,7 +248,14 @@ const DeliveredHistory = () => {
                   </TableCell>
                 ))}
               </TableRow>
-            ))}
+              ))
+            ) : (
+              <TableRow>
+                <TableCell colSpan={Math.max(2 + monthKeys.length, 2)} align="center" sx={{ py: 4 }}>
+                  No delivered sales history found.
+                </TableCell>
+              </TableRow>
+            )}
           </TableBody>
         </Table>
       </TableContainer>

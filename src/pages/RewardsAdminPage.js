@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import axios from "axios";
+import { clearCachedData, getCachedData } from "../utils/apiCache";
 import {
   Alert,
   Box,
@@ -29,6 +30,8 @@ import {
 } from "@mui/icons-material";
 
 const API_BASE = "https://muditamleads-14f32a10d7f7.herokuapp.com";
+const REWARDS_CACHE_TTL_MS = 5 * 60 * 1000;
+const REWARD_REQUESTS_CACHE_TTL_MS = 60 * 1000;
 
 const MILESTONE_BUCKETS = [
   { id: 1, label: "Milestone 1", min: 1, max: 6000 },
@@ -155,18 +158,29 @@ export default function RewardsAdminPage() {
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [deleteError, setDeleteError] = useState("");
 
-  const fetchRewards = async () => {
+  const fetchRewards = async (forceFresh = false) => {
     setRewardsLoading(true);
     setRewardsError("");
 
     try {
-      const res = await axios.get(`${API_BASE}/api/rewards`, { headers });
+      const cacheKey = "rewards-admin:rewards";
+      if (forceFresh) {
+        clearCachedData(cacheKey);
+      }
 
-      const list = Array.isArray(res.data?.rewards)
-        ? res.data.rewards
-        : Array.isArray(res.data)
-        ? res.data
-        : [];
+      const list = await getCachedData(
+        cacheKey,
+        async () => {
+          const res = await axios.get(`${API_BASE}/api/rewards`, { headers });
+
+          return Array.isArray(res.data?.rewards)
+            ? res.data.rewards
+            : Array.isArray(res.data)
+            ? res.data
+            : [];
+        },
+        REWARDS_CACHE_TTL_MS
+      );
 
       setRewards(list);
     } catch (err) {
@@ -178,21 +192,32 @@ export default function RewardsAdminPage() {
     }
   };
 
-  const fetchRequests = async () => {
+  const fetchRequests = async (forceFresh = false) => {
     setRequestsLoading(true);
     setRequestsError("");
 
     try {
-      const res = await axios.get(`${API_BASE}/api/custom-reward`, {
-        headers,
-        params: { status: "pending" },
-      });
+      const cacheKey = "rewards-admin:requests:pending";
+      if (forceFresh) {
+        clearCachedData(cacheKey);
+      }
 
-      const list = Array.isArray(res.data?.requests)
-        ? res.data.requests
-        : Array.isArray(res.data)
-        ? res.data
-        : [];
+      const list = await getCachedData(
+        cacheKey,
+        async () => {
+          const res = await axios.get(`${API_BASE}/api/custom-reward`, {
+            headers,
+            params: { status: "pending" },
+          });
+
+          return Array.isArray(res.data?.requests)
+            ? res.data.requests
+            : Array.isArray(res.data)
+            ? res.data
+            : [];
+        },
+        REWARD_REQUESTS_CACHE_TTL_MS
+      );
 
       setRequests(list);
     } catch (err) {
@@ -301,7 +326,9 @@ export default function RewardsAdminPage() {
       }
 
       setRewardDialogOpen(false);
-      fetchRewards();
+      clearCachedData("rewards-admin:rewards");
+      clearCachedData("wallet-redeem:rewards");
+      fetchRewards(true);
     } catch (err) {
       console.error("Error saving reward:", err);
       setRewardFormError(err?.response?.data?.message || "Failed to save reward.");
@@ -329,7 +356,9 @@ export default function RewardsAdminPage() {
 
       setDeleteDialogOpen(false);
       setDeletingReward(null);
-      fetchRewards();
+      clearCachedData("rewards-admin:rewards");
+      clearCachedData("wallet-redeem:rewards");
+      fetchRewards(true);
     } catch (err) {
       console.error("Error deleting reward:", err);
       setDeleteError(err?.response?.data?.message || "Failed to delete reward.");
@@ -396,8 +425,10 @@ export default function RewardsAdminPage() {
 
       setApproveDialogOpen(false);
       setApprovalRequest(null);
-      fetchRequests();
-      fetchRewards();
+      clearCachedData("rewards-admin:");
+      clearCachedData("wallet-redeem:");
+      fetchRequests(true);
+      fetchRewards(true);
     } catch (err) {
       console.error("Error approving request:", err);
       setApprovalError(err?.response?.data?.message || "Failed to approve request.");
@@ -424,7 +455,9 @@ export default function RewardsAdminPage() {
         { headers }
       );
 
-      fetchRequests();
+      clearCachedData("rewards-admin:requests");
+      clearCachedData("wallet-redeem:requests");
+      fetchRequests(true);
     } catch (err) {
       console.error("Error approving redeem request:", err);
       setRequestsError(
@@ -456,7 +489,9 @@ export default function RewardsAdminPage() {
 
       setRejectDialogOpen(false);
       setRejectingRequest(null);
-      fetchRequests();
+      clearCachedData("rewards-admin:requests");
+      clearCachedData("wallet-redeem:requests");
+      fetchRequests(true);
     } catch (err) {
       console.error("Error rejecting request:", err);
       setRejectError(err?.response?.data?.message || "Failed to reject request.");

@@ -13,9 +13,12 @@ import {
  KeyboardArrowUp,
 } from "@mui/icons-material";
 import axios from "axios";
+import { clearCachedData, getCachedData } from "../utils/apiCache";
 
 
 const API_BASE = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "");
+const TEAM_PAGE_CACHE_TTL_MS = 60 * 1000;
+const TEAM_PAGE_EMPLOYEE_CACHE_TTL_MS = 5 * 60 * 1000;
 const api = axios.create({
  baseURL: API_BASE,
  withCredentials: true,
@@ -103,8 +106,15 @@ function getRemainingWorkingDays() {
 
 const fetchAchievedByName = async (fullName) => {
  try {
-   const { data } = await api.get(
-     `/api/retention-sales/progress?name=${encodeURIComponent(fullName)}`
+   const data = await getCachedData(
+     `team-page:achieved:${fullName}`,
+     async () => {
+       const res = await api.get(
+         `/api/retention-sales/progress?name=${encodeURIComponent(fullName)}`
+       );
+       return res.data;
+     },
+     TEAM_PAGE_CACHE_TTL_MS
    );
    return Number(data?.total || 0);
  } catch (e) {
@@ -174,7 +184,14 @@ const TeamPage = ({ managerId: managerIdProp }) => {
 
 
  const fetchLeaderAndAgentLists = async () => {
-   const { data } = await api.get("/api/employees");
+   const data = await getCachedData(
+     "team-page:employees",
+     async () => {
+       const res = await api.get("/api/employees");
+       return res.data;
+     },
+     TEAM_PAGE_EMPLOYEE_CACHE_TTL_MS
+   );
    const activeSalesEmployees = (data || []).filter(
      (emp) => emp.status === "active" && isTargetEligible(emp)
    );
@@ -222,9 +239,15 @@ const TeamPage = ({ managerId: managerIdProp }) => {
 
 
    setLoading(true);
-   api
-     .get(`/api/employees/${selectedLeaderId}`)
-     .then(({ data }) => {
+   getCachedData(
+     `team-page:employee:${selectedLeaderId}`,
+     async () => {
+       const { data } = await api.get(`/api/employees/${selectedLeaderId}`);
+       return data;
+     },
+     TEAM_PAGE_EMPLOYEE_CACHE_TTL_MS
+   )
+     .then((data) => {
        const nextMembers = isManagerView
          ? getActiveTargetMembers(data.teamMembers || [])
          : mergeDisplayedMembers(data, data.teamMembers || []);
@@ -290,7 +313,14 @@ const TeamPage = ({ managerId: managerIdProp }) => {
      const [memberData, selfAchieved] = await Promise.all([
        preloadedMemberData
          ? Promise.resolve(preloadedMemberData)
-         : api.get(`/api/employees/${current._id}`).then(({ data }) => data),
+         : getCachedData(
+             `team-page:employee:${current._id}`,
+             async () => {
+               const { data } = await api.get(`/api/employees/${current._id}`);
+               return data;
+             },
+             TEAM_PAGE_EMPLOYEE_CACHE_TTL_MS
+           ),
        fetchAchievedByName(current.fullName),
      ]);
 
@@ -356,8 +386,15 @@ const TeamPage = ({ managerId: managerIdProp }) => {
            return { current, memberData: null };
          }
 
-         const { data } = await api.get(`/api/employees/${current._id}`);
-         return { current, memberData: data };
+         const memberData = await getCachedData(
+           `team-page:employee:${current._id}`,
+           async () => {
+             const { data } = await api.get(`/api/employees/${current._id}`);
+             return data;
+           },
+           TEAM_PAGE_EMPLOYEE_CACHE_TTL_MS
+         );
+         return { current, memberData };
        })
      );
 
@@ -476,6 +513,7 @@ const TeamPage = ({ managerId: managerIdProp }) => {
    try {
      const updatedIds = [...teamMembers.map(tm => tm._id), ...searchValue.map(a => a._id)].filter((v, i, arr) => arr.indexOf(v) === i);
      const { data } = await api.put(`/api/employees/${selectedLeaderId}/team`, { teamMembers: updatedIds });
+     clearCachedData("team-page:");
      const nextMembers = isManagerView
        ? getActiveTargetMembers(data.manager.teamMembers || [])
        : mergeDisplayedMembers(data.manager, data.manager.teamMembers || []);
@@ -495,6 +533,7 @@ const TeamPage = ({ managerId: managerIdProp }) => {
    try {
      const updatedIds = teamMembers.filter(emp => emp._id !== id).map(emp => emp._id);
      const { data } = await api.put(`/api/employees/${selectedLeaderId}/team`, { teamMembers: updatedIds });
+     clearCachedData("team-page:");
      const nextMembers = isManagerView
        ? getActiveTargetMembers(data.manager.teamMembers || [])
        : mergeDisplayedMembers(data.manager, data.manager.teamMembers || []);

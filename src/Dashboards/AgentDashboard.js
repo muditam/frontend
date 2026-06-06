@@ -2,8 +2,11 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import IncentiveSummarySection from "../components/IncentiveSummarySection";
 import "./RetentionDashboard.css";
+import { getCachedData } from "../utils/apiCache";
 
 const API_BASE = "https://muditamleads-14f32a10d7f7.herokuapp.com";
+const DASHBOARD_CACHE_TTL_MS = 60 * 1000;
+const PROFILE_CACHE_TTL_MS = 5 * 60 * 1000;
 
 const TIME_RANGE_OPTIONS = [
   "Today",
@@ -288,21 +291,27 @@ const AgentDashboard = () => {
   const fetchTodayAndFollowup = useCallback(async (agentName, startDate, endDate) => {
     setLoadingMain(true);
     try {
-      const [todayRes, followupRes, salesSummaryRes] = await Promise.all([
-        axios.get(`${API_BASE}/api/dashboard/today-summary-agent`, {
-          params: { agentAssignedName: agentName, startDate, endDate },
-        }),
-        axios.get(`${API_BASE}/api/dashboard/followup-summary-agent`, {
-          params: { agentAssignedName: agentName, startDate, endDate },
-        }),
-        axios.get(`${API_BASE}/api/sales-summary`, {
-          params: { startDate, endDate },
-        }),
-      ]);
+      const [todayData, followupData, salesSummaryData] = await getCachedData(
+        `sales-agent:summary:${agentName}:${startDate}:${endDate}`,
+        async () => {
+          const [todayRes, followupRes, salesSummaryRes] = await Promise.all([
+            axios.get(`${API_BASE}/api/dashboard/today-summary-agent`, {
+              params: { agentAssignedName: agentName, startDate, endDate },
+            }),
+            axios.get(`${API_BASE}/api/dashboard/followup-summary-agent`, {
+              params: { agentAssignedName: agentName, startDate, endDate },
+            }),
+            axios.get(`${API_BASE}/api/sales-summary`, {
+              params: { startDate, endDate },
+            }),
+          ]);
+          return [todayRes?.data || {}, followupRes?.data || {}, salesSummaryRes?.data || {}];
+        },
+        DASHBOARD_CACHE_TTL_MS
+      );
 
-      const todayData = todayRes?.data || {};
-      const perAgentSummary = Array.isArray(salesSummaryRes?.data?.perAgent)
-        ? salesSummaryRes.data.perAgent
+      const perAgentSummary = Array.isArray(salesSummaryData?.perAgent)
+        ? salesSummaryData.perAgent
         : [];
       const summaryRow =
         perAgentSummary.find(
@@ -320,7 +329,7 @@ const AgentDashboard = () => {
         leadsAssignedToday: leadsAssigned,
         conversionRate,
       });
-      setFollowupStats(followupRes?.data || {});
+      setFollowupStats(followupData || {});
     } catch (error) {
       console.error("Error fetching sales dashboard summary:", error);
       setTodayStats({});
@@ -333,10 +342,17 @@ const AgentDashboard = () => {
   const fetchLeadSourceSummary = useCallback(async (agentName, startDate, endDate) => {
     setLoadingLeadSource(true);
     try {
-      const response = await axios.get(`${API_BASE}/api/dashboard/lead-source-summary-limited`, {
-        params: { agentAssignedName: agentName, startDate, endDate },
-      });
-      setLeadSourceData(Array.isArray(response?.data) ? response.data : []);
+      const data = await getCachedData(
+        `sales-agent:lead-source:${agentName}:${startDate}:${endDate}`,
+        async () => {
+          const response = await axios.get(`${API_BASE}/api/dashboard/lead-source-summary-limited`, {
+            params: { agentAssignedName: agentName, startDate, endDate },
+          });
+          return response?.data;
+        },
+        DASHBOARD_CACHE_TTL_MS
+      );
+      setLeadSourceData(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error("Error fetching lead source summary:", error);
       setLeadSourceData([]);
@@ -348,10 +364,17 @@ const AgentDashboard = () => {
   const fetchShipmentStatusSummary = useCallback(async (agentName, startDate, endDate) => {
     setLoadingShipment(true);
     try {
-      const response = await axios.get(`${API_BASE}/api/dashboard/shipment-status-summary`, {
-        params: { agentName, startDate, endDate },
-      });
-      setShipmentStatusSummary(Array.isArray(response?.data?.shipmentStatusSummary) ? response.data.shipmentStatusSummary : []);
+      const data = await getCachedData(
+        `sales-agent:shipment:${agentName}:${startDate}:${endDate}`,
+        async () => {
+          const response = await axios.get(`${API_BASE}/api/dashboard/shipment-status-summary`, {
+            params: { agentName, startDate, endDate },
+          });
+          return response?.data;
+        },
+        DASHBOARD_CACHE_TTL_MS
+      );
+      setShipmentStatusSummary(Array.isArray(data?.shipmentStatusSummary) ? data.shipmentStatusSummary : []);
     } catch (error) {
       console.error("Error fetching shipment status summary:", error);
       setShipmentStatusSummary([]);
@@ -380,14 +403,21 @@ const AgentDashboard = () => {
     async function fetchTarget() {
       if (!user?.fullName || !user?.email) return;
       try {
-        const response = await axios.get(`${API_BASE}/api/employees`, {
-          params: {
-            fullName: user.fullName,
-            email: user.email,
+        const data = await getCachedData(
+          `sales-agent:target:${user.fullName}:${user.email}`,
+          async () => {
+            const response = await axios.get(`${API_BASE}/api/employees`, {
+              params: {
+                fullName: user.fullName,
+                email: user.email,
+              },
+            });
+            return response.data;
           },
-        });
-        if (response.data && response.data[0]) {
-          setTarget(Number(response.data[0].target || 0));
+          PROFILE_CACHE_TTL_MS
+        );
+        if (data && data[0]) {
+          setTarget(Number(data[0].target || 0));
         }
       } catch (error) {
         console.error("Error fetching employee target:", error);
@@ -401,10 +431,17 @@ const AgentDashboard = () => {
     async function fetchSalesProgress() {
       if (!user?.fullName) return;
       try {
-        const response = await axios.get(`${API_BASE}/api/retention-sales/progress`, {
-          params: { name: user.fullName },
-        });
-        setSalesProgress(Number(response?.data?.total || 0));
+        const data = await getCachedData(
+          `sales-agent:progress:${user.fullName}`,
+          async () => {
+            const response = await axios.get(`${API_BASE}/api/retention-sales/progress`, {
+              params: { name: user.fullName },
+            });
+            return response?.data;
+          },
+          DASHBOARD_CACHE_TTL_MS
+        );
+        setSalesProgress(Number(data?.total || 0));
       } catch (error) {
         console.error("Error fetching sales progress:", error);
       }

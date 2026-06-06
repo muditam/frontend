@@ -27,8 +27,10 @@ import {
 import FilterListIcon from "@mui/icons-material/FilterList";
 import CloseIcon from "@mui/icons-material/Close";
 import axios from "axios";
+import { clearCachedData, getCachedData } from "../utils/apiCache";
 
 const API_BASE = (process.env.REACT_APP_API_BASE_URL || "http://localhost:5001").replace(/\/+$/, "");
+const ALL_PRODUCTS_CACHE_TTL_MS = 5 * 60 * 1000;
 
 const sortLabelSx = {
   color: "white !important",
@@ -105,17 +107,27 @@ export default function AllProducts() {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const res = await axios.get(`${API_BASE}/api/products/from-orders`, {
-        params: {
-          page: 1,
-          limit: 5000,
-          startDate: appliedStartDate || undefined,
-          endDate: appliedEndDate || undefined,
+      const cacheKey = `all-products:list:${appliedStartDate || "all"}:${appliedEndDate || "all"}`;
+      const payload = await getCachedData(
+        cacheKey,
+        async () => {
+          const res = await axios.get(`${API_BASE}/api/products/from-orders`, {
+            params: {
+              page: 1,
+              limit: 5000,
+              startDate: appliedStartDate || undefined,
+              endDate: appliedEndDate || undefined,
+            },
+          });
+
+          return res.data || {};
         },
-      });
-      const list = res.data?.data || [];
+        ALL_PRODUCTS_CACHE_TTL_MS
+      );
+
+      const list = payload?.data || [];
       setRows(list);
-      setTotal(res.data?.total || 0);
+      setTotal(payload?.total || 0);
       ensureDefaults(list);
     } catch (e) {
       console.error("Failed to load products:", e);
@@ -211,6 +223,7 @@ export default function AllProducts() {
         month,
         cohort,
       });
+      clearCachedData("all-products:");
     } catch (e) {
       console.error("Failed to save product meta:", e);
     }

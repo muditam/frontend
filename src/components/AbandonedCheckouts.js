@@ -25,8 +25,11 @@ import dayjs from "dayjs";
 import axios from "axios";
 import SearchIcon from "@mui/icons-material/Search";
 import RefreshIcon from "@mui/icons-material/Refresh";
+import { clearCachedData, getCachedData } from "../utils/apiCache";
 
 const API_BASE = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "");
+const ABANDONED_CACHE_TTL_MS = 60 * 1000;
+const ABANDONED_EMPLOYEE_CACHE_TTL_MS = 5 * 60 * 1000;
 
 const api = axios.create({
   baseURL: API_BASE,
@@ -131,7 +134,14 @@ export default function AbandonedCheckouts() {
   useEffect(() => {
     (async () => {
       try {
-        const { data } = await api.get(`/api/employees`);
+        const data = await getCachedData(
+          "abandoned:employees",
+          async () => {
+            const res = await api.get(`/api/employees`);
+            return res.data;
+          },
+          ABANDONED_EMPLOYEE_CACHE_TTL_MS
+        );
         const filtered = (Array.isArray(data) ? data : []).filter(
           (e) =>
             String(e.status).toLowerCase() === "active" &&
@@ -196,7 +206,15 @@ export default function AbandonedCheckouts() {
         }
       }
 
-      const { data } = await api.get("/api/abandoned", { params });
+      const cacheKey = `abandoned:list:${JSON.stringify(params)}`;
+      const data = await getCachedData(
+        cacheKey,
+        async () => {
+          const res = await api.get("/api/abandoned", { params });
+          return res.data;
+        },
+        ABANDONED_CACHE_TTL_MS
+      );
       setRows(data.items || []);
       setCount(data.total || 0);
     } catch (e) {
@@ -228,6 +246,7 @@ export default function AbandonedCheckouts() {
     try {
       setSavingRow(row._id);
       const { data } = await api.post(`/api/abandoned/${row._id}/assign-expert`, { expertId });
+      clearCachedData("abandoned:list:");
       const emp = employees.find((e) => e._id === expertId);
       if (emp) {
         setRows((prev) =>

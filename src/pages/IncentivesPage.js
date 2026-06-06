@@ -40,9 +40,12 @@ import {
   UnfoldMore as UnfoldMoreIcon,
 } from "@mui/icons-material";
 import WalletRedeemDialog from "./WalletRedeemDialog";
+import { clearCachedData, getCachedData } from "../utils/apiCache";
 
 const API_BASE = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "");
 const MIN_WALLET_MONTH = "2026-04";
+const INCENTIVES_CACHE_TTL_MS = 60 * 1000;
+const INCENTIVES_EMPLOYEE_CACHE_TTL_MS = 5 * 60 * 1000;
 
 const TEAM_INCENTIVE_STEPS = [
   { threshold: 90, percent: 0.6 },
@@ -1332,12 +1335,19 @@ export default function IncentivesPage() {
         return;
       }
 
-      const res = await axios.get(`${API_BASE}/api/employees`, {
-        params: { status: "active" },
-        headers,
-      });
+      const list = await getCachedData(
+        "incentives:employees:active",
+        async () => {
+          const res = await axios.get(`${API_BASE}/api/employees`, {
+            params: { status: "active" },
+            headers,
+          });
 
-      const list = Array.isArray(res.data) ? res.data : res.data?.employees || [];
+          return Array.isArray(res.data) ? res.data : res.data?.employees || [];
+        },
+        INCENTIVES_EMPLOYEE_CACHE_TTL_MS
+      );
+
       setEmployees(list);
 
       if (isManagerWithTeam) {
@@ -1357,16 +1367,25 @@ export default function IncentivesPage() {
 
   const fetchIncentivesForAgent = useCallback(
     async (agentName, startDate, endDate) => {
-      const res = await axios.get(`${API_BASE}/api/incentives-new`, {
-        headers,
-        params: {
-          agentName,
-          startDate,
-          endDate,
-        },
-      });
+      const normalizedAgentName = String(agentName || "").trim();
+      const cacheKey = `incentives:agent:${normalizedAgentName}:${startDate}:${endDate}`;
 
-      return res.data;
+      return getCachedData(
+        cacheKey,
+        async () => {
+          const res = await axios.get(`${API_BASE}/api/incentives-new`, {
+            headers,
+            params: {
+              agentName: normalizedAgentName,
+              startDate,
+              endDate,
+            },
+          });
+
+          return res.data;
+        },
+        INCENTIVES_CACHE_TTL_MS
+      );
     },
     [headers]
   );
@@ -2368,6 +2387,7 @@ export default function IncentivesPage() {
           : prev
       );
 
+      clearCachedData(`incentives:agent:${data.agentName}:`);
       handleCloseWalletPopover();
     } catch (err) {
       console.error("Error converting cash to coin:", err);

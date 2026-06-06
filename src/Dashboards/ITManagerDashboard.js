@@ -29,8 +29,10 @@ import PeopleOutlineRoundedIcon from "@mui/icons-material/PeopleOutlineRounded";
 import ImageOutlinedIcon from "@mui/icons-material/ImageOutlined";
 import CategoryOutlinedIcon from "@mui/icons-material/CategoryOutlined";
 import BusinessOutlinedIcon from "@mui/icons-material/BusinessOutlined";
+import { getCachedData } from "../utils/apiCache";
 
 const API_BASE = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "");
+const HR_DASHBOARD_CACHE_TTL_MS = 2 * 60 * 1000;
 
 const api = axios.create({
   baseURL: API_BASE,
@@ -205,8 +207,15 @@ function JourneyDialog({ open, onClose, assetCode }) {
       setLoading(true);
       setError("");
       try {
-        const { data } = await api.get(
-          `/api/asset-allotments/journey/${encodeURIComponent(assetCode)}`
+        const data = await getCachedData(
+          `hr:asset-journey:${assetCode}`,
+          async () => {
+            const res = await api.get(
+              `/api/asset-allotments/journey/${encodeURIComponent(assetCode)}`
+            );
+            return res.data;
+          },
+          HR_DASHBOARD_CACHE_TTL_MS
         );
         if (!active) return;
         setRows(safeArr(data));
@@ -376,13 +385,20 @@ export default function ITManagerDashboard() {
     try {
       setLoading(true);
 
-      const [assetsRes, allotmentsRes, employeesRes] = await Promise.all([
-        api.get(`/api/assets?light=1`),
-        api.get(`/api/asset-allotments`),
-        api.get(`/api/assets/employees`),
-      ]);
+      const [assetsData, allotmentsData, employeesData] = await getCachedData(
+        "hr:dashboard",
+        async () => {
+          const [assetsRes, allotmentsRes, employeesRes] = await Promise.all([
+            api.get(`/api/assets?light=1`),
+            api.get(`/api/asset-allotments`),
+            api.get(`/api/assets/employees`),
+          ]);
+          return [assetsRes.data, allotmentsRes.data, employeesRes.data];
+        },
+        HR_DASHBOARD_CACHE_TTL_MS
+      );
 
-      const mappedAssets = safeArr(assetsRes.data).map((a) => ({
+      const mappedAssets = safeArr(assetsData).map((a) => ({
         ...a,
         allocatedTo: a.allocatedTo || a.allottedTo || "",
         employeeId: a.employeeId || a.emp_id || "",
@@ -390,8 +406,8 @@ export default function ITManagerDashboard() {
       }));
 
       setAssets(mappedAssets);
-      setAllotments(safeArr(allotmentsRes.data));
-      setEmployees(safeArr(employeesRes.data));
+      setAllotments(safeArr(allotmentsData));
+      setEmployees(safeArr(employeesData));
     } catch (err) {
       console.error(err);
       setSnack({

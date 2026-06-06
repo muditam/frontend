@@ -4,9 +4,12 @@ import IncentiveSummarySection from "../components/IncentiveSummarySection";
 import "./RetentionDashboard.css";
 import OpenInNewIcon from "@mui/icons-material/OpenInNew";
 import { Skeleton } from "@mui/material";
+import { getCachedData } from "../utils/apiCache";
 
 
 const API_BASE = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "");
+const DASHBOARD_CACHE_TTL_MS = 60 * 1000;
+const PROFILE_CACHE_TTL_MS = 5 * 60 * 1000;
 
 const TIME_RANGE_OPTIONS = [
  "Today",
@@ -316,28 +319,36 @@ const RetentionAgentDashboard = () => {
  const fetchAllSummaryData = useCallback(async (agentName, startDate, endDate) => {
    setLoadingMain(true);
    try {
-     const [activeCountsRes, todaySummaryRes, followupRes] = await Promise.all([
-       axios.get(`${API_BASE}/api/leads/retention/active-counts`),
-       axios.get(`${API_BASE}/api/today-summary`, {
-         params: { agentName, startDate, endDate },
-       }),
-       axios.get(`${API_BASE}/api/followup-summary`, {
-         params: { agentName, startDate, endDate },
-       }),
-     ]);
+     const [activeCounts, todaySummaryData, followupData] = await getCachedData(
+       `retention-agent:summary:${agentName}:${startDate}:${endDate}`,
+       async () => {
+         const [activeCountsRes, todaySummaryRes, followupRes] = await Promise.all([
+           axios.get(`${API_BASE}/api/leads/retention/active-counts`),
+           axios.get(`${API_BASE}/api/today-summary`, {
+             params: { agentName, startDate, endDate },
+           }),
+           axios.get(`${API_BASE}/api/followup-summary`, {
+             params: { agentName, startDate, endDate },
+           }),
+         ]);
+         return [
+           Array.isArray(activeCountsRes?.data) ? activeCountsRes.data : [],
+           todaySummaryRes?.data || {},
+           followupRes?.data || {},
+         ];
+       },
+       DASHBOARD_CACHE_TTL_MS
+     );
 
 
-     const activeCounts = Array.isArray(activeCountsRes?.data)
-       ? activeCountsRes.data
-       : [];
      const current = activeCounts.find((item) => item?._id === agentName);
 
 
      setTodayMetrics({
-       ...(todaySummaryRes?.data || {}),
+       ...(todaySummaryData || {}),
        activeCustomers: Number(current?.activeCount || 0),
      });
-     setFollowupMetrics(followupRes?.data || {});
+     setFollowupMetrics(followupData || {});
    } catch (error) {
      console.error("Error fetching today/followup data:", error);
      setTodayMetrics({});
@@ -351,10 +362,17 @@ const RetentionAgentDashboard = () => {
  const fetchShipmentSummary = useCallback(async (agentName, startDate, endDate) => {
    setLoadingShipment(true);
    try {
-     const response = await axios.get(`${API_BASE}/api/shipment-summary`, {
-       params: { agentName, startDate, endDate },
-     });
-     setShipmentSummary(Array.isArray(response?.data) ? response.data : []);
+     const data = await getCachedData(
+       `retention-agent:shipment:${agentName}:${startDate}:${endDate}`,
+       async () => {
+         const response = await axios.get(`${API_BASE}/api/shipment-summary`, {
+           params: { agentName, startDate, endDate },
+         });
+         return response?.data;
+       },
+       DASHBOARD_CACHE_TTL_MS
+     );
+     setShipmentSummary(Array.isArray(data) ? data : []);
    } catch (error) {
      console.error("Error fetching shipment data:", error);
      setShipmentSummary([]);
@@ -368,29 +386,36 @@ const RetentionAgentDashboard = () => {
    if (!user?.fullName || !startDate || !endDate) return;
    setLoadingAux(true);
    try {
-     const [reachoutRes, dispositionRes] = await Promise.all([
-       axios.get(`${API_BASE}/api/reachout-logs/count`, {
-         params: {
-           startDate,
-           endDate,
-           healthExpertAssigned: user.fullName,
-         },
-       }),
-       axios.get(`${API_BASE}/api/reachout-logs/disposition-count`, {
-         params: {
-           startDate,
-           endDate,
-           healthExpertAssigned: user.fullName,
-         },
-       }),
-     ]);
+     const [reachoutData, dispositionData] = await getCachedData(
+       `retention-agent:aux:${user.fullName}:${startDate}:${endDate}`,
+       async () => {
+         const [reachoutRes, dispositionRes] = await Promise.all([
+           axios.get(`${API_BASE}/api/reachout-logs/count`, {
+             params: {
+               startDate,
+               endDate,
+               healthExpertAssigned: user.fullName,
+             },
+           }),
+           axios.get(`${API_BASE}/api/reachout-logs/disposition-count`, {
+             params: {
+               startDate,
+               endDate,
+               healthExpertAssigned: user.fullName,
+             },
+           }),
+         ]);
+         return [reachoutRes?.data || {}, dispositionRes?.data || {}];
+       },
+       DASHBOARD_CACHE_TTL_MS
+     );
 
 
-     setReachoutLogsCount(Number(reachoutRes?.data?.totalCount || 0));
-     setReachoutLogsWhatsApp(Number(reachoutRes?.data?.WhatsApp || 0));
-     setReachoutLogsCall(Number(reachoutRes?.data?.Call || 0));
-     setReachoutLogsBoth(Number(reachoutRes?.data?.Both || 0));
-     setDispositionCounts(dispositionRes?.data || {});
+     setReachoutLogsCount(Number(reachoutData?.totalCount || 0));
+     setReachoutLogsWhatsApp(Number(reachoutData?.WhatsApp || 0));
+     setReachoutLogsCall(Number(reachoutData?.Call || 0));
+     setReachoutLogsBoth(Number(reachoutData?.Both || 0));
+     setDispositionCounts(dispositionData || {});
    } catch (error) {
      console.error("Error fetching auxiliary summary cards:", error);
      setReachoutLogsCount(0);
@@ -426,14 +451,21 @@ const RetentionAgentDashboard = () => {
    async function fetchTarget() {
      if (!user?.fullName || !user?.email) return;
      try {
-       const response = await axios.get(`${API_BASE}/api/employees`, {
-         params: {
-           fullName: user.fullName,
-           email: user.email,
+       const data = await getCachedData(
+         `retention-agent:target:${user.fullName}:${user.email}`,
+         async () => {
+           const response = await axios.get(`${API_BASE}/api/employees`, {
+             params: {
+               fullName: user.fullName,
+               email: user.email,
+             },
+           });
+           return response.data;
          },
-       });
-       if (response.data && response.data[0]) {
-         setTarget(Number(response.data[0].target || 0));
+         PROFILE_CACHE_TTL_MS
+       );
+       if (data && data[0]) {
+         setTarget(Number(data[0].target || 0));
        }
      } catch (error) {
        console.error("Error fetching employee target:", error);
@@ -447,10 +479,17 @@ const RetentionAgentDashboard = () => {
    async function fetchSalesProgress() {
      if (!user?.fullName) return;
      try {
-       const response = await axios.get(`${API_BASE}/api/retention-sales/progress`, {
-         params: { name: user.fullName },
-       });
-       setSalesProgress(Number(response?.data?.total || 0));
+       const data = await getCachedData(
+         `retention-agent:progress:${user.fullName}`,
+         async () => {
+           const response = await axios.get(`${API_BASE}/api/retention-sales/progress`, {
+             params: { name: user.fullName },
+           });
+           return response?.data;
+         },
+         DASHBOARD_CACHE_TTL_MS
+       );
+       setSalesProgress(Number(data?.total || 0));
      } catch (error) {
        console.error("Error fetching retention sales progress:", error);
      }
@@ -463,10 +502,17 @@ const RetentionAgentDashboard = () => {
      if (!user?.fullName) return;
      setRetentionOverviewLoading(true);
      try {
-       const response = await axios.get(`${API_BASE}/cohart-dataApi/active-customers-expert-summary`, {
-         params: { lookbackDays: 540 },
-       });
-       const rows = Array.isArray(response?.data?.experts) ? response.data.experts : [];
+       const data = await getCachedData(
+         `retention-agent:overview:${user.fullName}`,
+         async () => {
+           const response = await axios.get(`${API_BASE}/cohart-dataApi/active-customers-expert-summary`, {
+             params: { lookbackDays: 540 },
+           });
+           return response?.data;
+         },
+         PROFILE_CACHE_TTL_MS
+       );
+       const rows = Array.isArray(data?.experts) ? data.experts : [];
        const mine = rows.find(
          (r) =>
            String(r?.healthExpert || "").trim().toLowerCase() ===

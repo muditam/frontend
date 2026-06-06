@@ -45,6 +45,7 @@ import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
 import PersonIcon from "@mui/icons-material/Person";
 import BadgeIcon from "@mui/icons-material/Badge";
 import axios from "axios";
+import { clearCachedData, getCachedData } from "../utils/apiCache";
 
 const TYPES = [
   "Laptop",
@@ -81,11 +82,20 @@ const BRANDS = [
 ];
 
 const API_BASE_URL = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "");
+const ADD_ASSET_CACHE_TTL_MS = 60 * 1000;
+const ADD_ASSET_EMPLOYEE_CACHE_TTL_MS = 5 * 60 * 1000;
 
 const api = axios.create({
   baseURL: API_BASE_URL,
   withCredentials: true,
 });
+
+const clearAssetCaches = () => {
+  clearCachedData("add-assets:");
+  clearCachedData("asset-allotment:");
+  clearCachedData("my-assets:");
+  clearCachedData("hr:");
+};
 
 const fmtDate = (d) => {
   if (!d) return "—";
@@ -578,6 +588,7 @@ function AddEditDialog({ open, onClose, initial, onSaved, allAssets }) {
       } else {
         await api.post(`/api/assets`, payload);
       }
+      clearAssetCaches();
 
       // 4) Refresh list from DB in parent
       onSaved?.();
@@ -932,9 +943,16 @@ export default function AssetsManagerRole() {
     const fetchEmployees = async () => {
       try {
         setLoadingEmployees(true);
-        const res = await api.get(`/api/assets/employees`);
-        const data = Array.isArray(res.data) ? res.data : [];
-        setEmployeeList(data);
+        const data = await getCachedData(
+          "add-assets:employees",
+          async () => {
+            const res = await api.get(`/api/assets/employees`);
+            return res.data;
+          },
+          ADD_ASSET_EMPLOYEE_CACHE_TTL_MS
+        );
+        const list = Array.isArray(data) ? data : [];
+        setEmployeeList(list);
       } catch (err) {
         console.error("Failed to fetch employees", err);
       } finally {
@@ -954,10 +972,17 @@ export default function AssetsManagerRole() {
 const fetchAssets = async () => {
   try {
     setLoadingAssets(true);
-    const res = await api.get(`/api/assets?light=1`);
-    const data = Array.isArray(res.data) ? res.data : [];
+    const data = await getCachedData(
+      "add-assets:list:light",
+      async () => {
+        const res = await api.get(`/api/assets?light=1`);
+        return res.data;
+      },
+      ADD_ASSET_CACHE_TTL_MS
+    );
+    const list = Array.isArray(data) ? data : [];
 
-    const mapped = data.map((a) => ({
+    const mapped = list.map((a) => ({
       ...a,
       allocatedTo: a.allocatedTo || a.allottedTo || "",
       employeeId: a.employeeId || a.emp_id || "",
@@ -985,7 +1010,14 @@ const fetchAssets = async () => {
   const fetchAssetDetails = async (asset) => {
     if (!asset?._id) return asset;
     try {
-      const { data } = await api.get(`/api/assets/${asset._id}`);
+      const data = await getCachedData(
+        `add-assets:detail:${asset._id}`,
+        async () => {
+          const res = await api.get(`/api/assets/${asset._id}`);
+          return res.data;
+        },
+        ADD_ASSET_CACHE_TTL_MS
+      );
       return {
         ...asset,
         ...data,
@@ -1105,6 +1137,7 @@ const totalUnassigned = useMemo(
   }, [filtered, page, rowsPerPage]);
 
   const onSaved = () => {
+    clearAssetCaches();
     fetchAssets();
     setSnack({
       open: true,
@@ -1122,6 +1155,7 @@ const totalUnassigned = useMemo(
       return;
     try {
       await api.delete(`/api/assets/${asset._id}`);
+      clearAssetCaches();
       setSnack({ open: true, msg: "Asset deleted", severity: "success" });
       fetchAssets();
     } catch (err) {
@@ -1143,6 +1177,7 @@ const totalUnassigned = useMemo(
         `/api/assets/${assetId}/faulty`,
         payload
       );
+      clearAssetCaches();
 
       // Use server response so DB + UI are in sync (keeps old behaviour, just more accurate)
       setItems((prev) =>
@@ -1205,10 +1240,17 @@ const totalUnassigned = useMemo(
     };
 
     try {
-      const res = await api.get(
-        `/api/asset-allotments/journey/${asset.assetCode}`
+      const data = await getCachedData(
+        `add-assets:journey:${asset.assetCode}`,
+        async () => {
+          const res = await api.get(
+            `/api/asset-allotments/journey/${asset.assetCode}`
+          );
+          return res.data;
+        },
+        ADD_ASSET_CACHE_TTL_MS
       );
-      const rows = Array.isArray(res.data) ? res.data : [];
+      const rows = Array.isArray(data) ? data : [];
 
       const sortedRows = [...rows].sort((a, b) => {
         const keyA =
@@ -1304,8 +1346,15 @@ const totalUnassigned = useMemo(
       let employeeMongoId = null;
       if (payload.allocatedTo) {
         try {
-          const res = await api.get(`/api/employees`);
-          const list = Array.isArray(res.data) ? res.data : [];
+          const data = await getCachedData(
+            "add-assets:all-employees",
+            async () => {
+              const res = await api.get(`/api/employees`);
+              return res.data;
+            },
+            ADD_ASSET_EMPLOYEE_CACHE_TTL_MS
+          );
+          const list = Array.isArray(data) ? data : [];
 
           const emp = list.find(
             (e) =>
@@ -1364,6 +1413,7 @@ const totalUnassigned = useMemo(
         msg: "Assignment saved",
         severity: "success",
       });
+      clearAssetCaches();
     } catch (err) {
       console.error("handleAssignSave error:", err.response?.data || err);
       setSnack({

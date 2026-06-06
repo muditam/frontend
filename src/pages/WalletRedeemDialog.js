@@ -1,7 +1,10 @@
 import React, { useEffect, useMemo, useState } from "react";
 import axios from "axios";
+import { clearCachedData, getCachedData } from "../utils/apiCache";
 
 const API_BASE = "https://muditamleads-14f32a10d7f7.herokuapp.com";
+const WALLET_REWARDS_CACHE_TTL_MS = 5 * 60 * 1000;
+const WALLET_REQUESTS_CACHE_TTL_MS = 60 * 1000;
 
 const MILESTONES = [
   { id: 1, title: "Milestone 1", coin: 6000 },
@@ -659,18 +662,24 @@ export default function WalletRedeemDialog({
       setError("");
 
       try {
-        const res = await axios.get(`${API_BASE}/api/rewards`, {
-          headers,
-          params: {
-            activeOnly: true,
-          },
-        });
+        const list = await getCachedData(
+          "wallet-redeem:rewards:active",
+          async () => {
+            const res = await axios.get(`${API_BASE}/api/rewards`, {
+              headers,
+              params: {
+                activeOnly: true,
+              },
+            });
 
-        const list = Array.isArray(res.data?.rewards)
-          ? res.data.rewards
-          : Array.isArray(res.data)
-          ? res.data
-          : [];
+            return Array.isArray(res.data?.rewards)
+              ? res.data.rewards
+              : Array.isArray(res.data)
+              ? res.data
+              : [];
+          },
+          WALLET_REWARDS_CACHE_TTL_MS
+        );
 
         setRewards(list);
       } catch (err) {
@@ -685,20 +694,31 @@ export default function WalletRedeemDialog({
     })();
   }, [open, headers]);
 
-  const fetchMyRequests = async () => {
+  const fetchMyRequests = async (forceFresh = false) => {
     setRequestsLoading(true);
     setRequestsError("");
 
     try {
-      const res = await axios.get(`${API_BASE}/api/custom-reward/mine`, {
-        headers,
-      });
+      const cacheKey = `wallet-redeem:requests:${agentName || "me"}`;
+      if (forceFresh) {
+        clearCachedData(cacheKey);
+      }
 
-      const list = Array.isArray(res.data?.requests)
-        ? res.data.requests
-        : Array.isArray(res.data)
-        ? res.data
-        : [];
+      const list = await getCachedData(
+        cacheKey,
+        async () => {
+          const res = await axios.get(`${API_BASE}/api/custom-reward/mine`, {
+            headers,
+          });
+
+          return Array.isArray(res.data?.requests)
+            ? res.data.requests
+            : Array.isArray(res.data)
+            ? res.data
+            : [];
+        },
+        WALLET_REQUESTS_CACHE_TTL_MS
+      );
 
       setMyRequests(list);
     } catch (err) {
@@ -788,7 +808,9 @@ export default function WalletRedeemDialog({
       setCustomLink("");
       setCustomPrice("");
       setCustomNotes("");
-      await fetchMyRequests();
+      clearCachedData("wallet-redeem:requests:");
+      clearCachedData("rewards-admin:requests");
+      await fetchMyRequests(true);
       setTab(1);
     } catch (err) {
       setCustomError(
@@ -826,7 +848,9 @@ export default function WalletRedeemDialog({
       setCustomSuccess(
         res.data?.message || "Redeem request submitted successfully."
       );
-      await fetchMyRequests();
+      clearCachedData("wallet-redeem:requests:");
+      clearCachedData("rewards-admin:requests");
+      await fetchMyRequests(true);
       setTab(1);
     } catch (err) {
       setCustomError(

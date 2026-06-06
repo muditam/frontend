@@ -10,6 +10,11 @@ import {
     CircularProgress,
 } from "@mui/material";
 import CardGiftcardIcon from "@mui/icons-material/CardGiftcard";
+import { getCachedData } from "../utils/apiCache";
+
+const API_BASE = "https://muditamleads-14f32a10d7f7.herokuapp.com";
+const BLOOM_LEADERBOARD_CACHE_TTL_MS = 60 * 1000;
+const BLOOM_LEADERBOARD_EMPLOYEE_CACHE_TTL_MS = 5 * 60 * 1000;
 
 const giftPrizes = [
     { rank: 1, label: "Gift worth 3000", color: "#f39c12" },
@@ -61,8 +66,14 @@ const BloomLeaderboard = () => {
     useEffect(() => {
         const fetchLeaderboard = async () => {
             try {
-                const res = await fetch("https://muditamleads-14f32a10d7f7.herokuapp.com/api/employees");
-                const all = await res.json();
+                const all = await getCachedData(
+                    "bloom-leaderboard:employees",
+                    async () => {
+                        const res = await fetch(`${API_BASE}/api/employees`);
+                        return res.json();
+                    },
+                    BLOOM_LEADERBOARD_EMPLOYEE_CACHE_TTL_MS
+                );
                 const today = new Date();
                 const agents = all.filter(
                    (e) =>
@@ -74,28 +85,31 @@ const BloomLeaderboard = () => {
 
                  
                 const agentNames = agents.map((a) => a.fullName);
-                const progressRes = await fetch(
-                    "https://muditamleads-14f32a10d7f7.herokuapp.com/api/retention-sales/progress-multiple",
-                    {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ names: agentNames }),
-                    }
+                const sorted = await getCachedData(
+                    `bloom-leaderboard:current:${agentNames.join("|")}`,
+                    async () => {
+                        const progressRes = await fetch(`${API_BASE}/api/retention-sales/progress-multiple`, {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ names: agentNames }),
+                        });
+
+                        const salesData = await progressRes.json();
+
+                        const withSales = agents.map((agent) => {
+                            const match = salesData.find((x) => x.name === agent.fullName);
+                            return {
+                                name: agent.fullName,
+                                sales: match?.total || 0,
+                            };
+                        });
+
+                        return withSales
+                            .filter((x) => x.sales > 0 && x.name.trim() !== "Online Order")
+                            .sort((a, b) => b.sales - a.sales);
+                    },
+                    BLOOM_LEADERBOARD_CACHE_TTL_MS
                 );
-
-                const salesData = await progressRes.json();
-
-                const withSales = agents.map((agent) => {
-                    const match = salesData.find((x) => x.name === agent.fullName);
-                    return {
-                        name: agent.fullName,
-                        sales: match?.total || 0,
-                    };
-                });
-
-                const sorted = withSales
-                    .filter((x) => x.sales > 0 && x.name.trim() !== "Online Order")
-                    .sort((a, b) => b.sales - a.sales);
 
                 setData(sorted);
             } catch (err) {

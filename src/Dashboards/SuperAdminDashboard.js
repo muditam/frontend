@@ -1,10 +1,13 @@
 import React, { useEffect, useState, useRef } from "react";
 import axios from "axios";
+import { getCachedData } from "../utils/apiCache";
 
 
 const API_BASE = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "");
 
 const ANALYTICS = `${API_BASE}/api/super-admin/analytics`;
+const DASHBOARD_CACHE_TTL_MS = 60 * 1000;
+const FULFILLMENT_CACHE_TTL_MS = 2 * 60 * 1000;
 
 
 /* ── utils ── */
@@ -168,103 +171,109 @@ function getRange(preset) {
 
 
 async function fetchSection(start, end) {
- const cfg = { params:{ start, end }, withCredentials:true };
- const [sumR, funR, canR, splR, fvrR, escR, cusR, aovR, compR] = await Promise.allSettled([
-   axios.get(`${ANALYTICS}/dashboard-summary`, cfg),
-   axios.get(`${ANALYTICS}/orders-vs-fulfilled`, cfg),
-   axios.get(`${ANALYTICS}/cancelled-orders`, cfg),
-   axios.get(`${ANALYTICS}/orders`, cfg),
-   axios.get(`${ANALYTICS}/first-vs-returning`, cfg),
-   axios.get(`${ANALYTICS}/escalations`, cfg),
-   axios.get(`${ANALYTICS}/customer-stats`, cfg),
-   axios.get(`${ANALYTICS}/aov`, cfg),
-   axios.get(`${ANALYTICS}/comprehensive-summary`, cfg),
- ]);
- const ok = (r) => r.status === "fulfilled" ? r.value.data : {};
- const sum = ok(sumR), fun = ok(funR), spl = ok(splR);
- const fvr = ok(fvrR), esc = ok(escR), aov = ok(aovR);
- const comp = ok(compR);
- const can = canR.status==="fulfilled" ? (canR.value.data.cancelled||0) : 0;
- const trends = cusR.status==="fulfilled" ? cusR.value.data : [];
- const cus = Array.isArray(trends) && trends.length ? trends[trends.length-1] : {};
- const tO  = fun.totalOrders || sum.totalOrders || 0;
- const tR  = sum.totalSales  || 0;
- const teamRev   = (aov.team?.aov||0)*(aov.team?.orders||0);
- const onlineRev = (aov.online?.aov||0)*(aov.online?.orders||0);
- const emptyCompSegment = {
-   totalOrders: 0,
-   totalAmount: 0,
-   aov: 0,
-   prepaid: { count: 0, amount: 0 },
-   cod: { count: 0, amount: 0 },
-   delivered: { count: 0 },
-   undelivered: { count: 0 },
-   rto: { count: 0 },
- };
- const mapCompSegment = (segment = emptyCompSegment) => ({
-   totalOrders: Number(segment?.totalOrders || 0),
-   totalAmount: Number(segment?.totalAmount || 0),
-   aov: Number(segment?.aov || 0),
-   prepaidCount: Number(segment?.prepaid?.count || 0),
-   prepaidAmount: Number(segment?.prepaid?.amount || 0),
-   codCount: Number(segment?.cod?.count || 0),
-   codAmount: Number(segment?.cod?.amount || 0),
-   delivered: Number(segment?.delivered?.count || 0),
-   undelivered: Number(segment?.undelivered?.count || 0),
-   rto: Number(segment?.rto?.count || 0),
- });
+ return getCachedData(`super-admin:section:${start}:${end}`, async () => {
+   const cfg = { params:{ start, end }, withCredentials:true };
+   const [sumR, funR, canR, splR, fvrR, escR, cusR, aovR, compR] = await Promise.allSettled([
+     axios.get(`${ANALYTICS}/dashboard-summary`, cfg),
+     axios.get(`${ANALYTICS}/orders-vs-fulfilled`, cfg),
+     axios.get(`${ANALYTICS}/cancelled-orders`, cfg),
+     axios.get(`${ANALYTICS}/orders`, cfg),
+     axios.get(`${ANALYTICS}/first-vs-returning`, cfg),
+     axios.get(`${ANALYTICS}/escalations`, cfg),
+     axios.get(`${ANALYTICS}/customer-stats`, cfg),
+     axios.get(`${ANALYTICS}/aov`, cfg),
+     axios.get(`${ANALYTICS}/comprehensive-summary`, cfg),
+   ]);
+   const ok = (r) => r.status === "fulfilled" ? r.value.data : {};
+   const sum = ok(sumR), fun = ok(funR), spl = ok(splR);
+   const fvr = ok(fvrR), esc = ok(escR), aov = ok(aovR);
+   const comp = ok(compR);
+   const can = canR.status==="fulfilled" ? (canR.value.data.cancelled||0) : 0;
+   const trends = cusR.status==="fulfilled" ? cusR.value.data : [];
+   const cus = Array.isArray(trends) && trends.length ? trends[trends.length-1] : {};
+   const tO  = fun.totalOrders || sum.totalOrders || 0;
+   const tR  = sum.totalSales  || 0;
+   const teamRev   = (aov.team?.aov||0)*(aov.team?.orders||0);
+   const onlineRev = (aov.online?.aov||0)*(aov.online?.orders||0);
+   const emptyCompSegment = {
+     totalOrders: 0,
+     totalAmount: 0,
+     aov: 0,
+     prepaid: { count: 0, amount: 0 },
+     cod: { count: 0, amount: 0 },
+     delivered: { count: 0 },
+     undelivered: { count: 0 },
+     rto: { count: 0 },
+   };
+   const mapCompSegment = (segment = emptyCompSegment) => ({
+     totalOrders: Number(segment?.totalOrders || 0),
+     totalAmount: Number(segment?.totalAmount || 0),
+     aov: Number(segment?.aov || 0),
+     prepaidCount: Number(segment?.prepaid?.count || 0),
+     prepaidAmount: Number(segment?.prepaid?.amount || 0),
+     codCount: Number(segment?.cod?.count || 0),
+     codAmount: Number(segment?.cod?.amount || 0),
+     delivered: Number(segment?.delivered?.count || 0),
+     undelivered: Number(segment?.undelivered?.count || 0),
+     rto: Number(segment?.rto?.count || 0),
+   });
 
 
- return {
-   totalOrders:       tO,
-   totalRevenue:      tR || (teamRev+onlineRev),
-   fulfilled:         fun.fulfilled?.count   || 0,
-   delivered:         fun.delivered?.count   || 0,
-   rto:               fun.rto?.count         || 0,
-   cancelled:         can,
-   notDispatched:     fun.notDispatched?.count || 0,
-   inTransit:         fun.inTransit?.count   || 0,
-   aov:               aov.combined?.aov      || sum.aov || 0,
-   teamOrders:        spl.teamOrders         || 0,
-   onlineOrders:      spl.onlineOrders       || 0,
-   teamRevenue:       teamRev,
-   onlineRevenue:     onlineRev,
-   teamAov:           aov.team?.aov          || 0,
-   onlineAov:         aov.online?.aov        || 0,
-   activeCustomers:   cus.active             || 0,
-   lostCustomers:     cus.lost               || 0,
-   unassignedCustomers: cus.unassigned       || 0,
-   firstTime:         fvr.firstTime          || 0,
-   returning:         fvr.returning          || 0,
-   openEscalations:   esc.open               || 0,
-   closedEscalations: esc.closed             || 0,
-   prepaidCount:      sum.prepaid?.count     || 0,
-   prepaidAmount:     sum.prepaid?.amount    || 0,
-   codCount:          sum.cod?.count         || 0,
-   codAmount:         sum.cod?.amount        || 0,
-   comprehensive: {
-     total: mapCompSegment(comp?.total || emptyCompSegment),
-     team: mapCompSegment(comp?.team || emptyCompSegment),
-     shopify: mapCompSegment(comp?.shopify || emptyCompSegment),
-   },
- };
+   return {
+     totalOrders:       tO,
+     totalRevenue:      tR || (teamRev+onlineRev),
+     fulfilled:         fun.fulfilled?.count   || 0,
+     delivered:         fun.delivered?.count   || 0,
+     rto:               fun.rto?.count         || 0,
+     cancelled:         can,
+     notDispatched:     fun.notDispatched?.count || 0,
+     inTransit:         fun.inTransit?.count   || 0,
+     aov:               aov.combined?.aov      || sum.aov || 0,
+     teamOrders:        spl.teamOrders         || 0,
+     onlineOrders:      spl.onlineOrders       || 0,
+     teamRevenue:       teamRev,
+     onlineRevenue:     onlineRev,
+     teamAov:           aov.team?.aov          || 0,
+     onlineAov:         aov.online?.aov        || 0,
+     activeCustomers:   cus.active             || 0,
+     lostCustomers:     cus.lost               || 0,
+     unassignedCustomers: cus.unassigned       || 0,
+     firstTime:         fvr.firstTime          || 0,
+     returning:         fvr.returning          || 0,
+     openEscalations:   esc.open               || 0,
+     closedEscalations: esc.closed             || 0,
+     prepaidCount:      sum.prepaid?.count     || 0,
+     prepaidAmount:     sum.prepaid?.amount    || 0,
+     codCount:          sum.cod?.count         || 0,
+     codAmount:         sum.cod?.amount        || 0,
+     comprehensive: {
+       total: mapCompSegment(comp?.total || emptyCompSegment),
+       team: mapCompSegment(comp?.team || emptyCompSegment),
+       shopify: mapCompSegment(comp?.shopify || emptyCompSegment),
+     },
+   };
+ }, DASHBOARD_CACHE_TTL_MS);
 }
 
 
 async function fetchFulfillmentOverview() {
- const { data } = await axios.get(`${ANALYTICS}/dashboard-fulfillment-overview`, {
-   withCredentials: true,
- });
- return data || {};
+ return getCachedData("super-admin:fulfillment-overview", async () => {
+   const { data } = await axios.get(`${ANALYTICS}/dashboard-fulfillment-overview`, {
+     withCredentials: true,
+   });
+   return data || {};
+ }, FULFILLMENT_CACHE_TTL_MS);
 }
 
 
 async function fetchUnfulfilledOrdersByBucket(bucketKey) {
- const { data } = await axios.get(`${ANALYTICS}/dashboard-fulfillment-orders`, {
-   params: { bucketKey },
-   withCredentials: true,
- });
- return data || {};
+ return getCachedData(`super-admin:fulfillment-orders:${bucketKey}`, async () => {
+   const { data } = await axios.get(`${ANALYTICS}/dashboard-fulfillment-orders`, {
+     params: { bucketKey },
+     withCredentials: true,
+   });
+   return data || {};
+ }, FULFILLMENT_CACHE_TTL_MS);
 }
 
 

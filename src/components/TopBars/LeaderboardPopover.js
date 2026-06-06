@@ -12,6 +12,11 @@ import {
 import CardGiftcardIcon from "@mui/icons-material/CardGiftcard";
 import EmojiEventsIcon from "@mui/icons-material/EmojiEvents";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
+import { getCachedData } from "../../utils/apiCache";
+
+const API_BASE = "https://muditamleads-14f32a10d7f7.herokuapp.com";
+const LEADERBOARD_POPOVER_CACHE_TTL_MS = 60 * 1000;
+const LEADERBOARD_POPOVER_EMPLOYEE_CACHE_TTL_MS = 5 * 60 * 1000;
 // avatar generator
 const getAvatarUrl = (name) =>
   `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(
@@ -190,10 +195,14 @@ export default function LeaderboardPopover({ open, anchorEl, onClose }) {
     const fetchLeaderboard = async () => {
       setLoadingLeaderboard(true);
       try {
-        const agentsRes = await fetch(
-          "https://muditamleads-14f32a10d7f7.herokuapp.com/api/employees"
+        const agentsArr = await getCachedData(
+          "leaderboard-popover:employees",
+          async () => {
+            const agentsRes = await fetch(`${API_BASE}/api/employees`);
+            return agentsRes.json();
+          },
+          LEADERBOARD_POPOVER_EMPLOYEE_CACHE_TTL_MS
         );
-        const agentsArr = await agentsRes.json();
         const today = new Date();
         const agents = agentsArr.filter(
           (emp) =>
@@ -212,20 +221,28 @@ export default function LeaderboardPopover({ open, anchorEl, onClose }) {
           from = m.from;
           to = m.to;
         }
-        const agentSales = await Promise.all(
-          agents.map(async (agent) => {
-            try {
-              const salesRes = await fetch(
-                `https://muditamleads-14f32a10d7f7.herokuapp.com/api/retention-sales/progress?name=${encodeURIComponent(
-                  agent.fullName
-                )}&from=${from}&to=${to}`
-              );
-              const data = await salesRes.json();
-              return { name: agent.fullName, sales: data.total || 0 };
-            } catch {
-              return { name: agent.fullName, sales: 0 };
-            }
-          })
+        const cacheKey = `leaderboard-popover:${viewMode}:${from}:${to}:${agents
+          .map((agent) => agent.fullName)
+          .join("|")}`;
+        const agentSales = await getCachedData(
+          cacheKey,
+          async () =>
+            Promise.all(
+              agents.map(async (agent) => {
+                try {
+                  const salesRes = await fetch(
+                    `${API_BASE}/api/retention-sales/progress?name=${encodeURIComponent(
+                      agent.fullName
+                    )}&from=${from}&to=${to}`
+                  );
+                  const data = await salesRes.json();
+                  return { name: agent.fullName, sales: data.total || 0 };
+                } catch {
+                  return { name: agent.fullName, sales: 0 };
+                }
+              })
+            ),
+          LEADERBOARD_POPOVER_CACHE_TTL_MS
         );
         if (cancelled) return;
         const filtered = agentSales

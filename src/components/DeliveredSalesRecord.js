@@ -11,9 +11,14 @@ import {
   TableRow,
   Paper,
   Button,
+  CircularProgress,
 } from "@mui/material";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
+import { getCachedData } from "../utils/apiCache";
+
+const API_BASE = "https://muditamleads-14f32a10d7f7.herokuapp.com";
+const DELIVERED_HISTORY_CACHE_TTL_MS = 5 * 60 * 1000;
 
 const isTechHelperDepartment = (employee = {}) =>
   (employee?.department || "").toLowerCase().trim() === "tech helper";
@@ -25,6 +30,7 @@ const sortByFullName = (left = {}, right = {}) =>
 
 const DeliveredSalesRecord = () => {
   const [employees, setEmployees] = useState([]);
+  const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
   const storedUser = JSON.parse(sessionStorage.getItem("user") || "{}");
@@ -33,15 +39,25 @@ const DeliveredSalesRecord = () => {
 
   useEffect(() => {
     const fetchData = async () => {
+      setLoading(true);
       try {
-        const res = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/deliver-history", {
-          params: {
-            role: storedUser?.role,
-            fullName: storedUser?.fullName,
-          },
-        });
+        const cacheKey = `delivered-history:list:${storedUser?.role || "all"}:${storedUser?.fullName || "all"}`;
+        const list = await getCachedData(
+          cacheKey,
+          async () => {
+            const res = await axios.get(`${API_BASE}/api/deliver-history`, {
+              params: {
+                role: storedUser?.role,
+                fullName: storedUser?.fullName,
+              },
+            });
 
-        const activeEmployees = (res.data || []).filter(
+            return res.data || [];
+          },
+          DELIVERED_HISTORY_CACHE_TTL_MS
+        );
+
+        const activeEmployees = list.filter(
           (emp) => emp.status === "active" && !isTechHelperDepartment(emp)
         );
 
@@ -61,11 +77,13 @@ const DeliveredSalesRecord = () => {
       } catch (err) {
         console.error("Failed to fetch delivered history:", err);
         setEmployees([]);
+      } finally {
+        setLoading(false);
       }
     };
 
     fetchData();
-  }, [userRole, userName]);
+  }, [storedUser?.fullName, storedUser?.role, userRole, userName]);
 
   const calculateTenure = (joiningDate) => {
     if (!joiningDate) return "--";
@@ -123,7 +141,14 @@ const DeliveredSalesRecord = () => {
             </TableHead>
 
             <TableBody>
-              {employees.map((emp, idx) => (
+              {loading ? (
+                <TableRow>
+                  <TableCell colSpan={4} align="center" sx={{ py: 5 }}>
+                    <CircularProgress size={34} sx={{ color: "black" }} />
+                  </TableCell>
+                </TableRow>
+              ) : employees.length ? (
+                employees.map((emp, idx) => (
                 <TableRow
                   key={emp._id}
                   sx={{
@@ -140,10 +165,17 @@ const DeliveredSalesRecord = () => {
                   <TableCell align="center">{calculateTenure(emp.joiningDate)}</TableCell>
                   <TableCell align="center">{emp.totalDeliveredSales || 0}</TableCell>
                 </TableRow>
-              ))}
+                ))
+              ) : (
+                <TableRow>
+                  <TableCell colSpan={4} align="center" sx={{ py: 4 }}>
+                    No delivered sales records found.
+                  </TableCell>
+                </TableRow>
+              )}
             </TableBody>
 
-            {employees.length > 1 && (
+            {!loading && employees.length > 1 && (
               <TableFooter>
                 <TableRow sx={{ backgroundColor: "#f0f0f0" }}>
                   <TableCell colSpan={3} align="right" sx={{ fontWeight: "bold" }}>

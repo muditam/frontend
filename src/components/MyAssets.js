@@ -37,9 +37,11 @@ import ImageIcon from "@mui/icons-material/Image";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import HistoryIcon from "@mui/icons-material/History";
 import axios from "axios";
+import { clearCachedData, getCachedData } from "../utils/apiCache";
 
 
 const API_BASE_URL = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "");
+const MY_ASSETS_CACHE_TTL_MS = 60 * 1000;
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -90,7 +92,7 @@ export default function MyAssets() {
   const [refreshing, setRefreshing] = useState(false);
 
 
-  const fetchAllotments = useCallback(async () => {
+  const fetchAllotments = useCallback(async (forceFresh = false) => {
     if (!userId) {
       setLoading(false);
       return;
@@ -101,8 +103,17 @@ export default function MyAssets() {
 
 
       // ✅ get both active + returned for this employee
-      const { data } = await api.get(
-        `/api/asset-allotments/employee/${userId}?includeReturned=1`
+      const cacheKey = `my-assets:employee:${userId}:includeReturned`;
+      if (forceFresh) clearCachedData(cacheKey);
+      const data = await getCachedData(
+        cacheKey,
+        async () => {
+          const res = await api.get(
+            `/api/asset-allotments/employee/${userId}?includeReturned=1`
+          );
+          return res.data;
+        },
+        MY_ASSETS_CACHE_TTL_MS
       );
 
 
@@ -127,7 +138,7 @@ export default function MyAssets() {
   useEffect(() => {
     const onFocus = () => {
       setRefreshing(true);
-      fetchAllotments();
+      fetchAllotments(true);
     };
     window.addEventListener("focus", onFocus);
     return () => window.removeEventListener("focus", onFocus);
@@ -210,7 +221,7 @@ export default function MyAssets() {
                   <IconButton
                     onClick={() => {
                       setRefreshing(true);
-                      fetchAllotments();
+                      fetchAllotments(true);
                     }}
                     disabled={refreshing || loading}
                   >
