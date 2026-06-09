@@ -20,6 +20,9 @@ import {
   Typography,
 } from "@mui/material";
 import OpenInNewIcon from "@mui/icons-material/OpenInNew";
+import { clearCachedData, getCachedData } from "../../utils/apiCache";
+
+const RETENTION_OVERVIEW_CACHE_TTL_MS = 60 * 1000;
 
 export default function RetentionOverviewCombined() {
   const [loading, setLoading] = useState(false);
@@ -52,12 +55,18 @@ export default function RetentionOverviewCombined() {
     }
   };
 
-  const fetchExpertSummary = async () => {
+  const fetchExpertSummary = async ({ refresh = false } = {}) => {
     setLoading(true);
     setError("");
     try {
       const params = new URLSearchParams({ lookbackDays: String(lookbackDays) });
-      const json = await fetchJson(`/cohart-dataApi/active-customers-expert-summary?${params.toString()}`);
+      const cacheKey = `retention-overview-combined:summary:${params.toString()}`;
+      if (refresh) clearCachedData(cacheKey);
+      const json = await getCachedData(
+        cacheKey,
+        () => fetchJson(`/cohart-dataApi/active-customers-expert-summary?${params.toString()}`),
+        RETENTION_OVERVIEW_CACHE_TTL_MS
+      );
       setExpertSummary({
         combined: json?.combined || {},
         experts: Array.isArray(json?.experts) ? json.experts : [],
@@ -141,7 +150,7 @@ export default function RetentionOverviewCombined() {
             <Typography variant="h5" sx={{ fontWeight: 800, color: "#0F172A" }}>
               Retention Overview Combined
             </Typography>
-            <Button onClick={fetchExpertSummary} variant="outlined" size="small">Refresh</Button>
+            <Button onClick={() => fetchExpertSummary({ refresh: true })} variant="outlined" size="small">Refresh</Button>
           </Stack>
 
           <Divider sx={{ my: 2 }} />

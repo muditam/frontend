@@ -27,8 +27,10 @@ import axios from "axios";
 import PhoneIcon from "@mui/icons-material/Phone";
 import TuneIcon from "@mui/icons-material/Tune";
 import { requestZoomDial } from "../../calling/dialer";
+import { clearCachedData, getCachedData } from "../../utils/apiCache";
  
 const API_BASE = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "");
+const SALES_MY_LEADS_CACHE_TTL_MS = 60 * 1000;
 
 const api = axios.create({
   baseURL: API_BASE,
@@ -93,15 +95,24 @@ const SalesMyLeads = () => {
   const fetchLeads = async (agentAssigned) => {
     setLoading(true);
     try {
-      const response = await api.get("/api/leads", {
-  params: {
-    agentAssignedName: agentAssigned,
-    page: currentPage + 1,
-    limit: rowsPerPage,
-    filters: JSON.stringify(filters),
-  },
-});
-      const { leads, totalLeads } = response.data;
+      const filtersKey = JSON.stringify(filters || {});
+      const data = await getCachedData(
+        `sales-my-leads:list:${agentAssigned}:${currentPage + 1}:${rowsPerPage}:${filtersKey}`,
+        async () => {
+          const response = await api.get("/api/leads", {
+            params: {
+              agentAssignedName: agentAssigned,
+              page: currentPage + 1,
+              limit: rowsPerPage,
+              filters: filtersKey,
+            },
+          });
+
+          return response.data || {};
+        },
+        SALES_MY_LEADS_CACHE_TTL_MS
+      );
+      const { leads, totalLeads } = data;
       setLeads(leads || []); // Update leads state with fetched data
       setTotalLeads(totalLeads || 0); // Update the total leads count
     } catch (error) {
@@ -179,6 +190,7 @@ const SalesMyLeads = () => {
       await api.put(`/api/leads/${leadId}`, {
   [field]: e.target.value,
 });
+      clearCachedData("sales-my-leads:list:");
     } catch (error) {
       console.error("Error updating lead:", error);
     }
@@ -204,6 +216,7 @@ const SalesMyLeads = () => {
     try {
       const response = await api.post("/api/leads", leadToAdd);
       if (response.status === 201) {
+        clearCachedData("sales-my-leads:list:");
         setLeads((prevLeads) => [response.data.lead, ...prevLeads]);
         setNewLead({
           date: "",
@@ -242,15 +255,24 @@ const SalesMyLeads = () => {
     setLoading(true);
     setCurrentPage(0);
     try {
-      const response = await api.get("/api/leads", {
-        params: {
-          agentAssignedName: agentName,
-          page: 1,
-          limit: rowsPerPage,
-          filters: JSON.stringify(filters),
+      const filtersKey = JSON.stringify(filters || {});
+      const data = await getCachedData(
+        `sales-my-leads:list:${agentName}:1:${rowsPerPage}:${filtersKey}`,
+        async () => {
+          const response = await api.get("/api/leads", {
+            params: {
+              agentAssignedName: agentName,
+              page: 1,
+              limit: rowsPerPage,
+              filters: filtersKey,
+            },
+          });
+
+          return response.data || {};
         },
-      });
-      const { leads, totalLeads } = response.data;
+        SALES_MY_LEADS_CACHE_TTL_MS
+      );
+      const { leads, totalLeads } = data;
       setLeads(leads || []);
       setTotalLeads(totalLeads || 0);
     } catch (error) {

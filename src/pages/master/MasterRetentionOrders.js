@@ -23,6 +23,10 @@ import {
   CircularProgress,
 } from "@mui/material";
 import axios from "axios";
+import { getCachedData } from "../../utils/apiCache";
+
+const RETENTION_ORDERS_CACHE_TTL_MS = 60 * 1000;
+const RETENTION_EMPLOYEES_CACHE_TTL_MS = 2 * 60 * 1000;
 
 const dropdownOptions = {
   productsOrdered: [
@@ -73,11 +77,19 @@ const RetentionOrders = () => {
   // Fetch active retention agents from employees endpoint
   const fetchRetentionEmployees = async () => {
     try {
-      const res = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/employees", {
-        params: { role: "Retention Agent" }
-      });
+      const employees = await getCachedData(
+        "master-retention-orders:employees:retention-agent",
+        async () => {
+          const res = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/employees", {
+            params: { role: "Retention Agent" }
+          });
+
+          return res.data || [];
+        },
+        RETENTION_EMPLOYEES_CACHE_TTL_MS
+      );
       // Filter for active employees and extract their full names.
-      const activeAgents = res.data
+      const activeAgents = employees
         .filter((emp) => emp.status === "active")
         .map((emp) => emp.fullName);
       setRetentionAgents(activeAgents);
@@ -89,14 +101,22 @@ const RetentionOrders = () => {
   const fetchRetentionOrders = async () => {
   try { 
     setLoading(true);
-    const response = await axios.get( 
-      "https://muditamleads-14f32a10d7f7.herokuapp.com/api/retention-sales/allapi", 
-      {
-        params: { orderCreatedBy: retentionAgents },   
-        paramsSerializer: { indexes: false },
-      }
+    const agentsKey = JSON.stringify(retentionAgents);
+    const data = await getCachedData(
+      `master-retention-orders:orders:${agentsKey}`,
+      async () => {
+        const response = await axios.get( 
+          "https://muditamleads-14f32a10d7f7.herokuapp.com/api/retention-sales/allapi", 
+          {
+            params: { orderCreatedBy: retentionAgents },   
+            paramsSerializer: { indexes: false },
+          }
+        );
+
+        return response.data || [];
+      },
+      RETENTION_ORDERS_CACHE_TTL_MS
     );
-    const data = response.data;  
     setRawOrders(data);
     setOrders(data);
     setCurrentPage(0);

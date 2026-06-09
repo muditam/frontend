@@ -24,6 +24,7 @@ import {
 } from "@mui/material";
 import { AddCircle, Delete, FileDownload, FilterList } from "@mui/icons-material";
 import axios from "axios";
+import { clearCachedData, getCachedData } from "../../utils/apiCache";
 
 const API_BASE = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, ""); 
 
@@ -36,6 +37,7 @@ const TABLE_COLUMN_COUNT = 30;
 const DEFAULT_ROWS_PER_PAGE = 30;
 const MASTER_ROWS_PER_PAGE_OPTIONS = [10, 30, 50, 100];
 const SKELETON_ROW_COUNT = 5;
+const MASTER_LEADS_CACHE_TTL_MS = 60 * 1000;
  
 const defaultFilters = {
   startDate: "",
@@ -111,17 +113,27 @@ const LeadTable = () => {
   const fetchLeads = useCallback(async (page, limit, activeFilters) => {
     setLoading(true);
     try {
-      const response = await api.get("/api/leads", {
-        params: {
-          page,
-          limit,
-          view: "master-leads",
-          filters: JSON.stringify(activeFilters),
-        },
-      });
+      const normalizedFilters = activeFilters || {};
+      const filtersKey = JSON.stringify(normalizedFilters);
+      const data = await getCachedData(
+        `master-leads:${page}:${limit}:${filtersKey}`,
+        async () => {
+          const response = await api.get("/api/leads", {
+            params: {
+              page,
+              limit,
+              view: "master-leads",
+              filters: filtersKey,
+            },
+          });
 
-      setLeads(response.data.leads || []);
-      setTotalLeads(response.data.totalLeads || 0);
+          return response.data || {};
+        },
+        MASTER_LEADS_CACHE_TTL_MS
+      );
+
+      setLeads(data.leads || []);
+      setTotalLeads(data.totalLeads || 0);
     } catch (error) {
       console.error("Failed to fetch leads", error);
     } finally {
@@ -168,6 +180,7 @@ const LeadTable = () => {
       const response = await api.post("/api/leads", newLeadData);
 
       if (response.status === 201) {
+        clearCachedData("master-leads:");
         setLeads((prev) => [response.data.lead, ...prev]);
         setTotalLeads((prev) => prev + 1);
         setNewLead(defaultNewLead);
@@ -186,6 +199,7 @@ const LeadTable = () => {
   const handleDeleteLead = async (id) => {
     try {
       await api.delete(`/api/leads/${id}`);
+      clearCachedData("master-leads:");
       setLeads((prev) => prev.filter((lead) => lead._id !== id));
       setTotalLeads((prev) => Math.max(0, prev - 1));
     } catch (error) {
@@ -251,6 +265,7 @@ const LeadTable = () => {
 
     try {
       await api.put(`/api/leads/${leadId}`, updatePayload);
+      clearCachedData("master-leads:");
     } catch (error) {
       console.error("Error updating lead:", error);
     }

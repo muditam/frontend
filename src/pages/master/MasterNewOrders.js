@@ -23,8 +23,11 @@ import {
   CircularProgress,
 } from "@mui/material";
 import axios from "axios";
+import { clearCachedData, getCachedData } from "../../utils/apiCache";
 
 const API_BASE_URL = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "");
+const MASTER_NEW_ORDERS_CACHE_TTL_MS = 60 * 1000;
+const MASTER_NEW_ORDERS_AGENTS_CACHE_TTL_MS = 2 * 60 * 1000;
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -73,15 +76,24 @@ const NewOrders = () => {
   const fetchNewOrders = async () => {
     setLoading(true);
     try {
-      const response = await api.get("/api/orders/combined", {
-        params: {
-          page: page + 1,
-          limit: rowsPerPage,
-          ...filters,
+      const filtersKey = JSON.stringify(filters || {});
+      const data = await getCachedData(
+        `master-new-orders:list:${page + 1}:${rowsPerPage}:${filtersKey}`,
+        async () => {
+          const response = await api.get("/api/orders/combined", {
+            params: {
+              page: page + 1,
+              limit: rowsPerPage,
+              ...filters,
+            },
+          });
+
+          return response.data || {};
         },
-      });
-      const orders = response.data.orders;
-      setTotalOrders(response.data.total);
+        MASTER_NEW_ORDERS_CACHE_TTL_MS
+      );
+      const orders = data.orders || [];
+      setTotalOrders(data.total || 0);
       setNewOrders(orders);
       setAllOrders(orders);
 
@@ -100,10 +112,18 @@ const NewOrders = () => {
 
   const fetchRetentionAgents = async () => {
     try {
-      const response = await api.get("/api/employees", {
-        params: { role: "Retention Agent" },
-      });
-      setRetentionAgents(response.data);
+      const data = await getCachedData(
+        "master-new-orders:retention-agents",
+        async () => {
+          const response = await api.get("/api/employees", {
+            params: { role: "Retention Agent" },
+          });
+
+          return response.data || [];
+        },
+        MASTER_NEW_ORDERS_AGENTS_CACHE_TTL_MS
+      );
+      setRetentionAgents(data);
       // console.log(response.data);
     } catch (error) {
       console.error("Error fetching retention agents:", error);
@@ -125,6 +145,7 @@ const NewOrders = () => {
         contactNumber,
         healthExpertAssigned: selectedAgent,
       });
+      clearCachedData("master-new-orders:list:");
     } catch (error) {
       console.error("Error updating health expert assigned:", error);
     }

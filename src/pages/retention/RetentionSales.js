@@ -26,6 +26,9 @@ import {
 import { Delete, AddCircle } from "@mui/icons-material";
 import axios from "axios";
 import TuneIcon from "@mui/icons-material/Tune";
+import { clearCachedData, getCachedData } from "../../utils/apiCache";
+
+const RETENTION_SALES_CACHE_TTL_MS = 60 * 1000;
 
 
 const productOptions = [
@@ -99,12 +102,21 @@ const RetentionSales = () => {
       if (loggedInUser.role === "Retention Agent") {
         params.orderCreatedBy = loggedInUser.fullName; 
       }
-      const response = await axios.get(
-        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/retention-sales/all", 
-        { params }
+      const cacheKey = `retention-sales:list:${params.orderCreatedBy || "all"}`;
+      const data = await getCachedData(
+        cacheKey,
+        async () => {
+          const response = await axios.get(
+            "https://muditamleads-14f32a10d7f7.herokuapp.com/api/retention-sales/all", 
+            { params }
+          );
+
+          return response.data || [];
+        },
+        RETENTION_SALES_CACHE_TTL_MS
       );
-      setAllSales(response.data);
-      setDisplayedSales(response.data);
+      setAllSales(data);
+      setDisplayedSales(data);
     } catch (error) {
       console.error("Error fetching retention sales:", error.response || error); 
       alert("Failed to load sales data. Please try again.");
@@ -157,6 +169,7 @@ const RetentionSales = () => {
         const updatedSales = allSales.map((s) =>
           s._id === id ? { ...s, ...response.data, orderId: updatePayload.orderId || s.orderId } : s
         );
+        clearCachedData("retention-sales:list:");
         setAllSales(updatedSales);
         setDisplayedSales(updatedSales);
         setSavingStatus((prev) => ({ ...prev, [id]: "Saved" }));
@@ -196,6 +209,7 @@ const RetentionSales = () => {
         "https://muditamleads-14f32a10d7f7.herokuapp.com/api/retention-sales",
         newSale
       );
+      clearCachedData("retention-sales:list:");
       const newAllSales = [response.data, ...allSales];
       setAllSales(newAllSales);
       // Reapply filters if any; if filters are blank, display all
@@ -217,6 +231,7 @@ const RetentionSales = () => {
   const handleDelete = async (id) => {
     try {
       await axios.delete(`https://muditamleads-14f32a10d7f7.herokuapp.com/api/retention-sales/${id}`);
+      clearCachedData("retention-sales:list:");
       const updatedAllSales = allSales.filter((sale) => sale._id !== id);
       setAllSales(updatedAllSales);
       setDisplayedSales(updatedAllSales);

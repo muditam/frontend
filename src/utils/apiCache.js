@@ -32,7 +32,7 @@ export const getCachedData = async (key, fetcher, ttlMs = DEFAULT_TTL_MS) => {
 
   if (storage) {
     try {
-      storage.setItem(cacheKey, JSON.stringify({ ts: now, data }));
+      storage.setItem(cacheKey, JSON.stringify({ ts: Date.now(), data }));
     } catch {
       // Ignore quota/private-mode failures; the API response is still returned.
     }

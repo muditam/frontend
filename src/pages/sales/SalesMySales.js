@@ -25,8 +25,10 @@ import {
 } from "@mui/material";
 import DeleteIcon from "@mui/icons-material/Delete";
 import axios from "axios";
+import { clearCachedData, getCachedData } from "../../utils/apiCache";
  
 const API_BASE = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "");
+const SALES_MY_SALES_CACHE_TTL_MS = 60 * 1000;
 
 const api = axios.create({
   baseURL: API_BASE,
@@ -81,15 +83,23 @@ const SalesMySales = () => {
   const fetchSales = async (agentAssignedName) => {
     setLoading(true);
     try {
-      const response = await api.get("/api/merged-sales", {
-        params: {
-          agentAssignedName,
-          page: currentPage + 1,
-          limit: rowsPerPage,
-        },
-      });
+      const data = await getCachedData(
+        `sales-my-sales:list:${agentAssignedName}:${currentPage + 1}:${rowsPerPage}`,
+        async () => {
+          const response = await api.get("/api/merged-sales", {
+            params: {
+              agentAssignedName,
+              page: currentPage + 1,
+              limit: rowsPerPage,
+            },
+          });
 
-      const { sales: updatedSales, totalSales = 0 } = response.data;
+          return response.data || {};
+        },
+        SALES_MY_SALES_CACHE_TTL_MS
+      );
+
+      const { sales: updatedSales, totalSales = 0 } = data;
       setSales(updatedSales);
       setTotalSales(totalSales);
     } catch (error) {
@@ -205,6 +215,7 @@ const SalesMySales = () => {
   data: { leadId, orderId },
 });
 
+      clearCachedData("sales-my-sales:list:");
       await fetchSales(agentAssignedName);
     } catch (error) {
       console.error("Error deleting row:", error);
@@ -274,6 +285,7 @@ const SalesMySales = () => {
       try {
        const res = await api.post("/api/leads", payload);
         const savedLead = res.data.lead;
+        clearCachedData("sales-my-sales:list:");
         updatedSales[index] = { ...savedLead, myOrderData: null };
         setSales(updatedSales);
       } catch (error) {
@@ -302,6 +314,7 @@ const SalesMySales = () => {
 
       try {
         await api.put(`/api/merged-sales/${targetId}`, payload);
+        clearCachedData("sales-my-sales:list:");
       } catch (error) {
         console.error("Error updating sale:", error);
       }
