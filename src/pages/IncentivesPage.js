@@ -2542,7 +2542,7 @@ export default function IncentivesPage() {
                 {canShowAgentDropdown && (
                   <Autocomplete
                     sx={{
-                      width: { xs: "100%", md: 260 },
+                      width: { xs: "100%", md: 230 },
                       flexShrink: 0,
                     }}
                     options={agentOptions}
@@ -2586,8 +2586,8 @@ export default function IncentivesPage() {
                   <Chip
                     label={
                       selectedAgent?.fullName
-                        ? "Selected Employee View"
-                        : `All Sales Agents View • ${allIncentiveAgents.length} members`
+                        ? "Selected Experts"
+                        : `All Experts • ${allIncentiveAgents.length} members`
                     }
                     sx={{
                       height: 40,
@@ -2626,7 +2626,7 @@ export default function IncentivesPage() {
                     setStartMonth(e.target.value);
                     clearPageState();
                   }}
-                  sx={{ width: { xs: "100%", md: 170 } }}
+                  sx={{ width: { xs: "100%", md: 150 } }}
                 />
 
                 <TextField
@@ -2640,7 +2640,7 @@ export default function IncentivesPage() {
                     setEndMonth(e.target.value);
                     clearPageState();
                   }}
-                  sx={{ width: { xs: "100%", md: 170 } }}
+                  sx={{ width: { xs: "100%", md: 150 } }}
                 />
 
                 <Button
@@ -2661,7 +2661,7 @@ export default function IncentivesPage() {
                   }
                   sx={{
                     ...CONTAINED_BUTTON_SX,
-                    width: { xs: "100%", md: 100 },
+                    width: { xs: "100%", md: 80 },
                   }}
                 >
                   Apply
@@ -2672,7 +2672,7 @@ export default function IncentivesPage() {
                   onClick={handleResetFilters}
                   sx={{
                     ...OUTLINED_BUTTON_SX,
-                    width: { xs: "100%", md: 100 },
+                    width: { xs: "100%", md: 80 },
                   }}
                 >
                   Reset

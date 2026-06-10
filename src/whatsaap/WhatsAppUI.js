@@ -26,6 +26,7 @@ import {
 import { useLocation, useNavigate } from "react-router-dom";
 import SendIcon from "@mui/icons-material/Send";
 import SearchIcon from "@mui/icons-material/Search";
+import FilterListIcon from "@mui/icons-material/FilterList";
 import AddIcon from "@mui/icons-material/Add";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import FlashOnIcon from "@mui/icons-material/FlashOn";
@@ -731,6 +732,9 @@ export default function WhatsAppUI() {
   const [serverAgentOptions, setServerAgentOptions] = useState([]);
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [search, setSearch] = useState("");
+  const [chatSortOrder, setChatSortOrder] = useState("desc");
+  const [chatDateFilter, setChatDateFilter] = useState("");
+  const [sortAnchor, setSortAnchor] = useState(null);
   const [agentFilter, setAgentFilter] = useState("all");
   const [chatTab, setChatTab] = useState("all"); // all | unread | favourite
   const [chatError, setChatError] = useState("");
@@ -1098,10 +1102,11 @@ export default function WhatsAppUI() {
   const sortedConversations = useMemo(() => {
     const list = filteredConversations.slice();
     list.sort((a, b) => {
-      return new Date(b?.lastMessageAt || 0) - new Date(a?.lastMessageAt || 0);
+      const delta = new Date(b?.lastMessageAt || 0) - new Date(a?.lastMessageAt || 0);
+      return chatSortOrder === "asc" ? -delta : delta;
     });
     return list;
-  }, [filteredConversations]);
+  }, [chatSortOrder, filteredConversations]);
 
   const totalUnreadCount = useMemo(
     () => Number(serverChatCounts?.unread || 0),
@@ -1175,12 +1180,19 @@ export default function WhatsAppUI() {
         includeCounts: "true",
         includeAgentOptions: canFilterByAgent ? "true" : "false",
         tab: chatTab,
+        sortOrder: chatSortOrder,
       });
       if (agentFilter && agentFilter !== "all") {
         params.set("assignedTo", agentFilter);
       }
       if (favoritePhoneCsv) {
         params.set("favoritePhones", favoritePhoneCsv);
+      }
+      if (chatDateFilter) {
+        const start = new Date(`${chatDateFilter}T00:00:00`);
+        const end = new Date(`${chatDateFilter}T23:59:59.999`);
+        params.set("dateStart", start.toISOString());
+        params.set("dateEnd", end.toISOString());
       }
       const trimmedSearch = String(debouncedSearch || "").trim();
       if (trimmedSearch) {
@@ -1245,7 +1257,9 @@ export default function WhatsAppUI() {
   }, [
     agentFilter,
     canFilterByAgent,
+    chatDateFilter,
     chatTab,
+    chatSortOrder,
     debouncedSearch,
     favoritePhoneCsv,
     getWhatsAppAccessPayload,
@@ -1928,7 +1942,7 @@ export default function WhatsAppUI() {
     setMessages((prev) => [...prev, optimistic]);
     updateConversationPreviewLocal(to, optimistic.text);
     try {
-      await api(`/api/whatsapp/send-template`, { method: "POST", body: JSON.stringify({ to, templateName: activeTplForSend.name, templateId: activeTplForSend.template_id || activeTplForSend.templateId || activeTplForSend.providerTemplateId || "", parameters: params, renderedText: tplSendPreview || "", headerMedia }) });
+      await api(`/api/whatsapp/send-template`, { method: "POST", body: JSON.stringify({ to, templateName: activeTplForSend.name, templateId: activeTplForSend.template_id || activeTplForSend.templateId || activeTplForSend.providerTemplateId || "", parameters: params, renderedText: tplSendPreview || "", headerMedia, ...getWhatsAppAccessPayload() }) });
       setTplComposeOpen(false); setActiveTplForSend(null); setTplSendVars({}); setTplHeaderFormat(""); setTplHeaderFile(null);
       showToast("Template sent ✓", "success");
     } catch (e) {
@@ -2118,6 +2132,7 @@ export default function WhatsAppUI() {
           parameters: params,
           renderedText: previewBody || "",
           headerMedia,
+          ...getWhatsAppAccessPayload(),
         }),
       });
       setNewChatOpen(false);
@@ -2241,33 +2256,101 @@ export default function WhatsAppUI() {
 
         {/* Search */}
         <Box px={1.5} py={1} sx={{ bgcolor: LIGHT.sidebarBg }}>
-          <TextField
-            fullWidth
-            size="small"
-            placeholder="Search or start new chat"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <SearchIcon sx={{ fontSize: 18, color: LIGHT.subtext }} />
-                </InputAdornment>
-              ),
-            }}
-            sx={{
-              "& .MuiOutlinedInput-root": {
-                bgcolor: LIGHT.sidebarHeaderBg,
-                borderRadius: 99,
-                fontSize: 14,
-                color: LIGHT.text,
-                "& fieldset": { border: "none" },
-                "&:hover fieldset": { border: "none" },
-                "&.Mui-focused fieldset": { border: "none" },
-              },
-              "& input::placeholder": { color: LIGHT.subtext, opacity: 1 },
-              "& input": { py: 0.9 },
-            }}
-          />
+          <Stack direction="row" spacing={1} alignItems="center">
+            <TextField
+              fullWidth
+              size="small"
+              placeholder="Search or start new chat"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchIcon sx={{ fontSize: 18, color: LIGHT.subtext }} />
+                  </InputAdornment>
+                ),
+              }}
+              sx={{
+                "& .MuiOutlinedInput-root": {
+                  bgcolor: LIGHT.sidebarHeaderBg,
+                  borderRadius: 99,
+                  fontSize: 14,
+                  color: LIGHT.text,
+                  "& fieldset": { border: "none" },
+                  "&:hover fieldset": { border: "none" },
+                  "&.Mui-focused fieldset": { border: "none" },
+                },
+                "& input::placeholder": { color: LIGHT.subtext, opacity: 1 },
+                "& input": { py: 0.9 },
+              }}
+            />
+            <Tooltip title="Sort chats">
+              <IconButton
+                size="small"
+                onClick={(e) => setSortAnchor(e.currentTarget)}
+                sx={{
+                  width: 38,
+                  height: 38,
+                  flexShrink: 0,
+                  color: chatSortOrder === "asc" ? "#128C7E" : LIGHT.subtext,
+                  bgcolor: LIGHT.sidebarHeaderBg,
+                  "&:hover": { bgcolor: "#e8edf2", color: LIGHT.text },
+                }}
+              >
+                <FilterListIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+            <Menu
+              anchorEl={sortAnchor}
+              open={Boolean(sortAnchor)}
+              onClose={() => setSortAnchor(null)}
+            >
+              <MenuItem
+                selected={chatSortOrder === "desc"}
+                onClick={() => {
+                  setChatSortOrder("desc");
+                  setSortAnchor(null);
+                }}
+              >
+                Newest to older
+              </MenuItem>
+              <MenuItem
+                selected={chatSortOrder === "asc"}
+                onClick={() => {
+                  setChatSortOrder("asc");
+                  setSortAnchor(null);
+                }}
+              >
+                Older to newest
+              </MenuItem>
+              <Divider />
+              <Box
+                px={2}
+                py={1.25}
+                onClick={(e) => e.stopPropagation()}
+                sx={{ width: 220 }}
+              >
+                <TextField
+                  fullWidth
+                  size="small"
+                  type="date"
+                  label="Date"
+                  value={chatDateFilter}
+                  onChange={(e) => setChatDateFilter(e.target.value)}
+                  InputLabelProps={{ shrink: true }}
+                />
+                {chatDateFilter && (
+                  <Button
+                    size="small"
+                    onClick={() => setChatDateFilter("")}
+                    sx={{ mt: 0.75, textTransform: "none", color: LIGHT.subtext }}
+                  >
+                    Clear date
+                  </Button>
+                )}
+              </Box>
+            </Menu>
+          </Stack>
         </Box>
         <Box px={1.5} pb={1} sx={{ bgcolor: LIGHT.sidebarBg }}>
           <Stack direction="row" spacing={1}>

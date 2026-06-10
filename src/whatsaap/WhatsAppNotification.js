@@ -1617,7 +1617,7 @@ export default function WhatsAppInboxWidget({ onOpenChat }) {
       setTimeout(() => scrollToBottom(true), 0);
       await axios.post(
         `${API_BASE}/api/whatsapp/send-template`,
-        { to: phone10Active, templateName: tplSelected, parameters: params, renderedText: tplBodyPreview || "" },
+        { to: phone10Active, templateName: tplSelected, parameters: params, renderedText: tplBodyPreview || "", ...whatsappAccessPayload },
         { withCredentials: true }
       );
       setTplDialogOpen(false);
@@ -1635,7 +1635,20 @@ export default function WhatsAppInboxWidget({ onOpenChat }) {
     } finally {
       setSending(false);
     }
-  }, [shouldShowWidget, phone10Active, tplSelected, tplParams, tplParamCount, tplBodyPreview, scrollToBottom]);
+  }, [
+    shouldShowWidget,
+    phone10Active,
+    tplSelected,
+    tplParams,
+    tplParamCount,
+    tplBodyPreview,
+    selectedTemplateObj?.template_id,
+    selectedTemplateObj?.templateId,
+    selectedTemplateObj?.providerTemplateId,
+    selectedTemplateObj?.language,
+    whatsappAccessPayload,
+    scrollToBottom,
+  ]);
 
   const hasDraft = String(draft || "").trim().length > 0;
 

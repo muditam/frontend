@@ -24,6 +24,8 @@ import {
   Checkbox,
   ListItemText,
   Tooltip,
+  Tabs,
+  Tab,
 } from "@mui/material";
 import { Close, Delete as DeleteIcon, WarningAmber } from "@mui/icons-material";
 import axios from "axios";
@@ -59,8 +61,52 @@ const UI = {
   subtext: "#475569",
   accent: "#0f172a",
 };
+
+const getTodayDateValue = () => {
+  const date = new Date();
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
+const getInitialFormData = () => ({
+  date: getTodayDateValue(),
+  orderId: "",
+  name: "",
+  contactNumber: "",
+  agentName: "",
+  query: "",
+  attachedFiles: [],
+  status: "Open",
+  assignedTo: "",
+  remark: "",
+  followUp: "",
+  finalClosure: "",
+  resolvedDate: "",
+  reason: "",
+  amount: "",
+  products: [],
+});
+
+const getInitialUrgentDeliveryForm = () => ({
+  date: getTodayDateValue(),
+  name: "",
+  contactNumber: "",
+  orderId: "",
+  expertName: "",
+  remark: "",
+});
+
 const EscalationsPage = () => {
   const [openForm, setOpenForm] = useState(false);
+  const [openUrgentDialog, setOpenUrgentDialog] = useState(false);
+  const [openUrgentFormDialog, setOpenUrgentFormDialog] = useState(false);
+  const [urgentTab, setUrgentTab] = useState("Pending");
+  const [urgentFormData, setUrgentFormData] = useState(getInitialUrgentDeliveryForm);
+  const [urgentDeliveries, setUrgentDeliveries] = useState([]);
+  const [urgentLoading, setUrgentLoading] = useState(false);
+  const [urgentSaving, setUrgentSaving] = useState(false);
   const [openFileDialog, setOpenFileDialog] = useState(false);
   const [fileToView, setFileToView] = useState(null);
   const [escalations, setEscalations] = useState([]);
@@ -78,22 +124,8 @@ const EscalationsPage = () => {
   const [orderIdErrorMsg, setOrderIdErrorMsg] = useState("");
   const [reasonFilter, setReasonFilter] = useState("");
   const [assignedToFilter, setAssignedToFilter] = useState("");
-  const [formData, setFormData] = useState({
-    date: "",
-    orderId: "",
-    name: "",
-    contactNumber: "",
-    agentName: "",
-    query: "",
-    attachedFiles: [],
-    status: "Open",
-    assignedTo: "",
-    remark: "",
-    resolvedDate: "",
-    reason: "",
-    amount: "",
-    products: [],
-  });
+  const todayDate = getTodayDateValue();
+  const [formData, setFormData] = useState(getInitialFormData);
 
   const BACKEND_URL = `${(process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "")}/api`;
 
@@ -106,6 +138,17 @@ const EscalationsPage = () => {
   const assignedToFilterOptions = useMemo(() => {
     return allowedAssignees.map((emp) => emp.fullName);
   }, [allowedAssignees]);
+
+  const urgentDeliveryExperts = useMemo(() => {
+    const allowedRoles = new Set(["sales agent", "retention agent"]);
+    return employees
+      .filter((emp) => {
+        const role = String(emp.role || "").trim().toLowerCase();
+        const department = String(emp.department || "").trim().toLowerCase();
+        return allowedRoles.has(role) && department !== "tech helper";
+      })
+      .sort((a, b) => a.fullName.localeCompare(b.fullName));
+  }, [employees]);
 
   useEffect(() => {
     fetchEmployees();
@@ -179,6 +222,10 @@ const EscalationsPage = () => {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
+    if (name === "date" && value && value < todayDate) {
+      setFormData((fd) => ({ ...fd, date: todayDate }));
+      return;
+    }
     if (name === "products") {
       setFormData((fd) => ({ ...fd, products: value }));
       return;
@@ -216,6 +263,82 @@ const EscalationsPage = () => {
   };
 
 
+  const handleOpenForm = () => {
+    setFormData(getInitialFormData());
+    setOrderIdError(false);
+    setOrderIdErrorMsg("");
+    setOpenForm(true);
+  };
+
+
+  const fetchUrgentDeliveries = async (status = urgentTab) => {
+    setUrgentLoading(true);
+    try {
+      const response = await axios.get(`${BACKEND_URL}/urgent-deliveries`, {
+        params: { status },
+      });
+      setUrgentDeliveries(response.data.data || []);
+    } catch (error) {
+      console.error("Failed to fetch urgent deliveries", error);
+    } finally {
+      setUrgentLoading(false);
+    }
+  };
+
+
+  const handleOpenUrgentDialog = () => {
+    setOpenUrgentDialog(true);
+    setUrgentTab("Pending");
+    setUrgentFormData(getInitialUrgentDeliveryForm());
+    fetchUrgentDeliveries("Pending");
+  };
+
+
+  const handleUrgentFieldChange = (e) => {
+    const { name, value } = e.target;
+    if (name === "date" && value && value < todayDate) {
+      setUrgentFormData((fd) => ({ ...fd, date: todayDate }));
+      return;
+    }
+    setUrgentFormData((fd) => ({ ...fd, [name]: value }));
+  };
+
+
+  const handleUrgentTabChange = (event, value) => {
+    setUrgentTab(value);
+    fetchUrgentDeliveries(value);
+  };
+
+
+  const handleSubmitUrgentDelivery = async (e) => {
+    e.preventDefault();
+    if (!urgentFormData.date || !urgentFormData.orderId.trim()) return;
+
+    setUrgentSaving(true);
+    try {
+      await axios.post(`${BACKEND_URL}/urgent-deliveries`, urgentFormData);
+      setUrgentFormData(getInitialUrgentDeliveryForm());
+      setOpenUrgentFormDialog(false);
+      setUrgentTab("Pending");
+      fetchUrgentDeliveries("Pending");
+    } catch (error) {
+      console.error("Failed to submit urgent delivery", error);
+    } finally {
+      setUrgentSaving(false);
+    }
+  };
+
+
+  const handleMarkUrgentDelivered = async (id) => {
+    try {
+      await axios.patch(`${BACKEND_URL}/urgent-deliveries/${id}/delivered`);
+      fetchUrgentDeliveries(urgentTab);
+    } catch (error) {
+      console.error("Failed to mark urgent delivery delivered", error);
+    }
+  };
+
+
   const user = useMemo(() => {
     try {
       return JSON.parse(sessionStorage.getItem("user"));
@@ -230,6 +353,11 @@ const EscalationsPage = () => {
     setLoading(true);
     try {
       if (orderIdError) {
+        setLoading(false);
+        return;
+      }
+      if (!formData.date || formData.date < getTodayDateValue()) {
+        setFormData((fd) => ({ ...fd, date: getTodayDateValue() }));
         setLoading(false);
         return;
       }
@@ -264,22 +392,7 @@ const EscalationsPage = () => {
       fetchEscalations();
 
 
-      setFormData({
-        date: "",
-        orderId: "",
-        name: "",
-        contactNumber: "",
-        agentName: "",
-        query: "",
-        attachedFiles: [],
-        status: "Open",
-        assignedTo: "",
-        remark: "",
-        resolvedDate: "",
-        reason: "",
-        amount: "",
-        products: [],
-      });
+      setFormData(getInitialFormData());
       setOrderIdError(false);
       setOrderIdErrorMsg("");
     } catch (error) {
@@ -308,6 +421,8 @@ const EscalationsPage = () => {
       status: field === "status" ? value : current.status,
       assignedTo: field === "assignedTo" ? value : current.assignedTo,
       remark: field === "remark" ? value : current.remark,
+      followUp: field === "followUp" ? value : current.followUp,
+      finalClosure: field === "finalClosure" ? value : current.finalClosure,
       resolvedDate: field === "resolvedDate" ? value : current.resolvedDate,
     };
 
@@ -328,6 +443,8 @@ const EscalationsPage = () => {
         status: current.status,
         assignedTo: current.assignedTo,
         remark: current.remark,
+        followUp: current.followUp,
+        finalClosure: current.finalClosure,
         resolvedDate: current.resolvedDate,
       });
     }
@@ -382,6 +499,88 @@ const EscalationsPage = () => {
     return { bgcolor: alpha("#16a34a", 0.12), color: "#166534", border: `1px solid ${alpha("#16a34a", 0.3)}` };
   };
 
+  const renderUrgentDeliveriesTable = () => (
+    <TableContainer sx={{ border: `1px solid ${UI.border}`, borderRadius: 2, maxHeight: 360 }}>
+      <Table stickyHeader size="small">
+        <TableHead>
+          <TableRow>
+            {[
+              "Date",
+              "Name",
+              "Contact Number",
+              "Order ID",
+              "Expert Name",
+              "Remark",
+              ...(urgentTab === "Delivered" ? ["Delivered At"] : ["Action"]),
+            ].map((head) => (
+              <TableCell
+                key={head}
+                sx={{
+                  fontWeight: 800,
+                  color: "#fff",
+                  backgroundColor: urgentTab === "Delivered" ? "#166534" : UI.accent,
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {head}
+              </TableCell>
+            ))}
+          </TableRow>
+        </TableHead>
+        <TableBody>
+          {urgentLoading ? (
+            <TableRow>
+              <TableCell colSpan={7} align="center">
+                <CircularProgress size={24} />
+              </TableCell>
+            </TableRow>
+          ) : urgentDeliveries.length === 0 ? (
+            <TableRow>
+              <TableCell colSpan={7} align="center">
+                <Typography variant="body2" sx={{ py: 2, color: UI.subtext }}>
+                  No records found
+                </Typography>
+              </TableCell>
+            </TableRow>
+          ) : (
+            urgentDeliveries.map((row) => (
+              <TableRow key={row._id} hover>
+                <TableCell>{row.date}</TableCell>
+                <TableCell>{row.name || "-"}</TableCell>
+                <TableCell>{row.contactNumber || "-"}</TableCell>
+                <TableCell>{row.orderId}</TableCell>
+                <TableCell>{row.expertName || "-"}</TableCell>
+                <TableCell sx={{ whiteSpace: "pre-wrap", minWidth: 220 }}>{row.remark || "-"}</TableCell>
+                <TableCell>
+                  {urgentTab === "Delivered" ? (
+                    row.deliveredAt ? new Date(row.deliveredAt).toLocaleString() : "-"
+                  ) : (
+                    <Button
+                      size="small"
+                      variant="contained"
+                      onClick={() => handleMarkUrgentDelivered(row._id)}
+                      sx={{
+                        backgroundColor: "#166534",
+                        borderRadius: 999,
+                        textTransform: "none",
+                        fontWeight: 700,
+                        boxShadow: "none",
+                        whiteSpace: "nowrap",
+                        "&:hover": { backgroundColor: "#14532d", boxShadow: "none" },
+                      }}
+                    >
+                      Mark Delivered
+                    </Button>
+                  )}
+                </TableCell>
+              </TableRow>
+            ))
+          )}
+        </TableBody>
+      </Table>
+    </TableContainer>
+  );
+
 
   return (
     <Box sx={{ p: { xs: 1.5, md: 2.5 }, bgcolor: UI.bg, borderRadius: 3, border: `1px solid ${UI.border}` }}>
@@ -401,22 +600,40 @@ const EscalationsPage = () => {
               Escalations
             </Typography>
           </Box>
-          <Button
-            variant="contained"
-            onClick={() => setOpenForm(true)}
-            sx={{
-              backgroundColor: UI.accent,
-              borderRadius: 999,
-              px: 2.2,
-              py: 0.9,
-              textTransform: "none",
-              fontWeight: 700,
-              boxShadow: "none",
-              "&:hover": { backgroundColor: "#020617", boxShadow: "none" },
-            }}
-          >
-            Add Escalation
-          </Button>
+          <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", justifyContent: "flex-end" }}>
+            <Button
+              variant="contained"
+              onClick={handleOpenForm}
+              sx={{
+                backgroundColor: UI.accent,
+                borderRadius: 999,
+                px: 2.2,
+                py: 0.9,
+                textTransform: "none",
+                fontWeight: 700,
+                boxShadow: "none",
+                "&:hover": { backgroundColor: "#020617", boxShadow: "none" },
+              }}
+            >
+              Add Escalation
+            </Button>
+            <Button
+              variant="contained"
+              onClick={handleOpenUrgentDialog}
+              sx={{
+                backgroundColor: UI.accent,
+                borderRadius: 999,
+                px: 2.2,
+                py: 0.9,
+                textTransform: "none",
+                fontWeight: 700,
+                boxShadow: "none",
+                "&:hover": { backgroundColor: "#020617", boxShadow: "none" },
+              }}
+            >
+              Urgent Delivery
+            </Button>
+          </Box>
         </Box>
       </Paper>
 
@@ -548,6 +765,7 @@ const EscalationsPage = () => {
                 required
                 fullWidth
                 variant="filled"
+                inputProps={{ min: todayDate }}
                 InputProps={{
                   disableUnderline: true,
                   sx: { backgroundColor: "#fff", borderRadius: 1, px: 1 },
@@ -848,6 +1066,247 @@ const EscalationsPage = () => {
       </Dialog>
 
 
+      <Dialog open={openUrgentDialog} onClose={() => setOpenUrgentDialog(false)} maxWidth="lg" fullWidth>
+        <DialogTitle sx={{ fontWeight: 800, color: UI.text }}>
+          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1 }}>
+            <Typography variant="h6" sx={{ fontWeight: 800 }}>
+              Urgent Delivery
+            </Typography>
+            <IconButton onClick={() => setOpenUrgentDialog(false)} size="small">
+              <Close />
+            </IconButton>
+          </Box>
+        </DialogTitle>
+        <DialogContent dividers sx={{ bgcolor: "#f8fafc" }}>
+          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 1, flexWrap: "wrap", mb: 2 }}>
+            <Button
+              variant="contained"
+              onClick={() => {
+                setUrgentTab("Pending");
+                setUrgentFormData(getInitialUrgentDeliveryForm());
+                setOpenUrgentFormDialog(true);
+                if (urgentTab !== "Pending") fetchUrgentDeliveries("Pending");
+              }}
+              sx={{
+                backgroundColor: UI.accent,
+                borderRadius: 999,
+                textTransform: "none",
+                fontWeight: 700,
+                boxShadow: "none",
+                "&:hover": { backgroundColor: "#020617", boxShadow: "none" },
+              }}
+            >
+              Add Urgent Delivery
+            </Button>
+            <Tabs
+              value={urgentTab}
+              onChange={handleUrgentTabChange}
+              sx={{
+                minHeight: 38,
+                "& .MuiTab-root": { minHeight: 38, textTransform: "none", fontWeight: 800 },
+              }}
+            >
+              <Tab value="Pending" label="Pending" />
+              <Tab value="Delivered" label="Delivered" />
+            </Tabs>
+          </Box>
+
+          {renderUrgentDeliveriesTable()}
+        </DialogContent>
+      </Dialog>
+
+
+      <Dialog open={openUrgentFormDialog} onClose={() => setOpenUrgentFormDialog(false)} maxWidth="sm" fullWidth>
+        <DialogTitle
+          sx={{
+            color: UI.text,
+            fontWeight: 800,
+            textAlign: "center",
+            fontSize: "1.35rem",
+            pb: 0.7,
+          }}
+        >
+          Add Urgent Delivery
+        </DialogTitle>
+        <Box
+          sx={{
+            height: "3px",
+            backgroundColor: "#94a3b8",
+            width: "100%",
+            mt: 0.5,
+            borderRadius: "2px",
+          }}
+        />
+        <DialogContent sx={{ p: 3, backgroundColor: "#f8fafc" }}>
+          <Box
+            component="form"
+            sx={{ display: "flex", flexDirection: "column", gap: 2 }}
+            onSubmit={handleSubmitUrgentDelivery}
+          >
+            <Box sx={{ display: "flex", gap: 2 }}>
+              <TextField
+                label="Date"
+                type="date"
+                name="date"
+                value={urgentFormData.date}
+                onChange={handleUrgentFieldChange}
+                required
+                fullWidth
+                variant="filled"
+                inputProps={{ min: todayDate }}
+                InputProps={{
+                  disableUnderline: true,
+                  sx: { backgroundColor: "#fff", borderRadius: 1, px: 1 },
+                }}
+                InputLabelProps={{
+                  sx: {
+                    color: "rgba(0,0,0,0.6)",
+                    "&.Mui-focused": { color: "gray" },
+                    "&.MuiInputLabel-shrink": { color: "gray" },
+                  },
+                  shrink: true,
+                }}
+              />
+              <TextField
+                label="Order ID"
+                name="orderId"
+                value={urgentFormData.orderId}
+                onChange={handleUrgentFieldChange}
+                required
+                fullWidth
+                variant="filled"
+                InputProps={{
+                  disableUnderline: true,
+                  sx: { backgroundColor: "#fff", borderRadius: 1, px: 1 },
+                }}
+                InputLabelProps={{
+                  sx: {
+                    color: "rgba(0,0,0,0.6)",
+                    "&.Mui-focused": { color: "gray" },
+                    "&.MuiInputLabel-shrink": { color: "gray" },
+                  },
+                }}
+              />
+            </Box>
+
+            <Box sx={{ display: "flex", gap: 2 }}>
+              <TextField
+                label="Name"
+                name="name"
+                value={urgentFormData.name}
+                onChange={handleUrgentFieldChange}
+                fullWidth
+                variant="filled"
+                InputProps={{
+                  disableUnderline: true,
+                  sx: { backgroundColor: "#fff", borderRadius: 1, px: 1 },
+                }}
+                InputLabelProps={{
+                  sx: {
+                    color: "rgba(0,0,0,0.6)",
+                    "&.Mui-focused": { color: "gray" },
+                    "&.MuiInputLabel-shrink": { color: "gray" },
+                  },
+                }}
+              />
+              <TextField
+                label="Contact Number"
+                name="contactNumber"
+                value={urgentFormData.contactNumber}
+                onChange={handleUrgentFieldChange}
+                fullWidth
+                variant="filled"
+                InputProps={{
+                  disableUnderline: true,
+                  sx: { backgroundColor: "#fff", borderRadius: 1, px: 1 },
+                }}
+                InputLabelProps={{
+                  sx: {
+                    color: "rgba(0,0,0,0.6)",
+                    "&.Mui-focused": { color: "gray" },
+                    "&.MuiInputLabel-shrink": { color: "gray" },
+                  },
+                }}
+              />
+            </Box>
+
+            <TextField
+              select
+              label="Expert Name"
+              name="expertName"
+              value={urgentFormData.expertName}
+              onChange={handleUrgentFieldChange}
+              fullWidth
+              variant="filled"
+              InputProps={{
+                disableUnderline: true,
+                sx: { backgroundColor: "#fff", borderRadius: 1, px: 1 },
+              }}
+              InputLabelProps={{
+                sx: {
+                  color: "rgba(0,0,0,0.6)",
+                  "&.Mui-focused": { color: "gray" },
+                  "&.MuiInputLabel-shrink": { color: "gray" },
+                },
+              }}
+            >
+              {urgentDeliveryExperts.map((emp) => (
+                <MenuItem key={emp._id} value={emp.fullName}>
+                  {emp.fullName}
+                </MenuItem>
+              ))}
+            </TextField>
+
+            <TextField
+              label="Remark"
+              name="remark"
+              value={urgentFormData.remark}
+              onChange={handleUrgentFieldChange}
+              multiline
+              rows={3}
+              fullWidth
+              variant="filled"
+              InputProps={{
+                disableUnderline: true,
+                sx: { backgroundColor: "#fff", borderRadius: 1, px: 1 },
+              }}
+              InputLabelProps={{
+                sx: {
+                  color: "rgba(0,0,0,0.6)",
+                  "&.Mui-focused": { color: "gray" },
+                  "&.MuiInputLabel-shrink": { color: "gray" },
+                },
+              }}
+            />
+
+            <DialogActions sx={{ px: 0, display: "flex", justifyContent: "space-between" }}>
+              <Button
+                onClick={() => {
+                  setOpenUrgentFormDialog(false);
+                  setUrgentFormData(getInitialUrgentDeliveryForm());
+                }}
+                disabled={urgentSaving}
+                variant="outlined"
+                color="black"
+                sx={{ borderRadius: 999, px: 2.2, textTransform: "none", fontWeight: 700 }}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                disabled={urgentSaving}
+                startIcon={urgentSaving ? <CircularProgress size={20} color="inherit" /> : null}
+                variant="contained"
+                sx={{ borderRadius: 999, px: 2.4, background: UI.accent, textTransform: "none", fontWeight: 700 }}
+              >
+                Submit
+              </Button>
+            </DialogActions>
+          </Box>
+        </DialogContent>
+      </Dialog>
+
+
       <TableContainer
         component={Paper}
         sx={{
@@ -887,6 +1346,8 @@ const EscalationsPage = () => {
                 "Status",
                 "Assigned To",
                 "Remark",
+                "Follow Up",
+                "Final Closure",
                 "Resolved Date",
                 "Actions",
               ].map((head) => (
@@ -909,7 +1370,7 @@ const EscalationsPage = () => {
           <TableBody>
             {initialLoading ? (
               <TableRow>
-                <TableCell colSpan={15} align="center">
+                <TableCell colSpan={19} align="center">
                   <CircularProgress size={28} />
                 </TableCell>
               </TableRow>
@@ -1020,7 +1481,6 @@ const EscalationsPage = () => {
                       )}
                     </TableCell>
 
-
                     <TableCell align="center">
                       {canManageEscalations ? (
                         <TextField
@@ -1080,6 +1540,54 @@ const EscalationsPage = () => {
                       ) : (
                         <Typography variant="body2" sx={{ whiteSpace: "pre-wrap" }}>
                           {esc.remark || "-"}
+                        </Typography>
+                      )}
+                    </TableCell>
+
+
+                    <TableCell sx={{ minWidth: 350 }}>
+                      {canManageEscalations ? (
+                        <TextField
+                          key={`${esc._id}:${esc.followUp ?? ""}`}
+                          size="small"
+                          defaultValue={esc.followUp}
+                          onBlur={(e) => {
+                            const val = e.target.value;
+                            if (val !== esc.followUp) {
+                              handleEditCell(esc._id, "followUp", val);
+                            }
+                          }}
+                          fullWidth
+                          sx={{ width: "100%", maxWidth: 400 }}
+                          InputProps={{ sx: { textAlign: "center" } }}
+                        />
+                      ) : (
+                        <Typography variant="body2" sx={{ whiteSpace: "pre-wrap" }}>
+                          {esc.followUp || "-"}
+                        </Typography>
+                      )}
+                    </TableCell>
+
+
+                    <TableCell sx={{ minWidth: 350 }}>
+                      {canManageEscalations ? (
+                        <TextField
+                          key={`${esc._id}:${esc.finalClosure ?? ""}`}
+                          size="small"
+                          defaultValue={esc.finalClosure}
+                          onBlur={(e) => {
+                            const val = e.target.value;
+                            if (val !== esc.finalClosure) {
+                              handleEditCell(esc._id, "finalClosure", val);
+                            }
+                          }}
+                          fullWidth
+                          sx={{ width: "100%", maxWidth: 400 }}
+                          InputProps={{ sx: { textAlign: "center" } }}
+                        />
+                      ) : (
+                        <Typography variant="body2" sx={{ whiteSpace: "pre-wrap" }}>
+                          {esc.finalClosure || "-"}
                         </Typography>
                       )}
                     </TableCell>
