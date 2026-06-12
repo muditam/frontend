@@ -20,7 +20,7 @@ import axios from "axios";
 import { useNavigate } from "react-router-dom";
 
 // Use the same base URL style as rest of your app 
-const API_BASE_URL = "http://localhost:5001";
+const API_BASE_URL = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "");
 
 const PRODUCT_CONDITION_MAP = [
   { match: "karela jamun fizz", condition: "Diabetes" },

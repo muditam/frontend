@@ -268,6 +268,8 @@ const DEFAULT_PERMISSIONS = {
 
 
    opsUndeliveredOrders: false,
+   opsOrders: false,
+   opsNdr: false,
    opsRtoDelivered: false,
    opsEmailUndelivered: false,
    opsOnlyOrderConfirmation: false,
@@ -2022,6 +2024,8 @@ const getEffectiveRole = () =>
              <Box sx={{ display: "flex", flexDirection: "column" }}>
                {[
                  ["opsUndeliveredOrders", "Ops: Undelivered Orders"],
+                 ["opsOrders", "Ops: Orders"],
+                 ["opsNdr", "Ops: NDR"],
                  ["opsRtoDelivered", "Ops: RTO Delivered"],
                  ["opsEmailUndelivered", "Ops: Email Undelivered"],
                  ["opsOnlyOrderConfirmation", "Ops: Only Order Confirmation"],

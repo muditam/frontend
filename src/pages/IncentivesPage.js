@@ -154,12 +154,17 @@ function isIncentiveEligibleRole(employee = {}) {
   return role === "sales agent" || role === "retention agent";
 }
 
+function isActiveEmployee(employee = {}) {
+  return normalizeComparable(employee?.status) === "active";
+}
+
 function getEntityId(entity) {
   if (!entity) return "";
   return String(entity._id || entity.id || "").trim();
 }
 
-function getExpandedSalesTeamMembers(seedMembers = [], allEmployees = []) {
+function getExpandedSalesTeamMembers(seedMembers = [], allEmployees = [], options = {}) {
+  const includeInactive = Boolean(options.includeInactive);
   const byId = new Map(
     (Array.isArray(allEmployees) ? allEmployees : [])
       .filter((emp) => getEntityId(emp))
@@ -177,7 +182,11 @@ function getExpandedSalesTeamMembers(seedMembers = [], allEmployees = []) {
     visited.add(memberId);
 
     const resolved = byId.get(memberId) || member;
-    if (!resolved || resolved?.status !== "active" || !isSalesDepartment(resolved)) {
+    if (
+      !resolved ||
+      (!includeInactive && !isActiveEmployee(resolved)) ||
+      !isSalesDepartment(resolved)
+    ) {
       continue;
     }
 
@@ -188,7 +197,7 @@ function getExpandedSalesTeamMembers(seedMembers = [], allEmployees = []) {
         emp?.teamLeader?._id || emp?.teamLeader?.id || emp?.teamLeader || "";
       return (
         String(leaderId) === memberId &&
-        emp?.status === "active" &&
+        (includeInactive || isActiveEmployee(emp)) &&
         isSalesDepartment(emp)
       );
     });
@@ -1200,6 +1209,10 @@ export default function IncentivesPage() {
 
   const derivedStartDate = useMemo(() => monthToStartDate(startMonth), [startMonth]);
   const derivedEndDate = useMemo(() => monthToEndDate(endMonth), [endMonth]);
+  const isHistoricalReport = useMemo(
+    () => Boolean(endMonth && endMonth < defaultMonth),
+    [defaultMonth, endMonth]
+  );
   const cashSummaryShipmentStatuses = useMemo(() => {
     const statusMap = new Map();
     (data?.rows || []).forEach((row) => {
@@ -1260,11 +1273,11 @@ export default function IncentivesPage() {
       const empId = getEntityId(emp);
       return (
         memberIds.has(empId) &&
-        emp?.status === "active" &&
+        (isHistoricalReport || isActiveEmployee(emp)) &&
         isSalesDepartment(emp)
       );
     });
-  }, [currentEmployeeRecord, employees, sessionUser]);
+  }, [currentEmployeeRecord, employees, isHistoricalReport, sessionUser]);
 
   const usingCombinedTeamView = useMemo(() => {
     if (isManagerWithTeam) {
@@ -1281,8 +1294,13 @@ export default function IncentivesPage() {
   const canShowAgentDropdown = canManageAgents;
 
   const allSalesAgents = useMemo(
-    () => employees.filter((emp) => emp?.status === "active" && isSalesDepartment(emp)),
-    [employees]
+    () =>
+      employees.filter(
+        (emp) =>
+          (isHistoricalReport || isActiveEmployee(emp)) &&
+          isSalesDepartment(emp)
+      ),
+    [employees, isHistoricalReport]
   );
   const allIncentiveAgents = useMemo(
     () => allSalesAgents.filter((emp) => isIncentiveEligibleRole(emp)),
@@ -1336,10 +1354,9 @@ export default function IncentivesPage() {
       }
 
       const list = await getCachedData(
-        "incentives:employees:active",
+        "incentives:employees:all",
         async () => {
           const res = await axios.get(`${API_BASE}/api/employees`, {
-            params: { status: "active" },
             headers,
           });
 
@@ -1444,6 +1461,13 @@ export default function IncentivesPage() {
       response?.summary?.walletCoinBaseEarned ??
       0
     );
+    const availableCoins = round2(
+      response?.wallet?.availableCoin ??
+      response?.walletCoin?.availableCoin ??
+      response?.summary?.availableWalletCoin ??
+      earnedCoinsRaw
+    );
+    const earnedCoins = earnedCoinsRaw > 0 ? earnedCoinsRaw : Math.max(0, availableCoins);
     const projectedCoins = round2(
       response?.walletCoin?.projectedCoins ??
       response?.summary?.walletCoinProjected ??
@@ -1454,13 +1478,6 @@ export default function IncentivesPage() {
       response?.summary?.walletCoinLapsed ??
       0
     );
-    const availableCoins = round2(
-      response?.wallet?.availableCoin ??
-      response?.walletCoin?.availableCoin ??
-      response?.summary?.availableWalletCoin ??
-      earnedCoinsRaw
-    );
-    const earnedCoins = earnedCoinsRaw > 0 ? earnedCoinsRaw : Math.max(0, availableCoins);
     const minAchievementToRetain = Number(
       response?.walletCoin?.target?.minAchievementPercentToRetain ?? 60
     );
@@ -1482,6 +1499,73 @@ export default function IncentivesPage() {
       minAchievementToRetain,
       gapToMinimum,
     };
+  }, []);
+
+  const hasSelectedMonthActivity = useCallback((response = {}) => {
+    const summary = response?.summary || {};
+    const slab = response?.slab || {};
+    const walletCoin = response?.walletCoin || {};
+    const walletTarget = walletCoin?.target || {};
+
+    const hasCashSummaryData =
+      (Array.isArray(response?.rows) && response.rows.length > 0) ||
+      [
+        response?.cashIncentive,
+        slab.deliveredRevenue,
+        slab.totalRevenue,
+        summary.totalSales,
+        summary.deliveredSales,
+        summary.totalRevenue,
+        summary.deliveredRevenue,
+        summary.totalOrders,
+        summary.deliveredOrders,
+        summary.comingOrders,
+        summary.reversedOrders,
+        summary.availableIncentive,
+        summary.comingIncentive,
+        summary.reversedIncentive,
+        summary.totalVisibleIncentive,
+      ].some((value) => Number(value || 0) > 0);
+
+    const hasTeamPerformanceData = [
+      slab.deliveredRevenue,
+      slab.totalRevenue,
+      summary.deliveredRevenue,
+      summary.totalRevenue,
+      summary.deliveredSales,
+      summary.totalSales,
+    ].some((value) => Number(value || 0) > 0);
+
+    const hasCoinsSummaryData =
+      (Array.isArray(walletCoin.rows) && walletCoin.rows.length > 0) ||
+      [
+      summary.prepaidCount,
+      summary.partialPaidCount,
+      summary.referralPatientCount,
+      summary.prepaidCoins,
+      summary.partialPaidCoins,
+      summary.referralPatientCoins,
+      summary.walletCoinQualifyingOrders,
+      summary.walletCoinDeliveredOrders,
+      summary.walletCoinBaseEarned,
+      summary.walletCoinProjected,
+      summary.walletCoinLapsed,
+      walletCoin.qualifyingOrders,
+      walletCoin.deliveredQualifyingOrders,
+      walletCoin.baseEarnedCoins,
+      walletCoin.earnedCoins,
+      walletCoin.projectedCoins,
+      walletCoin.lapsedCoins,
+      walletCoin.prepaidCount,
+      walletCoin.partialPaidCount,
+      walletCoin.referralPatientCount,
+      walletCoin.prepaidCoins,
+      walletCoin.partialPaidCoins,
+      walletCoin.referralPatientCoins,
+      walletTarget.deliveredCount,
+    ].some((value) => Number(value || 0) > 0);
+
+    return hasCashSummaryData || hasTeamPerformanceData || hasCoinsSummaryData;
   }, []);
 
   const fetchIncentives = useCallback(async () => {
@@ -1523,11 +1607,50 @@ export default function IncentivesPage() {
           ),
         ]);
 
-        const selectedTeamData = buildTeamAggregateData(selectedResponses, members, label);
-        const cumulativeTeamData = buildTeamAggregateData(cumulativeResponses, members, label);
+        const filteredEntries = members
+          .map((member, index) => ({
+            member,
+            selectedResponse: selectedResponses[index],
+            cumulativeResponse: cumulativeResponses[index],
+          }))
+          .filter(({ member, selectedResponse }) => {
+            if (!isHistoricalReport || isActiveEmployee(member)) {
+              return true;
+            }
 
-        const nextAgentVkrRows = cumulativeResponses
-          .map((response, index) => buildAgentVkrRow(response, members[index]))
+            return hasSelectedMonthActivity(selectedResponse);
+          });
+
+        if (!filteredEntries.length) {
+          setData(null);
+          setBalanceData(null);
+          setAgentVkrRows([]);
+          setError(emptyMessage);
+          setLoadingData(false);
+          return true;
+        }
+
+        const filteredMembers = filteredEntries.map((entry) => entry.member);
+        const filteredSelectedResponses = filteredEntries.map(
+          (entry) => entry.selectedResponse
+        );
+        const filteredCumulativeResponses = filteredEntries.map(
+          (entry) => entry.cumulativeResponse
+        );
+
+        const selectedTeamData = buildTeamAggregateData(
+          filteredSelectedResponses,
+          filteredMembers,
+          label
+        );
+        const cumulativeTeamData = buildTeamAggregateData(
+          filteredCumulativeResponses,
+          filteredMembers,
+          label
+        );
+
+        const nextAgentVkrRows = filteredSelectedResponses
+          .map((response, index) => buildAgentVkrRow(response, filteredMembers[index]))
           .sort(
             (a, b) =>
               b.vkrCountTotal - a.vkrCountTotal ||
@@ -1558,9 +1681,9 @@ export default function IncentivesPage() {
               : [...teamAgents]
           : [...teamAgents];
 
-        const aggregateMembers = getExpandedSalesTeamMembers(seedMembers, employees).filter(
-          (member) => isIncentiveEligibleRole(member)
-        );
+        const aggregateMembers = getExpandedSalesTeamMembers(seedMembers, employees, {
+          includeInactive: isHistoricalReport,
+        }).filter((member) => isIncentiveEligibleRole(member));
         const handled = await loadAggregateData(
           aggregateMembers,
           `${sessionUser?.fullName || "Team"} Team`,
@@ -1574,15 +1697,15 @@ export default function IncentivesPage() {
           await loadAggregateData(
             allIncentiveAgents,
             "All Sales Agents",
-            "No active sales agents found."
+            isHistoricalReport ? "No sales agents found." : "No active sales agents found."
           );
           return;
         }
 
         if (selectedAgent?.hasTeam && isSalesDepartment(selectedAgent)) {
-          const aggregateMembers = getExpandedSalesTeamMembers([selectedAgent], employees).filter(
-            (member) => isIncentiveEligibleRole(member)
-          );
+          const aggregateMembers = getExpandedSalesTeamMembers([selectedAgent], employees, {
+            includeInactive: isHistoricalReport,
+          }).filter((member) => isIncentiveEligibleRole(member));
           const handled = await loadAggregateData(
             aggregateMembers,
             `${selectedAgent?.fullName || "Team"} Team`,
@@ -1594,9 +1717,9 @@ export default function IncentivesPage() {
         }
 
         if (selectedAgent && !isIncentiveEligibleRole(selectedAgent)) {
-          const aggregateMembers = getExpandedSalesTeamMembers([selectedAgent], employees).filter(
-            (member) => isIncentiveEligibleRole(member)
-          );
+          const aggregateMembers = getExpandedSalesTeamMembers([selectedAgent], employees, {
+            includeInactive: isHistoricalReport,
+          }).filter((member) => isIncentiveEligibleRole(member));
           const handled = await loadAggregateData(
             aggregateMembers,
             `${selectedAgent?.fullName || "Team"} Team`,
@@ -1626,7 +1749,7 @@ export default function IncentivesPage() {
         setBalanceData(cumulativeResponse);
         setAgentVkrRows([
           buildAgentVkrRow(
-            cumulativeResponse,
+            selectedResponse,
             selectedAgent || selfAgent || { fullName: effectiveAgentName }
           ),
         ]);
@@ -1651,8 +1774,9 @@ export default function IncentivesPage() {
     endMonth,
     employees,
     fetchIncentivesForAgent,
+    hasSelectedMonthActivity,
+    isHistoricalReport,
     isRetentionWithTeam,
-    isSelfAndTeamRole,
     isSuperAdmin,
     selectedAgent,
     selfAgent,

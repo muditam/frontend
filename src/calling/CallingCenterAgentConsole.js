@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import axios from "axios";
 import "./CallingCenter.css";
 import { ZOOM_DIAL_EVENT } from "./dialer";
@@ -31,6 +31,7 @@ export default function CallingCenterAgentConsole() {
   const [calls, setCalls] = useState([]);
   const [selected, setSelected] = useState(null);
   const [note, setNote] = useState("");
+  const pendingDialRef = useRef("");
 
   const getPhoneLabel = (row) =>
     row?.displayPhone ||
@@ -52,6 +53,14 @@ export default function CallingCenterAgentConsole() {
   useEffect(() => {
     fetchCalls().catch(() => {});
   }, []);
+
+  const triggerDial = useCallback((n = phone) => {
+    const clean = String(n || "").trim();
+    if (!clean) return;
+    const iframe = document.getElementById("zoom-softphone-frame");
+    iframe?.contentWindow?.postMessage({ type: "zp-make-call", phoneNumber: clean }, "https://applications.zoom.us");
+    setStatus(`Dial request sent for ${clean}`);
+  }, [phone]);
 
   useEffect(() => {
     const onMessage = (event) => {
@@ -79,13 +88,22 @@ export default function CallingCenterAgentConsole() {
       window.removeEventListener("message", onMessage);
       window.removeEventListener(ZOOM_DIAL_EVENT, onDialRequest);
     };
+  }, [triggerDial]);
+
+  useEffect(() => {
+    const dial = new URLSearchParams(window.location.search).get("dial") || "";
+    if (!dial) return;
+    pendingDialRef.current = dial;
+    setPhone(dial);
+    setStatus(`Preparing Zoom call for ${dial}`);
   }, []);
 
-  const triggerDial = (n = phone) => {
-    const iframe = document.getElementById("zoom-softphone-frame");
-    iframe?.contentWindow?.postMessage({ type: "zp-make-call", phoneNumber: String(n || "").trim() }, "https://applications.zoom.us");
-    setStatus(`Dial request sent for ${n}`);
-  };
+  const handleSoftphoneLoad = useCallback(() => {
+    const queuedDial = pendingDialRef.current;
+    if (!queuedDial) return;
+    pendingDialRef.current = "";
+    setTimeout(() => triggerDial(queuedDial), 700);
+  }, [triggerDial]);
 
   const saveNote = async () => {
     if (!selected) return;
@@ -126,6 +144,7 @@ export default function CallingCenterAgentConsole() {
                 className="cc-iframe"
                 title="Zoom Phone"
                 src="https://applications.zoom.us/integration/phone/embeddablephone/home"
+                onLoad={handleSoftphoneLoad}
                 allow="microphone; speaker"
               />
             </div>

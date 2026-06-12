@@ -752,12 +752,20 @@ const MenuBar = ({ toggleDrawer }) => {
           )}
 
           {/* Operations */}
-          {user && (can("opsUndeliveredOrders") || can("opsRtoDelivered") || can("opsEmailUndelivered") || can("opsOnlyOrderConfirmation") || can("deliveredSalesRecord")) && (
+          {user && (can("opsUndeliveredOrders") || can("opsOrders") || can("opsNdr") || can("opsRtoDelivered") || can("opsEmailUndelivered") || can("opsOnlyOrderConfirmation") || can("deliveredSalesRecord")) && (
             <div className="nav-section-label">Operations</div>
           )}
 
           {user && can("opsUndeliveredOrders") && (
             <NavItem to="/operations/undelivered-orders" icon={<ErrorOutlineIcon />} label="Undelivered Orders" />
+          )}
+
+          {user && can("opsOrders") && (
+            <NavItem to="/operations/orders" icon={<ShoppingCartIcon />} label="Orders" />
+          )}
+
+          {user && (can("opsNdr") || can("opsOrders")) && (
+            <NavItem to="/operations/ndr" icon={<ErrorOutlineIcon />} label="NDR" />
           )}
 
           {user && can("opsRtoDelivered") && (

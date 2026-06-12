@@ -20,6 +20,8 @@ import NavbarWithSearch from "./components/TopBars/NavBarwithSearch";
 import SalesDashboard from "./components/Dashboards/SalesDashboard";
 import OrdersTable from "./ShopifyOrders/AllShopifyOrders";
 import OnlineOrders from "./ShopifyOrders/OnlineOrders";
+import LmsOrdersPage from "./ShopifyOrders/LmsOrdersPage";
+import LmsNdrPage from "./ShopifyOrders/LmsNdrPage";
 import LeadDetail from "./components/LeadRequests/LeadDetails";
 import RetentionData from "./pages/filtered/Retention";
 import AcquisitionLost from "./Lostdata/AcquisitionLost";
@@ -238,6 +240,22 @@ function AppLayout() {
             element={
               <PrivateRoute>
                 <OnlineOrders />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/operations/orders"
+            element={
+              <PrivateRoute>
+                <LmsOrdersPage />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/operations/ndr"
+            element={
+              <PrivateRoute>
+                <LmsNdrPage />
               </PrivateRoute>
             }
           />

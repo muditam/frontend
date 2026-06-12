@@ -99,7 +99,7 @@ function getTextColor(bg) {
 
 
 export default function CustomerCohortHeatmap() {
-  const API = "http://localhost:5001";
+  const API = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "");
 
 
   const [cohorts, setCohorts] = useState([]);
