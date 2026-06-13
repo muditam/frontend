@@ -14,6 +14,7 @@ import {
   MenuItem,
   Paper,
   Select,
+  Snackbar,
   Stack,
   Table,
   TableBody,
@@ -45,12 +46,10 @@ const DEFAULT_STATUS_OPTIONS = [
 ];
 
 const OVERRIDE_STATUS_OPTIONS = [
-  ...DEFAULT_STATUS_OPTIONS,
   { value: "delivered", label: "Delivered" },
-  { value: "delivered_paid_cod", label: "Delivered & Paid (COD)" },
-  { value: "rto_initiated", label: "RTO" },
+  { value: "in_transit", label: "In Transit" },
   { value: "rto_received", label: "RTO Delivered" },
-  { value: "canceled", label: "Canceled" },
+  { value: "rto_initiated", label: "RTO" },
 ];
 
 const DELAY_OPTIONS = [
@@ -210,6 +209,9 @@ function NdrSection({ section, title, description, icon }) {
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [overrideStatus, setOverrideStatus] = useState("");
   const [statusUpdating, setStatusUpdating] = useState(false);
+  const [remarkDraft, setRemarkDraft] = useState("");
+  const [remarkSaving, setRemarkSaving] = useState(false);
+  const [saveMessage, setSaveMessage] = useState("");
   const [filters, setFilters] = useState({
     search: "",
     dateFrom: "",
@@ -272,6 +274,18 @@ function NdrSection({ section, title, description, icon }) {
     setPage(0);
   };
 
+  const openDrawer = (row) => {
+    setSelectedOrder(row);
+    setOverrideStatus("");
+    setRemarkDraft(row?.opsRemark || "");
+  };
+
+  const closeDrawer = () => {
+    setSelectedOrder(null);
+    setOverrideStatus("");
+    setRemarkDraft("");
+  };
+
   const applyStatusUpdate = async () => {
     if (!selectedOrder || !overrideStatus) return;
     setStatusUpdating(true);
@@ -289,6 +303,28 @@ function NdrSection({ section, title, description, icon }) {
       setError(err?.response?.data?.error || "Failed to update order status.");
     } finally {
       setStatusUpdating(false);
+    }
+  };
+
+  const saveRemark = async () => {
+    if (!selectedOrder) return;
+    const orderId = selectedOrder.orderId || selectedOrder.orderName;
+    if (!orderId) return;
+    setRemarkSaving(true);
+    try {
+      const { data } = await api.patch("/api/lms-orders/remark", {
+        orderId,
+        opsRemark: remarkDraft,
+      });
+      const nextRemark = data?.opsRemark || "";
+      setRows((prev) => prev.map((row) => (row.id === selectedOrder.id ? { ...row, opsRemark: nextRemark } : row)));
+      setSelectedOrder((prev) => (prev ? { ...prev, opsRemark: nextRemark } : prev));
+      setRemarkDraft(nextRemark);
+      setSaveMessage(nextRemark ? "Remark saved" : "Remark removed");
+    } catch (err) {
+      setError(err?.response?.data?.error || "Failed to save remark.");
+    } finally {
+      setRemarkSaving(false);
     }
   };
 
@@ -428,7 +464,7 @@ function NdrSection({ section, title, description, icon }) {
                 </TableCell>
                 <TableCell>
                   <Tooltip title="View order" arrow>
-                    <IconButton size="small" onClick={() => { setSelectedOrder(row); setOverrideStatus(""); }}>
+                    <IconButton size="small" onClick={() => openDrawer(row)}>
                       <VisibilityOutlinedIcon fontSize="small" />
                     </IconButton>
                   </Tooltip>
@@ -456,12 +492,12 @@ function NdrSection({ section, title, description, icon }) {
         rowsPerPageOptions={[10, 20, 50]}
       />
 
-      <Drawer anchor="right" open={Boolean(selectedOrder)} onClose={() => setSelectedOrder(null)} PaperProps={{ sx: { width: { xs: "100%", sm: 580 }, maxWidth: "100vw" } }}>
+      <Drawer anchor="right" open={Boolean(selectedOrder)} onClose={closeDrawer} PaperProps={{ sx: { width: { xs: "100%", sm: 580 }, maxWidth: "100vw" } }}>
         {selectedOrder ? (
           <Box sx={{ height: "100%", display: "flex", flexDirection: "column" }}>
             <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ px: 3, py: 2.25, borderBottom: "1px solid #e5e7eb" }}>
               <Typography variant="h6" sx={{ fontWeight: 900 }}>Order {selectedOrder.orderName || selectedOrder.orderId}</Typography>
-              <IconButton size="small" onClick={() => setSelectedOrder(null)}><CloseRoundedIcon /></IconButton>
+              <IconButton size="small" onClick={closeDrawer}><CloseRoundedIcon /></IconButton>
             </Stack>
             <Box sx={{ p: 3, overflowY: "auto", display: "grid", gap: 3 }}>
               <Stack direction="row" gap={1}>
@@ -548,10 +584,40 @@ function NdrSection({ section, title, description, icon }) {
                   </Typography>
                 </Box>
               </DetailSection>
+              <Box sx={{ border: "1px solid #e5e7eb", borderRadius: 2, p: 2, bgcolor: "#fbfdff" }}>
+                <Typography variant="caption" sx={{ color: "#94a3b8", fontWeight: 900, letterSpacing: 0.6 }}>REMARKS</Typography>
+                <TextField
+                  value={remarkDraft}
+                  onChange={(event) => setRemarkDraft(event.target.value)}
+                  placeholder="Add operations remark..."
+                  multiline
+                  minRows={3}
+                  fullWidth
+                  size="small"
+                  sx={{ mt: 1.5 }}
+                />
+                <Stack direction="row" justifyContent="flex-end" sx={{ mt: 1.25 }}>
+                  <Button
+                    variant="contained"
+                    disabled={remarkSaving || remarkDraft === (selectedOrder.opsRemark || "")}
+                    onClick={saveRemark}
+                    sx={{ boxShadow: "none", textTransform: "none", fontWeight: 800 }}
+                  >
+                    {remarkSaving ? "Saving..." : "Save Remark"}
+                  </Button>
+                </Stack>
+              </Box>
             </Box>
           </Box>
         ) : null}
       </Drawer>
+      <Snackbar
+        open={Boolean(saveMessage)}
+        autoHideDuration={2200}
+        onClose={() => setSaveMessage("")}
+        message={saveMessage}
+        anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
+      />
     </Paper>
   );
 }

@@ -68,6 +68,12 @@ const DEFAULT_STATUS_OPTIONS = [
   { value: "canceled", label: "Canceled" },
   { value: "lost", label: "Lost" },
 ];
+const OVERRIDE_STATUS_OPTIONS = [
+  { value: "delivered", label: "Delivered" },
+  { value: "in_transit", label: "In Transit" },
+  { value: "rto_received", label: "RTO Delivered" },
+  { value: "rto_initiated", label: "RTO" },
+];
 
 function useDebouncedValue(value, delayMs = 350) {
   const [debounced, setDebounced] = useState(value);
@@ -227,6 +233,8 @@ export default function LmsOrdersPage() {
   const [selectedIds, setSelectedIds] = useState([]);
   const [bulkStatus, setBulkStatus] = useState("");
   const [statusUpdating, setStatusUpdating] = useState(false);
+  const [remarkDraft, setRemarkDraft] = useState("");
+  const [remarkSaving, setRemarkSaving] = useState(false);
   const [copyMessage, setCopyMessage] = useState("");
   const [requestVersion, setRequestVersion] = useState(0);
 
@@ -367,11 +375,13 @@ export default function LmsOrdersPage() {
   const openOrderDrawer = (row) => {
     setSelectedOrder(row);
     setOverrideStatus("");
+    setRemarkDraft(row?.opsRemark || "");
   };
 
   const closeOrderDrawer = () => {
     setSelectedOrder(null);
     setOverrideStatus("");
+    setRemarkDraft("");
   };
 
   const copyValue = async (value, label = "Value") => {
@@ -449,6 +459,29 @@ export default function LmsOrdersPage() {
       setError(err?.response?.data?.error || "Failed to update order status.");
     } finally {
       setStatusUpdating(false);
+    }
+  };
+
+  const saveRemark = async () => {
+    const id = orderKey(selectedOrder);
+    if (!id) return;
+    setRemarkSaving(true);
+    setError("");
+    try {
+      const { data } = await api.patch("/api/lms-orders/remark", {
+        orderId: id,
+        opsRemark: remarkDraft,
+      });
+      const nextRemark = data?.opsRemark || "";
+      setRows((prev) => prev.map((row) => (orderKey(row) === id ? { ...row, opsRemark: nextRemark } : row)));
+      setSelectedOrder((prev) => (prev ? { ...prev, opsRemark: nextRemark } : prev));
+      setRemarkDraft(nextRemark);
+      setCopyMessage(nextRemark ? "Remark saved" : "Remark removed");
+    } catch (err) {
+      console.error("Failed to save order remark", err);
+      setError(err?.response?.data?.error || "Failed to save remark.");
+    } finally {
+      setRemarkSaving(false);
     }
   };
 
@@ -1010,7 +1043,7 @@ export default function LmsOrdersPage() {
                       onChange={(event) => setOverrideStatus(event.target.value)}
                     >
                       <MenuItem value="">Select status...</MenuItem>
-                      {statusOptions.map((option) => (
+                      {OVERRIDE_STATUS_OPTIONS.map((option) => (
                         <MenuItem key={option.value} value={option.value}>
                           {option.label}
                         </MenuItem>
@@ -1165,6 +1198,24 @@ export default function LmsOrdersPage() {
                       }
                     />
                     <Divider />
+                    <DetailRow
+                      label="Tracking"
+                      value={
+                        selectedOrder.trackingNumber ? (
+                          <Typography
+                            component="a"
+                            href={trackingLinkFor(selectedOrder.courier, selectedOrder.trackingNumber)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            variant="body2"
+                            sx={{ color: "#2563eb", fontWeight: 700, textDecoration: "none", "&:hover": { textDecoration: "underline" } }}
+                          >
+                            View shipment
+                          </Typography>
+                        ) : "-"
+                      }
+                    />
+                    <Divider />
                     <DetailRow label="Updated" value={formatDateTime(selectedOrder.statusUpdatedAt)} />
                     {selectedOrder.shipmentIssue ? (
                       <>
@@ -1180,6 +1231,31 @@ export default function LmsOrdersPage() {
                 )}
               </DetailSection>
 
+              <Box sx={{ border: "1px solid #e5e7eb", borderRadius: 2, p: 2, bgcolor: "#fbfdff" }}>
+                <Typography variant="caption" sx={{ color: "#94a3b8", fontWeight: 800, letterSpacing: 0.6 }}>
+                  REMARKS
+                </Typography>
+                <TextField
+                  value={remarkDraft}
+                  onChange={(event) => setRemarkDraft(event.target.value)}
+                  placeholder="Add operations remark..."
+                  multiline
+                  minRows={3}
+                  fullWidth
+                  size="small"
+                  sx={{ mt: 1.5 }}
+                />
+                <Stack direction="row" justifyContent="flex-end" sx={{ mt: 1.25 }}>
+                  <Button
+                    variant="contained"
+                    disabled={remarkSaving || remarkDraft === (selectedOrder.opsRemark || "")}
+                    onClick={saveRemark}
+                    sx={{ borderRadius: 2, boxShadow: "none", textTransform: "none", fontWeight: 700 }}
+                  >
+                    {remarkSaving ? "Saving..." : "Save Remark"}
+                  </Button>
+                </Stack>
+              </Box>
             </Box>
           </Box>
         ) : null}

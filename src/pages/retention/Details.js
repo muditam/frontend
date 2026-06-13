@@ -22,6 +22,7 @@ import {
  Checkbox,
  FormControlLabel,
  Collapse,
+ Button,
 } from "@mui/material";
 import {
  KeyboardDoubleArrowDown,
@@ -32,6 +33,8 @@ import {
  MedicationRounded,
  HealthAndSafetyRounded,
  HistoryToggleOffRounded,
+ UploadFileRounded,
+ VisibilityRounded,
 } from "@mui/icons-material";
 import axios from "axios";
 
@@ -40,6 +43,7 @@ import axios from "axios";
 
 
 const API_BASE = `${(process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "")}/api/details`;
+const ROOT_API_BASE = `${(process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "")}/api`;
 
 
 // Includes added Cholesterol + Fatty Liver fields
@@ -54,18 +58,21 @@ const initialFormState = {
  ppSugar: "",
  durationOfDiabetes: "",
  lastTestDone: "", // diabetes last test
+ diabetesReport: "",
  // Cholesterol
  totalCholesterol: "",
  ldl: "",
  hdl: "",
  triglycerides: "",
  lastCholesterolTest: "",
+ cholesterolReport: "",
  // Fatty Liver
  sgpt: "",
  sgot: "",
  ggt: "",
  ultrasoundFindings: "",
  lastLiverTest: "",
+ liverReport: "",
  // Lifestyle
  gender: "",
  dietType: "",
@@ -114,6 +121,26 @@ const badgeColorByHba1c = (val) => {
  if (n < 5.7) return "success";
  if (n < 6.5) return "warning";
  return "error";
+};
+
+const reportAcceptTypes = ".pdf,.jpg,.jpeg,.png,.webp";
+
+const reportConfigs = {
+ diabetes: {
+   label: "Diabetes",
+   field: "diabetesReport",
+   inputId: "diabetes-report-upload",
+ },
+ cholesterol: {
+   label: "Cholesterol",
+   field: "cholesterolReport",
+   inputId: "cholesterol-report-upload",
+ },
+ liver: {
+   label: "Fatty Liver",
+   field: "liverReport",
+   inputId: "liver-report-upload",
+ },
 };
 
 
@@ -206,8 +233,8 @@ const SectionCard = ({ icon, title, headerRight, children }) => (
  >
    {/* Header row with right-side slot */}
    <Stack
-     direction="row"
-     alignItems="center"
+     direction={{ xs: "column", sm: "row" }}
+     alignItems={{ xs: "stretch", sm: "center" }}
      justifyContent="space-between"
      sx={{ mb: 1.5 }}
      spacing={1.5}
@@ -220,7 +247,11 @@ const SectionCard = ({ icon, title, headerRight, children }) => (
      </Stack>
 
 
-     {headerRight ? <Box sx={{ minWidth: 220, maxWidth: 320 }}>{headerRight}</Box> : null}
+     {headerRight ? (
+       <Box sx={{ minWidth: { xs: "100%", sm: 220 }, maxWidth: "100%" }}>
+         {headerRight}
+       </Box>
+     ) : null}
    </Stack>
 
 
@@ -249,6 +280,7 @@ const Details = ({ contactNumber, onDetailsUpdate, activeConditions = [] }) => {
    message: "",
    severity: "success",
  });
+ const [reportUploading, setReportUploading] = useState({});
  const debounceRef = useRef(null);
 
 
@@ -321,7 +353,7 @@ const Details = ({ contactNumber, onDetailsUpdate, activeConditions = [] }) => {
 
 
  /** ------- SAVE (DEBOUNCED) ------- */
- const saveNow = async (payload) => {
+ const saveNow = async (payload, options = {}) => {
    if (!contactNumber) return;
    try {
      setSaveState("saving");
@@ -342,6 +374,7 @@ const Details = ({ contactNumber, onDetailsUpdate, activeConditions = [] }) => {
        message: "Auto-save failed. Check connection.",
        severity: "error",
      });
+     if (options.throwOnError) throw err;
    }
  };
 
@@ -377,6 +410,98 @@ const Details = ({ contactNumber, onDetailsUpdate, activeConditions = [] }) => {
    const updated = { ...formData, [name]: value };
    setFormData(updated);
    autoSave(updated);
+ };
+
+ const handleReportUpload = async (reportKey, file) => {
+   if (!file || !contactNumber) return;
+   const config = reportConfigs[reportKey];
+   if (!config) return;
+
+   try {
+     if (debounceRef.current) clearTimeout(debounceRef.current);
+     setReportUploading((prev) => ({ ...prev, [reportKey]: true }));
+     setSaveState("saving");
+
+     const body = new FormData();
+     body.append("report", file);
+     body.append(
+       "prefix",
+       `lead-reports/${String(contactNumber).replace(/[^0-9a-zA-Z_-]/g, "_")}/${reportKey}`
+     );
+
+     const { data } = await axios.post(`${ROOT_API_BASE}/upload-report-to-wasabi`, body, {
+       headers: { "Content-Type": "multipart/form-data" },
+     });
+
+     const reportUrl = data?.url;
+
+     if (!reportUrl) {
+       throw new Error("Report uploaded, but no URL was returned.");
+     }
+
+     const updated = { ...formData, [config.field]: reportUrl };
+     setFormData(updated);
+     await saveNow(updated, { throwOnError: true });
+     setSnack({
+       open: true,
+       message: `${config.label} report uploaded.`,
+       severity: "success",
+     });
+   } catch (err) {
+     console.error("Report upload failed:", err);
+     setSaveState("error");
+     setSnack({
+       open: true,
+       message: err?.response?.data?.message || err?.message || "Report upload failed.",
+       severity: "error",
+     });
+   } finally {
+     setReportUploading((prev) => ({ ...prev, [reportKey]: false }));
+   }
+ };
+
+ const ReportActions = ({ reportKey }) => {
+   const config = reportConfigs[reportKey];
+   const report = formData[config.field];
+   const isUploading = Boolean(reportUploading[reportKey]);
+   const reportUrl = typeof report === "string" ? report : report?.url || "";
+
+   return (
+     <Stack direction="row" spacing={1} alignItems="center" sx={{ flexShrink: 0 }}>
+       <input
+         id={config.inputId}
+         type="file"
+         accept={reportAcceptTypes}
+         style={{ display: "none" }}
+         onChange={(event) => {
+           const file = event.target.files?.[0];
+           event.target.value = "";
+           handleReportUpload(reportKey, file);
+         }}
+       />
+       <Button
+         component="label"
+         htmlFor={config.inputId}
+         size="small"
+         variant="outlined"
+         startIcon={isUploading ? <CircularProgress size={14} /> : <UploadFileRounded />}
+         disabled={isUploading}
+         sx={{ whiteSpace: "nowrap", borderRadius: 2 }}
+       >
+         {isUploading ? "Uploading" : "Upload Report"}
+       </Button>
+       <Button
+         size="small"
+         variant={reportUrl ? "contained" : "outlined"}
+         startIcon={<VisibilityRounded />}
+         disabled={!reportUrl}
+         onClick={() => window.open(reportUrl, "_blank", "noopener,noreferrer")}
+         sx={{ whiteSpace: "nowrap", borderRadius: 2 }}
+       >
+         View Report
+       </Button>
+     </Stack>
+   );
  };
 
 
@@ -988,28 +1113,35 @@ const Details = ({ contactNumber, onDetailsUpdate, activeConditions = [] }) => {
                icon={<ScienceRounded color="warning" />}
                title="Diabetes"
                headerRight={
-                 <FormControl fullWidth size="small">
-                   <InputLabel>Last Test</InputLabel>
-                   <Select
-                     name="lastTestDone"
-                     value={formData.lastTestDone}
-                     label="Last Test"
-                     onChange={handleChange}
-                   >
-                     {[
-                       "Within the last month",
-                       "Within the last 3 months",
-                       "Within the last 6 months",
-                       "Within the last year",
-                       "More than a year ago",
-                       "Never",
-                     ].map((option) => (
-                       <MenuItem key={option} value={option}>
-                         {option}
-                       </MenuItem>
-                     ))}
-                   </Select>
-                 </FormControl>
+                 <Stack
+                   direction={{ xs: "column", md: "row" }}
+                   spacing={1}
+                   alignItems={{ xs: "stretch", md: "center" }}
+                 >
+                   <FormControl size="small" sx={{ minWidth: { xs: "100%", md: 220 } }}>
+                     <InputLabel>Last Test</InputLabel>
+                     <Select
+                       name="lastTestDone"
+                       value={formData.lastTestDone}
+                       label="Last Test"
+                       onChange={handleChange}
+                     >
+                       {[
+                         "Within the last month",
+                         "Within the last 3 months",
+                         "Within the last 6 months",
+                         "Within the last year",
+                         "More than a year ago",
+                         "Never",
+                       ].map((option) => (
+                         <MenuItem key={option} value={option}>
+                           {option}
+                         </MenuItem>
+                       ))}
+                     </Select>
+                   </FormControl>
+                   <ReportActions reportKey="diabetes" />
+                 </Stack>
                }
              >
                <Grid container spacing={2}>
@@ -1097,28 +1229,35 @@ const Details = ({ contactNumber, onDetailsUpdate, activeConditions = [] }) => {
                icon={<ScienceRounded color="info" />}
                title="Cholesterol"
                headerRight={
-                 <FormControl fullWidth size="small">
-                   <InputLabel>Last Test</InputLabel>
-                   <Select
-                     name="lastCholesterolTest"
-                     value={formData.lastCholesterolTest}
-                     label="Last Test"
-                     onChange={handleChange}
-                   >
-                     {[
-                       "Within the last month",
-                       "Within the last 3 months",
-                       "Within the last 6 months",
-                       "Within the last year",
-                       "More than a year ago",
-                       "Never",
-                     ].map((option) => (
-                       <MenuItem key={option} value={option}>
-                         {option}
-                       </MenuItem>
-                     ))}
-                   </Select>
-                 </FormControl>
+                 <Stack
+                   direction={{ xs: "column", md: "row" }}
+                   spacing={1}
+                   alignItems={{ xs: "stretch", md: "center" }}
+                 >
+                   <FormControl size="small" sx={{ minWidth: { xs: "100%", md: 220 } }}>
+                     <InputLabel>Last Test</InputLabel>
+                     <Select
+                       name="lastCholesterolTest"
+                       value={formData.lastCholesterolTest}
+                       label="Last Test"
+                       onChange={handleChange}
+                     >
+                       {[
+                         "Within the last month",
+                         "Within the last 3 months",
+                         "Within the last 6 months",
+                         "Within the last year",
+                         "More than a year ago",
+                         "Never",
+                       ].map((option) => (
+                         <MenuItem key={option} value={option}>
+                           {option}
+                         </MenuItem>
+                       ))}
+                     </Select>
+                   </FormControl>
+                   <ReportActions reportKey="cholesterol" />
+                 </Stack>
                }
              >
                <Grid container spacing={2}>
@@ -1196,28 +1335,35 @@ const Details = ({ contactNumber, onDetailsUpdate, activeConditions = [] }) => {
                icon={<ScienceRounded color="secondary" />}
                title="Fatty Liver"
                headerRight={
-                 <FormControl fullWidth size="small">
-                   <InputLabel>Last Test</InputLabel>
-                   <Select
-                     name="lastLiverTest"
-                     value={formData.lastLiverTest}
-                     label="Last Test"
-                     onChange={handleChange}
-                   >
-                     {[
-                       "Within the last month",
-                       "Within the last 3 months",
-                       "Within the last 6 months",
-                       "Within the last year",
-                       "More than a year ago",
-                       "Never",
-                     ].map((option) => (
-                       <MenuItem key={option} value={option}>
-                         {option}
-                       </MenuItem>
-                     ))}
-                   </Select>
-                 </FormControl>
+                 <Stack
+                   direction={{ xs: "column", md: "row" }}
+                   spacing={1}
+                   alignItems={{ xs: "stretch", md: "center" }}
+                 >
+                   <FormControl size="small" sx={{ minWidth: { xs: "100%", md: 220 } }}>
+                     <InputLabel>Last Test</InputLabel>
+                     <Select
+                       name="lastLiverTest"
+                       value={formData.lastLiverTest}
+                       label="Last Test"
+                       onChange={handleChange}
+                     >
+                       {[
+                         "Within the last month",
+                         "Within the last 3 months",
+                         "Within the last 6 months",
+                         "Within the last year",
+                         "More than a year ago",
+                         "Never",
+                       ].map((option) => (
+                         <MenuItem key={option} value={option}>
+                           {option}
+                         </MenuItem>
+                       ))}
+                     </Select>
+                   </FormControl>
+                   <ReportActions reportKey="liver" />
+                 </Stack>
                }
              >
                <Grid container spacing={2}>

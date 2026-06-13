@@ -765,6 +765,8 @@ export default function WhatsAppUI() {
   const joinedRoomsRef = useRef(new Set());
   const refreshTimerRef = useRef(null);
   const pendingReadRef = useRef(new Map());
+  const liveInboundSeenRef = useRef(new Map());
+  const fallbackFetchForInboundRef = useRef(new Map());
   const [hasMoreOlder, setHasMoreOlder] = useState(false);
   const [loadingOlder, setLoadingOlder] = useState(false);
   const [oldestCursor, setOldestCursor] = useState("");
@@ -1549,6 +1551,10 @@ export default function WhatsAppUI() {
       }
       upsertConversationFromMessage(normalizedMsg);
       const activeNow = activeP10Ref.current;
+      if (String(normalizedMsg?.direction || "").toUpperCase() === "INBOUND") {
+        const inboundTs = new Date(normalizedMsg?.timestamp || normalizedMsg?.createdAt || Date.now()).getTime();
+        if (Number.isFinite(inboundTs)) liveInboundSeenRef.current.set(p10, inboundTs);
+      }
       if (activeNow && p10 === activeNow) {
         setMessages((prev) => {
           const dir = String(normalizedMsg?.direction || "").toUpperCase();
@@ -1662,11 +1668,29 @@ export default function WhatsAppUI() {
       }
       const activeNow = activeP10Ref.current;
       if (activeNow && p10 === activeNow && (patch?.lastInboundAt || patch?.windowExpiresAt)) { setSessionExpired(false); setChatError(""); }
+      if (activeNow && p10 === activeNow && patch?.lastInboundAt) {
+        const inboundTs = new Date(patch.lastInboundAt).getTime();
+        const seenTs = liveInboundSeenRef.current.get(p10);
+        const fetchedTs = fallbackFetchForInboundRef.current.get(p10);
+        if (
+          Number.isFinite(inboundTs) &&
+          ((Number.isFinite(seenTs) && seenTs >= inboundTs) ||
+            (Number.isFinite(fetchedTs) && fetchedTs >= inboundTs))
+        ) {
+          return;
+        }
+        if (Number.isFinite(inboundTs)) fallbackFetchForInboundRef.current.set(p10, inboundTs);
+        fetchMessagesPage(activeNow, { limit: MESSAGE_PAGE_SIZE })
+          .then((page) => {
+            setMessages((prev) => mergeUniqueMessages(prev, page.items));
+          })
+          .catch(() => {});
+      }
     };
 
     s.on("wa:message", onMessage); s.on("wa:status", onStatus); s.on("wa:conversation", onConversation);
     return () => { s.off("wa:message", onMessage); s.off("wa:status", onStatus); s.off("wa:conversation", onConversation); };
-  }, [agentFilter, chatTab, debouncedSearch, markConversationRead, playNotif, scheduleConversationRefresh, upsertConversationFromMessage]);
+  }, [agentFilter, chatTab, debouncedSearch, fetchMessagesPage, markConversationRead, mergeUniqueMessages, playNotif, scheduleConversationRefresh, upsertConversationFromMessage]);
 
   useEffect(() => { if (activeP10) setInput(drafts[activeP10] || ""); else setInput(""); }, [activeP10, drafts]);
 
