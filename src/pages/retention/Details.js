@@ -45,6 +45,11 @@ import axios from "axios";
 const API_BASE = `${(process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "")}/api/details`;
 const ROOT_API_BASE = `${(process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "")}/api`;
 
+const getSessionUserHeaders = () => {
+ const rawUser = sessionStorage.getItem("user");
+ return rawUser ? { "x-session-user": rawUser } : {};
+};
+
 
 // Includes added Cholesterol + Fatty Liver fields
 const initialFormState = {
@@ -430,7 +435,10 @@ const Details = ({ contactNumber, onDetailsUpdate, activeConditions = [] }) => {
      );
 
      const { data } = await axios.post(`${ROOT_API_BASE}/upload-report-to-wasabi`, body, {
-       headers: { "Content-Type": "multipart/form-data" },
+       headers: {
+         "Content-Type": "multipart/form-data",
+         ...getSessionUserHeaders(),
+       },
      });
 
      const reportUrl = data?.url;
@@ -1632,6 +1640,5 @@ const Details = ({ contactNumber, onDetailsUpdate, activeConditions = [] }) => {
 
 
 export default Details;
-
 
 
