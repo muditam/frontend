@@ -123,6 +123,7 @@ import DietOnboarding from "./pages/diet/DietOnboarding";
 import SmartDietPlanView from "./pages/diet/SmartDietPlanView";
 import DietDashboard from "./pages/diet/DietDashboard";
 import DietPlanEditor from "./pages/diet/DietPlanEditor";
+import DataConvertor from "./pages/DataConvertor";
 
 function AppLayout() {
   const location = useLocation();
@@ -225,6 +226,14 @@ function AppLayout() {
             element={
               <PrivateRoute>
                 <BulkDataUpload />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/data-convertor"
+            element={
+              <PrivateRoute>
+                <DataConvertor />
               </PrivateRoute>
             }
           />

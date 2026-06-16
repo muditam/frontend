@@ -38,6 +38,7 @@ import VisibilityOutlinedIcon from "@mui/icons-material/VisibilityOutlined";
 import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
 import ContentCopyRoundedIcon from "@mui/icons-material/ContentCopyRounded";
 import PhoneOutlinedIcon from "@mui/icons-material/PhoneOutlined";
+import FileDownloadOutlinedIcon from "@mui/icons-material/FileDownloadOutlined";
 import { openZoomPhoneDialer } from "../utils/zoomPhoneDialer";
 
 const API_BASE = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, ""); // Change this to your actual API base URL
@@ -180,6 +181,47 @@ function trackingLinkFor(courier, trackingNumber) {
     return `https://www.bluedart.com/web/guest/trackdartresultthirdparty?trackFor=0&&trackNo=${encodeURIComponent(awb)}`;
   }
   return `https://www.dtdc.com/track-your-shipment/?awb=${encodeURIComponent(awb)}`;
+}
+
+function downloadCsv(filename, rows) {
+  const headers = ["Order ID", "Date", "Customer", "Phone", "Products / SKU", "Payment", "Amount", "Courier", "AWB", "Status"];
+  const body = rows.map((row) => [
+    row.orderName || row.orderId || "",
+    formatDate(row.orderDate),
+    row.customerName || "",
+    row.contactNumber || row.customerAddress?.phone || "",
+    productText(row.products),
+    row.paymentMode || "",
+    Number(row.amount || 0),
+    row.courier || "",
+    row.trackingNumber || "",
+    row.status || "",
+  ]);
+  const csv = [headers, ...body]
+    .map((line) => line.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(","))
+    .join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+function isClosedStatusValue(status) {
+  return CLOSED_STATUS.has(normalizeStatus(status).toLowerCase());
+}
+
+function rowMatchesVisibility(row, { isActiveMode, showActive, showClosed, statusFilterLabel }) {
+  const isClosed = isClosedStatusValue(row?.status);
+  if (isActiveMode && isClosed) return false;
+  if (!isActiveMode && showActive && !showClosed && isClosed) return false;
+  if (!isActiveMode && !showActive && showClosed && !isClosed) return false;
+  if (statusFilterLabel) {
+    if (normalizeStatus(row?.status).toLowerCase() !== String(statusFilterLabel).toLowerCase()) return false;
+  }
+  return true;
 }
 
 async function writeClipboard(text) {
@@ -448,12 +490,72 @@ export default function LmsOrdersPage() {
         status: statusValue,
       });
       const nextStatus = data?.status || statusOptionLabel(statusOptions, statusValue);
-      setRows((prev) => prev.map((row) => (ids.includes(orderKey(row)) ? { ...row, status: nextStatus } : row)));
-      setSelectedOrder((prev) => (prev && ids.includes(orderKey(prev)) ? { ...prev, status: nextStatus } : prev));
+      const statusFilterLabel = filters.status ? statusOptionLabel(statusOptions, filters.status) : "";
+      let totalDelta = 0;
+      let activeDelta = 0;
+      let closedDelta = 0;
+      setRows((prev) => {
+        const updatedRows = prev.map((row) => {
+          if (!ids.includes(orderKey(row))) return row;
+          return { ...row, status: nextStatus };
+        });
+
+        prev.forEach((row) => {
+          if (!ids.includes(orderKey(row))) return;
+          const beforeVisible = rowMatchesVisibility(row, {
+            isActiveMode,
+            showActive,
+            showClosed,
+            statusFilterLabel,
+          });
+          const nextRow = { ...row, status: nextStatus };
+          const afterVisible = rowMatchesVisibility(nextRow, {
+            isActiveMode,
+            showActive,
+            showClosed,
+            statusFilterLabel,
+          });
+          if (beforeVisible && !afterVisible) totalDelta -= 1;
+          if (!beforeVisible && afterVisible) totalDelta += 1;
+
+          const wasClosed = isClosedStatusValue(row.status);
+          const nowClosed = isClosedStatusValue(nextStatus);
+          if (wasClosed !== nowClosed) {
+            activeDelta += nowClosed ? -1 : 1;
+            closedDelta += nowClosed ? 1 : -1;
+          }
+        });
+
+        return updatedRows.filter((row) =>
+          rowMatchesVisibility(row, {
+            isActiveMode,
+            showActive,
+            showClosed,
+            statusFilterLabel,
+          })
+        );
+      });
+      setCounts((prev) => ({
+        ...prev,
+        active: Math.max(0, Number(prev.active || 0) + activeDelta),
+        closed: Math.max(0, Number(prev.closed || 0) + closedDelta),
+      }));
+      setTotal((prev) => Math.max(0, Number(prev || 0) + totalDelta));
       setOverrideStatus("");
       setBulkStatus("");
       setSelectedIds([]);
-      await fetchOrders();
+      setSelectedOrder((prev) => {
+        if (!prev || !ids.includes(orderKey(prev))) return prev;
+        const nextRow = { ...prev, status: nextStatus };
+        return rowMatchesVisibility(nextRow, {
+          isActiveMode,
+          showActive,
+          showClosed,
+          statusFilterLabel,
+        })
+          ? nextRow
+          : null;
+      });
     } catch (err) {
       console.error("Failed to update order status", err);
       setError(err?.response?.data?.error || "Failed to update order status.");
@@ -524,6 +626,22 @@ export default function LmsOrdersPage() {
               </Box>
 
               <Stack direction={{ xs: "column", sm: "row" }} gap={1} alignItems={{ xs: "stretch", sm: "center" }}>
+                <Button
+                  size="small"
+                  startIcon={<FileDownloadOutlinedIcon />}
+                  onClick={() => downloadCsv(`${isActiveMode ? "active" : "all"}-orders.csv`, rows)}
+                  sx={{ textTransform: "none", fontWeight: 800 }}
+                >
+                  CSV
+                </Button>
+                <Button
+                  size="small"
+                  startIcon={<FileDownloadOutlinedIcon />}
+                  onClick={() => downloadCsv(`${isActiveMode ? "active" : "all"}-orders.xls`, rows)}
+                  sx={{ textTransform: "none", fontWeight: 800 }}
+                >
+                  Excel
+                </Button>
                 <Chip
                   icon={<Inventory2OutlinedIcon />}
                   label={`All ${allTotal}`}

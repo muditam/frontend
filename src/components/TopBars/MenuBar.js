@@ -35,6 +35,7 @@ import AccountBalanceWalletOutlinedIcon from "@mui/icons-material/AccountBalance
 import MenuBookIcon from "@mui/icons-material/MenuBook";
 import StorefrontIcon from "@mui/icons-material/Storefront";
 import RestaurantIcon from "@mui/icons-material/Restaurant";
+import TransformIcon from "@mui/icons-material/Transform";
 
 const styles = `
   @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Syne:wght@600;700&display=swap');
@@ -558,6 +559,10 @@ const MenuBar = ({ toggleDrawer }) => {
 
           {user && can("addEmployee") && (
             <NavItem to="/add-employee" icon={<PersonAddIcon />} label="Add Employee" />
+          )}
+
+          {user && can("dataConvertor") && (
+            <NavItem to="/data-convertor" icon={<TransformIcon />} label="Data Convertor" />
           )}
 
           {/* Order Confirmations */}

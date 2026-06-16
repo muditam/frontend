@@ -171,6 +171,7 @@ const DEFAULT_PERMISSIONS = {
 
 
    addEmployee: false,
+   dataConvertor: false,
 
 
    masterDataMenu: false,
@@ -1743,6 +1744,7 @@ const getEffectiveRole = () =>
                  ["futureOrders", "Future Orders"],
                  ["onlineOrders", "Online Orders"],
                  ["unassignedDeliveredOrders", "Unassigned Delivered Orders"],
+                 ["dataConvertor", "Data Convertor"],
                ].map(([key, label]) => (
                  <FormControlLabel
                    key={key}

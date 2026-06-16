@@ -426,7 +426,7 @@ function NdrSection({ section, title, description, icon }) {
         <Table size="small">
           <TableHead>
             <TableRow>
-              {["Order", "Date", "Customer", "Status", "Issue", "Payment", "Courier", "View"].map((label) => (
+              {["Order", "Date", "Customer", "Agent", "Status", "Issue", "Payment", "Courier", "View"].map((label) => (
                 <TableCell key={label} sx={{ bgcolor: "#f8fafc", color: "#64748b", fontSize: 12, fontWeight: 800, textTransform: "uppercase" }}>
                   {label}
                 </TableCell>
@@ -436,7 +436,7 @@ function NdrSection({ section, title, description, icon }) {
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={8} align="center" sx={{ py: 6 }}>
+                <TableCell colSpan={9} align="center" sx={{ py: 6 }}>
                   <CircularProgress size={22} />
                 </TableCell>
               </TableRow>
@@ -447,6 +447,9 @@ function NdrSection({ section, title, description, icon }) {
                 <TableCell>
                   <Typography variant="body2" sx={{ fontWeight: 700 }}>{row.customerName || "-"}</Typography>
                   <Typography variant="caption" color="text.secondary">{row.contactNumber || "-"}</Typography>
+                </TableCell>
+                <TableCell sx={{ whiteSpace: "nowrap" }}>
+                  <Typography variant="body2" sx={{ fontWeight: 600 }}>{row.agentName || "-"}</Typography>
                 </TableCell>
                 <TableCell>
                   <Stack direction="row" gap={0.75} alignItems="center">
@@ -472,7 +475,7 @@ function NdrSection({ section, title, description, icon }) {
               </TableRow>
             )) : (
               <TableRow>
-                <TableCell colSpan={8} align="center" sx={{ py: 6, color: "text.secondary" }}>No NDR orders found</TableCell>
+                <TableCell colSpan={9} align="center" sx={{ py: 6, color: "text.secondary" }}>No NDR orders found</TableCell>
               </TableRow>
             )}
           </TableBody>
@@ -518,6 +521,7 @@ function NdrSection({ section, title, description, icon }) {
               </Box>
               <DetailSection title="Customer">
                 <DetailRow label="Name" value={selectedOrder.customerName || "-"} />
+                <DetailRow label="Agent" value={selectedOrder.agentName || "-"} />
                 <DetailRow label="Phone" value={selectedOrder.contactNumber || selectedOrder.customerAddress?.phone || "-"} />
                 <DetailRow label="Address" value={formatAddress(selectedOrder.customerAddress)} />
               </DetailSection>
