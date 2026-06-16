@@ -22,6 +22,7 @@ import OrdersTable from "./ShopifyOrders/AllShopifyOrders";
 import OnlineOrders from "./ShopifyOrders/OnlineOrders";
 import LmsOrdersPage from "./ShopifyOrders/LmsOrdersPage";
 import LmsNdrPage from "./ShopifyOrders/LmsNdrPage";
+import FutureOrdersPage from "./ShopifyOrders/FutureOrdersPage";
 import LeadDetail from "./components/LeadRequests/LeadDetails";
 import RetentionData from "./pages/filtered/Retention";
 import AcquisitionLost from "./Lostdata/AcquisitionLost";
@@ -555,6 +556,14 @@ function AppLayout() {
             element={
               <PrivateRoute>
                 <OrderConfirmations />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/future-orders"
+            element={
+              <PrivateRoute>
+                <FutureOrdersPage />
               </PrivateRoute>
             }
           />

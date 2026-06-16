@@ -167,6 +167,7 @@ const DEFAULT_PERMISSIONS = {
    orderConfirmationsMenu: false,
    orderConfirmationPage: false,
    orderAnalyticsPage: false,
+   futureOrders: false,
 
 
    addEmployee: false,
@@ -1739,6 +1740,7 @@ const getEffectiveRole = () =>
                  ["orderConfirmationsMenu", "Order Confirmations Menu"],
                  ["orderConfirmationPage", "Order Confirmation Page"],
                  ["orderAnalyticsPage", "Order Analytics Page"],
+                 ["futureOrders", "Future Orders"],
                  ["onlineOrders", "Online Orders"],
                  ["unassignedDeliveredOrders", "Unassigned Delivered Orders"],
                ].map(([key, label]) => (

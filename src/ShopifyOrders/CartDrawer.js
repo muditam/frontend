@@ -138,6 +138,20 @@ const fadeUpVariants = {
   visible: { opacity: 1, y: 0 },
 };
 
+const API_ORIGIN =
+  (process.env.REACT_APP_API_BASE_URL || "https://muditamleads-14f32a10d7f7.herokuapp.com").replace(/\/+$/, "");
+
+const getSessionUserHeaders = () => {
+  const rawUser = sessionStorage.getItem("user");
+  return rawUser ? { "x-session-user": rawUser } : {};
+};
+
+const tomorrowDateInputValue = () => {
+  const date = new Date();
+  date.setDate(date.getDate() + 1);
+  return date.toISOString().slice(0, 10);
+};
+
 // Consistent style for buttons
 const buttonStyle = {
   textTransform: "none",
@@ -189,6 +203,10 @@ const CartDrawer = ({ closeDrawer }) => {
   const [copyStatus, setCopyStatus] = useState("");
 
   const [partialPaidAmount, setPartialPaidAmount] = useState("");
+  const [isFutureOrder, setIsFutureOrder] = useState(false);
+  const [futureOrderDate, setFutureOrderDate] = useState("");
+  const [futureOrderId, setFutureOrderId] = useState(null);
+  const [futureOrderData, setFutureOrderData] = useState(null);
 
   // Pulling data from Redux store
   const {
@@ -357,6 +375,10 @@ const CartDrawer = ({ closeDrawer }) => {
     setShowOrderSuccess(false);
     setOrderId(null);
     setOrderNotes("");
+    setIsFutureOrder(false);
+    setFutureOrderDate("");
+    setFutureOrderId(null);
+    setFutureOrderData(null);
     setActiveSection("ordering"); // Go back to first tab if you like
     setPartialPaidAmount("");
   };
@@ -735,6 +757,44 @@ const CartDrawer = ({ closeDrawer }) => {
     };
 
     try {
+      if (isFutureOrder) {
+        if (!futureOrderDate) {
+          alert("Please select a future delivery date.");
+          return;
+        }
+
+        const cartDetails = cart.map((item) => ({
+          productId: String(item.product?.id || ""),
+          variantId: String(item.variant?.id || ""),
+          title: item.product?.title || "",
+          variantTitle: item.variant?.title || "",
+          sku: item.variant?.sku || item.product?.sku || "",
+          quantity: Number(item.quantity || 0),
+          price: Number(item.variant?.price || 0),
+        }));
+
+        const response = await axios.post(
+          `${API_ORIGIN}/api/future-orders`,
+          {
+            scheduledDate: futureOrderDate,
+            customerName: confirmedAddress?.fullName || customerName || "",
+            phoneNumber: phoneNumber || "",
+            orderData,
+            cartDetails,
+            orderDetails: {
+              agentName: loggedInAgentName,
+            },
+          },
+          { headers: getSessionUserHeaders(), withCredentials: true }
+        );
+
+        setFutureOrderId(response.data?.order?._id || null);
+        setFutureOrderData(response.data?.order || null);
+        setOrderId(null);
+        setShowOrderSuccess(true);
+        return;
+      }
+
       const response = await axios.post(
         "https://muditamleads-14f32a10d7f7.herokuapp.com/api/shopify/create-order",
         orderData
@@ -753,6 +813,31 @@ const CartDrawer = ({ closeDrawer }) => {
 
 
   const handleAddNotesClick = async () => {
+    if (futureOrderId) {
+      if (!orderNotes.trim()) {
+        alert("Please enter a note.");
+        return;
+      }
+      try {
+        const response = await axios.patch(
+          `${API_ORIGIN}/api/future-orders/${futureOrderId}/note`,
+          { note: orderNotes },
+          { headers: getSessionUserHeaders(), withCredentials: true }
+        );
+        setFutureOrderData(response.data?.order || futureOrderData);
+        setNotesMessage("Notes added.");
+        setOrderNotes("");
+        setShowOrderSuccess(false);
+        setTimeout(() => {
+          setShowOrderDetailsPopup(true);
+        }, 500);
+      } catch (error) {
+        console.error("Error adding future order notes:", error);
+        alert("Error adding notes.");
+      }
+      return;
+    }
+
     if (!orderId) {
       alert("Order id is missing.");
       return;
@@ -822,6 +907,13 @@ const CartDrawer = ({ closeDrawer }) => {
   // Function to close the order success popup manually
   const handleCloseOrderPopup = () => {
     setShowOrderSuccess(false);
+  };
+
+  const handleCloseOrderDetailsPopup = () => {
+    setShowOrderDetailsPopup(false);
+    if (futureOrderId) {
+      handleResetAll();
+    }
   };
 
   return (
@@ -1877,6 +1969,35 @@ const CartDrawer = ({ closeDrawer }) => {
                     mb: 2,
                   }}
                 >
+                  <FormControlLabel
+                    control={
+                      <Checkbox
+                        checked={isFutureOrder}
+                        onChange={(event) => {
+                          const checked = event.target.checked;
+                          setIsFutureOrder(checked);
+                          if (!checked) {
+                            setFutureOrderDate("");
+                          }
+                        }}
+                      />
+                    }
+                    label="Future date order"
+                    sx={{ mb: 1 }}
+                  />
+                  {isFutureOrder && (
+                    <TextField
+                      label="Future delivery date"
+                      type="date"
+                      fullWidth
+                      value={futureOrderDate}
+                      onChange={(event) => setFutureOrderDate(event.target.value)}
+                      inputProps={{ min: tomorrowDateInputValue() }}
+                      InputLabelProps={{ shrink: true }}
+                      sx={{ mb: 2 }}
+                      size="small"
+                    />
+                  )}
                   <Typography
                     variant="subtitle1"
                     sx={{ mb: 1 }}
@@ -1979,6 +2100,7 @@ const CartDrawer = ({ closeDrawer }) => {
                       disabled={
                         isOrderLoading ||
                         !confirmedAddress || 
+                        (isFutureOrder && !futureOrderDate) ||
                         (paymentMethod === "Prepaid" && transactionId.trim() === "") || 
                         (paymentMethod === "Partial Paid" &&
                           (Number(partialPaidAmount || 0) <= 0 ||
@@ -2051,11 +2173,16 @@ const CartDrawer = ({ closeDrawer }) => {
                 variant="h5"
                 sx={{ mt: 2, textAlign: "center" }}
               >
-                Your order has been successfully created! 🎉
+                {futureOrderId ? "Your future order has been saved!" : "Your order has been successfully created! 🎉"}
               </Typography>
               {orderId && (
                 <Typography sx={{ mt: 1 }}>
                   Order id is: {orderId}
+                </Typography>
+              )}
+              {futureOrderId && (
+                <Typography sx={{ mt: 1 }}>
+                  Future order id is: {futureOrderId}
                 </Typography>
               )}
               {/* Notes field and button */}
@@ -2093,15 +2220,17 @@ const CartDrawer = ({ closeDrawer }) => {
             <ReactConfetti width={confettiSize.width} height={confettiSize.height} recycle={false} />
           </Box>
         )}
-        {showOrderDetailsPopup && orderId && (
+        {showOrderDetailsPopup && (orderId || futureOrderId) && (
           <OrderDetailsPopup
             orderId={orderId}
+            futureOrderId={futureOrderId}
+            futureOrderData={futureOrderData}
             agentName={loggedInAgentName}
             discount={Number(appliedDiscount || 0)}
             discountType={discountType}
             paymentMethod={paymentMethod}
             transactionId={transactionId}
-            onClose={() => setShowOrderDetailsPopup(false)}
+            onClose={handleCloseOrderDetailsPopup}
           />
         )}
       </Box>
@@ -2136,5 +2265,3 @@ export default CartDrawer;
       return false;
     }
   };
-
-

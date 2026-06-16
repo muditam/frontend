@@ -599,6 +599,10 @@ const MenuBar = ({ toggleDrawer }) => {
             <NavItem to="/online-orders" icon={<ShoppingCartIcon />} label="Online Orders" />
           )}
 
+          {user && can("futureOrders") && (
+            <NavItem to="/future-orders" icon={<ShoppingCartIcon />} label="Future Orders" />
+          )}
+
           {/* Sales Agent */}
           {user && can("salesAgentMenu") && (
             <DropdownGroup id="salesAgent" icon={<PersonIcon />} label="Sales Expert">

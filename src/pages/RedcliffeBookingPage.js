@@ -3,7 +3,7 @@ import axios from "axios";
 import "./RedcliffeBookingPage.css";
 import CreateOrderPopup from "./retention/CreateOrderPopup";
 
-const API_BASE = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, ""); 
+const API_BASE = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "");
 
 const api = axios.create({
   baseURL: API_BASE,
@@ -246,6 +246,7 @@ export default function RedcliffeBookingPage() {
   const [shopifyOrderOpenError, setShopifyOrderOpenError] = useState("");
   const [loading, setLoading] = useState({
     locations: false,
+    serviceability: false,
     slots: false,
     packages: false,
     create: false,
@@ -452,6 +453,9 @@ export default function RedcliffeBookingPage() {
     setBookingError(payload.message || payload.detail || fallbackMessage);
   };
 
+  const isNonServiceableMessage = (message) =>
+    String(message || "").toLowerCase().includes("non-serviceable");
+
   const selectLocation = async (eloc, locationItem = null) => {
     setField("selectedEloc", eloc);
     setField("selectedSlotId", "");
@@ -492,12 +496,12 @@ export default function RedcliffeBookingPage() {
         customerLandmark: getLandmarkValue(matched) || prev.customerLandmark,
       }));
       if (isServiceable) {
-        setAreaStatus("Locality is serviceable.");
+        setAreaStatus("Locality found. Collection slots will confirm serviceability.");
         setAreaError("");
-        setServiceabilityState("serviceable");
+        setServiceabilityState("located");
       } else {
         setAreaStatus("");
-        setAreaError("Locality is not serviceable.");
+        setAreaError("Could not get coordinates for this locality.");
         setServiceabilityState("unserviceable");
       }
       setSlotStatus("");
@@ -513,7 +517,7 @@ export default function RedcliffeBookingPage() {
     }
   };
 
-  const handleStep1Continue = () => {
+  const handleStep1Continue = async () => {
     const house = String(form.customerAddress || "").trim();
     const landmark = String(form.customerLandmark || "").trim();
     const pincode = String(form.pincode || "").trim();
@@ -535,12 +539,65 @@ export default function RedcliffeBookingPage() {
 
     if (!form.selectedEloc || !form.latitude || !form.longitude) {
       setAreaStatus("");
-      setAreaError("Please select a serviceable locality first.");
+      setAreaError("Please select a locality from the suggestions first.");
       return;
     }
 
+    if (serviceabilityState === "unserviceable") {
+      setAreaStatus("");
+      setAreaError("This location is non-serviceable. Please select another locality.");
+      return;
+    }
+
+    const checkDate = form.collectionDate || addDaysIso(1);
+    setAreaStatus("Checking Redcliffe serviceability...");
     setAreaError("");
-    setActiveStep((prev) => Math.min(totalSteps, prev + 1));
+    setSlotStatus("");
+    setSlotError("");
+    setLoading((prev) => ({ ...prev, serviceability: true }));
+
+    try {
+      const { data } = await api.get("/api/redcliffe/time-slots", {
+        params: {
+          collection_date: checkDate,
+          latitude: form.latitude,
+          longitude: form.longitude,
+          customer_gender: form.customerGender || undefined,
+        },
+      });
+
+      const results = Array.isArray(data?.results)
+        ? data.results
+        : Array.isArray(data?.data)
+          ? data.data
+          : [];
+
+      if (results.length) {
+        setSlots(results);
+        setServiceabilityState("serviceable");
+        if (!form.collectionDate) setField("collectionDate", checkDate);
+        setAreaStatus("");
+        setActiveStep((prev) => Math.min(totalSteps, prev + 1));
+        return;
+      }
+
+      setSlots([]);
+      setAreaStatus("");
+      setAreaError(data?.message || "No collection slots are available for this locality.");
+    } catch (err) {
+      const payload = err?.response?.data || {};
+      const message = payload.message || payload.detail || "Unable to verify serviceability.";
+      setAreaStatus("");
+      setSlots([]);
+      if (isNonServiceableMessage(message)) {
+        setServiceabilityState("unserviceable");
+        setAreaError("This location is non-serviceable. Please select another locality.");
+        return;
+      }
+      setAreaError(message);
+    } finally {
+      setLoading((prev) => ({ ...prev, serviceability: false }));
+    }
   };
 
   const handleStep3Continue = () => {
@@ -640,6 +697,7 @@ export default function RedcliffeBookingPage() {
 
       setSlots(results);
       if (results.length) {
+        setServiceabilityState("serviceable");
         const firstBucket = ["Morning", "Afternoon", "Evening"].find((name) =>
           results.some((slot) => getSlotBucket(slot) === name)
         );
@@ -652,7 +710,11 @@ export default function RedcliffeBookingPage() {
     } catch (err) {
       setSlots([]);
       const payload = err?.response?.data || {};
-      setSlotError(payload.message || payload.detail || "Failed to fetch slots.");
+      const message = payload.message || payload.detail || "Failed to fetch slots.";
+      if (isNonServiceableMessage(message)) {
+        setServiceabilityState("unserviceable");
+      }
+      setSlotError(message);
     } finally {
       setLoading((prev) => ({ ...prev, slots: false }));
     }
@@ -1056,6 +1118,23 @@ export default function RedcliffeBookingPage() {
   const goNextStep = () => setActiveStep((prev) => Math.min(totalSteps, prev + 1));
   const goPrevStep = () => setActiveStep((prev) => Math.max(1, prev - 1));
 
+  const handleStepRailClick = (targetStep) => {
+    if (targetStep > 1 && serviceabilityState !== "serviceable") {
+      setActiveStep(1);
+      setAreaStatus("");
+      if (serviceabilityState === "unserviceable") {
+        setAreaError("This location is non-serviceable. Please select another locality.");
+      } else if (!form.selectedEloc || !form.latitude || !form.longitude) {
+        setAreaError("Please select a locality from the suggestions first.");
+      } else {
+        setAreaError("Click Continue to verify serviceability before selecting a slot.");
+      }
+      return;
+    }
+
+    setActiveStep(targetStep);
+  };
+
   const canContinueFromPackages = useMemo(() => {
     const hasPrimaryPackage = toArray(form.packageCodes).length > 0;
     if (!hasPrimaryPackage) return false;
@@ -1106,7 +1185,7 @@ export default function RedcliffeBookingPage() {
                 type="button"
                 key={item.index}
                 className={`redcliffe-rail-item${activeStep === item.index ? " active" : ""}`}
-                onClick={() => setActiveStep(item.index)}
+                onClick={() => handleStepRailClick(item.index)}
               >
                 <span className="redcliffe-rail-index">{item.index}</span>
                 <span className="redcliffe-rail-copy">
@@ -1289,6 +1368,11 @@ export default function RedcliffeBookingPage() {
                         }}
                         placeholder="Search locality"
                       />
+                      {serviceabilityState === "located" ? (
+                        <span className="redcliffe-serviceability-indicator ok" title="Location found">
+                          ✓
+                        </span>
+                      ) : null}
                       {serviceabilityState === "serviceable" ? (
                         <span className="redcliffe-serviceability-indicator ok" title="Serviceable">
                           ✓
@@ -1320,7 +1404,7 @@ export default function RedcliffeBookingPage() {
                       ) : null}
                     </div>
                     <small style={{ color: "#627279", fontSize: 12 }}>
-                      Start typing locality and select one suggestion to check serviceability.
+                      Start typing locality and select one suggestion. Slot availability confirms serviceability.
                     </small>
                   </Field>
                 </div>
@@ -1367,8 +1451,9 @@ export default function RedcliffeBookingPage() {
                     type="button"
                     className="redcliffe-btn redcliffe-btn-accent"
                     onClick={handleStep1Continue}
+                    disabled={loading.serviceability}
                   >
-                    Continue
+                    {loading.serviceability ? "Checking..." : "Continue"}
                   </button>
                 </div>
               </div>

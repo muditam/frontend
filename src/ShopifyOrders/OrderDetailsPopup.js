@@ -62,9 +62,51 @@ const currency = (n) => {
  return num.toLocaleString("en-IN", { maximumFractionDigits: 0 });
 };
 
+const API_ORIGIN =
+ (process.env.REACT_APP_API_BASE_URL || "https://muditamleads-14f32a10d7f7.herokuapp.com").replace(/\/+$/, "");
+
+const getSessionUserHeaders = () => {
+ const rawUser = sessionStorage.getItem("user");
+ return rawUser ? { "x-session-user": rawUser } : {};
+};
+
+const formatAddress = (address = {}) =>
+ [
+  address.address1,
+  address.address2,
+  address.city,
+  address.province,
+  address.country,
+  address.zip,
+ ]
+  .filter(Boolean)
+  .join(", ") || "N/A";
+
+const futureProductOrderedText = (items = []) =>
+ items
+  .map((item) => PRODUCT_ABBREVIATIONS[item.title] || item.title || item.sku)
+  .filter(Boolean)
+  .join(", ") || "N/A";
+
+const buildFutureOrderDetails = (futureOrder = {}) => ({
+ orderId: "",
+ customerName: futureOrder.customerName || "N/A",
+ phone: futureOrder.phoneNumber || futureOrder.shippingAddress?.phone || "N/A",
+ shippingAddress: formatAddress(futureOrder.shippingAddress),
+ paymentStatus: futureOrder.paymentStatus || "",
+ paymentMode: futureOrder.paymentMode || "",
+ productOrdered: futureProductOrderedText(futureOrder.cartItems || []),
+ orderDate: futureOrder.createdAt || new Date().toISOString(),
+ totalPrice: futureOrder.orderTotal || 0,
+ partialPaidAmount: futureOrder.partialPaidAmount || 0,
+ transactionId: futureOrder.transactionId || "",
+});
+
 
 const OrderDetailsPopup = ({
  orderId,
+ futureOrderId,
+ futureOrderData,
  agentName,
  customerPhone = "",
  discount: propDiscount,
@@ -100,6 +142,7 @@ const OrderDetailsPopup = ({
 
 
  const [discount, setDiscount] = useState(propDiscount || "");
+ const isFutureOrderDetails = Boolean(futureOrderId);
 
 
  const asIntString = (v) => {
@@ -120,6 +163,19 @@ const OrderDetailsPopup = ({
 
  // Fetch order details
  useEffect(() => {
+   if (isFutureOrderDetails) {
+     const data = buildFutureOrderDetails(futureOrderData || {});
+     const savedDetails = futureOrderData?.orderDetails || {};
+     setOrderDetails(data);
+     setDosageOrdered(savedDetails.dosageOrdered || "10-Days");
+     setSelfRemark(savedDetails.selfRemark || "");
+     setUpsellChecked(Number(savedDetails.upsellAmount || 0) > 0);
+     setUpsellAmount(savedDetails.upsellAmount || "");
+     if (data.partialPaidAmount) setPartialPayment(asIntString(data.partialPaidAmount));
+     if (data.paymentMode) setPaymentMethod(data.paymentMode);
+     return;
+   }
+
    const fetchOrderDetails = async () => {
      try {
        const response = await axios.get(
@@ -146,7 +202,7 @@ const OrderDetailsPopup = ({
      }
    };
    fetchOrderDetails();
- }, [orderId]);
+ }, [orderId, isFutureOrderDetails, futureOrderData]);
 
 
  // Agent init
@@ -322,6 +378,27 @@ Dosage Ordered: ${dosageOrdered}`;
    if (!orderDetails || orderAdded || isAdding) return;
    setIsAdding(true);
    try {
+     if (isFutureOrderDetails) {
+       await axios.patch(
+         `${API_ORIGIN}/api/future-orders/${futureOrderId}/details`,
+         {
+           agentName: selectedAgent?.trim() ? selectedAgent : "N/A",
+           dosageOrdered,
+           selfRemark,
+           paymentMethod,
+           partialPayment: Number(partialPayment || 0),
+           upsellAmount: upsellChecked ? Number(upsellAmount) : 0,
+           discount: Number(discount || 0),
+           discountType,
+           transactionId: propTransactionId || orderDetails?.transactionId || "",
+         },
+         { headers: getSessionUserHeaders(), withCredentials: true }
+       );
+       setOrderAdded(true);
+       setMessage("Order added successfully to My Sales.");
+       return;
+     }
+
      const payload = {
        customerName: orderDetails.customerName,
        phone: effectivePhone,
