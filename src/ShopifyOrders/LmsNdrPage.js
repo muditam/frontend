@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import {
   Alert,
+  Autocomplete,
   Box,
   Button,
   Chip,
@@ -32,18 +33,14 @@ import RestartAltRoundedIcon from "@mui/icons-material/RestartAltRounded";
 import VisibilityOutlinedIcon from "@mui/icons-material/VisibilityOutlined";
 import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
 import FileDownloadOutlinedIcon from "@mui/icons-material/FileDownloadOutlined";
-import WarningAmberRoundedIcon from "@mui/icons-material/WarningAmberRounded";
 import LocalShippingOutlinedIcon from "@mui/icons-material/LocalShippingOutlined";
+import PhoneIcon from "@mui/icons-material/Phone";
+import { requestZoomDial } from "../calling/dialer";
 
 const API_BASE = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "");
 const api = axios.create({ baseURL: API_BASE, withCredentials: true });
 
-const DEFAULT_STATUS_OPTIONS = [
-  { value: "shipped", label: "Shipped" },
-  { value: "in_transit", label: "In Transit" },
-  { value: "out_for_delivery", label: "Out for Delivery" },
-  { value: "ready_for_pickup", label: "Ready for Pickup" },
-];
+const DEFAULT_STATUS_OPTIONS = [];
 
 const OVERRIDE_STATUS_OPTIONS = [
   { value: "delivered", label: "Delivered" },
@@ -59,6 +56,17 @@ const DELAY_OPTIONS = [
   ["15_20", "15 - 20 days"],
   ["20_25", "20 - 25 days"],
   ["25_plus", "> 25 days"],
+];
+
+const REMARK_OPTIONS = [
+  "Customer not reachable",
+  "Customer requested delivery",
+  "Customer will confirm later",
+  "Address issue",
+  "Phone number issue",
+  "Courier follow-up required",
+  "RTO follow-up required",
+  "Payment confirmation pending",
 ];
 
 function useDebouncedValue(value, delayMs = 350) {
@@ -133,15 +141,16 @@ function trackingLinkFor(courier, trackingNumber) {
 }
 
 function downloadCsv(filename, rows) {
-  const headers = ["Order ID", "Date", "Customer", "Phone", "Status", "Delay Days", "Issue", "Payment", "Courier", "AWB"];
+  const headers = ["Order ID", "Date", "Customer", "Phone", "Agent", "Remark", "Status", "Delay Days", "Payment", "Courier", "AWB"];
   const body = rows.map((row) => [
     row.orderName || row.orderId || "",
     formatDate(row.orderDate),
     row.customerName || "",
     row.contactNumber || "",
+    row.assignedAgentName || "",
+    row.opsRemark || "",
     row.status || "",
     row.delayDays || "",
-    row.shipmentIssue || "",
     row.paymentMode || "",
     row.courier || "",
     row.trackingNumber || "",
@@ -168,29 +177,11 @@ export default function LmsNdrPage() {
       }}
     >
       <Box sx={{ maxWidth: 1480, mx: "auto", display: "grid", gap: 2 }}>
-        <Box>
-          <Typography variant="overline" sx={{ color: "#b45309", fontWeight: 800, letterSpacing: 0.8 }}>
-            Operations
-          </Typography>
-          <Typography variant="h5" sx={{ fontWeight: 900, color: "#0f172a", lineHeight: 1.1 }}>
-            NDR Dashboard
-          </Typography>
-          <Typography variant="body2" sx={{ color: "#64748b", mt: 0.75 }}>
-            Monitor delayed shipments and flagged courier issues.
-          </Typography>
-        </Box>
-
         <NdrSection
-          section="delayed"
-          title="Delayed Orders"
-          description="Orders exceeding the 7-day delivery SLA"
+          section="all"
+          title="NDR Orders"
+          description=""
           icon={<LocalShippingOutlinedIcon />}
-        />
-        <NdrSection
-          section="attention"
-          title="Attention Required"
-          description="Orders with problematic courier-side tracking remarks, not yet delayed"
-          icon={<WarningAmberRoundedIcon />}
         />
       </Box>
     </Box>
@@ -201,16 +192,19 @@ function NdrSection({ section, title, description, icon }) {
   const [rows, setRows] = useState([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(0);
-  const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [rowsPerPage, setRowsPerPage] = useState(20);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [statusOptions, setStatusOptions] = useState(DEFAULT_STATUS_OPTIONS);
   const [carriers, setCarriers] = useState([]);
+  const [operationsAgents, setOperationsAgents] = useState([]);
+  const [agentSavingId, setAgentSavingId] = useState("");
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [overrideStatus, setOverrideStatus] = useState("");
   const [statusUpdating, setStatusUpdating] = useState(false);
   const [remarkDraft, setRemarkDraft] = useState("");
   const [remarkSaving, setRemarkSaving] = useState(false);
+  const [tableRemarkSavingId, setTableRemarkSavingId] = useState("");
   const [saveMessage, setSaveMessage] = useState("");
   const [filters, setFilters] = useState({
     search: "",
@@ -222,6 +216,10 @@ function NdrSection({ section, title, description, icon }) {
     delay: "",
   });
   const debouncedFilters = useDebouncedValue(filters);
+  const statusFilterOptions = useMemo(
+    () => [{ value: "", label: "All Statuses", count: total }, ...statusOptions],
+    [statusOptions, total]
+  );
 
   const params = useMemo(() => {
     const next = {
@@ -246,7 +244,7 @@ function NdrSection({ section, title, description, icon }) {
       const { data } = await api.get("/api/lms-orders/ndr", { params, signal });
       setRows(Array.isArray(data?.data) ? data.data : []);
       setTotal(Number(data?.total || 0));
-      if (Array.isArray(data?.statusOptions) && data.statusOptions.length) setStatusOptions(data.statusOptions);
+      if (Array.isArray(data?.statusOptions)) setStatusOptions(data.statusOptions);
       if (Array.isArray(data?.carriers)) setCarriers(data.carriers);
     } catch (err) {
       if (err?.code === "ERR_CANCELED" || axios.isCancel?.(err)) return;
@@ -263,6 +261,46 @@ function NdrSection({ section, title, description, icon }) {
     loadRows(controller.signal);
     return () => controller.abort();
   }, [loadRows]);
+
+  useEffect(() => {
+    let ignore = false;
+    const loadOperationsAgents = async () => {
+      try {
+        const { data } = await api.get("/api/employees");
+        if (ignore) return;
+        const agents = (Array.isArray(data) ? data : [])
+          .filter((employee) => {
+            const role = String(employee?.role || "").trim().toLowerCase();
+            const department = String(employee?.department || "").trim().toLowerCase();
+            const status = String(employee?.status || "active").trim().toLowerCase();
+            return role === "operations" && department === "customer support" && status === "active";
+          })
+          .sort((a, b) => String(a.fullName || "").localeCompare(String(b.fullName || "")));
+        setOperationsAgents(agents);
+      } catch (err) {
+        if (!ignore) setOperationsAgents([]);
+      }
+    };
+
+    loadOperationsAgents();
+    return () => {
+      ignore = true;
+    };
+  }, []);
+
+  const getAssignedAgent = useCallback(
+    (agentId) => operationsAgents.find((agent) => String(agent._id) === String(agentId || "")) || null,
+    [operationsAgents]
+  );
+
+  const exportRows = useMemo(
+    () =>
+      rows.map((row) => ({
+        ...row,
+        assignedAgentName: row.assignedAgentName || getAssignedAgent(row.assignedAgentId)?.fullName || "",
+      })),
+    [getAssignedAgent, rows]
+  );
 
   const updateFilter = (key) => (event) => {
     setFilters((prev) => ({ ...prev, [key]: event.target.value }));
@@ -284,6 +322,11 @@ function NdrSection({ section, title, description, icon }) {
     setSelectedOrder(null);
     setOverrideStatus("");
     setRemarkDraft("");
+  };
+
+  const handleCallIconClick = (phoneNumber) => {
+    const ok = requestZoomDial(phoneNumber, { source: "operations_ndr" });
+    if (!ok) setError("Invalid call number.");
   };
 
   const applyStatusUpdate = async () => {
@@ -328,6 +371,76 @@ function NdrSection({ section, title, description, icon }) {
     }
   };
 
+  const updateTableRemark = async (row, nextRemark) => {
+    const orderId = row.orderId || row.orderName;
+    if (!orderId) return;
+    setTableRemarkSavingId(row.id);
+    setRows((prev) => prev.map((item) => (item.id === row.id ? { ...item, opsRemark: nextRemark } : item)));
+    setSelectedOrder((prev) => (prev && prev.id === row.id ? { ...prev, opsRemark: nextRemark } : prev));
+    try {
+      const { data } = await api.patch("/api/lms-orders/remark", {
+        orderId,
+        opsRemark: nextRemark,
+      });
+      const savedRemark = data?.opsRemark || "";
+      setRows((prev) => prev.map((item) => (item.id === row.id ? { ...item, opsRemark: savedRemark } : item)));
+      setSelectedOrder((prev) => (prev && prev.id === row.id ? { ...prev, opsRemark: savedRemark } : prev));
+      setRemarkDraft((prev) => (selectedOrder?.id === row.id ? savedRemark : prev));
+      setSaveMessage(savedRemark ? "Remark saved" : "Remark removed");
+    } catch (err) {
+      setError(err?.response?.data?.error || "Failed to save remark.");
+      await loadRows();
+    } finally {
+      setTableRemarkSavingId("");
+    }
+  };
+
+  const assignAgent = async (row, agent) => {
+    const orderId = row.orderId || row.orderName;
+    if (!orderId) return;
+    const assignedAgentId = agent?._id || "";
+    setAgentSavingId(row.id);
+    setRows((prev) =>
+      prev.map((item) =>
+        item.id === row.id
+          ? { ...item, assignedAgentId, assignedAgentName: agent?.fullName || "" }
+          : item
+      )
+    );
+    setSelectedOrder((prev) =>
+      prev && prev.id === row.id
+        ? { ...prev, assignedAgentId, assignedAgentName: agent?.fullName || "" }
+        : prev
+    );
+
+    try {
+      const { data } = await api.patch("/api/lms-orders/agent", {
+        orderId,
+        assignedAgentId,
+      });
+      const nextAgentId = data?.assignedAgentId || "";
+      const nextAgentName = data?.assignedAgentName || agent?.fullName || "";
+      setRows((prev) =>
+        prev.map((item) =>
+          item.id === row.id
+            ? { ...item, assignedAgentId: nextAgentId, assignedAgentName: nextAgentName }
+            : item
+        )
+      );
+      setSelectedOrder((prev) =>
+        prev && prev.id === row.id
+          ? { ...prev, assignedAgentId: nextAgentId, assignedAgentName: nextAgentName }
+          : prev
+      );
+      setSaveMessage(nextAgentName ? "Agent assigned" : "Agent cleared");
+    } catch (err) {
+      setError(err?.response?.data?.error || "Failed to update order agent.");
+      await loadRows();
+    } finally {
+      setAgentSavingId("");
+    }
+  };
+
   return (
     <Paper elevation={0} sx={{ border: "1px solid #dbe5ec", borderRadius: 2, overflow: "hidden", bgcolor: "#fff" }}>
       <Box sx={{ px: { xs: 2, md: 3 }, py: 2, borderBottom: "1px solid #e5edf3" }}>
@@ -344,11 +457,11 @@ function NdrSection({ section, title, description, icon }) {
             </Typography>
           </Box>
           <Stack direction="row" gap={1} alignItems="center">
-            <Chip label={`${total} orders`} sx={{ bgcolor: section === "delayed" ? "#fef3c7" : "#fee2e2", color: section === "delayed" ? "#92400e" : "#991b1b", fontWeight: 800 }} />
-            <Button size="small" startIcon={<FileDownloadOutlinedIcon />} onClick={() => downloadCsv(`${section}-ndr-orders.csv`, rows)} sx={{ textTransform: "none", fontWeight: 800 }}>
+            <Chip label={`${total} orders`} sx={{ bgcolor: "#fef3c7", color: "#92400e", fontWeight: 800 }} />
+            <Button size="small" startIcon={<FileDownloadOutlinedIcon />} onClick={() => downloadCsv(`${section}-ndr-orders.csv`, exportRows)} sx={{ textTransform: "none", fontWeight: 800 }}>
               CSV
             </Button>
-            <Button size="small" startIcon={<FileDownloadOutlinedIcon />} onClick={() => downloadCsv(`${section}-ndr-orders.xls`, rows)} sx={{ textTransform: "none", fontWeight: 800 }}>
+            <Button size="small" startIcon={<FileDownloadOutlinedIcon />} onClick={() => downloadCsv(`${section}-ndr-orders.xls`, exportRows)} sx={{ textTransform: "none", fontWeight: 800 }}>
               Excel
             </Button>
           </Stack>
@@ -392,9 +505,11 @@ function NdrSection({ section, title, description, icon }) {
           <FormControl size="small">
             <InputLabel>Status</InputLabel>
             <Select label="Status" value={filters.status} onChange={updateFilter("status")}>
-              <MenuItem value="">All Statuses</MenuItem>
-              {statusOptions.map((option) => (
-                <MenuItem key={option.value} value={option.value}>{option.label}</MenuItem>
+              {statusFilterOptions.map((option) => (
+                <MenuItem key={option.value || "all"} value={option.value}>
+                  {option.label}
+                  {option.count ? ` (${option.count})` : ""}
+                </MenuItem>
               ))}
             </Select>
           </FormControl>
@@ -426,7 +541,7 @@ function NdrSection({ section, title, description, icon }) {
         <Table size="small">
           <TableHead>
             <TableRow>
-              {["Order", "Date", "Customer", "Agent", "Status", "Issue", "Payment", "Courier", "View"].map((label) => (
+              {["Order", "Date", "Customer", "Status", "Payment", "Courier", "Agent", "Remark", "View"].map((label) => (
                 <TableCell key={label} sx={{ bgcolor: "#f8fafc", color: "#64748b", fontSize: 12, fontWeight: 800, textTransform: "uppercase" }}>
                   {label}
                 </TableCell>
@@ -446,24 +561,76 @@ function NdrSection({ section, title, description, icon }) {
                 <TableCell sx={{ whiteSpace: "nowrap" }}>{formatDate(row.orderDate)}</TableCell>
                 <TableCell>
                   <Typography variant="body2" sx={{ fontWeight: 700 }}>{row.customerName || "-"}</Typography>
-                  <Typography variant="caption" color="text.secondary">{row.contactNumber || "-"}</Typography>
-                </TableCell>
-                <TableCell sx={{ whiteSpace: "nowrap" }}>
-                  <Typography variant="body2" sx={{ fontWeight: 600 }}>{row.agentName || "-"}</Typography>
+                  <Stack direction="row" spacing={0.5} alignItems="center">
+                    <Typography variant="caption" color="text.secondary">{row.contactNumber || "-"}</Typography>
+                    {row.contactNumber ? (
+                      <Tooltip title="Call customer" arrow>
+                        <IconButton
+                          size="small"
+                          onClick={() => handleCallIconClick(row.contactNumber)}
+                          sx={{ width: 22, height: 22, color: "#16a34a" }}
+                        >
+                          <PhoneIcon sx={{ fontSize: 15 }} />
+                        </IconButton>
+                      </Tooltip>
+                    ) : null}
+                  </Stack>
                 </TableCell>
                 <TableCell>
                   <Stack direction="row" gap={0.75} alignItems="center">
                     <Chip size="small" color={statusColor(row.status)} label={row.status || "-"} sx={{ fontWeight: 800 }} />
-                    {section === "delayed" ? <Chip size="small" color="warning" label={`${row.delayDays || 0}d`} /> : null}
+                    <Chip size="small" color="warning" label={`${row.delayDays || 0}d`} />
                   </Stack>
-                </TableCell>
-                <TableCell sx={{ maxWidth: 340 }}>
-                  <Typography variant="body2" noWrap title={row.shipmentIssue || ""}>{row.shipmentIssue || "-"}</Typography>
                 </TableCell>
                 <TableCell>{row.paymentMode || "-"}</TableCell>
                 <TableCell>
                   <Typography variant="body2">{row.courier || "-"}</Typography>
                   <Typography variant="caption" color="text.secondary">Last: {formatDate(row.statusUpdatedAt)}</Typography>
+                </TableCell>
+                <TableCell sx={{ minWidth: 220 }}>
+                  <Autocomplete
+                    size="small"
+                    value={getAssignedAgent(row.assignedAgentId)}
+                    onChange={(_event, value) => assignAgent(row, value)}
+                    options={operationsAgents}
+                    loading={agentSavingId === row.id}
+                    disabled={agentSavingId === row.id}
+                    getOptionLabel={(option) => option?.fullName || ""}
+                    isOptionEqualToValue={(option, value) => String(option?._id) === String(value?._id)}
+                    renderInput={(params) => (
+                      <TextField
+                        {...params}
+                        placeholder="Unassigned"
+                        size="small"
+                      />
+                    )}
+                  />
+                </TableCell>
+                <TableCell sx={{ minWidth: 220 }}>
+                  <FormControl fullWidth size="small">
+                    <Select
+                      displayEmpty
+                      value={row.opsRemark || ""}
+                      disabled={tableRemarkSavingId === row.id}
+                      onChange={(event) => updateTableRemark(row, event.target.value)}
+                      renderValue={(value) => {
+                        if (!value) return <Typography variant="body2" color="text.secondary">No remark</Typography>;
+                        return (
+                          <Tooltip title={value} arrow>
+                            <Typography variant="body2" noWrap>{value}</Typography>
+                          </Tooltip>
+                        );
+                      }}
+                    >
+                      <MenuItem value="">No remark</MenuItem>
+                      {row.opsRemark && !REMARK_OPTIONS.includes(row.opsRemark) ? (
+                        <MenuItem value={row.opsRemark}>{row.opsRemark}</MenuItem>
+                      ) : null}
+                      {REMARK_OPTIONS.map((remark) => (
+                        <MenuItem key={remark} value={remark}>{remark}</MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
                 </TableCell>
                 <TableCell>
                   <Tooltip title="View order" arrow>
@@ -521,8 +688,27 @@ function NdrSection({ section, title, description, icon }) {
               </Box>
               <DetailSection title="Customer">
                 <DetailRow label="Name" value={selectedOrder.customerName || "-"} />
-                <DetailRow label="Agent" value={selectedOrder.agentName || "-"} />
-                <DetailRow label="Phone" value={selectedOrder.contactNumber || selectedOrder.customerAddress?.phone || "-"} />
+                <DetailRow
+                  label="Phone"
+                  value={
+                    selectedOrder.contactNumber || selectedOrder.customerAddress?.phone ? (
+                      <Stack direction="row" spacing={0.75} alignItems="center">
+                        <Typography variant="body2" sx={{ color: "#111827", fontWeight: 500 }}>
+                          {selectedOrder.contactNumber || selectedOrder.customerAddress?.phone}
+                        </Typography>
+                        <Tooltip title="Call customer" arrow>
+                          <IconButton
+                            size="small"
+                            onClick={() => handleCallIconClick(selectedOrder.contactNumber || selectedOrder.customerAddress?.phone)}
+                            sx={{ width: 24, height: 24, color: "#16a34a" }}
+                          >
+                            <PhoneIcon sx={{ fontSize: 16 }} />
+                          </IconButton>
+                        </Tooltip>
+                      </Stack>
+                    ) : "-"
+                  }
+                />
                 <DetailRow label="Address" value={formatAddress(selectedOrder.customerAddress)} />
               </DetailSection>
               <DetailSection title="Order Info">
@@ -582,18 +768,33 @@ function NdrSection({ section, title, description, icon }) {
               </DetailSection>
               <DetailSection title="Tracking Timeline">
                 <Box sx={{ borderLeft: "2px solid #e5e7eb", pl: 2 }}>
-                  <Typography variant="body2" sx={{ fontWeight: 800 }}>{selectedOrder.shipmentIssue || selectedOrder.status || "Latest shipment update"}</Typography>
+                  <Typography variant="body2" sx={{ fontWeight: 800 }}>{selectedOrder.status || "Latest shipment update"}</Typography>
                   <Typography variant="caption" color="text.secondary">
-                    {formatDateTime(selectedOrder.statusUpdatedAt)} · {selectedOrder.shipmentIssue || selectedOrder.status || "-"}
+                    {formatDateTime(selectedOrder.statusUpdatedAt)} · {selectedOrder.status || "-"}
                   </Typography>
                 </Box>
               </DetailSection>
               <Box sx={{ border: "1px solid #e5e7eb", borderRadius: 2, p: 2, bgcolor: "#fbfdff" }}>
                 <Typography variant="caption" sx={{ color: "#94a3b8", fontWeight: 900, letterSpacing: 0.6 }}>REMARKS</Typography>
+                <FormControl fullWidth size="small" sx={{ mt: 1.5 }}>
+                  <InputLabel id="ndr-remark-template-label">Select remark</InputLabel>
+                  <Select
+                    labelId="ndr-remark-template-label"
+                    label="Select remark"
+                    value=""
+                    onChange={(event) => setRemarkDraft(event.target.value)}
+                    displayEmpty
+                  >
+                    <MenuItem value="" disabled>Select remark</MenuItem>
+                    {REMARK_OPTIONS.map((remark) => (
+                      <MenuItem key={remark} value={remark}>{remark}</MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
                 <TextField
                   value={remarkDraft}
                   onChange={(event) => setRemarkDraft(event.target.value)}
-                  placeholder="Add operations remark..."
+                  placeholder="Write custom remark..."
                   multiline
                   minRows={3}
                   fullWidth
