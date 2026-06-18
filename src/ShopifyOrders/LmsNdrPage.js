@@ -5,6 +5,7 @@ import {
   Autocomplete,
   Box,
   Button,
+  Checkbox,
   Chip,
   CircularProgress,
   Drawer,
@@ -196,6 +197,7 @@ function NdrSection({ section, title, description, icon }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [statusOptions, setStatusOptions] = useState(DEFAULT_STATUS_OPTIONS);
+  const [paymentOptions, setPaymentOptions] = useState([]);
   const [carriers, setCarriers] = useState([]);
   const [operationsAgents, setOperationsAgents] = useState([]);
   const [agentSavingId, setAgentSavingId] = useState("");
@@ -205,6 +207,7 @@ function NdrSection({ section, title, description, icon }) {
   const [remarkDraft, setRemarkDraft] = useState("");
   const [remarkSaving, setRemarkSaving] = useState(false);
   const [tableRemarkSavingId, setTableRemarkSavingId] = useState("");
+  const [selectedRowIds, setSelectedRowIds] = useState(() => new Set());
   const [saveMessage, setSaveMessage] = useState("");
   const [filters, setFilters] = useState({
     search: "",
@@ -219,6 +222,10 @@ function NdrSection({ section, title, description, icon }) {
   const statusFilterOptions = useMemo(
     () => [{ value: "", label: "All Statuses", count: total }, ...statusOptions],
     [statusOptions, total]
+  );
+  const paymentFilterOptions = useMemo(
+    () => [{ value: "", label: "All Payments", count: total }, ...paymentOptions],
+    [paymentOptions, total]
   );
 
   const params = useMemo(() => {
@@ -245,6 +252,7 @@ function NdrSection({ section, title, description, icon }) {
       setRows(Array.isArray(data?.data) ? data.data : []);
       setTotal(Number(data?.total || 0));
       if (Array.isArray(data?.statusOptions)) setStatusOptions(data.statusOptions);
+      if (Array.isArray(data?.paymentOptions)) setPaymentOptions(data.paymentOptions);
       if (Array.isArray(data?.carriers)) setCarriers(data.carriers);
     } catch (err) {
       if (err?.code === "ERR_CANCELED" || axios.isCancel?.(err)) return;
@@ -301,6 +309,45 @@ function NdrSection({ section, title, description, icon }) {
       })),
     [getAssignedAgent, rows]
   );
+  const selectedRows = useMemo(
+    () => rows.filter((row) => selectedRowIds.has(row.id)),
+    [rows, selectedRowIds]
+  );
+  const allVisibleSelected = rows.length > 0 && rows.every((row) => selectedRowIds.has(row.id));
+  const someVisibleSelected = rows.some((row) => selectedRowIds.has(row.id));
+
+  useEffect(() => {
+    setSelectedRowIds((prev) => {
+      if (!prev.size) return prev;
+      const visibleIds = new Set(rows.map((row) => row.id));
+      const next = new Set(Array.from(prev).filter((id) => visibleIds.has(id)));
+      return next.size === prev.size ? prev : next;
+    });
+  }, [rows]);
+
+  const targetRowsForBulkEdit = (row) => (
+    selectedRowIds.has(row.id) && selectedRows.length ? selectedRows : [row]
+  );
+
+  const toggleRowSelection = (rowId) => {
+    setSelectedRowIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(rowId)) next.delete(rowId);
+      else next.add(rowId);
+      return next;
+    });
+  };
+
+  const toggleVisibleSelection = (checked) => {
+    setSelectedRowIds((prev) => {
+      const next = new Set(prev);
+      rows.forEach((row) => {
+        if (checked) next.add(row.id);
+        else next.delete(row.id);
+      });
+      return next;
+    });
+  };
 
   const updateFilter = (key) => (event) => {
     setFilters((prev) => ({ ...prev, [key]: event.target.value }));
@@ -372,21 +419,25 @@ function NdrSection({ section, title, description, icon }) {
   };
 
   const updateTableRemark = async (row, nextRemark) => {
-    const orderId = row.orderId || row.orderName;
-    if (!orderId) return;
-    setTableRemarkSavingId(row.id);
-    setRows((prev) => prev.map((item) => (item.id === row.id ? { ...item, opsRemark: nextRemark } : item)));
-    setSelectedOrder((prev) => (prev && prev.id === row.id ? { ...prev, opsRemark: nextRemark } : prev));
+    const targets = targetRowsForBulkEdit(row).filter((item) => item.orderId || item.orderName);
+    if (!targets.length) return;
+    const targetIds = new Set(targets.map((item) => item.id));
+    const isBulk = targets.length > 1;
+    setTableRemarkSavingId(isBulk ? "bulk" : row.id);
+    setRows((prev) => prev.map((item) => (targetIds.has(item.id) ? { ...item, opsRemark: nextRemark } : item)));
+    setSelectedOrder((prev) => (prev && targetIds.has(prev.id) ? { ...prev, opsRemark: nextRemark } : prev));
     try {
-      const { data } = await api.patch("/api/lms-orders/remark", {
-        orderId,
-        opsRemark: nextRemark,
-      });
-      const savedRemark = data?.opsRemark || "";
-      setRows((prev) => prev.map((item) => (item.id === row.id ? { ...item, opsRemark: savedRemark } : item)));
-      setSelectedOrder((prev) => (prev && prev.id === row.id ? { ...prev, opsRemark: savedRemark } : prev));
-      setRemarkDraft((prev) => (selectedOrder?.id === row.id ? savedRemark : prev));
-      setSaveMessage(savedRemark ? "Remark saved" : "Remark removed");
+      const results = await Promise.all(targets.map((item) =>
+        api.patch("/api/lms-orders/remark", {
+          orderId: item.orderId || item.orderName,
+          opsRemark: nextRemark,
+        })
+      ));
+      const savedRemark = results[0]?.data?.opsRemark || "";
+      setRows((prev) => prev.map((item) => (targetIds.has(item.id) ? { ...item, opsRemark: savedRemark } : item)));
+      setSelectedOrder((prev) => (prev && targetIds.has(prev.id) ? { ...prev, opsRemark: savedRemark } : prev));
+      setRemarkDraft((prev) => (selectedOrder && targetIds.has(selectedOrder.id) ? savedRemark : prev));
+      setSaveMessage(isBulk ? `Remark saved for ${targets.length} orders` : savedRemark ? "Remark saved" : "Remark removed");
     } catch (err) {
       setError(err?.response?.data?.error || "Failed to save remark.");
       await loadRows();
@@ -396,43 +447,48 @@ function NdrSection({ section, title, description, icon }) {
   };
 
   const assignAgent = async (row, agent) => {
-    const orderId = row.orderId || row.orderName;
-    if (!orderId) return;
+    const targets = targetRowsForBulkEdit(row).filter((item) => item.orderId || item.orderName);
+    if (!targets.length) return;
+    const targetIds = new Set(targets.map((item) => item.id));
+    const isBulk = targets.length > 1;
     const assignedAgentId = agent?._id || "";
-    setAgentSavingId(row.id);
+    const assignedAgentName = agent?.fullName || "";
+    setAgentSavingId(isBulk ? "bulk" : row.id);
     setRows((prev) =>
       prev.map((item) =>
-        item.id === row.id
-          ? { ...item, assignedAgentId, assignedAgentName: agent?.fullName || "" }
+        targetIds.has(item.id)
+          ? { ...item, assignedAgentId, assignedAgentName }
           : item
       )
     );
     setSelectedOrder((prev) =>
-      prev && prev.id === row.id
-        ? { ...prev, assignedAgentId, assignedAgentName: agent?.fullName || "" }
+      prev && targetIds.has(prev.id)
+        ? { ...prev, assignedAgentId, assignedAgentName }
         : prev
     );
 
     try {
-      const { data } = await api.patch("/api/lms-orders/agent", {
-        orderId,
-        assignedAgentId,
-      });
-      const nextAgentId = data?.assignedAgentId || "";
-      const nextAgentName = data?.assignedAgentName || agent?.fullName || "";
+      const results = await Promise.all(targets.map((item) =>
+        api.patch("/api/lms-orders/agent", {
+          orderId: item.orderId || item.orderName,
+          assignedAgentId,
+        })
+      ));
+      const nextAgentId = results[0]?.data?.assignedAgentId || "";
+      const nextAgentName = results[0]?.data?.assignedAgentName || assignedAgentName;
       setRows((prev) =>
         prev.map((item) =>
-          item.id === row.id
+          targetIds.has(item.id)
             ? { ...item, assignedAgentId: nextAgentId, assignedAgentName: nextAgentName }
             : item
         )
       );
       setSelectedOrder((prev) =>
-        prev && prev.id === row.id
+        prev && targetIds.has(prev.id)
           ? { ...prev, assignedAgentId: nextAgentId, assignedAgentName: nextAgentName }
           : prev
       );
-      setSaveMessage(nextAgentName ? "Agent assigned" : "Agent cleared");
+      setSaveMessage(isBulk ? `Agent updated for ${targets.length} orders` : nextAgentName ? "Agent assigned" : "Agent cleared");
     } catch (err) {
       setError(err?.response?.data?.error || "Failed to update order agent.");
       await loadRows();
@@ -516,9 +572,12 @@ function NdrSection({ section, title, description, icon }) {
           <FormControl size="small">
             <InputLabel>Payment</InputLabel>
             <Select label="Payment" value={filters.paymentMode} onChange={updateFilter("paymentMode")}>
-              <MenuItem value="">All Payments</MenuItem>
-              <MenuItem value="COD">COD</MenuItem>
-              <MenuItem value="PREPAID">Prepaid</MenuItem>
+              {paymentFilterOptions.map((option) => (
+                <MenuItem key={option.value || "all"} value={option.value}>
+                  {option.label}
+                  {option.count ? ` (${option.count})` : ""}
+                </MenuItem>
+              ))}
             </Select>
           </FormControl>
           <FormControl size="small">
@@ -541,6 +600,15 @@ function NdrSection({ section, title, description, icon }) {
         <Table size="small">
           <TableHead>
             <TableRow>
+              <TableCell sx={{ bgcolor: "#f8fafc", width: 44 }}>
+                <Checkbox
+                  size="small"
+                  checked={allVisibleSelected}
+                  indeterminate={!allVisibleSelected && someVisibleSelected}
+                  disabled={!rows.length || loading}
+                  onChange={(event) => toggleVisibleSelection(event.target.checked)}
+                />
+              </TableCell>
               {["Order", "Date", "Customer", "Status", "Payment", "Courier", "Agent", "Remark", "View"].map((label) => (
                 <TableCell key={label} sx={{ bgcolor: "#f8fafc", color: "#64748b", fontSize: 12, fontWeight: 800, textTransform: "uppercase" }}>
                   {label}
@@ -551,12 +619,19 @@ function NdrSection({ section, title, description, icon }) {
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={9} align="center" sx={{ py: 6 }}>
+                <TableCell colSpan={10} align="center" sx={{ py: 6 }}>
                   <CircularProgress size={22} />
                 </TableCell>
               </TableRow>
             ) : rows.length ? rows.map((row) => (
               <TableRow key={row.id} hover sx={{ "& td": { borderBottom: "1px solid #eef2f6" } }}>
+                <TableCell sx={{ width: 44 }}>
+                  <Checkbox
+                    size="small"
+                    checked={selectedRowIds.has(row.id)}
+                    onChange={() => toggleRowSelection(row.id)}
+                  />
+                </TableCell>
                 <TableCell sx={{ fontFamily: "monospace", fontWeight: 800 }}>{row.orderName || row.orderId}</TableCell>
                 <TableCell sx={{ whiteSpace: "nowrap" }}>{formatDate(row.orderDate)}</TableCell>
                 <TableCell>
@@ -593,8 +668,8 @@ function NdrSection({ section, title, description, icon }) {
                     value={getAssignedAgent(row.assignedAgentId)}
                     onChange={(_event, value) => assignAgent(row, value)}
                     options={operationsAgents}
-                    loading={agentSavingId === row.id}
-                    disabled={agentSavingId === row.id}
+                    loading={agentSavingId === row.id || agentSavingId === "bulk"}
+                    disabled={agentSavingId === row.id || agentSavingId === "bulk"}
                     getOptionLabel={(option) => option?.fullName || ""}
                     isOptionEqualToValue={(option, value) => String(option?._id) === String(value?._id)}
                     renderInput={(params) => (
@@ -611,7 +686,7 @@ function NdrSection({ section, title, description, icon }) {
                     <Select
                       displayEmpty
                       value={row.opsRemark || ""}
-                      disabled={tableRemarkSavingId === row.id}
+                      disabled={tableRemarkSavingId === row.id || tableRemarkSavingId === "bulk"}
                       onChange={(event) => updateTableRemark(row, event.target.value)}
                       renderValue={(value) => {
                         if (!value) return <Typography variant="body2" color="text.secondary">No remark</Typography>;
@@ -642,7 +717,7 @@ function NdrSection({ section, title, description, icon }) {
               </TableRow>
             )) : (
               <TableRow>
-                <TableCell colSpan={9} align="center" sx={{ py: 6, color: "text.secondary" }}>No NDR orders found</TableCell>
+                <TableCell colSpan={10} align="center" sx={{ py: 6, color: "text.secondary" }}>No NDR orders found</TableCell>
               </TableRow>
             )}
           </TableBody>
