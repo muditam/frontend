@@ -18,6 +18,7 @@ import {
   Select,
   Snackbar,
   Stack,
+  Tab,
   Table,
   TableBody,
   TableCell,
@@ -25,6 +26,7 @@ import {
   TableHead,
   TablePagination,
   TableRow,
+  Tabs,
   TextField,
   Tooltip,
   Typography,
@@ -60,14 +62,17 @@ const DELAY_OPTIONS = [
 ];
 
 const REMARK_OPTIONS = [
-  "Customer not reachable",
-  "Customer requested delivery",
-  "Customer will confirm later",
-  "Address issue",
-  "Phone number issue",
-  "Courier follow-up required",
-  "RTO follow-up required",
-  "Payment confirmation pending",
+  "Fake Remarks",
+  "Hold",
+  "Ringing",
+  "Consignee don't want the order",
+  "New order punch",
+];
+
+const NDR_LEVEL_TABS = [
+  { value: "level1", label: "Level 1 NDR" },
+  { value: "level2", label: "Level 2 NDR" },
+  { value: "closing", label: "Closing" },
 ];
 
 function useDebouncedValue(value, delayMs = 350) {
@@ -208,6 +213,7 @@ function NdrSection({ section, title, description, icon }) {
   const [remarkSaving, setRemarkSaving] = useState(false);
   const [tableRemarkSavingId, setTableRemarkSavingId] = useState("");
   const [selectedRowIds, setSelectedRowIds] = useState(() => new Set());
+  const [ndrLevel, setNdrLevel] = useState("level1");
   const [saveMessage, setSaveMessage] = useState("");
   const [filters, setFilters] = useState({
     search: "",
@@ -216,6 +222,7 @@ function NdrSection({ section, title, description, icon }) {
     courier: "",
     status: "",
     paymentMode: "",
+    agent: "",
     delay: "",
   });
   const debouncedFilters = useDebouncedValue(filters);
@@ -231,6 +238,7 @@ function NdrSection({ section, title, description, icon }) {
   const params = useMemo(() => {
     const next = {
       section,
+      ndr_level: ndrLevel,
       page: page + 1,
       limit: rowsPerPage,
     };
@@ -240,9 +248,10 @@ function NdrSection({ section, title, description, icon }) {
     if (debouncedFilters.courier) next.courier = debouncedFilters.courier;
     if (debouncedFilters.status) next.status = debouncedFilters.status;
     if (debouncedFilters.paymentMode) next.payment_mode = debouncedFilters.paymentMode;
+    if (debouncedFilters.agent) next.agent = debouncedFilters.agent;
     if (debouncedFilters.delay) next.delay = debouncedFilters.delay;
     return next;
-  }, [debouncedFilters, page, rowsPerPage, section]);
+  }, [debouncedFilters, ndrLevel, page, rowsPerPage, section]);
 
   const loadRows = useCallback(async (signal) => {
     setLoading(true);
@@ -355,7 +364,7 @@ function NdrSection({ section, title, description, icon }) {
   };
 
   const resetFilters = () => {
-    setFilters({ search: "", dateFrom: "", dateTo: "", courier: "", status: "", paymentMode: "", delay: "" });
+    setFilters({ search: "", dateFrom: "", dateTo: "", courier: "", status: "", paymentMode: "", agent: "", delay: "" });
     setPage(0);
   };
 
@@ -529,7 +538,7 @@ function NdrSection({ section, title, description, icon }) {
           sx={{
             display: "grid",
             gap: 1.5,
-            gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0, 1fr))", lg: "1.4fr repeat(6, minmax(0, 1fr)) auto" },
+            gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0, 1fr))", lg: "1.4fr repeat(7, minmax(0, 1fr)) auto" },
             alignItems: "end",
           }}
         >
@@ -581,6 +590,15 @@ function NdrSection({ section, title, description, icon }) {
             </Select>
           </FormControl>
           <FormControl size="small">
+            <InputLabel>Agent</InputLabel>
+            <Select label="Agent" value={filters.agent} onChange={updateFilter("agent")}>
+              <MenuItem value="">All Agents</MenuItem>
+              {operationsAgents.map((agent) => (
+                <MenuItem key={agent._id} value={agent._id}>{agent.fullName}</MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+          <FormControl size="small">
             <InputLabel>Delay Days</InputLabel>
             <Select label="Delay Days" value={filters.delay} onChange={updateFilter("delay")}>
               {DELAY_OPTIONS.map(([value, label]) => (
@@ -592,6 +610,25 @@ function NdrSection({ section, title, description, icon }) {
             Reset
           </Button>
         </Box>
+        <Tabs
+          value={ndrLevel}
+          onChange={(_event, value) => {
+            setNdrLevel(value);
+            setPage(0);
+            setSelectedRowIds(new Set());
+          }}
+          variant="scrollable"
+          scrollButtons="auto"
+          sx={{
+            mt: 2,
+            minHeight: 40,
+            "& .MuiTab-root": { minHeight: 40, textTransform: "none", fontWeight: 800 },
+          }}
+        >
+          {NDR_LEVEL_TABS.map((tab) => (
+            <Tab key={tab.value} value={tab.value} label={tab.label} />
+          ))}
+        </Tabs>
       </Box>
 
       {error ? <Alert severity="error" sx={{ m: 2 }}>{error}</Alert> : null}
