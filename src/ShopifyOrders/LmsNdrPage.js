@@ -593,6 +593,7 @@ function NdrSection({ section, title, description, icon }) {
             <InputLabel>Agent</InputLabel>
             <Select label="Agent" value={filters.agent} onChange={updateFilter("agent")}>
               <MenuItem value="">All Agents</MenuItem>
+              <MenuItem value="no_agent">No Agent</MenuItem>
               {operationsAgents.map((agent) => (
                 <MenuItem key={agent._id} value={agent._id}>{agent.fullName}</MenuItem>
               ))}
