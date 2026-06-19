@@ -91,7 +91,6 @@ function customerPhoneFromMsg(msg) {
   return msg?.phone || msg?.to || msg?.from || "";
 }
 function sameCustomer(msg, p10) { return phone10(customerPhoneFromMsg(msg)) === p10; }
-function removeMessageById(list, id) { return list.filter((m) => m?._id !== id); }
 function mergeConversationLists(existing = [], incoming = []) {
   const byPhone = new Map();
   for (const chat of existing || []) {
@@ -874,6 +873,7 @@ export default function WhatsAppUI() {
   const fileRef = useRef(null);
   const [fileUploading, setFileUploading] = useState(false);
   const [replyingTo, setReplyingTo] = useState(null);
+  const [retryingMessageIds, setRetryingMessageIds] = useState(() => new Set());
   const [messageSearchOpen, setMessageSearchOpen] = useState(false);
   const [messageSearchQuery, setMessageSearchQuery] = useState("");
   const [messageSearchIndex, setMessageSearchIndex] = useState(0);
@@ -1966,13 +1966,48 @@ export default function WhatsAppUI() {
       await api(`/api/whatsapp/send-text`, { method: "POST", body: JSON.stringify({ to, text, replyTo }) });
     }
     catch (e) {
-      setMessages((prev) => removeMessageById(prev, optimistic._id));
+      setMessages((prev) => prev.map((m) => (m?._id === optimistic._id ? { ...m, status: "failed" } : m)));
       setReplyingTo(replyingTo);
-      setInput(text); setDraftFor(p10, text);
+      setDraftFor(p10, text);
       if (e.data?.code === "SESSION_EXPIRED") { setSessionExpired(true); setChatError("Only templates allowed. Chat window expired."); }
       else showToast(e.message || "Send failed", "error");
     }
   };
+
+  const retryFailedTextMessage = useCallback(async (msg) => {
+    if (!msg) return;
+    const messageId = msgKey(msg);
+    const text = String(msg?.text || "").trim();
+    const to = normalizeToWa(msg?.to || msg?.phone || activeChat?.phone || activeP10);
+    if (!messageId || !to || !text) return;
+    if (String(msg?.direction || "").toUpperCase() !== "OUTBOUND") return;
+    if (normalizeStatus(msg?.status) !== "failed") return;
+    if (String(msg?.type || "text").toLowerCase() !== "text") return;
+
+    setRetryingMessageIds((prev) => new Set(prev).add(messageId));
+    setMessages((prev) => prev.map((m) => (msgKey(m) === messageId ? { ...m, status: "sent" } : m)));
+    try {
+      await api(`/api/whatsapp/send-text`, {
+        method: "POST",
+        body: JSON.stringify({ to, text, ...(msg?.replyTo ? { replyTo: msg.replyTo } : {}) }),
+      });
+      updateConversationPreviewLocal(to, text);
+    } catch (e) {
+      setMessages((prev) => prev.map((m) => (msgKey(m) === messageId ? { ...m, status: "failed" } : m)));
+      if (e?.data?.code === "SESSION_EXPIRED") {
+        setSessionExpired(true);
+        setChatError("Only templates allowed. Chat window expired.");
+      } else {
+        showToast(e.message || "Retry failed", "error");
+      }
+    } finally {
+      setRetryingMessageIds((prev) => {
+        const next = new Set(prev);
+        next.delete(messageId);
+        return next;
+      });
+    }
+  }, [activeChat?.phone, activeP10, showToast, updateConversationPreviewLocal]);
 
   const closeAttachmentPreview = useCallback(() => {
     setAttachmentPreviewOpen(false);
@@ -3031,6 +3066,8 @@ export default function WhatsAppUI() {
                       !!String(msg?.templateMeta?.headerMedia?.id || "").trim() || !!String(msg?.templateMeta?.headerMedia?.url || "").trim();
                     const searchKey = msgKey(msg);
                     const isSearchMatch = !!messageSearchTerm && currentMessageSearchKey === searchKey;
+                    const canRetryText = isOutbound && normalizeStatus(msg?.status) === "failed" && String(msg?.type || "text").toLowerCase() === "text";
+                    const isRetryingText = retryingMessageIds.has(searchKey);
 
 	                    return (
 	                      <Box
@@ -3143,6 +3180,20 @@ export default function WhatsAppUI() {
                               <Typography sx={{ fontSize: 11, color: LIGHT.subtext, lineHeight: 1 }}>
                                 {formatTime(msg.timestamp || msg.createdAt)}
                               </Typography>
+                              {canRetryText && (
+                                <Tooltip title="Retry failed message">
+                                  <span>
+                                    <IconButton
+                                      size="small"
+                                      disabled={isRetryingText}
+                                      onClick={() => retryFailedTextMessage(msg)}
+                                      sx={{ width: 20, height: 20, p: 0.2, color: "#e74c3c" }}
+                                    >
+                                      {isRetryingText ? <CircularProgress size={12} /> : <RefreshIcon sx={{ fontSize: 14 }} />}
+                                    </IconButton>
+                                  </span>
+                                </Tooltip>
+                              )}
                               {isOutbound && <MessageTicks status={msg.status} />}
                             </Box>
 	                          </Paper>

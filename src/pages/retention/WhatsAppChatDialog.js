@@ -784,6 +784,7 @@ export default function WhatsAppChatDrawer({
   const [messageSearchQuery, setMessageSearchQuery] = useState("");
   const [messageSearchIndex, setMessageSearchIndex] = useState(0);
   const [replyingTo, setReplyingTo] = useState(null);
+  const [retryingMessageIds, setRetryingMessageIds] = useState(() => new Set());
 
   const [pendingFile, setPendingFile] = useState(null);
   const [attachmentSending, setAttachmentSending] = useState(false);
@@ -1111,6 +1112,7 @@ export default function WhatsAppChatDrawer({
     setMessageSearchOpen(false);
     setMessageSearchQuery("");
     setReplyingTo(null);
+    setRetryingMessageIds(new Set());
     messageSearchRefs.current.clear();
 
     setTplComposeOpen(false);
@@ -1274,6 +1276,35 @@ export default function WhatsAppChatDrawer({
       const code = e?.response?.data?.code;
       if (code === "SESSION_EXPIRED") alert("Session expired. Please use a template message.");
       else alert("Failed to send message.");
+    }
+  };
+
+  const retryFailedTextMessage = async (msg) => {
+    if (!msg) return;
+    const messageId = messageIdentity(msg);
+    const body = String(msg?.text || "").trim();
+    if (!phone10 || !messageId || !body) return;
+    if (String(msg?.direction || "").toUpperCase() !== "OUTBOUND") return;
+    if (normalizeStatus(msg?.status) !== "failed") return;
+    if (String(msg?.type || "text").toLowerCase() !== "text") return;
+
+    setRetryingMessageIds((prev) => new Set(prev).add(messageId));
+    setMessages((prev) => prev.map((m) => (messageIdentity(m) === messageId ? { ...m, status: "sent" } : m)));
+    try {
+      await api.post(`/api/whatsapp/send-text`, {
+        to: phone10,
+        text: body,
+        ...(msg?.replyTo ? { replyTo: msg.replyTo } : {}),
+      });
+    } catch {
+      setMessages((prev) => prev.map((m) => (messageIdentity(m) === messageId ? { ...m, status: "failed" } : m)));
+      alert("Retry failed.");
+    } finally {
+      setRetryingMessageIds((prev) => {
+        const next = new Set(prev);
+        next.delete(messageId);
+        return next;
+      });
     }
   };
 
@@ -2070,6 +2101,8 @@ export default function WhatsAppChatDrawer({
                     const hm = formatHM(m.timestamp || m.createdAt);
                     const searchKey = messageIdentity(m);
                     const isSearchMatch = !!messageSearchTerm && currentMessageSearchKey === searchKey;
+                    const canRetryText = outbound && normalizeStatus(m?.status) === "failed" && String(m?.type || "text").toLowerCase() === "text";
+                    const isRetryingText = retryingMessageIds.has(searchKey);
 
                     return (
                       <Box
@@ -2143,6 +2176,20 @@ export default function WhatsAppChatDrawer({
                             <Typography variant="caption" sx={{ color: "rgba(17,24,39,0.58)" }}>
                               {hm}
                             </Typography>
+                            {canRetryText && (
+                              <Tooltip title="Retry failed message">
+                                <span>
+                                  <IconButton
+                                    size="small"
+                                    disabled={isRetryingText}
+                                    onClick={() => retryFailedTextMessage(m)}
+                                    sx={{ width: 20, height: 20, p: 0.2, color: "#e74c3c" }}
+                                  >
+                                    {isRetryingText ? <CircularProgress size={12} /> : <RefreshIcon sx={{ fontSize: 14 }} />}
+                                  </IconButton>
+                                </span>
+                              </Tooltip>
+                            )}
                             {outbound && <MessageTicks status={m.status} />}
                           </Box>
                         </Paper>

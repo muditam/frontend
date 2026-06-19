@@ -925,10 +925,11 @@ function ReplyQuote({ reply, onClear, compact = false }) {
 }
 
 // ─── Chat bubble ──────────────────────────────────────────────────────────────
-function ChatBubble({ m, blobUrlByMediaId, onReply, rootRef, highlight }) {
+function ChatBubble({ m, blobUrlByMediaId, onReply, onRetry, retrying, rootRef, highlight }) {
   const outbound = String(m?.direction || "").toUpperCase() === "OUTBOUND";
   const time = fmtTime(m?.timestamp || m?.createdAt);
   const hasMedia = !!(m?.media || ["image", "audio", "voice", "ptt", "video", "document"].includes(String(m?.type || "").toLowerCase()));
+  const canRetryText = outbound && normalizeStatus(m?.status) === "failed" && String(m?.type || "text").toLowerCase() === "text";
 
   return (
     <Box
@@ -992,6 +993,20 @@ function ChatBubble({ m, blobUrlByMediaId, onReply, rootRef, highlight }) {
           <Typography sx={{ fontSize: 11, color: "rgba(17,27,33,0.5)", lineHeight: 1, fontFamily: FONTS.ui }}>
             {time}
           </Typography>
+          {canRetryText && (
+            <Tooltip title="Retry failed message">
+              <span>
+                <IconButton
+                  size="small"
+                  disabled={retrying}
+                  onClick={() => onRetry?.(m)}
+                  sx={{ width: 20, height: 20, p: 0.2, color: "#e74c3c" }}
+                >
+                  {retrying ? <CircularProgress size={12} /> : <RefreshIcon sx={{ fontSize: 14 }} />}
+                </IconButton>
+              </span>
+            </Tooltip>
+          )}
           {outbound && <MessageTicks status={m?.status} />}
         </Box>
       </Box>
@@ -1053,6 +1068,7 @@ export default function WhatsAppInboxWidget({ onOpenChat }) {
   const [draft, setDraft] = useState("");
   const [replyingTo, setReplyingTo] = useState(null);
   const [sending, setSending] = useState(false);
+  const [retryingMessageIds, setRetryingMessageIds] = useState(() => new Set());
 
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -1722,6 +1738,34 @@ export default function WhatsAppInboxWidget({ onOpenChat }) {
     }
   }, [shouldShowWidget, draft, phone10Active, scrollToBottom, replyingTo]);
 
+  const retryFailedTextMessage = useCallback(async (msg) => {
+    if (!shouldShowWidget || !msg) return;
+    const messageId = messageSearchKey(msg);
+    const text = String(msg?.text || "").trim();
+    if (!phone10Active || !messageId || !text) return;
+    if (String(msg?.direction || "").toUpperCase() !== "OUTBOUND") return;
+    if (normalizeStatus(msg?.status) !== "failed") return;
+    if (String(msg?.type || "text").toLowerCase() !== "text") return;
+
+    setRetryingMessageIds((prev) => new Set(prev).add(messageId));
+    setMessages((prev) => prev.map((m) => (messageSearchKey(m) === messageId ? { ...m, status: "sent" } : m)));
+    try {
+      await axios.post(
+        `${API_BASE}/api/whatsapp/send-text`,
+        { to: phone10Active, text, ...(msg?.replyTo ? { replyTo: msg.replyTo } : {}) },
+        { withCredentials: true }
+      );
+    } catch {
+      setMessages((prev) => prev.map((m) => (messageSearchKey(m) === messageId ? { ...m, status: "failed" } : m)));
+    } finally {
+      setRetryingMessageIds((prev) => {
+        const next = new Set(prev);
+        next.delete(messageId);
+        return next;
+      });
+    }
+  }, [phone10Active, shouldShowWidget]);
+
   const loadTemplates = useCallback(async () => {
     if (!shouldShowWidget) return;
     setTplLoading(true);
@@ -2184,8 +2228,10 @@ export default function WhatsAppInboxWidget({ onOpenChat }) {
 	                      <ChatBubble
 	                        key={searchKey}
 	                        m={m}
-	                        blobUrlByMediaId={blobUrlByMediaId}
+                          blobUrlByMediaId={blobUrlByMediaId}
                           onReply={setReplyingTo}
+                          onRetry={retryFailedTextMessage}
+                          retrying={retryingMessageIds.has(searchKey)}
                           highlight={highlight}
                           rootRef={(node) => {
                             if (node) messageSearchRefs.current.set(searchKey, node);
