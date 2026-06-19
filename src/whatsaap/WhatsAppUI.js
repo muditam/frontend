@@ -40,6 +40,8 @@ import DoneAllIcon from "@mui/icons-material/DoneAll";
 import StarBorderIcon from "@mui/icons-material/StarBorder";
 import StarIcon from "@mui/icons-material/Star";
 import ShoppingCartIcon from "@mui/icons-material/ShoppingCart";
+import ReplyIcon from "@mui/icons-material/Reply";
+import CloseIcon from "@mui/icons-material/Close";
 import { io } from "socket.io-client";
 import WhatsAppCartDrawer from "../pages/retention/WhatsAppCartDrawer";
  
@@ -420,6 +422,100 @@ function mediaFilenameFromMsg(m) {
   const specific = candidates.find((v) => v.toLowerCase() !== "attachment");
   return specific || candidates[0] || "attachment";
 }
+function searchableMessageText(m = {}) {
+  return [
+    m?.text,
+    m?.caption,
+    m?.replyTo?.text,
+    m?.media?.filename,
+    m?.filename,
+    m?.templateMeta?.name,
+    m?.type,
+  ].filter(Boolean).join(" ").toLowerCase();
+}
+function replyMessageId(m) { return String(m?._id || m?.id || "").trim(); }
+function replySenderLabel(reply = {}) {
+  const dir = String(reply?.direction || "").toUpperCase();
+  if (dir === "OUTBOUND") return "You";
+  if (dir === "INBOUND") return "Customer";
+  return "Message";
+}
+function replyPreviewText(source = {}) {
+  const text = String(source?.text || source?.caption || "").trim();
+  if (text) return text.length > 160 ? `${text.slice(0, 157)}...` : text;
+  const type = String(source?.type || "").toLowerCase();
+  if (type === "image") return "Photo";
+  if (type === "video") return "Video";
+  if (type === "audio" || type === "voice") return "Audio";
+  if (type === "template") return "Template message";
+  if (type === "document") return source?.media?.filename || "Document";
+  if (source?.media?.filename) return source.media.filename;
+  return "Message";
+}
+function buildReplyPayload(message = null) {
+  if (!message) return null;
+  return {
+    messageId: replyMessageId(message),
+    waId: String(message?.waId || "").trim(),
+    text: replyPreviewText(message),
+    type: String(message?.type || "text").trim(),
+    direction: String(message?.direction || "").trim().toUpperCase(),
+    from: String(message?.from || "").trim(),
+    to: String(message?.to || "").trim(),
+  };
+}
+function hasReplyContext(reply = null) {
+  if (!reply) return false;
+  return Boolean(
+    String(reply?.messageId || "").trim() ||
+    String(reply?.waId || "").trim() ||
+    String(reply?.text || "").trim() ||
+    String(reply?.type || "").trim()
+  );
+}
+
+function ReplyQuote({ reply, compact = false, onClear }) {
+  if (!hasReplyContext(reply)) return null;
+  return (
+    <Box
+      sx={{
+        borderLeft: "3px solid #22c55e",
+        bgcolor: "rgba(15, 23, 42, 0.06)",
+        borderRadius: 1.5,
+        px: compact ? 1 : 1.25,
+        py: compact ? 0.55 : 0.75,
+        mb: compact ? 0.75 : 1,
+        display: "flex",
+        alignItems: "flex-start",
+        gap: 1,
+        minWidth: 0,
+      }}
+    >
+      <Box sx={{ minWidth: 0, flex: 1 }}>
+        <Typography sx={{ fontSize: compact ? 11 : 12, color: "#128C7E", fontWeight: 800, lineHeight: 1.2 }}>
+          {replySenderLabel(reply)}
+        </Typography>
+        <Typography
+          sx={{
+            fontSize: compact ? 11.5 : 12.5,
+            color: LIGHT.subtext,
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+            mt: 0.25,
+          }}
+        >
+          {replyPreviewText(reply)}
+        </Typography>
+      </Box>
+      {onClear && (
+        <IconButton size="small" onClick={onClear} sx={{ p: 0.25, color: LIGHT.subtext, flexShrink: 0 }}>
+          <CloseIcon sx={{ fontSize: 16 }} />
+        </IconButton>
+      )}
+    </Box>
+  );
+}
 function detectMediaKind({ url = "", mime = "", fallbackType = "" }) {
   const u = String(url || ""), m = String(mime || "").toLowerCase(), t = String(fallbackType || "").toLowerCase();
   if (m.startsWith("image/") || /\.(png|jpg|jpeg|webp|gif)$/i.test(u) || t === "image" || t === "sticker") return "image";
@@ -777,6 +873,11 @@ export default function WhatsAppUI() {
   const [emojiAnchor, setEmojiAnchor] = useState(null);
   const fileRef = useRef(null);
   const [fileUploading, setFileUploading] = useState(false);
+  const [replyingTo, setReplyingTo] = useState(null);
+  const [messageSearchOpen, setMessageSearchOpen] = useState(false);
+  const [messageSearchQuery, setMessageSearchQuery] = useState("");
+  const [messageSearchIndex, setMessageSearchIndex] = useState(0);
+  const messageSearchRefs = useRef(new Map());
   const [tplComposeOpen, setTplComposeOpen] = useState(false);
   const [activeTplForSend, setActiveTplForSend] = useState(null);
   const [tplSendVars, setTplSendVars] = useState({});
@@ -939,6 +1040,7 @@ export default function WhatsAppUI() {
       Boolean(sessionUser?.hasTeam) ||
       normalizedRole === "team leader" ||
       normalizedRole === "team-leader" ||
+      normalizedRole === "manager" ||
       normalizedRole === "assistant team lead" ||
       (normalizedRole === "retention agent" && Boolean(sessionUser?.hasTeam));
 
@@ -948,7 +1050,9 @@ export default function WhatsAppUI() {
       userId: sessionUser?._id || sessionUser?.id || "",
       hasTeam: effectiveHasTeam ? "true" : "false",
       chatScope:
-        normalizedRole === "team leader" || normalizedRole === "team-leader"
+        normalizedRole === "manager"
+          ? "all"
+          : normalizedRole === "team leader" || normalizedRole === "team-leader"
           ? "team"
           : effectiveHasTeam &&
             (normalizedRole === "assistant team lead" ||
@@ -1141,9 +1245,11 @@ export default function WhatsAppUI() {
           assignedToLabel: "",
           lastMessageAt: nowIso,
           lastMessageText: lastText,
+          lastMessageFromMe: !isInbound,
           unreadCount: isInbound && !isActive && !forceRead ? 1 : 0,
           lastReadAt: isActive || forceRead ? (pending?.iso || nowIso) : null,
           ...(isInbound ? { lastInboundAt: nowIso, windowExpiresAt: inboundExpiryIso } : {}),
+          ...(!isInbound ? { lastOutboundAt: nowIso } : {}),
         }, ...prev];
       }
       const next = [...prev];
@@ -1154,9 +1260,11 @@ export default function WhatsAppUI() {
         phone: existing?.phone || customerPhone,
         lastMessageAt: nowIso,
         lastMessageText: lastText || existing?.lastMessageText || "",
+        lastMessageFromMe: !isInbound,
         unreadCount: newUnread,
         lastReadAt: isActive || forceRead ? (pending?.iso || nowIso) : existing?.lastReadAt,
         ...(isInbound ? { lastInboundAt: nowIso, windowExpiresAt: inboundExpiryIso } : {}),
+        ...(!isInbound ? { lastOutboundAt: nowIso } : {}),
       };
       const [item] = next.splice(idx, 1);
       return [item, ...next];
@@ -1451,6 +1559,37 @@ export default function WhatsAppUI() {
     } catch {}
   }, [getWhatsAppAccessPayload]);
 
+  const markConversationUnread = useCallback(async (phoneDigits) => {
+    const phone = digitsOnly(phoneDigits);
+    const p10 = phone10(phoneDigits);
+    if (!p10) return;
+
+    let shouldIncrementUnreadTab = false;
+    setConversations((prev) => prev.map((c) => {
+      if (phone10(c.phone) !== p10) return c;
+      const currentUnread = Number(c?.unreadCount || 0);
+      if (currentUnread <= 0) shouldIncrementUnreadTab = true;
+      return { ...c, unreadCount: Math.max(1, currentUnread) };
+    }));
+
+    if (shouldIncrementUnreadTab) {
+      setServerChatCounts((prev) => ({
+        ...prev,
+        unread: Number(prev?.unread || 0) + 1,
+      }));
+    }
+
+    try {
+      await api(`/api/whatsapp/conversations/mark-unread`, {
+        method: "POST",
+        body: JSON.stringify({ phone, ...getWhatsAppAccessPayload() }),
+      });
+    } catch (e) {
+      showToast(e.message || "Failed to mark unread", "error");
+      refreshConversations(null, { silent: true });
+    }
+  }, [getWhatsAppAccessPayload, refreshConversations, showToast]);
+
   useEffect(() => { refreshConversations(null, { silent: false }); }, [refreshConversations]);
   useEffect(() => { fetchTemplates(); }, [fetchTemplates]);
 
@@ -1693,6 +1832,7 @@ export default function WhatsAppUI() {
   }, [agentFilter, chatTab, debouncedSearch, fetchMessagesPage, markConversationRead, mergeUniqueMessages, playNotif, scheduleConversationRefresh, upsertConversationFromMessage]);
 
   useEffect(() => { if (activeP10) setInput(drafts[activeP10] || ""); else setInput(""); }, [activeP10, drafts]);
+  useEffect(() => { setReplyingTo(null); }, [activeP10]);
 
   useEffect(() => {
     if (!activeDigits) return;
@@ -1801,9 +1941,9 @@ export default function WhatsAppUI() {
     const p10 = phone10(phoneDigits);
     setConversations((prev) => {
       const idx = prev.findIndex((c) => phone10(c.phone) === p10);
-      if (idx === -1) return [{ phone: phoneDigits, lastMessageAt: nowIso, lastMessageText: lastMessageText?.slice?.(0, 200) || "", unreadCount: 0 }, ...prev];
+      if (idx === -1) return [{ phone: phoneDigits, lastMessageAt: nowIso, lastMessageText: lastMessageText?.slice?.(0, 200) || "", lastMessageFromMe: true, lastOutboundAt: nowIso, unreadCount: 0 }, ...prev];
       const next = [...prev];
-      next[idx] = { ...next[idx], lastMessageAt: nowIso, lastMessageText: lastMessageText?.slice?.(0, 200) || next[idx].lastMessageText || "" };
+      next[idx] = { ...next[idx], lastMessageAt: nowIso, lastMessageText: lastMessageText?.slice?.(0, 200) || next[idx].lastMessageText || "", lastMessageFromMe: true, lastOutboundAt: nowIso };
       const [item] = next.splice(idx, 1); return [item, ...next];
     });
   }, []);
@@ -1817,14 +1957,17 @@ export default function WhatsAppUI() {
       return;
     }
     const p10 = phone10(to);
-    const optimistic = { _id: buildTempId("tmp_text"), direction: "OUTBOUND", type: "text", text, timestamp: new Date().toISOString(), status: "sent", to, phone: to };
+    const replyTo = buildReplyPayload(replyingTo);
+    const optimistic = { _id: buildTempId("tmp_text"), direction: "OUTBOUND", type: "text", text, timestamp: new Date().toISOString(), status: "sent", to, phone: to, ...(replyTo ? { replyTo } : {}) };
     setMessages((prev) => [...prev, optimistic]);
+    setReplyingTo(null);
     setInput(""); clearDraftFor(p10); updateConversationPreviewLocal(to, text);
     try {
-      await api(`/api/whatsapp/send-text`, { method: "POST", body: JSON.stringify({ to, text }) });
+      await api(`/api/whatsapp/send-text`, { method: "POST", body: JSON.stringify({ to, text, replyTo }) });
     }
     catch (e) {
       setMessages((prev) => removeMessageById(prev, optimistic._id));
+      setReplyingTo(replyingTo);
       setInput(text); setDraftFor(p10, text);
       if (e.data?.code === "SESSION_EXPIRED") { setSessionExpired(true); setChatError("Only templates allowed. Chat window expired."); }
       else showToast(e.message || "Send failed", "error");
@@ -1884,6 +2027,7 @@ export default function WhatsAppUI() {
     const to = normalizeToWa(activeChat.phone);
     const { file, mime, filename, type, caption = "" } = pendingAttachment;
     const optimisticPreviewUrl = URL.createObjectURL(file);
+    const replyTo = buildReplyPayload(replyingTo);
 
     const optimistic = {
       _id: buildTempId("tmp_file"),
@@ -1899,6 +2043,7 @@ export default function WhatsAppUI() {
         mime,
         filename,
       },
+      ...(replyTo ? { replyTo } : {}),
     };
 
     setMessages((prev) => [...prev, optimistic]);
@@ -1908,6 +2053,7 @@ export default function WhatsAppUI() {
     );
 
     setAttachmentPreviewOpen(false);
+    setReplyingTo(null);
     setPendingAttachment((prev) => {
       if (prev?.previewUrl && String(prev.previewUrl).startsWith("blob:")) {
         try {
@@ -1923,9 +2069,11 @@ export default function WhatsAppUI() {
       fd.append("to", to);
       fd.append("file", file);
       if (caption.trim()) fd.append("caption", caption.trim());
+      if (replyTo) fd.append("replyTo", JSON.stringify(replyTo));
       await apiForm(`/api/whatsapp/send-media`, fd);
     } catch (e) {
       setMessages((prev) => prev.map((m) => m._id === optimistic._id ? { ...m, status: "failed" } : m));
+      setReplyingTo(replyingTo);
       if (e?.data?.code === "SESSION_EXPIRED") { setSessionExpired(true); setChatError("Only templates allowed. Chat window expired."); }
       showToast(extractApiErrorMessage(e, "Failed to send attachment."), "error");
     } finally {
@@ -1974,15 +2122,18 @@ export default function WhatsAppUI() {
       } catch (e) { showToast(e.message || "Failed to upload.", "error"); setTplSending(false); return; }
     } else { setTplSending(true); }
 
-    const optimistic = { _id: buildTempId("tmp_tpl"), direction: "OUTBOUND", type: "template", text: tplSendPreview || `[TEMPLATE] ${activeTplForSend.name}`, timestamp: new Date().toISOString(), status: "sent", to, phone: to, ...(optimisticMedia ? { media: optimisticMedia } : {}), templateMeta: { name: activeTplForSend.name, templateId: activeTplForSend.template_id || activeTplForSend.templateId || activeTplForSend.providerTemplateId || "", language: activeTplForSend.language || "", parameters: params, buttons: extractTemplateButtons(activeTplForSend), ...(headerMedia ? { headerMedia } : {}) } };
+    const replyTo = buildReplyPayload(replyingTo);
+    const optimistic = { _id: buildTempId("tmp_tpl"), direction: "OUTBOUND", type: "template", text: tplSendPreview || `[TEMPLATE] ${activeTplForSend.name}`, timestamp: new Date().toISOString(), status: "sent", to, phone: to, ...(replyTo ? { replyTo } : {}), ...(optimisticMedia ? { media: optimisticMedia } : {}), templateMeta: { name: activeTplForSend.name, templateId: activeTplForSend.template_id || activeTplForSend.templateId || activeTplForSend.providerTemplateId || "", language: activeTplForSend.language || "", parameters: params, buttons: extractTemplateButtons(activeTplForSend), ...(headerMedia ? { headerMedia } : {}) } };
     setMessages((prev) => [...prev, optimistic]);
+    setReplyingTo(null);
     updateConversationPreviewLocal(to, optimistic.text);
     try {
-      await api(`/api/whatsapp/send-template`, { method: "POST", body: JSON.stringify({ to, templateName: activeTplForSend.name, templateId: activeTplForSend.template_id || activeTplForSend.templateId || activeTplForSend.providerTemplateId || "", parameters: params, renderedText: tplSendPreview || "", headerMedia, ...getWhatsAppAccessPayload() }) });
+      await api(`/api/whatsapp/send-template`, { method: "POST", body: JSON.stringify({ to, templateName: activeTplForSend.name, templateId: activeTplForSend.template_id || activeTplForSend.templateId || activeTplForSend.providerTemplateId || "", parameters: params, renderedText: tplSendPreview || "", headerMedia, replyTo, ...getWhatsAppAccessPayload() }) });
       setTplComposeOpen(false); setActiveTplForSend(null); setTplSendVars({}); setTplHeaderFormat(""); setTplHeaderFile(null);
       showToast("Template sent ✓", "success");
     } catch (e) {
       setMessages((prev) => prev.map((m) => m._id === optimistic._id ? { ...m, status: "failed" } : m));
+      setReplyingTo(replyingTo);
       showToast(extractApiErrorMessage(e, "Failed to send template."), "error");
     } finally { setTplSending(false); }
   };
@@ -2191,6 +2342,40 @@ export default function WhatsAppUI() {
   const hasActiveChat = !!activeChat?.phone;
   const templateOnlyMode = hasActiveChat && (sessionExpired || !sessionInfo.has || sessionInfo.expired);
   const expiredMode = templateOnlyMode;
+  const messageSearchTerm = messageSearchQuery.trim().toLowerCase();
+  const messageSearchMatches = useMemo(() => {
+    if (!messageSearchTerm) return [];
+    return (messages || [])
+      .map((msg) => ({ key: msgKey(msg), msg }))
+      .filter(({ msg }) => searchableMessageText(msg).includes(messageSearchTerm));
+  }, [messages, messageSearchTerm]);
+  const currentMessageSearchKey = messageSearchMatches[messageSearchIndex]?.key || "";
+  const goToMessageSearchMatch = useCallback((direction) => {
+    setMessageSearchIndex((current) => {
+      const total = messageSearchMatches.length;
+      if (!total) return 0;
+      if (direction < 0) return (current - 1 + total) % total;
+      return (current + 1) % total;
+    });
+  }, [messageSearchMatches.length]);
+
+  useEffect(() => {
+    setMessageSearchIndex(0);
+  }, [messageSearchTerm, activeP10]);
+
+  useEffect(() => {
+    if (!currentMessageSearchKey) return;
+    messageSearchRefs.current.get(currentMessageSearchKey)?.scrollIntoView({
+      behavior: "smooth",
+      block: "center",
+    });
+  }, [currentMessageSearchKey]);
+
+  useEffect(() => {
+    setMessageSearchOpen(false);
+    setMessageSearchQuery("");
+    messageSearchRefs.current.clear();
+  }, [activeP10]);
 
   /* ─── Grouped messages with date separators ─────────────────────────────── */
   const groupedMessages = useMemo(() => {
@@ -2510,6 +2695,22 @@ export default function WhatsAppUI() {
                 const displayName = chatDisplayName(chat);
                 const fav = isFavourite(chat.phone);
                 const unreadPreview = unread > 0 ? String(chat?.lastMessageText || "Unread messages") : "";
+                const lastMessageAtMs = new Date(chat?.lastMessageAt || 0).getTime();
+                const lastInboundAtMs = new Date(chat?.lastInboundAt || 0).getTime();
+                const lastOutboundAtMs = new Date(chat?.lastOutboundAt || 0).getTime();
+                const showSentByUsTicks =
+                  chat?.lastMessageFromMe === true ||
+                  (
+                    Number.isFinite(lastOutboundAtMs) &&
+                    lastOutboundAtMs > 0 &&
+                    lastOutboundAtMs >= (Number.isFinite(lastInboundAtMs) ? lastInboundAtMs : 0) &&
+                    (
+                      !Number.isFinite(lastMessageAtMs) ||
+                      lastMessageAtMs <= 0 ||
+                      Math.abs(lastMessageAtMs - lastOutboundAtMs) < 5000 ||
+                      lastOutboundAtMs >= lastMessageAtMs
+                    )
+                  );
                 return (
                   <Tooltip key={chat._id || chat.phone} title={unreadPreview} placement="right" disableHoverListener={!unreadPreview}>
                     <Box
@@ -2548,9 +2749,14 @@ export default function WhatsAppUI() {
                           </Stack>
                         </Stack>
                         <Stack direction="row" alignItems="center" justifyContent="space-between">
-                          <Typography sx={{ fontSize: 13, color: LIGHT.subtext, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, fontWeight: unread > 0 ? 600 : 400 }}>
-                            {chat.lastMessageText || assignedToText(chat) || ""}
-                          </Typography>
+                          <Box sx={{ display: "flex", alignItems: "center", minWidth: 0, flex: 1 }}>
+                            {showSentByUsTicks && (
+                              <DoneAllIcon sx={{ fontSize: 15, mr: 0.35, color: LIGHT.subtext, flexShrink: 0 }} />
+                            )}
+                            <Typography sx={{ fontSize: 13, color: LIGHT.subtext, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0, fontWeight: unread > 0 ? 600 : 400 }}>
+                              {chat.lastMessageText || assignedToText(chat) || ""}
+                            </Typography>
+                          </Box>
                           <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, flexShrink: 0 }}>
                             <UnreadBadge count={unread} />
                           </Box>
@@ -2652,9 +2858,42 @@ export default function WhatsAppUI() {
                   </Stack>
 	                </Box>
 	              </Stack>
-              <Stack direction="row" spacing={0.75} alignItems="center">
-                <Tooltip title="Create order">
-                  <IconButton
+	              <Stack direction="row" spacing={0.75} alignItems="center">
+	                <Tooltip title="Search messages">
+	                  <IconButton
+	                    onClick={() => {
+	                      setMessageSearchOpen((v) => !v);
+	                      setMessageSearchQuery("");
+	                    }}
+	                    sx={{
+	                      width: 34,
+	                      height: 34,
+	                      bgcolor: "#fff",
+	                      border: `1px solid ${LIGHT.border}`,
+	                      color: messageSearchOpen ? "#128C7E" : LIGHT.subtext,
+	                      "&:hover": { bgcolor: "#f8fafc", color: "#128C7E" },
+	                    }}
+	                  >
+		                    <SearchIcon sx={{ fontSize: 18 }} />
+	                  </IconButton>
+	                </Tooltip>
+	                <Tooltip title="Mark as unread">
+	                  <IconButton
+	                    onClick={() => markConversationUnread(activeChat?.phone || activeP10)}
+	                    sx={{
+	                      width: 34,
+	                      height: 34,
+	                      bgcolor: "#fff",
+	                      border: `1px solid ${LIGHT.border}`,
+	                      color: LIGHT.subtext,
+	                      "&:hover": { bgcolor: "#f8fafc", color: LIGHT.text },
+	                    }}
+	                  >
+		                    <DoneAllIcon sx={{ fontSize: 18 }} />
+	                  </IconButton>
+	                </Tooltip>
+	                <Tooltip title="Create order">
+	                  <IconButton
                     onClick={() => setCartOpen(true)}
                     sx={{
                       width: 34,
@@ -2692,6 +2931,58 @@ export default function WhatsAppUI() {
                 </Tooltip>
               </Stack>
 	            </Box>
+
+            {messageSearchOpen && (
+              <Box
+                sx={{
+                  px: 2,
+                  py: 1,
+                  bgcolor: "#fff",
+                  borderBottom: `1px solid ${LIGHT.border}`,
+                  zIndex: 2,
+                  flexShrink: 0,
+                }}
+              >
+                <Stack direction="row" spacing={1} alignItems="center">
+                  <TextField
+                    autoFocus
+                    size="small"
+                    fullWidth
+                    value={messageSearchQuery}
+                    onChange={(e) => setMessageSearchQuery(e.target.value)}
+                    placeholder="Search messages"
+                    InputProps={{
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <SearchIcon sx={{ fontSize: 17, color: LIGHT.subtext }} />
+                        </InputAdornment>
+                      ),
+                    }}
+                    sx={{
+                      "& .MuiOutlinedInput-root": {
+                        bgcolor: LIGHT.searchBg,
+                        borderRadius: 2,
+                        fontSize: 13.5,
+                        "& fieldset": { borderColor: LIGHT.border },
+                        "&.Mui-focused fieldset": { borderColor: "#128C7E", borderWidth: 1.5 },
+                      },
+                    }}
+                  />
+                  <Typography sx={{ minWidth: 46, textAlign: "center", fontSize: 12, color: LIGHT.subtext, fontVariantNumeric: "tabular-nums" }}>
+                    {messageSearchMatches.length ? `${messageSearchIndex + 1}/${messageSearchMatches.length}` : "0/0"}
+                  </Typography>
+                  <Button size="small" disabled={!messageSearchMatches.length} onClick={() => goToMessageSearchMatch(-1)} sx={{ minWidth: 42, textTransform: "none" }}>
+                    Prev
+                  </Button>
+                  <Button size="small" disabled={!messageSearchMatches.length} onClick={() => goToMessageSearchMatch(1)} sx={{ minWidth: 42, textTransform: "none" }}>
+                    Next
+                  </Button>
+                  <IconButton size="small" onClick={() => { setMessageSearchOpen(false); setMessageSearchQuery(""); }} sx={{ color: LIGHT.subtext }}>
+                    <CloseIcon sx={{ fontSize: 18 }} />
+                  </IconButton>
+                </Stack>
+              </Box>
+            )}
 
             {/* Messages area */}
             <Box
@@ -2738,24 +3029,55 @@ export default function WhatsAppUI() {
                     const bubbleText = msg?.text || "";
                     const hasMedia = !!String(msg?.media?.id || "").trim() || !!String(msg?.media?.url || "").trim() ||
                       !!String(msg?.templateMeta?.headerMedia?.id || "").trim() || !!String(msg?.templateMeta?.headerMedia?.url || "").trim();
+                    const searchKey = msgKey(msg);
+                    const isSearchMatch = !!messageSearchTerm && currentMessageSearchKey === searchKey;
 
-                    return (
-                      <Box
-                        key={item.key}
-                        sx={{
-                          display: "flex",
-                          justifyContent: isOutbound ? "flex-end" : "flex-start",
-                          px: 1,
-                          animation: "fadeSlideIn 0.18s ease-out",
+	                    return (
+	                      <Box
+	                        key={item.key}
+                          ref={(node) => {
+                            if (node) messageSearchRefs.current.set(searchKey, node);
+                            else messageSearchRefs.current.delete(searchKey);
+                          }}
+	                        sx={{
+	                          display: "flex",
+	                          justifyContent: isOutbound ? "flex-end" : "flex-start",
+                            alignItems: "center",
+                            gap: 0.5,
+	                          px: 1,
+                            py: isSearchMatch ? 0.35 : 0,
+                            borderRadius: 2,
+                            outline: isSearchMatch ? "2px solid #f59e0b" : "2px solid transparent",
+                            outlineOffset: 2,
+	                          animation: "fadeSlideIn 0.18s ease-out",
+                            transition: "outline-color 0.16s ease, padding 0.16s ease",
                           "@keyframes fadeSlideIn": {
                             from: { opacity: 0, transform: "translateY(6px)" },
                             to: { opacity: 1, transform: "translateY(0)" },
                           },
-                        }}
-                      >
-                        <Box
-                          sx={{
-                            maxWidth: 520,
+	                        }}
+	                      >
+                          {isOutbound && (
+                            <Tooltip title="Reply">
+                              <IconButton
+                                size="small"
+                                onClick={() => setReplyingTo(msg)}
+                                sx={{
+                                  width: 28,
+                                  height: 28,
+                                  color: LIGHT.subtext,
+                                  bgcolor: "rgba(255,255,255,0.75)",
+                                  border: `1px solid ${LIGHT.border}`,
+                                  "&:hover": { bgcolor: "#fff", color: "#128C7E" },
+                                }}
+                              >
+                                <ReplyIcon sx={{ fontSize: 16, transform: "scaleX(-1)" }} />
+                              </IconButton>
+                            </Tooltip>
+                          )}
+	                        <Box
+	                          sx={{
+	                            maxWidth: 520,
                             position: "relative",
                             "&::before": isOutbound ? {} : {
                               content: '""',
@@ -2794,11 +3116,12 @@ export default function WhatsAppUI() {
                               boxShadow: "0 1px 2px rgba(16,24,40,0.08)",
                               border: `1px solid ${LIGHT.border}`,
                               transition: "background 0.2s",
-                            }}
-                          >
-                            {isTemplate ? (
-                              <TemplateBubble msg={msg} onPreview={setMediaPreview} />
-                            ) : (
+	                            }}
+	                          >
+                              <ReplyQuote reply={msg?.replyTo} compact />
+	                            {isTemplate ? (
+	                              <TemplateBubble msg={msg} onPreview={setMediaPreview} />
+	                            ) : (
                               <>
                                 {!!bubbleText && (
                                   <Typography
@@ -2822,10 +3145,28 @@ export default function WhatsAppUI() {
                               </Typography>
                               {isOutbound && <MessageTicks status={msg.status} />}
                             </Box>
-                          </Paper>
-                        </Box>
-                      </Box>
-                    );
+	                          </Paper>
+	                        </Box>
+                          {!isOutbound && (
+                            <Tooltip title="Reply">
+                              <IconButton
+                                size="small"
+                                onClick={() => setReplyingTo(msg)}
+                                sx={{
+                                  width: 28,
+                                  height: 28,
+                                  color: LIGHT.subtext,
+                                  bgcolor: "rgba(255,255,255,0.75)",
+                                  border: `1px solid ${LIGHT.border}`,
+                                  "&:hover": { bgcolor: "#fff", color: "#128C7E" },
+                                }}
+                              >
+                                <ReplyIcon sx={{ fontSize: 16 }} />
+                              </IconButton>
+                            </Tooltip>
+                          )}
+	                      </Box>
+	                    );
                   })}
                   <div ref={bottomRef} />
                 </Stack>
@@ -2870,8 +3211,9 @@ export default function WhatsAppUI() {
                   </Tooltip>
                 </Box>
               ) : (
-                <>
-                  {/* Toolbar row */}
+	                <>
+                    <ReplyQuote reply={replyingTo} onClear={() => setReplyingTo(null)} />
+	                  {/* Toolbar row */}
                   <Stack
                     direction="row"
                     spacing={0.75}

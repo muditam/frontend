@@ -41,6 +41,7 @@ import SendIcon from "@mui/icons-material/Send";
 import AccessTimeIcon from "@mui/icons-material/AccessTime";
 import LockOutlinedIcon from "@mui/icons-material/LockOutlined";
 import DescriptionOutlinedIcon from "@mui/icons-material/DescriptionOutlined";
+import ReplyIcon from "@mui/icons-material/Reply";
 import axios from "axios";
 import { io } from "socket.io-client";
 
@@ -348,6 +349,99 @@ function messageIdentity(m) {
   return `sig:${dir}|${from}|${to}|${phone}|${type}|${text}|${mediaId}|${mediaUrl}|${tsBucket}`;
 }
 
+function searchableMessageText(m = {}) {
+  return [
+    m?.text,
+    m?.caption,
+    m?.replyTo?.text,
+    m?.media?.filename,
+    m?.filename,
+    m?.templateMeta?.name,
+    m?.type,
+  ].filter(Boolean).join(" ").toLowerCase();
+}
+function replyMessageId(m) { return String(m?._id || m?.id || "").trim(); }
+function replySenderLabel(reply = {}) {
+  const dir = String(reply?.direction || "").toUpperCase();
+  if (dir === "OUTBOUND") return "You";
+  if (dir === "INBOUND") return "Customer";
+  return "Message";
+}
+function replyPreviewText(source = {}) {
+  const text = String(source?.text || source?.caption || "").trim();
+  if (text) return text.length > 120 ? `${text.slice(0, 117)}...` : text;
+  const type = String(source?.type || "").toLowerCase();
+  if (type === "image") return "Photo";
+  if (type === "video") return "Video";
+  if (type === "audio" || type === "voice") return "Audio";
+  if (type === "template") return "Template message";
+  if (type === "document") return source?.media?.filename || "Document";
+  if (source?.media?.filename) return source.media.filename;
+  return "Message";
+}
+function buildReplyPayload(message = null) {
+  if (!message) return null;
+  return {
+    messageId: replyMessageId(message),
+    waId: String(message?.waId || "").trim(),
+    text: replyPreviewText(message),
+    type: String(message?.type || "text").trim(),
+    direction: String(message?.direction || "").trim().toUpperCase(),
+    from: String(message?.from || "").trim(),
+    to: String(message?.to || "").trim(),
+  };
+}
+function hasReplyContext(reply = null) {
+  if (!reply) return false;
+  return Boolean(
+    String(reply?.messageId || "").trim() ||
+    String(reply?.waId || "").trim() ||
+    String(reply?.text || "").trim()
+  );
+}
+
+function ReplyQuote({ reply, onClear, compact = false }) {
+  if (!hasReplyContext(reply)) return null;
+  return (
+    <Box
+      sx={{
+        mb: compact ? 0.6 : 1,
+        px: 1,
+        py: compact ? 0.55 : 0.75,
+        borderLeft: `3px solid ${UI.brandDark}`,
+        borderRadius: 1.5,
+        bgcolor: "rgba(18,140,126,0.08)",
+        display: "flex",
+        alignItems: "flex-start",
+        gap: 0.75,
+      }}
+    >
+      <Box sx={{ minWidth: 0, flex: 1 }}>
+        <Typography sx={{ fontSize: compact ? 11.5 : 12, fontWeight: 900, color: UI.brandDark, lineHeight: 1.2 }}>
+          {replySenderLabel(reply)}
+        </Typography>
+        <Typography
+          sx={{
+            fontSize: compact ? 12 : 12.5,
+            color: UI.subtext,
+            lineHeight: 1.35,
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+          }}
+        >
+          {replyPreviewText(reply)}
+        </Typography>
+      </Box>
+      {onClear && (
+        <IconButton size="small" onClick={onClear} sx={{ p: 0.2, color: UI.subtext, flexShrink: 0 }}>
+          <CloseIcon sx={{ fontSize: 15 }} />
+        </IconButton>
+      )}
+    </Box>
+  );
+}
+
 function isLikelySameMessage(a, b) {
   const aClientTempId = String(a?.clientTempId || a?._id || "").trim();
   const bClientTempId = String(b?.clientTempId || b?._id || "").trim();
@@ -491,6 +585,7 @@ function AttachmentPreviewDialog({
   onClose,
   onSend,
   sending,
+  replyTo,
 }) {
   const previewUrl = pendingFile?.previewUrl || "";
   const mime = String(pendingFile?.type || "").toLowerCase();
@@ -502,6 +597,7 @@ function AttachmentPreviewDialog({
     <Dialog open={open} onClose={() => !sending && onClose()} fullWidth maxWidth="sm">
       <DialogTitle sx={{ fontWeight: 900 }}>Preview attachment</DialogTitle>
       <DialogContent dividers>
+        <ReplyQuote reply={replyTo} compact />
         <Box
           sx={{
             borderRadius: 3,
@@ -684,6 +780,10 @@ export default function WhatsAppChatDrawer({
   const [rephraseOpen, setRephraseOpen] = useState(false);
   const [rephraseStyle, setRephraseStyle] = useState("professional");
   const [rephraseLoading, setRephraseLoading] = useState(false);
+  const [messageSearchOpen, setMessageSearchOpen] = useState(false);
+  const [messageSearchQuery, setMessageSearchQuery] = useState("");
+  const [messageSearchIndex, setMessageSearchIndex] = useState(0);
+  const [replyingTo, setReplyingTo] = useState(null);
 
   const [pendingFile, setPendingFile] = useState(null);
   const [attachmentSending, setAttachmentSending] = useState(false);
@@ -691,6 +791,7 @@ export default function WhatsAppChatDrawer({
 
   const fileRef = useRef(null);
   const listRef = useRef(null);
+  const messageSearchRefs = useRef(new Map());
 
   const socketRef = useRef(null);
   const joinedPhoneRef = useRef(null);
@@ -712,6 +813,7 @@ export default function WhatsAppChatDrawer({
     const roleNorm = String(role || "").trim().toLowerCase();
     const hasTeam =
       Boolean(sessionUser?.hasTeam) ||
+      roleNorm === "manager" ||
       roleNorm === "team leader" ||
       roleNorm === "team-leader" ||
       roleNorm === "assistant team lead" ||
@@ -723,7 +825,9 @@ export default function WhatsAppChatDrawer({
       userId: sessionUser?._id || sessionUser?.id || "",
       hasTeam: hasTeam ? "true" : "false",
       chatScope:
-        roleNorm === "team leader" || roleNorm === "team-leader"
+        roleNorm === "manager"
+          ? "all"
+          : roleNorm === "team leader" || roleNorm === "team-leader"
           ? "team"
           : hasTeam &&
             (roleNorm === "assistant team lead" || roleNorm === "retention agent")
@@ -1004,6 +1108,10 @@ export default function WhatsAppChatDrawer({
     setMessages([]);
     setText("");
     setPrivateMode(false);
+    setMessageSearchOpen(false);
+    setMessageSearchQuery("");
+    setReplyingTo(null);
+    messageSearchRefs.current.clear();
 
     setTplComposeOpen(false);
     setActiveTemplate(null);
@@ -1057,6 +1165,35 @@ export default function WhatsAppChatDrawer({
     return () => el.removeEventListener("scroll", onScroll);
   }, [open]);
 
+  const messageSearchTerm = messageSearchQuery.trim().toLowerCase();
+  const messageSearchMatches = useMemo(() => {
+    if (!messageSearchTerm) return [];
+    return (messages || [])
+      .map((msg) => ({ key: messageIdentity(msg), msg }))
+      .filter(({ msg }) => searchableMessageText(msg).includes(messageSearchTerm));
+  }, [messages, messageSearchTerm]);
+  const currentMessageSearchKey = messageSearchMatches[messageSearchIndex]?.key || "";
+  const goToMessageSearchMatch = useCallback((direction) => {
+    setMessageSearchIndex((current) => {
+      const total = messageSearchMatches.length;
+      if (!total) return 0;
+      if (direction < 0) return (current - 1 + total) % total;
+      return (current + 1) % total;
+    });
+  }, [messageSearchMatches.length]);
+
+  useEffect(() => {
+    setMessageSearchIndex(0);
+  }, [messageSearchTerm, phone10]);
+
+  useEffect(() => {
+    if (!currentMessageSearchKey) return;
+    messageSearchRefs.current.get(currentMessageSearchKey)?.scrollIntoView({
+      behavior: "smooth",
+      block: "center",
+    });
+  }, [currentMessageSearchKey]);
+
   const grouped = useMemo(() => {
     const map = new Map();
 
@@ -1104,6 +1241,7 @@ export default function WhatsAppChatDrawer({
     }
 
     const optimisticId = buildTempId("tmp_text");
+    const replyTo = buildReplyPayload(replyingTo);
     const optimisticMessage = {
       _id: optimisticId,
       direction: "OUTBOUND",
@@ -1112,9 +1250,11 @@ export default function WhatsAppChatDrawer({
       status: "sent",
       to: phone10,
       timestamp: new Date().toISOString(),
+      ...(replyTo ? { replyTo } : {}),
     };
 
     setText("");
+    setReplyingTo(null);
     setMessages((prev) => upsertMessage(prev, optimisticMessage));
     stickToBottomRef.current = true;
     scrollToBottomSoon("auto");
@@ -1123,12 +1263,14 @@ export default function WhatsAppChatDrawer({
       await api.post(`/api/whatsapp/send-text`, {
         to: phone10,
         text: body,
+        ...(replyTo ? { replyTo } : {}),
       });
     } catch (e) {
       setMessages((prev) =>
         prev.map((m) => (m?._id === optimisticId ? { ...m, status: "failed" } : m))
       );
       setText(body);
+      setReplyingTo(replyingTo);
       const code = e?.response?.data?.code;
       if (code === "SESSION_EXPIRED") alert("Session expired. Please use a template message.");
       else alert("Failed to send message.");
@@ -1183,6 +1325,7 @@ export default function WhatsAppChatDrawer({
     setAttachmentSending(true);
     try {
       const mediaType = inferOutgoingMediaType(pendingFile.file);
+      const replyTo = buildReplyPayload(replyingTo);
       const optimisticMessage = {
         _id: optimisticId,
         direction: "OUTBOUND",
@@ -1197,9 +1340,11 @@ export default function WhatsAppChatDrawer({
           mime: pendingFile.type || pendingFile.file.type || "application/octet-stream",
           filename: pendingFile.file.name || "attachment",
         },
+        ...(replyTo ? { replyTo } : {}),
       };
 
       setMessages((prev) => upsertMessage(prev, optimisticMessage));
+      setReplyingTo(null);
       stickToBottomRef.current = true;
       scrollToBottomSoon("auto");
 
@@ -1207,6 +1352,7 @@ export default function WhatsAppChatDrawer({
       fd.append("to", phone10);
       fd.append("file", pendingFile.file);
       if (pendingFile.caption?.trim()) fd.append("caption", pendingFile.caption.trim());
+      if (replyTo) fd.append("replyTo", JSON.stringify(replyTo));
 
       await api.post(`/api/whatsapp/send-media`, fd, {
         headers: { "Content-Type": "multipart/form-data" },
@@ -1222,6 +1368,7 @@ export default function WhatsAppChatDrawer({
           return { ...m, status: "failed" };
         })
       );
+      setReplyingTo(replyingTo);
       alert("Failed to send attachment.");
     } finally {
       setAttachmentSending(false);
@@ -1543,6 +1690,7 @@ export default function WhatsAppChatDrawer({
   const sendTemplate = async (tpl, vars = [], renderedPreview = "", header = null) => {
     const optimisticId = buildTempId("tmp_tpl");
     const templateButtons = extractTemplateButtons(tpl);
+    const replyTo = buildReplyPayload(replyingTo);
     const optimisticMessage = {
       _id: optimisticId,
       direction: "OUTBOUND",
@@ -1552,6 +1700,7 @@ export default function WhatsAppChatDrawer({
       to: phone10,
       phone: phone10,
       timestamp: new Date().toISOString(),
+      ...(replyTo ? { replyTo } : {}),
       ...(header?.url
         ? {
             media: {
@@ -1581,6 +1730,7 @@ export default function WhatsAppChatDrawer({
     };
 
     setMessages((prev) => upsertMessage(prev, optimisticMessage));
+    setReplyingTo(null);
     stickToBottomRef.current = true;
     scrollToBottomSoon("auto");
 
@@ -1591,11 +1741,13 @@ export default function WhatsAppChatDrawer({
         parameters: (vars || []).map((x) => String(x ?? "")),
         renderedText: renderedPreview || "",
         ...(header ? { headerMedia: header } : {}),
+        ...(replyTo ? { replyTo } : {}),
       });
     } catch (e) {
       setMessages((prev) =>
         prev.map((m) => (m?._id === optimisticId ? { ...m, status: "failed" } : m))
       );
+      setReplyingTo(replyingTo);
       const msg = e?.response?.data?.message || "Template send failed.";
       alert(msg);
       throw e;
@@ -1691,6 +1843,25 @@ export default function WhatsAppChatDrawer({
           </Box>
 
           <Box sx={{ ml: "auto", display: "flex", alignItems: "center", gap: 0.5 }}>
+            <Tooltip title="Search messages">
+              <IconButton
+                onClick={() => {
+                  setMessageSearchOpen((v) => !v);
+                  setMessageSearchQuery("");
+                }}
+                sx={{
+                  width: 38,
+                  height: 38,
+                  bgcolor: "#fff",
+                  border: `1px solid ${UI.border}`,
+                  color: messageSearchOpen ? UI.brandDark : UI.text,
+                  "&:hover": { bgcolor: "#f8fafc", color: UI.brandDark },
+                }}
+              >
+                <SearchIcon />
+              </IconButton>
+            </Tooltip>
+
             <Tooltip title="Refresh chat">
               <span>
                 <IconButton
@@ -1768,6 +1939,60 @@ export default function WhatsAppChatDrawer({
           </Typography>
         </Box>
 
+        {messageSearchOpen && (
+          <Box
+            sx={{
+              mx: 2,
+              mb: 1,
+              p: 1,
+              borderRadius: 2.5,
+              bgcolor: UI.surface,
+              border: `1px solid ${UI.border}`,
+              display: "flex",
+              alignItems: "center",
+              gap: 1,
+              boxShadow: "0 1px 2px rgba(15,23,42,0.04)",
+            }}
+          >
+            <TextField
+              autoFocus
+              size="small"
+              fullWidth
+              value={messageSearchQuery}
+              onChange={(e) => setMessageSearchQuery(e.target.value)}
+              placeholder="Search messages"
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchIcon sx={{ fontSize: 18, color: UI.subtext }} />
+                  </InputAdornment>
+                ),
+              }}
+              sx={{
+                "& .MuiOutlinedInput-root": {
+                  borderRadius: 2,
+                  fontSize: 13.5,
+                  bgcolor: "#f8fafc",
+                  "& fieldset": { borderColor: UI.border },
+                  "&.Mui-focused fieldset": { borderColor: UI.brandDark, borderWidth: 1.5 },
+                },
+              }}
+            />
+            <Typography sx={{ minWidth: 46, textAlign: "center", fontSize: 12, color: UI.subtext, fontVariantNumeric: "tabular-nums" }}>
+              {messageSearchMatches.length ? `${messageSearchIndex + 1}/${messageSearchMatches.length}` : "0/0"}
+            </Typography>
+            <Button size="small" disabled={!messageSearchMatches.length} onClick={() => goToMessageSearchMatch(-1)} sx={{ minWidth: 42, textTransform: "none" }}>
+              Prev
+            </Button>
+            <Button size="small" disabled={!messageSearchMatches.length} onClick={() => goToMessageSearchMatch(1)} sx={{ minWidth: 42, textTransform: "none" }}>
+              Next
+            </Button>
+            <IconButton size="small" onClick={() => { setMessageSearchOpen(false); setMessageSearchQuery(""); }} sx={{ color: UI.subtext }}>
+              <CloseIcon sx={{ fontSize: 18 }} />
+            </IconButton>
+          </Box>
+        )}
+
         <Box
           sx={{
             flex: 1,
@@ -1843,16 +2068,47 @@ export default function WhatsAppChatDrawer({
                   {g.items.map((m, idx) => {
                     const outbound = String(m.direction || "").toUpperCase() === "OUTBOUND";
                     const hm = formatHM(m.timestamp || m.createdAt);
+                    const searchKey = messageIdentity(m);
+                    const isSearchMatch = !!messageSearchTerm && currentMessageSearchKey === searchKey;
 
                     return (
                       <Box
                         key={m._id || m.waId || m.providerTransactionId || `${g.key}-${idx}`}
+                        ref={(node) => {
+                          if (node) messageSearchRefs.current.set(searchKey, node);
+                          else messageSearchRefs.current.delete(searchKey);
+                        }}
                         sx={{
                           display: "flex",
                           justifyContent: outbound ? "flex-end" : "flex-start",
+                          alignItems: "center",
+                          gap: 0.6,
                           mb: 1,
+                          py: isSearchMatch ? 0.35 : 0,
+                          borderRadius: 2,
+                          outline: isSearchMatch ? "2px solid #f59e0b" : "2px solid transparent",
+                          outlineOffset: 2,
+                          transition: "outline-color 0.16s ease, padding 0.16s ease",
                         }}
                       >
+                        {outbound && (
+                          <Tooltip title="Reply">
+                            <IconButton
+                              size="small"
+                              onClick={() => setReplyingTo(m)}
+                              sx={{
+                                width: 28,
+                                height: 28,
+                                bgcolor: "rgba(255,255,255,0.78)",
+                                color: UI.subtext,
+                                border: `1px solid ${UI.border}`,
+                                "&:hover": { bgcolor: "#fff", color: UI.brandDark },
+                              }}
+                            >
+                              <ReplyIcon sx={{ fontSize: 16, transform: "scaleX(-1)" }} />
+                            </IconButton>
+                          </Tooltip>
+                        )}
                         <Paper
                           elevation={0}
                           sx={{
@@ -1865,6 +2121,7 @@ export default function WhatsAppChatDrawer({
                             boxShadow: "0 8px 24px rgba(15,23,42,0.08)",
                           }}
                         >
+                          <ReplyQuote reply={m?.replyTo} compact />
                           {!!m.text && (
                             <Typography sx={{ fontSize: 13.5, whiteSpace: "pre-wrap", color: UI.text, lineHeight: 1.45 }}>
                               {m.text}
@@ -1889,6 +2146,24 @@ export default function WhatsAppChatDrawer({
                             {outbound && <MessageTicks status={m.status} />}
                           </Box>
                         </Paper>
+                        {!outbound && (
+                          <Tooltip title="Reply">
+                            <IconButton
+                              size="small"
+                              onClick={() => setReplyingTo(m)}
+                              sx={{
+                                width: 28,
+                                height: 28,
+                                bgcolor: "rgba(255,255,255,0.78)",
+                                color: UI.subtext,
+                                border: `1px solid ${UI.border}`,
+                                "&:hover": { bgcolor: "#fff", color: UI.brandDark },
+                              }}
+                            >
+                              <ReplyIcon sx={{ fontSize: 16 }} />
+                            </IconButton>
+                          </Tooltip>
+                        )}
                       </Box>
                     );
                   })}
@@ -1909,6 +2184,7 @@ export default function WhatsAppChatDrawer({
               borderTop: `1px solid ${UI.border}`,
             }}
           >
+            <ReplyQuote reply={replyingTo} onClear={() => setReplyingTo(null)} />
             <Button
               fullWidth
               variant="contained"
@@ -1954,6 +2230,10 @@ export default function WhatsAppChatDrawer({
               </Box>
             ) : null}
 
+            {!privateMode && (
+              <ReplyQuote reply={replyingTo} onClear={() => setReplyingTo(null)} />
+            )}
+
             <TextField
               fullWidth
               placeholder={privateMode ? "Type your private reply here" : "Type your message here"}
@@ -1989,7 +2269,10 @@ export default function WhatsAppChatDrawer({
                 title="Private Reply"
                 label="Private Reply"
                 icon={<LockOutlinedIcon sx={{ fontSize: 17 }} />}
-                onClick={() => setPrivateMode((v) => !v)}
+                onClick={() => {
+                  setPrivateMode((v) => !v);
+                  setReplyingTo(null);
+                }}
               />
 
               <ActionPill
@@ -2444,6 +2727,7 @@ export default function WhatsAppChatDrawer({
           onClose={closePendingFile}
           onSend={sendPendingFile}
           sending={attachmentSending}
+          replyTo={replyingTo}
         />
         <MediaPreviewDialog media={mediaPreview} onClose={() => setMediaPreview(null)} />
       </Drawer>

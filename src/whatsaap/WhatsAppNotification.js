@@ -37,6 +37,7 @@ import DoneAllIcon from "@mui/icons-material/DoneAll";
 import InsertDriveFileIcon from "@mui/icons-material/InsertDriveFile";
 import DownloadIcon from "@mui/icons-material/Download";
 import GridViewIcon from "@mui/icons-material/GridView";
+import ReplyIcon from "@mui/icons-material/Reply";
 import axios from "axios";
 import { io } from "socket.io-client";
 
@@ -139,6 +140,24 @@ const SHADOWS = {
 const digitsOnly = (v = "") => String(v || "").replace(/\D/g, "");
 const last10 = (v = "") => digitsOnly(v).slice(-10);
 const roomForPhone10 = (p10) => `wa:${String(p10 || "").slice(-10)}`;
+const messageSearchKey = (m = {}) => String(
+  m?._id ||
+  m?.waId ||
+  m?.id ||
+  `${m?.direction || "message"}_${m?.timestamp || m?.createdAt || ""}_${m?.text || ""}`
+);
+
+function searchableMessageText(m = {}) {
+  return [
+    m?.text,
+    m?.caption,
+    m?.replyTo?.text,
+    m?.media?.filename,
+    m?.filename,
+    m?.templateMeta?.name,
+    m?.type,
+  ].filter(Boolean).join(" ").toLowerCase();
+}
 
 function safeJsonParse(raw) {
   try { return raw ? JSON.parse(raw) : null; } catch { return null; }
@@ -688,8 +707,8 @@ function WidgetHeader({ view, title, subtitle, totalUnread, loading, onBack, onO
     </Tooltip>
   )}
 
-  {view === "list" && (
-    <Tooltip title="Search">
+  {(view === "list" || view === "chat") && (
+    <Tooltip title={view === "chat" ? "Search messages" : "Search"}>
       <IconButton
         size="small"
         onClick={onSearch}
@@ -831,21 +850,114 @@ function DateChip({ label }) {
   );
 }
 
+function replyMessageId(m) { return String(m?._id || m?.id || "").trim(); }
+function replySenderLabel(reply = {}) {
+  const dir = String(reply?.direction || "").toUpperCase();
+  if (dir === "OUTBOUND") return "You";
+  if (dir === "INBOUND") return "Customer";
+  return "Message";
+}
+function replyPreviewText(source = {}) {
+  const text = String(source?.text || source?.caption || "").trim();
+  if (text) return text.length > 120 ? `${text.slice(0, 117)}...` : text;
+  const type = String(source?.type || "").toLowerCase();
+  if (type === "image") return "Photo";
+  if (type === "video") return "Video";
+  if (type === "audio" || type === "voice") return "Audio";
+  if (type === "template") return "Template message";
+  if (type === "document") return source?.media?.filename || "Document";
+  if (source?.media?.filename) return source.media.filename;
+  return "Message";
+}
+function buildReplyPayload(message = null) {
+  if (!message) return null;
+  return {
+    messageId: replyMessageId(message),
+    waId: String(message?.waId || "").trim(),
+    text: replyPreviewText(message),
+    type: String(message?.type || "text").trim(),
+    direction: String(message?.direction || "").trim().toUpperCase(),
+    from: String(message?.from || "").trim(),
+    to: String(message?.to || "").trim(),
+  };
+}
+function hasReplyContext(reply = null) {
+  if (!reply) return false;
+  return Boolean(
+    String(reply?.messageId || "").trim() ||
+    String(reply?.waId || "").trim() ||
+    String(reply?.text || "").trim() ||
+    String(reply?.type || "").trim()
+  );
+}
+function ReplyQuote({ reply, onClear, compact = false }) {
+  if (!hasReplyContext(reply)) return null;
+  return (
+    <Box
+      sx={{
+        borderLeft: `3px solid ${COLORS.brand}`,
+        bgcolor: "rgba(17,27,33,0.06)",
+        borderRadius: "8px",
+        px: compact ? 0.9 : 1,
+        py: compact ? 0.5 : 0.7,
+        mb: compact ? 0.65 : 0.8,
+        display: "flex",
+        alignItems: "flex-start",
+        gap: 0.75,
+        minWidth: 0,
+      }}
+    >
+      <Box sx={{ flex: 1, minWidth: 0 }}>
+        <Typography sx={{ fontSize: compact ? 10.5 : 11.5, color: COLORS.brand, fontFamily: FONTS.ui, fontWeight: 700, lineHeight: 1.2 }}>
+          {replySenderLabel(reply)}
+        </Typography>
+        <Typography sx={{ fontSize: compact ? 11 : 12, color: COLORS.subText, fontFamily: FONTS.ui, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", mt: 0.25 }}>
+          {replyPreviewText(reply)}
+        </Typography>
+      </Box>
+      {onClear && (
+        <IconButton size="small" onClick={onClear} sx={{ p: 0.2, color: COLORS.subText, flexShrink: 0 }}>
+          <CloseIcon sx={{ fontSize: 15 }} />
+        </IconButton>
+      )}
+    </Box>
+  );
+}
+
 // ─── Chat bubble ──────────────────────────────────────────────────────────────
-function ChatBubble({ m, blobUrlByMediaId }) {
+function ChatBubble({ m, blobUrlByMediaId, onReply, rootRef, highlight }) {
   const outbound = String(m?.direction || "").toUpperCase() === "OUTBOUND";
   const time = fmtTime(m?.timestamp || m?.createdAt);
   const hasMedia = !!(m?.media || ["image", "audio", "voice", "ptt", "video", "document"].includes(String(m?.type || "").toLowerCase()));
 
   return (
     <Box
+      ref={rootRef}
       sx={{
         display: "flex",
         justifyContent: outbound ? "flex-end" : "flex-start",
+        alignItems: "center",
+        gap: 0.45,
         mb: 0.75,
         px: 0.5,
+        py: highlight ? 0.25 : 0,
+        borderRadius: 2,
+        outline: highlight ? "2px solid #f59e0b" : "2px solid transparent",
+        outlineOffset: 2,
+        transition: "outline-color 0.16s ease, padding 0.16s ease",
       }}
     >
+      {outbound && (
+        <Tooltip title="Reply">
+          <IconButton
+            size="small"
+            onClick={() => onReply?.(m)}
+            sx={{ width: 25, height: 25, bgcolor: "rgba(255,255,255,0.78)", color: COLORS.subText, border: `1px solid ${COLORS.border}`, "&:hover": { color: COLORS.brand, bgcolor: COLORS.paper } }}
+          >
+            <ReplyIcon sx={{ fontSize: 14, transform: "scaleX(-1)" }} />
+          </IconButton>
+        </Tooltip>
+      )}
       <Box
         sx={{
           maxWidth: "80%",
@@ -858,6 +970,7 @@ function ChatBubble({ m, blobUrlByMediaId }) {
           position: "relative",
         }}
       >
+        <ReplyQuote reply={m?.replyTo} compact />
         {hasMedia && renderMedia(m, blobUrlByMediaId)}
 
         {!!m?.text && (
@@ -882,6 +995,17 @@ function ChatBubble({ m, blobUrlByMediaId }) {
           {outbound && <MessageTicks status={m?.status} />}
         </Box>
       </Box>
+      {!outbound && (
+        <Tooltip title="Reply">
+          <IconButton
+            size="small"
+            onClick={() => onReply?.(m)}
+            sx={{ width: 25, height: 25, bgcolor: "rgba(255,255,255,0.78)", color: COLORS.subText, border: `1px solid ${COLORS.border}`, "&:hover": { color: COLORS.brand, bgcolor: COLORS.paper } }}
+          >
+            <ReplyIcon sx={{ fontSize: 14 }} />
+          </IconButton>
+        </Tooltip>
+      )}
     </Box>
   );
 }
@@ -927,11 +1051,16 @@ export default function WhatsAppInboxWidget({ onOpenChat }) {
   const [messages, setMessages] = useState([]);
 
   const [draft, setDraft] = useState("");
+  const [replyingTo, setReplyingTo] = useState(null);
   const [sending, setSending] = useState(false);
 
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const debouncedSearchQuery = useDebouncedValue(searchQuery, 250);
+  const [messageSearchOpen, setMessageSearchOpen] = useState(false);
+  const [messageSearchQuery, setMessageSearchQuery] = useState("");
+  const [messageSearchIndex, setMessageSearchIndex] = useState(0);
+  const messageSearchRefs = useRef(new Map());
 
   const [tplLoading, setTplLoading] = useState(false);
   const [templates, setTemplates] = useState([]);
@@ -1019,6 +1148,7 @@ export default function WhatsAppInboxWidget({ onOpenChat }) {
   const hasTeamEffective = useMemo(
     () =>
       Boolean(sessionUser?.hasTeam) ||
+      myRoleNorm === "manager" ||
       myRoleNorm === "team leader" ||
       myRoleNorm === "team-leader" ||
       myRoleNorm === "assistant team lead",
@@ -1031,7 +1161,9 @@ export default function WhatsAppInboxWidget({ onOpenChat }) {
       userId: myUserId || "",
       hasTeam: hasTeamEffective ? "true" : "false",
       chatScope:
-        myRoleNorm === "team leader" || myRoleNorm === "team-leader"
+        myRoleNorm === "manager"
+          ? "all"
+          : myRoleNorm === "team leader" || myRoleNorm === "team-leader"
           ? "team"
           : hasTeamEffective &&
             (myRoleNorm === "assistant team lead" ||
@@ -1062,6 +1194,9 @@ export default function WhatsAppInboxWidget({ onOpenChat }) {
       setActive(null);
       setMessages([]);
       setDraft("");
+      setMessageSearchOpen(false);
+      setMessageSearchQuery("");
+      messageSearchRefs.current.clear();
       clearBlobUrls();
     }
   }, [shouldShowWidget, clearBlobUrls]);
@@ -1072,6 +1207,34 @@ export default function WhatsAppInboxWidget({ onOpenChat }) {
     () => Number(serverCounts?.unread || 0),
     [serverCounts]
   );
+  const messageSearchTerm = messageSearchQuery.trim().toLowerCase();
+  const messageSearchMatches = useMemo(() => {
+    if (!messageSearchTerm) return [];
+    return (messages || [])
+      .map((msg) => ({ key: messageSearchKey(msg), msg }))
+      .filter(({ msg }) => searchableMessageText(msg).includes(messageSearchTerm));
+  }, [messages, messageSearchTerm]);
+  const currentMessageSearchKey = messageSearchMatches[messageSearchIndex]?.key || "";
+  const goToMessageSearchMatch = useCallback((direction) => {
+    setMessageSearchIndex((current) => {
+      const total = messageSearchMatches.length;
+      if (!total) return 0;
+      if (direction < 0) return (current - 1 + total) % total;
+      return (current + 1) % total;
+    });
+  }, [messageSearchMatches.length]);
+
+  useEffect(() => {
+    setMessageSearchIndex(0);
+  }, [messageSearchTerm, phone10Active]);
+
+  useEffect(() => {
+    if (!currentMessageSearchKey) return;
+    messageSearchRefs.current.get(currentMessageSearchKey)?.scrollIntoView({
+      behavior: "smooth",
+      block: "center",
+    });
+  }, [currentMessageSearchKey]);
 
   const visibleConvos = useMemo(() => (Array.isArray(convos) ? convos.slice() : []), [convos]);
 
@@ -1111,7 +1274,9 @@ export default function WhatsAppInboxWidget({ onOpenChat }) {
           ...(debouncedSearchQuery.trim() ? { search: debouncedSearchQuery.trim() } : {}),
           ...(cursor ? { cursor } : {}),
           chatScope:
-            myRoleNorm === "team leader" || myRoleNorm === "team-leader"
+            myRoleNorm === "manager"
+              ? "all"
+              : myRoleNorm === "team leader" || myRoleNorm === "team-leader"
               ? "team"
               : hasTeamEffective &&
                 (myRoleNorm === "assistant team lead" ||
@@ -1487,6 +1652,9 @@ export default function WhatsAppInboxWidget({ onOpenChat }) {
     setDraft("");
     setSearchOpen(false);
     setSearchQuery("");
+    setMessageSearchOpen(false);
+    setMessageSearchQuery("");
+    messageSearchRefs.current.clear();
     clearBlobUrls();
   };
 
@@ -1495,8 +1663,12 @@ export default function WhatsAppInboxWidget({ onOpenChat }) {
   clearBlobUrls();
   setSearchOpen(false);
   setSearchQuery("");
+  setMessageSearchOpen(false);
+  setMessageSearchQuery("");
+  messageSearchRefs.current.clear();
   setActive(c);
   setView("chat");
+  setReplyingTo(null);
   const p10 = last10(c?.phone);
   setMessages([]);
   await fetchMessages(p10);
@@ -1517,6 +1689,7 @@ export default function WhatsAppInboxWidget({ onOpenChat }) {
     setSending(true);
     try {
       const optimisticId = `optimistic_${Date.now()}`;
+      const replyTo = buildReplyPayload(replyingTo);
       const optimistic = {
         _id: optimisticId,
         waId: null,
@@ -1525,12 +1698,15 @@ export default function WhatsAppInboxWidget({ onOpenChat }) {
         text,
         status: "sent",
         timestamp: new Date(),
+        ...(replyTo ? { replyTo } : {}),
       };
       setMessages((prev) => upsertMessage(prev, optimistic));
       setDraft("");
+      setReplyingTo(null);
       setTimeout(() => scrollToBottom(true), 0);
-      await axios.post(`${API_BASE}/api/whatsapp/send-text`, { to: phone10Active, text }, { withCredentials: true });
+      await axios.post(`${API_BASE}/api/whatsapp/send-text`, { to: phone10Active, text, replyTo }, { withCredentials: true });
     } catch {
+      setReplyingTo(replyingTo);
       setMessages((prev) => {
         const next = prev.slice();
         for (let i = next.length - 1; i >= 0; i--) {
@@ -1544,7 +1720,7 @@ export default function WhatsAppInboxWidget({ onOpenChat }) {
     } finally {
       setSending(false);
     }
-  }, [shouldShowWidget, draft, phone10Active, scrollToBottom]);
+  }, [shouldShowWidget, draft, phone10Active, scrollToBottom, replyingTo]);
 
   const loadTemplates = useCallback(async () => {
     if (!shouldShowWidget) return;
@@ -1594,6 +1770,7 @@ export default function WhatsAppInboxWidget({ onOpenChat }) {
     setSending(true);
     try {
       const optimisticId = `optimistic_tpl_${Date.now()}`;
+      const replyTo = buildReplyPayload(replyingTo);
       const optimistic = {
         _id: optimisticId,
         waId: null,
@@ -1612,16 +1789,19 @@ export default function WhatsAppInboxWidget({ onOpenChat }) {
           language: selectedTemplateObj?.language || "",
           parameters: params,
         },
+        ...(replyTo ? { replyTo } : {}),
       };
       setMessages((prev) => upsertMessage(prev, optimistic));
+      setReplyingTo(null);
       setTimeout(() => scrollToBottom(true), 0);
       await axios.post(
         `${API_BASE}/api/whatsapp/send-template`,
-        { to: phone10Active, templateName: tplSelected, parameters: params, renderedText: tplBodyPreview || "", ...whatsappAccessPayload },
+        { to: phone10Active, templateName: tplSelected, parameters: params, renderedText: tplBodyPreview || "", replyTo, ...whatsappAccessPayload },
         { withCredentials: true }
       );
       setTplDialogOpen(false);
     } catch {
+      setReplyingTo(replyingTo);
       setMessages((prev) => {
         const next = prev.slice();
         for (let i = next.length - 1; i >= 0; i--) {
@@ -1648,6 +1828,7 @@ export default function WhatsAppInboxWidget({ onOpenChat }) {
     selectedTemplateObj?.language,
     whatsappAccessPayload,
     scrollToBottom,
+    replyingTo,
   ]);
 
   const hasDraft = String(draft || "").trim().length > 0;
@@ -1775,10 +1956,18 @@ export default function WhatsAppInboxWidget({ onOpenChat }) {
           subtitle={view === "chat" ? phone10Active || "" : ""}
           totalUnread={totalUnread}
           loading={loading}
-          onBack={() => { setView("list"); setActive(null); setMessages([]); setDraft(""); clearBlobUrls(); }}
+          onBack={() => { setView("list"); setActive(null); setMessages([]); setDraft(""); setReplyingTo(null); setMessageSearchOpen(false); setMessageSearchQuery(""); messageSearchRefs.current.clear(); clearBlobUrls(); }}
           onOpenFull={openFullChat}
           onRefresh={fetchConversations}
-          onSearch={() => { setSearchOpen((v) => !v); setSearchQuery(""); }}
+          onSearch={() => {
+            if (view === "chat") {
+              setMessageSearchOpen((v) => !v);
+              setMessageSearchQuery("");
+              return;
+            }
+            setSearchOpen((v) => !v);
+            setSearchQuery("");
+          }}
           onClose={handleClose}
         />
 
@@ -1903,6 +2092,64 @@ export default function WhatsAppInboxWidget({ onOpenChat }) {
             </Box>
           ) : (
             <Box sx={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+              {messageSearchOpen && (
+                <Box
+                  sx={{
+                    px: 1.25,
+                    py: 0.875,
+                    bgcolor: COLORS.inputBarBg,
+                    borderBottom: `1px solid ${COLORS.divider}`,
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 0.75,
+                  }}
+                >
+                  <TextField
+                    autoFocus
+                    value={messageSearchQuery}
+                    onChange={(e) => setMessageSearchQuery(e.target.value)}
+                    placeholder="Search messages..."
+                    size="small"
+                    fullWidth
+                    InputProps={{
+                      startAdornment: (
+                        <SearchIcon sx={{ fontSize: 17, color: COLORS.subText, mr: 0.75 }} />
+                      ),
+                    }}
+                    sx={{
+                      "& .MuiOutlinedInput-root": {
+                        bgcolor: COLORS.inputBg,
+                        borderRadius: "10px",
+                        fontSize: 13.5,
+                        fontFamily: FONTS.ui,
+                        color: COLORS.inputText,
+                        "& fieldset": { borderColor: COLORS.inputBorder },
+                        "&:hover fieldset": { borderColor: "rgba(17,27,33,0.22)" },
+                        "&.Mui-focused fieldset": { borderColor: COLORS.brand, borderWidth: 1.5 },
+                      },
+                      "& .MuiOutlinedInput-input::placeholder": {
+                        color: COLORS.subText, opacity: 1, fontSize: 13.5, fontFamily: FONTS.ui,
+                      },
+                    }}
+                  />
+                  <Typography sx={{ minWidth: 42, textAlign: "center", color: COLORS.subText, fontSize: 11.5, fontFamily: FONTS.ui, fontVariantNumeric: "tabular-nums" }}>
+                    {messageSearchMatches.length ? `${messageSearchIndex + 1}/${messageSearchMatches.length}` : "0/0"}
+                  </Typography>
+                  <Button size="small" disabled={!messageSearchMatches.length} onClick={() => goToMessageSearchMatch(-1)} sx={{ minWidth: 34, px: 0.75, textTransform: "none", color: COLORS.brandDark }}>
+                    Prev
+                  </Button>
+                  <Button size="small" disabled={!messageSearchMatches.length} onClick={() => goToMessageSearchMatch(1)} sx={{ minWidth: 34, px: 0.75, textTransform: "none", color: COLORS.brandDark }}>
+                    Next
+                  </Button>
+                  <IconButton
+                    size="small"
+                    onClick={() => { setMessageSearchOpen(false); setMessageSearchQuery(""); }}
+                    sx={{ color: COLORS.subText, "&:hover": { color: COLORS.bodyText, bgcolor: "rgba(17,27,33,0.06)" } }}
+                  >
+                    <CloseIcon sx={{ fontSize: 17 }} />
+                  </IconButton>
+                </Box>
+              )}
               {/* Chat messages */}
               <Box
                 ref={chatScrollRef}
@@ -1930,84 +2177,96 @@ export default function WhatsAppInboxWidget({ onOpenChat }) {
                 ) : (
                   <>
                     <DateChip label="Today" />
-                    {messages.map((m) => (
-                      <ChatBubble
-                        key={m?._id || m?.waId || Math.random()}
-                        m={m}
-                        blobUrlByMediaId={blobUrlByMediaId}
-                      />
-                    ))}
+                    {messages.map((m) => {
+                      const searchKey = messageSearchKey(m);
+                      const highlight = !!messageSearchTerm && currentMessageSearchKey === searchKey;
+                      return (
+	                      <ChatBubble
+	                        key={searchKey}
+	                        m={m}
+	                        blobUrlByMediaId={blobUrlByMediaId}
+                          onReply={setReplyingTo}
+                          highlight={highlight}
+                          rootRef={(node) => {
+                            if (node) messageSearchRefs.current.set(searchKey, node);
+                            else messageSearchRefs.current.delete(searchKey);
+                          }}
+	                      />
+                      );
+                    })}
                   </>
                 )}
                 <div ref={messagesEndRef} />
               </Box>
 
               {/* Input bar */}
-              <Box
-                sx={{
-                  px: 1.25,
-                  py: 1,
-                  bgcolor: COLORS.inputBarBg,
-                  borderTop: `1px solid ${COLORS.divider}`,
-                  display: "flex",
-                  gap: 0.75,
-                  alignItems: "flex-end",
-                }}
-              >
-                {/* Template button */}
-                <Tooltip title="Send template">
-                  <Button
-                    size="small"
-                    onClick={openTemplateDialog}
-                    disabled={!phone10Active || sending}
-                    startIcon={<GridViewIcon sx={{ fontSize: "14px !important" }} />}
-                    sx={{
-                      textTransform: "none",
-                      fontWeight: 500,
-                      fontSize: 12,
-                      fontFamily: FONTS.ui,
-                      borderRadius: "8px",
-                      whiteSpace: "nowrap",
-                      color: COLORS.subText,
-                      border: `1px solid ${COLORS.border}`,
-                      px: 1.25,
-                      py: 0.75,
-                      flexShrink: 0,
-                      bgcolor: COLORS.paper,
-                      minWidth: 0,
-                      "&:hover": {
-                        borderColor: COLORS.brand,
-                        color: COLORS.brand,
-                        bgcolor: "rgba(0,168,132,0.06)",
-                      },
-                      "&:disabled": { color: "rgba(17,27,33,0.28)", bgcolor: "transparent" },
-                    }}
-                  >
-                    Template
-                  </Button>
-                </Tooltip>
+	              <Box
+	                sx={{
+	                  px: 1.25,
+	                  py: 1,
+	                  bgcolor: COLORS.inputBarBg,
+	                  borderTop: `1px solid ${COLORS.divider}`,
+	                  display: "flex",
+                    flexDirection: "column",
+	                  gap: 0.75,
+	                }}
+	              >
+                  <ReplyQuote reply={replyingTo} onClear={() => setReplyingTo(null)} />
+                  <Box sx={{ display: "flex", gap: 0.75, alignItems: "flex-end", width: "100%" }}>
+  	                {/* Template button */}
+  	                <Tooltip title="Send template">
+  	                  <Button
+  	                    size="small"
+  	                    onClick={openTemplateDialog}
+  	                    disabled={!phone10Active || sending}
+  	                    startIcon={<GridViewIcon sx={{ fontSize: "14px !important" }} />}
+  	                    sx={{
+  	                      textTransform: "none",
+  	                      fontWeight: 500,
+  	                      fontSize: 12,
+  	                      fontFamily: FONTS.ui,
+  	                      borderRadius: "8px",
+  	                      whiteSpace: "nowrap",
+  	                      color: COLORS.subText,
+  	                      border: `1px solid ${COLORS.border}`,
+  	                      px: 1.25,
+  	                      py: 0.75,
+  	                      flexShrink: 0,
+  	                      bgcolor: COLORS.paper,
+  	                      minWidth: 0,
+  	                      "&:hover": {
+  	                        borderColor: COLORS.brand,
+  	                        color: COLORS.brand,
+  	                        bgcolor: "rgba(0,168,132,0.06)",
+  	                      },
+  	                      "&:disabled": { color: "rgba(17,27,33,0.28)", bgcolor: "transparent" },
+  	                    }}
+  	                  >
+  	                    Template
+  	                  </Button>
+  	                </Tooltip>
 
-                {/* Text field */}
-                <TextField
-                  value={draft}
-                  onChange={(e) => setDraft(e.target.value)}
-                  placeholder="Type a message..."
-                  size="small"
-                  multiline
-                  maxRows={3}
-                  fullWidth
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendText(); }
-                  }}
-                  sx={{
-                    "& .MuiOutlinedInput-root": {
-                      bgcolor: COLORS.inputBg,
-                      borderRadius: "10px",
-                      fontSize: 13.5,
-                      fontFamily: FONTS.ui,
-                      color: COLORS.inputText,
-                      "& fieldset": { borderColor: COLORS.inputBorder },
-                      "&:hover fieldset": { borderColor: "rgba(17,27,33,0.22)" },
+  	                {/* Text field */}
+  	                <TextField
+  	                  value={draft}
+  	                  onChange={(e) => setDraft(e.target.value)}
+  	                  placeholder="Type a message..."
+  	                  size="small"
+  	                  multiline
+  	                  maxRows={3}
+  	                  fullWidth
+  	                  onKeyDown={(e) => {
+  	                    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendText(); }
+  	                  }}
+  	                  sx={{
+  	                    "& .MuiOutlinedInput-root": {
+  	                      bgcolor: COLORS.inputBg,
+  	                      borderRadius: "10px",
+  	                      fontSize: 13.5,
+  	                      fontFamily: FONTS.ui,
+  	                      color: COLORS.inputText,
+  	                      "& fieldset": { borderColor: COLORS.inputBorder },
+  	                      "&:hover fieldset": { borderColor: "rgba(17,27,33,0.22)" },
                       "&.Mui-focused fieldset": { borderColor: COLORS.brand, borderWidth: 1.5 },
                     },
                     "& .MuiOutlinedInput-input::placeholder": {
@@ -2041,6 +2300,7 @@ export default function WhatsAppInboxWidget({ onOpenChat }) {
                 </IconButton>
               </Box>
             </Box>
+          </Box>
           )}
         </Box>
       </Popover>
