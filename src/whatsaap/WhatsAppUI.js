@@ -22,6 +22,7 @@ import {
   Tooltip,
   Snackbar,
   Alert,
+  Popover,
 } from "@mui/material";
 import { useLocation, useNavigate } from "react-router-dom";
 import SendIcon from "@mui/icons-material/Send";
@@ -42,6 +43,7 @@ import StarIcon from "@mui/icons-material/Star";
 import ShoppingCartIcon from "@mui/icons-material/ShoppingCart";
 import ReplyIcon from "@mui/icons-material/Reply";
 import CloseIcon from "@mui/icons-material/Close";
+import NotesIcon from "@mui/icons-material/Notes";
 import { io } from "socket.io-client";
 import WhatsAppCartDrawer from "../pages/retention/WhatsAppCartDrawer";
  
@@ -867,6 +869,12 @@ export default function WhatsAppUI() {
   const [oldestCursor, setOldestCursor] = useState("");
   const [favoritePhones, setFavoritePhones] = useState({});
   const [cartOpen, setCartOpen] = useState(false);
+  const [notesAnchorEl, setNotesAnchorEl] = useState(null);
+  const [noteDraft, setNoteDraft] = useState("");
+  const [notesByPhone, setNotesByPhone] = useState({});
+  const [notesLoading, setNotesLoading] = useState(false);
+  const [notesSaving, setNotesSaving] = useState(false);
+  const [notesError, setNotesError] = useState("");
   const [quickAnchor, setQuickAnchor] = useState(null);
   const [tplAnchor, setTplAnchor] = useState(null);
   const [emojiAnchor, setEmojiAnchor] = useState(null);
@@ -2894,6 +2902,38 @@ export default function WhatsAppUI() {
 	                </Box>
 	              </Stack>
 	              <Stack direction="row" spacing={0.75} alignItems="center">
+	                <Tooltip title="Internal notes">
+	                  <IconButton
+	                    onClick={async (event) => {
+	                      const p10 = activeP10;
+	                      setNotesAnchorEl(event.currentTarget);
+	                      if (!p10) return;
+	                      setNotesError("");
+	                      setNotesLoading(true);
+	                      try {
+	                        const params = new URLSearchParams({ phone: p10, ...getWhatsAppAccessPayload() });
+	                        const data = await api(`/api/whatsapp/internal-notes?${params.toString()}`);
+	                        setNotesByPhone((prev) => ({ ...prev, [p10]: Array.isArray(data?.notes) ? data.notes : [] }));
+	                      } catch (error) {
+	                        setNotesError(extractApiErrorMessage(error, "Failed to load notes"));
+	                      } finally {
+	                        setNotesLoading(false);
+	                      }
+	                    }}
+	                    disabled={!hasActiveChat}
+	                    sx={{
+	                      width: 34,
+	                      height: 34,
+	                      bgcolor: "#fff",
+	                      border: `1px solid ${LIGHT.border}`,
+	                      color: notesAnchorEl ? "#128C7E" : LIGHT.subtext,
+	                      "&:hover": { bgcolor: "#f8fafc", color: "#128C7E" },
+	                      "&.Mui-disabled": { color: LIGHT.muted, bgcolor: "#f8fafc" },
+	                    }}
+	                  >
+		                    <NotesIcon sx={{ fontSize: 18 }} />
+	                  </IconButton>
+	                </Tooltip>
 	                <Tooltip title="Search messages">
 	                  <IconButton
 	                    onClick={() => {
@@ -2912,6 +2952,189 @@ export default function WhatsAppUI() {
 		                    <SearchIcon sx={{ fontSize: 18 }} />
 	                  </IconButton>
 	                </Tooltip>
+	                <Popover
+	                  open={Boolean(notesAnchorEl)}
+	                  anchorEl={notesAnchorEl}
+	                  onClose={() => setNotesAnchorEl(null)}
+	                  anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
+	                  transformOrigin={{ vertical: "top", horizontal: "right" }}
+	                  PaperProps={{
+	                    sx: {
+	                      width: 380,
+	                      maxWidth: "calc(100vw - 24px)",
+	                      borderRadius: 2,
+	                      border: `1px solid ${LIGHT.border}`,
+	                      boxShadow: "0 18px 48px rgba(15,23,42,0.18)",
+	                      overflow: "hidden",
+	                    },
+	                  }}
+	                >
+	                  <Stack>
+	                    <Box sx={{ px: 1.5, py: 1.35, bgcolor: "#fff", borderBottom: `1px solid ${LIGHT.border}` }}>
+	                      <Stack direction="row" alignItems="center" spacing={1}>
+	                        <Box
+	                          sx={{
+	                            width: 34,
+	                            height: 34,
+	                            borderRadius: "50%",
+	                            display: "grid",
+	                            placeItems: "center",
+	                            bgcolor: "rgba(18,140,126,0.1)",
+	                            color: "#128C7E",
+	                            flexShrink: 0,
+	                          }}
+	                        >
+	                          <NotesIcon sx={{ fontSize: 18 }} />
+	                        </Box>
+	                        <Box sx={{ minWidth: 0, flex: 1 }}>
+	                          <Typography sx={{ fontSize: 14, fontWeight: 700, color: LIGHT.text }}>
+	                            Internal notes
+	                          </Typography>
+	                          <Typography sx={{ fontSize: 12, color: LIGHT.subtext }} noWrap>
+	                            {activeHeaderTitle || "Customer"} {activeP10 ? `(${activeP10})` : ""}
+	                          </Typography>
+	                        </Box>
+	                        <IconButton
+	                          size="small"
+	                          onClick={() => setNotesAnchorEl(null)}
+	                          sx={{ color: LIGHT.subtext, "&:hover": { color: LIGHT.text, bgcolor: "#eef2f7" } }}
+	                        >
+	                          <CloseIcon sx={{ fontSize: 18 }} />
+	                        </IconButton>
+	                      </Stack>
+	                    </Box>
+	                    <Stack spacing={1.25} sx={{ p: 1.5 }}>
+	                    <TextField
+	                      fullWidth
+	                      multiline
+	                      minRows={3}
+	                      maxRows={5}
+	                      size="small"
+	                      placeholder="Type a private note for your team..."
+	                      value={noteDraft}
+	                      onChange={(event) => setNoteDraft(event.target.value)}
+	                      sx={{
+	                        "& .MuiOutlinedInput-root": {
+	                          fontSize: 13,
+	                          bgcolor: "#fbfcfe",
+	                          borderRadius: 2,
+	                          alignItems: "flex-start",
+	                          "& fieldset": { borderColor: "#d9e2ec" },
+	                          "&:hover fieldset": { borderColor: "#b8c7d6" },
+	                          "&.Mui-focused fieldset": { borderColor: "#128C7E", borderWidth: 1.5 },
+	                        },
+	                      }}
+	                    />
+	                    <Stack direction="row" alignItems="center" justifyContent="space-between">
+	                      <Typography sx={{ fontSize: 12, color: LIGHT.subtext }}>
+	                        {(notesByPhone[activeP10] || []).length} saved
+	                      </Typography>
+	                      <Button
+	                        variant="contained"
+	                        size="small"
+	                        disabled={!noteDraft.trim() || !activeP10 || notesSaving}
+	                        onClick={async () => {
+	                          const text = noteDraft.trim();
+	                          if (!text || !activeP10) return;
+	                          const p10 = activeP10;
+	                          setNotesSaving(true);
+	                          setNotesError("");
+	                          try {
+	                            const data = await api("/api/whatsapp/internal-notes", {
+	                              method: "POST",
+	                              body: JSON.stringify({
+	                                phone: p10,
+	                                text,
+	                                ...getWhatsAppAccessPayload(),
+	                              }),
+	                            });
+	                            setNotesByPhone((prev) => ({
+	                              ...prev,
+	                              [p10]: [data.note, ...(prev[p10] || [])].filter(Boolean),
+	                            }));
+	                            setNoteDraft("");
+	                          } catch (error) {
+	                            setNotesError(extractApiErrorMessage(error, "Failed to save note"));
+	                          } finally {
+	                            setNotesSaving(false);
+	                          }
+	                          }}
+	                        sx={{
+	                          textTransform: "none",
+	                          fontWeight: 700,
+	                          bgcolor: "#128C7E",
+	                          borderRadius: 99,
+	                          px: 1.75,
+	                          boxShadow: "none",
+	                          "&:hover": { bgcolor: "#0f766e", boxShadow: "none" },
+	                        }}
+	                      >
+	                        {notesSaving ? "Saving..." : "Save note"}
+	                      </Button>
+	                      </Stack>
+	                      <Divider />
+	                      <Typography sx={{ fontSize: 12, fontWeight: 700, color: LIGHT.text }}>
+	                        Saved notes
+	                      </Typography>
+	                    <Stack spacing={1} sx={{ maxHeight: 240, overflow: "auto", pr: 0.25 }}>
+	                      {notesError && (
+	                        <Alert severity="error" sx={{ py: 0, fontSize: 12 }}>
+	                          {notesError}
+	                        </Alert>
+	                      )}
+	                      {notesLoading ? (
+	                        <Stack alignItems="center" sx={{ py: 2 }}>
+	                          <CircularProgress size={18} />
+	                        </Stack>
+	                      ) : (notesByPhone[activeP10] || []).length ? (
+	                        (notesByPhone[activeP10] || []).map((note) => (
+	                          <Box
+	                            key={note._id || note.id}
+	                            sx={{
+	                              p: 1.2,
+	                              borderRadius: 2,
+	                              bgcolor: "#fbfcfe",
+	                              border: `1px solid ${LIGHT.border}`,
+	                              borderLeft: "3px solid #128C7E",
+	                            }}
+	                          >
+	                            <Typography sx={{ fontSize: 13, color: LIGHT.text, whiteSpace: "pre-wrap" }}>
+	                              {note.text}
+	                            </Typography>
+	                            <Typography sx={{ mt: 0.65, fontSize: 11, color: LIGHT.subtext }}>
+	                              {note.createdByName || note.author || "Internal user"} - {new Date(note.createdAt).toLocaleString([], {
+	                                day: "2-digit",
+	                                month: "short",
+	                                hour: "2-digit",
+	                                minute: "2-digit",
+	                              })}
+	                            </Typography>
+	                          </Box>
+	                        ))
+	                      ) : (
+	                        <Box
+	                          sx={{
+	                            py: 2,
+	                            px: 1,
+	                            borderRadius: 2,
+	                            bgcolor: "#f8fafc",
+	                            border: `1px dashed ${LIGHT.border}`,
+	                            textAlign: "center",
+	                          }}
+	                        >
+	                          <NotesIcon sx={{ fontSize: 22, color: LIGHT.muted, mb: 0.5 }} />
+	                          <Typography sx={{ fontSize: 12.5, fontWeight: 700, color: LIGHT.text }}>
+	                            No notes yet
+	                          </Typography>
+	                          <Typography sx={{ fontSize: 12, color: LIGHT.subtext }}>
+	                            Add the first internal note for this chat.
+	                          </Typography>
+	                        </Box>
+	                      )}
+	                    </Stack>
+	                    </Stack>
+	                  </Stack>
+	                </Popover>
 	                <Tooltip title="Mark as unread">
 	                  <IconButton
 	                    onClick={() => markConversationUnread(activeChat?.phone || activeP10)}
