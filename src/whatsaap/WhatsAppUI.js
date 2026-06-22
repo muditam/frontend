@@ -918,6 +918,10 @@ export default function WhatsAppUI() {
   const [notesLoading, setNotesLoading] = useState(false);
   const [notesSaving, setNotesSaving] = useState(false);
   const [notesError, setNotesError] = useState("");
+  const [assignableAgents, setAssignableAgents] = useState([]);
+  const [assignableAgentsLoading, setAssignableAgentsLoading] = useState(false);
+  const [assigningChat, setAssigningChat] = useState(false);
+  const [assignChatValue, setAssignChatValue] = useState("");
   const [historyOpen, setHistoryOpen] = useState(false);
   const [historyByPhone, setHistoryByPhone] = useState({});
   const [historyLoading, setHistoryLoading] = useState(false);
@@ -1083,6 +1087,7 @@ export default function WhatsAppUI() {
       isAssistantTeamLeadEffective,
     [sessionRoleNorm, isAssistantTeamLeadEffective]
   );
+  const canAssignWhatsAppChat = sessionRoleNorm === "manager";
 
   const navigate = useNavigate();
   const location = useLocation();
@@ -2454,6 +2459,68 @@ export default function WhatsAppUI() {
   const currentHistoryCustomer = historyByPhone[activeP10] || null;
   const currentHistoryOrders = Array.isArray(currentHistoryCustomer?.orders) ? currentHistoryCustomer.orders : [];
   const currentHistorySpent = currentHistoryCustomer?.totalSpent || currentHistoryOrders.reduce((sum, order) => sum + Number(order?.totalAmount || 0), 0);
+  const activeAssignedNorm = String(activeConversation?.assignedToLabelNorm || activeConversation?.assignedToLabel || "")
+    .trim()
+    .toLowerCase();
+  const activeChatIsUnassigned = hasActiveChat && (!activeAssignedNorm || activeAssignedNorm === "unassigned");
+
+  const loadAssignableAgents = useCallback(async () => {
+    if (!canAssignWhatsAppChat) return;
+    setAssignableAgentsLoading(true);
+    try {
+      const params = new URLSearchParams(getWhatsAppAccessPayload());
+      const data = await api(`/api/whatsapp/conversations/assignable-agents?${params.toString()}`);
+      setAssignableAgents(Array.isArray(data?.agents) ? data.agents : []);
+    } catch (error) {
+      showToast(extractApiErrorMessage(error, "Failed to load assignable agents"), "error");
+    } finally {
+      setAssignableAgentsLoading(false);
+    }
+  }, [canAssignWhatsAppChat, getWhatsAppAccessPayload, showToast]);
+
+  const assignActiveChat = useCallback(async (agentId) => {
+    const selected = assignableAgents.find((agent) => String(agent.id) === String(agentId));
+    if (!selected || !activeP10 || assigningChat) return;
+    setAssigningChat(true);
+    try {
+      const data = await api("/api/whatsapp/conversations/assign", {
+        method: "POST",
+        body: JSON.stringify({
+          phone: activeP10,
+          assignedToId: selected.id,
+          assignedToName: selected.name,
+          ...getWhatsAppAccessPayload(),
+        }),
+      });
+      const updatedConversation = data?.conversation;
+      if (updatedConversation) {
+        setConversations((prev) =>
+          prev.map((chat) =>
+            phone10(chat?.phone) === activeP10
+              ? { ...chat, ...updatedConversation }
+              : chat
+          )
+        );
+      }
+      setAssignChatValue("");
+      showToast(`Chat assigned to ${selected.name}`, "success");
+      refreshConversations(null, { silent: true });
+    } catch (error) {
+      showToast(extractApiErrorMessage(error, "Failed to assign chat"), "error");
+    } finally {
+      setAssigningChat(false);
+    }
+  }, [activeP10, assignableAgents, assigningChat, getWhatsAppAccessPayload, refreshConversations, showToast]);
+
+  useEffect(() => {
+    if (!canAssignWhatsAppChat) return;
+    loadAssignableAgents();
+  }, [canAssignWhatsAppChat, loadAssignableAgents]);
+
+  useEffect(() => {
+    setAssignChatValue("");
+  }, [activeP10]);
+
   const messageSearchTerm = messageSearchQuery.trim().toLowerCase();
   const messageSearchMatches = useMemo(() => {
     if (!messageSearchTerm) return [];
@@ -2759,6 +2826,7 @@ export default function WhatsAppUI() {
               }}
             >
               <MenuItem value="all">All experts</MenuItem>
+              <MenuItem value="unassigned">UnAssigned</MenuItem>
               {agentFilterOptions.map((name) => (
                 <MenuItem key={name} value={name.toLowerCase()}>
                   {name}
@@ -2956,6 +3024,47 @@ export default function WhatsAppUI() {
                       <Typography sx={{ fontSize: 12, color: LIGHT.subtext }}>
                         {assignedToText(activeConversation)}
                       </Typography>
+                    )}
+                    {canAssignWhatsAppChat && activeChatIsUnassigned && (
+                      <TextField
+                        select
+                        size="small"
+                        value={assignChatValue}
+                        onChange={(event) => {
+                          const value = String(event.target.value || "");
+                          setAssignChatValue(value);
+                          if (value) assignActiveChat(value);
+                        }}
+                        disabled={assigningChat || assignableAgentsLoading || !assignableAgents.length}
+                        SelectProps={{ displayEmpty: true }}
+                        sx={{
+                          minWidth: 178,
+                          "& .MuiOutlinedInput-root": {
+                            height: 30,
+                            bgcolor: "#fff",
+                            borderRadius: 99,
+                            fontSize: 12,
+                            color: LIGHT.text,
+                            "& fieldset": { borderColor: "#cbd5e1" },
+                            "&:hover fieldset": { borderColor: "#94a3b8" },
+                            "&.Mui-focused fieldset": { borderColor: "#128C7E", borderWidth: 1.25 },
+                          },
+                          "& .MuiSelect-select": { py: 0.45, pl: 1.25 },
+                        }}
+                      >
+                        <MenuItem value="" disabled>
+                          {assigningChat
+                            ? "Assigning..."
+                            : assignableAgentsLoading
+                            ? "Loading agents..."
+                            : "Assign chat"}
+                        </MenuItem>
+                        {assignableAgents.map((agent) => (
+                          <MenuItem key={agent.id} value={agent.id}>
+                            {agent.name}
+                          </MenuItem>
+                        ))}
+                      </TextField>
                     )}
                     {hasActiveChat && (
                       <Typography sx={{

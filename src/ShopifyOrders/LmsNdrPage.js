@@ -214,6 +214,7 @@ function NdrSection({ section, title, description, icon }) {
   const [tableRemarkSavingId, setTableRemarkSavingId] = useState("");
   const [selectedRowIds, setSelectedRowIds] = useState(() => new Set());
   const [ndrLevel, setNdrLevel] = useState("level1");
+  const [exporting, setExporting] = useState("");
   const [saveMessage, setSaveMessage] = useState("");
   const [filters, setFilters] = useState({
     search: "",
@@ -310,14 +311,6 @@ function NdrSection({ section, title, description, icon }) {
     [operationsAgents]
   );
 
-  const exportRows = useMemo(
-    () =>
-      rows.map((row) => ({
-        ...row,
-        assignedAgentName: row.assignedAgentName || getAssignedAgent(row.assignedAgentId)?.fullName || "",
-      })),
-    [getAssignedAgent, rows]
-  );
   const selectedRows = useMemo(
     () => rows.filter((row) => selectedRowIds.has(row.id)),
     [rows, selectedRowIds]
@@ -366,6 +359,25 @@ function NdrSection({ section, title, description, icon }) {
   const resetFilters = () => {
     setFilters({ search: "", dateFrom: "", dateTo: "", courier: "", status: "", paymentMode: "", agent: "", delay: "" });
     setPage(0);
+  };
+
+  const downloadAllRows = async (extension) => {
+    setExporting(extension);
+    setError("");
+    try {
+      const { data } = await api.get("/api/lms-orders/ndr", {
+        params: { ...params, export_all: "true" },
+      });
+      const rowsToExport = (Array.isArray(data?.data) ? data.data : []).map((row) => ({
+        ...row,
+        assignedAgentName: row.assignedAgentName || getAssignedAgent(row.assignedAgentId)?.fullName || "",
+      }));
+      downloadCsv(`${ndrLevel}-${section}-ndr-orders.${extension}`, rowsToExport);
+    } catch (err) {
+      setError(err?.response?.data?.error || "Failed to export NDR orders.");
+    } finally {
+      setExporting("");
+    }
   };
 
   const openDrawer = (row) => {
@@ -523,11 +535,11 @@ function NdrSection({ section, title, description, icon }) {
           </Box>
           <Stack direction="row" gap={1} alignItems="center">
             <Chip label={`${total} orders`} sx={{ bgcolor: "#fef3c7", color: "#92400e", fontWeight: 800 }} />
-            <Button size="small" startIcon={<FileDownloadOutlinedIcon />} onClick={() => downloadCsv(`${section}-ndr-orders.csv`, exportRows)} sx={{ textTransform: "none", fontWeight: 800 }}>
-              CSV
+            <Button size="small" startIcon={<FileDownloadOutlinedIcon />} disabled={Boolean(exporting)} onClick={() => downloadAllRows("csv")} sx={{ textTransform: "none", fontWeight: 800 }}>
+              {exporting === "csv" ? "Exporting..." : "CSV"}
             </Button>
-            <Button size="small" startIcon={<FileDownloadOutlinedIcon />} onClick={() => downloadCsv(`${section}-ndr-orders.xls`, exportRows)} sx={{ textTransform: "none", fontWeight: 800 }}>
-              Excel
+            <Button size="small" startIcon={<FileDownloadOutlinedIcon />} disabled={Boolean(exporting)} onClick={() => downloadAllRows("xls")} sx={{ textTransform: "none", fontWeight: 800 }}>
+              {exporting === "xls" ? "Exporting..." : "Excel"}
             </Button>
           </Stack>
         </Stack>

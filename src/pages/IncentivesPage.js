@@ -149,6 +149,10 @@ function isSalesDepartment(employee = {}) {
   return normalizeComparable(employee?.department) === "sales";
 }
 
+function isTechHelperDepartment(employee = {}) {
+  return normalizeComparable(employee?.department) === "tech helper";
+}
+
 function isIncentiveEligibleRole(employee = {}) {
   const role = normalizeComparable(employee?.role);
   return role === "sales agent" || role === "retention agent";
@@ -1204,6 +1208,8 @@ export default function IncentivesPage() {
   const [teamViewEnabled, setTeamViewEnabled] = useState(
     Boolean(sessionUser?.hasTeam)
   );
+  const [selectedAgentTeamViewEnabled, setSelectedAgentTeamViewEnabled] =
+    useState(false);
   const [teamInsightsSort, setTeamInsightsSort] = useState("achievement:desc");
   const [coinInsightsSort, setCoinInsightsSort] = useState("achievement:desc");
 
@@ -1291,6 +1297,36 @@ export default function IncentivesPage() {
     return false;
   }, [isManagerWithTeam, isSelfAndTeamRole, selectedAgent, teamViewEnabled]);
 
+  const selectedAgentCanToggleTeamView = useMemo(
+    () =>
+      Boolean(
+        canManageAgents &&
+        selectedAgent?.fullName &&
+        selectedAgent?.hasTeam &&
+        isSalesDepartment(selectedAgent)
+      ),
+    [canManageAgents, selectedAgent]
+  );
+
+  const selectedAgentTeamMembers = useMemo(() => {
+    if (!selectedAgentCanToggleTeamView) return [];
+
+    return getExpandedSalesTeamMembers([selectedAgent], employees, {
+      includeInactive: isHistoricalReport,
+    }).filter((member) => isIncentiveEligibleRole(member));
+  }, [
+    employees,
+    isHistoricalReport,
+    selectedAgent,
+    selectedAgentCanToggleTeamView,
+  ]);
+
+  useEffect(() => {
+    if (!selectedAgentCanToggleTeamView) {
+      setSelectedAgentTeamViewEnabled(false);
+    }
+  }, [selectedAgentCanToggleTeamView]);
+
   const canShowAgentDropdown = canManageAgents;
 
   const allSalesAgents = useMemo(
@@ -1306,10 +1342,20 @@ export default function IncentivesPage() {
     () => allSalesAgents.filter((emp) => isIncentiveEligibleRole(emp)),
     [allSalesAgents]
   );
+  const activeSelectableAgents = useMemo(
+    () =>
+      employees.filter(
+        (emp) =>
+          isActiveEmployee(emp) &&
+          !isTechHelperDepartment(emp) &&
+          isSalesDepartment(emp)
+      ),
+    [employees]
+  );
 
   const agentOptions = useMemo(() => {
     if (canManageAgents) {
-      return allSalesAgents;
+      return activeSelectableAgents;
     }
 
     if (isSelfAndTeamRole) {
@@ -1323,7 +1369,7 @@ export default function IncentivesPage() {
 
     return selfAgent ? [selfAgent] : [];
   }, [
-    allSalesAgents,
+    activeSelectableAgents,
     canManageAgents,
     isSelfAndTeamRole,
     selfAgent,
@@ -1702,10 +1748,8 @@ export default function IncentivesPage() {
           return;
         }
 
-        if (selectedAgent?.hasTeam && isSalesDepartment(selectedAgent)) {
-          const aggregateMembers = getExpandedSalesTeamMembers([selectedAgent], employees, {
-            includeInactive: isHistoricalReport,
-          }).filter((member) => isIncentiveEligibleRole(member));
+        if (selectedAgentCanToggleTeamView && selectedAgentTeamViewEnabled) {
+          const aggregateMembers = selectedAgentTeamMembers;
           const handled = await loadAggregateData(
             aggregateMembers,
             `${selectedAgent?.fullName || "Team"} Team`,
@@ -1779,6 +1823,9 @@ export default function IncentivesPage() {
     isRetentionWithTeam,
     isSuperAdmin,
     selectedAgent,
+    selectedAgentCanToggleTeamView,
+    selectedAgentTeamMembers,
+    selectedAgentTeamViewEnabled,
     selfAgent,
     sessionUser,
     startMonth,
@@ -1804,6 +1851,7 @@ export default function IncentivesPage() {
       setSelectedAgent(null);
       setTeamViewEnabled(true);
     }
+    setSelectedAgentTeamViewEnabled(false);
 
     clearPageState();
   }, [
@@ -2006,6 +2054,14 @@ export default function IncentivesPage() {
     0
   );
 
+  const selectedPeriodAvailableCoinValue = Number(
+    walletData.availableCoin ??
+    walletCoin.availableCoin ??
+    summary.availableWalletCoin ??
+    walletBaseEarnedCoins ??
+    0
+  );
+
   const displayAvailableCashValue = Number(
     walletOverride?.availableCash ??
     viewerBalanceWallet.availableCash ??
@@ -2165,7 +2221,8 @@ export default function IncentivesPage() {
   const totalTone = useMemo(() => getSlabTone(totalPercent), [totalPercent]);
 
   const walletPopoverOpen = Boolean(walletAnchorEl);
-  const canUseWalletActions = !usingCombinedTeamView && Boolean(data);
+  const canUseWalletActions =
+    !usingCombinedTeamView && !selectedAgentTeamViewEnabled && Boolean(data);
 
   const teamInsights = useMemo(() => {
     if (!isTeamData) {
@@ -2674,6 +2731,7 @@ export default function IncentivesPage() {
                     value={selectedAgent}
                     onChange={(_, value) => {
                       setSelectedAgent(value);
+                      setSelectedAgentTeamViewEnabled(false);
                       clearPageState();
                     }}
                     isOptionEqualToValue={(option, value) =>
@@ -2694,7 +2752,9 @@ export default function IncentivesPage() {
                   <Chip
                     label={
                       selectedAgent?.fullName
-                        ? "Individual View"
+                        ? selectedAgentTeamViewEnabled
+                          ? `Selected Team View • ${selectedAgentTeamMembers.length} members`
+                          : "Individual View"
                         : `Combined Team View • ${teamAgents.length} members`
                     }
                     sx={{
@@ -2710,7 +2770,9 @@ export default function IncentivesPage() {
                   <Chip
                     label={
                       selectedAgent?.fullName
-                        ? "Selected Experts"
+                        ? selectedAgentTeamViewEnabled
+                          ? `Selected Team View • ${selectedAgentTeamMembers.length} members`
+                          : "Individual View"
                         : `All Experts • ${allIncentiveAgents.length} members`
                     }
                     sx={{
@@ -2719,6 +2781,22 @@ export default function IncentivesPage() {
                       border: `1px solid ${BRAND.border}`,
                       background: "#f8fafc",
                     }}
+                  />
+                )}
+
+                {selectedAgentCanToggleTeamView && (
+                  <FormControlLabel
+                    sx={{ ml: 0 }}
+                    control={
+                      <Switch
+                        checked={selectedAgentTeamViewEnabled}
+                        onChange={(e) => {
+                          setSelectedAgentTeamViewEnabled(e.target.checked);
+                          clearPageState();
+                        }}
+                      />
+                    }
+                    label="Team View"
                   />
                 )}
 
@@ -2781,6 +2859,9 @@ export default function IncentivesPage() {
                           ? selfAgent?.fullName
                           : ""))) ||
                     (usingCombinedTeamView && teamAgents.length === 0) ||
+                    (selectedAgentCanToggleTeamView &&
+                      selectedAgentTeamViewEnabled &&
+                      selectedAgentTeamMembers.length === 0) ||
                     (isSuperAdmin && !selectedAgent && allIncentiveAgents.length === 0)
                   }
                   sx={{
@@ -3696,7 +3777,7 @@ export default function IncentivesPage() {
 
                       <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
                         <Chip
-                          label={`Available: ${formatNumber(displayAvailableCoinValue)}`}
+                          label={`Available: ${formatNumber(selectedPeriodAvailableCoinValue)}`}
                           variant="outlined"
                         />
                         <Chip
