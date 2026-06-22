@@ -23,6 +23,8 @@ import {
   Snackbar,
   Alert,
   Popover,
+  Drawer,
+  Link,
 } from "@mui/material";
 import { useLocation, useNavigate } from "react-router-dom";
 import SendIcon from "@mui/icons-material/Send";
@@ -44,6 +46,10 @@ import ShoppingCartIcon from "@mui/icons-material/ShoppingCart";
 import ReplyIcon from "@mui/icons-material/Reply";
 import CloseIcon from "@mui/icons-material/Close";
 import NotesIcon from "@mui/icons-material/Notes";
+import HistoryIcon from "@mui/icons-material/History";
+import ReceiptLongIcon from "@mui/icons-material/ReceiptLong";
+import LocalShippingIcon from "@mui/icons-material/LocalShipping";
+import PaymentsIcon from "@mui/icons-material/Payments";
 import { io } from "socket.io-client";
 import WhatsAppCartDrawer from "../pages/retention/WhatsAppCartDrawer";
  
@@ -57,6 +63,7 @@ const NOTIF_SOUND_URL =
   "https://cdn.shopify.com/s/files/1/0734/7155/7942/files/new-notification-014-363678.mp3?v=1769002522";
 const CONVERSATION_PAGE_SIZE = 50;
 const MESSAGE_PAGE_SIZE = 15;
+const TRACKING_CUTOFF_DATE = new Date("2026-03-06T00:00:00");
 
 const LIGHT = {
   appBg: "#f7f8fa",
@@ -155,6 +162,41 @@ function formatLastActive(ts) {
   if (diff < 86400000) return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   return d.toLocaleDateString([], { day: "numeric", month: "short" });
 }
+function formatOrderDate(ts) {
+  if (!ts) return "N/A";
+  const d = new Date(ts);
+  if (Number.isNaN(d.getTime())) return "N/A";
+  return d.toLocaleString([], { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+}
+function formatMoney(value) {
+  const num = Number(value || 0);
+  if (!Number.isFinite(num)) return "₹0";
+  return num.toLocaleString("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 });
+}
+function isOrderBeforeTrackingCutoff(orderDate) {
+  if (!orderDate) return false;
+  const parsedDate = new Date(orderDate);
+  if (Number.isNaN(parsedDate.getTime())) return false;
+  return parsedDate < TRACKING_CUTOFF_DATE;
+}
+function getTrackingLink(order = {}) {
+  const trackingNumber = String(order?.trackingNumber || order?.tracking_number || "").trim();
+  if (!trackingNumber) return "";
+
+  if (isOrderBeforeTrackingCutoff(order?.created_at || order?.order_date)) {
+    return `https://track.shipway.com/t/${encodeURIComponent(trackingNumber)}`;
+  }
+
+  if (/^\d+$/.test(trackingNumber) && trackingNumber.length > 13) {
+    return `https://www.delhivery.com/track-v2/package/${encodeURIComponent(trackingNumber)}`;
+  }
+
+  if (/^[A-Za-z0-9]+$/.test(trackingNumber) && /[A-Za-z]/.test(trackingNumber)) {
+    return `https://www.dtdc.com/track-your-shipment/?awb=${encodeURIComponent(trackingNumber)}`;
+  }
+
+  return `https://www.bluedart.com/web/guest/trackdartresultthirdparty?trackFor=0&&trackNo=${encodeURIComponent(trackingNumber)}`;
+}
 function nameInitials(name = "") {
   const parts = String(name || "").trim().split(/\s+/).filter(Boolean);
   if (!parts.length) return "?";
@@ -170,6 +212,7 @@ function extractApiErrorMessage(err, fallback = "Request failed") {
     data?.providerError?.errors?.[0]?.message ||
     data?.providerError?.message ||
     data?.providerError?.error ||
+    data?.error ||
     err?.message ||
     fallback
   );
@@ -875,6 +918,11 @@ export default function WhatsAppUI() {
   const [notesLoading, setNotesLoading] = useState(false);
   const [notesSaving, setNotesSaving] = useState(false);
   const [notesError, setNotesError] = useState("");
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [historyByPhone, setHistoryByPhone] = useState({});
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState("");
+  const [expandedHistoryOrders, setExpandedHistoryOrders] = useState({});
   const [quickAnchor, setQuickAnchor] = useState(null);
   const [tplAnchor, setTplAnchor] = useState(null);
   const [emojiAnchor, setEmojiAnchor] = useState(null);
@@ -1155,6 +1203,24 @@ export default function WhatsAppUI() {
     if (!name || name === activeP10) return activeP10 || "—";
     return name;
   }, [activeP10, activeConversation]);
+
+  const loadOrderHistory = useCallback(async (phone = activeP10, { force = false } = {}) => {
+    const p10 = phone10(phone);
+    if (!p10) return;
+    setHistoryOpen(true);
+    setHistoryError("");
+    if (!force && historyByPhone[p10]) return;
+    setHistoryLoading(true);
+    try {
+      const params = new URLSearchParams({ phone: p10 });
+      const data = await api(`/api/shopify/customerDetails?${params.toString()}`);
+      setHistoryByPhone((prev) => ({ ...prev, [p10]: data?.customer || null }));
+    } catch (error) {
+      setHistoryError(extractApiErrorMessage(error, "Failed to load Shopify order history"));
+    } finally {
+      setHistoryLoading(false);
+    }
+  }, [activeP10, historyByPhone]);
 
   const favoritePhoneList = useMemo(
     () => Object.keys(favoritePhones || {}).map((value) => phone10(value)).filter(Boolean),
@@ -2385,6 +2451,9 @@ export default function WhatsAppUI() {
   const hasActiveChat = !!activeChat?.phone;
   const templateOnlyMode = hasActiveChat && (sessionExpired || !sessionInfo.has || sessionInfo.expired);
   const expiredMode = templateOnlyMode;
+  const currentHistoryCustomer = historyByPhone[activeP10] || null;
+  const currentHistoryOrders = Array.isArray(currentHistoryCustomer?.orders) ? currentHistoryCustomer.orders : [];
+  const currentHistorySpent = currentHistoryCustomer?.totalSpent || currentHistoryOrders.reduce((sum, order) => sum + Number(order?.totalAmount || 0), 0);
   const messageSearchTerm = messageSearchQuery.trim().toLowerCase();
   const messageSearchMatches = useMemo(() => {
     if (!messageSearchTerm) return [];
@@ -2902,6 +2971,27 @@ export default function WhatsAppUI() {
 	                </Box>
 	              </Stack>
 	              <Stack direction="row" spacing={0.75} alignItems="center">
+	                <Tooltip title="Patient order history">
+	                  <IconButton
+	                    onClick={() => loadOrderHistory(activeP10)}
+	                    disabled={!hasActiveChat || historyLoading}
+	                    sx={{
+	                      width: 34,
+	                      height: 34,
+	                      bgcolor: "#fff",
+	                      border: `1px solid ${LIGHT.border}`,
+	                      color: historyOpen ? "#128C7E" : LIGHT.subtext,
+	                      "&:hover": { bgcolor: "#f8fafc", color: "#128C7E" },
+	                      "&.Mui-disabled": { color: LIGHT.muted, bgcolor: "#f8fafc" },
+	                    }}
+	                  >
+	                    {historyLoading && historyOpen ? (
+	                      <CircularProgress size={16} sx={{ color: "#128C7E" }} />
+	                    ) : (
+	                      <HistoryIcon sx={{ fontSize: 18 }} />
+	                    )}
+	                  </IconButton>
+	                </Tooltip>
 	                <Tooltip title="Internal notes">
 	                  <IconButton
 	                    onClick={async (event) => {
@@ -4100,6 +4190,283 @@ export default function WhatsAppUI() {
         phone10={activeP10}
         leadName={activeHeaderTitle}
       />
+
+      <Drawer
+        anchor="right"
+        open={historyOpen}
+        onClose={() => setHistoryOpen(false)}
+        PaperProps={{
+          sx: {
+            width: { xs: "100%", sm: 460 },
+            maxWidth: "100vw",
+            bgcolor: "#f8fafc",
+            color: LIGHT.text,
+            borderLeft: `1px solid ${LIGHT.border}`,
+          },
+        }}
+      >
+        <Box sx={{ height: "100%", display: "flex", flexDirection: "column" }}>
+          <Box sx={{ px: 2, py: 1.75, bgcolor: "#fff", borderBottom: `1px solid ${LIGHT.border}` }}>
+            <Stack direction="row" alignItems="center" spacing={1.25}>
+              <Box
+                sx={{
+                  width: 38,
+                  height: 38,
+                  borderRadius: "50%",
+                  display: "grid",
+                  placeItems: "center",
+                  bgcolor: "rgba(18,140,126,0.1)",
+                  color: "#128C7E",
+                  flexShrink: 0,
+                }}
+              >
+                <HistoryIcon sx={{ fontSize: 20 }} />
+              </Box>
+              <Box sx={{ minWidth: 0, flex: 1 }}>
+                <Typography sx={{ fontSize: 16, fontWeight: 800, color: LIGHT.text }}>
+                  Patient order history
+                </Typography>
+                <Typography sx={{ fontSize: 12.5, color: LIGHT.subtext }} noWrap>
+                  {activeHeaderTitle || "Customer"} {activeP10 ? `(${activeP10})` : ""}
+                </Typography>
+              </Box>
+              <Tooltip title="Refresh from Shopify">
+                <span>
+                  <IconButton
+                    size="small"
+                    onClick={() => loadOrderHistory(activeP10, { force: true })}
+                    disabled={!activeP10 || historyLoading}
+                    sx={{ color: LIGHT.subtext, "&:hover": { color: "#128C7E", bgcolor: "#ecfdf5" } }}
+                  >
+                    <RefreshIcon sx={{ fontSize: 18 }} />
+                  </IconButton>
+                </span>
+              </Tooltip>
+              <IconButton
+                size="small"
+                onClick={() => setHistoryOpen(false)}
+                sx={{ color: LIGHT.subtext, "&:hover": { color: LIGHT.text, bgcolor: "#eef2f7" } }}
+              >
+                <CloseIcon sx={{ fontSize: 19 }} />
+              </IconButton>
+            </Stack>
+          </Box>
+
+          <Box sx={{ flex: 1, overflow: "auto", p: 2 }}>
+            {historyError && (
+              <Alert severity="error" sx={{ mb: 1.5, fontSize: 12.5 }}>
+                {historyError}
+              </Alert>
+            )}
+
+            {historyLoading ? (
+              <Stack alignItems="center" justifyContent="center" spacing={1.25} sx={{ py: 8 }}>
+                <CircularProgress size={24} sx={{ color: "#128C7E" }} />
+                <Typography sx={{ fontSize: 13, color: LIGHT.subtext }}>Loading Shopify history...</Typography>
+              </Stack>
+            ) : currentHistoryCustomer ? (
+              <Stack spacing={1.5}>
+                <Paper
+                  elevation={0}
+                  sx={{
+                    p: 1.5,
+                    borderRadius: 2,
+                    border: `1px solid ${LIGHT.border}`,
+                    bgcolor: "#fff",
+                  }}
+                >
+                  <Typography sx={{ fontSize: 14, fontWeight: 800, color: LIGHT.text }} noWrap>
+                    {currentHistoryCustomer.name || activeHeaderTitle || "Shopify customer"}
+                  </Typography>
+                  <Typography sx={{ mt: 0.25, fontSize: 12, color: LIGHT.subtext }}>
+                    Last order: {formatOrderDate(currentHistoryCustomer.lastOrderDate)}
+                  </Typography>
+                  <Stack direction="row" spacing={1} sx={{ mt: 1.25 }}>
+                    <Box sx={{ flex: 1, p: 1, borderRadius: 1.5, bgcolor: "#f0fdf4", border: "1px solid #bbf7d0" }}>
+                      <Typography sx={{ fontSize: 11, color: "#166534", fontWeight: 700 }}>Orders</Typography>
+                      <Typography sx={{ fontSize: 18, color: "#14532d", fontWeight: 900 }}>
+                        {currentHistoryCustomer.totalOrders || currentHistoryOrders.length}
+                      </Typography>
+                    </Box>
+                    <Box sx={{ flex: 1, p: 1, borderRadius: 1.5, bgcolor: "#eff6ff", border: "1px solid #bfdbfe" }}>
+                      <Typography sx={{ fontSize: 11, color: "#1d4ed8", fontWeight: 700 }}>Total spent</Typography>
+                      <Typography sx={{ fontSize: 18, color: "#1e3a8a", fontWeight: 900 }}>
+                        {formatMoney(currentHistorySpent)}
+                      </Typography>
+                    </Box>
+                    <Box sx={{ flex: 1, p: 1, borderRadius: 1.5, bgcolor: "#fff7ed", border: "1px solid #fed7aa" }}>
+                      <Typography sx={{ fontSize: 11, color: "#c2410c", fontWeight: 700 }}>Payment</Typography>
+                      <Typography sx={{ fontSize: 13, color: "#7c2d12", fontWeight: 800 }} noWrap>
+                        {currentHistoryCustomer.lastOrderPaymentStatus || "N/A"}
+                      </Typography>
+                    </Box>
+                  </Stack>
+                </Paper>
+
+                {currentHistoryOrders.length ? (
+                  currentHistoryOrders.map((order, index) => {
+                    const orderKey = String(order?.id || order?.name || index);
+                    const expanded = Boolean(expandedHistoryOrders[orderKey]);
+                    const lineItems = Array.isArray(order?.lineItems) ? order.lineItems : [];
+                    const trackingLink = getTrackingLink(order);
+                    return (
+                      <Paper
+                        key={orderKey}
+                        elevation={0}
+                        sx={{
+                          borderRadius: 2,
+                          border: `1px solid ${LIGHT.border}`,
+                          bgcolor: "#fff",
+                          overflow: "hidden",
+                        }}
+                      >
+                        <Box sx={{ p: 1.5 }}>
+                          <Stack direction="row" alignItems="flex-start" spacing={1.1}>
+                            <Box
+                              sx={{
+                                mt: 0.1,
+                                width: 32,
+                                height: 32,
+                                borderRadius: "50%",
+                                display: "grid",
+                                placeItems: "center",
+                                bgcolor: "#eef2ff",
+                                color: "#4338ca",
+                                flexShrink: 0,
+                              }}
+                            >
+                              <ReceiptLongIcon sx={{ fontSize: 17 }} />
+                            </Box>
+                            <Box sx={{ minWidth: 0, flex: 1 }}>
+                              <Stack direction="row" alignItems="center" justifyContent="space-between" gap={1}>
+                                <Typography sx={{ fontSize: 14, fontWeight: 800, color: LIGHT.text }} noWrap>
+                                  {order?.name || `Order ${index + 1}`}
+                                </Typography>
+                                <Typography sx={{ fontSize: 14, fontWeight: 900, color: "#111827", flexShrink: 0 }}>
+                                  {formatMoney(order?.totalAmount)}
+                                </Typography>
+                              </Stack>
+                              <Typography sx={{ mt: 0.25, fontSize: 12, color: LIGHT.subtext }}>
+                                {formatOrderDate(order?.created_at)}
+                              </Typography>
+                              <Stack direction="row" flexWrap="wrap" gap={0.75} sx={{ mt: 1 }}>
+                                <Chip
+                                  size="small"
+                                  icon={<PaymentsIcon sx={{ fontSize: "15px !important" }} />}
+                                  label={order?.deliveryStatus || "Not fulfilled"}
+                                  sx={{ height: 24, fontSize: 11.5, bgcolor: "#f8fafc", border: `1px solid ${LIGHT.border}` }}
+                                />
+                                <Chip
+                                  size="small"
+                                  icon={<LocalShippingIcon sx={{ fontSize: "15px !important" }} />}
+                                  label={order?.shipmentStatus || "Shipment N/A"}
+                                  sx={{ height: 24, fontSize: 11.5, bgcolor: "#f8fafc", border: `1px solid ${LIGHT.border}` }}
+                                />
+                                <Chip
+                                  size="small"
+                                  label={`${order?.itemCount || lineItems.length || 0} item${Number(order?.itemCount || lineItems.length || 0) === 1 ? "" : "s"}`}
+                                  sx={{ height: 24, fontSize: 11.5, bgcolor: "#f8fafc", border: `1px solid ${LIGHT.border}` }}
+                                />
+                              </Stack>
+                            </Box>
+                          </Stack>
+                        </Box>
+                        <Divider />
+                        <Box sx={{ px: 1.5, py: 1.1, bgcolor: "#fbfcfe" }}>
+                          <Stack spacing={0.75}>
+                            {lineItems.slice(0, expanded ? lineItems.length : 2).map((item, itemIndex) => (
+                              <Stack key={`${orderKey}-${itemIndex}`} direction="row" justifyContent="space-between" gap={1}>
+                                <Typography sx={{ fontSize: 12.5, color: LIGHT.text, minWidth: 0 }} noWrap>
+                                  {item?.title || "Product"}{item?.variant ? ` - ${item.variant}` : ""}
+                                </Typography>
+                                <Typography sx={{ fontSize: 12.5, color: LIGHT.subtext, flexShrink: 0 }}>
+                                  {formatMoney(item?.amountPaid)}
+                                </Typography>
+                              </Stack>
+                            ))}
+                            {lineItems.length > 2 && !expanded && (
+                              <Typography sx={{ fontSize: 12, color: LIGHT.subtext }}>
+                                +{lineItems.length - 2} more item{lineItems.length - 2 === 1 ? "" : "s"}
+                              </Typography>
+                            )}
+                            {expanded && (
+                              <>
+                                <Divider sx={{ my: 0.5 }} />
+                                <Typography sx={{ fontSize: 12, color: LIGHT.subtext }}>
+                                  Tracking:{" "}
+                                  {trackingLink ? (
+                                    <Link
+                                      href={trackingLink}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      underline="hover"
+                                      sx={{ color: "#128C7E", fontWeight: 800 }}
+                                    >
+                                      {order?.trackingNumber}
+                                    </Link>
+                                  ) : (
+                                    order?.trackingNumber || "N/A"
+                                  )}
+                                </Typography>
+                                <Typography sx={{ fontSize: 12, color: LIGHT.subtext, whiteSpace: "pre-wrap" }}>
+                                  Address: {order?.shippingAddress || "N/A"}
+                                </Typography>
+                              </>
+                            )}
+                            <Button
+                              size="small"
+                              onClick={() => setExpandedHistoryOrders((prev) => ({ ...prev, [orderKey]: !expanded }))}
+                              sx={{
+                                alignSelf: "flex-start",
+                                mt: 0.25,
+                                p: 0,
+                                minWidth: 0,
+                                color: "#128C7E",
+                                textTransform: "none",
+                                fontSize: 12,
+                                fontWeight: 800,
+                                "&:hover": { bgcolor: "transparent", color: "#0f766e" },
+                              }}
+                            >
+                              {expanded ? "Hide details" : "Open details"}
+                            </Button>
+                          </Stack>
+                        </Box>
+                      </Paper>
+                    );
+                  })
+                ) : (
+                  <Paper
+                    elevation={0}
+                    sx={{ p: 2, borderRadius: 2, border: `1px dashed ${LIGHT.border}`, bgcolor: "#fff", textAlign: "center" }}
+                  >
+                    <ReceiptLongIcon sx={{ fontSize: 28, color: LIGHT.muted, mb: 0.5 }} />
+                    <Typography sx={{ fontSize: 13.5, fontWeight: 800, color: LIGHT.text }}>
+                      No Shopify orders found
+                    </Typography>
+                    <Typography sx={{ fontSize: 12, color: LIGHT.subtext }}>
+                      This patient has no order history linked to the selected phone.
+                    </Typography>
+                  </Paper>
+                )}
+              </Stack>
+            ) : (
+              <Paper
+                elevation={0}
+                sx={{ p: 2, borderRadius: 2, border: `1px dashed ${LIGHT.border}`, bgcolor: "#fff", textAlign: "center" }}
+              >
+                <HistoryIcon sx={{ fontSize: 30, color: LIGHT.muted, mb: 0.75 }} />
+                <Typography sx={{ fontSize: 13.5, fontWeight: 800, color: LIGHT.text }}>
+                  No customer found on Shopify
+                </Typography>
+                <Typography sx={{ fontSize: 12, color: LIGHT.subtext }}>
+                  Try confirming the phone number in the active conversation.
+                </Typography>
+              </Paper>
+            )}
+          </Box>
+        </Box>
+      </Drawer>
 
       <Dialog
         open={!!mediaPreview}
