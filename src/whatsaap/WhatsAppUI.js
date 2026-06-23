@@ -44,6 +44,8 @@ import StarBorderIcon from "@mui/icons-material/StarBorder";
 import StarIcon from "@mui/icons-material/Star";
 import ShoppingCartIcon from "@mui/icons-material/ShoppingCart";
 import ReplyIcon from "@mui/icons-material/Reply";
+import MoreVertIcon from "@mui/icons-material/MoreVert";
+import PushPinIcon from "@mui/icons-material/PushPin";
 import CloseIcon from "@mui/icons-material/Close";
 import NotesIcon from "@mui/icons-material/Notes";
 import HistoryIcon from "@mui/icons-material/History";
@@ -478,10 +480,10 @@ function searchableMessageText(m = {}) {
   ].filter(Boolean).join(" ").toLowerCase();
 }
 function replyMessageId(m) { return String(m?._id || m?.id || "").trim(); }
-function replySenderLabel(reply = {}) {
+function replySenderLabel(reply = {}, customerLabel = "") {
   const dir = String(reply?.direction || "").toUpperCase();
   if (dir === "OUTBOUND") return "You";
-  if (dir === "INBOUND") return "Customer";
+  if (dir === "INBOUND") return String(customerLabel || "").trim() || "Customer";
   return "Message";
 }
 function replyPreviewText(source = {}) {
@@ -496,16 +498,18 @@ function replyPreviewText(source = {}) {
   if (source?.media?.filename) return source.media.filename;
   return "Message";
 }
-function buildReplyPayload(message = null) {
+function buildReplyPayload(message = null, customerLabel = "") {
   if (!message) return null;
+  const dir = String(message?.direction || "").trim().toUpperCase();
   return {
     messageId: replyMessageId(message),
     waId: String(message?.waId || "").trim(),
     text: replyPreviewText(message),
     type: String(message?.type || "text").trim(),
-    direction: String(message?.direction || "").trim().toUpperCase(),
+    direction: dir,
     from: String(message?.from || "").trim(),
     to: String(message?.to || "").trim(),
+    senderLabel: dir === "INBOUND" ? String(customerLabel || "").trim() : "",
   };
 }
 function hasReplyContext(reply = null) {
@@ -518,7 +522,30 @@ function hasReplyContext(reply = null) {
   );
 }
 
-function ReplyQuote({ reply, compact = false, onClear }) {
+function hasPinnedMessage(pin = null) {
+  return Boolean(String(pin?.messageId || pin?.waId || pin?.text || "").trim());
+}
+function pinnedMessagePreview(pin = null) {
+  const text = String(pin?.text || "").trim();
+  if (text) return text.length > 120 ? `${text.slice(0, 117)}...` : text;
+  const type = String(pin?.type || "").toLowerCase();
+  if (type === "image") return "Photo";
+  if (type === "video") return "Video";
+  if (type === "audio" || type === "voice") return "Audio";
+  if (type === "template") return "Template message";
+  if (type === "document") return "Document";
+  return "Pinned message";
+}
+function pinnedMatchesMessage(pin = null, msg = null) {
+  const pinnedWaId = String(pin?.waId || "").trim();
+  const msgWaId = String(msg?.waId || "").trim();
+  if (pinnedWaId && msgWaId && pinnedWaId === msgWaId) return true;
+  const pinnedId = String(pin?.messageId || "").trim();
+  const msgId = String(msg?._id || msg?.id || "").trim();
+  return Boolean(pinnedId && msgId && pinnedId === msgId);
+}
+
+function ReplyQuote({ reply, compact = false, onClear, customerLabel = "" }) {
   if (!hasReplyContext(reply)) return null;
   return (
     <Box
@@ -537,7 +564,7 @@ function ReplyQuote({ reply, compact = false, onClear }) {
     >
       <Box sx={{ minWidth: 0, flex: 1 }}>
         <Typography sx={{ fontSize: compact ? 11 : 12, color: "#128C7E", fontWeight: 800, lineHeight: 1.2 }}>
-          {replySenderLabel(reply)}
+          {replySenderLabel(reply, reply?.senderLabel || customerLabel)}
         </Typography>
         <Typography
           sx={{
@@ -930,6 +957,10 @@ export default function WhatsAppUI() {
   const [quickAnchor, setQuickAnchor] = useState(null);
   const [tplAnchor, setTplAnchor] = useState(null);
   const [emojiAnchor, setEmojiAnchor] = useState(null);
+  const [messageMenuAnchor, setMessageMenuAnchor] = useState(null);
+  const [messageMenuMsg, setMessageMenuMsg] = useState(null);
+  const [pinningMessage, setPinningMessage] = useState(false);
+  const [pinnedHighlightKey, setPinnedHighlightKey] = useState("");
   const fileRef = useRef(null);
   const [fileUploading, setFileUploading] = useState(false);
   const [replyingTo, setReplyingTo] = useState(null);
@@ -1208,6 +1239,10 @@ export default function WhatsAppUI() {
     if (!name || name === activeP10) return activeP10 || "—";
     return name;
   }, [activeP10, activeConversation]);
+  const activeCustomerReplyLabel = useMemo(() => {
+    const name = String(activeHeaderTitle || "").trim();
+    return name && name !== "—" ? name : activeP10 || "";
+  }, [activeHeaderTitle, activeP10]);
 
   const loadOrderHistory = useCallback(async (phone = activeP10, { force = false } = {}) => {
     const p10 = phone10(phone);
@@ -2036,7 +2071,7 @@ export default function WhatsAppUI() {
       return;
     }
     const p10 = phone10(to);
-    const replyTo = buildReplyPayload(replyingTo);
+    const replyTo = buildReplyPayload(replyingTo, activeCustomerReplyLabel);
     const optimistic = { _id: buildTempId("tmp_text"), direction: "OUTBOUND", type: "text", text, timestamp: new Date().toISOString(), status: "sent", to, phone: to, ...(replyTo ? { replyTo } : {}) };
     setMessages((prev) => [...prev, optimistic]);
     setReplyingTo(null);
@@ -2141,7 +2176,7 @@ export default function WhatsAppUI() {
     const to = normalizeToWa(activeChat.phone);
     const { file, mime, filename, type, caption = "" } = pendingAttachment;
     const optimisticPreviewUrl = URL.createObjectURL(file);
-    const replyTo = buildReplyPayload(replyingTo);
+    const replyTo = buildReplyPayload(replyingTo, activeCustomerReplyLabel);
 
     const optimistic = {
       _id: buildTempId("tmp_file"),
@@ -2236,7 +2271,7 @@ export default function WhatsAppUI() {
       } catch (e) { showToast(e.message || "Failed to upload.", "error"); setTplSending(false); return; }
     } else { setTplSending(true); }
 
-    const replyTo = buildReplyPayload(replyingTo);
+    const replyTo = buildReplyPayload(replyingTo, activeCustomerReplyLabel);
     const optimistic = { _id: buildTempId("tmp_tpl"), direction: "OUTBOUND", type: "template", text: tplSendPreview || `[TEMPLATE] ${activeTplForSend.name}`, timestamp: new Date().toISOString(), status: "sent", to, phone: to, ...(replyTo ? { replyTo } : {}), ...(optimisticMedia ? { media: optimisticMedia } : {}), templateMeta: { name: activeTplForSend.name, templateId: activeTplForSend.template_id || activeTplForSend.templateId || activeTplForSend.providerTemplateId || "", language: activeTplForSend.language || "", parameters: params, buttons: extractTemplateButtons(activeTplForSend), ...(headerMedia ? { headerMedia } : {}) } };
     setMessages((prev) => [...prev, optimistic]);
     setReplyingTo(null);
@@ -2554,7 +2589,74 @@ export default function WhatsAppUI() {
     setMessageSearchOpen(false);
     setMessageSearchQuery("");
     messageSearchRefs.current.clear();
+    setMessageMenuAnchor(null);
+    setMessageMenuMsg(null);
+    setPinnedHighlightKey("");
   }, [activeP10]);
+
+  const activePinnedMessage = activeConversation?.pinnedMessage || null;
+  const scrollToPinnedMessage = useCallback((pin = activePinnedMessage) => {
+    if (!hasPinnedMessage(pin)) return;
+    const match = (messages || []).find((msg) => pinnedMatchesMessage(pin, msg));
+    if (!match) {
+      showToast("Pinned message is not loaded in this chat yet.", "info");
+      return;
+    }
+    const key = msgKey(match);
+    messageSearchRefs.current.get(key)?.scrollIntoView({ behavior: "smooth", block: "center" });
+    setPinnedHighlightKey(key);
+    setTimeout(() => setPinnedHighlightKey((current) => (current === key ? "" : current)), 1600);
+  }, [activePinnedMessage, messages, showToast]);
+
+  const pinMessageToTop = useCallback(async (msg) => {
+    if (!activeP10 || !msg || pinningMessage) return;
+    setPinningMessage(true);
+    try {
+      const body = {
+        phone: activeP10,
+        messageId: String(msg?._id || msg?.id || ""),
+        waId: String(msg?.waId || ""),
+        ...getWhatsAppAccessPayload(),
+      };
+      const data = await api(`/api/whatsapp/conversations/pin-message`, {
+        method: "POST",
+        body: JSON.stringify(body),
+      });
+      const pinnedMessage = data?.pinnedMessage || data?.conversation?.pinnedMessage;
+      if (pinnedMessage) {
+        setConversations((prev) => prev.map((chat) => (
+          phone10(chat?.phone) === activeP10 ? { ...chat, pinnedMessage } : chat
+        )));
+      }
+      showToast("Message pinned to top", "success");
+    } catch (e) {
+      showToast(e.message || "Pin failed", "error");
+    } finally {
+      setPinningMessage(false);
+      setMessageMenuAnchor(null);
+      setMessageMenuMsg(null);
+    }
+  }, [activeP10, getWhatsAppAccessPayload, pinningMessage, showToast]);
+
+  const unpinMessageFromTop = useCallback(async () => {
+    if (!activeP10 || pinningMessage) return;
+    setPinningMessage(true);
+    try {
+      const data = await api(`/api/whatsapp/conversations/unpin-message`, {
+        method: "POST",
+        body: JSON.stringify({ phone: activeP10, ...getWhatsAppAccessPayload() }),
+      });
+      const pinnedMessage = data?.pinnedMessage || data?.conversation?.pinnedMessage || null;
+      setConversations((prev) => prev.map((chat) => (
+        phone10(chat?.phone) === activeP10 ? { ...chat, pinnedMessage } : chat
+      )));
+      showToast("Pinned message removed", "success");
+    } catch (e) {
+      showToast(e.message || "Unpin failed", "error");
+    } finally {
+      setPinningMessage(false);
+    }
+  }, [activeP10, getWhatsAppAccessPayload, pinningMessage, showToast]);
 
   /* ─── Grouped messages with date separators ─────────────────────────────── */
   const groupedMessages = useMemo(() => {
@@ -3389,6 +3491,47 @@ export default function WhatsAppUI() {
               </Stack>
 	            </Box>
 
+            {hasPinnedMessage(activePinnedMessage) && (
+              <Box
+                sx={{
+                  px: 2,
+                  py: 0.85,
+                  bgcolor: "#fff",
+                  borderBottom: `1px solid ${LIGHT.border}`,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 1,
+                  zIndex: 2,
+                  flexShrink: 0,
+                }}
+              >
+                <PushPinIcon sx={{ fontSize: 17, color: "#128C7E", flexShrink: 0 }} />
+                <Box
+                  onClick={() => scrollToPinnedMessage(activePinnedMessage)}
+                  sx={{ minWidth: 0, flex: 1, cursor: "pointer" }}
+                >
+                  <Typography sx={{ fontSize: 12, fontWeight: 800, color: "#128C7E", lineHeight: 1.15 }}>
+                    Pinned message
+                  </Typography>
+                  <Typography noWrap sx={{ fontSize: 13, color: LIGHT.text }}>
+                    {pinnedMessagePreview(activePinnedMessage)}
+                  </Typography>
+                </Box>
+                <Tooltip title="Unpin">
+                  <span>
+                    <IconButton
+                      size="small"
+                      disabled={pinningMessage}
+                      onClick={unpinMessageFromTop}
+                      sx={{ color: LIGHT.subtext }}
+                    >
+                      <CloseIcon sx={{ fontSize: 18 }} />
+                    </IconButton>
+                  </span>
+                </Tooltip>
+              </Box>
+            )}
+
             {messageSearchOpen && (
               <Box
                 sx={{
@@ -3488,6 +3631,7 @@ export default function WhatsAppUI() {
                       !!String(msg?.templateMeta?.headerMedia?.id || "").trim() || !!String(msg?.templateMeta?.headerMedia?.url || "").trim();
                     const searchKey = msgKey(msg);
                     const isSearchMatch = !!messageSearchTerm && currentMessageSearchKey === searchKey;
+                    const isPinnedHighlight = pinnedHighlightKey === searchKey;
                     const canRetryText = isOutbound && normalizeStatus(msg?.status) === "failed" && String(msg?.type || "text").toLowerCase() === "text";
                     const isRetryingText = retryingMessageIds.has(searchKey);
 
@@ -3506,7 +3650,7 @@ export default function WhatsAppUI() {
 	                          px: 1,
                             py: isSearchMatch ? 0.35 : 0,
                             borderRadius: 2,
-                            outline: isSearchMatch ? "2px solid #f59e0b" : "2px solid transparent",
+                            outline: (isSearchMatch || isPinnedHighlight) ? "2px solid #f59e0b" : "2px solid transparent",
                             outlineOffset: 2,
 	                          animation: "fadeSlideIn 0.18s ease-out",
                             transition: "outline-color 0.16s ease, padding 0.16s ease",
@@ -3566,6 +3710,8 @@ export default function WhatsAppUI() {
                               px: 1.25,
                               pt: 0.75,
                               pb: 0.25,
+                              pr: 3.75,
+                              position: "relative",
                               bgcolor: isOutbound
                                 ? wasUnread ? LIGHT.unreadOutgoingBubble : LIGHT.outgoingBubble
                                 : wasUnread ? LIGHT.unreadIncomingBubble : LIGHT.incomingBubble,
@@ -3577,7 +3723,29 @@ export default function WhatsAppUI() {
                               transition: "background 0.2s",
 	                            }}
 	                          >
-                              <ReplyQuote reply={msg?.replyTo} compact />
+                              <Tooltip title="More">
+                                <IconButton
+                                  size="small"
+                                  onClick={(event) => {
+                                    setMessageMenuAnchor(event.currentTarget);
+                                    setMessageMenuMsg(msg);
+                                  }}
+                                  sx={{
+                                    position: "absolute",
+                                    top: 2,
+                                    right: 2,
+                                    width: 24,
+                                    height: 24,
+                                    p: 0.2,
+                                    color: LIGHT.subtext,
+                                    bgcolor: "rgba(255,255,255,0.35)",
+                                    "&:hover": { bgcolor: "rgba(255,255,255,0.75)", color: LIGHT.text },
+                                  }}
+                                >
+                                  <MoreVertIcon sx={{ fontSize: 16 }} />
+                                </IconButton>
+                              </Tooltip>
+                              <ReplyQuote reply={msg?.replyTo} compact customerLabel={activeCustomerReplyLabel} />
 	                            {isTemplate ? (
 	                              <TemplateBubble msg={msg} onPreview={setMediaPreview} />
 	                            ) : (
@@ -3685,7 +3853,7 @@ export default function WhatsAppUI() {
                 </Box>
               ) : (
 	                <>
-                    <ReplyQuote reply={replyingTo} onClear={() => setReplyingTo(null)} />
+                    <ReplyQuote reply={replyingTo} onClear={() => setReplyingTo(null)} customerLabel={activeCustomerReplyLabel} />
 	                  {/* Toolbar row */}
                   <Stack
                     direction="row"
@@ -3812,6 +3980,32 @@ export default function WhatsAppUI() {
       </Box>
 
       {/* ── Menus ────────────────────────────────────────────────────────────── */}
+      <Menu
+        anchorEl={messageMenuAnchor}
+        open={Boolean(messageMenuAnchor)}
+        onClose={() => {
+          setMessageMenuAnchor(null);
+          setMessageMenuMsg(null);
+        }}
+        PaperProps={{
+          sx: {
+            bgcolor: "#fff",
+            color: LIGHT.text,
+            borderRadius: 2,
+            border: `1px solid ${LIGHT.border}`,
+            boxShadow: "0 8px 24px rgba(16,24,40,0.12)",
+          },
+        }}
+      >
+        <MenuItem
+          disabled={!messageMenuMsg || pinningMessage}
+          onClick={() => pinMessageToTop(messageMenuMsg)}
+          sx={{ fontSize: 14, py: 1.1 }}
+        >
+          Pin message
+        </MenuItem>
+      </Menu>
+
       <Menu
         anchorEl={quickAnchor}
         open={Boolean(quickAnchor)}

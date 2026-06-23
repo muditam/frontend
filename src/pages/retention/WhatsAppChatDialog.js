@@ -45,6 +45,8 @@ import AccessTimeIcon from "@mui/icons-material/AccessTime";
 import LockOutlinedIcon from "@mui/icons-material/LockOutlined";
 import DescriptionOutlinedIcon from "@mui/icons-material/DescriptionOutlined";
 import ReplyIcon from "@mui/icons-material/Reply";
+import MoreVertIcon from "@mui/icons-material/MoreVert";
+import PushPinIcon from "@mui/icons-material/PushPin";
 import axios from "axios";
 import { io } from "socket.io-client";
 
@@ -364,10 +366,10 @@ function searchableMessageText(m = {}) {
   ].filter(Boolean).join(" ").toLowerCase();
 }
 function replyMessageId(m) { return String(m?._id || m?.id || "").trim(); }
-function replySenderLabel(reply = {}) {
+function replySenderLabel(reply = {}, customerLabel = "") {
   const dir = String(reply?.direction || "").toUpperCase();
   if (dir === "OUTBOUND") return "You";
-  if (dir === "INBOUND") return "Customer";
+  if (dir === "INBOUND") return String(customerLabel || "").trim() || "Customer";
   return "Message";
 }
 function replyPreviewText(source = {}) {
@@ -382,16 +384,18 @@ function replyPreviewText(source = {}) {
   if (source?.media?.filename) return source.media.filename;
   return "Message";
 }
-function buildReplyPayload(message = null) {
+function buildReplyPayload(message = null, customerLabel = "") {
   if (!message) return null;
+  const dir = String(message?.direction || "").trim().toUpperCase();
   return {
     messageId: replyMessageId(message),
     waId: String(message?.waId || "").trim(),
     text: replyPreviewText(message),
     type: String(message?.type || "text").trim(),
-    direction: String(message?.direction || "").trim().toUpperCase(),
+    direction: dir,
     from: String(message?.from || "").trim(),
     to: String(message?.to || "").trim(),
+    senderLabel: dir === "INBOUND" ? String(customerLabel || "").trim() : "",
   };
 }
 function hasReplyContext(reply = null) {
@@ -403,7 +407,30 @@ function hasReplyContext(reply = null) {
   );
 }
 
-function ReplyQuote({ reply, onClear, compact = false }) {
+function hasPinnedMessage(pin = null) {
+  return Boolean(String(pin?.messageId || pin?.waId || pin?.text || "").trim());
+}
+function pinnedMessagePreview(pin = null) {
+  const text = String(pin?.text || "").trim();
+  if (text) return text.length > 120 ? `${text.slice(0, 117)}...` : text;
+  const type = String(pin?.type || "").toLowerCase();
+  if (type === "image") return "Photo";
+  if (type === "video") return "Video";
+  if (type === "audio" || type === "voice") return "Audio";
+  if (type === "template") return "Template message";
+  if (type === "document") return "Document";
+  return "Pinned message";
+}
+function pinnedMatchesMessage(pin = null, msg = null) {
+  const pinnedWaId = String(pin?.waId || "").trim();
+  const msgWaId = String(msg?.waId || "").trim();
+  if (pinnedWaId && msgWaId && pinnedWaId === msgWaId) return true;
+  const pinnedId = String(pin?.messageId || "").trim();
+  const msgId = String(msg?._id || msg?.id || "").trim();
+  return Boolean(pinnedId && msgId && pinnedId === msgId);
+}
+
+function ReplyQuote({ reply, onClear, compact = false, customerLabel = "" }) {
   if (!hasReplyContext(reply)) return null;
   return (
     <Box
@@ -421,7 +448,7 @@ function ReplyQuote({ reply, onClear, compact = false }) {
     >
       <Box sx={{ minWidth: 0, flex: 1 }}>
         <Typography sx={{ fontSize: compact ? 11.5 : 12, fontWeight: 900, color: UI.brandDark, lineHeight: 1.2 }}>
-          {replySenderLabel(reply)}
+          {replySenderLabel(reply, reply?.senderLabel || customerLabel)}
         </Typography>
         <Typography
           sx={{
@@ -794,6 +821,11 @@ export default function WhatsAppChatDrawer({
   const [messageSearchIndex, setMessageSearchIndex] = useState(0);
   const [replyingTo, setReplyingTo] = useState(null);
   const [retryingMessageIds, setRetryingMessageIds] = useState(() => new Set());
+  const [pinnedMessage, setPinnedMessage] = useState(null);
+  const [pinnedHighlightKey, setPinnedHighlightKey] = useState("");
+  const [messageMenuAnchor, setMessageMenuAnchor] = useState(null);
+  const [messageMenuMsg, setMessageMenuMsg] = useState(null);
+  const [pinningMessage, setPinningMessage] = useState(false);
 
   const [pendingFile, setPendingFile] = useState(null);
   const [attachmentSending, setAttachmentSending] = useState(false);
@@ -810,6 +842,10 @@ export default function WhatsAppChatDrawer({
   const stickToBottomRef = useRef(true);
 
   const phone10 = useMemo(() => last10(phone), [phone]);
+  const customerReplyLabel = useMemo(() => {
+    const name = String(leadName || "").trim();
+    return name || phone10 || "";
+  }, [leadName, phone10]);
   const sessionUser = useMemo(() => {
     try {
       const raw = sessionStorage.getItem("user");
@@ -947,6 +983,7 @@ export default function WhatsAppChatDrawer({
 
     if (found?.windowExpiresAt) setWindowExpiresAt(found.windowExpiresAt);
     if (found?.lastInboundAt) setLastInboundAt(found.lastInboundAt);
+    setPinnedMessage(found?.pinnedMessage || null);
   }, [phone10, whatsappAccessPayload]);
 
   const fetchMessages = useCallback(async () => {
@@ -1079,6 +1116,7 @@ export default function WhatsAppChatDrawer({
       const patch = payload?.patch || payload || {};
       if (patch?.windowExpiresAt) setWindowExpiresAt(patch.windowExpiresAt);
       if (patch?.lastInboundAt) setLastInboundAt(patch.lastInboundAt);
+      if (Object.prototype.hasOwnProperty.call(patch, "pinnedMessage")) setPinnedMessage(patch.pinnedMessage || null);
     };
 
     socket.on("connect", onConnect);
@@ -1122,6 +1160,10 @@ export default function WhatsAppChatDrawer({
     setMessageSearchQuery("");
     setReplyingTo(null);
     setRetryingMessageIds(new Set());
+    setPinnedMessage(null);
+    setPinnedHighlightKey("");
+    setMessageMenuAnchor(null);
+    setMessageMenuMsg(null);
     messageSearchRefs.current.clear();
 
     setTplComposeOpen(false);
@@ -1205,6 +1247,55 @@ export default function WhatsAppChatDrawer({
     });
   }, [currentMessageSearchKey]);
 
+  const scrollToPinnedMessage = useCallback((pin = pinnedMessage) => {
+    if (!hasPinnedMessage(pin)) return;
+    const match = (messages || []).find((msg) => pinnedMatchesMessage(pin, msg));
+    if (!match) {
+      alert("Pinned message is not loaded in this chat yet.");
+      return;
+    }
+    const key = messageIdentity(match);
+    messageSearchRefs.current.get(key)?.scrollIntoView({ behavior: "smooth", block: "center" });
+    setPinnedHighlightKey(key);
+    setTimeout(() => setPinnedHighlightKey((current) => (current === key ? "" : current)), 1600);
+  }, [messages, pinnedMessage]);
+
+  const pinMessageToTop = useCallback(async (msg) => {
+    if (!phone10 || !msg || pinningMessage) return;
+    setPinningMessage(true);
+    try {
+      const r = await api.post(`/api/whatsapp/conversations/pin-message`, {
+        phone: phone10,
+        messageId: String(msg?._id || msg?.id || ""),
+        waId: String(msg?.waId || ""),
+        ...whatsappAccessPayload,
+      });
+      setPinnedMessage(r?.data?.pinnedMessage || r?.data?.conversation?.pinnedMessage || null);
+    } catch (e) {
+      alert(e?.response?.data?.message || "Pin failed.");
+    } finally {
+      setPinningMessage(false);
+      setMessageMenuAnchor(null);
+      setMessageMenuMsg(null);
+    }
+  }, [phone10, pinningMessage, whatsappAccessPayload]);
+
+  const unpinMessageFromTop = useCallback(async () => {
+    if (!phone10 || pinningMessage) return;
+    setPinningMessage(true);
+    try {
+      const r = await api.post(`/api/whatsapp/conversations/unpin-message`, {
+        phone: phone10,
+        ...whatsappAccessPayload,
+      });
+      setPinnedMessage(r?.data?.pinnedMessage || r?.data?.conversation?.pinnedMessage || null);
+    } catch (e) {
+      alert(e?.response?.data?.message || "Unpin failed.");
+    } finally {
+      setPinningMessage(false);
+    }
+  }, [phone10, pinningMessage, whatsappAccessPayload]);
+
   const grouped = useMemo(() => {
     const map = new Map();
 
@@ -1252,7 +1343,7 @@ export default function WhatsAppChatDrawer({
     }
 
     const optimisticId = buildTempId("tmp_text");
-    const replyTo = buildReplyPayload(replyingTo);
+    const replyTo = buildReplyPayload(replyingTo, customerReplyLabel);
     const optimisticMessage = {
       _id: optimisticId,
       direction: "OUTBOUND",
@@ -1365,7 +1456,7 @@ export default function WhatsAppChatDrawer({
     setAttachmentSending(true);
     try {
       const mediaType = inferOutgoingMediaType(pendingFile.file);
-      const replyTo = buildReplyPayload(replyingTo);
+      const replyTo = buildReplyPayload(replyingTo, customerReplyLabel);
       const optimisticMessage = {
         _id: optimisticId,
         direction: "OUTBOUND",
@@ -1730,7 +1821,7 @@ export default function WhatsAppChatDrawer({
   const sendTemplate = async (tpl, vars = [], renderedPreview = "", header = null) => {
     const optimisticId = buildTempId("tmp_tpl");
     const templateButtons = extractTemplateButtons(tpl);
-    const replyTo = buildReplyPayload(replyingTo);
+    const replyTo = buildReplyPayload(replyingTo, customerReplyLabel);
     const optimisticMessage = {
       _id: optimisticId,
       direction: "OUTBOUND",
@@ -2197,6 +2288,46 @@ export default function WhatsAppChatDrawer({
           </Typography>
         </Box>
 
+        {hasPinnedMessage(pinnedMessage) && (
+          <Box
+            sx={{
+              mx: 2,
+              mb: 1,
+              px: 1.25,
+              py: 0.9,
+              borderRadius: 2.5,
+              bgcolor: UI.surface,
+              border: `1px solid ${UI.border}`,
+              display: "flex",
+              alignItems: "center",
+              gap: 1,
+              boxShadow: "0 1px 2px rgba(15,23,42,0.04)",
+            }}
+          >
+            <PushPinIcon sx={{ fontSize: 17, color: UI.brandDark, flexShrink: 0 }} />
+            <Box onClick={() => scrollToPinnedMessage(pinnedMessage)} sx={{ minWidth: 0, flex: 1, cursor: "pointer" }}>
+              <Typography sx={{ fontSize: 12, fontWeight: 900, color: UI.brandDark, lineHeight: 1.15 }}>
+                Pinned message
+              </Typography>
+              <Typography noWrap sx={{ fontSize: 13, color: UI.text }}>
+                {pinnedMessagePreview(pinnedMessage)}
+              </Typography>
+            </Box>
+            <Tooltip title="Unpin">
+              <span>
+                <IconButton
+                  size="small"
+                  disabled={pinningMessage}
+                  onClick={unpinMessageFromTop}
+                  sx={{ color: UI.subtext }}
+                >
+                  <CloseIcon sx={{ fontSize: 18 }} />
+                </IconButton>
+              </span>
+            </Tooltip>
+          </Box>
+        )}
+
         {messageSearchOpen && (
           <Box
             sx={{
@@ -2328,6 +2459,7 @@ export default function WhatsAppChatDrawer({
                     const hm = formatHM(m.timestamp || m.createdAt);
                     const searchKey = messageIdentity(m);
                     const isSearchMatch = !!messageSearchTerm && currentMessageSearchKey === searchKey;
+                    const isPinnedHighlight = pinnedHighlightKey === searchKey;
                     const canRetryText = outbound && normalizeStatus(m?.status) === "failed" && String(m?.type || "text").toLowerCase() === "text";
                     const isRetryingText = retryingMessageIds.has(searchKey);
 
@@ -2346,7 +2478,7 @@ export default function WhatsAppChatDrawer({
                           mb: 1,
                           py: isSearchMatch ? 0.35 : 0,
                           borderRadius: 2,
-                          outline: isSearchMatch ? "2px solid #f59e0b" : "2px solid transparent",
+                          outline: (isSearchMatch || isPinnedHighlight) ? "2px solid #f59e0b" : "2px solid transparent",
                           outlineOffset: 2,
                           transition: "outline-color 0.16s ease, padding 0.16s ease",
                         }}
@@ -2375,13 +2507,37 @@ export default function WhatsAppChatDrawer({
                             maxWidth: "79%",
                             px: 1.35,
                             py: 0.9,
+                            pr: 3.8,
                             borderRadius: outbound ? "20px 20px 6px 20px" : "20px 20px 20px 6px",
                             bgcolor: outbound ? UI.outboundBg : UI.inboundBg,
                             border: "1px solid rgba(15,23,42,0.05)",
                             boxShadow: "0 8px 24px rgba(15,23,42,0.08)",
+                            position: "relative",
                           }}
                         >
-                          <ReplyQuote reply={m?.replyTo} compact />
+                          <Tooltip title="More">
+                            <IconButton
+                              size="small"
+                              onClick={(event) => {
+                                setMessageMenuAnchor(event.currentTarget);
+                                setMessageMenuMsg(m);
+                              }}
+                              sx={{
+                                position: "absolute",
+                                top: 3,
+                                right: 3,
+                                width: 24,
+                                height: 24,
+                                p: 0.2,
+                                color: UI.subtext,
+                                bgcolor: "rgba(255,255,255,0.35)",
+                                "&:hover": { bgcolor: "rgba(255,255,255,0.8)", color: UI.text },
+                              }}
+                            >
+                              <MoreVertIcon sx={{ fontSize: 16 }} />
+                            </IconButton>
+                          </Tooltip>
+                          <ReplyQuote reply={m?.replyTo} compact customerLabel={customerReplyLabel} />
                           {!!m.text && (
                             <Typography sx={{ fontSize: 13.5, whiteSpace: "pre-wrap", color: UI.text, lineHeight: 1.45 }}>
                               {m.text}
@@ -2458,7 +2614,7 @@ export default function WhatsAppChatDrawer({
               borderTop: `1px solid ${UI.border}`,
             }}
           >
-            <ReplyQuote reply={replyingTo} onClear={() => setReplyingTo(null)} />
+            <ReplyQuote reply={replyingTo} onClear={() => setReplyingTo(null)} customerLabel={customerReplyLabel} />
             <Button
               fullWidth
               variant="contained"
@@ -2505,7 +2661,7 @@ export default function WhatsAppChatDrawer({
             ) : null}
 
             {!privateMode && (
-              <ReplyQuote reply={replyingTo} onClear={() => setReplyingTo(null)} />
+              <ReplyQuote reply={replyingTo} onClear={() => setReplyingTo(null)} customerLabel={customerReplyLabel} />
             )}
 
             <TextField
@@ -2620,6 +2776,24 @@ export default function WhatsAppChatDrawer({
             </Stack>
           </Box>
         )}
+
+        <Menu
+          anchorEl={messageMenuAnchor}
+          open={Boolean(messageMenuAnchor)}
+          onClose={() => {
+            setMessageMenuAnchor(null);
+            setMessageMenuMsg(null);
+          }}
+          PaperProps={{ sx: { borderRadius: 2, border: `1px solid ${UI.border}`, boxShadow: "0 8px 24px rgba(15,23,42,0.12)" } }}
+        >
+          <MenuItem
+            disabled={!messageMenuMsg || pinningMessage}
+            onClick={() => pinMessageToTop(messageMenuMsg)}
+            sx={{ fontSize: 14, py: 1.1 }}
+          >
+            Pin message
+          </MenuItem>
+        </Menu>
 
         <Menu anchorEl={quickAnchor} open={Boolean(quickAnchor)} onClose={() => setQuickAnchor(null)}>
           {QUICK_REPLIES.map((q) => (
