@@ -48,6 +48,8 @@ const DEFAULT_STATUS_OPTIONS = [];
 const OVERRIDE_STATUS_OPTIONS = [
   { value: "delivered", label: "Delivered" },
   { value: "in_transit", label: "In Transit" },
+  { value: "undelivered", label: "Undelivered" },
+  { value: "cancelled", label: "Cancelled" },
   { value: "rto_received", label: "RTO Delivered" },
   { value: "rto_initiated", label: "RTO" },
 ];
@@ -74,6 +76,35 @@ const NDR_LEVEL_TABS = [
   { value: "level2", label: "Level 2 NDR" },
   { value: "closing", label: "Closing" },
 ];
+
+const EMPTY_FILTERS = {
+  search: "",
+  dateFrom: "",
+  dateTo: "",
+  courier: [],
+  status: [],
+  paymentMode: [],
+  agent: [],
+  delay: [],
+};
+
+const MULTI_FILTER_KEYS = new Set(["courier", "status", "paymentMode", "agent", "delay"]);
+
+function toArray(value) {
+  if (Array.isArray(value)) return value.filter(Boolean);
+  return String(value || "")
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function joinFilterValues(value) {
+  return toArray(value).join(",");
+}
+
+function optionLabel(options, value) {
+  return options.find((option) => String(option.value) === String(value))?.label || value;
+}
 
 function useDebouncedValue(value, delayMs = 350) {
   const [debounced, setDebounced] = useState(value);
@@ -216,24 +247,18 @@ function NdrSection({ section, title, description, icon }) {
   const [ndrLevel, setNdrLevel] = useState("level1");
   const [exporting, setExporting] = useState("");
   const [saveMessage, setSaveMessage] = useState("");
-  const [filters, setFilters] = useState({
-    search: "",
-    dateFrom: "",
-    dateTo: "",
-    courier: "",
-    status: "",
-    paymentMode: "",
-    agent: "",
-    delay: "",
-  });
+  const [filters, setFilters] = useState(EMPTY_FILTERS);
   const debouncedFilters = useDebouncedValue(filters);
-  const statusFilterOptions = useMemo(
-    () => [{ value: "", label: "All Statuses", count: total }, ...statusOptions],
-    [statusOptions, total]
+  const agentFilterOptions = useMemo(
+    () => [
+      { value: "no_agent", label: "No Agent" },
+      ...operationsAgents.map((agent) => ({ value: agent._id, label: agent.fullName })),
+    ],
+    [operationsAgents]
   );
-  const paymentFilterOptions = useMemo(
-    () => [{ value: "", label: "All Payments", count: total }, ...paymentOptions],
-    [paymentOptions, total]
+  const delayFilterOptions = useMemo(
+    () => DELAY_OPTIONS.filter(([value]) => value).map(([value, label]) => ({ value, label })),
+    []
   );
 
   const params = useMemo(() => {
@@ -246,11 +271,16 @@ function NdrSection({ section, title, description, icon }) {
     if (debouncedFilters.search) next.search = debouncedFilters.search;
     if (debouncedFilters.dateFrom) next.date_from = debouncedFilters.dateFrom;
     if (debouncedFilters.dateTo) next.date_to = debouncedFilters.dateTo;
-    if (debouncedFilters.courier) next.courier = debouncedFilters.courier;
-    if (debouncedFilters.status) next.status = debouncedFilters.status;
-    if (debouncedFilters.paymentMode) next.payment_mode = debouncedFilters.paymentMode;
-    if (debouncedFilters.agent) next.agent = debouncedFilters.agent;
-    if (debouncedFilters.delay) next.delay = debouncedFilters.delay;
+    const courier = joinFilterValues(debouncedFilters.courier);
+    const status = joinFilterValues(debouncedFilters.status);
+    const paymentMode = joinFilterValues(debouncedFilters.paymentMode);
+    const agent = joinFilterValues(debouncedFilters.agent);
+    const delay = joinFilterValues(debouncedFilters.delay);
+    if (courier) next.courier = courier;
+    if (status) next.status = status;
+    if (paymentMode) next.payment_mode = paymentMode;
+    if (agent) next.agent = agent;
+    if (delay) next.delay = delay;
     return next;
   }, [debouncedFilters, ndrLevel, page, rowsPerPage, section]);
 
@@ -352,12 +382,13 @@ function NdrSection({ section, title, description, icon }) {
   };
 
   const updateFilter = (key) => (event) => {
-    setFilters((prev) => ({ ...prev, [key]: event.target.value }));
+    const value = MULTI_FILTER_KEYS.has(key) ? toArray(event.target.value) : event.target.value;
+    setFilters((prev) => ({ ...prev, [key]: value }));
     setPage(0);
   };
 
   const resetFilters = () => {
-    setFilters({ search: "", dateFrom: "", dateTo: "", courier: "", status: "", paymentMode: "", agent: "", delay: "" });
+    setFilters(EMPTY_FILTERS);
     setPage(0);
   };
 
@@ -571,19 +602,34 @@ function NdrSection({ section, title, description, icon }) {
           <TextField label="From" type="date" value={filters.dateFrom} onChange={updateFilter("dateFrom")} size="small" InputLabelProps={{ shrink: true }} />
           <TextField label="To" type="date" value={filters.dateTo} onChange={updateFilter("dateTo")} size="small" InputLabelProps={{ shrink: true }} />
           <FormControl size="small">
-            <InputLabel>Courier Partner</InputLabel>
-            <Select label="Courier Partner" value={filters.courier} onChange={updateFilter("courier")}>
-              <MenuItem value="">All Couriers</MenuItem>
+            <InputLabel shrink>Courier Partner</InputLabel>
+            <Select
+              multiple
+              displayEmpty
+              notched
+              label="Courier Partner"
+              value={filters.courier}
+              onChange={updateFilter("courier")}
+              renderValue={(selected) => selected.length ? selected.join(", ") : "All Couriers"}
+            >
               {carriers.map((carrier) => (
                 <MenuItem key={carrier} value={carrier}>{carrier}</MenuItem>
               ))}
             </Select>
           </FormControl>
           <FormControl size="small">
-            <InputLabel>Status</InputLabel>
-            <Select label="Status" value={filters.status} onChange={updateFilter("status")}>
-              {statusFilterOptions.map((option) => (
-                <MenuItem key={option.value || "all"} value={option.value}>
+            <InputLabel shrink>Status</InputLabel>
+            <Select
+              multiple
+              displayEmpty
+              notched
+              label="Status"
+              value={filters.status}
+              onChange={updateFilter("status")}
+              renderValue={(selected) => selected.length ? selected.map((value) => optionLabel(statusOptions, value)).join(", ") : "All Statuses"}
+            >
+              {statusOptions.map((option) => (
+                <MenuItem key={option.value} value={option.value}>
                   {option.label}
                   {option.count ? ` (${option.count})` : ""}
                 </MenuItem>
@@ -591,10 +637,18 @@ function NdrSection({ section, title, description, icon }) {
             </Select>
           </FormControl>
           <FormControl size="small">
-            <InputLabel>Payment</InputLabel>
-            <Select label="Payment" value={filters.paymentMode} onChange={updateFilter("paymentMode")}>
-              {paymentFilterOptions.map((option) => (
-                <MenuItem key={option.value || "all"} value={option.value}>
+            <InputLabel shrink>Payment</InputLabel>
+            <Select
+              multiple
+              displayEmpty
+              notched
+              label="Payment"
+              value={filters.paymentMode}
+              onChange={updateFilter("paymentMode")}
+              renderValue={(selected) => selected.length ? selected.map((value) => optionLabel(paymentOptions, value)).join(", ") : "All Payments"}
+            >
+              {paymentOptions.map((option) => (
+                <MenuItem key={option.value} value={option.value}>
                   {option.label}
                   {option.count ? ` (${option.count})` : ""}
                 </MenuItem>
@@ -602,20 +656,34 @@ function NdrSection({ section, title, description, icon }) {
             </Select>
           </FormControl>
           <FormControl size="small">
-            <InputLabel>Agent</InputLabel>
-            <Select label="Agent" value={filters.agent} onChange={updateFilter("agent")}>
-              <MenuItem value="">All Agents</MenuItem>
-              <MenuItem value="no_agent">No Agent</MenuItem>
-              {operationsAgents.map((agent) => (
-                <MenuItem key={agent._id} value={agent._id}>{agent.fullName}</MenuItem>
+            <InputLabel shrink>Agent</InputLabel>
+            <Select
+              multiple
+              displayEmpty
+              notched
+              label="Agent"
+              value={filters.agent}
+              onChange={updateFilter("agent")}
+              renderValue={(selected) => selected.length ? selected.map((value) => optionLabel(agentFilterOptions, value)).join(", ") : "All Agents"}
+            >
+              {agentFilterOptions.map((option) => (
+                <MenuItem key={option.value} value={option.value}>{option.label}</MenuItem>
               ))}
             </Select>
           </FormControl>
           <FormControl size="small">
-            <InputLabel>Delay Days</InputLabel>
-            <Select label="Delay Days" value={filters.delay} onChange={updateFilter("delay")}>
-              {DELAY_OPTIONS.map(([value, label]) => (
-                <MenuItem key={value || "all"} value={value}>{label}</MenuItem>
+            <InputLabel shrink>Delay Days</InputLabel>
+            <Select
+              multiple
+              displayEmpty
+              notched
+              label="Delay Days"
+              value={filters.delay}
+              onChange={updateFilter("delay")}
+              renderValue={(selected) => selected.length ? selected.map((value) => optionLabel(delayFilterOptions, value)).join(", ") : "All Delays"}
+            >
+              {delayFilterOptions.map((option) => (
+                <MenuItem key={option.value} value={option.value}>{option.label}</MenuItem>
               ))}
             </Select>
           </FormControl>
