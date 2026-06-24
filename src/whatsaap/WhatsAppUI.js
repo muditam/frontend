@@ -64,8 +64,61 @@ const API_BASE = String(process.env.REACT_APP_API_BASE || DEFAULT_API_BASE).repl
 const NOTIF_SOUND_URL =
   "https://cdn.shopify.com/s/files/1/0734/7155/7942/files/new-notification-014-363678.mp3?v=1769002522";
 const CONVERSATION_PAGE_SIZE = 50;
+
+const CHAT_STATUS_OPTIONS = [
+  { value: "open", label: "Open" },
+  { value: "pending_reply", label: "Pending Reply" },
+  { value: "waiting_for_customer", label: "Waiting for Customer" },
+  { value: "follow_up", label: "Follow-up" },
+  { value: "order_issue", label: "Order Issue" },
+  { value: "escalated", label: "Escalated" },
+  { value: "resolved", label: "Resolved" },
+];
+
+const CHAT_STATUS_LABELS = CHAT_STATUS_OPTIONS.reduce((acc, item) => {
+  acc[item.value] = item.label;
+  return acc;
+}, {});
 const MESSAGE_PAGE_SIZE = 15;
 const TRACKING_CUTOFF_DATE = new Date("2026-03-06T00:00:00");
+
+function isCopyableTextMessage(message = {}) {
+  const text = String(message?.text || "").trim();
+  const hasMedia = Boolean(
+    message?.media ||
+    message?.mediaUrl ||
+    message?.mediaId ||
+    message?.templateMeta?.headerMedia
+  );
+  return Boolean(text) && !hasMedia;
+}
+
+function leadingMessageUrl(text = "") {
+  const trimmed = String(text || "").trim();
+  const match = trimmed.match(/^(https?:\/\/[^\s]+|www\.[^\s]+)/i);
+  if (!match) return "";
+  const url = match[1];
+  return /^www\./i.test(url) ? `https://${url}` : url;
+}
+
+async function copyTextToClipboard(text = "") {
+  const value = String(text || "");
+  if (!value.trim()) return false;
+  if (navigator?.clipboard?.writeText) {
+    await navigator.clipboard.writeText(value);
+    return true;
+  }
+  const textarea = document.createElement("textarea");
+  textarea.value = value;
+  textarea.setAttribute("readonly", "");
+  textarea.style.position = "fixed";
+  textarea.style.left = "-9999px";
+  document.body.appendChild(textarea);
+  textarea.select();
+  const copied = document.execCommand("copy");
+  document.body.removeChild(textarea);
+  return copied;
+}
 
 const LIGHT = {
   appBg: "#f7f8fa",
@@ -903,6 +956,8 @@ export default function WhatsAppUI() {
   const [chatDateFilter, setChatDateFilter] = useState("");
   const [sortAnchor, setSortAnchor] = useState(null);
   const [agentFilter, setAgentFilter] = useState("all");
+  const [chatStatusFilter, setChatStatusFilter] = useState("all");
+  const [updatingChatStatus, setUpdatingChatStatus] = useState(false);
   const [chatTab, setChatTab] = useState("all"); // all | unread | favourite
   const [chatError, setChatError] = useState("");
   const [toast, setToast] = useState({ open: false, message: "", severity: "success" });
@@ -1409,6 +1464,9 @@ export default function WhatsAppUI() {
       if (agentFilter && agentFilter !== "all") {
         params.set("assignedTo", agentFilter);
       }
+      if (chatStatusFilter && chatStatusFilter !== "all") {
+        params.set("chatStatus", chatStatusFilter);
+      }
       if (favoritePhoneCsv) {
         params.set("favoritePhones", favoritePhoneCsv);
       }
@@ -1482,6 +1540,7 @@ export default function WhatsAppUI() {
     agentFilter,
     canFilterByAgent,
     chatDateFilter,
+    chatStatusFilter,
     chatTab,
     chatSortOrder,
     debouncedSearch,
@@ -1878,7 +1937,7 @@ export default function WhatsAppUI() {
     const onConversation = (payload) => {
       const p10 = phone10(payload?.phone10 || payload?.phone || ""); if (!p10) return;
       const patch = payload?.patch ? payload.patch : payload; if (!patch) return;
-      if (debouncedSearch || chatTab !== "all" || agentFilter !== "all") {
+      if (debouncedSearch || chatTab !== "all" || agentFilter !== "all" || chatStatusFilter !== "all") {
         scheduleConversationRefresh();
       } else {
         let unreadDeltaForCounts = Number(patch?.unreadCountDelta || 0);
@@ -1943,7 +2002,7 @@ export default function WhatsAppUI() {
 
     s.on("wa:message", onMessage); s.on("wa:status", onStatus); s.on("wa:conversation", onConversation);
     return () => { s.off("wa:message", onMessage); s.off("wa:status", onStatus); s.off("wa:conversation", onConversation); };
-  }, [agentFilter, chatTab, debouncedSearch, fetchMessagesPage, markConversationRead, mergeUniqueMessages, playNotif, scheduleConversationRefresh, upsertConversationFromMessage]);
+  }, [agentFilter, chatStatusFilter, chatTab, debouncedSearch, fetchMessagesPage, markConversationRead, mergeUniqueMessages, playNotif, scheduleConversationRefresh, upsertConversationFromMessage]);
 
   useEffect(() => { if (activeP10) setInput(drafts[activeP10] || ""); else setInput(""); }, [activeP10, drafts]);
   useEffect(() => { setReplyingTo(null); }, [activeP10]);
@@ -2498,6 +2557,8 @@ export default function WhatsAppUI() {
     .trim()
     .toLowerCase();
   const activeChatIsUnassigned = hasActiveChat && (!activeAssignedNorm || activeAssignedNorm === "unassigned");
+  const activeChatStatus = String(activeConversation?.chatStatus || "open").trim() || "open";
+  const activeChatStatusLabel = CHAT_STATUS_LABELS[activeChatStatus] || CHAT_STATUS_LABELS.open;
 
   const loadAssignableAgents = useCallback(async () => {
     if (!canAssignWhatsAppChat) return;
@@ -2546,6 +2607,65 @@ export default function WhatsAppUI() {
       setAssigningChat(false);
     }
   }, [activeP10, assignableAgents, assigningChat, getWhatsAppAccessPayload, refreshConversations, showToast]);
+
+  const updateActiveChatStatus = useCallback(async (nextStatus) => {
+    const normalizedStatus = String(nextStatus || "open").trim() || "open";
+    if (!activeP10 || updatingChatStatus || normalizedStatus === activeChatStatus) return;
+
+    const previousStatus = activeChatStatus;
+    setUpdatingChatStatus(true);
+    setConversations((prev) =>
+      prev.map((chat) =>
+        phone10(chat?.phone) === activeP10
+          ? { ...chat, chatStatus: normalizedStatus }
+          : chat
+      )
+    );
+
+    try {
+      const data = await api("/api/whatsapp/conversations/status", {
+        method: "POST",
+        body: JSON.stringify({
+          phone: activeP10,
+          chatStatus: normalizedStatus,
+          ...getWhatsAppAccessPayload(),
+        }),
+      });
+      const updatedConversation = data?.conversation;
+      if (updatedConversation) {
+        setConversations((prev) =>
+          prev.map((chat) =>
+            phone10(chat?.phone) === activeP10
+              ? { ...chat, ...updatedConversation }
+              : chat
+          )
+        );
+      }
+      showToast(`Chat status changed to ${CHAT_STATUS_LABELS[normalizedStatus] || "Open"}`, "success");
+      if (chatStatusFilter !== "all" && chatStatusFilter !== normalizedStatus) {
+        refreshConversations(null, { silent: true });
+      }
+    } catch (error) {
+      setConversations((prev) =>
+        prev.map((chat) =>
+          phone10(chat?.phone) === activeP10
+            ? { ...chat, chatStatus: previousStatus }
+            : chat
+        )
+      );
+      showToast(extractApiErrorMessage(error, "Failed to update chat status"), "error");
+    } finally {
+      setUpdatingChatStatus(false);
+    }
+  }, [
+    activeChatStatus,
+    activeP10,
+    chatStatusFilter,
+    getWhatsAppAccessPayload,
+    refreshConversations,
+    showToast,
+    updatingChatStatus,
+  ]);
 
   useEffect(() => {
     if (!canAssignWhatsAppChat) return;
@@ -2637,6 +2757,19 @@ export default function WhatsAppUI() {
       setMessageMenuMsg(null);
     }
   }, [activeP10, getWhatsAppAccessPayload, pinningMessage, showToast]);
+
+  const copyMessageText = useCallback(async (msg) => {
+    if (!isCopyableTextMessage(msg)) return;
+    try {
+      await copyTextToClipboard(msg.text);
+      showToast("Message copied", "success");
+    } catch (error) {
+      showToast("Copy failed", "error");
+    } finally {
+      setMessageMenuAnchor(null);
+      setMessageMenuMsg(null);
+    }
+  }, [showToast]);
 
   const unpinMessageFromTop = useCallback(async () => {
     if (!activeP10 || pinningMessage) return;
@@ -2904,15 +3037,46 @@ export default function WhatsAppUI() {
             </Button>
           </Stack>
         </Box>
-        {canFilterByAgent && (
-          <Box px={1.5} pb={1} sx={{ bgcolor: LIGHT.sidebarBg }}>
+        <Box px={1.5} pb={1} sx={{ bgcolor: LIGHT.sidebarBg }}>
+          <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
+            {canFilterByAgent && (
+              <TextField
+                select
+                fullWidth
+                size="small"
+                label="Filter by expert"
+                value={agentFilter}
+                onChange={(e) => setAgentFilter(String(e.target.value || "all"))}
+                sx={{
+                  "& .MuiOutlinedInput-root": {
+                    bgcolor: LIGHT.sidebarHeaderBg,
+                    borderRadius: 2,
+                    fontSize: 13,
+                    color: LIGHT.text,
+                    "& fieldset": { border: "none" },
+                    "&:hover fieldset": { border: "none" },
+                    "&.Mui-focused fieldset": { border: "none" },
+                  },
+                  "& .MuiInputLabel-root": { color: LIGHT.subtext, fontSize: 12 },
+                  "& .MuiSelect-select": { py: 1 },
+                }}
+              >
+                <MenuItem value="all">All experts</MenuItem>
+                <MenuItem value="unassigned">UnAssigned</MenuItem>
+                {agentFilterOptions.map((name) => (
+                  <MenuItem key={name} value={name.toLowerCase()}>
+                    {name}
+                  </MenuItem>
+                ))}
+              </TextField>
+            )}
             <TextField
               select
               fullWidth
               size="small"
-              label="Filter by expert"
-              value={agentFilter}
-              onChange={(e) => setAgentFilter(String(e.target.value || "all"))}
+              label="Chat status"
+              value={chatStatusFilter}
+              onChange={(e) => setChatStatusFilter(String(e.target.value || "all"))}
               sx={{
                 "& .MuiOutlinedInput-root": {
                   bgcolor: LIGHT.sidebarHeaderBg,
@@ -2927,16 +3091,15 @@ export default function WhatsAppUI() {
                 "& .MuiSelect-select": { py: 1 },
               }}
             >
-              <MenuItem value="all">All experts</MenuItem>
-              <MenuItem value="unassigned">UnAssigned</MenuItem>
-              {agentFilterOptions.map((name) => (
-                <MenuItem key={name} value={name.toLowerCase()}>
-                  {name}
+              <MenuItem value="all">All status</MenuItem>
+              {CHAT_STATUS_OPTIONS.map((option) => (
+                <MenuItem key={option.value} value={option.value}>
+                  {option.label}
                 </MenuItem>
               ))}
             </TextField>
-          </Box>
-        )}
+          </Stack>
+        </Box>
 
         {/* Conversation list */}
         <Box
@@ -3182,6 +3345,37 @@ export default function WhatsAppUI() {
 	                </Box>
 	              </Stack>
 	              <Stack direction="row" spacing={0.75} alignItems="center">
+                  <TextField
+                    select
+                    size="small"
+                    value={activeChatStatus}
+                    onChange={(event) => updateActiveChatStatus(event.target.value)}
+                    disabled={!hasActiveChat || updatingChatStatus}
+                    SelectProps={{
+                      renderValue: () => activeChatStatusLabel,
+                    }}
+                    sx={{
+                      minWidth: 150,
+                      "& .MuiOutlinedInput-root": {
+                        height: 34,
+                        bgcolor: "#fff",
+                        borderRadius: 99,
+                        fontSize: 12,
+                        fontWeight: 800,
+                        color: LIGHT.text,
+                        "& fieldset": { borderColor: LIGHT.border },
+                        "&:hover fieldset": { borderColor: "#cbd5e1" },
+                        "&.Mui-focused fieldset": { borderColor: "#128C7E", borderWidth: 1.25 },
+                      },
+                      "& .MuiSelect-select": { py: 0.5, pl: 1.35 },
+                    }}
+                  >
+                    {CHAT_STATUS_OPTIONS.map((option) => (
+                      <MenuItem key={option.value} value={option.value}>
+                        {option.label}
+                      </MenuItem>
+                    ))}
+                  </TextField>
 	                <Tooltip title="Patient order history">
 	                  <IconButton
 	                    onClick={() => loadOrderHistory(activeP10)}
@@ -3627,6 +3821,7 @@ export default function WhatsAppUI() {
                     const wasUnread = !isOutbound && cutoff && ts > cutoff;
                     const isTemplate = String(msg?.type || "").toLowerCase() === "template";
                     const bubbleText = msg?.text || "";
+                    const bubbleLinkUrl = leadingMessageUrl(bubbleText);
                     const hasMedia = !!String(msg?.media?.id || "").trim() || !!String(msg?.media?.url || "").trim() ||
                       !!String(msg?.templateMeta?.headerMedia?.id || "").trim() || !!String(msg?.templateMeta?.headerMedia?.url || "").trim();
                     const searchKey = msgKey(msg);
@@ -3752,12 +3947,22 @@ export default function WhatsAppUI() {
                               <>
                                 {!!bubbleText && (
                                   <Typography
+                                    component={bubbleLinkUrl ? "button" : "p"}
+                                    onClick={bubbleLinkUrl ? () => window.open(bubbleLinkUrl, "_blank", "noopener,noreferrer") : undefined}
                                     sx={{
+                                      m: 0,
+                                      p: 0,
+                                      border: 0,
+                                      bgcolor: "transparent",
+                                      textAlign: "left",
                                       fontSize: 14.5,
                                       whiteSpace: "pre-wrap",
-                                      color: LIGHT.text,
+                                      color: bubbleLinkUrl ? "#1d4ed8" : LIGHT.text,
                                       lineHeight: 1.55,
                                       wordBreak: "break-word",
+                                      cursor: bubbleLinkUrl ? "pointer" : "inherit",
+                                      textDecoration: bubbleLinkUrl ? "underline" : "none",
+                                      fontFamily: "inherit",
                                     }}
                                   >
                                     {bubbleText}
@@ -4003,6 +4208,13 @@ export default function WhatsAppUI() {
           sx={{ fontSize: 14, py: 1.1 }}
         >
           Pin message
+        </MenuItem>
+        <MenuItem
+          disabled={!isCopyableTextMessage(messageMenuMsg)}
+          onClick={() => copyMessageText(messageMenuMsg)}
+          sx={{ fontSize: 14, py: 1.1 }}
+        >
+          Copy message
         </MenuItem>
       </Menu>
 

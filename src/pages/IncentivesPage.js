@@ -3948,12 +3948,17 @@ export default function IncentivesPage() {
 
                   <Stack spacing={1.25}>
                     <Stack
-                      direction={{ xs: "column", md: "row" }}
-                      justifyContent="space-between"
-                      alignItems={{ xs: "flex-start", md: "flex-start" }}
-                      spacing={1.5}
+                      sx={{
+                        display: "grid",
+                        gridTemplateColumns: {
+                          xs: "1fr",
+                          md: "minmax(165px, 0.65fr) minmax(0, 2.8fr)",
+                        },
+                        gap: 1.5,
+                        alignItems: "start",
+                      }}
                     >
-                      <Box sx={{ minWidth: 0, flex: 1 }}>
+                      <Box sx={{ minWidth: 0 }}>
                         <Typography
                           variant="h5"
                           sx={{ color: BRAND.coin, fontWeight: 800, lineHeight: 1.1 }}
@@ -3985,11 +3990,15 @@ export default function IncentivesPage() {
                       </Box>
 
                       <Stack
-                        direction={{ xs: "column", sm: "row" }}
-                        spacing={1.25}
                         sx={{
-                          width: { xs: "100%", md: "auto" },
-                          minWidth: { md: 570 },
+                          width: "100%",
+                          minWidth: 0,
+                          display: "grid",
+                          gridTemplateColumns: {
+                            xs: "1fr",
+                            sm: "repeat(auto-fit, minmax(180px, 1fr))",
+                          },
+                          gap: 1.25,
                         }}
                       >
                         <SummaryMetric

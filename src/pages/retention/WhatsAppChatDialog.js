@@ -98,6 +98,44 @@ const last10 = (v = "") => digitsOnly(v).slice(-10);
 const buildTempId = (prefix = "tmp") =>
   `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 
+function isCopyableTextMessage(message = {}) {
+  const text = String(message?.text || "").trim();
+  const hasMedia = Boolean(
+    message?.media ||
+    message?.mediaUrl ||
+    message?.mediaId ||
+    message?.templateMeta?.headerMedia
+  );
+  return Boolean(text) && !hasMedia;
+}
+
+function leadingMessageUrl(text = "") {
+  const trimmed = String(text || "").trim();
+  const match = trimmed.match(/^(https?:\/\/[^\s]+|www\.[^\s]+)/i);
+  if (!match) return "";
+  const url = match[1];
+  return /^www\./i.test(url) ? `https://${url}` : url;
+}
+
+async function copyTextToClipboard(text = "") {
+  const value = String(text || "");
+  if (!value.trim()) return false;
+  if (navigator?.clipboard?.writeText) {
+    await navigator.clipboard.writeText(value);
+    return true;
+  }
+  const textarea = document.createElement("textarea");
+  textarea.value = value;
+  textarea.setAttribute("readonly", "");
+  textarea.style.position = "fixed";
+  textarea.style.left = "-9999px";
+  document.body.appendChild(textarea);
+  textarea.select();
+  const copied = document.execCommand("copy");
+  document.body.removeChild(textarea);
+  return copied;
+}
+
 function fmtRemaining(ms) {
   const s = Math.max(0, Math.floor(ms / 1000));
   const hh = Math.floor(s / 3600);
@@ -1280,6 +1318,18 @@ export default function WhatsAppChatDrawer({
     }
   }, [phone10, pinningMessage, whatsappAccessPayload]);
 
+  const copyMessageText = useCallback(async (msg) => {
+    if (!isCopyableTextMessage(msg)) return;
+    try {
+      await copyTextToClipboard(msg.text);
+    } catch (error) {
+      alert("Copy failed.");
+    } finally {
+      setMessageMenuAnchor(null);
+      setMessageMenuMsg(null);
+    }
+  }, []);
+
   const unpinMessageFromTop = useCallback(async () => {
     if (!phone10 || pinningMessage) return;
     setPinningMessage(true);
@@ -2456,6 +2506,8 @@ export default function WhatsAppChatDrawer({
 
                   {g.items.map((m, idx) => {
                     const outbound = String(m.direction || "").toUpperCase() === "OUTBOUND";
+                    const messageText = String(m?.text || "");
+                    const messageLinkUrl = leadingMessageUrl(messageText);
                     const hm = formatHM(m.timestamp || m.createdAt);
                     const searchKey = messageIdentity(m);
                     const isSearchMatch = !!messageSearchTerm && currentMessageSearchKey === searchKey;
@@ -2538,9 +2590,27 @@ export default function WhatsAppChatDrawer({
                             </IconButton>
                           </Tooltip>
                           <ReplyQuote reply={m?.replyTo} compact customerLabel={customerReplyLabel} />
-                          {!!m.text && (
-                            <Typography sx={{ fontSize: 13.5, whiteSpace: "pre-wrap", color: UI.text, lineHeight: 1.45 }}>
-                              {m.text}
+                          {!!messageText && (
+                            <Typography
+                              component={messageLinkUrl ? "button" : "p"}
+                              onClick={messageLinkUrl ? () => window.open(messageLinkUrl, "_blank", "noopener,noreferrer") : undefined}
+                              sx={{
+                                m: 0,
+                                p: 0,
+                                border: 0,
+                                bgcolor: "transparent",
+                                textAlign: "left",
+                                fontSize: 13.5,
+                                whiteSpace: "pre-wrap",
+                                color: messageLinkUrl ? "#1d4ed8" : UI.text,
+                                lineHeight: 1.45,
+                                cursor: messageLinkUrl ? "pointer" : "inherit",
+                                textDecoration: messageLinkUrl ? "underline" : "none",
+                                fontFamily: "inherit",
+                                wordBreak: "break-word",
+                              }}
+                            >
+                              {messageText}
                             </Typography>
                           )}
 
@@ -2792,6 +2862,13 @@ export default function WhatsAppChatDrawer({
             sx={{ fontSize: 14, py: 1.1 }}
           >
             Pin message
+          </MenuItem>
+          <MenuItem
+            disabled={!isCopyableTextMessage(messageMenuMsg)}
+            onClick={() => copyMessageText(messageMenuMsg)}
+            sx={{ fontSize: 14, py: 1.1 }}
+          >
+            Copy message
           </MenuItem>
         </Menu>
 
