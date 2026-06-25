@@ -85,10 +85,12 @@ const TRACKING_CUTOFF_DATE = new Date("2026-03-06T00:00:00");
 function isCopyableTextMessage(message = {}) {
   const text = String(message?.text || "").trim();
   const hasMedia = Boolean(
-    message?.media ||
-    message?.mediaUrl ||
-    message?.mediaId ||
-    message?.templateMeta?.headerMedia
+    String(message?.media?.id || "").trim() ||
+    String(message?.media?.url || "").trim() ||
+    String(message?.mediaUrl || "").trim() ||
+    String(message?.mediaId || "").trim() ||
+    String(message?.templateMeta?.headerMedia?.id || "").trim() ||
+    String(message?.templateMeta?.headerMedia?.url || "").trim()
   );
   return Boolean(text) && !hasMedia;
 }
@@ -4209,13 +4211,14 @@ export default function WhatsAppUI() {
         >
           Pin message
         </MenuItem>
-        <MenuItem
-          disabled={!isCopyableTextMessage(messageMenuMsg)}
-          onClick={() => copyMessageText(messageMenuMsg)}
-          sx={{ fontSize: 14, py: 1.1 }}
-        >
-          Copy message
-        </MenuItem>
+        {isCopyableTextMessage(messageMenuMsg) && (
+          <MenuItem
+            onClick={() => copyMessageText(messageMenuMsg)}
+            sx={{ fontSize: 14, py: 1.1 }}
+          >
+            Copy message
+          </MenuItem>
+        )}
       </Menu>
 
       <Menu
