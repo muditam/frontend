@@ -188,6 +188,8 @@ const CartDrawer = ({ closeDrawer }) => {
   const [newCustomerLastName, setNewCustomerLastName] = useState("");
   const [showCreateCustomerPopup, setShowCreateCustomerPopup] = useState(false);
   const [isAddingCustomer, setIsAddingCustomer] = useState(false);
+  const [isUpdatingCustomerPhone, setIsUpdatingCustomerPhone] = useState(false);
+  const [customerCountryCodeFix, setCustomerCountryCodeFix] = useState(null);
   const [customerPromptMessage, setCustomerPromptMessage] = useState("");
   const [customerPopupError, setCustomerPopupError] = useState("");
   const [addressFetchMessage, setAddressFetchMessage] = useState("");
@@ -447,6 +449,7 @@ const CartDrawer = ({ closeDrawer }) => {
       setCustomerPopupError("");
       setAddressFetchMessage("");
       setShowCreateCustomerPopup(false);
+      setCustomerCountryCodeFix(null);
 
       // Standardize the phone number before use
       const standardizedPhone = standardizePhoneNumber(phoneNumber);
@@ -482,7 +485,12 @@ const CartDrawer = ({ closeDrawer }) => {
         `https://muditamleads-14f32a10d7f7.herokuapp.com/api/shopify/customer?phone=${standardizedPhone}`
       );
       const customerData = customerRes.data;
-      if (
+      if (customerData?.countryCodeFix) {
+        setCustomerCountryCodeFix(customerData.countryCodeFix);
+        dispatch(setCustomerId(""));
+        dispatch(setCustomerName(""));
+        setShowCreateCustomerPopup(true);
+      } else if (
         customerData &&
         customerData.id &&
         String(customerData.first_name || "").trim()
@@ -545,10 +553,42 @@ const CartDrawer = ({ closeDrawer }) => {
     }
   };
 
+  const handleUpdateCustomerCountryCode = async () => {
+    if (!customerCountryCodeFix?.customerId) {
+      setCustomerPopupError("No matching Shopify customer found for country code update.");
+      return;
+    }
+
+    try {
+      setIsUpdatingCustomerPhone(true);
+      setCustomerPopupError("");
+
+      await axios.put(
+        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/shopify/customer-phone-country-code",
+        {
+          customerId: customerCountryCodeFix.customerId,
+          phone: phoneNumber,
+        }
+      );
+
+      setShowCreateCustomerPopup(false);
+      setCustomerCountryCodeFix(null);
+      setCustomerPromptMessage("Customer phone updated to +91. Click Check again.");
+    } catch (error) {
+      console.error("Error updating customer phone:", error);
+      setCustomerPopupError(
+        error?.response?.data?.message || "Error updating customer phone."
+      );
+    } finally {
+      setIsUpdatingCustomerPhone(false);
+    }
+  };
+
   const handleCloseCreateCustomerPopup = () => {
-    if (isAddingCustomer) return;
+    if (isAddingCustomer || isUpdatingCustomerPhone) return;
     setShowCreateCustomerPopup(false);
     setCustomerPopupError("");
+    setCustomerCountryCodeFix(null);
   };
 
   const handleSelectAddress = (index) => {
@@ -1542,9 +1582,19 @@ const CartDrawer = ({ closeDrawer }) => {
               >
                 <DialogTitle>Customer name not found on Shopify</DialogTitle>
                 <DialogContent>
-                  <Typography variant="body2" sx={{ mb: 2 }}>
-                    Add the customer name, then click Check again to continue.
-                  </Typography>
+                  {customerCountryCodeFix ? (
+                    <Box sx={{ mb: 2 }}>
+                      <Typography variant="body2" sx={{ mb: 1 }}>
+                        This customer exists on Shopify with{" "}
+                        {customerCountryCodeFix.currentPhone}. Update it to{" "}
+                        {customerCountryCodeFix.suggestedPhone}, then click Check again.
+                      </Typography>
+                    </Box>
+                  ) : (
+                    <Typography variant="body2" sx={{ mb: 2 }}>
+                      Add the customer name, then click Check again to continue.
+                    </Typography>
+                  )}
                   <TextField
                     label="First Name"
                     fullWidth
@@ -1570,15 +1620,25 @@ const CartDrawer = ({ closeDrawer }) => {
                 <DialogActions sx={{ px: 3, pb: 2 }}>
                   <Button
                     onClick={handleCloseCreateCustomerPopup}
-                    disabled={isAddingCustomer}
+                    disabled={isAddingCustomer || isUpdatingCustomerPhone}
                     sx={buttonStyle}
                   >
                     Cancel
                   </Button>
+                  {customerCountryCodeFix && (
+                    <Button
+                      variant="outlined"
+                      onClick={handleUpdateCustomerCountryCode}
+                      disabled={isAddingCustomer || isUpdatingCustomerPhone}
+                      sx={buttonStyle}
+                    >
+                      {isUpdatingCustomerPhone ? "Updating..." : "Update to +91"}
+                    </Button>
+                  )}
                   <Button
                     variant="contained"
                     onClick={handleCreateCustomer}
-                    disabled={isAddingCustomer}
+                    disabled={isAddingCustomer || isUpdatingCustomerPhone}
                     sx={buttonStyle}
                   >
                     {isAddingCustomer ? "Adding..." : "Add"}

@@ -10,7 +10,9 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
+  Checkbox,
   FormControl,
+  FormControlLabel,
   InputLabel,
   MenuItem,
   Paper,
@@ -95,6 +97,19 @@ function addressSummary(address = {}) {
     .join(", ") || "-";
 }
 
+function canMarkAsPaid(order = {}) {
+  const paymentMode = String(order.paymentMode || order.shopifyOrderPayload?.paymentMode || "").toLowerCase();
+  const paymentStatus = String(order.paymentStatus || order.shopifyOrderPayload?.paymentStatus || "").toLowerCase();
+  return (
+    paymentMode === "cod" ||
+    paymentMode === "partial paid" ||
+    paymentStatus === "cod" ||
+    paymentStatus === "pending" ||
+    paymentStatus === "partially_paid" ||
+    paymentStatus === "partially paid"
+  );
+}
+
 export default function FutureOrdersPage() {
   const [rows, setRows] = useState([]);
   const [total, setTotal] = useState(0);
@@ -105,6 +120,7 @@ export default function FutureOrdersPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [confirmOrder, setConfirmOrder] = useState(null);
+  const [markAsPaid, setMarkAsPaid] = useState(false);
   const [placingId, setPlacingId] = useState("");
 
   const params = useMemo(
@@ -146,8 +162,11 @@ export default function FutureOrdersPage() {
     setPlacingId(confirmOrder._id);
     setError("");
     try {
-      await api.post(`/api/future-orders/${confirmOrder._id}/place`);
+      await api.post(`/api/future-orders/${confirmOrder._id}/place`, {
+        markAsPaid: markAsPaid && canMarkAsPaid(confirmOrder),
+      });
       setConfirmOrder(null);
+      setMarkAsPaid(false);
       await fetchRows();
     } catch (err) {
       console.error("Failed to place future order", err);
@@ -298,7 +317,16 @@ export default function FutureOrdersPage() {
         />
       </Paper>
 
-      <Dialog open={Boolean(confirmOrder)} onClose={() => (placingId ? null : setConfirmOrder(null))} maxWidth="xs" fullWidth>
+      <Dialog
+        open={Boolean(confirmOrder)}
+        onClose={() => {
+          if (placingId) return;
+          setConfirmOrder(null);
+          setMarkAsPaid(false);
+        }}
+        maxWidth="xs"
+        fullWidth
+      >
         <DialogTitle>Place future order?</DialogTitle>
         <DialogContent>
           <Typography variant="body2">
@@ -309,9 +337,35 @@ export default function FutureOrdersPage() {
               {confirmOrder.customerName || "Customer"} • {formatCurrency(confirmOrder.orderTotal)}
             </Typography>
           ) : null}
+          {confirmOrder && canMarkAsPaid(confirmOrder) ? (
+            <FormControlLabel
+              sx={{ mt: 1.5, alignItems: "flex-start" }}
+              control={
+                <Checkbox
+                  checked={markAsPaid}
+                  disabled={Boolean(placingId)}
+                  onChange={(event) => setMarkAsPaid(event.target.checked)}
+                />
+              }
+              label={
+                <Box>
+                  <Typography variant="body2">Mark as paid</Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    Shopify financial status will be paid for this placed order.
+                  </Typography>
+                </Box>
+              }
+            />
+          ) : null}
         </DialogContent>
         <DialogActions>
-          <Button disabled={Boolean(placingId)} onClick={() => setConfirmOrder(null)}>
+          <Button
+            disabled={Boolean(placingId)}
+            onClick={() => {
+              setConfirmOrder(null);
+              setMarkAsPaid(false);
+            }}
+          >
             No
           </Button>
           <Button variant="contained" disabled={Boolean(placingId)} onClick={placeOrderNow}>
