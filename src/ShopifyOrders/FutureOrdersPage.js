@@ -13,6 +13,7 @@ import {
   Checkbox,
   FormControl,
   FormControlLabel,
+  IconButton,
   InputLabel,
   MenuItem,
   Paper,
@@ -26,8 +27,10 @@ import {
   TablePagination,
   TableRow,
   TextField,
+  Tooltip,
   Typography,
 } from "@mui/material";
+import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 
 const API_BASE = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "");
 
@@ -120,8 +123,10 @@ export default function FutureOrdersPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [confirmOrder, setConfirmOrder] = useState(null);
+  const [deleteOrder, setDeleteOrder] = useState(null);
   const [markAsPaid, setMarkAsPaid] = useState(false);
   const [placingId, setPlacingId] = useState("");
+  const [deletingId, setDeletingId] = useState("");
 
   const params = useMemo(
     () => ({
@@ -173,6 +178,22 @@ export default function FutureOrdersPage() {
       setError(err?.response?.data?.message || "Failed to place future order.");
     } finally {
       setPlacingId("");
+    }
+  };
+
+  const deleteFutureOrder = async () => {
+    if (!deleteOrder?._id) return;
+    setDeletingId(deleteOrder._id);
+    setError("");
+    try {
+      await api.delete(`/api/future-orders/${deleteOrder._id}`);
+      setDeleteOrder(null);
+      await fetchRows();
+    } catch (err) {
+      console.error("Failed to delete future order", err);
+      setError(err?.response?.data?.message || "Failed to delete future order.");
+    } finally {
+      setDeletingId("");
     }
   };
 
@@ -286,15 +307,35 @@ export default function FutureOrdersPage() {
                     <TableCell>{row.createdBy || "-"}</TableCell>
                     <TableCell sx={{ whiteSpace: "nowrap" }}>{formatDateTime(row.createdAt)}</TableCell>
                     <TableCell align="right">
-                      <Button
-                        size="small"
-                        variant="contained"
-                        disabled={row.status !== "pending" || placingId === row._id}
-                        onClick={() => setConfirmOrder(row)}
-                        sx={{ whiteSpace: "nowrap", textTransform: "none" }}
-                      >
-                        {placingId === row._id ? "Placing..." : "Place Order"}
-                      </Button>
+                      <Stack direction="row" spacing={0.75} justifyContent="flex-end" alignItems="center">
+                        <Button
+                          size="small"
+                          variant="contained"
+                          disabled={row.status !== "pending" || placingId === row._id}
+                          onClick={() => setConfirmOrder(row)}
+                          sx={{ whiteSpace: "nowrap", textTransform: "none" }}
+                        >
+                          {placingId === row._id ? "Placing..." : "Place Order"}
+                        </Button>
+                        <Tooltip title="Delete order">
+                          <span>
+                            <IconButton
+                              size="small"
+                              color="error"
+                              aria-label="Delete order"
+                              disabled={row.status === "processing" || deletingId === row._id}
+                              onClick={() => setDeleteOrder(row)}
+                              sx={{
+                                border: "1px solid #fecaca",
+                                bgcolor: "#fff7f7",
+                                "&:hover": { bgcolor: "#fee2e2" },
+                              }}
+                            >
+                              {deletingId === row._id ? <CircularProgress size={18} color="inherit" /> : <DeleteOutlineIcon fontSize="small" />}
+                            </IconButton>
+                          </span>
+                        </Tooltip>
+                      </Stack>
                     </TableCell>
                   </TableRow>
                 ))
@@ -370,6 +411,36 @@ export default function FutureOrdersPage() {
           </Button>
           <Button variant="contained" disabled={Boolean(placingId)} onClick={placeOrderNow}>
             {placingId ? <CircularProgress size={18} /> : "Yes"}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog
+        open={Boolean(deleteOrder)}
+        onClose={() => {
+          if (deletingId) return;
+          setDeleteOrder(null);
+        }}
+        maxWidth="xs"
+        fullWidth
+      >
+        <DialogTitle>Delete future order?</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2">
+            Would you like to delete this order?
+          </Typography>
+          {deleteOrder ? (
+            <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 1 }}>
+              {deleteOrder.customerName || "Customer"} • {formatCurrency(deleteOrder.orderTotal)}
+            </Typography>
+          ) : null}
+        </DialogContent>
+        <DialogActions>
+          <Button disabled={Boolean(deletingId)} onClick={() => setDeleteOrder(null)}>
+            Cancel
+          </Button>
+          <Button color="error" variant="contained" disabled={Boolean(deletingId)} onClick={deleteFutureOrder}>
+            {deletingId ? <CircularProgress size={18} color="inherit" /> : "Delete"}
           </Button>
         </DialogActions>
       </Dialog>
