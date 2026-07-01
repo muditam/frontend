@@ -92,9 +92,18 @@ const downloadRows = (cleanRows, fileName, format) => {
   });
 };
 
+const parseRowsFromFile = async (selectedFile) => {
+  const buffer = await selectedFile.arrayBuffer();
+  const workbook = XLSX.read(buffer, { type: "array", raw: false });
+  const sheet = workbook.Sheets[workbook.SheetNames[0]];
+  return XLSX.utils.sheet_to_json(sheet, { defval: "" });
+};
+
 const DataConvertor = () => {
   const [file, setFile] = useState(null);
+  const [duplicateFile, setDuplicateFile] = useState(null);
   const [rows, setRows] = useState([]);
+  const [duplicateSummary, setDuplicateSummary] = useState(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [exportFormat, setExportFormat] = useState("csv");
@@ -105,6 +114,15 @@ const DataConvertor = () => {
     const selectedFile = event.target.files?.[0];
     setFile(selectedFile || null);
     setRows([]);
+    setDuplicateSummary(null);
+    setError("");
+  };
+
+  const handleDuplicateFileChange = (event) => {
+    const selectedFile = event.target.files?.[0];
+    setDuplicateFile(selectedFile || null);
+    setRows([]);
+    setDuplicateSummary(null);
     setError("");
   };
 
@@ -118,20 +136,53 @@ const DataConvertor = () => {
       setLoading(true);
       setError("");
 
-      const buffer = await file.arrayBuffer();
-      const workbook = XLSX.read(buffer, { type: "array", raw: false });
-      const sheet = workbook.Sheets[workbook.SheetNames[0]];
-      const parsedRows = XLSX.utils.sheet_to_json(sheet, { defval: "" });
+      const parsedRows = await parseRowsFromFile(file);
       const cleanRows = buildCleanRows(parsedRows);
 
       if (!cleanRows.length) {
         setRows([]);
+        setDuplicateSummary(null);
         setError("No usable rows found in this file.");
         return;
       }
 
-      setRows(cleanRows);
-      downloadRows(cleanRows, file.name, exportFormat);
+      let finalRows = cleanRows;
+      let summary = null;
+
+      if (duplicateFile) {
+        const duplicateParsedRows = await parseRowsFromFile(duplicateFile);
+        const duplicateRows = buildCleanRows(duplicateParsedRows);
+        const duplicatePhones = new Set(
+          duplicateRows.map((row) => row.phone).filter(Boolean)
+        );
+
+        if (!duplicatePhones.size) {
+          setRows([]);
+          setDuplicateSummary(null);
+          setError("No usable phone numbers found in the duplicate data sheet.");
+          return;
+        }
+
+        finalRows = cleanRows.filter(
+          (row) => !row.phone || !duplicatePhones.has(row.phone)
+        );
+        summary = {
+          originalCount: cleanRows.length,
+          duplicatePhoneCount: duplicatePhones.size,
+          removedCount: cleanRows.length - finalRows.length,
+        };
+      }
+
+      if (!finalRows.length) {
+        setRows([]);
+        setDuplicateSummary(summary);
+        setError("All rows were removed after checking the duplicate data sheet.");
+        return;
+      }
+
+      setRows(finalRows);
+      setDuplicateSummary(summary);
+      downloadRows(finalRows, file.name, exportFormat);
     } catch (err) {
       setError("Could not convert this file. Please upload a valid CSV or Excel file.");
     } finally {
@@ -169,26 +220,46 @@ const DataConvertor = () => {
             p: 3,
             background: "#f8fafc",
             display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
+            flexDirection: "column",
             gap: 2,
-            flexWrap: "wrap",
           }}
         >
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, minWidth: 0 }}>
-            <UploadFileIcon sx={{ color: "#2563eb" }} />
-            <Box sx={{ minWidth: 0 }}>
-              <Typography sx={{ fontWeight: 600, color: "#0f172a" }}>
-                {file ? file.name : "Upload CSV or Excel file"}
-              </Typography> 
+          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 2, flexWrap: "wrap" }}>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, minWidth: 0 }}>
+              <UploadFileIcon sx={{ color: "#2563eb" }} />
+              <Box sx={{ minWidth: 0 }}>
+                <Typography sx={{ fontWeight: 600, color: "#0f172a" }}>
+                  {file ? file.name : "Upload CSV or Excel file"}
+                </Typography>
+              </Box>
             </Box>
-          </Box>
 
-          <Box sx={{ display: "flex", gap: 1.25, flexWrap: "wrap", alignItems: "center" }}>
             <Button variant="outlined" component="label" startIcon={<UploadFileIcon />}>
               Upload File
               <input hidden type="file" accept=".csv,.xls,.xlsx" onChange={handleFileChange} />
             </Button>
+          </Box>
+
+          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 2, flexWrap: "wrap" }}>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, minWidth: 0 }}>
+              <CleaningServicesIcon sx={{ color: "#0f766e" }} />
+              <Box sx={{ minWidth: 0 }}>
+                <Typography sx={{ fontWeight: 600, color: "#0f172a" }}>
+                  {duplicateFile ? duplicateFile.name : "Upload duplicate data sheet"}
+                </Typography>
+                <Typography variant="body2" sx={{ color: "#64748b" }}>
+                  Matching phone numbers will be removed before conversion.
+                </Typography>
+              </Box>
+            </Box>
+
+            <Button variant="outlined" component="label" startIcon={<UploadFileIcon />}>
+              Upload Duplicate
+              <input hidden type="file" accept=".csv,.xls,.xlsx" onChange={handleDuplicateFileChange} />
+            </Button>
+          </Box>
+
+          <Box sx={{ display: "flex", gap: 1.25, flexWrap: "wrap", alignItems: "center", justifyContent: "flex-end" }}>
             <FormControl size="small" sx={{ minWidth: 150 }}>
               <InputLabel id="export-format-label">Convert To</InputLabel>
               <Select
@@ -212,6 +283,13 @@ const DataConvertor = () => {
             </Button>
           </Box>
         </Box>
+
+        {duplicateSummary && (
+          <Alert severity="info" sx={{ mt: 2 }}>
+            Removed {duplicateSummary.removedCount} duplicate rows from {duplicateSummary.originalCount} rows.
+            Checked {duplicateSummary.duplicatePhoneCount} phone numbers from the duplicate sheet.
+          </Alert>
+        )}
 
         {error && (
           <Alert severity="error" sx={{ mt: 2 }}>
