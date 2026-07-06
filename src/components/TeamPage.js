@@ -403,9 +403,7 @@ const TeamPage = ({ managerId: managerIdProp }) => {
            targetLabel: "Self target",
          })
        : null;
-     const children = childRows.length > 0
-       ? (selfRow ? [selfRow, ...childRows] : childRows)
-       : [];
+     const children = childRows;
      const selfTargetForAggregate = excludeSelfFromManagerAggregate ? 0 : selfRow?.monthlyTarget || 0;
      const selfAchievedForAggregate = excludeSelfFromManagerAggregate ? 0 : selfRow?.achieved || 0;
      const teamTarget = childTarget + selfTargetForAggregate;
