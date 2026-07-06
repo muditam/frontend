@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import axios from "axios";
+import * as XLSX from "xlsx";
 import {
   Alert,
   Autocomplete,
@@ -71,6 +72,11 @@ const REMARK_OPTIONS = [
   "New order punch",
 ];
 
+const REMARK_FILTER_OPTIONS = [
+  { value: "no_remark", label: "No remark" },
+  ...REMARK_OPTIONS.map((remark) => ({ value: remark, label: remark })),
+];
+
 const NDR_LEVEL_TABS = [
   { value: "level1", label: "Level 1 NDR" },
   { value: "level2", label: "Level 2 NDR" },
@@ -85,10 +91,11 @@ const EMPTY_FILTERS = {
   status: [],
   paymentMode: [],
   agent: [],
+  remark: [],
   delay: [],
 };
 
-const MULTI_FILTER_KEYS = new Set(["courier", "status", "paymentMode", "agent", "delay"]);
+const MULTI_FILTER_KEYS = new Set(["courier", "status", "paymentMode", "agent", "remark", "delay"]);
 
 function toArray(value) {
   if (Array.isArray(value)) return value.filter(Boolean);
@@ -204,6 +211,27 @@ function downloadCsv(filename, rows) {
   URL.revokeObjectURL(url);
 }
 
+function downloadXlsx(filename, rows) {
+  const headers = ["Order ID", "Date", "Customer", "Phone", "Agent", "Remark", "Status", "Delay Days", "Payment", "Courier", "AWB"];
+  const body = rows.map((row) => [
+    row.orderName || row.orderId || "",
+    formatDate(row.orderDate),
+    row.customerName || "",
+    row.contactNumber || "",
+    row.assignedAgentName || "",
+    row.opsRemark || "",
+    row.status || "",
+    row.delayDays || "",
+    row.paymentMode || "",
+    row.courier || "",
+    row.trackingNumber || "",
+  ]);
+  const worksheet = XLSX.utils.aoa_to_sheet([headers, ...body]);
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, "NDR Orders");
+  XLSX.writeFile(workbook, filename);
+}
+
 export default function LmsNdrPage() {
   return (
     <Box
@@ -275,11 +303,13 @@ function NdrSection({ section, title, description, icon }) {
     const status = joinFilterValues(debouncedFilters.status);
     const paymentMode = joinFilterValues(debouncedFilters.paymentMode);
     const agent = joinFilterValues(debouncedFilters.agent);
+    const remark = joinFilterValues(debouncedFilters.remark);
     const delay = joinFilterValues(debouncedFilters.delay);
     if (courier) next.courier = courier;
     if (status) next.status = status;
     if (paymentMode) next.payment_mode = paymentMode;
     if (agent) next.agent = agent;
+    if (remark) next.remark = remark;
     if (delay) next.delay = delay;
     return next;
   }, [debouncedFilters, ndrLevel, page, rowsPerPage, section]);
@@ -403,7 +433,11 @@ function NdrSection({ section, title, description, icon }) {
         ...row,
         assignedAgentName: row.assignedAgentName || getAssignedAgent(row.assignedAgentId)?.fullName || "",
       }));
-      downloadCsv(`${ndrLevel}-${section}-ndr-orders.${extension}`, rowsToExport);
+      if (extension === "xlsx") {
+        downloadXlsx(`${ndrLevel}-${section}-ndr-orders.xlsx`, rowsToExport);
+      } else {
+        downloadCsv(`${ndrLevel}-${section}-ndr-orders.csv`, rowsToExport);
+      }
     } catch (err) {
       setError(err?.response?.data?.error || "Failed to export NDR orders.");
     } finally {
@@ -569,8 +603,8 @@ function NdrSection({ section, title, description, icon }) {
             <Button size="small" startIcon={<FileDownloadOutlinedIcon />} disabled={Boolean(exporting)} onClick={() => downloadAllRows("csv")} sx={{ textTransform: "none", fontWeight: 800 }}>
               {exporting === "csv" ? "Exporting..." : "CSV"}
             </Button>
-            <Button size="small" startIcon={<FileDownloadOutlinedIcon />} disabled={Boolean(exporting)} onClick={() => downloadAllRows("xls")} sx={{ textTransform: "none", fontWeight: 800 }}>
-              {exporting === "xls" ? "Exporting..." : "Excel"}
+            <Button size="small" startIcon={<FileDownloadOutlinedIcon />} disabled={Boolean(exporting)} onClick={() => downloadAllRows("xlsx")} sx={{ textTransform: "none", fontWeight: 800 }}>
+              {exporting === "xlsx" ? "Exporting..." : "Excel"}
             </Button>
           </Stack>
         </Stack>
@@ -581,7 +615,7 @@ function NdrSection({ section, title, description, icon }) {
           sx={{
             display: "grid",
             gap: 1.5,
-            gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0, 1fr))", lg: "1.4fr repeat(7, minmax(0, 1fr)) auto" },
+            gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0, 1fr))", lg: "1.4fr repeat(8, minmax(0, 1fr)) auto" },
             alignItems: "end",
           }}
         >
@@ -667,6 +701,22 @@ function NdrSection({ section, title, description, icon }) {
               renderValue={(selected) => selected.length ? selected.map((value) => optionLabel(agentFilterOptions, value)).join(", ") : "All Agents"}
             >
               {agentFilterOptions.map((option) => (
+                <MenuItem key={option.value} value={option.value}>{option.label}</MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+          <FormControl size="small">
+            <InputLabel shrink>Remark</InputLabel>
+            <Select
+              multiple
+              displayEmpty
+              notched
+              label="Remark"
+              value={filters.remark}
+              onChange={updateFilter("remark")}
+              renderValue={(selected) => selected.length ? selected.map((value) => optionLabel(REMARK_FILTER_OPTIONS, value)).join(", ") : "All Remarks"}
+            >
+              {REMARK_FILTER_OPTIONS.map((option) => (
                 <MenuItem key={option.value} value={option.value}>{option.label}</MenuItem>
               ))}
             </Select>

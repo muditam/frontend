@@ -309,7 +309,8 @@ function SummaryMetric({ title, value, sub, color, bg, borderColor }) {
    <Box
      sx={{
        flex: 1,
-       minWidth: 160,
+       minWidth: 0,
+       height: "100%",
        p: 2,
        borderRadius: 2.5,
        border: `1px solid ${borderColor || BRAND.border}`,
@@ -323,7 +324,7 @@ function SummaryMetric({ title, value, sub, color, bg, borderColor }) {
        {value}
      </Typography>
      {sub ? (
-       <Typography variant="caption" sx={{ color: BRAND.sub }}>
+       <Typography variant="caption" sx={{ color: BRAND.sub, display: "block", lineHeight: 1.6 }}>
          {sub}
        </Typography>
      ) : null}
@@ -756,27 +757,48 @@ export default function IncentiveSummarySection({ agentName }) {
                  VKR Sales
                </Typography>
                <Stack spacing={1.25}>
-                 <Stack direction={{ xs: "column", md: "row" }} justifyContent="space-between" alignItems={{ xs: "flex-start", md: "flex-start" }} spacing={1.5}>
-                   <Box sx={{ minWidth: 0, flex: 1 }}>
+                 <Stack
+                   sx={{
+                     display: "grid",
+                     gridTemplateColumns: {
+                       xs: "1fr",
+                       md: "minmax(190px, 0.7fr) minmax(0, 2.8fr)",
+                     },
+                     gap: 1.5,
+                     alignItems: "start",
+                   }}
+                 >
+                   <Box sx={{ minWidth: 0 }}>
                      <Typography variant="h5" sx={{ color: BRAND.coin, fontWeight: 800, lineHeight: 1.1 }}>
                        {walletAchievementByDeliveredPct}%
                      </Typography>
                      <Typography variant="caption" sx={{ color: BRAND.sub, display: "block", mt: 0.2 }}>
                        Total: {walletAchievementByTotalPct}%
                      </Typography>
-                     <Typography variant="caption" sx={{ color: BRAND.sub }}>
+                     <Typography variant="caption" sx={{ color: BRAND.sub, display: "block", whiteSpace: "nowrap" }}>
                       Target: {formatNumber(walletTargetVisibleVkrCount)} / {formatNumber(walletTarget.monthlyTargetCount || 0)} VKR
                      </Typography>
                      <Stack spacing={0.35} sx={{ mt: 0.75 }}>
-                       <Typography variant="caption" sx={{ color: BRAND.sub, display: "block" }}>
+                       <Typography variant="caption" sx={{ color: BRAND.sub, display: "block", whiteSpace: "nowrap" }}>
                          Delivered VKR: <Box component="span" sx={{ color: BRAND.available, fontWeight: 700 }}>{formatNumber(deliveredVkr)}</Box>
                        </Typography>
-                       <Typography variant="caption" sx={{ color: BRAND.sub, display: "block" }}>
+                       <Typography variant="caption" sx={{ color: BRAND.sub, display: "block", whiteSpace: "nowrap" }}>
                          Undelivered VKR: <Box component="span" sx={{ color: BRAND.coming, fontWeight: 700 }}>{formatNumber(undeliveredVkr)}</Box>
                        </Typography>
                      </Stack>
                    </Box>
-                   <Stack direction={{ xs: "column", sm: "row" }} spacing={1.25} sx={{ width: { xs: "100%", md: "auto" }, minWidth: { md: 570 } }}>
+                   <Stack
+                     sx={{
+                       width: "100%",
+                       minWidth: 0,
+                       display: "grid",
+                       gridTemplateColumns: {
+                         xs: "1fr",
+                         sm: "repeat(3, minmax(0, 1fr))",
+                       },
+                       gap: 1.25,
+                     }}
+                   >
                     <SummaryMetric title="Earned Coins" value={formatNumber(walletBaseEarnedCoins)} sub={`${formatNumber(walletDeliveredOrders)} delivered qualifying orders (${formatNumber(deliveredVkr)} VKR)`} color={BRAND.coin} bg="#ffffff" borderColor={BRAND.coinBorder} />
                     <SummaryMetric title="Upcoming Coins" value={formatNumber(walletUpcomingCoins)} sub={`${formatNumber(walletUpcomingOrders)} upcoming qualifying orders (${formatNumber(undeliveredVkr)} VKR)`} color={BRAND.coming} bg="#ffffff" borderColor="#fde68a" />
                      <SummaryMetric title="Lapsed Coins" value={formatNumber(walletLapsedCoins)} sub={`${walletAchievementByDeliveredPct}% achievement`} color={BRAND.reversed} bg="#ffffff" borderColor="#fecaca" />

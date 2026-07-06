@@ -41,6 +41,7 @@ const normalizeRole = (role = "") =>
 
 const isManagerRole = (role = "") => normalizeRole(role) === "manager";
 const isTeamLeaderRole = (role = "") => normalizeRole(role) === "team leader";
+const isRetentionAgentRole = (role = "") => normalizeRole(role) === "retention agent";
 
 
 const isSalesDepartment = (emp = {}) =>
@@ -298,6 +299,8 @@ const TeamPage = ({ managerId: managerIdProp }) => {
        isRemovable: Boolean(overrides.isRemovable),
        monthlyTarget: targetValue,
        achieved,
+       groupTargetContribution: Number(overrides.groupTargetContribution ?? targetValue),
+       groupAchievedContribution: Number(overrides.groupAchievedContribution ?? achieved),
        pending,
        dailyRequired,
        pctAch,
@@ -345,6 +348,8 @@ const TeamPage = ({ managerId: managerIdProp }) => {
 
      const childTarget = childRows.reduce((sum, row) => sum + row.monthlyTarget, 0);
      const childAchieved = childRows.reduce((sum, row) => sum + row.achieved, 0);
+     const excludeSelfFromManagerAggregate =
+       isManagerView && current?.hasTeam === true && isRetentionAgentRole(current?.role);
      const hasSelfMetrics = Number(current.target || 0) > 0 || selfAchieved > 0;
      const selfRow = hasSelfMetrics
        ? buildMetricRow(current, selfAchieved, {
@@ -360,14 +365,20 @@ const TeamPage = ({ managerId: managerIdProp }) => {
      const children = childRows.length > 0
        ? (selfRow ? [selfRow, ...childRows] : childRows)
        : [];
-     const teamTarget = childTarget + (selfRow?.monthlyTarget || 0);
-     const teamAchieved = childAchieved + (selfRow?.achieved || 0);
+     const selfTargetForAggregate = excludeSelfFromManagerAggregate ? 0 : selfRow?.monthlyTarget || 0;
+     const selfAchievedForAggregate = excludeSelfFromManagerAggregate ? 0 : selfRow?.achieved || 0;
+     const teamTarget = childTarget + selfTargetForAggregate;
+     const teamAchieved = childAchieved + selfAchievedForAggregate;
+     const groupTargetContribution = childTarget + (selfRow?.monthlyTarget || 0);
+     const groupAchievedContribution = childAchieved + (selfRow?.achieved || 0);
 
      return {
        row: buildMetricRow(current, teamAchieved, {
          renderKey: `aggregate:${current._id}`,
          type: "aggregate",
          monthlyTarget: teamTarget,
+         groupTargetContribution,
+         groupAchievedContribution,
          expandable: children.length > 0,
          isRemovable: false,
          targetLabel: "Team target",
@@ -481,8 +492,14 @@ const TeamPage = ({ managerId: managerIdProp }) => {
  };
 
  const filteredRows = getDisplayRows();
- const filteredAchieved = topLevelRows.reduce((acc, row) => acc + row.achieved, 0);
- const filteredTarget = topLevelRows.reduce((acc, row) => acc + row.monthlyTarget, 0);
+ const filteredAchieved = topLevelRows.reduce(
+   (acc, row) => acc + Number(row.groupAchievedContribution ?? row.achieved ?? 0),
+   0
+ );
+ const filteredTarget = topLevelRows.reduce(
+   (acc, row) => acc + Number(row.groupTargetContribution ?? row.monthlyTarget ?? 0),
+   0
+ );
  const filteredPending = Math.max(0, filteredTarget - filteredAchieved);
  const filteredDailyRequired = workingDaysLeft > 0 && filteredPending > 0 ? Math.ceil(filteredPending / workingDaysLeft) : 0;
  const filteredPctAch = filteredTarget === 0 ? 0 : (filteredAchieved / filteredTarget) * 100;

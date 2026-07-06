@@ -19,6 +19,7 @@ import {
   Button,
   Divider,
   Chip,
+  TableSortLabel,
 
 
 } from "@mui/material";
@@ -341,10 +342,17 @@ const rowHoverSx = {
   "&:hover": { backgroundColor: "#F1F5F9" },
 };
 
+const healthExpertSortFields = {
+  activeCustomers: "Active Customers",
+  salesDone: "Sales Done",
+  totalSales: "Total Sales",
+  avgOrderValue: "Avg Order Value",
+};
+
 
 const ManagerRetentionDashboard = () => {
-  const initialDates = useMemo(() => getDateRange("Month to date"), []);
-  const [range, setRange] = useState("Month to date");
+  const initialDates = useMemo(() => getDateRange("Today"), []);
+  const [range, setRange] = useState("Today");
   const [customStart, setCustomStart] = useState("");
   const [customEnd, setCustomEnd] = useState("");
   const [effectiveStart, setEffectiveStart] = useState(initialDates.startDate);
@@ -383,6 +391,7 @@ const ManagerRetentionDashboard = () => {
     avgOrderValue: 0,
   });
   const [healthExpertMetrics, setHealthExpertMetrics] = useState([]);
+  const [healthExpertSort, setHealthExpertSort] = useState({ field: "", direction: "desc" });
 
 
   // ✅ Condition cards (separate endpoint — not date-dependent)
@@ -881,6 +890,53 @@ const ManagerRetentionDashboard = () => {
 
   const activityLoading = activityCardsLoading || activityTableLoading;
 
+  const sortedHealthExpertMetrics = useMemo(() => {
+    const rows = [...(healthExpertMetrics || [])];
+    const { field, direction } = healthExpertSort;
+
+    if (!field) return rows;
+
+    return rows.sort((a, b) => {
+      const aValue = Number(a?.[field] || 0);
+      const bValue = Number(b?.[field] || 0);
+      const valueCompare = direction === "asc" ? aValue - bValue : bValue - aValue;
+
+      if (valueCompare !== 0) return valueCompare;
+
+      return String(a?.healthExpertName || "").localeCompare(String(b?.healthExpertName || ""));
+    });
+  }, [healthExpertMetrics, healthExpertSort]);
+
+  const handleHealthExpertSort = (field) => {
+    setHealthExpertSort((current) => ({
+      field,
+      direction: current.field === field && current.direction === "desc" ? "asc" : "desc",
+    }));
+  };
+
+  const getHealthExpertSortDirection = (field) =>
+    healthExpertSort.field === field ? healthExpertSort.direction : "desc";
+
+  const renderHealthExpertSortHeader = (field) => (
+    <TableSortLabel
+      active={healthExpertSort.field === field}
+      direction={getHealthExpertSortDirection(field)}
+      hideSortIcon={false}
+      onClick={() => handleHealthExpertSort(field)}
+      sx={{
+        color: "#334155 !important",
+        justifyContent: "center",
+        width: "100%",
+        "& .MuiTableSortLabel-icon": {
+          color: "#334155 !important",
+          opacity: healthExpertSort.field === field ? 1 : 0.45,
+        },
+      }}
+    >
+      {healthExpertSortFields[field]}
+    </TableSortLabel>
+  );
+
 
   const shipmentCards = useMemo(() => {
   const rows = (shipmentSummary || []).filter(
@@ -983,16 +1039,16 @@ const ManagerRetentionDashboard = () => {
                 <TableHead>
                   <TableRow>
                     <TableCell sx={headerCellSx}>Health Expert Name</TableCell>
-                    <TableCell sx={headerCellSx}>Active Customers</TableCell>
-                    <TableCell sx={headerCellSx}>Sales Done</TableCell>
-                    <TableCell sx={headerCellSx}>Total Sales</TableCell>
-                    <TableCell sx={headerCellSx}>Avg Order Value</TableCell>
+                    <TableCell sx={headerCellSx}>{renderHealthExpertSortHeader("activeCustomers")}</TableCell>
+                    <TableCell sx={headerCellSx}>{renderHealthExpertSortHeader("salesDone")}</TableCell>
+                    <TableCell sx={headerCellSx}>{renderHealthExpertSortHeader("totalSales")}</TableCell>
+                    <TableCell sx={headerCellSx}>{renderHealthExpertSortHeader("avgOrderValue")}</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
                   {summaryLoading && <TableRow><TableCell colSpan={5} sx={{ p: 0 }}><LinearProgress /></TableCell></TableRow>}
                   {!summaryLoading && (healthExpertMetrics || []).length === 0 && <TableRow><TableCell colSpan={5} align="center" sx={{ py: 2, color: "#64748B" }}>No data available</TableCell></TableRow>}
-                  {!summaryLoading && (healthExpertMetrics || []).map((r, idx) => (
+                  {!summaryLoading && sortedHealthExpertMetrics.map((r, idx) => (
                     <TableRow key={r.healthExpertName || idx} sx={{ backgroundColor: idx % 2 === 0 ? "#FFFFFF" : "#FBFDFF", ...rowHoverSx }}>
                       <TableCell sx={{ fontWeight: 800, color: "#0F172A" }}>{r.healthExpertName}</TableCell>
                       <TableCell align="center">{fmt0(r.activeCustomers)}</TableCell>

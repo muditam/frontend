@@ -119,6 +119,7 @@ import KnowledgeBaseManager from "./pages/KnowledgeBaseManager";
 import OrganisationTree from "./pages/OrganisationTree";
 import RedcliffeBookingPage from "./pages/RedcliffeBookingPage";
 import RedcliffeDashboardPage from "./pages/RedcliffeDashboardPage";
+import RedcliffePriceDashboard from "./pages/RedcliffePriceDashboard";
 import DietOnboarding from "./pages/diet/DietOnboarding";
 import SmartDietPlanView from "./pages/diet/SmartDietPlanView";
 import DietDashboard from "./pages/diet/DietDashboard";
@@ -218,6 +219,14 @@ function AppLayout() {
                 <PermissionRoute permissionKey="redcliffeDashboard">
                   <RedcliffeDashboardPage />
                 </PermissionRoute>
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/redcliffe-prices"
+            element={
+              <PrivateRoute> 
+                  <RedcliffePriceDashboard />
               </PrivateRoute>
             }
           />

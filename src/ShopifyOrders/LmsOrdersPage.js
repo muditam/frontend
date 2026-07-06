@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import axios from "axios";
+import * as XLSX from "xlsx";
 import {
   Alert,
   Box,
@@ -209,6 +210,26 @@ function downloadCsv(filename, rows) {
   URL.revokeObjectURL(url);
 }
 
+function downloadXlsx(filename, rows) {
+  const headers = ["Order ID", "Date", "Customer", "Phone", "Products / SKU", "Payment", "Amount", "Courier", "AWB", "Status"];
+  const body = rows.map((row) => [
+    row.orderName || row.orderId || "",
+    formatDate(row.orderDate),
+    row.customerName || "",
+    row.contactNumber || row.customerAddress?.phone || "",
+    productText(row.products),
+    row.paymentMode || "",
+    Number(row.amount || 0),
+    row.courier || "",
+    row.trackingNumber || "",
+    row.status || "",
+  ]);
+  const worksheet = XLSX.utils.aoa_to_sheet([headers, ...body]);
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, "Orders");
+  XLSX.writeFile(workbook, filename);
+}
+
 function isClosedStatusValue(status) {
   return CLOSED_STATUS.has(normalizeStatus(status).toLowerCase());
 }
@@ -279,6 +300,7 @@ export default function LmsOrdersPage() {
   const [remarkSaving, setRemarkSaving] = useState(false);
   const [copyMessage, setCopyMessage] = useState("");
   const [requestVersion, setRequestVersion] = useState(0);
+  const [exporting, setExporting] = useState("");
 
   const [filters, setFilters] = useState({
     search: "",
@@ -432,6 +454,27 @@ export default function LmsOrdersPage() {
       setCopyMessage(copied ? `${label} copied` : `${label} not available`);
     } catch (err) {
       setCopyMessage("Copy failed");
+    }
+  };
+
+  const downloadAllRows = async (extension) => {
+    setExporting(extension);
+    setError("");
+    try {
+      const { data } = await api.get("/api/lms-orders", {
+        params: { ...params, export_all: "true" },
+      });
+      const rowsToExport = Array.isArray(data?.data) ? data.data : [];
+      if (extension === "xlsx") {
+        downloadXlsx(`${isActiveMode ? "active" : "all"}-orders.xlsx`, rowsToExport);
+      } else {
+        downloadCsv(`${isActiveMode ? "active" : "all"}-orders.csv`, rowsToExport);
+      }
+    } catch (err) {
+      console.error("Failed to export LMS orders", err);
+      setError(err?.response?.data?.error || "Failed to export orders.");
+    } finally {
+      setExporting("");
     }
   };
 
@@ -629,18 +672,20 @@ export default function LmsOrdersPage() {
                 <Button
                   size="small"
                   startIcon={<FileDownloadOutlinedIcon />}
-                  onClick={() => downloadCsv(`${isActiveMode ? "active" : "all"}-orders.csv`, rows)}
+                  disabled={Boolean(exporting)}
+                  onClick={() => downloadAllRows("csv")}
                   sx={{ textTransform: "none", fontWeight: 800 }}
                 >
-                  CSV
+                  {exporting === "csv" ? "Exporting..." : "CSV"}
                 </Button>
                 <Button
                   size="small"
                   startIcon={<FileDownloadOutlinedIcon />}
-                  onClick={() => downloadCsv(`${isActiveMode ? "active" : "all"}-orders.xls`, rows)}
+                  disabled={Boolean(exporting)}
+                  onClick={() => downloadAllRows("xlsx")}
                   sx={{ textTransform: "none", fontWeight: 800 }}
                 >
-                  Excel
+                  {exporting === "xlsx" ? "Exporting..." : "Excel"}
                 </Button>
                 <Chip
                   icon={<Inventory2OutlinedIcon />}
@@ -772,8 +817,9 @@ export default function LmsOrdersPage() {
                 <InputLabel>Payment</InputLabel>
                 <Select label="Payment" value={filters.paymentMode} onChange={updateFilter("paymentMode")}>
                   <MenuItem value="">All</MenuItem>
+                  <MenuItem value="Paid">Paid</MenuItem>
                   <MenuItem value="COD">COD</MenuItem>
-                  <MenuItem value="PREPAID">Prepaid</MenuItem>
+                  <MenuItem value="Partial paid">Partial paid</MenuItem>
                 </Select>
               </FormControl>
               <FormControl size="small">

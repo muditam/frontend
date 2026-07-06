@@ -1,0 +1,284 @@
+.redcliffe-price-page {
+  min-height: 100vh;
+  background: #f5f7f6;
+  color: #172126;
+  padding: 22px 20px 40px;
+}
+
+.redcliffe-price-shell {
+  max-width: 1520px;
+  margin: 0 auto;
+}
+
+.redcliffe-price-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  align-items: center;
+  margin-bottom: 14px;
+}
+
+.redcliffe-price-header h1 {
+  margin: 0;
+  font-size: 28px;
+  line-height: 1.12;
+  letter-spacing: 0;
+}
+
+.redcliffe-price-header > div:first-child > span {
+  display: block;
+  margin-top: 4px;
+  color: #68787e;
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.redcliffe-price-metrics {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.redcliffe-price-metrics span {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid #d7e1dc;
+  border-radius: 8px;
+  background: #fff;
+  color: #5d6d73;
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.redcliffe-price-metrics strong {
+  color: #172126;
+  font-size: 15px;
+  line-height: 1;
+}
+
+.redcliffe-price-banner {
+  border: 1px solid #d7e1dc;
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.redcliffe-price-banner.success {
+  color: #166547;
+  border-color: #b7ebcc;
+  background: #ecfdf3;
+}
+
+.redcliffe-price-banner.error {
+  color: #a42828;
+  border-color: #efc2c2;
+  background: #fff1f1;
+}
+
+.redcliffe-price-card {
+  background: #fff;
+  border: 1px solid #d7e1dc;
+  border-radius: 8px;
+  box-shadow: 0 10px 30px rgba(23, 33, 38, 0.05);
+  padding: 14px;
+}
+
+.redcliffe-price-toolbar {
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) auto auto auto auto;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.redcliffe-price-toolbar input[type="search"],
+.redcliffe-price-table input,
+.redcliffe-price-table select {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid #d6e0da;
+  background: #fff;
+  color: #172126;
+  border-radius: 8px;
+  padding: 9px 11px;
+  font: inherit;
+}
+
+.redcliffe-price-toolbar input:focus,
+.redcliffe-price-table input:focus,
+.redcliffe-price-table select:focus {
+  outline: none;
+  border-color: #2b8c76;
+  box-shadow: 0 0 0 4px rgba(43, 140, 118, 0.13);
+}
+
+.redcliffe-price-toolbar button,
+.redcliffe-price-upload,
+.redcliffe-price-table button {
+  border: none;
+  border-radius: 8px;
+  background: #172126;
+  color: #fff;
+  padding: 9px 13px;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.redcliffe-price-toolbar button.secondary {
+  background: #eef4f1;
+  color: #172126;
+  border: 1px solid #cbd8d2;
+}
+
+.redcliffe-price-toolbar button.accent {
+  background: #2b8c76;
+}
+
+.redcliffe-price-toolbar button:disabled,
+.redcliffe-price-table button:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+}
+
+.redcliffe-price-upload {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #2b8c76;
+}
+
+.redcliffe-price-upload input {
+  display: none;
+}
+
+.redcliffe-price-table-wrap {
+  overflow: auto;
+  border: 1px solid #d7e1dc;
+  border-radius: 8px;
+}
+
+.redcliffe-price-table {
+  width: 100%;
+  min-width: 1180px;
+  border-collapse: collapse;
+  background: #fff;
+}
+
+.redcliffe-price-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: #f3f7f5;
+  color: #46575d;
+  font-size: 12px;
+  text-align: left;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 11px 12px;
+  border-bottom: 1px solid #d7e1dc;
+}
+
+.redcliffe-price-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid #e8efeb;
+  vertical-align: middle;
+}
+
+.redcliffe-price-table tr:last-child td {
+  border-bottom: none;
+}
+
+.redcliffe-price-table td:first-child {
+  min-width: 320px;
+}
+
+.redcliffe-price-table td:first-child strong,
+.redcliffe-price-table td:first-child span,
+.redcliffe-price-table td:first-child em {
+  display: block;
+}
+
+.redcliffe-price-table td:first-child strong {
+  color: #172126;
+  line-height: 1.28;
+}
+
+.redcliffe-price-table td:first-child span {
+  margin-top: 4px;
+  color: #69777c;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.redcliffe-price-table td:first-child em {
+  margin-top: 6px;
+  color: #a42828;
+  font-size: 12px;
+  font-style: normal;
+  line-height: 1.35;
+}
+
+.redcliffe-price-table input,
+.redcliffe-price-table select {
+  min-width: 120px;
+}
+
+.redcliffe-price-name-edit {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) minmax(120px, 0.42fr);
+  gap: 8px;
+}
+
+.redcliffe-price-name-edit input {
+  min-width: 0;
+}
+
+.redcliffe-price-pill {
+  display: inline-flex;
+  min-width: 72px;
+  justify-content: center;
+  border-radius: 999px;
+  padding: 7px 10px;
+  background: #fff6dd;
+  color: #8a6200;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.redcliffe-price-pill.saved {
+  background: #e9f8ef;
+  color: #166547;
+}
+
+.redcliffe-price-empty {
+  text-align: center;
+  color: #69777c;
+  padding: 34px 16px !important;
+}
+
+@media (max-width: 900px) {
+  .redcliffe-price-page {
+    padding: 16px 12px 30px;
+  }
+
+  .redcliffe-price-header,
+  .redcliffe-price-toolbar {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .redcliffe-price-metrics {
+    justify-content: flex-start;
+  }
+}

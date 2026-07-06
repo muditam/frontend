@@ -4,7 +4,6 @@ import LogoutIcon from "@mui/icons-material/Logout";
 import UnfoldMoreIcon from "@mui/icons-material/UnfoldMore";
 import HomeIcon from "@mui/icons-material/Home";
 import AssignmentIcon from "@mui/icons-material/Assessment";
-import DescriptionIcon from "@mui/icons-material/Description";
 import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
 import PersonAddIcon from "@mui/icons-material/PersonAdd";
 import FolderIcon from "@mui/icons-material/Folder";
@@ -644,6 +643,7 @@ const MenuBar = ({ toggleDrawer }) => {
             <DropdownGroup id="redcliffe" icon={<StorefrontIcon />} label="Redcliffe">
               {can("redcliffeBooking") && <SubItem to="/redcliffe-booking" label="Booking" />}
               {can("redcliffeDashboard") && <SubItem to="/redcliffe-dashboard" label="Dashboard" />}
+              {can("redcliffePriceDashboard") && <SubItem to="/redcliffe-prices" label="Price Dashboard" />}
             </DropdownGroup>
           )}
 

@@ -207,6 +207,7 @@ const DEFAULT_PERMISSIONS = {
    redcliffeMenu: false,
    redcliffeBooking: false,
    redcliffeDashboard: false,
+   redcliffePriceDashboard: false,
    smartDietPlanner: false,
    appDashboard: false,
 
@@ -1839,6 +1840,7 @@ const getEffectiveRole = () =>
                  ["redcliffeMenu", "Redcliffe Menu"],
                  ["redcliffeBooking", "Redcliffe: Booking"],
                  ["redcliffeDashboard", "Redcliffe: Dashboard"],
+                 ["redcliffePriceDashboard", "Redcliffe: Price Dashboard"],
                  ["smartDietPlanner", "Smart Diet Planner"],
                  ["appDashboard", "App Dashboard"],
                ].map(([key, label]) => (
