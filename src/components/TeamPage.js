@@ -46,12 +46,21 @@ const isRetentionAgentRole = (role = "") => normalizeRole(role) === "retention a
 
 const isSalesDepartment = (emp = {}) =>
  String(emp.department || "").trim().toLowerCase() === "sales";
+const hasTeamFlag = (emp = {}) => emp?.hasTeam === true || emp?.team === true;
 const isTargetEligible = (emp = {}) =>
  isSalesDepartment(emp) && emp?.isDoctor !== true;
+const isRetentionAgentWithTeam = (emp = {}) =>
+ isRetentionAgentRole(emp?.role) && hasTeamFlag(emp);
+const isTeamLeaderOptionEligible = (emp = {}) =>
+ isTargetEligible(emp) || isRetentionAgentWithTeam(emp);
 const shouldIncludeLeaderSelfRow = (emp = {}) =>
- Boolean(emp?.hasTeam) && isTargetEligible(emp) && !isTeamLeaderRole(emp?.role);
+ hasTeamFlag(emp) && isTargetEligible(emp) && !isTeamLeaderRole(emp?.role);
 const getActiveTargetMembers = (members = []) =>
  (members || []).filter((emp) => emp.status === "active" && isTargetEligible(emp));
+const getActiveManagerTeamMembers = (members = []) =>
+ (members || []).filter((emp) => emp.status === "active" && isTargetEligible(emp));
+const getActiveRetentionTeamLeaders = (members = []) =>
+ (members || []).filter((emp) => emp.status === "active" && isRetentionAgentWithTeam(emp));
 const getUniqueEmployeesById = (members = []) => {
  const unique = new Map();
  (members || []).forEach((emp) => {
@@ -62,6 +71,21 @@ const getUniqueEmployeesById = (members = []) => {
  });
  return Array.from(unique.values());
 };
+const mergeEmployeeDirectoryDetails = (members = [], employees = []) =>
+ (members || []).map((member) => {
+   const matched = (employees || []).find(
+     (emp) => String(emp?._id || "") === String(member?._id || "")
+   );
+   if (!matched) return member;
+   return {
+     ...matched,
+     ...member,
+     hasTeam: member?.hasTeam ?? matched?.hasTeam,
+     team: member?.team ?? matched?.team,
+     isDoctor: member?.isDoctor ?? matched?.isDoctor,
+     department: member?.department ?? matched?.department,
+   };
+ });
 const getEmployeeId = (emp = {}) => String(emp?._id || "");
 const getLeaderDisplayName = (teamLeader) => {
  if (!teamLeader) return "--";
@@ -172,7 +196,9 @@ const TeamPage = ({ managerId: managerIdProp }) => {
  const [allAgents, setAllAgents] = useState([]);
  const [leaderOptions, setLeaderOptions] = useState([]);
  const [selectedLeaderId, setSelectedLeaderId] = useState("");
+ const [selectedLeader, setSelectedLeader] = useState(null);
  const [teamMembers, setTeamMembers] = useState([]);
+ const [managerRetentionTeamMembers, setManagerRetentionTeamMembers] = useState([]);
  const [loading, setLoading] = useState(true);
  const [addOpen, setAddOpen] = useState(false);
  const [searchValue, setSearchValue] = useState([]);
@@ -193,17 +219,20 @@ const TeamPage = ({ managerId: managerIdProp }) => {
      },
      TEAM_PAGE_EMPLOYEE_CACHE_TTL_MS
    );
-   const activeSalesEmployees = (data || []).filter(
+   const activeTargetEmployees = (data || []).filter(
      (emp) => emp.status === "active" && isTargetEligible(emp)
+   );
+   const activeTeamEmployees = (data || []).filter(
+     (emp) => emp.status === "active" && isTeamLeaderOptionEligible(emp)
    );
 
 
-   const leaders = activeSalesEmployees
-     .filter((emp) => emp.hasTeam === true)
+   const leaders = activeTargetEmployees
+     .filter((emp) => hasTeamFlag(emp))
      .sort((a, b) => (a.fullName || "").localeCompare(b.fullName || ""));
 
 
-   setAllAgents(activeSalesEmployees);
+   setAllAgents(activeTeamEmployees);
    setLeaderOptions(leaders);
 
 
@@ -224,6 +253,8 @@ const TeamPage = ({ managerId: managerIdProp }) => {
        setAllAgents([]);
        setLeaderOptions([]);
        setTeamMembers([]);
+       setManagerRetentionTeamMembers([]);
+       setSelectedLeader(null);
        setSelectedLeaderId("");
      })
      .finally(() => setLoading(false));
@@ -233,6 +264,8 @@ const TeamPage = ({ managerId: managerIdProp }) => {
  useEffect(() => {
    if (!selectedLeaderId) {
      setTeamMembers([]);
+     setManagerRetentionTeamMembers([]);
+     setSelectedLeader(null);
      setExpandedRows({});
      setNestedRowsByParent({});
      return;
@@ -249,24 +282,32 @@ const TeamPage = ({ managerId: managerIdProp }) => {
      TEAM_PAGE_EMPLOYEE_CACHE_TTL_MS
    )
      .then((data) => {
+       setSelectedLeader(data || null);
+       const enrichedTeamMembers = mergeEmployeeDirectoryDetails(data.teamMembers || [], allAgents);
        const nextMembers = isManagerView
-         ? getActiveTargetMembers(data.teamMembers || [])
-         : mergeDisplayedMembers(data, data.teamMembers || []);
+         ? getActiveManagerTeamMembers(enrichedTeamMembers)
+         : mergeDisplayedMembers(data, enrichedTeamMembers);
+       const nextRetentionTeamMembers = isManagerView
+         ? getActiveRetentionTeamLeaders(enrichedTeamMembers)
+         : [];
        setTeamMembers(nextMembers);
+       setManagerRetentionTeamMembers(nextRetentionTeamMembers);
        setExpandedRows({});
        setNestedRowsByParent({});
      })
      .catch(() => {
        setTeamMembers([]);
+       setManagerRetentionTeamMembers([]);
+       setSelectedLeader(null);
        setExpandedRows({});
        setNestedRowsByParent({});
      })
      .finally(() => setLoading(false));
- }, [isManagerView, selectedLeaderId]);
+ }, [allAgents, isManagerView, selectedLeaderId]);
 
 
  useEffect(() => {
-   if (!teamMembers.length) {
+   if (!teamMembers.length && !managerRetentionTeamMembers.length) {
      setTableRows([]);
      setNestedRowsByParent({});
      return;
@@ -290,7 +331,7 @@ const TeamPage = ({ managerId: managerIdProp }) => {
        sourceId: emp?._id || "",
        name: overrides.name || emp?.fullName || "--",
        teamLeader: overrides.teamLeader ?? getLeaderDisplayName(emp?.teamLeader),
-       hasOwnTeam: Boolean(overrides.hasOwnTeam ?? emp?.hasTeam),
+       hasOwnTeam: Boolean(overrides.hasOwnTeam ?? hasTeamFlag(emp)),
        isSelfRow: Boolean(overrides.isSelfRow),
        type: overrides.type || "member",
        expandable: Boolean(overrides.expandable),
@@ -349,7 +390,7 @@ const TeamPage = ({ managerId: managerIdProp }) => {
      const childTarget = childRows.reduce((sum, row) => sum + row.monthlyTarget, 0);
      const childAchieved = childRows.reduce((sum, row) => sum + row.achieved, 0);
      const excludeSelfFromManagerAggregate =
-       isManagerView && current?.hasTeam === true && isRetentionAgentRole(current?.role);
+       isManagerView && hasTeamFlag(current) && isRetentionAgentRole(current?.role);
      const hasSelfMetrics = Number(current.target || 0) > 0 || selfAchieved > 0;
      const selfRow = hasSelfMetrics
        ? buildMetricRow(current, selfAchieved, {
@@ -387,13 +428,62 @@ const TeamPage = ({ managerId: managerIdProp }) => {
      };
    };
 
+   const buildManagerRetentionRow = async (members) => {
+     const childDetails = await Promise.all(
+       members.map(async (member) => {
+         const selfAchieved = await fetchAchievedByName(member.fullName);
+         const selfTarget = Number(member?.target || 0);
+         return {
+           row: buildMetricRow(member, selfAchieved, {
+             id: `${selectedLeaderId}__retention_team__${getEmployeeId(member)}`,
+             renderKey: `manager-retention-team:${selectedLeaderId}:${getEmployeeId(member)}`,
+             type: "member",
+             parentId: selectedLeaderId,
+             monthlyTarget: selfTarget,
+             groupTargetContribution: selfTarget,
+             groupAchievedContribution: selfAchieved,
+             expandable: false,
+             isRemovable: false,
+             targetLabel: "Self target",
+           }),
+           selfTarget,
+           selfAchieved,
+         };
+       })
+     );
+     const childRows = childDetails.map((item) => item.row);
+     const childTarget = childRows.reduce(
+       (sum, row, index) => sum + Number(childDetails[index]?.selfTarget || 0),
+       0
+     );
+     const childAchieved = childRows.reduce(
+       (sum, row, index) => sum + Number(childDetails[index]?.selfAchieved || 0),
+       0
+     );
+     const managerRow = buildMetricRow(selectedLeader || {}, childAchieved, {
+       id: `${selectedLeaderId}__retention_team`,
+       renderKey: `manager-retention-team:${selectedLeaderId}`,
+       name: selectedLeader?.fullName || currentUser?.fullName || "Manager",
+       teamLeader: getLeaderDisplayName(selectedLeader?.teamLeader),
+       type: "manager-retention-team",
+       monthlyTarget: childTarget,
+       groupTargetContribution: 0,
+       groupAchievedContribution: 0,
+       expandable: childRows.length > 0,
+       isRemovable: false,
+       targetLabel: "Retention agent teams",
+     });
+
+     return { row: managerRow, children: childRows };
+   };
+
    const loadRows = async () => {
      const directMemberIds = new Set(teamMembers.map((member) => getEmployeeId(member)));
      const nextNestedRows = {};
      const memberDetails = await Promise.all(
        teamMembers.map(async (member) => {
          const current = getCurrentEmployee(member);
-         if (!isManagerView || !current?.hasTeam) {
+         if (!isManagerView || !hasTeamFlag(current)) {
            return { current, memberData: null };
          }
 
@@ -411,7 +501,7 @@ const TeamPage = ({ managerId: managerIdProp }) => {
 
      const nestedMemberIds = new Set();
      memberDetails.forEach(({ current, memberData }) => {
-       if (!isManagerView || !current?.hasTeam || !memberData) return;
+       if (!isManagerView || !hasTeamFlag(current) || !memberData) return;
 
        getUniqueEmployeesById(
          getActiveTargetMembers(memberData.teamMembers || []).filter(
@@ -428,7 +518,7 @@ const TeamPage = ({ managerId: managerIdProp }) => {
 
      const rows = await Promise.all(
        visibleMembers.map(async ({ current, memberData }) => {
-         if (isManagerView && current?.hasTeam) {
+         if (isManagerView && hasTeamFlag(current)) {
            const aggregate = await buildManagerAggregateRows(current, directMemberIds, memberData);
            nextNestedRows[getEmployeeId(current)] = aggregate.children;
            return aggregate.row;
@@ -439,10 +529,16 @@ const TeamPage = ({ managerId: managerIdProp }) => {
            type: "member",
            isSelfRow: getEmployeeId(current) === String(selectedLeaderId),
            isRemovable: getEmployeeId(current) !== String(selectedLeaderId),
-           targetLabel: isManagerView || current?.hasTeam ? "Self target" : "",
+           targetLabel: isManagerView || hasTeamFlag(current) ? "Self target" : "",
          });
        })
      );
+
+     if (isManagerView && managerRetentionTeamMembers.length) {
+       const managerRetentionRow = await buildManagerRetentionRow(managerRetentionTeamMembers);
+       nextNestedRows[managerRetentionRow.row.id] = managerRetentionRow.children;
+       rows.unshift(managerRetentionRow.row);
+     }
 
      if (!active) return;
      setNestedRowsByParent(nextNestedRows);
@@ -460,7 +556,16 @@ const TeamPage = ({ managerId: managerIdProp }) => {
    return () => {
      active = false;
    };
- }, [allAgents, isManagerView, selectedLeaderId, teamMembers, workingDaysLeft]);
+ }, [
+   allAgents,
+   currentUser?.fullName,
+   isManagerView,
+   managerRetentionTeamMembers,
+   selectedLeader,
+   selectedLeaderId,
+   teamMembers,
+   workingDaysLeft,
+ ]);
 
 
 
@@ -503,6 +608,7 @@ const TeamPage = ({ managerId: managerIdProp }) => {
  const filteredPending = Math.max(0, filteredTarget - filteredAchieved);
  const filteredDailyRequired = workingDaysLeft > 0 && filteredPending > 0 ? Math.ceil(filteredPending / workingDaysLeft) : 0;
  const filteredPctAch = filteredTarget === 0 ? 0 : (filteredAchieved / filteredTarget) * 100;
+ const assignedMembers = [...teamMembers, ...managerRetentionTeamMembers];
 
 
 
@@ -528,13 +634,22 @@ const TeamPage = ({ managerId: managerIdProp }) => {
    if (!selectedLeaderId) return;
    setAddLoading(true);
    try {
-     const updatedIds = [...teamMembers.map(tm => tm._id), ...searchValue.map(a => a._id)].filter((v, i, arr) => arr.indexOf(v) === i);
+     const updatedIds = [...assignedMembers.map(tm => tm._id), ...searchValue.map(a => a._id)].filter((v, i, arr) => arr.indexOf(v) === i);
      const { data } = await api.put(`/api/employees/${selectedLeaderId}/team`, { teamMembers: updatedIds });
      clearCachedData("team-page:");
+     const enrichedTeamMembers = mergeEmployeeDirectoryDetails(
+       data.manager.teamMembers || [],
+       allAgents
+     );
      const nextMembers = isManagerView
-       ? getActiveTargetMembers(data.manager.teamMembers || [])
-       : mergeDisplayedMembers(data.manager, data.manager.teamMembers || []);
+       ? getActiveManagerTeamMembers(enrichedTeamMembers)
+       : mergeDisplayedMembers(data.manager, enrichedTeamMembers);
+     const nextRetentionTeamMembers = isManagerView
+       ? getActiveRetentionTeamLeaders(enrichedTeamMembers)
+       : [];
      setTeamMembers(nextMembers);
+     setManagerRetentionTeamMembers(nextRetentionTeamMembers);
+     setSelectedLeader(data.manager || null);
      await fetchLeaderAndAgentLists();
      setAddOpen(false);
      setSearchValue([]);
@@ -548,13 +663,22 @@ const TeamPage = ({ managerId: managerIdProp }) => {
    if (!selectedLeaderId) return;
    setTableProgress(p => ({ ...p, [id]: true }));
    try {
-     const updatedIds = teamMembers.filter(emp => emp._id !== id).map(emp => emp._id);
+     const updatedIds = assignedMembers.filter(emp => emp._id !== id).map(emp => emp._id);
      const { data } = await api.put(`/api/employees/${selectedLeaderId}/team`, { teamMembers: updatedIds });
      clearCachedData("team-page:");
+     const enrichedTeamMembers = mergeEmployeeDirectoryDetails(
+       data.manager.teamMembers || [],
+       allAgents
+     );
      const nextMembers = isManagerView
-       ? getActiveTargetMembers(data.manager.teamMembers || [])
-       : mergeDisplayedMembers(data.manager, data.manager.teamMembers || []);
+       ? getActiveManagerTeamMembers(enrichedTeamMembers)
+       : mergeDisplayedMembers(data.manager, enrichedTeamMembers);
+     const nextRetentionTeamMembers = isManagerView
+       ? getActiveRetentionTeamLeaders(enrichedTeamMembers)
+       : [];
      setTeamMembers(nextMembers);
+     setManagerRetentionTeamMembers(nextRetentionTeamMembers);
+     setSelectedLeader(data.manager || null);
      await fetchLeaderAndAgentLists();
    } catch (e) { alert("Failed to update team."); } finally { setTableProgress(p => ({ ...p, [id]: false })); }
  };
@@ -721,7 +845,7 @@ const TeamPage = ({ managerId: managerIdProp }) => {
        <DialogContent>
          <Autocomplete
            multiple
-           options={allAgents.filter(agent => !teamMembers.some(tm => tm._id === agent._id))}
+           options={allAgents.filter(agent => !assignedMembers.some(tm => tm._id === agent._id))}
            getOptionLabel={option => option.fullName}
            value={searchValue}
            onChange={(_, newValue) => setSearchValue(newValue)}
