@@ -57,10 +57,32 @@ const RANGE_OPTIONS = ["Today", "Yesterday", "Last 2 days", "Last one week", "Cu
 const toISODate = (d) => d.toISOString().split("T")[0];
 const isSalesDepartment = (emp = {}) =>
  String(emp.department || "").trim().toLowerCase() === "sales";
+const normalizeRole = (role = "") =>
+ String(role || "").trim().toLowerCase().replace(/[-_]+/g, " ").replace(/\s+/g, " ");
+const hasTeamFlag = (emp = {}) => emp?.hasTeam === true || emp?.team === true;
+const isManagerRole = (role = "") => normalizeRole(role) === "manager";
+const isRetentionAgentRole = (role = "") => normalizeRole(role) === "retention agent";
 const isTargetEligible = (emp = {}) =>
  isSalesDepartment(emp) && emp?.isDoctor !== true;
+const isRetentionAgentWithTeam = (emp = {}) =>
+ isRetentionAgentRole(emp?.role) && hasTeamFlag(emp);
 const getLeaderId = (member = {}) =>
  member?.teamLeader?._id || member?.teamLeader?.id || member?.teamLeader || "";
+const mergeEmployeeDirectoryDetails = (members = [], employees = []) =>
+ (members || []).map((member) => {
+   const matched = (employees || []).find(
+     (emp) => String(emp?._id || "") === String(member?._id || "")
+   );
+   if (!matched) return member;
+   return {
+     ...matched,
+     ...member,
+     hasTeam: member?.hasTeam ?? matched?.hasTeam,
+     team: member?.team ?? matched?.team,
+     isDoctor: member?.isDoctor ?? matched?.isDoctor,
+     department: member?.department ?? matched?.department,
+   };
+ });
 
 
 
@@ -186,8 +208,14 @@ export default function TotalSalesDrilldown({ open, onClose, initialDates }) {
 
 
  const calculatedGrandTotal = useMemo(() => {
-   if (isDaywise) return daywiseResults.reduce((acc, r) => acc + (r.grandTotal || 0), 0);
-   return results.reduce((acc, r) => acc + (r.total || 0), 0);
+   if (isDaywise) {
+     return daywiseResults
+       .filter((row) => !row.isGroupingRow)
+       .reduce((acc, r) => acc + (r.grandTotal || 0), 0);
+   }
+   return results
+     .filter((row) => !row.isGroupingRow)
+     .reduce((acc, r) => acc + (r.total || 0), 0);
  }, [isDaywise, daywiseResults, results]);
 
 
@@ -197,7 +225,9 @@ export default function TotalSalesDrilldown({ open, onClose, initialDates }) {
  const columnTotals = useMemo(() => {
    if (!isDaywise || daywiseResults.length === 0) return [];
    const totals = daywiseResults[0].perDay.map((_, colIndex) => {
-     return daywiseResults.reduce((sum, row) => sum + (row.perDay[colIndex]?.total || 0), 0);
+     return daywiseResults
+       .filter((row) => !row.isGroupingRow)
+       .reduce((sum, row) => sum + (row.perDay[colIndex]?.total || 0), 0);
    });
    return totals;
  }, [isDaywise, daywiseResults]);
@@ -212,6 +242,7 @@ export default function TotalSalesDrilldown({ open, onClose, initialDates }) {
    const { startDate, endDate } = effectiveDates;
    try {
      let names = [];
+     let managerRetentionTeamMembers = [];
      if (tabMode === "agents") {
        names = selectedAgents.map(a => a.fullName).filter(Boolean);
      } else if (tabMode === "manager" && selectedLeader?._id) {
@@ -223,9 +254,15 @@ export default function TotalSalesDrilldown({ open, onClose, initialDates }) {
          },
          EMPLOYEE_CACHE_TTL_MS
        );
-       names = (mgr?.teamMembers || [])
+       const enrichedTeamMembers = mergeEmployeeDirectoryDetails(mgr?.teamMembers || [], employees);
+       names = enrichedTeamMembers
          .filter((m) => m?.status === "active" && isTargetEligible(m))
          .map((m) => m.fullName);
+       managerRetentionTeamMembers = isManagerRole(selectedLeader?.role)
+         ? enrichedTeamMembers.filter(
+             (m) => m?.status === "active" && isTargetEligible(m) && isRetentionAgentWithTeam(m)
+           )
+         : [];
      }
    
      if (!names.length) throw new Error("No active users found for selection.");
@@ -255,6 +292,101 @@ export default function TotalSalesDrilldown({ open, onClose, initialDates }) {
        return {
          contributors: [...new Set([name, ...directReportNames])],
          teamMemberNames: directReportNames.filter((memberName) => memberName !== name),
+       };
+     };
+     const fetchOwnProgressTotal = (name) =>
+       getCachedData(
+         `sales-drilldown:progress:self:${name}:${startDate}:${endDate}`,
+         async () => {
+           const { data } = await api.get("/api/retention-sales/progress", {
+             params: { name, from: startDate, to: endDate },
+           });
+           return data;
+         },
+         DRILLDOWN_CACHE_TTL_MS
+       )
+         .then((data) => Number(data?.total || 0))
+         .catch(() => 0);
+     const buildManagerGroupingRow = async () => {
+       if (tabMode !== "manager" || !managerRetentionTeamMembers.length) return null;
+
+       const memberRows = await Promise.all(
+         managerRetentionTeamMembers
+           .filter((member) => member?.fullName)
+           .map(async (member) => ({
+             name: member.fullName,
+             total: await fetchOwnProgressTotal(member.fullName),
+           }))
+       );
+
+       return {
+         name: selectedLeader?.fullName || "Manager",
+         total: memberRows.reduce((sum, member) => sum + Number(member.total || 0), 0),
+         teamMembers: memberRows,
+         isGroupingRow: true,
+       };
+     };
+     const buildDaywiseManagerGroupingRow = async (tableDates = []) => {
+       if (tabMode !== "manager" || !managerRetentionTeamMembers.length) return null;
+
+       const memberNames = managerRetentionTeamMembers
+         .map((member) => member?.fullName)
+         .filter(Boolean);
+       if (!memberNames.length) return null;
+
+       const data = await getCachedData(
+         `sales-drilldown:daywise:self-group:${memberNames.slice().sort().join("|")}:${startDate}:${endDate}`,
+         async () => {
+           const res = await api.post("/api/retention-sales/daywise-matrix", {
+             names: memberNames,
+             startDate,
+             endDate,
+           });
+           return res.data;
+         },
+         DRILLDOWN_CACHE_TTL_MS
+       );
+
+       const perDayByName = new Map(
+         (data || []).map((row) => [row?.name, row?.perDay || []])
+       );
+       const fallbackDates = new Set();
+       perDayByName.forEach((perDay) => {
+         (perDay || []).forEach((d) => fallbackDates.add(String(d?.date || "")));
+       });
+       const dates = tableDates.length
+         ? tableDates
+         : [...fallbackDates].filter(Boolean).sort((a, b) => new Date(a) - new Date(b));
+       const teamMembers = memberNames.map((name) => {
+         const totalsByDate = new Map(
+           (perDayByName.get(name) || []).map((d) => [String(d?.date || ""), Number(d?.total || 0)])
+         );
+         const perDay = dates.map((date) => ({
+           date,
+           total: Number(totalsByDate.get(date) || 0),
+           label: toDisplayDate(date),
+         }));
+         return {
+           name,
+           perDay,
+           grandTotal: perDay.reduce((sum, d) => sum + Number(d.total || 0), 0),
+         };
+       });
+       const perDay = dates.map((date) => ({
+         date,
+         total: teamMembers.reduce((sum, member) => {
+           const day = member.perDay.find((d) => d.date === date);
+           return sum + Number(day?.total || 0);
+         }, 0),
+         label: toDisplayDate(date),
+       }));
+
+       return {
+         name: selectedLeader?.fullName || "Manager",
+         perDay,
+         grandTotal: perDay.reduce((sum, d) => sum + Number(d.total || 0), 0),
+         teamMembers,
+         isGroupingRow: true,
        };
      };
      if (tabMode === "manager") {
@@ -338,7 +470,10 @@ export default function TotalSalesDrilldown({ open, onClose, initialDates }) {
        );
 
 
-       setDaywiseResults(rows.sort((a, b) => b.grandTotal - a.grandTotal));
+       const sortedRows = rows.sort((a, b) => b.grandTotal - a.grandTotal);
+       const tableDates = sortedRows[0]?.perDay?.map((d) => d.date).filter(Boolean) || [];
+       const managerGroupingRow = await buildDaywiseManagerGroupingRow(tableDates);
+       setDaywiseResults(managerGroupingRow ? [managerGroupingRow, ...sortedRows] : sortedRows);
      } else {
        const rows = await Promise.all(
          names.map(async (name) => {
@@ -371,7 +506,9 @@ export default function TotalSalesDrilldown({ open, onClose, initialDates }) {
            };
          })
        );
-       setResults(rows.sort((a, b) => b.total - a.total));
+       const sortedRows = rows.sort((a, b) => b.total - a.total);
+       const managerGroupingRow = await buildManagerGroupingRow();
+       setResults(managerGroupingRow ? [managerGroupingRow, ...sortedRows] : sortedRows);
      }
    } catch (e) {
      setResultsError(e.message || "Failed to fetch data.");
