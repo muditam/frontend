@@ -170,7 +170,7 @@
 
 .redcliffe-price-table {
   width: 100%;
-  min-width: 1180px;
+  min-width: 1080px;
   border-collapse: collapse;
   background: #fff;
 }
@@ -235,9 +235,7 @@
 }
 
 .redcliffe-price-name-edit {
-  display: grid;
-  grid-template-columns: minmax(180px, 1fr) minmax(120px, 0.42fr);
-  gap: 8px;
+  display: block;
 }
 
 .redcliffe-price-name-edit input {

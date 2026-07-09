@@ -3,7 +3,7 @@ import axios from "axios";
 import * as XLSX from "xlsx";
 import "./RedcliffePriceDashboard.css";
 
-const API_BASE = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, ""); 
+const API_BASE = "http://localhost:5001"; // Replace with your actual API base URL
 
 const api = axios.create({
   baseURL: API_BASE,
@@ -72,17 +72,6 @@ function getCategoryDiscount(category) {
   return CATEGORY_DISCOUNTS[normalizePriceCategory(category)] ?? "";
 }
 
-function getAfterDiscountPrice(mrp, category) {
-  const normalizedCategory = normalizePriceCategory(category);
-  if (normalizedCategory === "Home Collection Charges") return "150.00";
-
-  const mrpValue = Number(normalizeNumber(mrp));
-  const discountValue = Number(getCategoryDiscount(normalizedCategory));
-  if (!mrpValue || !Number.isFinite(discountValue)) return "";
-
-  return (mrpValue - (mrpValue * discountValue) / 100).toFixed(2);
-}
-
 function normalizeCatalogItem(item) {
   const mrp = normalizeNumber(item.mrp ?? item.MRP ?? item.price);
   return {
@@ -91,6 +80,7 @@ function normalizeCatalogItem(item) {
     testName: cleanText(item.name || item.testName || item.test_name),
     category: normalizePriceCategory(item.pricingCategory || item.price_category),
     mrp,
+    b2bPrice: "",
     ourPrice: "",
     discount: "",
     saving: false,
@@ -118,7 +108,17 @@ function rowFromSheet(rawRow) {
     lowerMap["price category"] ||
     lowerMap["category name"] ||
     lowerMap.package_category;
-  const ourPrice = lowerMap["our price"] || lowerMap.our_price || lowerMap.selling_price;
+  const b2bPrice =
+    lowerMap["b2b price"] ||
+    lowerMap.b2b_price ||
+    lowerMap.b2b ||
+    lowerMap["after discount price"];
+  const finalPrice =
+    lowerMap["final price"] ||
+    lowerMap.final_price ||
+    lowerMap["our price"] ||
+    lowerMap.our_price ||
+    lowerMap.selling_price;
   const discount = lowerMap["discount in %"] || lowerMap.discount || lowerMap["discount %"];
   const code = lowerMap.code || lowerMap["test code"] || lowerMap.package_code;
 
@@ -128,7 +128,8 @@ function rowFromSheet(rawRow) {
     testName: cleanText(testName),
     category: normalizePriceCategory(category),
     mrp: normalizeNumber(mrp),
-    ourPrice: normalizeNumber(ourPrice),
+    b2bPrice: normalizeNumber(b2bPrice),
+    ourPrice: normalizeNumber(finalPrice),
     discount: normalizeNumber(discount),
     saving: false,
     saved: false,
@@ -153,6 +154,7 @@ function mergeShopifyVariants(rows, variants) {
     return {
       ...row,
       ourPrice: normalizeNumber(match.price) || row.ourPrice,
+      b2bPrice: normalizeNumber(match.redcliffe?.b2b_price) || row.b2bPrice,
       discount: normalizeNumber(match.redcliffe?.discount_percent) || row.discount,
       category: normalizePriceCategory(match.redcliffe?.category) || row.category,
       saved: true,
@@ -177,6 +179,7 @@ export default function RedcliffePriceDashboard() {
         testName: "",
         category: "",
         mrp: "",
+        b2bPrice: "",
         ourPrice: "",
         discount: "",
         saving: false,
@@ -275,6 +278,7 @@ export default function RedcliffePriceDashboard() {
           code: row.code,
           category: row.category,
           mrp: row.mrp,
+          b2bPrice: row.b2bPrice,
           ourPrice: row.ourPrice,
           discount,
         },
@@ -318,7 +322,7 @@ export default function RedcliffePriceDashboard() {
         .filter((row) => row.testName && row.ourPrice);
 
       if (!importedRows.length) {
-        setError("No valid rows found. Use columns: Test Name, Category, MRP, Our Price, Discount in %, Code.");
+        setError("No valid rows found. Use columns: Test Name, Code, MRP, Category, B2B Price, Final Price.");
         return;
       }
 
@@ -356,12 +360,13 @@ export default function RedcliffePriceDashboard() {
         code: row.code,
         category: row.category,
         mrp: row.mrp,
+        b2bPrice: row.b2bPrice,
         ourPrice: row.ourPrice,
         discount: getDiscount(row.mrp, row.ourPrice, row.discount || getCategoryDiscount(row.category)),
       }));
 
     if (!rowsToSave.length) {
-      setError("Add Our Price for at least one test before bulk save.");
+      setError("Add Final Price for at least one test before bulk save.");
       return;
     }
 
@@ -448,11 +453,11 @@ export default function RedcliffePriceDashboard() {
               <thead>
                 <tr>
                   <th>Test Name</th>
-                  <th>Category</th>
+                  <th>Code</th>
                   <th>MRP</th>
-                  <th>After Discount Price</th>
-                  <th>Our Price</th>
-                  <th>Discount in %</th>
+                  <th>Category</th>
+                  <th>B2B Price</th>
+                  <th>Final Price</th>
                   <th>Status</th>
                   <th>Save</th>
                 </tr>
@@ -464,7 +469,6 @@ export default function RedcliffePriceDashboard() {
                     row.ourPrice,
                     row.discount || getCategoryDiscount(row.category)
                   );
-                  const afterDiscountPrice = getAfterDiscountPrice(row.mrp, row.category);
                   return (
                     <tr key={row.key}>
                       <td>
@@ -478,34 +482,23 @@ export default function RedcliffePriceDashboard() {
                                 updateRow(row.key, { testName: event.target.value })
                               }
                             />
-                            <input
-                              type="text"
-                              value={row.code}
-                              placeholder="Code or SKU"
-                              onChange={(event) =>
-                                updateRow(row.key, { code: event.target.value })
-                              }
-                            />
                           </div>
                         ) : (
                           <>
                             <strong>{row.testName}</strong>
-                            {row.code ? <span>{row.code}</span> : null}
                           </>
                         )}
                         {row.error ? <em>{row.error}</em> : null}
                       </td>
                       <td>
-                        <select
-                          value={row.category}
-                          onChange={(event) => updateCategory(row, event.target.value)}
-                        >
-                          {PRICE_CATEGORY_OPTIONS.map((option) => (
-                            <option key={option.value || "empty"} value={option.value}>
-                              {option.label}
-                            </option>
-                          ))}
-                        </select>
+                        <input
+                          type="text"
+                          value={row.code}
+                          placeholder="Code"
+                          onChange={(event) =>
+                            updateRow(row.key, { code: event.target.value })
+                          }
+                        />
                       </td>
                       <td>
                         {row.isCustom ? (
@@ -525,7 +518,27 @@ export default function RedcliffePriceDashboard() {
                         )}
                       </td>
                       <td>
-                        {afterDiscountPrice ? `Rs ${afterDiscountPrice}` : "NA"}
+                        <select
+                          value={row.category}
+                          onChange={(event) => updateCategory(row, event.target.value)}
+                        >
+                          {PRICE_CATEGORY_OPTIONS.map((option) => (
+                            <option key={option.value || "empty"} value={option.value}>
+                              {option.label}
+                            </option>
+                          ))}
+                        </select>
+                      </td>
+                      <td>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={row.b2bPrice}
+                          onChange={(event) =>
+                            updateRow(row.key, { b2bPrice: event.target.value })
+                          }
+                        />
                       </td>
                       <td>
                         <input
@@ -535,18 +548,6 @@ export default function RedcliffePriceDashboard() {
                           value={row.ourPrice}
                           onChange={(event) =>
                             updateRow(row.key, { ourPrice: event.target.value })
-                          }
-                        />
-                      </td>
-                      <td>
-                        <input
-                          type="number"
-                          min="0"
-                          max="100"
-                          step="0.01"
-                          value={row.discount || discount}
-                          onChange={(event) =>
-                            updateRow(row.key, { discount: event.target.value })
                           }
                         />
                       </td>
