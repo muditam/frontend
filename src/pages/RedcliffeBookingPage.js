@@ -335,6 +335,17 @@ export default function RedcliffeBookingPage() {
     return filterPackageOptions(availablePackages, packageSearch);
   }, [availablePackages, packageSearch]);
 
+  const updatePackageSearch = (value) => {
+    setPackageSearch(value);
+  };
+
+  const updateMemberPackageSearch = (memberId, value) => {
+    setMemberPackageSearch((prev) => ({
+      ...prev,
+      [memberId]: value,
+    }));
+  };
+
   const groupedSlots = useMemo(() => {
     const groups = { Morning: [], Afternoon: [], Evening: [] };
     slots.forEach((slot) => {
@@ -1775,7 +1786,8 @@ export default function RedcliffeBookingPage() {
                           </div>
                           <input
                             value={packageSearch}
-                            onChange={(e) => setPackageSearch(e.target.value)}
+                            onChange={(e) => updatePackageSearch(e.target.value)}
+                            onInput={(e) => updatePackageSearch(e.currentTarget.value)}
                             onMouseDown={(e) => e.stopPropagation()}
                             onClick={(e) => e.stopPropagation()}
                             placeholder="Search package name or code"
@@ -1853,10 +1865,10 @@ export default function RedcliffeBookingPage() {
                                   <input
                                     value={String(memberPackageSearch[member.id] || "")}
                                     onChange={(e) =>
-                                      setMemberPackageSearch((prev) => ({
-                                        ...prev,
-                                        [member.id]: e.target.value,
-                                      }))
+                                      updateMemberPackageSearch(member.id, e.target.value)
+                                    }
+                                    onInput={(e) =>
+                                      updateMemberPackageSearch(member.id, e.currentTarget.value)
                                     }
                                     onMouseDown={(e) => e.stopPropagation()}
                                     onClick={(e) => e.stopPropagation()}
