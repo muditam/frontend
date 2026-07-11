@@ -1776,7 +1776,7 @@ export default function RedcliffeBookingPage() {
                               const checked = toArray(form.packageCodes).includes(pkg.code);
                               return (
                                 <label
-                                  key={pkg.code}
+                                  key={`${pkg.id || "pkg"}-${pkg.code}`}
                                   className={`redcliffe-picker-option checkbox${checked ? " selected" : ""}`}
                                 >
                                   <input
@@ -1852,7 +1852,7 @@ export default function RedcliffeBookingPage() {
                                       const checked = toArray(member.packageCodes).includes(pkg.code);
                                       return (
                                         <label
-                                          key={`${member.id}-${pkg.code}`}
+                                          key={`${member.id}-${pkg.id || "pkg"}-${pkg.code}`}
                                           className={`redcliffe-picker-option checkbox${checked ? " selected" : ""}`}
                                         >
                                           <input
