@@ -207,16 +207,17 @@ export default function TotalSalesDrilldown({ open, onClose, initialDates }) {
 
 
 
- const calculatedGrandTotal = useMemo(() => {
+ const displayedRows = isDaywise ? daywiseResults : results;
+
+
+
+
+ const totalSalesRevenue = useMemo(() => {
    if (isDaywise) {
-     return daywiseResults
-       .filter((row) => !row.isGroupingRow)
-       .reduce((acc, r) => acc + (r.grandTotal || 0), 0);
+     return displayedRows.reduce((acc, r) => acc + Number(r.grandTotal || 0), 0);
    }
-   return results
-     .filter((row) => !row.isGroupingRow)
-     .reduce((acc, r) => acc + (r.total || 0), 0);
- }, [isDaywise, daywiseResults, results]);
+   return displayedRows.reduce((acc, r) => acc + Number(r.total || 0), 0);
+ }, [isDaywise, displayedRows]);
 
 
 
@@ -225,9 +226,7 @@ export default function TotalSalesDrilldown({ open, onClose, initialDates }) {
  const columnTotals = useMemo(() => {
    if (!isDaywise || daywiseResults.length === 0) return [];
    const totals = daywiseResults[0].perDay.map((_, colIndex) => {
-     return daywiseResults
-       .filter((row) => !row.isGroupingRow)
-       .reduce((sum, row) => sum + (row.perDay[colIndex]?.total || 0), 0);
+     return daywiseResults.reduce((sum, row) => sum + (row.perDay[colIndex]?.total || 0), 0);
    });
    return totals;
  }, [isDaywise, daywiseResults]);
@@ -266,8 +265,6 @@ export default function TotalSalesDrilldown({ open, onClose, initialDates }) {
      }
    
      if (!names.length) throw new Error("No active users found for selection.");
-
-
      const employeeByName = new Map(
        employees
          .filter((e) => e?.fullName)
@@ -632,7 +629,7 @@ export default function TotalSalesDrilldown({ open, onClose, initialDates }) {
              <Stack direction="row" spacing={3}>
                <Box>
                  <Typography variant="caption" color="text.secondary" fontWeight={700}>TOTAL SALES REVENUE</Typography>
-                 <Typography variant="h5" fontWeight={900} color="#000">{fmtINR(calculatedGrandTotal)}</Typography>
+                 <Typography variant="h5" fontWeight={900} color="#000">{fmtINR(totalSalesRevenue)}</Typography>
                </Box>
                <Divider orientation="vertical" flexItem />
                <Box>
@@ -762,7 +759,7 @@ export default function TotalSalesDrilldown({ open, onClose, initialDates }) {
                              </TableCell>
                            ))}
                            <TableCell align="right" sx={{ fontWeight: 900, bgcolor: "#000", color: "#fff" }}>
-                             {fmtINR(calculatedGrandTotal)}
+                             {fmtINR(totalSalesRevenue)}
                            </TableCell>
                          </TableRow>
                        </TableFooter>
