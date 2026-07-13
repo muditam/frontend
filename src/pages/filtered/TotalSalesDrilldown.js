@@ -2,7 +2,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import {
  Dialog,
- DialogContent,
  Box,
  Grid,
  Button,
@@ -114,6 +113,9 @@ const getRange = (label) => {
 const fmtINR = (n) =>
  `₹${Number(n ?? 0).toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
 
+const fmtNumber = (n) =>
+ Number(n ?? 0).toLocaleString("en-IN", { maximumFractionDigits: 0 });
+
 
 
 
@@ -136,7 +138,7 @@ const EmptyState = () => (
 
 
 
-export default function TotalSalesDrilldown({ open, onClose, initialDates }) {
+export default function TotalSalesDrilldown({ open, onClose, initialDates, fullPage = false }) {
  // -------------------- State --------------------
  const [employees, setEmployees] = useState([]);
  const [leaders, setLeaders] = useState([]);
@@ -152,12 +154,19 @@ export default function TotalSalesDrilldown({ open, onClose, initialDates }) {
  const [daywiseResults, setDaywiseResults] = useState([]);
  const [expandedRows, setExpandedRows] = useState({});
 
+ const formatRevenue = (value) => (fullPage ? fmtNumber(value) : fmtINR(value));
+
 
 
 
  // -------------------- Effects --------------------
+ const isActive = fullPage || open;
+
+
+
+
  useEffect(() => {
-   if (!open) return;
+   if (!isActive) return;
    getCachedData(
      "sales-drilldown:employees",
      async () => {
@@ -174,7 +183,7 @@ export default function TotalSalesDrilldown({ open, onClose, initialDates }) {
        );
      })
      .catch(() => { setEmployees([]); setLeaders([]); });
- }, [open]);
+ }, [isActive]);
 
 
 
@@ -537,22 +546,24 @@ export default function TotalSalesDrilldown({ open, onClose, initialDates }) {
 
 
 
- return (
-   <Dialog open={open} onClose={onClose} fullWidth maxWidth="lg" PaperProps={{ sx: { borderRadius: 4, overflow: "hidden" } }}>
+ const drilldownContent = (
+   <>
      <Box sx={{ p: 2, display: "flex", justifyContent: "space-between", alignItems: "center", bgcolor: "#000", color: "#fff" }}>
        <Stack direction="row" spacing={1.5} alignItems="center">
          <Box sx={{ bgcolor: "#333", p: 0.8, borderRadius: 1.5, display: "flex" }}><TrendingUp fontSize="small" /></Box>
          <Typography variant="h6" fontWeight={800} letterSpacing="-0.5px">Sales Analytics Drilldown</Typography>
        </Stack>
-       <IconButton onClick={onClose} size="small" sx={{ color: "#fff" }}><Close /></IconButton>
+       {!fullPage && (
+         <IconButton onClick={onClose} size="small" sx={{ color: "#fff" }}><Close /></IconButton>
+       )}
      </Box>
 
 
 
 
-     <DialogContent sx={{ p: 0, bgcolor: "#fcfcfc" }}>
+     <Box sx={{ p: 0, bgcolor: "#fcfcfc" }}>
        <Grid container sx={{ height: "100%" }}>
-         <Grid item xs={12} md={3.5} sx={{ p: 2.5, borderRight: "1px solid #eee" }}>
+         <Grid item xs={12} md={fullPage ? 3 : 3.5} sx={{ p: 2.5, borderRight: "1px solid #eee" }}>
            <Typography variant="caption" fontWeight={800} color="text.secondary" sx={{ mb: 2, display: "block", textTransform: "uppercase" }}>View Configuration</Typography>
          
            <Tabs
@@ -624,12 +635,12 @@ export default function TotalSalesDrilldown({ open, onClose, initialDates }) {
 
 
 
-         <Grid item xs={12} md={8.5} sx={{ bgcolor: "#fff", display: "flex", flexDirection: "column" }}>
+         <Grid item xs={12} md={fullPage ? 9 : 8.5} sx={{ bgcolor: "#fff", display: "flex", flexDirection: "column" }}>
            <Box sx={{ p: 2, borderBottom: "1px solid #eee", bgcolor: "#fafafa" }}>
              <Stack direction="row" spacing={3}>
                <Box>
                  <Typography variant="caption" color="text.secondary" fontWeight={700}>TOTAL SALES REVENUE</Typography>
-                 <Typography variant="h5" fontWeight={900} color="#000">{fmtINR(totalSalesRevenue)}</Typography>
+                 <Typography variant="h5" fontWeight={900} color="#000">{formatRevenue(totalSalesRevenue)}</Typography>
                </Box>
                <Divider orientation="vertical" flexItem />
                <Box>
@@ -658,7 +669,7 @@ export default function TotalSalesDrilldown({ open, onClose, initialDates }) {
                <Paper elevation={0} sx={{ border: "1px solid #eee", borderRadius: 3, overflow: "hidden" }}>
                  <TableContainer
                    sx={{
-                     maxHeight: "60vh",
+                     maxHeight: fullPage ? "calc(100vh - 340px)" : "60vh",
                      overflowY: "auto",
                      overflowX: "auto",
                      "&::-webkit-scrollbar": { width: 6, height: 6 },
@@ -700,16 +711,16 @@ export default function TotalSalesDrilldown({ open, onClose, initialDates }) {
                                    <Typography variant="body2" fontWeight={700}>{row.name}</Typography>
                                  </Stack>
                                </TableCell>
-                               {row.perDay.map((d, i) => <TableCell key={i} align="right">{fmtINR(d.total)}</TableCell>)}
-                               <TableCell align="right" sx={{ fontWeight: 900, bgcolor: "#f8f9fa" }}>{fmtINR(row.grandTotal)}</TableCell>
+                               {row.perDay.map((d, i) => <TableCell key={i} align="right">{formatRevenue(d.total)}</TableCell>)}
+                               <TableCell align="right" sx={{ fontWeight: 900, bgcolor: "#f8f9fa" }}>{formatRevenue(row.grandTotal)}</TableCell>
                              </TableRow>
                              {isExpanded && (row.teamMembers || []).map((member) => (
                                <TableRow key={`${row.name}-${member.name}`}>
                                  <TableCell sx={{ position: "sticky", left: 0, bgcolor: "#fafafa", zIndex: 4, borderRight: "2px solid #f1f1f1", pl: 4, color: "text.secondary" }}>
                                    {member.name}
                                  </TableCell>
-                                 {member.perDay.map((d, i) => <TableCell key={i} align="right" sx={{ bgcolor: "#fafafa" }}>{fmtINR(d.total)}</TableCell>)}
-                                 <TableCell align="right" sx={{ fontWeight: 700, bgcolor: "#f3f3f3" }}>{fmtINR(member.grandTotal)}</TableCell>
+                                 {member.perDay.map((d, i) => <TableCell key={i} align="right" sx={{ bgcolor: "#fafafa" }}>{formatRevenue(d.total)}</TableCell>)}
+                                 <TableCell align="right" sx={{ fontWeight: 700, bgcolor: "#f3f3f3" }}>{formatRevenue(member.grandTotal)}</TableCell>
                                </TableRow>
                              ))}
                            </React.Fragment>
@@ -732,7 +743,7 @@ export default function TotalSalesDrilldown({ open, onClose, initialDates }) {
                                    <Typography variant="body2" fontWeight={700}>{r.name}</Typography>
                                  </Stack>
                                </TableCell>
-                               <TableCell align="right" sx={{ fontWeight: 900, color: "primary.main" }}>{fmtINR(r.total)}</TableCell>
+                               <TableCell align="right" sx={{ fontWeight: 900, color: "primary.main" }}>{formatRevenue(r.total)}</TableCell>
                              </TableRow>
                              {isExpanded && (r.teamMembers || []).map((member) => (
                                <TableRow key={`${r.name}-${member.name}`}>
@@ -740,7 +751,7 @@ export default function TotalSalesDrilldown({ open, onClose, initialDates }) {
                                    {member.name}
                                  </TableCell>
                                  <TableCell align="right" sx={{ fontWeight: 700, color: "text.secondary", bgcolor: "#fafafa" }}>
-                                   {fmtINR(member.total)}
+                                   {formatRevenue(member.total)}
                                  </TableCell>
                                </TableRow>
                              ))}
@@ -755,11 +766,11 @@ export default function TotalSalesDrilldown({ open, onClose, initialDates }) {
                            <TableCell sx={{ fontWeight: 900, position: "sticky", left: 0, bgcolor: "#f1f1f1", zIndex: 11 }}>TOTAL SALES</TableCell>
                            {columnTotals.map((total, idx) => (
                              <TableCell key={idx} align="right" sx={{ fontWeight: 900, color: "#000" }}>
-                               {fmtINR(total)}
+                               {formatRevenue(total)}
                              </TableCell>
                            ))}
                            <TableCell align="right" sx={{ fontWeight: 900, bgcolor: "#000", color: "#fff" }}>
-                             {fmtINR(totalSalesRevenue)}
+                             {formatRevenue(totalSalesRevenue)}
                            </TableCell>
                          </TableRow>
                        </TableFooter>
@@ -773,7 +784,27 @@ export default function TotalSalesDrilldown({ open, onClose, initialDates }) {
            </Box>
          </Grid>
        </Grid>
-     </DialogContent>
+     </Box>
+   </>
+ );
+
+
+
+
+ if (fullPage) {
+   return (
+     <Paper elevation={0} sx={{ borderRadius: 4, border: "1px solid #e2e8f0", overflow: "hidden", bgcolor: "#fff" }}>
+       {drilldownContent}
+     </Paper>
+   );
+ }
+
+
+
+
+ return (
+   <Dialog open={open} onClose={onClose} fullWidth maxWidth="lg" PaperProps={{ sx: { borderRadius: 4, overflow: "hidden" } }}>
+     {drilldownContent}
    </Dialog>
  );
 }

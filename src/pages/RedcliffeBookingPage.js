@@ -96,13 +96,105 @@ function toMoneyNumber(value) {
 }
 
 function normalizeSearchText(value) {
-  return String(value || "").toLowerCase().replace(/\s+/g, " ").trim();
+  return String(value || "")
+    .toLowerCase()
+    .replace(/&/g, " and ")
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+const PRIORITY_PACKAGE_RULES = [
+  {
+    codes: ["CAMP7838"],
+    aliases: ["Muditam Full Body With Vitamin D and B12"],
+  },
+  {
+    codes: ["CAMP4639"],
+    aliases: ["Muditam Advance Body Check-up"],
+  },
+  {
+    codes: ["CAMP4638"],
+    aliases: ["Muditam Full Body Check-up"],
+  },
+  {
+    codes: ["PL116"],
+    aliases: ["Cancer Screening Package Essential Male"],
+  },
+  {
+    codes: ["BC033"],
+    aliases: ["Glucose PP Post Prandial", "Blood Sugar Post Prandial PP"],
+  },
+  {
+    codes: ["CAMP4640"],
+    aliases: ["Muditam HBA1C", "HbA1c"],
+  },
+  {
+    codes: ["BC445"],
+    aliases: ["HOMA Index Insulin Resistance"],
+  },
+  {
+    codes: ["BC024"],
+    aliases: ["Ferritin"],
+  },
+  {
+    codes: ["BC026"],
+    aliases: ["Follicle Stimulating Hormone FSH"],
+  },
+  {
+    codes: ["BC173"],
+    aliases: ["High Sensitivity C Reactive Protein hsCRP", "hsCRP"],
+  },
+];
+
+function getPriorityPackageIndex(item) {
+  const code = normalizeSearchText(item?.code);
+  const name = normalizeSearchText(item?.name);
+
+  return PRIORITY_PACKAGE_RULES.findIndex((rule) => {
+    const matchesCode = rule.codes.some((itemCode) => normalizeSearchText(itemCode) === code);
+    if (matchesCode) return true;
+
+    return rule.aliases.some((alias) => {
+      const normalizedAlias = normalizeSearchText(alias);
+      return name.includes(normalizedAlias) || normalizedAlias.includes(name);
+    });
+  });
+}
+
+function comparePackageOptions(a, b) {
+  const firstPriority = getPriorityPackageIndex(a);
+  const secondPriority = getPriorityPackageIndex(b);
+  const firstRank = firstPriority === -1 ? Number.MAX_SAFE_INTEGER : firstPriority;
+  const secondRank = secondPriority === -1 ? Number.MAX_SAFE_INTEGER : secondPriority;
+
+  if (firstRank !== secondRank) return firstRank - secondRank;
+  return `${a?.name || ""} ${a?.code || ""}`.localeCompare(`${b?.name || ""} ${b?.code || ""}`);
+}
+
+function orderPackageOptions(packages) {
+  return [...packages].sort(comparePackageOptions);
+}
+
+function dedupePackageOptions(packages) {
+  const uniquePackages = new Map();
+
+  packages.forEach((item) => {
+    const code = String(item?.code || "").trim().toUpperCase();
+    const fallbackKey = normalizeSearchText(`${item?.name || ""} ${item?.price || ""}`);
+    const key = code || fallbackKey;
+
+    if (key && !uniquePackages.has(key)) {
+      uniquePackages.set(key, item);
+    }
+  });
+
+  return Array.from(uniquePackages.values());
 }
 
 function filterPackageOptions(packages, query) {
   const normalizedQuery = normalizeSearchText(query);
-  if (!normalizedQuery) return packages;
-  return packages.filter((item) => {
+  const results = !normalizedQuery ? packages : packages.filter((item) => {
     const code = normalizeSearchText(item.code);
     const name = normalizeSearchText(item.name);
     const category = normalizeSearchText(item.category);
@@ -112,6 +204,8 @@ function filterPackageOptions(packages, query) {
       category.includes(normalizedQuery)
     );
   });
+
+  return orderPackageOptions(dedupePackageOptions(results));
 }
 
 function SectionTitle({ step, title, subtitle }) {
@@ -753,8 +847,8 @@ export default function RedcliffeBookingPage() {
     setLoading((prev) => ({ ...prev, packages: true }));
     try {
       const { data } = await api.get("/api/redcliffe/packages");
-      const packages = (Array.isArray(data?.results) ? data.results : []).sort((a, b) =>
-        `${a.name} ${a.code}`.localeCompare(`${b.name} ${b.code}`)
+      const packages = orderPackageOptions(
+        dedupePackageOptions(Array.isArray(data?.results) ? data.results : [])
       );
 
       setAvailablePackages(packages);

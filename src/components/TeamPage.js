@@ -8,12 +8,15 @@ import {
 import DeleteIcon from "@mui/icons-material/Delete";
 import {
  ArrowDownward,
+ ArrowBack,
  GroupAdd,
  KeyboardArrowDown,
  KeyboardArrowUp,
+ TrendingUp,
 } from "@mui/icons-material";
 import axios from "axios";
 import { clearCachedData, getCachedData } from "../utils/apiCache";
+import TotalSalesDrilldown from "../pages/filtered/TotalSalesDrilldown";
 
 
 const API_BASE = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "");
@@ -208,6 +211,7 @@ const TeamPage = ({ managerId: managerIdProp }) => {
  const [nestedRowsByParent, setNestedRowsByParent] = useState({});
  const [expandedRows, setExpandedRows] = useState({});
  const [sortConfig, setSortConfig] = useState({ key: "", direction: "asc" });
+ const [showDrilldown, setShowDrilldown] = useState(false);
 
 
  const fetchLeaderAndAgentLists = async () => {
@@ -699,7 +703,24 @@ const TeamPage = ({ managerId: managerIdProp }) => {
 
 
        <Stack direction="row" spacing={2}>
-         {canSelectAnyLeader ? (
+         <Button
+           variant="outlined"
+           startIcon={showDrilldown ? <ArrowBack /> : <TrendingUp />}
+           onClick={() => setShowDrilldown((prev) => !prev)}
+           sx={{
+             bgcolor: "#fff",
+             borderColor: "#cbd5e1",
+             color: "#1e293b",
+             borderRadius: 3,
+             fontWeight: 700,
+             textTransform: "none",
+             px: 3,
+             "&:hover": { bgcolor: "#f8fafc", borderColor: "#94a3b8" },
+           }}
+         >
+           {showDrilldown ? "Back to Team Page" : "View Drilldown"}
+         </Button>
+         {!showDrilldown && canSelectAnyLeader ? (
            <TextField
              select
              value={selectedLeaderId}
@@ -716,15 +737,21 @@ const TeamPage = ({ managerId: managerIdProp }) => {
              ))}
            </TextField>
          ) : null}
+         {!showDrilldown && (
          <Button variant="contained" startIcon={<GroupAdd />} onClick={() => setAddOpen(true)} sx={{ bgcolor: "#1e293b", borderRadius: 3, fontWeight: 700, textTransform: "none", px: 3 }}>
            Add Member
          </Button>
+         )}
        </Stack>
      </Stack>
 
 
 
 
+     {showDrilldown ? (
+       <TotalSalesDrilldown fullPage />
+     ) : (
+       <>
      {/* KPI Section - Updated with 5 Cards */}
      <Stack direction="row" spacing={3} mb={4} sx={{ flexWrap: "wrap", gap: 3 }}>
        <KPICard title="Total Target" value={`₹${fmt0(filteredTarget)}`} subValue="Group Goal" trendColor="#64748b" />
@@ -858,6 +885,8 @@ const TeamPage = ({ managerId: managerIdProp }) => {
          </Button>
        </DialogActions>
      </Dialog>
+       </>
+     )}
    </Box>
  );
 };
