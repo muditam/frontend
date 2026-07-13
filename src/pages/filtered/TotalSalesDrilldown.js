@@ -289,8 +289,11 @@ export default function TotalSalesDrilldown({ open, onClose, initialDates }) {
          return { contributors: [name], teamMemberNames: [] };
        }
        const directReportNames = getDirectReportNames(emp);
+       if (!directReportNames.length) {
+         return { contributors: [name], teamMemberNames: [] };
+       }
        return {
-         contributors: [...new Set([name, ...directReportNames])],
+         contributors: [...new Set(directReportNames)],
          teamMemberNames: directReportNames.filter((memberName) => memberName !== name),
        };
      };

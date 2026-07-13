@@ -667,54 +667,6 @@ const MenuBar = ({ toggleDrawer }) => {
             </DropdownGroup>
           )}
 
-          {/* Finance */}
-          {user && (can("financeOrderSummary") || can("financePrepaidRemittanceMenu") || can("financeCodRemittanceMenu") || can("financeRecordsMenu") || can("financeBankReconciliationMenu")) && (
-            <div className="nav-section-label">Finance</div>
-          )}
-
-          {user && can("financeOrderSummary") && (
-            <NavItem to="/order-summary" icon={<FactCheckIcon />} label="Order Summary" />
-          )}
-
-          {user && can("financePrepaidRemittanceMenu") && (
-            <DropdownGroup id="paymentGateway" icon={<CompareArrowsIcon />} label="Prepaid Remittance">
-              {can("financePrepaidRazorpay") && <SubItem to="/gateway/razorpay" label="Razorpay" />}
-              {can("financePrepaidPhonePe") && <SubItem to="/gateway/phonepe" label="PhonePe" />}
-              {can("financePrepaidEasebuzz") && <SubItem to="/gateway/easebuzz" label="Easebuzz" />}
-              {can("financePrepaidCashfree") && <SubItem to="/gateway/cashfree" label="Cashfree" />}
-              {can("financePrepaidBankTransfer") && <SubItem to="/gateway/bank-transfer" label="Bank Transfer" />}
-            </DropdownGroup>
-          )}
-
-          {user && can("financeCodRemittanceMenu") && (
-            <DropdownGroup id="remittance" icon={<TrendingUpIcon />} label="COD Remittance">
-              {can("financeCodBluedart") && <SubItem to="/remittance/bluedart" label="Bluedart" />}
-              {can("financeCodDTDC") && <SubItem to="/remittance/dtdc" label="DTDC" />}
-              {can("financeCodDelhivery") && <SubItem to="/remittance/delhivery" label="Delhivery" />}
-              {can("financeCodShiprocket") && <SubItem to="/remittance/shiprocket" label="Shiprocket" />}
-            </DropdownGroup>
-          )}
-
-          {user && can("financeRecordsMenu") && (
-            <DropdownGroup id="records" icon={<AnalyticsIcon />} label="Records">
-              {can("financePurchaseRecords") && <SubItem to="/purchase-record" label="Purchase Records" />}
-              {can("financePaymentRecords") && <SubItem to="/payment-record" label="Payment Records" />}
-              {can("financeVendors") && <SubItem to="/vendors" label="My Vendors" />}
-            </DropdownGroup>
-          )}
-
-          {user && can("financeBankReconciliationMenu") && (
-            <DropdownGroup id="bankReconciliation" icon={<Inventory2Icon />} label="Bank Reconciliation">
-              {can("bankCapital6389") && <SubItem to="/BankCapital6389" label="Capital 6389" />}
-              {can("bankAxis3361") && <SubItem to="/BankAxis3361" label="Axis 3361" />}
-              {can("bankCc1101") && <SubItem to="/BankCc1101" label="CC 1101" />}
-              {can("bankSbi8285") && <SubItem to="/BankReconciliation" label="SBI Current 8285" />}
-              {can("bankYesCcTejasv") && <SubItem to="/BankYesCcTejasv" label="Yes CC – Tejasv" />}
-              {can("bankYesCcAbhay") && <SubItem to="/BankYesCcAbhay" label="Yes CC – Abhay" />}
-              {can("bankKotak") && <SubItem to="/BankKotak" label="Kotak" />}
-            </DropdownGroup>
-          )}
-
           {/* Marketing */}
           {user && (can("marketingMenu") || can("OthervideoMenu") || can("StaticCarouselMenu") || can("adsMenu")) && (
             <div className="nav-section-label">Marketing</div>

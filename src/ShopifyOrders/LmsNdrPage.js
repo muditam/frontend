@@ -12,7 +12,6 @@ import {
   Drawer,
   FormControl,
   IconButton,
-  InputAdornment,
   InputLabel,
   MenuItem,
   Paper,
@@ -32,12 +31,8 @@ import {
   Tooltip,
   Typography,
 } from "@mui/material";
-import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
-import RestartAltRoundedIcon from "@mui/icons-material/RestartAltRounded";
-import VisibilityOutlinedIcon from "@mui/icons-material/VisibilityOutlined";
 import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
 import FileDownloadOutlinedIcon from "@mui/icons-material/FileDownloadOutlined";
-import LocalShippingOutlinedIcon from "@mui/icons-material/LocalShippingOutlined";
 import PhoneIcon from "@mui/icons-material/Phone";
 import { requestZoomDial } from "../calling/dialer";
 
@@ -171,6 +166,23 @@ function statusColor(status) {
   return "default";
 }
 
+function statusChipSx(status) {
+  const s = String(status || "").toLowerCase();
+  if (s.includes("out") || s.includes("ofd")) return { bgcolor: "#dbeafe", color: "#1d4ed8" };
+  if (s.includes("pickup")) return { bgcolor: "#c7f6f8", color: "#0e7490" };
+  if (s.includes("transit")) return { bgcolor: "#e0e7ff", color: "#4338ca" };
+  if (s.includes("rto")) return { bgcolor: "#ffedd5", color: "#c2410c" };
+  if (s.includes("cancel")) return { bgcolor: "#fee2e2", color: "#b91c1c" };
+  return { bgcolor: "#f3f4f6", color: "#4b5563" };
+}
+
+function paymentChipSx(paymentMode) {
+  const mode = String(paymentMode || "").toLowerCase();
+  if (mode.includes("cod")) return { bgcolor: "#fef3c7", color: "#d97706" };
+  if (mode.includes("paid") || mode.includes("prepaid")) return { bgcolor: "#dbeafe", color: "#2563eb" };
+  return { bgcolor: "#f3f4f6", color: "#4b5563" };
+}
+
 function trackingLinkFor(courier, trackingNumber) {
   const awb = String(trackingNumber || "").trim();
   if (!awb) return "";
@@ -237,23 +249,22 @@ export default function LmsNdrPage() {
     <Box
       sx={{
         minHeight: "calc(100vh - 64px)",
-        background: "linear-gradient(180deg, #f8fafc 0%, #eef4f8 100%)",
-        p: { xs: 1.5, md: 3 },
+        background: "#f8fafc",
+        color: "#111827",
       }}
     >
-      <Box sx={{ maxWidth: 1480, mx: "auto", display: "grid", gap: 2 }}>
+      <Box sx={{ maxWidth: 1920, mx: "auto", display: "grid", gap: 2.5, p: { xs: 2, md: 3 } }}>
         <NdrSection
           section="all"
           title="NDR Orders"
           description=""
-          icon={<LocalShippingOutlinedIcon />}
         />
       </Box>
     </Box>
   );
 }
 
-function NdrSection({ section, title, description, icon }) {
+function NdrSection({ section, title }) {
   const [rows, setRows] = useState([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(0);
@@ -584,54 +595,55 @@ function NdrSection({ section, title, description, icon }) {
   };
 
   return (
-    <Paper elevation={0} sx={{ border: "1px solid #dbe5ec", borderRadius: 2, overflow: "hidden", bgcolor: "#fff" }}>
-      <Box sx={{ px: { xs: 2, md: 3 }, py: 2, borderBottom: "1px solid #e5edf3" }}>
-        <Stack direction={{ xs: "column", md: "row" }} justifyContent="space-between" gap={2}>
-          <Box>
-            <Stack direction="row" gap={1} alignItems="center">
-              <Box sx={{ color: section === "delayed" ? "#b45309" : "#dc2626" }}>{icon}</Box>
-              <Typography variant="h6" sx={{ fontWeight: 900, color: "#0f172a" }}>
-                {title}
-              </Typography>
-            </Stack>
-            <Typography variant="body2" sx={{ color: "#64748b", mt: 0.25 }}>
-              {description}
-            </Typography>
-          </Box>
-          <Stack direction="row" gap={1} alignItems="center">
-            <Chip label={`${total} orders`} sx={{ bgcolor: "#fef3c7", color: "#92400e", fontWeight: 800 }} />
-            <Button size="small" startIcon={<FileDownloadOutlinedIcon />} disabled={Boolean(exporting)} onClick={() => downloadAllRows("csv")} sx={{ textTransform: "none", fontWeight: 800 }}>
-              {exporting === "csv" ? "Exporting..." : "CSV"}
-            </Button>
-            <Button size="small" startIcon={<FileDownloadOutlinedIcon />} disabled={Boolean(exporting)} onClick={() => downloadAllRows("xlsx")} sx={{ textTransform: "none", fontWeight: 800 }}>
-              {exporting === "xlsx" ? "Exporting..." : "Excel"}
-            </Button>
-          </Stack>
-        </Stack>
-      </Box>
+    <>
+      <Typography variant="h5" sx={{ fontWeight: 900, color: "#111827", mt: { xs: 2, md: 3 } }}>
+        {title}
+      </Typography>
 
-      <Box sx={{ p: { xs: 2, md: 3 }, borderBottom: "1px solid #e5edf3" }}>
+      <Paper
+        elevation={0}
+        sx={{
+          border: "1px solid #e5e7eb",
+          borderRadius: "16px",
+          overflow: "hidden",
+          bgcolor: "#fff",
+          boxShadow: "0 1px 2px rgba(15, 23, 42, 0.03)",
+        }}
+      >
+      <Box sx={{ p: { xs: 2, md: 2.5 } }}>
         <Box
           sx={{
             display: "grid",
-            gap: 1.5,
-            gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0, 1fr))", lg: "1.4fr repeat(8, minmax(0, 1fr)) auto" },
+            columnGap: 2,
+            rowGap: 2,
+            gridTemplateColumns: {
+              xs: "1fr",
+              sm: "repeat(2, minmax(0, 1fr))",
+              lg: "1.6fr repeat(2, 0.8fr) repeat(6, minmax(0, 1fr))",
+            },
             alignItems: "end",
+            "& .MuiInputLabel-root": {
+              color: "#6b7280",
+              fontSize: 15,
+              fontWeight: 600,
+            },
+            "& .MuiInputBase-root": {
+              borderRadius: "10px",
+              bgcolor: "#fff",
+              minHeight: 44,
+              color: "#111827",
+              fontSize: 15,
+            },
+            "& .MuiOutlinedInput-notchedOutline": { borderColor: "#d1d5db" },
+            "& .MuiInputBase-input::placeholder": { color: "#9ca3af", opacity: 1 },
           }}
         >
           <TextField
             label="Search"
-            placeholder="Order, customer, AWB"
+            placeholder="Order ref, customer, AWB..."
             value={filters.search}
             onChange={updateFilter("search")}
             size="small"
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <SearchRoundedIcon sx={{ fontSize: 18, color: "#64748b" }} />
-                </InputAdornment>
-              ),
-            }}
           />
           <TextField label="From" type="date" value={filters.dateFrom} onChange={updateFilter("dateFrom")} size="small" InputLabelProps={{ shrink: true }} />
           <TextField label="To" type="date" value={filters.dateTo} onChange={updateFilter("dateTo")} size="small" InputLabelProps={{ shrink: true }} />
@@ -737,38 +749,103 @@ function NdrSection({ section, title, description, icon }) {
               ))}
             </Select>
           </FormControl>
-          <Button variant="outlined" startIcon={<RestartAltRoundedIcon />} onClick={resetFilters} sx={{ minHeight: 40, textTransform: "none", fontWeight: 800 }}>
-            Reset
-          </Button>
         </Box>
-        <Tabs
-          value={ndrLevel}
-          onChange={(_event, value) => {
-            setNdrLevel(value);
-            setPage(0);
-            setSelectedRowIds(new Set());
-          }}
-          variant="scrollable"
-          scrollButtons="auto"
+
+        <Stack
+          direction={{ xs: "column", md: "row" }}
+          alignItems={{ xs: "stretch", md: "center" }}
+          justifyContent="space-between"
+          gap={2}
           sx={{
             mt: 2,
-            minHeight: 40,
-            "& .MuiTab-root": { minHeight: 40, textTransform: "none", fontWeight: 800 },
           }}
         >
-          {NDR_LEVEL_TABS.map((tab) => (
-            <Tab key={tab.value} value={tab.value} label={tab.label} />
-          ))}
-        </Tabs>
+          <Tabs
+            value={ndrLevel}
+            onChange={(_event, value) => {
+              setNdrLevel(value);
+              setPage(0);
+              setSelectedRowIds(new Set());
+            }}
+            variant="scrollable"
+            scrollButtons="auto"
+            sx={{
+              minHeight: 42,
+              "& .MuiTabs-indicator": { bgcolor: "#4f46e5", height: 3 },
+              "& .MuiTab-root": {
+                minHeight: 42,
+                px: 1.5,
+                textTransform: "none",
+                fontWeight: 900,
+                color: "#6b7280",
+              },
+              "& .Mui-selected": { color: "#4f46e5 !important" },
+            }}
+          >
+            {NDR_LEVEL_TABS.map((tab) => (
+              <Tab key={tab.value} value={tab.value} label={tab.label} />
+            ))}
+          </Tabs>
+          <Stack direction="row" gap={1} flexWrap="wrap" justifyContent={{ xs: "flex-start", md: "flex-end" }}>
+            <Chip label={`${total} orders`} sx={{ bgcolor: "#fef3c7", color: "#92400e", fontWeight: 900, borderRadius: "999px" }} />
+            <Button
+              variant="outlined"
+              onClick={resetFilters}
+              sx={{ minHeight: 40, borderRadius: "10px", borderColor: "#e5e7eb", color: "#6b7280", textTransform: "none", fontWeight: 800 }}
+            >
+              Reset
+            </Button>
+            <Button
+              size="small"
+              variant="outlined"
+              startIcon={<FileDownloadOutlinedIcon />}
+              disabled={Boolean(exporting)}
+              onClick={() => downloadAllRows("csv")}
+              sx={{ minHeight: 40, borderRadius: "10px", borderColor: "#e5e7eb", color: "#475569", textTransform: "none", fontWeight: 800 }}
+            >
+              {exporting === "csv" ? "Exporting..." : "CSV"}
+            </Button>
+            <Button
+              size="small"
+              variant="outlined"
+              startIcon={<FileDownloadOutlinedIcon />}
+              disabled={Boolean(exporting)}
+              onClick={() => downloadAllRows("xlsx")}
+              sx={{
+                minHeight: 40,
+                borderRadius: "10px",
+                borderColor: "#86efac",
+                bgcolor: "#ecfdf5",
+                color: "#059669",
+                textTransform: "none",
+                fontWeight: 800,
+                "&:hover": { borderColor: "#34d399", bgcolor: "#d1fae5" },
+              }}
+            >
+              {exporting === "xlsx" ? "Exporting..." : "Excel"}
+            </Button>
+          </Stack>
+        </Stack>
       </Box>
+      </Paper>
 
-      {error ? <Alert severity="error" sx={{ m: 2 }}>{error}</Alert> : null}
+      {error ? <Alert severity="error">{error}</Alert> : null}
 
-      <TableContainer>
-        <Table size="small">
+      <Paper
+        elevation={0}
+        sx={{
+          border: "1px solid #e5e7eb",
+          borderRadius: "16px",
+          overflow: "hidden",
+          bgcolor: "#fff",
+          boxShadow: "0 1px 2px rgba(15, 23, 42, 0.03)",
+        }}
+      >
+      <TableContainer sx={{ overflowX: "auto" }}>
+        <Table size="small" stickyHeader sx={{ minWidth: 1420 }}>
           <TableHead>
             <TableRow>
-              <TableCell sx={{ bgcolor: "#f8fafc", width: 44 }}>
+              <TableCell sx={{ bgcolor: "#f9fafb", borderBottom: "1px solid #e5e7eb", width: 44 }}>
                 <Checkbox
                   size="small"
                   checked={allVisibleSelected}
@@ -777,8 +854,20 @@ function NdrSection({ section, title, description, icon }) {
                   onChange={(event) => toggleVisibleSelection(event.target.checked)}
                 />
               </TableCell>
-              {["Order", "Date", "Customer", "Status", "Payment", "Courier", "Agent", "Remark", "View"].map((label) => (
-                <TableCell key={label} sx={{ bgcolor: "#f8fafc", color: "#64748b", fontSize: 12, fontWeight: 800, textTransform: "uppercase" }}>
+              {["Order Ref", "Date", "Customer", "Status", "Payment", "Courier", "Agent", "Remark", ""].map((label) => (
+                <TableCell
+                  key={label}
+                  sx={{
+                    bgcolor: "#f9fafb",
+                    borderBottom: "1px solid #e5e7eb",
+                    color: "#6b7280",
+                    fontSize: 13,
+                    fontWeight: 900,
+                    textTransform: "uppercase",
+                    letterSpacing: 0.5,
+                    py: 1.6,
+                  }}
+                >
                   {label}
                 </TableCell>
               ))}
@@ -787,12 +876,24 @@ function NdrSection({ section, title, description, icon }) {
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={10} align="center" sx={{ py: 6 }}>
+                <TableCell colSpan={10} align="center" sx={{ py: 7 }}>
                   <CircularProgress size={22} />
                 </TableCell>
               </TableRow>
             ) : rows.length ? rows.map((row) => (
-              <TableRow key={row.id} hover sx={{ "& td": { borderBottom: "1px solid #eef2f6" } }}>
+              <TableRow
+                key={row.id}
+                hover
+                sx={{
+                  "& td": {
+                    borderBottom: "1px solid #eef2f6",
+                    py: 1.8,
+                    fontSize: 15,
+                    color: "#4b5563",
+                  },
+                  "&:hover td": { bgcolor: "#fbfdff" },
+                }}
+              >
                 <TableCell sx={{ width: 44 }}>
                   <Checkbox
                     size="small"
@@ -800,12 +901,12 @@ function NdrSection({ section, title, description, icon }) {
                     onChange={() => toggleRowSelection(row.id)}
                   />
                 </TableCell>
-                <TableCell sx={{ fontFamily: "monospace", fontWeight: 800 }}>{row.orderName || row.orderId}</TableCell>
-                <TableCell sx={{ whiteSpace: "nowrap" }}>{formatDate(row.orderDate)}</TableCell>
+                <TableCell sx={{ fontFamily: "monospace", fontWeight: 900, color: "#4b5563", whiteSpace: "nowrap" }}>{row.orderName || row.orderId}</TableCell>
+                <TableCell sx={{ whiteSpace: "nowrap", color: "#4b5563", fontWeight: 500 }}>{formatDate(row.orderDate)}</TableCell>
                 <TableCell>
-                  <Typography variant="body2" sx={{ fontWeight: 700 }}>{row.customerName || "-"}</Typography>
+                  <Typography variant="body2" sx={{ fontWeight: 800, color: "#111827", fontSize: 15 }}>{row.customerName || "-"}</Typography>
                   <Stack direction="row" spacing={0.5} alignItems="center">
-                    <Typography variant="caption" color="text.secondary">{row.contactNumber || "-"}</Typography>
+                    <Typography variant="caption" sx={{ color: "#9ca3af", fontSize: 14 }}>{row.contactNumber || "-"}</Typography>
                     {row.contactNumber ? (
                       <Tooltip title="Call customer" arrow>
                         <IconButton
@@ -821,14 +922,24 @@ function NdrSection({ section, title, description, icon }) {
                 </TableCell>
                 <TableCell>
                   <Stack direction="row" gap={0.75} alignItems="center">
-                    <Chip size="small" color={statusColor(row.status)} label={row.status || "-"} sx={{ fontWeight: 800 }} />
-                    <Chip size="small" color="warning" label={`${row.delayDays || 0}d`} />
+                    <Chip
+                      size="small"
+                      label={row.status || "-"}
+                      sx={{ ...statusChipSx(row.status), borderRadius: "999px", fontWeight: 900, fontSize: 13 }}
+                    />
+                    <Chip size="small" label={`${row.delayDays || 0}d`} sx={{ bgcolor: "#fff7ed", color: "#c2410c", borderRadius: "999px", fontWeight: 900 }} />
                   </Stack>
                 </TableCell>
-                <TableCell>{row.paymentMode || "-"}</TableCell>
                 <TableCell>
-                  <Typography variant="body2">{row.courier || "-"}</Typography>
-                  <Typography variant="caption" color="text.secondary">Last: {formatDate(row.statusUpdatedAt)}</Typography>
+                  <Chip
+                    size="small"
+                    label={row.paymentMode || "-"}
+                    sx={{ ...paymentChipSx(row.paymentMode), height: 24, borderRadius: "999px", fontWeight: 900, fontSize: 13 }}
+                  />
+                </TableCell>
+                <TableCell>
+                  <Typography variant="body2" sx={{ fontWeight: 700 }}>{row.courier || "-"}</Typography>
+                  <Typography variant="caption" sx={{ color: "#9ca3af" }}>Last: {formatDate(row.statusUpdatedAt)}</Typography>
                 </TableCell>
                 <TableCell sx={{ minWidth: 220 }}>
                   <Autocomplete
@@ -845,6 +956,12 @@ function NdrSection({ section, title, description, icon }) {
                         {...params}
                         placeholder="Unassigned"
                         size="small"
+                        sx={{
+                          "& .MuiInputBase-root": {
+                            borderRadius: "10px",
+                            minHeight: 40,
+                          },
+                        }}
                       />
                     )}
                   />
@@ -860,10 +977,11 @@ function NdrSection({ section, title, description, icon }) {
                         if (!value) return <Typography variant="body2" color="text.secondary">No remark</Typography>;
                         return (
                           <Tooltip title={value} arrow>
-                            <Typography variant="body2" noWrap>{value}</Typography>
+                            <Typography variant="body2" noWrap sx={{ fontWeight: 700 }}>{value}</Typography>
                           </Tooltip>
                         );
                       }}
+                      sx={{ borderRadius: "10px", minHeight: 40 }}
                     >
                       <MenuItem value="">No remark</MenuItem>
                       {row.opsRemark && !REMARK_OPTIONS.includes(row.opsRemark) ? (
@@ -877,15 +995,21 @@ function NdrSection({ section, title, description, icon }) {
                 </TableCell>
                 <TableCell>
                   <Tooltip title="View order" arrow>
-                    <IconButton size="small" onClick={() => openDrawer(row)}>
-                      <VisibilityOutlinedIcon fontSize="small" />
+                    <IconButton
+                      size="small"
+                      onClick={() => openDrawer(row)}
+                      sx={{ color: "#4f46e5", "&:hover": { bgcolor: "#eef2ff" } }}
+                    >
+                      <Typography variant="body2" sx={{ color: "inherit", fontWeight: 900 }}>
+                        View
+                      </Typography>
                     </IconButton>
                   </Tooltip>
                 </TableCell>
               </TableRow>
             )) : (
               <TableRow>
-                <TableCell colSpan={10} align="center" sx={{ py: 6, color: "text.secondary" }}>No NDR orders found</TableCell>
+                <TableCell colSpan={10} align="center" sx={{ py: 7, color: "text.secondary" }}>No NDR orders found</TableCell>
               </TableRow>
             )}
           </TableBody>
@@ -903,7 +1027,13 @@ function NdrSection({ section, title, description, icon }) {
           setPage(0);
         }}
         rowsPerPageOptions={[10, 20, 50]}
+        sx={{
+          borderTop: "1px solid #e5e7eb",
+          bgcolor: "#fcfdff",
+          "& .MuiTablePagination-toolbar": { px: { xs: 2, md: 3 } },
+        }}
       />
+      </Paper>
 
       <Drawer anchor="right" open={Boolean(selectedOrder)} onClose={closeDrawer} PaperProps={{ sx: { width: { xs: "100%", sm: 580 }, maxWidth: "100vw" } }}>
         {selectedOrder ? (
@@ -1066,7 +1196,7 @@ function NdrSection({ section, title, description, icon }) {
         message={saveMessage}
         anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
       />
-    </Paper>
+    </>
   );
 }
 

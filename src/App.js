@@ -38,14 +38,6 @@ import BloomLeaderboard from "./components/BloomLeaderboard";
 import DeliveredSalesRecord from "./components/DeliveredSalesRecord";
 import DeliveredHistory from "./components/TopBars/DeliveredHistory";
 import ShipmentDetails from "./pages/filtered/ShipmentDetails";
-import FinanceOrderSummary from "./components/Finance/FinanceOrderSummary";
-import RazorpaySettlement from "./components/Finance/Payments/RazorpaySettlement";
-import EasebuzzPayout from "./components/Finance/Payments/GokwikSettlement";
-import PhonePePayout from "./components/Finance/Payments/PhonepeSettlement";
-import CashfreePayout from "./components/Finance/Payments/CashfreeUpload";
-import BluedartUpload from "./components/Finance/Cod-remittance/BlueDart";
-import Delhivery from "./components/Finance/Cod-remittance/Delhivery";
-import DTDC from "./components/Finance/Cod-remittance/DtdcUpload";
 import OrderSummeryForOperations from "./components/Operation/OrderSummeryForOperations";
 import ReturnOrders from "./components/Operation/ReturnOrders";
 import AbandonedCheckouts from "./components/AbandonedCheckouts";
@@ -62,18 +54,8 @@ import OrderConfirmAnalytics from "./components/OrderConfirmAnalytics";
 import AssetsManagerRole from "./components/AddAsset";
 import AssetAllotment from "./components/AssetAllotment";
 import MyAssets from "./components/MyAssets";
-import BankReconciliation from "./components/Finance/BankReconciliation";
-import BankCapital6389 from "./components/Finance/BankCapital6389";
-import BankAxis3361 from "./components/Finance/BankAxis3361";
-import BankCc1101 from "./components/Finance/BankCc1101";
-import BankYesCcTejasv from "./components/Finance/BankYesCcTejasv";
-import BankYesCcAbhay from "./components/Finance/BankYesCcAbhay";
-import BankKotak from "./components/Finance/BankKotak";
 import TaskBoard from "./components/Dashboards/TaskBoard";
 import MyReporting from "./components/Dashboards/MyReporting";
-import PurchaseRecord from "./components/Finance/PurchaseRecordsPage";
-import PaymentRecords from "./components/Finance/PaymentRecordsPage";
-import Vendors from "./components/Finance/VendorPage";
 import SwitchDashboard from "./components/Finance/SwitchDashboard";
 import ConfirmedOrder from "./components/OrderConf/ConfirmedOrder";
 import GlobalShopifyOrders from "./International/Shopify/GlobalShopifyOrders";
@@ -466,70 +448,6 @@ function AppLayout() {
             }
           />
           <Route
-            path="/order-summary"
-            element={
-              <PrivateRoute>
-                <FinanceOrderSummary />
-              </PrivateRoute>
-            }
-          />
-          <Route
-            path="/gateway/razorpay"
-            element={
-              <PrivateRoute>
-                <RazorpaySettlement />
-              </PrivateRoute>
-            }
-          />
-          <Route
-            path="/gateway/easebuzz"
-            element={
-              <PrivateRoute>
-                <EasebuzzPayout />
-              </PrivateRoute>
-            }
-          />
-          <Route
-            path="/gateway/phonepe"
-            element={
-              <PrivateRoute>
-                <PhonePePayout />
-              </PrivateRoute>
-            }
-          />
-          <Route
-            path="/gateway/cashfree"
-            element={
-              <PrivateRoute>
-                <CashfreePayout />
-              </PrivateRoute>
-            }
-          />
-          <Route
-            path="/remittance/bluedart"
-            element={
-              <PrivateRoute>
-                <BluedartUpload />
-              </PrivateRoute>
-            }
-          />
-          <Route
-            path="/remittance/delhivery"
-            element={
-              <PrivateRoute>
-                <Delhivery />
-              </PrivateRoute>
-            }
-          />
-          <Route
-            path="/remittance/dtdc"
-            element={
-              <PrivateRoute>
-                <DTDC />
-              </PrivateRoute>
-            }
-          />
-          <Route
             path="/operations/undelivered-orders"
             element={
               <PrivateRoute>
@@ -790,86 +708,6 @@ function AppLayout() {
             element={
               <PrivateRoute>
                 <AssetAllotment />
-              </PrivateRoute>
-            }
-          />
-          <Route
-            path="/BankReconciliation"
-            element={
-              <PrivateRoute>
-                <BankReconciliation />
-              </PrivateRoute>
-            }
-          />
-          <Route
-            path="/BankCapital6389"
-            element={
-              <PrivateRoute>
-                <BankCapital6389 />
-              </PrivateRoute>
-            }
-          />
-          <Route
-            path="/BankAxis3361"
-            element={
-              <PrivateRoute>
-                <BankAxis3361 />
-              </PrivateRoute>
-            }
-          />
-          <Route
-            path="/BankCc1101"
-            element={
-              <PrivateRoute>
-                <BankCc1101 />
-              </PrivateRoute>
-            }
-          />
-          <Route
-            path="/BankYesCcTejasv"
-            element={
-              <PrivateRoute>
-                <BankYesCcTejasv />
-              </PrivateRoute>
-            }
-          />
-          <Route
-            path="/BankYesCcAbhay"
-            element={
-              <PrivateRoute>
-                <BankYesCcAbhay />
-              </PrivateRoute>
-            }
-          />
-          <Route
-            path="/BankKotak"
-            element={
-              <PrivateRoute>
-                <BankKotak />
-              </PrivateRoute>
-            }
-          />
-          <Route
-            path="/purchase-record"
-            element={
-              <PrivateRoute>
-                <PurchaseRecord />
-              </PrivateRoute>
-            }
-          />
-          <Route
-            path="/payment-record"
-            element={
-              <PrivateRoute>
-                <PaymentRecords />
-              </PrivateRoute>
-            }
-          />
-          <Route
-            path="/vendors"
-            element={
-              <PrivateRoute>
-                <Vendors />
               </PrivateRoute>
             }
           />

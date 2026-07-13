@@ -12,7 +12,6 @@ import {
   Drawer,
   FormControl,
   IconButton,
-  InputAdornment,
   InputLabel,
   MenuItem,
   Paper,
@@ -30,12 +29,6 @@ import {
   Tooltip,
   Typography,
 } from "@mui/material";
-import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
-import Inventory2OutlinedIcon from "@mui/icons-material/Inventory2Outlined";
-import LocalShippingOutlinedIcon from "@mui/icons-material/LocalShippingOutlined";
-import PaymentsOutlinedIcon from "@mui/icons-material/PaymentsOutlined";
-import RestartAltRoundedIcon from "@mui/icons-material/RestartAltRounded";
-import VisibilityOutlinedIcon from "@mui/icons-material/VisibilityOutlined";
 import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
 import ContentCopyRoundedIcon from "@mui/icons-material/ContentCopyRounded";
 import PhoneOutlinedIcon from "@mui/icons-material/PhoneOutlined";
@@ -131,6 +124,48 @@ function statusColor(status) {
   if (s.includes("transit") || s.includes("ofd") || s.includes("out for")) return "info";
   if (s.includes("booked") || s.includes("pending") || s.includes("not shipped")) return "default";
   return "primary";
+}
+
+function statusChipSx(status) {
+  const s = normalizeStatus(status).toLowerCase();
+  if (s.includes("ready") || s.includes("pickup")) {
+    return { bgcolor: "#c7f6f8", color: "#0e7490" };
+  }
+  if (s.includes("delivered")) {
+    return { bgcolor: "#dcfce7", color: "#15803d" };
+  }
+  if (s.includes("transit") || s.includes("ofd") || s.includes("out for")) {
+    return { bgcolor: "#dbeafe", color: "#1d4ed8" };
+  }
+  if (s.includes("rto") || s.includes("lost")) {
+    return { bgcolor: "#ffedd5", color: "#c2410c" };
+  }
+  if (s.includes("cancel")) {
+    return { bgcolor: "#fee2e2", color: "#b91c1c" };
+  }
+  return { bgcolor: "#f3f4f6", color: "#4b5563" };
+}
+
+function paymentChipSx(paymentMode) {
+  const mode = String(paymentMode || "").toLowerCase();
+  if (mode.includes("cod")) return { bgcolor: "#fef3c7", color: "#d97706" };
+  if (mode.includes("paid") || mode.includes("prepaid")) return { bgcolor: "#dbeafe", color: "#2563eb" };
+  return { bgcolor: "#f3f4f6", color: "#4b5563" };
+}
+
+function remittanceValue(row) {
+  const status = normalizeStatus(row?.remittanceStatus || row?.remittance || row?.payoutStatus);
+  if (status) return status;
+  const payment = String(row?.paymentMode || "").toLowerCase();
+  return payment.includes("cod") ? "Awaiting" : "N/A";
+}
+
+function remittanceChipSx(value) {
+  const v = String(value || "").toLowerCase();
+  if (v === "n/a") return { bgcolor: "#f3f4f6", color: "#6b7280" };
+  if (v.includes("await")) return { bgcolor: "#dbeafe", color: "#2563eb" };
+  if (v.includes("paid") || v.includes("settled")) return { bgcolor: "#dcfce7", color: "#15803d" };
+  return { bgcolor: "#f3f4f6", color: "#4b5563" };
 }
 
 function productText(products) {
@@ -292,7 +327,7 @@ export default function LmsOrdersPage() {
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [overrideStatus, setOverrideStatus] = useState("");
   const [statusOptions, setStatusOptions] = useState(DEFAULT_STATUS_OPTIONS);
-  const [counts, setCounts] = useState({ all: 0, active: 0, closed: 0, trackedStatus: 0 });
+  const [, setCounts] = useState({ all: 0, active: 0, closed: 0, trackedStatus: 0 });
   const [selectedIds, setSelectedIds] = useState([]);
   const [bulkStatus, setBulkStatus] = useState("");
   const [statusUpdating, setStatusUpdating] = useState(false);
@@ -313,9 +348,8 @@ export default function LmsOrdersPage() {
   });
   const debouncedFilters = useDebouncedValue(filters, 350);
   const activeFilterEntries = Object.entries(filters).filter(([, value]) => String(value || "").trim() !== "");
-  const activeFilterCount = activeFilterEntries.length + (!isActiveMode && (showActive !== true || showClosed !== false) ? 1 : 0);
 
-  const title = isActiveMode ? "Active Orders" : "All Orders";
+  const title = isActiveMode ? "Orders" : "Archived";
   const statusFilterOptions = useMemo(
     () => [{ value: "", label: "All Statuses" }, ...statusOptions],
     [statusOptions]
@@ -323,9 +357,6 @@ export default function LmsOrdersPage() {
   const visibleSelectedCount = rows.filter((row) => selectedIds.includes(orderKey(row))).length;
   const allVisibleSelected = rows.length > 0 && visibleSelectedCount === rows.length;
   const partiallySelected = visibleSelectedCount > 0 && !allVisibleSelected;
-  const activeTotal = Number(counts.active || 0);
-  const closedTotal = Number(counts.closed || 0);
-  const allTotal = Number(counts.all || total || 0);
 
   const params = useMemo(() => {
     const next = {
@@ -634,156 +665,101 @@ export default function LmsOrdersPage() {
     <Box
       sx={{
         minHeight: "calc(100vh - 64px)",
-        background:
-          "radial-gradient(circle at top left, rgba(14,165,233,0.10), transparent 26%), linear-gradient(180deg, #f7fafc 0%, #eef4f8 100%)",
-        p: { xs: 1.5, md: 3 },
+        background: "#f8fafc",
+        color: "#111827",
       }}
     >
-      <Box sx={{ maxWidth: 1480, mx: "auto", display: "grid", gap: 2 }}>
+      <Box
+        sx={{
+          bgcolor: "#fff",
+          borderBottom: "1px solid #e5e7eb",
+          px: { xs: 2, md: 3 },
+        }}
+      >
+        <Stack direction="row" gap={{ xs: 2, md: 4 }} sx={{ maxWidth: 1920, mx: "auto" }}>
+          {[
+            { value: "active", label: "Orders" },
+            { value: "all", label: "Archived" },
+          ].map((tab) => {
+            const selected = tab.value === "active" ? isActiveMode : !isActiveMode;
+            return (
+              <Button
+                key={tab.value}
+                onClick={() => handleModeChange(tab.value)}
+                sx={{
+                  minWidth: 0,
+                  px: { xs: 0.5, md: 1 },
+                  py: 2,
+                  borderRadius: 0,
+                  color: selected ? "#4f46e5" : "#6b7280",
+                  fontSize: 16,
+                  fontWeight: 800,
+                  textTransform: "none",
+                  borderBottom: "3px solid",
+                  borderColor: selected ? "#4f46e5" : "transparent",
+                  "&:hover": {
+                    bgcolor: "transparent",
+                    color: "#4f46e5",
+                    borderColor: selected ? "#4f46e5" : "#c7d2fe",
+                  },
+                }}
+              >
+                {tab.label}
+              </Button>
+            );
+          })}
+        </Stack>
+      </Box>
+
+      <Box sx={{ maxWidth: 1920, mx: "auto", display: "grid", gap: 2.5, p: { xs: 2, md: 3 } }}>
+        <Typography variant="h5" sx={{ fontWeight: 900, color: "#111827", mt: { xs: 2, md: 3 } }}>
+          {title}
+        </Typography>
+
         <Paper
           elevation={0}
           sx={{
-            border: "1px solid #dbe5ec",
-            borderRadius: 3,
+            border: "1px solid #e5e7eb",
+            borderRadius: "16px",
             overflow: "hidden",
-            background: "linear-gradient(180deg, #ffffff 0%, #f8fbfd 100%)",
+            background: "#fff",
+            boxShadow: "0 1px 2px rgba(15, 23, 42, 0.03)",
           }}
         >
-          <Box sx={{ px: { xs: 2, md: 3 }, py: { xs: 2, md: 2.5 }, borderBottom: "1px solid #e5edf3" }}>
-            <Stack
-              direction={{ xs: "column", md: "row" }}
-              justifyContent="space-between"
-              alignItems={{ xs: "flex-start", md: "center" }}
-              gap={2}
-            >
-              <Box>
-                <Typography variant="overline" sx={{ color: "#0369a1", fontWeight: 700, letterSpacing: 0.8 }}>
-                  Operations
-                </Typography>
-                <Typography variant="h5" sx={{ fontWeight: 800, color: "#0f172a", lineHeight: 1.1 }}>
-                  {title}
-                </Typography>
-                <Typography variant="body2" sx={{ color: "#64748b", mt: 0.75 }}>
-                  Shopify order book with LMS status mapping from the orders collection.
-                </Typography>
-              </Box>
-
-              <Stack direction={{ xs: "column", sm: "row" }} gap={1} alignItems={{ xs: "stretch", sm: "center" }}>
-                <Button
-                  size="small"
-                  startIcon={<FileDownloadOutlinedIcon />}
-                  disabled={Boolean(exporting)}
-                  onClick={() => downloadAllRows("csv")}
-                  sx={{ textTransform: "none", fontWeight: 800 }}
-                >
-                  {exporting === "csv" ? "Exporting..." : "CSV"}
-                </Button>
-                <Button
-                  size="small"
-                  startIcon={<FileDownloadOutlinedIcon />}
-                  disabled={Boolean(exporting)}
-                  onClick={() => downloadAllRows("xlsx")}
-                  sx={{ textTransform: "none", fontWeight: 800 }}
-                >
-                  {exporting === "xlsx" ? "Exporting..." : "Excel"}
-                </Button>
-                <Chip
-                  icon={<Inventory2OutlinedIcon />}
-                  label={`All ${allTotal}`}
-                  sx={{ bgcolor: "#e0f2fe", color: "#075985", fontWeight: 700, borderRadius: 2 }}
-                />
-                <Chip
-                  icon={<LocalShippingOutlinedIcon />}
-                  label={`Active ${activeTotal}`}
-                  sx={{ bgcolor: "#f1f5f9", color: "#334155", fontWeight: 700, borderRadius: 2 }}
-                />
-                <Chip
-                  icon={<LocalShippingOutlinedIcon />}
-                  label={`Closed ${closedTotal}`}
-                  sx={{ bgcolor: "#fef3c7", color: "#92400e", fontWeight: 700, borderRadius: 2 }}
-                />
-                {activeFilterCount > 0 ? (
-                  <Chip
-                    icon={<PaymentsOutlinedIcon />}
-                    label={`${activeFilterCount} filters`}
-                    sx={{ bgcolor: "#fff7ed", color: "#9a3412", fontWeight: 700, borderRadius: 2 }}
-                  />
-                ) : null}
-              </Stack>
-            </Stack>
-          </Box>
-
-          <Box sx={{ px: { xs: 2, md: 3 }, py: 1.5, bgcolor: "#fff", borderBottom: "1px solid #e5edf3" }}>
-            <Stack direction="row" spacing={1}>
-              <Button
-                onClick={() => handleModeChange("active")}
-                sx={{
-                  minWidth: 140,
-                  borderRadius: 2.5,
-                  px: 2,
-                  py: 1,
-                  bgcolor: isActiveMode ? "#0f172a" : "#f8fafc",
-                  color: isActiveMode ? "#fff" : "#475569",
-                  fontWeight: 700,
-                  border: "1px solid",
-                  borderColor: isActiveMode ? "#0f172a" : "#dbe5ec",
-                  "&:hover": {
-                    bgcolor: isActiveMode ? "#1e293b" : "#f1f5f9",
-                    borderColor: isActiveMode ? "#1e293b" : "#cbd5e1",
-                  },
-                }}
-              >
-                Active Orders
-              </Button>
-              <Button
-                onClick={() => handleModeChange("all")}
-                sx={{
-                  minWidth: 140,
-                  borderRadius: 2.5,
-                  px: 2,
-                  py: 1,
-                  bgcolor: !isActiveMode ? "#0f172a" : "#f8fafc",
-                  color: !isActiveMode ? "#fff" : "#475569",
-                  fontWeight: 700,
-                  border: "1px solid",
-                  borderColor: !isActiveMode ? "#0f172a" : "#dbe5ec",
-                  "&:hover": {
-                    bgcolor: !isActiveMode ? "#1e293b" : "#f1f5f9",
-                    borderColor: !isActiveMode ? "#1e293b" : "#cbd5e1",
-                  },
-                }}
-              >
-                All Orders
-              </Button>
-            </Stack>
-          </Box>
-
-          <Box sx={{ p: { xs: 2, md: 3 }, bgcolor: "#fff", borderBottom: "1px solid #e5edf3" }}>
+          <Box sx={{ p: { xs: 2, md: 2.5 }, bgcolor: "#fff" }}>
             <Box
               sx={{
                 display: "grid",
-                gap: 1.5,
+                columnGap: 2,
+                rowGap: 2,
                 gridTemplateColumns: {
                   xs: "1fr",
                   sm: "repeat(2, minmax(0, 1fr))",
-                  lg: "1.5fr repeat(6, minmax(0, 1fr)) auto",
+                  lg: "2fr repeat(2, 0.95fr) 1.15fr 1.2fr 0.75fr",
                 },
                 alignItems: "end",
+                "& .MuiInputLabel-root": {
+                  color: "#6b7280",
+                  fontSize: 15,
+                  fontWeight: 600,
+                },
+                "& .MuiInputBase-root": {
+                  borderRadius: "10px",
+                  bgcolor: "#fff",
+                  minHeight: 44,
+                  color: "#111827",
+                  fontSize: 16,
+                },
+                "& .MuiOutlinedInput-notchedOutline": { borderColor: "#d1d5db" },
+                "& .MuiInputBase-input::placeholder": { color: "#9ca3af", opacity: 1 },
               }}
             >
               <TextField
                 label="Search"
-                placeholder="Order ID, customer, AWB"
+                placeholder="Order ref, customer, AWB..."
                 value={filters.search}
                 onChange={updateFilter("search")}
                 size="small"
-                InputProps={{
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <SearchRoundedIcon sx={{ fontSize: 18, color: "#64748b" }} />
-                    </InputAdornment>
-                  ),
-                }}
               />
               <TextField
                 label="From"
@@ -803,12 +779,14 @@ export default function LmsOrdersPage() {
               />
               <TextField
                 label="Product / SKU"
+                placeholder="Search product or SKU..."
                 value={filters.product}
                 onChange={updateFilter("product")}
                 size="small"
               />
               <TextField
-                label="Courier"
+                label="Courier Partner"
+                placeholder="e.g. Delhivery"
                 value={filters.courier}
                 onChange={updateFilter("courier")}
                 size="small"
@@ -822,6 +800,17 @@ export default function LmsOrdersPage() {
                   <MenuItem value="Partial paid">Partial paid</MenuItem>
                 </Select>
               </FormControl>
+            </Box>
+
+            <Box
+              sx={{
+                mt: 2.5,
+                display: "grid",
+                gridTemplateColumns: { xs: "1fr", md: "280px 1fr" },
+                gap: 2,
+                alignItems: "end",
+              }}
+            >
               <FormControl size="small">
                 <InputLabel>Status</InputLabel>
                 <Select label="Status" value={filters.status} onChange={updateFilter("status")}>
@@ -833,46 +822,97 @@ export default function LmsOrdersPage() {
                   ))}
                 </Select>
               </FormControl>
-              {!isActiveMode ? (
-                <Stack spacing={0.75} sx={{ minWidth: { lg: 190 } }}>
-                  <Typography variant="caption" color="text.secondary">
-                    Show
-                  </Typography>
-                  <Stack direction="row" gap={1} alignItems="center" sx={{ minHeight: 40 }}>
-                    <Button
-                      size="small"
-                      variant={showActive ? "contained" : "outlined"}
-                      onClick={() => {
-                        setShowActive((prev) => !prev);
-                        setPage(0);
-                      }}
-                      sx={{ minWidth: 88, borderRadius: 999, textTransform: "none", boxShadow: "none" }}
-                    >
-                      Active
-                    </Button>
-                    <Button
-                      size="small"
-                      variant={showClosed ? "contained" : "outlined"}
-                      color={showClosed ? "warning" : "inherit"}
-                      onClick={() => {
-                        setShowClosed((prev) => !prev);
-                        setPage(0);
-                      }}
-                      sx={{ minWidth: 88, borderRadius: 999, textTransform: "none", boxShadow: "none" }}
-                    >
-                      Closed
-                    </Button>
-                  </Stack>
-                </Stack>
-              ) : null}
-              <Button
-                variant="outlined"
-                onClick={resetFilters}
-                startIcon={<RestartAltRoundedIcon />}
-                sx={{ minHeight: 40, borderRadius: 2.5, textTransform: "none", fontWeight: 700 }}
+              <Stack
+                direction={{ xs: "column", md: "row" }}
+                gap={1.5}
+                alignItems={{ xs: "stretch", md: "center" }}
+                justifyContent="space-between"
               >
-                Reset
-              </Button>
+                <Stack direction="row" gap={1.5} alignItems="center" flexWrap="wrap">
+                  <Button
+                    variant="outlined"
+                    onClick={resetFilters}
+                    sx={{
+                      minHeight: 44,
+                      px: 2,
+                      borderRadius: "10px",
+                      borderColor: "#e5e7eb",
+                      color: "#6b7280",
+                      textTransform: "none",
+                      fontWeight: 700,
+                    }}
+                  >
+                    Reset
+                  </Button>
+                  {!isActiveMode ? (
+                    <Stack direction="row" gap={1} alignItems="center">
+                      <Button
+                        size="small"
+                        variant={showActive ? "contained" : "outlined"}
+                        onClick={() => {
+                          setShowActive((prev) => !prev);
+                          setPage(0);
+                        }}
+                        sx={{ minWidth: 74, borderRadius: "999px", textTransform: "none", boxShadow: "none" }}
+                      >
+                        Active
+                      </Button>
+                      <Button
+                        size="small"
+                        variant={showClosed ? "contained" : "outlined"}
+                        color={showClosed ? "warning" : "inherit"}
+                        onClick={() => {
+                          setShowClosed((prev) => !prev);
+                          setPage(0);
+                        }}
+                        sx={{ minWidth: 74, borderRadius: "999px", textTransform: "none", boxShadow: "none" }}
+                      >
+                        Closed
+                      </Button>
+                    </Stack>
+                  ) : null}
+                </Stack>
+                <Stack direction="row" gap={1} justifyContent={{ xs: "flex-start", md: "flex-end" }}>
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    startIcon={<FileDownloadOutlinedIcon />}
+                    disabled={Boolean(exporting)}
+                    onClick={() => downloadAllRows("csv")}
+                    sx={{
+                      minHeight: 44,
+                      px: 2,
+                      borderRadius: "10px",
+                      borderColor: "#e5e7eb",
+                      color: "#475569",
+                      textTransform: "none",
+                      fontWeight: 800,
+                    }}
+                  >
+                    {exporting === "csv" ? "Exporting..." : "CSV"}
+                  </Button>
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    startIcon={<FileDownloadOutlinedIcon />}
+                    disabled={Boolean(exporting)}
+                    onClick={() => downloadAllRows("xlsx")}
+                    sx={{
+                      minHeight: 44,
+                      px: 2,
+                      borderRadius: "10px",
+                      borderColor: "#86efac",
+                      bgcolor: "#ecfdf5",
+                      color: "#059669",
+                      textTransform: "none",
+                      fontWeight: 800,
+                      "&:hover": { borderColor: "#34d399", bgcolor: "#d1fae5" },
+                    }}
+                  >
+                    {exporting === "xlsx" ? "Exporting..." : "Excel"}
+                  </Button>
+                </Stack>
+              </Stack>
             </Box>
 
             {activeFilterEntries.length || !isActiveMode ? (
@@ -898,6 +938,7 @@ export default function LmsOrdersPage() {
               </>
             ) : null}
           </Box>
+        </Paper>
 
           {error ? (
             <Alert severity="error" sx={{ m: 2 }}>
@@ -905,6 +946,16 @@ export default function LmsOrdersPage() {
             </Alert>
           ) : null}
 
+        <Paper
+          elevation={0}
+          sx={{
+            border: "1px solid #e5e7eb",
+            borderRadius: "16px",
+            overflow: "hidden",
+            bgcolor: "#fff",
+            boxShadow: "0 1px 2px rgba(15, 23, 42, 0.03)",
+          }}
+        >
           {selectedIds.length ? (
             <Box
               sx={{
@@ -957,13 +1008,13 @@ export default function LmsOrdersPage() {
             </Box>
           ) : null}
 
-          <TableContainer sx={{ bgcolor: "#fff" }}>
-            <Table size="small" stickyHeader>
+          <TableContainer sx={{ bgcolor: "#fff", overflowX: "auto" }}>
+            <Table size="small" stickyHeader sx={{ minWidth: 1280 }}>
               <TableHead>
                 <TableRow>
                   <TableCell
                     padding="checkbox"
-                    sx={{ bgcolor: "#f8fafc", borderBottom: "1px solid #e5edf3" }}
+                    sx={{ bgcolor: "#f9fafb", borderBottom: "1px solid #e5e7eb", width: 42 }}
                   >
                     <Checkbox
                       size="small"
@@ -973,19 +1024,21 @@ export default function LmsOrdersPage() {
                       inputProps={{ "aria-label": "Select visible orders" }}
                     />
                   </TableCell>
-                  {["Order ID", "Date", "Customer", "Products / SKU", "Payment", "Amount", "Courier / AWB", "Status", "View"].map(
+                  {["Order Ref", "Date ↓", "Customer", "Products / SKU", "Payment", "Amount ↕", "Courier / AWB", "Status ↕", "Remittance", ""].map(
                     (label) => (
                       <TableCell
                         key={label}
-                        align={label === "Amount" ? "right" : "left"}
+                        align={label.startsWith("Amount") ? "right" : "left"}
                         sx={{
-                          bgcolor: "#f8fafc",
-                          borderBottom: "1px solid #e5edf3",
-                          color: "#64748b",
-                          fontSize: 12,
-                          fontWeight: 700,
+                          bgcolor: "#f9fafb",
+                          borderBottom: "1px solid #e5e7eb",
+                          color: "#6b7280",
+                          fontSize: 13,
+                          fontWeight: 900,
                           textTransform: "uppercase",
-                          letterSpacing: 0.4,
+                          letterSpacing: 0.5,
+                          py: 1.6,
+                          whiteSpace: label ? "normal" : "nowrap",
                         }}
                       >
                         {label}
@@ -997,7 +1050,7 @@ export default function LmsOrdersPage() {
               <TableBody>
                 {loading ? (
                   <TableRow>
-                    <TableCell colSpan={10} align="center" sx={{ py: 8 }}>
+                    <TableCell colSpan={11} align="center" sx={{ py: 8 }}>
                       <CircularProgress size={24} />
                       <Typography variant="body2" color="text.secondary" sx={{ mt: 1.5 }}>
                         Loading orders...
@@ -1006,7 +1059,7 @@ export default function LmsOrdersPage() {
                   </TableRow>
                 ) : rows.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={10} align="center" sx={{ py: 8, color: "text.secondary" }}>
+                    <TableCell colSpan={11} align="center" sx={{ py: 8, color: "text.secondary" }}>
                       <Typography variant="body1" sx={{ fontWeight: 600, color: "#334155" }}>
                         No orders found
                       </Typography>
@@ -1021,13 +1074,19 @@ export default function LmsOrdersPage() {
                     const courier = [row.courier, row.trackingNumber].filter(Boolean).join(" / ");
                     const id = orderKey(row);
                     const phone = row.contactNumber || row.customerAddress?.phone || "";
+                    const remittance = remittanceValue(row);
                     return (
                       <TableRow
                         key={row.id}
                         hover
                         sx={{
-                          "&:nth-of-type(even)": { bgcolor: "#fbfdff" },
-                          "& td": { borderBottom: "1px solid #eef2f6" },
+                          "& td": {
+                            borderBottom: "1px solid #eef2f6",
+                            py: 1.85,
+                            fontSize: 15,
+                            color: "#4b5563",
+                          },
+                          "&:hover td": { bgcolor: "#fbfdff" },
                         }}
                       >
                         <TableCell padding="checkbox">
@@ -1039,34 +1098,37 @@ export default function LmsOrdersPage() {
                           />
                         </TableCell>
                         <TableCell sx={{ fontFamily: "monospace", whiteSpace: "nowrap" }}>
-                          <Stack direction="row" alignItems="center" gap={0.5}>
-                            <Typography variant="body2" sx={{ fontFamily: "inherit", fontWeight: 700, color: "#0f172a" }}>
+                          <Stack direction="row" alignItems="center" gap={0.25}>
+                            <Typography variant="body2" sx={{ fontFamily: "inherit", fontWeight: 800, color: "#4b5563", fontSize: 15 }}>
                               {row.orderName || row.orderId || "-"}
                             </Typography>
                             <Tooltip title="Copy order ID" arrow>
-                              <IconButton size="small" onClick={() => copyValue(row.orderName || row.orderId, "Order ID")}>
+                              <IconButton
+                                size="small"
+                                onClick={() => copyValue(row.orderName || row.orderId, "Order ID")}
+                                sx={{ opacity: 0.3, "&:hover": { opacity: 1 } }}
+                              >
                                 <ContentCopyRoundedIcon sx={{ fontSize: 15 }} />
                               </IconButton>
                             </Tooltip>
                           </Stack>
                         </TableCell>
-                        <TableCell sx={{ whiteSpace: "nowrap", color: "#334155" }}>{formatDate(row.orderDate)}</TableCell>
+                        <TableCell sx={{ whiteSpace: "nowrap", color: "#4b5563", fontWeight: 500 }}>{formatDate(row.orderDate)}</TableCell>
                         <TableCell>
-                          <Typography variant="body2" sx={{ fontWeight: 600, color: "#0f172a" }}>
+                          <Typography variant="body2" sx={{ fontWeight: 700, color: "#111827", fontSize: 15 }}>
                             {row.customerName || "-"}
                           </Typography>
                           {phone ? (
                             <Stack direction="row" alignItems="center" gap={0.5}>
                               <Button
                                 size="small"
-                                startIcon={<PhoneOutlinedIcon sx={{ fontSize: 15 }} />}
                                 onClick={() => startZoomCall(phone, row)}
-                                sx={{ minWidth: 0, p: 0, textTransform: "none", color: "#64748b" }}
+                                sx={{ minWidth: 0, p: 0, textTransform: "none", color: "#9ca3af", fontSize: 14 }}
                               >
                                 {phone}
                               </Button>
                               <Tooltip title="Copy phone" arrow>
-                                <IconButton size="small" onClick={() => copyValue(phone, "Phone")}>
+                                <IconButton size="small" onClick={() => copyValue(phone, "Phone")} sx={{ opacity: 0.28, "&:hover": { opacity: 1 } }}>
                                   <ContentCopyRoundedIcon sx={{ fontSize: 15 }} />
                                 </IconButton>
                               </Tooltip>
@@ -1075,7 +1137,11 @@ export default function LmsOrdersPage() {
                         </TableCell>
                         <TableCell sx={{ maxWidth: 260 }}>
                           <Tooltip title={products} arrow>
-                            <Typography variant="body2" noWrap>
+                            <Typography
+                              variant="body2"
+                              noWrap
+                              sx={{ color: "#4f46e5", fontFamily: "monospace", fontWeight: 800, fontSize: 15 }}
+                            >
                               {products}
                             </Typography>
                           </Tooltip>
@@ -1084,23 +1150,28 @@ export default function LmsOrdersPage() {
                           <Chip
                             size="small"
                             label={row.paymentMode || "-"}
-                            variant="outlined"
-                            sx={{ fontWeight: 700, borderColor: "#cbd5e1", color: "#334155" }}
+                            sx={{
+                              ...paymentChipSx(row.paymentMode),
+                              height: 24,
+                              borderRadius: "999px",
+                              fontWeight: 900,
+                              fontSize: 13,
+                            }}
                           />
                         </TableCell>
-                        <TableCell align="right" sx={{ fontWeight: 800, color: "#0f172a" }}>
+                        <TableCell align="right" sx={{ fontWeight: 900, color: "#111827", fontSize: 16 }}>
                           {formatCurrency(row.amount)}
                         </TableCell>
                         <TableCell sx={{ maxWidth: 220 }}>
                           <Stack direction="row" alignItems="center" gap={0.5} sx={{ minWidth: 0 }}>
                             <Tooltip title={courier || "-"} arrow>
-                              <Typography variant="body2" noWrap sx={{ minWidth: 0 }}>
+                              <Typography variant="body2" noWrap sx={{ minWidth: 0, color: courier ? "#4b5563" : "#4b5563", fontSize: 15 }}>
                                 {courier || "-"}
                               </Typography>
                             </Tooltip>
                             {row.trackingNumber ? (
                               <Tooltip title="Copy AWB" arrow>
-                                <IconButton size="small" onClick={() => copyValue(row.trackingNumber, "AWB")}>
+                                <IconButton size="small" onClick={() => copyValue(row.trackingNumber, "AWB")} sx={{ opacity: 0.3, "&:hover": { opacity: 1 } }}>
                                   <ContentCopyRoundedIcon sx={{ fontSize: 15 }} />
                                 </IconButton>
                               </Tooltip>
@@ -1110,9 +1181,28 @@ export default function LmsOrdersPage() {
                         <TableCell>
                           <Chip
                             size="small"
-                            color={statusColor(row.status)}
                             label={row.status || "Not Available"}
-                            sx={{ fontWeight: 700 }}
+                            sx={{
+                              ...statusChipSx(row.status),
+                              minHeight: 26,
+                              borderRadius: "999px",
+                              fontWeight: 900,
+                              fontSize: 13,
+                              "& .MuiChip-label": { whiteSpace: "normal", lineHeight: 1.15, py: 0.4 },
+                            }}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <Chip
+                            size="small"
+                            label={remittance}
+                            sx={{
+                              ...remittanceChipSx(remittance),
+                              height: 26,
+                              borderRadius: "999px",
+                              fontWeight: 900,
+                              fontSize: 13,
+                            }}
                           />
                         </TableCell>
                         <TableCell>
@@ -1121,13 +1211,14 @@ export default function LmsOrdersPage() {
                               size="small"
                               onClick={() => openOrderDrawer(row)}
                               sx={{
-                                border: "1px solid #dbe5ec",
-                                color: "#0f172a",
+                                color: "#4f46e5",
                                 bgcolor: "#fff",
-                                "&:hover": { bgcolor: "#f1f5f9" },
+                                "&:hover": { bgcolor: "#eef2ff" },
                               }}
                             >
-                              <VisibilityOutlinedIcon fontSize="small" />
+                              <Typography variant="body2" sx={{ color: "inherit", fontWeight: 900 }}>
+                                View
+                              </Typography>
                             </IconButton>
                           </Tooltip>
                         </TableCell>

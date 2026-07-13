@@ -244,32 +244,6 @@ const DEFAULT_PERMISSIONS = {
    adspostPage: false,
 
 
-   financeOrderSummary: false,
-   financePrepaidRemittanceMenu: false,
-   financePrepaidRazorpay: false,
-   financePrepaidPhonePe: false,
-   financePrepaidEasebuzz: false,
-   financePrepaidCashfree: false,
-   financePrepaidBankTransfer: false,
-   financeCodRemittanceMenu: false,
-   financeCodBluedart: false,
-   financeCodDTDC: false,
-   financeCodDelhivery: false,
-   financeCodShiprocket: false,
-   financeRecordsMenu: false,
-   financePurchaseRecords: false,
-   financePaymentRecords: false,
-   financeVendors: false,
-   financeBankReconciliationMenu: false,
-   bankCapital6389: false,
-   bankAxis3361: false,
-   bankCc1101: false,
-   bankSbi8285: false,
-   bankYesCcTejasv: false,
-   bankYesCcAbhay: false,
-   bankKotak: false,
-
-
    opsUndeliveredOrders: false,
    opsOrders: false,
    opsNdr: false,
@@ -1972,55 +1946,6 @@ const getEffectiveRole = () =>
                  />
                ))}
              </Box>
-
-
-             <Typography
-               variant="caption"
-               sx={{ fontWeight: 600, mt: 1 }}
-             >
-               Finance
-             </Typography>
-             <Box sx={{ display: "flex", flexDirection: "column" }}>
-               {[
-                 ["financeOrderSummary", "Order Summary"],
-                 ["financePrepaidRemittanceMenu", "Prepaid Remittance Menu"],
-                 ["financePrepaidRazorpay", "Prepaid: Razorpay"],
-                 ["financePrepaidPhonePe", "Prepaid: PhonePe"],
-                 ["financePrepaidEasebuzz", "Prepaid: Easebuzz"],
-                 ["financePrepaidCashfree", "Prepaid: Cashfree"],
-                 ["financePrepaidBankTransfer", "Prepaid: Bank Transfer"],
-                 ["financeCodRemittanceMenu", "COD Remittance Menu"],
-                 ["financeCodBluedart", "COD: Bluedart"],
-                 ["financeCodDTDC", "COD: DTDC"],
-                 ["financeCodDelhivery", "COD: Delhivery"],
-                 ["financeCodShiprocket", "COD: Shiprocket"],
-                 ["financeRecordsMenu", "Records Menu"],
-                 ["financePurchaseRecords", "Purchase Records"],
-                 ["financePaymentRecords", "Payment Records"],
-                 ["financeVendors", "My Vendors"],
-                 ["financeBankReconciliationMenu", "Bank Reconciliation Menu"],
-                 ["bankCapital6389", "Bank - Capital 6389"],
-                 ["bankAxis3361", "Axis - 3361"],
-                 ["bankCc1101", "CC 1101"],
-                 ["bankSbi8285", "SBI Current 8285"],
-                 ["bankYesCcTejasv", "Yes CC - Tejasv"],
-                 ["bankYesCcAbhay", "Yes CC - Abhay"],
-                 ["bankKotak", "Bank - Kotak"],
-               ].map(([key, label]) => (
-                 <FormControlLabel
-                   key={key}
-                   control={
-                     <Checkbox
-                       checked={!!permissionValues.menubar[key]}
-                       onChange={() => handlePermissionToggle("menubar", key)}
-                     />
-                   }
-                   label={label}
-                 />
-               ))}
-             </Box>
-
-
              <Typography
                variant="caption"
                sx={{ fontWeight: 600, mt: 1 }}
