@@ -153,9 +153,6 @@ const DEFAULT_PERMISSIONS = {
    whatsaapChats: false,
 
 
-   invoices: false,
-   accessManagement: false,
-   adminAccessRequests: false,
    deliveredSalesRecord: false,
 
 
@@ -1682,10 +1679,7 @@ const getEffectiveRole = () =>
                  ["allAnalyticsMenu", "Analytics Menu"],
                  ["superAdminAnalytics", "Super Admin Analytics"],
                  ["abandonedAnalytics", "Abandoned Analytics"],
-                 ["invoices", "Invoices"],
                  ["whatsaapChats", "WhatsApp Chats"],
-                 ["accessManagement", "Access Management"],
-                 ["adminAccessRequests", "Admin Access Requests"],
                  ["deliveredSalesRecord", "Delivered Sales Record"],
                  ["incentivesWallet", "Incentives Wallet"],
                  ["sops", "SOPs"],

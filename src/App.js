@@ -62,9 +62,6 @@ import GlobalShopifyOrders from "./International/Shopify/GlobalShopifyOrders";
 import GlobalAbandonedCarts from "./International/Shopify/GlobalAbandonedCarts";
 import GlobalRetentionLeads from "./International/InternationlLeads/GlobalRetentionLeads";
 import GlobalRetentionSales from "./International/InternationlLeads/GlobalRetentionSales";
-import AccessManagement from "./components/AccessManagement";
-import AdminAccessRequests from "./components/AdminAccessRequests";
-import Invoices from "./pages/Invoices";
 import UnassignedDeliveredOrders from "./components/UnassignedDeliveredOrders";
 import SuperAdminAnalytics from "./pages/SuperAdminAnalytics";
 import AbandonedAnalyticsPage from "./pages/AbandonedAnalytics";
@@ -560,22 +557,6 @@ function AppLayout() {
             }
           />
           <Route
-            path="/access-management"
-            element={
-              <PrivateRoute>
-                <AccessManagement />
-              </PrivateRoute>
-            }
-          />
-          <Route
-            path="/admin-requests-admin"
-            element={
-              <PrivateRoute>
-                <AdminAccessRequests />
-              </PrivateRoute>
-            }
-          />
-          <Route
             path="/unassigned-delivered-orders"
             element={
               <PrivateRoute>
@@ -596,14 +577,6 @@ function AppLayout() {
             element={
               <PrivateRoute>
                 <ConfirmedOrder />
-              </PrivateRoute>
-            }
-          />
-          <Route
-            path="/invoices"
-            element={
-              <PrivateRoute>
-                <Invoices />
               </PrivateRoute>
             }
           />

@@ -17,6 +17,13 @@ import axios from "axios";
 import * as XLSX from "xlsx";
 import * as FileSaver from "file-saver";
 
+const API_BASE = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "");
+
+const api = axios.create({
+  baseURL: API_BASE,
+  withCredentials: true,
+});
+
 const AcquisitionLost = () => {
   // Use zero-indexed page for TablePagination; convert to 1-indexed when querying the API.
   const [leads, setLeads] = useState([]);
@@ -28,16 +35,13 @@ const AcquisitionLost = () => {
   const fetchLostLeads = async () => {
     setLoading(true);
     try {
-      const response = await axios.get(
-        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads",
-        {
-          params: {
-            page: page + 1, // API expects a 1-indexed page
-            limit: rowsPerPage,
-            filters: JSON.stringify({ salesStatus: ["Lost"] }),
-          },
-        }
-      );
+      const response = await api.get("/api/leads", {
+        params: {
+          page: page + 1, // API expects a 1-indexed page
+          limit: rowsPerPage,
+          filters: JSON.stringify({ salesStatus: ["Lost"] }),
+        },
+      });
       // Expecting response.data to include { leads, totalLeads, totalPages, currentPage }
       setLeads(response.data.leads);
       setTotalLeads(response.data.totalLeads);
@@ -66,16 +70,13 @@ const AcquisitionLost = () => {
   const downloadCSV = async () => {
     try {
       // Fetch all leads by setting limit to totalLeads (or a high number if totalLeads is 0)
-      const response = await axios.get(
-        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads",
-        {
-          params: {
-            page: 1,
-            limit: totalLeads || 10000, // fallback in case totalLeads isn't set
-            filters: JSON.stringify({ salesStatus: ["Lost"] }),
-          },
-        }
-      );
+      const response = await api.get("/api/leads", {
+        params: {
+          page: 1,
+          limit: totalLeads || 10000, // fallback in case totalLeads isn't set
+          filters: JSON.stringify({ salesStatus: ["Lost"] }),
+        },
+      });
       const allLeads = response.data.leads;
       // Convert JSON data to worksheet
       const worksheet = XLSX.utils.json_to_sheet(allLeads);

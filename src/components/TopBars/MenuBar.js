@@ -23,7 +23,6 @@ import WhatsAppIcon from "@mui/icons-material/WhatsApp";
 import PhoneInTalkIcon from "@mui/icons-material/PhoneInTalk";
 import AssignmentReturnedIcon from "@mui/icons-material/AssignmentReturned";
 import CheckBoxIcon from "@mui/icons-material/CheckBox";
-import ReceiptLongIcon from "@mui/icons-material/ReceiptLong";
 import AnalyticsIcon from "@mui/icons-material/Analytics";
 import AssignmentTurnedInIcon from "@mui/icons-material/AssignmentTurnedIn";
 import QueryStatsIcon from "@mui/icons-material/QueryStats";
@@ -528,10 +527,6 @@ const MenuBar = ({ toggleDrawer }) => {
             <NavItem to="/whatsaap/chat" icon={<WhatsAppIcon />} label="WhatsApp Chats" />
           )}
 
-          {user && can("invoices") && (
-            <NavItem to="/invoices" icon={<ReceiptLongIcon />} label="Invoices" />
-          )}
-
           {user && can("escalations") && (
             <NavItem to="/escalations" icon={<ErrorOutlineIcon />} label="Escalations" />
           )}
@@ -542,18 +537,6 @@ const MenuBar = ({ toggleDrawer }) => {
 
           {user && can("abandonedCart") && (
             <NavItem to="/aband" icon={<Inventory2Icon />} label="Abandoned Cart" />
-          )}
-
-          {user && can("accessManagement") && (
-            <div className="divider" />
-          )}
-
-          {user && can("accessManagement") && (
-            <NavItem to="/access-management" icon={<AssignmentIcon />} label="Access Management" />
-          )}
-
-          {user && can("adminAccessRequests") && (
-            <NavItem to="/admin-requests-admin" icon={<AssignmentIcon />} label="Admin Access Requests" />
           )}
 
           {user && can("addEmployee") && (

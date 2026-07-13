@@ -17,6 +17,13 @@ import axios from "axios";
 import * as XLSX from "xlsx";
 import * as FileSaver from "file-saver";
 
+const API_BASE = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "");
+
+const api = axios.create({
+  baseURL: API_BASE,
+  withCredentials: true,
+});
+
 const RetentionLost = () => {
   // Zero-indexed page for the TablePagination component; convert to 1-indexed for API requests.
   const [leads, setLeads] = useState([]);
@@ -28,17 +35,14 @@ const RetentionLost = () => {
   const fetchLostLeads = async () => {
     setLoading(true);
     try {
-      const response = await axios.get(
-        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads",
-        {
-          params: {
-            page: page + 1, // API expects a 1-indexed page number.
-            limit: rowsPerPage,
-            // Pass filters to return only the leads with retentionStatus "Lost"
-            filters: JSON.stringify({ retentionStatus: ["Lost"] }),
-          },
-        }
-      );
+      const response = await api.get("/api/leads", {
+        params: {
+          page: page + 1, // API expects a 1-indexed page number.
+          limit: rowsPerPage,
+          // Pass filters to return only the leads with retentionStatus "Lost"
+          filters: JSON.stringify({ retentionStatus: ["Lost"] }),
+        },
+      });
       // Expecting response.data to include keys: leads and totalLeads.
       setLeads(response.data.leads);
       setTotalLeads(response.data.totalLeads);
@@ -67,16 +71,13 @@ const RetentionLost = () => {
   const downloadCSV = async () => {
     try {
       // Fetch all leads using totalLeads as the limit, or a high number if totalLeads is 0
-      const response = await axios.get(
-        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/leads",
-        {
-          params: {
-            page: 1,
-            limit: totalLeads || 10000,
-            filters: JSON.stringify({ retentionStatus: ["Lost"] }),
-          },
-        }
-      );
+      const response = await api.get("/api/leads", {
+        params: {
+          page: 1,
+          limit: totalLeads || 10000,
+          filters: JSON.stringify({ retentionStatus: ["Lost"] }),
+        },
+      });
       const allLeads = response.data.leads;
       // Convert JSON data to worksheet
       const worksheet = XLSX.utils.json_to_sheet(allLeads);
