@@ -8,7 +8,6 @@ import {
 import DeleteIcon from "@mui/icons-material/Delete";
 import {
  ArrowDownward,
- ArrowBack,
  GroupAdd,
  KeyboardArrowDown,
  KeyboardArrowUp,
@@ -694,6 +693,7 @@ const TeamPage = ({ managerId: managerIdProp }) => {
  return (
    <Box sx={{ p: 4, bgcolor: "#f8fafc", minHeight: "100vh" }}>
      {/* Header Section */}
+     {!showDrilldown && (
      <Stack direction={{ xs: "column", md: "row" }} justifyContent="space-between" alignItems="flex-start" spacing={2} mb={4}>
        <Box>
          <Typography variant="h4" sx={{ color: "#1e293b", fontWeight: 800, mb: 0.5 }}>Team Management</Typography>
@@ -705,8 +705,8 @@ const TeamPage = ({ managerId: managerIdProp }) => {
        <Stack direction="row" spacing={2}>
          <Button
            variant="outlined"
-           startIcon={showDrilldown ? <ArrowBack /> : <TrendingUp />}
-           onClick={() => setShowDrilldown((prev) => !prev)}
+           startIcon={<TrendingUp />}
+           onClick={() => setShowDrilldown(true)}
            sx={{
              bgcolor: "#fff",
              borderColor: "#cbd5e1",
@@ -718,9 +718,9 @@ const TeamPage = ({ managerId: managerIdProp }) => {
              "&:hover": { bgcolor: "#f8fafc", borderColor: "#94a3b8" },
            }}
          >
-           {showDrilldown ? "Back to Team Page" : "View Drilldown"}
+           View Drilldown
          </Button>
-         {!showDrilldown && canSelectAnyLeader ? (
+         {canSelectAnyLeader ? (
            <TextField
              select
              value={selectedLeaderId}
@@ -737,19 +737,39 @@ const TeamPage = ({ managerId: managerIdProp }) => {
              ))}
            </TextField>
          ) : null}
-         {!showDrilldown && (
          <Button variant="contained" startIcon={<GroupAdd />} onClick={() => setAddOpen(true)} sx={{ bgcolor: "#1e293b", borderRadius: 3, fontWeight: 700, textTransform: "none", px: 3 }}>
            Add Member
          </Button>
-         )}
        </Stack>
      </Stack>
+     )}
 
 
 
 
      {showDrilldown ? (
-       <TotalSalesDrilldown fullPage />
+       <>
+         <TotalSalesDrilldown fullPage />
+         <Stack alignItems="center" sx={{ mt: 3 }}>
+           <Button
+             variant="outlined"
+             onClick={() => setShowDrilldown(false)}
+             sx={{
+               bgcolor: "#fff",
+               borderColor: "#cbd5e1",
+               color: "#1e293b",
+               borderRadius: 3,
+               fontWeight: 700,
+               textTransform: "none",
+               px: 4,
+               py: 1,
+               "&:hover": { bgcolor: "#f8fafc", borderColor: "#94a3b8" },
+             }}
+           >
+             Back to Team Page
+           </Button>
+         </Stack>
+       </>
      ) : (
        <>
      {/* KPI Section - Updated with 5 Cards */}

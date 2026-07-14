@@ -52,7 +52,7 @@ const api = axios.create({
 
 
 // --- Configuration & Helpers ---
-const RANGE_OPTIONS = ["Today", "Yesterday", "Last 2 days", "Last one week", "Custom Date"];
+const RANGE_OPTIONS = ["Today", "Yesterday", "Custom Date"];
 const toISODate = (d) => d.toISOString().split("T")[0];
 const isSalesDepartment = (emp = {}) =>
  String(emp.department || "").trim().toLowerCase() === "sales";
@@ -100,8 +100,6 @@ const getRange = (label) => {
  let end = new Date(now);
  switch (label) {
    case "Yesterday": start.setDate(now.getDate() - 1); end = new Date(start); break;
-   case "Last 2 days": start.setDate(now.getDate() - 2); break;
-   case "Last one week": start.setDate(now.getDate() - 6); break;
    default: break;
  }
  return { startDate: toISODate(start), endDate: toISODate(end) };
@@ -119,7 +117,7 @@ const fmtNumber = (n) =>
 
 
 
-const EmptyState = () => (
+const EmptyState = ({ fullPage = false }) => (
  <Stack
    alignItems="center"
    justifyContent="center"
@@ -128,10 +126,10 @@ const EmptyState = () => (
    <Payments sx={{ fontSize: 48, color: "#eee", mb: 2 }} />
    <Typography variant="body1" fontWeight={700} color="text.secondary">
      No Data Generated
-   </Typography>
-   <Typography variant="caption" color="text.secondary">
-     Configure filters on the left and click "Generate Report"
-   </Typography>
+ </Typography>
+ <Typography variant="caption" color="text.secondary">
+    Configure filters {fullPage ? "above" : "on the left"} and click "Generate Report"
+ </Typography>
  </Stack>
 );
 
@@ -205,7 +203,7 @@ export default function TotalSalesDrilldown({ open, onClose, initialDates, fullP
 
 
 
- const isDaywise = range === "Last one week" || range === "Last 2 days" || (range === "Custom Date" && customStart && customEnd);
+ const isDaywise = range === "Custom Date" && customStart && customEnd;
 
 
 
@@ -227,6 +225,14 @@ export default function TotalSalesDrilldown({ open, onClose, initialDates, fullP
    }
    return displayedRows.reduce((acc, r) => acc + Number(r.total || 0), 0);
  }, [isDaywise, displayedRows]);
+
+
+
+
+ const deliveredSalesRevenue = useMemo(
+   () => displayedRows.reduce((acc, r) => acc + Number(r.deliveredTotal || 0), 0),
+   [displayedRows]
+ );
 
 
 
@@ -316,21 +322,50 @@ export default function TotalSalesDrilldown({ open, onClose, initialDates, fullP
        )
          .then((data) => Number(data?.total || 0))
          .catch(() => 0);
+     const fetchDeliveredSalesTotal = (name) =>
+       getCachedData(
+         `sales-drilldown:delivered:${name}:${startDate}:${endDate}`,
+         async () => {
+           const { data } = await api.get("/api/incentives", {
+             params: { agentName: name, startDate, endDate },
+           });
+           return data;
+         },
+         DRILLDOWN_CACHE_TTL_MS
+       )
+         .then((rows = []) =>
+           (Array.isArray(rows) ? rows : []).reduce((sum, row) => {
+             const status = String(row?.deliveryStatus || "").toUpperCase();
+             const isDelivered = status.includes("DELIVERED");
+             const isRTO = status.includes("RTO");
+             if (!isDelivered || isRTO) return sum;
+             return sum + Number(row?.amount || row?.amountPaid || 0);
+           }, 0)
+         )
+         .catch(() => 0);
      const buildManagerGroupingRow = async () => {
        if (tabMode !== "manager" || !managerRetentionTeamMembers.length) return null;
 
        const memberRows = await Promise.all(
          managerRetentionTeamMembers
            .filter((member) => member?.fullName)
-           .map(async (member) => ({
-             name: member.fullName,
-             total: await fetchOwnProgressTotal(member.fullName),
-           }))
+           .map(async (member) => {
+             const [total, deliveredTotal] = await Promise.all([
+               fetchOwnProgressTotal(member.fullName),
+               fetchDeliveredSalesTotal(member.fullName),
+             ]);
+             return {
+               name: member.fullName,
+               total,
+               deliveredTotal,
+             };
+           })
        );
 
        return {
          name: selectedLeader?.fullName || "Manager",
          total: memberRows.reduce((sum, member) => sum + Number(member.total || 0), 0),
+         deliveredTotal: memberRows.reduce((sum, member) => sum + Number(member.deliveredTotal || 0), 0),
          teamMembers: memberRows,
          isGroupingRow: true,
        };
@@ -366,7 +401,7 @@ export default function TotalSalesDrilldown({ open, onClose, initialDates, fullP
        const dates = tableDates.length
          ? tableDates
          : [...fallbackDates].filter(Boolean).sort((a, b) => new Date(a) - new Date(b));
-       const teamMembers = memberNames.map((name) => {
+       const teamMembers = await Promise.all(memberNames.map(async (name) => {
          const totalsByDate = new Map(
            (perDayByName.get(name) || []).map((d) => [String(d?.date || ""), Number(d?.total || 0)])
          );
@@ -379,8 +414,9 @@ export default function TotalSalesDrilldown({ open, onClose, initialDates, fullP
            name,
            perDay,
            grandTotal: perDay.reduce((sum, d) => sum + Number(d.total || 0), 0),
+           deliveredTotal: await fetchDeliveredSalesTotal(name),
          };
-       });
+       }));
        const perDay = dates.map((date) => ({
          date,
          total: teamMembers.reduce((sum, member) => {
@@ -394,6 +430,7 @@ export default function TotalSalesDrilldown({ open, onClose, initialDates, fullP
          name: selectedLeader?.fullName || "Manager",
          perDay,
          grandTotal: perDay.reduce((sum, d) => sum + Number(d.total || 0), 0),
+         deliveredTotal: teamMembers.reduce((sum, member) => sum + Number(member.deliveredTotal || 0), 0),
          teamMembers,
          isGroupingRow: true,
        };
@@ -441,7 +478,7 @@ export default function TotalSalesDrilldown({ open, onClose, initialDates, fullP
              (perDay || []).forEach((d) => allDates.add(String(d?.date || "")));
            });
            const sortedDates = [...allDates].filter(Boolean).sort((a, b) => new Date(a) - new Date(b));
-           const normalizedContributorRows = contributors.map((contributorName) => {
+           const normalizedContributorRows = await Promise.all(contributors.map(async (contributorName) => {
              const totalsByDate = new Map(
                (perDayByName.get(contributorName) || []).map((d) => [String(d?.date || ""), Number(d?.total || 0)])
              );
@@ -454,8 +491,9 @@ export default function TotalSalesDrilldown({ open, onClose, initialDates, fullP
                name: contributorName,
                perDay,
                grandTotal: perDay.reduce((sum, d) => sum + Number(d.total || 0), 0),
+               deliveredTotal: await fetchDeliveredSalesTotal(contributorName),
              };
-           });
+           }));
            const perDay = sortedDates.map((date) => ({
              date,
              total: normalizedContributorRows.reduce((sum, contributorRow) => {
@@ -473,6 +511,7 @@ export default function TotalSalesDrilldown({ open, onClose, initialDates, fullP
              name,
              perDay,
              grandTotal: perDay.reduce((sum, d) => sum + Number(d.total || 0), 0),
+             deliveredTotal: normalizedContributorRows.reduce((sum, contributorRow) => sum + Number(contributorRow.deliveredTotal || 0), 0),
              teamMembers,
            };
          })
@@ -488,27 +527,31 @@ export default function TotalSalesDrilldown({ open, onClose, initialDates, fullP
          names.map(async (name) => {
            const { contributors, teamMemberNames } = getContributorsForRow(name);
            const contributorTotals = await Promise.all(
-             contributors.map((contributorName) =>
-               getCachedData(
-                 `sales-drilldown:progress:${contributorName}:${startDate}:${endDate}`,
-                 async () => {
-                   const { data } = await api.get("/api/retention-sales/progress", {
-                     params: { name: contributorName, from: startDate, to: endDate },
-                   });
-                   return data;
-                 },
-                 DRILLDOWN_CACHE_TTL_MS
-               )
-                 .then((data) => ({
-                   name: contributorName,
-                   total: Number(data?.total || 0),
-                 }))
-                 .catch(() => ({ name: contributorName, total: 0 }))
-             )
+             contributors.map(async (contributorName) => {
+               const [progressData, deliveredTotal] = await Promise.all([
+                 getCachedData(
+                   `sales-drilldown:progress:${contributorName}:${startDate}:${endDate}`,
+                   async () => {
+                     const { data } = await api.get("/api/retention-sales/progress", {
+                       params: { name: contributorName, from: startDate, to: endDate },
+                     });
+                     return data;
+                   },
+                   DRILLDOWN_CACHE_TTL_MS
+                 ).catch(() => ({ total: 0 })),
+                 fetchDeliveredSalesTotal(contributorName),
+               ]);
+               return {
+                 name: contributorName,
+                 total: Number(progressData?.total || 0),
+                 deliveredTotal,
+               };
+             })
            );
            return {
              name,
              total: contributorTotals.reduce((sum, value) => sum + Number(value.total || 0), 0),
+             deliveredTotal: contributorTotals.reduce((sum, value) => sum + Number(value.deliveredTotal || 0), 0),
              teamMembers: contributorTotals.filter(
                (row) => row.name !== name && teamMemberNames.includes(row.name)
              ),
@@ -548,6 +591,7 @@ export default function TotalSalesDrilldown({ open, onClose, initialDates, fullP
 
  const drilldownContent = (
    <>
+     {!fullPage && (
      <Box sx={{ p: 2, display: "flex", justifyContent: "space-between", alignItems: "center", bgcolor: "#000", color: "#fff" }}>
        <Stack direction="row" spacing={1.5} alignItems="center">
          <Box sx={{ bgcolor: "#333", p: 0.8, borderRadius: 1.5, display: "flex" }}><TrendingUp fontSize="small" /></Box>
@@ -557,13 +601,128 @@ export default function TotalSalesDrilldown({ open, onClose, initialDates, fullP
          <IconButton onClick={onClose} size="small" sx={{ color: "#fff" }}><Close /></IconButton>
        )}
      </Box>
+     )}
 
 
 
 
-     <Box sx={{ p: 0, bgcolor: "#fcfcfc" }}>
+     <Box sx={{ p: 0, bgcolor: fullPage ? "#fff" : "#fcfcfc" }}>
        <Grid container sx={{ height: "100%" }}>
-         <Grid item xs={12} md={fullPage ? 3 : 3.5} sx={{ p: 2.5, borderRight: "1px solid #eee" }}>
+         {fullPage ? (
+           <Grid item xs={12} sx={{ p: 1.5, borderBottom: "1px solid #e2e8f0", bgcolor: "#f8fafc" }}>
+             <Box
+               sx={{
+                 display: "grid",
+                 gridTemplateColumns: {
+                   xs: "1fr",
+                   md: "132px 132px 180px minmax(280px, 1fr) 300px 178px",
+                 },
+                 gap: 1.25,
+                 alignItems: "end",
+               }}
+             >
+               <Box sx={{ height: 44, px: 1.25, py: 0.6, border: "1px solid #e2e8f0", borderRadius: 2, bgcolor: "#fff", display: "flex", flexDirection: "column", justifyContent: "center" }}>
+                 <Typography variant="caption" color="text.secondary" fontWeight={800} sx={{ display: "block", lineHeight: 1, fontSize: "0.65rem" }}>
+                   TOTAL SALES
+                 </Typography>
+                 <Typography variant="h6" fontWeight={900} color="#000" sx={{ lineHeight: 1.1 }}>
+                   {formatRevenue(totalSalesRevenue)}
+                 </Typography>
+               </Box>
+
+               <Box sx={{ height: 44, px: 1.25, py: 0.6, border: "1px solid #e2e8f0", borderRadius: 2, bgcolor: "#fff", display: "flex", flexDirection: "column", justifyContent: "center" }}>
+                 <Typography variant="caption" color="text.secondary" fontWeight={800} sx={{ display: "block", lineHeight: 1, fontSize: "0.65rem" }}>
+                   DELIVERED SALES
+                 </Typography>
+                 <Typography variant="h6" fontWeight={900} color="#000" sx={{ lineHeight: 1.1 }}>
+                   {formatRevenue(deliveredSalesRevenue)}
+                 </Typography>
+               </Box>
+
+               <Tabs
+                 value={tabMode}
+                 onChange={(_, v) => setTabMode(v)}
+                 sx={{
+                   minHeight: 44,
+                   height: 44,
+                   bgcolor: "#eef0f3",
+                   p: 0.4,
+                   borderRadius: 2,
+                   "& .MuiTabs-flexContainer": { height: "100%" },
+                   "& .MuiTabs-indicator": { display: "none" },
+                 }}
+               >
+                 <Tab icon={<Group sx={{ fontSize: 15 }} />} label="Team" value="manager" sx={{ flex: 1, minHeight: 36, py: 0.25, textTransform: "none", fontWeight: 800, borderRadius: 1.5, "&.Mui-selected": { bgcolor: "#fff", color: "#000", boxShadow: "0 1px 2px rgba(15,23,42,0.08)" } }} />
+                 <Tab icon={<PersonSearch sx={{ fontSize: 15 }} />} label="Experts" value="agents" sx={{ flex: 1, minHeight: 36, py: 0.25, textTransform: "none", fontWeight: 800, borderRadius: 1.5, "&.Mui-selected": { bgcolor: "#fff", color: "#000", boxShadow: "0 1px 2px rgba(15,23,42,0.08)" } }} />
+               </Tabs>
+
+               <Box>
+                 <Typography variant="caption" fontWeight={800} sx={{ mb: 0.5, display: "block" }}>Date Range</Typography>
+                 <ToggleButtonGroup
+                   exclusive
+                   value={range}
+                   onChange={(_, v) => v && setRange(v)}
+                   size="small"
+                   sx={{
+                     display: "grid",
+                     gridTemplateColumns: { xs: "1fr 1fr", md: "repeat(3, minmax(86px, 1fr))" },
+                     gap: 0.5,
+                     "& .MuiToggleButton-root": {
+                       minHeight: 40,
+                       border: "1px solid #e2e8f0 !important",
+                       borderRadius: "8px !important",
+                       bgcolor: "#fff",
+                       textTransform: "none",
+                       fontWeight: 800,
+                       px: 0.75,
+                     },
+                   }}
+                 >
+                   {RANGE_OPTIONS.map((opt) => <ToggleButton key={opt} value={opt}>{opt}</ToggleButton>)}
+                 </ToggleButtonGroup>
+               </Box>
+
+               <Box>
+                 <Typography variant="caption" fontWeight={800} sx={{ mb: 0.5, display: "block" }}>{tabMode === "manager" ? "Select Manager" : "Select Experts"}</Typography>
+                 {tabMode === "manager" ? (
+                   <Autocomplete
+                     options={leaders}
+                     getOptionLabel={(o) => o?.fullName || ""}
+                     value={selectedLeader}
+                     onChange={(_, v) => setSelectedLeader(v)}
+                     renderInput={(params) => <TextField {...params} placeholder="Search manager..." size="small" />}
+                   />
+                 ) : (
+                   <Autocomplete
+                     multiple
+                     options={activeAgents}
+                     getOptionLabel={(o) => o?.fullName || ""}
+                     value={selectedAgents}
+                     onChange={(_, v) => setSelectedAgents(v)}
+                     renderInput={(params) => <TextField {...params} placeholder="Select experts..." size="small" />}
+                   />
+                 )}
+               </Box>
+
+               <Button
+                 onClick={handleApply}
+                 variant="contained"
+                 disabled={!canApply || resultsLoading}
+                 sx={{ height: 40, px: 2, whiteSpace: "nowrap", bgcolor: "#111827", borderRadius: 2, fontWeight: 800, textTransform: "none", "&:hover": { bgcolor: "#000" } }}
+               >
+                 {resultsLoading ? <CircularProgress size={20} color="inherit" /> : "Generate Report"}
+               </Button>
+             </Box>
+
+             {range === "Custom Date" && (
+               <Stack direction={{ xs: "column", md: "row" }} spacing={1} sx={{ mt: 1, maxWidth: 360 }}>
+                 <TextField size="small" type="date" label="Start" value={customStart} onChange={(e) => setCustomStart(e.target.value)} InputLabelProps={{ shrink: true }} fullWidth />
+                 <TextField size="small" type="date" label="End" value={customEnd} onChange={(e) => setCustomEnd(e.target.value)} InputLabelProps={{ shrink: true }} fullWidth />
+               </Stack>
+             )}
+           </Grid>
+         ) : (
+         <Grid item xs={12} md={3.5} sx={{ p: 2.5, borderRight: "1px solid #eee" }}>
            <Typography variant="caption" fontWeight={800} color="text.secondary" sx={{ mb: 2, display: "block", textTransform: "uppercase" }}>View Configuration</Typography>
          
            <Tabs
@@ -631,11 +790,13 @@ export default function TotalSalesDrilldown({ open, onClose, initialDates, fullP
              <Button onClick={resetFilters} startIcon={<RestartAlt />} sx={{ color: "text.secondary", textTransform: "none", fontWeight: 600 }}>Reset Filters</Button>
            </Stack>
          </Grid>
+         )}
 
 
 
 
-         <Grid item xs={12} md={fullPage ? 9 : 8.5} sx={{ bgcolor: "#fff", display: "flex", flexDirection: "column" }}>
+         <Grid item xs={12} md={fullPage ? 12 : 8.5} sx={{ bgcolor: "#fff", display: "flex", flexDirection: "column" }}>
+           {!fullPage && (
            <Box sx={{ p: 2, borderBottom: "1px solid #eee", bgcolor: "#fafafa" }}>
              <Stack direction="row" spacing={3}>
                <Box>
@@ -651,6 +812,7 @@ export default function TotalSalesDrilldown({ open, onClose, initialDates, fullP
                </Box>
              </Stack>
            </Box>
+           )}
 
 
 
@@ -669,7 +831,7 @@ export default function TotalSalesDrilldown({ open, onClose, initialDates, fullP
                <Paper elevation={0} sx={{ border: "1px solid #eee", borderRadius: 3, overflow: "hidden" }}>
                  <TableContainer
                    sx={{
-                     maxHeight: fullPage ? "calc(100vh - 340px)" : "60vh",
+                     maxHeight: fullPage ? "calc(100vh - 360px)" : "60vh",
                      overflowY: "auto",
                      overflowX: "auto",
                      "&::-webkit-scrollbar": { width: 6, height: 6 },
@@ -779,7 +941,7 @@ export default function TotalSalesDrilldown({ open, onClose, initialDates, fullP
                  </TableContainer>
                </Paper>
              ) : (
-               <EmptyState />
+              <EmptyState fullPage={fullPage} />
              )}
            </Box>
          </Grid>
