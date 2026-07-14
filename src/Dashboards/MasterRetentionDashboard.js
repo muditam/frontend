@@ -26,7 +26,6 @@ import {
 import {
   LocalShipping,
   DirectionsBike,
-  Schedule,
   AssignmentReturn,
   Inventory,
   ExpandLess as ExpandLessIcon,
@@ -247,25 +246,25 @@ const SHIPMENT_CARD_DEFS = [
       !String(cat).toLowerCase().includes("rto"),
   },
   {
-    key: "in_transit",
-    label: "In Transit",
-    color: "#2563EB",
-    icon: <DirectionsBike sx={{ fontSize: 20 }} />,
-    match: (cat) => String(cat).toLowerCase().includes("transit"),
-  },
-  {
-    key: "out_for_delivery",
-    label: "Out for Delivery",
-    color: "#7C3AED",
-    icon: <Schedule sx={{ fontSize: 20 }} />,
-    match: (cat) => String(cat).toLowerCase().includes("out for delivery"),
-  },
-  {
     key: "rto",
     label: "RTO",
     color: "#DC2626",
     icon: <AssignmentReturn sx={{ fontSize: 20 }} />,
-    match: (cat) => String(cat).toLowerCase().includes("rto"),
+    match: (cat) => String(cat).trim().toLowerCase() === "rto",
+  },
+  {
+    key: "rto_delivered",
+    label: "RTO Delivered",
+    color: "#F97316",
+    icon: <AssignmentReturn sx={{ fontSize: 20 }} />,
+    match: (cat) => String(cat).trim().toLowerCase() === "rto delivered",
+  },
+  {
+    key: "in_transit",
+    label: "In Transit",
+    color: "#2563EB",
+    icon: <DirectionsBike sx={{ fontSize: 20 }} />,
+    match: (cat) => String(cat).trim().toLowerCase() === "in transit",
   },
 ];
 const defaultFilter = createFilterOptions({
