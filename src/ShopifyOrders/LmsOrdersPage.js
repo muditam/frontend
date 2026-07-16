@@ -51,12 +51,20 @@ const CLOSED_STATUS = new Set([
   "canceled",
   "lost",
 ]);
+const PENDING_PROCESSING_STATUS_VALUE = "pending_processing";
+const PENDING_PROCESSING_STATUS_LABELS = new Set([
+  "not shipped",
+  "ready for pickup",
+  "processing",
+  "status pending",
+  "not available",
+  "",
+]);
 const DEFAULT_STATUS_OPTIONS = [
-  { value: "not_shipped", label: "Not Shipped" },
+  { value: PENDING_PROCESSING_STATUS_VALUE, label: "Pending / Processing" },
   { value: "shipped", label: "Shipped" },
   { value: "in_transit", label: "In Transit" },
   { value: "out_for_delivery", label: "Out for Delivery" },
-  { value: "ready_for_pickup", label: "Ready for Pickup" },
   { value: "delivered", label: "Delivered" },
   { value: "rto_initiated", label: "RTO" },
   { value: "rto_received", label: "RTO Delivered" },
@@ -269,11 +277,14 @@ function isClosedStatusValue(status) {
   return CLOSED_STATUS.has(normalizeStatus(status).toLowerCase());
 }
 
-function rowMatchesVisibility(row, { isActiveMode, showActive, showClosed, statusFilterLabel }) {
+function rowMatchesVisibility(row, { isActiveMode, showActive, showClosed, statusFilterValue, statusFilterLabel }) {
   const isClosed = isClosedStatusValue(row?.status);
   if (isActiveMode && isClosed) return false;
   if (!isActiveMode && showActive && !showClosed && isClosed) return false;
   if (!isActiveMode && !showActive && showClosed && !isClosed) return false;
+  if (statusFilterValue === PENDING_PROCESSING_STATUS_VALUE) {
+    return PENDING_PROCESSING_STATUS_LABELS.has(normalizeStatus(row?.status).toLowerCase());
+  }
   if (statusFilterLabel) {
     if (normalizeStatus(row?.status).toLowerCase() !== String(statusFilterLabel).toLowerCase()) return false;
   }
@@ -564,6 +575,7 @@ export default function LmsOrdersPage() {
         status: statusValue,
       });
       const nextStatus = data?.status || statusOptionLabel(statusOptions, statusValue);
+      const statusFilterValue = filters.status;
       const statusFilterLabel = filters.status ? statusOptionLabel(statusOptions, filters.status) : "";
       let totalDelta = 0;
       let activeDelta = 0;
@@ -580,6 +592,7 @@ export default function LmsOrdersPage() {
             isActiveMode,
             showActive,
             showClosed,
+            statusFilterValue,
             statusFilterLabel,
           });
           const nextRow = { ...row, status: nextStatus };
@@ -587,6 +600,7 @@ export default function LmsOrdersPage() {
             isActiveMode,
             showActive,
             showClosed,
+            statusFilterValue,
             statusFilterLabel,
           });
           if (beforeVisible && !afterVisible) totalDelta -= 1;
@@ -605,6 +619,7 @@ export default function LmsOrdersPage() {
             isActiveMode,
             showActive,
             showClosed,
+            statusFilterValue,
             statusFilterLabel,
           })
         );
@@ -625,6 +640,7 @@ export default function LmsOrdersPage() {
           isActiveMode,
           showActive,
           showClosed,
+          statusFilterValue,
           statusFilterLabel,
         })
           ? nextRow
