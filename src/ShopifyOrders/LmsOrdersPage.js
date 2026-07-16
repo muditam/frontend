@@ -56,20 +56,21 @@ const PENDING_PROCESSING_STATUS_LABELS = new Set([
   "not shipped",
   "ready for pickup",
   "processing",
+  "shipment booked",
   "status pending",
   "not available",
   "",
 ]);
 const DEFAULT_STATUS_OPTIONS = [
   { value: PENDING_PROCESSING_STATUS_VALUE, label: "Pending / Processing" },
-  { value: "shipped", label: "Shipped" },
   { value: "in_transit", label: "In Transit" },
   { value: "out_for_delivery", label: "Out for Delivery" },
   { value: "delivered", label: "Delivered" },
   { value: "rto_initiated", label: "RTO" },
   { value: "rto_received", label: "RTO Delivered" },
   { value: "canceled", label: "Canceled" },
-  { value: "lost", label: "Lost" },
+  { value: "undelivered", label: "Undelivered" },
+  { value: "lost_damaged", label: "Lost / Damaged" },
 ];
 const OVERRIDE_STATUS_OPTIONS = [
   { value: "delivered", label: "Delivered" },

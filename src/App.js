@@ -22,6 +22,7 @@ import OrdersTable from "./ShopifyOrders/AllShopifyOrders";
 import OnlineOrders from "./ShopifyOrders/OnlineOrders";
 import LmsOrdersPage from "./ShopifyOrders/LmsOrdersPage";
 import LmsNdrPage from "./ShopifyOrders/LmsNdrPage";
+import LmsRtoManagementPage from "./ShopifyOrders/LmsRtoManagementPage";
 import FutureOrdersPage from "./ShopifyOrders/FutureOrdersPage";
 import LeadDetail from "./components/LeadRequests/LeadDetails";
 import RetentionData from "./pages/filtered/Retention";
@@ -254,6 +255,16 @@ function AppLayout() {
             element={
               <PrivateRoute>
                 <LmsNdrPage />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/operations/rto-management"
+            element={
+              <PrivateRoute>
+                <PermissionRoute permissionKey="opsRtoManagement">
+                  <LmsRtoManagementPage />
+                </PermissionRoute>
               </PrivateRoute>
             }
           />

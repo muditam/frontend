@@ -34,6 +34,7 @@ import MenuBookIcon from "@mui/icons-material/MenuBook";
 import StorefrontIcon from "@mui/icons-material/Storefront";
 import RestaurantIcon from "@mui/icons-material/Restaurant";
 import TransformIcon from "@mui/icons-material/Transform";
+import AssignmentReturnIcon from "@mui/icons-material/AssignmentReturn";
 
 const styles = `
   @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Syne:wght@600;700&display=swap');
@@ -696,7 +697,7 @@ const MenuBar = ({ toggleDrawer }) => {
           )}
 
           {/* Operations */}
-          {user && (can("opsUndeliveredOrders") || can("opsOrders") || can("opsNdr") || can("opsRtoDelivered") || can("opsEmailUndelivered") || can("opsOnlyOrderConfirmation") || can("deliveredSalesRecord")) && (
+          {user && (can("opsUndeliveredOrders") || can("opsOrders") || can("opsNdr") || can("opsRtoManagement") || can("opsRtoDelivered") || can("opsEmailUndelivered") || can("opsOnlyOrderConfirmation") || can("deliveredSalesRecord")) && (
             <div className="nav-section-label">Operations</div>
           )}
 
@@ -710,6 +711,10 @@ const MenuBar = ({ toggleDrawer }) => {
 
           {user && (can("opsNdr") || can("opsOrders")) && (
             <NavItem to="/operations/ndr" icon={<ErrorOutlineIcon />} label="NDR" />
+          )}
+
+          {user && can("opsRtoManagement") && (
+            <NavItem to="/operations/rto-management" icon={<AssignmentReturnIcon />} label="RTO Management" />
           )}
 
           {user && can("opsRtoDelivered") && (
