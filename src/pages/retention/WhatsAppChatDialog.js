@@ -61,6 +61,7 @@ const API_BASE = String(
   process.env.REACT_APP_API_BASE_URL || process.env.REACT_APP_API_BASE || DEFAULT_API_BASE
 ).replace(/\/+$/, "");
 const SOCKET_URL = API_BASE;
+const MESSAGE_PAGE_SIZE = 50;
 
 const api = axios.create({
   baseURL: API_BASE,
@@ -831,6 +832,9 @@ export default function WhatsAppChatDrawer({
 
   const [loading, setLoading] = useState(false);
   const [messages, setMessages] = useState([]);
+  const [hasMoreOlder, setHasMoreOlder] = useState(false);
+  const [oldestCursor, setOldestCursor] = useState("");
+  const [loadingOlder, setLoadingOlder] = useState(false);
   const [templates, setTemplates] = useState([]);
   const [text, setText] = useState("");
 
@@ -1029,10 +1033,21 @@ export default function WhatsAppChatDrawer({
   const fetchMessages = useCallback(async () => {
     if (!phone10) return;
     const res = await api.get(`/api/whatsapp/messages`, {
-      params: { ...whatsappAccessPayload, phone: phone10 },
+      params: {
+        ...whatsappAccessPayload,
+        phone: phone10,
+        limit: MESSAGE_PAGE_SIZE,
+        pageInfo: true,
+      },
     });
-    const list = Array.isArray(res.data) ? res.data : [];
+    const list = Array.isArray(res.data?.items)
+      ? res.data.items
+      : Array.isArray(res.data)
+        ? res.data
+        : [];
     setMessages(list);
+    setHasMoreOlder(Boolean(res.data?.hasMore));
+    setOldestCursor(String(res.data?.nextCursor || ""));
 
     const lastInbound = [...list].reverse().find(
       (m) => String(m.direction || "").toUpperCase() !== "OUTBOUND"
@@ -1041,6 +1056,45 @@ export default function WhatsAppChatDrawer({
       setLastInboundAt(lastInbound.timestamp || lastInbound.createdAt);
     }
   }, [phone10, whatsappAccessPayload]);
+
+  const loadOlderMessages = useCallback(async () => {
+    if (!phone10 || !hasMoreOlder || !oldestCursor || loadingOlder) return;
+    const el = listRef.current;
+    const previousHeight = el?.scrollHeight || 0;
+    const previousTop = el?.scrollTop || 0;
+
+    setLoadingOlder(true);
+    try {
+      const res = await api.get(`/api/whatsapp/messages`, {
+        params: {
+          ...whatsappAccessPayload,
+          phone: phone10,
+          limit: MESSAGE_PAGE_SIZE,
+          pageInfo: true,
+          cursor: oldestCursor,
+        },
+      });
+      const older = Array.isArray(res.data?.items) ? res.data.items : [];
+      setMessages((current) =>
+        older.reduce((merged, message) => upsertMessage(merged, message), current)
+      );
+      setHasMoreOlder(Boolean(res.data?.hasMore));
+      setOldestCursor(String(res.data?.nextCursor || ""));
+
+      requestAnimationFrame(() => {
+        if (!el) return;
+        el.scrollTop = previousTop + (el.scrollHeight - previousHeight);
+      });
+    } finally {
+      setLoadingOlder(false);
+    }
+  }, [
+    phone10,
+    hasMoreOlder,
+    oldestCursor,
+    loadingOlder,
+    whatsappAccessPayload,
+  ]);
 
   const fetchTemplates = useCallback(async () => {
     const res = await api.get(`/api/whatsapp/templates`);
@@ -1194,6 +1248,9 @@ export default function WhatsAppChatDrawer({
     stickToBottomRef.current = true;
 
     setMessages([]);
+    setHasMoreOlder(false);
+    setOldestCursor("");
+    setLoadingOlder(false);
     setText("");
     setPrivateMode(false);
     setMessageSearchOpen(false);
@@ -2485,7 +2542,21 @@ export default function WhatsAppChatDrawer({
                 </Typography>
               </Paper>
             ) : (
-              grouped.map((g) => (
+              <>
+                {(hasMoreOlder || loadingOlder) && (
+                  <Box sx={{ display: "flex", justifyContent: "center", mb: 1.5 }}>
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      onClick={loadOlderMessages}
+                      disabled={loadingOlder}
+                      sx={{ bgcolor: "rgba(255,255,255,0.82)" }}
+                    >
+                      {loadingOlder ? "Loading…" : "Load older messages"}
+                    </Button>
+                  </Box>
+                )}
+                {grouped.map((g) => (
                 <Box key={g.key} sx={{ mb: 2 }}>
                   <Box sx={{ display: "flex", justifyContent: "center", mb: 1.25 }}>
                     <Paper
@@ -2670,7 +2741,8 @@ export default function WhatsAppChatDrawer({
                     );
                   })}
                 </Box>
-              ))
+                ))}
+              </>
             )}
           </Box>
         </Box>
