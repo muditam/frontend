@@ -66,8 +66,7 @@ const API_ORIGIN =
  (process.env.REACT_APP_API_BASE_URL || "https://muditamleads-14f32a10d7f7.herokuapp.com").replace(/\/+$/, "");
 
 const getSessionUserHeaders = () => {
- const rawUser = sessionStorage.getItem("user");
- return rawUser ? { "x-session-user": rawUser } : {};
+ return {};
 };
 
 const formatAddress = (address = {}) =>

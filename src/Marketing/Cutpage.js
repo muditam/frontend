@@ -56,8 +56,7 @@ const PRESIGN_API = `${(process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/
 const PRESIGN_DOWN_API = `${(process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "")}/api/scripts/presign-download`;
 
 const getAuthHeaders = () => {
-  const user = JSON.parse(sessionStorage.getItem("user") || "{}");
-  return { "x-session-user": JSON.stringify(user) };
+  return {};
 };
  
 async function getPresignedUrl(filename, contentType, authHeaders) {

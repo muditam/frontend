@@ -56,7 +56,7 @@ const getCurrentUser = () => JSON.parse(sessionStorage.getItem("user") || "{}");
 const isManagerRole = (role = "") =>
   MANAGER_ROLES.includes(String(role || "").toLowerCase());
 const hasFullAccess = (user = {}) => isManagerRole(user.role) || user.hasTeam === true;
-const getAuthHeaders = () => ({ "x-session-user": JSON.stringify(getCurrentUser()) });
+const getAuthHeaders = () => ({});
 
 const SCRIPT_TYPES = [
   "Muditam Instagram",

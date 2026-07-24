@@ -50,8 +50,7 @@ const PRESIGN_DOWN_API = `${(process.env.REACT_APP_API_BASE_URL || "").replace(/
 
 // ✅ Auth helper — same pattern as other pages
 const getAuthHeaders = () => {
-  const user = JSON.parse(sessionStorage.getItem("user") || "{}");
-  return { "x-session-user": JSON.stringify(user) };
+  return {};
 };
 
 const POST_STATUSES = ["Approved", "Rewrite", "Reshoot", "Re-edit", "On Hold", "Rejected"];

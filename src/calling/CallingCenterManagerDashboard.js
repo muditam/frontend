@@ -34,15 +34,6 @@ function formatMinutesFromSeconds(value) {
   return `${minutes.toFixed(1)} min`;
 }
 
-api.interceptors.request.use((config) => {
-  const header = getSessionUserHeader();
-  if (header) {
-    config.headers = config.headers || {};
-    config.headers["x-session-user"] = header;
-  }
-  return config;
-});
-
 export default function CallingCenterManagerDashboard() {
   const EMPTY_DATA = {
     total: 0,

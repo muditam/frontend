@@ -50,8 +50,7 @@ const API_BASE = `${(process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "
 const ROOT_API_BASE = `${(process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "")}/api`;
 
 const getSessionUserHeaders = () => {
- const rawUser = sessionStorage.getItem("user");
- return rawUser ? { "x-session-user": rawUser } : {};
+ return {};
 };
 
 

@@ -221,7 +221,7 @@ function getAuthHeaders() {
   try {
     const raw = sessionStorage.getItem("user");
     const user = raw ? JSON.parse(raw) : null;
-    return user ? { "x-session-user": JSON.stringify(user) } : {};
+    return {};
   } catch {
     return {};
   }

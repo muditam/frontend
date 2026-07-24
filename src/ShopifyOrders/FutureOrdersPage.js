@@ -39,15 +39,6 @@ const api = axios.create({
   withCredentials: true,
 });
 
-api.interceptors.request.use((config) => {
-  const rawUser = sessionStorage.getItem("user");
-  if (rawUser) {
-    config.headers = config.headers || {};
-    config.headers["x-session-user"] = rawUser;
-  }
-  return config;
-});
-
 function formatDate(value) {
   if (!value) return "-";
   return new Date(value).toLocaleDateString("en-IN", {
