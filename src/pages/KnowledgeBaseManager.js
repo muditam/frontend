@@ -114,14 +114,12 @@ function getSessionUserHeader() {
 
 
 async function api(path, options = {}) {
- const sessionUserHeader = getSessionUserHeader();
  const response = await fetch(`${API_BASE}${path}`, {
    credentials: "include",
    cache: "no-store",
    ...options,
    headers: {
      "Content-Type": "application/json",
-     ...(sessionUserHeader ? { "x-session-user": sessionUserHeader } : {}),
      ...(options.headers || {}),
    },
  });
@@ -151,15 +149,11 @@ async function api(path, options = {}) {
 
 
 async function apiForm(path, formData) {
- const sessionUserHeader = getSessionUserHeader();
  const response = await fetch(`${API_BASE}${path}`, {
    credentials: "include",
    cache: "no-store",
    method: "POST",
    body: formData,
-   headers: {
-     ...(sessionUserHeader ? { "x-session-user": sessionUserHeader } : {}),
-   },
  });
 
 

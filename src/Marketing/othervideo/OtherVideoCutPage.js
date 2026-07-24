@@ -56,8 +56,7 @@ const PRESIGN_API = `${(process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/
 const PRESIGN_DOWN_API = `${(process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "")}/api/other-videos/presign-download`;
 
 const getAuthHeaders = () => {
-  const user = JSON.parse(sessionStorage.getItem("user") || "{}");
-  return { "x-session-user": JSON.stringify(user) };
+  return {};
 };
 
 // ─────────────────────────────────────────────────────────────

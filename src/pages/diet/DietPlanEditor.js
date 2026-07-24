@@ -122,7 +122,7 @@ const CONDITION_OPTIONS = HEALTH_CONDITION_OPTIONS;
 function getSessionUserHeaders() {
   try {
     const raw = sessionStorage.getItem('user');
-    return raw ? { 'x-session-user': raw } : {};
+    return {};
   } catch {
     return {};
   }

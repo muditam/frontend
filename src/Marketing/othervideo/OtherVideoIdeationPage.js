@@ -122,9 +122,7 @@ const inputSx = {
   "& .MuiInputLabel-root.Mui-focused": { color: "#4f46e5" },
 };
 
-const getAuthHeaders = () => ({
-  "x-session-user": JSON.stringify(getCurrentUser()),
-});
+const getAuthHeaders = () => ({});
 
 // ═══════════════════════════════════════════════════════════
 // Rich Text Editor

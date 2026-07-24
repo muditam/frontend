@@ -96,9 +96,7 @@ const inputSx = {
 const getCurrentUser = () =>
   JSON.parse(sessionStorage.getItem("user") || "{}");
 
-const getAuthHeaders = () => ({
-  "x-session-user": JSON.stringify(getCurrentUser()),
-});
+const getAuthHeaders = () => ({});
 
 const stripHtml = (html) => html?.replace(/<[^>]*>/g, "") || "";
 

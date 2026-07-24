@@ -20,8 +20,7 @@ const readJsonStorage = (storage, key, fallback = null) => {
 };
 
 const getSessionUserHeaders = () => {
-  const user = readJsonStorage(sessionStorage, "user", null);
-  return user ? { "x-session-user": JSON.stringify(user) } : {};
+  return {};
 };
 
 const api = axios.create({
