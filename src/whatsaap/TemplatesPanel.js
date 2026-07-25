@@ -47,8 +47,7 @@ function readJsonStorage(storage, key, fallback = null) {
 }
 
 function getSessionUserHeaders() {
-  const user = readJsonStorage(sessionStorage, "user", null);
-  return user ? { "x-session-user": JSON.stringify(user) } : {};
+  return {};
 }
 
 async function safeJson(res) {

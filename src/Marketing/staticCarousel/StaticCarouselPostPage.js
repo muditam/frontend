@@ -50,8 +50,7 @@ const API = `${(process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "")}/a
 const PRESIGN_DOWN_API = `${(process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "")}/api/static-carousel/presign-download`;
 
 const getAuthHeaders = () => {
-  const user = JSON.parse(sessionStorage.getItem("user") || "{}");
-  return { "x-session-user": JSON.stringify(user) };
+  return {};
 };
 
 const POST_STATUSES = ["Approved", "Rewrite", "Reshoot", "Re-edit", "On Hold", "Rejected"];

@@ -57,8 +57,7 @@ const API =
   "https://muditamleads-14f32a10d7f7.herokuapp.com/api/marketing-dashboard";
 
 const getAuthHeaders = () => {
-  const user = JSON.parse(sessionStorage.getItem("user") || "{}");
-  return { "x-session-user": JSON.stringify(user) };
+  return {};
 };
 
 const DATE_RANGES = [

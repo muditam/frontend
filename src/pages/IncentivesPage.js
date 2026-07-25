@@ -221,7 +221,7 @@ function getAuthHeaders() {
   try {
     const raw = sessionStorage.getItem("user");
     const user = raw ? JSON.parse(raw) : null;
-    return user ? { "x-session-user": JSON.stringify(user) } : {};
+    return {};
   } catch {
     return {};
   }
@@ -1193,6 +1193,7 @@ export default function IncentivesPage() {
 
   const [incentiveSummaryOpen, setIncentiveSummaryOpen] = useState(false);
   const [cashSummaryShipmentStatus, setCashSummaryShipmentStatus] = useState("all");
+  const [cashSummaryExpert, setCashSummaryExpert] = useState("all");
   const [walletSummaryOpen, setWalletSummaryOpen] = useState(false);
   const [walletRulesOpen, setWalletRulesOpen] = useState(false);
   const [walletAgentsOpen, setWalletAgentsOpen] = useState(false);
@@ -1229,14 +1230,39 @@ export default function IncentivesPage() {
     });
     return Array.from(statusMap.values()).sort((a, b) => a.localeCompare(b));
   }, [data?.rows]);
+  const cashSummaryExperts = useMemo(() => {
+    const expertMap = new Map();
+    (data?.rows || []).forEach((row) => {
+      const rawExpert = String(row?.agentName || "").trim();
+      const normalizedExpert = normalizeComparable(rawExpert);
+      if (!normalizedExpert || expertMap.has(normalizedExpert)) return;
+      expertMap.set(normalizedExpert, rawExpert);
+    });
+    return Array.from(expertMap.values()).sort((a, b) => a.localeCompare(b));
+  }, [data?.rows]);
   const filteredCashSummaryRows = useMemo(() => {
-    if (cashSummaryShipmentStatus === "all") return data?.rows || [];
     return (data?.rows || []).filter(
-      (row) =>
-        normalizeComparable(row?.deliveryStatus) ===
-        normalizeComparable(cashSummaryShipmentStatus)
+      (row) => {
+        const matchesShipmentStatus =
+          cashSummaryShipmentStatus === "all" ||
+          normalizeComparable(row?.deliveryStatus) ===
+            normalizeComparable(cashSummaryShipmentStatus);
+        const matchesExpert =
+          cashSummaryExpert === "all" ||
+          normalizeComparable(row?.agentName) === normalizeComparable(cashSummaryExpert);
+
+        return matchesShipmentStatus && matchesExpert;
+      }
     );
-  }, [cashSummaryShipmentStatus, data?.rows]);
+  }, [cashSummaryExpert, cashSummaryShipmentStatus, data?.rows]);
+  const filteredCashSummaryTotal = useMemo(
+    () =>
+      filteredCashSummaryRows.reduce(
+        (total, row) => total + toNumber(row?.amount),
+        0
+      ),
+    [filteredCashSummaryRows]
+  );
 
   useEffect(() => {
     if (!isSelfAndTeamRole) {
@@ -3598,22 +3624,58 @@ export default function IncentivesPage() {
                     alignItems={{ xs: "stretch", sm: "center" }}
                     justifyContent="space-between"
                   >
-                    <Box>Cash Summary</Box>
-                    <TextField
-                      select
-                      size="small"
-                      label="Shipment Status"
-                      value={cashSummaryShipmentStatus}
-                      onChange={(e) => setCashSummaryShipmentStatus(e.target.value)}
-                      sx={{ minWidth: { xs: "100%", sm: 260 } }}
+                    <Stack
+                      direction="row"
+                      spacing={1.5}
+                      alignItems="baseline"
+                      useFlexGap
+                      flexWrap="wrap"
                     >
-                      <MenuItem value="all">All Statuses</MenuItem>
-                      {cashSummaryShipmentStatuses.map((status) => (
-                        <MenuItem key={status} value={status}>
-                          {status}
-                        </MenuItem>
-                      ))}
-                    </TextField>
+                      <Box>Cash Summary</Box>
+                      <Typography
+                        component="span"
+                        variant="body1"
+                        sx={{ color: BRAND.primary, fontWeight: 800 }}
+                      >
+                        Total Amount: {formatCurrency(filteredCashSummaryTotal)}
+                      </Typography>
+                    </Stack>
+                    <Stack
+                      direction={{ xs: "column", sm: "row" }}
+                      spacing={1.5}
+                      sx={{ width: { xs: "100%", sm: "auto" } }}
+                    >
+                      <TextField
+                        select
+                        size="small"
+                        label="Expert"
+                        value={cashSummaryExpert}
+                        onChange={(e) => setCashSummaryExpert(e.target.value)}
+                        sx={{ minWidth: { xs: "100%", sm: 220 } }}
+                      >
+                        <MenuItem value="all">All Experts</MenuItem>
+                        {cashSummaryExperts.map((expert) => (
+                          <MenuItem key={expert} value={expert}>
+                            {expert}
+                          </MenuItem>
+                        ))}
+                      </TextField>
+                      <TextField
+                        select
+                        size="small"
+                        label="Shipment Status"
+                        value={cashSummaryShipmentStatus}
+                        onChange={(e) => setCashSummaryShipmentStatus(e.target.value)}
+                        sx={{ minWidth: { xs: "100%", sm: 260 } }}
+                      >
+                        <MenuItem value="all">All Statuses</MenuItem>
+                        {cashSummaryShipmentStatuses.map((status) => (
+                          <MenuItem key={status} value={status}>
+                            {status}
+                          </MenuItem>
+                        ))}
+                      </TextField>
+                    </Stack>
                   </Stack>
                 </DialogTitle>
 
@@ -3627,6 +3689,7 @@ export default function IncentivesPage() {
                     <Table sx={{ minWidth: 980 }}>
                       <TableHead>
                         <TableRow sx={{ backgroundColor: "#f8fafc" }}>
+                          <TableCell sx={{ fontWeight: 700 }}>S No.</TableCell>
                           <TableCell sx={{ fontWeight: 700 }}>Date</TableCell>
                           <TableCell sx={{ fontWeight: 700 }}>Order ID</TableCell>
                           <TableCell sx={{ fontWeight: 700 }}>Customer</TableCell>
@@ -3650,6 +3713,7 @@ export default function IncentivesPage() {
 
                             return (
                               <TableRow key={`${row.orderId || "row"}-${index}`} hover>
+                                <TableCell>{index + 1}</TableCell>
                                 <TableCell>{formatDate(row.date)}</TableCell>
                                 <TableCell sx={{ fontWeight: 600 }}>{row.orderId || "-"}</TableCell>
                                 <TableCell>{row.name || row.customerName || "-"}</TableCell>
@@ -3687,11 +3751,11 @@ export default function IncentivesPage() {
                         ) : (
                           <TableRow>
                             <TableCell
-                              colSpan={data?.isTeamAggregate ? 8 : 7}
+                              colSpan={data?.isTeamAggregate ? 9 : 8}
                               align="center"
                               sx={{ py: 4 }}
                             >
-                              No records found for the selected shipment status
+                              No records found for the selected filters
                             </TableCell>
                           </TableRow>
                         )}

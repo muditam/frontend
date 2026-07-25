@@ -61,7 +61,7 @@ const MANAGER_ROLES = ["admin", "manager", "super-admin", "team-leader"];
 const getCurrentUser = () => JSON.parse(sessionStorage.getItem("user") || "{}");
 const isManagerRole = (role = "") =>
   MANAGER_ROLES.includes(String(role || "").toLowerCase());
-const getAuthHeaders = () => ({ "x-session-user": JSON.stringify(getCurrentUser()) });
+const getAuthHeaders = () => ({});
 
 const EDIT_STATUSES = ["On Hold", "Reshoot", "Re-edit", "Done"];
 const CONTENT_TYPES = ["", "Static", "Carousel"];

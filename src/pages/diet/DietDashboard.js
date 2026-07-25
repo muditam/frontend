@@ -41,7 +41,7 @@ const glabel = g => GOAL_LABELS[g] || g;
 function getSessionUserHeaders() {
   try {
     const raw = sessionStorage.getItem('user');
-    return raw ? { 'x-session-user': raw } : {};
+    return {};
   } catch {
     return {};
   }
@@ -658,6 +658,5 @@ export default function DietDashboard() {
    </div>
  );
 }
-
 
 

@@ -68,8 +68,7 @@ const AD_TYPES = [
 ];
 
 const getAuthHeaders = () => {
-  const user = JSON.parse(sessionStorage.getItem("user") || "{}");
-  return { "x-session-user": JSON.stringify(user) };
+  return {};
 };
 
 // ─────────────────────────────────────────────────────────────

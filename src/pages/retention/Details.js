@@ -23,6 +23,10 @@ import {
  FormControlLabel,
  Collapse,
  Button,
+ Dialog,
+ DialogActions,
+ DialogContent,
+ DialogTitle,
 } from "@mui/material";
 import {
  KeyboardDoubleArrowDown,
@@ -46,8 +50,7 @@ const API_BASE = `${(process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "
 const ROOT_API_BASE = `${(process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "")}/api`;
 
 const getSessionUserHeaders = () => {
- const rawUser = sessionStorage.getItem("user");
- return rawUser ? { "x-session-user": rawUser } : {};
+ return {};
 };
 
 
@@ -64,6 +67,7 @@ const initialFormState = {
  durationOfDiabetes: "",
  lastTestDone: "", // diabetes last test
  diabetesReport: "",
+ diabetesReports: [],
  // Cholesterol
  totalCholesterol: "",
  ldl: "",
@@ -71,6 +75,7 @@ const initialFormState = {
  triglycerides: "",
  lastCholesterolTest: "",
  cholesterolReport: "",
+ cholesterolReports: [],
  // Fatty Liver
  sgpt: "",
  sgot: "",
@@ -78,6 +83,7 @@ const initialFormState = {
  ultrasoundFindings: "",
  lastLiverTest: "",
  liverReport: "",
+ liverReports: [],
  // Lifestyle
  gender: "",
  dietType: "",
@@ -134,16 +140,19 @@ const reportConfigs = {
  diabetes: {
    label: "Diabetes",
    field: "diabetesReport",
+   reportsField: "diabetesReports",
    inputId: "diabetes-report-upload",
  },
  cholesterol: {
    label: "Cholesterol",
    field: "cholesterolReport",
+   reportsField: "cholesterolReports",
    inputId: "cholesterol-report-upload",
  },
  liver: {
    label: "Fatty Liver",
    field: "liverReport",
+   reportsField: "liverReports",
    inputId: "liver-report-upload",
  },
 };
@@ -286,6 +295,7 @@ const Details = ({ contactNumber, onDetailsUpdate, activeConditions = [] }) => {
    severity: "success",
  });
  const [reportUploading, setReportUploading] = useState({});
+ const [reportViewer, setReportViewer] = useState({ open: false, reportKey: null });
  const debounceRef = useRef(null);
 
 
@@ -417,8 +427,9 @@ const Details = ({ contactNumber, onDetailsUpdate, activeConditions = [] }) => {
    autoSave(updated);
  };
 
- const handleReportUpload = async (reportKey, file) => {
-   if (!file || !contactNumber) return;
+ const handleReportUpload = async (reportKey, files) => {
+   const selectedFiles = Array.from(files || []);
+   if (!selectedFiles.length || !contactNumber) return;
    const config = reportConfigs[reportKey];
    if (!config) return;
 
@@ -427,32 +438,48 @@ const Details = ({ contactNumber, onDetailsUpdate, activeConditions = [] }) => {
      setReportUploading((prev) => ({ ...prev, [reportKey]: true }));
      setSaveState("saving");
 
-     const body = new FormData();
-     body.append("report", file);
-     body.append(
-       "prefix",
-       `lead-reports/${String(contactNumber).replace(/[^0-9a-zA-Z_-]/g, "_")}/${reportKey}`
-     );
+     const uploadedReports = [];
+     for (const file of selectedFiles) {
+       const body = new FormData();
+       body.append("report", file);
+       body.append(
+         "prefix",
+         `lead-reports/${String(contactNumber).replace(/[^0-9a-zA-Z_-]/g, "_")}/${reportKey}`
+       );
 
-     const { data } = await axios.post(`${ROOT_API_BASE}/upload-report-to-wasabi`, body, {
-       headers: {
-         "Content-Type": "multipart/form-data",
-         ...getSessionUserHeaders(),
-       },
-     });
+       const { data } = await axios.post(`${ROOT_API_BASE}/upload-report-to-wasabi`, body, {
+         headers: {
+           "Content-Type": "multipart/form-data",
+           ...getSessionUserHeaders(),
+         },
+       });
 
-     const reportUrl = data?.url;
+       if (!data?.url) {
+         throw new Error(`${file.name} uploaded, but no URL was returned.`);
+       }
 
-     if (!reportUrl) {
-       throw new Error("Report uploaded, but no URL was returned.");
+       uploadedReports.push({
+         url: data.url,
+         key: data.key || "",
+         name: file.name,
+         uploadedAt: new Date().toISOString(),
+       });
      }
 
-     const updated = { ...formData, [config.field]: reportUrl };
+     const existingReports = Array.isArray(formData[config.reportsField])
+       ? formData[config.reportsField]
+       : [];
+     const updated = {
+       ...formData,
+       [config.reportsField]: [...existingReports, ...uploadedReports],
+     };
      setFormData(updated);
      await saveNow(updated, { throwOnError: true });
      setSnack({
        open: true,
-       message: `${config.label} report uploaded.`,
+       message: `${uploadedReports.length} ${config.label} report${
+         uploadedReports.length === 1 ? "" : "s"
+       } uploaded.`,
        severity: "success",
      });
    } catch (err) {
@@ -470,9 +497,15 @@ const Details = ({ contactNumber, onDetailsUpdate, activeConditions = [] }) => {
 
  const ReportActions = ({ reportKey }) => {
    const config = reportConfigs[reportKey];
-   const report = formData[config.field];
+   const legacyReport = formData[config.field];
    const isUploading = Boolean(reportUploading[reportKey]);
-   const reportUrl = typeof report === "string" ? report : report?.url || "";
+   const reports = Array.isArray(formData[config.reportsField])
+     ? formData[config.reportsField]
+     : [];
+   const legacyUrl =
+     typeof legacyReport === "string" ? legacyReport : legacyReport?.url || "";
+   const reportCount =
+     reports.length + (legacyUrl && !reports.some((report) => report?.url === legacyUrl) ? 1 : 0);
 
    return (
      <Stack direction="row" spacing={1} alignItems="center" sx={{ flexShrink: 0 }}>
@@ -480,11 +513,12 @@ const Details = ({ contactNumber, onDetailsUpdate, activeConditions = [] }) => {
          id={config.inputId}
          type="file"
          accept={reportAcceptTypes}
+         multiple
          style={{ display: "none" }}
          onChange={(event) => {
-           const file = event.target.files?.[0];
+           const files = event.target.files;
+           handleReportUpload(reportKey, files);
            event.target.value = "";
-           handleReportUpload(reportKey, file);
          }}
        />
        <Button
@@ -500,17 +534,45 @@ const Details = ({ contactNumber, onDetailsUpdate, activeConditions = [] }) => {
        </Button>
        <Button
          size="small"
-         variant={reportUrl ? "contained" : "outlined"}
+         variant={reportCount ? "contained" : "outlined"}
          startIcon={<VisibilityRounded />}
-         disabled={!reportUrl}
-         onClick={() => window.open(reportUrl, "_blank", "noopener,noreferrer")}
+         disabled={!reportCount}
+         onClick={() => setReportViewer({ open: true, reportKey })}
          sx={{ whiteSpace: "nowrap", borderRadius: 2 }}
        >
-         View Report
+         View Reports ({reportCount})
        </Button>
      </Stack>
    );
  };
+
+ const activeReportConfig = reportViewer.reportKey
+   ? reportConfigs[reportViewer.reportKey]
+   : null;
+ const activeReports = useMemo(() => {
+   if (!activeReportConfig) return [];
+
+   const savedReports = Array.isArray(formData[activeReportConfig.reportsField])
+     ? formData[activeReportConfig.reportsField].filter((report) => report?.url)
+     : [];
+   const legacyReport = formData[activeReportConfig.field];
+   const legacyUrl =
+     typeof legacyReport === "string" ? legacyReport : legacyReport?.url || "";
+
+   if (!legacyUrl || savedReports.some((report) => report.url === legacyUrl)) {
+     return savedReports;
+   }
+
+   return [
+     {
+       url: legacyUrl,
+       name: `${activeReportConfig.label} report`,
+       uploadedAt: null,
+       isLegacy: true,
+     },
+     ...savedReports,
+   ];
+ }, [activeReportConfig, formData]);
 
 
  /** ------- HEADER BAR UI ------- */
@@ -1619,6 +1681,73 @@ const Details = ({ contactNumber, onDetailsUpdate, activeConditions = [] }) => {
        )}
      </Collapse>
 
+     <Dialog
+       open={reportViewer.open}
+       onClose={() => setReportViewer({ open: false, reportKey: null })}
+       fullWidth
+       maxWidth="sm"
+     >
+       <DialogTitle sx={{ fontWeight: 800 }}>
+         {activeReportConfig?.label || "Medical"} Reports ({activeReports.length})
+       </DialogTitle>
+       <DialogContent dividers>
+         {activeReports.length ? (
+           <Stack spacing={1.25}>
+             {activeReports.map((report, index) => (
+               <Paper
+                 key={report._id || report.key || report.url || index}
+                 variant="outlined"
+                 sx={{
+                   p: 1.5,
+                   borderRadius: 2,
+                   display: "flex",
+                   alignItems: "center",
+                   justifyContent: "space-between",
+                   gap: 2,
+                 }}
+               >
+                 <Box sx={{ minWidth: 0 }}>
+                   <Typography
+                     variant="body2"
+                     fontWeight={700}
+                     noWrap
+                     title={report.name || `Report ${index + 1}`}
+                   >
+                     {index + 1}. {report.name || `Report ${index + 1}`}
+                   </Typography>
+                   <Typography variant="caption" color="text.secondary">
+                     {report.uploadedAt
+                       ? new Date(report.uploadedAt).toLocaleString("en-IN")
+                       : "Previously uploaded report"}
+                   </Typography>
+                 </Box>
+                 <Button
+                   size="small"
+                   variant="outlined"
+                   startIcon={<VisibilityRounded />}
+                   onClick={() =>
+                     window.open(report.url, "_blank", "noopener,noreferrer")
+                   }
+                   sx={{ flexShrink: 0, whiteSpace: "nowrap" }}
+                 >
+                   View
+                 </Button>
+               </Paper>
+             ))}
+           </Stack>
+         ) : (
+           <Typography color="text.secondary">No reports uploaded yet.</Typography>
+         )}
+       </DialogContent>
+       <DialogActions>
+         <Button
+           onClick={() => setReportViewer({ open: false, reportKey: null })}
+         >
+           Close
+         </Button>
+       </DialogActions>
+     </Dialog>
+
 
      <Snackbar
        open={snack.open}
@@ -1640,5 +1769,3 @@ const Details = ({ contactNumber, onDetailsUpdate, activeConditions = [] }) => {
 
 
 export default Details;
-
-

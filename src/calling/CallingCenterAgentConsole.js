@@ -15,15 +15,6 @@ function getSessionUserHeader() {
   }
 }
 
-api.interceptors.request.use((config) => {
-  const header = getSessionUserHeader();
-  if (header) {
-    config.headers = config.headers || {};
-    config.headers["x-session-user"] = header;
-  }
-  return config;
-});
-
 export default function CallingCenterAgentConsole() {
   const [phone, setPhone] = useState("");
   const [status, setStatus] = useState("Connecting softphone...");

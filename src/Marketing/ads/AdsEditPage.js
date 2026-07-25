@@ -85,9 +85,7 @@ const VIDEO_EXT = /\.(mp4|mov|avi|webm|mkv|m4v)(\?.*)?$/i;
 const getCurrentUser = () => JSON.parse(sessionStorage.getItem("user") || "{}");
 const isManagerRole = (role = "") =>
   MANAGER_ROLES.includes(String(role || "").toLowerCase());
-const getAuthHeaders = () => ({
-  "x-session-user": JSON.stringify(getCurrentUser()),
-});
+const getAuthHeaders = () => ({});
 
 // ─────────────────────────────────────────────────────────────
 // Wasabi upload helpers
