@@ -53,6 +53,7 @@ const NOTIF_SOUND_URL =
   "https://cdn.shopify.com/s/files/1/0734/7155/7942/files/new-notification-014-363678.mp3?v=1769002522";
 const CONVERSATION_REFRESH_COOLDOWN_MS = 11000;
 const USER_SYNC_INTERVAL_MS = 15000;
+const MESSAGE_PAGE_SIZE = 50;
 
 const ALLOWED_ROLES = new Set([
   "sales agent",
@@ -1064,6 +1065,9 @@ export default function WhatsAppInboxWidget({ onOpenChat }) {
   const [active, setActive] = useState(null);
   const [chatLoading, setChatLoading] = useState(false);
   const [messages, setMessages] = useState([]);
+  const [hasMoreOlderMessages, setHasMoreOlderMessages] = useState(false);
+  const [oldestMessageCursor, setOldestMessageCursor] = useState("");
+  const [loadingOlderMessages, setLoadingOlderMessages] = useState(false);
 
   const [draft, setDraft] = useState("");
   const [replyingTo, setReplyingTo] = useState(null);
@@ -1366,10 +1370,23 @@ export default function WhatsAppInboxWidget({ onOpenChat }) {
       try {
         const r = await axios.get(`${API_BASE}/api/whatsapp/messages`, {
           withCredentials: true,
-          params: { ...whatsappAccessPayload, phone: p10 },
+          params: {
+            ...whatsappAccessPayload,
+            phone: p10,
+            limit: MESSAGE_PAGE_SIZE,
+            pageInfo: true,
+          },
         });
-        const next = sortMessagesAsc(Array.isArray(r.data) ? r.data : []);
+        const next = sortMessagesAsc(
+          Array.isArray(r.data?.items)
+            ? r.data.items
+            : Array.isArray(r.data)
+              ? r.data
+              : []
+        );
         setMessages(next);
+        setHasMoreOlderMessages(Boolean(r.data?.hasMore));
+        setOldestMessageCursor(String(r.data?.nextCursor || ""));
       } catch (error) {
         console.error("WhatsApp widget messages fetch failed:", error?.message || error);
       } finally {
@@ -1378,6 +1395,60 @@ export default function WhatsAppInboxWidget({ onOpenChat }) {
     },
     [isWidgetOpen, whatsappAccessPayload]
   );
+
+  const loadOlderMessages = useCallback(async () => {
+    if (
+      !isWidgetOpen ||
+      !phone10Active ||
+      !hasMoreOlderMessages ||
+      !oldestMessageCursor ||
+      loadingOlderMessages
+    ) {
+      return;
+    }
+
+    const el = chatScrollRef.current;
+    const previousHeight = el?.scrollHeight || 0;
+    const previousTop = el?.scrollTop || 0;
+    setLoadingOlderMessages(true);
+
+    try {
+      const r = await axios.get(`${API_BASE}/api/whatsapp/messages`, {
+        withCredentials: true,
+        params: {
+          ...whatsappAccessPayload,
+          phone: phone10Active,
+          limit: MESSAGE_PAGE_SIZE,
+          pageInfo: true,
+          cursor: oldestMessageCursor,
+        },
+      });
+      const older = Array.isArray(r.data?.items) ? r.data.items : [];
+      setMessages((current) =>
+        sortMessagesAsc(
+          older.reduce((merged, message) => upsertMessage(merged, message), current)
+        )
+      );
+      setHasMoreOlderMessages(Boolean(r.data?.hasMore));
+      setOldestMessageCursor(String(r.data?.nextCursor || ""));
+
+      requestAnimationFrame(() => {
+        if (!el) return;
+        el.scrollTop = previousTop + (el.scrollHeight - previousHeight);
+      });
+    } catch (error) {
+      console.error("WhatsApp widget older messages fetch failed:", error?.message || error);
+    } finally {
+      setLoadingOlderMessages(false);
+    }
+  }, [
+    isWidgetOpen,
+    phone10Active,
+    hasMoreOlderMessages,
+    oldestMessageCursor,
+    loadingOlderMessages,
+    whatsappAccessPayload,
+  ]);
 
   const markRead = useCallback(
     async (p10) => {
@@ -1665,6 +1736,9 @@ export default function WhatsAppInboxWidget({ onOpenChat }) {
     setView("list");
     setActive(null);
     setMessages([]);
+    setHasMoreOlderMessages(false);
+    setOldestMessageCursor("");
+    setLoadingOlderMessages(false);
     setDraft("");
     setSearchOpen(false);
     setSearchQuery("");
@@ -1687,6 +1761,9 @@ export default function WhatsAppInboxWidget({ onOpenChat }) {
   setReplyingTo(null);
   const p10 = last10(c?.phone);
   setMessages([]);
+  setHasMoreOlderMessages(false);
+  setOldestMessageCursor("");
+  setLoadingOlderMessages(false);
   await fetchMessages(p10);
   await markRead(p10);
   setTimeout(() => scrollToBottom(false), 60);
@@ -2220,6 +2297,19 @@ export default function WhatsAppInboxWidget({ onOpenChat }) {
                   </Box>
                 ) : (
                   <>
+                    {(hasMoreOlderMessages || loadingOlderMessages) && (
+                      <Box sx={{ display: "flex", justifyContent: "center", mb: 1 }}>
+                        <Button
+                          size="small"
+                          variant="outlined"
+                          onClick={loadOlderMessages}
+                          disabled={loadingOlderMessages}
+                          sx={{ bgcolor: "rgba(255,255,255,0.78)", textTransform: "none" }}
+                        >
+                          {loadingOlderMessages ? "Loading…" : "Load older messages"}
+                        </Button>
+                      </Box>
+                    )}
                     <DateChip label="Today" />
                     {messages.map((m) => {
                       const searchKey = messageSearchKey(m);
