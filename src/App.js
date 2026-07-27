@@ -105,6 +105,7 @@ import SmartDietPlanView from "./pages/diet/SmartDietPlanView";
 import DietDashboard from "./pages/diet/DietDashboard";
 import DietPlanEditor from "./pages/diet/DietPlanEditor";
 import DataConvertor from "./pages/DataConvertor";
+import AccessDenied from "./pages/AccessDenied";
 
 function AppLayout() {
   const location = useLocation();
@@ -118,9 +119,31 @@ function AppLayout() {
       {!isDietPublicRoute && !isWhatsAppChatRoute && !isOnlineOrdersRoute && <WhatsAppNotification />}
 
         <Routes>
-          <Route path="/shipment-details" element={ <ShipmentDetails />} />
+          <Route
+            path="/shipment-details"
+            element={
+              <PrivateRoute>
+                <ShipmentDetails />
+              </PrivateRoute>
+            }
+          />
           <Route path="/login" element={<Login />} />
-          <Route path="/pages/Home" element={<ShipwayOrders />} />
+          <Route
+            path="/403"
+            element={
+              <PrivateRoute>
+                <AccessDenied />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/pages/Home"
+            element={
+              <PrivateRoute>
+                <ShipwayOrders />
+              </PrivateRoute>
+            }
+          />
           <Route
             path="/calling-center"
             element={
@@ -143,8 +166,18 @@ function AppLayout() {
               </PrivateRoute>
             }
           />
-          <Route path="/unicommerce" element={<UnicommerceOrdersPage />} />
-          <Route path="/knowledge-base" element={<KnowledgeBaseManager />} />
+          <Route
+            path="/unicommerce"
+            element={<UnicommerceOrdersPage />}
+          />
+          <Route
+            path="/knowledge-base"
+            element={
+              <PrivateRoute>
+                <KnowledgeBaseManager />
+              </PrivateRoute>
+            }
+          />
 
           <Route
             path="/organisation-tree"
@@ -865,7 +898,7 @@ function AppLayout() {
           />
         <Route path="/diet-dashboard"  element={<PrivateRoute><DietDashboard /></PrivateRoute>} />
         <Route path="/diet-plan-editor" element={<PrivateRoute><DietPlanEditor /></PrivateRoute>} />
-         <Route path="/smart-diet-plan" element={<SmartDietPlanView />} /> 
+         <Route path="/smart-diet-plan" element={<PrivateRoute><SmartDietPlanView /></PrivateRoute>} />
          <Route path="/diet-onboarding" element={<DietOnboarding />} />
      </Routes>
    </div>
