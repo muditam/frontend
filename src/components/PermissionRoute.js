@@ -1,7 +1,7 @@
 import React from "react";
 import { Navigate } from "react-router-dom";
 
-const PermissionRoute = ({ permissionKey, children, fallback = "/" }) => {
+const PermissionRoute = ({ permissionKey, children, fallback = "/403" }) => {
   const storedUser = sessionStorage.getItem("user");
   const user = storedUser ? JSON.parse(storedUser) : null;
 
