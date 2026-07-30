@@ -16,11 +16,15 @@ const PrivateRoute = ({ children }) => {
         const ageMs = Date.now() - ts;
         if (bridgedUser && ageMs >= 0 && ageMs <= 2 * 60 * 1000) {
           sessionStorage.setItem("user", JSON.stringify(bridgedUser));
+          localStorage.removeItem("session:user:bridge");
           window.dispatchEvent(new Event("session:user:set"));
           user = sessionStorage.getItem("user");
+        } else {
+          localStorage.removeItem("session:user:bridge");
         }
       }
     } catch {
+      localStorage.removeItem("session:user:bridge");
       // no-op; fall through to login redirect
     }
   }

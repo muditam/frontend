@@ -16,4 +16,13 @@ code {
     monospace;
 }
 
+/*
+ * A modal transition must never leave an invisible, full-screen click target
+ * behind. MUI already hides closed keep-mounted modals visually; this also
+ * makes that hidden state non-interactive if a transition is interrupted.
+ */
+.MuiModal-root.MuiModal-hidden,
+.MuiModal-root[aria-hidden="true"] {
+  pointer-events: none !important;
+}
 
