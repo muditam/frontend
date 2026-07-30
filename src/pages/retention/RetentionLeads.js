@@ -2071,7 +2071,7 @@ const RetentionLeads = () => {
                     }}
                   >
                     <Tooltip
-                      title={`Diet plans in last 14/30 days — ${dietPlanRemainingDays != null
+                      title={`Active diet plans — ${dietPlanRemainingDays != null
                         ? dietPlanRemainingDays + " days left"
                         : "no active plan window"
                         }`}
