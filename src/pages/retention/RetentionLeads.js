@@ -250,6 +250,7 @@ const RetentionLeads = () => {
 
   const [planCountMap, setPlanCountMap] = useState({});
   const [planCountLoading, setPlanCountLoading] = useState({});
+  const planCountRequestsInFlightRef = useRef(new Set());
 
   const [ordersLoading, setOrdersLoading] = useState(false);
 
@@ -448,6 +449,7 @@ const RetentionLeads = () => {
           email: user.email,
           page,
           limit: serverLimit,
+          includeDietPlanSummary: true,
           retentionStatus: filters.retentionStatus || "All",
           ...(followupCategory ? { followupCategory } : {}),
           ...(serialParam ? { serial: serialParam } : rawSearch ? { search: rawSearch } : {}),
@@ -804,7 +806,16 @@ const RetentionLeads = () => {
 
   const fetchDietPlanCount = async (leadId) => {
     if (!leadId) return;
-    if (planCountLoading[leadId] || planCountMap[leadId] != null) return;
+    if (
+      planCountRequestsInFlightRef.current.has(leadId) ||
+      planCountLoading[leadId] ||
+      planCountMap[leadId] != null
+    ) {
+      return;
+    }
+
+    planCountRequestsInFlightRef.current.add(leadId);
+
     try {
       setPlanCountLoading((p) => ({ ...p, [leadId]: true }));
       const res = await api.get("/api/diet-plans", {
@@ -853,6 +864,7 @@ const RetentionLeads = () => {
       setPlanRemainingDaysMap((m) => ({ ...m, [leadId]: null }));
       console.error("Failed fetching diet plans for lead", leadId, e?.response?.data || e?.message || e);
     } finally {
+      planCountRequestsInFlightRef.current.delete(leadId);
       setPlanCountLoading((p) => ({ ...p, [leadId]: false }));
     }
   };
@@ -899,13 +911,20 @@ const RetentionLeads = () => {
   }, [filters.name]);
 
   useEffect(() => {
-    (async () => {
-      for (const l of leads) {
-        if (l?._id && planCountMap[l._id] == null && !planCountLoading[l._id]) {
-          fetchDietPlanCount(l._id);
-        }
+    for (const lead of leads) {
+      const hasBackendSummary =
+        lead?.dietPlanSummary &&
+        typeof lead.dietPlanSummary === "object";
+
+      if (
+        !hasBackendSummary &&
+        lead?._id &&
+        planCountMap[lead._id] == null &&
+        !planCountLoading[lead._id]
+      ) {
+        fetchDietPlanCount(lead._id);
       }
-    })();
+    }
   }, [leads]);
 
   useEffect(() => {
@@ -1827,6 +1846,19 @@ const RetentionLeads = () => {
             const tagInfo = followupTagMap[followupDisplay] || followupTagMap[""];
 
             const isSelected = lead._id === selectedLeadId;
+            const backendDietPlanSummary =
+              lead?.dietPlanSummary &&
+                typeof lead.dietPlanSummary === "object"
+                ? lead.dietPlanSummary
+                : null;
+            const dietPlanCount = backendDietPlanSummary
+              ? Number(backendDietPlanSummary.count) || 0
+              : Number(planCountMap[lead._id]) || 0;
+            const dietPlanRemainingDays = backendDietPlanSummary
+              ? Number.isFinite(Number(backendDietPlanSummary.remainingDays))
+                ? Number(backendDietPlanSummary.remainingDays)
+                : null
+              : planRemainingDaysMap[lead._id] ?? null;
 
             return (
               <ListItemButton
@@ -2027,7 +2059,7 @@ const RetentionLeads = () => {
                     </Box>
                   }
                 />
-                {!!planCountMap[lead._id] && planCountMap[lead._id] > 0 && (
+                {dietPlanCount > 0 && (
                   <Box
                     sx={{
                       position: "absolute",
@@ -2039,8 +2071,8 @@ const RetentionLeads = () => {
                     }}
                   >
                     <Tooltip
-                      title={`Diet plans in last 14/30 days — ${planRemainingDaysMap[lead._id] != null
-                        ? planRemainingDaysMap[lead._id] + " days left"
+                      title={`Active diet plans — ${dietPlanRemainingDays != null
+                        ? dietPlanRemainingDays + " days left"
                         : "no active plan window"
                         }`}
                     >
@@ -2051,12 +2083,12 @@ const RetentionLeads = () => {
                         <SpaIcon sx={{ fontSize: 18, color: "#2E7D32" }} />
                       </Badge>
                     </Tooltip>
-                    {planRemainingDaysMap[lead._id] != null && (
+                    {dietPlanRemainingDays != null && (
                       <Typography
                         variant="caption"
                         sx={{ fontWeight: 700, color: "#2E7D32", lineHeight: 1 }}
                       >
-                        {planRemainingDaysMap[lead._id]}d
+                        {dietPlanRemainingDays}d
                       </Typography>
                     )}
                   </Box>

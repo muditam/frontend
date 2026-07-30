@@ -2194,34 +2194,48 @@ const CartDrawer = ({ closeDrawer }) => {
         {/* ORDER SUCCESS POPUP & CONFETTI */}
         {showOrderSuccess && (
           <Box
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="order-success-title"
+            onClick={handleCloseOrderPopup}
             sx={{
               position: "fixed",
-              top: 0,
-              left: 0,
-              width: "100vw",
-              height: "100vh",
+              inset: 0,
               backgroundColor: "rgba(0, 0, 0, 0.5)",
               zIndex: 9999,
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              flexDirection: "column",
-              position: "fixed",
+              p: 2,
             }}
           >
-            {/* Cross icon to close the popup */}
-
             <Box
+              onClick={(event) => event.stopPropagation()}
               sx={{
+                position: "relative",
                 backgroundColor: "#fff",
                 borderRadius: 2,
                 p: 4,
                 display: "flex",
                 flexDirection: "column",
                 alignItems: "center",
-                minWidth: 300,
+                width: "min(100%, 440px)",
+                maxHeight: "calc(100vh - 32px)",
+                overflowY: "auto",
               }}
             >
+              <IconButton
+                aria-label="Close order success dialog"
+                onClick={handleCloseOrderPopup}
+                sx={{
+                  position: "absolute",
+                  top: 8,
+                  right: 8,
+                  color: "text.secondary",
+                }}
+              >
+                <CloseIcon />
+              </IconButton>
               <img
                 src="https://cdn.shopify.com/s/files/1/0734/7155/7942/files/website_right_tick_animation.gif?v=1741346413"
                 alt="Success Animation"
@@ -2229,6 +2243,7 @@ const CartDrawer = ({ closeDrawer }) => {
               />
 
               <Typography
+                id="order-success-title"
                 variant="h5"
                 sx={{ mt: 2, textAlign: "center" }}
               >
@@ -2263,20 +2278,12 @@ const CartDrawer = ({ closeDrawer }) => {
                 Add Notes
               </Button>
             </Box>
-
-            <IconButton
-              onClick={handleCloseOrderPopup}
-              sx={{
-                position: "absolute",
-                top: 150,
-                right: 400,
-                color: "#fff",
-                zIndex: 10000,
-              }}
-            >
-              <CloseIcon />
-            </IconButton>
-            <ReactConfetti width={confettiSize.width} height={confettiSize.height} recycle={false} />
+            <ReactConfetti
+              width={confettiSize.width}
+              height={confettiSize.height}
+              recycle={false}
+              style={{ pointerEvents: "none" }}
+            />
           </Box>
         )}
         {showOrderDetailsPopup && (orderId || futureOrderId) && (

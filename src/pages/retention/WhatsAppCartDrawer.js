@@ -1269,7 +1269,6 @@ export default function WhatsAppCartDrawer({
         sx={{ zIndex: (theme) => theme.zIndex.modal + 2 }}
         hideBackdrop
         ModalProps={{
-          keepMounted: true,
           disableAutoFocus: true,
           disableEnforceFocus: true,
         }}

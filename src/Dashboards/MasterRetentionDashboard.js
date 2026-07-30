@@ -193,6 +193,29 @@ const cacheSet = (key, data) => {
   }
 };
 
+const prepareAuthenticatedNewTab = () => {
+  try {
+    const rawUser = sessionStorage.getItem("user");
+    if (!rawUser) return false;
+
+    localStorage.setItem(
+      "session:user:bridge",
+      JSON.stringify({
+        ts: Date.now(),
+        user: JSON.parse(rawUser),
+      })
+    );
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+const openAuthenticatedNewTab = (url) => {
+  prepareAuthenticatedNewTab();
+  window.open(url, "_blank", "noopener,noreferrer");
+};
+
 
 
 
@@ -1289,7 +1312,7 @@ const ManagerRetentionDashboard = () => {
                   amount={card.amount}
                   percentage={card.percentage}
                   loading={shipmentLoading}
-                  onClick={to ? () => window.open(to, "_blank", "noopener,noreferrer") : undefined}
+                  onClick={to ? () => openAuthenticatedNewTab(to) : undefined}
                 />
               </Grid>
             );
@@ -1393,6 +1416,8 @@ const ManagerRetentionDashboard = () => {
                           to={`/shipment-details?category=${encodeURIComponent(row.category)}&startDate=${shipmentDates.startDate}&endDate=${shipmentDates.endDate}`}
                           target="_blank"
                           rel="noopener noreferrer"
+                          onClick={prepareAuthenticatedNewTab}
+                          onAuxClick={prepareAuthenticatedNewTab}
                           sx={{
                             textDecoration: "none",
                             backgroundColor: idx % 2 === 0 ? "#FFFFFF" : "#FBFDFF",
@@ -1518,6 +1543,8 @@ const ManagerRetentionDashboard = () => {
                         to={`/shipment-details?agent=${encodeURIComponent(selectedHealthExpert)}&category=${encodeURIComponent(row.category)}&startDate=${shipmentDates.startDate}&endDate=${shipmentDates.endDate}`}
                         target="_blank"
                         rel="noopener noreferrer"
+                        onClick={prepareAuthenticatedNewTab}
+                        onAuxClick={prepareAuthenticatedNewTab}
                         sx={{
                           textDecoration: "none",
                           backgroundColor: idx % 2 === 0 ? "#FFFFFF" : "#FBFDFF",
