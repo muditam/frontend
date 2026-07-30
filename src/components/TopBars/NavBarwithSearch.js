@@ -1330,9 +1330,9 @@ const NavbarWithSearch = () => {
      <Dialog
        open={incentiveOpen}
        TransitionComponent={SlideDown}
-       keepMounted
        onClose={() => setIncentiveOpen(false)}
-       maxWidth="500"
+       maxWidth="sm"
+       fullWidth
        PaperProps={{
          sx: {
            borderRadius: 2,

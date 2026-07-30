@@ -2013,7 +2013,6 @@ export default function WhatsAppChatDrawer({
         open={open}
         onClose={onClose}
         ModalProps={{
-          keepMounted: true,
           disableAutoFocus: true,
           disableEnforceFocus: true,
         }}

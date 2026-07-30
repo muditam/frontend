@@ -1156,9 +1156,9 @@ export default function IncentivesPage() {
   const hasTeam = sessionUser?.hasTeam === true;
   const isManagerWithTeam = sessionRole === "manager" && hasTeam;
   const isTeamLeaderWithTeam =
-    ["team leader", "team-leader"].includes(sessionRole) && hasTeam;
+    ["team leader", "team-leader"].includes(sessionRole);
   const isRetentionWithTeam =
-    ["retention agent", "assistant team lead"].includes(sessionRole) && hasTeam;
+    sessionRole === "retention agent" && hasTeam;
   const isSuperAdmin = ["super-admin", "super admin"].includes(sessionRole);
   const isAdminLike = ["admin", "manager", "super-admin", "super admin"].includes(sessionRole);
   const canManageAgents = isAdminLike;
@@ -1207,7 +1207,7 @@ export default function IncentivesPage() {
   const [redeemOpen, setRedeemOpen] = useState(false);
 
   const [teamViewEnabled, setTeamViewEnabled] = useState(
-    Boolean(sessionUser?.hasTeam)
+    Boolean(sessionUser?.hasTeam || isTeamLeaderWithTeam)
   );
   const [selectedAgentTeamViewEnabled, setSelectedAgentTeamViewEnabled] =
     useState(false);
@@ -1228,10 +1228,20 @@ export default function IncentivesPage() {
       if (!normalizedStatus || statusMap.has(normalizedStatus)) return;
       statusMap.set(normalizedStatus, rawStatus);
     });
+    statusMap.set("unknown", "UNKNOWN");
     return Array.from(statusMap.values()).sort((a, b) => a.localeCompare(b));
   }, [data?.rows]);
   const cashSummaryExperts = useMemo(() => {
     const expertMap = new Map();
+    (data?.isTeamAggregate && Array.isArray(data?.teamMembers)
+      ? data.teamMembers
+      : []
+    ).forEach((member) => {
+      const rawExpert = String(member?.fullName || "").trim();
+      const normalizedExpert = normalizeComparable(rawExpert);
+      if (!normalizedExpert || expertMap.has(normalizedExpert)) return;
+      expertMap.set(normalizedExpert, rawExpert);
+    });
     (data?.rows || []).forEach((row) => {
       const rawExpert = String(row?.agentName || "").trim();
       const normalizedExpert = normalizeComparable(rawExpert);
@@ -1239,14 +1249,17 @@ export default function IncentivesPage() {
       expertMap.set(normalizedExpert, rawExpert);
     });
     return Array.from(expertMap.values()).sort((a, b) => a.localeCompare(b));
-  }, [data?.rows]);
+  }, [data?.isTeamAggregate, data?.rows, data?.teamMembers]);
   const filteredCashSummaryRows = useMemo(() => {
     return (data?.rows || []).filter(
       (row) => {
         const matchesShipmentStatus =
           cashSummaryShipmentStatus === "all" ||
-          normalizeComparable(row?.deliveryStatus) ===
-            normalizeComparable(cashSummaryShipmentStatus);
+          (normalizeComparable(cashSummaryShipmentStatus) === "unknown"
+            ? normalizeComparable(row?.walletBucket) === "unknown" ||
+              !normalizeComparable(row?.deliveryStatus)
+            : normalizeComparable(row?.deliveryStatus) ===
+              normalizeComparable(cashSummaryShipmentStatus));
         const matchesExpert =
           cashSummaryExpert === "all" ||
           normalizeComparable(row?.agentName) === normalizeComparable(cashSummaryExpert);
@@ -1263,12 +1276,6 @@ export default function IncentivesPage() {
       ),
     [filteredCashSummaryRows]
   );
-
-  useEffect(() => {
-    if (!isSelfAndTeamRole) {
-      setTeamViewEnabled(false);
-    }
-  }, [isSelfAndTeamRole]);
 
   const currentEmployeeRecord = useMemo(() => {
     return (
@@ -1317,11 +1324,21 @@ export default function IncentivesPage() {
     }
 
     if (isSelfAndTeamRole) {
-      return teamViewEnabled;
+      if (isTeamLeaderWithTeam) {
+        return !selectedAgent;
+      }
+
+      return teamViewEnabled && !selectedAgent;
     }
 
     return false;
-  }, [isManagerWithTeam, isSelfAndTeamRole, selectedAgent, teamViewEnabled]);
+  }, [
+    isManagerWithTeam,
+    isSelfAndTeamRole,
+    isTeamLeaderWithTeam,
+    selectedAgent,
+    teamViewEnabled,
+  ]);
 
   const selectedAgentCanToggleTeamView = useMemo(
     () =>
@@ -1353,7 +1370,7 @@ export default function IncentivesPage() {
     }
   }, [selectedAgentCanToggleTeamView]);
 
-  const canShowAgentDropdown = canManageAgents;
+  const canShowAgentDropdown = canManageAgents || isSelfAndTeamRole;
 
   const allSalesAgents = useMemo(
     () =>
@@ -1386,11 +1403,9 @@ export default function IncentivesPage() {
 
     if (isSelfAndTeamRole) {
       const selfId = getEntityId(selfAgent);
-      const uniqueTeamAgents = teamAgents.filter(
+      return teamAgents.filter(
         (emp) => getEntityId(emp) !== selfId
       );
-
-      return selfAgent ? [selfAgent, ...uniqueTeamAgents] : uniqueTeamAgents;
     }
 
     return selfAgent ? [selfAgent] : [];
@@ -1419,7 +1434,7 @@ export default function IncentivesPage() {
     setError("");
 
     try {
-      if (!canManageAgents && !hasTeam) {
+      if (!canManageAgents && !isSelfAndTeamRole) {
         setEmployees(selfAgent ? [selfAgent] : []);
         setSelectedAgent(selfAgent || null);
         return;
@@ -1452,7 +1467,7 @@ export default function IncentivesPage() {
     } finally {
       setLoadingAgents(false);
     }
-  }, [canManageAgents, hasTeam, headers, isManagerWithTeam, isSelfAndTeamRole, selfAgent]);
+  }, [canManageAgents, headers, isManagerWithTeam, isSelfAndTeamRole, selfAgent]);
 
   const fetchIncentivesForAgent = useCallback(
     async (agentName, startDate, endDate) => {
@@ -1480,6 +1495,11 @@ export default function IncentivesPage() {
   );
 
   useEffect(() => {
+    if (isTeamLeaderWithTeam) {
+      setViewerBalanceData(null);
+      return;
+    }
+
     const viewerName = sessionUser?.fullName || selfAgent?.fullName || "";
     if (!viewerName || !derivedEndDate) {
       setViewerBalanceData(null);
@@ -1507,6 +1527,7 @@ export default function IncentivesPage() {
     cumulativeStartDate,
     derivedEndDate,
     fetchIncentivesForAgent,
+    isTeamLeaderWithTeam,
     selfAgent,
     sessionUser,
   ]);
@@ -1745,15 +1766,7 @@ export default function IncentivesPage() {
           return;
         }
 
-        const seedMembers = isRetentionWithTeam
-          ? currentEmployeeRecord?.hasTeam && isSalesDepartment(currentEmployeeRecord)
-            ? [currentEmployeeRecord, ...teamAgents]
-            : selfAgent
-              ? [selfAgent, ...teamAgents]
-              : [...teamAgents]
-          : [...teamAgents];
-
-        const aggregateMembers = getExpandedSalesTeamMembers(seedMembers, employees, {
+        const aggregateMembers = getExpandedSalesTeamMembers(teamAgents, employees, {
           includeInactive: isHistoricalReport,
         }).filter((member) => isIncentiveEligibleRole(member));
         const handled = await loadAggregateData(
@@ -1801,7 +1814,10 @@ export default function IncentivesPage() {
         }
 
         const effectiveAgentName =
-          selectedAgent?.fullName ||
+          (isSelfAndTeamRole
+            ? selectedAgent?.fullName ||
+              (isRetentionWithTeam ? selfAgent?.fullName : "")
+            : selectedAgent?.fullName) ||
           (!canManageAgents ? selfAgent?.fullName : "");
 
         if (!effectiveAgentName) {
@@ -1846,8 +1862,9 @@ export default function IncentivesPage() {
     fetchIncentivesForAgent,
     hasSelectedMonthActivity,
     isHistoricalReport,
-    isRetentionWithTeam,
     isSuperAdmin,
+    isRetentionWithTeam,
+    isSelfAndTeamRole,
     selectedAgent,
     selectedAgentCanToggleTeamView,
     selectedAgentTeamMembers,
@@ -1873,9 +1890,9 @@ export default function IncentivesPage() {
     setStartMonth(defaultMonth);
     setEndMonth(defaultMonth);
 
-    if (isSelfAndTeamRole) {
-      setSelectedAgent(null);
+    if (isRetentionWithTeam) {
       setTeamViewEnabled(true);
+      setCashSummaryExpert("all");
     }
     setSelectedAgentTeamViewEnabled(false);
 
@@ -1884,6 +1901,7 @@ export default function IncentivesPage() {
     clearPageState,
     defaultMonth,
     isManagerWithTeam,
+    isRetentionWithTeam,
     isSelfAndTeamRole,
     isSuperAdmin,
     selfAgent,
@@ -2754,9 +2772,13 @@ export default function IncentivesPage() {
                     }}
                     options={agentOptions}
                     loading={loadingAgents}
+                    disabled={isSelfAndTeamRole && !teamViewEnabled}
                     value={selectedAgent}
                     onChange={(_, value) => {
                       setSelectedAgent(value);
+                      if (isSelfAndTeamRole) {
+                        setCashSummaryExpert(value?.fullName || "all");
+                      }
                       setSelectedAgentTeamViewEnabled(false);
                       clearPageState();
                     }}
@@ -2774,14 +2796,20 @@ export default function IncentivesPage() {
                   />
                 )}
 
-                {isManagerWithTeam && (
+                {(isManagerWithTeam || isSelfAndTeamRole) && (
                   <Chip
                     label={
-                      selectedAgent?.fullName
-                        ? selectedAgentTeamViewEnabled
-                          ? `Selected Team View • ${selectedAgentTeamMembers.length} members`
+                      isSelfAndTeamRole
+                        ? teamViewEnabled
+                          ? selectedAgent?.fullName
+                            ? `Individual View • ${selectedAgent.fullName}`
+                            : `Combined Team View • ${teamAgents.length} members`
                           : "Individual View"
-                        : `Combined Team View • ${teamAgents.length} members`
+                        : selectedAgent?.fullName
+                          ? selectedAgentTeamViewEnabled
+                            ? `Selected Team View • ${selectedAgentTeamMembers.length} members`
+                            : "Individual View"
+                          : `Combined Team View • ${teamAgents.length} members`
                     }
                     sx={{
                       height: 40,
@@ -2810,14 +2838,17 @@ export default function IncentivesPage() {
                   />
                 )}
 
-                {selectedAgentCanToggleTeamView && (
+                {isRetentionWithTeam && (
                   <FormControlLabel
                     sx={{ ml: 0 }}
                     control={
                       <Switch
-                        checked={selectedAgentTeamViewEnabled}
+                        checked={teamViewEnabled}
                         onChange={(e) => {
-                          setSelectedAgentTeamViewEnabled(e.target.checked);
+                          const enabled = e.target.checked;
+                          setTeamViewEnabled(enabled);
+                          setSelectedAgent(null);
+                          setCashSummaryExpert("all");
                           clearPageState();
                         }}
                       />
@@ -2826,15 +2857,14 @@ export default function IncentivesPage() {
                   />
                 )}
 
-                {isSelfAndTeamRole && (
+                {selectedAgentCanToggleTeamView && (
                   <FormControlLabel
                     sx={{ ml: 0 }}
                     control={
                       <Switch
-                        checked={teamViewEnabled}
+                        checked={selectedAgentTeamViewEnabled}
                         onChange={(e) => {
-                          setTeamViewEnabled(e.target.checked);
-                          setSelectedAgent(e.target.checked ? null : selfAgent || null);
+                          setSelectedAgentTeamViewEnabled(e.target.checked);
                           clearPageState();
                         }}
                       />
