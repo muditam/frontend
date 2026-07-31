@@ -7,6 +7,7 @@ const API_BASE = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "");
 
 const api = axios.create({
   baseURL: API_BASE,
+  withCredentials: true,
 });
 
 function formatLocalIsoDate(date = new Date()) {
