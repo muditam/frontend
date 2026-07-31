@@ -335,6 +335,23 @@ function parseTemplateJsonStruct(tpl) {
 
   return null;
 }
+function dedupeTemplateButtons(buttons = []) {
+  const seen = new Set();
+  return buttons.filter((button) => {
+    const key = [
+      button?.type,
+      button?.text,
+      button?.url,
+      button?.phoneNumber,
+      button?.payload,
+    ]
+      .map((value) => String(value || "").trim().toLowerCase())
+      .join("|");
+    if (!key.replace(/\|/g, "") || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
 function extractTemplateButtons(tpl) {
   const directButtons = Array.isArray(tpl?.templateMeta?.buttons)
     ? tpl.templateMeta.buttons
@@ -343,7 +360,7 @@ function extractTemplateButtons(tpl) {
     : null;
 
   if (directButtons?.length) {
-    return directButtons
+    return dedupeTemplateButtons(directButtons
       .map((button) => ({
         type: String(button?.type || "").trim().toUpperCase(),
         text: String(button?.text || button?.title || button?.label || "").trim(),
@@ -351,7 +368,7 @@ function extractTemplateButtons(tpl) {
         phoneNumber: String(button?.phoneNumber || button?.phone_number || "").trim(),
         payload: String(button?.payload || button?.id || "").trim(),
       }))
-      .filter((button) => button.type || button.text || button.url || button.phoneNumber || button.payload);
+      .filter((button) => button.type || button.text || button.url || button.phoneNumber || button.payload));
   }
 
   const buttonItems = [];
@@ -376,7 +393,7 @@ function extractTemplateButtons(tpl) {
     buttonItems.push(...jsonButtons);
   }
 
-  return buttonItems
+  return dedupeTemplateButtons(buttonItems
     .map((button) => ({
       type: String(button?.type || button?.sub_type || button?.buttonType || "").trim().toUpperCase(),
       text: String(button?.text || button?.title || button?.label || "").trim(),
@@ -384,7 +401,7 @@ function extractTemplateButtons(tpl) {
       phoneNumber: String(button?.phoneNumber || button?.phone_number || button?.phone || button?.value || "").trim(),
       payload: String(button?.payload || button?.id || button?.value || "").trim(),
     }))
-    .filter((button) => button.type || button.text || button.url || button.phoneNumber || button.payload);
+    .filter((button) => button.type || button.text || button.url || button.phoneNumber || button.payload));
 }
 function acceptForHeaderFormat(fmt) {
   const f = String(fmt || "").toUpperCase();
