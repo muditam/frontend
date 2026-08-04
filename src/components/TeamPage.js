@@ -15,6 +15,7 @@ import {
 } from "@mui/icons-material";
 import axios from "axios";
 import { clearCachedData, getCachedData } from "../utils/apiCache";
+import { getRemainingWorkingDays } from "../utils/workingDays";
 import TotalSalesDrilldown from "../pages/filtered/TotalSalesDrilldown";
 
 
@@ -117,19 +118,6 @@ const mergeDisplayedMembers = (leader, members = []) => {
 
 
 
-
-function getRemainingWorkingDays() {
- const today = new Date();
- const year = today.getFullYear();
- const month = today.getMonth();
- const lastDate = new Date(year, month + 1, 0).getDate();
- let count = 0;
- for (let d = today.getDate(); d <= lastDate; d++) {
-   const date = new Date(year, month, d);
-   if (date.getDay() !== 0) count++;
- }
- return count;
-}
 
 const fetchAchievedByName = async (fullName) => {
  try {

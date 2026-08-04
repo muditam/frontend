@@ -32,6 +32,7 @@ import MenuIcon from "@mui/icons-material/Menu";
 import ShoppingCartIcon from "@mui/icons-material/ShoppingCart";
 import SearchIcon from "@mui/icons-material/Search";
 import axios from "axios";
+import { getRemainingWorkingDays } from "../../utils/workingDays";
 import MenuBar from "./MenuBar";
 import { useNavigate, useLocation } from "react-router-dom";
 import StickyNote2Icon from "@mui/icons-material/StickyNote2";
@@ -166,21 +167,7 @@ const NavbarWithSearch = () => {
  const handlePincodeChange = (e) => setPincode(e.target.value);
 
 
- // Helper to get working days left in this month (Mon-Sat)
- function getWorkingDaysLeft() {
-   const today = new Date();
-   const year = today.getFullYear();
-   const month = today.getMonth();
-   const date = today.getDate();
-   const lastDay = new Date(year, month + 1, 0).getDate();
-   let days = 0;
-   for (let d = date; d <= lastDay; d++) {
-     const check = new Date(year, month, d);
-     if (check.getDay() !== 0) days++; // not Sunday
-   }
-   return days;
- }
- const workingDaysLeft = getWorkingDaysLeft();
+ const workingDaysLeft = getRemainingWorkingDays();
  const dailySalesRequired =
    workingDaysLeft > 0 && target - salesProgress > 0
      ? Math.ceil((target - salesProgress) / workingDaysLeft)
@@ -939,7 +926,7 @@ const NavbarWithSearch = () => {
 
 
 
-           {/* <IconButton
+            <IconButton
                sx={{
                  mr: 1,
                  color: "#fff",
@@ -949,7 +936,7 @@ const NavbarWithSearch = () => {
                onClick={handleDownloadOrders}
              >
                <DownloadIcon />
-             </IconButton> */}
+             </IconButton>
            {user && canNav("cartIcon") && (
              <IconButton
                color="inherit"

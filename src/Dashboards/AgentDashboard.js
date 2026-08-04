@@ -3,6 +3,7 @@ import axios from "axios";
 import IncentiveSummarySection from "../components/IncentiveSummarySection";
 import "./RetentionDashboard.css";
 import { getCachedData } from "../utils/apiCache";
+import { getRemainingWorkingDays } from "../utils/workingDays";
 
 const API_BASE = "https://muditamleads-14f32a10d7f7.herokuapp.com";
 const DASHBOARD_CACHE_TTL_MS = 60 * 1000;
@@ -450,20 +451,7 @@ const AgentDashboard = () => {
     fetchSalesProgress();
   }, [user?.fullName]);
 
-  const workingDaysLeft = useMemo(() => {
-    const today = new Date();
-    const year = today.getFullYear();
-    const month = today.getMonth();
-    const date = today.getDate();
-    const lastDay = new Date(year, month + 1, 0).getDate();
-
-    let days = 0;
-    for (let day = date; day <= lastDay; day += 1) {
-      const check = new Date(year, month, day);
-      if (check.getDay() !== 0) days += 1;
-    }
-    return days;
-  }, []);
+  const workingDaysLeft = useMemo(() => getRemainingWorkingDays(), []);
 
   const dailySalesRequired =
     workingDaysLeft > 0 && target - salesProgress > 0
