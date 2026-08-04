@@ -49,6 +49,7 @@ import {
 } from "@mui/icons-material";
 import "./RetentionDashboard.css";
 import { getCachedData } from "../utils/apiCache";
+import { getRemainingWorkingDays } from "../utils/workingDays";
 
 const API_BASE = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "");
 const DASHBOARD_CACHE_TTL_MS = 60 * 1000;
@@ -136,20 +137,6 @@ const getSummaryHeading = (rangeValue) => {
     default:
       return `${rangeValue} Summary`;
   }
-};
-
-const getWorkingDaysLeft = () => {
-  const today = new Date();
-  const year = today.getFullYear();
-  const month = today.getMonth();
-  const date = today.getDate();
-  const lastDay = new Date(year, month + 1, 0).getDate();
-  let days = 0;
-  for (let d = date; d <= lastDay; d += 1) {
-    const check = new Date(year, month, d);
-    if (check.getDay() !== 0) days += 1;
-  }
-  return days;
 };
 
 const toISODateLocal = (d) => {
@@ -1111,7 +1098,7 @@ export default function TeamLeaderDashboard() {
     shipmentLoading ||
     codLoading ||
     agentShipmentLoading;
-  const workingDaysLeft = getWorkingDaysLeft();
+  const workingDaysLeft = getRemainingWorkingDays();
   const dailySalesRequired =
     workingDaysLeft > 0 && totals.pending > 0
       ? Math.ceil(totals.pending / workingDaysLeft)

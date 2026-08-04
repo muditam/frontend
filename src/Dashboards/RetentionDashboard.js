@@ -5,6 +5,7 @@ import "./RetentionDashboard.css";
 import OpenInNewIcon from "@mui/icons-material/OpenInNew";
 import { Skeleton } from "@mui/material";
 import { getCachedData } from "../utils/apiCache";
+import { getRemainingWorkingDays } from "../utils/workingDays";
 
 
 const API_BASE = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "");
@@ -543,21 +544,7 @@ const RetentionAgentDashboard = () => {
  }, [user?.fullName]);
 
 
- const workingDaysLeft = useMemo(() => {
-   const today = new Date();
-   const year = today.getFullYear();
-   const month = today.getMonth();
-   const date = today.getDate();
-   const lastDay = new Date(year, month + 1, 0).getDate();
-
-
-   let days = 0;
-   for (let day = date; day <= lastDay; day += 1) {
-     const check = new Date(year, month, day);
-     if (check.getDay() !== 0) days += 1;
-   }
-   return days;
- }, []);
+ const workingDaysLeft = useMemo(() => getRemainingWorkingDays(), []);
 
 
  const dailySalesRequired =
