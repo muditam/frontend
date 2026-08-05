@@ -82,11 +82,11 @@ async function putOneFile(upload, file) {
     body: file,
   });
   if (!response.ok) {
-    throw new Error(`Wasabi upload failed for ${upload.originalName} (${response.status}).`);
+    throw new Error(`Secure upload failed for ${upload.originalName} (${response.status}).`);
   }
 }
 
-export async function uploadDirectlyToWasabi(uploads, preparedFiles, onProgress) {
+export async function uploadFilesDirectly(uploads, preparedFiles, onProgress) {
   if (!Array.isArray(uploads) || uploads.length !== preparedFiles.length) {
     throw new Error("The server returned an incomplete upload session.");
   }

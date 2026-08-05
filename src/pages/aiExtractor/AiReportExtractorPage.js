@@ -3,7 +3,7 @@ import {
   cleanupUploadedReport,
   createUploadSession,
   extractUploadedReport,
-  uploadDirectlyToWasabi,
+  uploadFilesDirectly,
   validateBrowserFiles,
 } from "./api";
 import "./AiReportExtractorPage.css";
@@ -161,16 +161,16 @@ export default function AiReportExtractorPage() {
       setBusy(true);
       setReport(null);
       setFileName(displayName);
-      setStatus({ type: "loading", text: "Preparing secure upload…" });
+      setStatus({ type: "loading", text: "Preparing your report…" });
       session = await createUploadSession(prepared);
-      setStatus({ type: "loading", text: `Uploading 0/${prepared.length} directly to Wasabi…` });
-      await uploadDirectlyToWasabi(session.uploads, prepared, (done, total) => {
-        setStatus({ type: "loading", text: `Uploading ${done}/${total} directly to Wasabi…` });
+      setStatus({ type: "loading", text: `Uploading 0/${prepared.length}…` });
+      await uploadFilesDirectly(session.uploads, prepared, (done, total) => {
+        setStatus({ type: "loading", text: `Uploading ${done}/${total}…` });
       });
       setStatus({ type: "loading", text: "Reading and extracting the report…" });
       const result = await extractUploadedReport(session.reportId, session.uploads);
       setReport(result);
-      setStatus({ type: "success", text: "Report extracted. Temporary upload removed from Wasabi." });
+      setStatus({ type: "success", text: "Report analysis completed successfully." });
     } catch (error) {
       if (session) await cleanupUploadedReport(session.reportId, session.uploads);
       setStatus({ type: "error", text: error.message || "Could not process the report." });
@@ -188,9 +188,9 @@ export default function AiReportExtractorPage() {
 
   return <main className="aix-page">
     <div className="aix-shell">
-      <header className="aix-header"><div className="aix-brand"><div className="aix-mark">M</div><div><h1>Report Extractor Review</h1><div className="aix-subtitle">Muditam AI platform</div></div></div><div className="aix-private-badge">Private · temporary uploads</div></header>
+      <header className="aix-header"><div className="aix-brand"><div className="aix-mark">M</div><div><h1>Report Extractor Review</h1><div className="aix-subtitle">Muditam AI platform</div></div></div><div className="aix-private-badge">Secure & confidential</div></header>
       <section className="aix-upload-card"><div className="aix-upload-grid">
-        <div><div className="aix-eyebrow">Blood report extraction</div><h2>Upload a report and inspect its useful values.</h2><p className="aix-intro">Your browser uploads the file directly to private Wasabi storage. The LMS server receives only file details and temporary links, keeping large report files out of server memory.</p>
+        <div><div className="aix-eyebrow">Blood report analysis</div><h2>Upload a report and review its key health values.</h2><p className="aix-intro">Upload your blood report to review important health markers and extracted observations in one place.</p>
           {status && <div className={`aix-status aix-status-${status.type}`} role="status">{status.type === "loading" && <span className="aix-spinner" />}{status.text}</div>}
         </div>
         <label className={`aix-drop ${dragging ? "aix-drop-drag" : ""} ${busy ? "aix-drop-disabled" : ""}`} onDragEnter={(event) => { event.preventDefault(); if (!busy) setDragging(true); }} onDragOver={(event) => event.preventDefault()} onDragLeave={() => setDragging(false)} onDrop={handleDrop}>
