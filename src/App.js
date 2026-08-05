@@ -898,7 +898,16 @@ function AppLayout() {
             }
           />
         <Route path="/diet-dashboard"  element={<PrivateRoute><DietDashboard /></PrivateRoute>} />
-        <Route path="/aiextractor" element={<PrivateRoute><AiReportExtractorPage /></PrivateRoute>} />
+        <Route
+          path="/aiextractor"
+          element={
+            <PrivateRoute>
+              <PermissionRoute permissionKey="aiReportExtractor">
+                <AiReportExtractorPage />
+              </PermissionRoute>
+            </PrivateRoute>
+          }
+        />
         <Route path="/diet-plan-editor" element={<PrivateRoute><DietPlanEditor /></PrivateRoute>} />
          <Route path="/smart-diet-plan" element={<PrivateRoute><SmartDietPlanView /></PrivateRoute>} />
          <Route path="/diet-onboarding" element={<DietOnboarding />} />
