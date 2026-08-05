@@ -35,6 +35,7 @@ import StorefrontIcon from "@mui/icons-material/Storefront";
 import RestaurantIcon from "@mui/icons-material/Restaurant";
 import TransformIcon from "@mui/icons-material/Transform";
 import AssignmentReturnIcon from "@mui/icons-material/AssignmentReturn";
+import BiotechIcon from "@mui/icons-material/Biotech";
 
 const styles = `
   @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Syne:wght@600;700&display=swap');
@@ -806,6 +807,10 @@ const MenuBar = ({ toggleDrawer }) => {
 
           {user && can("myGrowthPlan") && (
             <NavItem to="/my-growth-plan" icon={<TrendingUpIcon />} label="Growth At Muditam" />
+          )}
+
+          {user && can("aiReportExtractor") && (
+            <NavItem to="/aiextractor" icon={<BiotechIcon />} label="Report Extraction" />
           )}
         </div>
 
