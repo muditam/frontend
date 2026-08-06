@@ -106,6 +106,7 @@ import DietDashboard from "./pages/diet/DietDashboard";
 import DietPlanEditor from "./pages/diet/DietPlanEditor";
 import DataConvertor from "./pages/DataConvertor";
 import AccessDenied from "./pages/AccessDenied";
+import AiReportExtractorPage from "./pages/aiExtractor/AiReportExtractorPage";
 
 function AppLayout() {
   const location = useLocation();
@@ -897,6 +898,16 @@ function AppLayout() {
             }
           />
         <Route path="/diet-dashboard"  element={<PrivateRoute><DietDashboard /></PrivateRoute>} />
+        <Route
+          path="/aiextractor"
+          element={
+            <PrivateRoute>
+              <PermissionRoute permissionKey="aiReportExtractor">
+                <AiReportExtractorPage />
+              </PermissionRoute>
+            </PrivateRoute>
+          }
+        />
         <Route path="/diet-plan-editor" element={<PrivateRoute><DietPlanEditor /></PrivateRoute>} />
          <Route path="/smart-diet-plan" element={<PrivateRoute><SmartDietPlanView /></PrivateRoute>} />
          <Route path="/diet-onboarding" element={<DietOnboarding />} />
