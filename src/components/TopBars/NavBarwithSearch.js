@@ -926,7 +926,7 @@ const NavbarWithSearch = () => {
 
 
 
-            <IconButton
+            {/* <IconButton
                sx={{
                  mr: 1,
                  color: "#fff",
@@ -936,7 +936,7 @@ const NavbarWithSearch = () => {
                onClick={handleDownloadOrders}
              >
                <DownloadIcon />
-             </IconButton>
+             </IconButton> */}
            {user && canNav("cartIcon") && (
              <IconButton
                color="inherit"
