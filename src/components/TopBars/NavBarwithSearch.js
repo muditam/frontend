@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import {
  AppBar,
  Toolbar,
@@ -37,7 +37,6 @@ import MenuBar from "./MenuBar";
 import { useNavigate, useLocation } from "react-router-dom";
 import StickyNote2Icon from "@mui/icons-material/StickyNote2";
 import CartDrawer from "../../ShopifyOrders/CartDrawer";
-import EmojiEventsIcon from "@mui/icons-material/EmojiEvents";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import ExpandLessIcon from "@mui/icons-material/ExpandLess";
 import CloseIcon from "@mui/icons-material/Close";
@@ -46,13 +45,10 @@ import LocalShippingIcon from "@mui/icons-material/LocalShipping";
 import { Syringe } from "lucide-react";
 import pincodeData from "../../LeadConsultation/ProcessTracker/pincodeData";
 import DeliveryStatusChecker from "./DeliveryStatusChecker";
-import LeaderboardPopover from "./LeaderboardPopover";
 import DownloadIcon from "@mui/icons-material/Download";
 import CheckBoxIcon from "@mui/icons-material/CheckBox";
 import CampaignIcon from "@mui/icons-material/Campaign";
 import AssessmentIcon from "@mui/icons-material/Assessment";
-import { Flower2 } from "lucide-react";
-import Bloomleader from "./Bloomleader";
 import MarketingQuickCreateDialog from "../../Marketing/MarketingQuickCreateDialog";
 
 
@@ -121,10 +117,7 @@ const NavbarWithSearch = () => {
  const [availableLabs, setAvailableLabs] = useState([]);
  const [checkClicked, setCheckClicked] = useState(false);
  const [incentiveOpen, setIncentiveOpen] = useState(false);
- const leaderboardAnchorRef = useRef(null);
- const [leaderboardOpen, setLeaderboardOpen] = useState(false);
  const [deliveryDialogOpen, setDeliveryDialogOpen] = useState(false);
- const [bloomOpen, setBloomOpen] = useState(false);
  const [marketingQuickCreateOpen, setMarketingQuickCreateOpen] = useState(false);
  const [revertLoading, setRevertLoading] = useState(false);
 
@@ -812,55 +805,6 @@ const NavbarWithSearch = () => {
                <RocketLaunchIcon />
              </IconButton>
            )}
-
-
-           {user && canNav("bloomIcon") && (
-             <IconButton
-               onClick={() => setBloomOpen(true)}
-               sx={{
-                 mr: 0.5,
-                 color: "#fff",
-                 borderRadius: "50%",
-                 p: 1.1,
-                 "&:hover": { bgcolor: "#fff", color: "#e0e0e0" },
-               }}
-               title="View Bloom Leaderboard"
-             >
-               <Flower2 />
-             </IconButton>
-           )}
-
-
-           {user && canNav("leaderboardIcon") && (
-             <IconButton
-               ref={leaderboardAnchorRef}
-               onClick={() => setLeaderboardOpen(true)}
-               sx={{
-                 mr: 0.5,
-                 color: "#fff",
-                 borderRadius: "50%",
-                 p: 1.1,
-                 "&:hover": { bgcolor: "#fff", color: "#e0e0e0" },
-               }}
-               title="View Leaderboard"
-             >
-               <EmojiEventsIcon />
-             </IconButton>
-           )}
-
-
-           <Bloomleader
-             open={bloomOpen}
-             anchorEl={leaderboardAnchorRef.current}
-             onClose={() => setBloomOpen(false)}
-           />
-
-
-           <LeaderboardPopover
-             open={leaderboardOpen}
-             anchorEl={leaderboardAnchorRef.current}
-             onClose={() => setLeaderboardOpen(false)}
-           />
 
 
            {user && canNav("campaignQuickCreate") && (
