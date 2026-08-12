@@ -763,7 +763,6 @@ const MenuBar = ({ toggleDrawer }) => {
           {/* Leaderboard */}
           {user && can("leaderboardMenu") && (
             <DropdownGroup id="leaderboard" icon={<EmojiEventsIcon />} label="Leaderboard">
-              {can("leaderboardAll") && <SubItem to="/leaderboard" label="All Leaderboard" />}
               {can("leaderboardBloom") && <SubItem to="/bloom-leaderboard" label="Bloom Leaderboard" />}
             </DropdownGroup>
           )}
