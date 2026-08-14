@@ -2594,7 +2594,7 @@ You can mark Lost only after 60 days.`);
                           onChange={(e) => handleInputChange(e, selectedLeadIndex, "preferredLanguage")}
                           sx={{ borderRadius: "12px" }}
                         >
-                          {["Hindi", "English", "Others"].map((lang) => (
+                          {["Hindi", "English", "Tamil", "Telugu", "Malayalam", "Kannada", "Punjabi"].map((lang) => (
                             <MenuItem key={lang} value={lang}>
                               {lang}
                             </MenuItem>
