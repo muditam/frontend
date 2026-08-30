@@ -31,7 +31,7 @@ import RetentionLost from "./Lostdata/RetentionLost";
 import PrivateRoute from "./components/PrivateRoute";
 import PermissionRoute from "./components/PermissionRoute";
 import LeadManagement from './LeadConsultation/LeadManagement';
-import EscalationsPage from './components/EscalationsPage';
+import EscalationsWorkspace from './components/EscalationsWorkspace';
 import TeamPage from "./components/TeamPage";
 import GrowthTracker from "./components/GrowthTracker";
 import Leaderboard from "./components/Leaderboard";
@@ -421,7 +421,7 @@ function AppLayout() {
             path="/escalations"
             element={
               <PrivateRoute>
-                <EscalationsPage />
+                <EscalationsWorkspace />
               </PrivateRoute>
             }
           />
