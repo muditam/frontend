@@ -52,6 +52,7 @@ import HistoryIcon from "@mui/icons-material/History";
 import ReceiptLongIcon from "@mui/icons-material/ReceiptLong";
 import LocalShippingIcon from "@mui/icons-material/LocalShipping";
 import PaymentsIcon from "@mui/icons-material/Payments";
+import ConfirmationNumberOutlinedIcon from "@mui/icons-material/ConfirmationNumberOutlined";
 import { io } from "socket.io-client";
 import WhatsAppCartDrawer from "../pages/retention/WhatsAppCartDrawer";
  
@@ -79,6 +80,28 @@ const CHAT_STATUS_LABELS = CHAT_STATUS_OPTIONS.reduce((acc, item) => {
   acc[item.value] = item.label;
   return acc;
 }, {});
+const TICKET_CATEGORIES = {
+  confirmation: [
+    { value: "order_confirmation", label: "Order confirmation" },
+    { value: "customer_unreachable", label: "Customer unreachable" },
+    { value: "cancellation_request", label: "Cancellation request" },
+  ],
+  pre: [
+    { value: "delayed", label: "Delayed delivery" },
+    { value: "fake_remark", label: "Incorrect delivery remark" },
+    { value: "pincode_reachability", label: "Address or pincode issue" },
+    { value: "delivery_complaint", label: "Delivery complaint" },
+    { value: "other", label: "Other pre-delivery issue" },
+  ],
+  post: [
+    { value: "refund_request", label: "Refund request" },
+    { value: "return_request", label: "Return request" },
+    { value: "incomplete_order", label: "Incomplete order" },
+    { value: "wrong_order", label: "Wrong order" },
+    { value: "doctor_escalation", label: "Product or health concern" },
+    { value: "other", label: "Other post-delivery issue" },
+  ],
+};
 const MESSAGE_PAGE_SIZE = 15;
 const TRACKING_CUTOFF_DATE = new Date("2026-03-06T00:00:00");
 
@@ -189,7 +212,7 @@ async function api(path, options = {}) {
   const text = await res.text();
   let data = null;
   try { data = text ? JSON.parse(text) : null; } catch { data = null; }
-  if (!res.ok) { const msg = data?.message || `Request failed: ${res.status}`; const err = new Error(msg); err.status = res.status; err.data = data; throw err; }
+  if (!res.ok) { const msg = data?.message || data?.error || `Request failed: ${res.status}`; const err = new Error(msg); err.status = res.status; err.data = data; throw err; }
   return data;
 }
 
@@ -1028,6 +1051,10 @@ export default function WhatsAppUI() {
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState("");
   const [expandedHistoryOrders, setExpandedHistoryOrders] = useState({});
+  const [ticketDialogOpen, setTicketDialogOpen] = useState(false);
+  const [ticketSubmitting, setTicketSubmitting] = useState(false);
+  const [ticketError, setTicketError] = useState("");
+  const [ticketForm, setTicketForm] = useState({ orderSourceId: "", type: "pre", category: "delayed", priority: "medium", summary: "" });
   const [quickAnchor, setQuickAnchor] = useState(null);
   const [tplAnchor, setTplAnchor] = useState(null);
   const [emojiAnchor, setEmojiAnchor] = useState(null);
@@ -1318,10 +1345,10 @@ export default function WhatsAppUI() {
     return name && name !== "—" ? name : activeP10 || "";
   }, [activeHeaderTitle, activeP10]);
 
-  const loadOrderHistory = useCallback(async (phone = activeP10, { force = false } = {}) => {
+  const loadOrderHistory = useCallback(async (phone = activeP10, { force = false, open = true } = {}) => {
     const p10 = phone10(phone);
     if (!p10) return;
-    setHistoryOpen(true);
+    if (open) setHistoryOpen(true);
     setHistoryError("");
     if (!force && historyByPhone[p10]) return;
     setHistoryLoading(true);
@@ -1335,6 +1362,31 @@ export default function WhatsAppUI() {
       setHistoryLoading(false);
     }
   }, [activeP10, historyByPhone]);
+
+  const openTicketDialog = useCallback(async () => {
+    setTicketError("");
+    setTicketForm({ orderSourceId: "", type: "pre", category: "delayed", priority: "medium", summary: "" });
+    setTicketDialogOpen(true);
+    await loadOrderHistory(activeP10, { open: false });
+  }, [activeP10, loadOrderHistory]);
+
+  const submitSupportTicket = useCallback(async () => {
+    if (!ticketForm.orderSourceId || !ticketForm.summary.trim()) return;
+    setTicketSubmitting(true);
+    setTicketError("");
+    try {
+      const result = await api("/api/ticketing-integration/tickets", {
+        method: "POST",
+        body: JSON.stringify(ticketForm),
+      });
+      setTicketDialogOpen(false);
+      showToast(`Ticket ${result?.ticket?.ticketNo || "created"} sent to Customer Support`, "success");
+    } catch (error) {
+      setTicketError(extractApiErrorMessage(error, "Failed to create ticket"));
+    } finally {
+      setTicketSubmitting(false);
+    }
+  }, [showToast, ticketForm]);
 
   const favoritePhoneList = useMemo(
     () => Object.keys(favoritePhones || {}).map((value) => phone10(value)).filter(Boolean),
@@ -3649,6 +3701,22 @@ export default function WhatsAppUI() {
 	                    </Stack>
 	                  </Stack>
 	                </Popover>
+	                <Tooltip title="Raise support ticket">
+	                  <IconButton
+	                    onClick={openTicketDialog}
+	                    disabled={!hasActiveChat}
+	                    sx={{
+	                      width: 34,
+	                      height: 34,
+	                      bgcolor: "#fff",
+	                      border: `1px solid ${LIGHT.border}`,
+	                      color: LIGHT.subtext,
+	                      "&:hover": { bgcolor: "#f8fafc", color: "#128C7E" },
+	                    }}
+	                  >
+	                    <ConfirmationNumberOutlinedIcon sx={{ fontSize: 19 }} />
+	                  </IconButton>
+	                </Tooltip>
 	                <Tooltip title="Mark as unread">
 	                  <IconButton
 	                    onClick={() => markConversationUnread(activeChat?.phone || activeP10)}
@@ -4725,6 +4793,47 @@ export default function WhatsAppUI() {
         phone10={activeP10}
         leadName={activeHeaderTitle}
       />
+
+      <Dialog open={ticketDialogOpen} onClose={() => !ticketSubmitting && setTicketDialogOpen(false)} fullWidth maxWidth="sm">
+        <DialogTitle sx={{ pb: 1, fontSize: 18, fontWeight: 800 }}>Raise support ticket</DialogTitle>
+        <DialogContent sx={{ pt: "12px !important" }}>
+          <Stack spacing={2}>
+            <Box>
+              <Typography sx={{ fontSize: 13, fontWeight: 700, color: LIGHT.text }}>{activeHeaderTitle || "Customer"}</Typography>
+              <Typography sx={{ fontSize: 12, color: LIGHT.subtext }}>{activeP10}</Typography>
+            </Box>
+            {ticketError && <Alert severity="error">{ticketError}</Alert>}
+            {historyLoading ? (
+              <Stack direction="row" spacing={1} alignItems="center" sx={{ py: 2 }}><CircularProgress size={18} /><Typography sx={{ fontSize: 13 }}>Loading orders...</Typography></Stack>
+            ) : (
+              <TextField select label="Order" value={ticketForm.orderSourceId} onChange={(event) => setTicketForm((current) => ({ ...current, orderSourceId: event.target.value }))} fullWidth size="small">
+                {currentHistoryOrders.map((order) => (
+                  <MenuItem key={order.id} value={String(order.id)}>
+                    {order.name} · {formatOrderDate(order.created_at)} · {formatMoney(order.totalAmount)}
+                  </MenuItem>
+                ))}
+              </TextField>
+            )}
+            {!historyLoading && !currentHistoryOrders.length && <Alert severity="warning">No Shopify orders were found for this phone number.</Alert>}
+            <TextField select label="Ticket type" value={ticketForm.type} onChange={(event) => { const type = event.target.value; setTicketForm((current) => ({ ...current, type, category: TICKET_CATEGORIES[type][0].value })); }} fullWidth size="small">
+              <MenuItem value="confirmation">Confirmation</MenuItem><MenuItem value="pre">Pre-Delivery</MenuItem><MenuItem value="post">Post-Delivery</MenuItem>
+            </TextField>
+            <TextField select label="Issue category" value={ticketForm.category} onChange={(event) => setTicketForm((current) => ({ ...current, category: event.target.value }))} fullWidth size="small">
+              {TICKET_CATEGORIES[ticketForm.type].map((category) => <MenuItem key={category.value} value={category.value}>{category.label}</MenuItem>)}
+            </TextField>
+            <TextField select label="Priority" value={ticketForm.priority} onChange={(event) => setTicketForm((current) => ({ ...current, priority: event.target.value }))} fullWidth size="small">
+              <MenuItem value="low">Low</MenuItem><MenuItem value="medium">Medium</MenuItem><MenuItem value="high">High</MenuItem>
+            </TextField>
+            <TextField label="Issue details" value={ticketForm.summary} onChange={(event) => setTicketForm((current) => ({ ...current, summary: event.target.value }))} multiline minRows={3} fullWidth placeholder="Describe what Customer Support needs to handle" />
+            <Stack direction="row" justifyContent="flex-end" spacing={1}>
+              <Button onClick={() => setTicketDialogOpen(false)} disabled={ticketSubmitting} sx={{ textTransform: "none" }}>Cancel</Button>
+              <Button variant="contained" onClick={submitSupportTicket} disabled={ticketSubmitting || !ticketForm.orderSourceId || !ticketForm.summary.trim()} sx={{ bgcolor: "#128C7E", textTransform: "none", boxShadow: "none", "&:hover": { bgcolor: "#0f766e", boxShadow: "none" } }}>
+                {ticketSubmitting ? "Creating..." : "Raise ticket"}
+              </Button>
+            </Stack>
+          </Stack>
+        </DialogContent>
+      </Dialog>
 
       <Drawer
         anchor="right"
