@@ -72,6 +72,7 @@ export default function RetentionOverviewCategoryDetails() {
         if (healthExpert) qs.set("healthExpert", healthExpert);
         const res = await fetch(`${API_BASE}/cohart-dataApi/active-customers-category-details?${qs.toString()}`, {
           headers: { Accept: "application/json" },
+          credentials: "include",
         });
         const text = await res.text();
         if (!res.ok) throw new Error(`HTTP ${res.status}: ${text.slice(0, 200)}`);

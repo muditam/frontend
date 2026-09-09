@@ -323,8 +323,8 @@ const NavbarWithSearch = () => {
  const handleDownloadOrders = async () => {
    try {
      const response = await axios.get(
-       "http://localhost:5001/api/myorders/download",
-       { responseType: "blob" }
+       `${API_BASE_URL}/api/myorders/download`,
+       { responseType: "blob", withCredentials: true }
      );
 
 
@@ -870,7 +870,7 @@ const NavbarWithSearch = () => {
 
 
 
-            {/* <IconButton
+              {/* <IconButton
                sx={{
                  mr: 1,
                  color: "#fff",
