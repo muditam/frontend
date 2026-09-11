@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import axios from "axios";
 import {
-  Alert, Box, Chip, CircularProgress, MenuItem, Paper, Stack, Table, TableBody,
+  Alert, Box, Button, Chip, CircularProgress, Dialog, DialogContent, DialogTitle, Divider, MenuItem, Paper, Stack, Table, TableBody,
   TableCell, TableContainer, TableHead, TablePagination, TableRow, TextField, Typography,
 } from "@mui/material";
 
@@ -12,6 +12,9 @@ const API = `${API_BASE}/api`;
 
 function label(value) {
   return String(value || "—").replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+function orderNumber(ticket) {
+  return String(ticket?.order?.orderName || ticket?.references?.orderSourceId || "—").replace(/^#/, "");
 }
 
 export default function SupportTicketsPage() {
@@ -24,7 +27,19 @@ export default function SupportTicketsPage() {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [loading, setLoading] = useState(true);
+  const [selected, setSelected] = useState(null);
+  const [detailsLoading, setDetailsLoading] = useState(false);
   const [error, setError] = useState("");
+
+  const openTicket = async (ticket) => {
+    setSelected(ticket); setDetailsLoading(true); setError("");
+    try {
+      const response = await axios.get(`${API}/ticketing-integration/tickets/${encodeURIComponent(ticket.id)}`, { withCredentials: true });
+      setSelected(response.data);
+    } catch (requestError) {
+      setError(requestError.response?.data?.error || "Could not load ticket details");
+    } finally { setDetailsLoading(false); }
+  };
 
   const load = useCallback(async () => {
     setLoading(true); setError("");
@@ -57,9 +72,9 @@ export default function SupportTicketsPage() {
       <Table size="small">
         <TableHead><TableRow><TableCell>Ticket</TableCell><TableCell>Order</TableCell><TableCell>Issue</TableCell><TableCell>Type</TableCell><TableCell>Priority</TableCell><TableCell>Assigned to</TableCell><TableCell>Status</TableCell><TableCell>Created</TableCell></TableRow></TableHead>
         <TableBody>
-          {loading ? <TableRow><TableCell colSpan={8} align="center" sx={{ py: 7 }}><CircularProgress size={24} /></TableCell></TableRow> : items.length ? items.map((ticket) => <TableRow key={ticket.id} hover>
-            <TableCell><Typography sx={{ fontSize: 13, fontWeight: 800 }}>{ticket.ticketNo}</Typography></TableCell>
-            <TableCell>{ticket.references?.orderSourceId || "—"}</TableCell>
+          {loading ? <TableRow><TableCell colSpan={8} align="center" sx={{ py: 7 }}><CircularProgress size={24} /></TableCell></TableRow> : items.length ? items.map((ticket) => <TableRow key={ticket.id} hover onClick={() => openTicket(ticket)} sx={{ cursor: "pointer" }}>
+            <TableCell><Button variant="text" sx={{ minWidth: 0, p: 0, fontSize: 13, fontWeight: 800, textTransform: "none" }}>{ticket.ticketNo}</Button></TableCell>
+            <TableCell>{orderNumber(ticket)}</TableCell>
             <TableCell sx={{ maxWidth: 300 }}><Typography noWrap sx={{ fontSize: 13 }}>{ticket.reason?.summary || "—"}</Typography></TableCell>
             <TableCell>{label(ticket.type)}</TableCell>
             <TableCell><Chip size="small" label={label(ticket.priority)} /></TableCell>
@@ -71,5 +86,22 @@ export default function SupportTicketsPage() {
       </Table>
       <TablePagination component="div" count={pagination.total || 0} page={page} rowsPerPage={25} rowsPerPageOptions={[25]} onPageChange={(_, next) => setPage(next)} />
     </TableContainer>
+    <Dialog open={Boolean(selected)} onClose={() => !detailsLoading && setSelected(null)} fullWidth maxWidth="md">
+      <DialogTitle sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 2 }}><Box><Typography sx={{ fontSize: 12, color: "#64748b" }}>SUPPORT TICKET</Typography><Typography sx={{ fontSize: 20, fontWeight: 800 }}>{selected?.ticketNo || "Loading ticket…"}</Typography></Box><Button onClick={() => setSelected(null)} disabled={detailsLoading}>Close</Button></DialogTitle>
+      <DialogContent dividers>
+        {detailsLoading ? <Box sx={{ py: 7, display: "grid", placeItems: "center" }}><CircularProgress size={26} /></Box> : selected && <Stack spacing={2.5}>
+          <Stack direction={{ xs: "column", sm: "row" }} spacing={1}><Chip label={label(selected.type)} /><Chip color={selected.status === "closed" ? "success" : "warning"} label={label(selected.status)} /><Chip label={`${label(selected.priority)} priority`} /></Stack>
+          <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "repeat(3, 1fr)" }, gap: 2 }}>
+            <Box><Typography variant="caption" color="text.secondary">Order</Typography><Typography fontWeight={700}>{orderNumber(selected)}</Typography></Box>
+            <Box><Typography variant="caption" color="text.secondary">Assigned to</Typography><Typography fontWeight={700}>{selected.assignee?.name || "Waiting for assignment"}</Typography></Box>
+            <Box><Typography variant="caption" color="text.secondary">Created</Typography><Typography fontWeight={700}>{selected.createdAt ? new Date(selected.createdAt).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" }) : "—"}</Typography></Box>
+          </Box>
+          <Divider />
+          <Box><Typography variant="caption" color="text.secondary">Issue</Typography><Typography sx={{ mt: .5 }}>{selected.reason?.summary || "—"}</Typography></Box>
+          {selected.resolution && <Box sx={{ p: 2, borderRadius: 2, bgcolor: "#f0fdf4" }}><Typography variant="caption" color="text.secondary">Resolution</Typography><Typography fontWeight={700}>{selected.resolution.notes || label(selected.resolution.code)}</Typography></Box>}
+          <Box><Typography sx={{ mb: 1, fontWeight: 800 }}>Ticket history</Typography><Stack spacing={1}>{selected.events?.length ? selected.events.map((event) => <Box key={event.id} sx={{ p: 1.25, border: "1px solid #e2e8f0", borderRadius: 1.5 }}><Typography sx={{ fontSize: 13, fontWeight: 700 }}>{label(event.type)}</Typography><Typography sx={{ fontSize: 12, color: "#64748b" }}>{event.createdAt ? new Date(event.createdAt).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" }) : "—"}{event.actor?.name ? ` · ${event.actor.name}` : ""}</Typography></Box>) : <Typography color="text.secondary">No history available.</Typography>}</Stack></Box>
+        </Stack>}
+      </DialogContent>
+    </Dialog>
   </Box>;
 }
