@@ -1,6 +1,13 @@
 import React from "react";
 import { Navigate } from "react-router-dom";
 
+const clearUserScopedCaches = () => {
+  sessionStorage.removeItem("agentEmployeeId");
+  Object.keys(sessionStorage).forEach((key) => {
+    if (key.startsWith("abandoned:")) sessionStorage.removeItem(key);
+  });
+};
+
 const PrivateRoute = ({ children }) => {
   // Primary auth source: current tab session
   let user = sessionStorage.getItem("user");
@@ -15,6 +22,7 @@ const PrivateRoute = ({ children }) => {
         const bridgedUser = payload?.user;
         const ageMs = Date.now() - ts;
         if (bridgedUser && ageMs >= 0 && ageMs <= 2 * 60 * 1000) {
+          clearUserScopedCaches();
           sessionStorage.setItem("user", JSON.stringify(bridgedUser));
           localStorage.removeItem("session:user:bridge");
           window.dispatchEvent(new Event("session:user:set"));

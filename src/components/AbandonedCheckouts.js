@@ -60,6 +60,24 @@ function formatMoney(value, currency = "INR") {
   return `${currency} ${n.toFixed(2)}`;
 }
 
+function formatWebhookTime(value) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return "";
+  return new Intl.DateTimeFormat("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+    timeZone: "Asia/Kolkata",
+  })
+    .format(date)
+    .replace(",", "")
+    .replace(/\b(am|pm)\b/i, (match) => match.toLowerCase());
+}
+
 // Read current user from SESSION (your login saves to sessionStorage)
 function readCurrentUser() {
   try {
@@ -83,10 +101,16 @@ function isSalesOrRetention(role) {
   return r === "salesagent" || r === "retentionagent";
 }
 
+function getAgentCacheKey(user) {
+  const identity = user?._id || user?.id || user?.email || user?.fullName || "";
+  return identity ? `abandoned:agentEmployeeId:${String(identity).toLowerCase()}` : "";
+}
+
 export default function AbandonedCheckouts() {
   const [rows, setRows] = useState([]);
   const [count, setCount] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [lastWebhookAt, setLastWebhookAt] = useState("");
 
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(0);
@@ -105,17 +129,15 @@ export default function AbandonedCheckouts() {
   const [currentUser, setCurrentUser] = useState(null);
   const [userResolved, setUserResolved] = useState(false); // NEW: gate initial fetch
   const isAgent = useMemo(() => isSalesOrRetention(currentUser?.role), [currentUser]);
+  const agentCacheKey = useMemo(() => getAgentCacheKey(currentUser), [currentUser]);
 
-  // Resolve logged-in user's Employee _id (by email/fullName)
-  const [agentEmployeeId, setAgentEmployeeId] = useState(
-    () => sessionStorage.getItem("agentEmployeeId") || null // NEW: cache restore
-  );
+  // Resolve logged-in user's Employee _id (by email/fullName).
+  // Keep this scoped per user; otherwise switching from Karan S to Karan can reuse the old id.
+  const [agentEmployeeId, setAgentEmployeeId] = useState(null);
 
-  // Admins can toggle; agents are forced to "assigned"
-  const [assignedFilter, setAssignedFilter] = useState("unassigned");
+  // Admins can view the full queue; agents are forced to their own assigned carts.
+  const [assignedFilter, setAssignedFilter] = useState("");
   const effectiveAssigned = isAgent ? "assigned" : assignedFilter; // NEW: derived
-  const toggleAssignedFilter = () =>
-    setAssignedFilter((prev) => (prev === "unassigned" ? "assigned" : "unassigned"));
 
   const start = quickRange === "Custom range" ? customStart : quick.start;
   const end = quickRange === "Custom range" ? customEnd : quick.end;
@@ -129,6 +151,15 @@ export default function AbandonedCheckouts() {
     }
     setUserResolved(true); // mark that we've attempted read
   }, []);
+
+  useEffect(() => {
+    if (!currentUser) {
+      setAgentEmployeeId(null);
+      return;
+    }
+    setAgentEmployeeId(agentCacheKey ? sessionStorage.getItem(agentCacheKey) || null : null);
+    sessionStorage.removeItem("agentEmployeeId");
+  }, [currentUser, agentCacheKey]);
 
   // Load employees (active Sales/Retention)
   useEffect(() => {
@@ -173,9 +204,9 @@ export default function AbandonedCheckouts() {
 
     if (resolved) {
       setAgentEmployeeId(resolved);
-      sessionStorage.setItem("agentEmployeeId", String(resolved)); // NEW: cache
+      if (agentCacheKey) sessionStorage.setItem(agentCacheKey, String(resolved));
     }
-  }, [isAgent, employees, currentUser, agentEmployeeId]);
+  }, [isAgent, employees, currentUser, agentEmployeeId, agentCacheKey]);
 
   // Only fetch when we're ready:
   const readyToFetch = useMemo(() => {
@@ -184,7 +215,7 @@ export default function AbandonedCheckouts() {
     return Boolean(agentEmployeeId || currentUser?.email);
   }, [userResolved, isAgent, agentEmployeeId, currentUser?.email]);
 
-  const fetchData = async () => {
+  const fetchData = async ({ force = false } = {}) => {
     if (!readyToFetch) return; // guard against premature calls
     try {
       setLoading(true);
@@ -207,6 +238,7 @@ export default function AbandonedCheckouts() {
       }
 
       const cacheKey = `abandoned:list:${JSON.stringify(params)}`;
+      if (force) clearCachedData("abandoned:list:");
       const data = await getCachedData(
         cacheKey,
         async () => {
@@ -217,12 +249,15 @@ export default function AbandonedCheckouts() {
       );
       setRows(data.items || []);
       setCount(data.total || 0);
+      setLastWebhookAt(data.lastWebhookAt || "");
     } catch (e) {
       console.error(e);
     } finally {
       setLoading(false);
     }
   };
+
+  const refreshData = () => fetchData({ force: true });
 
   // Fetch on param changes, but only when ready
   useEffect(() => {
@@ -277,8 +312,14 @@ export default function AbandonedCheckouts() {
     <Box p={2}>
       <Stack direction="row" alignItems="center" justifyContent="space-between" mb={2}>
         <Typography variant="h6" fontWeight={700}>Abandoned Checkouts</Typography>
-        <Stack direction="row" spacing={1} alignItems="center">
-          <IconButton onClick={fetchData} aria-label="Refresh"><RefreshIcon /></IconButton>
+        <Stack direction="row" spacing={1.5} alignItems="center">
+          <Typography
+            variant="body2"
+            sx={{ color: "text.secondary", fontWeight: 600, whiteSpace: "nowrap" }}
+          >
+            {lastWebhookAt ? `Last webhook ${formatWebhookTime(lastWebhookAt)}` : "Last webhook —"}
+          </Typography>
+          <IconButton onClick={refreshData} aria-label="Refresh"><RefreshIcon /></IconButton>
         </Stack>
       </Stack>
 
@@ -332,11 +373,23 @@ export default function AbandonedCheckouts() {
             Search
           </Button>
 
-          {/* Hide Assigned/Unassigned toggle for agents */}
+          {/* Admins see all carts by default and can narrow the queue. */}
           {!isAgent && (
-            <Button variant="outlined" onClick={toggleAssignedFilter}>
-              {assignedFilter === "unassigned" ? "Assigned" : "Unassigned"}
-            </Button>
+            <FormControl size="small" sx={{ minWidth: 170 }}>
+              <InputLabel>Assignment</InputLabel>
+              <Select
+                label="Assignment"
+                value={assignedFilter}
+                onChange={(e) => {
+                  setAssignedFilter(e.target.value);
+                  setPage(0);
+                }}
+              >
+                <MenuItem value="">All carts</MenuItem>
+                <MenuItem value="unassigned">Unassigned</MenuItem>
+                <MenuItem value="assigned">Assigned</MenuItem>
+              </Select>
+            </FormControl>
           )}
         </Stack>
       </Paper>
@@ -371,7 +424,7 @@ export default function AbandonedCheckouts() {
 
                   return (
                     <TableRow key={r._id} hover>
-                      <TableCell>{r.eventAt ? dayjs(r.eventAt).format("DD MMM, HH:mm") : "-"}</TableCell>
+                      <TableCell>{r.eventAt ? dayjs(r.eventAt).format("DD MMM, hh:mm a") : "-"}</TableCell>
 
                       <TableCell>
                         <Stack spacing={0.5}>

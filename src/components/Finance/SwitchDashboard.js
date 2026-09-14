@@ -58,6 +58,13 @@ const clearSwitchMarkers = () => {
   sessionStorage.removeItem('switchMeta');
 };
 
+const clearUserScopedCaches = () => {
+  sessionStorage.removeItem('agentEmployeeId');
+  Object.keys(sessionStorage).forEach((key) => {
+    if (key.startsWith('abandoned:')) sessionStorage.removeItem(key);
+  });
+};
+
 const getSessionUserHeaders = () => {
   return {};
 };
@@ -193,6 +200,7 @@ const SwitchDashboard = () => {
       );
       if (data?.user) {
         const toStore = { ...data.user, _id: data.user._id || data.user.id };
+        clearUserScopedCaches();
         sessionStorage.setItem('user', JSON.stringify(toStore));
         sessionStorage.setItem('switchMeta', JSON.stringify({
           targetName: toStore.fullName,
@@ -218,6 +226,7 @@ const SwitchDashboard = () => {
       if (!originalStr) return false;
       try {
         const original = JSON.parse(originalStr);
+        clearUserScopedCaches();
         sessionStorage.setItem('user', JSON.stringify(original));
         clearSwitchMarkers();
         navigate('/switch-dashboard', { replace: true });
@@ -248,6 +257,7 @@ const SwitchDashboard = () => {
         }
       }
       if (data?.user) {
+        clearUserScopedCaches();
         sessionStorage.setItem('user', JSON.stringify({ ...data.user, _id: data.user._id || data.user.id }));
       } else if (restoreOriginalLocally()) {
         return;
