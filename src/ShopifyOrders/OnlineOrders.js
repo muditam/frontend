@@ -175,16 +175,27 @@ function displayDateTime(value) {
   });
 }
 
-function displayOrderDate(value) {
+function displaySyncTime(value, loading) {
+  if (value) return displayDateTime(value);
+  return loading ? "Loading..." : "Not available";
+}
+
+function displayOrderPlaced(value) {
   if (!value) return "—";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "—";
-  return date.toLocaleDateString("en-IN", {
+  const datePart = date.toLocaleDateString("en-IN", {
     timeZone: "Asia/Kolkata",
-    day: "2-digit",
+    day: "numeric",
     month: "short",
-    year: "numeric",
   });
+  const timePart = date.toLocaleTimeString("en-IN", {
+    timeZone: "Asia/Kolkata",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  });
+  return `${datePart}, ${timePart}`;
 }
 
 function triggerSummary(from, to) {
@@ -192,9 +203,11 @@ function triggerSummary(from, to) {
   const today = todayInIndia();
   const [yesterdayFrom, yesterdayTo] = presetDates("yesterday");
   const [lastSevenFrom, lastSevenTo] = presetDates("7d");
+  const [lastMonthFrom, lastMonthTo] = presetDates("lastMonth");
   if (from === today && to === today) return "Today";
   if (from === yesterdayFrom && to === yesterdayTo) return "Yesterday";
   if (from === lastSevenFrom && to === lastSevenTo) return "Last 7 days";
+  if (from === lastMonthFrom && to === lastMonthTo) return "Last 30 days";
   if (from && from === to) return displayDate(from);
   return `${displayDate(from)} - ${displayDate(to)}`;
 }
@@ -220,7 +233,7 @@ const datePresets = [
   ["yesterday", "Yesterday"],
   ["7d", "Last 7 days"],
   ["15d", "Last 15 days"],
-  ["lastMonth", "Last month"],
+  ["lastMonth", "Last 30 days"],
   ["custom", "Range"],
 ];
 
@@ -484,7 +497,7 @@ const tableColumns = [
   "Order ID",
   "Name",
   "Contact Number",
-  "Order Date",
+  "Order Placed",
   "Amount",
   "Mode of Payment",
   "Products Ordered",
@@ -612,6 +625,7 @@ export default function ShopifyOrdersTable() {
   const [syncing, setSyncing] = useState(false);
   const [err, setErr] = useState("");
   const [syncMeta, setSyncMeta] = useState(null);
+  const [syncMetaLoading, setSyncMetaLoading] = useState(true);
 
   const [agents, setAgents] = useState([]);
   const [savingIndex, setSavingIndex] = useState(-1);
@@ -636,10 +650,13 @@ export default function ShopifyOrdersTable() {
   const [availableStates, setAvailableStates] = useState([]);
 
   const [hasFetched, setHasFetched] = useState(false);
+  const [initialRowsLoading, setInitialRowsLoading] = useState(true);
+  const showTableSkeleton = initialRowsLoading || !hasFetched || (loading && rows.length === 0);
   const skeletonRows = Math.min(Math.max(rowsPerPage, 12), 20);
 
   const controllerRef = useRef(null);
   const initialLoadRef = useRef(false);
+  const requestSeqRef = useRef(0);
   const tableRegionRef = useRef(null);
 
   const currencyFmt = useMemo(
@@ -679,11 +696,14 @@ export default function ShopifyOrdersTable() {
   }, [applyFilterOptions]);
 
   const loadSyncMeta = useCallback(async () => {
+    setSyncMetaLoading(true);
     try {
       const { data } = await api.get("/api/shopify/orders-table/meta");
       setSyncMeta(data || null);
     } catch (e) {
       console.error("Failed to fetch online orders sync metadata", e);
+    } finally {
+      setSyncMetaLoading(false);
     }
   }, []);
 
@@ -755,11 +775,20 @@ export default function ShopifyOrdersTable() {
     return abortInflight;
   }, [abortInflight, loadGlobalFilterOptions, loadSyncMeta]);
 
+  useEffect(() => {
+    const interval = window.setInterval(() => {
+      loadSyncMeta();
+    }, 60000);
+    return () => window.clearInterval(interval);
+  }, [loadSyncMeta]);
+
   // Fetch rows (+ meta tied to filters) when user clicks "Get Orders" or changes page/size after first fetch
   const fetchRows = useCallback(
     async (p = page, l = rowsPerPage, withMeta = false, filterOverrides = {}) => {
       abortInflight();
       const controller = new AbortController();
+      const requestId = requestSeqRef.current + 1;
+      requestSeqRef.current = requestId;
       controllerRef.current = controller;
 
       setLoading(true);
@@ -770,6 +799,11 @@ export default function ShopifyOrdersTable() {
           params,
           signal: controller.signal,
         });
+
+        // Ignore stale responses: a newer request may have started (and been
+        // aborted-in-flight) after this one, so only the latest should ever
+        // update visible state.
+        if (requestSeqRef.current !== requestId) return;
 
         const nextRows = data?.data || [];
         setRows(nextRows);
@@ -784,33 +818,35 @@ export default function ShopifyOrdersTable() {
       } catch (e) {
         if (axios.isCancel?.(e) || e?.name === "CanceledError" || e?.message === "canceled") {
           // ignore
-        } else {
+        } else if (requestSeqRef.current === requestId) {
           console.error(e);
           setErr("Failed to load orders. Please try again.");
         }
       } finally {
-        setLoading(false);
+        if (requestSeqRef.current === requestId) {
+          setLoading(false);
+          setInitialRowsLoading(false);
+        }
       }
     },
     [abortInflight, applyFilterOptions, buildParams, page, rowsPerPage]
   );
 
-  // After first fetch, page/rowsPerPage change should refetch rows
+  // Load latest orders on mount, then refetch only when page/rowsPerPage
+  // change afterwards. Combined into one effect so mount doesn't fire two
+  // overlapping requests (the old split-effect version triggered a second,
+  // redundant fetch as soon as `hasFetched` flipped to true right after the
+  // first one started).
   useEffect(() => {
-    if (hasFetched) {
-      fetchRows(page, rowsPerPage, false);
+    if (!initialLoadRef.current) {
+      initialLoadRef.current = true;
+      setHasFetched(true);
+      fetchRows(0, rowsPerPage, false);
+      return;
     }
+    fetchRows(page, rowsPerPage, false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, rowsPerPage, hasFetched]);
-
-  // Load latest orders by default. Filters still apply only when the user submits them.
-  useEffect(() => {
-    if (initialLoadRef.current) return;
-    initialLoadRef.current = true;
-    setHasFetched(true);
-    fetchRows(0, rowsPerPage, false);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [page, rowsPerPage]);
 
   const handleGetOrders = () => {
     const nextAppliedFilters = {
@@ -824,6 +860,7 @@ export default function ShopifyOrdersTable() {
     setPage(0);
     setAppliedFilters(nextAppliedFilters);
     fetchRows(0, rowsPerPage, false, nextAppliedFilters);
+    loadSyncMeta();
   };
 
   const handleDateRangeChange = (from, to) => {
@@ -836,6 +873,7 @@ export default function ShopifyOrdersTable() {
       startDate: from,
       endDate: to,
     });
+    loadSyncMeta();
   };
 
   const handleClearFilters = () => {
@@ -862,6 +900,7 @@ export default function ShopifyOrdersTable() {
       mode: "",
       assigned: "",
     });
+    loadSyncMeta();
   };
 
   const handleChangePage = (_e, newPage) => {
@@ -951,11 +990,11 @@ export default function ShopifyOrdersTable() {
 
   const shopifySyncedAt = syncMeta?.shopify?.lastSyncedAt || null;
   const shipmentSyncedAt = syncMeta?.shipment?.lastSyncedAt || null;
+  const shipmentSyncError = syncMeta?.shipment?.syncError || null;
 
   return (
     <Box
       sx={{
-        minHeight: "100vh",
         width: "100%",
         maxWidth: "100%",
         boxSizing: "border-box",
@@ -1005,16 +1044,32 @@ export default function ShopifyOrdersTable() {
                     Shopify synced
                   </Typography>
                   <Typography component="span" sx={{ color: "#111827", fontSize: 14, fontWeight: 800 }}>
-                    {displayDateTime(shopifySyncedAt)}
+                    {displaySyncTime(shopifySyncedAt, syncMetaLoading)}
                   </Typography>
                 </Box>
                 <Box sx={syncTextSx}>
                   <Typography component="span" sx={{ color: "#6b7280", fontSize: 13, fontWeight: 500 }}>
                     Delivery partners synced
                   </Typography>
-                  <Typography component="span" sx={{ color: "#111827", fontSize: 14, fontWeight: 800 }}>
-                    {displayDateTime(shipmentSyncedAt)}
-                  </Typography>
+                  <Tooltip
+                    title={shipmentSyncError ? `${shipmentSyncError.code}: ${shipmentSyncError.message}` : ""}
+                    placement="top"
+                    arrow
+                    disableHoverListener={!shipmentSyncError}
+                  >
+                    <Typography
+                      component="span"
+                      sx={{
+                        color: shipmentSyncError ? "#b91c1c" : "#111827",
+                        fontSize: 14,
+                        fontWeight: 800,
+                        textDecoration: shipmentSyncError ? "underline dotted" : "none",
+                        cursor: shipmentSyncError ? "help" : "default",
+                      }}
+                    >
+                      {displaySyncTime(shipmentSyncedAt, syncMetaLoading)}
+                    </Typography>
+                  </Tooltip>
                 </Box>
               </Stack>
               <Stack direction="row" spacing={1.25} alignItems="center" justifyContent={{ xs: "flex-start", md: "flex-end" }}>
@@ -1219,11 +1274,11 @@ export default function ShopifyOrdersTable() {
         )}
 
         <Box ref={tableRegionRef} sx={{ width: "100%", maxWidth: "100%", overflow: "hidden" }}>
-          {!hasFetched || (loading && rows.length === 0) ? (
+          {showTableSkeleton ? (
           <Box
             sx={{
               px: { xs: 1.25, md: 3 },
-              pb: 1.5,
+              py: 1.5,
               width: "100%",
               maxWidth: "100%",
               boxSizing: "border-box",
@@ -1265,7 +1320,7 @@ export default function ShopifyOrdersTable() {
                     <TableCell sx={tableHeadCellSx}>Order ID</TableCell>
                     <TableCell sx={tableHeadCellSx}>Name</TableCell>
                     <TableCell sx={tableHeadCellSx}>Contact Number</TableCell>
-                    <TableCell sx={tableHeadCellSx}>Order Date</TableCell>
+                    <TableCell sx={tableHeadCellSx}>Order Placed</TableCell>
                     <TableCell sx={tableHeadCellSx} align="right">
                       Amount
                     </TableCell>
@@ -1305,7 +1360,7 @@ export default function ShopifyOrdersTable() {
                         <TruncCell maxWidth={180}>{r.name}</TruncCell>
                         <TruncCell maxWidth={140}>{r.contactNumber}</TruncCell>
                         <TableCell sx={{ whiteSpace: "nowrap" }}>
-                          {displayOrderDate(r.orderDate)}
+                          {displayOrderPlaced(r.orderDate)}
                         </TableCell>
                         <TableCell align="right">
                           {typeof r.amount === "number" ? currencyFmt.format(r.amount) : "—"}
