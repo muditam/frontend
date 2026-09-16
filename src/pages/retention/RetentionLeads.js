@@ -86,7 +86,7 @@ const normalizeRole = (role = "") => {
 
 const canAccessRetentionLeads = (user = {}) => {
   const role = normalizeRole(user.role);
-  return ["retention-agent", "admin", "super-admin", "developer"].includes(role);
+  return ["retention-agent", "admin", "manager", "super-admin", "developer"].includes(role);
 };
 
 const getDaysSince = (startDate, endDate = new Date()) => {
