@@ -1054,6 +1054,7 @@ export default function WhatsAppUI() {
   const [ticketDialogOpen, setTicketDialogOpen] = useState(false);
   const [ticketSubmitting, setTicketSubmitting] = useState(false);
   const [ticketError, setTicketError] = useState("");
+  const [ticketResult, setTicketResult] = useState(null);
   const [ticketForm, setTicketForm] = useState({ orderSourceId: "", type: "pre", category: "delayed", priority: "medium", summary: "" });
   const [quickAnchor, setQuickAnchor] = useState(null);
   const [tplAnchor, setTplAnchor] = useState(null);
@@ -1365,6 +1366,7 @@ export default function WhatsAppUI() {
 
   const openTicketDialog = useCallback(async () => {
     setTicketError("");
+    setTicketResult(null);
     setTicketForm({ orderSourceId: "", type: "pre", category: "delayed", priority: "medium", summary: "" });
     setTicketDialogOpen(true);
     await loadOrderHistory(activeP10, { open: false });
@@ -1374,13 +1376,17 @@ export default function WhatsAppUI() {
     if (!ticketForm.orderSourceId || !ticketForm.summary.trim()) return;
     setTicketSubmitting(true);
     setTicketError("");
+    setTicketResult(null);
     try {
       const result = await api("/api/ticketing-integration/tickets", {
         method: "POST",
         body: JSON.stringify(ticketForm),
       });
-      setTicketDialogOpen(false);
-      showToast(`Ticket ${result?.ticket?.ticketNo || "created"} sent to Customer Support`, "success");
+      if (result?.duplicate) setTicketResult(result);
+      else setTicketDialogOpen(false);
+      showToast(result?.duplicate
+        ? `Existing ticket ${result?.ticket?.ticketNo || ""} updated with this escalation`
+        : `Ticket ${result?.ticket?.ticketNo || "created"} sent to Customer Support`, "success");
     } catch (error) {
       setTicketError(extractApiErrorMessage(error, "Failed to create ticket"));
     } finally {
@@ -3346,16 +3352,22 @@ export default function WhatsAppUI() {
               display="flex"
               alignItems="center"
               justifyContent="space-between"
-              sx={{ bgcolor: LIGHT.sidebarHeaderBg, zIndex: 2, flexShrink: 0 }}
+              sx={{
+                bgcolor: LIGHT.sidebarHeaderBg,
+                zIndex: 2,
+                flexShrink: 0,
+                gap: 1,
+                flexWrap: "wrap",
+              }}
 	            >
-	              <Stack direction="row" spacing={1.5} alignItems="center">
+	              <Stack direction="row" spacing={1.5} alignItems="center" sx={{ minWidth: 0, flex: "1 1 280px" }}>
 	                <WaAvatar name={activeConversation ? chatDisplayName(activeConversation) : activeP10} size={40} />
-                <Box>
-                  <Typography sx={{ fontWeight: 600, fontSize: 15, color: LIGHT.text, lineHeight: 1.2 }}>
+                <Box sx={{ minWidth: 0 }}>
+                  <Typography noWrap sx={{ fontWeight: 600, fontSize: 15, color: LIGHT.text, lineHeight: 1.2 }}>
                     {activeHeaderTitle}
                     {activeP10 ? ` (${activeP10})` : ""}
                   </Typography>
-                  <Stack direction="row" spacing={1} alignItems="center">
+                  <Stack direction="row" spacing={1} alignItems="center" sx={{ minWidth: 0, flexWrap: "wrap", rowGap: 0.5 }}>
                     {activeConversation?.assignedToLabel && (
                       <Typography sx={{ fontSize: 12, color: LIGHT.subtext }}>
                         {assignedToText(activeConversation)}
@@ -3415,7 +3427,13 @@ export default function WhatsAppUI() {
                   </Stack>
 	                </Box>
 	              </Stack>
-	              <Stack direction="row" spacing={0.75} alignItems="center">
+	              <Stack
+                  direction="row"
+                  spacing={0.75}
+                  alignItems="center"
+                  justifyContent="flex-end"
+                  sx={{ flex: "0 1 auto", flexWrap: "wrap", rowGap: 0.75, minWidth: 0 }}
+                >
                   <TextField
                     select
                     size="small"
@@ -4803,10 +4821,24 @@ export default function WhatsAppUI() {
               <Typography sx={{ fontSize: 12, color: LIGHT.subtext }}>{activeP10}</Typography>
             </Box>
             {ticketError && <Alert severity="error">{ticketError}</Alert>}
+            {ticketResult?.duplicate && (
+              <Alert
+                severity="info"
+                action={
+                  <Button color="inherit" size="small" onClick={() => { setTicketDialogOpen(false); navigate("/escalations"); }} sx={{ textTransform: "none", fontWeight: 800 }}>
+                    View progress
+                  </Button>
+                }
+              >
+                Ticket already exists for this order. Your escalation note was added to{" "}
+                <Box component="span" sx={{ fontWeight: 800 }}>{ticketResult.ticket?.ticketNo || "the existing ticket"}</Box>
+                {ticketResult.ticket?.status ? ` (${ticketResult.ticket.status})` : ""}.
+              </Alert>
+            )}
             {historyLoading ? (
               <Stack direction="row" spacing={1} alignItems="center" sx={{ py: 2 }}><CircularProgress size={18} /><Typography sx={{ fontSize: 13 }}>Loading orders...</Typography></Stack>
             ) : (
-              <TextField select label="Order" value={ticketForm.orderSourceId} onChange={(event) => setTicketForm((current) => ({ ...current, orderSourceId: event.target.value }))} fullWidth size="small">
+              <TextField select label="Order" value={ticketForm.orderSourceId} onChange={(event) => { setTicketResult(null); setTicketForm((current) => ({ ...current, orderSourceId: event.target.value })); }} fullWidth size="small">
                 {currentHistoryOrders.map((order) => (
                   <MenuItem key={order.id} value={String(order.id)}>
                     {order.name} · {formatOrderDate(order.created_at)} · {formatMoney(order.totalAmount)}
@@ -4815,16 +4847,16 @@ export default function WhatsAppUI() {
               </TextField>
             )}
             {!historyLoading && !currentHistoryOrders.length && <Alert severity="warning">No Shopify orders were found for this phone number.</Alert>}
-            <TextField select label="Ticket type" value={ticketForm.type} onChange={(event) => { const type = event.target.value; setTicketForm((current) => ({ ...current, type, category: TICKET_CATEGORIES[type][0].value })); }} fullWidth size="small">
+            <TextField select label="Ticket type" value={ticketForm.type} onChange={(event) => { const type = event.target.value; setTicketResult(null); setTicketForm((current) => ({ ...current, type, category: TICKET_CATEGORIES[type][0].value })); }} fullWidth size="small">
               <MenuItem value="confirmation">Confirmation</MenuItem><MenuItem value="pre">Pre-Delivery</MenuItem><MenuItem value="post">Post-Delivery</MenuItem>
             </TextField>
-            <TextField select label="Issue category" value={ticketForm.category} onChange={(event) => setTicketForm((current) => ({ ...current, category: event.target.value }))} fullWidth size="small">
+            <TextField select label="Issue category" value={ticketForm.category} onChange={(event) => { setTicketResult(null); setTicketForm((current) => ({ ...current, category: event.target.value })); }} fullWidth size="small">
               {TICKET_CATEGORIES[ticketForm.type].map((category) => <MenuItem key={category.value} value={category.value}>{category.label}</MenuItem>)}
             </TextField>
-            <TextField select label="Priority" value={ticketForm.priority} onChange={(event) => setTicketForm((current) => ({ ...current, priority: event.target.value }))} fullWidth size="small">
+            <TextField select label="Priority" value={ticketForm.priority} onChange={(event) => { setTicketResult(null); setTicketForm((current) => ({ ...current, priority: event.target.value })); }} fullWidth size="small">
               <MenuItem value="low">Low</MenuItem><MenuItem value="medium">Medium</MenuItem><MenuItem value="high">High</MenuItem>
             </TextField>
-            <TextField label="Issue details" value={ticketForm.summary} onChange={(event) => setTicketForm((current) => ({ ...current, summary: event.target.value }))} multiline minRows={3} fullWidth placeholder="Describe what Customer Support needs to handle" />
+            <TextField label="Issue details" value={ticketForm.summary} onChange={(event) => { setTicketResult(null); setTicketForm((current) => ({ ...current, summary: event.target.value })); }} multiline minRows={3} fullWidth placeholder="Describe what Customer Support needs to handle" />
             <Stack direction="row" justifyContent="flex-end" spacing={1}>
               <Button onClick={() => setTicketDialogOpen(false)} disabled={ticketSubmitting} sx={{ textTransform: "none" }}>Cancel</Button>
               <Button variant="contained" onClick={submitSupportTicket} disabled={ticketSubmitting || !ticketForm.orderSourceId || !ticketForm.summary.trim()} sx={{ bgcolor: "#128C7E", textTransform: "none", boxShadow: "none", "&:hover": { bgcolor: "#0f766e", boxShadow: "none" } }}>

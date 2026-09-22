@@ -47,6 +47,10 @@ const LoginPage = () => {
         const { user } = response.data;
 
         // Save user in session
+        sessionStorage.removeItem("agentEmployeeId");
+        Object.keys(sessionStorage).forEach((key) => {
+          if (key.startsWith("abandoned:")) sessionStorage.removeItem(key);
+        });
         sessionStorage.setItem("user", JSON.stringify(user));
         window.dispatchEvent(new Event("session:user:set"));
 
@@ -295,4 +299,3 @@ const LoginPage = () => {
 };
 
 export default LoginPage;
-

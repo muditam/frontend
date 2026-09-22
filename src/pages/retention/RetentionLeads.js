@@ -74,6 +74,21 @@ const api = axios.create({
   withCredentials: true,
 });
 
+const normalizeRole = (role = "") => {
+  const normalized = String(role || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[\s_]+/g, "-")
+    .replace(/-+/g, "-");
+
+  return normalized === "superadmin" ? "super-admin" : normalized;
+};
+
+const canAccessRetentionLeads = (user = {}) => {
+  const role = normalizeRole(user.role);
+  return ["retention-agent", "admin", "manager", "super-admin", "developer"].includes(role);
+};
+
 const getDaysSince = (startDate, endDate = new Date()) => {
   if (!startDate) return null;
   const start = new Date(startDate);
@@ -952,7 +967,7 @@ const RetentionLeads = () => {
 
   useEffect(() => {
     const user = JSON.parse(sessionStorage.getItem("user"));
-    if (user && user.role === "Retention Agent") {
+    if (user && canAccessRetentionLeads(user)) {
       setLoggedInUser(user);
       setServerPage(1);
       setAllLeads([]);
@@ -2549,7 +2564,9 @@ You can mark Lost only after 60 days.`);
                               return days < 60 ? ` (after ${60 - days} days)` : "";
                             })()}
                           </MenuItem>
-                          <MenuItem value="No-Call">No-Call</MenuItem>
+                          <MenuItem value="No-Call" disabled>
+                            No-Call
+                          </MenuItem>
                         </Select>
                       </FormControl>
 
