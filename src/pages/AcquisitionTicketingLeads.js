@@ -6,8 +6,9 @@ const api = axios.create({ baseURL: (process.env.REACT_APP_API_BASE_URL || "").r
 const editableStatuses = ["pending_lms", "active", "contacted", "converted", "not_interested", "no_response", "closed"];
 
 function currentUser() { return JSON.parse(sessionStorage.getItem("user") || "{}"); }
-function isAdmin() { return ["admin", "super admin", "superadmin"].includes(String(currentUser()?.role || "").trim().toLowerCase()); }
-function canAccess() { return isAdmin() || String(currentUser()?.role || "").trim().toLowerCase() === "sales agent"; }
+function role() { return String(currentUser()?.role || "").trim().toLowerCase(); }
+function isAdmin() { return ["admin", "super admin", "superadmin", "manager"].includes(role()); }
+function canAccess() { return isAdmin() || ["manager", "sales agent"].includes(role()); }
 
 export default function AcquisitionTicketingLeads() {
   const [items, setItems] = useState([]);
@@ -39,7 +40,7 @@ export default function AcquisitionTicketingLeads() {
     catch (requestError) { setItems(previous); setError(requestError.response?.data?.error || "Could not assign lead."); }
   };
 
-  if (!canAccess()) return <Box p={3}><Alert severity="error">This tab is available only to Sales Agents and administrators.</Alert></Box>;
+  if (!canAccess()) return <Box p={3}><Alert severity="error">This tab is available only to Sales Agents, Managers, and administrators.</Alert></Box>;
   return <Box sx={{ width: "100%", maxWidth: "none", p: { xs: 1.5, sm: 2, md: 3 }, minHeight: "calc(100vh - 64px)", bgcolor: "#f8fafc", boxSizing: "border-box" }}>
     <Stack direction={{ xs: "column", sm: "row" }} spacing={1} justifyContent="space-between" alignItems={{ xs: "stretch", sm: "center" }} mb={2}>
       <Box><Typography variant="h5" fontWeight={700}>Acquisition Leads</Typography><Typography color="text.secondary">Unconfirmed confirmation tickets transferred after 10 days.</Typography></Box>
