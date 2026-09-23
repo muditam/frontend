@@ -417,7 +417,11 @@ const MenuBar = ({ toggleDrawer }) => {
  
   const hasTeam = user?.hasTeam;
   const menubarPerms = user?.permissions?.menubar || {};
+  const role = String(user?.role || "").trim().toLowerCase().replace(/[\s_]+/g, "-");
   const can = (key) => {
+    if (key === "retentionOverviewCombined" && ["retention-agent", "team-leader"].includes(role)) {
+      return true;
+    }
     if (Object.prototype.hasOwnProperty.call(menubarPerms, key)) {
       return !!menubarPerms[key];
     }
