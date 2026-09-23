@@ -1147,6 +1147,7 @@ export default function WhatsAppInboxWidget({ onOpenChat }) {
     };
     sync();
     window.addEventListener("storage", sync);
+    window.addEventListener("session:user:set", sync);
     window.addEventListener("muditam:user-changed", sync);
     window.addEventListener("focus", sync);
     document.addEventListener("visibilitychange", sync);
@@ -1154,6 +1155,7 @@ export default function WhatsAppInboxWidget({ onOpenChat }) {
     return () => {
       alive = false;
       window.removeEventListener("storage", sync);
+      window.removeEventListener("session:user:set", sync);
       window.removeEventListener("muditam:user-changed", sync);
       window.removeEventListener("focus", sync);
       document.removeEventListener("visibilitychange", sync);

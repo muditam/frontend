@@ -65,6 +65,11 @@ const clearUserScopedCaches = () => {
   });
 };
 
+const notifyUserChanged = () => {
+  window.dispatchEvent(new Event('session:user:set'));
+  window.dispatchEvent(new Event('muditam:user-changed'));
+};
+
 const getSessionUserHeaders = () => {
   return {};
 };
@@ -206,6 +211,7 @@ const SwitchDashboard = () => {
           targetName: toStore.fullName,
           switchedAt: Date.now(),
         }));
+        notifyUserChanged();
       }
       navigate('/', { replace: true });
     } catch (err) {
@@ -229,6 +235,7 @@ const SwitchDashboard = () => {
         clearUserScopedCaches();
         sessionStorage.setItem('user', JSON.stringify(original));
         clearSwitchMarkers();
+        notifyUserChanged();
         navigate('/switch-dashboard', { replace: true });
         return true;
       } catch {
@@ -259,6 +266,7 @@ const SwitchDashboard = () => {
       if (data?.user) {
         clearUserScopedCaches();
         sessionStorage.setItem('user', JSON.stringify({ ...data.user, _id: data.user._id || data.user.id }));
+        notifyUserChanged();
       } else if (restoreOriginalLocally()) {
         return;
       }

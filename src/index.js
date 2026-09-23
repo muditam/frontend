@@ -19,11 +19,13 @@ const configuredApiOrigin = (() => {
   }
 })();
 
+const FORBIDDEN_REDIRECT_EXEMPT_PATHS = new Set(["/", "/login", "/403", "/switch-dashboard"]);
+
 const redirectAuthenticatedUserOnForbidden = (status) => {
   if (
     status === 403 &&
     sessionStorage.getItem("user") &&
-    window.location.pathname !== "/403"
+    !FORBIDDEN_REDIRECT_EXEMPT_PATHS.has(window.location.pathname)
   ) {
     window.location.assign("/403");
   }
@@ -59,7 +61,6 @@ axios.interceptors.response.use(
   (response) => response,
   (error) => {
     redirectAuthenticatedUserOnForbidden(error?.response?.status);
-
     return Promise.reject(error);
   }
 );
