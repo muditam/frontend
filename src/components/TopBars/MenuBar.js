@@ -593,6 +593,9 @@ const MenuBar = ({ toggleDrawer }) => {
           )}
 
           {/* Sales Agent */}
+          {user && ["sales agent", "admin", "super admin", "superadmin"].includes(String(user.role || "").toLowerCase()) && (
+            <NavItem to="/acquisition/ticketing-leads" icon={<PersonAddIcon />} label="Acquisition Leads" />
+          )}
           {user && can("salesAgentMenu") && (
             <DropdownGroup id="salesAgent" icon={<PersonIcon />} label="Sales Expert">
               {can("salesMyLeads") && <SubItem to="/sales/my-leads" label="My Leads" />}

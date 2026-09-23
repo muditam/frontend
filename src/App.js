@@ -9,6 +9,7 @@ import NewOrders from "./pages/master/MasterNewOrders";
 import RetentionOrders from "./pages/master/MasterRetentionOrders";
 import DuplicateNumbers from "./pages/master/DuplicateNumbers";
 import SalesMyLeads from "./pages/sales/SalesMyLeads";
+import AcquisitionTicketingLeads from "./pages/AcquisitionTicketingLeads";
 import SalesMySales from "./pages/sales/SalesMySales";
 import RetentionLeads from "./pages/retention/RetentionLeads";
 import RetentionSales from "./pages/retention/RetentionSales";
@@ -359,6 +360,10 @@ function AppLayout() {
                 <SalesMyLeads />
               </PrivateRoute>
             }
+          />
+          <Route
+            path="/acquisition/ticketing-leads"
+            element={<PrivateRoute><AcquisitionTicketingLeads /></PrivateRoute>}
           />
           <Route
             path="/sales/my-sales"
