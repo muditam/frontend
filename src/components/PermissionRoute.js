@@ -10,7 +10,11 @@ const PermissionRoute = ({ permissionKey, children, fallback = "/403" }) => {
   }
 
   const menubarPerms = user?.permissions?.menubar || {};
-  const allowed = Boolean(menubarPerms?.[permissionKey]);
+  const role = String(user?.role || "").trim().toLowerCase().replace(/[\s_]+/g, "-");
+  const roleAllowed =
+    permissionKey === "retentionOverviewCombined" &&
+    ["retention-agent", "team-leader"].includes(role);
+  const allowed = roleAllowed || Boolean(menubarPerms?.[permissionKey]);
 
   if (!allowed) {
     return <Navigate to={fallback} replace />;
