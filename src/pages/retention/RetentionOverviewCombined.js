@@ -31,13 +31,24 @@ export default function RetentionOverviewCombined() {
   const [expertSummary, setExpertSummary] = useState({ combined: {}, experts: [] });
   const [sortBy, setSortBy] = useState("totalActiveCustomers");
   const [sortDir, setSortDir] = useState("desc");
+  const currentUserId = (() => {
+    try {
+      const user = JSON.parse(sessionStorage.getItem("user") || "{}");
+      return String(user?.id || user?._id || user?.email || "anonymous");
+    } catch {
+      return "anonymous";
+    }
+  })();
 
   const API_BASE = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "");
   
   const buildUrl = (path) => `${API_BASE}${path}`;
 
   const fetchJson = async (path) => {
-    const res = await fetch(buildUrl(path), { headers: { Accept: "application/json" } });
+    const res = await fetch(buildUrl(path), {
+      headers: { Accept: "application/json" },
+      credentials: "include",
+    });
     const contentType = (res.headers.get("content-type") || "").toLowerCase();
     const raw = await res.text();
 
@@ -60,7 +71,7 @@ export default function RetentionOverviewCombined() {
     setError("");
     try {
       const params = new URLSearchParams({ lookbackDays: String(lookbackDays) });
-      const cacheKey = `retention-overview-combined:summary:${params.toString()}`;
+      const cacheKey = `retention-overview-combined:summary:${currentUserId}:${params.toString()}`;
       if (refresh) clearCachedData(cacheKey);
       const json = await getCachedData(
         cacheKey,

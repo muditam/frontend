@@ -29,6 +29,7 @@ import PeopleOutlineRoundedIcon from "@mui/icons-material/PeopleOutlineRounded";
 import ImageOutlinedIcon from "@mui/icons-material/ImageOutlined";
 import CategoryOutlinedIcon from "@mui/icons-material/CategoryOutlined";
 import BusinessOutlinedIcon from "@mui/icons-material/BusinessOutlined";
+import DownloadRoundedIcon from "@mui/icons-material/DownloadRounded";
 import { getCachedData } from "../utils/apiCache";
 
 const API_BASE = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "");
@@ -40,6 +41,19 @@ const api = axios.create({
 });
 
 const safeArr = (v) => (Array.isArray(v) ? v : []);
+
+const csvCell = (value) => {
+  let text = value == null ? "" : String(value);
+  // Prevent spreadsheet applications from evaluating exported values as formulas.
+  if (/^[=+\-@]/.test(text)) text = `'${text}`;
+  return `"${text.replace(/"/g, '""')}"`;
+};
+
+const isoDate = (value) => {
+  if (!value) return "";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? "" : date.toISOString().slice(0, 10);
+};
 
 const fmtDate = (d) => {
   if (!d) return "—";
@@ -391,7 +405,7 @@ export default function ITManagerDashboard() {
           const [assetsRes, allotmentsRes, employeesRes] = await Promise.all([
             api.get(`/api/assets?light=1`),
             api.get(`/api/asset-allotments`),
-            api.get(`/api/assets/employees`),
+            api.get(`/api/employees`),
           ]);
           return [assetsRes.data, allotmentsRes.data, employeesRes.data];
         },
@@ -662,10 +676,103 @@ export default function ITManagerDashboard() {
       .slice(0, 6);
   }, [returnedAllotments]);
 
+  const downloadEmployeeReport = () => {
+    const headers = [
+      "employeeId",
+      "fullName",
+      "email",
+      "department",
+      "role",
+      "status",
+      "joiningDate",
+      "currentAssetCount",
+      "currentAssetCodes",
+      "currentAssetDetails",
+      "assetHistoryCount",
+      "assetMasterMatches",
+    ];
+    const masterCodes = new Set(
+      assets.map((asset) => String(asset.assetCode || "").trim()).filter(Boolean)
+    );
+
+    const rows = employees.map((employee) => {
+      const employeeId = String(employee._id || employee.id || employee.employeeId || "");
+      const employeeEmail = String(employee.email || "").trim().toLowerCase();
+      const employeeName = String(employee.fullName || employee.name || "").trim().toLowerCase();
+      const history = allotments.filter((item) => {
+        const allottedEmployeeId = String(item.employee?._id || item.employee || "");
+        if (employeeId && allottedEmployeeId) return employeeId === allottedEmployeeId;
+        const allottedEmail = String(item.employee?.email || "").trim().toLowerCase();
+        if (employeeEmail && allottedEmail) return employeeEmail === allottedEmail;
+        return employeeName &&
+          employeeName === String(item.employee?.fullName || "").trim().toLowerCase();
+      });
+      const current = history.filter((item) => item.status !== "returned");
+      const currentCodes = current
+        .map((item) => String(item.assetCode || "").trim())
+        .filter(Boolean);
+      const currentDetails = current.map((item) =>
+        [item.assetCode, item.name, item.company, item.model].filter(Boolean).join(" | ")
+      );
+
+      return [
+        employeeId,
+        employee.fullName || employee.name || "",
+        employee.email || "",
+        employee.department || "",
+        employee.role || "",
+        employee.status || "",
+        isoDate(employee.joiningDate),
+        current.length,
+        currentCodes.join("; "),
+        currentDetails.join("; "),
+        history.length,
+        currentCodes.filter((code) => masterCodes.has(code)).length,
+      ];
+    });
+
+    const csv = [headers, ...rows]
+      .map((row) => row.map(csvCell).join(","))
+      .join("\r\n");
+    const blob = new Blob(["\uFEFF", csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `employee-asset-report-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <Box p={{ xs: 1.5, md: 3 }}>
       <Stack spacing={2.5}>
-        
+        <Stack
+          direction={{ xs: "column", sm: "row" }}
+          alignItems={{ xs: "stretch", sm: "center" }}
+          justifyContent="space-between"
+          spacing={1.5}
+        >
+          <Box>
+            <Typography variant="h5" sx={{ fontWeight: 800 }}>
+              Human Resource Dashboard
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              Employee and asset overview
+            </Typography>
+          </Box>
+          <Button
+            variant="contained"
+            startIcon={<DownloadRoundedIcon />}
+            onClick={downloadEmployeeReport}
+            disabled={loading || !employees.length}
+            sx={{ textTransform: "none", alignSelf: { xs: "stretch", sm: "center" } }}
+          >
+            Download Report
+          </Button>
+        </Stack>
+
         {loading ? (
           <Paper variant="outlined" sx={{ borderRadius: 3, p: 6 }}>
             <Stack alignItems="center" spacing={2}>
@@ -786,7 +893,7 @@ export default function ITManagerDashboard() {
                       <Chip
                         size="small"
                         icon={<PeopleOutlineRoundedIcon />}
-                        label={`${employees.length} active employees in directory`}
+                        label={`${employees.filter((employee) => employee.status !== "inactive").length} active employees in directory`}
                       />
                     </Stack>
                   </Stack>

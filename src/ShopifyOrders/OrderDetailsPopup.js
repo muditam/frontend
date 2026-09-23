@@ -140,7 +140,7 @@ const OrderDetailsPopup = ({
  const [isAdding, setIsAdding] = useState(false);
 
 
- const [discount, setDiscount] = useState(propDiscount || "");
+ const [discount, setDiscount] = useState(propDiscount ?? "");
  const isFutureOrderDetails = Boolean(futureOrderId);
 
 
@@ -170,6 +170,7 @@ const OrderDetailsPopup = ({
      setSelfRemark(savedDetails.selfRemark || "");
      setUpsellChecked(Number(savedDetails.upsellAmount || 0) > 0);
      setUpsellAmount(savedDetails.upsellAmount || "");
+     setDiscount(savedDetails.discount ?? futureOrderData?.appliedDiscount ?? propDiscount ?? "");
      if (data.partialPaidAmount) setPartialPayment(asIntString(data.partialPaidAmount));
      if (data.paymentMode) setPaymentMethod(data.paymentMode);
      return;
@@ -201,7 +202,7 @@ const OrderDetailsPopup = ({
      }
    };
    fetchOrderDetails();
- }, [orderId, isFutureOrderDetails, futureOrderData]);
+ }, [orderId, isFutureOrderDetails, futureOrderData, propDiscount]);
 
 
  // Agent init

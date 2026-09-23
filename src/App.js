@@ -393,7 +393,9 @@ function AppLayout() {
             path="/retention/overview-combined"
             element={
               <PrivateRoute>
-                <RetentionOverviewCombined />
+                <PermissionRoute permissionKey="retentionOverviewCombined">
+                  <RetentionOverviewCombined />
+                </PermissionRoute>
               </PrivateRoute>
             }
           />
@@ -401,7 +403,9 @@ function AppLayout() {
             path="/retention/overview-combined/details/:category"
             element={
               <PrivateRoute>
-                <RetentionOverviewCategoryDetails />
+                <PermissionRoute permissionKey="retentionOverviewCombined">
+                  <RetentionOverviewCategoryDetails />
+                </PermissionRoute>
               </PrivateRoute>
             }
           />

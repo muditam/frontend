@@ -193,6 +193,7 @@ const DEFAULT_PERMISSIONS = {
    retentionAgentMenu: false,
    retentionLeads: false,
    retentionSales: false,
+   retentionOverviewCombined: false,
 
 
    taskManagerMenu: false,
@@ -1779,6 +1780,7 @@ const getEffectiveRole = () =>
                  ["retentionAgentMenu", "Retention Agent Menu"],
                  ["retentionLeads", "Retention: Leads"],
                  ["retentionSales", "Retention: Sales"],
+                 ["retentionOverviewCombined", "Retention: Overview Combined"],
                ].map(([key, label]) => (
                  <FormControlLabel
                    key={key}
