@@ -540,7 +540,6 @@ const getEffectiveRole = () =>
      joiningDate,
      joiningSalary,
      currentSalary,
-     lastWorkingDate,
    } = employeeData;
    const department = getEffectiveDepartment();
    const role = getEffectiveRole();
@@ -567,12 +566,6 @@ const getEffectiveRole = () =>
      setError("Joining Date, Joining Salary and Current Salary are required for new employees.");
      return false;
    }
-
-   if (employeeData.status === "inactive" && !lastWorkingDate) {
-     setError("Last Working Date is required for inactive employees.");
-     return false;
-   }
-
 
    if (!/^[a-zA-Z ]+$/.test(fullNameTrimmed)) {
      setError("Full Name should contain only alphabets and spaces.");
@@ -1524,7 +1517,6 @@ const getEffectiveRole = () =>
 
            {employeeData.status === "inactive" && (
              <TextField
-               required
                fullWidth
                label="Last Working Date"
                name="lastWorkingDate"
@@ -1533,11 +1525,7 @@ const getEffectiveRole = () =>
                onChange={handleChange}
                InputLabelProps={{ shrink: true }}
                variant="filled"
-               helperText={
-                 isEditMode
-                   ? "Set this for newly inactive and previously inactive employees."
-                   : "Required when creating an inactive employee."
-               }
+               helperText="Optional. It can also be added later for previously inactive employees."
                InputProps={{
                  disableUnderline: true,
                  sx: { backgroundColor: "#fff", borderRadius: 1, px: 1 },
