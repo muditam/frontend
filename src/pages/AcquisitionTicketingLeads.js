@@ -29,7 +29,11 @@ const editableStatuses = ["pending_lms", "active", "contacted", "converted", "no
 
 function currentUser() { return JSON.parse(sessionStorage.getItem("user") || "{}"); }
 function role() { return String(currentUser()?.role || "").trim().toLowerCase(); }
-function isAdmin() { return ["admin", "super admin", "superadmin", "manager"].includes(role()); }
+function hasAbandonedCartPermission() {
+  const user = currentUser();
+  return user?.permissions?.menubar?.abandonedCart === true || user?.permissions?.navbar?.abandonedCart === true;
+}
+function isAdmin() { return hasAbandonedCartPermission() || ["admin", "super admin", "superadmin", "manager"].includes(role()); }
 function canAccess() { return isAdmin() || ["manager", "sales agent"].includes(role()); }
 
 function formatMoney(value, currency = "INR") {
