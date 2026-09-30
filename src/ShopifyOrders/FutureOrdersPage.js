@@ -111,6 +111,9 @@ export default function FutureOrdersPage() {
   const [rowsPerPage, setRowsPerPage] = useState(25);
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("pending");
+  const [orderDateFrom, setOrderDateFrom] = useState("");
+  const [orderDateTo, setOrderDateTo] = useState("");
+  const [paymentMode, setPaymentMode] = useState("all");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [confirmOrder, setConfirmOrder] = useState(null);
@@ -125,8 +128,11 @@ export default function FutureOrdersPage() {
       limit: rowsPerPage,
       search,
       status,
+      orderDateFrom,
+      orderDateTo,
+      paymentMode,
     }),
-    [page, rowsPerPage, search, status]
+    [page, rowsPerPage, search, status, orderDateFrom, orderDateTo, paymentMode]
   );
 
   const fetchRows = useCallback(async (signal) => {
@@ -206,7 +212,13 @@ export default function FutureOrdersPage() {
               Future Orders
             </Typography>
           </Box>
-          <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5} sx={{ minWidth: { md: 520 } }}>
+          <Stack
+            direction={{ xs: "column", sm: "row" }}
+            spacing={1.5}
+            flexWrap="wrap"
+            useFlexGap
+            sx={{ minWidth: { md: 720 } }}
+          >
             <TextField
               size="small"
               label="Search"
@@ -215,7 +227,7 @@ export default function FutureOrdersPage() {
                 setSearch(event.target.value);
                 setPage(0);
               }}
-              fullWidth
+              sx={{ flex: { xs: "1 1 100%", sm: "1 1 220px" } }}
             />
             <FormControl size="small" sx={{ minWidth: 150 }}>
               <InputLabel>Status</InputLabel>
@@ -231,6 +243,46 @@ export default function FutureOrdersPage() {
                 <MenuItem value="placed">Placed</MenuItem>
                 <MenuItem value="cancelled">Cancelled</MenuItem>
                 <MenuItem value="all">All</MenuItem>
+              </Select>
+            </FormControl>
+            <TextField
+              size="small"
+              label="Order Date From"
+              type="date"
+              value={orderDateFrom}
+              onChange={(event) => {
+                setOrderDateFrom(event.target.value);
+                setPage(0);
+              }}
+              InputLabelProps={{ shrink: true }}
+              sx={{ minWidth: 170 }}
+            />
+            <TextField
+              size="small"
+              label="Order Date To"
+              type="date"
+              value={orderDateTo}
+              onChange={(event) => {
+                setOrderDateTo(event.target.value);
+                setPage(0);
+              }}
+              InputLabelProps={{ shrink: true }}
+              sx={{ minWidth: 170 }}
+            />
+            <FormControl size="small" sx={{ minWidth: 160 }}>
+              <InputLabel>Payment Mode</InputLabel>
+              <Select
+                label="Payment Mode"
+                value={paymentMode}
+                onChange={(event) => {
+                  setPaymentMode(event.target.value);
+                  setPage(0);
+                }}
+              >
+                <MenuItem value="all">All</MenuItem>
+                <MenuItem value="Prepaid">Prepaid</MenuItem>
+                <MenuItem value="Partial Paid">Partial Paid</MenuItem>
+                <MenuItem value="COD">COD</MenuItem>
               </Select>
             </FormControl>
           </Stack>
@@ -251,7 +303,7 @@ export default function FutureOrdersPage() {
                 <TableCell>Address</TableCell>
                 <TableCell>Status</TableCell>
                 <TableCell>Created By</TableCell>
-                <TableCell>Saved At</TableCell>
+                <TableCell>Order Date</TableCell>
                 <TableCell align="right">Action</TableCell>
               </TableRow>
             </TableHead>
