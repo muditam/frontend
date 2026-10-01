@@ -299,9 +299,6 @@ const Closing = ({ presalesHba1c = "8", customerId }) => {
     if (pincodeData.Redcliff.includes(pinCode)) {
       availableLabs.push("Redcliff");
     }
-    if (pincodeData.Lalpathlab.includes(pinCode)) {
-      availableLabs.push("Lalpathlab");
-    }
     if (pincodeData.Healthians.includes(pinCode)) {
       availableLabs.push("Healthians");
     }

@@ -183,8 +183,7 @@ const NavbarWithSearch = () => {
      return;
    }
    if (pincodeData.Redcliff.includes(pin)) labs.push("Redcliff");
-   if (pincodeData.Lalpathlab.includes(pin)) labs.push("Lalpathlab");
-   if (pincodeData.Redcliff.includes(pin)) labs.push("Healthians");
+   if (pincodeData.Healthians.includes(pin)) labs.push("Healthians");
    setAvailableLabs(labs);
  };
 
