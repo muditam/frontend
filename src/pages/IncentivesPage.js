@@ -789,37 +789,85 @@ function buildTeamAggregateData(responses = [], members = [], label = "Team") {
   const reversedRows = rows.filter((row) => row.walletBucket === "reversed");
   const unknownRows = rows.filter((row) => row.walletBucket === "unknown");
 
-  const deliveredRevenue = round2(
-    availableRows.reduce((sum, row) => sum + toNumber(row.amount, 0), 0)
-  );
-  const comingRevenue = round2(
-    comingRows.reduce((sum, row) => sum + toNumber(row.amount, 0), 0)
-  );
-  const atRiskRevenue = round2(
-    atRiskRows.reduce((sum, row) => sum + toNumber(row.amount, 0), 0)
-  );
-  const reversedRevenue = round2(
-    reversedRows.reduce((sum, row) => sum + toNumber(row.amount, 0), 0)
-  );
-  const unknownRevenue = round2(
-    unknownRows.reduce((sum, row) => sum + toNumber(row.amount, 0), 0)
-  );
+  const hasDetailedRows = rows.length > 0;
 
-  const availableIncentive = round2(
-    availableRows.reduce((sum, row) => sum + toNumber(row.incentiveAmount, 0), 0)
-  );
+  const deliveredRevenue = hasDetailedRows
+    ? round2(availableRows.reduce((sum, row) => sum + toNumber(row.amount, 0), 0))
+    : baseDeliveredRevenue;
+  const comingRevenue = hasDetailedRows
+    ? round2(comingRows.reduce((sum, row) => sum + toNumber(row.amount, 0), 0))
+    : round2(
+        safeResponses.reduce(
+          (sum, response) => sum + toNumber(response?.summary?.comingRevenue, 0),
+          0
+        )
+      );
+  const atRiskRevenue = hasDetailedRows
+    ? round2(atRiskRows.reduce((sum, row) => sum + toNumber(row.amount, 0), 0))
+    : round2(
+        safeResponses.reduce(
+          (sum, response) => sum + toNumber(response?.summary?.atRiskRevenue, 0),
+          0
+        )
+      );
+  const reversedRevenue = hasDetailedRows
+    ? round2(reversedRows.reduce((sum, row) => sum + toNumber(row.amount, 0), 0))
+    : round2(
+        safeResponses.reduce(
+          (sum, response) => sum + toNumber(response?.summary?.reversedRevenue, 0),
+          0
+        )
+      );
+  const unknownRevenue = hasDetailedRows
+    ? round2(unknownRows.reduce((sum, row) => sum + toNumber(row.amount, 0), 0))
+    : round2(
+        safeResponses.reduce(
+          (sum, response) => sum + toNumber(response?.summary?.unknownRevenue, 0),
+          0
+        )
+      );
 
-  const comingIncentive = round2(
-    comingRows.reduce((sum, row) => sum + toNumber(row.incentiveAmount, 0), 0)
-  );
+  const availableIncentive = hasDetailedRows
+    ? round2(
+        availableRows.reduce((sum, row) => sum + toNumber(row.incentiveAmount, 0), 0)
+      )
+    : round2(
+        safeResponses.reduce(
+          (sum, response) => sum + toNumber(response?.summary?.availableIncentive, 0),
+          0
+        )
+      );
 
-  const atRiskIncentive = round2(
-    atRiskRows.reduce((sum, row) => sum + toNumber(row.incentiveAmount, 0), 0)
-  );
+  const comingIncentive = hasDetailedRows
+    ? round2(
+        comingRows.reduce((sum, row) => sum + toNumber(row.incentiveAmount, 0), 0)
+      )
+    : round2(
+        safeResponses.reduce(
+          (sum, response) => sum + toNumber(response?.summary?.comingIncentive, 0),
+          0
+        )
+      );
 
-  const reversedIncentive = round2(
-    reversedRows.reduce((sum, row) => sum + toNumber(row.incentiveAmount, 0), 0)
-  );
+  const atRiskIncentive = hasDetailedRows
+    ? round2(atRiskRows.reduce((sum, row) => sum + toNumber(row.incentiveAmount, 0), 0))
+    : round2(
+        safeResponses.reduce(
+          (sum, response) => sum + toNumber(response?.summary?.atRiskIncentive, 0),
+          0
+        )
+      );
+
+  const reversedIncentive = hasDetailedRows
+    ? round2(
+        reversedRows.reduce((sum, row) => sum + toNumber(row.incentiveAmount, 0), 0)
+      )
+    : round2(
+        safeResponses.reduce(
+          (sum, response) => sum + toNumber(response?.summary?.reversedIncentive, 0),
+          0
+        )
+      );
 
   const totalCashConverted = round2(
     safeResponses.reduce(
@@ -1062,11 +1110,21 @@ function buildTeamAggregateData(responses = [], members = [], label = "Team") {
       totalAchievementPercent,
     },
     summary: {
-      totalOrders: rows.length,
-      deliveredOrders: availableRows.length,
-      comingOrders: comingRows.length,
-      reversedOrders: reversedRows.length,
-      unknownOrders: unknownRows.length,
+      totalOrders: hasDetailedRows
+        ? rows.length
+        : safeResponses.reduce((sum, response) => sum + toNumber(response?.summary?.totalOrders, 0), 0),
+      deliveredOrders: hasDetailedRows
+        ? availableRows.length
+        : safeResponses.reduce((sum, response) => sum + toNumber(response?.summary?.deliveredOrders, 0), 0),
+      comingOrders: hasDetailedRows
+        ? comingRows.length
+        : safeResponses.reduce((sum, response) => sum + toNumber(response?.summary?.comingOrders, 0), 0),
+      reversedOrders: hasDetailedRows
+        ? reversedRows.length
+        : safeResponses.reduce((sum, response) => sum + toNumber(response?.summary?.reversedOrders, 0), 0),
+      unknownOrders: hasDetailedRows
+        ? unknownRows.length
+        : safeResponses.reduce((sum, response) => sum + toNumber(response?.summary?.unknownOrders, 0), 0),
 
       deliveredRevenue,
       comingRevenue,
@@ -1078,7 +1136,9 @@ function buildTeamAggregateData(responses = [], members = [], label = "Team") {
       comingIncentive,
       reversedIncentive,
 
-      atRiskOrders: atRiskRows.length,
+      atRiskOrders: hasDetailedRows
+        ? atRiskRows.length
+        : safeResponses.reduce((sum, response) => sum + toNumber(response?.summary?.atRiskOrders, 0), 0),
       atRiskRevenue,
       atRiskIncentive,
 
@@ -1182,8 +1242,12 @@ export default function IncentivesPage() {
 
   const [employees, setEmployees] = useState([]);
   const [selectedAgent, setSelectedAgent] = useState(null);
+  const [draftSelectedAgent, setDraftSelectedAgent] = useState(null);
+  const [draftStartMonth, setDraftStartMonth] = useState(defaultMonth);
+  const [draftEndMonth, setDraftEndMonth] = useState(defaultMonth);
   const [startMonth, setStartMonth] = useState(defaultMonth);
   const [endMonth, setEndMonth] = useState(defaultMonth);
+  const [applyRequest, setApplyRequest] = useState(null);
   const [loadingAgents, setLoadingAgents] = useState(false);
   const [loadingData, setLoadingData] = useState(false);
   const [error, setError] = useState("");
@@ -1197,6 +1261,7 @@ export default function IncentivesPage() {
   const [walletSummaryOpen, setWalletSummaryOpen] = useState(false);
   const [walletRulesOpen, setWalletRulesOpen] = useState(false);
   const [walletAgentsOpen, setWalletAgentsOpen] = useState(false);
+  const [summaryDetailsLoading, setSummaryDetailsLoading] = useState(false);
   const [agentVkrRows, setAgentVkrRows] = useState([]);
 
   const [walletAnchorEl, setWalletAnchorEl] = useState(null);
@@ -1219,6 +1284,10 @@ export default function IncentivesPage() {
   const isHistoricalReport = useMemo(
     () => Boolean(endMonth && endMonth < defaultMonth),
     [defaultMonth, endMonth]
+  );
+  const isDraftHistoricalReport = useMemo(
+    () => Boolean(draftEndMonth && draftEndMonth < defaultMonth),
+    [defaultMonth, draftEndMonth]
   );
   const cashSummaryShipmentStatuses = useMemo(() => {
     const statusMap = new Map();
@@ -1250,6 +1319,10 @@ export default function IncentivesPage() {
     });
     return Array.from(expertMap.values()).sort((a, b) => a.localeCompare(b));
   }, [data?.isTeamAggregate, data?.rows, data?.teamMembers]);
+  const cashSummaryFixedExpertLabel = useMemo(() => {
+    if (data?.isTeamAggregate) return "";
+    return data?.agentName || selectedAgent?.fullName || selfAgent?.fullName || "";
+  }, [data?.agentName, data?.isTeamAggregate, selectedAgent, selfAgent]);
   const filteredCashSummaryRows = useMemo(() => {
     return (data?.rows || []).filter(
       (row) => {
@@ -1261,13 +1334,14 @@ export default function IncentivesPage() {
             : normalizeComparable(row?.deliveryStatus) ===
               normalizeComparable(cashSummaryShipmentStatus));
         const matchesExpert =
+          !data?.isTeamAggregate ||
           cashSummaryExpert === "all" ||
           normalizeComparable(row?.agentName) === normalizeComparable(cashSummaryExpert);
 
         return matchesShipmentStatus && matchesExpert;
       }
     );
-  }, [cashSummaryExpert, cashSummaryShipmentStatus, data?.rows]);
+  }, [cashSummaryExpert, cashSummaryShipmentStatus, data?.isTeamAggregate, data?.rows]);
   const filteredCashSummaryTotal = useMemo(
     () =>
       filteredCashSummaryRows.reduce(
@@ -1318,6 +1392,32 @@ export default function IncentivesPage() {
     });
   }, [currentEmployeeRecord, employees, isHistoricalReport, sessionUser]);
 
+  const draftTeamAgents = useMemo(() => {
+    const rawTeamMembers =
+      currentEmployeeRecord?.teamMembers || sessionUser?.teamMembers || [];
+
+    const memberIds = new Set(
+      (Array.isArray(rawTeamMembers) ? rawTeamMembers : [])
+        .map((item) => {
+          if (!item) return "";
+          if (typeof item === "string") return item.trim();
+          return getEntityId(item);
+        })
+        .filter(Boolean)
+    );
+
+    if (!memberIds.size) return [];
+
+    return employees.filter((emp) => {
+      const empId = getEntityId(emp);
+      return (
+        memberIds.has(empId) &&
+        (isDraftHistoricalReport || isActiveEmployee(emp)) &&
+        isSalesDepartment(emp)
+      );
+    });
+  }, [currentEmployeeRecord, employees, isDraftHistoricalReport, sessionUser]);
+
   const usingCombinedTeamView = useMemo(() => {
     if (isManagerWithTeam) {
       return !selectedAgent;
@@ -1337,6 +1437,28 @@ export default function IncentivesPage() {
     isSelfAndTeamRole,
     isTeamLeaderWithTeam,
     selectedAgent,
+    teamViewEnabled,
+  ]);
+
+  const draftUsingCombinedTeamView = useMemo(() => {
+    if (isManagerWithTeam) {
+      return !draftSelectedAgent;
+    }
+
+    if (isSelfAndTeamRole) {
+      if (isTeamLeaderWithTeam) {
+        return !draftSelectedAgent;
+      }
+
+      return teamViewEnabled && !draftSelectedAgent;
+    }
+
+    return false;
+  }, [
+    draftSelectedAgent,
+    isManagerWithTeam,
+    isSelfAndTeamRole,
+    isTeamLeaderWithTeam,
     teamViewEnabled,
   ]);
 
@@ -1362,6 +1484,30 @@ export default function IncentivesPage() {
     isHistoricalReport,
     selectedAgent,
     selectedAgentCanToggleTeamView,
+  ]);
+
+  const draftSelectedAgentCanToggleTeamView = useMemo(
+    () =>
+      Boolean(
+        canManageAgents &&
+        draftSelectedAgent?.fullName &&
+        draftSelectedAgent?.hasTeam &&
+        isSalesDepartment(draftSelectedAgent)
+      ),
+    [canManageAgents, draftSelectedAgent]
+  );
+
+  const draftSelectedAgentTeamMembers = useMemo(() => {
+    if (!draftSelectedAgentCanToggleTeamView) return [];
+
+    return getExpandedSalesTeamMembers([draftSelectedAgent], employees, {
+      includeInactive: isDraftHistoricalReport,
+    }).filter((member) => isIncentiveEligibleRole(member));
+  }, [
+    draftSelectedAgent,
+    draftSelectedAgentCanToggleTeamView,
+    employees,
+    isDraftHistoricalReport,
   ]);
 
   useEffect(() => {
@@ -1403,7 +1549,7 @@ export default function IncentivesPage() {
 
     if (isSelfAndTeamRole) {
       const selfId = getEntityId(selfAgent);
-      return teamAgents.filter(
+      return draftTeamAgents.filter(
         (emp) => getEntityId(emp) !== selfId
       );
     }
@@ -1412,9 +1558,9 @@ export default function IncentivesPage() {
   }, [
     activeSelectableAgents,
     canManageAgents,
+    draftTeamAgents,
     isSelfAndTeamRole,
     selfAgent,
-    teamAgents,
   ]);
 
   const clearPageState = useCallback(() => {
@@ -1426,6 +1572,7 @@ export default function IncentivesPage() {
     setWalletSummaryOpen(false);
     setWalletRulesOpen(false);
     setWalletAgentsOpen(false);
+    setSummaryDetailsLoading(false);
     setAgentVkrRows([]);
   }, []);
 
@@ -1437,6 +1584,7 @@ export default function IncentivesPage() {
       if (!canManageAgents && !isSelfAndTeamRole) {
         setEmployees(selfAgent ? [selfAgent] : []);
         setSelectedAgent(selfAgent || null);
+        setDraftSelectedAgent(selfAgent || null);
         return;
       }
 
@@ -1456,10 +1604,13 @@ export default function IncentivesPage() {
 
       if (isManagerWithTeam) {
         setSelectedAgent(null);
+        setDraftSelectedAgent(null);
       } else if (isSelfAndTeamRole) {
         setSelectedAgent(null);
+        setDraftSelectedAgent(null);
       } else if (!canManageAgents && selfAgent) {
         setSelectedAgent(selfAgent);
+        setDraftSelectedAgent(selfAgent);
       }
     } catch (err) {
       console.error("Error fetching employees:", err);
@@ -1470,9 +1621,10 @@ export default function IncentivesPage() {
   }, [canManageAgents, headers, isManagerWithTeam, isSelfAndTeamRole, selfAgent]);
 
   const fetchIncentivesForAgent = useCallback(
-    async (agentName, startDate, endDate) => {
+    async (agentName, startDate, endDate, options = {}) => {
       const normalizedAgentName = String(agentName || "").trim();
-      const cacheKey = `incentives:agent:${normalizedAgentName}:${startDate}:${endDate}`;
+      const summaryOnly = Boolean(options.summaryOnly);
+      const cacheKey = `incentives:agent:${normalizedAgentName}:${startDate}:${endDate}:${summaryOnly ? "summary" : "details"}`;
 
       return getCachedData(
         cacheKey,
@@ -1483,6 +1635,7 @@ export default function IncentivesPage() {
               agentName: normalizedAgentName,
               startDate,
               endDate,
+              ...(summaryOnly ? { summaryOnly: true } : {}),
             },
           });
 
@@ -1493,6 +1646,68 @@ export default function IncentivesPage() {
     },
     [headers]
   );
+
+  const fetchTeamIncentiveSummaries = useCallback(
+    async (members = [], startDate, endDate, options = {}) => {
+      const agentNames = members
+        .map((member) => String(member?.fullName || "").trim())
+        .filter(Boolean);
+      const includeDetails = Boolean(options.includeDetails);
+      const cacheKey = `incentives:team:${agentNames.join("|")}:${startDate}:${endDate}:${includeDetails ? "details" : "summary"}`;
+
+      return getCachedData(
+        cacheKey,
+        async () => {
+          const res = await axios.post(
+            `${API_BASE}/api/incentives-new/team-summary`,
+            { agentNames, startDate, endDate, includeDetails },
+            { headers }
+          );
+
+          return Array.isArray(res.data?.responses) ? res.data.responses : [];
+        },
+        INCENTIVES_CACHE_TTL_MS
+      );
+    },
+    [headers]
+  );
+
+  const loadTeamSummaryDetails = useCallback(async () => {
+    if (!data?.isTeamAggregate || summaryDetailsLoading) return;
+    if (Array.isArray(data?.rows) && data.rows.length > 0) return;
+
+    const members = Array.isArray(data?.teamMembers) ? data.teamMembers : [];
+    if (!members.length) return;
+
+    setSummaryDetailsLoading(true);
+    try {
+      const detailedResponses = await fetchTeamIncentiveSummaries(
+        members,
+        derivedStartDate,
+        derivedEndDate,
+        { includeDetails: true }
+      );
+
+      const detailedTeamData = buildTeamAggregateData(
+        detailedResponses,
+        members,
+        data?.agentName || "Team"
+      );
+
+      setData(detailedTeamData);
+    } catch (err) {
+      console.error("Error loading team summary details:", err);
+      setError(err?.response?.data?.message || "Failed to load summary details");
+    } finally {
+      setSummaryDetailsLoading(false);
+    }
+  }, [
+    data,
+    derivedEndDate,
+    derivedStartDate,
+    fetchTeamIncentiveSummaries,
+    summaryDetailsLoading,
+  ]);
 
   useEffect(() => {
     if (isTeamLeaderWithTeam) {
@@ -1508,7 +1723,7 @@ export default function IncentivesPage() {
 
     let isMounted = true;
 
-    fetchIncentivesForAgent(viewerName, cumulativeStartDate, derivedEndDate)
+    fetchIncentivesForAgent(viewerName, cumulativeStartDate, derivedEndDate, { summaryOnly: true })
       .then((res) => {
         if (isMounted) {
           setViewerBalanceData(res || null);
@@ -1687,24 +1902,17 @@ export default function IncentivesPage() {
           return true;
         }
 
-        const [selectedResponses, cumulativeResponses] = await Promise.all([
-          Promise.all(
-            members.map((member) =>
-              fetchIncentivesForAgent(member.fullName, derivedStartDate, derivedEndDate)
-            )
-          ),
-          Promise.all(
-            members.map((member) =>
-              fetchIncentivesForAgent(member.fullName, cumulativeStartDate, derivedEndDate)
-            )
-          ),
-        ]);
+        const selectedResponses = await fetchTeamIncentiveSummaries(
+          members,
+          derivedStartDate,
+          derivedEndDate
+        );
 
         const filteredEntries = members
           .map((member, index) => ({
             member,
             selectedResponse: selectedResponses[index],
-            cumulativeResponse: cumulativeResponses[index],
+            cumulativeResponse: selectedResponses[index],
           }))
           .filter(({ member, selectedResponse }) => {
             if (!isHistoricalReport || isActiveEmployee(member)) {
@@ -1828,7 +2036,7 @@ export default function IncentivesPage() {
 
         const [selectedResponse, cumulativeResponse] = await Promise.all([
           fetchIncentivesForAgent(effectiveAgentName, derivedStartDate, derivedEndDate),
-          fetchIncentivesForAgent(effectiveAgentName, cumulativeStartDate, derivedEndDate),
+          fetchIncentivesForAgent(effectiveAgentName, cumulativeStartDate, derivedEndDate, { summaryOnly: true }),
         ]);
 
         setData(selectedResponse);
@@ -1860,6 +2068,7 @@ export default function IncentivesPage() {
     endMonth,
     employees,
     fetchIncentivesForAgent,
+    fetchTeamIncentiveSummaries,
     hasSelectedMonthActivity,
     isHistoricalReport,
     isSuperAdmin,
@@ -1879,14 +2088,20 @@ export default function IncentivesPage() {
   const handleResetFilters = useCallback(() => {
     if (isSuperAdmin) {
       setSelectedAgent(null);
+      setDraftSelectedAgent(null);
     } else if (isManagerWithTeam) {
       setSelectedAgent(null);
+      setDraftSelectedAgent(null);
     } else if (isSelfAndTeamRole) {
       setSelectedAgent(null);
+      setDraftSelectedAgent(null);
     } else {
       setSelectedAgent(selfAgent || null);
+      setDraftSelectedAgent(selfAgent || null);
     }
 
+    setDraftStartMonth(defaultMonth);
+    setDraftEndMonth(defaultMonth);
     setStartMonth(defaultMonth);
     setEndMonth(defaultMonth);
 
@@ -1907,12 +2122,47 @@ export default function IncentivesPage() {
     selfAgent,
   ]);
 
+  const handleApplyFilters = useCallback(() => {
+    setSelectedAgent(draftSelectedAgent);
+    setStartMonth(draftStartMonth);
+    setEndMonth(draftEndMonth);
+    if (isSelfAndTeamRole) {
+      setCashSummaryExpert(draftSelectedAgent?.fullName || "all");
+    }
+    setSelectedAgentTeamViewEnabled(false);
+    setLoadingData(true);
+    clearCachedData("incentives:agent:");
+    clearPageState();
+    setApplyRequest({
+      agentName: draftSelectedAgent?.fullName || "",
+      startMonth: draftStartMonth,
+      endMonth: draftEndMonth,
+      requestedAt: Date.now(),
+    });
+  }, [
+    clearPageState,
+    draftEndMonth,
+    draftSelectedAgent,
+    draftStartMonth,
+    isSelfAndTeamRole,
+  ]);
+
   useEffect(() => {
     fetchEmployees();
   }, [fetchEmployees]);
 
   useEffect(() => {
-    if (!startMonth || !endMonth || data) return;
+    if (!applyRequest) return;
+    if (startMonth !== applyRequest.startMonth || endMonth !== applyRequest.endMonth) return;
+    const appliedAgentName = selectedAgent?.fullName || "";
+    if (appliedAgentName !== applyRequest.agentName) return;
+
+    setApplyRequest(null);
+    fetchIncentives();
+  }, [applyRequest, endMonth, fetchIncentives, selectedAgent, startMonth]);
+
+  useEffect(() => {
+    if (!startMonth || !endMonth || data || loadingData || applyRequest) return;
 
     if (isSuperAdmin && !selectedAgent) {
       fetchIncentives();
@@ -1946,6 +2196,8 @@ export default function IncentivesPage() {
     data,
     endMonth,
     fetchIncentives,
+    loadingData,
+    applyRequest,
     isManagerWithTeam,
     isSelfAndTeamRole,
     isSuperAdmin,
@@ -2083,11 +2335,15 @@ export default function IncentivesPage() {
     0
   );
 
+  const isTeamData = Boolean(data?.isTeamAggregate);
+  const shouldUseViewerBalance =
+    !canManageAgents && !selectedAgent && !usingCombinedTeamView;
+
   const displayAvailableCoinValue = Number(
     walletOverride?.availableCoin ??
-    viewerBalanceWallet.availableCoin ??
-    viewerBalanceWalletCoin.availableCoin ??
-    viewerBalanceSummary.availableWalletCoin ??
+    (shouldUseViewerBalance ? viewerBalanceWallet.availableCoin : undefined) ??
+    (shouldUseViewerBalance ? viewerBalanceWalletCoin.availableCoin : undefined) ??
+    (shouldUseViewerBalance ? viewerBalanceSummary.availableWalletCoin : undefined) ??
     balanceWallet.availableCoin ??
     balanceWalletCoin.availableCoin ??
     balanceSummary.availableWalletCoin ??
@@ -2108,8 +2364,8 @@ export default function IncentivesPage() {
 
   const displayAvailableCashValue = Number(
     walletOverride?.availableCash ??
-    viewerBalanceWallet.availableCash ??
-    viewerBalanceSummary.availableIncentive ??
+    (shouldUseViewerBalance ? viewerBalanceWallet.availableCash : undefined) ??
+    (shouldUseViewerBalance ? viewerBalanceSummary.availableIncentive : undefined) ??
     balanceWallet.availableCash ??
     balanceSummary.availableIncentive ??
     walletData.availableCash ??
@@ -2118,8 +2374,8 @@ export default function IncentivesPage() {
   );
 
   const displayedConvertedCash = Number(
-    viewerBalanceWallet.totalCashConverted ??
-    viewerBalanceSummary.totalCashConverted ??
+    (shouldUseViewerBalance ? viewerBalanceWallet.totalCashConverted : undefined) ??
+    (shouldUseViewerBalance ? viewerBalanceSummary.totalCashConverted : undefined) ??
     balanceWallet.totalCashConverted ??
     balanceSummary.totalCashConverted ??
     walletData.totalCashConverted ??
@@ -2128,8 +2384,8 @@ export default function IncentivesPage() {
   );
 
   const displayedConvertedCoin = Number(
-    viewerBalanceWallet.totalCoinReceived ??
-    viewerBalanceSummary.convertedCoinAdded ??
+    (shouldUseViewerBalance ? viewerBalanceWallet.totalCoinReceived : undefined) ??
+    (shouldUseViewerBalance ? viewerBalanceSummary.convertedCoinAdded : undefined) ??
     balanceWallet.totalCoinReceived ??
     balanceSummary.convertedCoinAdded ??
     walletData.totalCoinReceived ??
@@ -2143,8 +2399,6 @@ export default function IncentivesPage() {
   const teamTargetValue = Number(
     data?.teamTargetValue ?? currentEmployeeRecord?.target ?? walletTarget.monthlyTargetCount ?? 0
   );
-
-  const isTeamData = Boolean(data?.isTeamAggregate);
 
   const deliveredAchievementPercent = Number(
     isTeamData
@@ -2773,14 +3027,9 @@ export default function IncentivesPage() {
                     options={agentOptions}
                     loading={loadingAgents}
                     disabled={isSelfAndTeamRole && !teamViewEnabled}
-                    value={selectedAgent}
+                    value={draftSelectedAgent}
                     onChange={(_, value) => {
-                      setSelectedAgent(value);
-                      if (isSelfAndTeamRole) {
-                        setCashSummaryExpert(value?.fullName || "all");
-                      }
-                      setSelectedAgentTeamViewEnabled(false);
-                      clearPageState();
+                      setDraftSelectedAgent(value);
                     }}
                     isOptionEqualToValue={(option, value) =>
                       option?.fullName === value?.fullName
@@ -2801,15 +3050,15 @@ export default function IncentivesPage() {
                     label={
                       isSelfAndTeamRole
                         ? teamViewEnabled
-                          ? selectedAgent?.fullName
-                            ? `Individual View • ${selectedAgent.fullName}`
-                            : `Combined Team View • ${teamAgents.length} members`
+                          ? draftSelectedAgent?.fullName
+                            ? `Individual View • ${draftSelectedAgent.fullName}`
+                            : `Combined Team View • ${draftTeamAgents.length} members`
                           : "Individual View"
-                        : selectedAgent?.fullName
+                        : draftSelectedAgent?.fullName
                           ? selectedAgentTeamViewEnabled
-                            ? `Selected Team View • ${selectedAgentTeamMembers.length} members`
+                            ? `Selected Team View • ${draftSelectedAgentTeamMembers.length} members`
                             : "Individual View"
-                          : `Combined Team View • ${teamAgents.length} members`
+                          : `Combined Team View • ${draftTeamAgents.length} members`
                     }
                     sx={{
                       height: 40,
@@ -2823,9 +3072,9 @@ export default function IncentivesPage() {
                 {isSuperAdmin && (
                   <Chip
                     label={
-                      selectedAgent?.fullName
+                      draftSelectedAgent?.fullName
                         ? selectedAgentTeamViewEnabled
-                          ? `Selected Team View • ${selectedAgentTeamMembers.length} members`
+                          ? `Selected Team View • ${draftSelectedAgentTeamMembers.length} members`
                           : "Individual View"
                         : `All Experts • ${allIncentiveAgents.length} members`
                     }
@@ -2848,6 +3097,7 @@ export default function IncentivesPage() {
                           const enabled = e.target.checked;
                           setTeamViewEnabled(enabled);
                           setSelectedAgent(null);
+                          setDraftSelectedAgent(null);
                           setCashSummaryExpert("all");
                           clearPageState();
                         }}
@@ -2879,10 +3129,9 @@ export default function IncentivesPage() {
                   size="small"
                   InputLabelProps={{ shrink: true }}
                   inputProps={{ min: MIN_WALLET_MONTH }}
-                  value={startMonth}
+                  value={draftStartMonth}
                   onChange={(e) => {
-                    setStartMonth(e.target.value);
-                    clearPageState();
+                    setDraftStartMonth(e.target.value);
                   }}
                   sx={{ width: { xs: "100%", md: 150 } }}
                 />
@@ -2893,39 +3142,39 @@ export default function IncentivesPage() {
                   size="small"
                   InputLabelProps={{ shrink: true }}
                   inputProps={{ min: MIN_WALLET_MONTH }}
-                  value={endMonth}
+                  value={draftEndMonth}
                   onChange={(e) => {
-                    setEndMonth(e.target.value);
-                    clearPageState();
+                    setDraftEndMonth(e.target.value);
                   }}
                   sx={{ width: { xs: "100%", md: 150 } }}
                 />
 
                 <Button
                   variant="contained"
-                  onClick={fetchIncentives}
+                  onClick={handleApplyFilters}
                   disabled={
                     loadingData ||
-                    !startMonth ||
-                    !endMonth ||
-                    (!usingCombinedTeamView &&
-                        !(selectedAgent?.fullName ||
+                    !draftStartMonth ||
+                    !draftEndMonth ||
+                    draftStartMonth > draftEndMonth ||
+                    (!draftUsingCombinedTeamView &&
+                        !(draftSelectedAgent?.fullName ||
                         isSuperAdmin ||
                         (!canManageAgents
                           ? selfAgent?.fullName
                           : ""))) ||
-                    (usingCombinedTeamView && teamAgents.length === 0) ||
-                    (selectedAgentCanToggleTeamView &&
+                    (draftUsingCombinedTeamView && draftTeamAgents.length === 0) ||
+                    (draftSelectedAgentCanToggleTeamView &&
                       selectedAgentTeamViewEnabled &&
-                      selectedAgentTeamMembers.length === 0) ||
-                    (isSuperAdmin && !selectedAgent && allIncentiveAgents.length === 0)
+                      draftSelectedAgentTeamMembers.length === 0) ||
+                    (isSuperAdmin && !draftSelectedAgent && allIncentiveAgents.length === 0)
                   }
                   sx={{
                     ...CONTAINED_BUTTON_SX,
                     width: { xs: "100%", md: 80 },
                   }}
                 >
-                  Apply
+                  {loadingData ? <CircularProgress size={18} color="inherit" /> : "Apply"}
                 </Button>
 
                 <Button
@@ -3080,7 +3329,10 @@ export default function IncentivesPage() {
                   <Button
                     variant="contained"
                     startIcon={<ViewIcon />}
-                    onClick={() => setIncentiveSummaryOpen(true)}
+                    onClick={() => {
+                      setIncentiveSummaryOpen(true);
+                      loadTeamSummaryDetails();
+                    }}
                     sx={CONTAINED_BUTTON_SX}
                   >
                     View Summary
@@ -3625,7 +3877,10 @@ export default function IncentivesPage() {
                   <Button
                     variant="contained"
                     startIcon={<ViewIcon />}
-                    onClick={() => setWalletSummaryOpen(true)}
+                    onClick={() => {
+                      setWalletSummaryOpen(true);
+                      loadTeamSummaryDetails();
+                    }}
                     sx={CONTAINED_BUTTON_SX}
                   >
                     View Summary
@@ -3675,21 +3930,31 @@ export default function IncentivesPage() {
                       spacing={1.5}
                       sx={{ width: { xs: "100%", sm: "auto" } }}
                     >
-                      <TextField
-                        select
-                        size="small"
-                        label="Expert"
-                        value={cashSummaryExpert}
-                        onChange={(e) => setCashSummaryExpert(e.target.value)}
-                        sx={{ minWidth: { xs: "100%", sm: 220 } }}
-                      >
-                        <MenuItem value="all">All Experts</MenuItem>
-                        {cashSummaryExperts.map((expert) => (
-                          <MenuItem key={expert} value={expert}>
-                            {expert}
-                          </MenuItem>
-                        ))}
-                      </TextField>
+                      {data?.isTeamAggregate ? (
+                        <TextField
+                          select
+                          size="small"
+                          label="Expert"
+                          value={cashSummaryExpert}
+                          onChange={(e) => setCashSummaryExpert(e.target.value)}
+                          sx={{ minWidth: { xs: "100%", sm: 220 } }}
+                        >
+                          <MenuItem value="all">All Experts</MenuItem>
+                          {cashSummaryExperts.map((expert) => (
+                            <MenuItem key={expert} value={expert}>
+                              {expert}
+                            </MenuItem>
+                          ))}
+                        </TextField>
+                      ) : (
+                        <TextField
+                          size="small"
+                          label="Expert"
+                          value={cashSummaryFixedExpertLabel || "-"}
+                          InputProps={{ readOnly: true }}
+                          sx={{ minWidth: { xs: "100%", sm: 220 } }}
+                        />
+                      )}
                       <TextField
                         select
                         size="small"
@@ -3785,7 +4050,9 @@ export default function IncentivesPage() {
                               align="center"
                               sx={{ py: 4 }}
                             >
-                              No records found for the selected filters
+                              {summaryDetailsLoading
+                                ? "Loading summary details..."
+                                : "No records found for the selected filters"}
                             </TableCell>
                           </TableRow>
                         )}
@@ -3938,7 +4205,9 @@ export default function IncentivesPage() {
                               align="center"
                               sx={{ py: 4 }}
                             >
-                              No wallet records found
+                              {summaryDetailsLoading
+                                ? "Loading wallet details..."
+                                : "No wallet records found"}
                             </TableCell>
                           </TableRow>
                         )}
