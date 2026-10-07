@@ -17,7 +17,21 @@ import CalendarMonthRoundedIcon from "@mui/icons-material/CalendarMonthRounded";
 import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
 
 
-const TYPES = ["Laptop", "Mouse", "Charger", "HeadPhone", "Keyboard", "Monitor", "NeckBand", "Barcode", "Others"];
+const TYPES = [
+  "Laptop",
+  "Mouse",
+  "Charger",
+  "CPU",
+  "Desktop",
+  "HeadPhone",
+  "Keyboard",
+  "Monitor",
+  "NeckBand",
+  "Barcode",
+  "Camera",
+  "HDMI",
+  "Others",
+];
 const CONDITIONS = ["New", "Used", "Very Old"];
 
 
@@ -792,7 +806,6 @@ export default function AssetManager() {
     </Box>
   );
 }
-
 
 
 
