@@ -49,12 +49,6 @@ const csvCell = (value) => {
   return `"${text.replace(/"/g, '""')}"`;
 };
 
-const isoDate = (value) => {
-  if (!value) return "";
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? "" : date.toISOString().slice(0, 10);
-};
-
 const fmtDate = (d) => {
   if (!d) return "—";
   const dt = new Date(d);
@@ -678,56 +672,58 @@ export default function ITManagerDashboard() {
 
   const downloadEmployeeReport = () => {
     const headers = [
-      "employeeId",
-      "fullName",
-      "email",
-      "department",
-      "role",
-      "status",
-      "joiningDate",
-      "currentAssetCount",
-      "currentAssetCodes",
-      "currentAssetDetails",
-      "assetHistoryCount",
-      "assetMasterMatches",
+      "EMP ID",
+      "EMP Name",
+      "LAP NO",
+      "Headphone No",
+      "Mouse No",
+      "Charger No",
+      "Desktop No",
+      "HDMI",
     ];
-    const masterCodes = new Set(
-      assets.map((asset) => String(asset.assetCode || "").trim()).filter(Boolean)
-    );
 
-    const rows = employees.map((employee) => {
+    const assetColumnByName = {
+      laptop: "LAP NO",
+      headphones: "Headphone No",
+      headphone: "Headphone No",
+      mouse: "Mouse No",
+      charger: "Charger No",
+      desktop: "Desktop No",
+      hdmi: "HDMI",
+      "hdmi cable": "HDMI",
+    };
+
+    const rows = employees
+      .filter((employee) => String(employee.status || "").trim().toLowerCase() === "active")
+      .map((employee) => {
       const employeeId = String(employee._id || employee.id || employee.employeeId || "");
       const employeeEmail = String(employee.email || "").trim().toLowerCase();
       const employeeName = String(employee.fullName || employee.name || "").trim().toLowerCase();
-      const history = allotments.filter((item) => {
+      const currentAssets = allotments.filter((item) => {
         const allottedEmployeeId = String(item.employee?._id || item.employee || "");
         if (employeeId && allottedEmployeeId) return employeeId === allottedEmployeeId;
         const allottedEmail = String(item.employee?.email || "").trim().toLowerCase();
         if (employeeEmail && allottedEmail) return employeeEmail === allottedEmail;
         return employeeName &&
           employeeName === String(item.employee?.fullName || "").trim().toLowerCase();
-      });
-      const current = history.filter((item) => item.status !== "returned");
-      const currentCodes = current
-        .map((item) => String(item.assetCode || "").trim())
-        .filter(Boolean);
-      const currentDetails = current.map((item) =>
-        [item.assetCode, item.name, item.company, item.model].filter(Boolean).join(" | ")
+      }).filter((item) => String(item.status || "").trim().toLowerCase() !== "returned");
+
+      const assetCodesByColumn = headers.slice(2).reduce(
+        (result, column) => ({ ...result, [column]: [] }),
+        {}
       );
+
+      currentAssets.forEach((item) => {
+        const assetName = String(item.name || "").trim().toLowerCase();
+        const column = assetColumnByName[assetName];
+        const assetCode = String(item.assetCode || "").trim();
+        if (column && assetCode) assetCodesByColumn[column].push(assetCode);
+      });
 
       return [
         employeeId,
         employee.fullName || employee.name || "",
-        employee.email || "",
-        employee.department || "",
-        employee.role || "",
-        employee.status || "",
-        isoDate(employee.joiningDate),
-        current.length,
-        currentCodes.join("; "),
-        currentDetails.join("; "),
-        history.length,
-        currentCodes.filter((code) => masterCodes.has(code)).length,
+        ...headers.slice(2).map((column) => assetCodesByColumn[column].join("; ")),
       ];
     });
 
