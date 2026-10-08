@@ -59,6 +59,7 @@ import WhatsAppIcon from "@mui/icons-material/WhatsApp";
 import PhoneDisabledIcon from "@mui/icons-material/PhoneDisabled";
 import AddIcCallIcon from "@mui/icons-material/AddIcCall";
 import StickyNote2Icon from "@mui/icons-material/StickyNote2";
+import EditIcon from "@mui/icons-material/Edit";
 import KeyboardDoubleArrowLeftIcon from "@mui/icons-material/KeyboardDoubleArrowLeft";
 import KeyboardDoubleArrowRightIcon from "@mui/icons-material/KeyboardDoubleArrowRight";
 import ShoppingBagOutlinedIcon from "@mui/icons-material/ShoppingBagOutlined";
@@ -104,6 +105,17 @@ const getISTTimestamp = () => {
   const istTime = new Date(now.getTime() + istOffset);
   return istTime.toISOString();
 };
+
+const formatRetentionNoteTimestamp = () =>
+  new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Kolkata",
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+  }).format(new Date());
 const followupTagMap = {
   "Follow-up Missed": { label: "Missed", color: "error" },
   "Missed": { label: "Missed", color: "error" },
@@ -249,11 +261,26 @@ const RetentionLeads = () => {
 
   const [noteDraft, setNoteDraft] = useState("");
   const [notesCollapsed, setNotesCollapsed] = useState(true);
+  const [expertNoteEdit, setExpertNoteEdit] = useState(null);
+  const expertNoteEditRef = useRef(null);
+  const [savingExpertNoteEdit, setSavingExpertNoteEdit] = useState(false);
 
   const [sortMenuAnchorEl, setSortMenuAnchorEl] = useState(null);
 
   const [noteInputs, setNoteInputs] = useState({});
+  const [noteEditInputs, setNoteEditInputs] = useState({});
   const [savingNotes, setSavingNotes] = useState({});
+  const noteInputsRef = useRef({});
+  const noteEditInputsRef = useRef({});
+  const pendingOrderNoteSavesRef = useRef(new Set());
+  const currentUserName = React.useMemo(() => {
+    try {
+      const u = JSON.parse(sessionStorage.getItem('user'));
+      return u?.fullName || u?.name || (u?.email ? u.email.split('@')[0] : '') || 'Unknown';
+    } catch {
+      return 'Unknown';
+    }
+  }, []);
 
   const [copySuccess, setCopySuccess] = useState(false);
 
@@ -569,6 +596,53 @@ const RetentionLeads = () => {
     }
   };
 
+  const saveExpertNoteEdit = useCallback(async () => {
+    const edit = expertNoteEditRef.current;
+    const text = String(edit?.draft || "").trim();
+    if (!edit?.leadId || !Number.isInteger(edit?.entryIndex) || !text || savingExpertNoteEdit) return;
+
+    const lead = leads.find((item) => String(item?._id) === String(edit.leadId));
+    if (!lead || !Array.isArray(lead.rtSubcells) || !lead.rtSubcells[edit.entryIndex]) return;
+
+    const nextSubcells = lead.rtSubcells.map((entry, index) =>
+      index === edit.entryIndex ? { ...entry, value: text } : entry
+    );
+
+    setSavingExpertNoteEdit(true);
+    try {
+      await api.put(`/api/leads/${lead._id}`, {
+        rtSubcells: nextSubcells,
+        profileUpdatedAt: new Date().toISOString(),
+        profileUpdatedBy: currentUserName,
+      });
+      setLeads((prev) => prev.map((item) =>
+        String(item?._id) === String(lead._id)
+          ? { ...item, rtSubcells: nextSubcells }
+          : item
+      ));
+      expertNoteEditRef.current = null;
+      setExpertNoteEdit(null);
+    } catch (error) {
+      console.error("Error updating expert note:", error);
+    } finally {
+      setSavingExpertNoteEdit(false);
+    }
+  }, [currentUserName, leads, savingExpertNoteEdit]);
+
+  const updateExpertNoteEditDraft = (draft) => {
+    setExpertNoteEdit((prev) => {
+      if (!prev) return prev;
+      const next = { ...prev, draft };
+      expertNoteEditRef.current = next;
+      return next;
+    });
+  };
+
+  const cancelExpertNoteEdit = () => {
+    expertNoteEditRef.current = null;
+    setExpertNoteEdit(null);
+  };
+
   const fetchShopifyDates = async (phoneNumber) => {
     try {
       const res = await api.get("/api/shopify/orders-dates", {
@@ -616,6 +690,82 @@ const RetentionLeads = () => {
     }
   };
 
+  const saveOrderNote = useCallback(async (order, draft, { replace = false } = {}) => {
+    const text = String(draft || "").trim();
+    const orderId = String(order?.id || "").trim();
+    if (!text || !orderId || pendingOrderNoteSavesRef.current.has(orderId)) return;
+
+    pendingOrderNoteSavesRef.current.add(orderId);
+    setSavingNotes((prev) => ({ ...prev, [orderId]: true }));
+    const clearDraft = replace ? setNoteEditInputs : setNoteInputs;
+    const draftRef = replace ? noteEditInputsRef : noteInputsRef;
+    clearDraft((prev) => {
+      const next = { ...prev };
+      delete next[orderId];
+      draftRef.current = next;
+      return next;
+    });
+
+    const entry = `[${formatRetentionNoteTimestamp()}] ${currentUserName || "Expert"}: ${text}`;
+    const existingNote = String(order?.note || "").trim();
+    const combinedNote = replace ? text : (existingNote ? `${existingNote}\n${entry}` : entry);
+
+    try {
+      await api.put(`/api/shopify/orders/${encodeURIComponent(orderId)}/note`, {
+        note: combinedNote,
+      });
+
+      setShopifyDatesMap((prev) => {
+        const next = { ...prev };
+        for (const [phone, details] of Object.entries(next)) {
+          const orders = Array.isArray(details?.orders) ? details.orders : [];
+          if (!orders.some((item) => String(item?.id) === orderId)) continue;
+          next[phone] = {
+            ...details,
+            orders: orders.map((item) =>
+              String(item?.id) === orderId ? { ...item, note: combinedNote } : item
+            ),
+          };
+          break;
+        }
+        return next;
+      });
+    } catch (error) {
+      console.error("Failed to save order note", error.response?.data || error.message);
+      clearDraft((prev) => {
+        const next = { ...prev, [orderId]: text };
+        draftRef.current = next;
+        return next;
+      });
+    } finally {
+      pendingOrderNoteSavesRef.current.delete(orderId);
+      setSavingNotes((prev) => ({ ...prev, [orderId]: false }));
+    }
+  }, [currentUserName]);
+
+  const savePendingOrderNotes = useCallback(() => {
+    const drafts = noteInputsRef.current;
+    const edits = noteEditInputsRef.current;
+    if (!Object.keys(drafts).length && !Object.keys(edits).length) return;
+
+    const ordersById = new Map();
+    Object.values(shopifyDatesMap).forEach((details) => {
+      (details?.orders || []).forEach((order) => {
+        if (order?.id != null) ordersById.set(String(order.id), order);
+      });
+    });
+
+    Object.entries(drafts).forEach(([orderId, draft]) => {
+      const order = ordersById.get(String(orderId));
+      if (order) saveOrderNote(order, draft);
+    });
+
+    Object.entries(noteEditInputsRef.current).forEach(([orderId, draft]) => {
+      const order = ordersById.get(String(orderId));
+      if (order) saveOrderNote(order, draft, { replace: true });
+    });
+  }, [shopifyDatesMap, saveOrderNote]);
+
   const groupLogsByDate = (logs) => {
     const grouped = {};
 
@@ -655,9 +805,18 @@ const RetentionLeads = () => {
   };
 
   const handleLeadSelect = (idx, id) => {
+    savePendingOrderNotes();
+    if (noteDraft.trim() && selectedLeadIndex != null) {
+      handleAddSubcell(selectedLeadIndex);
+    }
+    saveExpertNoteEdit();
     setSelectedLeadId(id);
     setSelectedLeadIndex(idx);
   }
+
+  useEffect(() => () => {
+    savePendingOrderNotes();
+  }, [savePendingOrderNotes]);
 
   useEffect(() => {
     if (!selectedLeadId) return;
@@ -954,16 +1113,6 @@ const RetentionLeads = () => {
 
     fetchRetentionLeadsPage(loggedInUser, 1);
   }, [loggedInUser, filters.retentionStatus, filters.rtFollowupReminder, filters.name, filters.rtNextFollowupDate, colorFilter, acqYear, acqMonth]);
-
-  const currentUserName = React.useMemo(() => {
-    try {
-      const u = JSON.parse(sessionStorage.getItem('user'));
-      return u?.fullName || u?.name || (u?.email ? u.email.split('@')[0] : '') || 'Unknown';
-    } catch {
-      return 'Unknown';
-    }
-  }, []);
-
 
   useEffect(() => {
     const user = JSON.parse(sessionStorage.getItem("user"));
@@ -2874,46 +3023,42 @@ You can mark Lost only after 60 days.`);
                         </Box>
                         {(shopifyDatesMap[leads[selectedLeadIndex]?.contactNumber]?.orders || []).map((order, i) => {
                           const noteInput = noteInputs[order.id] || "";
+                          const isEditingSavedNote = Object.prototype.hasOwnProperty.call(noteEditInputs, order.id);
+                          const savedNoteDraft = noteEditInputs[order.id] ?? String(order.note || "");
                           const savingNote = savingNotes[order.id] || false;
                           const cleanOrderId = order.name.replace(/^#/, "").trim();
                           const shipmentStatus = shipmentStatusMap[cleanOrderId] || "N/A";
 
                           const handleNoteChange = (val) => {
-                            setNoteInputs((prev) => ({ ...prev, [order.id]: val }));
+                            setNoteInputs((prev) => {
+                              const next = { ...prev, [order.id]: val };
+                              noteInputsRef.current = next;
+                              return next;
+                            });
                           };
 
-                          const handleSaveNote = async () => {
-                            if (!noteInput.trim()) {
-                              alert("Note cannot be empty");
-                              return;
-                            }
-                            setSavingNotes((prev) => ({ ...prev, [order.id]: true }));
-                            try {
-                              await axios.put(
-                                `https://muditamleads-14f32a10d7f7.herokuapp.com/api/shopify/orders/${order.id}/note`,
-                                { note: noteInput }
-                              );
-                              setShopifyDatesMap((prev) => {
-                                const updatedOrders =
-                                  prev[leads[selectedLeadIndex]?.contactNumber].orders.map((o) =>
-                                    o.id === order.id ? { ...o, note: noteInput } : o
-                                  );
-                                return {
-                                  ...prev,
-                                  [leads[selectedLeadIndex]?.contactNumber]: {
-                                    ...prev[leads[selectedLeadIndex]?.contactNumber],
-                                    orders: updatedOrders,
-                                  },
-                                };
-                              });
-                              setNoteInputs((prev) => ({ ...prev, [order.id]: "" }));
-                            } catch (error) {
-                              console.error("Failed to save note", error.response?.data || error.message);
-                              alert("Failed to save note");
-                            } finally {
-                              setSavingNotes((prev) => ({ ...prev, [order.id]: false }));
-                            }
+                          const handleSaveNote = () => saveOrderNote(order, noteInput);
+
+                          const handleSavedNoteEdit = (value) => {
+                            setNoteEditInputs((prev) => {
+                              const next = { ...prev, [order.id]: value };
+                              noteEditInputsRef.current = next;
+                              return next;
+                            });
                           };
+
+                          const startSavedNoteEdit = () => handleSavedNoteEdit(String(order.note || ""));
+
+                          const cancelSavedNoteEdit = () => {
+                            setNoteEditInputs((prev) => {
+                              const next = { ...prev };
+                              delete next[order.id];
+                              noteEditInputsRef.current = next;
+                              return next;
+                            });
+                          };
+
+                          const saveEditedNote = () => saveOrderNote(order, savedNoteDraft, { replace: true });
 
                           return (
                             <Paper
@@ -2984,34 +3129,65 @@ You can mark Lost only after 60 days.`);
                                 </Box>
 
                                 <Box sx={{ minWidth: 240, maxWidth: 320 }}>
-                                  {order.note ? (
+                                  {order.note && !isEditingSavedNote ? (
+                                    <Box sx={{ display: "flex", alignItems: "flex-start", gap: 0.5 }}>
                                     <Typography
-                                      sx={{ fontSize: "0.85rem", fontStyle: "italic", whiteSpace: "pre-wrap" }}
+                                      sx={{ flex: 1, fontSize: "0.85rem", fontStyle: "italic", whiteSpace: "pre-wrap" }}
                                     >
-                                      <b>Note:</b> {order.note}
+                                      <b>Notes:</b> {order.note}
                                     </Typography>
-                                  ) : (
-                                    <Box sx={{ display: "flex", gap: 1 }}>
+                                    <Button
+                                      size="small"
+                                      onClick={startSavedNoteEdit}
+                                      disabled={savingNote}
+                                      sx={{ minWidth: 0, px: 0.75, textTransform: "none" }}
+                                    >
+                                      Edit
+                                    </Button>
+                                    </Box>
+                                  ) : null}
+                                  {isEditingSavedNote ? (
+                                    <Box sx={{ mt: 0.5 }}>
                                       <TextField
                                         size="small"
-                                        variant="outlined"
-                                        placeholder="Add note"
-                                        value={noteInput}
-                                        onChange={(e) => handleNoteChange(e.target.value)}
+                                        multiline
+                                        minRows={3}
+                                        value={savedNoteDraft}
+                                        onChange={(e) => handleSavedNoteEdit(e.target.value)}
                                         disabled={savingNote}
                                         fullWidth
                                         sx={premiumInputSx}
                                       />
-                                      <Button
-                                        variant="contained"
-                                        size="small"
-                                        onClick={handleSaveNote}
-                                        disabled={savingNote}
-                                        sx={{ borderRadius: "10px", textTransform: "none" }}
-                                      >
-                                        {savingNote ? "Saving..." : "Save"}
-                                      </Button>
+                                      <Box sx={{ display: "flex", justifyContent: "flex-end", gap: 0.75, mt: 0.75 }}>
+                                        <Button size="small" onClick={cancelSavedNoteEdit} disabled={savingNote}>Cancel</Button>
+                                        <Button variant="contained" size="small" onClick={saveEditedNote} disabled={savingNote || !savedNoteDraft.trim()}>
+                                          {savingNote ? "Saving..." : "Save changes"}
+                                        </Button>
+                                      </Box>
                                     </Box>
+                                  ) : (
+                                  <Box sx={{ display: "flex", gap: 1, mt: order.note ? 1 : 0 }}>
+                                    <TextField
+                                      size="small"
+                                      variant="outlined"
+                                      placeholder="Add note for today"
+                                      value={noteInput}
+                                      onChange={(e) => handleNoteChange(e.target.value)}
+                                      onBlur={handleSaveNote}
+                                      disabled={savingNote}
+                                      fullWidth
+                                      sx={premiumInputSx}
+                                    />
+                                    <Button
+                                      variant="contained"
+                                      size="small"
+                                      onClick={handleSaveNote}
+                                      disabled={savingNote || !noteInput.trim()}
+                                      sx={{ borderRadius: "10px", textTransform: "none" }}
+                                    >
+                                      {savingNote ? "Saving..." : "Save"}
+                                    </Button>
+                                  </Box>
                                   )}
                                 </Box>
                               </Box>
@@ -3320,23 +3496,30 @@ You can mark Lost only after 60 days.`);
 
                         {/* Saved notes as separate cards */}
                         {(() => {
-                          const list = [...(leads[selectedLeadIndex]?.rtSubcells || [])];
+                          const list = (leads[selectedLeadIndex]?.rtSubcells || []).map((sub, originalIndex) => ({
+                            sub,
+                            originalIndex,
+                          }));
 
                           const normalizeUser = (by) =>
                             (typeof by === 'string' ? by.trim() : '') || 'Expert';
 
                           list.sort((a, b) => {
-                            const ta = toDateSafe(a?.date)?.getTime() ?? -Infinity;
-                            const tb = toDateSafe(b?.date)?.getTime() ?? -Infinity;
+                            const ta = toDateSafe(a?.sub?.date)?.getTime() ?? -Infinity;
+                            const tb = toDateSafe(b?.sub?.date)?.getTime() ?? -Infinity;
                             return tb - ta;
                           });
 
-                          return list.map((sub, idx) => {
+                          return list.map(({ sub, originalIndex }, idx) => {
                             const dayKey = getISTDayKey(sub?.date);
                             const dayLabel = dayKey ? formatDayHeaderIST(dayKey) : (String(sub?.date ?? "").trim() || "—");
                             const timeLabel = formatTimeIST(sub?.date);
                             const userLabel = normalizeUser(sub?.by);
                             const noteText = sub?.value?.trim() || "—";
+                            const isCurrentDay = dayKey === getISTDayKey(new Date());
+                            const isEditing =
+                              String(expertNoteEdit?.leadId || "") === String(leads[selectedLeadIndex]?._id || "") &&
+                              expertNoteEdit?.entryIndex === originalIndex;
 
                             return (
                               <Box
@@ -3350,23 +3533,71 @@ You can mark Lost only after 60 days.`);
                                   boxShadow: "0 8px 16px rgba(15,23,42,0.08)",
                                 }}
                               >
-                                <Typography variant="body2" sx={{ fontWeight: 700, color: "#0F172A" }}>
-                                  {`${dayLabel} (${userLabel})`}
-                                </Typography>
-                                <Typography
-                                  variant="body2"
-                                  sx={{
-                                    whiteSpace: "pre-wrap",
-                                    wordBreak: "break-word",
-                                    overflowWrap: "anywhere",
-                                    lineHeight: 1.4,
-                                    mt: 0.25,
-                                  }}
-                                >
-                                  {timeLabel && timeLabel !== "—"
-                                    ? `${timeLabel} — ${noteText}`
-                                    : noteText}
-                                </Typography>
+                                <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={1}>
+                                  <Typography variant="body2" sx={{ fontWeight: 700, color: "#0F172A" }}>
+                                    {`${dayLabel} (${userLabel})`}
+                                  </Typography>
+                                  {isCurrentDay ? (
+                                    <Tooltip title="Edit today's note">
+                                      <IconButton
+                                        size="small"
+                                        onClick={() => {
+                                          const next = {
+                                            leadId: leads[selectedLeadIndex]?._id,
+                                            entryIndex: originalIndex,
+                                            draft: String(sub?.value || ""),
+                                          };
+                                          expertNoteEditRef.current = next;
+                                          setExpertNoteEdit(next);
+                                        }}
+                                        disabled={savingExpertNoteEdit}
+                                        aria-label="Edit today's note"
+                                      >
+                                        <EditIcon fontSize="small" />
+                                      </IconButton>
+                                    </Tooltip>
+                                  ) : null}
+                                </Stack>
+                                {isEditing ? (
+                                  <Box sx={{ mt: 0.75 }}>
+                                    <TextField
+                                      multiline
+                                      minRows={3}
+                                      size="small"
+                                      fullWidth
+                                      value={expertNoteEdit?.draft || ""}
+                                      onChange={(event) => updateExpertNoteEditDraft(event.target.value)}
+                                      disabled={savingExpertNoteEdit}
+                                      sx={premiumInputSx}
+                                    />
+                                    <Box sx={{ display: "flex", justifyContent: "flex-end", gap: 0.75, mt: 0.75 }}>
+                                      <Button size="small" onClick={cancelExpertNoteEdit} disabled={savingExpertNoteEdit}>Cancel</Button>
+                                      <Button
+                                        size="small"
+                                        variant="contained"
+                                        onClick={saveExpertNoteEdit}
+                                        disabled={savingExpertNoteEdit || !String(expertNoteEdit?.draft || "").trim()}
+                                      >
+                                        {savingExpertNoteEdit ? "Saving..." : "Save"}
+                                      </Button>
+                                    </Box>
+                                  </Box>
+                                ) : (
+                                  <Typography
+                                    variant="body2"
+                                    sx={{
+                                      whiteSpace: "pre-wrap",
+                                      wordBreak: "break-word",
+                                      overflowWrap: "anywhere",
+                                      lineHeight: 1.4,
+                                      mt: 0.25,
+                                    }}
+                                  >
+                                    {timeLabel && timeLabel !== "—"
+                                      ? `${timeLabel} — ${noteText}`
+                                      : noteText}
+                                  </Typography>
+                                )}
                               </Box>
                             );
                           });
