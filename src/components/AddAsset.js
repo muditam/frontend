@@ -52,12 +52,14 @@ const TYPES = [
   "Mouse",
   "Charger",
   "CPU",
+  "Desktop",
   "HeadPhone",
   "Keyboard",
   "Monitor",
   "NeckBand",
   "Barcode",
   "Camera",
+  "HDMI",
   "Others",
 ];
  
@@ -1048,6 +1050,17 @@ const fetchAssets = async () => {
     ];
   };
 
+  const assetTypeOptions = useMemo(() => {
+    const types = new Set(TYPES);
+    items.forEach((asset) => {
+      getItemsArr(asset).forEach((item) => {
+        const type = String(item?.type || "").trim();
+        if (type) types.add(type);
+      });
+    });
+    return Array.from(types).sort((a, b) => a.localeCompare(b));
+  }, [items]);
+
   // active employees (for filter)
   const activeEmployees = useMemo(() => {
     const active = employeeList.filter(
@@ -1505,7 +1518,7 @@ const totalUnassigned = useMemo(
               }}
             >
               <MenuItem value="">All Types</MenuItem>
-              {TYPES.map((t) => (
+              {assetTypeOptions.map((t) => (
                 <MenuItem key={t} value={t}>
                   {t}
                 </MenuItem>

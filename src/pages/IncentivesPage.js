@@ -1902,17 +1902,24 @@ export default function IncentivesPage() {
           return true;
         }
 
-        const selectedResponses = await fetchTeamIncentiveSummaries(
-          members,
-          derivedStartDate,
-          derivedEndDate
-        );
+        const [selectedResponses, cumulativeResponses] = await Promise.all([
+          fetchTeamIncentiveSummaries(
+            members,
+            derivedStartDate,
+            derivedEndDate
+          ),
+          fetchTeamIncentiveSummaries(
+            members,
+            cumulativeStartDate,
+            derivedEndDate
+          ),
+        ]);
 
         const filteredEntries = members
           .map((member, index) => ({
             member,
             selectedResponse: selectedResponses[index],
-            cumulativeResponse: selectedResponses[index],
+            cumulativeResponse: cumulativeResponses[index],
           }))
           .filter(({ member, selectedResponse }) => {
             if (!isHistoricalReport || isActiveEmployee(member)) {
@@ -2129,7 +2136,6 @@ export default function IncentivesPage() {
     if (isSelfAndTeamRole) {
       setCashSummaryExpert(draftSelectedAgent?.fullName || "all");
     }
-    setSelectedAgentTeamViewEnabled(false);
     setLoadingData(true);
     clearCachedData("incentives:agent:");
     clearPageState();
@@ -2241,6 +2247,9 @@ export default function IncentivesPage() {
   const walletPeriod = walletCoin.period || {};
   const walletSop = walletCoin.sop || {};
   const walletRows = walletCoin.rows || [];
+  const walletMonthlyBreakdown = Array.isArray(walletCoin.monthlyBreakdown)
+    ? walletCoin.monthlyBreakdown
+    : [];
   const walletRules = walletCoin.rules || {};
   const walletAchievementPercent = Number(walletTarget.achievementPercent ?? 0);
   const walletDeliveredVkrCount = Number(walletTarget.deliveredCount ?? 0);
@@ -2287,14 +2296,27 @@ export default function IncentivesPage() {
   const derivedDeliveredCoins = round2(deliveredVkr * walletValuePerCount);
   const derivedUpcomingCoins = round2(undeliveredVkr * walletValuePerCount);
   const derivedProjectedCoins = round2(derivedDeliveredCoins + derivedUpcomingCoins);
-  const walletBaseEarnedCoins =
+  const fallbackWalletBaseEarnedCoins =
     walletAchievementByDeliveredPct >= walletMinAchievementToRetain
       ? derivedDeliveredCoins
       : 0;
-  const walletLapsedCoins =
+  const fallbackWalletLapsedCoins =
     walletAchievementByDeliveredPct < walletMinAchievementToRetain
       ? derivedDeliveredCoins
       : 0;
+  // The 60% rule is evaluated separately for each calendar month by the API.
+  // Do not re-apply it to the full selected range here, or a low later month
+  // would incorrectly lapse coins that were already earned in prior months.
+  const walletBaseEarnedCoins = Number(
+    walletCoin.baseEarnedCoins ??
+      summary.walletCoinBaseEarned ??
+      fallbackWalletBaseEarnedCoins
+  );
+  const walletLapsedCoins = Number(
+    walletCoin.lapsedCoins ??
+      summary.walletCoinLapsed ??
+      fallbackWalletLapsedCoins
+  );
   const walletUpcomingCoins =
     derivedUpcomingCoins > 0 ? derivedUpcomingCoins : round2(
       walletUpcomingRows.reduce(
@@ -2304,6 +2326,7 @@ export default function IncentivesPage() {
     );
   const walletProjectedCoins =
     derivedProjectedCoins > 0 ? derivedProjectedCoins : walletProjectedCoinsRaw;
+  const usesMonthlyCoinEligibility = walletMonthlyBreakdown.length > 1;
 
   const prepaidCoins = Number(
     summary.prepaidCoins ?? walletCoin.prepaidCoins ?? data?.extraCoins?.prepaidCoins ?? 0
@@ -4367,7 +4390,11 @@ export default function IncentivesPage() {
                         <SummaryMetric
                           title="Earned Coins"
                           value={formatNumber(walletBaseEarnedCoins)}
-                          sub={`${formatNumber(walletDeliveredOrders)} delivered qualifying orders (${formatNumber(deliveredVkr)} VKR)`}
+                          sub={
+                            usesMonthlyCoinEligibility
+                              ? "Monthly 60% eligibility applied"
+                              : `${formatNumber(walletDeliveredOrders)} delivered qualifying orders (${formatNumber(deliveredVkr)} VKR)`
+                          }
                           color={BRAND.coin}
                           bg="#ffffff"
                           borderColor={BRAND.coinBorder}
@@ -4385,7 +4412,11 @@ export default function IncentivesPage() {
                         <SummaryMetric
                           title="Lapsed Coins"
                           value={formatNumber(walletLapsedCoins)}
-                          sub={`${walletAchievementByDeliveredPct}% achievement`}
+                          sub={
+                            usesMonthlyCoinEligibility
+                              ? "Only months below 60% lapse"
+                              : `${walletAchievementByDeliveredPct}% achievement`
+                          }
                           color={BRAND.reversed}
                           bg="#ffffff"
                           borderColor="#fecaca"
