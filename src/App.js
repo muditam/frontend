@@ -108,6 +108,7 @@ import DietPlanEditor from "./pages/diet/DietPlanEditor";
 import DataConvertor from "./pages/DataConvertor";
 import AccessDenied from "./pages/AccessDenied";
 import AiReportExtractorPage from "./pages/aiExtractor/AiReportExtractorPage";
+import PaymentLinkPage from "./pages/PaymentLinkPage";
 
 function AppLayout() {
   const location = useLocation();
@@ -121,6 +122,14 @@ function AppLayout() {
       {!isDietPublicRoute && !isWhatsAppChatRoute && !isOnlineOrdersRoute && <WhatsAppNotification />}
 
         <Routes>
+          <Route
+            path="/link-payments"
+            element={
+              <PrivateRoute>
+                <PaymentLinkPage />
+              </PrivateRoute>
+            }
+          />
           <Route
             path="/shipment-details"
             element={

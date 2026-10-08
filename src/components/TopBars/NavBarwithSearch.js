@@ -49,7 +49,9 @@ import DownloadIcon from "@mui/icons-material/Download";
 import CheckBoxIcon from "@mui/icons-material/CheckBox";
 import CampaignIcon from "@mui/icons-material/Campaign";
 import AssessmentIcon from "@mui/icons-material/Assessment";
+import LinkIcon from "@mui/icons-material/Link";
 import MarketingQuickCreateDialog from "../../Marketing/MarketingQuickCreateDialog";
+import { canAccessPaymentLinks } from "../../utils/paymentLinkAccess";
 
 
 const SlideDown = React.forwardRef(function Transition(props, ref) {
@@ -800,6 +802,20 @@ const NavbarWithSearch = () => {
 
          {/* Right side: Icons and LMS Search */}
          <Box sx={{ display: "flex", alignItems: "center" }}>
+           {user && canAccessPaymentLinks(user) && (
+             <IconButton
+               onClick={() => navigate("/link-payments")}
+               sx={{
+                 mr: 0.5,
+                 color: "#fff",
+                 "&:hover": { color: "#fff", bgcolor: "#e0e0e0" },
+               }}
+               title="Link Razorpay Payments"
+             >
+               <LinkIcon />
+             </IconButton>
+           )}
+
            {user && canNav("incentiveIcon") && (
              <IconButton
                onClick={() => setIncentiveOpen(true)}
