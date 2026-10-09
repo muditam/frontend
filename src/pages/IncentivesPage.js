@@ -3282,9 +3282,7 @@ export default function IncentivesPage() {
                     <Button
                       variant="outlined"
                       onClick={handleOpenConvertPopover}
-                      disabled={
-                        !canUseWalletActions || Number(displayAvailableCashValue || 0) <= 0
-                      }
+                      disabled
                       sx={{
                         ...OUTLINED_BUTTON_SX,
                         borderRadius: 2.5,
