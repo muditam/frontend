@@ -368,10 +368,6 @@ function isReversedWalletCoinStatus(status = "") {
   );
 }
 
-function isRtoWalletCoinStatus(status = "") {
-  return String(status || "").toUpperCase().includes("RTO");
-}
-
 function isUpcomingWalletCoinStatus(status = "") {
   const s = String(status || "").toUpperCase();
 
@@ -2296,9 +2292,6 @@ export default function IncentivesPage() {
   const walletTargetVisibleVkrCount = round2(
     walletDeliveredVkrCount + walletUpcomingVkrCount
   );
-  const totalVkr = round2(
-    walletRows.reduce((sum, row) => sum + Number(row?.vkrCount || 0), 0)
-  );
   const deliveredVkr = round2(
     walletRows.reduce(
       (sum, row) =>
@@ -2309,64 +2302,43 @@ export default function IncentivesPage() {
       0
     )
   );
-  const undeliveredVkr = round2(Math.max(0, totalVkr - deliveredVkr));
   const walletValuePerCount = Number(walletSop.valuePerCount || 0);
   const walletMonthlyTargetCount = Number(walletTarget.monthlyTargetCount || 0);
-  const walletMinAchievementToRetain = Number(
-    walletTarget.minAchievementPercentToRetain ?? 60
-  );
   const walletAchievementByDeliveredPct = walletMonthlyTargetCount
     ? round2((deliveredVkr / walletMonthlyTargetCount) * 100)
     : 0;
   const walletAchievementByTotalPct = walletMonthlyTargetCount
-    ? round2((totalVkr / walletMonthlyTargetCount) * 100)
+    ? round2((walletTargetVisibleVkrCount / walletMonthlyTargetCount) * 100)
     : 0;
   const derivedDeliveredCoins = round2(deliveredVkr * walletValuePerCount);
-  const rtoVkr = round2(
-    walletRows.reduce(
-      (sum, row) =>
-        sum +
-        (isRtoWalletCoinStatus(row?.shipmentStatus || "")
-          ? Number(row?.vkrCount || 0)
-          : 0),
-      0
-    )
+  // Only active shipment states are upcoming. RTO/cancelled rows are lapsed
+  // and must never inflate the upcoming wallet balance.
+  const derivedUpcomingCoins = round2(
+    walletUpcomingVkrCount * walletValuePerCount
   );
-  const rtoCoins = round2(rtoVkr * walletValuePerCount);
-  const derivedUpcomingCoins = round2(undeliveredVkr * walletValuePerCount);
   const derivedProjectedCoins = round2(derivedDeliveredCoins + derivedUpcomingCoins);
-  const fallbackWalletBaseEarnedCoins =
-    walletAchievementByDeliveredPct >= walletMinAchievementToRetain
-      ? derivedDeliveredCoins
-      : 0;
-  const fallbackWalletLapsedCoins =
-    walletAchievementByDeliveredPct < walletMinAchievementToRetain
-      ? derivedDeliveredCoins
-      : 0;
-  const isSingleMonthWalletPeriod = walletMonthlyBreakdown.length === 1;
-  const singleMonthIsEligible =
-    walletAchievementByDeliveredPct >= walletMinAchievementToRetain;
+  const fallbackWalletBaseEarnedCoins = walletCoin.baseEarnedCoins ??
+    summary.walletCoinBaseEarned ?? derivedDeliveredCoins;
+  const fallbackWalletLapsedCoins = walletCoin.lapsedCoins ??
+    summary.walletCoinLapsed ?? 0;
   // The 60% rule is evaluated separately for each calendar month by the API.
-  // Do not re-apply it to the full selected range here, or a low later month
-  // would incorrectly lapse coins that were already earned in prior months.
+  // Use that same result for both a single month and a multi-month range so
+  // the detail card cannot disagree with the cumulative wallet balance.
   const walletBaseEarnedCoins = Number(
-    isSingleMonthWalletPeriod
-      ? (singleMonthIsEligible ? derivedDeliveredCoins : 0)
-      : (walletMonthlyBreakdown.length
-          ? walletMonthlyBreakdown.reduce(
-              (sum, month) => sum + Number(month?.earnedCoins || 0),
-              0
-            )
-          : walletCoin.baseEarnedCoins) ??
-        summary.walletCoinBaseEarned ??
-        fallbackWalletBaseEarnedCoins
+    (walletMonthlyBreakdown.length
+      ? walletMonthlyBreakdown.reduce(
+          (sum, month) => sum + Number(month?.earnedCoins || 0),
+          0
+        )
+      : fallbackWalletBaseEarnedCoins)
   );
   const walletLapsedCoins = Number(
-    isSingleMonthWalletPeriod
-      ? (singleMonthIsEligible ? 0 : derivedDeliveredCoins) + rtoCoins
-      : walletCoin.lapsedCoins ??
-        summary.walletCoinLapsed ??
-        fallbackWalletLapsedCoins
+    (walletMonthlyBreakdown.length
+      ? walletMonthlyBreakdown.reduce(
+          (sum, month) => sum + Number(month?.lapsedCoins || 0),
+          0
+        )
+      : fallbackWalletLapsedCoins)
   );
   const walletUpcomingCoins =
     derivedUpcomingCoins > 0 ? derivedUpcomingCoins : round2(
@@ -4191,9 +4163,9 @@ export default function IncentivesPage() {
                             </Box>
                           </Typography>
                           <Typography variant="caption" sx={{ color: BRAND.sub, display: "block" }}>
-                            Undelivered VKR:{" "}
+                            Upcoming VKR:{" "}
                             <Box component="span" sx={{ color: BRAND.coming, fontWeight: 700 }}>
-                              {formatNumber(undeliveredVkr)}
+                              {formatNumber(walletUpcomingVkrCount)}
                             </Box>
                           </Typography>
                         </Stack>
@@ -4227,7 +4199,7 @@ export default function IncentivesPage() {
                         <SummaryMetric
                           title="Upcoming Coins"
                           value={formatNumber(walletUpcomingCoins)}
-                          sub={`${formatNumber(walletUpcomingOrders)} upcoming qualifying orders (${formatNumber(undeliveredVkr)} VKR)`}
+                          sub={`${formatNumber(walletUpcomingOrders)} upcoming qualifying orders (${formatNumber(walletUpcomingVkrCount)} VKR)`}
                           color={BRAND.coming}
                           bg="#ffffff"
                           borderColor="#fde68a"
