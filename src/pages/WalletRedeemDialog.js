@@ -612,6 +612,9 @@ function StatusBadge({ status }) {
   if (s === "rejected") {
     return <span className="wrd-status-badge wrd-status-rejected">✕ Rejected</span>;
   }
+  if (s === "reverted") {
+    return <span className="wrd-status-badge wrd-status-rejected">↩ Reverted</span>;
+  }
   return <span className="wrd-status-badge wrd-status-pending">⏳ Pending</span>;
 }
 

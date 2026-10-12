@@ -368,6 +368,10 @@ function isReversedWalletCoinStatus(status = "") {
   );
 }
 
+function isRtoWalletCoinStatus(status = "") {
+  return String(status || "").toUpperCase().includes("RTO");
+}
+
 function isUpcomingWalletCoinStatus(status = "") {
   const s = String(status || "").toUpperCase();
 
@@ -391,8 +395,11 @@ function isUpcomingWalletCoinStatus(status = "") {
 }
 
 function isDeliveredWalletCoinStatus(status = "", rowDeliveredFlag = false) {
-  if (rowDeliveredFlag) return true;
   const s = String(status || "").toUpperCase();
+  // RTO Delivered is a return event, not a successful delivery. Check the
+  // status before trusting the legacy row flag, which may still be true.
+  if (s.includes("RTO")) return false;
+  if (rowDeliveredFlag) return true;
   return s.includes("DELIVERED") || s.includes("COMPLETE");
 }
 
@@ -2286,6 +2293,17 @@ export default function IncentivesPage() {
     ? round2((totalVkr / walletMonthlyTargetCount) * 100)
     : 0;
   const derivedDeliveredCoins = round2(deliveredVkr * walletValuePerCount);
+  const rtoVkr = round2(
+    walletRows.reduce(
+      (sum, row) =>
+        sum +
+        (isRtoWalletCoinStatus(row?.shipmentStatus || "")
+          ? Number(row?.vkrCount || 0)
+          : 0),
+      0
+    )
+  );
+  const rtoCoins = round2(rtoVkr * walletValuePerCount);
   const derivedUpcomingCoins = round2(undeliveredVkr * walletValuePerCount);
   const derivedProjectedCoins = round2(derivedDeliveredCoins + derivedUpcomingCoins);
   const fallbackWalletBaseEarnedCoins =
@@ -2296,18 +2314,25 @@ export default function IncentivesPage() {
     walletAchievementByDeliveredPct < walletMinAchievementToRetain
       ? derivedDeliveredCoins
       : 0;
+  const isSingleMonthWalletPeriod = walletMonthlyBreakdown.length === 1;
+  const singleMonthIsEligible =
+    walletAchievementByDeliveredPct >= walletMinAchievementToRetain;
   // The 60% rule is evaluated separately for each calendar month by the API.
   // Do not re-apply it to the full selected range here, or a low later month
   // would incorrectly lapse coins that were already earned in prior months.
   const walletBaseEarnedCoins = Number(
-    walletCoin.baseEarnedCoins ??
-      summary.walletCoinBaseEarned ??
-      fallbackWalletBaseEarnedCoins
+    isSingleMonthWalletPeriod
+      ? (singleMonthIsEligible ? derivedDeliveredCoins : 0)
+      : walletCoin.baseEarnedCoins ??
+        summary.walletCoinBaseEarned ??
+        fallbackWalletBaseEarnedCoins
   );
   const walletLapsedCoins = Number(
-    walletCoin.lapsedCoins ??
-      summary.walletCoinLapsed ??
-      fallbackWalletLapsedCoins
+    isSingleMonthWalletPeriod
+      ? (singleMonthIsEligible ? 0 : derivedDeliveredCoins) + rtoCoins
+      : walletCoin.lapsedCoins ??
+        summary.walletCoinLapsed ??
+        fallbackWalletLapsedCoins
   );
   const walletUpcomingCoins =
     derivedUpcomingCoins > 0 ? derivedUpcomingCoins : round2(
@@ -4146,7 +4171,7 @@ export default function IncentivesPage() {
                           display: "grid",
                           gridTemplateColumns: {
                             xs: "1fr",
-                            sm: "repeat(auto-fit, minmax(180px, 1fr))",
+                            sm: "repeat(3, minmax(0, 1fr))",
                           },
                           gap: 1.25,
                         }}
