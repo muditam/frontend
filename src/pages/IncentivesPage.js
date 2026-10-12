@@ -16,7 +16,6 @@ import {
   LinearProgress,
   MenuItem,
   Paper,
-  Popover,
   Stack,
   Switch,
   Table,
@@ -1264,11 +1263,6 @@ export default function IncentivesPage() {
   const [summaryDetailsLoading, setSummaryDetailsLoading] = useState(false);
   const [agentVkrRows, setAgentVkrRows] = useState([]);
 
-  const [walletAnchorEl, setWalletAnchorEl] = useState(null);
-  const [convertAmount, setConvertAmount] = useState("");
-  const [convertLoading, setConvertLoading] = useState(false);
-  const [convertError, setConvertError] = useState("");
-  const [walletOverride, setWalletOverride] = useState(null);
   const [redeemOpen, setRedeemOpen] = useState(false);
 
   const [teamViewEnabled, setTeamViewEnabled] = useState(
@@ -1566,7 +1560,6 @@ export default function IncentivesPage() {
   const clearPageState = useCallback(() => {
     setData(null);
     setBalanceData(null);
-    setWalletOverride(null);
     setError("");
     setIncentiveSummaryOpen(false);
     setWalletSummaryOpen(false);
@@ -1889,7 +1882,6 @@ export default function IncentivesPage() {
 
     setLoadingData(true);
     setError("");
-    setWalletOverride(null);
 
     try {
       const loadAggregateData = async (members = [], label = "Team", emptyMessage = "No sales team members found.") => {
@@ -2363,7 +2355,6 @@ export default function IncentivesPage() {
     !canManageAgents && !selectedAgent && !usingCombinedTeamView;
 
   const displayAvailableCoinValue = Number(
-    walletOverride?.availableCoin ??
     (shouldUseViewerBalance ? viewerBalanceWallet.availableCoin : undefined) ??
     (shouldUseViewerBalance ? viewerBalanceWalletCoin.availableCoin : undefined) ??
     (shouldUseViewerBalance ? viewerBalanceSummary.availableWalletCoin : undefined) ??
@@ -2382,17 +2373,6 @@ export default function IncentivesPage() {
     walletCoin.availableCoin ??
     summary.availableWalletCoin ??
     walletBaseEarnedCoins ??
-    0
-  );
-
-  const displayAvailableCashValue = Number(
-    walletOverride?.availableCash ??
-    (shouldUseViewerBalance ? viewerBalanceWallet.availableCash : undefined) ??
-    (shouldUseViewerBalance ? viewerBalanceSummary.availableIncentive : undefined) ??
-    balanceWallet.availableCash ??
-    balanceSummary.availableIncentive ??
-    walletData.availableCash ??
-    summary.availableIncentive ??
     0
   );
 
@@ -2541,7 +2521,6 @@ export default function IncentivesPage() {
   const deliveredTone = useMemo(() => getSlabTone(deliveredPercent), [deliveredPercent]);
   const totalTone = useMemo(() => getSlabTone(totalPercent), [totalPercent]);
 
-  const walletPopoverOpen = Boolean(walletAnchorEl);
   const canUseWalletActions =
     !usingCombinedTeamView && !selectedAgentTeamViewEnabled && Boolean(data);
 
@@ -2755,13 +2734,6 @@ export default function IncentivesPage() {
     });
   }, [agentVkrRows, coinInsightsSort, isTeamData]);
 
-  const handleOpenConvertPopover = (event) => {
-    if (!canUseWalletActions) return;
-    setWalletAnchorEl(event.currentTarget);
-    setConvertAmount("");
-    setConvertError("");
-  };
-
   const handleTeamInsightsHeaderSort = (field) => {
     const [currentField, currentDirection = "desc"] = String(teamInsightsSort).split(":");
     if (currentField === field) {
@@ -2801,106 +2773,6 @@ export default function IncentivesPage() {
   const isCoinSortActive = (field) =>
     String(coinInsightsSort).split(":")[0] === field;
 
-  const handleCloseWalletPopover = () => {
-    if (convertLoading) return;
-    setWalletAnchorEl(null);
-    setConvertAmount("");
-    setConvertError("");
-  };
-
-  const handleConvertCashToCoin = async () => {
-    const amount = Number(convertAmount || 0);
-
-    if (!data?.agentName) {
-      setConvertError("Please load wallet data first.");
-      return;
-    }
-
-    if (!amount || Number.isNaN(amount) || amount <= 0) {
-      setConvertError("Please enter a valid cash amount.");
-      return;
-    }
-
-    if (amount > displayAvailableCashValue) {
-      setConvertError("Entered amount is greater than available cash.");
-      return;
-    }
-
-    setConvertLoading(true);
-    setConvertError("");
-
-    try {
-      const res = await axios.post(
-        `${API_BASE}/api/wallet/convert-cash-to-coin`,
-        {
-          agentName: data.agentName,
-          startDate: cumulativeStartDate,
-          endDate: derivedEndDate,
-          cashAmount: amount,
-        },
-        { headers }
-      );
-
-      const nextCash = Number(
-        res.data?.wallet?.availableCash ??
-        res.data?.availableCash ??
-        displayAvailableCashValue - amount
-      );
-
-      const nextCoin = Number(
-        res.data?.wallet?.availableCoin ??
-        res.data?.availableCoin ??
-        displayAvailableCoinValue + amount
-      );
-
-      setWalletOverride({
-        availableCash: nextCash,
-        availableCoin: nextCoin,
-      });
-
-      setBalanceData((prev) =>
-        prev
-          ? {
-            ...prev,
-            wallet: {
-              ...(prev.wallet || {}),
-              ...(res.data?.wallet || {}),
-              availableCash: nextCash,
-              availableCoin: nextCoin,
-            },
-            summary: {
-              ...(prev.summary || {}),
-              availableIncentive: nextCash,
-              availableWalletCoin: nextCoin,
-              totalCashConverted:
-                res.data?.wallet?.totalCashConverted ??
-                prev?.wallet?.totalCashConverted ??
-                prev?.summary?.totalCashConverted,
-              convertedCoinAdded:
-                res.data?.wallet?.totalCoinReceived ??
-                prev?.wallet?.totalCoinReceived ??
-                prev?.summary?.convertedCoinAdded,
-            },
-            walletCoin: {
-              ...(prev.walletCoin || {}),
-              availableCoin: nextCoin,
-            },
-          }
-          : prev
-      );
-
-      clearCachedData(`incentives:agent:${data.agentName}:`);
-      handleCloseWalletPopover();
-    } catch (err) {
-      console.error("Error converting cash to coin:", err);
-      setConvertError(
-        err?.response?.data?.message || "Failed to convert cash into coin."
-      );
-    } finally {
-      setConvertLoading(false);
-    }
-  };
-
   return (
     <Box sx={{ minHeight: "100vh", p: 3, background: BRAND.bg }}>
       <Stack spacing={3}>
@@ -2924,98 +2796,6 @@ export default function IncentivesPage() {
           endDate={derivedEndDate}
           availableCoin={displayAvailableCoinValue}
         />
-
-        <Popover
-          open={walletPopoverOpen}
-          anchorEl={walletAnchorEl}
-          onClose={handleCloseWalletPopover}
-          anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
-          transformOrigin={{ vertical: "top", horizontal: "right" }}
-          PaperProps={{
-            sx: {
-              width: 360,
-              borderRadius: 3,
-              border: `1px solid ${BRAND.coinBorder}`,
-              boxShadow: "0 12px 32px rgba(15, 23, 42, 0.12)",
-              p: 2,
-            },
-          }}
-        >
-          <Stack spacing={2}>
-            <Box>
-              <Typography variant="h6" sx={{ fontWeight: 800, color: BRAND.text }}>
-                Convert Cash to Coin
-              </Typography>
-            </Box>
-
-            <Stack
-              direction="row"
-              spacing={1.5}
-              sx={{
-                p: 1.5,
-                borderRadius: 2.5,
-                border: `1px solid ${BRAND.border}`,
-                background: "#fafcff",
-              }}
-            >
-              <Box sx={{ flex: 1 }}>
-                <Typography variant="caption" sx={{ color: BRAND.sub }}>
-                  Available Cash
-                </Typography>
-                <Typography
-                  variant="h6"
-                  sx={{ color: BRAND.available, fontWeight: 800 }}
-                >
-                  {formatCurrency(displayAvailableCashValue)}
-                </Typography>
-              </Box>
-
-              <Box sx={{ flex: 1 }}>
-                <Typography variant="caption" sx={{ color: BRAND.sub }}>
-                  Available Coin
-                </Typography>
-                <Typography variant="h6" sx={{ color: BRAND.coin, fontWeight: 800 }}>
-                  {formatNumber(displayAvailableCoinValue)}
-                </Typography>
-              </Box>
-            </Stack>
-
-            <Typography variant="caption" sx={{ color: BRAND.sub }}>
-              Balance Period: {formatMonthLabel(MIN_WALLET_MONTH)} to{" "}
-              {formatMonthLabel(endMonth)}
-            </Typography>
-
-            {convertError ? <Alert severity="error">{convertError}</Alert> : null}
-
-            <TextField
-              label="Cash Amount"
-              type="number"
-              size="small"
-              value={convertAmount}
-              onChange={(e) => setConvertAmount(e.target.value)}
-              fullWidth
-            />
-
-            <Stack direction="row" spacing={1.25} justifyContent="flex-end">
-              <Button
-                variant="outlined"
-                onClick={handleCloseWalletPopover}
-                disabled={convertLoading}
-                sx={OUTLINED_BUTTON_SX}
-              >
-                Cancel
-              </Button>
-              <Button
-                variant="contained"
-                onClick={handleConvertCashToCoin}
-                disabled={convertLoading || !convertAmount}
-                sx={CONTAINED_BUTTON_SX}
-              >
-                {convertLoading ? "Converting..." : "Convert"}
-              </Button>
-            </Stack>
-          </Stack>
-        </Popover>
 
         {error ? <Alert severity="error">{error}</Alert> : null}
 
@@ -3252,8 +3032,7 @@ export default function IncentivesPage() {
                       variant="h6"
                       sx={{ color: BRAND.text, fontWeight: 800, lineHeight: 1.2 }}
                     >
-                      {formatNumber(displayAvailableCoinValue)} Coins |{" "}
-                      {formatCurrency(displayAvailableCashValue)} Cash
+                      {formatNumber(displayAvailableCoinValue)} Wallet Coins
                     </Typography>
 
                     <Typography variant="caption" sx={{ color: BRAND.sub }}>
@@ -3277,19 +3056,6 @@ export default function IncentivesPage() {
                       }}
                     >
                       Redeem
-                    </Button>
-
-                    <Button
-                      variant="outlined"
-                      onClick={handleOpenConvertPopover}
-                      disabled
-                      sx={{
-                        ...OUTLINED_BUTTON_SX,
-                        borderRadius: 2.5,
-                        whiteSpace: "nowrap",
-                      }}
-                    >
-                      Convert
                     </Button>
                   </Stack>
                 </Stack>
