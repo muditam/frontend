@@ -2226,6 +2226,35 @@ export default function IncentivesPage() {
   const balanceWallet = balanceData?.wallet || {};
   const balanceWalletCoin = balanceData?.walletCoin || {};
 
+  // Keep the displayed cumulative wallet in sync with the month-wise VKR
+  // eligibility calculation. This prevents a stale aggregate summary from
+  // dropping a month that is correctly marked earned in the breakdown.
+  const balanceMonthlyBreakdown = Array.isArray(balanceWalletCoin.monthlyBreakdown)
+    ? balanceWalletCoin.monthlyBreakdown
+    : [];
+  const balanceMonthlyEarnedCoins = balanceMonthlyBreakdown.length
+    ? round2(
+        balanceMonthlyBreakdown.reduce(
+          (sum, month) => sum + Number(month?.earnedCoins || 0),
+          0
+        )
+      )
+    : null;
+  const balanceMonthlyExtraCoins =
+    Number(balanceWalletCoin.prepaidCoins || 0) +
+    Number(balanceWalletCoin.partialPaidCoins || 0) +
+    Number(balanceWalletCoin.referralPatientCoins || 0);
+  const balanceMonthlyAvailableCoin =
+    balanceMonthlyEarnedCoins === null
+      ? null
+      : Math.max(
+          0,
+          balanceMonthlyEarnedCoins +
+            balanceMonthlyExtraCoins +
+            Number(balanceWallet.totalCoinReceived || 0) -
+            Number(balanceWallet.totalCoinRedeemed || 0)
+        );
+
   const walletProjectedCoinsRaw = Number(
     walletCoin.projectedCoins ?? summary.walletCoinProjected ?? 0
   );
@@ -2323,7 +2352,12 @@ export default function IncentivesPage() {
   const walletBaseEarnedCoins = Number(
     isSingleMonthWalletPeriod
       ? (singleMonthIsEligible ? derivedDeliveredCoins : 0)
-      : walletCoin.baseEarnedCoins ??
+      : (walletMonthlyBreakdown.length
+          ? walletMonthlyBreakdown.reduce(
+              (sum, month) => sum + Number(month?.earnedCoins || 0),
+              0
+            )
+          : walletCoin.baseEarnedCoins) ??
         summary.walletCoinBaseEarned ??
         fallbackWalletBaseEarnedCoins
   );
@@ -2383,6 +2417,7 @@ export default function IncentivesPage() {
     (shouldUseViewerBalance ? viewerBalanceWallet.availableCoin : undefined) ??
     (shouldUseViewerBalance ? viewerBalanceWalletCoin.availableCoin : undefined) ??
     (shouldUseViewerBalance ? viewerBalanceSummary.availableWalletCoin : undefined) ??
+    balanceMonthlyAvailableCoin ??
     balanceWallet.availableCoin ??
     balanceWalletCoin.availableCoin ??
     balanceSummary.availableWalletCoin ??
