@@ -132,7 +132,16 @@ export default function RewardsAdminPage() {
   const [requestsLoading, setRequestsLoading] = useState(false);
   const [requestsError, setRequestsError] = useState("");
   const [requests, setRequests] = useState([]);
+  const [approvedRequestsLoading, setApprovedRequestsLoading] = useState(false);
+  const [approvedRequestsError, setApprovedRequestsError] = useState("");
+  const [approvedRequests, setApprovedRequests] = useState([]);
   const [requestActionId, setRequestActionId] = useState("");
+  const [confirmationOpen, setConfirmationOpen] = useState(false);
+  const [confirmationAction, setConfirmationAction] = useState("");
+  const [confirmationRequest, setConfirmationRequest] = useState(null);
+  const [confirmationPayload, setConfirmationPayload] = useState({});
+  const [confirmationSaving, setConfirmationSaving] = useState(false);
+  const [confirmationError, setConfirmationError] = useState("");
 
   const [rewardDialogOpen, setRewardDialogOpen] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
@@ -231,9 +240,46 @@ export default function RewardsAdminPage() {
     }
   };
 
+  const fetchApprovedRequests = async (forceFresh = false) => {
+    setApprovedRequestsLoading(true);
+    setApprovedRequestsError("");
+
+    try {
+      const cacheKey = "rewards-admin:requests:approved";
+      if (forceFresh) clearCachedData(cacheKey);
+
+      const list = await getCachedData(
+        cacheKey,
+        async () => {
+          const res = await axios.get(`${API_BASE}/api/custom-reward`, {
+            headers,
+            params: { status: "approved,reverted" },
+          });
+          return Array.isArray(res.data?.requests)
+            ? res.data.requests
+            : Array.isArray(res.data)
+            ? res.data
+            : [];
+        },
+        REWARD_REQUESTS_CACHE_TTL_MS
+      );
+
+      setApprovedRequests(list);
+    } catch (err) {
+      console.error("Error fetching approved requests:", err);
+      setApprovedRequests([]);
+      setApprovedRequestsError(
+        err?.response?.data?.message || "Failed to load approved requests."
+      );
+    } finally {
+      setApprovedRequestsLoading(false);
+    }
+  };
+
   useEffect(() => {
     fetchRewards();
     fetchRequests();
+    fetchApprovedRequests();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -403,38 +449,20 @@ export default function RewardsAdminPage() {
       return;
     }
 
-    setApprovalSaving(true);
-
-    try {
-      const finalPrice = Number(approvalForm.price || 0);
-
-      const payload = {
-        title: approvalForm.title.trim(),
-        image: approvalForm.image.trim(),
-        link: approvalForm.link.trim(),
-        price: finalPrice,
-        coinCost: finalPrice,
-        isActive: approvalForm.isActive,
-      };
-
-      await axios.post(
-        `${API_BASE}/api/custom-reward/${approvalRequest._id}/approve`,
-        payload,
-        { headers }
-      );
-
-      setApproveDialogOpen(false);
-      setApprovalRequest(null);
-      clearCachedData("rewards-admin:");
-      clearCachedData("wallet-redeem:");
-      fetchRequests(true);
-      fetchRewards(true);
-    } catch (err) {
-      console.error("Error approving request:", err);
-      setApprovalError(err?.response?.data?.message || "Failed to approve request.");
-    } finally {
-      setApprovalSaving(false);
-    }
+    const finalPrice = Number(approvalForm.price || 0);
+    setApproveDialogOpen(false);
+    setConfirmationError("");
+    setConfirmationAction("approve");
+    setConfirmationRequest(approvalRequest);
+    setConfirmationPayload({
+      title: approvalForm.title.trim(),
+      image: approvalForm.image.trim(),
+      link: approvalForm.link.trim(),
+      price: finalPrice,
+      coinCost: finalPrice,
+      isActive: approvalForm.isActive,
+    });
+    setConfirmationOpen(true);
   };
 
   const handleApprovePendingRequest = async (request) => {
@@ -445,25 +473,51 @@ export default function RewardsAdminPage() {
       return;
     }
 
-    setRequestActionId(request._id);
-    setRequestsError("");
+    setConfirmationError("");
+    setConfirmationAction("approve");
+    setConfirmationRequest(request);
+    setConfirmationPayload({});
+    setConfirmationOpen(true);
+  };
+
+  const openRevertConfirmation = (request) => {
+    setConfirmationError("");
+    setConfirmationAction("revert");
+    setConfirmationRequest(request);
+    setConfirmationPayload({});
+    setConfirmationOpen(true);
+  };
+
+  const handleConfirmation = async () => {
+    if (!confirmationRequest?._id) return;
+
+    setConfirmationSaving(true);
+    setConfirmationError("");
+    setRequestActionId(confirmationRequest._id);
 
     try {
+      const endpoint = confirmationAction === "revert" ? "revert" : "approve";
       await axios.post(
-        `${API_BASE}/api/custom-reward/${request._id}/approve`,
-        {},
+        `${API_BASE}/api/custom-reward/${confirmationRequest._id}/${endpoint}`,
+        confirmationPayload,
         { headers }
       );
 
-      clearCachedData("rewards-admin:requests");
-      clearCachedData("wallet-redeem:requests");
+      setConfirmationOpen(false);
+      setConfirmationRequest(null);
+      clearCachedData("rewards-admin:");
+      clearCachedData("wallet-redeem:");
       fetchRequests(true);
+      fetchApprovedRequests(true);
+      fetchRewards(true);
     } catch (err) {
-      console.error("Error approving redeem request:", err);
-      setRequestsError(
-        err?.response?.data?.message || "Failed to approve redeem request."
+      console.error(`Error ${confirmationAction}ing request:`, err);
+      setConfirmationError(
+        err?.response?.data?.message ||
+          `Failed to ${confirmationAction} request.`
       );
     } finally {
+      setConfirmationSaving(false);
       setRequestActionId("");
     }
   };
@@ -492,6 +546,7 @@ export default function RewardsAdminPage() {
       clearCachedData("rewards-admin:requests");
       clearCachedData("wallet-redeem:requests");
       fetchRequests(true);
+      fetchApprovedRequests(true);
     } catch (err) {
       console.error("Error rejecting request:", err);
       setRejectError(err?.response?.data?.message || "Failed to reject request.");
@@ -524,6 +579,7 @@ export default function RewardsAdminPage() {
           <Tabs value={tab} onChange={(_, next) => setTab(next)}>
             <Tab label="Curated Rewards" />
             <Tab label={`Pending Requests (${requests.length})`} />
+            <Tab label={`Approved Requests (${approvedRequests.length})`} />
           </Tabs>
         </Box>
 
@@ -945,6 +1001,97 @@ export default function RewardsAdminPage() {
             )}
           </Stack>
         )}
+
+        {tab === 2 && (
+          <Stack spacing={2}>
+            {approvedRequestsError ? (
+              <Alert severity="error">{approvedRequestsError}</Alert>
+            ) : null}
+
+            {approvedRequestsLoading ? (
+              <Box sx={{ display: "flex", justifyContent: "center", py: 8 }}>
+                <CircularProgress />
+              </Box>
+            ) : approvedRequests.length ? (
+              <Box
+                sx={{
+                  display: "grid",
+                  gap: 2,
+                  gridTemplateColumns: {
+                    xs: "repeat(1, minmax(0, 1fr))",
+                    md: "repeat(2, minmax(0, 1fr))",
+                  },
+                }}
+              >
+                {approvedRequests.map((request) => {
+                  const milestone = getMilestoneByCoinCost(request.requestedCoinBudget);
+                  const isCuratedRedeem = request.requestType === "curated_redeem";
+
+                  return (
+                    <Card
+                      key={request._id}
+                      sx={{
+                        borderRadius: 4,
+                        border: "1px solid #d1fadf",
+                        boxShadow: "0 8px 24px rgba(16,24,40,0.05)",
+                      }}
+                    >
+                      <Box sx={{ p: 2.25 }}>
+                        <Stack spacing={1.25}>
+                          <Stack direction="row" justifyContent="space-between" spacing={1}>
+                            <Typography sx={{ fontWeight: 800, color: "#101828" }}>
+                              {request.extractedTitle ||
+                                (isCuratedRedeem ? "Curated Reward Redeem" : "Custom Reward Request")}
+                            </Typography>
+                            <Chip
+                              size="small"
+                              color={request.status === "reverted" ? "default" : "success"}
+                              label={request.status === "reverted" ? "Reverted" : "Approved"}
+                            />
+                          </Stack>
+                          <Typography variant="body2" sx={{ color: "#667085" }}>
+                            Agent: {request.agentName || "-"}
+                          </Typography>
+                          <Typography variant="body2" sx={{ color: "#667085", wordBreak: "break-all" }}>
+                            {request.url || "-"}
+                          </Typography>
+                          <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
+                            <Chip size="small" variant="outlined" label={isCuratedRedeem ? "Redeem Request" : "Custom Request"} />
+                            <Chip size="small" variant="outlined" label={request.milestoneLabel || milestone.label} />
+                            {request.requestedCoinBudget ? (
+                              <Chip size="small" variant="outlined" label={`${formatNumber(request.requestedCoinBudget)} Coins`} />
+                            ) : null}
+                          </Stack>
+                          <Typography variant="caption" sx={{ color: "#667085" }}>
+                            Approved: {request.reviewedAt ? new Date(request.reviewedAt).toLocaleString("en-IN") : "-"}
+                          </Typography>
+                          {request.status === "approved" ? (
+                            <Button
+                              size="small"
+                              color="warning"
+                              variant="outlined"
+                              onClick={() => openRevertConfirmation(request)}
+                              disabled={requestActionId === request._id}
+                              sx={{ textTransform: "none", borderRadius: 999, alignSelf: "flex-start" }}
+                            >
+                              Revert Request
+                            </Button>
+                          ) : (
+                            <Typography variant="body2" sx={{ color: "#667085" }}>
+                              This request was reverted. No further action is available.
+                            </Typography>
+                          )}
+                        </Stack>
+                      </Box>
+                    </Card>
+                  );
+                })}
+              </Box>
+            ) : (
+              <Alert severity="info">No approved requests.</Alert>
+            )}
+          </Stack>
+        )}
       </Stack>
 
       <Dialog
@@ -1159,6 +1306,52 @@ export default function RewardsAdminPage() {
             disabled={rejectSaving}
           >
             {rejectSaving ? "Rejecting..." : "Reject"}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog
+        open={confirmationOpen}
+        onClose={() => !confirmationSaving && setConfirmationOpen(false)}
+        fullWidth
+        maxWidth="xs"
+      >
+        <DialogTitle>
+          {confirmationAction === "revert" ? "Revert Request" : "Approve Request"}
+        </DialogTitle>
+        <DialogContent dividers>
+          {confirmationError ? <Alert severity="error">{confirmationError}</Alert> : null}
+          <Typography variant="body2" sx={{ color: "#475467" }}>
+            {confirmationAction === "revert"
+              ? "Are you sure you want to revert this approved request? The coins will be refunded to the agent wallet."
+              : "Are you sure you want to approve this request? The requested coins will be deducted from the agent wallet."}
+          </Typography>
+          {confirmationRequest?.agentName ? (
+            <Typography variant="body2" sx={{ mt: 1.5, fontWeight: 700 }}>
+              Agent: {confirmationRequest.agentName}
+            </Typography>
+          ) : null}
+        </DialogContent>
+        <DialogActions>
+          <Button
+            onClick={() => setConfirmationOpen(false)}
+            disabled={confirmationSaving}
+          >
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            color={confirmationAction === "revert" ? "warning" : "primary"}
+            onClick={handleConfirmation}
+            disabled={confirmationSaving}
+          >
+            {confirmationSaving
+              ? confirmationAction === "revert"
+                ? "Reverting..."
+                : "Approving..."
+              : confirmationAction === "revert"
+              ? "Yes, Revert"
+              : "Yes, Approve"}
           </Button>
         </DialogActions>
       </Dialog>

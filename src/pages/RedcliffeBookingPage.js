@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import axios from "axios";
 import "./RedcliffeBookingPage.css";
 import CreateOrderPopup from "./retention/CreateOrderPopup";
@@ -385,6 +385,24 @@ export default function RedcliffeBookingPage() {
     return availablePackages.filter((item) => selectedSet.has(String(item.code || "").trim()));
   }, [availablePackages, form.packageCodes]);
 
+  const selectedPackageCodes = useMemo(() => {
+    const codes = new Set(toArray(form.packageCodes).map((code) => String(code).trim()));
+    additionalMembers.forEach((member) => {
+      toArray(member.packageCodes).forEach((code) => codes.add(String(code).trim()));
+    });
+    return codes;
+  }, [additionalMembers, form.packageCodes]);
+  const selectedPackageCodesRef = useRef(selectedPackageCodes);
+
+  useEffect(() => {
+    selectedPackageCodesRef.current = selectedPackageCodes;
+  }, [selectedPackageCodes]);
+
+  const activeMemberPackagePickerId = useMemo(
+    () => Object.keys(showMemberPackagePicker).find((memberId) => showMemberPackagePicker[memberId]) || "",
+    [showMemberPackagePicker]
+  );
+
   const packagePriceByCode = useMemo(() => {
     const map = new Map();
     availablePackages.forEach((pkg) => {
@@ -440,6 +458,63 @@ export default function RedcliffeBookingPage() {
       [memberId]: value,
     }));
   };
+
+  useEffect(() => {
+    if (!showPackagePicker && !activeMemberPackagePickerId) {
+      return undefined;
+    }
+
+    const activeSearch = showPackagePicker
+      ? packageSearch
+      : activeMemberPackagePickerId
+        ? String(memberPackageSearch[activeMemberPackagePickerId] || "")
+        : "";
+    const normalizedSearch = activeSearch.trim();
+
+    if (!normalizedSearch || normalizedSearch.length < 2) {
+      setLoading((prev) => (prev.packages ? { ...prev, packages: false } : prev));
+      setPackageLookupMessage("Type at least 2 characters to search packages.");
+      return undefined;
+    }
+
+    let cancelled = false;
+    const timer = window.setTimeout(async () => {
+      setLoading((prev) => ({ ...prev, packages: true }));
+      setPackageLookupMessage("");
+      try {
+        const { data } = await api.get("/api/redcliffe/packages", {
+          params: { search: normalizedSearch, page_size: 40 },
+        });
+        if (cancelled) return;
+        const results = Array.isArray(data?.results) ? data.results : [];
+        setAvailablePackages((previous) => {
+          const selected = previous.filter((pkg) =>
+            selectedPackageCodesRef.current.has(String(pkg?.code || "").trim())
+          );
+          return orderPackageOptions(dedupePackageOptions([...selected, ...results]));
+        });
+        if (!results.length) setPackageLookupMessage("No matching partner package found.");
+      } catch (err) {
+        if (cancelled) return;
+        const payload = err?.response?.data || {};
+        setPackageLookupMessage(
+          payload.message || payload.detail || "Unable to search partner packages."
+        );
+      } finally {
+        if (!cancelled) setLoading((prev) => ({ ...prev, packages: false }));
+      }
+    }, 350);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [
+    activeMemberPackagePickerId,
+    memberPackageSearch,
+    packageSearch,
+    showPackagePicker,
+  ]);
 
   const groupedSlots = useMemo(() => {
     const groups = { Morning: [], Afternoon: [], Evening: [] };
@@ -839,31 +914,10 @@ export default function RedcliffeBookingPage() {
     }
   };
 
-  const loadPartnerPackages = async () => {
+  const loadPartnerPackages = () => {
     setShowPackagePicker(true);
-    setPackageLookupMessage("");
-
-    if (availablePackages.length) return;
-
-    setLoading((prev) => ({ ...prev, packages: true }));
-    try {
-      const { data } = await api.get("/api/redcliffe/packages");
-      const packages = orderPackageOptions(
-        dedupePackageOptions(Array.isArray(data?.results) ? data.results : [])
-      );
-
-      setAvailablePackages(packages);
-      if (!packages.length) {
-        setPackageLookupMessage("No partner packages are available right now.");
-      }
-    } catch (err) {
-      const payload = err?.response?.data || {};
-      setPackageLookupMessage(
-        payload.message || payload.detail || "Unable to load partner packages."
-      );
-    } finally {
-      setLoading((prev) => ({ ...prev, packages: false }));
-    }
+    setShowMemberPackagePicker({});
+    setPackageLookupMessage("Type at least 2 characters to search packages.");
   };
 
   const togglePrimaryPackage = (pkgCode) => {
@@ -922,9 +976,10 @@ export default function RedcliffeBookingPage() {
 
   const toggleMemberPackagePicker = (memberId) => {
     setShowMemberPackagePicker((prev) => ({
-      ...prev,
       [memberId]: !prev[memberId],
     }));
+    setShowPackagePicker(false);
+    setPackageLookupMessage("Type at least 2 characters to search packages.");
   };
 
   const lookupCustomerByMobile = async () => {
@@ -1882,13 +1937,18 @@ export default function RedcliffeBookingPage() {
                           <input
                             value={packageSearch}
                             onChange={(e) => updatePackageSearch(e.target.value)}
-                            onInput={(e) => updatePackageSearch(e.currentTarget.value)}
                             onMouseDown={(e) => e.stopPropagation()}
                             onClick={(e) => e.stopPropagation()}
                             placeholder="Search package name or code"
                           />
                           <div className="redcliffe-picker-results">
-                            {filteredPackages.length ? filteredPackages.map((pkg) => {
+                            {loading.packages ? (
+                              <div className="redcliffe-picker-empty">Searching packages...</div>
+                            ) : packageSearch.trim().length < 2 ? (
+                              <div className="redcliffe-picker-empty">
+                                {packageLookupMessage || "Type at least 2 characters to search packages."}
+                              </div>
+                            ) : filteredPackages.length ? filteredPackages.map((pkg) => {
                               const checked = toArray(form.packageCodes).includes(pkg.code);
                               return (
                                 <label
@@ -1913,7 +1973,7 @@ export default function RedcliffeBookingPage() {
                               );
                             }) : (
                               <div className="redcliffe-picker-empty">
-                                No package found.
+                                {packageLookupMessage || "No package found."}
                               </div>
                             )}
                           </div>
@@ -1962,15 +2022,18 @@ export default function RedcliffeBookingPage() {
                                     onChange={(e) =>
                                       updateMemberPackageSearch(member.id, e.target.value)
                                     }
-                                    onInput={(e) =>
-                                      updateMemberPackageSearch(member.id, e.currentTarget.value)
-                                    }
                                     onMouseDown={(e) => e.stopPropagation()}
                                     onClick={(e) => e.stopPropagation()}
                                     placeholder="Search package name or code"
                                   />
                                   <div className="redcliffe-picker-results">
-                                    {getFilteredMemberPackages(member.id).length ? getFilteredMemberPackages(member.id).map((pkg) => {
+                                    {loading.packages ? (
+                                      <div className="redcliffe-picker-empty">Searching packages...</div>
+                                    ) : String(memberPackageSearch[member.id] || "").trim().length < 2 ? (
+                                      <div className="redcliffe-picker-empty">
+                                        {packageLookupMessage || "Type at least 2 characters to search packages."}
+                                      </div>
+                                    ) : getFilteredMemberPackages(member.id).length ? getFilteredMemberPackages(member.id).map((pkg) => {
                                       const checked = toArray(member.packageCodes).includes(pkg.code);
                                       return (
                                         <label
@@ -1995,7 +2058,7 @@ export default function RedcliffeBookingPage() {
                                       );
                                     }) : (
                                       <div className="redcliffe-picker-empty">
-                                        No package found.
+                                        {packageLookupMessage || "No package found."}
                                       </div>
                                     )}
                                   </div>

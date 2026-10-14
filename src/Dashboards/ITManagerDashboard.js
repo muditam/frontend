@@ -688,9 +688,39 @@ export default function ITManagerDashboard() {
       headphone: "Headphone No",
       mouse: "Mouse No",
       charger: "Charger No",
+      cpu: "Desktop No",
       desktop: "Desktop No",
       hdmi: "HDMI",
       "hdmi cable": "HDMI",
+    };
+    const assetsByCode = new Map(
+      assets
+        .map((asset) => [
+          String(asset.assetCode || "").trim().toLowerCase(),
+          asset,
+        ])
+        .filter(([assetCode]) => Boolean(assetCode))
+    );
+    const getAssetColumn = (allotment) => {
+      const assetCode = String(allotment.assetCode || "").trim();
+      const asset = assetsByCode.get(assetCode.toLowerCase());
+      const assetName = String(asset?.name || allotment.name || "").trim().toLowerCase();
+      const directColumn = assetColumnByName[assetName];
+      if (directColumn) return directColumn;
+
+      const assetDetails = [
+        assetCode,
+        asset?.company,
+        asset?.brand,
+        allotment.company,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+
+      return /\bhdmi\b/.test(assetDetails) || /^hdm\d+/i.test(assetCode)
+        ? "HDMI"
+        : "";
     };
 
     const rows = employees
@@ -714,14 +744,20 @@ export default function ITManagerDashboard() {
       );
 
       currentAssets.forEach((item) => {
-        const assetName = String(item.name || "").trim().toLowerCase();
-        const column = assetColumnByName[assetName];
+        const column = getAssetColumn(item);
         const assetCode = String(item.assetCode || "").trim();
         if (column && assetCode) assetCodesByColumn[column].push(assetCode);
       });
 
+      const assetEmployeeId = currentAssets
+        .map((item) => {
+          const asset = assetsByCode.get(String(item.assetCode || "").trim().toLowerCase());
+          return String(asset?.emp_id || "").trim();
+        })
+        .find(Boolean) || "";
+
       return [
-        employeeId,
+        assetEmployeeId,
         employee.fullName || employee.name || "",
         ...headers.slice(2).map((column) => assetCodesByColumn[column].join("; ")),
       ];

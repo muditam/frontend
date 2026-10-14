@@ -16,7 +16,6 @@ import {
   LinearProgress,
   MenuItem,
   Paper,
-  Popover,
   Stack,
   Switch,
   Table,
@@ -44,6 +43,7 @@ import { clearCachedData, getCachedData } from "../utils/apiCache";
 
 const API_BASE = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "");
 const MIN_WALLET_MONTH = "2026-04";
+const MAX_WALLET_END_MONTH = "2026-09";
 const INCENTIVES_CACHE_TTL_MS = 60 * 1000;
 const INCENTIVES_EMPLOYEE_CACHE_TTL_MS = 5 * 60 * 1000;
 
@@ -241,7 +241,10 @@ function getCurrentMonthValue() {
   const yyyy = now.getFullYear();
   const mm = String(now.getMonth() + 1).padStart(2, "0");
   const currentMonth = `${yyyy}-${mm}`;
-  return currentMonth < MIN_WALLET_MONTH ? MIN_WALLET_MONTH : currentMonth;
+  if (currentMonth < MIN_WALLET_MONTH) return MIN_WALLET_MONTH;
+  return currentMonth > MAX_WALLET_END_MONTH
+    ? MAX_WALLET_END_MONTH
+    : currentMonth;
 }
 
 function formatCurrency(value) {
@@ -392,8 +395,11 @@ function isUpcomingWalletCoinStatus(status = "") {
 }
 
 function isDeliveredWalletCoinStatus(status = "", rowDeliveredFlag = false) {
-  if (rowDeliveredFlag) return true;
   const s = String(status || "").toUpperCase();
+  // RTO Delivered is a return event, not a successful delivery. Check the
+  // status before trusting the legacy row flag, which may still be true.
+  if (s.includes("RTO")) return false;
+  if (rowDeliveredFlag) return true;
   return s.includes("DELIVERED") || s.includes("COMPLETE");
 }
 
@@ -1264,11 +1270,6 @@ export default function IncentivesPage() {
   const [summaryDetailsLoading, setSummaryDetailsLoading] = useState(false);
   const [agentVkrRows, setAgentVkrRows] = useState([]);
 
-  const [walletAnchorEl, setWalletAnchorEl] = useState(null);
-  const [convertAmount, setConvertAmount] = useState("");
-  const [convertLoading, setConvertLoading] = useState(false);
-  const [convertError, setConvertError] = useState("");
-  const [walletOverride, setWalletOverride] = useState(null);
   const [redeemOpen, setRedeemOpen] = useState(false);
 
   const [teamViewEnabled, setTeamViewEnabled] = useState(
@@ -1566,7 +1567,6 @@ export default function IncentivesPage() {
   const clearPageState = useCallback(() => {
     setData(null);
     setBalanceData(null);
-    setWalletOverride(null);
     setError("");
     setIncentiveSummaryOpen(false);
     setWalletSummaryOpen(false);
@@ -1889,7 +1889,6 @@ export default function IncentivesPage() {
 
     setLoadingData(true);
     setError("");
-    setWalletOverride(null);
 
     try {
       const loadAggregateData = async (members = [], label = "Team", emptyMessage = "No sales team members found.") => {
@@ -1902,17 +1901,24 @@ export default function IncentivesPage() {
           return true;
         }
 
-        const selectedResponses = await fetchTeamIncentiveSummaries(
-          members,
-          derivedStartDate,
-          derivedEndDate
-        );
+        const [selectedResponses, cumulativeResponses] = await Promise.all([
+          fetchTeamIncentiveSummaries(
+            members,
+            derivedStartDate,
+            derivedEndDate
+          ),
+          fetchTeamIncentiveSummaries(
+            members,
+            cumulativeStartDate,
+            derivedEndDate
+          ),
+        ]);
 
         const filteredEntries = members
           .map((member, index) => ({
             member,
             selectedResponse: selectedResponses[index],
-            cumulativeResponse: selectedResponses[index],
+            cumulativeResponse: cumulativeResponses[index],
           }))
           .filter(({ member, selectedResponse }) => {
             if (!isHistoricalReport || isActiveEmployee(member)) {
@@ -2129,7 +2135,6 @@ export default function IncentivesPage() {
     if (isSelfAndTeamRole) {
       setCashSummaryExpert(draftSelectedAgent?.fullName || "all");
     }
-    setSelectedAgentTeamViewEnabled(false);
     setLoadingData(true);
     clearCachedData("incentives:agent:");
     clearPageState();
@@ -2221,6 +2226,35 @@ export default function IncentivesPage() {
   const balanceWallet = balanceData?.wallet || {};
   const balanceWalletCoin = balanceData?.walletCoin || {};
 
+  // Keep the displayed cumulative wallet in sync with the month-wise VKR
+  // eligibility calculation. This prevents a stale aggregate summary from
+  // dropping a month that is correctly marked earned in the breakdown.
+  const balanceMonthlyBreakdown = Array.isArray(balanceWalletCoin.monthlyBreakdown)
+    ? balanceWalletCoin.monthlyBreakdown
+    : [];
+  const balanceMonthlyEarnedCoins = balanceMonthlyBreakdown.length
+    ? round2(
+        balanceMonthlyBreakdown.reduce(
+          (sum, month) => sum + Number(month?.earnedCoins || 0),
+          0
+        )
+      )
+    : null;
+  const balanceMonthlyExtraCoins =
+    Number(balanceWalletCoin.prepaidCoins || 0) +
+    Number(balanceWalletCoin.partialPaidCoins || 0) +
+    Number(balanceWalletCoin.referralPatientCoins || 0);
+  const balanceMonthlyAvailableCoin =
+    balanceMonthlyEarnedCoins === null
+      ? null
+      : Math.max(
+          0,
+          balanceMonthlyEarnedCoins +
+            balanceMonthlyExtraCoins +
+            Number(balanceWallet.totalCoinReceived || 0) -
+            Number(balanceWallet.totalCoinRedeemed || 0)
+        );
+
   const walletProjectedCoinsRaw = Number(
     walletCoin.projectedCoins ?? summary.walletCoinProjected ?? 0
   );
@@ -2241,6 +2275,9 @@ export default function IncentivesPage() {
   const walletPeriod = walletCoin.period || {};
   const walletSop = walletCoin.sop || {};
   const walletRows = walletCoin.rows || [];
+  const walletMonthlyBreakdown = Array.isArray(walletCoin.monthlyBreakdown)
+    ? walletCoin.monthlyBreakdown
+    : [];
   const walletRules = walletCoin.rules || {};
   const walletAchievementPercent = Number(walletTarget.achievementPercent ?? 0);
   const walletDeliveredVkrCount = Number(walletTarget.deliveredCount ?? 0);
@@ -2259,9 +2296,6 @@ export default function IncentivesPage() {
   const walletTargetVisibleVkrCount = round2(
     walletDeliveredVkrCount + walletUpcomingVkrCount
   );
-  const totalVkr = round2(
-    walletRows.reduce((sum, row) => sum + Number(row?.vkrCount || 0), 0)
-  );
   const deliveredVkr = round2(
     walletRows.reduce(
       (sum, row) =>
@@ -2272,29 +2306,44 @@ export default function IncentivesPage() {
       0
     )
   );
-  const undeliveredVkr = round2(Math.max(0, totalVkr - deliveredVkr));
   const walletValuePerCount = Number(walletSop.valuePerCount || 0);
   const walletMonthlyTargetCount = Number(walletTarget.monthlyTargetCount || 0);
-  const walletMinAchievementToRetain = Number(
-    walletTarget.minAchievementPercentToRetain ?? 60
-  );
   const walletAchievementByDeliveredPct = walletMonthlyTargetCount
     ? round2((deliveredVkr / walletMonthlyTargetCount) * 100)
     : 0;
   const walletAchievementByTotalPct = walletMonthlyTargetCount
-    ? round2((totalVkr / walletMonthlyTargetCount) * 100)
+    ? round2((walletTargetVisibleVkrCount / walletMonthlyTargetCount) * 100)
     : 0;
   const derivedDeliveredCoins = round2(deliveredVkr * walletValuePerCount);
-  const derivedUpcomingCoins = round2(undeliveredVkr * walletValuePerCount);
+  // Only active shipment states are upcoming. RTO/cancelled rows are lapsed
+  // and must never inflate the upcoming wallet balance.
+  const derivedUpcomingCoins = round2(
+    walletUpcomingVkrCount * walletValuePerCount
+  );
   const derivedProjectedCoins = round2(derivedDeliveredCoins + derivedUpcomingCoins);
-  const walletBaseEarnedCoins =
-    walletAchievementByDeliveredPct >= walletMinAchievementToRetain
-      ? derivedDeliveredCoins
-      : 0;
-  const walletLapsedCoins =
-    walletAchievementByDeliveredPct < walletMinAchievementToRetain
-      ? derivedDeliveredCoins
-      : 0;
+  const fallbackWalletBaseEarnedCoins = walletCoin.baseEarnedCoins ??
+    summary.walletCoinBaseEarned ?? derivedDeliveredCoins;
+  const fallbackWalletLapsedCoins = walletCoin.lapsedCoins ??
+    summary.walletCoinLapsed ?? 0;
+  // The 60% rule is evaluated separately for each calendar month by the API.
+  // Use that same result for both a single month and a multi-month range so
+  // the detail card cannot disagree with the cumulative wallet balance.
+  const walletBaseEarnedCoins = Number(
+    (walletMonthlyBreakdown.length
+      ? walletMonthlyBreakdown.reduce(
+          (sum, month) => sum + Number(month?.earnedCoins || 0),
+          0
+        )
+      : fallbackWalletBaseEarnedCoins)
+  );
+  const walletLapsedCoins = Number(
+    (walletMonthlyBreakdown.length
+      ? walletMonthlyBreakdown.reduce(
+          (sum, month) => sum + Number(month?.lapsedCoins || 0),
+          0
+        )
+      : fallbackWalletLapsedCoins)
+  );
   const walletUpcomingCoins =
     derivedUpcomingCoins > 0 ? derivedUpcomingCoins : round2(
       walletUpcomingRows.reduce(
@@ -2304,6 +2353,7 @@ export default function IncentivesPage() {
     );
   const walletProjectedCoins =
     derivedProjectedCoins > 0 ? derivedProjectedCoins : walletProjectedCoinsRaw;
+  const usesMonthlyCoinEligibility = walletMonthlyBreakdown.length > 1;
 
   const prepaidCoins = Number(
     summary.prepaidCoins ?? walletCoin.prepaidCoins ?? data?.extraCoins?.prepaidCoins ?? 0
@@ -2340,10 +2390,10 @@ export default function IncentivesPage() {
     !canManageAgents && !selectedAgent && !usingCombinedTeamView;
 
   const displayAvailableCoinValue = Number(
-    walletOverride?.availableCoin ??
     (shouldUseViewerBalance ? viewerBalanceWallet.availableCoin : undefined) ??
     (shouldUseViewerBalance ? viewerBalanceWalletCoin.availableCoin : undefined) ??
     (shouldUseViewerBalance ? viewerBalanceSummary.availableWalletCoin : undefined) ??
+    balanceMonthlyAvailableCoin ??
     balanceWallet.availableCoin ??
     balanceWalletCoin.availableCoin ??
     balanceSummary.availableWalletCoin ??
@@ -2359,17 +2409,6 @@ export default function IncentivesPage() {
     walletCoin.availableCoin ??
     summary.availableWalletCoin ??
     walletBaseEarnedCoins ??
-    0
-  );
-
-  const displayAvailableCashValue = Number(
-    walletOverride?.availableCash ??
-    (shouldUseViewerBalance ? viewerBalanceWallet.availableCash : undefined) ??
-    (shouldUseViewerBalance ? viewerBalanceSummary.availableIncentive : undefined) ??
-    balanceWallet.availableCash ??
-    balanceSummary.availableIncentive ??
-    walletData.availableCash ??
-    summary.availableIncentive ??
     0
   );
 
@@ -2518,7 +2557,6 @@ export default function IncentivesPage() {
   const deliveredTone = useMemo(() => getSlabTone(deliveredPercent), [deliveredPercent]);
   const totalTone = useMemo(() => getSlabTone(totalPercent), [totalPercent]);
 
-  const walletPopoverOpen = Boolean(walletAnchorEl);
   const canUseWalletActions =
     !usingCombinedTeamView && !selectedAgentTeamViewEnabled && Boolean(data);
 
@@ -2732,13 +2770,6 @@ export default function IncentivesPage() {
     });
   }, [agentVkrRows, coinInsightsSort, isTeamData]);
 
-  const handleOpenConvertPopover = (event) => {
-    if (!canUseWalletActions) return;
-    setWalletAnchorEl(event.currentTarget);
-    setConvertAmount("");
-    setConvertError("");
-  };
-
   const handleTeamInsightsHeaderSort = (field) => {
     const [currentField, currentDirection = "desc"] = String(teamInsightsSort).split(":");
     if (currentField === field) {
@@ -2778,106 +2809,6 @@ export default function IncentivesPage() {
   const isCoinSortActive = (field) =>
     String(coinInsightsSort).split(":")[0] === field;
 
-  const handleCloseWalletPopover = () => {
-    if (convertLoading) return;
-    setWalletAnchorEl(null);
-    setConvertAmount("");
-    setConvertError("");
-  };
-
-  const handleConvertCashToCoin = async () => {
-    const amount = Number(convertAmount || 0);
-
-    if (!data?.agentName) {
-      setConvertError("Please load wallet data first.");
-      return;
-    }
-
-    if (!amount || Number.isNaN(amount) || amount <= 0) {
-      setConvertError("Please enter a valid cash amount.");
-      return;
-    }
-
-    if (amount > displayAvailableCashValue) {
-      setConvertError("Entered amount is greater than available cash.");
-      return;
-    }
-
-    setConvertLoading(true);
-    setConvertError("");
-
-    try {
-      const res = await axios.post(
-        `${API_BASE}/api/wallet/convert-cash-to-coin`,
-        {
-          agentName: data.agentName,
-          startDate: cumulativeStartDate,
-          endDate: derivedEndDate,
-          cashAmount: amount,
-        },
-        { headers }
-      );
-
-      const nextCash = Number(
-        res.data?.wallet?.availableCash ??
-        res.data?.availableCash ??
-        displayAvailableCashValue - amount
-      );
-
-      const nextCoin = Number(
-        res.data?.wallet?.availableCoin ??
-        res.data?.availableCoin ??
-        displayAvailableCoinValue + amount
-      );
-
-      setWalletOverride({
-        availableCash: nextCash,
-        availableCoin: nextCoin,
-      });
-
-      setBalanceData((prev) =>
-        prev
-          ? {
-            ...prev,
-            wallet: {
-              ...(prev.wallet || {}),
-              ...(res.data?.wallet || {}),
-              availableCash: nextCash,
-              availableCoin: nextCoin,
-            },
-            summary: {
-              ...(prev.summary || {}),
-              availableIncentive: nextCash,
-              availableWalletCoin: nextCoin,
-              totalCashConverted:
-                res.data?.wallet?.totalCashConverted ??
-                prev?.wallet?.totalCashConverted ??
-                prev?.summary?.totalCashConverted,
-              convertedCoinAdded:
-                res.data?.wallet?.totalCoinReceived ??
-                prev?.wallet?.totalCoinReceived ??
-                prev?.summary?.convertedCoinAdded,
-            },
-            walletCoin: {
-              ...(prev.walletCoin || {}),
-              availableCoin: nextCoin,
-            },
-          }
-          : prev
-      );
-
-      clearCachedData(`incentives:agent:${data.agentName}:`);
-      handleCloseWalletPopover();
-    } catch (err) {
-      console.error("Error converting cash to coin:", err);
-      setConvertError(
-        err?.response?.data?.message || "Failed to convert cash into coin."
-      );
-    } finally {
-      setConvertLoading(false);
-    }
-  };
-
   return (
     <Box sx={{ minHeight: "100vh", p: 3, background: BRAND.bg }}>
       <Stack spacing={3}>
@@ -2901,98 +2832,6 @@ export default function IncentivesPage() {
           endDate={derivedEndDate}
           availableCoin={displayAvailableCoinValue}
         />
-
-        <Popover
-          open={walletPopoverOpen}
-          anchorEl={walletAnchorEl}
-          onClose={handleCloseWalletPopover}
-          anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
-          transformOrigin={{ vertical: "top", horizontal: "right" }}
-          PaperProps={{
-            sx: {
-              width: 360,
-              borderRadius: 3,
-              border: `1px solid ${BRAND.coinBorder}`,
-              boxShadow: "0 12px 32px rgba(15, 23, 42, 0.12)",
-              p: 2,
-            },
-          }}
-        >
-          <Stack spacing={2}>
-            <Box>
-              <Typography variant="h6" sx={{ fontWeight: 800, color: BRAND.text }}>
-                Convert Cash to Coin
-              </Typography>
-            </Box>
-
-            <Stack
-              direction="row"
-              spacing={1.5}
-              sx={{
-                p: 1.5,
-                borderRadius: 2.5,
-                border: `1px solid ${BRAND.border}`,
-                background: "#fafcff",
-              }}
-            >
-              <Box sx={{ flex: 1 }}>
-                <Typography variant="caption" sx={{ color: BRAND.sub }}>
-                  Available Cash
-                </Typography>
-                <Typography
-                  variant="h6"
-                  sx={{ color: BRAND.available, fontWeight: 800 }}
-                >
-                  {formatCurrency(displayAvailableCashValue)}
-                </Typography>
-              </Box>
-
-              <Box sx={{ flex: 1 }}>
-                <Typography variant="caption" sx={{ color: BRAND.sub }}>
-                  Available Coin
-                </Typography>
-                <Typography variant="h6" sx={{ color: BRAND.coin, fontWeight: 800 }}>
-                  {formatNumber(displayAvailableCoinValue)}
-                </Typography>
-              </Box>
-            </Stack>
-
-            <Typography variant="caption" sx={{ color: BRAND.sub }}>
-              Balance Period: {formatMonthLabel(MIN_WALLET_MONTH)} to{" "}
-              {formatMonthLabel(endMonth)}
-            </Typography>
-
-            {convertError ? <Alert severity="error">{convertError}</Alert> : null}
-
-            <TextField
-              label="Cash Amount"
-              type="number"
-              size="small"
-              value={convertAmount}
-              onChange={(e) => setConvertAmount(e.target.value)}
-              fullWidth
-            />
-
-            <Stack direction="row" spacing={1.25} justifyContent="flex-end">
-              <Button
-                variant="outlined"
-                onClick={handleCloseWalletPopover}
-                disabled={convertLoading}
-                sx={OUTLINED_BUTTON_SX}
-              >
-                Cancel
-              </Button>
-              <Button
-                variant="contained"
-                onClick={handleConvertCashToCoin}
-                disabled={convertLoading || !convertAmount}
-                sx={CONTAINED_BUTTON_SX}
-              >
-                {convertLoading ? "Converting..." : "Convert"}
-              </Button>
-            </Stack>
-          </Stack>
-        </Popover>
 
         {error ? <Alert severity="error">{error}</Alert> : null}
 
@@ -3141,7 +2980,10 @@ export default function IncentivesPage() {
                   type="month"
                   size="small"
                   InputLabelProps={{ shrink: true }}
-                  inputProps={{ min: MIN_WALLET_MONTH }}
+                  inputProps={{
+                    min: MIN_WALLET_MONTH,
+                    max: MAX_WALLET_END_MONTH,
+                  }}
                   value={draftEndMonth}
                   onChange={(e) => {
                     setDraftEndMonth(e.target.value);
@@ -3229,8 +3071,7 @@ export default function IncentivesPage() {
                       variant="h6"
                       sx={{ color: BRAND.text, fontWeight: 800, lineHeight: 1.2 }}
                     >
-                      {formatNumber(displayAvailableCoinValue)} Coins |{" "}
-                      {formatCurrency(displayAvailableCashValue)} Cash
+                      {formatNumber(displayAvailableCoinValue)} Wallet Coins
                     </Typography>
 
                     <Typography variant="caption" sx={{ color: BRAND.sub }}>
@@ -3254,21 +3095,6 @@ export default function IncentivesPage() {
                       }}
                     >
                       Redeem
-                    </Button>
-
-                    <Button
-                      variant="outlined"
-                      onClick={handleOpenConvertPopover}
-                      disabled={
-                        !canUseWalletActions || Number(displayAvailableCashValue || 0) <= 0
-                      }
-                      sx={{
-                        ...OUTLINED_BUTTON_SX,
-                        borderRadius: 2.5,
-                        whiteSpace: "nowrap",
-                      }}
-                    >
-                      Convert
                     </Button>
                   </Stack>
                 </Stack>
@@ -4344,9 +4170,9 @@ export default function IncentivesPage() {
                             </Box>
                           </Typography>
                           <Typography variant="caption" sx={{ color: BRAND.sub, display: "block" }}>
-                            Undelivered VKR:{" "}
+                            Upcoming VKR:{" "}
                             <Box component="span" sx={{ color: BRAND.coming, fontWeight: 700 }}>
-                              {formatNumber(undeliveredVkr)}
+                              {formatNumber(walletUpcomingVkrCount)}
                             </Box>
                           </Typography>
                         </Stack>
@@ -4359,7 +4185,7 @@ export default function IncentivesPage() {
                           display: "grid",
                           gridTemplateColumns: {
                             xs: "1fr",
-                            sm: "repeat(auto-fit, minmax(180px, 1fr))",
+                            sm: "repeat(3, minmax(0, 1fr))",
                           },
                           gap: 1.25,
                         }}
@@ -4367,7 +4193,11 @@ export default function IncentivesPage() {
                         <SummaryMetric
                           title="Earned Coins"
                           value={formatNumber(walletBaseEarnedCoins)}
-                          sub={`${formatNumber(walletDeliveredOrders)} delivered qualifying orders (${formatNumber(deliveredVkr)} VKR)`}
+                          sub={
+                            usesMonthlyCoinEligibility
+                              ? "Monthly 60% eligibility applied"
+                              : `${formatNumber(walletDeliveredOrders)} delivered qualifying orders (${formatNumber(deliveredVkr)} VKR)`
+                          }
                           color={BRAND.coin}
                           bg="#ffffff"
                           borderColor={BRAND.coinBorder}
@@ -4376,7 +4206,7 @@ export default function IncentivesPage() {
                         <SummaryMetric
                           title="Upcoming Coins"
                           value={formatNumber(walletUpcomingCoins)}
-                          sub={`${formatNumber(walletUpcomingOrders)} upcoming qualifying orders (${formatNumber(undeliveredVkr)} VKR)`}
+                          sub={`${formatNumber(walletUpcomingOrders)} upcoming qualifying orders (${formatNumber(walletUpcomingVkrCount)} VKR)`}
                           color={BRAND.coming}
                           bg="#ffffff"
                           borderColor="#fde68a"
@@ -4385,7 +4215,11 @@ export default function IncentivesPage() {
                         <SummaryMetric
                           title="Lapsed Coins"
                           value={formatNumber(walletLapsedCoins)}
-                          sub={`${walletAchievementByDeliveredPct}% achievement`}
+                          sub={
+                            usesMonthlyCoinEligibility
+                              ? "Only months below 60% lapse"
+                              : `${walletAchievementByDeliveredPct}% achievement`
+                          }
                           color={BRAND.reversed}
                           bg="#ffffff"
                           borderColor="#fecaca"

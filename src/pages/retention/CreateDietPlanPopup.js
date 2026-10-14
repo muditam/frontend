@@ -883,6 +883,14 @@ export default function CreateDietPlanPopup({
           maxWidth: "1600px",
           height: "95vh",
           m: 1,
+          fontSize: "0.9rem",
+          "& .MuiTypography-root": { fontSize: "0.9rem" },
+          "& .MuiTypography-h6": { fontSize: "1.1rem" },
+          "& .MuiTypography-subtitle2": { fontSize: "0.9rem" },
+          "& .MuiInputBase-root": { fontSize: "0.875rem" },
+          "& .MuiInputLabel-root": { fontSize: "0.875rem" },
+          "& .MuiFormHelperText-root": { fontSize: "0.75rem" },
+          "& .MuiButton-root": { fontSize: "0.8rem" },
         },
       }}
     >
@@ -912,7 +920,7 @@ export default function CreateDietPlanPopup({
               direction="row"
               alignItems="center"
               spacing={1}
-              sx={{ flexWrap: "wrap" }}
+              sx={{ flexWrap: "wrap", width: "100%" }}
             >
               <Typography variant="body2" sx={{ opacity: 0.8 }}>
                 <b>Customer:</b> {name || "—"} &nbsp; | &nbsp; <b>Phone:</b>{" "}
@@ -927,6 +935,15 @@ export default function CreateDietPlanPopup({
                   </IconButton>
                 </span>
               </Tooltip>
+              {!vitalsFilled && (
+                <Typography
+                  variant="caption"
+                  color="error"
+                  sx={{ fontSize: "0.78rem !important" }}
+                >
+                  Age, Height, and Weight are required.
+                </Typography>
+              )}
             </Stack>
           ) : (
             <Stack direction={{ xs: "column", md: "row" }} spacing={1} alignItems="center">
@@ -997,12 +1014,6 @@ export default function CreateDietPlanPopup({
 
         {vitalsErrorMsg && (
           <Alert severity="error" variant="outlined">{vitalsErrorMsg}</Alert>
-        )}
-
-        {!vitalsFilled && (
-          <Alert severity="error" variant="outlined">
-            Age, Height, and Weight are required. Please update the lead’s details before saving.
-          </Alert>
         )}
 
         {/* Controls row: Plan Type, Template, Past Plans */}
@@ -1115,10 +1126,7 @@ export default function CreateDietPlanPopup({
         </Stack>
 
         {/* Conditions & Goals */}
-        <Paper
-          variant="outlined"
-          sx={{ p: 2, borderRadius: 2, borderColor: "rgba(0,0,0,0.08)" }}
-        >
+        <Box sx={{ p: 1, borderRadius: 2 }}>
           <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 700 }}>
             Health Conditions & Goals
           </Typography>
@@ -1191,7 +1199,7 @@ export default function CreateDietPlanPopup({
               ))}
             </Box>
           )}
-        </Paper>
+        </Box>
 
         {/* Start Date Options */}
         <Stack direction={{ xs: "column", sm: "row" }} spacing={2} alignItems="center">
