@@ -29,6 +29,7 @@ import axios from "axios";
 import Details from "./Details";
 import RetentionFollowUp from "./RetentionFollowUp";
 import CreateOrderPopup from "./CreateOrderPopup";
+import OrderLinkManager from "./OrderLinkManager";
 import CohortDataCustomer from "./CohortDataCustomer";
 
 import Dialog from "@mui/material/Dialog";
@@ -3340,6 +3341,7 @@ You can mark Lost only after 60 days.`);
                       <ShoppingBagOutlinedIcon fontSize="small" />
                     </IconButton>
                   </Tooltip>
+                  <OrderLinkManager lead={leads[selectedLeadIndex]} />
                   <Tooltip title="History">
                     <IconButton
                       size="small"
