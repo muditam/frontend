@@ -108,17 +108,20 @@ import DietPlanEditor from "./pages/diet/DietPlanEditor";
 import DataConvertor from "./pages/DataConvertor";
 import AccessDenied from "./pages/AccessDenied";
 import AiReportExtractorPage from "./pages/aiExtractor/AiReportExtractorPage";
+import OrderLinkCheckout from "./pages/OrderLinkCheckout";
+import DieticianProfileManager from "./pages/DieticianProfileManager";
 
 function AppLayout() {
   const location = useLocation();
   const isDietPublicRoute = location.pathname === "/diet-onboarding" || location.pathname === "/smart-diet-plan"
+  const isOrderLinkRoute = location.pathname.startsWith("/order-link/");
   const isWhatsAppChatRoute = location.pathname === "/whatsaap/chat";
   const isOnlineOrdersRoute = location.pathname === "/online-orders";
 
   return (
     <div>
-      {!isDietPublicRoute && <NavbarWithSearch />}
-      {!isDietPublicRoute && !isWhatsAppChatRoute && !isOnlineOrdersRoute && <WhatsAppNotification />}
+      {!isDietPublicRoute && !isOrderLinkRoute && <NavbarWithSearch />}
+      {!isDietPublicRoute && !isOrderLinkRoute && !isWhatsAppChatRoute && !isOnlineOrdersRoute && <WhatsAppNotification />}
 
         <Routes>
           <Route
@@ -130,6 +133,7 @@ function AppLayout() {
             }
           />
           <Route path="/login" element={<Login />} />
+          <Route path="/order-link/:token" element={<OrderLinkCheckout />} />
           <Route
             path="/403"
             element={
@@ -177,6 +181,17 @@ function AppLayout() {
             element={
               <PrivateRoute>
                 <KnowledgeBaseManager />
+              </PrivateRoute>
+            }
+          />
+
+          <Route
+            path="/admin/dieticians"
+            element={
+              <PrivateRoute>
+                <ManagerRoute>
+                  <DieticianProfileManager />
+                </ManagerRoute>
               </PrivateRoute>
             }
           />

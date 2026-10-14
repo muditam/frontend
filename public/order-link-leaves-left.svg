@@ -1,0 +1,16 @@
+<svg width="210" height="160" viewBox="0 0 210 160" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <g opacity="0.92">
+    <path d="M32 156C52 106 74 61 119 19" stroke="#7DA86F" stroke-width="4" stroke-linecap="round"/>
+    <path d="M69 87C33 74 10 48 1 14C38 18 63 43 69 87Z" fill="#9DCB8B"/>
+    <path d="M70 87C43 67 25 43 13 21" stroke="#5B8F51" stroke-width="2" stroke-linecap="round"/>
+    <path d="M91 62C57 42 40 15 38 0C74 5 94 26 91 62Z" fill="#7FB66E"/>
+    <path d="M92 62C70 42 55 24 43 6" stroke="#4F884B" stroke-width="2" stroke-linecap="round"/>
+    <path d="M105 43C90 13 93 -10 104 -29C129 -6 128 20 105 43Z" fill="#B5D9A9"/>
+    <path d="M106 42C108 17 108 1 107 -18" stroke="#6C9F60" stroke-width="2" stroke-linecap="round"/>
+    <path d="M54 119C24 121 2 109 -15 86C12 72 40 83 54 119Z" fill="#BBDCAE"/>
+    <path d="M54 119C31 106 14 96 -5 90" stroke="#79A66C" stroke-width="2" stroke-linecap="round"/>
+    <path d="M121 21C115 -14 127 -40 151 -59C170 -28 159 2 121 21Z" fill="#88BD77"/>
+    <path d="M121 21C135 -4 144 -23 151 -46" stroke="#5B9653" stroke-width="2" stroke-linecap="round"/>
+    <path d="M44 143C20 153 -5 151 -31 135C-11 112 20 115 44 143Z" fill="#8DBE7D"/>
+  </g>
+</svg>
