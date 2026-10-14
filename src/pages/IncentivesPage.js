@@ -43,6 +43,7 @@ import { clearCachedData, getCachedData } from "../utils/apiCache";
 
 const API_BASE = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "");
 const MIN_WALLET_MONTH = "2026-04";
+const MAX_WALLET_END_MONTH = "2026-09";
 const INCENTIVES_CACHE_TTL_MS = 60 * 1000;
 const INCENTIVES_EMPLOYEE_CACHE_TTL_MS = 5 * 60 * 1000;
 
@@ -240,7 +241,10 @@ function getCurrentMonthValue() {
   const yyyy = now.getFullYear();
   const mm = String(now.getMonth() + 1).padStart(2, "0");
   const currentMonth = `${yyyy}-${mm}`;
-  return currentMonth < MIN_WALLET_MONTH ? MIN_WALLET_MONTH : currentMonth;
+  if (currentMonth < MIN_WALLET_MONTH) return MIN_WALLET_MONTH;
+  return currentMonth > MAX_WALLET_END_MONTH
+    ? MAX_WALLET_END_MONTH
+    : currentMonth;
 }
 
 function formatCurrency(value) {
@@ -2976,7 +2980,10 @@ export default function IncentivesPage() {
                   type="month"
                   size="small"
                   InputLabelProps={{ shrink: true }}
-                  inputProps={{ min: MIN_WALLET_MONTH }}
+                  inputProps={{
+                    min: MIN_WALLET_MONTH,
+                    max: MAX_WALLET_END_MONTH,
+                  }}
                   value={draftEndMonth}
                   onChange={(e) => {
                     setDraftEndMonth(e.target.value);
