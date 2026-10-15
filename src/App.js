@@ -111,6 +111,7 @@ import AiReportExtractorPage from "./pages/aiExtractor/AiReportExtractorPage";
 import OrderLinkCheckout from "./pages/OrderLinkCheckout";
 import DieticianProfileManager from "./pages/DieticianProfileManager";
 import PaymentLinkPage from "./pages/PaymentLinkPage";
+import OrderLinksPage from "./pages/retention/OrderLinksPage";
 
 function AppLayout() {
   const location = useLocation();
@@ -410,6 +411,14 @@ function AppLayout() {
             element={
               <PrivateRoute>
                 <RetentionSales />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/retention/order-links"
+            element={
+              <PrivateRoute>
+                <OrderLinksPage />
               </PrivateRoute>
             }
           />

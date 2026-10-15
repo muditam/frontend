@@ -612,6 +612,7 @@ const MenuBar = ({ toggleDrawer }) => {
             <DropdownGroup id="retentionAgent" icon={<PersonIcon />} label="Retention Expert">
               {can("retentionLeads") && <SubItem to="/retention/leads" label="Retention Leads" />}
               {can("retentionSales") && <SubItem to="/retention/sales" label="Retention Sales" />}
+              <SubItem to="/retention/order-links" label="Order Links" />
               {can("retentionOverviewCombined") && <SubItem to="/retention/overview-combined" label="Retention Overview Combined" />}
             </DropdownGroup>
           )}

@@ -14,6 +14,9 @@ import PlaceIcon from "@mui/icons-material/Place";
 import PersonIcon from "@mui/icons-material/Person";
 import LocalPhoneIcon from "@mui/icons-material/LocalPhone";
 import PaymentIcon from "@mui/icons-material/Payment";
+import LinkIcon from "@mui/icons-material/Link";
+import ContentCopyIcon from "@mui/icons-material/ContentCopy";
+import SendIcon from "@mui/icons-material/Send";
 import axios from "axios";
 
 
@@ -29,6 +32,7 @@ const normalizePhone = (phone) => {
 
 
 const CreateOrderPopup = ({ open, onClose, prefillCustomer = {}, onOrderCreated }) => {
+ const API_BASE = process.env.REACT_APP_API_BASE_URL || (typeof window !== "undefined" && ["localhost", "127.0.0.1"].includes(window.location.hostname) ? "http://localhost:5001" : "https://muditamleads-14f32a10d7f7.herokuapp.com");
  const [products, setProducts] = useState([]);
  const [expanded, setExpanded] = useState({}); // productId -> boolean
  const [loading, setLoading] = useState(false);
@@ -56,6 +60,8 @@ const CreateOrderPopup = ({ open, onClose, prefillCustomer = {}, onOrderCreated 
  const [partialPaidAmount, setPartialPaidAmount] = useState("");
  const [generatingPaymentLink, setGeneratingPaymentLink] = useState(false);
  const [copyStatus, setCopyStatus] = useState("");
+ const [orderLinkUrl, setOrderLinkUrl] = useState("");
+ const [generatingOrderLink, setGeneratingOrderLink] = useState(false);
 
 
  // Post-order note dialog
@@ -78,6 +84,7 @@ const CreateOrderPopup = ({ open, onClose, prefillCustomer = {}, onOrderCreated 
    setTransactionId("");
    setPartialPaidAmount("");
    setPaymentMethod("COD");
+   setOrderLinkUrl("");
    const formattedPhone = normalizePhone(prefillCustomer.phone);
    fetchCustomerAddresses(formattedPhone);
    // eslint-disable-next-line
@@ -248,6 +255,64 @@ const CreateOrderPopup = ({ open, onClose, prefillCustomer = {}, onOrderCreated 
      return ok;
    } catch (_err) {
      return false;
+   }
+ };
+
+ const handleGenerateOrderLink = async () => {
+   if (!cartItems.length || !customer.address) return;
+   if (!customer.name?.trim() || !customer.phone?.trim()) {
+     alert("Customer name and phone are required.");
+     return;
+   }
+   const isPartialPaid = paymentMethod === "Partial Paid";
+   const numericPartialPaidAmount = Number(partialPaidAmount || 0);
+   if (isPartialPaid && (!(numericPartialPaidAmount > 0) || numericPartialPaidAmount >= total)) {
+     alert("Enter a valid partial paid amount below the order total.");
+     return;
+   }
+
+   setGeneratingOrderLink(true);
+   try {
+     const res = await axios.post(`${API_BASE}/api/order-links`, {
+       customer: {
+         name: customer.name.trim(),
+         phone: customer.phone.trim(),
+         customerId: customer.customerId || "",
+       },
+       shippingAddress: customer.address,
+       cartItems: cartItems.map((item) => ({
+         variantId: String(item.id),
+         productTitle: item.productTitle || item.title,
+         variantTitle: item.title,
+         image: item.image || "",
+         unitPrice: Number(item.price || 0),
+         quantity: Number(item.quantity || 1),
+       })),
+       shippingCharge: Number(shippingCharge || 0),
+       discountType,
+       discountValue: Number(discount || 0),
+       paymentMode: paymentMethod,
+       partialPayment: { type: "amount", value: isPartialPaid ? numericPartialPaidAmount : 10 },
+     }, { withCredentials: true });
+     setOrderLinkUrl(res.data?.url || "");
+     setCopyStatus("48-hour order link created. No Shopify order was placed.");
+   } catch (err) {
+     alert(err?.response?.data?.message || "Failed to create order link.");
+   } finally {
+     setGeneratingOrderLink(false);
+   }
+ };
+
+ const sendOrderLinkOnWhatsApp = async () => {
+   if (!orderLinkUrl) return;
+   try {
+     await axios.post(`${API_BASE}/api/whatsapp/send-text`, {
+       to: customer.phone,
+       text: `Hi ${customer.name || "there"}, please review and complete your Muditam order here: ${orderLinkUrl}`,
+     }, { withCredentials: true });
+     setCopyStatus("Order link sent on WhatsApp.");
+   } catch (err) {
+     alert(err?.response?.data?.message || "Could not send the link on WhatsApp.");
    }
  };
 
@@ -821,12 +886,40 @@ const CreateOrderPopup = ({ open, onClose, prefillCustomer = {}, onOrderCreated 
                  )}
                </Box>
              )}
+
+             <Divider sx={{ my: 1.5 }} />
+             <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+               Let the customer review the cart and complete the order from a secure 48-hour link.
+             </Typography>
+             <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
+               <Button
+                 variant="contained"
+                 startIcon={<LinkIcon />}
+                 onClick={handleGenerateOrderLink}
+                 disabled={generatingOrderLink || !customer.address || !cartItems.length}
+                 sx={{ textTransform: "none" }}
+               >
+                 {generatingOrderLink ? "Creating..." : orderLinkUrl ? "Regenerate 48-hour link" : "Create 48-hour link"}
+               </Button>
+               {orderLinkUrl && <Button startIcon={<ContentCopyIcon />} onClick={() => copyToClipboardSafely(orderLinkUrl)}>Copy link</Button>}
+               {orderLinkUrl && <Button color="success" startIcon={<SendIcon />} onClick={sendOrderLinkOnWhatsApp}>Send on WhatsApp</Button>}
+             </Box>
+             {orderLinkUrl && <TextField fullWidth size="small" label="48-hour order link" value={orderLinkUrl} InputProps={{ readOnly: true }} sx={{ mt: 1 }} />}
            </Paper>
          </DialogContent>
 
 
          <DialogActions>
            <Button onClick={handleBackToCart}>Back</Button>
+           <Button
+             variant="outlined"
+             startIcon={<LinkIcon />}
+             onClick={handleGenerateOrderLink}
+             disabled={generatingOrderLink || !customer.address || !cartItems.length}
+             sx={{ textTransform: "none" }}
+           >
+             {generatingOrderLink ? "Creating link..." : "Create 48-hour link"}
+           </Button>
            <Button
              variant="contained"
              onClick={handlePlaceOrder}
@@ -882,4 +975,3 @@ const CreateOrderPopup = ({ open, onClose, prefillCustomer = {}, onOrderCreated 
 
 
 export default CreateOrderPopup;
-

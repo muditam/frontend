@@ -7,6 +7,10 @@ import {
   Chip,
   CircularProgress,
   Container,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
   Divider,
   IconButton,
   Paper,
@@ -108,6 +112,10 @@ export default function OrderLinkCheckout() {
   const [productsLoading, setProductsLoading] = useState(false);
   const [productsLoaded, setProductsLoaded] = useState(false);
   const [productsError, setProductsError] = useState("");
+  const [codOtpOpen, setCodOtpOpen] = useState(false);
+  const [codOtp, setCodOtp] = useState("");
+  const [codOtpVerified, setCodOtpVerified] = useState(false);
+  const [codOtpBusy, setCodOtpBusy] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -228,8 +236,8 @@ export default function OrderLinkCheckout() {
     if (!link) return null;
     if (link.paymentMode === "COD") {
       return {
-        title: "Choose how you want to confirm",
-        body: "Confirm COD to place the order now, pay 10% advance online, or pay fully online and save 5%.",
+        title: "Cash on Delivery",
+        body: "Confirm your order now and pay when it is delivered.",
       };
     }
     if (link.paymentMode === "Partial Paid") {
@@ -285,6 +293,19 @@ export default function OrderLinkCheckout() {
   };
 
   const confirmCod = async () => {
+    if (!codOtpVerified) {
+      setCodOtpBusy(true);
+      try {
+        await axios.post(`${API_BASE}/api/order-links/public/${token}/cod-otp/send`);
+        setCodOtp("");
+        setCodOtpOpen(true);
+      } catch (err) {
+        alert(err?.response?.data?.message || "Could not send OTP.");
+      } finally {
+        setCodOtpBusy(false);
+      }
+      return;
+    }
     setBusy("cod");
     try {
       const { data } = await axios.post(`${API_BASE}/api/order-links/public/${token}/confirm-cod`);
@@ -292,6 +313,24 @@ export default function OrderLinkCheckout() {
     } catch (err) {
       alert(err?.response?.data?.message || "Could not confirm COD.");
     } finally {
+      setBusy("");
+    }
+  };
+
+  const verifyCodOtp = async () => {
+    if (!codOtp.trim()) return;
+    setCodOtpBusy(true);
+    try {
+      await axios.post(`${API_BASE}/api/order-links/public/${token}/cod-otp/verify`, { otp: codOtp });
+      setCodOtpVerified(true);
+      setCodOtpOpen(false);
+      setBusy("cod");
+      const { data } = await axios.post(`${API_BASE}/api/order-links/public/${token}/confirm-cod`);
+      setLink(data.orderLink);
+    } catch (err) {
+      alert(err?.response?.data?.message || "Invalid OTP.");
+    } finally {
+      setCodOtpBusy(false);
       setBusy("");
     }
   };
@@ -329,22 +368,16 @@ export default function OrderLinkCheckout() {
     <Stack spacing={1}>
       {link?.paymentMode === "COD" ? (
         <>
-          <Button size="large" variant="contained" disabled={!!busy} onClick={confirmCod} endIcon={<ChevronRightIcon />} sx={{ justifyContent: "space-between", borderRadius: "12px", bgcolor: "#008e58", fontWeight: 900, py: 1.35, px: 1.7, textTransform: "none", boxShadow: "0 12px 24px rgba(0,142,88,.22)", "&:hover": { bgcolor: "#00794b" } }}>
-            <span>Confirm COD · {fmt(link.totals?.codTotal)}</span>
-          </Button>
-          <Button size="large" variant="outlined" disabled={!!busy} onClick={() => payOnline("Partial Paid")} endIcon={<ChevronRightIcon />} sx={{ justifyContent: "space-between", borderRadius: "12px", fontWeight: 900, borderColor: "#e7e4e9", color: ui.brandDeep, textTransform: "none", bgcolor: ui.paper, py: 1.15, px: 1.7 }}>
-            <span>Pay 10% advance · {fmt(link.totals?.partialAdvance)}</span>
-          </Button>
-          <Button size="large" variant="outlined" disabled={!!busy} onClick={() => payOnline("Prepaid")} endIcon={<ChevronRightIcon />} sx={{ justifyContent: "space-between", borderRadius: "12px", fontWeight: 900, borderColor: "#d7eee4", color: ui.green, textTransform: "none", bgcolor: ui.paper, py: 1.15, px: 1.7 }}>
-            <span>Pay online & save 5% · {fmt(link.totals?.fullOnlineTotal)}</span>
+          <Button size="large" variant="contained" disabled={!!busy || codOtpBusy} onClick={confirmCod} endIcon={<ChevronRightIcon />} sx={{ justifyContent: "space-between", borderRadius: "10px", bgcolor: "#087f55", fontWeight: 850, py: 1.25, px: 1.7, textTransform: "none", letterSpacing: 0.05, boxShadow: "0 8px 18px rgba(8,127,85,.16)", "&:hover": { bgcolor: "#056b47", boxShadow: "0 10px 22px rgba(8,127,85,.22)" } }}>
+            <span>{codOtpBusy ? "Sending OTP..." : `Confirm COD · ${fmt(link.totals?.codTotal)}`}</span>
           </Button>
         </>
       ) : link?.paymentMode === "Partial Paid" ? (
-        <Button size="large" variant="contained" disabled={!!busy} onClick={() => payOnline("Partial Paid")} endIcon={<ChevronRightIcon />} sx={{ justifyContent: "space-between", borderRadius: "12px", bgcolor: "#008e58", fontWeight: 900, py: 1.35, px: 1.7, textTransform: "none", boxShadow: "0 12px 24px rgba(0,142,88,.22)" }}>
+        <Button size="large" variant="contained" disabled={!!busy} onClick={() => payOnline("Partial Paid")} endIcon={<ChevronRightIcon />} sx={{ justifyContent: "space-between", borderRadius: "10px", bgcolor: "#087f55", fontWeight: 850, py: 1.25, px: 1.7, textTransform: "none", boxShadow: "0 8px 18px rgba(8,127,85,.16)", "&:hover": { bgcolor: "#056b47" } }}>
           Pay advance · {fmt(link.totals?.partialAdvance)}
         </Button>
       ) : (
-        <Button size="large" variant="contained" disabled={!!busy} onClick={() => payOnline("Prepaid")} endIcon={<ChevronRightIcon />} sx={{ justifyContent: "space-between", borderRadius: "12px", bgcolor: "#008e58", fontWeight: 900, py: 1.35, px: 1.7, textTransform: "none", boxShadow: "0 12px 24px rgba(0,142,88,.22)" }}>
+        <Button size="large" variant="contained" disabled={!!busy} onClick={() => payOnline("Prepaid")} endIcon={<ChevronRightIcon />} sx={{ justifyContent: "space-between", borderRadius: "10px", bgcolor: "#087f55", fontWeight: 850, py: 1.25, px: 1.7, textTransform: "none", boxShadow: "0 8px 18px rgba(8,127,85,.16)", "&:hover": { bgcolor: "#056b47" } }}>
           Pay now · {fmt(link.totals?.payableTotal)}
         </Button>
       )}
@@ -425,8 +458,12 @@ export default function OrderLinkCheckout() {
             sx={{
               position: "absolute",
               right: { xs: -76, sm: -58, md: -10 },
-              bottom: { xs: -18, md: -12 },
-              width: { xs: 150, sm: 170, md: 204 },
+              top: { xs: -4, md: -8 },
+              bottom: "auto",
+              width: { xs: 142, sm: 164, md: 194 },
+              height: "calc(100% - 2px)",
+              objectFit: "contain",
+              objectPosition: "right center",
               pointerEvents: "none",
               userSelect: "none",
             }}
@@ -728,6 +765,22 @@ export default function OrderLinkCheckout() {
           </Stack>
         </Box>
       </Container>
+
+      <Dialog open={codOtpOpen} onClose={() => !codOtpBusy && setCodOtpOpen(false)} maxWidth="xs" fullWidth>
+        <DialogTitle sx={{ fontWeight: 900 }}>Verify COD confirmation</DialogTitle>
+        <DialogContent>
+          <Typography color="text.secondary" sx={{ mb: 1.5 }}>
+            We sent a one-time password to the mobile number on this order. Enter it to confirm Cash on Delivery.
+          </Typography>
+          <TextField autoFocus fullWidth label="Enter OTP" value={codOtp} onChange={(event) => setCodOtp(event.target.value.replace(/\D/g, "").slice(0, 8))} inputProps={{ inputMode: "numeric", maxLength: 8 }} />
+        </DialogContent>
+        <DialogActions sx={{ p: 2 }}>
+          <Button onClick={() => setCodOtpOpen(false)} disabled={codOtpBusy} sx={{ textTransform: "none" }}>Cancel</Button>
+          <Button variant="contained" onClick={verifyCodOtp} disabled={codOtpBusy || codOtp.length < 4} sx={{ textTransform: "none" }}>
+            {codOtpBusy ? "Verifying..." : "Verify and confirm"}
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       {!isDone && !isExpired && (
         <Box sx={{ display: { xs: "block", lg: "none" }, position: "fixed", left: 0, right: 0, bottom: 0, zIndex: 30, px: 1.25, pt: 1, pb: "calc(10px + env(safe-area-inset-bottom))", bgcolor: "rgba(246,245,243,0.9)", borderTop: `1px solid ${ui.line}`, backdropFilter: "blur(14px)" }}>
