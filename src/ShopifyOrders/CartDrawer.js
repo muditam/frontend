@@ -755,6 +755,10 @@ const CartDrawer = ({ closeDrawer }) => {
   };
 
   const handleCreateOrderLink = async () => {
+    if (isFutureOrder) {
+      setCopyStatus("48-hour links are available for immediate orders only. Use Create Order for future-date orders.");
+      return;
+    }
     if (!cart.length || !confirmedAddress || !paymentMethod) return;
     const partialAmount = Number(partialPaidAmount || 0);
     if (paymentMethod === "Partial Paid" && (partialAmount <= 0 || partialAmount >= Number(finalTotal || 0))) {
@@ -2252,12 +2256,18 @@ const CartDrawer = ({ closeDrawer }) => {
                         variant="outlined"
                         startIcon={<LinkIcon />}
                         onClick={handleCreateOrderLink}
-                        disabled={creatingOrderLink || !confirmedAddress || !cart.length || !paymentMethod || (isFutureOrder && !futureOrderDate)}
+                        disabled={creatingOrderLink || !confirmedAddress || !cart.length || !paymentMethod || isFutureOrder}
                         sx={buttonStyle}
                       >
                         {creatingOrderLink ? "Creating link..." : orderLinkUrl ? "Regenerate 48-hour link" : "Create 48-hour link"}
                       </Button>
                     </Box>
+                  )}
+
+                  {isFutureOrder && (
+                    <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 1 }}>
+                      48-hour links support immediate orders only. Use Create Order to schedule this future-date order.
+                    </Typography>
                   )}
 
                   {orderLinkUrl && (
