@@ -116,6 +116,8 @@ export default function OrderLinkCheckout() {
   const [codOtp, setCodOtp] = useState("");
   const [codOtpVerified, setCodOtpVerified] = useState(false);
   const [codOtpBusy, setCodOtpBusy] = useState(false);
+  const [paymentState, setPaymentState] = useState("idle");
+  const [paymentMessage, setPaymentMessage] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -160,7 +162,7 @@ export default function OrderLinkCheckout() {
 
   const isDone = link?.status === "order_created";
   const isExpired = link?.status === "expired";
-  const locked = isDone || isExpired || !!busy;
+  const locked = isDone || isExpired || !!busy || paymentState === "checkout_open" || paymentState === "verification_failed";
 
   const addressSummary = useMemo(() => {
     const lineOne = [address?.address1, address?.address2].filter(Boolean).join(", ");
@@ -336,11 +338,14 @@ export default function OrderLinkCheckout() {
   };
 
   const payOnline = async (selectedMode) => {
+    setPaymentMessage("");
+    setPaymentState("starting");
     setBusy(selectedMode);
     try {
       const { data } = await axios.post(`${API_BASE}/api/order-links/public/${token}/payments/razorpay-order`, { selectedMode });
       if (!window.Razorpay) {
-        alert("Razorpay checkout script is not loaded.");
+        setPaymentState("verification_failed");
+        setPaymentMessage("Payment could not be started. Please refresh this page and try again.");
         return;
       }
       const checkout = new window.Razorpay({
@@ -351,16 +356,53 @@ export default function OrderLinkCheckout() {
         description: selectedMode === "Partial Paid" ? "Advance payment" : "Order payment",
         order_id: data.orderId,
         handler: async (response) => {
-          const verify = await axios.post(`${API_BASE}/api/order-links/public/${token}/payments/verify`, response);
-          setLink(verify.data.orderLink);
+          setPaymentState("verifying");
+          setPaymentMessage("Payment received. Confirming your order...");
+          try {
+            const verify = await axios.post(`${API_BASE}/api/order-links/public/${token}/payments/verify`, response);
+            setLink(verify.data.orderLink);
+            setPaymentState("complete");
+            setPaymentMessage("");
+          } catch (err) {
+            setPaymentState("verification_failed");
+            setPaymentMessage(
+              err?.response?.status === 409
+                ? "Your payment is being processed. Please refresh the order status before trying again."
+                : "Your payment may have gone through, but order confirmation is still pending. Refresh the status or contact support before paying again."
+            );
+          } finally {
+            setBusy("");
+          }
+        },
+        modal: {
+          ondismiss: () => {
+            if (paymentState !== "verifying") {
+              setPaymentState("idle");
+              setPaymentMessage("Payment was not completed. You can try again when ready.");
+            }
+            setBusy("");
+          },
         },
         prefill: { name: link.customer?.name, contact: link.customer?.phone },
       });
+      setPaymentState("checkout_open");
       checkout.open();
     } catch (err) {
-      alert(err?.response?.data?.message || "Could not start payment.");
+      setPaymentState("verification_failed");
+      setPaymentMessage(err?.response?.data?.message || "Could not start payment. Please refresh and try again.");
     } finally {
-      setBusy("");
+      if (paymentState !== "checkout_open" && paymentState !== "verifying") setBusy("");
+    }
+  };
+
+  const refreshPaymentStatus = async () => {
+    setPaymentMessage("Refreshing order status...");
+    try {
+      await load();
+      setPaymentState("idle");
+      setPaymentMessage("Status refreshed. If payment is still pending, you can safely continue from this order link.");
+    } catch (err) {
+      setPaymentMessage("Could not refresh the order status. Please try again.");
     }
   };
 
@@ -373,11 +415,11 @@ export default function OrderLinkCheckout() {
           </Button>
         </>
       ) : link?.paymentMode === "Partial Paid" ? (
-        <Button size="large" variant="contained" disabled={!!busy} onClick={() => payOnline("Partial Paid")} endIcon={<ChevronRightIcon />} sx={{ justifyContent: "space-between", borderRadius: "10px", bgcolor: "#087f55", fontWeight: 850, py: 1.25, px: 1.7, textTransform: "none", boxShadow: "0 8px 18px rgba(8,127,85,.16)", "&:hover": { bgcolor: "#056b47" } }}>
+        <Button size="large" variant="contained" disabled={locked} onClick={() => payOnline("Partial Paid")} endIcon={<ChevronRightIcon />} sx={{ justifyContent: "space-between", borderRadius: "10px", bgcolor: "#087f55", fontWeight: 850, py: 1.25, px: 1.7, textTransform: "none", boxShadow: "0 8px 18px rgba(8,127,85,.16)", "&:hover": { bgcolor: "#056b47" } }}>
           Pay advance · {fmt(link.totals?.partialAdvance)}
         </Button>
       ) : (
-        <Button size="large" variant="contained" disabled={!!busy} onClick={() => payOnline("Prepaid")} endIcon={<ChevronRightIcon />} sx={{ justifyContent: "space-between", borderRadius: "10px", bgcolor: "#087f55", fontWeight: 850, py: 1.25, px: 1.7, textTransform: "none", boxShadow: "0 8px 18px rgba(8,127,85,.16)", "&:hover": { bgcolor: "#056b47" } }}>
+        <Button size="large" variant="contained" disabled={locked} onClick={() => payOnline("Prepaid")} endIcon={<ChevronRightIcon />} sx={{ justifyContent: "space-between", borderRadius: "10px", bgcolor: "#087f55", fontWeight: 850, py: 1.25, px: 1.7, textTransform: "none", boxShadow: "0 8px 18px rgba(8,127,85,.16)", "&:hover": { bgcolor: "#056b47" } }}>
           Pay now · {fmt(link.totals?.payableTotal)}
         </Button>
       )}
@@ -391,6 +433,19 @@ export default function OrderLinkCheckout() {
       <Typography sx={{ mt: 0.35, color: ui.muted, fontSize: 12, fontWeight: 700, lineHeight: 1.35 }}>
         {paymentClarity.body}
       </Typography>
+    </Box>
+  ) : null;
+
+  const paymentStatusBlock = paymentMessage ? (
+    <Box sx={{ mt: 1, p: 1.25, borderRadius: "12px", border: `1px solid ${ui.line}`, bgcolor: ui.soft }}>
+      <Typography sx={{ color: ui.muted, fontSize: 12, fontWeight: 750, lineHeight: 1.4 }}>
+        {paymentMessage}
+      </Typography>
+      {paymentState === "verification_failed" && (
+        <Button size="small" onClick={refreshPaymentStatus} sx={{ mt: 0.5, px: 0, textTransform: "none", fontWeight: 850 }}>
+          Refresh order status
+        </Button>
+      )}
     </Box>
   ) : null;
 
@@ -751,6 +806,7 @@ export default function OrderLinkCheckout() {
                     {paymentClarityBlock}
                   </Box>
                   {paymentActions}
+                  {paymentStatusBlock}
                   <Box sx={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 1, pt: 1 }}>
                     {[[<ShieldOutlinedIcon />, "Secure payments"], [<LockOutlinedIcon />, "Private info"], [<LocalShippingOutlinedIcon />, "Reliable delivery"]].map(([icon, label]) => (
                       <Box key={label} sx={{ textAlign: "center", color: ui.muted, borderLeft: label !== "Secure payments" ? `1px solid ${ui.line}` : 0 }}>
@@ -831,6 +887,7 @@ export default function OrderLinkCheckout() {
             )}
             <Box sx={{ mb: 1 }}>{paymentClarityBlock}</Box>
             {paymentActions}
+            {paymentStatusBlock}
           </Paper>
         </Box>
       )}
