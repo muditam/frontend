@@ -793,7 +793,10 @@ const CartDrawer = ({ closeDrawer }) => {
         })),
         shippingCharge: Number(shippingCost || 0),
         discountType: discountType === "percentage" ? "percentage" : "amount",
-        discountValue: Number(appliedDiscount || 0),
+        // Keep the discount's original unit. appliedDiscount is the calculated rupee amount.
+        discountValue: Number(
+          (discountType === "percentage" ? discountValue : appliedDiscount) || 0
+        ),
         paymentMode: paymentMethod,
         partialPayment: { type: "amount", value: paymentMethod === "Partial Paid" ? partialAmount : 10 },
       }, { withCredentials: true });
