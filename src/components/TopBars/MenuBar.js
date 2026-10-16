@@ -797,7 +797,7 @@ const MenuBar = ({ toggleDrawer }) => {
           )}
 
           {/* Others */}
-          {user && can("othersMenu") && (
+          {user && (can("othersMenu") || can("dieticianProfiles") || isDietician) && (
             <DropdownGroup id="others" icon={<FolderIcon />} label="Others">
               {can("othersSwitchDashboards") && <SubItem to="/switch-dashboard" label="Switch Dashboards" />}
               {can("othersIncentiveCreation") && <SubItem to="/incentive-creation" label="Incentive Creation" />}
