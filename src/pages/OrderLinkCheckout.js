@@ -162,7 +162,7 @@ export default function OrderLinkCheckout() {
 
   const isDone = link?.status === "order_created";
   const isExpired = link?.status === "expired";
-  const locked = isDone || isExpired || !!busy || paymentState === "checkout_open" || paymentState === "verification_failed";
+  const locked = isDone || isExpired || link?.status === "payment_pending" || !!busy || paymentState === "checkout_open" || paymentState === "verification_failed";
 
   const addressSummary = useMemo(() => {
     const lineOne = [address?.address1, address?.address2].filter(Boolean).join(", ");
@@ -406,6 +406,20 @@ export default function OrderLinkCheckout() {
     }
   };
 
+  const cancelPaymentAttempt = async () => {
+    setBusy("cancel-payment");
+    try {
+      const { data } = await axios.post(`${API_BASE}/api/order-links/public/${token}/payments/cancel`);
+      setLink(data.orderLink);
+      setPaymentState("idle");
+      setPaymentMessage("Payment attempt cancelled. You can now edit your order or address.");
+    } catch (err) {
+      setPaymentMessage(err?.response?.data?.message || "Could not cancel the payment attempt. Please refresh and try again.");
+    } finally {
+      setBusy("");
+    }
+  };
+
   const paymentActions = link ? (
     <Stack spacing={1}>
       {link?.paymentMode === "COD" ? (
@@ -444,6 +458,11 @@ export default function OrderLinkCheckout() {
       {paymentState === "verification_failed" && (
         <Button size="small" onClick={refreshPaymentStatus} sx={{ mt: 0.5, px: 0, textTransform: "none", fontWeight: 850 }}>
           Refresh order status
+        </Button>
+      )}
+      {link?.status === "payment_pending" && (
+        <Button size="small" color="inherit" disabled={!!busy} onClick={cancelPaymentAttempt} sx={{ mt: 0.5, px: 0, textTransform: "none", fontWeight: 850 }}>
+          {busy === "cancel-payment" ? "Cancelling payment..." : "Cancel payment and edit order"}
         </Button>
       )}
     </Box>
