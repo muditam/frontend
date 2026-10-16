@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
  Dialog, DialogTitle, DialogContent, DialogActions, Button,
  Typography, Box, CircularProgress, Avatar, Checkbox,
@@ -193,6 +193,25 @@ const CreateOrderPopup = ({ open, onClose, prefillCustomer = {}, onOrderCreated 
 
 
  const total = subtotal - discountAmount + Number(shippingCharge || 0);
+ const linkInputsFingerprint = JSON.stringify({
+   paymentMethod,
+   partialPaidAmount,
+   discount,
+   discountType,
+   shippingCharge,
+   cartItems,
+   address: customer.address,
+ });
+ const previousLinkInputs = useRef("");
+
+ useEffect(() => {
+   if (previousLinkInputs.current && previousLinkInputs.current !== linkInputsFingerprint && orderLinkUrl) {
+     setOrderLinkUrl("");
+     setOrderLinkId("");
+     setCopyStatus("Order details changed. Create a new 48-hour link before sharing.");
+   }
+   previousLinkInputs.current = linkInputsFingerprint;
+ }, [linkInputsFingerprint, orderLinkUrl]);
 
 
  const filteredProducts = products.filter(product =>
@@ -917,6 +936,7 @@ const CreateOrderPopup = ({ open, onClose, prefillCustomer = {}, onOrderCreated 
                {orderLinkUrl && <Button startIcon={<ContentCopyIcon />} onClick={() => copyToClipboardSafely(orderLinkUrl)}>Copy link</Button>}
                {orderLinkUrl && <Button color="success" startIcon={<SendIcon />} onClick={sendOrderLinkOnWhatsApp}>Send on WhatsApp</Button>}
              </Box>
+             {copyStatus && !orderLinkUrl && <Typography color="warning.main" variant="body2" sx={{ mt: 1, fontWeight: 700 }}>{copyStatus}</Typography>}
              {orderLinkUrl && <TextField fullWidth size="small" label="48-hour order link" value={orderLinkUrl} InputProps={{ readOnly: true }} sx={{ mt: 1 }} />}
            </Paper>
          </DialogContent>

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
   Avatar,
@@ -237,6 +237,26 @@ export default function WhatsAppCartDrawer({
         manualAddress.zip?.trim()
     );
   }, [addressMode, manualAddress, resolvedAddress]);
+
+  const linkInputsFingerprint = JSON.stringify({
+    paymentMethod,
+    partialPaidAmount,
+    discount,
+    discountType,
+    shippingCharge,
+    cartItems,
+    address: resolvedAddress,
+  });
+  const previousLinkInputs = useRef("");
+
+  useEffect(() => {
+    if (previousLinkInputs.current && previousLinkInputs.current !== linkInputsFingerprint && orderLinkUrl) {
+      setOrderLinkUrl("");
+      setOrderLinkId("");
+      setStatusMessage({ severity: "warning", text: "Order details changed. Create a new 48-hour link before sharing." });
+    }
+    previousLinkInputs.current = linkInputsFingerprint;
+  }, [linkInputsFingerprint, orderLinkUrl]);
 
   useEffect(() => {
     if (!open) return;
@@ -1315,6 +1335,7 @@ export default function WhatsAppCartDrawer({
             </>
           ) : null}
         </Stack>
+        {statusMessage?.severity === "warning" && !orderLinkUrl && <Alert severity="warning" sx={{ mt: 1 }}>{statusMessage.text}</Alert>}
         {orderLinkUrl ? <TextField sx={{ mt: 1 }} size="small" label="48-hour order link" value={orderLinkUrl} fullWidth InputProps={{ readOnly: true }} /> : null}
       </Paper>
 

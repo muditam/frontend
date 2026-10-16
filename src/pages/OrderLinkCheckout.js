@@ -511,7 +511,7 @@ export default function OrderLinkCheckout() {
       </Box>
 
       <Container maxWidth="xl" sx={{ py: { xs: 1.5, md: 3 }, px: { xs: 1.5, sm: 3, md: 5 } }}>
-        <Paper elevation={0} sx={{ mb: { xs: 1.4, md: 2 }, minHeight: { xs: 132, md: 132 }, p: { xs: 2, md: 2.5 }, borderRadius: "18px", border: "1px solid #dcefe5", background: "linear-gradient(105deg,#f3fbf6 0%,#fbfffd 48%,#eff8f2 100%)", position: "relative", overflow: "hidden", boxShadow: "0 18px 50px rgba(21,128,90,.07)" }}>
+        <Paper elevation={0} sx={{ mb: { xs: 1.25, md: 2 }, minHeight: { xs: 0, md: 132 }, p: { xs: 1.5, md: 2.5 }, borderRadius: { xs: "16px", md: "18px" }, border: "1px solid #dcefe5", background: "linear-gradient(105deg,#f3fbf6 0%,#fbfffd 48%,#eff8f2 100%)", position: "relative", overflow: "hidden", boxShadow: "0 18px 50px rgba(21,128,90,.07)" }}>
           <Box
             component="img"
             src={HERO_LEAVES_LEFT}
@@ -519,9 +519,9 @@ export default function OrderLinkCheckout() {
             aria-hidden="true"
             sx={{
               position: "absolute",
-              left: { xs: -66, sm: -54, md: -18 },
-              top: { xs: -20, md: -10 },
-              width: { xs: 132, sm: 150, md: 184 },
+              left: { xs: -88, sm: -54, md: -18 },
+              top: { xs: -28, md: -10 },
+              width: { xs: 120, sm: 150, md: 184 },
               pointerEvents: "none",
               userSelect: "none",
             }}
@@ -533,23 +533,22 @@ export default function OrderLinkCheckout() {
             aria-hidden="true"
             sx={{
               position: "absolute",
-              right: { xs: -76, sm: -58, md: -10 },
-              top: { xs: -4, md: -8 },
+              right: { xs: -92, sm: -58, md: -45 },
+              top: { xs: -12, md: -4 },
               bottom: "auto",
-              width: { xs: 142, sm: 164, md: 194 },
-              height: "calc(100% - 2px)",
-              objectFit: "contain",
-              objectPosition: "right center",
+              width: { xs: 142, sm: 164, md: 230 },
+              height: "auto",
+              objectFit: "initial",
               pointerEvents: "none",
               userSelect: "none",
             }}
           />
-          <Box sx={{ position: "relative", display: "grid", gridTemplateColumns: { xs: "1fr", md: "minmax(0,1fr) auto" }, gap: { xs: 2, md: 3 }, alignItems: "center", pl: { xs: 3.2, sm: 5.5, md: 13.5 }, pr: { xs: 3.2, sm: 5.5, md: 13.5 } }}>
+          <Box sx={{ position: "relative", display: "grid", gridTemplateColumns: { xs: "1fr", md: "minmax(0,1fr) auto" }, gap: { xs: 1, md: 3 }, alignItems: "center", pl: { xs: 2.5, sm: 5.5, md: 13.5 }, pr: { xs: 2.5, sm: 5.5, md: 13.5 } }}>
             <Box sx={{ minWidth: 0 }}>
-              <Typography sx={{ fontSize: { xs: 27, sm: 34, md: 40 }, lineHeight: 1.08, fontWeight: 950, letterSpacing: -1.2 }}>
+              <Typography sx={{ fontSize: { xs: 24, sm: 34, md: 40 }, lineHeight: { xs: 1.12, md: 1.08 }, fontWeight: 950, letterSpacing: -0.8 }}>
                 Your <Box component="span" sx={{ color: "#00794b" }}>personalised</Box> wellness plan is ready
               </Typography>
-              <Typography sx={{ mt: 1, color: "#3f4654", fontSize: { xs: 14, md: 18 }, fontWeight: 650 }}>
+              <Typography sx={{ mt: { xs: 0.75, md: 1 }, color: "#3f4654", fontSize: { xs: 13, md: 18 }, lineHeight: 1.35, fontWeight: 650 }}>
                 Complete your order below and take the next step towards a healthier you.
               </Typography>
             </Box>
@@ -583,16 +582,16 @@ export default function OrderLinkCheckout() {
 
         <Box sx={{ display: "grid", gridTemplateColumns: { xs: "minmax(0, 1fr)", lg: "minmax(0, 1fr) 420px" }, gap: { xs: 1.25, md: 2 }, alignItems: "start", minWidth: 0 }}>
           <Stack spacing={{ xs: 1.25, md: 2 }} sx={{ minWidth: 0 }}>
-            <Paper elevation={0} sx={{ ...panelSx, p: { xs: 1.4, sm: 1.7, md: 2 }, overflow: "hidden", display: "grid", gridTemplateColumns: { xs: "auto minmax(0,1fr)", md: "140px minmax(0,1fr) auto" }, gap: { xs: 1.4, md: 2 }, alignItems: "center" }}>
+            <Paper elevation={0} sx={{ ...panelSx, p: { xs: 1.15, sm: 1.7, md: 2 }, overflow: "hidden", display: "grid", gridTemplateColumns: { xs: "68px minmax(0,1fr)", md: "140px minmax(0,1fr) auto" }, gap: { xs: 1.15, md: 2 }, alignItems: "center" }}>
               <Box sx={{ position: "relative" }}>
-                <Avatar src={expertImage} alt={expertName} sx={{ width: { xs: 72, md: 120 }, height: { xs: 72, md: 120 }, border: "1px solid #eadff3", boxShadow: "0 12px 32px rgba(91,53,139,.14)" }}>{expertInitials}</Avatar>
+                <Avatar src={expertImage} alt={expertName} sx={{ width: { xs: 64, md: 120 }, height: { xs: 64, md: 120 }, border: "1px solid #eadff3", boxShadow: "0 12px 32px rgba(91,53,139,.14)" }}>{expertInitials}</Avatar>
                 <Box sx={{ position: "absolute", right: { xs: 3, md: 8 }, bottom: { xs: 3, md: 8 }, width: { xs: 15, md: 22 }, height: { xs: 15, md: 22 }, borderRadius: "50%", bgcolor: "#00a66a", border: "3px solid #fff" }} />
               </Box>
               <Box sx={{ minWidth: 0 }}>
                 <Chip label="Your assigned dietitian" size="small" sx={{ height: 22, borderRadius: "7px", bgcolor: ui.brandSoft, color: ui.brandDeep, fontSize: 10, fontWeight: 900, textTransform: "uppercase", letterSpacing: 0.7 }} />
-                <Typography sx={{ mt: 0.7, fontSize: { xs: 20, md: 25 }, lineHeight: 1.1, fontWeight: 950, letterSpacing: -0.5 }}>{expertName}</Typography>
+                <Typography sx={{ mt: 0.55, fontSize: { xs: 18, md: 25 }, lineHeight: 1.12, fontWeight: 950, letterSpacing: -0.3 }}>{expertName}</Typography>
                 <Typography sx={{ mt: 0.4, color: ui.muted, fontSize: { xs: 13, md: 15 }, fontWeight: 750 }}>{expertRole}</Typography>
-                <Stack direction="row" spacing={0.8} useFlexGap flexWrap="wrap" sx={{ mt: 1.2 }}>
+                <Stack direction="row" spacing={0.55} useFlexGap flexWrap="wrap" sx={{ mt: { xs: 0.8, md: 1.2 } }}>
                   {expertBadges.map((badge, index) => {
                     const BadgeIcon = badge.iconType === "education" ? SchoolIcon : badge.iconType === "star" ? StarIcon : VerifiedIcon;
                     const isPrimary = index === 0;
@@ -602,7 +601,10 @@ export default function OrderLinkCheckout() {
                         icon={<BadgeIcon />}
                         label={badge.label}
                         size="small"
-                        sx={{
+                          sx={{
+                            height: { xs: 26, md: 32 },
+                            "& .MuiChip-label": { px: { xs: 0.8, md: 1.2 }, fontSize: { xs: 11, md: 13 } },
+                            "& .MuiChip-icon": { fontSize: { xs: 16, md: 20 } },
                           bgcolor: isPrimary ? ui.greenSoft : ui.soft,
                           color: isPrimary ? ui.green : ui.brandDeep,
                           fontWeight: isPrimary ? 850 : 800,
@@ -612,7 +614,7 @@ export default function OrderLinkCheckout() {
                     );
                   })}
                 </Stack>
-                <Typography sx={{ mt: 1.25, color: "#424857", fontSize: { xs: 12.5, md: 13.5 }, lineHeight: 1.5, fontWeight: 650 }}>
+                <Typography sx={{ mt: { xs: 0.9, md: 1.25 }, color: "#424857", fontSize: { xs: 11.5, md: 13.5 }, lineHeight: 1.45, fontWeight: 650 }}>
                   {expertBio}
                 </Typography>
               </Box>
@@ -711,30 +713,28 @@ export default function OrderLinkCheckout() {
               )}
             </Paper>
 
-            <Paper elevation={0} sx={{ ...panelSx, p: { xs: 1.3, md: 2 }, display: { xs: "block", lg: "none" } }}>
-              <Box sx={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", gap: 1.25, alignItems: "start" }}>
-                <Box sx={{ minWidth: 0 }}>
-                  <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                    <LocationOnIcon sx={{ color: ui.brand }} />
-                    <Typography sx={{ fontSize: { xs: 17, md: 20 }, fontWeight: 950 }}>Delivery address</Typography>
-                  </Box>
-                  {!addressOpen && (
-                    <Box sx={{ mt: 1, p: 1.15, borderRadius: "14px", bgcolor: ui.soft, border: `1px solid ${ui.line}` }}>
-                      {addressSummary.length ? addressSummary.map((line, index) => (
-                        <Typography key={line} noWrap sx={{ color: index === 0 ? ui.ink : ui.muted, fontSize: index === 0 ? 13.5 : 12.5, fontWeight: index === 0 ? 900 : 750, mt: index ? 0.25 : 0 }}>{line}</Typography>
-                      )) : <Typography sx={{ color: ui.muted, fontSize: 12.5, fontWeight: 800 }}>No address added yet.</Typography>}
-                    </Box>
-                  )}
+            <Paper elevation={0} sx={{ ...panelSx, p: { xs: 1.2, md: 2 }, display: { xs: "block", lg: "none" } }}>
+              <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1 }}>
+                <Box sx={{ display: "flex", alignItems: "center", gap: 0.8, minWidth: 0 }}>
+                  <LocationOnIcon sx={{ color: ui.brand, fontSize: { xs: 25, md: 28 } }} />
+                  <Typography sx={{ fontSize: { xs: 18, md: 20 }, lineHeight: 1.15, fontWeight: 950 }}>Delivery address</Typography>
                 </Box>
                 <Button
                   size="small"
-                  startIcon={<EditIcon />}
+                  startIcon={<EditIcon sx={{ fontSize: "18px !important" }} />}
                   onClick={() => setAddressOpen((value) => !value)}
-                  sx={{ color: ui.brand, fontWeight: 900, textTransform: "none", whiteSpace: "nowrap", minWidth: "auto", borderRadius: "10px", px: 1.1, bgcolor: ui.brandSoft, "&:hover": { bgcolor: "#eadff3" } }}
+                  sx={{ color: ui.brand, fontWeight: 900, textTransform: "none", whiteSpace: "nowrap", minWidth: "auto", borderRadius: "10px", px: { xs: 1, md: 1.1 }, py: 0.7, bgcolor: ui.brandSoft, "&:hover": { bgcolor: "#eadff3" } }}
                 >
                   {addressOpen ? "Close" : "Change"}
                 </Button>
               </Box>
+              {!addressOpen && (
+                <Box sx={{ mt: 1.1, width: "100%", p: { xs: 1.1, md: 1.15 }, borderRadius: "12px", bgcolor: ui.soft, border: `1px solid ${ui.line}` }}>
+                  {addressSummary.length ? addressSummary.map((line, index) => (
+                    <Typography key={line} noWrap sx={{ color: index === 0 ? ui.ink : ui.muted, fontSize: index === 0 ? 13.5 : 12.5, fontWeight: index === 0 ? 900 : 750, mt: index ? 0.25 : 0 }}>{line}</Typography>
+                  )) : <Typography sx={{ color: ui.muted, fontSize: 12.5, fontWeight: 800 }}>No address added yet.</Typography>}
+                </Box>
+              )}
               {addressOpen && (
                 <Box sx={{ mt: 1.4 }}>
                   <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" }, gap: 1 }}>
@@ -747,17 +747,17 @@ export default function OrderLinkCheckout() {
               )}
             </Paper>
 
-            <Paper elevation={0} sx={{ ...panelSx, p: { xs: 1.3, md: 2 } }}>
+            <Paper elevation={0} sx={{ ...panelSx, p: { xs: 1.1, md: 2 } }}>
               <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, mb: 1.3 }}>
                 <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                   <Box sx={iconBubbleSx}><GroupsIcon fontSize="small" /></Box>
-                  <Typography sx={{ fontSize: { xs: 17, md: 20 }, fontWeight: 950 }}>What clients say about {expertName}</Typography>
+                  <Typography sx={{ fontSize: { xs: 16, md: 20 }, lineHeight: 1.2, fontWeight: 950 }}>What clients say about {expertName}</Typography>
                 </Box>
                 <Typography sx={{ display: { xs: "none", md: "block" }, color: ui.muted, fontSize: 12, fontWeight: 750 }}>Real customers · Real results</Typography>
               </Box>
               <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "repeat(3,1fr)" }, gap: 1 }}>
                 {testimonials.map((item) => (
-                  <Box key={item.name} sx={{ p: 1.2, border: `1px solid ${ui.line}`, borderRadius: "14px", bgcolor: ui.paper }}>
+                  <Box key={item.name} sx={{ p: { xs: 1, md: 1.2 }, border: `1px solid ${ui.line}`, borderRadius: "14px", bgcolor: ui.paper }}>
                     <Box sx={{ display: "flex", gap: 1, alignItems: "center" }}>
                       <Avatar src={item.imageUrl || ""} sx={{ width: 42, height: 42, bgcolor: "#f2f4f7", color: ui.muted }}>
                         {!item.imageUrl && <PersonOutlineIcon fontSize="small" />}
