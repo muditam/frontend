@@ -61,6 +61,7 @@ const CreateOrderPopup = ({ open, onClose, prefillCustomer = {}, onOrderCreated 
  const [generatingPaymentLink, setGeneratingPaymentLink] = useState(false);
  const [copyStatus, setCopyStatus] = useState("");
  const [orderLinkUrl, setOrderLinkUrl] = useState("");
+ const [orderLinkId, setOrderLinkId] = useState("");
  const [generatingOrderLink, setGeneratingOrderLink] = useState(false);
 
 
@@ -273,7 +274,7 @@ const CreateOrderPopup = ({ open, onClose, prefillCustomer = {}, onOrderCreated 
 
    setGeneratingOrderLink(true);
    try {
-     const res = await axios.post(`${API_BASE}/api/order-links`, {
+     const payload = {
        customer: {
          name: customer.name.trim(),
          phone: customer.phone.trim(),
@@ -293,7 +294,11 @@ const CreateOrderPopup = ({ open, onClose, prefillCustomer = {}, onOrderCreated 
        discountValue: Number(discount || 0),
        paymentMode: paymentMethod,
        partialPayment: { type: "amount", value: isPartialPaid ? numericPartialPaidAmount : 10 },
-     }, { withCredentials: true });
+     };
+     const res = orderLinkId
+       ? await axios.post(`${API_BASE}/api/order-links/${orderLinkId}/regenerate`, {}, { withCredentials: true })
+       : await axios.post(`${API_BASE}/api/order-links`, payload, { withCredentials: true });
+     setOrderLinkId(res.data?.orderLink?.id || orderLinkId);
      setOrderLinkUrl(res.data?.url || "");
      setCopyStatus("48-hour order link created. No Shopify order was placed.");
    } catch (err) {

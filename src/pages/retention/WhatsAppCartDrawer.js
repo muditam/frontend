@@ -154,6 +154,7 @@ export default function WhatsAppCartDrawer({
   const [transactionId, setTransactionId] = useState("");
   const [generatingPaymentLink, setGeneratingPaymentLink] = useState(false);
   const [orderLinkUrl, setOrderLinkUrl] = useState("");
+  const [orderLinkId, setOrderLinkId] = useState("");
   const [generatingOrderLink, setGeneratingOrderLink] = useState(false);
   const [placingOrder, setPlacingOrder] = useState(false);
 
@@ -457,7 +458,7 @@ export default function WhatsAppCartDrawer({
 
     setGeneratingOrderLink(true);
     try {
-      const response = await axios.post(`${API_BASE}/api/order-links`, {
+      const payload = {
         leadId: leadId || undefined,
         customer: {
           name: customer.name.trim(),
@@ -481,7 +482,11 @@ export default function WhatsAppCartDrawer({
           type: "amount",
           value: isPartialPaid ? partialPaidNumber : 10,
         },
-      }, { withCredentials: true });
+      };
+      const response = orderLinkId
+        ? await axios.post(`${API_BASE}/api/order-links/${orderLinkId}/regenerate`, {}, { withCredentials: true })
+        : await axios.post(`${API_BASE}/api/order-links`, payload, { withCredentials: true });
+      setOrderLinkId(response.data?.orderLink?.id || orderLinkId);
       setOrderLinkUrl(response.data?.url || "");
       setStatusMessage({ type: "success", text: "48-hour order link created. No Shopify order was placed." });
     } catch (error) {

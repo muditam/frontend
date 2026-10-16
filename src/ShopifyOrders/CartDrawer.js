@@ -219,6 +219,7 @@ const CartDrawer = ({ closeDrawer }) => {
   const [futureOrderId, setFutureOrderId] = useState(null);
   const [futureOrderData, setFutureOrderData] = useState(null);
   const [orderLinkUrl, setOrderLinkUrl] = useState("");
+  const [orderLinkId, setOrderLinkId] = useState("");
   const [creatingOrderLink, setCreatingOrderLink] = useState(false);
 
   // Pulling data from Redux store
@@ -767,7 +768,7 @@ const CartDrawer = ({ closeDrawer }) => {
     }
     setCreatingOrderLink(true);
     try {
-      const response = await axios.post(`${API_ORIGIN}/api/order-links`, {
+      const payload = {
         customer: {
           name: confirmedAddress.fullName || customerName || "",
           phone: phoneNumber || "",
@@ -799,7 +800,11 @@ const CartDrawer = ({ closeDrawer }) => {
         ),
         paymentMode: paymentMethod,
         partialPayment: { type: "amount", value: paymentMethod === "Partial Paid" ? partialAmount : 10 },
-      }, { withCredentials: true });
+      };
+      const response = orderLinkId
+        ? await axios.post(`${API_ORIGIN}/api/order-links/${orderLinkId}/regenerate`, {}, { withCredentials: true })
+        : await axios.post(`${API_ORIGIN}/api/order-links`, payload, { withCredentials: true });
+      setOrderLinkId(response.data?.orderLink?.id || orderLinkId);
       setOrderLinkUrl(response.data?.url || "");
       setCopyStatus("48-hour order link created. No Shopify order was placed.");
     } catch (error) {
