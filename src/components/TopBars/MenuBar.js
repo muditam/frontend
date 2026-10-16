@@ -802,7 +802,7 @@ const MenuBar = ({ toggleDrawer }) => {
               {can("othersSwitchDashboards") && <SubItem to="/switch-dashboard" label="Switch Dashboards" />}
               {can("othersIncentiveCreation") && <SubItem to="/incentive-creation" label="Incentive Creation" />}
               {can("othersAllProducts") && <SubItem to="/all-products" label="All Products" />}
-              {can("otherswhatsaaptemplates") && <SubItem to="/template/chat" label="WhatsApp Templates" />}
+              {can("otherswhatsaaptemplates") && !isDietician && <SubItem to="/template/chat" label="WhatsApp Templates" />}
               {can("othersLeadMigration") && <SubItem to="/lead-migration" label="Leads Migrate" />}
               {can("othersDietTemplate") && <SubItem to="/diet-template" label="Diet Plan Builder" />}
               {(can("dieticianProfiles") || isDietician) && <SubItem to="/admin/dieticians" label="Dietician Profiles" />}
