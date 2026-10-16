@@ -119,7 +119,8 @@ function DieticianProfileAccessRoute({ children }) {
   const role = String(user?.role || "").trim().toLowerCase().replace(/[\s_-]+/g, " ");
   const isDietician = ["dietician", "dietitian", "sales agent", "retention agent"].includes(role);
   const isManager = ["manager", "super admin", "admin", "developer"].includes(role);
-  return isDietician || isManager ? children : <Navigate to="/403" replace />;
+  const hasProfilePermission = Boolean(user?.permissions?.menubar?.dieticianProfiles);
+  return isDietician || isManager || hasProfilePermission ? children : <Navigate to="/403" replace />;
 }
 
 function AppLayout() {
