@@ -14,6 +14,12 @@ import {
   MenuItem,
   Paper,
   Stack,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
   TextField,
   Typography,
 } from "@mui/material";
@@ -139,33 +145,34 @@ export default function OrderLinksPage() {
 
         {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
         {loading ? <Box sx={{ display: "flex", justifyContent: "center", py: 8 }}><CircularProgress /></Box> : (
-          <Stack spacing={1.5}>
-            {filteredLinks.map((link) => {
-              const purchased = link.status === "order_created";
-              return (
-                <Paper key={link.id} sx={{ p: { xs: 1.5, md: 2 }, border: "1px solid #e4e9f0", boxShadow: "none", borderRadius: 2 }}>
-                  <Stack direction={{ xs: "column", md: "row" }} spacing={2} alignItems={{ md: "center" }}>
-                    <Box sx={{ flex: 1, minWidth: 0 }}>
-                      <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
+          <Paper sx={{ border: "1px solid #e4e9f0", boxShadow: "none", borderRadius: 2, overflow: "hidden" }}>
+            {filteredLinks.length ? <TableContainer sx={{ overflowX: "auto" }}>
+              <Table sx={{ minWidth: 980 }} size="small">
+                <TableHead sx={{ bgcolor: "#f8fafc" }}>
+                  <TableRow>
+                    {['Customer', 'Created', 'Expires', 'Payment', 'Amount', 'Status', 'Actions'].map((heading) => <TableCell key={heading} sx={{ fontWeight: 800, color: "#475569", whiteSpace: "nowrap" }}>{heading}</TableCell>)}
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {filteredLinks.map((link) => {
+                    const purchased = link.status === "order_created";
+                    return <TableRow key={link.id} hover>
+                      <TableCell>
                         <Typography sx={{ fontWeight: 800 }}>{link.customer?.name || "Unnamed customer"}</Typography>
-                        <StatusChip status={link.status} />
-                        {purchased && <Chip size="small" icon={<CheckCircleOutlineIcon />} label={`Shopify ${link.shopifyOrder?.name || "order created"}`} color="success" variant="outlined" />}
-                      </Stack>
-                      <Typography variant="body2" color="text.secondary" sx={{ mt: 0.4 }}>{link.customer?.phone} · {link.paymentMode} · {money(link.totals?.payableTotal || link.totals?.codTotal)}</Typography>
-                      <Typography variant="caption" color="text.secondary">Created {dateTime(link.createdAt)} · Expires {dateTime(link.expiresAt)}{link.agentName ? ` · By ${link.agentName}` : ""}</Typography>
-                    </Box>
-                    <Stack direction="row" spacing={0.5} flexWrap="wrap">
-                      <Button size="small" startIcon={<VisibilityIcon />} onClick={() => setSelected(link)} sx={{ textTransform: "none" }}>Details</Button>
-                      <IconButton size="small" title="Copy link" onClick={() => copyLink(link)}><ContentCopyIcon fontSize="small" /></IconButton>
-                      <IconButton size="small" title="Open link" component="a" href={`${window.location.origin}/order-link/${link.token}`} target="_blank" rel="noreferrer"><LaunchIcon fontSize="small" /></IconButton>
-                      {link.status === "expired" && <IconButton size="small" title="Regenerate" onClick={() => regenerate(link)}><RestartAltIcon fontSize="small" /></IconButton>}
-                    </Stack>
-                  </Stack>
-                </Paper>
-              );
-            })}
-            {!filteredLinks.length && <Paper sx={{ p: 6, textAlign: "center", border: "1px solid #e4e9f0", boxShadow: "none" }}><LinkIcon sx={{ color: "#94a3b8", fontSize: 40 }} /><Typography sx={{ mt: 1, fontWeight: 700 }}>No order links found</Typography><Typography color="text.secondary">Try changing the filters or create a link from a lead.</Typography></Paper>}
-          </Stack>
+                        <Typography variant="caption" color="text.secondary">{link.customer?.phone || "-"}{link.agentName ? ` · ${link.agentName}` : ""}</Typography>
+                      </TableCell>
+                      <TableCell sx={{ whiteSpace: "nowrap" }}>{dateTime(link.createdAt)}</TableCell>
+                      <TableCell sx={{ whiteSpace: "nowrap" }}>{dateTime(link.expiresAt)}</TableCell>
+                      <TableCell sx={{ whiteSpace: "nowrap" }}>{link.paymentMode || "-"}</TableCell>
+                      <TableCell sx={{ whiteSpace: "nowrap", fontWeight: 700 }}>{money(link.totals?.payableTotal || link.totals?.codTotal)}</TableCell>
+                      <TableCell><Stack direction="row" spacing={0.5} alignItems="center"><StatusChip status={link.status} />{purchased && <CheckCircleOutlineIcon color="success" fontSize="small" />}</Stack></TableCell>
+                      <TableCell><Stack direction="row" spacing={0.25} alignItems="center"><Button size="small" startIcon={<VisibilityIcon />} onClick={() => setSelected(link)} sx={{ textTransform: "none" }}>Details</Button><IconButton size="small" title="Copy link" onClick={() => copyLink(link)}><ContentCopyIcon fontSize="small" /></IconButton><IconButton size="small" title="Open link" component="a" href={`${window.location.origin}/order-link/${link.token}`} target="_blank" rel="noreferrer"><LaunchIcon fontSize="small" /></IconButton>{link.status === "expired" && <IconButton size="small" title="Regenerate" onClick={() => regenerate(link)}><RestartAltIcon fontSize="small" /></IconButton>}</Stack></TableCell>
+                    </TableRow>;
+                  })}
+                </TableBody>
+              </Table>
+            </TableContainer> : <Box sx={{ p: 6, textAlign: "center" }}><LinkIcon sx={{ color: "#94a3b8", fontSize: 40 }} /><Typography sx={{ mt: 1, fontWeight: 700 }}>No order links found</Typography><Typography color="text.secondary">Try changing the filters or create a link from a lead.</Typography></Box>}
+          </Paper>
         )}
       </Box>
 
