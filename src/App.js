@@ -117,7 +117,7 @@ function DieticianProfileAccessRoute({ children }) {
   const storedUser = sessionStorage.getItem("user");
   const user = storedUser ? JSON.parse(storedUser) : null;
   const role = String(user?.role || "").trim().toLowerCase().replace(/[\s_-]+/g, " ");
-  const isDietician = role.includes("dietician") || role.includes("dietitian") || role.includes("sales") || role.includes("retention");
+  const isDietician = role.includes("dietician") || role.includes("dietitian") || role.includes("sales") || role.includes("retention") || role === "team leader";
   const isManager = ["manager", "super admin", "admin", "developer"].includes(role);
   const hasProfilePermission = Boolean(user?.permissions?.menubar?.dieticianProfiles);
   return isDietician || isManager || hasProfilePermission ? children : <Navigate to="/403" replace />;

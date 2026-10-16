@@ -428,7 +428,7 @@ const MenuBar = ({ toggleDrawer }) => {
     return false;
   };
   const normalizedRole = role.replace(/-/g, " ");
-  const isDietician = normalizedRole.includes("dietician") || normalizedRole.includes("dietitian") || normalizedRole.includes("sales") || normalizedRole.includes("retention");
+  const isDietician = normalizedRole.includes("dietician") || normalizedRole.includes("dietitian") || normalizedRole.includes("sales") || normalizedRole.includes("retention") || normalizedRole === "team leader";
 
   const handleDropdownClick = (menu) => {
     setOpenDropdown((prev) => ({ ...prev, [menu]: !prev[menu] }));
