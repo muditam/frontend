@@ -173,7 +173,7 @@ export default function OrderLinkCheckout() {
   const expertProfile = link?.expertProfile || null;
   const expert = link?.expert || {};
   const expertName = expertProfile?.displayName || expert.name || "Muditam Wellness Expert";
-  const expertRole = expertProfile?.title || expert.role || "Wellness Expert";
+  const expertRole = expertProfile?.title || "Certified Dietician";
   const expertImage = expertProfile?.imageUrl || DEMO_EXPERT_IMAGE;
   const expertBio = expertProfile?.bio || "Your plan was reviewed with you on your call. I am here to guide you through your journey and answer any questions you may have.";
   const expertBadges = expertProfile?.badges?.length
@@ -196,6 +196,8 @@ export default function OrderLinkCheckout() {
         quote: item.text || "",
         imageUrl: item.imageUrl || "",
         rating: Number(item.rating || 5),
+        hba1cFrom: item.hba1cFrom || "",
+        hba1cTo: item.hba1cTo || "",
       }))
     : [
         {
@@ -765,6 +767,7 @@ export default function OrderLinkCheckout() {
                         <Typography sx={{ color: ui.muted, fontSize: 12, fontWeight: 700, lineHeight: 1.35 }}>"{item.quote}"</Typography>
                       </Box>
                     </Box>
+                    {(item.hba1cFrom || item.hba1cTo) && <Typography sx={{ mt: 1, display: "inline-flex", px: 0.8, py: 0.35, borderRadius: "6px", bgcolor: ui.greenSoft, color: ui.green, fontSize: 11, fontWeight: 900 }}>HbA1c {item.hba1cFrom || "-"} → {item.hba1cTo || "-"}</Typography>}
                     <Typography sx={{ mt: 1, fontSize: 12, fontWeight: 900 }}>{item.name}</Typography>
                     <Typography sx={{ color: ui.muted, fontSize: 11, fontWeight: 700 }}>{item.city}</Typography>
                   </Box>

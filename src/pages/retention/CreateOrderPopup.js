@@ -265,6 +265,14 @@ const CreateOrderPopup = ({ open, onClose, prefillCustomer = {}, onOrderCreated 
      alert("Customer name and phone are required.");
      return;
    }
+   if (subtotal < 350) {
+     alert("Minimum product subtotal is Rs 350.");
+     return;
+   }
+   if (total < 1) {
+     alert("Final order total must be at least Rs 1.");
+     return;
+   }
    const isPartialPaid = paymentMethod === "Partial Paid";
    const numericPartialPaidAmount = Number(partialPaidAmount || 0);
    if (isPartialPaid && (!(numericPartialPaidAmount > 0) || numericPartialPaidAmount >= total)) {

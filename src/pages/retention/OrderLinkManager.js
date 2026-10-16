@@ -67,7 +67,8 @@ export default function OrderLinkManager({ lead }) {
     if (!customer.name) return "Customer name is required.";
     if (!customer.phone) return "Customer phone is required.";
     if (cartItems.length === 0) return "Select products and add them to cart first.";
-    if (total < 350) return "Minimum cart value is Rs 350.";
+    if (subtotal < 350) return "Minimum product subtotal is Rs 350.";
+    if (total < 1) return "Final order total must be at least Rs 1.";
     return "";
   }, [busy, cartItems.length, customer.name, customer.phone, total]);
 
