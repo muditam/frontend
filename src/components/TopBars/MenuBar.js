@@ -427,6 +427,7 @@ const MenuBar = ({ toggleDrawer }) => {
     }
     return false;
   };
+  const isDietician = ["dietician", "dietitian"].includes(role.replace(/-/g, " "));
 
   const handleDropdownClick = (menu) => {
     setOpenDropdown((prev) => ({ ...prev, [menu]: !prev[menu] }));
@@ -803,7 +804,7 @@ const MenuBar = ({ toggleDrawer }) => {
               {can("otherswhatsaaptemplates") && <SubItem to="/template/chat" label="WhatsApp Templates" />}
               {can("othersLeadMigration") && <SubItem to="/lead-migration" label="Leads Migrate" />}
               {can("othersDietTemplate") && <SubItem to="/diet-template" label="Diet Plan Builder" />}
-              {can("dieticianProfiles") && <SubItem to="/admin/dieticians" label="Dietician Profiles" />}
+              {(can("dieticianProfiles") || isDietician) && <SubItem to="/admin/dieticians" label="Dietician Profiles" />}
               {can("othersAllShopifyOrders") && <SubItem to="/all-shopify-orders" label="All Shopify Orders" />}
               {can("othersBulkDataUpload") && <SubItem to="/bulk-data-upload" label="Bulk Data Upload" />}
             </DropdownGroup>

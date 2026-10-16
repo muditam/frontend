@@ -1,6 +1,6 @@
 import React from "react";
 import "./global.css";
-import { BrowserRouter as Router, Route, Routes, useLocation } from "react-router-dom";
+import { BrowserRouter as Router, Navigate, Route, Routes, useLocation } from "react-router-dom";
 import BulkDataUpload from "./components/BulkDataUpload";
 import AddEmployee from "./pages/AddEmployee";
 import LeadTable from "./pages/master/MasterLeads";
@@ -113,6 +113,15 @@ import DieticianProfileManager from "./pages/DieticianProfileManager";
 import PaymentLinkPage from "./pages/PaymentLinkPage";
 import OrderLinksPage from "./pages/retention/OrderLinksPage";
 
+function DieticianProfileAccessRoute({ children }) {
+  const storedUser = sessionStorage.getItem("user");
+  const user = storedUser ? JSON.parse(storedUser) : null;
+  const role = String(user?.role || "").trim().toLowerCase().replace(/[\s_-]+/g, " ");
+  const isDietician = ["dietician", "dietitian"].includes(role);
+  const isManager = ["manager", "super admin", "admin", "developer"].includes(role);
+  return isDietician || isManager ? children : <Navigate to="/403" replace />;
+}
+
 function AppLayout() {
   const location = useLocation();
   const isDietPublicRoute = location.pathname === "/diet-onboarding" || location.pathname === "/smart-diet-plan"
@@ -199,9 +208,9 @@ function AppLayout() {
             path="/admin/dieticians"
             element={
               <PrivateRoute>
-                <ManagerRoute>
+                <DieticianProfileAccessRoute>
                   <DieticianProfileManager />
-                </ManagerRoute>
+                </DieticianProfileAccessRoute>
               </PrivateRoute>
             }
           />
