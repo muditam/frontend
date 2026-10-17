@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import {
   Avatar,
@@ -100,6 +100,10 @@ const iconBubbleSx = {
 
 export const VERIFY_PAYMENT_TIMEOUT_MS = 45000;
 
+export function markPaymentAttemptPending(link) {
+  return link ? { ...link, status: "payment_pending" } : link;
+}
+
 export function verifyPaymentWithTimeout(url, payload, timeoutMs = VERIFY_PAYMENT_TIMEOUT_MS) {
   const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
   let timeoutId;
@@ -136,6 +140,7 @@ export default function OrderLinkCheckout() {
   const [codOtpBusy, setCodOtpBusy] = useState(false);
   const [paymentState, setPaymentState] = useState("idle");
   const [paymentMessage, setPaymentMessage] = useState("");
+  const paymentVerificationRef = useRef(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -376,6 +381,7 @@ export default function OrderLinkCheckout() {
         description: selectedMode === "Partial Paid" ? "Advance payment" : "Order payment",
         order_id: data.orderId,
         handler: async (response) => {
+          paymentVerificationRef.current = true;
           setPaymentState("verifying");
           setPaymentMessage("Payment received. Confirming your order...");
           try {
@@ -396,14 +402,16 @@ export default function OrderLinkCheckout() {
                 : "Your payment may have gone through, but order confirmation is still pending. Refresh the status or contact support before paying again."
             );
           } finally {
+            paymentVerificationRef.current = false;
             setBusy("");
           }
         },
         modal: {
           ondismiss: () => {
-            if (paymentState !== "verifying") {
+            if (!paymentVerificationRef.current) {
+              setLink((current) => markPaymentAttemptPending(current));
               setPaymentState("idle");
-              setPaymentMessage("Payment was not completed. You can try again when ready.");
+              setPaymentMessage("Payment was not completed. You can cancel this payment attempt to edit your order.");
             }
             setBusy("");
           },

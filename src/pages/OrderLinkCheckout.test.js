@@ -1,5 +1,5 @@
 import axios from "axios";
-import { verifyPaymentWithTimeout } from "./OrderLinkCheckout";
+import { markPaymentAttemptPending, verifyPaymentWithTimeout } from "./OrderLinkCheckout";
 
 jest.mock("axios");
 
@@ -7,6 +7,11 @@ describe("order-link Razorpay verification recovery", () => {
   afterEach(() => {
     jest.useRealTimers();
     jest.clearAllMocks();
+  });
+
+  test("marks the local link payment-pending when checkout is dismissed", () => {
+    const link = { status: "viewed", token: "token-1" };
+    expect(markPaymentAttemptPending(link)).toEqual({ status: "payment_pending", token: "token-1" });
   });
 
   test("returns the verified order when verification succeeds", async () => {
