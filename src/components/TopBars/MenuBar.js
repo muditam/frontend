@@ -427,6 +427,8 @@ const MenuBar = ({ toggleDrawer }) => {
     }
     return false;
   };
+  const normalizedRole = role.replace(/-/g, " ");
+  const isDietician = normalizedRole.includes("dietician") || normalizedRole.includes("dietitian") || normalizedRole.includes("sales") || normalizedRole.includes("retention") || normalizedRole === "team leader";
 
   const handleDropdownClick = (menu) => {
     setOpenDropdown((prev) => ({ ...prev, [menu]: !prev[menu] }));
@@ -612,6 +614,7 @@ const MenuBar = ({ toggleDrawer }) => {
             <DropdownGroup id="retentionAgent" icon={<PersonIcon />} label="Retention Expert">
               {can("retentionLeads") && <SubItem to="/retention/leads" label="Retention Leads" />}
               {can("retentionSales") && <SubItem to="/retention/sales" label="Retention Sales" />}
+              <SubItem to="/retention/order-links" label="Order Links" />
               {can("retentionOverviewCombined") && <SubItem to="/retention/overview-combined" label="Retention Overview Combined" />}
             </DropdownGroup>
           )}
@@ -794,15 +797,15 @@ const MenuBar = ({ toggleDrawer }) => {
           )}
 
           {/* Others */}
-          {user && can("othersMenu") && (
+          {user && (can("othersMenu") || can("dieticianProfiles") || isDietician) && (
             <DropdownGroup id="others" icon={<FolderIcon />} label="Others">
               {can("othersSwitchDashboards") && <SubItem to="/switch-dashboard" label="Switch Dashboards" />}
               {can("othersIncentiveCreation") && <SubItem to="/incentive-creation" label="Incentive Creation" />}
               {can("othersAllProducts") && <SubItem to="/all-products" label="All Products" />}
-              {can("otherswhatsaaptemplates") && <SubItem to="/template/chat" label="WhatsApp Templates" />}
+              {can("otherswhatsaaptemplates") && !isDietician && <SubItem to="/template/chat" label="WhatsApp Templates" />}
               {can("othersLeadMigration") && <SubItem to="/lead-migration" label="Leads Migrate" />}
               {can("othersDietTemplate") && <SubItem to="/diet-template" label="Diet Plan Builder" />}
-              {can("dieticianProfiles") && <SubItem to="/admin/dieticians" label="Dietician Profiles" />}
+              {(can("dieticianProfiles") || isDietician) && <SubItem to="/admin/dieticians" label="Dietician Profiles" />}
               {can("othersAllShopifyOrders") && <SubItem to="/all-shopify-orders" label="All Shopify Orders" />}
               {can("othersBulkDataUpload") && <SubItem to="/bulk-data-upload" label="Bulk Data Upload" />}
             </DropdownGroup>

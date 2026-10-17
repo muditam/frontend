@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import {
   Avatar,
@@ -7,6 +7,10 @@ import {
   Chip,
   CircularProgress,
   Container,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
   Divider,
   IconButton,
   Paper,
@@ -94,6 +98,28 @@ const iconBubbleSx = {
   flex: "0 0 auto",
 };
 
+export const VERIFY_PAYMENT_TIMEOUT_MS = 45000;
+
+export function markPaymentAttemptPending(link) {
+  return link ? { ...link, status: "payment_pending" } : link;
+}
+
+export function verifyPaymentWithTimeout(url, payload, timeoutMs = VERIFY_PAYMENT_TIMEOUT_MS) {
+  const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
+  let timeoutId;
+  const request = axios.post(url, payload, controller ? { signal: controller.signal } : undefined);
+  const timeout = new Promise((_, reject) => {
+    timeoutId = setTimeout(() => {
+      controller?.abort();
+      const error = new Error("Payment verification timed out");
+      error.code = "PAYMENT_VERIFICATION_TIMEOUT";
+      reject(error);
+    }, timeoutMs);
+  });
+
+  return Promise.race([request, timeout]).finally(() => clearTimeout(timeoutId));
+}
+
 export default function OrderLinkCheckout() {
   const { token } = useParams();
   const [link, setLink] = useState(null);
@@ -108,6 +134,13 @@ export default function OrderLinkCheckout() {
   const [productsLoading, setProductsLoading] = useState(false);
   const [productsLoaded, setProductsLoaded] = useState(false);
   const [productsError, setProductsError] = useState("");
+  const [codOtpOpen, setCodOtpOpen] = useState(false);
+  const [codOtp, setCodOtp] = useState("");
+  const [codOtpVerified, setCodOtpVerified] = useState(false);
+  const [codOtpBusy, setCodOtpBusy] = useState(false);
+  const [paymentState, setPaymentState] = useState("idle");
+  const [paymentMessage, setPaymentMessage] = useState("");
+  const paymentVerificationRef = useRef(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -152,7 +185,7 @@ export default function OrderLinkCheckout() {
 
   const isDone = link?.status === "order_created";
   const isExpired = link?.status === "expired";
-  const locked = isDone || isExpired || !!busy;
+  const locked = isDone || isExpired || link?.status === "payment_pending" || !!busy || paymentState === "checkout_open" || paymentState === "verification_failed";
 
   const addressSummary = useMemo(() => {
     const lineOne = [address?.address1, address?.address2].filter(Boolean).join(", ");
@@ -163,7 +196,7 @@ export default function OrderLinkCheckout() {
   const expertProfile = link?.expertProfile || null;
   const expert = link?.expert || {};
   const expertName = expertProfile?.displayName || expert.name || "Muditam Wellness Expert";
-  const expertRole = expertProfile?.title || expert.role || "Wellness Expert";
+  const expertRole = expertProfile?.title || "Certified Dietician";
   const expertImage = expertProfile?.imageUrl || DEMO_EXPERT_IMAGE;
   const expertBio = expertProfile?.bio || "Your plan was reviewed with you on your call. I am here to guide you through your journey and answer any questions you may have.";
   const expertBadges = expertProfile?.badges?.length
@@ -186,6 +219,8 @@ export default function OrderLinkCheckout() {
         quote: item.text || "",
         imageUrl: item.imageUrl || "",
         rating: Number(item.rating || 5),
+        hba1cFrom: item.hba1cFrom || "",
+        hba1cTo: item.hba1cTo || "",
       }))
     : [
         {
@@ -228,8 +263,8 @@ export default function OrderLinkCheckout() {
     if (!link) return null;
     if (link.paymentMode === "COD") {
       return {
-        title: "Choose how you want to confirm",
-        body: "Confirm COD to place the order now, pay 10% advance online, or pay fully online and save 5%.",
+        title: "Cash on Delivery",
+        body: "Confirm your order now and pay when it is delivered.",
       };
     }
     if (link.paymentMode === "Partial Paid") {
@@ -285,6 +320,19 @@ export default function OrderLinkCheckout() {
   };
 
   const confirmCod = async () => {
+    if (!codOtpVerified) {
+      setCodOtpBusy(true);
+      try {
+        await axios.post(`${API_BASE}/api/order-links/public/${token}/cod-otp/send`);
+        setCodOtp("");
+        setCodOtpOpen(true);
+      } catch (err) {
+        alert(err?.response?.data?.message || "Could not send OTP.");
+      } finally {
+        setCodOtpBusy(false);
+      }
+      return;
+    }
     setBusy("cod");
     try {
       const { data } = await axios.post(`${API_BASE}/api/order-links/public/${token}/confirm-cod`);
@@ -296,12 +344,33 @@ export default function OrderLinkCheckout() {
     }
   };
 
+  const verifyCodOtp = async () => {
+    if (!codOtp.trim()) return;
+    setCodOtpBusy(true);
+    try {
+      await axios.post(`${API_BASE}/api/order-links/public/${token}/cod-otp/verify`, { otp: codOtp });
+      setCodOtpVerified(true);
+      setCodOtpOpen(false);
+      setBusy("cod");
+      const { data } = await axios.post(`${API_BASE}/api/order-links/public/${token}/confirm-cod`);
+      setLink(data.orderLink);
+    } catch (err) {
+      alert(err?.response?.data?.message || "Invalid OTP.");
+    } finally {
+      setCodOtpBusy(false);
+      setBusy("");
+    }
+  };
+
   const payOnline = async (selectedMode) => {
+    setPaymentMessage("");
+    setPaymentState("starting");
     setBusy(selectedMode);
     try {
       const { data } = await axios.post(`${API_BASE}/api/order-links/public/${token}/payments/razorpay-order`, { selectedMode });
       if (!window.Razorpay) {
-        alert("Razorpay checkout script is not loaded.");
+        setPaymentState("verification_failed");
+        setPaymentMessage("Payment could not be started. Please refresh this page and try again.");
         return;
       }
       const checkout = new window.Razorpay({
@@ -312,14 +381,73 @@ export default function OrderLinkCheckout() {
         description: selectedMode === "Partial Paid" ? "Advance payment" : "Order payment",
         order_id: data.orderId,
         handler: async (response) => {
-          const verify = await axios.post(`${API_BASE}/api/order-links/public/${token}/payments/verify`, response);
-          setLink(verify.data.orderLink);
+          paymentVerificationRef.current = true;
+          setPaymentState("verifying");
+          setPaymentMessage("Payment received. Confirming your order...");
+          try {
+            const verify = await verifyPaymentWithTimeout(
+              `${API_BASE}/api/order-links/public/${token}/payments/verify`,
+              response
+            );
+            setLink(verify.data.orderLink);
+            setPaymentState("complete");
+            setPaymentMessage("");
+          } catch (err) {
+            setPaymentState("verification_failed");
+            setPaymentMessage(
+              err?.code === "PAYMENT_VERIFICATION_TIMEOUT"
+                ? "Payment verification is taking longer than expected. Your payment may have gone through. Refresh the order status before trying again or contact support."
+                : err?.response?.status === 409
+                ? "Your payment is being processed. Please refresh the order status before trying again."
+                : "Your payment may have gone through, but order confirmation is still pending. Refresh the status or contact support before paying again."
+            );
+          } finally {
+            paymentVerificationRef.current = false;
+            setBusy("");
+          }
+        },
+        modal: {
+          ondismiss: () => {
+            if (!paymentVerificationRef.current) {
+              setLink((current) => markPaymentAttemptPending(current));
+              setPaymentState("idle");
+              setPaymentMessage("Payment was not completed. You can cancel this payment attempt to edit your order.");
+            }
+            setBusy("");
+          },
         },
         prefill: { name: link.customer?.name, contact: link.customer?.phone },
       });
+      setPaymentState("checkout_open");
       checkout.open();
     } catch (err) {
-      alert(err?.response?.data?.message || "Could not start payment.");
+      setPaymentState("verification_failed");
+      setPaymentMessage(err?.response?.data?.message || "Could not start payment. Please refresh and try again.");
+    } finally {
+      if (paymentState !== "checkout_open" && paymentState !== "verifying") setBusy("");
+    }
+  };
+
+  const refreshPaymentStatus = async () => {
+    setPaymentMessage("Refreshing order status...");
+    try {
+      await load();
+      setPaymentState("idle");
+      setPaymentMessage("Status refreshed. If payment is still pending, you can safely continue from this order link.");
+    } catch (err) {
+      setPaymentMessage("Could not refresh the order status. Please try again.");
+    }
+  };
+
+  const cancelPaymentAttempt = async () => {
+    setBusy("cancel-payment");
+    try {
+      const { data } = await axios.post(`${API_BASE}/api/order-links/public/${token}/payments/cancel`);
+      setLink(data.orderLink);
+      setPaymentState("idle");
+      setPaymentMessage("Payment attempt cancelled. You can now edit your order or address.");
+    } catch (err) {
+      setPaymentMessage(err?.response?.data?.message || "Could not cancel the payment attempt. Please refresh and try again.");
     } finally {
       setBusy("");
     }
@@ -329,22 +457,16 @@ export default function OrderLinkCheckout() {
     <Stack spacing={1}>
       {link?.paymentMode === "COD" ? (
         <>
-          <Button size="large" variant="contained" disabled={!!busy} onClick={confirmCod} endIcon={<ChevronRightIcon />} sx={{ justifyContent: "space-between", borderRadius: "12px", bgcolor: "#008e58", fontWeight: 900, py: 1.35, px: 1.7, textTransform: "none", boxShadow: "0 12px 24px rgba(0,142,88,.22)", "&:hover": { bgcolor: "#00794b" } }}>
-            <span>Confirm COD · {fmt(link.totals?.codTotal)}</span>
-          </Button>
-          <Button size="large" variant="outlined" disabled={!!busy} onClick={() => payOnline("Partial Paid")} endIcon={<ChevronRightIcon />} sx={{ justifyContent: "space-between", borderRadius: "12px", fontWeight: 900, borderColor: "#e7e4e9", color: ui.brandDeep, textTransform: "none", bgcolor: ui.paper, py: 1.15, px: 1.7 }}>
-            <span>Pay 10% advance · {fmt(link.totals?.partialAdvance)}</span>
-          </Button>
-          <Button size="large" variant="outlined" disabled={!!busy} onClick={() => payOnline("Prepaid")} endIcon={<ChevronRightIcon />} sx={{ justifyContent: "space-between", borderRadius: "12px", fontWeight: 900, borderColor: "#d7eee4", color: ui.green, textTransform: "none", bgcolor: ui.paper, py: 1.15, px: 1.7 }}>
-            <span>Pay online & save 5% · {fmt(link.totals?.fullOnlineTotal)}</span>
+          <Button size="large" variant="contained" disabled={!!busy || codOtpBusy} onClick={confirmCod} endIcon={<ChevronRightIcon />} sx={{ justifyContent: "space-between", borderRadius: "10px", bgcolor: "#087f55", fontWeight: 850, py: 1.25, px: 1.7, textTransform: "none", letterSpacing: 0.05, boxShadow: "0 8px 18px rgba(8,127,85,.16)", "&:hover": { bgcolor: "#056b47", boxShadow: "0 10px 22px rgba(8,127,85,.22)" } }}>
+            <span>{codOtpBusy ? "Sending OTP..." : `Confirm COD · ${fmt(link.totals?.codTotal)}`}</span>
           </Button>
         </>
       ) : link?.paymentMode === "Partial Paid" ? (
-        <Button size="large" variant="contained" disabled={!!busy} onClick={() => payOnline("Partial Paid")} endIcon={<ChevronRightIcon />} sx={{ justifyContent: "space-between", borderRadius: "12px", bgcolor: "#008e58", fontWeight: 900, py: 1.35, px: 1.7, textTransform: "none", boxShadow: "0 12px 24px rgba(0,142,88,.22)" }}>
+        <Button size="large" variant="contained" disabled={locked} onClick={() => payOnline("Partial Paid")} endIcon={<ChevronRightIcon />} sx={{ justifyContent: "space-between", borderRadius: "10px", bgcolor: "#087f55", fontWeight: 850, py: 1.25, px: 1.7, textTransform: "none", boxShadow: "0 8px 18px rgba(8,127,85,.16)", "&:hover": { bgcolor: "#056b47" } }}>
           Pay advance · {fmt(link.totals?.partialAdvance)}
         </Button>
       ) : (
-        <Button size="large" variant="contained" disabled={!!busy} onClick={() => payOnline("Prepaid")} endIcon={<ChevronRightIcon />} sx={{ justifyContent: "space-between", borderRadius: "12px", bgcolor: "#008e58", fontWeight: 900, py: 1.35, px: 1.7, textTransform: "none", boxShadow: "0 12px 24px rgba(0,142,88,.22)" }}>
+        <Button size="large" variant="contained" disabled={locked} onClick={() => payOnline("Prepaid")} endIcon={<ChevronRightIcon />} sx={{ justifyContent: "space-between", borderRadius: "10px", bgcolor: "#087f55", fontWeight: 850, py: 1.25, px: 1.7, textTransform: "none", boxShadow: "0 8px 18px rgba(8,127,85,.16)", "&:hover": { bgcolor: "#056b47" } }}>
           Pay now · {fmt(link.totals?.payableTotal)}
         </Button>
       )}
@@ -358,6 +480,24 @@ export default function OrderLinkCheckout() {
       <Typography sx={{ mt: 0.35, color: ui.muted, fontSize: 12, fontWeight: 700, lineHeight: 1.35 }}>
         {paymentClarity.body}
       </Typography>
+    </Box>
+  ) : null;
+
+  const paymentStatusBlock = (paymentMessage || link?.status === "payment_pending") ? (
+    <Box sx={{ mt: 1, p: 1.25, borderRadius: "12px", border: `1px solid ${ui.line}`, bgcolor: ui.soft }}>
+      <Typography sx={{ color: ui.muted, fontSize: 12, fontWeight: 750, lineHeight: 1.4 }}>
+        {paymentMessage}
+      </Typography>
+      {paymentState === "verification_failed" && (
+        <Button size="small" onClick={refreshPaymentStatus} sx={{ mt: 0.5, px: 0, textTransform: "none", fontWeight: 850 }}>
+          Refresh order status
+        </Button>
+      )}
+      {link?.status === "payment_pending" && (
+        <Button size="small" color="inherit" disabled={!!busy} onClick={cancelPaymentAttempt} sx={{ mt: 0.5, px: 0, textTransform: "none", fontWeight: 850 }}>
+          {busy === "cancel-payment" ? "Cancelling payment..." : "Cancel payment and edit order"}
+        </Button>
+      )}
     </Box>
   ) : null;
 
@@ -402,7 +542,7 @@ export default function OrderLinkCheckout() {
       </Box>
 
       <Container maxWidth="xl" sx={{ py: { xs: 1.5, md: 3 }, px: { xs: 1.5, sm: 3, md: 5 } }}>
-        <Paper elevation={0} sx={{ mb: { xs: 1.4, md: 2 }, minHeight: { xs: 132, md: 132 }, p: { xs: 2, md: 2.5 }, borderRadius: "18px", border: "1px solid #dcefe5", background: "linear-gradient(105deg,#f3fbf6 0%,#fbfffd 48%,#eff8f2 100%)", position: "relative", overflow: "hidden", boxShadow: "0 18px 50px rgba(21,128,90,.07)" }}>
+        <Paper elevation={0} sx={{ mb: { xs: 1.25, md: 2 }, minHeight: { xs: 0, md: 132 }, p: { xs: 1.5, md: 2.5 }, borderRadius: { xs: "16px", md: "18px" }, border: "1px solid #dcefe5", background: "linear-gradient(105deg,#f3fbf6 0%,#fbfffd 48%,#eff8f2 100%)", position: "relative", overflow: "hidden", boxShadow: "0 18px 50px rgba(21,128,90,.07)" }}>
           <Box
             component="img"
             src={HERO_LEAVES_LEFT}
@@ -410,9 +550,9 @@ export default function OrderLinkCheckout() {
             aria-hidden="true"
             sx={{
               position: "absolute",
-              left: { xs: -66, sm: -54, md: -18 },
-              top: { xs: -20, md: -10 },
-              width: { xs: 132, sm: 150, md: 184 },
+              left: { xs: -88, sm: -54, md: -18 },
+              top: { xs: -28, md: -10 },
+              width: { xs: 120, sm: 150, md: 184 },
               pointerEvents: "none",
               userSelect: "none",
             }}
@@ -424,19 +564,22 @@ export default function OrderLinkCheckout() {
             aria-hidden="true"
             sx={{
               position: "absolute",
-              right: { xs: -76, sm: -58, md: -10 },
-              bottom: { xs: -18, md: -12 },
-              width: { xs: 150, sm: 170, md: 204 },
+              right: { xs: -92, sm: -58, md: -45 },
+              top: { xs: -12, md: -4 },
+              bottom: "auto",
+              width: { xs: 142, sm: 164, md: 230 },
+              height: "auto",
+              objectFit: "initial",
               pointerEvents: "none",
               userSelect: "none",
             }}
           />
-          <Box sx={{ position: "relative", display: "grid", gridTemplateColumns: { xs: "1fr", md: "minmax(0,1fr) auto" }, gap: { xs: 2, md: 3 }, alignItems: "center", pl: { xs: 3.2, sm: 5.5, md: 13.5 }, pr: { xs: 3.2, sm: 5.5, md: 13.5 } }}>
+          <Box sx={{ position: "relative", display: "grid", gridTemplateColumns: { xs: "1fr", md: "minmax(0,1fr) auto" }, gap: { xs: 1, md: 3 }, alignItems: "center", pl: { xs: 2.5, sm: 5.5, md: 13.5 }, pr: { xs: 2.5, sm: 5.5, md: 13.5 } }}>
             <Box sx={{ minWidth: 0 }}>
-              <Typography sx={{ fontSize: { xs: 27, sm: 34, md: 40 }, lineHeight: 1.08, fontWeight: 950, letterSpacing: -1.2 }}>
+              <Typography sx={{ fontSize: { xs: 24, sm: 34, md: 40 }, lineHeight: { xs: 1.12, md: 1.08 }, fontWeight: 950, letterSpacing: -0.8 }}>
                 Your <Box component="span" sx={{ color: "#00794b" }}>personalised</Box> wellness plan is ready
               </Typography>
-              <Typography sx={{ mt: 1, color: "#3f4654", fontSize: { xs: 14, md: 18 }, fontWeight: 650 }}>
+              <Typography sx={{ mt: { xs: 0.75, md: 1 }, color: "#3f4654", fontSize: { xs: 13, md: 18 }, lineHeight: 1.35, fontWeight: 650 }}>
                 Complete your order below and take the next step towards a healthier you.
               </Typography>
             </Box>
@@ -470,16 +613,16 @@ export default function OrderLinkCheckout() {
 
         <Box sx={{ display: "grid", gridTemplateColumns: { xs: "minmax(0, 1fr)", lg: "minmax(0, 1fr) 420px" }, gap: { xs: 1.25, md: 2 }, alignItems: "start", minWidth: 0 }}>
           <Stack spacing={{ xs: 1.25, md: 2 }} sx={{ minWidth: 0 }}>
-            <Paper elevation={0} sx={{ ...panelSx, p: { xs: 1.4, sm: 1.7, md: 2 }, overflow: "hidden", display: "grid", gridTemplateColumns: { xs: "auto minmax(0,1fr)", md: "140px minmax(0,1fr) auto" }, gap: { xs: 1.4, md: 2 }, alignItems: "center" }}>
+            <Paper elevation={0} sx={{ ...panelSx, p: { xs: 1.15, sm: 1.7, md: 2 }, overflow: "hidden", display: "grid", gridTemplateColumns: { xs: "68px minmax(0,1fr)", md: "140px minmax(0,1fr) auto" }, gap: { xs: 1.15, md: 2 }, alignItems: "center" }}>
               <Box sx={{ position: "relative" }}>
-                <Avatar src={expertImage} alt={expertName} sx={{ width: { xs: 72, md: 120 }, height: { xs: 72, md: 120 }, border: "1px solid #eadff3", boxShadow: "0 12px 32px rgba(91,53,139,.14)" }}>{expertInitials}</Avatar>
+                <Avatar src={expertImage} alt={expertName} sx={{ width: { xs: 64, md: 120 }, height: { xs: 64, md: 120 }, border: "1px solid #eadff3", boxShadow: "0 12px 32px rgba(91,53,139,.14)" }}>{expertInitials}</Avatar>
                 <Box sx={{ position: "absolute", right: { xs: 3, md: 8 }, bottom: { xs: 3, md: 8 }, width: { xs: 15, md: 22 }, height: { xs: 15, md: 22 }, borderRadius: "50%", bgcolor: "#00a66a", border: "3px solid #fff" }} />
               </Box>
               <Box sx={{ minWidth: 0 }}>
                 <Chip label="Your assigned dietitian" size="small" sx={{ height: 22, borderRadius: "7px", bgcolor: ui.brandSoft, color: ui.brandDeep, fontSize: 10, fontWeight: 900, textTransform: "uppercase", letterSpacing: 0.7 }} />
-                <Typography sx={{ mt: 0.7, fontSize: { xs: 20, md: 25 }, lineHeight: 1.1, fontWeight: 950, letterSpacing: -0.5 }}>{expertName}</Typography>
+                <Typography sx={{ mt: 0.55, fontSize: { xs: 18, md: 25 }, lineHeight: 1.12, fontWeight: 950, letterSpacing: -0.3 }}>{expertName}</Typography>
                 <Typography sx={{ mt: 0.4, color: ui.muted, fontSize: { xs: 13, md: 15 }, fontWeight: 750 }}>{expertRole}</Typography>
-                <Stack direction="row" spacing={0.8} useFlexGap flexWrap="wrap" sx={{ mt: 1.2 }}>
+                <Stack direction="row" spacing={0.55} useFlexGap flexWrap="wrap" sx={{ mt: { xs: 0.8, md: 1.2 } }}>
                   {expertBadges.map((badge, index) => {
                     const BadgeIcon = badge.iconType === "education" ? SchoolIcon : badge.iconType === "star" ? StarIcon : VerifiedIcon;
                     const isPrimary = index === 0;
@@ -489,7 +632,10 @@ export default function OrderLinkCheckout() {
                         icon={<BadgeIcon />}
                         label={badge.label}
                         size="small"
-                        sx={{
+                          sx={{
+                            height: { xs: 26, md: 32 },
+                            "& .MuiChip-label": { px: { xs: 0.8, md: 1.2 }, fontSize: { xs: 11, md: 13 } },
+                            "& .MuiChip-icon": { fontSize: { xs: 16, md: 20 } },
                           bgcolor: isPrimary ? ui.greenSoft : ui.soft,
                           color: isPrimary ? ui.green : ui.brandDeep,
                           fontWeight: isPrimary ? 850 : 800,
@@ -499,7 +645,7 @@ export default function OrderLinkCheckout() {
                     );
                   })}
                 </Stack>
-                <Typography sx={{ mt: 1.25, color: "#424857", fontSize: { xs: 12.5, md: 13.5 }, lineHeight: 1.5, fontWeight: 650 }}>
+                <Typography sx={{ mt: { xs: 0.9, md: 1.25 }, color: "#424857", fontSize: { xs: 11.5, md: 13.5 }, lineHeight: 1.45, fontWeight: 650 }}>
                   {expertBio}
                 </Typography>
               </Box>
@@ -598,30 +744,28 @@ export default function OrderLinkCheckout() {
               )}
             </Paper>
 
-            <Paper elevation={0} sx={{ ...panelSx, p: { xs: 1.3, md: 2 }, display: { xs: "block", lg: "none" } }}>
-              <Box sx={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", gap: 1.25, alignItems: "start" }}>
-                <Box sx={{ minWidth: 0 }}>
-                  <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                    <LocationOnIcon sx={{ color: ui.brand }} />
-                    <Typography sx={{ fontSize: { xs: 17, md: 20 }, fontWeight: 950 }}>Delivery address</Typography>
-                  </Box>
-                  {!addressOpen && (
-                    <Box sx={{ mt: 1, p: 1.15, borderRadius: "14px", bgcolor: ui.soft, border: `1px solid ${ui.line}` }}>
-                      {addressSummary.length ? addressSummary.map((line, index) => (
-                        <Typography key={line} noWrap sx={{ color: index === 0 ? ui.ink : ui.muted, fontSize: index === 0 ? 13.5 : 12.5, fontWeight: index === 0 ? 900 : 750, mt: index ? 0.25 : 0 }}>{line}</Typography>
-                      )) : <Typography sx={{ color: ui.muted, fontSize: 12.5, fontWeight: 800 }}>No address added yet.</Typography>}
-                    </Box>
-                  )}
+            <Paper elevation={0} sx={{ ...panelSx, p: { xs: 1.2, md: 2 }, display: { xs: "block", lg: "none" } }}>
+              <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1 }}>
+                <Box sx={{ display: "flex", alignItems: "center", gap: 0.8, minWidth: 0 }}>
+                  <LocationOnIcon sx={{ color: ui.brand, fontSize: { xs: 25, md: 28 } }} />
+                  <Typography sx={{ fontSize: { xs: 18, md: 20 }, lineHeight: 1.15, fontWeight: 950 }}>Delivery address</Typography>
                 </Box>
                 <Button
                   size="small"
-                  startIcon={<EditIcon />}
+                  startIcon={<EditIcon sx={{ fontSize: "18px !important" }} />}
                   onClick={() => setAddressOpen((value) => !value)}
-                  sx={{ color: ui.brand, fontWeight: 900, textTransform: "none", whiteSpace: "nowrap", minWidth: "auto", borderRadius: "10px", px: 1.1, bgcolor: ui.brandSoft, "&:hover": { bgcolor: "#eadff3" } }}
+                  sx={{ color: ui.brand, fontWeight: 900, textTransform: "none", whiteSpace: "nowrap", minWidth: "auto", borderRadius: "10px", px: { xs: 1, md: 1.1 }, py: 0.7, bgcolor: ui.brandSoft, "&:hover": { bgcolor: "#eadff3" } }}
                 >
                   {addressOpen ? "Close" : "Change"}
                 </Button>
               </Box>
+              {!addressOpen && (
+                <Box sx={{ mt: 1.1, width: "100%", p: { xs: 1.1, md: 1.15 }, borderRadius: "12px", bgcolor: ui.soft, border: `1px solid ${ui.line}` }}>
+                  {addressSummary.length ? addressSummary.map((line, index) => (
+                    <Typography key={line} noWrap sx={{ color: index === 0 ? ui.ink : ui.muted, fontSize: index === 0 ? 13.5 : 12.5, fontWeight: index === 0 ? 900 : 750, mt: index ? 0.25 : 0 }}>{line}</Typography>
+                  )) : <Typography sx={{ color: ui.muted, fontSize: 12.5, fontWeight: 800 }}>No address added yet.</Typography>}
+                </Box>
+              )}
               {addressOpen && (
                 <Box sx={{ mt: 1.4 }}>
                   <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" }, gap: 1 }}>
@@ -634,17 +778,17 @@ export default function OrderLinkCheckout() {
               )}
             </Paper>
 
-            <Paper elevation={0} sx={{ ...panelSx, p: { xs: 1.3, md: 2 } }}>
+            <Paper elevation={0} sx={{ ...panelSx, p: { xs: 1.1, md: 2 } }}>
               <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, mb: 1.3 }}>
                 <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                   <Box sx={iconBubbleSx}><GroupsIcon fontSize="small" /></Box>
-                  <Typography sx={{ fontSize: { xs: 17, md: 20 }, fontWeight: 950 }}>What clients say about {expertName}</Typography>
+                  <Typography sx={{ fontSize: { xs: 16, md: 20 }, lineHeight: 1.2, fontWeight: 950 }}>What clients say about {expertName}</Typography>
                 </Box>
                 <Typography sx={{ display: { xs: "none", md: "block" }, color: ui.muted, fontSize: 12, fontWeight: 750 }}>Real customers · Real results</Typography>
               </Box>
               <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "repeat(3,1fr)" }, gap: 1 }}>
                 {testimonials.map((item) => (
-                  <Box key={item.name} sx={{ p: 1.2, border: `1px solid ${ui.line}`, borderRadius: "14px", bgcolor: ui.paper }}>
+                  <Box key={item.name} sx={{ p: { xs: 1, md: 1.2 }, border: `1px solid ${ui.line}`, borderRadius: "14px", bgcolor: ui.paper }}>
                     <Box sx={{ display: "flex", gap: 1, alignItems: "center" }}>
                       <Avatar src={item.imageUrl || ""} sx={{ width: 42, height: 42, bgcolor: "#f2f4f7", color: ui.muted }}>
                         {!item.imageUrl && <PersonOutlineIcon fontSize="small" />}
@@ -654,6 +798,7 @@ export default function OrderLinkCheckout() {
                         <Typography sx={{ color: ui.muted, fontSize: 12, fontWeight: 700, lineHeight: 1.35 }}>"{item.quote}"</Typography>
                       </Box>
                     </Box>
+                    {(item.hba1cFrom || item.hba1cTo) && <Typography sx={{ mt: 1, display: "inline-flex", px: 0.8, py: 0.35, borderRadius: "6px", bgcolor: ui.greenSoft, color: ui.green, fontSize: 11, fontWeight: 900 }}>HbA1c {item.hba1cFrom || "-"} → {item.hba1cTo || "-"}</Typography>}
                     <Typography sx={{ mt: 1, fontSize: 12, fontWeight: 900 }}>{item.name}</Typography>
                     <Typography sx={{ color: ui.muted, fontSize: 11, fontWeight: 700 }}>{item.city}</Typography>
                   </Box>
@@ -714,6 +859,7 @@ export default function OrderLinkCheckout() {
                     {paymentClarityBlock}
                   </Box>
                   {paymentActions}
+                  {paymentStatusBlock}
                   <Box sx={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 1, pt: 1 }}>
                     {[[<ShieldOutlinedIcon />, "Secure payments"], [<LockOutlinedIcon />, "Private info"], [<LocalShippingOutlinedIcon />, "Reliable delivery"]].map(([icon, label]) => (
                       <Box key={label} sx={{ textAlign: "center", color: ui.muted, borderLeft: label !== "Secure payments" ? `1px solid ${ui.line}` : 0 }}>
@@ -728,6 +874,22 @@ export default function OrderLinkCheckout() {
           </Stack>
         </Box>
       </Container>
+
+      <Dialog open={codOtpOpen} onClose={() => !codOtpBusy && setCodOtpOpen(false)} maxWidth="xs" fullWidth>
+        <DialogTitle sx={{ fontWeight: 900 }}>Verify COD confirmation</DialogTitle>
+        <DialogContent>
+          <Typography color="text.secondary" sx={{ mb: 1.5 }}>
+            We sent a one-time password to the mobile number on this order. Enter it to confirm Cash on Delivery.
+          </Typography>
+          <TextField autoFocus fullWidth label="Enter OTP" value={codOtp} onChange={(event) => setCodOtp(event.target.value.replace(/\D/g, "").slice(0, 8))} inputProps={{ inputMode: "numeric", maxLength: 8 }} />
+        </DialogContent>
+        <DialogActions sx={{ p: 2 }}>
+          <Button onClick={() => setCodOtpOpen(false)} disabled={codOtpBusy} sx={{ textTransform: "none" }}>Cancel</Button>
+          <Button variant="contained" onClick={verifyCodOtp} disabled={codOtpBusy || codOtp.length < 4} sx={{ textTransform: "none" }}>
+            {codOtpBusy ? "Verifying..." : "Verify and confirm"}
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       {!isDone && !isExpired && (
         <Box sx={{ display: { xs: "block", lg: "none" }, position: "fixed", left: 0, right: 0, bottom: 0, zIndex: 30, px: 1.25, pt: 1, pb: "calc(10px + env(safe-area-inset-bottom))", bgcolor: "rgba(246,245,243,0.9)", borderTop: `1px solid ${ui.line}`, backdropFilter: "blur(14px)" }}>
@@ -778,6 +940,7 @@ export default function OrderLinkCheckout() {
             )}
             <Box sx={{ mb: 1 }}>{paymentClarityBlock}</Box>
             {paymentActions}
+            {paymentStatusBlock}
           </Paper>
         </Box>
       )}

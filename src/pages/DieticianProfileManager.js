@@ -45,9 +45,9 @@ const emptyProfile = {
     { label: "5+ Years Experience", iconType: "star", active: true, sortOrder: 2 },
   ],
   testimonials: [
-    { customerName: "", city: "", rating: 5, text: "", imageUrl: "", active: true, sortOrder: 0 },
-    { customerName: "", city: "", rating: 5, text: "", imageUrl: "", active: true, sortOrder: 1 },
-    { customerName: "", city: "", rating: 5, text: "", imageUrl: "", active: true, sortOrder: 2 },
+    { customerName: "", city: "", rating: 5, hba1cFrom: "", hba1cTo: "", text: "", imageUrl: "", active: true, sortOrder: 0 },
+    { customerName: "", city: "", rating: 5, hba1cFrom: "", hba1cTo: "", text: "", imageUrl: "", active: true, sortOrder: 1 },
+    { customerName: "", city: "", rating: 5, hba1cFrom: "", hba1cTo: "", text: "", imageUrl: "", active: true, sortOrder: 2 },
   ],
 };
 
@@ -68,10 +68,10 @@ function mergeProfile(employee) {
     ...emptyProfile,
     ...profile,
     displayName: profile.displayName || employee?.fullName || "",
-    title: profile.title || employee?.role || "Wellness Expert",
+    title: profile.title || "Certified Dietician",
     badges: profile.badges?.length ? profile.badges.map((badge, index) => ({ active: true, sortOrder: index, ...badge })) : emptyProfile.badges,
     testimonials: profile.testimonials?.length
-      ? profile.testimonials.map((item, index) => ({ rating: 5, active: true, sortOrder: index, ...item }))
+      ? profile.testimonials.map((item, index) => ({ rating: 5, hba1cFrom: "", hba1cTo: "", active: true, sortOrder: index, ...item }))
       : emptyProfile.testimonials,
   };
 }
@@ -115,7 +115,8 @@ function ProfilePreview({ profile }) {
               </Avatar>
               <Box>
                 <Box sx={{ color: "#f5b301", lineHeight: 1 }}>{Array.from({ length: Number(item.rating || 5) }).map((_, i) => <StarIcon key={i} sx={{ fontSize: 14 }} />)}</Box>
-                <Typography sx={{ fontSize: 12.5, color: "#344054" }}>"{item.text}"</Typography>
+                {(item.hba1cFrom || item.hba1cTo) && <Typography sx={{ mt: 0.4, color: ui.green, fontSize: 11, fontWeight: 900 }}>HbA1c {item.hba1cFrom || "-"} → {item.hba1cTo || "-"}</Typography>}
+                <Typography sx={{ fontSize: 12.5, color: "#344054" }}>&quot;{item.text}&quot;</Typography>
                 <Typography sx={{ mt: 0.5, fontSize: 12, fontWeight: 900 }}>{item.customerName || "Customer"}</Typography>
                 <Typography sx={{ fontSize: 11, color: ui.muted }}>{item.city}</Typography>
               </Box>
@@ -345,7 +346,7 @@ export default function DieticianProfileManager() {
             <Box>
               <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1 }}>
                 <Typography sx={{ fontWeight: 950 }}>Testimonials</Typography>
-                <Button size="small" startIcon={<AddIcon />} onClick={() => setProfile((current) => ({ ...current, testimonials: [...current.testimonials, { customerName: "", city: "", rating: 5, text: "", imageUrl: "", active: true, sortOrder: current.testimonials.length }] }))}>Add</Button>
+                <Button size="small" startIcon={<AddIcon />} onClick={() => setProfile((current) => ({ ...current, testimonials: [...current.testimonials, { customerName: "", city: "", rating: 5, hba1cFrom: "", hba1cTo: "", text: "", imageUrl: "", active: true, sortOrder: current.testimonials.length }] }))}>Add</Button>
               </Stack>
               <Stack spacing={1.2}>
                 {(profile.testimonials || []).map((item, index) => (
@@ -361,6 +362,10 @@ export default function DieticianProfileManager() {
                       <TextField size="small" label="Customer name" value={item.customerName || ""} onChange={(event) => updateTestimonial(index, { customerName: event.target.value })} />
                       <TextField size="small" label="City" value={item.city || ""} onChange={(event) => updateTestimonial(index, { city: event.target.value })} />
                       <TextField size="small" label="Rating" type="number" value={item.rating || 5} onChange={(event) => updateTestimonial(index, { rating: event.target.value })} />
+                    </Box>
+                    <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr 1fr", md: "1fr 1fr" }, gap: 1, mt: 1 }}>
+                      <TextField size="small" label="HbA1c before" value={item.hba1cFrom || ""} onChange={(event) => updateTestimonial(index, { hba1cFrom: event.target.value })} placeholder="e.g. 9.2%" />
+                      <TextField size="small" label="HbA1c after" value={item.hba1cTo || ""} onChange={(event) => updateTestimonial(index, { hba1cTo: event.target.value })} placeholder="e.g. 6.8%" />
                     </Box>
                     <Stack direction={{ xs: "column", sm: "row" }} spacing={1} sx={{ mt: 1 }} alignItems={{ xs: "stretch", sm: "center" }}>
                       <Avatar src={item.imageUrl || ""} sx={{ width: 44, height: 44, bgcolor: "#f2f4f7", color: ui.muted }}>
