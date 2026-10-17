@@ -18,6 +18,7 @@ import LinkIcon from "@mui/icons-material/Link";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import SendIcon from "@mui/icons-material/Send";
 import axios from "axios";
+import getOrderLinkUtm from "../../utils/orderLinkUtm";
 
 
 const normalizePhone = (phone) => {
@@ -320,6 +321,7 @@ const CreateOrderPopup = ({ open, onClose, prefillCustomer = {}, onOrderCreated 
        discountValue: Number(discount || 0),
        paymentMode: paymentMethod,
        partialPayment: { type: "amount", value: isPartialPaid ? numericPartialPaidAmount : 10 },
+       utm: getOrderLinkUtm(),
      };
      const res = orderLinkId
      ? await axios.post(`${API_BASE}/api/order-links/${orderLinkId}/regenerate`, payload, { withCredentials: true })

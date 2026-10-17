@@ -45,6 +45,7 @@ import SendIcon from "@mui/icons-material/Send";
 import LinkIcon from "@mui/icons-material/Link";
 import DiamondOutlinedIcon from "@mui/icons-material/DiamondOutlined";
 import axios from "axios";
+import getOrderLinkUtm from "../../utils/orderLinkUtm";
 
 import OrderDetailsPopup from "../../ShopifyOrders/OrderDetailsPopup";
 
@@ -501,6 +502,7 @@ export default function WhatsAppCartDrawer({
           type: "amount",
           value: isPartialPaid ? partialPaidNumber : 10,
         },
+        utm: getOrderLinkUtm(),
       };
       const response = orderLinkId
         ? await axios.post(`${API_BASE}/api/order-links/${orderLinkId}/regenerate`, payload, { withCredentials: true })

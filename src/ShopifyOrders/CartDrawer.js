@@ -43,6 +43,7 @@ import OrderDetailsPopup from "./OrderDetailsPopup";
 
 import ReactConfetti from "react-confetti";
 import axios from "axios";
+import getOrderLinkUtm from "../utils/orderLinkUtm";
 
 import {
   addToCart,
@@ -820,6 +821,7 @@ const CartDrawer = ({ closeDrawer }) => {
         ),
         paymentMode: paymentMethod,
         partialPayment: { type: "amount", value: paymentMethod === "Partial Paid" ? partialAmount : 10 },
+        utm: getOrderLinkUtm(),
       };
       const response = orderLinkId
         ? await axios.post(`${API_ORIGIN}/api/order-links/${orderLinkId}/regenerate`, payload, { withCredentials: true })
