@@ -207,7 +207,6 @@ const CreateOrderPopup = ({ open, onClose, prefillCustomer = {}, onOrderCreated 
  useEffect(() => {
    if (previousLinkInputs.current && previousLinkInputs.current !== linkInputsFingerprint && orderLinkUrl) {
      setOrderLinkUrl("");
-     setOrderLinkId("");
      setCopyStatus("Order details changed. Create a new 48-hour link before sharing.");
    }
    previousLinkInputs.current = linkInputsFingerprint;
@@ -323,7 +322,7 @@ const CreateOrderPopup = ({ open, onClose, prefillCustomer = {}, onOrderCreated 
        partialPayment: { type: "amount", value: isPartialPaid ? numericPartialPaidAmount : 10 },
      };
      const res = orderLinkId
-       ? await axios.post(`${API_BASE}/api/order-links/${orderLinkId}/regenerate`, {}, { withCredentials: true })
+     ? await axios.post(`${API_BASE}/api/order-links/${orderLinkId}/regenerate`, payload, { withCredentials: true })
        : await axios.post(`${API_BASE}/api/order-links`, payload, { withCredentials: true });
      setOrderLinkId(res.data?.orderLink?.id || orderLinkId);
      setOrderLinkUrl(res.data?.url || "");
@@ -337,15 +336,8 @@ const CreateOrderPopup = ({ open, onClose, prefillCustomer = {}, onOrderCreated 
 
  const sendOrderLinkOnWhatsApp = async () => {
    if (!orderLinkUrl) return;
-   try {
-     await axios.post(`${API_BASE}/api/whatsapp/send-text`, {
-       to: customer.phone,
-       text: `Hi ${customer.name || "there"}, please review and complete your Muditam order here: ${orderLinkUrl}`,
-     }, { withCredentials: true });
-     setCopyStatus("Order link sent on WhatsApp.");
-   } catch (err) {
-     alert(err?.response?.data?.message || "Could not send the link on WhatsApp.");
-   }
+   const params = new URLSearchParams({ phone: customer.phone || "", template: "order_link_confirmation", templateParam1: customer.name || "there", templateParam2: agentFullName || "your Muditam wellness expert", templateParam3: orderLinkUrl });
+   window.location.assign(`/whatsaap/chat?${params.toString()}`);
  };
 
 

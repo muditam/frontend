@@ -252,7 +252,6 @@ export default function WhatsAppCartDrawer({
   useEffect(() => {
     if (previousLinkInputs.current && previousLinkInputs.current !== linkInputsFingerprint && orderLinkUrl) {
       setOrderLinkUrl("");
-      setOrderLinkId("");
       setStatusMessage({ severity: "warning", text: "Order details changed. Create a new 48-hour link before sharing." });
     }
     previousLinkInputs.current = linkInputsFingerprint;
@@ -504,7 +503,7 @@ export default function WhatsAppCartDrawer({
         },
       };
       const response = orderLinkId
-        ? await axios.post(`${API_BASE}/api/order-links/${orderLinkId}/regenerate`, {}, { withCredentials: true })
+        ? await axios.post(`${API_BASE}/api/order-links/${orderLinkId}/regenerate`, payload, { withCredentials: true })
         : await axios.post(`${API_BASE}/api/order-links`, payload, { withCredentials: true });
       setOrderLinkId(response.data?.orderLink?.id || orderLinkId);
       setOrderLinkUrl(response.data?.url || "");
@@ -518,15 +517,8 @@ export default function WhatsAppCartDrawer({
 
   const sendOrderLinkOnWhatsApp = async () => {
     if (!orderLinkUrl) return;
-    try {
-      await axios.post(`${API_BASE}/api/whatsapp/send-text`, {
-        to: phone10 || customer.phone,
-        text: `Hi ${customer.name || leadName || "there"}, please review and complete your Muditam order here: ${orderLinkUrl}`,
-      }, { withCredentials: true });
-      setStatusMessage({ type: "success", text: "Order link sent on WhatsApp." });
-    } catch (error) {
-      setStatusMessage({ type: "error", text: error?.response?.data?.message || "Could not send the link on WhatsApp." });
-    }
+    const params = new URLSearchParams({ phone: phone10 || customer.phone || "", template: "order_link_confirmation", templateParam1: customer.name || leadName || "there", templateParam2: agentName || "your Muditam wellness expert", templateParam3: orderLinkUrl });
+    window.location.assign(`/whatsaap/chat?${params.toString()}`);
   };
 
   const handlePlaceOrder = async () => {

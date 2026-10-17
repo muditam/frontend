@@ -1225,6 +1225,11 @@ export default function WhatsAppUI() {
   const navigate = useNavigate();
   const location = useLocation();
   const urlPhone = useMemo(() => { const p = new URLSearchParams(location.search).get("phone") || ""; return digitsOnly(p); }, [location.search]);
+  const urlTemplateName = useMemo(() => new URLSearchParams(location.search).get("template") || "", [location.search]);
+  const urlTemplateParams = useMemo(() => {
+    const params = new URLSearchParams(location.search);
+    return Object.fromEntries([...params.entries()].filter(([key]) => /^templateParam\d+$/.test(key)));
+  }, [location.search]);
   const lastUrlOpenedRef = useRef("");
   const agentName = useMemo(() => sessionUser?.fullName || "", [sessionUser?.fullName]);
   const getWhatsAppAccessPayload = useCallback(() => {
@@ -2169,7 +2174,7 @@ export default function WhatsAppUI() {
     const p = digitsOnly(phone);
     if (!p) return;
 
-    const nextSearch = `?phone=${encodeURIComponent(p)}`;
+    const nextSearch = options.preserveQuery ? location.search : `?phone=${encodeURIComponent(p)}`;
     if (location.search !== nextSearch) {
       navigate(`/whatsaap/chat${nextSearch}`, { replace: true });
     }
@@ -2183,7 +2188,7 @@ export default function WhatsAppUI() {
 
   useEffect(() => {
     const p = digitsOnly(urlPhone); if (!p || lastUrlOpenedRef.current === p) return;
-    lastUrlOpenedRef.current = p; openChat(p);
+    lastUrlOpenedRef.current = p; openChat(p, { preserveQuery: true });
   }, [openChat, urlPhone]);
 
   const updateConversationPreviewLocal = useCallback((phoneDigits, lastMessageText) => {
@@ -2383,6 +2388,50 @@ export default function WhatsAppUI() {
     setTplHeaderFormat(fmt); setTplHeaderFile(null); setTplComposeOpen(true);
   };
 
+  const closeTemplateComposer = useCallback(() => {
+    setTplComposeOpen(false);
+    setActiveTplForSend(null);
+    setTplSendVars({});
+    setTplHeaderFormat("");
+    setTplHeaderFile(null);
+
+    const params = new URLSearchParams(location.search);
+    params.delete("template");
+    [...params.keys()].forEach((key) => {
+      if (/^templateParam\d+$/.test(key)) params.delete(key);
+    });
+    const next = params.toString();
+    navigate(`${location.pathname}${next ? `?${next}` : ""}`, { replace: true });
+  }, [location.pathname, location.search, navigate]);
+
+  useEffect(() => {
+    if (!urlTemplateName || !activeP10 || tplComposeOpen) return;
+    if (!templates.length) {
+      if (loadingTemplates) return;
+      fetchTemplates();
+      return;
+    }
+    const template = templates.find((item) => String(item?.name || "").toLowerCase() === urlTemplateName.toLowerCase());
+    if (!template) {
+      showToast(`Could not find template ${urlTemplateName}. Please sync WhatsApp templates.`, "error");
+      return;
+    }
+    if (!isApprovedTemplate(template)) {
+      showToast(`Template ${urlTemplateName} is not approved.`, "error");
+      return;
+    }
+    const variables = {};
+    extractVarIndexes(pickBodyTextFromTemplate(template)).forEach((index) => {
+      variables[String(index)] = urlTemplateParams[`templateParam${index}`] || "";
+    });
+    setActiveTplForSend(template);
+    setTplSendVars(variables);
+    setTplSending(false);
+    setTplHeaderFormat(getHeaderMediaFormat(template));
+    setTplHeaderFile(null);
+    setTplComposeOpen(true);
+  }, [activeP10, fetchTemplates, loadingTemplates, templates, tplComposeOpen, urlTemplateName, urlTemplateParams, showToast]);
+
   const tplSendPreview = useMemo(() => applyVarsToBody(pickBodyTextFromTemplate(activeTplForSend), tplSendVars), [activeTplForSend, tplSendVars]);
 
   const sendTemplateFromChat = async () => {
@@ -2414,7 +2463,8 @@ export default function WhatsAppUI() {
     updateConversationPreviewLocal(to, optimistic.text);
     try {
       await api(`/api/whatsapp/send-template`, { method: "POST", body: JSON.stringify({ to, templateName: activeTplForSend.name, templateId: activeTplForSend.template_id || activeTplForSend.templateId || activeTplForSend.providerTemplateId || "", parameters: params, renderedText: tplSendPreview || "", headerMedia, replyTo, ...getWhatsAppAccessPayload() }) });
-      setTplComposeOpen(false); setActiveTplForSend(null); setTplSendVars({}); setTplHeaderFormat(""); setTplHeaderFile(null);
+      closeTemplateComposer();
+      setReplyingTo(null);
       showToast("Template sent ✓", "success");
     } catch (e) {
       setMessages((prev) => prev.map((m) => m._id === optimistic._id ? { ...m, status: "failed" } : m));
@@ -4426,7 +4476,7 @@ export default function WhatsAppUI() {
       {/* ── Template compose dialog ──────────────────────────────────────────── */}
       <Dialog
         open={tplComposeOpen}
-        onClose={() => !tplSending && setTplComposeOpen(false)}
+        onClose={() => !tplSending && closeTemplateComposer()}
         fullWidth maxWidth="sm"
         PaperProps={{
           sx: {
@@ -4471,7 +4521,7 @@ export default function WhatsAppUI() {
                 <Typography sx={{ fontSize: 14, whiteSpace: "pre-wrap", color: LIGHT.text, lineHeight: 1.55 }}>{tplSendPreview || "—"}</Typography>
               </Box>
               <Stack direction="row" justifyContent="flex-end" spacing={1}>
-                <Button onClick={() => setTplComposeOpen(false)} disabled={tplSending}
+                <Button onClick={closeTemplateComposer} disabled={tplSending}
                   sx={{ textTransform: "none", color: LIGHT.subtext, "&:hover": { color: LIGHT.text } }}>Cancel</Button>
                 <Button variant="contained" onClick={sendTemplateFromChat} disabled={tplSending}
                   sx={{ bgcolor: "#22c55e", color: "#fff", textTransform: "none", borderRadius: 99, fontWeight: 600, boxShadow: "none", "&:hover": { bgcolor: "#1ebe5d" }, "&.Mui-disabled": { bgcolor: "#dbe4ea", color: LIGHT.subtext } }}>

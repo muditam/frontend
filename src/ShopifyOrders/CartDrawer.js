@@ -247,6 +247,26 @@ const CartDrawer = ({ closeDrawer }) => {
     billingSameAsShipping,
   } = useSelector((state) => state.cart);
 
+  const orderLinkInputsFingerprint = JSON.stringify({
+    paymentMethod,
+    partialPaidAmount,
+    discountType,
+    discountValue,
+    appliedDiscount,
+    shippingCost,
+    confirmedAddress,
+    cart,
+  });
+  const previousOrderLinkInputs = React.useRef("");
+
+  useEffect(() => {
+    if (previousOrderLinkInputs.current && previousOrderLinkInputs.current !== orderLinkInputsFingerprint && orderLinkUrl) {
+      setOrderLinkUrl("");
+      setCopyStatus("Order details changed. Regenerate the existing 48-hour link before sharing.");
+    }
+    previousOrderLinkInputs.current = orderLinkInputsFingerprint;
+  }, [orderLinkInputsFingerprint, orderLinkUrl]);
+
   const [copyNamePhoneChecked, setCopyNamePhoneChecked] = useState(false);
 
   // Compute total items in the cart (sum of quantities)
@@ -802,7 +822,7 @@ const CartDrawer = ({ closeDrawer }) => {
         partialPayment: { type: "amount", value: paymentMethod === "Partial Paid" ? partialAmount : 10 },
       };
       const response = orderLinkId
-        ? await axios.post(`${API_ORIGIN}/api/order-links/${orderLinkId}/regenerate`, {}, { withCredentials: true })
+        ? await axios.post(`${API_ORIGIN}/api/order-links/${orderLinkId}/regenerate`, payload, { withCredentials: true })
         : await axios.post(`${API_ORIGIN}/api/order-links`, payload, { withCredentials: true });
       setOrderLinkId(response.data?.orderLink?.id || orderLinkId);
       setOrderLinkUrl(response.data?.url || "");
@@ -816,15 +836,14 @@ const CartDrawer = ({ closeDrawer }) => {
 
   const sendOrderLinkOnWhatsApp = async () => {
     if (!orderLinkUrl) return;
-    try {
-      await axios.post(`${API_ORIGIN}/api/whatsapp/send-text`, {
-        to: phoneNumber,
-        text: `Hi ${confirmedAddress?.fullName || customerName || "there"}, please review and complete your Muditam order here: ${orderLinkUrl}`,
-      }, { withCredentials: true });
-      setCopyStatus("Order link sent on WhatsApp.");
-    } catch (error) {
-      alert(error?.response?.data?.message || "Could not send the link on WhatsApp.");
-    }
+    const params = new URLSearchParams({
+      phone: phoneNumber || "",
+      template: "order_link_confirmation",
+      templateParam1: confirmedAddress?.fullName || customerName || "there",
+      templateParam2: loggedInAgentName || "your Muditam wellness expert",
+      templateParam3: orderLinkUrl,
+    });
+    window.location.assign(`/whatsaap/chat?${params.toString()}`);
   };
 
 

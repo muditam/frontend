@@ -98,6 +98,24 @@ const iconBubbleSx = {
   flex: "0 0 auto",
 };
 
+export const VERIFY_PAYMENT_TIMEOUT_MS = 45000;
+
+export function verifyPaymentWithTimeout(url, payload, timeoutMs = VERIFY_PAYMENT_TIMEOUT_MS) {
+  const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
+  let timeoutId;
+  const request = axios.post(url, payload, controller ? { signal: controller.signal } : undefined);
+  const timeout = new Promise((_, reject) => {
+    timeoutId = setTimeout(() => {
+      controller?.abort();
+      const error = new Error("Payment verification timed out");
+      error.code = "PAYMENT_VERIFICATION_TIMEOUT";
+      reject(error);
+    }, timeoutMs);
+  });
+
+  return Promise.race([request, timeout]).finally(() => clearTimeout(timeoutId));
+}
+
 export default function OrderLinkCheckout() {
   const { token } = useParams();
   const [link, setLink] = useState(null);
@@ -361,14 +379,19 @@ export default function OrderLinkCheckout() {
           setPaymentState("verifying");
           setPaymentMessage("Payment received. Confirming your order...");
           try {
-            const verify = await axios.post(`${API_BASE}/api/order-links/public/${token}/payments/verify`, response);
+            const verify = await verifyPaymentWithTimeout(
+              `${API_BASE}/api/order-links/public/${token}/payments/verify`,
+              response
+            );
             setLink(verify.data.orderLink);
             setPaymentState("complete");
             setPaymentMessage("");
           } catch (err) {
             setPaymentState("verification_failed");
             setPaymentMessage(
-              err?.response?.status === 409
+              err?.code === "PAYMENT_VERIFICATION_TIMEOUT"
+                ? "Payment verification is taking longer than expected. Your payment may have gone through. Refresh the order status before trying again or contact support."
+                : err?.response?.status === 409
                 ? "Your payment is being processed. Please refresh the order status before trying again."
                 : "Your payment may have gone through, but order confirmation is still pending. Refresh the status or contact support before paying again."
             );
@@ -452,7 +475,7 @@ export default function OrderLinkCheckout() {
     </Box>
   ) : null;
 
-  const paymentStatusBlock = paymentMessage ? (
+  const paymentStatusBlock = (paymentMessage || link?.status === "payment_pending") ? (
     <Box sx={{ mt: 1, p: 1.25, borderRadius: "12px", border: `1px solid ${ui.line}`, bgcolor: ui.soft }}>
       <Typography sx={{ color: ui.muted, fontSize: 12, fontWeight: 750, lineHeight: 1.4 }}>
         {paymentMessage}
