@@ -37,6 +37,7 @@ import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import LocalShippingOutlinedIcon from "@mui/icons-material/LocalShippingOutlined";
 import ShieldOutlinedIcon from "@mui/icons-material/ShieldOutlined";
 import PersonOutlineIcon from "@mui/icons-material/PersonOutline";
+import RestartAltIcon from "@mui/icons-material/RestartAlt";
 import axios from "axios";
 
 const API_BASE = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "");
@@ -494,7 +495,25 @@ export default function OrderLinkCheckout() {
         </Button>
       )}
       {link?.status === "payment_pending" && (
-        <Button size="small" color="inherit" disabled={!!busy} onClick={cancelPaymentAttempt} sx={{ mt: 0.5, px: 0, textTransform: "none", fontWeight: 850 }}>
+        <Button
+          fullWidth
+          variant="outlined"
+          disabled={!!busy}
+          onClick={cancelPaymentAttempt}
+          startIcon={busy === "cancel-payment" ? <CircularProgress color="inherit" size={16} /> : <RestartAltIcon />}
+          sx={{
+            mt: 1,
+            minHeight: 44,
+            borderRadius: "10px",
+            borderColor: ui.brand,
+            color: ui.brandDeep,
+            bgcolor: ui.paper,
+            textTransform: "none",
+            fontWeight: 850,
+            "&:hover": { borderColor: ui.brandDeep, bgcolor: ui.brandSoft },
+            "&.Mui-focusVisible": { outline: `3px solid ${ui.brandSoft}`, outlineOffset: 2 },
+          }}
+        >
           {busy === "cancel-payment" ? "Cancelling payment..." : "Cancel payment and edit order"}
         </Button>
       )}
