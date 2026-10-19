@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
   Avatar,
@@ -41,12 +41,19 @@ import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
+import SendIcon from "@mui/icons-material/Send";
+import LinkIcon from "@mui/icons-material/Link";
 import DiamondOutlinedIcon from "@mui/icons-material/DiamondOutlined";
 import axios from "axios";
+import getOrderLinkUtm from "../../utils/orderLinkUtm";
 
 import OrderDetailsPopup from "../../ShopifyOrders/OrderDetailsPopup";
 
-const API_BASE = "https://muditamleads-14f32a10d7f7.herokuapp.com";
+const API_BASE =
+  process.env.REACT_APP_API_BASE_URL ||
+  (typeof window !== "undefined" && ["localhost", "127.0.0.1"].includes(window.location.hostname)
+    ? "http://localhost:5001"
+    : "https://muditamleads-14f32a10d7f7.herokuapp.com");
 
 const STEP_META = [
   { key: "ordering", label: "Products", icon: <Inventory2OutlinedIcon fontSize="small" /> },
@@ -116,6 +123,7 @@ export default function WhatsAppCartDrawer({
   chatWidthPx = 0,
   phone10 = "",
   leadName = "",
+  leadId = "",
 }) {
   const [activeStep, setActiveStep] = useState("ordering");
   const [products, setProducts] = useState([]);
@@ -146,6 +154,9 @@ export default function WhatsAppCartDrawer({
   const [paymentLink, setPaymentLink] = useState("");
   const [transactionId, setTransactionId] = useState("");
   const [generatingPaymentLink, setGeneratingPaymentLink] = useState(false);
+  const [orderLinkUrl, setOrderLinkUrl] = useState("");
+  const [orderLinkId, setOrderLinkId] = useState("");
+  const [generatingOrderLink, setGeneratingOrderLink] = useState(false);
   const [placingOrder, setPlacingOrder] = useState(false);
 
   const [statusMessage, setStatusMessage] = useState(null);
@@ -228,6 +239,25 @@ export default function WhatsAppCartDrawer({
     );
   }, [addressMode, manualAddress, resolvedAddress]);
 
+  const linkInputsFingerprint = JSON.stringify({
+    paymentMethod,
+    partialPaidAmount,
+    discount,
+    discountType,
+    shippingCharge,
+    cartItems,
+    address: resolvedAddress,
+  });
+  const previousLinkInputs = useRef("");
+
+  useEffect(() => {
+    if (previousLinkInputs.current && previousLinkInputs.current !== linkInputsFingerprint && orderLinkUrl) {
+      setOrderLinkUrl("");
+      setStatusMessage({ severity: "warning", text: "Order details changed. Create a new 48-hour link before sharing." });
+    }
+    previousLinkInputs.current = linkInputsFingerprint;
+  }, [linkInputsFingerprint, orderLinkUrl]);
+
   useEffect(() => {
     if (!open) return;
 
@@ -241,6 +271,7 @@ export default function WhatsAppCartDrawer({
     setPaymentMethod("COD");
     setPartialPaidAmount("");
     setPaymentLink("");
+    setOrderLinkUrl("");
     setTransactionId("");
     setStatusMessage(null);
     setShowNoteDialog(false);
@@ -424,6 +455,72 @@ export default function WhatsAppCartDrawer({
     } finally {
       setGeneratingPaymentLink(false);
     }
+  };
+
+  const handleGenerateOrderLink = async () => {
+    if (!cartItems.length) {
+      setStatusMessage({ type: "warning", text: "Add at least one item to continue." });
+      setActiveStep("cart");
+      return;
+    }
+    if (!customer.name?.trim() || !customer.phone?.trim()) {
+      setStatusMessage({ type: "warning", text: "Customer name and phone are required." });
+      return;
+    }
+    if (!addressReady) {
+      setStatusMessage({ type: "warning", text: "Select or enter an address first." });
+      return;
+    }
+    if (isPartialPaid && (!partialPaidNumber || partialPaidNumber <= 0 || partialPaidNumber >= total)) {
+      setStatusMessage({ type: "warning", text: "Enter a valid partial payment amount below the total." });
+      return;
+    }
+
+    setGeneratingOrderLink(true);
+    try {
+      const payload = {
+        leadId: leadId || undefined,
+        customer: {
+          name: customer.name.trim(),
+          phone: customer.phone.trim(),
+          customerId: customer.customerId || "",
+        },
+        shippingAddress: resolvedAddress,
+        cartItems: cartItems.map((item) => ({
+          variantId: String(item.id),
+          productTitle: item.productTitle || item.title,
+          variantTitle: item.title,
+          image: item.image || "",
+          unitPrice: Number(item.price || 0),
+          quantity: Number(item.quantity || 1),
+        })),
+        shippingCharge: toSafeNumber(shippingCharge, 0),
+        discountType,
+        discountValue: toSafeNumber(discount, 0),
+        paymentMode: paymentMethod,
+        partialPayment: {
+          type: "amount",
+          value: isPartialPaid ? partialPaidNumber : 10,
+        },
+        utm: getOrderLinkUtm(),
+      };
+      const response = orderLinkId
+        ? await axios.post(`${API_BASE}/api/order-links/${orderLinkId}/regenerate`, payload, { withCredentials: true })
+        : await axios.post(`${API_BASE}/api/order-links`, payload, { withCredentials: true });
+      setOrderLinkId(response.data?.orderLink?.id || orderLinkId);
+      setOrderLinkUrl(response.data?.url || "");
+      setStatusMessage({ type: "success", text: "48-hour order link created. No Shopify order was placed." });
+    } catch (error) {
+      setStatusMessage({ type: "error", text: error?.response?.data?.message || "Failed to create order link." });
+    } finally {
+      setGeneratingOrderLink(false);
+    }
+  };
+
+  const sendOrderLinkOnWhatsApp = async () => {
+    if (!orderLinkUrl) return;
+    const params = new URLSearchParams({ phone: phone10 || customer.phone || "", template: "order_link_confirmation", templateParam1: customer.name || leadName || "there", templateParam2: agentName || "your Muditam wellness expert", templateParam3: orderLinkUrl });
+    window.location.assign(`/whatsaap/chat?${params.toString()}`);
   };
 
   const handlePlaceOrder = async () => {
@@ -1203,8 +1300,37 @@ export default function WhatsAppCartDrawer({
                 />
               </>
             ) : null}
+
           </Stack>
         ) : null}
+
+        <Divider sx={{ my: 1.5 }} />
+        <Typography variant="body2" sx={{ color: "#475569", mb: 1 }}>
+          Or let the customer review the cart, edit delivery details, and complete payment themselves.
+        </Typography>
+        <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
+          <Button
+            variant="contained"
+            startIcon={<LinkIcon />}
+            onClick={handleGenerateOrderLink}
+            disabled={generatingOrderLink || !addressReady || !cartItems.length}
+            sx={{ textTransform: "none", borderRadius: 999, fontWeight: 800, bgcolor: "#0F172A", '&:hover': { bgcolor: '#1E293B' } }}
+          >
+            {generatingOrderLink ? "Creating link..." : orderLinkUrl ? "Regenerate 48-hour link" : "Create 48-hour link"}
+          </Button>
+          {orderLinkUrl ? (
+            <>
+              <Button variant="outlined" startIcon={<ContentCopyIcon />} onClick={() => navigator.clipboard.writeText(orderLinkUrl)} sx={{ textTransform: "none", borderRadius: 999, fontWeight: 700 }}>
+                Copy link
+              </Button>
+              <Button variant="outlined" color="success" startIcon={<SendIcon />} onClick={sendOrderLinkOnWhatsApp} sx={{ textTransform: "none", borderRadius: 999, fontWeight: 700 }}>
+                Send on WhatsApp
+              </Button>
+            </>
+          ) : null}
+        </Stack>
+        {statusMessage?.severity === "warning" && !orderLinkUrl && <Alert severity="warning" sx={{ mt: 1 }}>{statusMessage.text}</Alert>}
+        {orderLinkUrl ? <TextField sx={{ mt: 1 }} size="small" label="48-hour order link" value={orderLinkUrl} fullWidth InputProps={{ readOnly: true }} /> : null}
       </Paper>
 
       <Paper

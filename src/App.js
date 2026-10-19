@@ -1,6 +1,6 @@
 import React from "react";
 import "./global.css";
-import { BrowserRouter as Router, Route, Routes, useLocation } from "react-router-dom";
+import { BrowserRouter as Router, Navigate, Route, Routes, useLocation } from "react-router-dom";
 import BulkDataUpload from "./components/BulkDataUpload";
 import AddEmployee from "./pages/AddEmployee";
 import LeadTable from "./pages/master/MasterLeads";
@@ -111,6 +111,17 @@ import AiReportExtractorPage from "./pages/aiExtractor/AiReportExtractorPage";
 import OrderLinkCheckout from "./pages/OrderLinkCheckout";
 import DieticianProfileManager from "./pages/DieticianProfileManager";
 import PaymentLinkPage from "./pages/PaymentLinkPage";
+import OrderLinksPage from "./pages/retention/OrderLinksPage";
+
+function DieticianProfileAccessRoute({ children }) {
+  const storedUser = sessionStorage.getItem("user");
+  const user = storedUser ? JSON.parse(storedUser) : null;
+  const role = String(user?.role || "").trim().toLowerCase().replace(/[\s_-]+/g, " ");
+  const isDietician = role.includes("dietician") || role.includes("dietitian") || role.includes("sales") || role.includes("retention") || role === "team leader";
+  const isManager = ["manager", "super admin", "admin", "developer"].includes(role);
+  const hasProfilePermission = Boolean(user?.permissions?.menubar?.dieticianProfiles);
+  return isDietician || isManager || hasProfilePermission ? children : <Navigate to="/403" replace />;
+}
 
 function AppLayout() {
   const location = useLocation();
@@ -198,9 +209,9 @@ function AppLayout() {
             path="/admin/dieticians"
             element={
               <PrivateRoute>
-                <ManagerRoute>
+                <DieticianProfileAccessRoute>
                   <DieticianProfileManager />
-                </ManagerRoute>
+                </DieticianProfileAccessRoute>
               </PrivateRoute>
             }
           />
@@ -410,6 +421,14 @@ function AppLayout() {
             element={
               <PrivateRoute>
                 <RetentionSales />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/retention/order-links"
+            element={
+              <PrivateRoute>
+                <OrderLinksPage />
               </PrivateRoute>
             }
           />

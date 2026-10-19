@@ -2024,6 +2024,7 @@ export default function WhatsAppChatDrawer({
         chatWidthPx={chatWidthPx}
         phone10={phone10}
         leadName={leadName}
+        leadId={leadId}
       />
 
       <Drawer

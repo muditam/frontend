@@ -33,6 +33,9 @@ import AddIcon from "@mui/icons-material/Add";
 import RemoveIcon from "@mui/icons-material/Remove";
 import CloseIcon from "@mui/icons-material/Close";
 import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
+import LinkIcon from "@mui/icons-material/Link";
+import ContentCopyIcon from "@mui/icons-material/ContentCopy";
+import SendIcon from "@mui/icons-material/Send";
 
 import EditIcon from "@mui/icons-material/Edit";
 
@@ -40,6 +43,7 @@ import OrderDetailsPopup from "./OrderDetailsPopup";
 
 import ReactConfetti from "react-confetti";
 import axios from "axios";
+import getOrderLinkUtm from "../utils/orderLinkUtm";
 
 import {
   addToCart,
@@ -139,7 +143,10 @@ const fadeUpVariants = {
 };
 
 const API_ORIGIN =
-  (process.env.REACT_APP_API_BASE_URL || "https://muditamleads-14f32a10d7f7.herokuapp.com").replace(/\/+$/, "");
+  (process.env.REACT_APP_API_BASE_URL ||
+    (typeof window !== "undefined" && ["localhost", "127.0.0.1"].includes(window.location.hostname)
+      ? "http://localhost:5001"
+      : "https://muditamleads-14f32a10d7f7.herokuapp.com")).replace(/\/+$/, "");
 
 const getSessionUserHeaders = () => {
   return {};
@@ -212,6 +219,9 @@ const CartDrawer = ({ closeDrawer }) => {
   const [futureOrderDate, setFutureOrderDate] = useState("");
   const [futureOrderId, setFutureOrderId] = useState(null);
   const [futureOrderData, setFutureOrderData] = useState(null);
+  const [orderLinkUrl, setOrderLinkUrl] = useState("");
+  const [orderLinkId, setOrderLinkId] = useState("");
+  const [creatingOrderLink, setCreatingOrderLink] = useState(false);
 
   // Pulling data from Redux store
   const {
@@ -237,6 +247,26 @@ const CartDrawer = ({ closeDrawer }) => {
     customerId,
     billingSameAsShipping,
   } = useSelector((state) => state.cart);
+
+  const orderLinkInputsFingerprint = JSON.stringify({
+    paymentMethod,
+    partialPaidAmount,
+    discountType,
+    discountValue,
+    appliedDiscount,
+    shippingCost,
+    confirmedAddress,
+    cart,
+  });
+  const previousOrderLinkInputs = React.useRef("");
+
+  useEffect(() => {
+    if (previousOrderLinkInputs.current && previousOrderLinkInputs.current !== orderLinkInputsFingerprint && orderLinkUrl) {
+      setOrderLinkUrl("");
+      setCopyStatus("Order details changed. Regenerate the existing 48-hour link before sharing.");
+    }
+    previousOrderLinkInputs.current = orderLinkInputsFingerprint;
+  }, [orderLinkInputsFingerprint, orderLinkUrl]);
 
   const [copyNamePhoneChecked, setCopyNamePhoneChecked] = useState(false);
 
@@ -386,6 +416,7 @@ const CartDrawer = ({ closeDrawer }) => {
     setFutureOrderData(null);
     setActiveSection("ordering"); // Go back to first tab if you like
     setPartialPaidAmount("");
+    setOrderLinkUrl("");
   };
 
   const handleNext = () => {
@@ -743,6 +774,78 @@ const CartDrawer = ({ closeDrawer }) => {
     } catch (error) {
       console.error("Error generating payment link:", error);
     }
+  };
+
+  const handleCreateOrderLink = async () => {
+    if (isFutureOrder) {
+      setCopyStatus("48-hour links are available for immediate orders only. Use Create Order for future-date orders.");
+      return;
+    }
+    if (!cart.length || !confirmedAddress || !paymentMethod) return;
+    const partialAmount = Number(partialPaidAmount || 0);
+    if (paymentMethod === "Partial Paid" && (partialAmount <= 0 || partialAmount >= Number(finalTotal || 0))) {
+      alert("Enter a valid partial paid amount below the order total.");
+      return;
+    }
+    setCreatingOrderLink(true);
+    try {
+      const payload = {
+        customer: {
+          name: confirmedAddress.fullName || customerName || "",
+          phone: phoneNumber || "",
+          customerId: customerId || "",
+        },
+        shippingAddress: {
+          name: confirmedAddress.fullName || customerName || "",
+          phone: phoneNumber || "",
+          address1: confirmedAddress.address1 || "",
+          address2: confirmedAddress.address2 || "",
+          city: confirmedAddress.city || "",
+          province: confirmedAddress.state || "",
+          zip: confirmedAddress.pincode || "",
+          country: confirmedAddress.country || "India",
+        },
+        cartItems: cart.map((item) => ({
+          variantId: String(item.variant.id),
+          productTitle: item.product.title,
+          variantTitle: item.variant.title,
+          image: item.product.image?.src || item.product.image || "",
+          unitPrice: Number(item.variant.price || 0),
+          quantity: Number(item.quantity || 1),
+        })),
+        shippingCharge: Number(shippingCost || 0),
+        discountType: discountType === "percentage" ? "percentage" : "amount",
+        // Keep the discount's original unit. appliedDiscount is the calculated rupee amount.
+        discountValue: Number(
+          (discountType === "percentage" ? discountValue : appliedDiscount) || 0
+        ),
+        paymentMode: paymentMethod,
+        partialPayment: { type: "amount", value: paymentMethod === "Partial Paid" ? partialAmount : 10 },
+        utm: getOrderLinkUtm(),
+      };
+      const response = orderLinkId
+        ? await axios.post(`${API_ORIGIN}/api/order-links/${orderLinkId}/regenerate`, payload, { withCredentials: true })
+        : await axios.post(`${API_ORIGIN}/api/order-links`, payload, { withCredentials: true });
+      setOrderLinkId(response.data?.orderLink?.id || orderLinkId);
+      setOrderLinkUrl(response.data?.url || "");
+      setCopyStatus("48-hour order link created. No Shopify order was placed.");
+    } catch (error) {
+      alert(error?.response?.data?.message || "Failed to create order link.");
+    } finally {
+      setCreatingOrderLink(false);
+    }
+  };
+
+  const sendOrderLinkOnWhatsApp = async () => {
+    if (!orderLinkUrl) return;
+    const params = new URLSearchParams({
+      phone: phoneNumber || "",
+      template: "order_link_confirmation",
+      templateParam1: confirmedAddress?.fullName || customerName || "there",
+      templateParam2: loggedInAgentName || "your Muditam wellness expert",
+      templateParam3: orderLinkUrl,
+    });
+    window.location.assign(`/whatsaap/chat?${params.toString()}`);
   };
 
 
@@ -2159,28 +2262,51 @@ const CartDrawer = ({ closeDrawer }) => {
                     </>
                   )}
                   {paymentMethod && (
-                    <Button
-                      variant="contained"
-                      color="success"
-                      onClick={handleCreateOrder}
-                      disabled={
-                        isOrderLoading ||
-                        !confirmedAddress || 
-                        (isFutureOrder && !futureOrderDate) ||
-                        (paymentMethod === "Prepaid" && transactionId.trim() === "") || 
-                        (paymentMethod === "Partial Paid" &&
-                          (Number(partialPaidAmount || 0) <= 0 ||
-                            Number(partialPaidAmount || 0) >= Math.max(0, Number(finalTotal || 0)) ||
-                            transactionId.trim() === ""))
-                      }
-                      sx={buttonStyle}
-                    >
-                      {isOrderLoading ? (
-                        <CircularProgress size={20} sx={{ color: "lightgreen" }} />
-                      ) : (
-                        "Create Order"
-                      )}
-                    </Button>
+                    <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", alignItems: "center" }}>
+                      <Button
+                        variant="contained"
+                        color="success"
+                        onClick={handleCreateOrder}
+                        disabled={
+                          isOrderLoading ||
+                          !confirmedAddress ||
+                          (isFutureOrder && !futureOrderDate) ||
+                          (paymentMethod === "Prepaid" && transactionId.trim() === "") ||
+                          (paymentMethod === "Partial Paid" &&
+                            (Number(partialPaidAmount || 0) <= 0 ||
+                              Number(partialPaidAmount || 0) >= Math.max(0, Number(finalTotal || 0)) ||
+                              transactionId.trim() === ""))
+                        }
+                        sx={buttonStyle}
+                      >
+                        {isOrderLoading ? <CircularProgress size={20} sx={{ color: "lightgreen" }} /> : "Create Order"}
+                      </Button>
+                      <Button
+                        variant="outlined"
+                        startIcon={<LinkIcon />}
+                        onClick={handleCreateOrderLink}
+                        disabled={creatingOrderLink || !confirmedAddress || !cart.length || !paymentMethod || isFutureOrder}
+                        sx={buttonStyle}
+                      >
+                        {creatingOrderLink ? "Creating link..." : orderLinkUrl ? "Regenerate 48-hour link" : "Create 48-hour link"}
+                      </Button>
+                    </Box>
+                  )}
+
+                  {isFutureOrder && (
+                    <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 1 }}>
+                      48-hour links support immediate orders only. Use Create Order to schedule this future-date order.
+                    </Typography>
+                  )}
+
+                  {orderLinkUrl && (
+                    <Box sx={{ mt: 1.5, display: "grid", gap: 1 }}>
+                      <TextField size="small" label="48-hour order link" value={orderLinkUrl} InputProps={{ readOnly: true }} fullWidth />
+                      <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
+                        <Button size="small" startIcon={<ContentCopyIcon />} onClick={() => copyToClipboardSafely(orderLinkUrl)}>Copy link</Button>
+                        <Button size="small" color="success" startIcon={<SendIcon />} onClick={sendOrderLinkOnWhatsApp}>Send on WhatsApp</Button>
+                      </Box>
+                    </Box>
                   )}
 
                 </Box>
