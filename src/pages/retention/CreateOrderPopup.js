@@ -338,7 +338,8 @@ const CreateOrderPopup = ({ open, onClose, prefillCustomer = {}, onOrderCreated 
 
  const sendOrderLinkOnWhatsApp = async () => {
    if (!orderLinkUrl) return;
-   const params = new URLSearchParams({ phone: customer.phone || "", template: "order_link_confirmation", templateParam1: customer.name || "there", templateParam2: agentFullName || "your Muditam wellness expert", templateParam3: orderLinkUrl });
+   const orderLinkToken = orderLinkUrl.split("/order-link/")[1]?.split(/[?#]/)[0] || "";
+   const params = new URLSearchParams({ phone: customer.phone || "", template: "order_link_confirmation", templateParam1: customer.name || "there", templateParam2: agentFullName || "your Muditam wellness expert", templateButtonParam1: orderLinkToken });
    window.location.assign(`/whatsaap/chat?${params.toString()}`);
  };
 

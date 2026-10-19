@@ -838,12 +838,13 @@ const CartDrawer = ({ closeDrawer }) => {
 
   const sendOrderLinkOnWhatsApp = async () => {
     if (!orderLinkUrl) return;
+    const orderLinkToken = orderLinkUrl.split("/order-link/")[1]?.split(/[?#]/)[0] || "";
     const params = new URLSearchParams({
       phone: phoneNumber || "",
       template: "order_link_confirmation",
       templateParam1: confirmedAddress?.fullName || customerName || "there",
       templateParam2: loggedInAgentName || "your Muditam wellness expert",
-      templateParam3: orderLinkUrl,
+      templateButtonParam1: orderLinkToken,
     });
     window.location.assign(`/whatsaap/chat?${params.toString()}`);
   };
