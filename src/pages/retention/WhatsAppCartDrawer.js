@@ -519,7 +519,8 @@ export default function WhatsAppCartDrawer({
 
   const sendOrderLinkOnWhatsApp = async () => {
     if (!orderLinkUrl) return;
-    const params = new URLSearchParams({ phone: phone10 || customer.phone || "", template: "order_link_confirmation", templateParam1: customer.name || leadName || "there", templateParam2: agentName || "your Muditam wellness expert", templateParam3: orderLinkUrl });
+    const orderLinkToken = orderLinkUrl.split("/order-link/")[1]?.split(/[?#]/)[0] || "";
+    const params = new URLSearchParams({ phone: phone10 || customer.phone || "", template: "order_link_confirmation", templateParam1: customer.name || leadName || "there", templateParam2: agentName || "your Muditam wellness expert", templateButtonParam1: orderLinkToken });
     window.location.assign(`/whatsaap/chat?${params.toString()}`);
   };
 

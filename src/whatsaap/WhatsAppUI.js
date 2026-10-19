@@ -426,6 +426,11 @@ function extractTemplateButtons(tpl) {
     }))
     .filter((button) => button.type || button.text || button.url || button.phoneNumber || button.payload));
 }
+function extractDynamicUrlButtons(tpl) {
+  return extractTemplateButtons(tpl).filter((button) =>
+    button.type === "URL" && /{{\s*\d+\s*}}/.test(button.url)
+  );
+}
 function acceptForHeaderFormat(fmt) {
   const f = String(fmt || "").toUpperCase();
   if (f === "IMAGE") return "image/*";
@@ -1074,6 +1079,7 @@ export default function WhatsAppUI() {
   const [tplComposeOpen, setTplComposeOpen] = useState(false);
   const [activeTplForSend, setActiveTplForSend] = useState(null);
   const [tplSendVars, setTplSendVars] = useState({});
+  const [tplButtonVars, setTplButtonVars] = useState({});
   const [tplSending, setTplSending] = useState(false);
   const [tplHeaderFormat, setTplHeaderFormat] = useState("");
   const [tplHeaderFile, setTplHeaderFile] = useState(null);
@@ -1229,6 +1235,10 @@ export default function WhatsAppUI() {
   const urlTemplateParams = useMemo(() => {
     const params = new URLSearchParams(location.search);
     return Object.fromEntries([...params.entries()].filter(([key]) => /^templateParam\d+$/.test(key)));
+  }, [location.search]);
+  const urlTemplateButtonParams = useMemo(() => {
+    const params = new URLSearchParams(location.search);
+    return Object.fromEntries([...params.entries()].filter(([key]) => /^templateButtonParam\d+$/.test(key)));
   }, [location.search]);
   const lastUrlOpenedRef = useRef("");
   const agentName = useMemo(() => sessionUser?.fullName || "", [sessionUser?.fullName]);
@@ -2383,7 +2393,9 @@ export default function WhatsAppUI() {
     const idxs = extractVarIndexes(body);
     const initial = {};
     idxs.forEach((i) => (initial[String(i)] = ""));
-    setActiveTplForSend(tpl); setTplSendVars(initial); setTplSending(false);
+    const initialButtonVars = {};
+    extractDynamicUrlButtons(tpl).forEach((_, index) => (initialButtonVars[String(index + 1)] = ""));
+    setActiveTplForSend(tpl); setTplSendVars(initial); setTplButtonVars(initialButtonVars); setTplSending(false);
     const fmt = getHeaderMediaFormat(tpl);
     setTplHeaderFormat(fmt); setTplHeaderFile(null); setTplComposeOpen(true);
   };
@@ -2392,6 +2404,7 @@ export default function WhatsAppUI() {
     setTplComposeOpen(false);
     setActiveTplForSend(null);
     setTplSendVars({});
+    setTplButtonVars({});
     setTplHeaderFormat("");
     setTplHeaderFile(null);
 
@@ -2399,6 +2412,7 @@ export default function WhatsAppUI() {
     params.delete("template");
     [...params.keys()].forEach((key) => {
       if (/^templateParam\d+$/.test(key)) params.delete(key);
+      if (/^templateButtonParam\d+$/.test(key)) params.delete(key);
     });
     const next = params.toString();
     navigate(`${location.pathname}${next ? `?${next}` : ""}`, { replace: true });
@@ -2424,13 +2438,19 @@ export default function WhatsAppUI() {
     extractVarIndexes(pickBodyTextFromTemplate(template)).forEach((index) => {
       variables[String(index)] = urlTemplateParams[`templateParam${index}`] || "";
     });
+    const buttonVariables = {};
+    extractDynamicUrlButtons(template).forEach((_, index) => {
+      const position = index + 1;
+      buttonVariables[String(position)] = urlTemplateButtonParams[`templateButtonParam${position}`] || "";
+    });
     setActiveTplForSend(template);
     setTplSendVars(variables);
+    setTplButtonVars(buttonVariables);
     setTplSending(false);
     setTplHeaderFormat(getHeaderMediaFormat(template));
     setTplHeaderFile(null);
     setTplComposeOpen(true);
-  }, [activeP10, fetchTemplates, loadingTemplates, templates, tplComposeOpen, urlTemplateName, urlTemplateParams, showToast]);
+  }, [activeP10, fetchTemplates, loadingTemplates, templates, tplComposeOpen, urlTemplateName, urlTemplateParams, urlTemplateButtonParams, showToast]);
 
   const tplSendPreview = useMemo(() => applyVarsToBody(pickBodyTextFromTemplate(activeTplForSend), tplSendVars), [activeTplForSend, tplSendVars]);
 
@@ -2441,6 +2461,8 @@ export default function WhatsAppUI() {
     const idxs = extractVarIndexes(body);
     const params = idxs.map((i) => String(tplSendVars[String(i)] || "").trim());
     if (params.some((v) => !v)) { showToast("Fill all template variables.", "error"); return; }
+    const buttonParameters = extractDynamicUrlButtons(activeTplForSend).map((_, index) => String(tplButtonVars[String(index + 1)] || "").trim());
+    if (buttonParameters.some((value) => !value)) { showToast("Fill all template button variables.", "error"); return; }
     let headerMedia = null, optimisticMedia = null;
     if (tplHeaderFormat) {
       if (!tplHeaderFile) { showToast("This template requires a header attachment.", "error"); return; }
@@ -2462,7 +2484,7 @@ export default function WhatsAppUI() {
     setReplyingTo(null);
     updateConversationPreviewLocal(to, optimistic.text);
     try {
-      await api(`/api/whatsapp/send-template`, { method: "POST", body: JSON.stringify({ to, templateName: activeTplForSend.name, templateId: activeTplForSend.template_id || activeTplForSend.templateId || activeTplForSend.providerTemplateId || "", parameters: params, renderedText: tplSendPreview || "", headerMedia, replyTo, ...getWhatsAppAccessPayload() }) });
+      await api(`/api/whatsapp/send-template`, { method: "POST", body: JSON.stringify({ to, templateName: activeTplForSend.name, templateId: activeTplForSend.template_id || activeTplForSend.templateId || activeTplForSend.providerTemplateId || "", parameters: params, buttonParameters, renderedText: tplSendPreview || "", headerMedia, replyTo, ...getWhatsAppAccessPayload() }) });
       closeTemplateComposer();
       setReplyingTo(null);
       showToast("Template sent ✓", "success");
@@ -4505,6 +4527,24 @@ export default function WhatsAppUI() {
                   }}
                 />
               ))}
+              {extractDynamicUrlButtons(activeTplForSend).map((button, index) => {
+                const position = index + 1;
+                return (
+                  <TextField
+                    key={`button-${position}`}
+                    fullWidth
+                    size="small"
+                    label={`${button.text || "Button"} link value`}
+                    value={tplButtonVars[String(position)] || ""}
+                    onChange={(e) => setTplButtonVars((prev) => ({ ...prev, [String(position)]: e.target.value }))}
+                    helperText={button.url}
+                    sx={{
+                      "& .MuiOutlinedInput-root": { bgcolor: LIGHT.inputBg, color: LIGHT.text, borderRadius: 2, "& fieldset": { borderColor: LIGHT.border }, "&:hover fieldset": { borderColor: "#cbd5e1" }, "&.Mui-focused fieldset": { borderColor: "#22c55e" } },
+                      "& label": { color: LIGHT.subtext }, "& label.Mui-focused": { color: "#22c55e" },
+                    }}
+                  />
+                );
+              })}
               {!!tplHeaderFormat && (
                 <Box sx={{ bgcolor: LIGHT.inputBg, borderRadius: 2, p: 1.5 }}>
                   <Typography sx={{ fontSize: 13, fontWeight: 700, mb: 1, color: LIGHT.text }}>Header: {tplHeaderFormat}</Typography>
