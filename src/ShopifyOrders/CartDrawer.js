@@ -222,6 +222,7 @@ const CartDrawer = ({ closeDrawer }) => {
   const [orderLinkUrl, setOrderLinkUrl] = useState("");
   const [orderLinkId, setOrderLinkId] = useState("");
   const [creatingOrderLink, setCreatingOrderLink] = useState(false);
+  const [lastPaymentMethod, setLastPaymentMethod] = useState("");
 
   // Pulling data from Redux store
   const {
@@ -493,9 +494,16 @@ const CartDrawer = ({ closeDrawer }) => {
       // Fetch previous orders (addresses)
       try {
         const ordersRes = await axios.get(
-          `https://muditamleads-14f32a10d7f7.herokuapp.com/api/shopify/customer-orders?phone=${standardizedPhone}`
+          `${API_ORIGIN}/api/shopify/customer-orders?phone=${standardizedPhone}`
         );
         const fetchedAddresses = ordersRes.data.addresses || [];
+        if (["COD", "Prepaid", "Partial Paid"].includes(ordersRes.data.lastPaymentMethod)) {
+          setLastPaymentMethod(ordersRes.data.lastPaymentMethod);
+          dispatch(setPaymentMethod(ordersRes.data.lastPaymentMethod));
+        } else {
+          setLastPaymentMethod("");
+          dispatch(setPaymentMethod("COD"));
+        }
         dispatch(setAddresses(fetchedAddresses));
 
         if (fetchedAddresses.length === 0) {
@@ -509,6 +517,8 @@ const CartDrawer = ({ closeDrawer }) => {
         dispatch(setAddresses([]));
         dispatch(setAddressCategory("new"));
         dispatch(setSelectedAddressIndex(null));
+        setLastPaymentMethod("");
+        dispatch(setPaymentMethod("COD"));
         setAddressFetchMessage(
           "Could not load saved addresses right now. You can still check or add the customer name."
         );
@@ -2167,6 +2177,13 @@ const CartDrawer = ({ closeDrawer }) => {
                       sx={{ mb: 2 }}
                       size="small"
                     />
+                  )}
+                  {lastPaymentMethod && (
+                    <Box sx={{ mb: 1.5, px: 1.5, py: 1, borderRadius: 1.5, backgroundColor: "#E8F5EE", border: "1px solid #9DD7B5" }}>
+                      <Typography variant="body2" sx={{ color: "#137A4B", fontWeight: 800 }}>
+                        {customerName || "This customer"} did {lastPaymentMethod.toLowerCase()} last time
+                      </Typography>
+                    </Box>
                   )}
                   <Typography
                     variant="subtitle1"

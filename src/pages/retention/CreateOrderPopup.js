@@ -56,6 +56,7 @@ const CreateOrderPopup = ({ open, onClose, prefillCustomer = {}, onOrderCreated 
 
  // Payment states
  const [paymentMethod, setPaymentMethod] = useState("COD");
+ const [lastPaymentMethod, setLastPaymentMethod] = useState("");
  const [paymentLink, setPaymentLink] = useState("");
  const [transactionId, setTransactionId] = useState("");
  const [partialPaidAmount, setPartialPaidAmount] = useState("");
@@ -86,6 +87,7 @@ const CreateOrderPopup = ({ open, onClose, prefillCustomer = {}, onOrderCreated 
    setTransactionId("");
    setPartialPaidAmount("");
    setPaymentMethod("COD");
+   setLastPaymentMethod("");
    setOrderLinkUrl("");
    const formattedPhone = normalizePhone(prefillCustomer.phone);
    fetchCustomerAddresses(formattedPhone);
@@ -96,7 +98,14 @@ const CreateOrderPopup = ({ open, onClose, prefillCustomer = {}, onOrderCreated 
  // Fetch all addresses from Shopify for this customer
  const fetchCustomerAddresses = async (phone) => {
    try {
-     const res = await axios.get(`https://muditamleads-14f32a10d7f7.herokuapp.com/api/shopify/customers?phone=${encodeURIComponent(phone)}`);
+     const [res, historyRes] = await Promise.all([
+       axios.get(`https://muditamleads-14f32a10d7f7.herokuapp.com/api/shopify/customers?phone=${encodeURIComponent(phone)}`),
+       axios.get(`${API_BASE}/api/shopify/customer-orders?phone=${encodeURIComponent(phone)}`).catch(() => ({ data: {} })),
+     ]);
+     if (["COD", "Prepaid", "Partial Paid"].includes(historyRes.data?.lastPaymentMethod)) {
+       setLastPaymentMethod(historyRes.data.lastPaymentMethod);
+       setPaymentMethod(historyRes.data.lastPaymentMethod);
+     }
      setCustomer(prev => ({
        ...prev,
        customerId: res.data.id,
@@ -827,6 +836,13 @@ const CreateOrderPopup = ({ open, onClose, prefillCustomer = {}, onOrderCreated 
              </Box>
 
 
+             {lastPaymentMethod && (
+               <Box sx={{ mb: 1.5, px: 1.5, py: 1, borderRadius: 1.5, backgroundColor: "#E8F5EE", border: "1px solid #9DD7B5" }}>
+                 <Typography variant="body2" sx={{ color: "#137A4B", fontWeight: 800 }}>
+                   {customer.name || "This customer"} did {lastPaymentMethod.toLowerCase()} last time
+                 </Typography>
+               </Box>
+             )}
              <RadioGroup
                row
                value={paymentMethod}
