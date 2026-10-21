@@ -217,7 +217,7 @@ const CreateOrderPopup = ({ open, onClose, prefillCustomer = {}, onOrderCreated 
  useEffect(() => {
    if (previousLinkInputs.current && previousLinkInputs.current !== linkInputsFingerprint && orderLinkUrl) {
      setOrderLinkUrl("");
-     setCopyStatus("Order details changed. Create a new 48-hour link before sharing.");
+     setCopyStatus("Order details changed. Create a new 7-day link before sharing.");
    }
    previousLinkInputs.current = linkInputsFingerprint;
  }, [linkInputsFingerprint, orderLinkUrl]);
@@ -337,7 +337,7 @@ const CreateOrderPopup = ({ open, onClose, prefillCustomer = {}, onOrderCreated 
        : await axios.post(`${API_BASE}/api/order-links`, payload, { withCredentials: true });
      setOrderLinkId(res.data?.orderLink?.id || orderLinkId);
      setOrderLinkUrl(res.data?.url || "");
-     setCopyStatus("48-hour order link created. No Shopify order was placed.");
+     setCopyStatus("7-day order link created. No Shopify order was placed.");
    } catch (err) {
      alert(err?.response?.data?.message || "Failed to create order link.");
    } finally {
@@ -932,7 +932,7 @@ const CreateOrderPopup = ({ open, onClose, prefillCustomer = {}, onOrderCreated 
 
              <Divider sx={{ my: 1.5 }} />
              <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-               Let the customer review the cart and complete the order from a secure 48-hour link.
+               Let the customer review the cart and complete the order from a secure 7-day link.
              </Typography>
              <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
                <Button
@@ -942,13 +942,13 @@ const CreateOrderPopup = ({ open, onClose, prefillCustomer = {}, onOrderCreated 
                  disabled={generatingOrderLink || !customer.address || !cartItems.length}
                  sx={{ textTransform: "none" }}
                >
-                 {generatingOrderLink ? "Creating..." : orderLinkUrl ? "Regenerate 48-hour link" : "Create 48-hour link"}
+                 {generatingOrderLink ? "Creating..." : orderLinkUrl ? "Regenerate 7-day link" : "Create 7-day link"}
                </Button>
                {orderLinkUrl && <Button startIcon={<ContentCopyIcon />} onClick={() => copyToClipboardSafely(orderLinkUrl)}>Copy link</Button>}
                {orderLinkUrl && <Button color="success" startIcon={<SendIcon />} onClick={sendOrderLinkOnWhatsApp}>Send on WhatsApp</Button>}
              </Box>
              {copyStatus && !orderLinkUrl && <Typography color="warning.main" variant="body2" sx={{ mt: 1, fontWeight: 700 }}>{copyStatus}</Typography>}
-             {orderLinkUrl && <TextField fullWidth size="small" label="48-hour order link" value={orderLinkUrl} InputProps={{ readOnly: true }} sx={{ mt: 1 }} />}
+             {orderLinkUrl && <TextField fullWidth size="small" label="7-day order link" value={orderLinkUrl} InputProps={{ readOnly: true }} sx={{ mt: 1 }} />}
            </Paper>
          </DialogContent>
 
@@ -962,7 +962,7 @@ const CreateOrderPopup = ({ open, onClose, prefillCustomer = {}, onOrderCreated 
              disabled={generatingOrderLink || !customer.address || !cartItems.length}
              sx={{ textTransform: "none" }}
            >
-             {generatingOrderLink ? "Creating link..." : "Create 48-hour link"}
+                 {generatingOrderLink ? "Creating link..." : "Create 7-day link"}
            </Button>
            <Button
              variant="contained"
