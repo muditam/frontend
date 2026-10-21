@@ -264,7 +264,7 @@ const CartDrawer = ({ closeDrawer }) => {
   useEffect(() => {
     if (previousOrderLinkInputs.current && previousOrderLinkInputs.current !== orderLinkInputsFingerprint && orderLinkUrl) {
       setOrderLinkUrl("");
-      setCopyStatus("Order details changed. Regenerate the existing 48-hour link before sharing.");
+      setCopyStatus("Order details changed. Regenerate the existing 7-day link before sharing.");
     }
     previousOrderLinkInputs.current = orderLinkInputsFingerprint;
   }, [orderLinkInputsFingerprint, orderLinkUrl]);
@@ -788,7 +788,7 @@ const CartDrawer = ({ closeDrawer }) => {
 
   const handleCreateOrderLink = async () => {
     if (isFutureOrder) {
-      setCopyStatus("48-hour links are available for immediate orders only. Use Create Order for future-date orders.");
+      setCopyStatus("7-day links are available for immediate orders only. Use Create Order for future-date orders.");
       return;
     }
     if (!cart.length || !confirmedAddress || !paymentMethod) return;
@@ -838,7 +838,7 @@ const CartDrawer = ({ closeDrawer }) => {
         : await axios.post(`${API_ORIGIN}/api/order-links`, payload, { withCredentials: true });
       setOrderLinkId(response.data?.orderLink?.id || orderLinkId);
       setOrderLinkUrl(response.data?.url || "");
-      setCopyStatus("48-hour order link created. No Shopify order was placed.");
+      setCopyStatus("7-day order link created. No Shopify order was placed.");
     } catch (error) {
       alert(error?.response?.data?.message || "Failed to create order link.");
     } finally {
@@ -2306,20 +2306,20 @@ const CartDrawer = ({ closeDrawer }) => {
                         disabled={creatingOrderLink || !confirmedAddress || !cart.length || !paymentMethod || isFutureOrder}
                         sx={buttonStyle}
                       >
-                        {creatingOrderLink ? "Creating link..." : orderLinkUrl ? "Regenerate 48-hour link" : "Create 48-hour link"}
+                        {creatingOrderLink ? "Creating link..." : orderLinkUrl ? "Regenerate 7-day link" : "Create 7-day link"}
                       </Button>
                     </Box>
                   )}
 
                   {isFutureOrder && (
                     <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 1 }}>
-                      48-hour links support immediate orders only. Use Create Order to schedule this future-date order.
+                      7-day links support immediate orders only. Use Create Order to schedule this future-date order.
                     </Typography>
                   )}
 
                   {orderLinkUrl && (
                     <Box sx={{ mt: 1.5, display: "grid", gap: 1 }}>
-                      <TextField size="small" label="48-hour order link" value={orderLinkUrl} InputProps={{ readOnly: true }} fullWidth />
+                      <TextField size="small" label="7-day order link" value={orderLinkUrl} InputProps={{ readOnly: true }} fullWidth />
                       <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
                         <Button size="small" startIcon={<ContentCopyIcon />} onClick={() => copyToClipboardSafely(orderLinkUrl)}>Copy link</Button>
                         <Button size="small" color="success" startIcon={<SendIcon />} onClick={sendOrderLinkOnWhatsApp}>Send on WhatsApp</Button>

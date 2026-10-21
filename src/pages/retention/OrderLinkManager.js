@@ -262,7 +262,7 @@ export default function OrderLinkManager({ lead }) {
         <DialogActions>
           <Button onClick={() => setOpen(false)}>Close</Button>
           <Button variant="contained" disabled={!!createDisabledReason} onClick={createLink}>
-            Generate 48-hour Link
+            Generate 7-day Link
           </Button>
         </DialogActions>
       </Dialog>

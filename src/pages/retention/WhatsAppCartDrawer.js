@@ -254,7 +254,7 @@ export default function WhatsAppCartDrawer({
   useEffect(() => {
     if (previousLinkInputs.current && previousLinkInputs.current !== linkInputsFingerprint && orderLinkUrl) {
       setOrderLinkUrl("");
-      setStatusMessage({ severity: "warning", text: "Order details changed. Create a new 48-hour link before sharing." });
+      setStatusMessage({ severity: "warning", text: "Order details changed. Create a new 7-day link before sharing." });
     }
     previousLinkInputs.current = linkInputsFingerprint;
   }, [linkInputsFingerprint, orderLinkUrl]);
@@ -517,7 +517,7 @@ export default function WhatsAppCartDrawer({
         : await axios.post(`${API_BASE}/api/order-links`, payload, { withCredentials: true });
       setOrderLinkId(response.data?.orderLink?.id || orderLinkId);
       setOrderLinkUrl(response.data?.url || "");
-      setStatusMessage({ type: "success", text: "48-hour order link created. No Shopify order was placed." });
+      setStatusMessage({ type: "success", text: "7-day order link created. No Shopify order was placed." });
     } catch (error) {
       setStatusMessage({ type: "error", text: error?.response?.data?.message || "Failed to create order link." });
     } finally {
@@ -1332,7 +1332,7 @@ export default function WhatsAppCartDrawer({
             disabled={generatingOrderLink || !addressReady || !cartItems.length}
             sx={{ textTransform: "none", borderRadius: 999, fontWeight: 800, bgcolor: "#0F172A", '&:hover': { bgcolor: '#1E293B' } }}
           >
-            {generatingOrderLink ? "Creating link..." : orderLinkUrl ? "Regenerate 48-hour link" : "Create 48-hour link"}
+            {generatingOrderLink ? "Creating link..." : orderLinkUrl ? "Regenerate 7-day link" : "Create 7-day link"}
           </Button>
           {orderLinkUrl ? (
             <>
@@ -1346,7 +1346,7 @@ export default function WhatsAppCartDrawer({
           ) : null}
         </Stack>
         {statusMessage?.severity === "warning" && !orderLinkUrl && <Alert severity="warning" sx={{ mt: 1 }}>{statusMessage.text}</Alert>}
-        {orderLinkUrl ? <TextField sx={{ mt: 1 }} size="small" label="48-hour order link" value={orderLinkUrl} fullWidth InputProps={{ readOnly: true }} /> : null}
+        {orderLinkUrl ? <TextField sx={{ mt: 1 }} size="small" label="7-day order link" value={orderLinkUrl} fullWidth InputProps={{ readOnly: true }} /> : null}
       </Paper>
 
       <Paper
