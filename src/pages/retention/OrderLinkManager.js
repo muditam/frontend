@@ -25,6 +25,7 @@ import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import DeleteIcon from "@mui/icons-material/Delete";
 import RestartAltIcon from "@mui/icons-material/RestartAlt";
 import axios from "axios";
+import { getPublicOrderLinkUrl } from "../../utils/orderLinkUrl";
 
 const API_BASE = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "");
 const api = axios.create({ baseURL: API_BASE, withCredentials: true });
@@ -275,7 +276,7 @@ export default function OrderLinkManager({ lead }) {
                 <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
                   <Typography sx={{ fontWeight: 800, flex: 1 }}>{link.customer?.name} - {fmt(link.totals?.codTotal)}</Typography>
                   <Chip size="small" label={link.status} />
-                  <Button size="small" startIcon={<ContentCopyIcon />} onClick={() => copy(`${window.location.origin}/order-link/${link.token}`)}>Copy</Button>
+                  <Button size="small" startIcon={<ContentCopyIcon />} onClick={() => copy(getPublicOrderLinkUrl(link))}>Copy</Button>
                   {link.status === "expired" && <Button size="small" startIcon={<RestartAltIcon />} onClick={() => regenerate(link.id)}>Regenerate</Button>}
                   {link.paymentMode === "COD" && !["order_created", "expired"].includes(link.status) && <Button size="small" color="warning" onClick={() => selfConfirm(link.id)}>Self Confirm</Button>}
                 </Box>

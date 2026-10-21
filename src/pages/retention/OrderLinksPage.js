@@ -32,6 +32,7 @@ import RestartAltIcon from "@mui/icons-material/RestartAlt";
 import SearchIcon from "@mui/icons-material/Search";
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import axios from "axios";
+import { getPublicOrderLinkUrl } from "../../utils/orderLinkUrl";
 
 const API_BASE = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "");
 const api = axios.create({ baseURL: API_BASE, withCredentials: true });
@@ -97,7 +98,7 @@ export default function OrderLinksPage() {
   }), [links]);
 
   const copyLink = async (link) => {
-    await navigator.clipboard.writeText(`${window.location.origin}/order-link/${link.token}`);
+    await navigator.clipboard.writeText(getPublicOrderLinkUrl(link));
   };
 
   const regenerate = async (link) => {
@@ -166,7 +167,7 @@ export default function OrderLinksPage() {
                       <TableCell sx={{ whiteSpace: "nowrap" }}>{link.paymentMode || "-"}</TableCell>
                       <TableCell sx={{ whiteSpace: "nowrap", fontWeight: 700 }}>{money(link.totals?.payableTotal || link.totals?.codTotal)}</TableCell>
                       <TableCell><Stack direction="row" spacing={0.5} alignItems="center"><StatusChip status={link.status} />{purchased && <CheckCircleOutlineIcon color="success" fontSize="small" />}</Stack></TableCell>
-                      <TableCell><Stack direction="row" spacing={0.25} alignItems="center"><Button size="small" startIcon={<VisibilityIcon />} onClick={() => setSelected(link)} sx={{ textTransform: "none" }}>Details</Button><IconButton size="small" title="Copy link" onClick={() => copyLink(link)}><ContentCopyIcon fontSize="small" /></IconButton><IconButton size="small" title="Open link" component="a" href={`${window.location.origin}/order-link/${link.token}`} target="_blank" rel="noreferrer"><LaunchIcon fontSize="small" /></IconButton>{link.status === "expired" && <IconButton size="small" title="Regenerate" onClick={() => regenerate(link)}><RestartAltIcon fontSize="small" /></IconButton>}</Stack></TableCell>
+                      <TableCell><Stack direction="row" spacing={0.25} alignItems="center"><Button size="small" startIcon={<VisibilityIcon />} onClick={() => setSelected(link)} sx={{ textTransform: "none" }}>Details</Button><IconButton size="small" title="Copy link" onClick={() => copyLink(link)}><ContentCopyIcon fontSize="small" /></IconButton><IconButton size="small" title="Open link" component="a" href={getPublicOrderLinkUrl(link)} target="_blank" rel="noreferrer"><LaunchIcon fontSize="small" /></IconButton>{link.status === "expired" && <IconButton size="small" title="Regenerate" onClick={() => regenerate(link)}><RestartAltIcon fontSize="small" /></IconButton>}</Stack></TableCell>
                     </TableRow>;
                   })}
                 </TableBody>

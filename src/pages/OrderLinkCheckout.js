@@ -265,7 +265,7 @@ export default function OrderLinkCheckout() {
     if (link.paymentMode === "COD") {
       return {
         title: "Cash on Delivery",
-        body: "Confirm your order now and pay when it is delivered.",
+        body: "Confirm COD with OTP, pay 10% online and pay the rest on delivery, or pay fully online and save 5%.",
       };
     }
     if (link.paymentMode === "Partial Paid") {
@@ -460,6 +460,12 @@ export default function OrderLinkCheckout() {
         <>
           <Button size="large" variant="contained" disabled={!!busy || codOtpBusy} onClick={confirmCod} endIcon={<ChevronRightIcon />} sx={{ justifyContent: "space-between", borderRadius: "10px", bgcolor: "#087f55", fontWeight: 850, py: 1.25, px: 1.7, textTransform: "none", letterSpacing: 0.05, boxShadow: "0 8px 18px rgba(8,127,85,.16)", "&:hover": { bgcolor: "#056b47", boxShadow: "0 10px 22px rgba(8,127,85,.22)" } }}>
             <span>{codOtpBusy ? "Sending OTP..." : `Confirm COD · ${fmt(link.totals?.codTotal)}`}</span>
+          </Button>
+          <Button size="large" variant="outlined" disabled={locked} onClick={() => payOnline("Partial Paid")} endIcon={<ChevronRightIcon />} sx={{ justifyContent: "space-between", borderRadius: "10px", borderColor: "#d8c9e8", color: "#482477", fontWeight: 850, py: 1.25, px: 1.7, textTransform: "none", "&:hover": { borderColor: "#482477", bgcolor: "#fbf8ff" } }}>
+            Pay 10% advance · {fmt(link.totals?.partialAdvance)}
+          </Button>
+          <Button size="large" variant="outlined" disabled={locked} onClick={() => payOnline("Prepaid")} endIcon={<ChevronRightIcon />} sx={{ justifyContent: "space-between", borderRadius: "10px", borderColor: "#bfe5d2", color: "#087f55", fontWeight: 850, py: 1.25, px: 1.7, textTransform: "none", "&:hover": { borderColor: "#087f55", bgcolor: "#f3fcf7" } }}>
+            Pay online &amp; save 5% · {fmt(link.totals?.fullOnlineTotal)}
           </Button>
         </>
       ) : link?.paymentMode === "Partial Paid" ? (

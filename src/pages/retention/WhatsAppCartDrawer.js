@@ -150,6 +150,7 @@ export default function WhatsAppCartDrawer({
   const [loadingAddresses, setLoadingAddresses] = useState(false);
 
   const [paymentMethod, setPaymentMethod] = useState("COD");
+  const [lastPaymentMethod, setLastPaymentMethod] = useState("");
   const [partialPaidAmount, setPartialPaidAmount] = useState("");
   const [paymentLink, setPaymentLink] = useState("");
   const [transactionId, setTransactionId] = useState("");
@@ -269,6 +270,7 @@ export default function WhatsAppCartDrawer({
     setDiscount("");
     setShippingCharge("");
     setPaymentMethod("COD");
+    setLastPaymentMethod("");
     setPartialPaidAmount("");
     setPaymentLink("");
     setOrderLinkUrl("");
@@ -317,9 +319,15 @@ export default function WhatsAppCartDrawer({
     setLoadingAddresses(true);
     try {
       const formattedPhone = normalizePhone(phone);
+      const historyPromise = axios.get(`${API_BASE}/api/shopify/customer-orders?phone=${encodeURIComponent(formattedPhone)}`);
       const res = await axios.get(
         `${API_BASE}/api/shopify/customers?phone=${encodeURIComponent(formattedPhone)}`
       );
+      const history = await historyPromise.catch(() => ({ data: {} }));
+      if (["COD", "Prepaid", "Partial Paid"].includes(history.data?.lastPaymentMethod)) {
+        setLastPaymentMethod(history.data.lastPaymentMethod);
+        setPaymentMethod(history.data.lastPaymentMethod);
+      }
 
       const customerId = res.data?.id || "";
       const addresses = Array.isArray(res.data?.addresses) ? res.data.addresses : [];
@@ -1209,6 +1217,13 @@ export default function WhatsAppCartDrawer({
           <Typography sx={{ fontWeight: 800, color: "#0F172A" }}>Payment</Typography>
         </Stack>
 
+        {lastPaymentMethod && (
+          <Box sx={{ mb: 1.5, px: 1.5, py: 1, borderRadius: 1.5, backgroundColor: "#E8F5EE", border: "1px solid #9DD7B5" }}>
+            <Typography variant="body2" sx={{ color: "#137A4B", fontWeight: 800 }}>
+              {customer.name || leadName || "This customer"} did {lastPaymentMethod.toLowerCase()} last time
+            </Typography>
+          </Box>
+        )}
         <RadioGroup
           row
           value={paymentMethod}
