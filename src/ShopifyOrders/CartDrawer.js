@@ -805,8 +805,8 @@ const CartDrawer = ({ closeDrawer }) => {
     }
     if (!cart.length || !confirmedAddress || !paymentMethod) return;
     const partialAmount = Number(partialPaidAmount || 0);
-    if (paymentMethod === "Partial Paid" && (partialAmount <= 0 || partialAmount >= Number(finalTotal || 0))) {
-      alert("Enter a valid partial paid amount below the order total.");
+    if (paymentMethod === "Partial Paid" && (partialAmount < Math.round(Number(finalTotal || 0) * 0.1 * 100) / 100 || partialAmount >= Number(finalTotal || 0))) {
+      alert(`Partial payment must be at least 10% (Rs ${(Number(finalTotal || 0) * 0.1).toFixed(2)}) and below the order total.`);
       return;
     }
     setCreatingOrderLink(true);
@@ -842,7 +842,9 @@ const CartDrawer = ({ closeDrawer }) => {
           (discountType === "percentage" ? discountValue : appliedDiscount) || 0
         ),
         paymentMode: paymentMethod,
-        partialPayment: { type: "amount", value: paymentMethod === "Partial Paid" ? partialAmount : 10 },
+        partialPayment: paymentMethod === "COD"
+          ? { type: "percentage", value: 10 }
+          : { type: "amount", value: partialAmount },
         utm: getOrderLinkUtm(),
       };
       const response = orderLinkId

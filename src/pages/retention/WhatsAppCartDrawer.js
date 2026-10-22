@@ -495,8 +495,8 @@ export default function WhatsAppCartDrawer({
       setStatusMessage({ type: "warning", text: "Select or enter an address first." });
       return;
     }
-    if (isPartialPaid && (!partialPaidNumber || partialPaidNumber <= 0 || partialPaidNumber >= total)) {
-      setStatusMessage({ type: "warning", text: "Enter a valid partial payment amount below the total." });
+    if (isPartialPaid && (partialPaidNumber < Math.round(total * 0.1 * 100) / 100 || partialPaidNumber >= total)) {
+      setStatusMessage({ type: "warning", text: `Partial payment must be at least 10% (Rs ${(total * 0.1).toFixed(2)}) and below the order total.` });
       return;
     }
 
@@ -522,10 +522,9 @@ export default function WhatsAppCartDrawer({
         discountType,
         discountValue: toSafeNumber(discount, 0),
         paymentMode: paymentMethod,
-        partialPayment: {
-          type: "amount",
-          value: isPartialPaid ? partialPaidNumber : 10,
-        },
+        partialPayment: paymentMethod === "COD"
+          ? { type: "percentage", value: 10 }
+          : { type: "amount", value: partialPaidNumber },
         utm: getOrderLinkUtm(),
       };
       const response = orderLinkId
