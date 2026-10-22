@@ -495,8 +495,8 @@ export default function WhatsAppCartDrawer({
       setStatusMessage({ type: "warning", text: "Select or enter an address first." });
       return;
     }
-    if (isPartialPaid && (partialPaidNumber < Math.round(total * 0.1 * 100) / 100 || partialPaidNumber >= total)) {
-      setStatusMessage({ type: "warning", text: `Partial payment must be at least 10% (Rs ${(total * 0.1).toFixed(2)}) and below the order total.` });
+    if (isPartialPaid && (partialPaidNumber <= 0 || partialPaidNumber >= total)) {
+        setStatusMessage({ type: "warning", text: "Partial payment must be greater than Rs 0 and below the order total." });
       return;
     }
 
@@ -1261,7 +1261,7 @@ export default function WhatsAppCartDrawer({
                 <TextField
                   size="small"
                   type="number"
-                  label="Partial paid amount ₹"
+                  label="Partial paid amount (any amount below total) ₹"
                   value={partialPaidAmount}
                   onChange={(e) => {
                     setPartialPaidAmount(e.target.value);

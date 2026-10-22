@@ -311,8 +311,8 @@ const CreateOrderPopup = ({ open, onClose, prefillCustomer = {}, onOrderCreated 
    }
    const isPartialPaid = paymentMethod === "Partial Paid";
    const numericPartialPaidAmount = Number(partialPaidAmount || 0);
-   if (isPartialPaid && (numericPartialPaidAmount < Math.round(total * 0.1 * 100) / 100 || numericPartialPaidAmount >= total)) {
-     alert(`Partial payment must be at least 10% (Rs ${(total * 0.1).toFixed(2)}) and below the order total.`);
+   if (isPartialPaid && (numericPartialPaidAmount <= 0 || numericPartialPaidAmount >= total)) {
+     alert("Partial payment must be greater than Rs 0 and below the order total.");
      return;
    }
 
@@ -874,7 +874,7 @@ const CreateOrderPopup = ({ open, onClose, prefillCustomer = {}, onOrderCreated 
                  {paymentMethod === "Partial Paid" && (
                    <TextField
                      fullWidth
-                     label="Partial Paid Amount"
+                      label="Partial Paid Amount (any amount below total)"
                      size="small"
                      type="number"
                      value={partialPaidAmount}
