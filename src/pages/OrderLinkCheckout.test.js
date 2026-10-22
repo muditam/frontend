@@ -1,7 +1,9 @@
 import axios from "axios";
 import { markPaymentAttemptPending, verifyPaymentWithTimeout } from "./OrderLinkCheckout";
 
-jest.mock("axios");
+jest.mock("axios", () => ({
+  post: jest.fn(),
+}));
 
 describe("order-link Razorpay verification recovery", () => {
   afterEach(() => {

@@ -1,0 +1,25 @@
+name: Order-link frontend tests
+
+on:
+  pull_request:
+    paths:
+      - "src/pages/OrderLinkCheckout.js"
+      - "src/pages/OrderLinkCheckout.test.js"
+      - "src/setupTests.js"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/order-link-tests.yml"
+  push:
+    branches: [main]
+
+jobs:
+  order-link-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run test:order-links
