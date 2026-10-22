@@ -249,7 +249,22 @@ export default function WhatsAppCartDrawer({
     cartItems,
     address: resolvedAddress,
   });
+  const orderLinkCustomerFingerprint = JSON.stringify({
+    phone: customer.phone,
+    customerId: customer.customerId,
+    name: customer.name,
+  });
   const previousLinkInputs = useRef("");
+  const previousOrderLinkCustomer = useRef("");
+
+  useEffect(() => {
+    if (previousOrderLinkCustomer.current && previousOrderLinkCustomer.current !== orderLinkCustomerFingerprint) {
+      setOrderLinkUrl("");
+      setOrderLinkId("");
+      setStatusMessage({ severity: "warning", text: "Customer changed. Create a new 7-day link before sharing." });
+    }
+    previousOrderLinkCustomer.current = orderLinkCustomerFingerprint;
+  }, [orderLinkCustomerFingerprint]);
 
   useEffect(() => {
     if (previousLinkInputs.current && previousLinkInputs.current !== linkInputsFingerprint && orderLinkUrl) {
@@ -274,6 +289,7 @@ export default function WhatsAppCartDrawer({
     setPartialPaidAmount("");
     setPaymentLink("");
     setOrderLinkUrl("");
+    setOrderLinkId("");
     setTransactionId("");
     setStatusMessage(null);
     setShowNoteDialog(false);

@@ -259,7 +259,18 @@ const CartDrawer = ({ closeDrawer }) => {
     confirmedAddress,
     cart,
   });
+  const orderLinkCustomerFingerprint = JSON.stringify({ phoneNumber, customerId, customerName });
   const previousOrderLinkInputs = React.useRef("");
+  const previousOrderLinkCustomer = React.useRef("");
+
+  useEffect(() => {
+    if (previousOrderLinkCustomer.current && previousOrderLinkCustomer.current !== orderLinkCustomerFingerprint) {
+      setOrderLinkUrl("");
+      setOrderLinkId("");
+      setCopyStatus("Customer changed. Create a new 7-day link before sharing.");
+    }
+    previousOrderLinkCustomer.current = orderLinkCustomerFingerprint;
+  }, [orderLinkCustomerFingerprint]);
 
   useEffect(() => {
     if (previousOrderLinkInputs.current && previousOrderLinkInputs.current !== orderLinkInputsFingerprint && orderLinkUrl) {
@@ -418,6 +429,7 @@ const CartDrawer = ({ closeDrawer }) => {
     setActiveSection("ordering"); // Go back to first tab if you like
     setPartialPaidAmount("");
     setOrderLinkUrl("");
+    setOrderLinkId("");
   };
 
   const handleNext = () => {

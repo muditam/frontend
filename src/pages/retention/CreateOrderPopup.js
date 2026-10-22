@@ -72,6 +72,13 @@ const CreateOrderPopup = ({ open, onClose, prefillCustomer = {}, onOrderCreated 
  const [noteText, setNoteText] = useState("");
  const [latestOrderId, setLatestOrderId] = useState(null);
 
+ useEffect(() => {
+   if (open) {
+     setOrderLinkUrl("");
+     setOrderLinkId("");
+   }
+ }, [open]);
+
 
  // Always set name/phone from prefillCustomer; fetch addresses from Shopify
  useEffect(() => {
@@ -89,6 +96,7 @@ const CreateOrderPopup = ({ open, onClose, prefillCustomer = {}, onOrderCreated 
    setPaymentMethod("COD");
    setLastPaymentMethod("");
    setOrderLinkUrl("");
+   setOrderLinkId("");
    const formattedPhone = normalizePhone(prefillCustomer.phone);
    fetchCustomerAddresses(formattedPhone);
    // eslint-disable-next-line
