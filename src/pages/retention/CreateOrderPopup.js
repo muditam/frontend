@@ -107,7 +107,7 @@ const CreateOrderPopup = ({ open, onClose, prefillCustomer = {}, onOrderCreated 
  const fetchCustomerAddresses = async (phone) => {
    try {
      const [res, historyRes] = await Promise.all([
-       axios.get(`https://muditamleads-14f32a10d7f7.herokuapp.com/api/shopify/customers?phone=${encodeURIComponent(phone)}`),
+       axios.get(`${API_BASE}/api/shopify/customers?phone=${encodeURIComponent(phone)}`, { withCredentials: true }),
        axios.get(`${API_BASE}/api/shopify/customer-orders?phone=${encodeURIComponent(phone)}`).catch(() => ({ data: {} })),
      ]);
      if (["COD", "Prepaid", "Partial Paid"].includes(historyRes.data?.lastPaymentMethod)) {
