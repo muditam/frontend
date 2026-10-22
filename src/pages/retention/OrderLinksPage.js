@@ -84,7 +84,7 @@ export default function OrderLinksPage() {
   const filteredLinks = useMemo(() => {
     const needle = query.trim().toLowerCase();
     return links.filter((link) => {
-      const matchesQuery = !needle || [link.customer?.name, link.customer?.phone, link.shopifyOrder?.name, link.agentName]
+      const matchesQuery = !needle || [link.customer?.name, link.customer?.phone, link.shopifyOrder?.name, link.agentName, link.expert?.name]
         .some((value) => String(value || "").toLowerCase().includes(needle));
       return matchesQuery && (status === "all" || link.status === status) && (paymentMode === "all" || link.paymentMode === paymentMode);
     });
@@ -160,12 +160,12 @@ export default function OrderLinksPage() {
                     return <TableRow key={link.id} hover>
                       <TableCell>
                         <Typography sx={{ fontWeight: 800 }}>{link.customer?.name || "Unnamed customer"}</Typography>
-                        <Typography variant="caption" color="text.secondary">{link.customer?.phone || "-"}{link.agentName ? ` · ${link.agentName}` : ""}</Typography>
+                        <Typography variant="caption" color="text.secondary">{link.customer?.phone || "-"}{(link.agentName || link.expert?.name) ? ` · ${link.agentName || link.expert.name}` : ""}</Typography>
                       </TableCell>
                       <TableCell sx={{ whiteSpace: "nowrap" }}>{dateTime(link.createdAt)}</TableCell>
                       <TableCell sx={{ whiteSpace: "nowrap" }}>{dateTime(link.expiresAt)}</TableCell>
-                      <TableCell sx={{ whiteSpace: "nowrap" }}>{link.paymentMode || "-"}</TableCell>
-                      <TableCell sx={{ whiteSpace: "nowrap", fontWeight: 700 }}>{money(link.totals?.payableTotal || link.totals?.codTotal)}</TableCell>
+                        <TableCell sx={{ whiteSpace: "nowrap" }}>{link.finalPaymentMode || link.paymentMode || "-"}</TableCell>
+                        <TableCell sx={{ whiteSpace: "nowrap", fontWeight: 700 }}>{money(link.finalTotal ?? link.totals?.payableTotal ?? link.totals?.codTotal)}</TableCell>
                       <TableCell><Stack direction="row" spacing={0.5} alignItems="center"><StatusChip status={link.status} />{purchased && <CheckCircleOutlineIcon color="success" fontSize="small" />}</Stack></TableCell>
                       <TableCell><Stack direction="row" spacing={0.25} alignItems="center"><Button size="small" startIcon={<VisibilityIcon />} onClick={() => setSelected(link)} sx={{ textTransform: "none" }}>Details</Button><IconButton size="small" title="Copy link" onClick={() => copyLink(link)}><ContentCopyIcon fontSize="small" /></IconButton><IconButton size="small" title="Open link" component="a" href={getPublicOrderLinkUrl(link)} target="_blank" rel="noreferrer"><LaunchIcon fontSize="small" /></IconButton>{link.status === "expired" && <IconButton size="small" title="Regenerate" onClick={() => regenerate(link)}><RestartAltIcon fontSize="small" /></IconButton>}</Stack></TableCell>
                     </TableRow>;
@@ -183,9 +183,11 @@ export default function OrderLinksPage() {
           <DialogContent dividers>
             <Stack spacing={1.5}>
               <Box><Typography variant="h6" sx={{ fontWeight: 800 }}>{selected.customer?.name}</Typography><Typography color="text.secondary">{selected.customer?.phone}</Typography></Box>
-              <Stack direction="row" spacing={1} flexWrap="wrap"><StatusChip status={selected.status} /><Chip size="small" label={selected.paymentMode} variant="outlined" />{selected.shopifyOrder?.name && <Chip size="small" label={`Shopify ${selected.shopifyOrder.name}`} color="success" variant="outlined" />}</Stack>
+              <Stack direction="row" spacing={1} flexWrap="wrap"><StatusChip status={selected.status} /><Chip size="small" label={selected.finalPaymentMode || selected.paymentMode} variant="outlined" />{selected.shopifyOrder?.name && <Chip size="small" label={`Shopify ${selected.shopifyOrder.name}`} color="success" variant="outlined" />}</Stack>
               <Divider />
-              <Typography><b>Total:</b> {money(selected.totals?.codTotal)}</Typography>
+              <Typography><b>Total:</b> {money(selected.finalTotal ?? selected.totals?.codTotal)}</Typography>
+              <Typography><b>Paid:</b> {money(selected.amountPaid)}</Typography>
+              <Typography><b>Balance:</b> {money(selected.balanceAmount)}</Typography>
               <Typography><b>Items:</b> {selected.cartItems?.reduce((sum, item) => sum + Number(item.quantity || 0), 0) || 0}</Typography>
               <Typography><b>Created:</b> {dateTime(selected.createdAt)}</Typography>
               <Typography><b>Expires:</b> {dateTime(selected.expiresAt)}</Typography>
