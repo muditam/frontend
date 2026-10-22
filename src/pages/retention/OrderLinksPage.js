@@ -86,7 +86,8 @@ export default function OrderLinksPage() {
     return links.filter((link) => {
       const matchesQuery = !needle || [link.customer?.name, link.customer?.phone, link.shopifyOrder?.name, link.agentName, link.expert?.name]
         .some((value) => String(value || "").toLowerCase().includes(needle));
-      return matchesQuery && (status === "all" || link.status === status) && (paymentMode === "all" || link.paymentMode === paymentMode);
+      const effectivePaymentMode = link.finalPaymentMode || link.paymentMode;
+      return matchesQuery && (status === "all" || link.status === status) && (paymentMode === "all" || effectivePaymentMode === paymentMode);
     });
   }, [links, paymentMode, query, status]);
 
