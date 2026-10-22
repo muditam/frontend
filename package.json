@@ -41,7 +41,7 @@
     "react-dropzone": "^14.3.8",
     "react-hook-form": "^7.54.2",
     "react-redux": "^9.2.0",
-    "react-router-dom": "^7.1.1",
+    "react-router-dom": "^6.28.2",
     "react-scripts": "^5.0.1",
     "react-simple-typewriter": "^5.0.1",
     "react-toastify": "^11.0.3",
@@ -58,6 +58,7 @@
     "start": "react-scripts start",
     "build": "CI=false react-scripts build",
     "test": "react-scripts test",
+    "test:order-links": "CI=true react-scripts test --watchAll=false --runInBand src/pages/OrderLinkCheckout.test.js",
     "eject": "react-scripts eject"
   },
   "eslintConfig": {
@@ -79,6 +80,8 @@
     ]
   },
   "devDependencies": {
+    "@testing-library/jest-dom": "^7.0.1",
+    "@testing-library/react": "^16.3.3",
     "autoprefixer": "^10.4.21",
     "postcss": "^8.5.3",
     "tailwindcss": "^3.4.17"

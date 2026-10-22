@@ -259,7 +259,18 @@ const CartDrawer = ({ closeDrawer }) => {
     confirmedAddress,
     cart,
   });
+  const orderLinkCustomerFingerprint = JSON.stringify({ phoneNumber, customerId, customerName });
   const previousOrderLinkInputs = React.useRef("");
+  const previousOrderLinkCustomer = React.useRef("");
+
+  useEffect(() => {
+    if (previousOrderLinkCustomer.current && previousOrderLinkCustomer.current !== orderLinkCustomerFingerprint) {
+      setOrderLinkUrl("");
+      setOrderLinkId("");
+      setCopyStatus("Customer changed. Create a new 7-day link before sharing.");
+    }
+    previousOrderLinkCustomer.current = orderLinkCustomerFingerprint;
+  }, [orderLinkCustomerFingerprint]);
 
   useEffect(() => {
     if (previousOrderLinkInputs.current && previousOrderLinkInputs.current !== orderLinkInputsFingerprint && orderLinkUrl) {
@@ -418,6 +429,7 @@ const CartDrawer = ({ closeDrawer }) => {
     setActiveSection("ordering"); // Go back to first tab if you like
     setPartialPaidAmount("");
     setOrderLinkUrl("");
+    setOrderLinkId("");
   };
 
   const handleNext = () => {
@@ -793,8 +805,8 @@ const CartDrawer = ({ closeDrawer }) => {
     }
     if (!cart.length || !confirmedAddress || !paymentMethod) return;
     const partialAmount = Number(partialPaidAmount || 0);
-    if (paymentMethod === "Partial Paid" && (partialAmount <= 0 || partialAmount >= Number(finalTotal || 0))) {
-      alert("Enter a valid partial paid amount below the order total.");
+    if (paymentMethod === "Partial Paid" && (partialAmount < Math.round(Number(finalTotal || 0) * 0.1 * 100) / 100 || partialAmount >= Number(finalTotal || 0))) {
+      alert(`Partial payment must be at least 10% (Rs ${(Number(finalTotal || 0) * 0.1).toFixed(2)}) and below the order total.`);
       return;
     }
     setCreatingOrderLink(true);
@@ -830,7 +842,9 @@ const CartDrawer = ({ closeDrawer }) => {
           (discountType === "percentage" ? discountValue : appliedDiscount) || 0
         ),
         paymentMode: paymentMethod,
-        partialPayment: { type: "amount", value: paymentMethod === "Partial Paid" ? partialAmount : 10 },
+        partialPayment: paymentMethod === "COD"
+          ? { type: "percentage", value: 10 }
+          : { type: "amount", value: partialAmount },
         utm: getOrderLinkUtm(),
       };
       const response = orderLinkId

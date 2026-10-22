@@ -72,6 +72,13 @@ const CreateOrderPopup = ({ open, onClose, prefillCustomer = {}, onOrderCreated 
  const [noteText, setNoteText] = useState("");
  const [latestOrderId, setLatestOrderId] = useState(null);
 
+ useEffect(() => {
+   if (open) {
+     setOrderLinkUrl("");
+     setOrderLinkId("");
+   }
+ }, [open]);
+
 
  // Always set name/phone from prefillCustomer; fetch addresses from Shopify
  useEffect(() => {
@@ -89,6 +96,7 @@ const CreateOrderPopup = ({ open, onClose, prefillCustomer = {}, onOrderCreated 
    setPaymentMethod("COD");
    setLastPaymentMethod("");
    setOrderLinkUrl("");
+   setOrderLinkId("");
    const formattedPhone = normalizePhone(prefillCustomer.phone);
    fetchCustomerAddresses(formattedPhone);
    // eslint-disable-next-line
@@ -303,8 +311,8 @@ const CreateOrderPopup = ({ open, onClose, prefillCustomer = {}, onOrderCreated 
    }
    const isPartialPaid = paymentMethod === "Partial Paid";
    const numericPartialPaidAmount = Number(partialPaidAmount || 0);
-   if (isPartialPaid && (!(numericPartialPaidAmount > 0) || numericPartialPaidAmount >= total)) {
-     alert("Enter a valid partial paid amount below the order total.");
+   if (isPartialPaid && (numericPartialPaidAmount < Math.round(total * 0.1 * 100) / 100 || numericPartialPaidAmount >= total)) {
+     alert(`Partial payment must be at least 10% (Rs ${(total * 0.1).toFixed(2)}) and below the order total.`);
      return;
    }
 
@@ -329,7 +337,9 @@ const CreateOrderPopup = ({ open, onClose, prefillCustomer = {}, onOrderCreated 
        discountType,
        discountValue: Number(discount || 0),
        paymentMode: paymentMethod,
-       partialPayment: { type: "amount", value: isPartialPaid ? numericPartialPaidAmount : 10 },
+       partialPayment: paymentMethod === "COD"
+         ? { type: "percentage", value: 10 }
+         : { type: "amount", value: numericPartialPaidAmount },
        utm: getOrderLinkUtm(),
      };
      const res = orderLinkId
