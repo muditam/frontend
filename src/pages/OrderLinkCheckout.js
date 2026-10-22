@@ -677,55 +677,49 @@ export default function OrderLinkCheckout() {
     </Box>
   );
 
+  const cartItems = link.cartItems || [];
   const itemsCard = (
-    <Box>
-      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 1.25 }}>
-        <Typography sx={{ fontSize: 16, fontWeight: 700, display: "flex", alignItems: "center", gap: 1 }}>
-          Prescribed Items
-          <Box component="span" sx={{ bgcolor: ui.brand, color: "#fff", fontSize: 11.5, px: 1, py: 0.25, borderRadius: "999px", fontWeight: 700 }}>
-            {(link.cartItems || []).reduce((sum, item) => sum + Number(item.quantity || 0), 0)} Items
+    <Box sx={{ ...cardSx, p: 0, overflow: "hidden" }}>
+      <Box sx={{ px: { xs: 1.75, lg: 2.5 }, py: 1.5, display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: `1px solid ${ui.line}` }}>
+        <Typography sx={{ fontSize: 16, fontWeight: 700 }}>Prescribed Items</Typography>
+        <Box component="span" sx={{ bgcolor: ui.brandSoft, color: ui.brandDeep, fontSize: 12, px: 1.25, py: 0.35, borderRadius: "999px", fontWeight: 700 }}>
+          {cartItems.reduce((sum, item) => sum + Number(item.quantity || 0), 0)} {cartItems.reduce((sum, item) => sum + Number(item.quantity || 0), 0) === 1 ? "item" : "items"}
+        </Box>
+      </Box>
+      {cartItems.map((item, index) => (
+        <Box key={item.variantId} sx={{ px: { xs: 1.75, lg: 2.5 }, py: 1.5, display: "flex", alignItems: "center", gap: { xs: 1.5, lg: 2 }, borderTop: index ? `1px solid ${ui.line}` : 0 }}>
+          <Avatar src={item.image} variant="rounded" sx={{ width: { xs: 60, lg: 76 }, height: { xs: 60, lg: 76 }, borderRadius: "12px", bgcolor: "rgba(238, 222, 255, 0.3)", border: "1px solid rgba(165, 145, 167, 0.12)", flexShrink: 0, "& img": { objectFit: "contain" } }} />
+          <Box sx={{ flex: 1, minWidth: 0 }}>
+            <Typography sx={{ fontSize: { xs: 14.5, lg: 16 }, fontWeight: 700, lineHeight: 1.25, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{item.productTitle}</Typography>
+            <Box sx={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 0.75, mt: 0.5 }}>
+              <Typography sx={{ fontSize: { xs: 14.5, lg: 15.5 }, fontWeight: 700 }}>{fmt(item.unitPrice)}</Typography>
+              {item.variantTitle && item.variantTitle !== "Default Title" && (
+                <Box component="span" sx={{ bgcolor: ui.brandSoft, color: ui.brand, fontSize: 11.5, fontWeight: 700, px: 1, py: 0.15, borderRadius: "999px" }}>
+                  {item.variantTitle}
+                </Box>
+              )}
+            </Box>
           </Box>
+          <Box sx={{ display: "flex", alignItems: "center", border: "1px solid rgba(165, 145, 167, 0.3)", borderRadius: "10px", bgcolor: "rgba(238, 222, 255, 0.3)", flexShrink: 0 }}>
+            <IconButton size="small" disabled={locked} onClick={() => changeQty(item.variantId, item.quantity - 1)} sx={{ width: 30, height: 30, borderRadius: "10px 0 0 10px", color: ui.ink }}>
+              {item.quantity === 1 ? <DeleteOutlineIcon sx={{ fontSize: 17 }} /> : <RemoveIcon sx={{ fontSize: 17 }} />}
+            </IconButton>
+            <Typography sx={{ width: 22, textAlign: "center", fontSize: 14, fontWeight: 700 }}>{item.quantity}</Typography>
+            <IconButton size="small" disabled={locked} onClick={() => changeQty(item.variantId, item.quantity + 1)} sx={{ width: 30, height: 30, borderRadius: "0 10px 10px 0", color: ui.ink }}>
+              <AddIcon sx={{ fontSize: 17 }} />
+            </IconButton>
+          </Box>
+        </Box>
+      ))}
+      <Box sx={{ px: { xs: 1.75, lg: 2.5 }, py: 1.25, bgcolor: "rgba(236, 253, 245, 0.9)", borderTop: `1px solid ${ui.greenLine}`, display: "flex", alignItems: "center", gap: 1.25 }}>
+        <Box sx={{ width: 24, height: 24, borderRadius: "50%", bgcolor: "#d1fae5", color: ui.green, display: "grid", placeItems: "center", flexShrink: 0 }}>
+          <MedicalServicesOutlinedIcon sx={{ fontSize: 16 }} />
+        </Box>
+        <Typography sx={{ fontSize: 13, lineHeight: 1.4, fontWeight: 500, color: ui.greenDeep }}>
+          Recommended based on your health needs, as discussed with{" "}
+          <Box component="span" sx={{ fontWeight: 700 }}>{expertName}</Box>
         </Typography>
       </Box>
-      <Stack spacing={1.5}>
-        {(link.cartItems || []).map((item) => (
-          <Box key={item.variantId} sx={{ ...cardSx, p: { xs: 1.25, lg: 1.5 }, display: "flex", alignItems: "center", gap: { xs: 1.5, lg: 2 } }}>
-            <Avatar src={item.image} variant="rounded" sx={{ width: { xs: 64, lg: 80 }, height: { xs: 64, lg: 80 }, borderRadius: "12px", bgcolor: "rgba(238, 222, 255, 0.3)", border: "1px solid rgba(165, 145, 167, 0.1)", flexShrink: 0, "& img": { objectFit: "contain" } }} />
-            <Box sx={{ flex: 1, minWidth: 0 }}>
-              <Typography sx={{ fontSize: { xs: 15, lg: 16.5 }, fontWeight: 700, lineHeight: 1.25, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{item.productTitle}</Typography>
-              <Box sx={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 0.75, mt: 0.5 }}>
-                <Typography sx={{ fontSize: { xs: 15, lg: 16 }, fontWeight: 700 }}>{fmt(item.unitPrice)}</Typography>
-                {item.variantTitle && item.variantTitle !== "Default Title" && (
-                  <Box component="span" sx={{ bgcolor: ui.brandSoft, color: ui.brand, fontSize: 11.5, fontWeight: 700, px: 1, py: 0.15, borderRadius: "999px" }}>
-                    {item.variantTitle}
-                  </Box>
-                )}
-              </Box>
-            </Box>
-            <Box sx={{ display: "flex", alignItems: "center", border: "1px solid rgba(165, 145, 167, 0.3)", borderRadius: "10px", bgcolor: "rgba(238, 222, 255, 0.3)", flexShrink: 0 }}>
-              <IconButton size="small" disabled={locked} onClick={() => changeQty(item.variantId, item.quantity - 1)} sx={{ width: 30, height: 30, borderRadius: "10px 0 0 10px", color: ui.ink }}>
-                {item.quantity === 1 ? <DeleteOutlineIcon sx={{ fontSize: 17 }} /> : <RemoveIcon sx={{ fontSize: 17 }} />}
-              </IconButton>
-              <Typography sx={{ width: 22, textAlign: "center", fontSize: 14, fontWeight: 700 }}>{item.quantity}</Typography>
-              <IconButton size="small" disabled={locked} onClick={() => changeQty(item.variantId, item.quantity + 1)} sx={{ width: 30, height: 30, borderRadius: "0 10px 10px 0", color: ui.ink }}>
-                <AddIcon sx={{ fontSize: 17 }} />
-              </IconButton>
-            </Box>
-          </Box>
-        ))}
-      </Stack>
-    </Box>
-  );
-
-  const recommendationStrip = (
-    <Box sx={{ p: 1.5, borderRadius: "16px", bgcolor: "rgba(236, 253, 245, 0.9)", border: `1px solid ${ui.greenLine}`, display: "flex", alignItems: "center", gap: 1.25 }}>
-      <Box sx={{ width: 24, height: 24, borderRadius: "50%", bgcolor: "#d1fae5", color: ui.green, display: "grid", placeItems: "center", flexShrink: 0 }}>
-        <MedicalServicesOutlinedIcon sx={{ fontSize: 16 }} />
-      </Box>
-      <Typography sx={{ fontSize: 13, lineHeight: 1.4, fontWeight: 500, color: ui.greenDeep }}>
-                  This plan is recommended based on your health needs discussed with{" "}
-        <Box component="span" sx={{ fontWeight: 700, textDecoration: "underline", textDecorationColor: ui.greenLine }}>{expertName}</Box>
-      </Typography>
     </Box>
   );
 
@@ -862,7 +856,6 @@ export default function OrderLinkCheckout() {
             </Box>
             {expertCard}
             {itemsCard}
-            {recommendationStrip}
             {searchCard}
             {testimonialsCard}
             <Box sx={{ display: { xs: "block", lg: "none" } }}>{addressCard}</Box>
