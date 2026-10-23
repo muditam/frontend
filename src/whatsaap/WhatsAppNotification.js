@@ -40,6 +40,7 @@ import GridViewIcon from "@mui/icons-material/GridView";
 import ReplyIcon from "@mui/icons-material/Reply";
 import axios from "axios";
 import { io } from "socket.io-client";
+import { createCoalescedRefresh } from "../utils/coalescedRefresh";
 
 const DEFAULT_API_BASE =
   typeof window !== "undefined" &&
@@ -1349,21 +1350,39 @@ export default function WhatsAppInboxWidget({ onOpenChat }) {
     }, delay);
   }, [isWidgetOpen, fetchConversations]);
 
-  const fetchUnreadSummary = useCallback(async () => {
-    if (!isWidgetConnected) return;
-    try {
-      const r = await axios.get(`${API_BASE}/api/whatsapp/conversations/summary`, {
-        withCredentials: true,
-        params: whatsappAccessPayload,
-      });
-      setServerCounts((prev) => ({
-        ...prev,
-        unread: Number(r.data?.unread || 0),
-      }));
-    } catch (error) {
-      console.error("WhatsApp widget summary fetch failed:", error?.message || error);
-    }
+  const unreadSummaryRefreshRef = useRef(null);
+  useEffect(() => {
+    if (!isWidgetConnected) return undefined;
+    let active = true;
+    const controller = new AbortController();
+    const refresh = createCoalescedRefresh(async () => {
+      try {
+        const r = await axios.get(`${API_BASE}/api/whatsapp/conversations/summary`, {
+          withCredentials: true,
+          params: whatsappAccessPayload,
+          signal: controller.signal,
+          timeout: 10000,
+        });
+        if (active) setServerCounts((prev) => ({
+          ...prev,
+          unread: Number(r.data?.unread || 0),
+        }));
+      } catch (error) {
+        if (active) console.error("WhatsApp widget summary fetch failed:", error?.message || error);
+      }
+    });
+    unreadSummaryRefreshRef.current = refresh;
+    refresh.request();
+    return () => {
+      active = false;
+      controller.abort();
+      refresh.dispose();
+      if (unreadSummaryRefreshRef.current === refresh) unreadSummaryRefreshRef.current = null;
+    };
   }, [isWidgetConnected, whatsappAccessPayload]);
+  const fetchUnreadSummary = useCallback(() => {
+    unreadSummaryRefreshRef.current?.request();
+  }, []);
 
   const fetchMessages = useCallback(
     async (p10) => {
