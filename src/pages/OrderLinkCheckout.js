@@ -448,15 +448,17 @@ export default function OrderLinkCheckout() {
   if (paymentMode === "COD" || paymentMode === "Partial Paid" || paymentMode === "Prepaid") {
     paymentOptions.push({
       key: "prepay",
-      title: paymentMode === "COD" ? "Pay now & save 5%" : "Pay full amount now",
+      title: ["COD", "Partial Paid"].includes(paymentMode) ? "Pay now & save 5%" : "Pay full amount now",
       sub: paymentMode === "COD" ? "Pay online (UPI / Card) and get priority dispatch" : "Pay online (UPI / Card) and get priority dispatch",
       badge: "Popular",
-      amount: paymentMode === "COD" ? totals.fullOnlineTotal : totals.codTotal,
+      amount: ["COD", "Partial Paid"].includes(paymentMode) ? totals.fullOnlineTotal : totals.codTotal,
     });
   }
   const selected = paymentOptions.some((option) => option.key === selectedPayment) ? selectedPayment : paymentOptions[0]?.key;
   const selectedOption = paymentOptions.find((option) => option.key === selected);
-  const prepayDiscount = paymentMode === "COD" && selected === "prepay" ? Math.max(0, Number(totals.codTotal || 0) - Number(totals.fullOnlineTotal || 0)) : 0;
+  const prepayDiscount = ["COD", "Partial Paid"].includes(paymentMode) && selected === "prepay"
+    ? Math.max(0, Number(totals.codTotal || 0) - Number(totals.fullOnlineTotal || 0))
+    : 0;
   const orderTotal = selected === "prepay" ? Number(selectedOption?.amount || 0) : Number(totals.codTotal || 0);
   const payNow = selected === "partial" ? Number(totals.partialAdvance || 0) : Number(selectedOption?.amount || 0);
   const payLater = Math.max(0, Number(totals.codTotal || 0) - Number(totals.partialAdvance || 0));
@@ -465,7 +467,7 @@ export default function OrderLinkCheckout() {
   let actionLabel = "Place Order";
   if (selected === "cod") actionLabel = codOtpBusy ? "Sending OTP..." : `Place Order (COD - ${fmt(payNow)})`;
   else if (selected === "partial") actionLabel = busy === "Partial Paid" ? "Starting payment..." : `Pay ${fmt(payNow)} advance & confirm`;
-  else if (selected === "prepay") actionLabel = busy === "Prepaid" ? "Starting payment..." : paymentMode === "COD" ? `Pay ${fmt(payNow)} & save 5%` : `Pay ${fmt(payNow)} now`;
+  else if (selected === "prepay") actionLabel = busy === "Prepaid" ? "Starting payment..." : ["COD", "Partial Paid"].includes(paymentMode) ? `Pay ${fmt(payNow)} & save 5%` : `Pay ${fmt(payNow)} now`;
 
   const mobileActionLabel = codOtpBusy || busy === "Partial Paid" || busy === "Prepaid"
     ? actionLabel
