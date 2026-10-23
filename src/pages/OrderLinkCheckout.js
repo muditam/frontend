@@ -104,7 +104,7 @@ export function isPaymentActionLocked({ isDone, isExpired, linkStatus, busy, pay
   return Boolean(
     isDone ||
     isExpired ||
-    linkStatus === "payment_pending" ||
+    ["payment_creating", "payment_pending", "creating_order"].includes(linkStatus) ||
     busy ||
     ["starting", "checkout_open", "verifying", "verification_failed"].includes(paymentState)
   );

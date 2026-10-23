@@ -22,6 +22,13 @@ describe("order-link Razorpay verification recovery", () => {
     expect(isPaymentActionLocked({ paymentState: "idle" })).toBe(false);
   });
 
+  test("restores the lock from backend pending states after refresh", () => {
+    expect(isPaymentActionLocked({ linkStatus: "payment_creating", paymentState: "idle" })).toBe(true);
+    expect(isPaymentActionLocked({ linkStatus: "payment_pending", paymentState: "idle" })).toBe(true);
+    expect(isPaymentActionLocked({ linkStatus: "creating_order", paymentState: "idle" })).toBe(true);
+    expect(isPaymentActionLocked({ linkStatus: "viewed", paymentState: "idle" })).toBe(false);
+  });
+
   test("returns the verified order when verification succeeds", async () => {
     const response = { data: { orderLink: { status: "order_created" } } };
     axios.post.mockResolvedValue(response);
