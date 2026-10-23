@@ -100,6 +100,16 @@ export function markPaymentAttemptPending(link) {
   return link ? { ...link, status: "payment_pending" } : link;
 }
 
+export function isPaymentActionLocked({ isDone, isExpired, linkStatus, busy, paymentState }) {
+  return Boolean(
+    isDone ||
+    isExpired ||
+    linkStatus === "payment_pending" ||
+    busy ||
+    ["starting", "checkout_open", "verifying", "verification_failed"].includes(paymentState)
+  );
+}
+
 export function verifyPaymentWithTimeout(url, payload, timeoutMs = VERIFY_PAYMENT_TIMEOUT_MS) {
   const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
   let timeoutId;
@@ -181,7 +191,7 @@ export default function OrderLinkCheckout() {
 
   const isDone = link?.status === "order_created";
   const isExpired = link?.status === "expired";
-  const locked = isDone || isExpired || link?.status === "payment_pending" || !!busy || paymentState === "checkout_open" || paymentState === "verification_failed";
+  const locked = isPaymentActionLocked({ isDone, isExpired, linkStatus: link?.status, busy, paymentState });
 
   const addressSummary = useMemo(() => {
     const lineOne = [address?.address1, address?.address2].filter(Boolean).join(", ");
@@ -474,6 +484,7 @@ export default function OrderLinkCheckout() {
     : selected === "cod" ? "Place Order" : selected === "partial" ? "Pay & Confirm" : "Pay Now";
 
   const handlePrimaryAction = () => {
+    if (locked) return;
     if (selected === "cod") confirmCod();
     else payOnline(selected === "partial" ? "Partial Paid" : "Prepaid");
   };
