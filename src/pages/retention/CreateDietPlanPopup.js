@@ -883,14 +883,14 @@ export default function CreateDietPlanPopup({
           maxWidth: "1600px",
           height: "95vh",
           m: 1,
-          fontSize: "0.9rem",
-          "& .MuiTypography-root": { fontSize: "0.9rem" },
-          "& .MuiTypography-h6": { fontSize: "1.1rem" },
-          "& .MuiTypography-subtitle2": { fontSize: "0.9rem" },
-          "& .MuiInputBase-root": { fontSize: "0.875rem" },
-          "& .MuiInputLabel-root": { fontSize: "0.875rem" },
-          "& .MuiFormHelperText-root": { fontSize: "0.75rem" },
-          "& .MuiButton-root": { fontSize: "0.8rem" },
+          fontSize: "0.8rem",
+          "& .MuiTypography-root": { fontSize: "0.8rem" },
+          "& .MuiTypography-h6": { fontSize: "1rem" },
+          "& .MuiTypography-subtitle2": { fontSize: "0.8rem" },
+          "& .MuiInputBase-root": { fontSize: "0.78rem" },
+          "& .MuiInputLabel-root": { fontSize: "0.78rem" },
+          "& .MuiFormHelperText-root": { fontSize: "0.68rem" },
+          "& .MuiButton-root": { fontSize: "0.72rem" },
         },
       }}
     >
@@ -939,7 +939,7 @@ export default function CreateDietPlanPopup({
                 <Typography
                   variant="caption"
                   color="error"
-                  sx={{ fontSize: "0.78rem !important" }}
+                  sx={{ fontSize: "0.7rem !important" }}
                 >
                   Age, Height, and Weight are required.
                 </Typography>

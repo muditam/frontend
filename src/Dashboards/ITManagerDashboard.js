@@ -671,7 +671,7 @@ export default function ITManagerDashboard() {
   }, [returnedAllotments]);
 
   const downloadEmployeeReport = () => {
-    const headers = [
+    const assetHeaders = [
       "EMP ID",
       "EMP Name",
       "LAP NO",
@@ -681,6 +681,7 @@ export default function ITManagerDashboard() {
       "Desktop No",
       "HDMI",
     ];
+    const headers = [...assetHeaders, "Remarks"];
 
     const assetColumnByName = {
       laptop: "LAP NO",
@@ -701,11 +702,23 @@ export default function ITManagerDashboard() {
         ])
         .filter(([assetCode]) => Boolean(assetCode))
     );
+    const getAssetTypes = (allotment) => {
+      const asset = assetsByCode.get(String(allotment.assetCode || "").trim().toLowerCase());
+      return [
+        asset?.type,
+        asset?.name,
+        ...(Array.isArray(asset?.items) ? asset.items.map((item) => item?.type) : []),
+        allotment.type,
+        allotment.name,
+      ]
+        .filter(Boolean)
+        .map((type) => String(type).trim().toLowerCase());
+    };
     const getAssetColumn = (allotment) => {
       const assetCode = String(allotment.assetCode || "").trim();
       const asset = assetsByCode.get(assetCode.toLowerCase());
-      const assetName = String(asset?.name || allotment.name || "").trim().toLowerCase();
-      const directColumn = assetColumnByName[assetName];
+      const assetNames = getAssetTypes(allotment);
+      const directColumn = assetNames.map((name) => assetColumnByName[name]).find(Boolean);
       if (directColumn) return directColumn;
 
       const assetDetails = [
@@ -739,7 +752,9 @@ export default function ITManagerDashboard() {
       }).filter((item) => String(item.status || "").trim().toLowerCase() !== "returned");
 
       const assetCodesByColumn = headers.slice(2).reduce(
-        (result, column) => ({ ...result, [column]: [] }),
+        (result, column) => column === "Remarks"
+          ? result
+          : { ...result, [column]: [] },
         {}
       );
 
@@ -756,10 +771,27 @@ export default function ITManagerDashboard() {
         })
         .find(Boolean) || "";
 
+      const hasType = (...types) => currentAssets.some((item) => {
+        if (!String(item.assetCode || "").trim()) return false;
+        return getAssetTypes(item).some((type) => types.includes(type));
+      });
+      const remarks = [];
+      if (!hasType("laptop")) remarks.push("LAP ID Missing");
+      if (!hasType("charger")) remarks.push("Charger ID missing");
+      const hasDesktop = hasType("cpu", "desktop");
+      const hasKeyboard = hasType("keyboard");
+      if (!hasDesktop && !hasKeyboard) {
+        remarks.push("Desktop and Keyboard id missing");
+      } else {
+        if (!hasDesktop) remarks.push("Desktop ID missing");
+        if (!hasKeyboard) remarks.push("Keyboard ID missing");
+      }
+
       return [
         assetEmployeeId,
         employee.fullName || employee.name || "",
-        ...headers.slice(2).map((column) => assetCodesByColumn[column].join("; ")),
+        ...assetHeaders.slice(2).map((column) => assetCodesByColumn[column].join("; ")),
+        remarks.join("; "),
       ];
     });
 
