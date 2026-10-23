@@ -805,8 +805,8 @@ const CartDrawer = ({ closeDrawer }) => {
     }
     if (!cart.length || !confirmedAddress || !paymentMethod) return;
     const partialAmount = Number(partialPaidAmount || 0);
-    if (paymentMethod === "Partial Paid" && (partialAmount < Math.round(Number(finalTotal || 0) * 0.1 * 100) / 100 || partialAmount >= Number(finalTotal || 0))) {
-      alert(`Partial payment must be at least 10% (Rs ${(Number(finalTotal || 0) * 0.1).toFixed(2)}) and below the order total.`);
+    if (paymentMethod === "Partial Paid" && (partialAmount <= 0 || partialAmount >= Number(finalTotal || 0))) {
+      alert("Partial payment must be greater than Rs 0 and below the order total.");
       return;
     }
     setCreatingOrderLink(true);
@@ -843,7 +843,7 @@ const CartDrawer = ({ closeDrawer }) => {
         ),
         paymentMode: paymentMethod,
         partialPayment: paymentMethod === "COD"
-          ? { type: "percentage", value: 10 }
+          ? { type: "percentage", value: 5 }
           : { type: "amount", value: partialAmount },
         utm: getOrderLinkUtm(),
       };
@@ -2225,7 +2225,7 @@ const CartDrawer = ({ closeDrawer }) => {
                     <>
                       {paymentMethod === "Partial Paid" && (
                         <TextField
-                          label="Partial Paid Amount (₹)"
+                          label="Partial Paid Amount (any amount below total) (₹)"
                           type="number"
                           fullWidth
                           value={partialPaidAmount}

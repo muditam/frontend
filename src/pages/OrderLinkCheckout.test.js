@@ -1,5 +1,5 @@
 import axios from "axios";
-import { markPaymentAttemptPending, verifyPaymentWithTimeout } from "./OrderLinkCheckout";
+import { isPaymentActionLocked, markPaymentAttemptPending, verifyPaymentWithTimeout } from "./OrderLinkCheckout";
 
 jest.mock("axios", () => ({
   post: jest.fn(),
@@ -14,6 +14,19 @@ describe("order-link Razorpay verification recovery", () => {
   test("marks the local link payment-pending when checkout is dismissed", () => {
     const link = { status: "viewed", token: "token-1" };
     expect(markPaymentAttemptPending(link)).toEqual({ status: "payment_pending", token: "token-1" });
+  });
+
+  test("keeps payment actions locked while verification is in progress", () => {
+    expect(isPaymentActionLocked({ paymentState: "verifying" })).toBe(true);
+    expect(isPaymentActionLocked({ paymentState: "starting" })).toBe(true);
+    expect(isPaymentActionLocked({ paymentState: "idle" })).toBe(false);
+  });
+
+  test("restores the lock from backend pending states after refresh", () => {
+    expect(isPaymentActionLocked({ linkStatus: "payment_creating", paymentState: "idle" })).toBe(true);
+    expect(isPaymentActionLocked({ linkStatus: "payment_pending", paymentState: "idle" })).toBe(true);
+    expect(isPaymentActionLocked({ linkStatus: "creating_order", paymentState: "idle" })).toBe(true);
+    expect(isPaymentActionLocked({ linkStatus: "viewed", paymentState: "idle" })).toBe(false);
   });
 
   test("returns the verified order when verification succeeds", async () => {
