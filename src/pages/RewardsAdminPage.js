@@ -3,6 +3,7 @@ import axios from "axios";
 import { clearCachedData, getCachedData } from "../utils/apiCache";
 import {
   Alert,
+  Autocomplete,
   Box,
   Button,
   Card,
@@ -132,6 +133,56 @@ export default function RewardsAdminPage() {
   const [requestsLoading, setRequestsLoading] = useState(false);
   const [requestsError, setRequestsError] = useState("");
   const [requests, setRequests] = useState([]);
+  const [selectedAgent, setSelectedAgent] = useState(null);
+  const [agentBalances, setAgentBalances] = useState({});
+  const [balancesLoading, setBalancesLoading] = useState(false);
+
+  const agentGroups = useMemo(() => {
+    const groups = new Map();
+    requests.forEach((request) => {
+      const name = String(request.agentName || "").trim();
+      const id = request.employeeId?._id || request.employeeId || name.toLowerCase() || request._id;
+      if (!groups.has(id)) groups.set(id, { id, name: name || "Unknown agent", requests: [], totalCoins: 0 });
+      const group = groups.get(id);
+      group.requests.push(request);
+      group.totalCoins += Number(request.requestedCoinBudget || 0);
+    });
+    return Array.from(groups.values()).sort((a, b) => a.name.localeCompare(b.name));
+  }, [requests]);
+
+  useEffect(() => {
+    if (tab !== 1 || !agentGroups.length) return;
+    let cancelled = false;
+    setBalancesLoading(true);
+    setAgentBalances({});
+    const endDate = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(new Date());
+    Promise.all(agentGroups.map(async (group) => {
+      try {
+        const { data } = await axios.get(`${API_BASE}/api/incentives-new`, {
+          headers,
+          params: { agentName: group.name, startDate: "2026-04-01", endDate, summaryOnly: true },
+        });
+        // availableCoin is clamped to zero by the API. Use the ledger totals
+        // so an overdrawn wallet remains visible to the reviewer.
+        const earned = data.walletCoin?.earnedCoins;
+        const received = data.wallet?.totalCoinReceived;
+        const redeemed = data.wallet?.totalCoinRedeemed;
+        const values = [earned, received, redeemed];
+        const balance = values.every((value) => value != null && Number.isFinite(Number(value)))
+          ? Math.round((Number(earned) + Number(received) - Number(redeemed)) * 100) / 100
+          : null;
+        return [group.id, balance];
+      } catch {
+        return [group.id, null];
+      }
+    })).then((entries) => {
+      if (!cancelled) {
+        setAgentBalances(Object.fromEntries(entries));
+        setBalancesLoading(false);
+      }
+    });
+    return () => { cancelled = true; };
+  }, [tab, agentGroups, headers]);
   const [approvedRequestsLoading, setApprovedRequestsLoading] = useState(false);
   const [approvedRequestsError, setApprovedRequestsError] = useState("");
   const [approvedRequests, setApprovedRequests] = useState([]);
@@ -871,6 +922,23 @@ export default function RewardsAdminPage() {
 
         {tab === 1 && (
           <Stack spacing={2}>
+            <Stack direction={{ xs: "column", sm: "row" }} spacing={2} justifyContent="space-between" alignItems={{ sm: "center" }}>
+              <Box>
+                <Typography sx={{ fontWeight: 700, fontSize: 18 }}>Pending rewards by agent</Typography>
+                <Typography variant="body2" color="text.secondary">
+                  {requests.length} requests · {agentGroups.length} agents. All rewards for an agent appear together.
+                </Typography>
+              </Box>
+              <Autocomplete
+                options={agentGroups}
+                value={agentGroups.find((group) => group.id === selectedAgent) || null}
+                getOptionLabel={(group) => group.name}
+                isOptionEqualToValue={(option, value) => option.id === value.id}
+                onChange={(_, group) => setSelectedAgent(group?.id || null)}
+                sx={{ width: { xs: "100%", sm: 280 } }}
+                renderInput={(params) => <TextField {...params} label="Filter by agent" placeholder="All agents" size="small" />}
+              />
+            </Stack>
             {requestsError ? <Alert severity="error">{requestsError}</Alert> : null}
 
             {requestsLoading ? (
@@ -888,17 +956,43 @@ export default function RewardsAdminPage() {
                   },
                 }}
               >
-                {requests.map((request) => {
+                {agentGroups.filter((group) => !selectedAgent || !agentGroups.some((agent) => agent.id === selectedAgent) || group.id === selectedAgent).map((group) => {
+                  const balance = agentBalances[group.id];
+                  const remaining = balance == null ? null : Math.round((balance - group.totalCoins) * 100) / 100;
+                  return (
+                    <Card key={group.id} sx={{ borderRadius: 4, border: "1px solid #eceff3", alignSelf: "start" }}>
+                      <Box sx={{ p: 2.25, background: "#f8fafc", borderBottom: "1px solid #eceff3" }}>
+                        <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={1}>
+                          <Typography sx={{ fontWeight: 800 }}>{group.name}</Typography>
+                          <Chip size="small" color="warning" label={`${group.requests.length} pending rewards`} />
+                        </Stack>
+                        <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "repeat(3, 1fr)" }, gap: 2, mt: 2 }}>
+                          {[
+                            { label: "Current coins", value: balance },
+                            { label: "Pending reward coins", value: group.totalCoins },
+                            { label: "After pending requests", value: remaining },
+                          ].map(({ label, value }) => (
+                            <Box key={label}>
+                              <Typography variant="caption" color="text.secondary">{label}</Typography>
+                              <Typography sx={{ fontWeight: 800, color: value < 0 ? "error.main" : "text.primary" }}>
+                                {value == null ? (balancesLoading ? "Loading…" : "Unavailable") : formatNumber(value)}
+                              </Typography>
+                            </Box>
+                          ))}
+                        </Box>
+                        {remaining < 0 && <Typography variant="body2" color="error.main" sx={{ mt: 1 }}>Shortfall: {formatNumber(-remaining)} coins after all pending requests.</Typography>}
+                        {!balancesLoading && balance == null && <Typography variant="caption" color="text.secondary">Could not load this agent’s wallet balance.</Typography>}
+                      </Box>
+                {group.requests.map((request) => {
                   const milestone = getMilestoneByCoinCost(request.requestedCoinBudget);
                   const isCuratedRedeem = request.requestType === "curated_redeem";
 
                   return (
-                    <Card
+                    <Box
                       key={request._id}
                       sx={{
-                        borderRadius: 4,
-                        border: "1px solid #eceff3",
-                        boxShadow: "0 8px 24px rgba(16,24,40,0.05)",
+                        borderBottom: "1px solid #eceff3",
+                        "&:last-child": { borderBottom: 0 },
                       }}
                     >
                       <Box sx={{ p: 2.25 }}>
@@ -907,10 +1001,6 @@ export default function RewardsAdminPage() {
                             {isCuratedRedeem
                               ? "Curated Reward Redeem Request"
                               : "Custom Reward Request"}
-                          </Typography>
-
-                          <Typography variant="body2" sx={{ color: "#667085" }}>
-                            Agent: {request.agentName || "-"}
                           </Typography>
 
                           <Typography sx={{ fontWeight: 700, color: "#1d2939" }}>
@@ -992,6 +1082,9 @@ export default function RewardsAdminPage() {
                           </Stack>
                         </Stack>
                       </Box>
+                    </Box>
+                  );
+                })}
                     </Card>
                   );
                 })}
