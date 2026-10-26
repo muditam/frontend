@@ -122,6 +122,13 @@ export function isPaymentActionLocked({ isDone, isExpired, linkStatus, busy, pay
   );
 }
 
+export function getPaymentProcessingMessage(status) {
+  if (status === "creating_order") return "Your payment was received and your order is being confirmed.";
+  if (status === "payment_creating") return "Your payment setup is still in progress. Please refresh the order status before trying again.";
+  if (status === "payment_pending") return "A payment attempt is already in progress. Refresh the order status before trying again.";
+  return "";
+}
+
 export function verifyPaymentWithTimeout(url, payload, timeoutMs = VERIFY_PAYMENT_TIMEOUT_MS) {
   const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
   let timeoutId;
@@ -552,13 +559,15 @@ export default function OrderLinkCheckout() {
   );
   const actionButton = renderActionButton(actionLabel);
 
-  const paymentStatusBlock = (paymentMessage || link?.status === "payment_pending") ? (
+  const serverProcessingMessage = getPaymentProcessingMessage(link?.status);
+  const isServerProcessing = Boolean(serverProcessingMessage);
+  const paymentStatusBlock = (paymentMessage || isServerProcessing) ? (
     <Box sx={{ mt: 1, p: 1.25, borderRadius: "12px", border: `1px solid ${ui.line}`, bgcolor: ui.paper }}>
-      {paymentMessage && (
-        <Typography sx={{ color: ui.ink, fontSize: 14, fontWeight: 600, lineHeight: 1.4 }}>{paymentMessage}</Typography>
-      )}
-      {paymentState === "verification_failed" && (
-        <Button size="small" onClick={refreshPaymentStatus} sx={{ mt: 0.5, px: 0, textTransform: "none", fontWeight: 700, color: ui.brand }}>
+      <Typography sx={{ color: ui.ink, fontSize: 14, fontWeight: 600, lineHeight: 1.4 }}>
+        {paymentMessage || serverProcessingMessage}
+      </Typography>
+      {(paymentState === "verification_failed" || isServerProcessing) && (
+        <Button size="small" disabled={!!busy} onClick={refreshPaymentStatus} sx={{ mt: 0.5, px: 0, textTransform: "none", fontWeight: 700, color: ui.brand }}>
           Refresh order status
         </Button>
       )}

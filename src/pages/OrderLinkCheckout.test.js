@@ -2,6 +2,7 @@ import axios from "axios";
 import {
   classifyPaymentInitiationResponse,
   fmt,
+  getPaymentProcessingMessage,
   isPaymentActionLocked,
   markPaymentAttemptPending,
   verifyPaymentWithTimeout,
@@ -36,6 +37,18 @@ describe("order-link Razorpay verification recovery", () => {
   test("preserves paise in checkout amounts and savings", () => {
     expect(fmt(441.75)).toBe("₹441.75");
     expect(fmt(23.25)).toBe("₹23.25");
+  });
+
+  test.each([
+    ["payment_creating", "Your payment setup is still in progress."],
+    ["payment_pending", "A payment attempt is already in progress."],
+    ["creating_order", "Your payment was received and your order is being confirmed."],
+  ])("restores processing guidance for %s after reload", (status, message) => {
+    expect(getPaymentProcessingMessage(status)).toContain(message);
+  });
+
+  test("does not show processing guidance for an idle link", () => {
+    expect(getPaymentProcessingMessage("viewed")).toBe("");
   });
 
   test("marks the local link payment-pending when checkout is dismissed", () => {
