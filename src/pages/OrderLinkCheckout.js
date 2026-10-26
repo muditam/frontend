@@ -126,6 +126,10 @@ export function isPaymentActionLocked({ isDone, isExpired, linkStatus, busy, pay
   );
 }
 
+export function isPrimaryActionDisabled({ selected, locked, busy, codOtpBusy }) {
+  return selected === "cod" ? locked || Boolean(busy) || codOtpBusy : locked;
+}
+
 export function getPaymentProcessingMessage(status) {
   if (status === "creating_order") return "Your payment was received and your order is being confirmed.";
   if (status === "payment_creating") return "Your payment setup is still in progress. Please refresh the order status before trying again.";
@@ -538,7 +542,7 @@ export default function OrderLinkCheckout() {
     if (selected === "cod") confirmCod();
     else payOnline(selected === "partial" ? "Partial Paid" : "Prepaid");
   };
-  const primaryDisabled = selected === "cod" ? (!!busy || codOtpBusy) : locked;
+  const primaryDisabled = isPrimaryActionDisabled({ selected, locked, busy, codOtpBusy });
 
   const saveAddressAndClose = async () => {
     const saved = await saveAddress();

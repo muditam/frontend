@@ -5,6 +5,7 @@ import {
   fmt,
   getPaymentProcessingMessage,
   isPaymentActionLocked,
+  isPrimaryActionDisabled,
   markPaymentAttemptPending,
   verifyPaymentWithTimeout,
 } from "./OrderLinkCheckout";
@@ -76,6 +77,11 @@ describe("order-link Razorpay verification recovery", () => {
     expect(isPaymentActionLocked({ linkStatus: "payment_pending", paymentState: "idle" })).toBe(true);
     expect(isPaymentActionLocked({ linkStatus: "creating_order", paymentState: "idle" })).toBe(true);
     expect(isPaymentActionLocked({ linkStatus: "viewed", paymentState: "idle" })).toBe(false);
+  });
+
+  test("disables COD action while an online payment attempt is pending", () => {
+    expect(isPrimaryActionDisabled({ selected: "cod", locked: true, busy: "", codOtpBusy: false })).toBe(true);
+    expect(isPrimaryActionDisabled({ selected: "cod", locked: false, busy: "", codOtpBusy: false })).toBe(false);
   });
 
   test("returns the verified order when verification succeeds", async () => {
