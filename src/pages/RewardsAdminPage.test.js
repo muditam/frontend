@@ -92,3 +92,45 @@ test("limits simultaneous wallet lookups and aborts them when leaving the tab", 
   unmount();
   expect(signals.every((signal) => signal.aborted)).toBe(true);
 });
+
+test("custom approval shows read-only details and sends only after confirmation", async () => {
+  axios.post.mockReset();
+  axios.post.mockResolvedValue({ data: {} });
+  render(<RewardsAdminPage />);
+  fireEvent.click(await screen.findByRole("tab", { name: "Pending Requests (3)" }));
+  fireEvent.click(within(screen.getByRole("region", { name: "Anita pending rewards" })).getAllByRole("button", { name: "Approve" })[0]);
+  const dialog = screen.getByRole("dialog");
+  expect(within(dialog).getByText("Headphones")).toBeTruthy();
+  expect(within(dialog).getByText("Coins: 100")).toBeTruthy();
+  expect(within(dialog).queryByRole("textbox")).toBeNull();
+  expect(axios.post).not.toHaveBeenCalled();
+  fireEvent.click(within(dialog).getByRole("button", { name: "Yes, Approve" }));
+  await waitFor(() => expect(axios.post).toHaveBeenCalledWith(expect.stringContaining('/api/custom-reward/a/approve'), {}, expect.any(Object)));
+});
+
+test("already-approved response refreshes lists and closes stale confirmation", async () => {
+  const original = axios.get.getMockImplementation();
+  let approved = false;
+  axios.get.mockImplementation((url, config) => {
+    if (url.endsWith('/api/custom-reward') && approved) {
+      return Promise.resolve({ data: { requests: config.params.status === 'pending'
+        ? requests.slice(1) : [{ ...requests[0], status: 'approved' }] } });
+    }
+    return original(url, config);
+  });
+  axios.post.mockReset();
+  axios.post.mockImplementation(async () => {
+    approved = true;
+    throw { response: { status: 400, data: { message: 'Request is already approved' } } };
+  });
+  render(<RewardsAdminPage />);
+  fireEvent.click(await screen.findByRole('tab', { name: 'Pending Requests (3)' }));
+  fireEvent.click(within(screen.getByRole('region', { name: 'Anita pending rewards' })).getAllByRole('button', { name: 'Approve' })[0]);
+  fireEvent.click(screen.getByRole('button', { name: 'Yes, Approve' }));
+  await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+  await screen.findByRole('tab', { name: 'Pending Requests (2)' });
+  expect(screen.queryByText('Headphones')).toBeNull();
+  fireEvent.click(screen.getByRole('tab', { name: /Approved Requests/ }));
+  expect(await screen.findByText('Headphones')).toBeTruthy();
+  expect(axios.post).toHaveBeenCalledTimes(1);
+});

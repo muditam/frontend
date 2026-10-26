@@ -95,14 +95,6 @@ const initialRewardForm = {
   isActive: true,
 };
 
-const initialApprovalForm = {
-  title: "",
-  image: "",
-  link: "",
-  price: "",
-  isActive: true,
-};
-
 const cardStyles = {
   height: "100%",
   borderRadius: 3,
@@ -210,12 +202,6 @@ export default function RewardsAdminPage() {
   const [rewardForm, setRewardForm] = useState(initialRewardForm);
   const [rewardSaving, setRewardSaving] = useState(false);
   const [rewardFormError, setRewardFormError] = useState("");
-
-  const [approveDialogOpen, setApproveDialogOpen] = useState(false);
-  const [approvalRequest, setApprovalRequest] = useState(null);
-  const [approvalForm, setApprovalForm] = useState(initialApprovalForm);
-  const [approvalSaving, setApprovalSaving] = useState(false);
-  const [approvalError, setApprovalError] = useState("");
 
   const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
   const [rejectingRequest, setRejectingRequest] = useState(null);
@@ -474,65 +460,8 @@ export default function RewardsAdminPage() {
     }
   };
 
-  const openApproveDialog = (request) => {
-    setApprovalRequest(request);
-    setApprovalForm({
-      title: request.extractedTitle || "",
-      image: request.extractedImage || "",
-      link: request.url || "",
-      price: request.requestedCoinBudget || "",
-      isActive: true,
-    });
-    setApprovalError("");
-    setApproveDialogOpen(true);
-  };
-
-  const handleApproveRequest = async () => {
-    if (!approvalRequest?._id) return;
-
-    if (!approvalForm.title.trim()) {
-      setApprovalError("Name is required.");
-      return;
-    }
-
-    if (!approvalForm.link.trim() || !isValidUrl(approvalForm.link.trim())) {
-      setApprovalError("Valid product link is required.");
-      return;
-    }
-
-    if (approvalForm.image.trim() && !isValidUrl(approvalForm.image.trim())) {
-      setApprovalError("Valid image link is required.");
-      return;
-    }
-
-    if (!approvalForm.price || Number(approvalForm.price) <= 0) {
-      setApprovalError("Price must be greater than 0.");
-      return;
-    }
-
-    const finalPrice = Number(approvalForm.price || 0);
-    setApproveDialogOpen(false);
-    setConfirmationError("");
-    setConfirmationAction("approve");
-    setConfirmationRequest(approvalRequest);
-    setConfirmationPayload({
-      title: approvalForm.title.trim(),
-      image: approvalForm.image.trim(),
-      link: approvalForm.link.trim(),
-      price: finalPrice,
-      coinCost: finalPrice,
-      isActive: approvalForm.isActive,
-    });
-    setConfirmationOpen(true);
-  };
-
   const handleApprovePendingRequest = async (request) => {
     if (!request?._id) return;
-
-    if (request.requestType !== "curated_redeem") {
-      openApproveDialog(request);
-      return;
-    }
 
     setConfirmationError("");
     setConfirmationAction("approve");
@@ -547,6 +476,18 @@ export default function RewardsAdminPage() {
     setConfirmationRequest(request);
     setConfirmationPayload({});
     setConfirmationOpen(true);
+  };
+
+  const refreshAfterConfirmation = () => {
+    const id = confirmationRequest._id;
+    setConfirmationOpen(false);
+    setConfirmationRequest(null);
+    setRequests((current) => current.filter((request) => request._id !== id));
+    clearCachedData("rewards-admin:");
+    clearCachedData("wallet-redeem:");
+    fetchRequests(true);
+    fetchApprovedRequests(true);
+    fetchRewards(true);
   };
 
   const handleConfirmation = async () => {
@@ -564,14 +505,14 @@ export default function RewardsAdminPage() {
         { headers }
       );
 
-      setConfirmationOpen(false);
-      setConfirmationRequest(null);
-      clearCachedData("rewards-admin:");
-      clearCachedData("wallet-redeem:");
-      fetchRequests(true);
-      fetchApprovedRequests(true);
-      fetchRewards(true);
+      refreshAfterConfirmation();
     } catch (err) {
+      // Also reconcile responses from older backend deployments.
+      if (confirmationAction === "approve" && err?.response?.status === 400 &&
+          err?.response?.data?.message === "Request is already approved") {
+        refreshAfterConfirmation();
+        return;
+      }
       console.error(`Error ${confirmationAction}ing request:`, err);
       setConfirmationError(
         err?.response?.data?.message ||
@@ -1249,99 +1190,6 @@ export default function RewardsAdminPage() {
       </Dialog>
 
       <Dialog
-        open={approveDialogOpen}
-        onClose={() => !approvalSaving && setApproveDialogOpen(false)}
-        fullWidth
-        maxWidth="sm"
-      >
-        <DialogTitle>Approve Custom Reward</DialogTitle>
-        <DialogContent dividers>
-          <Stack spacing={2} sx={{ pt: 1 }}>
-            {approvalError ? <Alert severity="error">{approvalError}</Alert> : null}
-
-            <TextField
-              label="Name"
-              value={approvalForm.title}
-              onChange={(e) =>
-                setApprovalForm((prev) => ({ ...prev, title: e.target.value }))
-              }
-              fullWidth
-            />
-
-            <TextField
-              label="Image Link"
-              value={approvalForm.image}
-              onChange={(e) =>
-                setApprovalForm((prev) => ({ ...prev, image: e.target.value }))
-              }
-              fullWidth
-            />
-
-            <TextField
-              label="Product Link"
-              value={approvalForm.link}
-              onChange={(e) =>
-                setApprovalForm((prev) => ({ ...prev, link: e.target.value }))
-              }
-              fullWidth
-            />
-
-            <TextField
-              label="Price"
-              type="number"
-              value={approvalForm.price}
-              onChange={(e) =>
-                setApprovalForm((prev) => ({ ...prev, price: e.target.value }))
-              }
-              fullWidth
-            />
-
-            <Box
-              sx={{
-                p: 1.5,
-                borderRadius: 2.5,
-                border: "1px solid #e6ebf2",
-                background: "#f8fafc",
-              }}
-            >
-              <Typography variant="body2" sx={{ fontWeight: 700 }}>
-                Coin Cost
-              </Typography>
-              <Typography variant="body2" sx={{ color: "#667085", mt: 0.5 }}>
-                Same as Price: {approvalForm.price ? formatCurrency(approvalForm.price) : "—"}
-              </Typography>
-            </Box>
-
-            <Box
-              sx={{
-                p: 1.5,
-                borderRadius: 2.5,
-                border: "1px solid #e6ebf2",
-                background: "#f8fafc",
-              }}
-            >
-              <Typography variant="body2" sx={{ fontWeight: 700 }}>
-                Auto milestone
-              </Typography>
-              <Typography variant="body2" sx={{ color: "#667085", mt: 0.5 }}>
-                {getMilestoneByCoinCost(approvalForm.price).label}
-              </Typography>
-            </Box>
-          </Stack>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setApproveDialogOpen(false)}>Cancel</Button>
-          <Button
-            variant="contained"
-            onClick={handleApproveRequest}
-            disabled={approvalSaving}
-          >
-            {approvalSaving ? "Approving..." : "Approve"}
-          </Button>
-        </DialogActions>
-      </Dialog>
-
-      <Dialog
         open={rejectDialogOpen}
         onClose={() => !rejectSaving && setRejectDialogOpen(false)}
         fullWidth
@@ -1389,13 +1237,25 @@ export default function RewardsAdminPage() {
           <Typography variant="body2" sx={{ color: "#475467" }}>
             {confirmationAction === "revert"
               ? "Are you sure you want to revert this approved request? The coins will be refunded to the agent wallet."
-              : "Are you sure you want to approve this request? The requested coins will be deducted from the agent wallet."}
+              : "Are you sure you want to approve this reward? The requested coins will be deducted from the agent wallet."}
           </Typography>
           {confirmationRequest?.agentName ? (
             <Typography variant="body2" sx={{ mt: 1.5, fontWeight: 700 }}>
               Agent: {confirmationRequest.agentName}
             </Typography>
           ) : null}
+          {confirmationRequest && (
+            <Stack spacing={1.25} sx={{ mt: 2, p: 2, bgcolor: "#f8fafc", borderRadius: 2 }}>
+              <Typography variant="body2" sx={{ fontWeight: 700 }}>{confirmationRequest.extractedTitle || "Custom reward"}</Typography>
+              <Typography variant="body2">Coins: {formatNumber(confirmationRequest.requestedCoinBudget)}</Typography>
+              {confirmationRequest.note && <Typography variant="body2" sx={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{confirmationRequest.note}</Typography>}
+              {(String(confirmationRequest.url || "").match(/https?:\/\/[^\s<>"']+/g) || []).filter(isValidUrl).map((link, index) => (
+                <Button key={`${link}-${index}`} href={link} target="_blank" rel="noopener noreferrer" endIcon={<LaunchIcon />} sx={{ justifyContent: "flex-start", textTransform: "none", overflowWrap: "anywhere" }}>
+                  Product link {index + 1} · {new URL(link).hostname}
+                </Button>
+              ))}
+            </Stack>
+          )}
         </DialogContent>
         <DialogActions>
           <Button
