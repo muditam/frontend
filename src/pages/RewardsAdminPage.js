@@ -25,8 +25,6 @@ import {
   AddOutlined as AddIcon,
   EditOutlined as EditIcon,
   DeleteOutlineOutlined as DeleteIcon,
-  CheckCircleOutlineOutlined as ApproveIcon,
-  CancelOutlined as RejectIcon,
   LaunchOutlined as LaunchIcon,
 } from "@mui/icons-material";
 
@@ -156,32 +154,44 @@ export default function RewardsAdminPage() {
     setBalancesLoading(true);
     setAgentBalances({});
     const endDate = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(new Date());
-    Promise.all(agentGroups.map(async (group) => {
-      try {
-        const { data } = await axios.get(`${API_BASE}/api/incentives-new`, {
-          headers,
-          params: { agentName: group.name, startDate: "2026-04-01", endDate, summaryOnly: true },
-        });
-        // availableCoin is clamped to zero by the API. Use the ledger totals
-        // so an overdrawn wallet remains visible to the reviewer.
-        const earned = data.walletCoin?.earnedCoins;
-        const received = data.wallet?.totalCoinReceived;
-        const redeemed = data.wallet?.totalCoinRedeemed;
-        const values = [earned, received, redeemed];
-        const balance = values.every((value) => value != null && Number.isFinite(Number(value)))
-          ? Math.round((Number(earned) + Number(received) - Number(redeemed)) * 100) / 100
-          : null;
-        return [group.id, balance];
-      } catch {
-        return [group.id, null];
+    const controller = new AbortController();
+    let nextIndex = 0;
+    // Avoid flooding the incentives API, and render each result independently.
+    const loadBalances = async () => {
+      while (!cancelled && nextIndex < agentGroups.length) {
+        const group = agentGroups[nextIndex++];
+        let balance = null;
+        try {
+          balance = await getCachedData(
+            `rewards-admin:balance:${group.id}:${group.name}:${endDate}`,
+            async () => {
+              const { data } = await axios.get(`${API_BASE}/api/incentives-new`, {
+                headers,
+                signal: controller.signal,
+                timeout: 30000,
+                params: { agentName: group.name, startDate: "2026-04-01", endDate, summaryOnly: true },
+              });
+              // Preserve negative balances rather than using clamped availableCoin.
+              const earned = data.walletCoin?.earnedCoins;
+              const received = data.wallet?.totalCoinReceived;
+              const redeemed = data.wallet?.totalCoinRedeemed;
+              if (![earned, received, redeemed].every((value) => value != null && Number.isFinite(Number(value)))) {
+                throw new Error("Wallet totals unavailable");
+              }
+              return Math.round((Number(earned) + Number(received) - Number(redeemed)) * 100) / 100;
+            },
+            30 * 1000
+          );
+        } catch {
+          // Failed lookups are not cached or represented as zero coins.
+        }
+        if (!cancelled) setAgentBalances((previous) => ({ ...previous, [group.id]: balance }));
       }
-    })).then((entries) => {
-      if (!cancelled) {
-        setAgentBalances(Object.fromEntries(entries));
-        setBalancesLoading(false);
-      }
+    };
+    Promise.all(Array.from({ length: Math.min(3, agentGroups.length) }, loadBalances)).then(() => {
+      if (!cancelled) setBalancesLoading(false);
     });
-    return () => { cancelled = true; };
+    return () => { cancelled = true; controller.abort(); };
   }, [tab, agentGroups, headers]);
   const [approvedRequestsLoading, setApprovedRequestsLoading] = useState(false);
   const [approvedRequestsError, setApprovedRequestsError] = useState("");
@@ -924,9 +934,9 @@ export default function RewardsAdminPage() {
           <Stack spacing={2}>
             <Stack direction={{ xs: "column", sm: "row" }} spacing={2} justifyContent="space-between" alignItems={{ sm: "center" }}>
               <Box>
-                <Typography sx={{ fontWeight: 700, fontSize: 18 }}>Pending rewards by agent</Typography>
+                <Typography sx={{ fontWeight: 800, fontSize: 20, color: "#101828" }}>Pending rewards by agent</Typography>
                 <Typography variant="body2" color="text.secondary">
-                  {requests.length} requests · {agentGroups.length} agents. All rewards for an agent appear together.
+                  {requests.length} requests · {agentGroups.length} agents · Review balances and rewards together.
                 </Typography>
               </Box>
               <Autocomplete
@@ -952,7 +962,7 @@ export default function RewardsAdminPage() {
                   gap: 2,
                   gridTemplateColumns: {
                     xs: "repeat(1, minmax(0, 1fr))",
-                    md: "repeat(2, minmax(0, 1fr))",
+                    lg: "minmax(0, 1fr)",
                   },
                 }}
               >
@@ -960,32 +970,36 @@ export default function RewardsAdminPage() {
                   const balance = agentBalances[group.id];
                   const remaining = balance == null ? null : Math.round((balance - group.totalCoins) * 100) / 100;
                   return (
-                    <Card key={group.id} sx={{ borderRadius: 4, border: "1px solid #eceff3", alignSelf: "start" }}>
-                      <Box sx={{ p: 2.25, background: "#f8fafc", borderBottom: "1px solid #eceff3" }}>
-                        <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={1}>
-                          <Typography sx={{ fontWeight: 800 }}>{group.name}</Typography>
-                          <Chip size="small" color="warning" label={`${group.requests.length} pending rewards`} />
+                    <Card component="section" aria-label={`${group.name} pending rewards`} key={group.id} sx={{ borderRadius: 3, border: "1px solid #e4e7ec", alignSelf: "start", minWidth: 0, boxShadow: "0 2px 6px rgba(16,24,40,0.03)" }}>
+                      <Box sx={{ p: { xs: 2, sm: 2.5 }, background: "#fafbfc", borderBottom: "1px solid #e4e7ec", display: "grid", gridTemplateColumns: { xs: "1fr", md: "minmax(230px, 1fr) minmax(480px, 1.4fr)" }, alignItems: "center", gap: 2 }}>
+                        <Stack direction="row" alignItems="center" spacing={1.5} flexWrap="wrap" useFlexGap>
+                          <Stack direction="row" spacing={1.25} alignItems="center" sx={{ minWidth: 0 }}>
+                            <Box aria-hidden="true" sx={{ width: 42, height: 42, flexShrink: 0, borderRadius: 2, display: "grid", placeItems: "center", bgcolor: "#e8edf3", color: "#344054", fontSize: 13, fontWeight: 800 }}>{group.name.split(/\s+/).slice(0, 2).map((name) => name[0]).join("")}</Box>
+                            <Typography sx={{ fontWeight: 800, overflowWrap: "anywhere" }}>{group.name}</Typography>
+                          </Stack>
+                          <Chip size="small" label={`${group.requests.length} pending`} sx={{ bgcolor: "#fff4e5", color: "#93370d", fontWeight: 700, flexShrink: 0 }} />
                         </Stack>
-                        <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "repeat(3, 1fr)" }, gap: 2, mt: 2 }}>
+                        <Box sx={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 0 }}>
                           {[
                             { label: "Current coins", value: balance },
                             { label: "Pending reward coins", value: group.totalCoins },
                             { label: "After pending requests", value: remaining },
                           ].map(({ label, value }) => (
-                            <Box key={label}>
+                            <Box key={label} sx={{ px: { xs: 1, sm: 2.5 }, py: 0.5, borderLeft: "1px solid #e4e7ec", "&:first-of-type": { borderLeft: { xs: 0, md: "1px solid #e4e7ec" }, pl: { xs: 0, md: 2.5 } } }}>
                               <Typography variant="caption" color="text.secondary">{label}</Typography>
-                              <Typography sx={{ fontWeight: 800, color: value < 0 ? "error.main" : "text.primary" }}>
-                                {value == null ? (balancesLoading ? "Loading…" : "Unavailable") : formatNumber(value)}
+                              <Typography sx={{ fontWeight: 800, fontSize: { xs: 16, sm: 20 }, overflowWrap: "anywhere", color: value < 0 ? "error.main" : "#101828" }}>
+                                {value == null ? (balancesLoading && balance === undefined ? "Loading…" : "Unavailable") : formatNumber(value)}
                               </Typography>
                             </Box>
                           ))}
                         </Box>
-                        {remaining < 0 && <Typography variant="body2" color="error.main" sx={{ mt: 1 }}>Shortfall: {formatNumber(-remaining)} coins after all pending requests.</Typography>}
-                        {!balancesLoading && balance == null && <Typography variant="caption" color="text.secondary">Could not load this agent’s wallet balance.</Typography>}
+                        {remaining < 0 && <Typography variant="body2" color="error.main" sx={{ gridColumn: "1 / -1", p: 1, borderRadius: 1.5, bgcolor: "#fff1f0", fontSize: 12 }}>Shortfall: {formatNumber(-remaining)} coins after all pending requests.</Typography>}
+                        {balance === null && <Typography variant="caption" color="text.secondary">Could not load this agent’s wallet balance.</Typography>}
                       </Box>
-                {group.requests.map((request) => {
+                {group.requests.map((request, requestIndex) => {
                   const milestone = getMilestoneByCoinCost(request.requestedCoinBudget);
                   const isCuratedRedeem = request.requestType === "curated_redeem";
+                  const links = [...new Set((request.url || "").match(/https?:\/\/[^\s<>"']+/g) || [])].filter(isValidUrl);
 
                   return (
                     <Box
@@ -995,91 +1009,49 @@ export default function RewardsAdminPage() {
                         "&:last-child": { borderBottom: 0 },
                       }}
                     >
-                      <Box sx={{ p: 2.25 }}>
-                        <Stack spacing={1.5}>
-                          <Typography sx={{ fontWeight: 800, color: "#101828" }}>
-                            {isCuratedRedeem
-                              ? "Curated Reward Redeem Request"
-                              : "Custom Reward Request"}
-                          </Typography>
-
-                          <Typography sx={{ fontWeight: 700, color: "#1d2939" }}>
-                            {request.extractedTitle || "Untitled Reward"}
-                          </Typography>
-
-                          <Typography
-                            variant="body2"
-                            sx={{ color: "#667085", wordBreak: "break-all" }}
-                          >
-                            {request.url || "-"}
-                          </Typography>
-
-                          <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
-                            <Chip size="small" color="warning" label="Pending" />
-                            <Chip
-                              size="small"
-                              variant="outlined"
-                              label={isCuratedRedeem ? "Redeem Request" : "Custom Request"}
-                            />
-                            <Chip
-                              size="small"
-                              variant="outlined"
-                              label={request.milestoneLabel || milestone.label}
-                            />
-                            {request.requestedCoinBudget ? (
-                              <Chip
-                                size="small"
-                                variant="outlined"
-                                label={`${formatNumber(request.requestedCoinBudget)} Coins`}
-                              />
-                            ) : null}
-                          </Stack>
-
-                          {request.note ? (
-                            <Typography variant="body2" sx={{ color: "#667085" }}>
-                              {request.note}
+                      <Box sx={{ p: { xs: 2, sm: 2.5 }, display: "grid", gridTemplateColumns: { xs: "minmax(0, 1fr)", md: "minmax(0, 1.5fr) minmax(0, 1fr) 120px 210px" }, gap: { xs: 2, md: 3 }, alignItems: "center", "&:hover": { bgcolor: "#fcfcfd" } }}>
+                        <Box sx={{ minWidth: 0 }}>
+                          <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 0.5 }}>
+                            <Typography variant="caption" sx={{ color: "#98a2b3", fontWeight: 700 }}>#{String(requestIndex + 1).padStart(2, "0")}</Typography>
+                            <Typography sx={{ fontWeight: 700, color: "#101828", fontSize: 14, overflowWrap: "anywhere" }}>
+                              {request.extractedTitle || (isCuratedRedeem ? "Curated reward" : "Custom reward")}
                             </Typography>
-                          ) : null}
-
-                          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                            <Button
-                              size="small"
-                              variant="outlined"
-                              startIcon={<LaunchIcon />}
-                              href={request.url}
-                              target="_blank"
-                              rel="noreferrer"
-                              sx={{ textTransform: "none", borderRadius: 999 }}
-                            >
-                              Open Link
-                            </Button>
-
-                            <Button
-                              size="small"
-                              variant="contained"
-                              startIcon={<ApproveIcon />}
-                              onClick={() => handleApprovePendingRequest(request)}
-                              disabled={requestActionId === request._id}
-                              sx={{
-                                textTransform: "none",
-                                boxShadow: "none",
-                                borderRadius: 999,
-                              }}
-                            >
-                              {requestActionId === request._id ? "Approving..." : "Approve"}
-                            </Button>
-
-                            <Button
-                              size="small"
-                              color="error"
-                              variant="outlined"
-                              startIcon={<RejectIcon />}
-                              onClick={() => openRejectDialog(request)}
-                              sx={{ textTransform: "none", borderRadius: 999 }}
-                            >
-                              Reject
-                            </Button>
                           </Stack>
+                          <Typography variant="caption" sx={{ color: "#667085" }}>
+                            {request.milestoneLabel || milestone.label} · {isCuratedRedeem ? "Catalogue request" : "Custom request"}
+                          </Typography>
+                          {request.note && <Typography sx={{ mt: 1, color: "#475467", fontSize: 13, whiteSpace: "pre-wrap", overflowWrap: "anywhere", lineHeight: 1.6 }}>{request.note}</Typography>}
+                        </Box>
+
+                        <Box sx={{ minWidth: 0 }}>
+                          <Typography sx={{ fontSize: 11, fontWeight: 600, color: "#98a2b3", mb: 0.75 }}>PRODUCT LINKS</Typography>
+                          <Stack direction="row" useFlexGap flexWrap="wrap" gap={0.75}>
+                            {links.map((link, index) => (
+                              <Button key={link} size="small" variant="text" endIcon={<LaunchIcon sx={{ fontSize: "14px !important" }} />} href={link} target="_blank" rel="noopener noreferrer" title={link}
+                                sx={{ textTransform: "none", justifyContent: "flex-start", px: 1, py: 0.5, bgcolor: "#f2f4f7", borderRadius: 1, color: "#344054", maxWidth: "100%", fontSize: 12 }}>
+                                <Box component="span" sx={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                  {links.length > 1 ? `${index + 1}. ` : ""}{new URL(link).hostname.replace(/^www\./, "")}
+                                </Box>
+                              </Button>
+                            ))}
+                            {!links.length && <Typography variant="caption" color="text.secondary">No link provided</Typography>}
+                          </Stack>
+                        </Box>
+
+                        <Box sx={{ textAlign: { xs: "left", md: "right" } }}>
+                          <Typography sx={{ fontSize: 11, fontWeight: 600, color: "#98a2b3", mb: 0.5 }}>REQUESTED COINS</Typography>
+                          <Typography sx={{ fontWeight: 800, color: "#101828", fontSize: 20, fontVariantNumeric: "tabular-nums" }}>{formatNumber(request.requestedCoinBudget)}</Typography>
+                        </Box>
+
+                        <Stack direction="row" spacing={1} justifyContent={{ xs: "flex-start", md: "flex-end" }} sx={{ pt: { xs: 1.5, md: 0 }, borderTop: { xs: "1px solid #f2f4f7", md: 0 } }}>
+                          <Button size="small" variant="contained" onClick={() => handleApprovePendingRequest(request)} disabled={requestActionId === request._id}
+                            sx={{ textTransform: "none", fontWeight: 600, boxShadow: "none", borderRadius: 1.5, px: 2, py: 0.8, bgcolor: "#101828", "&:hover": { bgcolor: "#344054", boxShadow: "none" } }}>
+                            {requestActionId === request._id ? "Approving..." : "Approve"}
+                          </Button>
+                          <Button size="small" color="error" variant="outlined" onClick={() => openRejectDialog(request)}
+                            sx={{ textTransform: "none", fontWeight: 600, borderRadius: 1.5, px: 2, py: 0.8, borderColor: "#fecdca", color: "#b42318" }}>
+                            Reject
+                          </Button>
                         </Stack>
                       </Box>
                     </Box>

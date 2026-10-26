@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import axios from "axios";
+import { validateRedemption } from "../utils/rewardRedemptionRules";
 import { clearCachedData, getCachedData } from "../utils/apiCache";
 
 const API_BASE = "https://muditamleads-14f32a10d7f7.herokuapp.com";
@@ -595,15 +596,6 @@ function getMilestoneMeta(id) {
   return MILESTONES.find((m) => Number(m.id) === Number(id)) || null;
 }
 
-function isValidUrl(v = "") {
-  try {
-    const u = new URL(v);
-    return ["http:", "https:"].includes(u.protocol);
-  } catch {
-    return false;
-  }
-}
-
 function StatusBadge({ status }) {
   const s = String(status || "").toLowerCase();
   if (s === "approved") {
@@ -638,6 +630,7 @@ export default function WalletRedeemDialog({
   const [customNotes, setCustomNotes] = useState("");
   const [customSubmitting, setCustomSubmitting] = useState(false);
   const [customError, setCustomError] = useState("");
+  const [errorSource, setErrorSource] = useState("custom");
   const [customSuccess, setCustomSuccess] = useState("");
 
   const [requestsLoading, setRequestsLoading] = useState(false);
@@ -770,21 +763,13 @@ export default function WalletRedeemDialog({
   }, [myRequests]);
 
   const handleSubmitCustomReward = async () => {
+    setErrorSource("custom");
     setCustomError("");
     setCustomSuccess("");
 
-    if (!customLink.trim()) {
-      setCustomError("Please paste a product link.");
-      return;
-    }
-
-    if (!isValidUrl(customLink.trim())) {
-      setCustomError("Please enter a valid product link (https://...).");
-      return;
-    }
-
-    if (!customPrice || Number(customPrice) <= 0) {
-      setCustomError("Please enter a valid price.");
+    const ruleError = validateRedemption({ links: customLink, amount: customPrice });
+    if (ruleError) {
+      setCustomError(ruleError);
       return;
     }
 
@@ -825,11 +810,18 @@ export default function WalletRedeemDialog({
   };
 
   const handleRedeemReward = async (reward) => {
+    setErrorSource("curated");
     setCustomError("");
     setCustomSuccess("");
 
     if (!reward?._id) {
       setCustomError("Reward not found.");
+      return;
+    }
+
+    const ruleError = validateRedemption({ links: reward.link || reward.url, amount: reward.coinCost ?? reward.price ?? reward.coins });
+    if (ruleError) {
+      setCustomError(ruleError);
       return;
     }
 
@@ -953,7 +945,7 @@ export default function WalletRedeemDialog({
                 </div>
 
                 {error && <div className="wrd-alert wrd-alert-error">{error}</div>}
-                {customError && (
+                {customError && errorSource === "curated" && (
                   <div className="wrd-alert wrd-alert-error">{customError}</div>
                 )}
                 {customSuccess && (
@@ -1088,16 +1080,17 @@ export default function WalletRedeemDialog({
                 <div className="wrd-custom-box">
                   <h3>Request a custom reward</h3>
                   <p>
-                    Can't find what you want? Paste a product link and we'll
-                    review it under the selected milestone.
+                    Minimum order value: ₹1,000. Only Amazon and Flipkart product links are accepted.
+                    Paste one product link per line.
                   </p>
 
                   <div className="wrd-field">
                     <span className="wrd-field-icon">🔗</span>
-                    <input
+                    <textarea
                       className="wrd-input"
-                      type="url"
-                      placeholder="https://..."
+                      rows={3}
+                      aria-label="Product links"
+                      placeholder="Amazon or Flipkart links — one per line"
                       value={customLink}
                       onChange={(e) => setCustomLink(e.target.value)}
                     />
@@ -1107,10 +1100,10 @@ export default function WalletRedeemDialog({
                     <input
                       className="wrd-input"
                       type="number"
-                      placeholder="Enter price"
+                      placeholder="Total order value (minimum ₹1,000)"
                       value={customPrice}
                       onChange={(e) => setCustomPrice(e.target.value)}
-                      min="0"
+                      min="1000"
                       step="1"
                       style={{ paddingLeft: 13 }}
                     />
@@ -1124,8 +1117,14 @@ export default function WalletRedeemDialog({
                     style={{ marginBottom: 14 }}
                   />
 
-                  <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", flexWrap: "wrap", gap: 12 }}>
+                    {customError && errorSource === "custom" && (
+                      <div role="alert" style={{ flex: "1 1 220px", minWidth: 0, color: "#b91c1c", fontSize: 13, lineHeight: 1.5 }}>
+                        {customError}
+                      </div>
+                    )}
                     <button
+                      style={{ marginLeft: "auto", flexShrink: 0 }}
                       className="wrd-btn-primary"
                       onClick={handleSubmitCustomReward}
                       disabled={customSubmitting || !customLink.trim() || !customPrice.trim()}
@@ -1219,19 +1218,13 @@ export default function WalletRedeemDialog({
                           </div>
                         )}
 
-                        <a
-                          className="wrd-btn-link"
-                          href={item.url}
-                          target="_blank"
-                          rel="noreferrer"
-                          style={
-                            !item.url
-                              ? { opacity: 0.4, pointerEvents: "none" }
-                              : {}
-                          }
-                        >
-                          Open link ↗
-                        </a>
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
+                          {(String(item.url || "").match(/https?:\/\/[^\s<>"']+/g) || []).map((link, index) => (
+                            <a key={`${link}-${index}`} className="wrd-btn-link" href={link} target="_blank" rel="noopener noreferrer">
+                              Open link {index + 1} ↗
+                            </a>
+                          ))}
+                        </div>
                       </div>
                     );
                   })
