@@ -24,6 +24,8 @@ import LocationOnIcon from "@mui/icons-material/LocationOn";
 import SchoolIcon from "@mui/icons-material/School";
 import StarIcon from "@mui/icons-material/Star";
 import VerifiedIcon from "@mui/icons-material/Verified";
+import CheckCircleIcon from "@mui/icons-material/CheckCircle";
+import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import SearchIcon from "@mui/icons-material/Search";
 import CloseIcon from "@mui/icons-material/Close";
@@ -106,8 +108,7 @@ export function copyAddress(address = {}) {
 }
 
 export function buildOrderTrackingUrl(orderName) {
-  const orderId = String(orderName || "").replace(/^#/, "").trim();
-  return orderId ? `${ORDER_TRACKING_URL}?order_id=${encodeURIComponent(orderId)}` : ORDER_TRACKING_URL;
+  return ORDER_TRACKING_URL;
 }
 
 export function mergeOrderLink(current, next, { authoritative = false } = {}) {
@@ -193,6 +194,7 @@ export default function OrderLinkCheckout() {
   const [paymentState, setPaymentState] = useState("idle");
   const [paymentMessage, setPaymentMessage] = useState("");
   const [selectedPayment, setSelectedPayment] = useState("");
+  const [orderIdCopied, setOrderIdCopied] = useState(false);
   const paymentVerificationRef = useRef(false);
 
   const load = useCallback(async ({ refresh = false } = {}) => {
@@ -510,6 +512,18 @@ export default function OrderLinkCheckout() {
     }
   };
 
+  const copyOrderId = async () => {
+    const orderName = String(link?.shopifyOrder?.name || "").trim();
+    if (!orderName) return;
+    try {
+      await navigator.clipboard.writeText(orderName);
+      setOrderIdCopied(true);
+      window.setTimeout(() => setOrderIdCopied(false), 1600);
+    } catch (error) {
+      setPaymentMessage("Could not copy the order ID. Please select it manually.");
+    }
+  };
+
 
   const totals = link?.totals || {};
   const paymentMode = link?.paymentMode;
@@ -692,7 +706,7 @@ export default function OrderLinkCheckout() {
         </Box>
         <Box sx={{ borderTop: "1px dashed rgba(165, 145, 167, 0.4)", mt: 0.5, pt: 1.25, display: "flex", justifyContent: "space-between", fontSize: 16, fontWeight: 700 }}>
           <Box component="span">
-            {selected === "partial" ? "Order Total" : "To Pay"}
+            {isDone ? "Paid" : selected === "partial" ? "Order Total" : "To Pay"}
             <Box component="span" sx={{ ml: 0.75, fontSize: 11.5, fontWeight: 500, color: ui.muted }}>(Inclusive of all taxes)</Box>
           </Box>
           <Box component="span" sx={{ color: ui.brand }}>{fmt(orderTotal)}</Box>
@@ -866,18 +880,45 @@ export default function OrderLinkCheckout() {
   const statusBanners = (
     <>
       {isDone && (
-        <Box sx={{ p: { xs: 2, lg: 2.5 }, borderRadius: "16px", border: `1px solid ${ui.greenLine}`, bgcolor: ui.greenSoft }}>
-          <Typography sx={{ fontSize: 20, fontWeight: 800, color: ui.greenDeep }}>Order placed successfully</Typography>
-          <Typography sx={{ mt: 0.35, fontSize: 15, color: ui.greenDeep }}>Order {link.shopifyOrder?.name || "confirmed"}</Typography>
-          <Box sx={{ mt: 1.5, pt: 1.25, borderTop: `1px solid ${ui.greenLine}` }}>
-            <Typography sx={{ fontSize: 12, fontWeight: 800, color: ui.greenDeep, textTransform: "uppercase", letterSpacing: "0.06em" }}>Your order</Typography>
-            {(link.cartItems || []).map((item) => (
-              <Box key={item.variantId} sx={{ display: "flex", justifyContent: "space-between", gap: 2, mt: 0.65, fontSize: 14, color: ui.greenDeep }}>
-                <span>{item.productTitle} × {item.quantity}</span>
-                <span>{fmt(Number(item.unitPrice || 0) * Number(item.quantity || 0))}</span>
+        <Box sx={{ p: { xs: 2, lg: 2.5 }, borderRadius: "18px", border: `1px solid ${ui.greenLine}`, bgcolor: "#f5fdf8", boxShadow: "0 8px 24px rgba(4, 120, 87, 0.08)" }}>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1.25 }}>
+            <CheckCircleIcon sx={{ color: ui.green, fontSize: 30 }} />
+            <Box sx={{ minWidth: 0 }}>
+              <Typography sx={{ fontSize: { xs: 18, lg: 20 }, fontWeight: 800, lineHeight: 1.2, color: ui.greenDeep }}>Order placed successfully</Typography>
+              <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, mt: 0.35 }}>
+                <Typography sx={{ fontSize: 13.5, color: "rgba(6, 78, 59, 0.72)" }}>Order {link.shopifyOrder?.name || "confirmed"}</Typography>
+                {link.shopifyOrder?.name && (
+                  <IconButton size="small" onClick={copyOrderId} aria-label="Copy order ID" title={orderIdCopied ? "Copied" : "Copy order ID"} sx={{ p: 0.35, color: ui.green }}>
+                    <ContentCopyIcon sx={{ fontSize: 15 }} />
+                  </IconButton>
+                )}
+                {orderIdCopied && <Typography sx={{ fontSize: 11.5, fontWeight: 700, color: ui.green }}>Copied</Typography>}
               </Box>
-            ))}
-            <Box sx={{ display: "flex", justifyContent: "space-between", mt: 1, pt: 0.75, borderTop: `1px solid ${ui.greenLine}`, fontWeight: 800, color: ui.greenDeep }}>
+            </Box>
+          </Box>
+          <Box sx={{ mt: 1.75, pt: 1.35, borderTop: `1px solid ${ui.greenLine}` }}>
+            <Typography sx={{ fontSize: 11.5, fontWeight: 800, color: "rgba(6, 78, 59, 0.65)", textTransform: "uppercase", letterSpacing: "0.08em" }}>Order summary</Typography>
+            <Stack spacing={0.55} sx={{ mt: 0.8 }}>
+              {(link.cartItems || []).map((item) => (
+                <Box key={item.variantId} sx={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 1.5, fontSize: 13.5, color: ui.greenDeep }}>
+                  <Typography sx={{ minWidth: 0, flex: 1, fontSize: "inherit", color: "inherit", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.productTitle} × {item.quantity}</Typography>
+                  <Typography sx={{ flexShrink: 0, fontSize: "inherit", color: "inherit" }}>{fmt(Number(item.unitPrice || 0) * Number(item.quantity || 0))}</Typography>
+                </Box>
+              ))}
+            </Stack>
+            <Box sx={{ display: "flex", justifyContent: "space-between", mt: 1.1, pt: 0.9, borderTop: `1px solid ${ui.greenLine}`, fontWeight: 800, color: ui.greenDeep }}>
+              <span>Items total</span>
+              <span>{fmt(totals.subtotal)}</span>
+            </Box>
+            <Box sx={{ display: "flex", justifyContent: "space-between", mt: 0.55, fontSize: 13.5, color: ui.greenDeep }}>
+              <span>Discount</span>
+              <span>{totalSavings > 0 ? `-${fmt(totalSavings)}` : fmt(0)}</span>
+            </Box>
+            <Box sx={{ display: "flex", justifyContent: "space-between", mt: 0.55, fontSize: 13.5, color: ui.greenDeep }}>
+              <span>Delivery</span>
+              <span>{Number(totals.shipping || 0) > 0 ? fmt(totals.shipping) : "Free"}</span>
+            </Box>
+            <Box sx={{ display: "flex", justifyContent: "space-between", mt: 0.85, pt: 0.85, borderTop: `1px solid ${ui.greenLine}`, fontWeight: 800, color: ui.greenDeep }}>
               <span>Total</span>
               <span>{fmt(orderTotal)}</span>
             </Box>
@@ -888,7 +929,8 @@ export default function OrderLinkCheckout() {
             target="_blank"
             rel="noreferrer"
             startIcon={<LocalShippingOutlinedIcon />}
-            sx={{ mt: 1.5, bgcolor: ui.green, color: "#fff", borderRadius: "10px", fontWeight: 700, textTransform: "none", "&:hover": { bgcolor: ui.greenDeep } }}
+            fullWidth
+            sx={{ mt: 1.75, minHeight: 44, justifyContent: "center", bgcolor: ui.green, color: "#fff", borderRadius: "10px", fontWeight: 700, textTransform: "none", "&:hover": { bgcolor: ui.greenDeep } }}
           >
             Track your order
           </Button>
@@ -920,20 +962,22 @@ export default function OrderLinkCheckout() {
         <Box sx={{ width: "100%", maxWidth: { xs: "100%", sm: 560, lg: 1480 }, mx: "auto", display: "grid", gridTemplateColumns: { xs: "minmax(0, 1fr)", lg: "minmax(0, 8fr) minmax(0, 5fr)" }, gap: { xs: 2, lg: 2.5 }, alignItems: "start", p: { xs: 2, lg: 3 }, pb: { xs: showCheckout ? 14 : 3, lg: 4 } }}>
           <Stack spacing={2} sx={{ minWidth: 0 }}>
             {statusBanners}
-            <Box sx={{ p: { xs: 2.25, lg: 3.5 }, borderRadius: "24px", color: "#000000", bgcolor: "color(display-p3 0.957 0.9331 0.9961)", border: "1px solid color(display-p3 0.8784 0.7998 0.9844)", boxShadow: "0 8px 20px rgba(92, 62, 117, 0.12)" }}>
-              <Typography sx={{ fontSize: { xs: 16, sm: 18 }, fontWeight: 700, lineHeight: 1.375, color: "#2d2633" }}>
-                Hi {link.customer?.name || "there"}, your personalized plan is ready!
-              </Typography>
-            </Box>
+            {!isDone && (
+              <Box sx={{ p: { xs: 2.25, lg: 3.5 }, borderRadius: "24px", color: "#000000", bgcolor: "color(display-p3 0.957 0.9331 0.9961)", border: "1px solid color(display-p3 0.8784 0.7998 0.9844)", boxShadow: "0 8px 20px rgba(92, 62, 117, 0.12)" }}>
+                <Typography sx={{ fontSize: { xs: 16, sm: 18 }, fontWeight: 700, lineHeight: 1.375, color: "#2d2633" }}>
+                  Hi {link.customer?.name || "there"}, your personalized plan is ready!
+                </Typography>
+              </Box>
+            )}
             {expertCard}
-            {itemsCard}
             {testimonialsCard}
+            {itemsCard}
             <Box sx={{ display: { xs: "block", lg: "none" } }}>{addressCard}</Box>
           </Stack>
 
           <Stack spacing={2} sx={{ minWidth: 0, position: { lg: "sticky" }, top: { lg: 76 } }}>
             <Box sx={{ display: { xs: "none", lg: "block" } }}>{addressCard}</Box>
-            {billCard}
+            {!isDone && billCard}
             {showCheckout && paymentCard}
             {showCheckout && (
               <Box sx={{ display: { xs: "none", lg: "block" } }}>

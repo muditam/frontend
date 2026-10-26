@@ -43,8 +43,8 @@ describe("order-link Razorpay verification recovery", () => {
     expect(fmt(23.25)).toBe("₹23.25");
   });
 
-  test("prefills the order tracking link with the Shopify order id", () => {
-    expect(buildOrderTrackingUrl("#MA163246")).toBe("https://www.muditam.com/pages/order-tracking?order_id=MA163246");
+  test("opens the order tracking page without an unsupported order-id query", () => {
+    expect(buildOrderTrackingUrl("#MA163246")).toBe("https://www.muditam.com/pages/order-tracking");
   });
 
   test.each([
