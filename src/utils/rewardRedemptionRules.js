@@ -9,7 +9,7 @@ function validateRedemption({ links, amount }) {
     try {
       const url = new URL(link);
       const host = url.hostname.toLowerCase();
-      const allowed = ["amazon.in", "amazon.com", "flipkart.com"].some((domain) => host === domain || host.endsWith(`.${domain}`))
+      const allowed = ["amazon.in", "amazon.com", "flipkart.com", "myntra.com", "wearcomet.com"].some((domain) => host === domain || host.endsWith(`.${domain}`))
         || ["amzn.in", "amzn.to", "fkrt.it"].includes(host);
       if (!["http:", "https:"].includes(url.protocol) || !allowed || url.username || url.password || url.port) {
         return "Only Amazon and Flipkart product links are allowed.";
