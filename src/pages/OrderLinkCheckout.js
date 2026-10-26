@@ -447,11 +447,11 @@ export default function OrderLinkCheckout() {
   if (paymentMode === "COD" || paymentMode === "Partial Paid") {
     paymentOptions.push({
       key: "partial",
-      title: paymentMode === "Partial Paid" ? "Partially pay and confirm your order now" : "Pay 5% now and confirm your order instantly",
+      title: paymentMode === "Partial Paid" ? "Partially pay and confirm your order now" : "Pay 10% now",
       sub: paymentMode === "Partial Paid"
         ? "Pay the configured advance now and the remaining balance on delivery."
-        : "Confirm your order with a 5% online advance. The remaining amount is payable on delivery.",
-      badge: "",
+        : "Confirm your order with a 10% online advance. The remaining amount is payable on delivery.",
+      badge: "Fast delivery",
       amount: totals.partialAdvance,
     });
   }
@@ -460,7 +460,10 @@ export default function OrderLinkCheckout() {
       key: "prepay",
       title: ["COD", "Partial Paid"].includes(paymentMode) ? "Pay now & save 5%" : "Pay full amount now",
       sub: paymentMode === "COD" ? "Pay online (UPI / Card) and get priority dispatch" : "Pay online (UPI / Card) and get priority dispatch",
-      badge: "Popular",
+      badges: [
+        "Popular",
+        "Fast delivery",
+      ],
       amount: ["COD", "Partial Paid"].includes(paymentMode) ? totals.fullOnlineTotal : totals.codTotal,
     });
   }
@@ -640,11 +643,11 @@ export default function OrderLinkCheckout() {
                   <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1 }}>
                     <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, minWidth: 0, flexWrap: "wrap" }}>
                       <Typography sx={{ fontSize: 14.5, fontWeight: 700 }}>{option.title}</Typography>
-                      {option.badge && (
-                        <Box component="span" sx={{ fontSize: 10.5, fontWeight: 700, px: 0.9, py: 0.2, borderRadius: "999px", whiteSpace: "nowrap", bgcolor: "#d1fae5", color: "#065f46" }}>
-                          {option.badge}
+                      {(option.badges || (option.badge ? [option.badge] : [])).map((badge) => (
+                        <Box key={badge} component="span" sx={{ fontSize: 10.5, fontWeight: 700, px: 0.9, py: 0.2, borderRadius: "999px", whiteSpace: "nowrap", bgcolor: badge === "Fast delivery" ? "#d1fae5" : "#ede9fe", color: badge === "Fast delivery" ? "#065f46" : "#5b21b6" }}>
+                          {badge}
                         </Box>
-                      )}
+                      ))}
                     </Box>
                     <Typography sx={{ fontSize: 15, fontWeight: 800, color: active ? ui.brand : ui.ink, whiteSpace: "nowrap" }}>{fmt(option.amount)}</Typography>
                   </Box>
@@ -666,7 +669,9 @@ export default function OrderLinkCheckout() {
       <Box sx={{ display: "flex", alignItems: "center", gap: { xs: 2, lg: 3 }, position: "relative" }}>
         <Box sx={{ position: "relative", flexShrink: 0 }}>
           <Avatar src={expertImage} alt={expertName} sx={{ width: { xs: 100, lg: 120 }, height: { xs: 100, lg: 120 }, border: "3px solid rgba(255,255,255,0.45)", flexShrink: 0 }}>{expertInitials}</Avatar>
-          <Box sx={{ position: "absolute", right: 0, bottom: 0, width: { xs: 16, lg: 22 }, height: { xs: 16, lg: 22 }, bgcolor: "#34d399", border: `2px solid ${ui.brand}`, borderRadius: "50%" }} />
+          <Box sx={{ position: "absolute", right: 0, bottom: 0, width: { xs: 22, lg: 28 }, height: { xs: 22, lg: 28 }, bgcolor: ui.paper, border: `2px solid ${ui.brand}`, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <VerifiedIcon sx={{ fontSize: { xs: 16, lg: 21 }, color: ui.green }} />
+          </Box>
         </Box>
         <Box sx={{ minWidth: 0 }}>
           <Typography sx={{ fontWeight: 800, fontSize: { xs: 17, lg: 24 }, lineHeight: 1.2 }}>{expertName}</Typography>
@@ -735,57 +740,6 @@ export default function OrderLinkCheckout() {
       </Box>
     </Box>
   );
-
-  const searchCard = !locked ? (
-    <Box sx={{ ...cardSx, p: 1.75 }}>
-      <Typography sx={{ fontSize: 14, fontWeight: 700, mb: 0.75 }}>Search Other Products</Typography>
-      <TextField
-        fullWidth
-        size="small"
-        placeholder="Search other products..."
-        value={productQuery}
-        onChange={(e) => setProductQuery(e.target.value)}
-        sx={inputSx}
-        InputProps={{
-          startAdornment: <SearchIcon sx={{ fontSize: 18.5, color: ui.muted, mr: 1 }} />,
-          endAdornment: productQuery ? (
-            <IconButton size="small" onClick={() => setProductQuery("")} aria-label="Clear search"><CloseIcon sx={{ fontSize: 17 }} /></IconButton>
-          ) : null,
-        }}
-      />
-      {productQuery.trim() && (
-        <Box sx={{ mt: 1.5, pt: 1.5, borderTop: `1px solid ${ui.line}` }}>
-          {productsLoading ? (
-            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-              <CircularProgress size={16} />
-              <Typography sx={{ color: ui.muted, fontSize: 14 }}>Searching products...</Typography>
-            </Box>
-          ) : productsError ? (
-            <Typography sx={{ color: "#a34236", fontSize: 14 }}>{productsError}</Typography>
-          ) : productMatches.length ? (
-            <Stack spacing={1}>
-              {productMatches.map((product) => (
-                <Box key={product.variantId} sx={{ display: "flex", alignItems: "center", gap: 1.25, p: 1.25, borderRadius: "12px", bgcolor: "rgba(238, 222, 255, 0.2)", border: `1px solid ${ui.line}` }}>
-                  <Avatar src={product.image} variant="rounded" sx={{ width: 40, height: 40, borderRadius: "8px" }} />
-                  <Box sx={{ flex: 1, minWidth: 0 }}>
-                    <Typography noWrap sx={{ fontSize: 14, fontWeight: 700 }}>{product.productTitle}</Typography>
-                    <Typography noWrap sx={{ fontSize: 12.5, color: ui.muted }}>
-                      {product.variantTitle && product.variantTitle !== "Default Title" ? `${product.variantTitle} · ` : ""}{fmt(product.unitPrice)}
-                    </Typography>
-                  </Box>
-                  <Button size="small" disabled={!!busy} onClick={() => addProductToCart(product)} sx={{ bgcolor: ui.brand, color: "#fff", fontSize: 14, fontWeight: 700, px: 1.5, py: 0.5, borderRadius: "8px", textTransform: "none", minWidth: 0, "&:hover": { bgcolor: ui.brandDeep }, "&.Mui-disabled": { bgcolor: "rgba(131, 97, 159, 0.4)", color: "#fff" } }}>
-                    + Add
-                  </Button>
-                </Box>
-              ))}
-            </Stack>
-          ) : (
-            <Typography sx={{ color: ui.muted, fontSize: 14, textAlign: "center", py: 0.5 }}>No products found matching "{productQuery}"</Typography>
-          )}
-        </Box>
-      )}
-    </Box>
-  ) : null;
 
   const testimonialsCard = (
     <Box sx={{ ...cardSx, p: 1.75 }}>
@@ -858,18 +812,13 @@ export default function OrderLinkCheckout() {
         <Box sx={{ width: "100%", maxWidth: { xs: "100%", sm: 560, lg: 1480 }, mx: "auto", display: "grid", gridTemplateColumns: { xs: "minmax(0, 1fr)", lg: "minmax(0, 8fr) minmax(0, 5fr)" }, gap: { xs: 2, lg: 2.5 }, alignItems: "start", p: { xs: 2, lg: 3 }, pb: { xs: showCheckout ? 14 : 3, lg: 4 } }}>
           <Stack spacing={2} sx={{ minWidth: 0 }}>
             {statusBanners}
-            <Box sx={{ ...cardSx, p: { xs: 1.75, lg: 2.5 } }}>
-              <Typography sx={{ fontSize: { xs: 17, lg: 19 }, fontWeight: 700, lineHeight: 1.3 }}>
-                Your <Box component="span" sx={{ display: { xs: "none", lg: "inline" } }}>personalized </Box>wellness plan is ready
-              </Typography>
-              <Typography sx={{ mt: 0.5, fontSize: { xs: 13, lg: 14 }, lineHeight: 1.5, color: "rgba(45, 38, 51, 0.7)" }}>
-                <Box component="span" sx={{ display: { xs: "none", lg: "inline" } }}>Complete your order and take the next step towards a healthier you.</Box>
-                <Box component="span" sx={{ display: { xs: "inline", lg: "none" } }}>Complete your order to start your journey.</Box>
+            <Box sx={{ p: { xs: 2.25, lg: 3.5 }, borderRadius: "24px", color: "#000000", bgcolor: "color(display-p3 0.957 0.9331 0.9961)", border: "1px solid color(display-p3 0.8784 0.7998 0.9844)", boxShadow: "0 8px 20px rgba(92, 62, 117, 0.12)" }}>
+              <Typography sx={{ fontSize: { xs: 16, sm: 18 }, fontWeight: 700, lineHeight: 1.375, color: "#2d2633" }}>
+                Hi {link.customer?.name || "there"}, your personalized plan is ready!
               </Typography>
             </Box>
             {expertCard}
             {itemsCard}
-            {searchCard}
             {testimonialsCard}
             <Box sx={{ display: { xs: "block", lg: "none" } }}>{addressCard}</Box>
           </Stack>
