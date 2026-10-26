@@ -4,16 +4,14 @@ import {
   Avatar,
   Box,
   Button,
-  Chip,
   CircularProgress,
   Container,
   Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
-  Divider,
   IconButton,
-  Paper,
+  Radio,
   Stack,
   TextField,
   Typography,
@@ -21,88 +19,142 @@ import {
 import AddIcon from "@mui/icons-material/Add";
 import RemoveIcon from "@mui/icons-material/Remove";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
-import ShoppingBagOutlinedIcon from "@mui/icons-material/ShoppingBagOutlined";
 import LockOutlinedIcon from "@mui/icons-material/LockOutlined";
-import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
 import LocationOnIcon from "@mui/icons-material/LocationOn";
-import EditIcon from "@mui/icons-material/Edit";
-import DescriptionOutlinedIcon from "@mui/icons-material/DescriptionOutlined";
-import CreditCardIcon from "@mui/icons-material/CreditCard";
-import SpaIcon from "@mui/icons-material/Spa";
-import VerifiedIcon from "@mui/icons-material/Verified";
-import GroupsIcon from "@mui/icons-material/Groups";
 import SchoolIcon from "@mui/icons-material/School";
 import StarIcon from "@mui/icons-material/Star";
+import VerifiedIcon from "@mui/icons-material/Verified";
+import CheckCircleIcon from "@mui/icons-material/CheckCircle";
+import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
+import SearchIcon from "@mui/icons-material/Search";
+import CloseIcon from "@mui/icons-material/Close";
+import FavoriteBorderIcon from "@mui/icons-material/FavoriteBorder";
+import MedicalServicesOutlinedIcon from "@mui/icons-material/MedicalServicesOutlined";
 import LocalShippingOutlinedIcon from "@mui/icons-material/LocalShippingOutlined";
-import ShieldOutlinedIcon from "@mui/icons-material/ShieldOutlined";
-import PersonOutlineIcon from "@mui/icons-material/PersonOutline";
 import RestartAltIcon from "@mui/icons-material/RestartAlt";
 import axios from "axios";
 
 const API_BASE = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "");
 const LOGO = "/muditam-logo.avif";
 const DEMO_EXPERT_IMAGE = "/demo-expert.svg";
-const HERO_LEAVES_LEFT = "/order-link-leaves-left.svg";
-const HERO_LEAVES_RIGHT = "/order-link-leaves-right.svg";
 const MUDITAM_HOME = "https://www.muditam.com";
+const ORDER_TRACKING_URL = `${MUDITAM_HOME}/pages/order-tracking`;
 
-const fmt = (n) => `Rs ${Number(n || 0).toFixed(0)}`;
+export const fmt = (n) => `₹${Number(n || 0).toFixed(2)}`;
 
 const ui = {
-  canvas: "#f6f5f3",
+  canvas: "#2d2633",
   paper: "#fff",
-  ink: "#17151a",
-  muted: "#6f6a73",
-  line: "#e7e4e9",
-  soft: "#faf9fb",
-  brand: "#5b358b",
-  brandDeep: "#3d1f65",
-  brandSoft: "#f1ebf7",
-  green: "#15805a",
-  greenDeep: "#174f37",
-  greenSoft: "#e9f7f0",
+  ink: "#2d2633",
+  muted: "#a591a7",
+  line: "rgba(165, 145, 167, 0.25)",
+  brand: "#83619f",
+  brandDeep: "#5c3e75",
+  brandSoft: "#eedeff",
+  page: "#F5F0FF",
+  green: "#047857",
+  greenDeep: "#064e3b",
+  greenSoft: "#ecfdf5",
+  greenLine: "#a7f3d0",
+};
+
+const cardSx = {
+  bgcolor: ui.paper,
+  border: `1px solid ${ui.line}`,
+  borderRadius: "16px",
+  p: { xs: 1.75, lg: 2.5 },
+  boxShadow: "0 1px 2px rgba(45, 38, 51, 0.05)",
 };
 
 const inputSx = {
   "& .MuiOutlinedInput-root": {
-    borderRadius: "9px",
-    bgcolor: ui.paper,
-    fontWeight: 700,
-    fontSize: 13,
-    "& fieldset": { borderColor: "#dcd7df" },
-    "&:hover fieldset": { borderColor: "#c9c1cf" },
-    "&.Mui-focused fieldset": { borderColor: "#9b7bbd", boxShadow: "0 0 0 3px rgba(91,53,139,.08)" },
+    borderRadius: "12px",
+    bgcolor: "rgba(238, 222, 255, 0.3)",
+    fontSize: 15,
+    color: ui.ink,
+    "& fieldset": { borderColor: "rgba(165, 145, 167, 0.35)" },
+    "&:hover fieldset": { borderColor: ui.brand },
+    "&.Mui-focused fieldset": { borderColor: ui.brand, borderWidth: 1 },
+    "&.Mui-focused": { bgcolor: ui.paper },
   },
-  "& .MuiInputLabel-root": {
-    color: ui.muted,
-    fontSize: 12,
-    fontWeight: 700,
-  },
+  "& .MuiInputLabel-root": { fontSize: 15 },
 };
 
-const panelSx = {
-  borderRadius: "18px",
-  border: `1px solid ${ui.line}`,
-  bgcolor: ui.paper,
-  boxShadow: "0 18px 44px rgba(26, 21, 32, 0.07)",
+const sectionLabelSx = {
+  fontSize: 12.5,
+  fontWeight: 700,
+  color: ui.muted,
+  textTransform: "uppercase",
+  letterSpacing: "0.08em",
 };
 
-const iconBubbleSx = {
-  width: 40,
-  height: 40,
-  borderRadius: "12px",
-  display: "grid",
-  placeItems: "center",
-  bgcolor: ui.brandSoft,
-  color: ui.brand,
-  flex: "0 0 auto",
-};
+const initialsOf = (name) =>
+  String(name || "")
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join("") || "M";
 
 export const VERIFY_PAYMENT_TIMEOUT_MS = 45000;
 
 export function markPaymentAttemptPending(link) {
   return link ? { ...link, status: "payment_pending" } : link;
+}
+
+export function copyAddress(address = {}) {
+  return { ...address };
+}
+
+export function buildOrderTrackingUrl(orderName) {
+  return ORDER_TRACKING_URL;
+}
+
+export function mergeOrderLink(current, next, { authoritative = false } = {}) {
+  if (!next) return current;
+  const sameLink = !current?.id || !next.id || String(current.id) === String(next.id);
+  const sameExpert = !current?.expert?.name || !next.expert?.name || current.expert.name === next.expert.name;
+  const preserveProfile = !authoritative && sameLink && sameExpert;
+  return {
+    ...current,
+    ...next,
+    expert: next.expert || (sameLink ? current?.expert : undefined),
+    expertProfile: next.expertProfile || (preserveProfile ? current?.expertProfile : undefined),
+  };
+}
+
+export function classifyPaymentInitiationResponse(data) {
+  const orderLink = data?.orderLink;
+  if (orderLink?.status === "order_created") return { kind: "completed", orderLink };
+  if (orderLink && ["payment_creating", "payment_pending", "creating_order"].includes(orderLink.status)) {
+    return { kind: "processing", orderLink };
+  }
+  if (data?.keyId && data?.orderId && Number.isFinite(Number(data.amount)) && Number(data.amount) > 0) {
+    return { kind: "checkout", data };
+  }
+  return { kind: "invalid" };
+}
+
+export function isPaymentActionLocked({ isDone, isExpired, linkStatus, busy, paymentState }) {
+  return Boolean(
+    isDone ||
+    isExpired ||
+    ["payment_creating", "payment_pending", "creating_order"].includes(linkStatus) ||
+    busy ||
+    ["starting", "checkout_open", "verifying", "verification_failed"].includes(paymentState)
+  );
+}
+
+export function isPrimaryActionDisabled({ selected, locked, busy, codOtpBusy }) {
+  return selected === "cod" ? locked || Boolean(busy) || codOtpBusy : locked;
+}
+
+export function getPaymentProcessingMessage(status) {
+  if (status === "creating_order") return "Your payment was received and your order is being confirmed.";
+  if (status === "payment_creating") return "Your payment setup is still in progress. Please refresh the order status before trying again.";
+  if (status === "payment_pending") return "A payment attempt is already in progress. Refresh the order status before trying again.";
+  return "";
 }
 
 export function verifyPaymentWithTimeout(url, payload, timeoutMs = VERIFY_PAYMENT_TIMEOUT_MS) {
@@ -128,8 +180,8 @@ export default function OrderLinkCheckout() {
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const [address, setAddress] = useState({});
+  const [addressDraft, setAddressDraft] = useState({});
   const [addressOpen, setAddressOpen] = useState(false);
-  const [mobileBillingOpen, setMobileBillingOpen] = useState(false);
   const [productQuery, setProductQuery] = useState("");
   const [products, setProducts] = useState([]);
   const [productsLoading, setProductsLoading] = useState(false);
@@ -141,18 +193,25 @@ export default function OrderLinkCheckout() {
   const [codOtpBusy, setCodOtpBusy] = useState(false);
   const [paymentState, setPaymentState] = useState("idle");
   const [paymentMessage, setPaymentMessage] = useState("");
+  const [selectedPayment, setSelectedPayment] = useState("");
+  const [orderIdCopied, setOrderIdCopied] = useState(false);
   const paymentVerificationRef = useRef(false);
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const load = useCallback(async ({ refresh = false } = {}) => {
+    if (!refresh) setLoading(true);
     try {
       const { data } = await axios.get(`${API_BASE}/api/order-links/public/${token}`);
-      setLink(data.orderLink);
-      setAddress(data.orderLink.shippingAddress || {});
+      setError("");
+      setLink((current) => mergeOrderLink(current, data.orderLink, { authoritative: refresh }));
+      const savedAddress = data.orderLink.shippingAddress || {};
+      setAddress(savedAddress);
+      setAddressDraft(copyAddress(savedAddress));
+      return true;
     } catch (err) {
-      setError(err?.response?.data?.message || "Order link not found.");
+      if (!refresh) setError(err?.response?.data?.message || "Order link not found.");
+      return false;
     } finally {
-      setLoading(false);
+      if (!refresh) setLoading(false);
     }
   }, [token]);
 
@@ -186,7 +245,7 @@ export default function OrderLinkCheckout() {
 
   const isDone = link?.status === "order_created";
   const isExpired = link?.status === "expired";
-  const locked = isDone || isExpired || link?.status === "payment_pending" || !!busy || paymentState === "checkout_open" || paymentState === "verification_failed";
+  const locked = isPaymentActionLocked({ isDone, isExpired, linkStatus: link?.status, busy, paymentState });
 
   const addressSummary = useMemo(() => {
     const lineOne = [address?.address1, address?.address2].filter(Boolean).join(", ");
@@ -207,12 +266,7 @@ export default function OrderLinkCheckout() {
         { label: "M.Sc. Nutrition", iconType: "education" },
         { label: "5+ Years Experience", iconType: "star" },
       ];
-  const expertInitials = expertName
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase())
-    .join("") || "M";
+  const expertInitials = initialsOf(expertName);
   const testimonials = expertProfile?.testimonials?.length
     ? expertProfile.testimonials.map((item) => ({
         name: item.customerName || "Muditam Customer",
@@ -260,31 +314,12 @@ export default function OrderLinkCheckout() {
       .filter((item) => `${item.productTitle} ${item.variantTitle}`.toLowerCase().includes(query))
       .slice(0, 6);
   }, [productQuery, products]);
-  const paymentClarity = useMemo(() => {
-    if (!link) return null;
-    if (link.paymentMode === "COD") {
-      return {
-        title: "Cash on Delivery",
-        body: "Confirm COD with OTP, pay 10% online and pay the rest on delivery, or pay fully online and save 5%.",
-      };
-    }
-    if (link.paymentMode === "Partial Paid") {
-      return {
-        title: "Partial payment order",
-        body: `Pay ${fmt(link.totals?.partialAdvance)} as advance now. The remaining amount will be collected on delivery.`,
-      };
-    }
-    return {
-      title: "Prepaid order",
-      body: "Complete online payment now. Your Shopify order is created only after successful payment.",
-    };
-  }, [link]);
 
   const syncCart = async (items) => {
     setBusy("cart");
     try {
       const { data } = await axios.patch(`${API_BASE}/api/order-links/public/${token}/cart`, { items });
-      setLink(data.orderLink);
+      setLink((current) => mergeOrderLink(current, data.orderLink));
     } catch (err) {
       alert(err?.response?.data?.message || "Could not update cart.");
     } finally {
@@ -311,10 +346,15 @@ export default function OrderLinkCheckout() {
   const saveAddress = async () => {
     setBusy("address");
     try {
-      const { data } = await axios.patch(`${API_BASE}/api/order-links/public/${token}/address`, { shippingAddress: address });
-      setLink(data.orderLink);
+      const { data } = await axios.patch(`${API_BASE}/api/order-links/public/${token}/address`, { shippingAddress: addressDraft });
+      setLink((current) => mergeOrderLink(current, data.orderLink));
+      const savedAddress = data.orderLink.shippingAddress || {};
+      setAddress(savedAddress);
+      setAddressDraft(copyAddress(savedAddress));
+      return true;
     } catch (err) {
       alert(err?.response?.data?.message || "Could not save address.");
+      return false;
     } finally {
       setBusy("");
     }
@@ -337,7 +377,7 @@ export default function OrderLinkCheckout() {
     setBusy("cod");
     try {
       const { data } = await axios.post(`${API_BASE}/api/order-links/public/${token}/confirm-cod`);
-      setLink(data.orderLink);
+      setLink((current) => mergeOrderLink(current, data.orderLink));
     } catch (err) {
       alert(err?.response?.data?.message || "Could not confirm COD.");
     } finally {
@@ -354,7 +394,7 @@ export default function OrderLinkCheckout() {
       setCodOtpOpen(false);
       setBusy("cod");
       const { data } = await axios.post(`${API_BASE}/api/order-links/public/${token}/confirm-cod`);
-      setLink(data.orderLink);
+      setLink((current) => mergeOrderLink(current, data.orderLink));
     } catch (err) {
       alert(err?.response?.data?.message || "Invalid OTP.");
     } finally {
@@ -369,18 +409,36 @@ export default function OrderLinkCheckout() {
     setBusy(selectedMode);
     try {
       const { data } = await axios.post(`${API_BASE}/api/order-links/public/${token}/payments/razorpay-order`, { selectedMode });
+      const initiation = classifyPaymentInitiationResponse(data);
+      if (initiation.kind === "completed") {
+        setLink((current) => mergeOrderLink(current, initiation.orderLink));
+        setPaymentState("complete");
+        setPaymentMessage("");
+        return;
+      }
+      if (initiation.kind === "processing") {
+        setLink((current) => mergeOrderLink(current, initiation.orderLink));
+        setPaymentState("verification_failed");
+        setPaymentMessage("Your payment or order is already being processed. Refresh the order status before trying again.");
+        return;
+      }
+      if (initiation.kind === "invalid") {
+        setPaymentState("verification_failed");
+        setPaymentMessage("Payment status could not be confirmed. Refresh the order status or contact support before trying again.");
+        return;
+      }
       if (!window.Razorpay) {
         setPaymentState("verification_failed");
         setPaymentMessage("Payment could not be started. Please refresh this page and try again.");
         return;
       }
       const checkout = new window.Razorpay({
-        key: data.keyId,
-        amount: data.amount,
+        key: initiation.data.keyId,
+        amount: initiation.data.amount,
         currency: data.currency,
         name: "Muditam",
         description: selectedMode === "Partial Paid" ? "Advance payment" : "Order payment",
-        order_id: data.orderId,
+        order_id: initiation.data.orderId,
         handler: async (response) => {
           paymentVerificationRef.current = true;
           setPaymentState("verifying");
@@ -390,7 +448,7 @@ export default function OrderLinkCheckout() {
               `${API_BASE}/api/order-links/public/${token}/payments/verify`,
               response
             );
-            setLink(verify.data.orderLink);
+            setLink((current) => mergeOrderLink(current, verify.data.orderLink));
             setPaymentState("complete");
             setPaymentMessage("");
           } catch (err) {
@@ -431,12 +489,12 @@ export default function OrderLinkCheckout() {
 
   const refreshPaymentStatus = async () => {
     setPaymentMessage("Refreshing order status...");
-    try {
-      await load();
+    const refreshed = await load({ refresh: true });
+    if (refreshed) {
       setPaymentState("idle");
       setPaymentMessage("Status refreshed. If payment is still pending, you can safely continue from this order link.");
-    } catch (err) {
-      setPaymentMessage("Could not refresh the order status. Please try again.");
+    } else {
+      setPaymentMessage("Could not refresh the order status. Your payment is still protected. Please try again.");
     }
   };
 
@@ -444,7 +502,7 @@ export default function OrderLinkCheckout() {
     setBusy("cancel-payment");
     try {
       const { data } = await axios.post(`${API_BASE}/api/order-links/public/${token}/payments/cancel`);
-      setLink(data.orderLink);
+      setLink((current) => mergeOrderLink(current, data.orderLink));
       setPaymentState("idle");
       setPaymentMessage("Payment attempt cancelled. You can now edit your order or address.");
     } catch (err) {
@@ -454,49 +512,122 @@ export default function OrderLinkCheckout() {
     }
   };
 
-  const paymentActions = link ? (
-    <Stack spacing={1}>
-      {link?.paymentMode === "COD" ? (
-        <>
-          <Button size="large" variant="contained" disabled={!!busy || codOtpBusy} onClick={confirmCod} endIcon={<ChevronRightIcon />} sx={{ justifyContent: "space-between", borderRadius: "10px", bgcolor: "#087f55", fontWeight: 850, py: 1.25, px: 1.7, textTransform: "none", letterSpacing: 0.05, boxShadow: "0 8px 18px rgba(8,127,85,.16)", "&:hover": { bgcolor: "#056b47", boxShadow: "0 10px 22px rgba(8,127,85,.22)" } }}>
-            <span>{codOtpBusy ? "Sending OTP..." : `Confirm COD · ${fmt(link.totals?.codTotal)}`}</span>
-          </Button>
-          <Button size="large" variant="outlined" disabled={locked} onClick={() => payOnline("Partial Paid")} endIcon={<ChevronRightIcon />} sx={{ justifyContent: "space-between", borderRadius: "10px", borderColor: "#d8c9e8", color: "#482477", fontWeight: 850, py: 1.25, px: 1.7, textTransform: "none", "&:hover": { borderColor: "#482477", bgcolor: "#fbf8ff" } }}>
-            Pay 10% advance · {fmt(link.totals?.partialAdvance)}
-          </Button>
-          <Button size="large" variant="outlined" disabled={locked} onClick={() => payOnline("Prepaid")} endIcon={<ChevronRightIcon />} sx={{ justifyContent: "space-between", borderRadius: "10px", borderColor: "#bfe5d2", color: "#087f55", fontWeight: 850, py: 1.25, px: 1.7, textTransform: "none", "&:hover": { borderColor: "#087f55", bgcolor: "#f3fcf7" } }}>
-            Pay online &amp; save 5% · {fmt(link.totals?.fullOnlineTotal)}
-          </Button>
-        </>
-      ) : link?.paymentMode === "Partial Paid" ? (
-        <Button size="large" variant="contained" disabled={locked} onClick={() => payOnline("Partial Paid")} endIcon={<ChevronRightIcon />} sx={{ justifyContent: "space-between", borderRadius: "10px", bgcolor: "#087f55", fontWeight: 850, py: 1.25, px: 1.7, textTransform: "none", boxShadow: "0 8px 18px rgba(8,127,85,.16)", "&:hover": { bgcolor: "#056b47" } }}>
-          Pay advance · {fmt(link.totals?.partialAdvance)}
-        </Button>
-      ) : (
-        <Button size="large" variant="contained" disabled={locked} onClick={() => payOnline("Prepaid")} endIcon={<ChevronRightIcon />} sx={{ justifyContent: "space-between", borderRadius: "10px", bgcolor: "#087f55", fontWeight: 850, py: 1.25, px: 1.7, textTransform: "none", boxShadow: "0 8px 18px rgba(8,127,85,.16)", "&:hover": { bgcolor: "#056b47" } }}>
-          Pay now · {fmt(link.totals?.payableTotal)}
-        </Button>
-      )}
-    </Stack>
-  ) : null;
-  const paymentClarityBlock = paymentClarity ? (
-    <Box sx={{ p: 1.25, border: "1px solid #d8efe4", borderRadius: "16px", background: "linear-gradient(135deg,#eaf8f1,#f8fffb)" }}>
-      <Typography sx={{ color: ui.ink, fontSize: 13, fontWeight: 900, lineHeight: 1.25 }}>
-        {paymentClarity.title}
-      </Typography>
-      <Typography sx={{ mt: 0.35, color: ui.muted, fontSize: 12, fontWeight: 700, lineHeight: 1.35 }}>
-        {paymentClarity.body}
-      </Typography>
-    </Box>
-  ) : null;
+  const copyOrderId = async () => {
+    const orderName = String(link?.shopifyOrder?.name || "").trim();
+    if (!orderName) return;
+    try {
+      await navigator.clipboard.writeText(orderName);
+      setOrderIdCopied(true);
+      window.setTimeout(() => setOrderIdCopied(false), 1600);
+    } catch (error) {
+      setPaymentMessage("Could not copy the order ID. Please select it manually.");
+    }
+  };
 
-  const paymentStatusBlock = (paymentMessage || link?.status === "payment_pending") ? (
-    <Box sx={{ mt: 1, p: 1.25, borderRadius: "12px", border: `1px solid ${ui.line}`, bgcolor: ui.soft }}>
-      <Typography sx={{ color: ui.muted, fontSize: 12, fontWeight: 750, lineHeight: 1.4 }}>
-        {paymentMessage}
+
+  const totals = link?.totals || {};
+  const paymentMode = link?.paymentMode;
+  const paymentOptions = [];
+  if (paymentMode === "COD") {
+    paymentOptions.push({ key: "cod", title: "Cash on Delivery", sub: "Pay the full amount at your doorstep", badge: "", amount: totals.codTotal });
+  }
+  if (paymentMode === "COD" || paymentMode === "Partial Paid") {
+    paymentOptions.push({
+      key: "partial",
+      title: paymentMode === "Partial Paid" ? "Partially pay and confirm your order now" : "Pay 10% now",
+      sub: paymentMode === "Partial Paid"
+        ? "Pay the configured advance now and the remaining balance on delivery."
+        : "Confirm your order with a 10% online advance. The remaining amount is payable on delivery.",
+      badge: "Fast delivery",
+      amount: totals.partialAdvance,
+    });
+  }
+  if (paymentMode === "COD" || paymentMode === "Partial Paid" || paymentMode === "Prepaid") {
+    paymentOptions.push({
+      key: "prepay",
+      title: ["COD", "Partial Paid"].includes(paymentMode) ? "Pay now & save 5%" : "Pay full amount now",
+      sub: paymentMode === "COD" ? "Pay online (UPI / Card) and get priority dispatch" : "Pay online (UPI / Card) and get priority dispatch",
+      badges: [
+        "Popular",
+        "Fast delivery",
+      ],
+      amount: ["COD", "Partial Paid"].includes(paymentMode) ? totals.fullOnlineTotal : totals.codTotal,
+    });
+  }
+  const selected = paymentOptions.some((option) => option.key === selectedPayment) ? selectedPayment : paymentOptions[0]?.key;
+  const selectedOption = paymentOptions.find((option) => option.key === selected);
+  const prepayDiscount = ["COD", "Partial Paid"].includes(paymentMode) && selected === "prepay"
+    ? Math.max(0, Number(totals.codTotal || 0) - Number(totals.fullOnlineTotal || 0))
+    : 0;
+  const orderTotal = selected === "prepay" ? Number(selectedOption?.amount || 0) : Number(totals.codTotal || 0);
+  const payNow = selected === "partial" ? Number(totals.partialAdvance || 0) : Number(selectedOption?.amount || 0);
+  const payLater = Math.max(0, Number(totals.codTotal || 0) - Number(totals.partialAdvance || 0));
+  const totalSavings = Number(totals.agentDiscount || 0) + prepayDiscount;
+
+  let actionLabel = "Place Order";
+  if (selected === "cod") actionLabel = codOtpBusy ? (codOtpOpen ? "Verifying OTP..." : "Sending OTP...") : `Place Order (COD - ${fmt(payNow)})`;
+  else if (selected === "partial") actionLabel = busy === "Partial Paid" ? "Starting payment..." : `Pay ${fmt(payNow)} advance & confirm`;
+  else if (selected === "prepay") actionLabel = busy === "Prepaid" ? "Starting payment..." : ["COD", "Partial Paid"].includes(paymentMode) ? `Pay ${fmt(payNow)} & save 5%` : `Pay ${fmt(payNow)} now`;
+
+  const mobileActionLabel = codOtpBusy || busy === "Partial Paid" || busy === "Prepaid"
+    ? actionLabel
+    : selected === "cod" ? "Place Order" : selected === "partial" ? "Pay & Confirm" : "Pay Now";
+
+  const handlePrimaryAction = () => {
+    if (locked) return;
+    if (selected === "cod") confirmCod();
+    else payOnline(selected === "partial" ? "Partial Paid" : "Prepaid");
+  };
+  const primaryDisabled = isPrimaryActionDisabled({ selected, locked, busy, codOtpBusy });
+
+  const saveAddressAndClose = async () => {
+    const saved = await saveAddress();
+    if (saved) setAddressOpen(false);
+  };
+
+  const openAddressEditor = () => {
+    setAddressDraft(copyAddress(address));
+    setAddressOpen(true);
+  };
+
+  const closeAddressEditor = () => {
+    setAddressDraft(copyAddress(address));
+    setAddressOpen(false);
+  };
+
+  const renderActionButton = (label, compact = false) => (
+    <Button
+      fullWidth
+      disabled={primaryDisabled}
+      onClick={handlePrimaryAction}
+      endIcon={compact ? null : <ChevronRightIcon />}
+      sx={{
+        bgcolor: ui.brand,
+        color: "#fff",
+        fontWeight: 700,
+        fontSize: compact ? 15 : 16,
+        py: compact ? 1.05 : 1.5,
+        borderRadius: compact ? "14px" : "12px", letterSpacing: 0, whiteSpace: "nowrap",
+        textTransform: "none",
+        boxShadow: compact ? "none" : "0 6px 14px rgba(131, 97, 159, 0.3)",
+        "&:hover": { bgcolor: ui.brandDeep },
+        "&.Mui-disabled": { bgcolor: "rgba(131, 97, 159, 0.45)", color: "#fff" },
+      }}
+    >
+      {label}
+    </Button>
+  );
+  const actionButton = renderActionButton(actionLabel);
+
+  const serverProcessingMessage = getPaymentProcessingMessage(link?.status);
+  const isServerProcessing = Boolean(serverProcessingMessage);
+  const paymentStatusBlock = (paymentMessage || isServerProcessing) ? (
+    <Box sx={{ mt: 1, p: 1.25, borderRadius: "12px", border: `1px solid ${ui.line}`, bgcolor: ui.paper }}>
+      <Typography sx={{ color: ui.ink, fontSize: 14, fontWeight: 600, lineHeight: 1.4 }}>
+        {paymentMessage || serverProcessingMessage}
       </Typography>
-      {paymentState === "verification_failed" && (
-        <Button size="small" onClick={refreshPaymentStatus} sx={{ mt: 0.5, px: 0, textTransform: "none", fontWeight: 850 }}>
+      {(paymentState === "verification_failed" || isServerProcessing) && (
+        <Button size="small" disabled={!!busy} onClick={refreshPaymentStatus} sx={{ mt: 0.5, px: 0, textTransform: "none", fontWeight: 700, color: ui.brand }}>
           Refresh order status
         </Button>
       )}
@@ -507,18 +638,7 @@ export default function OrderLinkCheckout() {
           disabled={!!busy}
           onClick={cancelPaymentAttempt}
           startIcon={busy === "cancel-payment" ? <CircularProgress color="inherit" size={16} /> : <RestartAltIcon />}
-          sx={{
-            mt: 1,
-            minHeight: 44,
-            borderRadius: "10px",
-            borderColor: ui.brand,
-            color: ui.brandDeep,
-            bgcolor: ui.paper,
-            textTransform: "none",
-            fontWeight: 850,
-            "&:hover": { borderColor: ui.brandDeep, bgcolor: ui.brandSoft },
-            "&.Mui-focusVisible": { outline: `3px solid ${ui.brandSoft}`, outlineOffset: 2 },
-          }}
+          sx={{ mt: 1, minHeight: 44, borderRadius: "12px", borderColor: ui.brand, color: ui.brandDeep, textTransform: "none", fontWeight: 700, "&:hover": { borderColor: ui.brandDeep, bgcolor: ui.brandSoft } }}
         >
           {busy === "cancel-payment" ? "Cancelling payment..." : "Cancel payment and edit order"}
         </Button>
@@ -527,448 +647,407 @@ export default function OrderLinkCheckout() {
   ) : null;
 
   if (loading) {
-    return <Box sx={{ minHeight: "100vh", display: "grid", placeItems: "center", bgcolor: ui.canvas }}><CircularProgress /></Box>;
+    return <Box sx={{ minHeight: "100vh", display: "grid", placeItems: "center", bgcolor: ui.page }}><CircularProgress sx={{ color: ui.brand }} /></Box>;
   }
 
   if (error) {
-    return <Container sx={{ py: 6 }}><Typography variant="h5">{error}</Typography></Container>;
+    return <Box sx={{ minHeight: "100vh", bgcolor: ui.page, color: ui.ink }}><Container sx={{ py: 6 }}><Typography variant="h5">{error}</Typography></Container></Box>;
   }
 
-  return (
-    <Box sx={{ minHeight: "100vh", bgcolor: ui.canvas, color: ui.ink, overflowX: "hidden", pb: { xs: isDone || isExpired ? 3 : 22, lg: 0 } }}>
-      <Box sx={{ borderBottom: `1px solid ${ui.line}`, bgcolor: "rgba(255,255,255,0.94)", backdropFilter: "blur(12px)", position: "sticky", top: 0, zIndex: 20 }}>
-        <Container maxWidth="lg" sx={{ py: { xs: 1, md: 1.35 }, px: { xs: 2, sm: 3 }, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1.5 }}>
-          <Box
-            component="a"
-            href={MUDITAM_HOME}
-            target="_blank"
-            rel="noreferrer"
-            sx={{ display: "grid", alignItems: "center", textDecoration: "none" }}
-          >
-            <Box component="img" src={LOGO} alt="Muditam" sx={{ width: { xs: 104, md: 124 }, height: 34, objectFit: "contain", objectPosition: "left center", display: "block" }} />
-            <Typography
-              component="span"
+  const addressCard = (
+    <Box sx={cardSx}>
+      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 1 }}>
+        <Typography sx={{ fontSize: 14, fontWeight: 700, display: "flex", alignItems: "center", gap: 0.75 }}>
+          <LocationOnIcon sx={{ fontSize: 18.5, color: ui.brand }} /> Delivery Address
+        </Typography>
+        <Button size="small" disabled={locked} onClick={openAddressEditor} sx={{ minWidth: 0, p: 0, fontSize: 14, fontWeight: 700, textTransform: "none", color: ui.brand }}>
+          Change
+        </Button>
+      </Box>
+      <Box sx={{ pl: 1.5, borderLeft: `2px solid ${ui.brand}`, fontSize: 14, lineHeight: 1.6, color: "rgba(45, 38, 51, 0.7)" }}>
+        {link.customer?.name && <Typography sx={{ fontSize: 14, fontWeight: 700, color: ui.ink }}>{link.customer.name}</Typography>}
+        {addressSummary.length ? addressSummary.map((line) => (
+          <Typography key={line} sx={{ fontSize: 14, lineHeight: 1.6 }}>{line}</Typography>
+        )) : <Typography sx={{ fontSize: 14, fontWeight: 600 }}>No address added yet.</Typography>}
+        {link.customer?.phone && <Typography sx={{ mt: 0.5, fontSize: 12.5, color: ui.muted }}>Phone: {link.customer.phone}</Typography>}
+      </Box>
+      <Box sx={{ mt: 1.25, px: 1.25, py: 0.9, borderRadius: "10px", bgcolor: ui.greenSoft, border: `1px solid ${ui.greenLine}`, display: "flex", alignItems: "center", gap: 1 }}>
+        <LocalShippingOutlinedIcon sx={{ fontSize: 18, color: ui.green }} />
+        <Typography sx={{ fontSize: 13, fontWeight: 600, color: ui.greenDeep }}>Estimated delivery in 2-3 days</Typography>
+      </Box>
+    </Box>
+  );
+
+  const billCard = (
+    <Box sx={{ ...cardSx, p: 2 }}>
+      <Typography sx={{ ...sectionLabelSx, mb: 1.5 }}>Bill Summary</Typography>
+      <Stack spacing={1} sx={{ fontSize: 14 }}>
+        <Box sx={{ display: "flex", justifyContent: "space-between", color: "rgba(45, 38, 51, 0.8)" }}>
+          <span>Items Total</span>
+          <Box component="span" sx={{ fontWeight: 600, color: ui.ink }}>{fmt(totals.subtotal)}</Box>
+        </Box>
+        <Box sx={{ display: "flex", justifyContent: "space-between", color: Number(totals.agentDiscount || 0) > 0 ? ui.green : "rgba(45, 38, 51, 0.8)", fontWeight: Number(totals.agentDiscount || 0) > 0 ? 500 : 400 }}>
+          <span>Discount</span>
+          <span>{Number(totals.agentDiscount || 0) > 0 ? `-${fmt(totals.agentDiscount)}` : fmt(0)}</span>
+        </Box>
+        {prepayDiscount > 0 && (
+          <Box sx={{ display: "flex", justifyContent: "space-between", color: ui.green, fontWeight: 500 }}>
+            <span>Prepay 5% Extra Discount</span>
+            <span>-{fmt(prepayDiscount)}</span>
+          </Box>
+        )}
+        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", color: "rgba(45, 38, 51, 0.8)" }}>
+          <span>Delivery Fee</span>
+          {Number(totals.shipping || 0) > 0 ? (
+            <Box component="span" sx={{ fontWeight: 600, color: ui.ink }}>{fmt(totals.shipping)}</Box>
+          ) : (
+            <Box component="span" sx={{ fontWeight: 700, color: ui.green, fontSize: 11.5, textTransform: "uppercase", bgcolor: ui.greenSoft, px: 0.75, py: 0.25, borderRadius: "4px" }}>Free</Box>
+          )}
+        </Box>
+        <Box sx={{ borderTop: "1px dashed rgba(165, 145, 167, 0.4)", mt: 0.5, pt: 1.25, display: "flex", justifyContent: "space-between", fontSize: 16, fontWeight: 700 }}>
+          <Box component="span">
+            {isDone ? "Paid" : selected === "partial" ? "Order Total" : "To Pay"}
+            <Box component="span" sx={{ ml: 0.75, fontSize: 11.5, fontWeight: 500, color: ui.muted }}>(Inclusive of all taxes)</Box>
+          </Box>
+          <Box component="span" sx={{ color: ui.brand }}>{fmt(orderTotal)}</Box>
+        </Box>
+      </Stack>
+    </Box>
+  );
+
+  const paymentCard = paymentOptions.length ? (
+    <Box>
+      <Typography sx={{ ...sectionLabelSx, mb: 1 }}>Select Payment Option</Typography>
+      <Stack spacing={1.25}>
+        {paymentOptions.map((option) => {
+          const active = option.key === selected;
+          return (
+            <Box
+              key={option.key}
+              onClick={() => !locked && setSelectedPayment(option.key)}
               sx={{
-                color: "#7B727F",
-                fontSize: { xs: 7.5, md: 8.5 },
-                fontWeight: 750,
-                letterSpacing: 0.7,
-                lineHeight: 1,
-                textTransform: "uppercase",
-                textAlign: "left",
-                whiteSpace: "nowrap",
+                bgcolor: active ? "#f7efff" : ui.paper,
+                border: active ? `2px solid ${ui.brand}` : `1px solid rgba(165, 145, 167, 0.3)`,
+                m: active ? 0 : "1px",
+                borderRadius: "16px",
+                p: 1.5,
+                cursor: locked ? "default" : "pointer",
+                transition: "all .15s ease",
+                "&:hover": locked ? undefined : { borderColor: ui.brand },
               }}
             >
-              The Plant Science
-            </Typography>
-          </Box>
-          <Chip icon={<LockOutlinedIcon />} label="Secure checkout" sx={{ height: { xs: 30, md: 32 }, borderRadius: "999px", bgcolor: ui.greenSoft, color: ui.green, border: "1px solid #cce9d8", fontWeight: 800, fontSize: { xs: 10, md: 11 }, "& .MuiChip-label": { px: { xs: 0.7, md: 1.1 } }, "& .MuiChip-icon": { fontSize: 16, color: ui.green } }} />
-        </Container>
-      </Box>
-
-      <Container maxWidth="xl" sx={{ py: { xs: 1.5, md: 3 }, px: { xs: 1.5, sm: 3, md: 5 } }}>
-        <Paper elevation={0} sx={{ mb: { xs: 1.25, md: 2 }, minHeight: { xs: 0, md: 132 }, p: { xs: 1.5, md: 2.5 }, borderRadius: { xs: "16px", md: "18px" }, border: "1px solid #dcefe5", background: "linear-gradient(105deg,#f3fbf6 0%,#fbfffd 48%,#eff8f2 100%)", position: "relative", overflow: "hidden", boxShadow: "0 18px 50px rgba(21,128,90,.07)" }}>
-          <Box
-            component="img"
-            src={HERO_LEAVES_LEFT}
-            alt=""
-            aria-hidden="true"
-            sx={{
-              position: "absolute",
-              left: { xs: -88, sm: -54, md: -18 },
-              top: { xs: -28, md: -10 },
-              width: { xs: 120, sm: 150, md: 184 },
-              pointerEvents: "none",
-              userSelect: "none",
-            }}
-          />
-          <Box
-            component="img"
-            src={HERO_LEAVES_RIGHT}
-            alt=""
-            aria-hidden="true"
-            sx={{
-              position: "absolute",
-              right: { xs: -92, sm: -58, md: -45 },
-              top: { xs: -12, md: -4 },
-              bottom: "auto",
-              width: { xs: 142, sm: 164, md: 230 },
-              height: "auto",
-              objectFit: "initial",
-              pointerEvents: "none",
-              userSelect: "none",
-            }}
-          />
-          <Box sx={{ position: "relative", display: "grid", gridTemplateColumns: { xs: "1fr", md: "minmax(0,1fr) auto" }, gap: { xs: 1, md: 3 }, alignItems: "center", pl: { xs: 2.5, sm: 5.5, md: 13.5 }, pr: { xs: 2.5, sm: 5.5, md: 13.5 } }}>
-            <Box sx={{ minWidth: 0 }}>
-              <Typography sx={{ fontSize: { xs: 24, sm: 34, md: 40 }, lineHeight: { xs: 1.12, md: 1.08 }, fontWeight: 950, letterSpacing: -0.8 }}>
-                Your <Box component="span" sx={{ color: "#00794b" }}>personalised</Box> wellness plan is ready
-              </Typography>
-              <Typography sx={{ mt: { xs: 0.75, md: 1 }, color: "#3f4654", fontSize: { xs: 13, md: 18 }, lineHeight: 1.35, fontWeight: 650 }}>
-                Complete your order below and take the next step towards a healthier you.
-              </Typography>
+              <Box sx={{ display: "flex", alignItems: "flex-start", gap: 1 }}>
+                <Radio checked={active} disabled={locked} size="small" sx={{ p: 0, mt: "2px", color: ui.muted, "&.Mui-checked": { color: ui.brand } }} />
+                <Box sx={{ flex: 1, minWidth: 0 }}>
+                  <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1 }}>
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, minWidth: 0, flexWrap: "wrap" }}>
+                      <Typography sx={{ fontSize: 14.5, fontWeight: 700 }}>{option.title}</Typography>
+                      {(option.badges || (option.badge ? [option.badge] : [])).map((badge) => (
+                        <Box key={badge} component="span" sx={{ fontSize: 10.5, fontWeight: 700, px: 0.9, py: 0.2, borderRadius: "999px", whiteSpace: "nowrap", bgcolor: badge === "Fast delivery" ? "#d1fae5" : "#ede9fe", color: badge === "Fast delivery" ? "#065f46" : "#5b21b6" }}>
+                          {badge}
+                        </Box>
+                      ))}
+                    </Box>
+                    <Typography sx={{ fontSize: 15, fontWeight: 800, color: active ? ui.brand : ui.ink, whiteSpace: "nowrap" }}>{fmt(option.amount)}</Typography>
+                  </Box>
+                  <Typography sx={{ mt: 0.25, fontSize: 11.5, color: ui.muted }}>
+                    {option.key === "partial" ? `${fmt(payLater)} payable on delivery · confirms your order instantly` : option.sub}
+                  </Typography>
+                </Box>
+              </Box>
             </Box>
-            <Box sx={{ display: { xs: "none", md: "grid" }, gridTemplateColumns: "repeat(3, 120px)", gap: 1, alignItems: "center" }}>
-              {[
-                [<SpaIcon />, "Plant based", "solutions"],
-                [<VerifiedIcon />, "Trusted by", "thousands"],
-                [<GroupsIcon />, "Expert", "guidance"],
-              ].map(([icon, line1, line2]) => (
-                <Box key={line1} sx={{ textAlign: "center", borderLeft: "1px solid #d8e4dc", px: 2 }}>
-                  <Box sx={{ color: line1 === "Expert" ? ui.brand : ui.green, mb: 0.5 }}>{icon}</Box>
-                  <Typography sx={{ fontSize: 12, lineHeight: 1.15, fontWeight: 850 }}>{line1}<br />{line2}</Typography>
+          );
+        })}
+      </Stack>
+    </Box>
+  ) : null;
+
+  const expertCard = (
+    <Box sx={{ p: { xs: 2, lg: 3 }, color: "#fff", borderRadius: "16px", position: "relative", overflow: "hidden", background: `linear-gradient(135deg, ${ui.brand} 0%, ${ui.brandDeep} 100%)`, boxShadow: "0 8px 20px rgba(92, 62, 117, 0.25)" }}>
+      <Box sx={{ position: "absolute", right: -24, bottom: -24, width: 128, height: 128, borderRadius: "50%", bgcolor: "rgba(255,255,255,0.1)", filter: "blur(16px)", pointerEvents: "none" }} />
+      <Box sx={{ display: "flex", alignItems: "center", gap: { xs: 2, lg: 3 }, position: "relative" }}>
+        <Box sx={{ position: "relative", flexShrink: 0 }}>
+          <Avatar src={expertImage} alt={expertName} sx={{ width: { xs: 100, lg: 120 }, height: { xs: 100, lg: 120 }, border: "3px solid rgba(255,255,255,0.45)", flexShrink: 0 }}>{expertInitials}</Avatar>
+          <Box sx={{ position: "absolute", right: 0, bottom: 0, width: { xs: 22, lg: 28 }, height: { xs: 22, lg: 28 }, bgcolor: ui.paper, border: `2px solid ${ui.brand}`, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <VerifiedIcon sx={{ fontSize: { xs: 16, lg: 21 }, color: ui.green }} />
+          </Box>
+        </Box>
+        <Box sx={{ minWidth: 0 }}>
+          <Typography sx={{ fontWeight: 800, fontSize: { xs: 17, lg: 24 }, lineHeight: 1.2 }}>{expertName}</Typography>
+          <Typography sx={{ fontSize: { xs: 13, lg: 16 }, fontWeight: 500, color: ui.brandSoft, mt: 0.5 }}>{expertRole}</Typography>
+          <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5, mt: 1 }}>
+            {expertBadges.map((badge, index) => {
+              const BadgeIcon = badge.iconType === "education" ? SchoolIcon : badge.iconType === "star" ? StarIcon : VerifiedIcon;
+              return (
+                <Box key={`${badge.label}-${index}`} component="span" sx={{ display: "inline-flex", alignItems: "center", gap: 0.4, fontSize: 10.5, fontWeight: 500, px: 1, py: 0.25, borderRadius: "999px", bgcolor: "rgba(255,255,255,0.2)", border: "1px solid rgba(255,255,255,0.1)" }}>
+                  <BadgeIcon sx={{ fontSize: 12.5 }} />
+                  {badge.label}
+                </Box>
+              );
+            })}
+          </Box>
+        </Box>
+      </Box>
+      <Box sx={{ mt: { xs: 1.75, lg: 2.5 }, p: { xs: 1.5, lg: 2 }, borderRadius: "12px", bgcolor: "rgba(255,255,255,0.15)", border: "1px solid rgba(255,255,255,0.1)", position: "relative" }}>
+        <Typography sx={{ fontSize: 14, fontWeight: 500, lineHeight: 1.6, color: "rgba(255,255,255,0.95)" }}>{expertBio}</Typography>
+      </Box>
+    </Box>
+  );
+
+  const cartItems = link.cartItems || [];
+  const itemsCard = (
+    <Box sx={{ ...cardSx, p: 0, overflow: "hidden" }}>
+      <Box sx={{ px: { xs: 1.75, lg: 2.5 }, py: 1.5, display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: `1px solid ${ui.line}` }}>
+        <Typography sx={{ fontSize: 16, fontWeight: 700 }}>Prescribed Items</Typography>
+        <Box component="span" sx={{ bgcolor: ui.brandSoft, color: ui.brandDeep, fontSize: 12, px: 1.25, py: 0.35, borderRadius: "999px", fontWeight: 700 }}>
+          {cartItems.reduce((sum, item) => sum + Number(item.quantity || 0), 0)} {cartItems.reduce((sum, item) => sum + Number(item.quantity || 0), 0) === 1 ? "item" : "items"}
+        </Box>
+      </Box>
+      {cartItems.map((item, index) => (
+        <Box key={item.variantId} sx={{ px: { xs: 1.75, lg: 2.5 }, py: 1.5, display: "flex", alignItems: "center", gap: { xs: 1.5, lg: 2 }, borderTop: index ? `1px solid ${ui.line}` : 0 }}>
+          <Avatar src={item.image} variant="rounded" sx={{ width: { xs: 60, lg: 76 }, height: { xs: 60, lg: 76 }, borderRadius: "12px", bgcolor: "rgba(238, 222, 255, 0.3)", border: "1px solid rgba(165, 145, 167, 0.12)", flexShrink: 0, "& img": { objectFit: "contain" } }} />
+          <Box sx={{ flex: 1, minWidth: 0 }}>
+            <Typography sx={{ fontSize: { xs: 14.5, lg: 16 }, fontWeight: 700, lineHeight: 1.25, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{item.productTitle}</Typography>
+            <Box sx={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 0.75, mt: 0.5 }}>
+              <Typography sx={{ fontSize: { xs: 14.5, lg: 15.5 }, fontWeight: 700 }}>{fmt(item.unitPrice)}</Typography>
+              {item.variantTitle && item.variantTitle !== "Default Title" && (
+                <Box component="span" sx={{ bgcolor: ui.brandSoft, color: ui.brand, fontSize: 11.5, fontWeight: 700, px: 1, py: 0.15, borderRadius: "999px" }}>
+                  {item.variantTitle}
+                </Box>
+              )}
+            </Box>
+          </Box>
+          <Box sx={{ display: "flex", alignItems: "center", border: "1px solid rgba(165, 145, 167, 0.3)", borderRadius: "10px", bgcolor: "rgba(238, 222, 255, 0.3)", flexShrink: 0 }}>
+            <IconButton size="small" disabled={locked} onClick={() => changeQty(item.variantId, item.quantity - 1)} sx={{ width: 30, height: 30, borderRadius: "10px 0 0 10px", color: ui.ink }}>
+              {item.quantity === 1 ? <DeleteOutlineIcon sx={{ fontSize: 17 }} /> : <RemoveIcon sx={{ fontSize: 17 }} />}
+            </IconButton>
+            <Typography sx={{ width: 22, textAlign: "center", fontSize: 14, fontWeight: 700 }}>{item.quantity}</Typography>
+            <IconButton size="small" disabled={locked} onClick={() => changeQty(item.variantId, item.quantity + 1)} sx={{ width: 30, height: 30, borderRadius: "0 10px 10px 0", color: ui.ink }}>
+              <AddIcon sx={{ fontSize: 17 }} />
+            </IconButton>
+          </Box>
+        </Box>
+      ))}
+      <Box sx={{ px: { xs: 1.75, lg: 2.5 }, py: 1.25, bgcolor: "rgba(236, 253, 245, 0.9)", borderTop: `1px solid ${ui.greenLine}`, display: "flex", alignItems: "center", gap: 1.25 }}>
+        <Box sx={{ width: 24, height: 24, borderRadius: "50%", bgcolor: "#d1fae5", color: ui.green, display: "grid", placeItems: "center", flexShrink: 0 }}>
+          <MedicalServicesOutlinedIcon sx={{ fontSize: 16 }} />
+        </Box>
+        <Typography sx={{ fontSize: 13, lineHeight: 1.4, fontWeight: 500, color: ui.greenDeep }}>
+          Recommended based on your health needs, as discussed with{" "}
+          <Box component="span" sx={{ fontWeight: 700 }}>{expertName}</Box>
+        </Typography>
+      </Box>
+    </Box>
+  );
+
+  const testimonialsCard = (
+    <Box sx={{ ...cardSx, p: 1.75 }}>
+      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 1.25, gap: 1 }}>
+        <Typography sx={{ fontSize: 14, fontWeight: 700, display: "flex", alignItems: "center", gap: 0.75 }}>
+          <FavoriteBorderIcon sx={{ fontSize: 18.5, color: ui.brand }} />
+          What clients say about {expertName}
+        </Typography>
+      </Box>
+      <Box sx={{ display: "flex", gap: 1.5, overflowX: "auto", scrollBehavior: "smooth", scrollbarWidth: "none", "&::-webkit-scrollbar": { display: "none" } }}>
+        {testimonials.map((item) => (
+          <Box key={item.name} sx={{ minWidth: 240, maxWidth: 240, flexShrink: 0, p: 1.5, borderRadius: "12px", bgcolor: "rgba(238, 222, 255, 0.2)", border: `1px solid ${ui.line}` }}>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 0.75 }}>
+              <Avatar src={item.imageUrl || ""} sx={{ width: 28, height: 28, fontSize: 11.5, fontWeight: 700, bgcolor: "rgba(131, 97, 159, 0.2)", color: ui.brand }}>
+                {initialsOf(item.name)}
+              </Avatar>
+              <Box sx={{ minWidth: 0 }}>
+                <Typography noWrap sx={{ fontSize: 12.5, fontWeight: 700, lineHeight: 1 }}>{item.name}</Typography>
+                <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, mt: 0.5 }}>
+                  <Box sx={{ color: "#f6b800", display: "flex" }}>
+                    {Array.from({ length: Math.max(1, Math.min(5, item.rating || 5)) }).map((_, i) => <StarIcon key={i} sx={{ fontSize: 11.5 }} />)}
+                  </Box>
+                  {item.city && <Typography sx={{ fontSize: 10.5, color: ui.muted, fontWeight: 500 }}>{item.city}</Typography>}
+                </Box>
+              </Box>
+            </Box>
+            <Typography sx={{ fontSize: 12.5, fontStyle: "italic", lineHeight: 1.4, color: "rgba(45, 38, 51, 0.8)" }}>"{item.quote}"</Typography>
+            {(item.hba1cFrom || item.hba1cTo) && (
+              <Box component="span" sx={{ mt: 1, display: "inline-flex", px: 0.8, py: 0.25, borderRadius: "6px", bgcolor: ui.greenSoft, color: ui.green, fontSize: 11.5, fontWeight: 700 }}>
+                HbA1c {item.hba1cFrom || "-"} → {item.hba1cTo || "-"}
+              </Box>
+            )}
+          </Box>
+        ))}
+      </Box>
+    </Box>
+  );
+
+  const statusBanners = (
+    <>
+      {isDone && (
+        <Box sx={{ p: { xs: 2, lg: 2.5 }, borderRadius: "18px", border: `1px solid ${ui.greenLine}`, bgcolor: "#f5fdf8", boxShadow: "0 8px 24px rgba(4, 120, 87, 0.08)" }}>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1.25 }}>
+            <CheckCircleIcon sx={{ color: ui.green, fontSize: 30 }} />
+            <Box sx={{ minWidth: 0 }}>
+              <Typography sx={{ fontSize: { xs: 18, lg: 20 }, fontWeight: 800, lineHeight: 1.2, color: ui.greenDeep }}>Order placed successfully</Typography>
+              <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, mt: 0.35 }}>
+                <Typography sx={{ fontSize: 13.5, color: "rgba(6, 78, 59, 0.72)" }}>Order {link.shopifyOrder?.name || "confirmed"}</Typography>
+                {link.shopifyOrder?.name && (
+                  <IconButton size="small" onClick={copyOrderId} aria-label="Copy order ID" title={orderIdCopied ? "Copied" : "Copy order ID"} sx={{ p: 0.35, color: ui.green }}>
+                    <ContentCopyIcon sx={{ fontSize: 15 }} />
+                  </IconButton>
+                )}
+                {orderIdCopied && <Typography sx={{ fontSize: 11.5, fontWeight: 700, color: ui.green }}>Copied</Typography>}
+              </Box>
+            </Box>
+          </Box>
+          <Box sx={{ mt: 1.75, pt: 1.35, borderTop: `1px solid ${ui.greenLine}` }}>
+            <Typography sx={{ fontSize: 11.5, fontWeight: 800, color: "rgba(6, 78, 59, 0.65)", textTransform: "uppercase", letterSpacing: "0.08em" }}>Order summary</Typography>
+            <Stack spacing={0.55} sx={{ mt: 0.8 }}>
+              {(link.cartItems || []).map((item) => (
+                <Box key={item.variantId} sx={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 1.5, fontSize: 13.5, color: ui.greenDeep }}>
+                  <Typography sx={{ minWidth: 0, flex: 1, fontSize: "inherit", color: "inherit", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.productTitle} × {item.quantity}</Typography>
+                  <Typography sx={{ flexShrink: 0, fontSize: "inherit", color: "inherit" }}>{fmt(Number(item.unitPrice || 0) * Number(item.quantity || 0))}</Typography>
                 </Box>
               ))}
+            </Stack>
+            <Box sx={{ display: "flex", justifyContent: "space-between", mt: 1.1, pt: 0.9, borderTop: `1px solid ${ui.greenLine}`, fontWeight: 800, color: ui.greenDeep }}>
+              <span>Items total</span>
+              <span>{fmt(totals.subtotal)}</span>
+            </Box>
+            <Box sx={{ display: "flex", justifyContent: "space-between", mt: 0.55, fontSize: 13.5, color: ui.greenDeep }}>
+              <span>Discount</span>
+              <span>{totalSavings > 0 ? `-${fmt(totalSavings)}` : fmt(0)}</span>
+            </Box>
+            <Box sx={{ display: "flex", justifyContent: "space-between", mt: 0.55, fontSize: 13.5, color: ui.greenDeep }}>
+              <span>Delivery</span>
+              <span>{Number(totals.shipping || 0) > 0 ? fmt(totals.shipping) : "Free"}</span>
+            </Box>
+            <Box sx={{ display: "flex", justifyContent: "space-between", mt: 0.85, pt: 0.85, borderTop: `1px solid ${ui.greenLine}`, fontWeight: 800, color: ui.greenDeep }}>
+              <span>Total</span>
+              <span>{fmt(orderTotal)}</span>
             </Box>
           </Box>
-        </Paper>
+          <Button
+            component="a"
+            href={buildOrderTrackingUrl(link.shopifyOrder?.name)}
+            target="_blank"
+            rel="noreferrer"
+            startIcon={<LocalShippingOutlinedIcon />}
+            fullWidth
+            sx={{ mt: 1.75, minHeight: 44, justifyContent: "center", bgcolor: ui.green, color: "#fff", borderRadius: "10px", fontWeight: 700, textTransform: "none", "&:hover": { bgcolor: ui.greenDeep } }}
+          >
+            Track your order
+          </Button>
+        </Box>
+      )}
+      {isExpired && (
+        <Box sx={{ p: 2, borderRadius: "16px", border: "1px solid #E7B4A6", bgcolor: "#FFF1EC" }}>
+          <Typography sx={{ fontWeight: 700 }}>This link has expired.</Typography>
+        </Box>
+      )}
+    </>
+  );
 
-        {isDone && (
-          <Paper elevation={0} sx={{ p: 2, mb: 2, borderRadius: 2, border: "1px solid #BBD7B3", bgcolor: "#F0F8EC" }}>
-            <Typography sx={{ fontWeight: 900 }}>Order confirmed</Typography>
-            <Typography>Shopify order: {link.shopifyOrder?.name}</Typography>
-          </Paper>
-        )}
+  const showCheckout = !isDone && !isExpired;
 
-        {isExpired && (
-          <Paper elevation={0} sx={{ p: 2, mb: 2, borderRadius: 2, border: "1px solid #E7B4A6", bgcolor: "#FFF1EC" }}>
-            <Typography sx={{ fontWeight: 900 }}>This link has expired.</Typography>
-          </Paper>
-        )}
+  return (
+    <Box sx={{ minHeight: "100vh", bgcolor: ui.page, color: ui.ink, fontFamily: "'Inter', sans-serif" }}>
+      <Box sx={{ width: "100%", bgcolor: ui.page, position: "relative" }}>
+        <Box component="nav" sx={{ position: "sticky", top: 0, zIndex: 30, bgcolor: "rgba(255,255,255,0.92)", backdropFilter: "blur(12px)", borderBottom: `1px solid ${ui.line}`, px: { xs: 3, lg: 6 }, py: 1.25, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <Box component="a" href={MUDITAM_HOME} target="_blank" rel="noreferrer" sx={{ display: "grid", textDecoration: "none" }}>
+            <Box component="img" src={LOGO} alt="Muditam" sx={{ width: 104, height: 30, objectFit: "contain", objectPosition: "left center", display: "block" }} />
+            <Typography component="span" sx={{ color: "rgba(45,38,51,0.6)", fontSize: 9, fontWeight: 600, letterSpacing: 0.7, lineHeight: 1, textTransform: "uppercase", whiteSpace: "nowrap" }}>The Plant Science</Typography>
+          </Box>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, px: 1.25, py: 0.5, borderRadius: "999px", bgcolor: "#ecfdf5", color: "#059669", fontSize: 12.5, fontWeight: 700 }}>
+            <LockOutlinedIcon sx={{ fontSize: 16 }} /> Secure checkout
+          </Box>
+        </Box>
 
-        <Box sx={{ display: "grid", gridTemplateColumns: { xs: "minmax(0, 1fr)", lg: "minmax(0, 1fr) 420px" }, gap: { xs: 1.25, md: 2 }, alignItems: "start", minWidth: 0 }}>
-          <Stack spacing={{ xs: 1.25, md: 2 }} sx={{ minWidth: 0 }}>
-            <Paper elevation={0} sx={{ ...panelSx, p: { xs: 1.15, sm: 1.7, md: 2 }, overflow: "hidden", display: "grid", gridTemplateColumns: { xs: "68px minmax(0,1fr)", md: "140px minmax(0,1fr) auto" }, gap: { xs: 1.15, md: 2 }, alignItems: "center" }}>
-              <Box sx={{ position: "relative" }}>
-                <Avatar src={expertImage} alt={expertName} sx={{ width: { xs: 64, md: 120 }, height: { xs: 64, md: 120 }, border: "1px solid #eadff3", boxShadow: "0 12px 32px rgba(91,53,139,.14)" }}>{expertInitials}</Avatar>
-                <Box sx={{ position: "absolute", right: { xs: 3, md: 8 }, bottom: { xs: 3, md: 8 }, width: { xs: 15, md: 22 }, height: { xs: 15, md: 22 }, borderRadius: "50%", bgcolor: "#00a66a", border: "3px solid #fff" }} />
-              </Box>
-              <Box sx={{ minWidth: 0 }}>
-                <Chip label="Your assigned dietitian" size="small" sx={{ height: 22, borderRadius: "7px", bgcolor: ui.brandSoft, color: ui.brandDeep, fontSize: 10, fontWeight: 900, textTransform: "uppercase", letterSpacing: 0.7 }} />
-                <Typography sx={{ mt: 0.55, fontSize: { xs: 18, md: 25 }, lineHeight: 1.12, fontWeight: 950, letterSpacing: -0.3 }}>{expertName}</Typography>
-                <Typography sx={{ mt: 0.4, color: ui.muted, fontSize: { xs: 13, md: 15 }, fontWeight: 750 }}>{expertRole}</Typography>
-                <Stack direction="row" spacing={0.55} useFlexGap flexWrap="wrap" sx={{ mt: { xs: 0.8, md: 1.2 } }}>
-                  {expertBadges.map((badge, index) => {
-                    const BadgeIcon = badge.iconType === "education" ? SchoolIcon : badge.iconType === "star" ? StarIcon : VerifiedIcon;
-                    const isPrimary = index === 0;
-                    return (
-                      <Chip
-                        key={`${badge.label}-${index}`}
-                        icon={<BadgeIcon />}
-                        label={badge.label}
-                        size="small"
-                          sx={{
-                            height: { xs: 26, md: 32 },
-                            "& .MuiChip-label": { px: { xs: 0.8, md: 1.2 }, fontSize: { xs: 11, md: 13 } },
-                            "& .MuiChip-icon": { fontSize: { xs: 16, md: 20 } },
-                          bgcolor: isPrimary ? ui.greenSoft : ui.soft,
-                          color: isPrimary ? ui.green : ui.brandDeep,
-                          fontWeight: isPrimary ? 850 : 800,
-                          border: isPrimary ? "1px solid #cce9d8" : `1px solid ${ui.line}`,
-                        }}
-                      />
-                    );
-                  })}
-                </Stack>
-                <Typography sx={{ mt: { xs: 0.9, md: 1.25 }, color: "#424857", fontSize: { xs: 11.5, md: 13.5 }, lineHeight: 1.45, fontWeight: 650 }}>
-                  {expertBio}
+        <Box sx={{ width: "100%", maxWidth: { xs: "100%", sm: 560, lg: 1480 }, mx: "auto", display: "grid", gridTemplateColumns: { xs: "minmax(0, 1fr)", lg: "minmax(0, 8fr) minmax(0, 5fr)" }, gap: { xs: 2, lg: 2.5 }, alignItems: "start", p: { xs: 2, lg: 3 }, pb: { xs: showCheckout ? 14 : 3, lg: 4 } }}>
+          <Stack spacing={2} sx={{ minWidth: 0 }}>
+            {statusBanners}
+            {!isDone && (
+              <Box sx={{ p: { xs: 2.25, lg: 3.5 }, borderRadius: "24px", color: "#000000", bgcolor: "color(display-p3 0.957 0.9331 0.9961)", border: "1px solid color(display-p3 0.8784 0.7998 0.9844)", boxShadow: "0 8px 20px rgba(92, 62, 117, 0.12)" }}>
+                <Typography sx={{ fontSize: { xs: 16, sm: 18 }, fontWeight: 700, lineHeight: 1.375, color: "#2d2633" }}>
+                  Hi {link.customer?.name || "there"}, your personalized plan is ready!
                 </Typography>
               </Box>
-              <Chip icon={<GroupsIcon />} label="Assigned to you" sx={{ display: { xs: "none", md: "inline-flex" }, alignSelf: "start", bgcolor: ui.greenSoft, color: ui.green, border: "1px solid #d5ece1", fontWeight: 900 }} />
-            </Paper>
-
-            <Paper elevation={0} sx={{ ...panelSx, p: { xs: 1.2, sm: 1.5, md: 2 }, overflow: "hidden" }}>
-              <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, mb: { xs: 1.1, md: 1.5 } }}>
-                <Box sx={{ display: "flex", alignItems: "center", gap: 0.8 }}>
-                  <ShoppingBagOutlinedIcon sx={{ fontSize: { xs: 18, md: 21 }, color: ui.brand }} />
-                  <Typography sx={{ fontSize: { xs: 16, md: 20 }, fontWeight: 950, letterSpacing: -0.25 }}>Products in your plan</Typography>
-                </Box>
-                <Typography sx={{ color: ui.green, fontSize: 9, fontWeight: 850, textTransform: "uppercase", letterSpacing: 0.7 }}>
-                  Expert recommended
-                </Typography>
-              </Box>
-
-              <Stack spacing={{ xs: 0.85, md: 1 }}>
-                {(link.cartItems || []).map((item) => (
-                  <Box key={item.variantId} sx={{ display: "grid", gridTemplateColumns: { xs: "58px minmax(0, 1fr) auto", sm: "78px minmax(0, 1fr) auto" }, gap: { xs: 1, sm: 1.5 }, alignItems: "center", p: { xs: 0.9, md: 1.1 }, border: `1px solid ${ui.line}`, borderRadius: "14px", bgcolor: ui.paper }}>
-                    <Avatar src={item.image} variant="rounded" sx={{ width: { xs: 58, sm: 78 }, height: { xs: 58, sm: 78 }, bgcolor: ui.soft, borderRadius: "12px", border: `1px solid ${ui.line}` }} />
-                    <Box sx={{ minWidth: 0 }}>
-                      <Typography noWrap sx={{ fontWeight: 900, fontSize: { xs: 14, md: 16 }, lineHeight: 1.2 }}>{item.productTitle}</Typography>
-                      <Typography noWrap sx={{ color: ui.muted, fontSize: { xs: 12, md: 13 }, mt: 0.35 }}>{item.variantTitle} · {fmt(item.unitPrice)}</Typography>
-                    </Box>
-                    <Box sx={{ display: "flex", alignItems: "center", gap: 0.15, border: "1px solid #ded7e4", borderRadius: "12px", p: 0.3, justifySelf: "end", bgcolor: ui.soft }}>
-                      <IconButton size="small" disabled={locked} onClick={() => changeQty(item.variantId, item.quantity - 1)} sx={{ width: { xs: 28, sm: 30 }, height: { xs: 28, sm: 30 }, borderRadius: "7px", color: ui.muted }}>
-                        {item.quantity === 1 ? <DeleteOutlineIcon fontSize="small" /> : <RemoveIcon fontSize="small" />}
-                      </IconButton>
-                      <Typography sx={{ width: { xs: 18, sm: 22 }, textAlign: "center", fontWeight: 850, fontSize: { xs: 13, sm: 14 } }}>{item.quantity}</Typography>
-                      <IconButton size="small" disabled={locked} onClick={() => changeQty(item.variantId, item.quantity + 1)} sx={{ width: { xs: 28, sm: 30 }, height: { xs: 28, sm: 30 }, borderRadius: "7px", color: ui.brand }}>
-                        <AddIcon fontSize="small" />
-                      </IconButton>
-                    </Box>
-                  </Box>
-                ))}
-              </Stack>
-
-              <Box sx={{ mt: 1.2, p: 1.1, borderRadius: "12px", background: "linear-gradient(90deg,#e8f7ef,#f4fbf7)", color: "#006b43", display: "flex", gap: 1, alignItems: "center" }}>
-                <SpaIcon sx={{ fontSize: 18 }} />
-                <Typography sx={{ fontSize: 12.5, fontWeight: 800, lineHeight: 1.35 }}>
-                  This plan is recommended based on your health needs discussed with {expertName}.
-                </Typography>
-              </Box>
-
-              {!locked && (
-                <Box sx={{ mt: { xs: 1, md: 1.2 }, pt: { xs: 1, md: 1.2 }, borderTop: `1px solid ${ui.line}` }}>
-                  <Typography sx={{ mb: 0.8, color: ui.muted, fontSize: 9, fontWeight: 850, textTransform: "uppercase", letterSpacing: 0.8 }}>
-                    Add another product
-                  </Typography>
-                  <TextField
-                    fullWidth
-                    size="small"
-                    placeholder="Search products"
-                    value={productQuery}
-                    onChange={(e) => setProductQuery(e.target.value)}
-                    sx={inputSx}
-                  />
-                  {productQuery.trim() && (
-                    <Box sx={{ mt: 0.9 }}>
-                      {productsLoading ? (
-                        <Box sx={{ p: 1.15, border: `1px solid ${ui.line}`, borderRadius: "10px", bgcolor: ui.soft, display: "flex", alignItems: "center", gap: 1 }}>
-                          <CircularProgress size={16} />
-                          <Typography sx={{ color: ui.muted, fontSize: 12, fontWeight: 750 }}>Searching products...</Typography>
-                        </Box>
-                      ) : productsError ? (
-                        <Typography sx={{ color: "#a34236", fontSize: 12, fontWeight: 750 }}>{productsError}</Typography>
-                      ) : productMatches.length ? (
-                        <Stack spacing={0.75}>
-                          {productMatches.map((product) => (
-                            <Box key={product.variantId} sx={{ display: "grid", gridTemplateColumns: "44px minmax(0, 1fr) auto", alignItems: "center", gap: 1, p: 0.75, border: `1px solid ${ui.line}`, borderRadius: "10px", bgcolor: ui.soft }}>
-                              <Avatar src={product.image} variant="rounded" sx={{ width: 44, height: 44, borderRadius: "8px", bgcolor: ui.paper, border: `1px solid ${ui.line}` }} />
-                              <Box sx={{ minWidth: 0 }}>
-                                <Typography noWrap sx={{ fontSize: 12.5, fontWeight: 850, lineHeight: 1.2 }}>{product.productTitle}</Typography>
-                                <Typography noWrap sx={{ mt: 0.25, color: ui.muted, fontSize: 11, fontWeight: 700 }}>{product.variantTitle} · {fmt(product.unitPrice)}</Typography>
-                              </Box>
-                              <Button
-                                size="small"
-                                disabled={!!busy}
-                                onClick={() => addProductToCart(product)}
-                                sx={{ minWidth: 0, px: 1.25, borderRadius: "8px", color: ui.green, fontWeight: 850, textTransform: "none" }}
-                              >
-                                Add
-                              </Button>
-                            </Box>
-                          ))}
-                        </Stack>
-                      ) : (
-                        <Typography sx={{ color: ui.muted, fontSize: 12, fontWeight: 750 }}>
-                          No matching products found.
-                        </Typography>
-                      )}
-                    </Box>
-                  )}
-                </Box>
-              )}
-            </Paper>
-
-            <Paper elevation={0} sx={{ ...panelSx, p: { xs: 1.2, md: 2 }, display: { xs: "block", lg: "none" } }}>
-              <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1 }}>
-                <Box sx={{ display: "flex", alignItems: "center", gap: 0.8, minWidth: 0 }}>
-                  <LocationOnIcon sx={{ color: ui.brand, fontSize: { xs: 25, md: 28 } }} />
-                  <Typography sx={{ fontSize: { xs: 18, md: 20 }, lineHeight: 1.15, fontWeight: 950 }}>Delivery address</Typography>
-                </Box>
-                <Button
-                  size="small"
-                  startIcon={<EditIcon sx={{ fontSize: "18px !important" }} />}
-                  onClick={() => setAddressOpen((value) => !value)}
-                  sx={{ color: ui.brand, fontWeight: 900, textTransform: "none", whiteSpace: "nowrap", minWidth: "auto", borderRadius: "10px", px: { xs: 1, md: 1.1 }, py: 0.7, bgcolor: ui.brandSoft, "&:hover": { bgcolor: "#eadff3" } }}
-                >
-                  {addressOpen ? "Close" : "Change"}
-                </Button>
-              </Box>
-              {!addressOpen && (
-                <Box sx={{ mt: 1.1, width: "100%", p: { xs: 1.1, md: 1.15 }, borderRadius: "12px", bgcolor: ui.soft, border: `1px solid ${ui.line}` }}>
-                  {addressSummary.length ? addressSummary.map((line, index) => (
-                    <Typography key={line} noWrap sx={{ color: index === 0 ? ui.ink : ui.muted, fontSize: index === 0 ? 13.5 : 12.5, fontWeight: index === 0 ? 900 : 750, mt: index ? 0.25 : 0 }}>{line}</Typography>
-                  )) : <Typography sx={{ color: ui.muted, fontSize: 12.5, fontWeight: 800 }}>No address added yet.</Typography>}
-                </Box>
-              )}
-              {addressOpen && (
-                <Box sx={{ mt: 1.4 }}>
-                  <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" }, gap: 1 }}>
-                    {[["address1", "Address line 1"], ["address2", "Address line 2"], ["city", "City"], ["province", "State"], ["zip", "Pincode"], ["country", "Country"]].map(([key, label]) => (
-                      <TextField key={key} size="small" label={label} value={address?.[key] || ""} disabled={locked} onChange={(e) => setAddress((p) => ({ ...p, [key]: e.target.value }))} sx={inputSx} />
-                    ))}
-                  </Box>
-                  <Button sx={{ mt: 1.2, borderRadius: "10px", color: ui.green, borderColor: "#b8d9c7", fontWeight: 900, textTransform: "none" }} variant="outlined" disabled={locked || busy === "address"} onClick={saveAddress}>Save address</Button>
-                </Box>
-              )}
-            </Paper>
-
-            <Paper elevation={0} sx={{ ...panelSx, p: { xs: 1.1, md: 2 } }}>
-              <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, mb: 1.3 }}>
-                <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                  <Box sx={iconBubbleSx}><GroupsIcon fontSize="small" /></Box>
-                  <Typography sx={{ fontSize: { xs: 16, md: 20 }, lineHeight: 1.2, fontWeight: 950 }}>What clients say about {expertName}</Typography>
-                </Box>
-                <Typography sx={{ display: { xs: "none", md: "block" }, color: ui.muted, fontSize: 12, fontWeight: 750 }}>Real customers · Real results</Typography>
-              </Box>
-              <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "repeat(3,1fr)" }, gap: 1 }}>
-                {testimonials.map((item) => (
-                  <Box key={item.name} sx={{ p: { xs: 1, md: 1.2 }, border: `1px solid ${ui.line}`, borderRadius: "14px", bgcolor: ui.paper }}>
-                    <Box sx={{ display: "flex", gap: 1, alignItems: "center" }}>
-                      <Avatar src={item.imageUrl || ""} sx={{ width: 42, height: 42, bgcolor: "#f2f4f7", color: ui.muted }}>
-                        {!item.imageUrl && <PersonOutlineIcon fontSize="small" />}
-                      </Avatar>
-                      <Box>
-                        <Box sx={{ color: "#f6b800", display: "flex" }}>{Array.from({ length: Math.max(1, Math.min(5, item.rating || 5)) }).map((_, i) => <StarIcon key={i} sx={{ fontSize: 14 }} />)}</Box>
-                        <Typography sx={{ color: ui.muted, fontSize: 12, fontWeight: 700, lineHeight: 1.35 }}>"{item.quote}"</Typography>
-                      </Box>
-                    </Box>
-                    {(item.hba1cFrom || item.hba1cTo) && <Typography sx={{ mt: 1, display: "inline-flex", px: 0.8, py: 0.35, borderRadius: "6px", bgcolor: ui.greenSoft, color: ui.green, fontSize: 11, fontWeight: 900 }}>HbA1c {item.hba1cFrom || "-"} → {item.hba1cTo || "-"}</Typography>}
-                    <Typography sx={{ mt: 1, fontSize: 12, fontWeight: 900 }}>{item.name}</Typography>
-                    <Typography sx={{ color: ui.muted, fontSize: 11, fontWeight: 700 }}>{item.city}</Typography>
-                  </Box>
-                ))}
-              </Box>
-            </Paper>
+            )}
+            {expertCard}
+            {testimonialsCard}
+            {itemsCard}
+            <Box sx={{ display: { xs: "block", lg: "none" } }}>{addressCard}</Box>
           </Stack>
 
-          <Stack spacing={1.25} sx={{ display: { xs: "none", lg: "flex" }, position: { lg: "sticky" }, top: 88 }}>
-            <Paper elevation={0} sx={{ ...panelSx, p: 1.8 }}>
-              <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 1 }}>
-                <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                  <LocationOnIcon sx={{ color: ui.brand }} />
-                  <Typography sx={{ fontSize: 20, fontWeight: 950 }}>Delivery address</Typography>
-                </Box>
-                <Button size="small" startIcon={<EditIcon />} onClick={() => setAddressOpen((value) => !value)} sx={{ bgcolor: ui.brandSoft, color: ui.brand, fontWeight: 900, borderRadius: "10px", textTransform: "none" }}>
-                  Change
-                </Button>
+          <Stack spacing={2} sx={{ minWidth: 0, position: { lg: "sticky" }, top: { lg: 76 } }}>
+            <Box sx={{ display: { xs: "none", lg: "block" } }}>{addressCard}</Box>
+            {!isDone && billCard}
+            {showCheckout && paymentCard}
+            {showCheckout && (
+              <Box sx={{ display: { xs: "none", lg: "block" } }}>
+                {actionButton}
+                {paymentStatusBlock}
               </Box>
-              {!addressOpen && (
-                <Box sx={{ p: 1.4, borderRadius: "14px", bgcolor: ui.soft, border: `1px solid ${ui.line}` }}>
-                  {addressSummary.length ? addressSummary.map((line, index) => (
-                    <Typography key={line} noWrap sx={{ color: index === 0 ? ui.ink : ui.muted, fontSize: index === 0 ? 14 : 13, fontWeight: index === 0 ? 900 : 750, mt: index ? 0.25 : 0 }}>{line}</Typography>
-                  )) : <Typography sx={{ color: ui.muted, fontSize: 13, fontWeight: 800 }}>No address added yet.</Typography>}
-                </Box>
-              )}
-              {addressOpen && (
-                <Box sx={{ mt: 1.3 }}>
-                  <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 1 }}>
-                    {[["address1", "Address line 1"], ["address2", "Address line 2"], ["city", "City"], ["province", "State"], ["zip", "Pincode"], ["country", "Country"]].map(([key, label]) => (
-                      <TextField key={key} size="small" label={label} value={address?.[key] || ""} disabled={locked} onChange={(e) => setAddress((p) => ({ ...p, [key]: e.target.value }))} sx={inputSx} />
-                    ))}
-                  </Box>
-                  <Button sx={{ mt: 1.2, borderRadius: "10px", color: ui.green, borderColor: "#b8d9c7", fontWeight: 900, textTransform: "none" }} variant="outlined" disabled={locked || busy === "address"} onClick={saveAddress}>Save address</Button>
-                </Box>
-              )}
-            </Paper>
-
-            <Paper elevation={0} sx={{ ...panelSx, p: 1.8 }}>
-              <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1.5 }}>
-                <Box sx={iconBubbleSx}><DescriptionOutlinedIcon fontSize="small" /></Box>
-                <Typography sx={{ fontSize: 20, fontWeight: 950 }}>Order summary</Typography>
-              </Box>
-              <Stack spacing={1}>
-                <Box sx={{ display: "flex", justifyContent: "space-between", color: ui.muted }}><Typography sx={{ fontSize: 13 }}>Subtotal</Typography><Typography sx={{ fontSize: 13, fontWeight: 850 }}>{fmt(link.totals?.subtotal)}</Typography></Box>
-                <Box sx={{ display: "flex", justifyContent: "space-between", color: ui.muted }}><Typography sx={{ fontSize: 13 }}>Agent discount</Typography><Typography sx={{ fontSize: 13, fontWeight: 850 }}>-{fmt(link.totals?.agentDiscount)}</Typography></Box>
-                <Box sx={{ display: "flex", justifyContent: "space-between", color: ui.muted }}><Typography sx={{ fontSize: 13 }}>Shipping</Typography><Typography sx={{ fontSize: 13, fontWeight: 850 }}>{fmt(link.totals?.shipping)}</Typography></Box>
-                <Divider />
-                <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-                  <Typography sx={{ fontWeight: 950, fontSize: 16 }}>Total</Typography>
-                  <Typography sx={{ fontSize: 30, fontWeight: 950, letterSpacing: -1 }}>{fmt(link.totals?.codTotal)}</Typography>
-                </Box>
-              </Stack>
-              {!isDone && !isExpired && (
-                <Stack spacing={1.2} sx={{ mt: 1.8 }}>
-                  <Box sx={{ display: "grid", gridTemplateColumns: "auto minmax(0,1fr)", gap: 1, alignItems: "start" }}>
-                    <Box sx={{ ...iconBubbleSx, bgcolor: ui.greenSoft, color: ui.green }}><CreditCardIcon fontSize="small" /></Box>
-                    {paymentClarityBlock}
-                  </Box>
-                  {paymentActions}
-                  {paymentStatusBlock}
-                  <Box sx={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 1, pt: 1 }}>
-                    {[[<ShieldOutlinedIcon />, "Secure payments"], [<LockOutlinedIcon />, "Private info"], [<LocalShippingOutlinedIcon />, "Reliable delivery"]].map(([icon, label]) => (
-                      <Box key={label} sx={{ textAlign: "center", color: ui.muted, borderLeft: label !== "Secure payments" ? `1px solid ${ui.line}` : 0 }}>
-                        <Box sx={{ color: ui.brand }}>{icon}</Box>
-                        <Typography sx={{ fontSize: 10.5, fontWeight: 750, lineHeight: 1.2 }}>{label}</Typography>
-                      </Box>
-                    ))}
-                  </Box>
-                </Stack>
-              )}
-            </Paper>
+            )}
           </Stack>
         </Box>
-      </Container>
 
-      <Dialog open={codOtpOpen} onClose={() => !codOtpBusy && setCodOtpOpen(false)} maxWidth="xs" fullWidth>
-        <DialogTitle sx={{ fontWeight: 900 }}>Verify COD confirmation</DialogTitle>
+        {showCheckout && (
+          <Box sx={{ position: "fixed", left: 0, right: 0, bottom: 0, zIndex: 30, display: { xs: "flex", lg: "none" }, justifyContent: "center" }}>
+            <Box sx={{ width: "100%", maxWidth: { xs: "100%", sm: 560 }, bgcolor: "rgba(255,255,255,0.96)", backdropFilter: "blur(14px)", borderRadius: "20px 20px 0 0", boxShadow: "0 -4px 24px rgba(45, 38, 51, 0.12)", px: 2.25, pt: 1.25, pb: "calc(10px + env(safe-area-inset-bottom))" }}>
+              <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 2 }}>
+                <Box sx={{ flexShrink: 0 }}>
+                  <Typography sx={{ fontSize: 11, fontWeight: 500, color: ui.muted, lineHeight: 1.2 }}>{selected === "partial" ? "Pay now" : "Total"}</Typography>
+                  <Typography sx={{ fontSize: 22, fontWeight: 700, lineHeight: 1.25, letterSpacing: "-0.01em" }}>{fmt(payNow)}</Typography>
+                  {totalSavings > 0 && (
+                    <Typography sx={{ fontSize: 11, fontWeight: 600, color: ui.green, lineHeight: 1.2 }}>Saving {fmt(totalSavings)}</Typography>
+                  )}
+                </Box>
+                <Box sx={{ flex: "0 0 46%", minWidth: 0 }}>{renderActionButton(mobileActionLabel, true)}</Box>
+              </Box>
+              {paymentStatusBlock}
+            </Box>
+          </Box>
+        )}
+      </Box>
+
+      <Dialog
+        open={addressOpen}
+        onClose={closeAddressEditor}
+        fullWidth
+        maxWidth="xs"
+        sx={{ "& .MuiDialog-container": { alignItems: { xs: "flex-end", sm: "center" } }, "& .MuiDialog-paper": { m: { xs: 0, sm: 2 }, width: "100%", borderRadius: { xs: "24px 24px 0 0", sm: "16px" } } }}
+      >
+        <DialogTitle sx={{ fontSize: 16, fontWeight: 700, display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: `1px solid ${ui.line}`, mb: 1.5 }}>
+          Update Delivery Address
+          <IconButton size="small" onClick={closeAddressEditor} aria-label="Close"><CloseIcon fontSize="small" /></IconButton>
+        </DialogTitle>
         <DialogContent>
-          <Typography color="text.secondary" sx={{ mb: 1.5 }}>
-            We sent a one-time password to the mobile number on this order. Enter it to confirm Cash on Delivery.
-          </Typography>
-          <TextField autoFocus fullWidth label="Enter OTP" value={codOtp} onChange={(event) => setCodOtp(event.target.value.replace(/\D/g, "").slice(0, 8))} inputProps={{ inputMode: "numeric", maxLength: 8 }} />
+          <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" }, gap: 1.5, pt: 0.5 }}>
+            {[["address1", "Address line 1"], ["address2", "Address line 2"], ["city", "City"], ["province", "State"], ["zip", "Pincode"], ["country", "Country"]].map(([key, label]) => (
+              <TextField key={key} size="small" label={label} value={addressDraft?.[key] || ""} disabled={locked} onChange={(e) => setAddressDraft((p) => ({ ...p, [key]: e.target.value }))} sx={inputSx} />
+            ))}
+          </Box>
         </DialogContent>
-        <DialogActions sx={{ p: 2 }}>
-          <Button onClick={() => setCodOtpOpen(false)} disabled={codOtpBusy} sx={{ textTransform: "none" }}>Cancel</Button>
-          <Button variant="contained" onClick={verifyCodOtp} disabled={codOtpBusy || codOtp.length < 4} sx={{ textTransform: "none" }}>
-            {codOtpBusy ? "Verifying..." : "Verify and confirm"}
+        <DialogActions sx={{ p: 2, gap: 1 }}>
+          <Button fullWidth onClick={closeAddressEditor} sx={{ bgcolor: "rgba(238, 222, 255, 0.5)", color: ui.ink, borderRadius: "12px", fontWeight: 700, textTransform: "none", py: 1.1 }}>Cancel</Button>
+          <Button fullWidth disabled={locked || busy === "address"} onClick={saveAddressAndClose} sx={{ bgcolor: ui.brand, color: "#fff", borderRadius: "12px", fontWeight: 700, textTransform: "none", py: 1.1, "&:hover": { bgcolor: ui.brandDeep }, "&.Mui-disabled": { bgcolor: "rgba(131, 97, 159, 0.45)", color: "#fff" } }}>
+            {busy === "address" ? "Saving..." : "Save Address"}
           </Button>
         </DialogActions>
       </Dialog>
 
-      {!isDone && !isExpired && (
-        <Box sx={{ display: { xs: "block", lg: "none" }, position: "fixed", left: 0, right: 0, bottom: 0, zIndex: 30, px: 1.25, pt: 1, pb: "calc(10px + env(safe-area-inset-bottom))", bgcolor: "rgba(246,245,243,0.9)", borderTop: `1px solid ${ui.line}`, backdropFilter: "blur(14px)" }}>
-          <Paper elevation={0} sx={{ borderRadius: "14px", p: 1.15, border: `1px solid ${ui.line}`, bgcolor: ui.paper, boxShadow: "0 -10px 30px rgba(28,20,34,.08)" }}>
-            <Box
-              component="button"
-              type="button"
-              onClick={() => setMobileBillingOpen((value) => !value)}
-              sx={{
-                width: "100%",
-                border: 0,
-                p: 0,
-                m: 0,
-                bgcolor: "transparent",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                mb: mobileBillingOpen ? 1.2 : 1,
-                gap: 1,
-                cursor: "pointer",
-                color: "inherit",
-                font: "inherit",
-                textAlign: "left",
-              }}
-            >
-              <Box sx={{ display: "flex", alignItems: "center", gap: 0.25 }}>
-                <Typography sx={{ color: ui.muted, fontSize: 12, fontWeight: 800 }}>Total</Typography>
-                <KeyboardArrowDownIcon sx={{ fontSize: 19, color: ui.muted, transform: mobileBillingOpen ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 160ms ease" }} />
-              </Box>
-              <Typography sx={{ fontSize: 22, fontWeight: 900, letterSpacing: -0.45 }}>{fmt(link.totals?.codTotal)}</Typography>
-            </Box>
-            {mobileBillingOpen && (
-              <Stack spacing={0.65} sx={{ mb: 1.2, pt: 0.2 }}>
-                <Box sx={{ display: "flex", justifyContent: "space-between", color: ui.muted }}>
-                  <Typography sx={{ fontSize: 13, fontWeight: 700 }}>Subtotal</Typography>
-                  <Typography sx={{ fontSize: 13, fontWeight: 800 }}>{fmt(link.totals?.subtotal)}</Typography>
-                </Box>
-                <Box sx={{ display: "flex", justifyContent: "space-between", color: ui.muted }}>
-                  <Typography sx={{ fontSize: 13, fontWeight: 700 }}>Agent discount</Typography>
-                  <Typography sx={{ fontSize: 13, fontWeight: 800 }}>-{fmt(link.totals?.agentDiscount)}</Typography>
-                </Box>
-                <Box sx={{ display: "flex", justifyContent: "space-between", color: ui.muted }}>
-                  <Typography sx={{ fontSize: 13, fontWeight: 700 }}>Shipping</Typography>
-                  <Typography sx={{ fontSize: 13, fontWeight: 800 }}>{fmt(link.totals?.shipping)}</Typography>
-                </Box>
-                <Divider />
-              </Stack>
-            )}
-            <Box sx={{ mb: 1 }}>{paymentClarityBlock}</Box>
-            {paymentActions}
-            {paymentStatusBlock}
-          </Paper>
-        </Box>
-      )}
+      <Dialog open={codOtpOpen} onClose={() => !codOtpBusy && setCodOtpOpen(false)} maxWidth="xs" fullWidth>
+        <DialogTitle sx={{ fontWeight: 700, fontSize: 18.5 }}>Verify COD confirmation</DialogTitle>
+        <DialogContent>
+          <Typography color="text.secondary" sx={{ mb: 1.5, fontSize: 15 }}>
+            We sent a one-time password to the mobile number on this order. Enter it to confirm Cash on Delivery.
+          </Typography>
+          <TextField autoFocus fullWidth label="Enter OTP" value={codOtp} onChange={(event) => setCodOtp(event.target.value.replace(/\D/g, "").slice(0, 8))} inputProps={{ inputMode: "numeric", maxLength: 8 }} sx={inputSx} />
+        </DialogContent>
+        <DialogActions sx={{ p: 2 }}>
+          <Button onClick={() => setCodOtpOpen(false)} disabled={codOtpBusy} sx={{ textTransform: "none", color: ui.ink }}>Cancel</Button>
+          <Button variant="contained" onClick={verifyCodOtp} disabled={codOtpBusy || codOtp.length < 4} sx={{ textTransform: "none", bgcolor: ui.brand, "&:hover": { bgcolor: ui.brandDeep } }}>
+            {codOtpBusy ? "Verifying..." : "Verify and confirm"}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }

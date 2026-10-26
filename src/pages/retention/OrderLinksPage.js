@@ -65,6 +65,7 @@ export default function OrderLinksPage() {
   const [status, setStatus] = useState("all");
   const [paymentMode, setPaymentMode] = useState("all");
   const [selected, setSelected] = useState(null);
+  const [reportingSyncId, setReportingSyncId] = useState("");
 
   const loadLinks = useCallback(async () => {
     setLoading(true);
@@ -105,6 +106,19 @@ export default function OrderLinksPage() {
   const regenerate = async (link) => {
     await api.post(`/api/order-links/${link.id}/regenerate`);
     await loadLinks();
+  };
+
+  const retryReportingSync = async (link) => {
+    setReportingSyncId(link.id);
+    try {
+      const { data } = await api.post(`/api/order-links/${link.id}/reporting-sync`);
+      setSelected(data.orderLink);
+      await loadLinks();
+    } catch (err) {
+      setError(err?.response?.data?.message || "Could not retry reporting sync.");
+    } finally {
+      setReportingSyncId("");
+    }
   };
 
   return (
@@ -167,7 +181,7 @@ export default function OrderLinksPage() {
                       <TableCell sx={{ whiteSpace: "nowrap" }}>{dateTime(link.expiresAt)}</TableCell>
                         <TableCell sx={{ whiteSpace: "nowrap" }}>{link.finalPaymentMode || link.paymentMode || "-"}</TableCell>
                         <TableCell sx={{ whiteSpace: "nowrap", fontWeight: 700 }}>{money(link.finalTotal ?? link.totals?.payableTotal ?? link.totals?.codTotal)}</TableCell>
-                      <TableCell><Stack direction="row" spacing={0.5} alignItems="center"><StatusChip status={link.status} />{purchased && <CheckCircleOutlineIcon color="success" fontSize="small" />}</Stack></TableCell>
+                        <TableCell><Stack direction="row" spacing={0.5} alignItems="center" flexWrap="wrap"><StatusChip status={link.status} />{purchased && <CheckCircleOutlineIcon color="success" fontSize="small" />}{link.reportingSyncStatus === "failed" && <Chip size="small" label="Reporting sync failed" color="error" />}</Stack></TableCell>
                       <TableCell><Stack direction="row" spacing={0.25} alignItems="center"><Button size="small" startIcon={<VisibilityIcon />} onClick={() => setSelected(link)} sx={{ textTransform: "none" }}>Details</Button><IconButton size="small" title="Copy link" onClick={() => copyLink(link)}><ContentCopyIcon fontSize="small" /></IconButton><IconButton size="small" title="Open link" component="a" href={getPublicOrderLinkUrl(link)} target="_blank" rel="noreferrer"><LaunchIcon fontSize="small" /></IconButton>{link.status === "expired" && <IconButton size="small" title="Regenerate" onClick={() => regenerate(link)}><RestartAltIcon fontSize="small" /></IconButton>}</Stack></TableCell>
                     </TableRow>;
                   })}
@@ -185,6 +199,7 @@ export default function OrderLinksPage() {
             <Stack spacing={1.5}>
               <Box><Typography variant="h6" sx={{ fontWeight: 800 }}>{selected.customer?.name}</Typography><Typography color="text.secondary">{selected.customer?.phone}</Typography></Box>
               <Stack direction="row" spacing={1} flexWrap="wrap"><StatusChip status={selected.status} /><Chip size="small" label={selected.finalPaymentMode || selected.paymentMode} variant="outlined" />{selected.shopifyOrder?.name && <Chip size="small" label={`Shopify ${selected.shopifyOrder.name}`} color="success" variant="outlined" />}</Stack>
+              {selected.reportingSyncStatus === "failed" && <Alert severity="error" action={<Button color="inherit" size="small" disabled={reportingSyncId === selected.id} onClick={() => retryReportingSync(selected)}>{reportingSyncId === selected.id ? "Retrying..." : "Retry sync"}</Button>}>{selected.reportingSyncError || selected.lastError || "Reporting sync failed."}</Alert>}
               <Divider />
               <Typography><b>Total:</b> {money(selected.finalTotal ?? selected.totals?.codTotal)}</Typography>
               <Typography><b>Paid:</b> {money(selected.amountPaid)}</Typography>
