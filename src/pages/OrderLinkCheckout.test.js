@@ -1,6 +1,7 @@
 import axios from "axios";
 import {
   classifyPaymentInitiationResponse,
+  fmt,
   isPaymentActionLocked,
   markPaymentAttemptPending,
   verifyPaymentWithTimeout,
@@ -30,6 +31,11 @@ describe("order-link Razorpay verification recovery", () => {
 
   test("rejects malformed initiation responses", () => {
     expect(classifyPaymentInitiationResponse({ orderId: undefined, amount: undefined })).toEqual({ kind: "invalid" });
+  });
+
+  test("preserves paise in checkout amounts and savings", () => {
+    expect(fmt(441.75)).toBe("₹441.75");
+    expect(fmt(23.25)).toBe("₹23.25");
   });
 
   test("marks the local link payment-pending when checkout is dismissed", () => {

@@ -38,7 +38,7 @@ const LOGO = "/muditam-logo.avif";
 const DEMO_EXPERT_IMAGE = "/demo-expert.svg";
 const MUDITAM_HOME = "https://www.muditam.com";
 
-const fmt = (n) => `₹${Number(n || 0).toFixed(0)}`;
+export const fmt = (n) => `₹${Number(n || 0).toFixed(2)}`;
 
 const ui = {
   canvas: "#2d2633",
