@@ -100,6 +100,18 @@ export function markPaymentAttemptPending(link) {
   return link ? { ...link, status: "payment_pending" } : link;
 }
 
+export function classifyPaymentInitiationResponse(data) {
+  const orderLink = data?.orderLink;
+  if (orderLink?.status === "order_created") return { kind: "completed", orderLink };
+  if (orderLink && ["payment_creating", "payment_pending", "creating_order"].includes(orderLink.status)) {
+    return { kind: "processing", orderLink };
+  }
+  if (data?.keyId && data?.orderId && Number.isFinite(Number(data.amount)) && Number(data.amount) > 0) {
+    return { kind: "checkout", data };
+  }
+  return { kind: "invalid" };
+}
+
 export function isPaymentActionLocked({ isDone, isExpired, linkStatus, busy, paymentState }) {
   return Boolean(
     isDone ||
@@ -352,18 +364,36 @@ export default function OrderLinkCheckout() {
     setBusy(selectedMode);
     try {
       const { data } = await axios.post(`${API_BASE}/api/order-links/public/${token}/payments/razorpay-order`, { selectedMode });
+      const initiation = classifyPaymentInitiationResponse(data);
+      if (initiation.kind === "completed") {
+        setLink(initiation.orderLink);
+        setPaymentState("complete");
+        setPaymentMessage("");
+        return;
+      }
+      if (initiation.kind === "processing") {
+        setLink(initiation.orderLink);
+        setPaymentState("verification_failed");
+        setPaymentMessage("Your payment or order is already being processed. Refresh the order status before trying again.");
+        return;
+      }
+      if (initiation.kind === "invalid") {
+        setPaymentState("verification_failed");
+        setPaymentMessage("Payment status could not be confirmed. Refresh the order status or contact support before trying again.");
+        return;
+      }
       if (!window.Razorpay) {
         setPaymentState("verification_failed");
         setPaymentMessage("Payment could not be started. Please refresh this page and try again.");
         return;
       }
       const checkout = new window.Razorpay({
-        key: data.keyId,
-        amount: data.amount,
+        key: initiation.data.keyId,
+        amount: initiation.data.amount,
         currency: data.currency,
         name: "Muditam",
         description: selectedMode === "Partial Paid" ? "Advance payment" : "Order payment",
-        order_id: data.orderId,
+        order_id: initiation.data.orderId,
         handler: async (response) => {
           paymentVerificationRef.current = true;
           setPaymentState("verifying");

@@ -1,5 +1,10 @@
 import axios from "axios";
-import { isPaymentActionLocked, markPaymentAttemptPending, verifyPaymentWithTimeout } from "./OrderLinkCheckout";
+import {
+  classifyPaymentInitiationResponse,
+  isPaymentActionLocked,
+  markPaymentAttemptPending,
+  verifyPaymentWithTimeout,
+} from "./OrderLinkCheckout";
 
 jest.mock("axios", () => ({
   post: jest.fn(),
@@ -9,6 +14,22 @@ describe("order-link Razorpay verification recovery", () => {
   afterEach(() => {
     jest.useRealTimers();
     jest.clearAllMocks();
+  });
+
+  test.each([
+    ["completed", { orderLink: { status: "order_created", shopifyOrder: { name: "#TEST" } } }],
+    ["processing", { orderLink: { status: "creating_order" } }],
+  ])("classifies %s initiation responses without opening Razorpay", (kind, data) => {
+    expect(classifyPaymentInitiationResponse(data)).toMatchObject({ kind, orderLink: data.orderLink });
+  });
+
+  test("accepts valid new checkout credentials", () => {
+    const data = { keyId: "rzp_test", orderId: "order_1", amount: 46500, currency: "INR" };
+    expect(classifyPaymentInitiationResponse(data)).toEqual({ kind: "checkout", data });
+  });
+
+  test("rejects malformed initiation responses", () => {
+    expect(classifyPaymentInitiationResponse({ orderId: undefined, amount: undefined })).toEqual({ kind: "invalid" });
   });
 
   test("marks the local link payment-pending when checkout is dismissed", () => {
