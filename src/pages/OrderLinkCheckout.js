@@ -104,6 +104,16 @@ export function copyAddress(address = {}) {
   return { ...address };
 }
 
+export function mergeOrderLink(current, next) {
+  if (!next) return current;
+  return {
+    ...current,
+    ...next,
+    expert: next.expert || current?.expert,
+    expertProfile: next.expertProfile || current?.expertProfile,
+  };
+}
+
 export function classifyPaymentInitiationResponse(data) {
   const orderLink = data?.orderLink;
   if (orderLink?.status === "order_created") return { kind: "completed", orderLink };
@@ -180,7 +190,7 @@ export default function OrderLinkCheckout() {
     setLoading(true);
     try {
       const { data } = await axios.get(`${API_BASE}/api/order-links/public/${token}`);
-      setLink(data.orderLink);
+      setLink((current) => mergeOrderLink(current, data.orderLink));
       const savedAddress = data.orderLink.shippingAddress || {};
       setAddress(savedAddress);
       setAddressDraft(copyAddress(savedAddress));
@@ -295,7 +305,7 @@ export default function OrderLinkCheckout() {
     setBusy("cart");
     try {
       const { data } = await axios.patch(`${API_BASE}/api/order-links/public/${token}/cart`, { items });
-      setLink(data.orderLink);
+      setLink((current) => mergeOrderLink(current, data.orderLink));
     } catch (err) {
       alert(err?.response?.data?.message || "Could not update cart.");
     } finally {
@@ -323,7 +333,7 @@ export default function OrderLinkCheckout() {
     setBusy("address");
     try {
       const { data } = await axios.patch(`${API_BASE}/api/order-links/public/${token}/address`, { shippingAddress: addressDraft });
-      setLink(data.orderLink);
+      setLink((current) => mergeOrderLink(current, data.orderLink));
       const savedAddress = data.orderLink.shippingAddress || {};
       setAddress(savedAddress);
       setAddressDraft(copyAddress(savedAddress));
@@ -353,7 +363,7 @@ export default function OrderLinkCheckout() {
     setBusy("cod");
     try {
       const { data } = await axios.post(`${API_BASE}/api/order-links/public/${token}/confirm-cod`);
-      setLink(data.orderLink);
+      setLink((current) => mergeOrderLink(current, data.orderLink));
     } catch (err) {
       alert(err?.response?.data?.message || "Could not confirm COD.");
     } finally {
@@ -370,7 +380,7 @@ export default function OrderLinkCheckout() {
       setCodOtpOpen(false);
       setBusy("cod");
       const { data } = await axios.post(`${API_BASE}/api/order-links/public/${token}/confirm-cod`);
-      setLink(data.orderLink);
+      setLink((current) => mergeOrderLink(current, data.orderLink));
     } catch (err) {
       alert(err?.response?.data?.message || "Invalid OTP.");
     } finally {
@@ -387,13 +397,13 @@ export default function OrderLinkCheckout() {
       const { data } = await axios.post(`${API_BASE}/api/order-links/public/${token}/payments/razorpay-order`, { selectedMode });
       const initiation = classifyPaymentInitiationResponse(data);
       if (initiation.kind === "completed") {
-        setLink(initiation.orderLink);
+        setLink((current) => mergeOrderLink(current, initiation.orderLink));
         setPaymentState("complete");
         setPaymentMessage("");
         return;
       }
       if (initiation.kind === "processing") {
-        setLink(initiation.orderLink);
+        setLink((current) => mergeOrderLink(current, initiation.orderLink));
         setPaymentState("verification_failed");
         setPaymentMessage("Your payment or order is already being processed. Refresh the order status before trying again.");
         return;
@@ -424,7 +434,7 @@ export default function OrderLinkCheckout() {
               `${API_BASE}/api/order-links/public/${token}/payments/verify`,
               response
             );
-            setLink(verify.data.orderLink);
+            setLink((current) => mergeOrderLink(current, verify.data.orderLink));
             setPaymentState("complete");
             setPaymentMessage("");
           } catch (err) {
@@ -478,7 +488,7 @@ export default function OrderLinkCheckout() {
     setBusy("cancel-payment");
     try {
       const { data } = await axios.post(`${API_BASE}/api/order-links/public/${token}/payments/cancel`);
-      setLink(data.orderLink);
+      setLink((current) => mergeOrderLink(current, data.orderLink));
       setPaymentState("idle");
       setPaymentMessage("Payment attempt cancelled. You can now edit your order or address.");
     } catch (err) {
@@ -529,7 +539,7 @@ export default function OrderLinkCheckout() {
   const totalSavings = Number(totals.agentDiscount || 0) + prepayDiscount;
 
   let actionLabel = "Place Order";
-  if (selected === "cod") actionLabel = codOtpBusy ? "Sending OTP..." : `Place Order (COD - ${fmt(payNow)})`;
+  if (selected === "cod") actionLabel = codOtpBusy ? (codOtpOpen ? "Verifying OTP..." : "Sending OTP...") : `Place Order (COD - ${fmt(payNow)})`;
   else if (selected === "partial") actionLabel = busy === "Partial Paid" ? "Starting payment..." : `Pay ${fmt(payNow)} advance & confirm`;
   else if (selected === "prepay") actionLabel = busy === "Prepaid" ? "Starting payment..." : ["COD", "Partial Paid"].includes(paymentMode) ? `Pay ${fmt(payNow)} & save 5%` : `Pay ${fmt(payNow)} now`;
 

@@ -2,6 +2,7 @@ import axios from "axios";
 import {
   classifyPaymentInitiationResponse,
   copyAddress,
+  mergeOrderLink,
   fmt,
   getPaymentProcessingMessage,
   isPaymentActionLocked,
@@ -59,6 +60,13 @@ describe("order-link Razorpay verification recovery", () => {
     draft.address1 = "B";
     expect(saved.address1).toBe("A");
     expect(draft.address1).toBe("B");
+  });
+
+  test("preserves the expert profile when an update response omits presentation data", () => {
+    const current = { expertProfile: { displayName: "Banika Ahuja" }, status: "viewed" };
+    const merged = mergeOrderLink(current, { status: "cart_updated" });
+    expect(merged.expertProfile.displayName).toBe("Banika Ahuja");
+    expect(merged.status).toBe("cart_updated");
   });
 
   test("marks the local link payment-pending when checkout is dismissed", () => {
