@@ -1,6 +1,7 @@
 import axios from "axios";
 import {
   classifyPaymentInitiationResponse,
+  buildOrderTrackingUrl,
   copyAddress,
   mergeOrderLink,
   fmt,
@@ -40,6 +41,10 @@ describe("order-link Razorpay verification recovery", () => {
   test("preserves paise in checkout amounts and savings", () => {
     expect(fmt(441.75)).toBe("₹441.75");
     expect(fmt(23.25)).toBe("₹23.25");
+  });
+
+  test("prefills the order tracking link with the Shopify order id", () => {
+    expect(buildOrderTrackingUrl("#MA163246")).toBe("https://www.muditam.com/pages/order-tracking?order_id=MA163246");
   });
 
   test.each([

@@ -37,6 +37,7 @@ const API_BASE = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "");
 const LOGO = "/muditam-logo.avif";
 const DEMO_EXPERT_IMAGE = "/demo-expert.svg";
 const MUDITAM_HOME = "https://www.muditam.com";
+const ORDER_TRACKING_URL = `${MUDITAM_HOME}/pages/order-tracking`;
 
 export const fmt = (n) => `₹${Number(n || 0).toFixed(2)}`;
 
@@ -102,6 +103,11 @@ export function markPaymentAttemptPending(link) {
 
 export function copyAddress(address = {}) {
   return { ...address };
+}
+
+export function buildOrderTrackingUrl(orderName) {
+  const orderId = String(orderName || "").replace(/^#/, "").trim();
+  return orderId ? `${ORDER_TRACKING_URL}?order_id=${encodeURIComponent(orderId)}` : ORDER_TRACKING_URL;
 }
 
 export function mergeOrderLink(current, next) {
@@ -857,9 +863,32 @@ export default function OrderLinkCheckout() {
   const statusBanners = (
     <>
       {isDone && (
-        <Box sx={{ p: 2, borderRadius: "16px", border: `1px solid ${ui.greenLine}`, bgcolor: ui.greenSoft }}>
-          <Typography sx={{ fontWeight: 700, color: ui.greenDeep }}>Order confirmed</Typography>
-          <Typography sx={{ fontSize: 15, color: ui.greenDeep }}>Shopify order: {link.shopifyOrder?.name}</Typography>
+        <Box sx={{ p: { xs: 2, lg: 2.5 }, borderRadius: "16px", border: `1px solid ${ui.greenLine}`, bgcolor: ui.greenSoft }}>
+          <Typography sx={{ fontSize: 20, fontWeight: 800, color: ui.greenDeep }}>Order placed successfully</Typography>
+          <Typography sx={{ mt: 0.35, fontSize: 15, color: ui.greenDeep }}>Order {link.shopifyOrder?.name || "confirmed"}</Typography>
+          <Box sx={{ mt: 1.5, pt: 1.25, borderTop: `1px solid ${ui.greenLine}` }}>
+            <Typography sx={{ fontSize: 12, fontWeight: 800, color: ui.greenDeep, textTransform: "uppercase", letterSpacing: "0.06em" }}>Your order</Typography>
+            {(link.cartItems || []).map((item) => (
+              <Box key={item.variantId} sx={{ display: "flex", justifyContent: "space-between", gap: 2, mt: 0.65, fontSize: 14, color: ui.greenDeep }}>
+                <span>{item.productTitle} × {item.quantity}</span>
+                <span>{fmt(Number(item.unitPrice || 0) * Number(item.quantity || 0))}</span>
+              </Box>
+            ))}
+            <Box sx={{ display: "flex", justifyContent: "space-between", mt: 1, pt: 0.75, borderTop: `1px solid ${ui.greenLine}`, fontWeight: 800, color: ui.greenDeep }}>
+              <span>Total</span>
+              <span>{fmt(orderTotal)}</span>
+            </Box>
+          </Box>
+          <Button
+            component="a"
+            href={buildOrderTrackingUrl(link.shopifyOrder?.name)}
+            target="_blank"
+            rel="noreferrer"
+            startIcon={<LocalShippingOutlinedIcon />}
+            sx={{ mt: 1.5, bgcolor: ui.green, color: "#fff", borderRadius: "10px", fontWeight: 700, textTransform: "none", "&:hover": { bgcolor: ui.greenDeep } }}
+          >
+            Track your order
+          </Button>
         </Box>
       )}
       {isExpired && (
