@@ -1,6 +1,7 @@
 import axios from "axios";
 import {
   classifyPaymentInitiationResponse,
+  copyAddress,
   fmt,
   getPaymentProcessingMessage,
   isPaymentActionLocked,
@@ -49,6 +50,14 @@ describe("order-link Razorpay verification recovery", () => {
 
   test("does not show processing guidance for an idle link", () => {
     expect(getPaymentProcessingMessage("viewed")).toBe("");
+  });
+
+  test("copies address drafts without mutating the saved address", () => {
+    const saved = { address1: "A", city: "Delhi" };
+    const draft = copyAddress(saved);
+    draft.address1 = "B";
+    expect(saved.address1).toBe("A");
+    expect(draft.address1).toBe("B");
   });
 
   test("marks the local link payment-pending when checkout is dismissed", () => {

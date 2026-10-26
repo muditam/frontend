@@ -100,6 +100,10 @@ export function markPaymentAttemptPending(link) {
   return link ? { ...link, status: "payment_pending" } : link;
 }
 
+export function copyAddress(address = {}) {
+  return { ...address };
+}
+
 export function classifyPaymentInitiationResponse(data) {
   const orderLink = data?.orderLink;
   if (orderLink?.status === "order_created") return { kind: "completed", orderLink };
@@ -152,6 +156,7 @@ export default function OrderLinkCheckout() {
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const [address, setAddress] = useState({});
+  const [addressDraft, setAddressDraft] = useState({});
   const [addressOpen, setAddressOpen] = useState(false);
   const [productQuery, setProductQuery] = useState("");
   const [products, setProducts] = useState([]);
@@ -172,7 +177,9 @@ export default function OrderLinkCheckout() {
     try {
       const { data } = await axios.get(`${API_BASE}/api/order-links/public/${token}`);
       setLink(data.orderLink);
-      setAddress(data.orderLink.shippingAddress || {});
+      const savedAddress = data.orderLink.shippingAddress || {};
+      setAddress(savedAddress);
+      setAddressDraft(copyAddress(savedAddress));
     } catch (err) {
       setError(err?.response?.data?.message || "Order link not found.");
     } finally {
@@ -311,8 +318,11 @@ export default function OrderLinkCheckout() {
   const saveAddress = async () => {
     setBusy("address");
     try {
-      const { data } = await axios.patch(`${API_BASE}/api/order-links/public/${token}/address`, { shippingAddress: address });
+      const { data } = await axios.patch(`${API_BASE}/api/order-links/public/${token}/address`, { shippingAddress: addressDraft });
       setLink(data.orderLink);
+      const savedAddress = data.orderLink.shippingAddress || {};
+      setAddress(savedAddress);
+      setAddressDraft(copyAddress(savedAddress));
       return true;
     } catch (err) {
       alert(err?.response?.data?.message || "Could not save address.");
@@ -535,6 +545,16 @@ export default function OrderLinkCheckout() {
     if (saved) setAddressOpen(false);
   };
 
+  const openAddressEditor = () => {
+    setAddressDraft(copyAddress(address));
+    setAddressOpen(true);
+  };
+
+  const closeAddressEditor = () => {
+    setAddressDraft(copyAddress(address));
+    setAddressOpen(false);
+  };
+
   const renderActionButton = (label, compact = false) => (
     <Button
       fullWidth
@@ -600,7 +620,7 @@ export default function OrderLinkCheckout() {
         <Typography sx={{ fontSize: 14, fontWeight: 700, display: "flex", alignItems: "center", gap: 0.75 }}>
           <LocationOnIcon sx={{ fontSize: 18.5, color: ui.brand }} /> Delivery Address
         </Typography>
-        <Button size="small" disabled={locked} onClick={() => setAddressOpen(true)} sx={{ minWidth: 0, p: 0, fontSize: 14, fontWeight: 700, textTransform: "none", color: ui.brand }}>
+        <Button size="small" disabled={locked} onClick={openAddressEditor} sx={{ minWidth: 0, p: 0, fontSize: 14, fontWeight: 700, textTransform: "none", color: ui.brand }}>
           Change
         </Button>
       </Box>
@@ -896,24 +916,24 @@ export default function OrderLinkCheckout() {
 
       <Dialog
         open={addressOpen}
-        onClose={() => setAddressOpen(false)}
+        onClose={closeAddressEditor}
         fullWidth
         maxWidth="xs"
         sx={{ "& .MuiDialog-container": { alignItems: { xs: "flex-end", sm: "center" } }, "& .MuiDialog-paper": { m: { xs: 0, sm: 2 }, width: "100%", borderRadius: { xs: "24px 24px 0 0", sm: "16px" } } }}
       >
         <DialogTitle sx={{ fontSize: 16, fontWeight: 700, display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: `1px solid ${ui.line}`, mb: 1.5 }}>
           Update Delivery Address
-          <IconButton size="small" onClick={() => setAddressOpen(false)} aria-label="Close"><CloseIcon fontSize="small" /></IconButton>
+          <IconButton size="small" onClick={closeAddressEditor} aria-label="Close"><CloseIcon fontSize="small" /></IconButton>
         </DialogTitle>
         <DialogContent>
           <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" }, gap: 1.5, pt: 0.5 }}>
             {[["address1", "Address line 1"], ["address2", "Address line 2"], ["city", "City"], ["province", "State"], ["zip", "Pincode"], ["country", "Country"]].map(([key, label]) => (
-              <TextField key={key} size="small" label={label} value={address?.[key] || ""} disabled={locked} onChange={(e) => setAddress((p) => ({ ...p, [key]: e.target.value }))} sx={inputSx} />
+              <TextField key={key} size="small" label={label} value={addressDraft?.[key] || ""} disabled={locked} onChange={(e) => setAddressDraft((p) => ({ ...p, [key]: e.target.value }))} sx={inputSx} />
             ))}
           </Box>
         </DialogContent>
         <DialogActions sx={{ p: 2, gap: 1 }}>
-          <Button fullWidth onClick={() => setAddressOpen(false)} sx={{ bgcolor: "rgba(238, 222, 255, 0.5)", color: ui.ink, borderRadius: "12px", fontWeight: 700, textTransform: "none", py: 1.1 }}>Cancel</Button>
+          <Button fullWidth onClick={closeAddressEditor} sx={{ bgcolor: "rgba(238, 222, 255, 0.5)", color: ui.ink, borderRadius: "12px", fontWeight: 700, textTransform: "none", py: 1.1 }}>Cancel</Button>
           <Button fullWidth disabled={locked || busy === "address"} onClick={saveAddressAndClose} sx={{ bgcolor: ui.brand, color: "#fff", borderRadius: "12px", fontWeight: 700, textTransform: "none", py: 1.1, "&:hover": { bgcolor: ui.brandDeep }, "&.Mui-disabled": { bgcolor: "rgba(131, 97, 159, 0.45)", color: "#fff" } }}>
             {busy === "address" ? "Saving..." : "Save Address"}
           </Button>
