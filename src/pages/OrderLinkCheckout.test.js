@@ -74,6 +74,17 @@ describe("order-link Razorpay verification recovery", () => {
     expect(merged.status).toBe("cart_updated");
   });
 
+  test("clears an explicitly unpublished profile on authoritative refresh", () => {
+    const current = { id: "link-1", expert: { name: "Banika Ahuja" }, expertProfile: { displayName: "Banika Ahuja" } };
+    const merged = mergeOrderLink(current, { id: "link-1", expert: { name: "Banika Ahuja" }, expertProfile: null }, { authoritative: true });
+    expect(merged.expertProfile).toBeUndefined();
+  });
+
+  test("does not carry a profile to a different link or expert", () => {
+    const current = { id: "link-1", expert: { name: "Banika Ahuja" }, expertProfile: { displayName: "Banika Ahuja" } };
+    expect(mergeOrderLink(current, { id: "link-2", expert: { name: "Nehal Joshi" }, expertProfile: null }).expertProfile).toBeUndefined();
+  });
+
   test("marks the local link payment-pending when checkout is dismissed", () => {
     const link = { status: "viewed", token: "token-1" };
     expect(markPaymentAttemptPending(link)).toEqual({ status: "payment_pending", token: "token-1" });

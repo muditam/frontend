@@ -110,13 +110,16 @@ export function buildOrderTrackingUrl(orderName) {
   return orderId ? `${ORDER_TRACKING_URL}?order_id=${encodeURIComponent(orderId)}` : ORDER_TRACKING_URL;
 }
 
-export function mergeOrderLink(current, next) {
+export function mergeOrderLink(current, next, { authoritative = false } = {}) {
   if (!next) return current;
+  const sameLink = !current?.id || !next.id || String(current.id) === String(next.id);
+  const sameExpert = !current?.expert?.name || !next.expert?.name || current.expert.name === next.expert.name;
+  const preserveProfile = !authoritative && sameLink && sameExpert;
   return {
     ...current,
     ...next,
-    expert: next.expert || current?.expert,
-    expertProfile: next.expertProfile || current?.expertProfile,
+    expert: next.expert || (sameLink ? current?.expert : undefined),
+    expertProfile: next.expertProfile || (preserveProfile ? current?.expertProfile : undefined),
   };
 }
 
@@ -197,7 +200,7 @@ export default function OrderLinkCheckout() {
     try {
       const { data } = await axios.get(`${API_BASE}/api/order-links/public/${token}`);
       setError("");
-      setLink((current) => mergeOrderLink(current, data.orderLink));
+      setLink((current) => mergeOrderLink(current, data.orderLink, { authoritative: refresh }));
       const savedAddress = data.orderLink.shippingAddress || {};
       setAddress(savedAddress);
       setAddressDraft(copyAddress(savedAddress));
