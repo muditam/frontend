@@ -36,6 +36,7 @@ import RestaurantIcon from "@mui/icons-material/Restaurant";
 import TransformIcon from "@mui/icons-material/Transform";
 import AssignmentReturnIcon from "@mui/icons-material/AssignmentReturn";
 import BiotechIcon from "@mui/icons-material/Biotech";
+import ApiIcon from "@mui/icons-material/Api";
 
 const styles = `
   @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Syne:wght@600;700&display=swap');
@@ -428,6 +429,8 @@ const MenuBar = ({ toggleDrawer }) => {
     return false;
   };
   const normalizedRole = role.replace(/-/g, " ");
+  const canViewApiDocumentation =
+    ["admin", "super-admin", "developer"].includes(role) || can("apiDocumentation");
   const isDietician = normalizedRole.includes("dietician") || normalizedRole.includes("dietitian") || normalizedRole.includes("sales") || normalizedRole.includes("retention") || normalizedRole === "team leader";
 
   const handleDropdownClick = (menu) => {
@@ -821,6 +824,10 @@ const MenuBar = ({ toggleDrawer }) => {
 
           {user && can("aiReportExtractor") && (
             <NavItem to="/aiextractor" icon={<BiotechIcon />} label="Report Extraction" />
+          )}
+
+          {user && canViewApiDocumentation && (
+            <NavItem to="/api-documentation" icon={<ApiIcon />} label="API Documentation" />
           )}
         </div>
 
