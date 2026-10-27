@@ -112,6 +112,7 @@ import OrderLinkCheckout from "./pages/OrderLinkCheckout";
 import DieticianProfileManager from "./pages/DieticianProfileManager";
 import PaymentLinkPage from "./pages/PaymentLinkPage";
 import OrderLinksPage from "./pages/retention/OrderLinksPage";
+import ApiDocumentationPage from "./pages/ApiDocumentationPage";
 
 function DieticianProfileAccessRoute({ children }) {
   const storedUser = sessionStorage.getItem("user");
@@ -153,6 +154,16 @@ function AppLayout() {
             }
           />
           <Route path="/login" element={<Login />} />
+          <Route
+            path="/api-documentation"
+            element={
+              <PrivateRoute>
+                <PermissionRoute permissionKey="apiDocumentation">
+                  <ApiDocumentationPage />
+                </PermissionRoute>
+              </PrivateRoute>
+            }
+          />
           <Route path="/order-link/:token" element={<OrderLinkCheckout />} />
           <Route
             path="/403"
