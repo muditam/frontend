@@ -22,6 +22,7 @@ import {
   InputLabel,
   CircularProgress,
   IconButton,
+  Chip,
 } from "@mui/material";
 import { Delete, AddCircle } from "@mui/icons-material";
 import axios from "axios";
@@ -66,6 +67,16 @@ const shipmentStatusOptions = [
   "Undelivered",
   "Others",
 ];
+
+const shipmentColor = (status) => {
+  const value = String(status || "").toLowerCase();
+  if (!value || value === "not available") return "default";
+  if (value.includes("undelivered") || value.includes("failed") || value.includes("cancel")) return "error";
+  if (value.includes("rto")) return "warning";
+  if (value.includes("transit") || value.includes("out for") || value.includes("ofd")) return "info";
+  if (value.includes("delivered")) return "success";
+  return "default";
+};
 
 
 const RetentionSales = () => {
@@ -788,7 +799,14 @@ const RetentionSales = () => {
                     />
                   )}
                 </TableCell>
-                <TableCell>{sale.shipway_status}</TableCell>
+                <TableCell>
+                  <Chip
+                    size="small"
+                    variant={sale.shipway_status ? "filled" : "outlined"}
+                    color={shipmentColor(sale.shipway_status)}
+                    label={sale.shipway_status || "Not available"}
+                  />
+                </TableCell>
                 <TableCell>{sale.orderCreatedBy}</TableCell>
                 <TableCell style={{ whiteSpace: "nowrap", minWidth: "180px" }}>
                   <TextField
