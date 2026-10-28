@@ -245,6 +245,10 @@ export default function OrderLinkCheckout() {
   const isExpired = link?.status === "expired";
   const locked = isPaymentActionLocked({ isDone, isExpired, linkStatus: link?.status, busy, paymentState });
 
+  useEffect(() => {
+    if (isDone) window.scrollTo({ top: 0, behavior: "smooth" });
+  }, [isDone]);
+
   const addressSummary = useMemo(() => {
     const lineOne = [address?.address1, address?.address2].filter(Boolean).join(", ");
     const lineTwo = [address?.city, address?.province, address?.zip].filter(Boolean).join(", ");
