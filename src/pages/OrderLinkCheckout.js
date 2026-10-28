@@ -965,14 +965,15 @@ export default function OrderLinkCheckout() {
             {!isDone && (
               <Box sx={{ p: { xs: 2.25, lg: 3.5 }, borderRadius: "24px", color: "#000000", bgcolor: "color(display-p3 0.957 0.9331 0.9961)", border: "1px solid color(display-p3 0.8784 0.7998 0.9844)", boxShadow: "0 8px 20px rgba(92, 62, 117, 0.12)" }}>
                 <Typography sx={{ fontSize: { xs: 16, sm: 18 }, fontWeight: 700, lineHeight: 1.375, color: "#2d2633" }}>
-                  Hi {link.customer?.name || "there"}, your personalized plan is ready!
+                  Hi {link.customer?.name || "there"}, your personalized order is ready!
                 </Typography>
               </Box>
             )}
+            {!isDone && itemsCard}
             {expertCard}
             {testimonialsCard}
-            {itemsCard}
             <Box sx={{ display: { xs: "block", lg: "none" } }}>{addressCard}</Box>
+            {isDone && itemsCard}
           </Stack>
 
           <Stack spacing={2} sx={{ minWidth: 0, position: { lg: "sticky" }, top: { lg: 76 } }}>
