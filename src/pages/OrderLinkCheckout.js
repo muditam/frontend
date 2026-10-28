@@ -17,6 +17,7 @@ import {
   Typography,
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
+import RemoveIcon from "@mui/icons-material/Remove";
 import LockOutlinedIcon from "@mui/icons-material/LockOutlined";
 import LocationOnIcon from "@mui/icons-material/LocationOn";
 import SchoolIcon from "@mui/icons-material/School";
@@ -797,6 +798,10 @@ export default function OrderLinkCheckout() {
   );
 
   const cartItems = link.cartItems || [];
+  const minimumCartItems = new Map(
+    (link.minimumCartItems?.length ? link.minimumCartItems : cartItems)
+      .map((item) => [String(item.variantId), Number(item.quantity || 1)])
+  );
   const itemsCard = (
     <Box sx={{ ...cardSx, p: 0, overflow: "hidden" }}>
       <Box sx={{ px: { xs: 1.75, lg: 2.5 }, py: 1.5, display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: `1px solid ${ui.line}` }}>
@@ -820,6 +825,9 @@ export default function OrderLinkCheckout() {
             </Box>
           </Box>
           <Box sx={{ display: "flex", alignItems: "center", border: "1px solid rgba(165, 145, 167, 0.3)", borderRadius: "10px", bgcolor: "rgba(238, 222, 255, 0.3)", flexShrink: 0 }}>
+            <IconButton size="small" disabled={locked || item.quantity <= (minimumCartItems.get(String(item.variantId)) || 1)} onClick={() => changeQty(item.variantId, item.quantity - 1)} sx={{ width: 30, height: 30, borderRadius: "10px 0 0 10px", color: ui.ink }}>
+              <RemoveIcon sx={{ fontSize: 17 }} />
+            </IconButton>
             <Typography sx={{ width: 22, textAlign: "center", fontSize: 14, fontWeight: 700 }}>{item.quantity}</Typography>
             <IconButton size="small" disabled={locked} onClick={() => changeQty(item.variantId, item.quantity + 1)} sx={{ width: 30, height: 30, borderRadius: "0 10px 10px 0", color: ui.ink }}>
               <AddIcon sx={{ fontSize: 17 }} />
