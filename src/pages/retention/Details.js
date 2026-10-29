@@ -440,18 +440,24 @@ const Details = ({ contactNumber, onDetailsUpdate, activeConditions = [] }) => {
 
      const uploadedReports = [];
      for (const file of selectedFiles) {
-       const body = new FormData();
-       body.append("report", file);
-       body.append(
-         "prefix",
-         `lead-reports/${String(contactNumber).replace(/[^0-9a-zA-Z_-]/g, "_")}/${reportKey}`
-       );
-
-       const { data } = await axios.post(`${ROOT_API_BASE}/upload-report-to-wasabi`, body, {
+       const prefix = `lead-reports/${String(contactNumber).replace(/[^0-9a-zA-Z_-]/g, "_")}/${reportKey}`;
+       const { data } = await axios.post(`${ROOT_API_BASE}/upload-report-to-wasabi/url`, {
+         fileName: file.name,
+         contentType: file.type,
+         prefix,
+       }, {
          headers: {
-           "Content-Type": "multipart/form-data",
            ...getSessionUserHeaders(),
          },
+       });
+
+       await axios.put(data.uploadUrl, file, {
+         headers: {
+           "Content-Type": data.contentType || file.type,
+           "x-amz-acl": "public-read",
+         },
+         maxContentLength: Infinity,
+         maxBodyLength: Infinity,
        });
 
        if (!data?.url) {
