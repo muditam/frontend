@@ -45,6 +45,7 @@ import SendIcon from "@mui/icons-material/Send";
 import LinkIcon from "@mui/icons-material/Link";
 import DiamondOutlinedIcon from "@mui/icons-material/DiamondOutlined";
 import axios from "axios";
+import { withSellableInventory } from "../../utils/productInventory";
 import getOrderLinkUtm from "../../utils/orderLinkUtm";
 
 import OrderDetailsPopup from "../../ShopifyOrders/OrderDetailsPopup";
@@ -311,7 +312,7 @@ export default function WhatsAppCartDrawer({
     setLoadingProducts(true);
     try {
       const res = await axios.get(`${API_BASE}/api/shopify/active-products`);
-      const nextProducts = res.data || [];
+      const nextProducts = withSellableInventory(res.data);
       setProducts(nextProducts);
       const nextExpanded = {};
       nextProducts.forEach((product) => {
