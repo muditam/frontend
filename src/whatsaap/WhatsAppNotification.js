@@ -1566,6 +1566,7 @@ export default function WhatsAppInboxWidget({ onOpenChat }) {
     socketRef.current = io(SOCKET_URL, {
       transports: ["websocket", "polling"],
       withCredentials: true,
+      auth: { clientType: "WhatsAppNotification" },
       reconnection: true,
       reconnectionAttempts: 10,
       reconnectionDelayMax: 2000,

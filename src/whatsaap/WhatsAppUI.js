@@ -1861,6 +1861,7 @@ export default function WhatsAppUI() {
   useEffect(() => {
     const s = io(API_BASE, {
       withCredentials: true,
+      auth: { clientType: "WhatsAppUI" },
       transports: ["websocket", "polling"],
       reconnection: true,
       reconnectionAttempts: Infinity,
