@@ -37,6 +37,7 @@ import TransformIcon from "@mui/icons-material/Transform";
 import AssignmentReturnIcon from "@mui/icons-material/AssignmentReturn";
 import BiotechIcon from "@mui/icons-material/Biotech";
 import ApiIcon from "@mui/icons-material/Api";
+import AutoAwesomeIcon from "@mui/icons-material/AutoAwesome";
 
 const styles = `
   @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Syne:wght@600;700&display=swap');
@@ -431,6 +432,8 @@ const MenuBar = ({ toggleDrawer }) => {
   const normalizedRole = role.replace(/-/g, " ");
   const canViewApiDocumentation =
     ["admin", "super-admin", "developer"].includes(role) || can("apiDocumentation");
+  const canViewCustomerActions =
+    ["admin", "super-admin", "developer"].includes(role) || can("customerActionQueue");
   const isDietician = normalizedRole.includes("dietician") || normalizedRole.includes("dietitian") || normalizedRole.includes("sales") || normalizedRole.includes("retention") || normalizedRole === "team leader";
 
   const handleDropdownClick = (menu) => {
@@ -828,6 +831,9 @@ const MenuBar = ({ toggleDrawer }) => {
 
           {user && canViewApiDocumentation && (
             <NavItem to="/api-documentation" icon={<ApiIcon />} label="API Documentation" />
+          )}
+          {user && canViewCustomerActions && (
+            <NavItem to="/customer-actions" icon={<AutoAwesomeIcon />} label="Customer Actions" />
           )}
         </div>
 
