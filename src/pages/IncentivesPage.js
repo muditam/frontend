@@ -42,8 +42,8 @@ import WalletRedeemDialog from "./WalletRedeemDialog";
 import { clearCachedData, getCachedData } from "../utils/apiCache";
 
 const API_BASE = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "");
-const MIN_WALLET_MONTH = "2026-04";
-const MAX_WALLET_END_MONTH = "2026-10";
+const MIN_WALLET_MONTH = "2026-10";
+const MAX_WALLET_END_MONTH = "2027-03";
 const INCENTIVES_CACHE_TTL_MS = 60 * 1000;
 const INCENTIVES_EMPLOYEE_CACHE_TTL_MS = 5 * 60 * 1000;
 
