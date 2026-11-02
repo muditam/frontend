@@ -43,6 +43,7 @@ import OrderDetailsPopup from "./OrderDetailsPopup";
 
 import ReactConfetti from "react-confetti";
 import axios from "axios";
+import { withSellableInventory } from "../utils/productInventory";
 import getOrderLinkUtm from "../utils/orderLinkUtm";
 
 import {
@@ -295,8 +296,9 @@ const CartDrawer = ({ closeDrawer }) => {
         const response = await axios.get(
           "https://muditamleads-14f32a10d7f7.herokuapp.com/api/shopify/products"
         );
-        setProducts(response.data);
-        setFilteredProducts(response.data);
+        const availableProducts = withSellableInventory(response.data);
+        setProducts(availableProducts);
+        setFilteredProducts(availableProducts);
       } catch (error) {
         console.error("Error fetching products:", error);
       }

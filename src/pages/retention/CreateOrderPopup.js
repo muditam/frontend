@@ -18,6 +18,7 @@ import LinkIcon from "@mui/icons-material/Link";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import SendIcon from "@mui/icons-material/Send";
 import axios from "axios";
+import { withSellableInventory } from "../../utils/productInventory";
 import getOrderLinkUtm from "../../utils/orderLinkUtm";
 
 
@@ -153,10 +154,10 @@ const CreateOrderPopup = ({ open, onClose, prefillCustomer = {}, onOrderCreated 
    setLoading(true);
    try {
      const res = await axios.get("https://muditamleads-14f32a10d7f7.herokuapp.com/api/shopify/active-products");
-     setProducts(res.data || []);
+     setProducts(withSellableInventory(res.data));
      // initialize collapsed state
      const init = {};
-     (res.data || []).forEach(p => { init[p.id] = false; });
+     withSellableInventory(res.data).forEach(p => { init[p.id] = false; });
      setExpanded(init);
    } catch (error) {
      console.error("Error fetching products", error);

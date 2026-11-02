@@ -1143,6 +1143,7 @@ export default function WhatsAppChatDrawer({
       socketRef.current = io(SOCKET_URL, {
         transports: ["websocket", "polling"],
         withCredentials: true,
+        auth: { clientType: "WhatsAppChatDialog" },
         reconnection: true,
         reconnectionAttempts: 10,
         reconnectionDelayMax: 2000,

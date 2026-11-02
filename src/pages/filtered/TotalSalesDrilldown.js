@@ -39,6 +39,7 @@ import {
 } from "@mui/icons-material";
 import axios from "axios";
 import { getCachedData } from "../../utils/apiCache";
+import { getSalesContributors, getSalesBreakdown } from "../../utils/salesDrilldownContributors";
 
 
 const API_BASE = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "");
@@ -277,6 +278,10 @@ export default function TotalSalesDrilldown({ open, onClose, initialDates, fullP
              (m) => m?.status === "active" && isTargetEligible(m) && isRetentionAgentWithTeam(m)
            )
          : [];
+       // Team Leader achievement includes the leader's own sales too.
+       if (normalizeRole(selectedLeader?.role) === "team leader" && isTargetEligible(selectedLeader)) {
+         names = [...new Set([selectedLeader.fullName, ...names].filter(Boolean))];
+       }
      }
    
      if (!names.length) throw new Error("No active users found for selection.");
@@ -297,17 +302,15 @@ export default function TotalSalesDrilldown({ open, onClose, initialDates, fullP
          .filter(Boolean);
      const getContributorsForRow = (name) => {
        const emp = employeeByName.get(name);
-       if (!emp?.hasTeam || !emp?._id) {
+       if (!hasTeamFlag(emp) || !emp?._id) {
          return { contributors: [name], teamMemberNames: [] };
        }
        const directReportNames = getDirectReportNames(emp);
        if (!directReportNames.length) {
          return { contributors: [name], teamMemberNames: [] };
        }
-       return {
-         contributors: [...new Set(directReportNames)],
-         teamMemberNames: directReportNames.filter((memberName) => memberName !== name),
-       };
+       const selfGrouped = managerRetentionTeamMembers.some((member) => member.fullName === name);
+       return getSalesContributors(name, directReportNames, selfGrouped);
      };
      const fetchOwnProgressTotal = (name) =>
        getCachedData(
@@ -438,12 +441,12 @@ export default function TotalSalesDrilldown({ open, onClose, initialDates, fullP
      if (tabMode === "manager") {
        const canStayTopLevel = (name) => {
          const emp = employeeByName.get(name);
-         return Boolean(emp?.hasTeam) && getDirectReportNames(emp).length > 0;
+         return hasTeamFlag(emp) && getDirectReportNames(emp).length > 0;
        };
        const nestedMemberNames = new Set(
          names.flatMap((name) => {
            const emp = employeeByName.get(name);
-           return emp?.hasTeam ? getDirectReportNames(emp) : [];
+           return hasTeamFlag(emp) ? getDirectReportNames(emp).filter((memberName) => memberName !== name) : [];
          })
        );
        names = names.filter((name) => !nestedMemberNames.has(name) || canStayTopLevel(name));
@@ -502,9 +505,7 @@ export default function TotalSalesDrilldown({ open, onClose, initialDates, fullP
              }, 0),
              label: toDisplayDate(date),
            }));
-           const teamMembers = normalizedContributorRows.filter(
-             (contributorRow) => contributorRow.name !== name && teamMemberNames.includes(contributorRow.name)
-           );
+           const teamMembers = getSalesBreakdown(name, normalizedContributorRows, teamMemberNames);
 
 
            return {
@@ -552,9 +553,7 @@ export default function TotalSalesDrilldown({ open, onClose, initialDates, fullP
              name,
              total: contributorTotals.reduce((sum, value) => sum + Number(value.total || 0), 0),
              deliveredTotal: contributorTotals.reduce((sum, value) => sum + Number(value.deliveredTotal || 0), 0),
-             teamMembers: contributorTotals.filter(
-               (row) => row.name !== name && teamMemberNames.includes(row.name)
-             ),
+             teamMembers: getSalesBreakdown(name, contributorTotals, teamMemberNames),
            };
          })
        );
