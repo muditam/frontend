@@ -15,6 +15,8 @@ const PermissionRoute = ({ permissionKey, children, fallback = "/403" }) => {
     (permissionKey === "retentionOverviewCombined" &&
       ["retention-agent", "team-leader"].includes(role)) ||
     (permissionKey === "apiDocumentation" &&
+      ["admin", "super-admin", "developer"].includes(role)) ||
+    (permissionKey === "customerActionQueue" &&
       ["admin", "super-admin", "developer"].includes(role));
   const allowed = roleAllowed || Boolean(menubarPerms?.[permissionKey]);
 
