@@ -58,7 +58,7 @@ export default function RepunchOrdersPage() {
   }, [query, tab, page, limit, revision]);
 
   useEffect(() => {
-    const timer = setInterval(() => { if (!document.hidden && !source) setRevision((value) => value + 1); }, 60000);
+    const timer = setInterval(() => { if (!document.hidden && !source) setRevision((value) => value + 1); }, 10 * 60 * 1000);
     return () => clearInterval(timer);
   }, [source]);
 
@@ -73,7 +73,7 @@ export default function RepunchOrdersPage() {
         <Button startIcon={<RefreshIcon />} onClick={refresh} disabled={loading}>Refresh</Button>
       </Stack>
       <Typography color="text.secondary" mb={2}>Place a replacement using the existing checkout and keep it linked to its original RTO order.</Typography>
-      <Typography variant="body2" color="text.secondary" mb={2}>Tracking source: Shiptrack · {checkedAt ? `Checked ${time(checkedAt)} IST` : "Loading current tracking"} · Refreshes every minute while this page is visible.</Typography>
+      <Typography variant="body2" color="text.secondary" mb={2}>Tracking source: Shiptrack · {checkedAt ? `Checked ${time(checkedAt)} IST` : "Loading current tracking"} · Loads on page open. Refresh manually or automatically every 10 minutes while this page is visible.</Typography>
       {trackingWarning && <Alert severity="warning" sx={{ mb: 2 }}>{trackingWarning}</Alert>}
       {notice && <Alert severity="success" onClose={() => setNotice("")} sx={{ mb: 2 }}>{notice}</Alert>}
       {error && <Alert severity="error" sx={{ mb: 2 }} action={<Button color="inherit" onClick={refresh}>Retry</Button>}>{error}</Alert>}
