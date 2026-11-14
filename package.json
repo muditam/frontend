@@ -60,6 +60,7 @@
     "build": "CI=false react-scripts build",
     "test": "react-scripts test",
     "test:order-links": "CI=true react-scripts test --watchAll=false --runInBand src/pages/OrderLinkCheckout.test.js",
+    "test:repunch-orders": "CI=true react-scripts test --watchAll=false --runInBand src/ShopifyOrders/RepunchOrders.test.js",
     "eject": "react-scripts eject"
   },
   "eslintConfig": {

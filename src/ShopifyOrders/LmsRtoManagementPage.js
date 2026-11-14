@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import axios from "axios";
+import { useNavigate } from "react-router-dom";
 import * as XLSX from "xlsx";
 import {
   Box,
@@ -9,11 +10,8 @@ import {
   Dialog,
   DialogActions,
   DialogContent,
-  Drawer,
   IconButton,
-  MenuItem,
   Paper,
-  Select,
   Stack,
   Tab,
   Table,
@@ -30,7 +28,6 @@ import {
 } from "@mui/material";
 import DownloadRoundedIcon from "@mui/icons-material/DownloadRounded";
 import ContentCopyRoundedIcon from "@mui/icons-material/ContentCopyRounded";
-import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
 
 const API_BASE = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "");
 const api = axios.create({ baseURL: API_BASE, withCredentials: true });
@@ -86,13 +83,6 @@ function paymentLabel(row) {
   return payment.toUpperCase();
 }
 
-function paymentMethodValue(row) {
-  const label = paymentLabel(row).toLowerCase();
-  if (label.includes("partial")) return "Partial Paid";
-  if (label.includes("prepaid")) return "Prepaid";
-  return "COD";
-}
-
 function paymentChipSx(label) {
   const value = String(label || "").toLowerCase();
   if (value.includes("cancel")) return { bgcolor: "#fee2e2", color: "#ef0000" };
@@ -137,6 +127,7 @@ function exportRows(filename, rows, type) {
 }
 
 export default function LmsRtoManagementPage() {
+  const navigate = useNavigate();
   const [tab, setTab] = useState("initiated");
   const [rows, setRows] = useState([]);
   const [total, setTotal] = useState(0);
@@ -145,12 +136,6 @@ export default function LmsRtoManagementPage() {
   const [loading, setLoading] = useState(false);
   const [updatingId, setUpdatingId] = useState("");
   const [confirmRow, setConfirmRow] = useState(null);
-  const [repunchRow, setRepunchRow] = useState(null);
-  const [repunchPaymentMethod, setRepunchPaymentMethod] = useState("COD");
-  const [partialPaidAmount, setPartialPaidAmount] = useState("");
-  const [transactionId, setTransactionId] = useState("");
-  const [shippingAmount, setShippingAmount] = useState("0.00");
-  const [repunching, setRepunching] = useState(false);
   const [exporting, setExporting] = useState("");
   const [notice, setNotice] = useState("");
   const [filters, setFilters] = useState({
@@ -231,88 +216,7 @@ export default function LmsRtoManagementPage() {
   };
 
   const openRepunchDrawer = (row) => {
-    setRepunchRow(row);
-    setRepunchPaymentMethod(paymentMethodValue(row));
-    setPartialPaidAmount("");
-    setTransactionId("");
-    setShippingAmount("0.00");
-  };
-
-  const closeRepunchDrawer = () => {
-    setRepunchRow(null);
-  };
-
-  const repunchOrder = async () => {
-    if (!repunchRow) return;
-    const products = Array.isArray(repunchRow.products) ? repunchRow.products : [];
-    const cartItems = products
-      .map((product) => ({
-        variantId: product.variant_id || product.variantId,
-        quantity: Number(product.quantity || 1),
-      }))
-      .filter((item) => item.variantId && item.quantity > 0);
-    if (!cartItems.length) {
-      setNotice("Cannot repunch: product variant ID is missing.");
-      return;
-    }
-
-    const amount = Number(repunchRow.amount || 0);
-    const shipping = Number(shippingAmount || 0);
-    const total = Math.max(0, amount + shipping);
-    const partial = Number(partialPaidAmount || 0);
-    if (repunchPaymentMethod === "Partial Paid") {
-      if (partial <= 0) {
-        setNotice("Please enter partial paid amount.");
-        return;
-      }
-      if (partial >= total) {
-        setNotice("Partial paid amount must be less than total.");
-        return;
-      }
-      if (!transactionId.trim()) {
-        setNotice("Please enter transaction ID for partial paid order.");
-        return;
-      }
-    }
-
-    const address = repunchRow.customerAddress || {};
-    const nameParts = String(repunchRow.customerName || address.name || "").trim().split(/\s+/).filter(Boolean);
-    const firstName = nameParts[0] || "";
-    const lastName = nameParts.slice(1).join(" ");
-    const shippingAddress = {
-      firstName,
-      lastName,
-      address1: address.address1 || "",
-      address2: address.address2 || "",
-      city: address.city || "",
-      province: address.province || "",
-      country: address.country || "India",
-      zip: address.zip || "",
-      phone: repunchRow.contactNumber || address.phone || "",
-    };
-
-    setRepunching(true);
-    try {
-      const { data } = await api.post("/api/shopify/create-order", {
-        cartItems,
-        shippingAddress,
-        billingAddress: shippingAddress,
-        paymentStatus: repunchPaymentMethod === "Prepaid" ? "paid" : "COD",
-        paymentMode: repunchPaymentMethod,
-        partialPaidAmount: repunchPaymentMethod === "Partial Paid" ? partial : 0,
-        orderTotal: total,
-        transactionId: transactionId.trim(),
-        shippingCost: shipping,
-        note: `Repunched from RTO order ${repunchRow.orderName || repunchRow.orderId || ""}`.trim(),
-      });
-      const created = data?.order;
-      setNotice(`Repunched on Shopify${created?.name ? ` as ${created.name}` : ""}`);
-      closeRepunchDrawer();
-    } catch (err) {
-      setNotice(err?.response?.data?.error || err?.response?.data?.message || "Failed to repunch order.");
-    } finally {
-      setRepunching(false);
-    }
+    navigate(`/operations/repunch-order?search=${encodeURIComponent(row.orderName || row.orderId || "")}`);
   };
 
   const downloadAllRows = async (type) => {
@@ -370,7 +274,7 @@ export default function LmsRtoManagementPage() {
           }}
         >
           <Tab value="initiated" label="RTO Initiated" />
-          <Tab value="repunch" label="RTO Received — Repunch Pending" />
+          <Tab value="repunch" label="RTO Received" />
         </Tabs>
       </Stack>
 
@@ -540,220 +444,7 @@ export default function LmsRtoManagementPage() {
         onConfirm={markRtoReceived}
       />
 
-      <RepunchOrderDrawer
-        row={repunchRow}
-        paymentMethod={repunchPaymentMethod}
-        onPaymentMethodChange={setRepunchPaymentMethod}
-        partialPaidAmount={partialPaidAmount}
-        onPartialPaidAmountChange={setPartialPaidAmount}
-        transactionId={transactionId}
-        onTransactionIdChange={setTransactionId}
-        shippingAmount={shippingAmount}
-        onShippingAmountChange={setShippingAmount}
-        loading={repunching}
-        onClose={closeRepunchDrawer}
-        onSubmit={repunchOrder}
-      />
     </Box>
-  );
-}
-
-function RepunchOrderDrawer({
-  row,
-  paymentMethod,
-  onPaymentMethodChange,
-  partialPaidAmount,
-  onPartialPaidAmountChange,
-  transactionId,
-  onTransactionIdChange,
-  shippingAmount,
-  onShippingAmountChange,
-  loading,
-  onClose,
-  onSubmit,
-}) {
-  const orderRef = row?.orderName || row?.orderId || "-";
-  const products = Array.isArray(row?.products) ? row.products : [];
-  const amount = Number(row?.amount || 0);
-  const shipping = Number(shippingAmount || 0);
-  const total = Math.max(0, amount + shipping);
-  const partialPaid = Number(partialPaidAmount || 0);
-  const alreadyPaid = paymentMethod === "Prepaid" ? total : paymentMethod === "Partial Paid" ? partialPaid : 0;
-  const pendingAmount = paymentMethod === "Partial Paid" ? Math.max(0, total - partialPaid) : 0;
-  const address = row?.customerAddress || {};
-  const nameParts = String(row?.customerName || address.name || "").trim().split(/\s+/).filter(Boolean);
-  const firstName = nameParts[0] || "";
-  const lastName = nameParts.slice(1).join(" ");
-  const paymentChip = paymentMethod === "COD" ? "Cash on Delivery" : paymentMethod;
-
-  return (
-    <Drawer
-      anchor="right"
-      open={Boolean(row)}
-      onClose={onClose}
-      ModalProps={{
-        BackdropProps: {
-          sx: { bgcolor: "rgba(17, 24, 39, 0.42)" },
-        },
-      }}
-      PaperProps={{
-        sx: {
-          width: { xs: "100%", md: "36.9vw" },
-          minWidth: { md: 660 },
-          maxWidth: "100vw",
-          bgcolor: "#f8fafc",
-          boxShadow: "-10px 0 30px rgba(15, 23, 42, 0.14)",
-        },
-      }}
-    >
-      <Box sx={{ height: "100%", display: "flex", flexDirection: "column" }}>
-        <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ px: 3.5, py: 2.1, bgcolor: "#fff", borderBottom: "1px solid #e5e7eb", minHeight: 74 }}>
-          <Stack direction="row" alignItems="center" gap={1.5} sx={{ minWidth: 0 }}>
-            <Typography sx={{ color: "#111827", fontSize: 22, fontWeight: 900, lineHeight: 1.15 }}>
-              Repunch Order <Box component="span" sx={{ color: "#4f35f2" }}>{orderRef}</Box>
-            </Typography>
-            <Chip label={paymentChip} sx={paymentBadgeSx} />
-          </Stack>
-          <IconButton onClick={onClose} sx={{ color: "#9ca3af", mr: -1 }}>
-            <CloseRoundedIcon sx={{ fontSize: 30 }} />
-          </IconButton>
-        </Stack>
-
-        <Box sx={{ flex: 1, overflow: "auto", px: 3.5, py: 3 }}>
-          <RepunchSection>
-            <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
-              <Typography sx={drawerSectionTitleSx}>Order Being Repunched</Typography>
-              <Chip label={paymentChip} sx={paymentBadgeSx} />
-            </Stack>
-            <Box sx={{ bgcolor: "#f9fafb", borderRadius: 2, px: 2.2, py: 1.7 }}>
-              <DrawerDetail label="Order Ref" value={orderRef} />
-              <DrawerDetail label="Order Total" value={formatCurrency(amount)} />
-              <DrawerDetail label="Already Paid" value={formatCurrency(alreadyPaid)} />
-              {paymentMethod === "Partial Paid" ? <DrawerDetail label="Pending COD" value={formatCurrency(pendingAmount)} /> : null}
-            </Box>
-          </RepunchSection>
-
-          <RepunchSection>
-            <Typography sx={drawerSectionTitleSx}>Products</Typography>
-            {products.length ? products.map((product, index) => (
-              <Stack key={`${product.sku || product.title || "product"}-${index}`} direction="row" alignItems="center" gap={2} sx={{ mt: 3.2 }}>
-                <Box sx={{ flex: 1, minWidth: 0 }}>
-                  <Typography sx={{ color: "#111827", fontSize: 17, fontWeight: 900, lineHeight: 1.25 }}>{product.title || "-"}</Typography>
-                  <Typography sx={{ color: "#667085", fontSize: 16, fontFamily: "monospace", lineHeight: 1.35 }}>{product.sku || "-"}</Typography>
-                </Box>
-                <Typography sx={{ color: "#667085", fontSize: 18, minWidth: 48, textAlign: "center" }}>x{product.quantity || 1}</Typography>
-                <Typography sx={{ color: "#111827", fontSize: 18, fontWeight: 900, minWidth: 108, textAlign: "right" }}>
-                  {formatCurrency(Number(product.price || 0) * Number(product.quantity || 1) || amount)}
-                </Typography>
-              </Stack>
-            )) : (
-              <Typography sx={{ mt: 2, color: "#94a3b8", fontWeight: 700 }}>No products found</Typography>
-            )}
-          </RepunchSection>
-
-          <RepunchSection>
-            <Typography sx={drawerSectionTitleSx}>Payment</Typography>
-            <DrawerDetail label="Repunched Order Amount" value={formatCurrency(amount)} sx={{ mt: 2 }} />
-            <Typography sx={drawerLinkSx}>+ Add discount</Typography>
-            <Typography sx={drawerLinkSx}>- Remove shipping</Typography>
-            <Stack direction="row" alignItems="center" gap={1.4} sx={{ mt: 1.5 }}>
-              <TextField fullWidth size="small" value="Free shipping" InputProps={readOnlyInputProps} sx={drawerInputSx} />
-              <Typography sx={{ color: "#94a3b8", fontSize: 20, fontWeight: 800 }}>₹</Typography>
-              <TextField
-                size="small"
-                value={shippingAmount}
-                onChange={(event) => onShippingAmountChange(event.target.value)}
-                sx={{ ...drawerInputSx, width: 138 }}
-                inputProps={{ inputMode: "decimal" }}
-              />
-            </Stack>
-            <Stack direction={{ xs: "column", sm: "row" }} alignItems={{ xs: "stretch", sm: "center" }} gap={1.5} sx={{ mt: 1.5 }}>
-              <Typography sx={{ color: "#475569", fontSize: 17, fontWeight: 800, minWidth: 150 }}>Payment Method</Typography>
-              <Select
-                size="small"
-                value={paymentMethod}
-                onChange={(event) => {
-                  onPaymentMethodChange(event.target.value);
-                  if (event.target.value !== "Partial Paid") onPartialPaidAmountChange("");
-                  if (event.target.value === "COD") onTransactionIdChange("");
-                }}
-                sx={{ ...drawerInputSx, flex: 1 }}
-              >
-                <MenuItem value="COD">COD</MenuItem>
-                <MenuItem value="Prepaid">Prepaid</MenuItem>
-                <MenuItem value="Partial Paid">Partial Paid</MenuItem>
-              </Select>
-            </Stack>
-            {paymentMethod === "Partial Paid" ? (
-              <Stack direction={{ xs: "column", sm: "row" }} gap={1.5} sx={{ mt: 1.5 }}>
-                <TextField
-                  fullWidth
-                  size="small"
-                  label="Partial Paid Amount"
-                  value={partialPaidAmount}
-                  onChange={(event) => onPartialPaidAmountChange(event.target.value)}
-                  sx={drawerInputSx}
-                  inputProps={{ inputMode: "decimal" }}
-                />
-                <TextField
-                  fullWidth
-                  size="small"
-                  label="Transaction ID"
-                  value={transactionId}
-                  onChange={(event) => onTransactionIdChange(event.target.value)}
-                  sx={drawerInputSx}
-                />
-              </Stack>
-            ) : null}
-            {paymentMethod === "Prepaid" ? (
-              <TextField
-                fullWidth
-                size="small"
-                label="Transaction ID"
-                value={transactionId}
-                onChange={(event) => onTransactionIdChange(event.target.value)}
-                sx={{ ...drawerInputSx, mt: 1.5 }}
-              />
-            ) : null}
-            <Box sx={{ borderTop: "1px solid #e5e7eb", mt: 2.1, pt: 1.8 }}>
-              <DrawerDetail label="Total" value={formatCurrency(total)} strong />
-            </Box>
-          </RepunchSection>
-
-          <RepunchSection>
-            <Typography sx={drawerSectionTitleSx}>Customer</Typography>
-            <Stack direction={{ xs: "column", sm: "row" }} gap={1} sx={{ mt: 2 }}>
-              <TextField fullWidth size="small" value={firstName} InputProps={readOnlyInputProps} sx={drawerInputSx} />
-              <TextField fullWidth size="small" value={lastName} InputProps={readOnlyInputProps} sx={drawerInputSx} />
-            </Stack>
-            <Stack gap={1.2} sx={{ mt: 1.2 }}>
-              <TextField size="small" value={row?.email || ""} placeholder="Email" InputProps={readOnlyInputProps} sx={drawerInputSx} />
-              <TextField size="small" value={row?.contactNumber || address.phone || ""} InputProps={readOnlyInputProps} sx={drawerInputSx} />
-              <TextField size="small" value={address.address1 || ""} placeholder="Address line 1" InputProps={readOnlyInputProps} sx={drawerInputSx} />
-              <TextField size="small" value={address.address2 || ""} placeholder="Address line 2 (optional)" InputProps={readOnlyInputProps} sx={drawerInputSx} />
-              <Stack direction={{ xs: "column", sm: "row" }} gap={1}>
-                <TextField fullWidth size="small" value={address.city || ""} placeholder="City" InputProps={readOnlyInputProps} sx={drawerInputSx} />
-                <TextField size="small" value={address.zip || ""} placeholder="Pincode" InputProps={readOnlyInputProps} sx={{ ...drawerInputSx, width: { xs: "100%", sm: 150 } }} />
-              </Stack>
-              <Stack direction={{ xs: "column", sm: "row" }} gap={1}>
-                <TextField fullWidth size="small" value={address.province || ""} placeholder="State" InputProps={readOnlyInputProps} sx={drawerInputSx} />
-                <TextField fullWidth size="small" value={address.country || "India"} placeholder="Country" InputProps={readOnlyInputProps} sx={drawerInputSx} />
-              </Stack>
-            </Stack>
-          </RepunchSection>
-        </Box>
-
-        <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ px: 3.5, py: 2.2, bgcolor: "#fff", borderTop: "1px solid #e5e7eb", minHeight: 88 }}>
-          <Typography sx={{ color: "#667085", fontSize: 18, fontWeight: 700 }}>Total {formatCurrency(total)}</Typography>
-          <Stack direction="row" gap={1.4}>
-            <Button onClick={onClose} disabled={loading} variant="outlined" sx={drawerCancelButtonSx}>Cancel</Button>
-            <Button onClick={onSubmit} disabled={loading} variant="contained" sx={drawerSubmitButtonSx}>
-              {loading ? "Repunching..." : "Repunch Order"}
-            </Button>
-          </Stack>
-        </Stack>
-      </Box>
-    </Drawer>
   );
 }
 
@@ -852,25 +543,6 @@ function ConfirmDetail({ label, value, mono = false }) {
   );
 }
 
-function RepunchSection({ children }) {
-  return (
-    <Paper elevation={0} sx={{ border: "1px solid #e5e7eb", borderRadius: 2, bgcolor: "#fff", px: 2.5, py: 2.45, mb: 2.35 }}>
-      {children}
-    </Paper>
-  );
-}
-
-function DrawerDetail({ label, value, strong = false, sx = {} }) {
-  return (
-    <Stack direction="row" justifyContent="space-between" alignItems="baseline" gap={2} sx={{ py: 0.38, ...sx }}>
-      <Typography sx={{ color: strong ? "#111827" : "#667085", fontSize: strong ? 18 : 17, fontWeight: strong ? 900 : 700 }}>{label}</Typography>
-      <Typography sx={{ color: "#111827", fontSize: strong ? 18 : 17, fontWeight: strong ? 900 : 800, textAlign: "right", overflowWrap: "anywhere" }}>
-        {value || "-"}
-      </Typography>
-    </Stack>
-  );
-}
-
 function FieldLabel({ children }) {
   return (
     <Typography sx={{ color: "#7b8494", fontWeight: 700, fontSize: 13, mb: 0.6 }}>
@@ -878,6 +550,7 @@ function FieldLabel({ children }) {
     </Typography>
   );
 }
+
 
 const inputSx = {
   "& .MuiOutlinedInput-root": {
@@ -912,75 +585,4 @@ const excelButtonSx = {
   borderColor: "#bbf7d0",
   color: "#059669",
   "&:hover": { borderColor: "#86efac", bgcolor: "#dcfce7" },
-};
-
-const drawerSectionTitleSx = {
-  color: "#1f2937",
-  fontSize: 18,
-  fontWeight: 900,
-  lineHeight: 1.25,
-};
-
-const drawerLinkSx = {
-  color: "#4f35f2",
-  fontSize: 17,
-  fontWeight: 800,
-  mt: 1.2,
-};
-
-const drawerInputSx = {
-  "& .MuiOutlinedInput-root": {
-    bgcolor: "#fff",
-    borderRadius: 1,
-    minHeight: 41,
-    fontSize: 17,
-    color: "#111827",
-    "& fieldset": { borderColor: "#d7dde7" },
-    "&:hover fieldset": { borderColor: "#cbd5e1" },
-  },
-  "& .MuiInputBase-input": { py: 1.05 },
-  "& .MuiSelect-select": {
-    py: 1.15,
-  },
-};
-
-const readOnlyInputProps = {
-  readOnly: true,
-};
-
-const drawerCancelButtonSx = {
-  height: 52,
-  borderRadius: 1.3,
-  borderColor: "#cbd5e1",
-  color: "#475569",
-  textTransform: "none",
-  fontWeight: 800,
-  fontSize: 17,
-  px: 3,
-  minWidth: 112,
-  "&:hover": { borderColor: "#94a3b8", bgcolor: "#f8fafc" },
-};
-
-const drawerSubmitButtonSx = {
-  height: 52,
-  borderRadius: 1.3,
-  bgcolor: "#111827",
-  color: "#fff",
-  boxShadow: "none",
-  textTransform: "none",
-  fontWeight: 900,
-  fontSize: 17,
-  px: 3,
-  minWidth: 170,
-  "&:hover": { bgcolor: "#020617", boxShadow: "none" },
-};
-
-const paymentBadgeSx = {
-  bgcolor: "#fef3c7",
-  color: "#c2410c",
-  fontWeight: 900,
-  fontSize: 14,
-  height: 30,
-  borderRadius: "999px",
-  "& .MuiChip-label": { px: 1.4 },
 };
