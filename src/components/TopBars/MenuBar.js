@@ -731,6 +731,10 @@ const MenuBar = ({ toggleDrawer }) => {
             <NavItem to="/operations/rto-management" icon={<AssignmentReturnIcon />} label="RTO Management" />
           )}
 
+          {user && can("opsRtoManagement") && (
+            <NavItem to="/operations/repunch-order" icon={<AssignmentReturnIcon />} label="Repunch Order" />
+          )}
+
           {user && can("opsRtoDelivered") && (
             <NavItem to="/operations/rto-delivered" icon={<LocalShippingIcon />} label="RTO Delivered" />
           )}

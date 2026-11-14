@@ -23,6 +23,7 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
+  Alert,
 } from "@mui/material";
 import { motion } from "framer-motion";
 import AddShoppingCartIcon from "@mui/icons-material/AddShoppingCart";
@@ -170,8 +171,14 @@ const buttonStyle = {
   padding: "6px 16px",
 };
 
-const CartDrawer = ({ closeDrawer }) => {
+const CartDrawer = ({ closeDrawer, repunchSource, onOrderCreated, onBusyChange, onRepunchError }) => {
   const dispatch = useDispatch();
+  const checkoutApiOrigin = repunchSource ? API_ORIGIN : "https://muditamleads-14f32a10d7f7.herokuapp.com";
+  const [repunchError, setRepunchError] = useState("");
+  const [repunchLocked, setRepunchLocked] = useState(false);
+  const [prefillWarning, setPrefillWarning] = useState("");
+  const repunchPrefilled = React.useRef(false);
+  const submittingRepunch = React.useRef(false);
   const [activeSection, setActiveSection] = useState("ordering");
   const [products, setProducts] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
@@ -294,7 +301,7 @@ const CartDrawer = ({ closeDrawer }) => {
     async function fetchProducts() {
       try {
         const response = await axios.get(
-          "https://muditamleads-14f32a10d7f7.herokuapp.com/api/shopify/products"
+          `${checkoutApiOrigin}/api/shopify/products`
         );
         const availableProducts = withSellableInventory(response.data);
         setProducts(availableProducts);
@@ -304,9 +311,24 @@ const CartDrawer = ({ closeDrawer }) => {
       }
     }
     fetchProducts();
-  }, []);
+  }, [checkoutApiOrigin]);
 
   // Filter products when searchQuery changes
+  useEffect(() => {
+    if (!repunchSource || !products.length || repunchPrefilled.current) return;
+    repunchPrefilled.current = true;
+    const unavailable = [];
+    (repunchSource.products || []).forEach((item) => {
+      const matches = products.flatMap((product) => product.variants
+        .filter((variant) => item.variant_id ? String(variant.id) === String(item.variant_id) : item.sku && variant.sku === item.sku)
+        .map((variant) => ({ product, variant })));
+      const { product, variant } = matches.length === 1 ? matches[0] : {};
+      if (!variant) { unavailable.push(item.title); return; }
+      dispatch(addToCart({ product, variant, quantity: Math.max(1, Number(item.quantity) || 1) }));
+    });
+    if (unavailable.length) setPrefillWarning(`Unavailable products were not added: ${unavailable.join(", ")}. Choose replacements from the catalog.`);
+  }, [products, repunchSource, dispatch]);
+
   useEffect(() => {
     if (!searchQuery.trim()) {
       setFilteredProducts(products);
@@ -540,7 +562,7 @@ const CartDrawer = ({ closeDrawer }) => {
 
       // Check for existing customer by phone
       const customerRes = await axios.get(
-        `https://muditamleads-14f32a10d7f7.herokuapp.com/api/shopify/customer?phone=${standardizedPhone}`
+        `${checkoutApiOrigin}/api/shopify/customer?phone=${standardizedPhone}`
       );
       const customerData = customerRes.data;
       if (customerData?.countryCodeFix) {
@@ -586,7 +608,7 @@ const CartDrawer = ({ closeDrawer }) => {
       setIsAddingCustomer(true);
       setCustomerPopupError("");
       const response = await axios.post(
-        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/shopify/create-customer",
+        `${checkoutApiOrigin}/api/shopify/create-customer`,
         {
           phone: phoneNumber,
           first_name: newCustomerFirstName,
@@ -622,7 +644,7 @@ const CartDrawer = ({ closeDrawer }) => {
       setCustomerPopupError("");
 
       await axios.put(
-        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/shopify/customer-phone-country-code",
+        `${checkoutApiOrigin}/api/shopify/customer-phone-country-code`,
         {
           customerId: customerCountryCodeFix.customerId,
           phone: phoneNumber,
@@ -731,7 +753,7 @@ const CartDrawer = ({ closeDrawer }) => {
       const first_name = fullNameParts.shift() || "";
       const last_name = fullNameParts.join(" ");
 
-      await axios.put("https://muditamleads-14f32a10d7f7.herokuapp.com/api/shopify/customer-address", {
+      await axios.put(`${checkoutApiOrigin}/api/shopify/customer-address`, {
         customerId: customerId,
         addressId: addressToUpdate.id,
         first_name,
@@ -782,7 +804,7 @@ const CartDrawer = ({ closeDrawer }) => {
       const amountToCharge = isPartial ? partialAmt : total;
 
       const response = await axios.post(
-        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/razorpay/create-payment-link",
+        `${checkoutApiOrigin}/api/razorpay/create-payment-link`,
         {
           amount: Number(amountToCharge.toFixed(2)),
           currency: "INR",
@@ -801,6 +823,7 @@ const CartDrawer = ({ closeDrawer }) => {
   };
 
   const handleCreateOrderLink = async () => {
+    if (repunchSource) return;
     if (isFutureOrder) {
       setCopyStatus("7-day links are available for immediate orders only. Use Create Order for future-date orders.");
       return;
@@ -878,6 +901,12 @@ const CartDrawer = ({ closeDrawer }) => {
 
 
   const handleCreateOrder = async () => {
+    if (repunchSource && (submittingRepunch.current || repunchLocked)) return;
+    if (repunchSource) {
+      submittingRepunch.current = true;
+      setRepunchError("");
+      onBusyChange?.(true);
+    }
     setIsOrderLoading(true);
 
     const shippingAddress = {
@@ -930,6 +959,18 @@ const CartDrawer = ({ closeDrawer }) => {
     };
 
     try {
+      if (repunchSource) {
+        // A prefilled RTO address can be confirmed without pressing Check.
+        // Resolve the existing customer before reusing normal order creation.
+        if (!orderData.customerId && phoneNumber) {
+          const customerResponse = await axios.get(`${checkoutApiOrigin}/api/shopify/customer`, { params: { phone: phoneNumber }, withCredentials: true });
+          if (customerResponse.data?.id) orderData.customerId = customerResponse.data.id;
+        }
+        const response = await axios.post(`${API_ORIGIN}/api/repunch-orders/${repunchSource._id}`, orderData, { withCredentials: true });
+        setRepunchLocked(true);
+        onOrderCreated?.(response.data.order);
+        return;
+      }
       if (isFutureOrder) {
         if (!futureOrderDate) {
           alert("Please select a future delivery date.");
@@ -969,7 +1010,7 @@ const CartDrawer = ({ closeDrawer }) => {
       }
 
       const response = await axios.post(
-        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/shopify/create-order",
+        `${checkoutApiOrigin}/api/shopify/create-order`,
         orderData
       );
       // Capture order id from Shopify response
@@ -979,8 +1020,14 @@ const CartDrawer = ({ closeDrawer }) => {
       setShowOrderSuccess(true);
     } catch (error) {
       console.error("Error placing order:", error);
+      if (repunchSource) {
+        setRepunchError(error.response?.data?.message || "Unable to confirm the repunch. Refresh the order list before trying again.");
+        if (!error.response || error.response.status === 409 || error.response.status >= 500) setRepunchLocked(true);
+        onRepunchError?.();
+      }
     } finally {
       setIsOrderLoading(false);
+      if (repunchSource) { submittingRepunch.current = false; onBusyChange?.(false); }
     }
   };
 
@@ -1021,7 +1068,7 @@ const CartDrawer = ({ closeDrawer }) => {
     }
     try {
       await axios.post(
-        "https://muditamleads-14f32a10d7f7.herokuapp.com/api/shopify/update-order-note",
+        `${checkoutApiOrigin}/api/shopify/update-order-note`,
         {
           orderId,
           note: orderNotes,
@@ -1099,6 +1146,12 @@ const CartDrawer = ({ closeDrawer }) => {
           position: "relative",
         }}
       >
+        {repunchSource && <Box sx={{ mb: 2 }}>
+          <Typography variant="h6">Repunch Order</Typography>
+          <Typography variant="body2">Original RTO: <strong>{repunchSource.orderName}</strong></Typography>
+          <Typography variant="caption" color="text.secondary">Review products, address, discount and payment before placing the replacement. Use the existing discount control to set the required amount, including ₹1.</Typography>
+          {prefillWarning && <Alert severity="warning" sx={{ mt: 1 }}>{prefillWarning}</Alert>}
+        </Box>}
         {/* Section Tabs + always-visible Delete icon */}
         <Box
           sx={{
@@ -1152,6 +1205,7 @@ const CartDrawer = ({ closeDrawer }) => {
             size="small"
             color="error"
             onClick={handleResetAll}
+            disabled={Boolean(repunchSource) && isOrderLoading}
             sx={{ ml: 1 }}
           >
             <DeleteIcon />
@@ -2166,6 +2220,7 @@ const CartDrawer = ({ closeDrawer }) => {
                     control={
                       <Checkbox
                         checked={isFutureOrder}
+                        disabled={Boolean(repunchSource)}
                         onChange={(event) => {
                           const checked = event.target.checked;
                           setIsFutureOrder(checked);
@@ -2295,6 +2350,7 @@ const CartDrawer = ({ closeDrawer }) => {
                       />
                     </>
                   )}
+                  {repunchError && <Alert severity="error" sx={{ mb: 2 }}>{repunchError}</Alert>}
                   {paymentMethod && (
                     <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", alignItems: "center" }}>
                       <Button
@@ -2303,6 +2359,7 @@ const CartDrawer = ({ closeDrawer }) => {
                         onClick={handleCreateOrder}
                         disabled={
                           isOrderLoading ||
+                          (Boolean(repunchSource) && (repunchLocked || !cart.length || Number(finalTotal) <= 0)) ||
                           !confirmedAddress ||
                           (isFutureOrder && !futureOrderDate) ||
                           (paymentMethod === "Prepaid" && transactionId.trim() === "") ||
@@ -2313,13 +2370,13 @@ const CartDrawer = ({ closeDrawer }) => {
                         }
                         sx={buttonStyle}
                       >
-                        {isOrderLoading ? <CircularProgress size={20} sx={{ color: "lightgreen" }} /> : "Create Order"}
+                        {isOrderLoading ? <CircularProgress size={20} sx={{ color: "lightgreen" }} /> : repunchSource ? "Repunch Order" : "Create Order"}
                       </Button>
                       <Button
                         variant="outlined"
                         startIcon={<LinkIcon />}
                         onClick={handleCreateOrderLink}
-                        disabled={creatingOrderLink || !confirmedAddress || !cart.length || !paymentMethod || isFutureOrder}
+                        disabled={Boolean(repunchSource) || creatingOrderLink || !confirmedAddress || !cart.length || !paymentMethod || isFutureOrder}
                         sx={buttonStyle}
                       >
                         {creatingOrderLink ? "Creating link..." : orderLinkUrl ? "Regenerate 7-day link" : "Create 7-day link"}

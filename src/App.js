@@ -24,6 +24,7 @@ import OnlineOrders from "./ShopifyOrders/OnlineOrders";
 import LmsOrdersPage from "./ShopifyOrders/LmsOrdersPage";
 import LmsNdrPage from "./ShopifyOrders/LmsNdrPage";
 import LmsRtoManagementPage from "./ShopifyOrders/LmsRtoManagementPage";
+import RepunchOrdersPage from "./ShopifyOrders/RepunchOrdersPage";
 import FutureOrdersPage from "./ShopifyOrders/FutureOrdersPage";
 import LeadDetail from "./components/LeadRequests/LeadDetails";
 import RetentionData from "./pages/filtered/Retention";
@@ -336,6 +337,16 @@ function AppLayout() {
             element={
               <PrivateRoute>
                 <LmsNdrPage />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/operations/repunch-order"
+            element={
+              <PrivateRoute>
+                <PermissionRoute permissionKey="opsRtoManagement">
+                  <RepunchOrdersPage />
+                </PermissionRoute>
               </PrivateRoute>
             }
           />
