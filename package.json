@@ -56,6 +56,9 @@
     "xlsx": "^0.18.5"
   },
   "scripts": {
+    "postinstall": "node scripts/fix-autolinker-sourcemaps.cjs",
+    "prestart": "node scripts/fix-autolinker-sourcemaps.cjs",
+    "prebuild": "node scripts/fix-autolinker-sourcemaps.cjs",
     "start": "react-scripts start",
     "build": "CI=false react-scripts build",
     "test": "react-scripts test",

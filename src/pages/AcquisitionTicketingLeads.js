@@ -60,6 +60,7 @@ export default function AcquisitionTicketingLeads() {
     try {
       const response = await api.get("/api/ticketing-integration/acquisition-leads");
       setItems(response.data?.items || []);
+      setError(response.data?.warning || "");
     } catch (requestError) {
       setError(requestError.response?.data?.error || "Could not load Acquisition leads.");
     } finally {
@@ -117,7 +118,7 @@ export default function AcquisitionTicketingLeads() {
       <Stack direction="row" alignItems="center" justifyContent="space-between" mb={2}>
         <Box>
           <Typography variant="h6" fontWeight={700}>Acquisition Leads</Typography>
-          <Typography variant="body2" color="text.secondary">Unconfirmed orders transferred after 10 days.</Typography>
+          <Typography variant="body2" color="text.secondary">Unconfirmed orders transferred after 10 days and website widget leads.</Typography>
         </Box>
         <IconButton onClick={load} aria-label="Refresh" disabled={loading}><RefreshIcon /></IconButton>
       </Stack>
@@ -159,13 +160,13 @@ export default function AcquisitionTicketingLeads() {
                         <Stack spacing={0.5}>
                           <Typography fontWeight={600}>{lead.customer?.name || "-"}</Typography>
                           <Typography variant="body2" color="text.secondary">{lead.customer?.email || "-"}</Typography>
-                          <Typography variant="caption" color="text.secondary">{lead.order?.orderName || lead.references?.orderSourceId || "-"}</Typography>
+                          <Typography variant="caption" color="text.secondary">{lead.source === "widget" ? "Website widget" : lead.order?.orderName || lead.references?.orderSourceId || "-"}</Typography>
                         </Stack>
                       </TableCell>
                       <TableCell>{lead.customer?.phone || "-"}</TableCell>
                       <TableCell>
                         <Stack spacing={0.5}>
-                          {preview.length ? preview.map((product, index) => (
+                          {lead.source === "widget" ? <Typography variant="body2" sx={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{lead.context || "-"}</Typography> : preview.length ? preview.map((product, index) => (
                             <Typography key={`${product.title}-${index}`} variant="body2">
                               <b>{product.title || "-"}</b>{product.sku ? ` - ${product.sku}` : ""} • x{product.quantity || 1} • {formatMoney(product.price || 0, currency)}
                             </Typography>
@@ -173,8 +174,8 @@ export default function AcquisitionTicketingLeads() {
                           {products.length > preview.length && <Typography variant="caption" color="text.secondary">+{products.length - preview.length} more</Typography>}
                         </Stack>
                       </TableCell>
-                      <TableCell>{formatMoney(lead.order?.totalAmount, currency)}</TableCell>
-                      <TableCell>{addressState(lead.order?.address)}</TableCell>
+                      <TableCell>{lead.source === "widget" ? "" : formatMoney(lead.order?.totalAmount, currency)}</TableCell>
+                      <TableCell>{lead.source === "widget" ? "" : addressState(lead.order?.address)}</TableCell>
                       {isAdmin() && (
                         <TableCell>
                           <FormControl size="small" fullWidth sx={{ minWidth: 220 }}>
