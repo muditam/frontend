@@ -69,17 +69,18 @@ export default function CallBriefCard({ brief, onLog, onRefresh }) {
           {brief.patient?.meta && <span className="cb-meta">{brief.patient.meta}</span>}
           {brief.language && <span className="cb-lang">Speak {brief.language}</span>}
         </div>
-        <p className="cb-goal"><small>Goal</small>{brief.goal}</p>
-        {brief.glance?.length > 0 && (
-          <div className="cb-glance">
-            {brief.glance.slice(0, 3).map((g, i) => (
-              <div className="cb-chip" key={i}>
-                <b>{g.text}</b>
-                <span>{g.source}{g.date ? ` · ${shortDate(g.date)}` : ""}</span>
-              </div>
-            ))}
-          </div>
-        )}
+        <dl className="cb-lines">
+          {[
+            ["situation", "Situation"],
+            ["nextStep", "Next step"],
+            ["trust", "Trust"],
+          ].map(([key, label]) => (
+            <div className="cb-line" key={key}>
+              <dt>{label}</dt>
+              <dd>{brief.lines?.[key]?.text?.trim() || "Not available. Refresh the call brief to load this detail."}</dd>
+            </div>
+          ))}
+        </dl>
         {brief.confidence === "low" && (
           <div className="cb-warn">Card not reliable{brief.gaps?.length ? `: ${brief.gaps.join(", ")}` : ""}. Check the lead history before calling.</div>
         )}
@@ -94,13 +95,6 @@ export default function CallBriefCard({ brief, onLog, onRefresh }) {
               <p>{brief.opener}</p>
               <button type="button" className="cb-btn" onClick={copyOpener}>{copied ? "Copied" : "Copy"}</button>
             </div>
-          )}
-          {brief.steps?.length > 0 && (
-            <ol className="cb-steps">
-              {brief.steps.slice(0, 3).map((s, i) => (
-                <li key={i}><span><b>{s.verb}</b> {s.rest}</span></li>
-              ))}
-            </ol>
           )}
           {brief.offer && (
             <div className="cb-offer">
