@@ -164,8 +164,8 @@ function isReversedWalletCoinStatus(status = "") {
 
 
 function isUpcomingWalletCoinStatus(status = "") {
- const s = String(status || "").toUpperCase();
- if (!s || s.includes("DELIVERED") || s.includes("COMPLETE") || isReversedWalletCoinStatus(s)) return false;
+ const s = String(status || "").trim().toUpperCase().replace(/[\s-]+/g, "_");
+ if (!s || s === "DELIVERED" || s === "COMPLETE" || s === "COMPLETED" || isReversedWalletCoinStatus(s)) return false;
 
 
  return (
@@ -185,8 +185,8 @@ function isUpcomingWalletCoinStatus(status = "") {
 
 function isDeliveredWalletCoinStatus(status = "", rowDeliveredFlag = false) {
  if (rowDeliveredFlag) return true;
- const s = String(status || "").toUpperCase();
- return s.includes("DELIVERED") || s.includes("COMPLETE");
+ const s = String(status || "").trim().toUpperCase().replace(/[\s-]+/g, "_");
+ return s === "DELIVERED" || s === "COMPLETE" || s === "COMPLETED";
 }
 
 
@@ -240,7 +240,7 @@ function getStatusMeta(status = "") {
 
 
  if (isReversedWalletCoinStatus(s)) return { label: status || "Reversed", color: "error" };
- if (s.includes("DELIVERED")) return { label: status || "Delivered", color: "success" };
+ if (s.trim() === "DELIVERED") return { label: status || "Delivered", color: "success" };
  if (isUpcomingWalletCoinStatus(s)) return { label: status || "Coming", color: "warning" };
  return { label: status || "Unknown", color: "default" };
 }
