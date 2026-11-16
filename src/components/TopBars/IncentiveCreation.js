@@ -88,15 +88,15 @@ const Incentives = () => {
 
     rows.forEach((r) => {
       const amount = Number(r.amount || r.amountPaid || 0);
-      const status = (r.deliveryStatus || "").toUpperCase();
+      const status = (r.deliveryStatus || "").trim().toUpperCase().replace(/[\s-]+/g, "_");
 
       base.total.amount += amount;
       base.total.count += 1;
 
-      const isDelivered = status.includes("DELIVERED");
-      const isRTO = status.includes("RTO");
+      const isDelivered = status === "DELIVERED";
+      const isRTO = status === "RTO" || status === "RTO_DELIVERED";
 
-      if (isRTO && isDelivered) {
+      if (status === "RTO_DELIVERED") {
         base.rtoDelivered.amount += amount;
         base.rtoDelivered.count += 1;
       } else if (isRTO) {
