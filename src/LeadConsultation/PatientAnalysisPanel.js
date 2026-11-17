@@ -25,10 +25,18 @@ import axios from "axios";
 import CallBriefCard from "./CallBriefCard";
 
 const API_BASE = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "");
-const api = axios.create({ baseURL: API_BASE, withCredentials: true });
+const api = axios.create({ baseURL: API_BASE, withCredentials: true, timeout: 20000 });
 const FEATURE_ENABLED = String(process.env.REACT_APP_PATIENT_ANALYSIS_ENABLED || "false") === "true";
 
-const terminalStatuses = new Set(["completed", "failed"]);
+const POLL_LIMIT_MS = 5 * 60 * 1000;
+function waitForPoll(signal) {
+  return new Promise((resolve, reject) => {
+    const abort = () => { window.clearTimeout(timer); reject(new Error("Polling cancelled")); };
+    const timer = window.setTimeout(() => { signal.removeEventListener("abort", abort); resolve(); }, 3000);
+    if (signal.aborted) abort();
+    else signal.addEventListener("abort", abort, { once: true });
+  });
+}
 
 function formatDate(value) {
   if (!value) return "Date unavailable";
@@ -219,54 +227,64 @@ export default function PatientAnalysisPanel({ customerId }) {
   const [error, setError] = useState("");
   const [brief, setBrief] = useState(null);
   const [briefLoading, setBriefLoading] = useState(false);
-  const pollTimer = useRef(null);
+  const controllers = useRef(new Set());
+  const running = useRef({});
   const patientId = customerId ? `customer:${customerId}` : "";
+  const currentPatient = useRef(patientId);
+  currentPatient.current = patientId;
 
   const stopPolling = useCallback(() => {
-    if (pollTimer.current) window.clearTimeout(pollTimer.current);
-    pollTimer.current = null;
+    controllers.current.forEach(controller => controller.abort());
+    controllers.current.clear();
+    running.current = {};
   }, []);
 
-  const loadCurrent = useCallback(async () => {
+  const loadCurrent = useCallback(async (signal) => {
     if (!patientId) return;
-    const { data } = await api.get(`/api/v1/patients/${encodeURIComponent(patientId)}/analysis`);
-    setAnalysis(data?.analysis || null);
+    const { data } = await api.get(`/api/v1/patients/${encodeURIComponent(patientId)}/analysis`, { signal });
+    if (!signal?.aborted && currentPatient.current === patientId) setAnalysis(data?.analysis || null);
+    return data?.analysis || null;
   }, [patientId]);
 
-  const loadBrief = useCallback(async () => {
+  const loadBrief = useCallback(async (signal) => {
     if (!patientId) return;
-    const { data } = await api.get(`/api/call-briefs/${encodeURIComponent(patientId)}`);
-    setBrief(data?.brief || null);
+    const { data } = await api.get(`/api/call-briefs/${encodeURIComponent(patientId)}`, { signal });
+    if (!signal?.aborted && currentPatient.current === patientId) setBrief(data?.brief || null);
+    return data?.brief || null;
   }, [patientId]);
 
-  const pollJob = useCallback(async (jobId) => {
-    try {
-      const { data } = await api.get(
-        `/api/v1/patients/${encodeURIComponent(patientId)}/analysis/jobs/${encodeURIComponent(jobId)}`
-      );
-      const next = data?.job || null;
-      setJob(next);
-      if (next && terminalStatuses.has(next.status)) {
-        stopPolling();
-        if (next.status === "completed") await loadCurrent();
-        else setError(next.errorMessage || "Analysis failed");
-        setLoading(false);
-        return;
-      }
-      pollTimer.current = window.setTimeout(() => pollJob(jobId), 3000);
-    } catch (requestError) {
-      stopPolling();
-      setLoading(false);
-      setError(requestError?.response?.data?.message || "Unable to check analysis progress");
-    }
-  }, [loadCurrent, patientId, stopPolling]);
+  useEffect(() => {
+    stopPolling();
+    setOpen(false);
+    setAnalysis(null);
+    setBrief(null);
+    setJob(null);
+    setLoading(false);
+    setBriefLoading(false);
+    setError("");
+    return stopPolling;
+  }, [patientId, stopPolling]);
 
-  useEffect(() => () => stopPolling(), [stopPolling]);
+  const handleClose = () => {
+    stopPolling();
+    setLoading(false);
+    setBriefLoading(false);
+    setJob(null);
+    setOpen(false);
+  };
 
   const handleOpen = async () => {
+    stopPolling();
+    setLoading(false);
+    setBriefLoading(false);
+    setJob(null);
     setOpen(true);
     setError("");
-    const [analysisResult, briefResult] = await Promise.allSettled([loadCurrent(), loadBrief()]);
+    const controller = new AbortController();
+    controllers.current.add(controller);
+    const [analysisResult, briefResult] = await Promise.allSettled([loadCurrent(controller.signal), loadBrief(controller.signal)]);
+    controllers.current.delete(controller);
+    if (controller.signal.aborted) return;
     if (briefResult.status === "rejected") {
       const requestError = briefResult.reason;
       setError(requestError?.response?.data?.message || "Call brief service is unavailable locally");
@@ -276,31 +294,65 @@ export default function PatientAnalysisPanel({ customerId }) {
     }
   };
 
-  const refreshBrief = async () => {
-    setBriefLoading(true);
+  const runGeneration = async (kind) => {
+    if (running.current[kind]) return;
+    const controller = new AbortController();
+    const { signal } = controller;
+    running.current[kind] = controller;
+    controllers.current.add(controller);
+    const isBrief = kind === "brief";
+    const setBusy = isBrief ? setBriefLoading : setLoading;
+    const load = isBrief ? loadBrief : loadCurrent;
+    const previous = isBrief ? brief : analysis;
+    const base = isBrief ? `/api/call-briefs/${encodeURIComponent(patientId)}`
+      : `/api/v1/patients/${encodeURIComponent(patientId)}/analysis`;
+    setBusy(true);
     setError("");
     try {
-      const { data } = await api.post(`/api/call-briefs/${encodeURIComponent(patientId)}/refresh`);
+      const { data } = await api.post(isBrief ? `${base}/refresh` : base, undefined, { signal });
+      if (signal.aborted) return;
+      if (data?.status === "unchanged" || data?.status === "completed") {
+        await load(signal);
+        return;
+      }
       const jobId = data?.job?.jobId;
-      if (!jobId) throw new Error("Call brief job was not created");
-      for (let attempt = 0; attempt < 60; attempt += 1) {
-        await new Promise((resolve) => window.setTimeout(resolve, 2000));
-        const response = await api.get(`/api/call-briefs/${encodeURIComponent(patientId)}/jobs/${encodeURIComponent(jobId)}`);
+      if (!jobId) throw new Error("Generation job was not created. Please try again.");
+      const deadline = Date.now() + POLL_LIMIT_MS;
+      while (!signal.aborted && Date.now() < deadline) {
+        const response = await api.get(`${base}/jobs/${encodeURIComponent(jobId)}`, { signal });
+        if (signal.aborted) return;
         const currentJob = response.data?.job;
-        const state = currentJob?.status;
+        const state = currentJob?.status || currentJob?.state;
+        if (!state) throw new Error("Unable to read generation progress. Close and reopen this panel to check the saved result.");
+        setJob({ ...currentJob, status: state });
         if (state === "completed") {
-          await loadBrief();
-          setBriefLoading(false);
+          await load(signal);
           return;
         }
-        if (state === "failed") throw new Error(currentJob?.errorMessage || "Call brief generation failed");
+        if (state === "failed") throw new Error(currentJob?.errorMessage || currentJob?.failedReason || "Generation failed");
+        await waitForPoll(signal);
       }
-      throw new Error("Call brief is still processing. Please check again shortly.");
+      if (!signal.aborted) throw new Error("Still processing in the background. Close and reopen this panel shortly to check the result; no website refresh is needed.");
     } catch (requestError) {
-      setBriefLoading(false);
-      setError(requestError?.response?.data?.message || requestError.message || "Unable to refresh call brief");
+      if (signal.aborted) return;
+      // A job can finish after its status request fails, or be pruned from Redis. Check the saved
+      // result before reporting an error, but don't mistake an unchanged old card for success.
+      try {
+        const saved = await load(signal);
+        if (saved && (!previous || saved.version !== previous.version || saved.generatedAt !== previous.generatedAt)) return;
+      } catch (_) { /* Keep the original error if reading the saved result also fails. */ }
+      if (!signal.aborted) setError(requestError?.response?.data?.message || requestError.message || "Unable to check generation progress");
+    } finally {
+      controllers.current.delete(controller);
+      if (running.current[kind] === controller) {
+        delete running.current[kind];
+        setBusy(false);
+      }
     }
   };
+
+  const refreshBrief = () => runGeneration("brief");
+  const handleAnalyse = () => runGeneration("analysis");
 
   const saveOutcome = async (outcome) => {
     setError("");
@@ -310,26 +362,6 @@ export default function PatientAnalysisPanel({ customerId }) {
       const message = requestError?.response?.data?.message || "Unable to save outcome";
       setError(message);
       throw new Error(message);
-    }
-  };
-
-  const handleAnalyse = async () => {
-    setLoading(true);
-    setError("");
-    try {
-      const { data } = await api.post(`/api/v1/patients/${encodeURIComponent(patientId)}/analysis`);
-      if (data?.status === "unchanged") {
-        setAnalysis(data.analysis || null);
-        setLoading(false);
-        return;
-      }
-      const queuedJob = data?.job;
-      setJob(queuedJob || null);
-      if (queuedJob?.jobId) await pollJob(queuedJob.jobId);
-      else setLoading(false);
-    } catch (requestError) {
-      setLoading(false);
-      setError(requestError?.response?.data?.message || "Unable to start patient analysis");
     }
   };
 
@@ -349,7 +381,7 @@ export default function PatientAnalysisPanel({ customerId }) {
           Patient call brief
         </Button>
       </Box>
-      <Dialog open={open} onClose={() => !loading && setOpen(false)} fullWidth maxWidth="md">
+      <Dialog open={open} onClose={handleClose} fullWidth maxWidth="md">
         <DialogTitle sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           Patient call brief
           {job?.status && <Chip size="small" label={job.status} />}
@@ -365,7 +397,7 @@ export default function PatientAnalysisPanel({ customerId }) {
             {(briefLoading || loading) && (
               <Box sx={{ display: "flex", gap: 1, alignItems: "center" }}>
                 <CircularProgress size={20} />
-                <Typography variant="body2">Preparing the latest call brief…</Typography>
+                <Typography variant="body2">{loading ? "Refreshing source history…" : "Preparing the latest call brief…"}</Typography>
               </Box>
             )}
             <Accordion disableGutters elevation={0} sx={{ border: 0, "&:before": { display: "none" } }}>
@@ -384,7 +416,7 @@ export default function PatientAnalysisPanel({ customerId }) {
           </Stack>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setOpen(false)} disabled={loading}>Close</Button>
+          <Button onClick={handleClose}>Close</Button>
           <Button variant="contained" onClick={refreshBrief} disabled={briefLoading || loading}>
             {briefLoading ? "Preparing…" : brief ? "Refresh call brief" : "Prepare call brief"}
           </Button>
