@@ -259,7 +259,7 @@ function AppLayout() {
             path="/leadmanagement"
             element={
               <PrivateRoute>
-                <PermissionRoute permissionKey="consultation">
+                <PermissionRoute permissionKey="ai-brief">
                   <LeadManagement />
                 </PermissionRoute>
               </PrivateRoute>
