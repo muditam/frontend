@@ -502,6 +502,7 @@ const tableColumns = [
   "Mode of Payment",
   "Products Ordered",
   "Expert Assigned",
+  "Sales Assign",
   "Health Expert Assigned",
   "Channel Name",
   "State",
@@ -628,6 +629,9 @@ export default function ShopifyOrdersTable() {
   const [syncMetaLoading, setSyncMetaLoading] = useState(true);
 
   const [agents, setAgents] = useState([]);
+  const [salesAgents, setSalesAgents] = useState([]);
+  const [savingSalesOrder, setSavingSalesOrder] = useState("");
+  const salesSaveInFlight = useRef(false);
   const [savingIndex, setSavingIndex] = useState(-1);
   const [snack, setSnack] = useState({ open: false, msg: "", severity: "success" });
 
@@ -750,6 +754,19 @@ export default function ShopifyOrdersTable() {
 
   // Initial: load agents and global filter options. Options should not disappear
   // just because the current date range has no local rows.
+  useEffect(() => {
+    let active = true;
+    api.get("/api/employees", { params: { role: "Sales Agent" } })
+      .then(({ data }) => {
+        if (active) setSalesAgents((Array.isArray(data) ? data : []).filter(employee =>
+          employee.status === "active" && String(employee.role || "").trim().toLowerCase() === "sales agent" &&
+          String(employee.department || "").trim().toLowerCase() === "sales"
+        ));
+      })
+      .catch(() => { if (active) setSnack({ open: true, msg: "Could not load Sales Assign options. Please refresh.", severity: "error" }); });
+    return () => { active = false; };
+  }, []);
+
   useEffect(() => {
     (async () => {
       try {
@@ -915,6 +932,28 @@ export default function ShopifyOrdersTable() {
   };
 
   // Save Health Expert (optimistic UI)
+  const handleSalesAssign = async (row, salesAgentId) => {
+    if (salesSaveInFlight.current || savingIndex !== -1) return;
+    const employee = salesAgents.find(agent => agent._id === salesAgentId);
+    if (!employee) return;
+    salesSaveInFlight.current = true;
+    setSavingSalesOrder(row.orderId);
+    try {
+      await api.post("/api/leads/assign-sales-agent", {
+        orderName: row.orderId, contactNumber: row.contactNumber, salesAgentId,
+      });
+      setRows(current => current.map(item => item.orderId === row.orderId
+        ? { ...item, agentAssigned: employee.fullName } : item));
+      setSnack({ open: true, msg: "Sales agent assigned", severity: "success" });
+    } catch (error) {
+      setSnack({ open: true, msg: error.response?.status === 401 ? "Your session has expired. Please sign in again."
+        : error.response?.data?.error || error.response?.data?.message || "Failed to assign sales agent", severity: "error" });
+    } finally {
+      salesSaveInFlight.current = false;
+      setSavingSalesOrder("");
+    }
+  };
+
   const persistHealthExpert = async (row, value) => {
     await api.post("/api/leads/assign-health-expert", {
       orderName: row.orderId,
@@ -1327,6 +1366,7 @@ export default function ShopifyOrdersTable() {
                     <TableCell sx={tableHeadCellSx}>Mode of Payment</TableCell>
                     <TableCell sx={tableHeadCellSx}>Products Ordered</TableCell>
                     <TableCell sx={tableHeadCellSx}>Expert Assigned</TableCell>
+                    <TableCell sx={tableHeadCellSx}>Sales Assign</TableCell>
                     <TableCell sx={tableHeadCellSx}>Health Expert Assigned</TableCell>
                     <TableCell sx={tableHeadCellSx}>Channel Name</TableCell>
                     <TableCell sx={tableHeadCellSx}>State</TableCell>
@@ -1337,7 +1377,7 @@ export default function ShopifyOrdersTable() {
                 <TableBody>
                   {rows.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={12} align="center" sx={{ py: 8 }}>
+                      <TableCell colSpan={13} align="center" sx={{ py: 8 }}>
                         <Typography variant="subtitle2" sx={{ color: "#0f172a", fontWeight: 800 }}>
                           No orders found.
                         </Typography>
@@ -1396,12 +1436,26 @@ export default function ShopifyOrdersTable() {
                         <TruncCell maxWidth={160}>{r.agentAssigned}</TruncCell>
                         <TableCell sx={{ minWidth: 220 }}>
                           <Select
+                            value={salesAgents.find(agent => agent.fullName === r.agentAssigned)?._id || ""}
+                            onChange={event => handleSalesAssign(r, event.target.value)}
+                            displayEmpty fullWidth size="small"
+                            disabled={!!savingSalesOrder || savingIndex !== -1 || !salesAgents.length}
+                            inputProps={{ "aria-label": `Sales Assign for ${r.orderId}` }}
+                            renderValue={value => savingSalesOrder === r.orderId ? "Saving…" :
+                              salesAgents.find(agent => agent._id === value)?.fullName || <em>Select sales agent</em>}
+                          >
+                            <MenuItem value="" disabled><em>Select sales agent</em></MenuItem>
+                            {salesAgents.map(agent => <MenuItem key={agent._id} value={agent._id}>{agent.fullName}</MenuItem>)}
+                          </Select>
+                        </TableCell>
+                        <TableCell sx={{ minWidth: 220 }}>
+                          <Select
                             value={sanitizeHE(r.healthExpertAssigned) || ""}
                             onChange={(e) => handleChangeHealthExpert(idx, e.target.value)}
                             displayEmpty
                             fullWidth
                             size="small"
-                            disabled={savingIndex === idx}
+                            disabled={savingIndex === idx || !!savingSalesOrder}
                             renderValue={(v) => (v ? v : <em>—</em>)}
                           >
                             <MenuItem value="">

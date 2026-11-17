@@ -842,6 +842,7 @@ export default function WhatsAppChatDrawer({
   leadName,
   currentUserName,
   onSavePrivateNote,
+  healthExpertWorkspace = false,
 }) {
   const theme = useTheme();
   const isMdUp = useMediaQuery(theme.breakpoints.up("md"));
@@ -849,6 +850,7 @@ export default function WhatsAppChatDrawer({
   const chatWidthPx = isMdUp ? 660 : isSmUp ? 560 : 0;
 
   const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState('');
   const [messages, setMessages] = useState([]);
   const [hasMoreOlder, setHasMoreOlder] = useState(false);
   const [oldestCursor, setOldestCursor] = useState("");
@@ -865,6 +867,7 @@ export default function WhatsAppChatDrawer({
   const [tplSearch, setTplSearch] = useState("");
   const [emojiAnchor, setEmojiAnchor] = useState(null);
   const [privateMode, setPrivateMode] = useState(false);
+  const [privateReplyError, setPrivateReplyError] = useState('');
 
   const [cartOpen, setCartOpen] = useState(false);
   const [notesAnchorEl, setNotesAnchorEl] = useState(null);
@@ -928,6 +931,7 @@ export default function WhatsAppChatDrawer({
       (roleNorm === "retention agent" && Boolean(sessionUser?.hasTeam));
 
     return {
+      ...(healthExpertWorkspace ? { healthExpertLeadId: leadId } : {}),
       role,
       userName: sessionUser?.fullName || currentUserName || "",
       userId: sessionUser?._id || sessionUser?.id || "",
@@ -943,6 +947,8 @@ export default function WhatsAppChatDrawer({
           : "self",
     };
   }, [
+    healthExpertWorkspace,
+    leadId,
     currentUserName,
     sessionUser?._id,
     sessionUser?.id,
@@ -1103,6 +1109,8 @@ export default function WhatsAppChatDrawer({
         if (!el) return;
         el.scrollTop = previousTop + (el.scrollHeight - previousHeight);
       });
+    } catch (error) {
+      setLoadError(error.response?.status === 403 ? 'You do not have access to this customer’s WhatsApp conversation.' : error.response?.data?.message || 'Could not load older messages. Please retry.');
     } finally {
       setLoadingOlder(false);
     }
@@ -1122,10 +1130,13 @@ export default function WhatsAppChatDrawer({
   const refreshAll = useCallback(async ({ includeTemplates = false } = {}) => {
     if (!phone10) return;
     setLoading(true);
+    setLoadError('');
     try {
       const jobs = [fetchConversationMeta(), fetchMessages()];
       if (includeTemplates) jobs.push(fetchTemplates());
       await Promise.all(jobs);
+    } catch (error) {
+      setLoadError(error.response?.status === 403 ? 'You do not have access to this customer’s WhatsApp conversation. Refresh after checking your assignment.' : error.response?.data?.message || 'Could not load this chat. Please retry.');
     } finally {
       setLoading(false);
       if (open) {
@@ -1460,8 +1471,14 @@ export default function WhatsAppChatDrawer({
     if (!body) return;
 
     if (privateMode) {
-      await onSavePrivateNote?.(body);
-      setText("");
+      setPrivateReplyError('');
+      try {
+        if (!onSavePrivateNote) throw new Error('Private notes are not available in this view.');
+        await onSavePrivateNote(body);
+        setText("");
+      } catch (error) {
+        setPrivateReplyError(error.response?.data?.message || error.message || 'Could not save the private note. Please retry.');
+      }
       return;
     }
 
@@ -2827,6 +2844,8 @@ export default function WhatsAppChatDrawer({
               <ReplyQuote reply={replyingTo} onClear={() => setReplyingTo(null)} customerLabel={customerReplyLabel} />
             )}
 
+            {loadError && <Alert severity="error" sx={{ mb: 1 }} action={<Button onClick={() => refreshAll({ includeTemplates: true })} disabled={loading}>Retry</Button>}>{loadError}</Alert>}
+            {privateMode && privateReplyError && <Alert severity="error" sx={{ mb: 1 }}>{privateReplyError}</Alert>}
             <TextField
               fullWidth
               placeholder={privateMode ? "Type your private reply here" : "Type your message here"}
