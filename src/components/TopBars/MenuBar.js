@@ -530,7 +530,7 @@ const MenuBar = ({ toggleDrawer }) => {
             <NavItem to="/" icon={<HomeIcon />} label="Home" />
           )}
 
-          {user && can("ai-brief") && (
+          {user && can("consultation") && (
             <NavItem to="/leadmanagement" icon={<ChatBubbleIcon />} label="Consultation" />
           )}
 
