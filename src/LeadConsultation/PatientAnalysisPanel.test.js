@@ -38,11 +38,13 @@ test.each(["completed", "failed"])("stops polling on API job.status=%s", async s
   });
   axios.post.mockResolvedValue({ data: { job: { jobId: "job-1" } } });
   render(<PatientAnalysisPanel customerId="123" />);
-  await act(async () => { fireEvent.click(screen.getByRole("button", { name: /patient call brief/i })); });
-  await act(async () => { fireEvent.click(screen.getByRole("button", { name: /prepare call brief/i })); });
+  fireEvent.click(screen.getByRole("button", { name: /patient call brief/i }));
+  await act(async () => { jest.advanceTimersByTime(0); });
+  fireEvent.click(screen.getByRole("button", { name: /prepare call brief/i }));
+  await act(async () => { jest.advanceTimersByTime(0); });
   await act(async () => { jest.advanceTimersByTime(2000); });
-  if (status === "completed") expect(screen.getByText("Saved brief loaded")).toBeTruthy();
-  else expect(screen.getByText("Generation failed at provider")).toBeTruthy();
+  const expectedText = status === "completed" ? "Saved brief loaded" : "Generation failed at provider";
+  expect(screen.getByText(expectedText)).toBeTruthy();
   await act(async () => { jest.advanceTimersByTime(120000); });
   expect(axios.get.mock.calls.filter(([url]) => url.includes("/jobs/"))).toHaveLength(1);
 });
