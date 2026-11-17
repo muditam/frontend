@@ -286,13 +286,14 @@ export default function PatientAnalysisPanel({ customerId }) {
       for (let attempt = 0; attempt < 60; attempt += 1) {
         await new Promise((resolve) => window.setTimeout(resolve, 2000));
         const response = await api.get(`/api/call-briefs/${encodeURIComponent(patientId)}/jobs/${encodeURIComponent(jobId)}`);
-        const state = response.data?.job?.state;
+        const currentJob = response.data?.job;
+        const state = currentJob?.status;
         if (state === "completed") {
           await loadBrief();
           setBriefLoading(false);
           return;
         }
-        if (state === "failed") throw new Error(response.data?.job?.failedReason || "Call brief generation failed");
+        if (state === "failed") throw new Error(currentJob?.errorMessage || "Call brief generation failed");
       }
       throw new Error("Call brief is still processing. Please check again shortly.");
     } catch (requestError) {
