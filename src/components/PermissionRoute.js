@@ -16,7 +16,8 @@ const PermissionRoute = ({ permissionKey, children, fallback = "/403" }) => {
       ["retention-agent", "team-leader"].includes(role)) ||
     (permissionKey === "apiDocumentation" &&
       ["admin", "super-admin", "developer"].includes(role));
-  const allowed = roleAllowed || Boolean(menubarPerms?.[permissionKey]);
+  const roleSupported = permissionKey !== "healthExpert" || (["sales-agent", "retention-agent", "admin", "super-admin", "superadmin", "manager", "developer"].includes(role) || (["team-leader", "team-lead"].includes(role) && /^dr(?:\.|\s|$)/i.test(String(user?.fullName || "").trim())));
+  const allowed = roleSupported && (roleAllowed || Boolean(menubarPerms?.[permissionKey]));
 
   if (!allowed) {
     return <Navigate to={fallback} replace />;
