@@ -219,6 +219,7 @@ export default function CreateDietPlanPopup({
   onClose,
   prefillCustomer = {},
   initialPlanType = "Weekly",
+  healthExpertWorkspace = false,
   onSaved,
 }) {
   const {
@@ -634,7 +635,7 @@ export default function CreateDietPlanPopup({
       ...payload,
       createdBy: createdByName,
     };
-    const { data } = await api.post(`/api/diet-plans`, body); 
+    const { data } = await api.post(`/api/diet-plans${healthExpertWorkspace ? '?healthExpertWorkspace=true' : ''}`, body, { withCredentials: true });
     return data;
   };
 

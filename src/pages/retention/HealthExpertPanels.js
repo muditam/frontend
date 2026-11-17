@@ -58,8 +58,8 @@ export function SalesPanel({ lead, display, onSaved }) {
   const kitApproved = decision === 'Approved' && Boolean(approvedKit);
   const decisionLabel = kitApproved ? '✓ Doctor approved' : decision === 'Not suitable' ? 'Kit not clinically suitable' : 'Awaiting doctor sign-off';
   return <>
-    <div className="he-section-title he-between"><div><h2>Sales workspace</h2><p>Owner: {display(lead.agentAssigned)} · First conversion + doctor-approved kit closing</p></div><span className="he-pill he-blue">{lead.workspaceAccess?.canLogCalls ? 'Assigned Sales Expert' : 'Read only'}</span></div>
-    {!lead.workspaceAccess?.canLogCalls && <div className="he-note he-warning">Sales outreach can only be edited by the assigned Sales Agent.</div>}
+    <div className="he-section-title he-between"><div><h2>Sales workspace</h2><p>Owner: {display(lead.agentAssigned)} · First conversion + doctor-approved kit closing</p></div><span className="he-pill he-blue">{lead.workspaceAccess?.canLogCalls ? 'Workspace editing enabled' : 'Read only'}</span></div>
+    {!lead.workspaceAccess?.canLogCalls && <div className="he-note he-warning">Sales outreach editing is not enabled for this login.</div>}
     <div className="he-grid"><Pitch /><CallTracker lead={lead} /></div>
     <OutreachForm key={lead._id} lead={lead} onSaved={onSaved} readOnly={!lead.workspaceAccess?.canLogCalls} />
     <section className="he-subpanel he-block"><div className="he-between"><div><h3>2. Supplement pricing & closure</h3><p className="he-help">Sales takes over after the doctor has reviewed and approved the product selection.</p></div><span className={`he-pill ${kitApproved ? 'he-green' : 'he-amber'}`}>{decisionLabel}</span></div>{!kitApproved && <div className="he-note he-warning">{decision === 'Not suitable' ? 'The doctor has marked this kit as not clinically suitable.' : 'Waiting for the doctor to approve the product selection.'}</div>}<div className="he-grid he-block"><div className="he-subpanel"><h3>Doctor-approved kit</h3>{kitApproved ? <>

@@ -75,3 +75,8 @@
 .he-kit-result{margin-top:18px;padding:18px;border:1px solid #bed8ff;border-radius:12px;background:#f4f8ff}.he-kit-result.guarded{border-color:#efc5a7;background:#fff8f1}.he-kit-result h3{margin-top:6px}.he-kit-result p{margin-top:5px}
 .he-suggested-products{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin-top:15px}.he-suggested-products>div{padding:11px;border:1px solid #dfe8f5;border-radius:9px;background:#fff}.he-suggested-products b,.he-suggested-products span,.he-suggested-products small{display:block}.he-suggested-products span,.he-suggested-products small{font-size:10px;color:#74849b;margin-top:4px}
 @media(max-width:700px){.he-quiz-grid,.he-suggested-products{grid-template-columns:1fr}}
+
+.he-name-row{flex-wrap:wrap}
+.he-history-button{color:#375a90;border-color:#cbd9ed;background:#f2f6fc}.he-history-button:hover{background:#e4edf9}
+.he-whatsapp-button{color:#128c4a;border-color:#bce6cc;background:#eefaf2}.he-whatsapp-button:hover{background:#dbf3e5}
+.he-call-button:disabled{opacity:.45;cursor:not-allowed}
