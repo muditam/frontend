@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
  Box,
  Button,
@@ -24,6 +24,7 @@ import {
  createFilterOptions,
  Grid,
  Divider,
+ Alert,
 } from "@mui/material";
 import {
  Visibility,
@@ -347,6 +348,10 @@ const AddEmployee = () => {
 
  const [permissionDialogOpen, setPermissionDialogOpen] = useState(false);
  const [permissionEmployee, setPermissionEmployee] = useState(null);
+ const [permissionSaveError, setPermissionSaveError] = useState("");
+ const [permissionNeedsLogin, setPermissionNeedsLogin] = useState(false);
+ const [savingPermissions, setSavingPermissions] = useState(false);
+ const permissionSaveInFlight = useRef(false);
  const [roleFilter, setRoleFilter] = useState("");
  const [departmentFilter, setDepartmentFilter] = useState("");
  const [availableRoles, setAvailableRoles] = useState([]);
@@ -838,12 +843,15 @@ const getEffectiveRole = () =>
 
 
    setPermissionEmployee(employee);
+   setPermissionSaveError("");
+   setPermissionNeedsLogin(false);
    setPermissionValues(perms);
    setPermissionDialogOpen(true);
  };
 
 
  const closePermissionDialog = () => {
+   if (permissionSaveInFlight.current) return;
    setPermissionDialogOpen(false);
    setPermissionEmployee(null);
  };
@@ -861,7 +869,11 @@ const getEffectiveRole = () =>
 
 
  const handleSavePermissions = async () => {
-   if (!permissionEmployee?._id) return;
+   if (!permissionEmployee?._id || permissionSaveInFlight.current) return;
+   permissionSaveInFlight.current = true;
+   setSavingPermissions(true);
+   setPermissionSaveError("");
+   setPermissionNeedsLogin(false);
    try {
      await api.put(
        `/api/employees/${permissionEmployee._id}`,
@@ -871,10 +883,23 @@ const getEffectiveRole = () =>
        }
      );
      await fetchEmployees();
-     closePermissionDialog();
+     setPermissionDialogOpen(false);
+     setPermissionEmployee(null);
    } catch (error) {
-     console.error("Error saving permissions:", error);
-     alert("Error saving permissions. Please try again.");
+     const status = error.response?.status;
+     setPermissionNeedsLogin(status === 401);
+     setPermissionSaveError(
+       status === 401
+         ? "Your login session is no longer available. Sign in again with the same account in a new tab, then return here and click Save Permissions. Your selections are kept."
+         : status === 403
+           ? "Your account does not have permission to update employees. Ask an administrator for access."
+           : error.response?.data?.message || (error.response
+             ? "Could not save permissions. Please try again."
+             : "Could not connect to the server. Check your connection and try again.")
+     );
+   } finally {
+     permissionSaveInFlight.current = false;
+     setSavingPermissions(false);
    }
  };
 
@@ -2145,11 +2170,17 @@ const getEffectiveRole = () =>
 
 
        <DialogActions sx={{ justifyContent: "space-between", px: 3, py: 2 }}>
-         <Button variant="outlined" onClick={closePermissionDialog}>
+         <Box sx={{ flex: 1 }}>
+           {permissionSaveError && <Alert severity="error" sx={{ mb: 1 }}
+             action={permissionNeedsLogin ? <Button component="a" href="/login" target="_blank" rel="noopener noreferrer" color="inherit">Sign in</Button> : undefined}>
+             {permissionSaveError}
+           </Alert>}
+           <Button variant="outlined" onClick={closePermissionDialog} disabled={savingPermissions}>
            Cancel
-         </Button>
-         <Button variant="contained" onClick={handleSavePermissions}>
-           Save Permissions
+           </Button>
+         </Box>
+         <Button variant="contained" onClick={handleSavePermissions} disabled={savingPermissions}>
+           {savingPermissions ? "Saving…" : "Save Permissions"}
          </Button>
        </DialogActions>
      </Dialog>
