@@ -114,6 +114,7 @@ import DieticianProfileManager from "./pages/DieticianProfileManager";
 import PaymentLinkPage from "./pages/PaymentLinkPage";
 import OrderLinksPage from "./pages/retention/OrderLinksPage";
 import ApiDocumentationPage from "./pages/ApiDocumentationPage";
+import CustomerActionQueuePage from "./pages/CustomerActionQueuePage";
 
 function DieticianProfileAccessRoute({ children }) {
   const storedUser = sessionStorage.getItem("user");
@@ -161,6 +162,16 @@ function AppLayout() {
               <PrivateRoute>
                 <PermissionRoute permissionKey="apiDocumentation">
                   <ApiDocumentationPage />
+                </PermissionRoute>
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/customer-actions"
+            element={
+              <PrivateRoute>
+                <PermissionRoute permissionKey="customerActionQueue">
+                  <CustomerActionQueuePage />
                 </PermissionRoute>
               </PrivateRoute>
             }
