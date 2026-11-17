@@ -12,6 +12,7 @@ import SalesMyLeads from "./pages/sales/SalesMyLeads";
 import AcquisitionTicketingLeads from "./pages/AcquisitionTicketingLeads";
 import SalesMySales from "./pages/sales/SalesMySales";
 import RetentionLeads from "./pages/retention/RetentionLeads";
+import HealthExpert from "./pages/retention/HealthExpert";
 import RetentionSales from "./pages/retention/RetentionSales";
 import RetentionOverviewCombined from "./pages/retention/RetentionOverviewCombined";
 import RetentionOverviewCategoryDetails from "./pages/retention/RetentionOverviewCategoryDetails";
@@ -438,6 +439,7 @@ function AppLayout() {
               </PrivateRoute>
             }
           />
+          <Route path="/health-expert" element={<PrivateRoute><PermissionRoute permissionKey="healthExpert"><HealthExpert /></PermissionRoute></PrivateRoute>} />
           <Route
             path="/retention/sales"
             element={

@@ -420,6 +420,7 @@ const MenuBar = ({ toggleDrawer }) => {
   const menubarPerms = user?.permissions?.menubar || {};
   const role = String(user?.role || "").trim().toLowerCase().replace(/[\s_]+/g, "-");
   const can = (key) => {
+    if (key === "healthExpert" && !(["sales-agent", "retention-agent", "admin", "super-admin", "superadmin", "manager", "developer"].includes(role) || (["team-leader", "team-lead"].includes(role) && /^dr(?:\.|\s|$)/i.test(String(user?.fullName || "").trim())))) return false;
     if (key === "retentionOverviewCombined" && ["retention-agent", "team-leader"].includes(role)) {
       return true;
     }
@@ -613,6 +614,9 @@ const MenuBar = ({ toggleDrawer }) => {
           )}
 
           {/* Retention Agent */}
+          {user && can("healthExpert") && (
+            <NavItem to="/health-expert" icon={<PersonIcon />} label="Health Expert" />
+          )}
           {user && can("retentionAgentMenu") && (
             <DropdownGroup id="retentionAgent" icon={<PersonIcon />} label="Retention Expert">
               {can("retentionLeads") && <SubItem to="/retention/leads" label="Retention Leads" />}

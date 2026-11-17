@@ -192,6 +192,7 @@ const DEFAULT_PERMISSIONS = {
 
    retentionAgentMenu: false,
    retentionLeads: false,
+   healthExpert: false,
    retentionSales: false,
    retentionOverviewCombined: false,
 
@@ -1813,6 +1814,7 @@ const getEffectiveRole = () =>
                  ["salesMySales", "Sales: My Sales"],
                  ["retentionAgentMenu", "Retention Agent Menu"],
                  ["retentionLeads", "Retention: Leads"],
+                 ["healthExpert", "Health Expert"],
                  ["retentionSales", "Retention: Sales"],
                  ["retentionOverviewCombined", "Retention: Overview Combined"],
                ].map(([key, label]) => (
