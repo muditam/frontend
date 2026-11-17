@@ -15,6 +15,7 @@
 
 .he-scroll-status{padding:16px 6px;text-align:center;color:#73839a;font-size:11px;min-height:40px}
 
+.he-journey-step.he-journey-complete{background:#f0faf5;border-color:#c6efd9}
 /* Customer workspace: compact navigation and clearer clinical milestone cards. */
 .he-sidebar{padding:18px 14px;border-radius:18px;box-shadow:0 6px 24px #17263d08}
 .he-sidebar>.he-between{padding:2px 5px}.he-sidebar>.he-between h2{font-size:16px}

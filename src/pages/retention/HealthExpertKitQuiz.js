@@ -33,7 +33,7 @@ function Question({ question, answers, setAnswer }) {
   return <input value={value ?? ''} maxLength={Math.min(question.validation?.maxLength || 500, 500)} placeholder={question.placeholder || ''} onChange={(event) => setAnswer(question.key, event.target.value)} />;
 }
 
-export default function HealthExpertKitQuiz({ lead, draft, onSaved, onUseKit, onProfileChange }) {
+export default function HealthExpertKitQuiz({ lead, draft, onSaved, onProfileChange }) {
   const savedQuiz = lead.healthExpertKitQuiz;
   const [questions, setQuestions] = useState([]);
   const [version, setVersion] = useState(savedQuiz?.version || 'final-quiz-v1');
@@ -94,8 +94,9 @@ export default function HealthExpertKitQuiz({ lead, draft, onSaved, onUseKit, on
     setGenerating(true); setError('');
     try {
       const { data } = await api.post(`/api/health-expert/leads/${lead._id}/kit-recommendation`, { version, answers: profileAnswers });
-      onSaved(data.item);
-      if (latestInput.current === submittedInput) {
+      const applySuggestion = latestInput.current === submittedInput;
+      onSaved(data.item, { applySuggestion });
+      if (applySuggestion) {
         setRecommendation(data.item.healthExpertKitQuiz.recommendation);
         setSuggestionInput(submittedInput);
       }
@@ -103,11 +104,6 @@ export default function HealthExpertKitQuiz({ lead, draft, onSaved, onUseKit, on
       setError(requestError.response?.data?.message || 'Could not generate the kit suggestion.');
     } finally { busy.current = false; setGenerating(false); }
   };
-  const suggestedKit = () => (result?.products || []).map((item) => ({
-    name: item.product?.name || 'Unnamed product',
-    quantity: Number(item.quantity) || 1,
-    instructions: item.product?.recommendedDosage || '',
-  }));
 
   return <div className="he-kit-quiz">
     <div className="he-fields">
@@ -119,6 +115,6 @@ export default function HealthExpertKitQuiz({ lead, draft, onSaved, onUseKit, on
     {error && <div className="he-error" role="alert">{error}</div>}
     <div className="he-actionstrip"><button type="button" className="he-button" disabled={loading || generating || !questions.length} onClick={generate}>{generating ? 'Saving assessment and finding kit…' : 'Save assessment & suggest kit'}</button></div>
     {recommendation && !suggestionCurrent && <p className="he-help">Generate a new suggestion after changing the assessment answers.</p>}
-    {recommendation && <div className={`he-kit-result ${guarded ? 'guarded' : ''}`}>{guarded ? <><h3>Clinical review required</h3><p>{recommendation.safety?.messages?.[0] || 'No active kit satisfies the current safety and mandatory rules.'}</p></> : result ? <><div className="he-between"><div><span className="he-eyebrow">KIT DASHBOARD SUGGESTION</span><h3>{result.name}</h3><p>{result.condition} · Month {result.monthNumber || result.kitNumber || 1} · Score {result.score}</p></div><button type="button" className="he-button he-light" onClick={() => onUseKit(suggestedKit())}>Use suggested kit</button></div><div className="he-suggested-products">{(result.products || []).map((item) => <div key={item.product?._id || item.product?.slug}><b>{item.product?.name || 'Unnamed product'}</b><span>Quantity {item.quantity}</span><small>{item.product?.recommendedDosage || 'Doctor instructions required'}</small></div>)}</div><p className="he-help">Suggestion only. The Doctor must review suitability, interactions, reports, and rationale before approval.</p></> : <><h3>No kit suggested</h3><p>No active kit matched these answers.</p></>}</div>}
+    {recommendation && suggestionCurrent && <p role="status" className="he-help">{guarded ? (recommendation.safety?.messages?.[0] || 'Clinical review required. No active kit satisfies the current safety and mandatory rules.') : result ? 'Suggested items are ready below in Suggested support kit · editable.' : 'No active kit matched these answers.'}</p>}
   </div>;
 }
