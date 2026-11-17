@@ -42,7 +42,6 @@ import WhatsAppIcon from "@mui/icons-material/WhatsApp";
 import PhoneInTalkIcon from "@mui/icons-material/PhoneInTalk";
 import WhatsAppChatDialog from "../pages/retention/WhatsAppChatDialog";
 import { openZoomPhoneDialer } from "../utils/zoomPhoneDialer";
-import PatientAnalysisPanel from "./PatientAnalysisPanel";
 
 const API_BASE = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "");
 
@@ -667,8 +666,6 @@ const ConsultationDetails = ({ customerId, reloadTrigger, onReload }) => {
           </TableRow>
         </TableBody>
       </Table>
-
-      <PatientAnalysisPanel customerId={customerId} />
 
       <Box
         sx={{
