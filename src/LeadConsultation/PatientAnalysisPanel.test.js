@@ -226,3 +226,54 @@ test("pending transcript checks stop after ten minutes with actionable wording",
   await act(async () => { jest.advanceTimersByTime(60000); });
   expect(axios.get.mock.calls.length).toBe(requests);
 });
+
+test("source history shows queued then generating and clears the spinner after 30 seconds", async () => {
+  let status = "queued";
+  let saved = false;
+  axios.get.mockImplementation(async url => url.includes("/jobs/")
+    ? { data: { job: { status, result: status === "completed" ? { status: "completed" } : null } } }
+    : { data: { brief: null, analysis: saved ? { version: 1, summary: { callSummary: "Background summary ready" } } : null } });
+  axios.post.mockResolvedValue({ data: { job: { jobId: "source-job" } } });
+  render(<PatientAnalysisPanel customerId="123" />);
+  await openPanel(); await startSource();
+  expect(screen.getByText(/Queued—waiting for processing/)).toBeTruthy();
+  expect(screen.queryByText(/No stored analysis exists/)).toBeNull();
+  expect(screen.queryByRole("progressbar")).toBeNull();
+  status = "summarizing";
+  await act(async () => { jest.advanceTimersByTime(3000); });
+  expect(screen.getByText(/Generating from available/)).toBeTruthy();
+  expect(screen.getByRole("progressbar")).toBeTruthy();
+  await act(async () => { jest.advanceTimersByTime(30000); });
+  expect(screen.queryByRole("progressbar")).toBeNull();
+  expect(screen.getByText(/Still processing in the background/)).toBeTruthy();
+  saved = true; status = "completed";
+  await act(async () => { jest.advanceTimersByTime(3000); });
+  expect(screen.getByText("Background summary ready")).toBeTruthy();
+  expect(screen.queryByText(/Still processing in the background/)).toBeNull();
+  expect(axios.post).toHaveBeenCalledTimes(1);
+});
+
+test("check status after polling deadline resumes the same job without another POST", async () => {
+  axios.get.mockImplementation(async url => url.includes("/jobs/")
+    ? { data: { job: { status: "queued" } } } : { data: { brief: null, analysis: null } });
+  axios.post.mockResolvedValue({ data: { job: { jobId: "original-job" } } });
+  render(<PatientAnalysisPanel customerId="123" />);
+  await openPanel(); await startSource();
+  await act(async () => { jest.advanceTimersByTime(5 * 60 * 1000); });
+  const before = axios.get.mock.calls.filter(([url]) => url.includes('/jobs/')).length;
+  await act(async () => { fireEvent.click(screen.getByRole("button", { name: /^check status$/i })); });
+  expect(axios.post).toHaveBeenCalledTimes(1);
+  const polls = axios.get.mock.calls.filter(([url]) => url.includes('/jobs/'));
+  expect(polls.length).toBeGreaterThan(before);
+  expect(polls.every(([url]) => url.endsWith('/jobs/original-job'))).toBe(true);
+});
+
+test("completed job without saved analysis reports a missing result instead of silent success", async () => {
+  axios.get.mockImplementation(async url => url.includes("/jobs/")
+    ? { data: { job: { status: "completed", result: { status: "skipped" } } } } : { data: { brief: null, analysis: null } });
+  axios.post.mockResolvedValue({ data: { job: { jobId: "skipped-job" } } });
+  render(<PatientAnalysisPanel customerId="123" />);
+  await openPanel(); await startSource();
+  expect(screen.getByText(/job finished without a saved result/)).toBeTruthy();
+  expect(screen.queryByRole("progressbar")).toBeNull();
+});

@@ -29,6 +29,8 @@ const api = axios.create({ baseURL: API_BASE, withCredentials: true, timeout: 20
 const FEATURE_ENABLED = String(process.env.REACT_APP_PATIENT_ANALYSIS_ENABLED || "false") === "true";
 
 const POLL_LIMIT_MS = 5 * 60 * 1000;
+const FOREGROUND_LIMIT_MS = 30 * 1000;
+const pendingJob = job => job && ["queued", "waiting", "prioritized", "paused", "waiting-children", "delayed", "active", "summarizing", "requesting"].includes(job.status);
 function waitForPoll(signal) {
   return new Promise((resolve, reject) => {
     const abort = () => { window.clearTimeout(timer); reject(new Error("Polling cancelled")); };
@@ -101,8 +103,9 @@ function TextList({ items }) {
   );
 }
 
-function SummaryView({ analysis }) {
+function SummaryView({ analysis, pending = false }) {
   const summary = analysis?.summary;
+  if (!summary && pending) return null;
   if (!summary) return <Alert severity="info">No stored analysis exists for this patient yet.</Alert>;
   const timeline = uniqueTimeline(summary.timeline);
   const actionItems = [
@@ -222,7 +225,7 @@ function SummaryView({ analysis }) {
 export default function PatientAnalysisPanel({ customerId }) {
   const [open, setOpen] = useState(false);
   const [analysis, setAnalysis] = useState(null);
-  const [job, setJob] = useState(null);
+  const [jobs, setJobs] = useState({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [brief, setBrief] = useState(null);
@@ -273,7 +276,7 @@ export default function PatientAnalysisPanel({ customerId }) {
     setPipeline({});
     setAnalysis(null);
     setBrief(null);
-    setJob(null);
+    setJobs({});
     setLoading(false);
     setBriefLoading(false);
     setError("");
@@ -284,7 +287,7 @@ export default function PatientAnalysisPanel({ customerId }) {
     stopPolling();
     setLoading(false);
     setBriefLoading(false);
-    setJob(null);
+    setJobs({});
     setOpen(false);
   };
 
@@ -292,7 +295,7 @@ export default function PatientAnalysisPanel({ customerId }) {
     stopPolling();
     setLoading(false);
     setBriefLoading(false);
-    setJob(null);
+    setJobs({});
     setWatchExpired(false);
     setOpen(true);
     setError("");
@@ -322,21 +325,30 @@ export default function PatientAnalysisPanel({ customerId }) {
     const previous = isBrief ? brief : analysis;
     const base = isBrief ? `/api/call-briefs/${encodeURIComponent(patientId)}`
       : `/api/v1/patients/${encodeURIComponent(patientId)}/analysis`;
+    const existingJobId = pendingJob(jobs[kind]) ? jobs[kind].jobId : null;
+    const updateJob = patch => setJobs(current => ({ ...current, [kind]: { ...current[kind], ...patch } }));
+    updateJob({ jobId: existingJobId, status: existingJobId ? "queued" : "requesting", background: false, paused: false });
     setBusy(true);
     setError("");
+    const foregroundTimer = window.setTimeout(() => {
+      if (!signal.aborted) { setBusy(false); updateJob({ background: true }); }
+    }, FOREGROUND_LIMIT_MS);
     try {
-      const { data } = await api.post(isBrief ? `${base}/refresh` : base, undefined, { signal });
+      const { data } = existingJobId ? { data: { job: { jobId: existingJobId } } } : await api.post(isBrief ? `${base}/refresh` : base, undefined, { signal });
       if (signal.aborted) return;
       if (data?.status === "waiting_for_transcript") {
         receivePipeline(kind, data.pipelineStatus);
+        updateJob({ status: "waiting_for_transcript" });
         return;
       }
       if (data?.status === "unchanged" || data?.status === "completed") {
         await load(signal);
+        updateJob({ status: "completed" });
         return;
       }
       const jobId = data?.job?.jobId;
       if (!jobId) throw new Error("Generation job was not created. Please try again.");
+      updateJob({ jobId, status: "queued" });
       const deadline = Date.now() + POLL_LIMIT_MS;
       while (!signal.aborted && Date.now() < deadline) {
         const response = await api.get(`${base}/jobs/${encodeURIComponent(jobId)}`, { signal });
@@ -344,26 +356,33 @@ export default function PatientAnalysisPanel({ customerId }) {
         const currentJob = response.data?.job;
         const state = currentJob?.status || currentJob?.state;
         if (!state) throw new Error("Unable to read generation progress. Close and reopen this panel to check the saved result.");
-        setJob({ ...currentJob, status: state });
+        updateJob({ ...currentJob, jobId, status: state });
         if (state === "completed") {
           if (currentJob.result?.status === "waiting_for_transcript") receivePipeline(kind, currentJob.result.pipelineStatus);
-          await load(signal);
+          const saved = await load(signal);
+          if (currentJob.result?.status !== "waiting_for_transcript" && !saved) {
+            throw new Error("The job finished without a saved result. Please try refreshing again.");
+          }
           return;
         }
         if (state === "failed") throw new Error(currentJob?.errorMessage || currentJob?.failedReason || "Generation failed");
         await waitForPoll(signal);
       }
-      if (!signal.aborted) throw new Error("Still processing in the background. Close and reopen this panel shortly to check the result; no website refresh is needed.");
+      if (!signal.aborted) updateJob({ background: true, paused: true });
     } catch (requestError) {
       if (signal.aborted) return;
       // A job can finish after its status request fails, or be pruned from Redis. Check the saved
       // result before reporting an error, but don't mistake an unchanged old card for success.
       try {
         const saved = await load(signal);
-        if (saved && (!previous || saved.version !== previous.version || saved.generatedAt !== previous.generatedAt)) return;
+        if (saved && (!previous || saved.version !== previous.version || saved.generatedAt !== previous.generatedAt)) { updateJob({ status: "completed" }); return; }
       } catch (_) { /* Keep the original error if reading the saved result also fails. */ }
-      if (!signal.aborted) setError(requestError?.response?.data?.message || requestError.message || "Unable to check generation progress");
+      if (!signal.aborted) {
+        updateJob({ status: "failed" });
+        setError(requestError?.response?.data?.message || requestError.message || "Unable to check generation progress");
+      }
     } finally {
+      window.clearTimeout(foregroundTimer);
       controllers.current.delete(controller);
       if (running.current[kind] === controller) {
         delete running.current[kind];
@@ -431,7 +450,7 @@ export default function PatientAnalysisPanel({ customerId }) {
       <Dialog open={open} onClose={handleClose} fullWidth maxWidth="md">
         <DialogTitle sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           Patient call brief
-          {job?.status && <Chip size="small" label={job.status} />}
+          {Object.entries(jobs).filter(([, job]) => pendingJob(job)).map(([kind, job]) => <Chip key={kind} size="small" label={`${kind === "analysis" ? "Source history" : "Call brief"}: ${["active", "summarizing"].includes(job.status) ? "generating" : "queued"}`} />)}
         </DialogTitle>
         <DialogContent dividers>
           <Stack spacing={2}>
@@ -449,23 +468,24 @@ export default function PatientAnalysisPanel({ customerId }) {
             {brief ? (
               <CallBriefCard brief={brief} onLog={saveOutcome} onRefresh={refreshBrief} />
             ) : (
-              <Alert severity="info">{waitingForTranscript ? "The first call brief will be prepared after Zoom’s transcript arrives." : "No call brief exists yet. Prepare one to get the next best action."}</Alert>
+              <Alert severity="info">{waitingForTranscript ? "The first call brief will be prepared after Zoom’s transcript arrives." : pendingJob(jobs.brief) ? "Your call brief request is in progress." : "No call brief exists yet. Prepare one to get the next best action."}</Alert>
             )}
-            {(briefLoading || loading) && (
-              <Box sx={{ display: "flex", gap: 1, alignItems: "center" }}>
-                <CircularProgress size={20} />
-                <Typography variant="body2">{loading ? "Refreshing source history…" : "Preparing the latest call brief…"}</Typography>
-              </Box>
-            )}
+            {Object.entries(jobs).filter(([, job]) => pendingJob(job)).map(([kind, job]) => (
+              <Alert key={kind} severity="info" icon={["active", "summarizing", "requesting"].includes(job.status) && !job.background ? <CircularProgress size={20} /> : undefined}>
+                {kind === "analysis" ? "Source history" : "Call brief"}: {job.status === "requesting" ? "Submitting request…" : ["active", "summarizing"].includes(job.status) ? "Generating from available patient information." : job.status === "delayed" ? "Waiting for a scheduled retry." : "Queued—waiting for processing."}
+                {job.background && " Still processing in the background. You can close this panel; your request is not cancelled."}
+                {job.paused ? <> Automatic checks have paused. <Button size="small" onClick={() => runGeneration(kind)}>Check status</Button></> : " This panel will update when the result is ready."}
+              </Alert>
+            ))}
             <Accordion disableGutters elevation={0} sx={{ border: 0, "&:before": { display: "none" } }}>
               <AccordionSummary expandIcon={<ExpandMoreIcon />}>
                 <Typography variant="caption" color="text.secondary">View source history (optional)</Typography>
               </AccordionSummary>
               <AccordionDetails>
                 <Stack spacing={1.5}>
-                  <SummaryView analysis={analysis} />
+                  <SummaryView analysis={analysis} pending={pendingJob(jobs.analysis)} />
                   <Box sx={{ display: "flex", justifyContent: "flex-end" }}>
-                    <Button size="small" onClick={handleAnalyse} disabled={loading || waitingForTranscript}>Refresh source history</Button>
+                    <Button size="small" onClick={handleAnalyse} disabled={loading || waitingForTranscript || (pendingJob(jobs.analysis) && !jobs.analysis.paused)}>Refresh source history</Button>
                   </Box>
                 </Stack>
               </AccordionDetails>
@@ -474,7 +494,7 @@ export default function PatientAnalysisPanel({ customerId }) {
         </DialogContent>
         <DialogActions>
           <Button onClick={handleClose}>Close</Button>
-          <Button variant="contained" onClick={refreshBrief} disabled={briefLoading || loading || waitingForTranscript}>
+          <Button variant="contained" onClick={refreshBrief} disabled={briefLoading || loading || waitingForTranscript || (pendingJob(jobs.brief) && !jobs.brief.paused)}>
             {briefLoading ? "Preparing…" : brief ? "Refresh call brief" : "Prepare call brief"}
           </Button>
         </DialogActions>
