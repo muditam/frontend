@@ -182,3 +182,47 @@ test("rapid clicks submit only one job and requests have a finite timeout", asyn
   fireEvent.click(screen.getByRole("button", { name: /^close$/i }));
   expect(axios.post.mock.calls[0][2].signal.aborted).toBe(true);
 });
+
+test("shows pending Zoom notice with saved content, then loads finished outputs without reloading the site", async () => {
+  let status = "pending";
+  axios.get.mockImplementation(async url => ({ data: {
+    pipelineStatus: { status, pendingCount: status === "pending" ? 1 : 0 },
+    ...(url.includes("call-briefs") ? { brief: { version: status === "ready" ? 2 : 1 } } : { analysis: null }),
+  } }));
+  render(<PatientAnalysisPanel customerId="123" />);
+  await openPanel();
+  expect(screen.getByText(/Zoom’s transcript is still processing/)).toBeTruthy();
+  expect(screen.getByText("Saved brief loaded")).toBeTruthy();
+  expect(screen.getByRole("button", { name: /refresh call brief/i }).disabled).toBe(true);
+  status = "ready";
+  await act(async () => { jest.advanceTimersByTime(15000); });
+  expect(screen.queryByText(/Zoom’s transcript is still processing/)).toBeNull();
+  expect(screen.getByRole("button", { name: /refresh call brief/i }).disabled).toBe(false);
+  expect(axios.post).not.toHaveBeenCalled();
+});
+
+test("manual request deferred by a newly arrived call exits loading without a job ID error", async () => {
+  axios.get.mockResolvedValue({ data: { brief: null, analysis: null } });
+  axios.post.mockResolvedValue({ data: { status: "waiting_for_transcript", pipelineStatus: { status: "retrying", pendingCount: 1 } } });
+  render(<PatientAnalysisPanel customerId="123" />);
+  await openPanel();
+  await act(async () => { fireEvent.click(screen.getByRole("button", { name: /prepare call brief/i })); });
+  expect(screen.getByText(/We’ll retry automatically/)).toBeTruthy();
+  expect(screen.queryByText(/job was not created/)).toBeNull();
+  expect(screen.queryByRole("progressbar")).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: /^close$/i }));
+  const requests = axios.get.mock.calls.length;
+  await act(async () => { jest.advanceTimersByTime(60000); });
+  expect(axios.get.mock.calls.length).toBe(requests);
+});
+
+test("pending transcript checks stop after ten minutes with actionable wording", async () => {
+  axios.get.mockResolvedValue({ data: { pipelineStatus: { status: "pending", pendingCount: 1 }, brief: null, analysis: null } });
+  render(<PatientAnalysisPanel customerId="123" />);
+  await openPanel();
+  for (let i = 0; i < 40; i++) await act(async () => { jest.advanceTimersByTime(15000); });
+  expect(screen.getByText(/Automatic checks in this panel have paused/)).toBeTruthy();
+  const requests = axios.get.mock.calls.length;
+  await act(async () => { jest.advanceTimersByTime(60000); });
+  expect(axios.get.mock.calls.length).toBe(requests);
+});
