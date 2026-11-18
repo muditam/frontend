@@ -1442,9 +1442,9 @@ export default function ShopifyOrdersTable() {
                             disabled={!!savingSalesOrder || savingIndex !== -1 || !salesAgents.length}
                             inputProps={{ "aria-label": `Sales Assign for ${r.orderId}` }}
                             renderValue={value => savingSalesOrder === r.orderId ? "Saving…" :
-                              salesAgents.find(agent => agent._id === value)?.fullName || <em>Select sales agent</em>}
+                              salesAgents.find(agent => agent._id === value)?.fullName || '--'}
                           >
-                            <MenuItem value="" disabled><em>Select sales agent</em></MenuItem>
+                            <MenuItem value="" disabled>--</MenuItem>
                             {salesAgents.map(agent => <MenuItem key={agent._id} value={agent._id}>{agent.fullName}</MenuItem>)}
                           </Select>
                         </TableCell>

@@ -47,7 +47,8 @@ const date = (value) => {
 export default function HealthExpert() {
   const [search, setSearch] = useState('');
   const [query, setQuery] = useState('');
-  const [status, setStatus] = useState('All');
+  const [followup, setFollowup] = useState('');
+  const [listRevision, setListRevision] = useState(0);
   const listRef = useRef(null);
   const sentinelRef = useRef(null);
   const loadMoreRef = useRef(() => {});
@@ -85,7 +86,7 @@ export default function HealthExpert() {
       const requestedPage = nextPage;
       try {
         const { data } = await api.get('/api/health-expert/leads', {
-          params: { search: query, status, page: requestedPage }, signal: controller.signal,
+          params: { search: query, followup, page: requestedPage }, signal: controller.signal,
         });
         if (controller.signal.aborted) return;
         hasMore = data.hasMore;
@@ -106,7 +107,7 @@ export default function HealthExpert() {
     loadMoreRef.current = load;
     load();
     return () => controller.abort();
-  }, [query, status]);
+  }, [query, followup, listRevision]);
   useEffect(() => {
     if (loading || error || !result.hasMore || !sentinelRef.current) return undefined;
     const observer = new IntersectionObserver(([entry]) => {
@@ -175,7 +176,7 @@ export default function HealthExpert() {
       <aside className="he-sidebar">
         <div className="he-between"><h2>Customers</h2><span className="he-pill">{loading && !result.items.length ? '…' : result.total.toLocaleString('en-IN')}</span></div>
         <input className="he-search" aria-label="Search customers by name or phone" placeholder="Search name or phone…" value={search} onChange={(event) => setSearch(event.target.value)} />
-        <div className="he-filters">{['All', 'Active', 'Lost', 'No Call'].map((value) => <button key={value} aria-pressed={status === value} className={status === value ? 'selected' : ''} onClick={() => setStatus(value)}>{value}</button>)}</div>
+        <div className="he-filters" aria-label="Follow-up date">{['Today', 'Tomorrow', 'Later', 'Not Set', 'Missed'].map((value) => <button key={value} aria-pressed={followup === value} className={followup === value ? 'selected' : ''} onClick={() => setFollowup((current) => current === value ? '' : value)}>{value}</button>)}</div>
         <div className="he-customers" ref={listRef} aria-busy={loading}>
           {result.items.map((item) => <button key={item._id} className={`he-customer ${item._id === selectedId ? 'selected' : ''}`} onClick={() => { setSelectedId(item._id); setTab(tabs[0]); }} aria-pressed={item._id === selectedId}>
             <span className="he-avatar">{initials(item.name)}</span>
@@ -201,7 +202,10 @@ export default function HealthExpert() {
           <section className="he-panel he-workspace-panel">
           <div className="he-role-note"><span className="he-pill he-blue">{{ sales: 'Sales Expert view', retention: 'Retention Agent view', doctor: 'Doctor view' }[access.view] || 'Read only'}</span></div>
           <nav className="he-tabs" aria-label="Customer sections">{tabs.map((value) => <button key={value} aria-pressed={tab === value} className={tab === value ? 'selected' : ''} onClick={() => setTab(value)}>{value}</button>)}</nav>
-          {tab === tabs[0] && <SalesPanel lead={lead} display={display} onSaved={(item) => setResult((current) => ({ ...current, items: current.items.map((row) => row._id === item._id ? { ...row, ...item } : row) }))} />}
+          {tab === tabs[0] && <SalesPanel lead={lead} display={display} onSaved={(item) => {
+            setResult((current) => ({ ...current, items: current.items.map((row) => row._id === item._id ? { ...row, ...item } : row) }));
+            if (followup && item.rtNextFollowupDate !== undefined && item.rtNextFollowupDate !== lead.rtNextFollowupDate) setListRevision((value) => value + 1);
+          }} />}
           {tab === tabs[1] && !access.canViewHealth && <ClinicalSummary type="doctor" lead={lead} />}
           {tab === tabs[1] && access.canViewHealth && <DoctorWorkspace key={lead._id} lead={lead} onSaved={(item) => setResult((current) => ({ ...current, items: current.items.map((row) => row._id === item._id ? { ...row, ...item } : row) }))} />}
           {tab === tabs[2] && !access.canViewDiet && <ClinicalSummary type="diet" lead={lead} />}
