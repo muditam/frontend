@@ -227,6 +227,13 @@ export default function PatientAnalysisPanel({ customerId }) {
   const [error, setError] = useState("");
   const [brief, setBrief] = useState(null);
   const [briefLoading, setBriefLoading] = useState(false);
+  const [pipeline, setPipeline] = useState({});
+  const pipelineRef = useRef({});
+  const [watchExpired, setWatchExpired] = useState(false);
+  const receivePipeline = useCallback((kind, value) => {
+    pipelineRef.current = { ...pipelineRef.current, [kind]: value };
+    setPipeline(pipelineRef.current);
+  }, []);
   const controllers = useRef(new Set());
   const running = useRef({});
   const patientId = customerId ? `customer:${customerId}` : "";
@@ -242,20 +249,28 @@ export default function PatientAnalysisPanel({ customerId }) {
   const loadCurrent = useCallback(async (signal) => {
     if (!patientId) return;
     const { data } = await api.get(`/api/v1/patients/${encodeURIComponent(patientId)}/analysis`, { signal });
-    if (!signal?.aborted && currentPatient.current === patientId) setAnalysis(data?.analysis || null);
+    if (!signal?.aborted && currentPatient.current === patientId) {
+      setAnalysis(data?.analysis || null);
+      receivePipeline("analysis", data?.pipelineStatus);
+    }
     return data?.analysis || null;
-  }, [patientId]);
+  }, [patientId, receivePipeline]);
 
   const loadBrief = useCallback(async (signal) => {
     if (!patientId) return;
     const { data } = await api.get(`/api/call-briefs/${encodeURIComponent(patientId)}`, { signal });
-    if (!signal?.aborted && currentPatient.current === patientId) setBrief(data?.brief || null);
+    if (!signal?.aborted && currentPatient.current === patientId) {
+      setBrief(data?.brief || null);
+      receivePipeline("brief", data?.pipelineStatus);
+    }
     return data?.brief || null;
-  }, [patientId]);
+  }, [patientId, receivePipeline]);
 
   useEffect(() => {
     stopPolling();
     setOpen(false);
+    pipelineRef.current = {};
+    setPipeline({});
     setAnalysis(null);
     setBrief(null);
     setJob(null);
@@ -278,6 +293,7 @@ export default function PatientAnalysisPanel({ customerId }) {
     setLoading(false);
     setBriefLoading(false);
     setJob(null);
+    setWatchExpired(false);
     setOpen(true);
     setError("");
     const controller = new AbortController();
@@ -311,6 +327,10 @@ export default function PatientAnalysisPanel({ customerId }) {
     try {
       const { data } = await api.post(isBrief ? `${base}/refresh` : base, undefined, { signal });
       if (signal.aborted) return;
+      if (data?.status === "waiting_for_transcript") {
+        receivePipeline(kind, data.pipelineStatus);
+        return;
+      }
       if (data?.status === "unchanged" || data?.status === "completed") {
         await load(signal);
         return;
@@ -326,6 +346,7 @@ export default function PatientAnalysisPanel({ customerId }) {
         if (!state) throw new Error("Unable to read generation progress. Close and reopen this panel to check the saved result.");
         setJob({ ...currentJob, status: state });
         if (state === "completed") {
+          if (currentJob.result?.status === "waiting_for_transcript") receivePipeline(kind, currentJob.result.pipelineStatus);
           await load(signal);
           return;
         }
@@ -351,6 +372,27 @@ export default function PatientAnalysisPanel({ customerId }) {
     }
   };
 
+
+  // Saved outputs stay visible. Read-only checks never start generation and stop on close,
+  // customer changes, or after ten minutes; requests cannot overlap each other.
+  useEffect(() => {
+    if (!open) return undefined;
+    const controller = new AbortController();
+    const activeControllers = controllers.current;
+    activeControllers.add(controller);
+    const deadline = Date.now() + 10 * 60_000;
+    let timer;
+    const tick = async () => {
+      if (controller.signal.aborted) return;
+      const needsUpdate = Object.values(pipelineRef.current).some(value => ["pending", "retrying", "updating"].includes(value?.status));
+      if (Date.now() >= deadline) { if (needsUpdate) setWatchExpired(true); return; }
+      if (needsUpdate) await Promise.allSettled([loadCurrent(controller.signal), loadBrief(controller.signal)]);
+      if (!controller.signal.aborted) timer = setTimeout(tick, 15000);
+    };
+    timer = setTimeout(tick, 15000);
+    return () => { clearTimeout(timer); controller.abort(); activeControllers.delete(controller); };
+  }, [open, patientId, loadCurrent, loadBrief]);
+
   const refreshBrief = () => runGeneration("brief");
   const handleAnalyse = () => runGeneration("analysis");
 
@@ -364,6 +406,11 @@ export default function PatientAnalysisPanel({ customerId }) {
       throw new Error(message);
     }
   };
+
+  const states = Object.values(pipeline);
+  const waitingForTranscript = states.some(value => value?.pendingCount > 0);
+  const retryingTranscript = states.some(value => value?.status === "retrying");
+  const updatingOutputs = !waitingForTranscript && states.some(value => value?.status === "updating");
 
   let canUseBrief = false;
   try {
@@ -389,10 +436,20 @@ export default function PatientAnalysisPanel({ customerId }) {
         <DialogContent dividers>
           <Stack spacing={2}>
             {error && <Alert severity="error">{error}</Alert>}
+            {(waitingForTranscript || updatingOutputs) && <Alert severity={retryingTranscript ? "warning" : "info"}>
+              {waitingForTranscript
+                ? retryingTranscript
+                  ? "Zoom’s transcript is not available yet. We’ll retry automatically. The source history and call brief will update once it arrives."
+                  : "New call detected. Zoom’s transcript is still processing. The source history and call brief will update automatically when it is available."
+                : "New call information is ready. The source history and call brief are waiting for their background update."}
+              {(brief || analysis) && " Any saved content below may not include the latest call."}
+              {watchExpired && " Automatic checks in this panel have paused. Close and reopen it to check again; processing continues in the background."}
+            </Alert>}
+            {brief?.generatedAt && <Typography variant="caption" color="text.secondary">Call brief last updated {formatDate(brief.generatedAt)}</Typography>}
             {brief ? (
               <CallBriefCard brief={brief} onLog={saveOutcome} onRefresh={refreshBrief} />
             ) : (
-              <Alert severity="info">No call brief exists yet. Prepare one to get the next best action.</Alert>
+              <Alert severity="info">{waitingForTranscript ? "The first call brief will be prepared after Zoom’s transcript arrives." : "No call brief exists yet. Prepare one to get the next best action."}</Alert>
             )}
             {(briefLoading || loading) && (
               <Box sx={{ display: "flex", gap: 1, alignItems: "center" }}>
@@ -408,7 +465,7 @@ export default function PatientAnalysisPanel({ customerId }) {
                 <Stack spacing={1.5}>
                   <SummaryView analysis={analysis} />
                   <Box sx={{ display: "flex", justifyContent: "flex-end" }}>
-                    <Button size="small" onClick={handleAnalyse} disabled={loading}>Refresh source history</Button>
+                    <Button size="small" onClick={handleAnalyse} disabled={loading || waitingForTranscript}>Refresh source history</Button>
                   </Box>
                 </Stack>
               </AccordionDetails>
@@ -417,7 +474,7 @@ export default function PatientAnalysisPanel({ customerId }) {
         </DialogContent>
         <DialogActions>
           <Button onClick={handleClose}>Close</Button>
-          <Button variant="contained" onClick={refreshBrief} disabled={briefLoading || loading}>
+          <Button variant="contained" onClick={refreshBrief} disabled={briefLoading || loading || waitingForTranscript}>
             {briefLoading ? "Preparing…" : brief ? "Refresh call brief" : "Prepare call brief"}
           </Button>
         </DialogActions>
