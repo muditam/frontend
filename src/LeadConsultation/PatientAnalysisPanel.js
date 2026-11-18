@@ -378,7 +378,8 @@ export default function PatientAnalysisPanel({ customerId }) {
   useEffect(() => {
     if (!open) return undefined;
     const controller = new AbortController();
-    controllers.current.add(controller);
+    const activeControllers = controllers.current;
+    activeControllers.add(controller);
     const deadline = Date.now() + 10 * 60_000;
     let timer;
     const tick = async () => {
@@ -389,7 +390,7 @@ export default function PatientAnalysisPanel({ customerId }) {
       if (!controller.signal.aborted) timer = setTimeout(tick, 15000);
     };
     timer = setTimeout(tick, 15000);
-    return () => { clearTimeout(timer); controller.abort(); controllers.current.delete(controller); };
+    return () => { clearTimeout(timer); controller.abort(); activeControllers.delete(controller); };
   }, [open, patientId, loadCurrent, loadBrief]);
 
   const refreshBrief = () => runGeneration("brief");
