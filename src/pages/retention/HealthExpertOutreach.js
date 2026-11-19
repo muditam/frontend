@@ -14,6 +14,7 @@ export function CallHistory({ lead }) {
 
 export function CallTracker({ lead }) {
   const calls = lead.healthExpertOutreach?.calls || [];
+  const latestCall = lead.healthExpertOutreach?.current || calls[calls.length - 1];
   const startedAt = lead.healthExpertOutreach?.startedAt;
   const today = dayKey(new Date());
   const start = startedAt ? dayKey(startedAt) : null;
@@ -25,43 +26,43 @@ export function CallTracker({ lead }) {
       const latest = daily[daily.length - 1];
       const label = latest?.outcome || (!start ? 'Not started' : key > today ? 'Upcoming' : 'No log');
       return <div key={i} className={`${latest ? latest.outcome.startsWith('Connected') ? 'he-call-hit' : 'he-call-attempt' : ''} ${key === today ? 'he-call-today' : ''}`} title={`${key || ''} · ${label} · ${daily.length} attempts`}><b>DAY {i + 1}</b><span>{label.replace('Connected – ', '')}</span>{daily.length > 0 && <small>{daily.length} call{daily.length > 1 ? 's' : ''}</small>}</div>;
-    })}</div><div className="he-statrow"><div><small>Total call attempts</small><strong>{calls.length}</strong></div><div><small>Connected calls</small><strong>{calls.filter((call) => call.outcome.startsWith('Connected')).length}</strong></div><div><small>Coach status</small><strong className="he-coach-status">{lead.healthExpertCoachPurchase?.confirmedAt ? 'Purchased' : 'Not recorded'}</strong></div></div>
+    })}</div><div className="he-statrow"><div><small>Total call attempts</small><strong>{calls.length}</strong></div><div><small>Connected calls</small><strong>{calls.filter((call) => call.outcome.startsWith('Connected')).length}</strong></div><div><small>Coach status</small><strong className="he-coach-status">{lead.healthExpertCoachPurchase?.confirmedAt ? 'Purchased' : 'Not recorded'}</strong></div></div>{latestCall && <div className="he-last-call"><b>Latest saved outcome: {latestCall.outcome}</b><p>{latestCall.note || 'No call notes added.'}</p><small>{latestCall.by} · {new Date(latestCall.updatedAt || latestCall.createdAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })} IST</small></div>}
   </div>;
 }
 
 export default function OutreachForm({ lead, onSaved, readOnly = false }) {
   const purchased = Boolean(lead.healthExpertCoachPurchase?.confirmedAt);
+  const calls = lead.healthExpertOutreach?.calls || [];
+  const latestCall = calls[calls.length - 1];
+  const savedOutreach = lead.healthExpertOutreach?.current || latestCall || {};
   const [confirmOpen, setConfirmOpen] = useState(false);
-  const [outcome, setOutcome] = useState('No answer');
-  const [nextFollowupDate, setNextFollowupDate] = useState(/^\d{4}-\d{2}-\d{2}$/.test(lead.rtNextFollowupDate || '') ? lead.rtNextFollowupDate : '');
-  const [note, setNote] = useState('');
+  const [outcome, setOutcome] = useState(outcomes.includes(savedOutreach.outcome) ? savedOutreach.outcome : 'No answer');
+  const initialDate = savedOutreach.nextFollowupDate || lead.rtNextFollowupDate || '';
+  const [nextFollowupDate, setNextFollowupDate] = useState(/^\d{4}-\d{2}-\d{2}$/.test(initialDate) ? initialDate : '');
+  const [note, setNote] = useState(savedOutreach.note || '');
   const [saving, setSaving] = useState(false);
-  const [savingDate, setSavingDate] = useState(false);
+  const [savingDraft, setSavingDraft] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const requestId = useRef(null);
   const busy = useRef(false);
-  useEffect(() => {
-    setNextFollowupDate(/^\d{4}-\d{2}-\d{2}$/.test(lead.rtNextFollowupDate || '') ? lead.rtNextFollowupDate : '');
-  }, [lead.rtNextFollowupDate]);
-  const saveFollowup = async (event) => {
-    const value = event.target.value;
-    if (busy.current || readOnly || value === nextFollowupDate) return;
-    const previous = nextFollowupDate;
-    busy.current = true;
-    setNextFollowupDate(value);
-    setSavingDate(true); setError(''); setSuccess('');
-    requestId.current = null;
-    try {
-      const { data } = await api.put(`/api/health-expert/leads/${lead._id}/followup`, { nextFollowupDate: value });
-      onSaved(data.item);
-      setSuccess(value ? 'Follow-up date saved.' : 'Follow-up date cleared.');
-    } catch (err) {
-      setNextFollowupDate(previous);
-      setError(err.response?.data?.message || 'Could not save follow-up date. Please select the date again to retry.');
-    } finally { busy.current = false; setSavingDate(false); }
-  };
   const change = (setter) => (event) => { setter(event.target.value); requestId.current = null; setSuccess(''); };
+  const draftReady = useRef(false);
+  useEffect(() => {
+    if (!draftReady.current) { draftReady.current = true; return undefined; }
+    if (readOnly) return undefined;
+    const timer = setTimeout(async () => {
+      setSavingDraft(true); setError(''); setSuccess('');
+      try {
+        const { data } = await api.put(`/api/health-expert/leads/${lead._id}/outreach`, { outcome, note, nextFollowupDate });
+        onSaved(data.item);
+        setSuccess('Outreach details saved automatically.');
+      } catch (err) {
+        setError(err.response?.data?.message || 'Could not autosave outreach details. Please try changing the field again.');
+      } finally { setSavingDraft(false); }
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [lead._id, outcome, note, nextFollowupDate, readOnly]);
   const save = async (event) => {
     event.preventDefault();
     if (busy.current || readOnly) return;
@@ -71,9 +72,9 @@ export default function OutreachForm({ lead, onSaved, readOnly = false }) {
     try {
       const { data } = await api.post(`/api/health-expert/leads/${lead._id}/calls`, { requestId: requestId.current, outcome, note, nextFollowupDate });
       onSaved(data.item);
-      setNote(''); requestId.current = null; setSuccess('Call attempt saved.');
+      requestId.current = null; setSuccess('Call attempt logged.');
     } catch (err) { setError(err.response?.data?.message || 'Could not save the call attempt. Please retry.'); }
     finally { busy.current = false; setSaving(false); }
   };
-  return <form className="he-subpanel he-block" onSubmit={save}><div className="he-between"><div><h3>1. Record sales outreach</h3><p className="he-help">Log every attempt and schedule the next follow-up.</p></div><span className={`he-pill ${purchased ? 'he-green' : 'he-amber'}`}>{purchased ? '✓ Coach purchased' : 'Coach status not recorded'}</span></div><fieldset disabled={saving || savingDate || readOnly} className="he-outreach-fields"><div className="he-fields"><label>Call outcome<select value={outcome} onChange={change(setOutcome)}>{outcomes.map((value) => <option key={value}>{value}</option>)}</select></label><label>Next follow-up date<input type="date" value={nextFollowupDate} onChange={saveFollowup} />{savingDate && <small role="status">Saving follow-up date…</small>}</label><label>Call notes<textarea rows={3} maxLength={4000} value={note} onChange={change(setNote)} placeholder="What did the customer say?" /></label><label>Sugar Control Coach<input readOnly value={purchased ? 'Purchased' : 'Purchase not recorded'} /></label></div><div className="he-actionstrip"><span>Call logs are timestamped and attributed to the logged-in expert.</span><button className="he-button he-light" type="submit">{saving ? 'Saving…' : '+ Log call attempt'}</button><button className="he-button" type="button" disabled={purchased} onClick={() => { setError(''); setConfirmOpen(true); }}>{purchased ? '✓ Coach purchased' : '✓ Confirm coach purchase'}</button></div></fieldset>{error && <div className="he-error" role="alert">{error}</div>}{success && <p className="he-save-success" role="status">{success}</p>}{confirmOpen && <CoachCheckoutDialog key={lead._id} lead={lead} onClose={() => setConfirmOpen(false)} onSaved={onSaved} />}</form>;
+  return <form className="he-subpanel he-block" onSubmit={save}><div className="he-between"><div><h3>1. Record sales outreach</h3><p className="he-help">Outreach details save automatically. Log a call only after an attempt.</p></div><span className={`he-pill ${purchased ? 'he-green' : 'he-amber'}`}>{purchased ? '✓ Coach purchased' : 'Coach status not recorded'}</span></div><fieldset disabled={saving || readOnly} className="he-outreach-fields"><div className="he-fields"><label>Call outcome<select value={outcome} onChange={change(setOutcome)}>{outcomes.map((value) => <option key={value}>{value}</option>)}</select></label><label>Next follow-up date<input type="date" value={nextFollowupDate} onChange={change(setNextFollowupDate)} /></label><label>Call notes<textarea rows={3} maxLength={4000} value={note} onChange={change(setNote)} placeholder="What did the customer say?" /></label><label>Sugar Control Coach<input readOnly value={purchased ? 'Purchased' : 'Purchase not recorded'} /></label></div><div className="he-actionstrip"><span>{savingDraft ? 'Saving outreach details…' : 'Call logs are timestamped and attributed to the logged-in expert.'}</span><button className="he-button he-light" type="submit">{saving ? 'Saving…' : '+ Log call attempt'}</button><button className="he-button" type="button" disabled={purchased} onClick={() => { setError(''); setConfirmOpen(true); }}>{purchased ? '✓ Coach purchased' : '✓ Confirm coach purchase'}</button></div></fieldset>{error && <div className="he-error" role="alert">{error}</div>}{success && <p className="he-save-success" role="status">{success}</p>}{confirmOpen && <CoachCheckoutDialog key={lead._id} lead={lead} onClose={() => setConfirmOpen(false)} onSaved={onSaved} />}</form>;
 }
