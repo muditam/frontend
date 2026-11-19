@@ -196,7 +196,7 @@ export default function OrderLinkCheckout() {
   const [orderIdCopied, setOrderIdCopied] = useState(false);
   const paymentVerificationRef = useRef(false);
 
-  const load = useCallback(async ({ refresh = false } = {}) => {
+  const load = useCallback(async ({ refresh = false, silent = false } = {}) => {
     if (!refresh) setLoading(true);
     try {
       const { data } = await axios.get(`${API_BASE}/api/order-links/public/${token}`);
@@ -207,7 +207,7 @@ export default function OrderLinkCheckout() {
       setAddressDraft(copyAddress(savedAddress));
       return true;
     } catch (err) {
-      if (!refresh) setError(err?.response?.data?.message || "Order link not found.");
+      if (!refresh || !silent) setError(err?.response?.data?.message || "Order link not found.");
       return false;
     } finally {
       if (!refresh) setLoading(false);
@@ -217,6 +217,14 @@ export default function OrderLinkCheckout() {
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    if (!link || !["payment_creating", "payment_pending", "creating_order"].includes(link.status)) return undefined;
+    const timer = window.setInterval(() => {
+      load({ refresh: true, silent: true });
+    }, 15000);
+    return () => window.clearInterval(timer);
+  }, [link?.status, load]);
 
   useEffect(() => {
     const query = productQuery.trim();
@@ -495,7 +503,7 @@ export default function OrderLinkCheckout() {
     const refreshed = await load({ refresh: true });
     if (refreshed) {
       setPaymentState("idle");
-      setPaymentMessage("Status refreshed. If payment is still pending, you can safely continue from this order link.");
+      setPaymentMessage("Status refreshed. No payment has been confirmed yet. You can continue from this order link.");
     } else {
       setPaymentMessage("Could not refresh the order status. Your payment is still protected. Please try again.");
     }
