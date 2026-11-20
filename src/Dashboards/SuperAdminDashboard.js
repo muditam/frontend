@@ -170,8 +170,8 @@ function getRange(preset) {
 }
 
 
-async function fetchSection(start, end) {
- return getCachedData(`super-admin:section:${start}:${end}`, async () => {
+async function fetchSection(start, end, refreshKey = 0) {
+ return getCachedData(`super-admin:section:${start}:${end}:${refreshKey}`, async () => {
    const cfg = { params:{ start, end }, withCredentials:true };
    const [sumR, funR, canR, splR, fvrR, escR, cusR, aovR, compR] = await Promise.allSettled([
      axios.get(`${ANALYTICS}/dashboard-summary`, cfg),
@@ -184,10 +184,27 @@ async function fetchSection(start, end) {
      axios.get(`${ANALYTICS}/aov`, cfg),
      axios.get(`${ANALYTICS}/comprehensive-summary`, cfg),
    ]);
-   const ok = (r) => r.status === "fulfilled" ? r.value.data : {};
+   const endpointResults = [
+     ["order summary", sumR], ["fulfillment status", funR],
+     ["cancellations", canR], ["order split", splR],
+     ["customer type", fvrR], ["escalations", escR],
+     ["customer stats", cusR], ["average order value", aovR],
+     ["comprehensive summary", compR],
+   ];
+   const failures = endpointResults.filter(([, result]) => result.status === "rejected");
+   const coreDataLoaded = [sumR, funR, compR].some((result) => result.status === "fulfilled");
+   if (!coreDataLoaded) {
+     const details = failures.map(([label, result]) => {
+       const status = result.reason?.response?.status;
+       return `${label}${status ? ` (${status})` : ""}`;
+     });
+     throw new Error(`Could not load dashboard data: ${details.join(", ")}.`);
+   }
+   const ok = (r) => r.status === "fulfilled" ? (r.value.data || {}) : {};
    const sum = ok(sumR), fun = ok(funR), spl = ok(splR);
    const fvr = ok(fvrR), esc = ok(escR), aov = ok(aovR);
    const comp = ok(compR);
+   const shipmentSource = fun.shipmentStatusSource || comp.shipmentStatusSource;
    const can = canR.status==="fulfilled" ? (canR.value.data.cancelled||0) : 0;
    const trends = cusR.status==="fulfilled" ? cusR.value.data : [];
    const cus = Array.isArray(trends) && trends.length ? trends[trends.length-1] : {};
@@ -220,6 +237,14 @@ async function fetchSection(start, end) {
 
 
    return {
+     _loadWarning: [
+       failures.length
+         ? `Some dashboard sections did not load: ${failures.map(([label]) => label).join(", ")}. Values in those sections may be unavailable.`
+         : "",
+       shipmentSource === "lms_snapshot"
+         ? "ShipTrack could not provide shipment statuses; fulfillment counts are using the older LMS snapshot."
+         : "",
+     ].filter(Boolean).join(" "),
      totalOrders:       tO,
      totalRevenue:      tR || (teamRev+onlineRev),
      fulfilled:         fun.fulfilled?.count   || 0,
@@ -1125,8 +1150,12 @@ function DashSection({ data, loading }) {
 export default function SuperAdminDashboard() {
  const [data,    setData]    = useState({});
  const [loading, setLoading] = useState(true);
+ const [loadError, setLoadError] = useState("");
+ const [reloadToken, setReloadToken] = useState(0);
+ const requestId = useRef(0);
  const [overview, setOverview] = useState({});
  const [overviewLoading, setOverviewLoading] = useState(true);
+ const [overviewError, setOverviewError] = useState("");
  const [range,   setRange]   = useState("Last 30 Days");
  const [csStart, setCsStart] = useState("");
  const [csEnd,   setCsEnd]   = useState("");
@@ -1137,9 +1166,27 @@ export default function SuperAdminDashboard() {
    if (range === "Custom Range") { start = csStart; end = csEnd; }
    else { const r = getRange(range); start = r.start; end = r.end; }
    if (!start || !end) return;
+   const currentRequestId = ++requestId.current;
+   let mounted = true;
    setLoading(true);
-   fetchSection(start, end).then(d => { setData(d); setLoading(false); });
- }, [range, csStart, csEnd]);
+   setData(null);
+   setLoadError("");
+   fetchSection(start, end, reloadToken)
+     .then((d) => {
+       if (!mounted || currentRequestId !== requestId.current) return;
+       setData(d);
+       setLoadError(d._loadWarning || "");
+     })
+     .catch((error) => {
+       if (!mounted || currentRequestId !== requestId.current) return;
+       setData(null);
+       setLoadError(error.message || "Dashboard data could not be loaded.");
+     })
+     .finally(() => {
+       if (mounted && currentRequestId === requestId.current) setLoading(false);
+     });
+   return () => { mounted = false; };
+ }, [range, csStart, csEnd, reloadToken]);
 
 
  useEffect(() => {
@@ -1149,11 +1196,13 @@ export default function SuperAdminDashboard() {
      .then((payload) => {
        if (!mounted) return;
        setOverview(payload);
+       setOverviewError("");
        setOverviewLoading(false);
      })
      .catch(() => {
        if (!mounted) return;
        setOverview({});
+       setOverviewError("Fulfillment overview data is unavailable right now.");
        setOverviewLoading(false);
      });
    return () => {
@@ -1180,9 +1229,19 @@ export default function SuperAdminDashboard() {
          <SectionHeader title="Super Admin Dashboard" subtitle={dateLabel}>
            <DatePicker value={range} onChange={setRange} customStart={csStart} customEnd={csEnd} onCS={setCsStart} onCE={setCsEnd} />
          </SectionHeader>
-         <DashSection data={data} loading={loading} />
+         {loadError && !loading && (
+           <div role="alert" style={{ background:"#fff7ed", border:"1px solid #fdba74", color:"#9a3412", borderRadius:10, padding:"16px 18px", display:"flex", justifyContent:"space-between", alignItems:"center", gap:16 }}>
+             <span>{loadError}</span>
+             <button onClick={() => setReloadToken((value) => value + 1)} style={{ border:0, borderRadius:8, background:"#111827", color:"white", padding:"9px 14px", cursor:"pointer", flexShrink:0 }}>Retry</button>
+           </div>
+         )}
+         {(data !== null || loading) && <DashSection data={data || {}} loading={loading} />}
          <div style={{ marginTop: 18 }}>
-           <FulfillmentOverviewSection overview={overview} loading={overviewLoading} />
+           {overviewError ? (
+             <div role="status" style={{ background:"#fff7ed", border:"1px solid #fdba74", color:"#9a3412", borderRadius:10, padding:"14px 18px" }}>
+               {overviewError} The fulfillment panel is not replacing missing data with zeros.
+             </div>
+           ) : <FulfillmentOverviewSection overview={overview} loading={overviewLoading} />}
          </div>
        </section>
      </div>
