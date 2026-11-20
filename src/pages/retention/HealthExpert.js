@@ -13,7 +13,6 @@ import DoctorWorkspace from './HealthExpertDoctor';
 import { CallHistory } from './HealthExpertOutreach';
 
 const api = axios.create({ baseURL: (process.env.REACT_APP_API_BASE_URL || '').replace(/\/+$/, ''), withCredentials: true });
-const CreateDietPlanPopup = lazy(() => import('./CreateDietPlanPopup'));
 const OrderHistory = lazy(() => import('./HealthExpertOrderHistory'));
 const WhatsAppChatDrawer = lazy(() => import('./WhatsAppChatDialog'));
 const tabs = workspaceTabs;
@@ -57,7 +56,6 @@ export default function HealthExpert() {
   const loadMoreRef = useRef(() => {});
   const [result, setResult] = useState({ items: [], total: 0, hasMore: false });
   const [selectedId, setSelectedId] = useState('');
-  const [dietPlanCustomer, setDietPlanCustomer] = useState(null);
   const [historyCustomer, setHistoryCustomer] = useState(null);
   const [chatCustomer, setChatCustomer] = useState(null);
   const [currentUserName] = useState(() => {
@@ -168,12 +166,6 @@ export default function HealthExpert() {
         setResult(current => ({ ...current, items: current.items.map(item => item._id === chatCustomer._id ? { ...item, ...data.item } : item) }));
       }}
     /></Suspense>}
-    {dietPlanCustomer && <Suspense fallback={<div role="status">Opening diet plan…</div>}><CreateDietPlanPopup
-      open
-      onClose={() => setDietPlanCustomer(null)}
-      prefillCustomer={dietPlanCustomer}
-      healthExpertWorkspace
-    /></Suspense>}
     {error && <div className="he-error" role="alert">{error}</div>}
     <div className="he-layout">
       <aside className="he-sidebar">
@@ -225,7 +217,7 @@ export default function HealthExpert() {
           {tab === tabs[1] && !access.canViewHealth && <ClinicalSummary type="doctor" lead={lead} />}
           {tab === tabs[1] && access.canViewHealth && <DoctorWorkspace key={lead._id} lead={lead} onSaved={(item) => setResult((current) => ({ ...current, items: current.items.map((row) => row._id === item._id ? { ...row, ...item } : row) }))} />}
           {tab === tabs[2] && !access.canViewDiet && <ClinicalSummary type="diet" lead={lead} />}
-          {tab === tabs[2] && access.canViewDiet && <section className="he-inner"><div className="he-section-title"><h2>Dietitian workspace</h2><p>Diet pitch · assessment · personalized plan · sharing</p></div><Pitch type="diet" /><DietAssessment key={lead._id} lead={lead} onSaved={(item) => setResult((current) => ({ ...current, items: current.items.map((row) => row._id === item._id ? { ...row, ...item } : row) }))} /><div className="he-subpanel he-block"><h3>2. Ready-to-personalize diet plan</h3><p className="he-help">Open the existing diet-plan workflow to create, review and share a personalized plan.</p><div className="he-actionstrip"><button className="he-button" onClick={() => setDietPlanCustomer({ name: lead.name || '', phone: lead.contactNumber || '', leadId: lead._id })}>Open diet plan</button></div></div></section>}
+          {tab === tabs[2] && access.canViewDiet && <section className="he-inner"><div className="he-section-title"><h2>Dietitian workspace</h2><p>Diet pitch · assessment · personalized plan · sharing</p></div><Pitch type="diet" /><DietAssessment key={lead._id} lead={lead} onSaved={(item) => setResult((current) => ({ ...current, items: current.items.map((row) => row._id === item._id ? { ...row, ...item } : row) }))} /></section>}
           {tab === tabs[3] && <section className="he-panel"><div className="he-section-title"><h2>Activity & expert notes</h2><p>Saved workspace activity, expert notes and follow-up records.</p></div><div className="he-timeline"><CallHistory lead={lead} />{(access.canViewHealth || access.canViewDiet) && <HealthExpertActivity leadId={lead._id} />}{notes.map((note, index) => <article key={note._id || index}><span className="he-pill">{date(note.date)}</span><h3>{note.by || 'Expert note'}</h3><p>{display(note.value)}</p></article>)}{(lead.followUps || []).map((followup, index) => <article key={followup._id || `follow-${index}`}><span className="he-pill">{date(followup.date)}</span><h3>Follow-up</h3><p>{display(followup.note)}</p><small>Fasting: {display(followup.currentSugar?.fasting)} · PP: {display(followup.currentSugar?.pp)}</small></article>)}</div></section>}
           </section>
         </> : <section className="he-panel he-empty">{loading ? 'Loading customer workspace…' : 'Select a customer to view their details.'}</section>}

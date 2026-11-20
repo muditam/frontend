@@ -40,6 +40,24 @@ const DeliveryStatusChecker = ({ onClose }) => {
     const trackingNumber = String(item?.tracking_number || "").trim();
     if (!trackingNumber) return "";
 
+    // Use ShipTrack's courier/provider when available. AWB shape alone is not
+    // reliable: Ekart IDs are alphanumeric and were previously sent to DTDC.
+    const courier = String(item?.courier || item?.carrier_title || "")
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, "");
+    if (courier.includes("ekart") || courier.includes("instakart")) {
+      return `https://www.ekartlogistics.com/ekartlogistics-web/shipmenttrack/${encodeURIComponent(trackingNumber)}`;
+    }
+    if (courier.includes("delhivery")) {
+      return `https://www.delhivery.com/track-v2/package/${encodeURIComponent(trackingNumber)}`;
+    }
+    if (courier === "dtdc") {
+      return `https://www.dtdc.com/track-your-shipment/?awb=${encodeURIComponent(trackingNumber)}`;
+    }
+    if (courier.includes("bluedart")) {
+      return `https://www.bluedart.com/web/guest/trackdartresultthirdparty?trackFor=0&&trackNo=${encodeURIComponent(trackingNumber)}`;
+    }
+
     if (isBeforeCutoff(item?.order_date)) {
       return `https://track.shipway.com/t/${encodeURIComponent(trackingNumber)}`;
     }
