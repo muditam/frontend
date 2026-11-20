@@ -97,6 +97,18 @@ export default function CallBriefCard({ brief, onLog, onRefresh }) {
         {brief.confidence === "low" && (
           <div className="cb-warn">Card not reliable{brief.gaps?.length ? `: ${brief.gaps.join(", ")}` : ""}. Check the lead history before calling.</div>
         )}
+        {brief.shipments?.length > 0 && <div className="cb-shipments">
+          <span className="cb-mini">Shipment updates · ShipTrack</span>
+          {brief.shipments.map((shipment, index) => <div className="cb-fact" key={shipment.orderId || index}>
+            <strong>{shipment.orderId} · {shipment.status || "Tracking unavailable"}</strong>
+            <small>{shipment.trackingNumber}{shipment.latestEventAt ? ` · Latest event ${timeOf(shipment.latestEventAt)}` : " · Event time unavailable"}</small>
+            <small>Source updated: {timeOf(shipment.sourceUpdatedAt) || "Unknown"} · Fetched: {timeOf(shipment.fetchedAt) || "Unknown"}</small>
+            {shipment.stale && <div className="cb-warn">Tracking may be stale. Confirm the latest delivery status before advising the patient.</div>}
+            {shipment.events?.length > 0 && <details><summary>Tracking events</summary>
+              {shipment.events.map((event, i) => <p key={i}>{event.status} · {timeOf(event.eventAt) || "Time unknown"}{event.location ? ` · ${event.location}` : ""}{event.remarks ? ` · ${event.remarks}` : ""}</p>)}
+            </details>}
+          </div>)}
+        </div>}
       </section>
 
       {showScript && (
