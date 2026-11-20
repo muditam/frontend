@@ -69,6 +69,18 @@ export default function CallBriefCard({ brief, onLog, onRefresh }) {
           {brief.patient?.meta && <span className="cb-meta">{brief.patient.meta}</span>}
           {brief.language && <span className="cb-lang">Speak {brief.language}</span>}
         </div>
+        <p className="cb-goal"><small>Goal</small>{brief.goal?.trim() || "Refresh the call brief to load the goal."}</p>
+        {brief.glance?.length > 0 && (
+          <div className="cb-glance">
+            {brief.glance.slice(0, 3).map((fact, index) => (
+              <div className="cb-fact" key={index}>
+                <strong>{fact.text}</strong>
+                <small>{fact.source}{fact.date ? ` · ${shortDate(fact.date)}` : ""}</small>
+              </div>
+            ))}
+          </div>
+        )}
+        {/* Previous detailed lines retained for a future display option.
         <dl className="cb-lines">
           {[
             ["situation", "Situation"],
@@ -81,6 +93,7 @@ export default function CallBriefCard({ brief, onLog, onRefresh }) {
             </div>
           ))}
         </dl>
+        */}
         {brief.confidence === "low" && (
           <div className="cb-warn">Card not reliable{brief.gaps?.length ? `: ${brief.gaps.join(", ")}` : ""}. Check the lead history before calling.</div>
         )}
