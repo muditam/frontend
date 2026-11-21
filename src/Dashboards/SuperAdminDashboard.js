@@ -173,7 +173,8 @@ function getRange(preset) {
 async function fetchSection(start, end, refreshKey = 0) {
  return getCachedData(`super-admin:section:${start}:${end}:${refreshKey}`, async () => {
    const cfg = { params:{ start, end }, withCredentials:true };
-   const [sumR, funR, canR, splR, fvrR, escR, cusR, aovR, compR] = await Promise.allSettled([
+   const [shipR, sumR, funR, canR, splR, fvrR, escR, cusR, aovR, compR] = await Promise.allSettled([
+     axios.get(`${ANALYTICS}/shiptrack-overview`, cfg),
      axios.get(`${ANALYTICS}/dashboard-summary`, cfg),
      axios.get(`${ANALYTICS}/orders-vs-fulfilled`, cfg),
      axios.get(`${ANALYTICS}/cancelled-orders`, cfg),
@@ -185,6 +186,7 @@ async function fetchSection(start, end, refreshKey = 0) {
      axios.get(`${ANALYTICS}/comprehensive-summary`, cfg),
    ]);
    const endpointResults = [
+     ["ShipTrack dashboard summary", shipR],
      ["order summary", sumR], ["fulfillment status", funR],
      ["cancellations", canR], ["order split", splR],
      ["customer type", fvrR], ["escalations", escR],
@@ -192,24 +194,31 @@ async function fetchSection(start, end, refreshKey = 0) {
      ["comprehensive summary", compR],
    ];
    const failures = endpointResults.filter(([, result]) => result.status === "rejected");
-   const coreDataLoaded = [sumR, funR, compR].some((result) => result.status === "fulfilled");
-   if (!coreDataLoaded) {
-     const details = failures.map(([label, result]) => {
-       const status = result.reason?.response?.status;
-       return `${label}${status ? ` (${status})` : ""}`;
-     });
-     throw new Error(`Could not load dashboard data: ${details.join(", ")}.`);
+   if (shipR.status !== "fulfilled") {
+     const status = shipR.reason?.response?.status;
+     throw new Error(`Could not load authoritative ShipTrack totals${status ? ` (${status})` : ""}.`);
    }
    const ok = (r) => r.status === "fulfilled" ? (r.value.data || {}) : {};
-   const sum = ok(sumR), fun = ok(funR), spl = ok(splR);
+   const ship = ok(shipR);
+   const spl = ok(splR);
    const fvr = ok(fvrR), esc = ok(escR), aov = ok(aovR);
    const comp = ok(compR);
-   const shipmentSource = fun.shipmentStatusSource || comp.shipmentStatusSource;
-   const can = canR.status==="fulfilled" ? (canR.value.data.cancelled||0) : 0;
    const trends = cusR.status==="fulfilled" ? cusR.value.data : [];
    const cus = Array.isArray(trends) && trends.length ? trends[trends.length-1] : {};
-   const tO  = fun.totalOrders || sum.totalOrders || 0;
-   const tR  = sum.totalSales  || 0;
+   const tO  = Number(ship.orders || 0);
+   const tR  = Number(ship.grossSales || 0);
+   const shipDelivered = Number(ship.delivery?.delivered || 0);
+   const shipRto = Number(ship.delivery?.rto || 0);
+   const shipCancelled = Number(ship.operations?.CANCELLED || ship.delivery?.cancelled || 0);
+   const shipFulfilled = Number(ship.operations?.FULFILLED || 0);
+   const shipNotDispatched = Number(ship.operations?.READY_FOR_ALLOCATION || 0) + Number(ship.operations?.PENDING_CONFIRMATION || 0);
+   const shipInTransit = Number(ship.delivery?.inTransit || 0);
+   const shipPayments = ship.payments || {};
+   const shipPaymentAmounts = ship.paymentsByCategory || {};
+   const shipPrepaidCount = Number(shipPayments.PREPAID || 0);
+   const shipCodCount = Number(shipPayments.COD || 0);
+   const shipPrepaidAmount = Number(shipPaymentAmounts.PREPAID || 0);
+   const shipCodAmount = Number(shipPaymentAmounts.COD || 0);
    const teamRev   = (aov.team?.aov||0)*(aov.team?.orders||0);
    const onlineRev = (aov.online?.aov||0)*(aov.online?.orders||0);
    const emptyCompSegment = {
@@ -237,23 +246,21 @@ async function fetchSection(start, end, refreshKey = 0) {
 
 
    return {
-     _loadWarning: [
+       _loadWarning: [
        failures.length
-         ? `Some dashboard sections did not load: ${failures.map(([label]) => label).join(", ")}. Values in those sections may be unavailable.`
+         ? `Some dashboard sections did not load: ${failures.filter(([label]) => label !== "ShipTrack dashboard summary").map(([label]) => label).join(", ")}. Values in those sections may be unavailable.`
          : "",
-       shipmentSource === "lms_snapshot"
-         ? "ShipTrack could not provide shipment statuses; fulfillment counts are using the older LMS snapshot."
-         : "",
+       "Headline order and shipment totals use ShipTrack. Team vs Shopify attribution and customer metrics remain LMS-specific because those assignment fields are not stored in ShipTrack.",
      ].filter(Boolean).join(" "),
      totalOrders:       tO,
-     totalRevenue:      tR || (teamRev+onlineRev),
-     fulfilled:         fun.fulfilled?.count   || 0,
-     delivered:         fun.delivered?.count   || 0,
-     rto:               fun.rto?.count         || 0,
-     cancelled:         can,
-     notDispatched:     fun.notDispatched?.count || 0,
-     inTransit:         fun.inTransit?.count   || 0,
-     aov:               aov.combined?.aov      || sum.aov || 0,
+     totalRevenue:      tR,
+     fulfilled:         shipFulfilled,
+     delivered:         shipDelivered,
+     rto:               shipRto,
+     cancelled:         shipCancelled,
+     notDispatched:     shipNotDispatched,
+     inTransit:         shipInTransit,
+     aov:               tO ? Number((tR / tO).toFixed(2)) : 0,
      teamOrders:        spl.teamOrders         || 0,
      onlineOrders:      spl.onlineOrders       || 0,
      teamRevenue:       teamRev,
@@ -267,12 +274,23 @@ async function fetchSection(start, end, refreshKey = 0) {
      returning:         fvr.returning          || 0,
      openEscalations:   esc.open               || 0,
      closedEscalations: esc.closed             || 0,
-     prepaidCount:      sum.prepaid?.count     || 0,
-     prepaidAmount:     sum.prepaid?.amount    || 0,
-     codCount:          sum.cod?.count         || 0,
-     codAmount:         sum.cod?.amount        || 0,
+     prepaidCount:      shipPrepaidCount,
+     prepaidAmount:     shipPrepaidAmount,
+     codCount:          shipCodCount,
+     codAmount:         shipCodAmount,
      comprehensive: {
-       total: mapCompSegment(comp?.total || emptyCompSegment),
+       total: {
+         totalOrders: tO,
+         totalAmount: tR,
+         aov: tO ? Number((tR / tO).toFixed(2)) : 0,
+         prepaidCount: shipPrepaidCount,
+         prepaidAmount: shipPrepaidAmount,
+         codCount: shipCodCount,
+         codAmount: shipCodAmount,
+         delivered: shipDelivered,
+         undelivered: Math.max(0, tO - shipDelivered - shipCancelled),
+         rto: shipRto,
+       },
        team: mapCompSegment(comp?.team || emptyCompSegment),
        shopify: mapCompSegment(comp?.shopify || emptyCompSegment),
      },
