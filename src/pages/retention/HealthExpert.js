@@ -54,7 +54,7 @@ export default function HealthExpert() {
   const listRef = useRef(null);
   const sentinelRef = useRef(null);
   const loadMoreRef = useRef(() => {});
-  const [result, setResult] = useState({ items: [], total: 0, hasMore: false });
+  const [result, setResult] = useState({ items: [], total: 0, hasMore: false, followupCounts: {} });
   const [selectedId, setSelectedId] = useState('');
   const [historyCustomer, setHistoryCustomer] = useState(null);
   const [chatCustomer, setChatCustomer] = useState(null);
@@ -77,7 +77,7 @@ export default function HealthExpert() {
     let busy = false;
     let nextPage = 1;
     let hasMore = true;
-    setResult({ items: [], total: 0, hasMore: false });
+    setResult({ items: [], total: 0, hasMore: false, followupCounts: {} });
     if (listRef.current) listRef.current.scrollTop = 0;
     const load = async () => {
       if (busy || !hasMore || controller.signal.aborted) return;
@@ -87,7 +87,7 @@ export default function HealthExpert() {
       const requestedPage = nextPage;
       try {
         const { data } = await api.get('/api/health-expert/leads', {
-          params: { search: query, followup, outcome: callOutcome, page: requestedPage }, signal: controller.signal,
+          params: { search: query, followup, outcome: callOutcome, page: requestedPage, includeFollowupCounts: requestedPage === 1 ? 'true' : undefined }, signal: controller.signal,
         });
         if (controller.signal.aborted) return;
         hasMore = data.hasMore;
@@ -95,7 +95,7 @@ export default function HealthExpert() {
         setResult((current) => {
           const existing = requestedPage === 1 ? [] : current.items;
           const ids = new Set(existing.map((item) => item._id));
-          return { ...data, items: [...existing, ...data.items.filter((item) => !ids.has(item._id))] };
+          return { ...data, followupCounts: data.followupCounts || current.followupCounts || {}, items: [...existing, ...data.items.filter((item) => !ids.has(item._id))] };
         });
         if (requestedPage === 1) setSelectedId((current) => data.items.some((item) => item._id === current) ? current : data.items[0]?._id || '');
       } catch (err) {
@@ -180,10 +180,10 @@ export default function HealthExpert() {
             ['no-answer', 'No answer'],
             ['wrong-number', 'Wrong number'],
             ['language', 'Language'],
-          ].map(([value, label]) => <button key={value || 'all'} aria-pressed={callOutcome === value} className={callOutcome === value ? 'selected' : ''} onClick={() => setCallOutcome(value)}>{label}</button>)}
+          ].map(([value, label]) => <button key={value || 'all'} aria-pressed={callOutcome === value} className={callOutcome === value ? 'selected' : ''} onClick={() => { setCallOutcome(value); setShowOutcomeFilters(false); }}>{label}</button>)}
         </div></div>}
         </div></div>
-        <div className="he-filters" aria-label="Follow-up date">{['Today', 'Tomorrow', 'Later', 'Not Set', 'Missed'].map((value) => <button key={value} aria-pressed={followup === value} className={followup === value ? 'selected' : ''} onClick={() => setFollowup((current) => current === value ? '' : value)}>{value}</button>)}</div>
+        <div className="he-filters" aria-label="Follow-up date">{['Today', 'Tomorrow', 'Not Set', 'Later', 'Missed'].map((value) => <button key={value} aria-pressed={followup === value} className={followup === value ? 'selected' : ''} onClick={() => setFollowup((current) => current === value ? '' : value)}>{value} ({Number(result.followupCounts?.[value] || 0).toLocaleString('en-IN')})</button>)}</div>
         <div className="he-customers" ref={listRef} aria-busy={loading}>
           {result.items.map((item) => <button key={item._id} className={`he-customer ${item._id === selectedId ? 'selected' : ''}`} onClick={() => { setSelectedId(item._id); setTab(tabs[0]); }} aria-pressed={item._id === selectedId}>
             <span className="he-avatar">{initials(item.name)}</span>
