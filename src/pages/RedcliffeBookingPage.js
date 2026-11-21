@@ -644,7 +644,13 @@ export default function RedcliffeBookingPage() {
 
   const applyRequestError = (err, fallbackMessage) => {
     const payload = err?.response?.data || {};
-    setBookingError(payload.message || payload.detail || fallbackMessage);
+    setBookingError(
+      payload.message ||
+        payload.detail ||
+        payload.error ||
+        (err?.request ? `${fallbackMessage} The server response was not received.` : err?.message) ||
+        fallbackMessage
+    );
   };
 
   const isNonServiceableMessage = (message) =>
@@ -1138,7 +1144,17 @@ export default function RedcliffeBookingPage() {
         payload.center_discount = centerDiscountAmount;
       }
 
-      const { data } = await api.post("/api/redcliffe/bookings/create", payload);
+      let response;
+      try {
+        response = await api.post("/api/redcliffe/bookings/create", payload);
+      } catch (firstError) {
+        // A booking may have been created even when the browser loses the
+        // response. Retry once only for response-less failures; the backend
+        // recovers the existing booking by Shopify order ID.
+        if (firstError?.response) throw firstError;
+        response = await api.post("/api/redcliffe/bookings/create", payload);
+      }
+      const { data } = response;
       setTemporaryBooking(data);
       setConfirmedBooking(null);
       setBookingStatus(data?.message || "Temporary booking created.");
