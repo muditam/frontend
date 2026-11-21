@@ -61,3 +61,13 @@ test("shows shipment freshness and failed delivery events", () => {
   expect(card.textContent).toContain("Tracking may be stale");
   expect(card.textContent).toContain("Failed delivery attempt");
 });
+
+test("shows only the latest shipment summary above collapsed details", () => {
+  const card = renderCard({ ...brief, shipments: [
+    { orderId: "MA1", status: "In Transit", latestEventAt: "2026-11-18T10:00:00Z" },
+    { orderId: "MA2", status: "Delivered", latestEventAt: "2026-11-20T10:00:00Z" },
+  ] });
+  expect(card.querySelector(".cb-shipments > p").textContent).toBe("MA2 · Delivered");
+  expect(card.querySelector(".cb-shipments > details").open).toBe(false);
+  expect(card.querySelectorAll(".cb-shipments > p")).toHaveLength(1);
+});

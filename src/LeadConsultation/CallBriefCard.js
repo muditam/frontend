@@ -32,6 +32,9 @@ export default function CallBriefCard({ brief, onLog, onRefresh }) {
   if (!brief) return null;
   const meta = DECISION_META[brief.decision] || DECISION_META.CALL_NOW;
   const showScript = brief.decision !== "DO_NOT_CALL" && brief.confidence !== "low";
+  const shipmentTime = shipment => Math.max(...[shipment.latestEventAt, shipment.sourceUpdatedAt]
+    .map(value => Date.parse(value) || 0));
+  const latestShipment = [...(brief.shipments || [])].sort((a, b) => shipmentTime(b) - shipmentTime(a))[0];
 
   const copyOpener = async () => {
     try {
@@ -98,8 +101,9 @@ export default function CallBriefCard({ brief, onLog, onRefresh }) {
         {brief.confidence === "low" && (
           <div className="cb-warn">Card not reliable{brief.gaps?.length ? `: ${brief.gaps.join(", ")}` : ""}. Check the lead history before calling.</div>
         )}
-        {brief.shipments?.length > 0 && <div className="cb-shipments">
-          <span className="cb-mini">Shipment updates · ShipTrack</span>
+        {latestShipment && <div className="cb-shipments">
+          <p>{latestShipment.orderId} · {latestShipment.status || "Tracking unavailable"}{latestShipment.stale ? " · May be stale" : ""}</p>
+          <details><summary>Shipment details and events</summary>
           {brief.shipments.map((shipment, index) => <div className="cb-fact" key={shipment.orderId || index}>
             <strong>{shipment.orderId} · {shipment.status || "Tracking unavailable"}</strong>
             <small>{shipment.trackingNumber}{shipment.latestEventAt ? ` · Latest event ${timeOf(shipment.latestEventAt)}` : " · Event time unavailable"}</small>
@@ -109,6 +113,7 @@ export default function CallBriefCard({ brief, onLog, onRefresh }) {
               {shipment.events.map((event, i) => <p key={i}>{event.status} · {timeOf(event.eventAt) || "Time unknown"}{event.location ? ` · ${event.location}` : ""}{event.remarks ? ` · ${event.remarks}` : ""}</p>)}
             </details>}
           </div>)}
+          </details>
         </div>}
       </section>
 
