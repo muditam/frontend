@@ -2,6 +2,10 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import axios from "axios";
 import "./RedcliffeBookingPage.css";
 import CreateOrderPopup from "./retention/CreateOrderPopup";
+import {
+  bookingRequestErrorMessage,
+  createBookingWithRecovery,
+} from "./redcliffeBookingCreate";
 
 const API_BASE = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/+$/, "");
 
@@ -643,14 +647,7 @@ export default function RedcliffeBookingPage() {
   };
 
   const applyRequestError = (err, fallbackMessage) => {
-    const payload = err?.response?.data || {};
-    setBookingError(
-      payload.message ||
-        payload.detail ||
-        payload.error ||
-        (err?.request ? `${fallbackMessage} The server response was not received.` : err?.message) ||
-        fallbackMessage
-    );
+    setBookingError(bookingRequestErrorMessage(err, fallbackMessage));
   };
 
   const isNonServiceableMessage = (message) =>
@@ -1144,16 +1141,7 @@ export default function RedcliffeBookingPage() {
         payload.center_discount = centerDiscountAmount;
       }
 
-      let response;
-      try {
-        response = await api.post("/api/redcliffe/bookings/create", payload);
-      } catch (firstError) {
-        // A booking may have been created even when the browser loses the
-        // response. Retry once only for response-less failures; the backend
-        // recovers the existing booking by Shopify order ID.
-        if (firstError?.response) throw firstError;
-        response = await api.post("/api/redcliffe/bookings/create", payload);
-      }
+      const response = await createBookingWithRecovery(api, payload);
       const { data } = response;
       setTemporaryBooking(data);
       setConfirmedBooking(null);
